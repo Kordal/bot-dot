@@ -28,29 +28,22 @@ before(() => {
 after(() => docker.remove());
 
 // Updates, then returns the shell script the updater container was started with.
-async function updaterScript(platform) {
-  const updates = require('../lib/updates').create({ busy: () => 0, inDocker: true, containerId: () => 'c'.repeat(64), platform, publicKey: key, remoteRelease: async () => release() });
+async function updaterScript() {
+  const updates = require('../lib/updates').create({ busy: () => 0, inDocker: true, containerId: () => 'c'.repeat(64), publicKey: key, remoteRelease: async () => release() });
   const before = docker.calls().length;
   await updates.apply();
   const run = await waitFor(() => docker.calls().slice(before).find((c) => c.args[0] === 'run'), { what: 'the updater to start' });
   return run.args[run.args.length - 1];
 }
 
-test('on a Mac, the update keeps the Mac compose file', async () => {
-  const script = await updaterScript('mac');
-  assert.match(script, /cp \/opt\/bot-dot\/compose\.mac\.yaml compose\.yaml\.new/);
-});
-
-test('on Linux, the update brings the Linux compose file, as before', async () => {
-  const script = await updaterScript(undefined);
+test('the update brings the compose file from the image', async () => {
+  const script = await updaterScript();
   assert.match(script, /cp \/opt\/bot-dot\/compose\.yaml compose\.yaml\.new/);
 });
 
-test('the updater leaves the port to the install\'s .env, on a Mac and on Linux', async () => {
-  for (const platform of ['mac', undefined]) {
-    const script = await updaterScript(platform);
-    assert.match(script, /^unset PORT && /);
-  }
+test('the updater leaves the port to the install\'s .env', async () => {
+  const script = await updaterScript();
+  assert.match(script, /^unset PORT && /);
 });
 
 test('unsigned or wrong-repository images are rejected before any pull', async () => {
@@ -113,10 +106,8 @@ test('with a locally built desktop, no desktop image is looked at', async (t) =>
   assert.deepEqual(removed(), [`${SERVER}@${sha('3')}`]);
 });
 
-test('on a Mac the cleanup does nothing', async () => {
+test('outside Docker the cleanup does nothing', async () => {
   const before = docker.calls().length;
-  const mac = require('../lib/updates').create({ busy: () => 0, inDocker: true, containerId: () => 'c'.repeat(64), platform: 'mac', publicKey: key });
-  assert.equal(await mac.clean(), null);
   const outside = require('../lib/updates').create({ busy: () => 0, inDocker: false });
   assert.equal(await outside.clean(), null);
   assert.deepEqual(docker.calls().slice(before), []);
@@ -173,9 +164,3 @@ test('a server from botdot\'s registry is no self-built one', async () => {
   assert.equal(u.howToUpdate, undefined);
 });
 
-test('the Mac app\'s local botdot server is never called self-built', async (t) => {
-  selfBuilt(t);
-  const mac = require('../lib/updates').create({ busy: () => 0, inDocker: true, containerId: () => 'c'.repeat(64), platform: 'mac', publicKey: key });
-  assert.equal((await mac.status()).selfBuilt, false);
-  assert.match((await mac.check()).error, /local image/);
-});

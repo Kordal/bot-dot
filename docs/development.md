@@ -87,5 +87,4 @@ lib/tools-worker.js  the installer itself, run as the tools user: micromamba wit
 lib/problems.js      a failed run, said in plain words (web and phone)
 public/              the UI (vanilla HTML/CSS/JS)
 vendor/novnc/        botdot's own copy of noVNC, the live-screen viewer
-macos/               the stopped Mac app (ADR 031): see macos/README.md
 ```

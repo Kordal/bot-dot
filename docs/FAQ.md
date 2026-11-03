@@ -59,7 +59,7 @@ On disk, plan about **15 GB per account**: botdot's image is about 4 GB and the 
 
 ### Can I run it on my Mac, Windows PC or a laptop?
 
-No. botdot installs on Linux only. The Mac app is paused and not maintained ([ADR 031](adr/031-the-mac-app-is-stopped-again.md)). From a Mac or a Windows PC, use the web page of a botdot running on a Linux machine. A VM works, as long as it runs Ubuntu 24.04 and stays on: bots run on schedules.
+No. botdot installs on Linux only. From a Mac or a Windows PC, use the web page of a botdot running on a Linux machine. A VM works, as long as it runs Ubuntu 24.04 and stays on: bots run on schedules.
 
 ### Do I need a domain name?
 
@@ -182,7 +182,7 @@ On a machine with several accounts, yes, once the admin turns **Shared rooms** o
 | **Web page** | Works in any modern browser, on a computer or a phone |
 | **Android** | A native app with notifications, **Reply** and **Approve** on them, sharing files to a bot, and the keypad on tablets and foldables ([botdot for Android](../android/README.md)) |
 | **iPhone and iPad** | No app: use the web page, and add it to the Home Screen |
-| **Mac** | The Mac app is paused: use the web page |
+| **Mac** | The web page |
 
 The look is dark, on the web and on Android.
 

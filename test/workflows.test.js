@@ -1,6 +1,6 @@
 // Every job runs on GitHub's own throwaway machines (#528): the repository is public, and a fork's pull request
 // can change a workflow, so a runner of the owner's would run anyone's code (audit S1). The image carries the
-// Android app and no Mac app (ADR 031).
+// Android app and no native Mac app (ADR 142).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
