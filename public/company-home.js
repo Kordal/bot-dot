@@ -203,8 +203,10 @@
     }).join('');
     return `<div class="cf-line"><i class="cf-line-fill" style="width:${((Math.min(c.day - 1, 90) / 90) * 100).toFixed(2)}%"></i>${marks}</div>`;
   }
+  // An ongoing project's check-in is its monthly review (#925).
+  const checkinTitle = (d) => (state.company?.ongoing ? tr('Monthly review') : tr('Day {n} check-in', { n: d }));
   function checkinHTML(k) {
-    return `<section class="cf-card cf-checkin"><div class="cf-card-head"><h2>${tr('Day {n} check-in', { n: k.day })}</h2>${byChief()}</div>
+    return `<section class="cf-card cf-checkin"><div class="cf-card-head"><h2>${checkinTitle(k.day)}</h2>${byChief()}</div>
       <div class="cf-rows">${k.objectives.map((o) => `<div class="cf-row" style="--c:${esc(o.color)}"><i class="cf-dot"></i><span class="cf-row-text">${esc(o.name)}</span><span class="cf-num">${esc(String(o.current))} / ${esc(String(o.target))}</span><span class="cf-pace${o.onTrack ? '' : ' behind'}">${o.onTrack ? tr('On track') : tr('Behind')}</span></div>`).join('')}</div>
       <div class="cf-actions"><button type="button" class="btn ghost" data-cf-checkin="stop">${tr('Stop')}</button><span class="grow"></span><button type="button" class="btn" data-cf-checkin="change">${tr('Change direction')}</button><button type="button" class="btn primary" data-cf-checkin="keep">${tr('Keep going')}</button></div>
     </section>`;
@@ -376,7 +378,7 @@
   // The owner's decisions (#694): the last few, newest first, with their reason and day; Add a decision under them.
   const DECISIONS_SHOWN = 5;
   function decisionText(d) {
-    if (d.by === 'checkin' && d.day && DECIDED[d.decision]) return `${tr('Day {n} check-in', { n: d.day })}: ${DECIDED[d.decision]()}`;
+    if (d.by === 'checkin' && d.day && DECIDED[d.decision]) return `${checkinTitle(d.day)}: ${DECIDED[d.decision]()}`;
     return d.text;
   }
   function decisionsHTML(c) {
@@ -423,7 +425,7 @@
       <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
       ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
-      ${days && c.checkin ? checkinHTML(c.checkin) : ''}
+      ${(days || c.ongoing) && c.checkin ? checkinHTML(c.checkin) : ''}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
       ${teamsHTML(c)}

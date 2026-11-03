@@ -355,7 +355,7 @@
       chipRow('goal', tr('Goal'), c.goal, () => chipsHTML('goal', s.goal, c.goal ? [c.goal] : [], { plus: true, waiting: waiting.goal })),
       chipRow('never', tr('Asks before'), c.never.join(' · '), () => chipsHTML('never', s.never, c.never, { plus: true, waiting: waiting.never })),
       ...(idea ? [chipRow('time', tr('Time'), c.time, () => chipsHTML('time', s.time, c.time ? [c.time] : [], { plus: true, waiting: waiting.time }))] : []),
-      chipRow('delivery', tr('Delivery'), deliveryText(c), () => deliveryHTML(c)),
+      ...(c.ongoing ? [] : [chipRow('delivery', tr('Delivery'), deliveryText(c), () => deliveryHTML(c))]),
     ];
     body.innerHTML = `<div class="co-review">${withSwot ? swotHTML(c) : ''}<div class="co-list">${rows.join('')}</div></div>${foot(idea ? backBtn() : '', `<button type="button" class="co-go" data-build>${tr('Build my team')} ${ICON.go}</button>`)}`;
     const done = () => { ui.editing = null; };

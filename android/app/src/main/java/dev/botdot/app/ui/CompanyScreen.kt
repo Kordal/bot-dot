@@ -279,7 +279,7 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
 // ---------- the start screen ----------
 
 /**
- * The start screen (#800, #856): "You know where. We'll work out how." over one field for the site or the idea, a clip inside it that adds files
+ * The start screen (#800, #856, #925): "What shall we take on?" over one field for the site or the idea, a clip inside it that adds files
  * and links, shown as chips under it, and Start from scratch (#788) right under them (#849). [titled] false: the
  * project names over it stand in its place. Start from scratch asks the project's name first (#857), so its
  * folder is made from that name; Back returns to the field with what was typed there.
@@ -314,7 +314,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
         Spacer(Modifier.weight(1f))
         Column(Modifier.widthIn(max = Space.answer), verticalArrangement = Arrangement.spacedBy(Space.s24)) {
             if (titled && naming) Text(tr("New project"), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold)
-            else if (titled) Text(tr("You know where. We'll work out how."), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold, style = TextStyle(lineBreak = LineBreak.Heading))
+            else if (titled) Text(tr("What shall we take on?"), color = p.text, fontSize = Type.s32, lineHeight = Type.line40, fontWeight = FontWeight.SemiBold, style = TextStyle(lineBreak = LineBreak.Heading))
             if (naming) {
                 val requester = remember { FocusRequester() }
                 LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
@@ -329,7 +329,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WordsButton(tr("Back"), enabled = !ui.going) { naming = false } }
             } else {
                 Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
-                    placeholder = { Text(tr("Goal, site or idea"), color = p.faint) },
+                    placeholder = { Text(tr("Goal, matter or site"), color = p.faint) },
                     leadingIcon = {
                         Box {
                             IconButton({ attaching = true }) { Icon(Icons.Outlined.AttachFile, tr("Attach"), tint = p.muted) }
@@ -344,7 +344,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
                         else IconButton(::go, enabled = what.isNotBlank()) { Icon(Icons.AutoMirrored.Filled.ArrowForward, tr("Go"), tint = if (what.isNotBlank()) p.text else p.faint) }
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { go() }),
-                    modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Goal, site or idea")))
+                    modifier = Modifier.fillMaxWidth().semanticsLabel(tr("Goal, matter or site")))
                 if (linking) AskField(link, { link = it.take(1000) }, label = tr("Add a link"), placeholder = "https://", button = tr("Add"), focus = true) {
                     CompanySetup.link(newId(), link)?.let { if (ui.sources.size < CompanySetup.MAX_SOURCES) ui.sources.add(it) else ui.tell(tr("Add at most 20 sources.")) }
                     link = ""; linking = false
