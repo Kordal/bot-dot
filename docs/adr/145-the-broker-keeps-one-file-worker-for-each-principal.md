@@ -9,7 +9,9 @@ The broker does a bot's or the Chief's file operations as that principal, so tha
 
 ## Decision
 
-The broker keeps one file worker for each principal, started as that principal at its first `files` or `privateFile` request (`principal-fs-worker.js serve`). It reads one request per line on stdin and writes its answer per line on stdout, the same `{ value }` or `{ error }` the one-shot worker printed. The broker sends it one request at a time, in order, and ends it after a minute without one (`BOT_DOT_FILE_WORKER_KEEP_MS`), when the broker stops, or when its answer is over the size limit. A worker that dies fails what it had and the next request starts a new one. The broker's sweep of what a principal left behind spares these workers. Streams (`fileStream`) keep a worker of their own per stream, as before.
+The broker keeps one file worker for each principal, started as that principal at its first `files` or `privateFile` request (`principal-fs-worker.js serve`). It reads one request per line on stdin and writes its answer per line on stdout, the same `{ value }` or `{ error }` the one-shot worker printed. The broker sends it one request at a time, in order, and ends it after 15 minutes without one (`BOT_DOT_FILE_WORKER_KEEP_MS`), when the broker stops, or when its answer is over the size limit. A worker that dies fails what it had and the next request starts a new one. The broker's sweep of what a principal left behind spares these workers. Streams (`fileStream`) keep a worker of their own per stream, as before.
+
+On hq after this change (2026-11-03) a broker call took about 13 ms and `/api/pages` 0.26 s instead of 4.35 s. The first call to each principal still costs a worker start (200-400 ms), so the first keep time of one minute was raised to 15 the same day: with one, the first look after a short pause paid that for every bot again (about 1.5 s for `/api/pages`). An idle worker holds its node process's memory, tens of MB, for that time.
 
 ## Alternatives
 
@@ -20,5 +22,5 @@ The broker keeps one file worker for each principal, started as that principal a
 ## Consequences
 
 - A broker file call costs a pipe round trip plus the operation, instead of a node start.
-- A principal's worker lives up to a minute after its last request, as that principal. A process of the same principal can signal it or, where the kernel lets a user trace its own processes, tamper with it; what that reaches is that principal's own files and the server's view of them, which that principal can already change directly. A killed worker costs one failed request.
+- A principal's worker lives up to 15 minutes after its last request, as that principal. A process of the same principal can signal it or, where the kernel lets a user trace its own processes, tamper with it; what that reaches is that principal's own files and the server's view of them, which that principal can already change directly. A killed worker costs one failed request.
 - One principal's requests wait for each other; a long one (a search, a copy of a large folder) holds the next. The server waited on each call synchronously already, so nothing that was parallel becomes serial.
