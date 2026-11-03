@@ -132,7 +132,7 @@ test('no job a pull request starts holds a secret or the release environment', (
   }
   assert.deepEqual(found, []);
   // Signing and publishing are in jobs that only a nightly run or a run by hand starts.
-  for (const [name, job] of [['images.yml', 'publish'], ['android.yml', 'build']]) {
+  for (const [name, job] of [['images.yml', 'publish'], ['android.yml', 'build'], ['android.yml', 'publish']]) {
     assert.equal(workflows[name].jobs[job].environment, 'release', `${name} ${job}`);
     assert.deepEqual(triggersOf(workflows, name).map((t) => t.event).sort(), ['schedule', 'workflow_dispatch'], name);
   }
@@ -171,17 +171,31 @@ test('a nightly run that has nothing new does nothing; a run by hand always does
   assert.match(images, /startswith\(\\"android-v\\"\)\) \| select\(\.createdAt > /, 'or a newer Android release');
 });
 
-test('the image build tests the commit it builds first; a failure publishes nothing', () => {
+// The tests and the builds run side by side (a build pushes only its own platform tags, which nothing installs);
+// what is signed and published waits for both.
+test('the image build tests the commit it builds; a failure publishes nothing', () => {
   const jobs = workflow('images.yml').jobs;
   assert.equal(jobs.test.uses, './.github/workflows/tests.yml');
   assert.deepEqual(jobs.test.with, { android: false });
-  assert.ok([].concat(jobs.build.needs).includes('test'));
-  assert.equal(jobs.evidence.needs, 'build');
+  assert.ok(![].concat(jobs.build.needs).includes('test'), 'the build does not wait for the tests');
+  assert.deepEqual([].concat(jobs.evidence.needs).sort(), ['build', 'test']);
   assert.equal(jobs.publish.needs, 'evidence');
+  assert.doesNotMatch(jobs.evidence.if, /always\(\)|failure\(\)|cancelled\(\)/, 'a failed test stops the evidence');
+  const tags = jobs.build.steps.find((st) => st.id === 'build').with.tags;
+  assert.equal(tags, '${{ env.IMAGE }}:sha-${{ github.sha }}-${{ matrix.arch }}', 'the build pushes only its platform tag');
+});
+
+test('the Android release tests the commit it builds; a failure publishes nothing', () => {
+  const jobs = workflow('android.yml').jobs;
+  assert.deepEqual(jobs.test.with, { server: false });
+  assert.ok(![].concat(jobs.build.needs).includes('test'), 'the build does not wait for the tests');
+  assert.deepEqual([].concat(jobs.publish.needs).sort(), ['build', 'test']);
+  assert.equal(jobs.publish.if, undefined, 'a failed test stops the release');
+  assert.ok(!jobs.build.steps.some((st) => /gh release/.test(st.run || '')), 'only the publish job releases');
 });
 
 test('a nightly Android release starts no image build of its own; a run by hand starts one', () => {
-  const step = workflow('android.yml').jobs.build.steps.find((st) => /gh workflow run images\.yml/.test(st.run || ''));
+  const step = workflow('android.yml').jobs.publish.steps.find((st) => /gh workflow run images\.yml/.test(st.run || ''));
   assert.equal(step.if, "github.event_name == 'workflow_dispatch'");
 });
 
@@ -221,7 +235,7 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.ok(fixture >= 0 && fixture < steps.indexOf(scan), 'the scanner is shown to catch a deleted lower layer first');
   const findings = steps.find((st) => /node deploy\/layer-secrets\.js security-artifacts\/secrets\.json/.test(st.run || ''));
   assert.match(findings.if, /always\(\)/, 'the log names the layer and file when the scan fails');
-  assert.equal(jobs.evidence.needs, 'build');
+  assert.ok([].concat(jobs.evidence.needs).includes('build'));
 });
 
 // A Mac runs only the desktop app's builds (ADR 137), never the stopped native Mac app.
