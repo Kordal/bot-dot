@@ -21,6 +21,10 @@
   const wasBuilding = new Set();
   const fresh = new Set();
   const FRESH_MS = 4000;
+  // Cards the owner closed (X on the questions) or removed, until the server answers: gone from the row at once, a
+  // closed Change back as the card it was. A refusal puts them back.
+  const closing = new Set();
+  const removing = new Set();
 
   const on = () => (state.features || []).includes('project-cards');
   const tone = (t) => (t === 'ok' || t === 'bad' || t === 'muted' ? ` ${t}` : '');
@@ -115,7 +119,8 @@
     }
     if (menu && !cards.some((k) => k.id === menu)) menu = null;
     if (open && open !== 'new' && !cards.some((k) => k.id === open)) open = null;
-    const items = cards.map((k) => (open === k.id ? askHTML(k.title || k.ask, k.id) : k.state === 'asking' ? questionsHTML(k) : cardHTML(k)));
+    const items = cards.filter((k) => !removing.has(k.id) && !(closing.has(k.id) && k.state === 'asking' && !k.changing))
+      .map((k) => (open === k.id ? askHTML(k.title || k.ask, k.id) : closing.has(k.id) && k.state === 'asking' ? cardHTML({ ...k, state: 'ready' }) : k.state === 'asking' ? questionsHTML(k) : cardHTML(k)));
     const full = cards.length >= 12;
     const tail = open === 'new' ? askHTML('') + picksHTML(c) : full ? '' : `<button type="button" class="pc-new" data-pc-new>${ICON.plus}${tr('New card')}</button>`;
     return `<div class="pc-row">${items.join('')}${tail}</div>`;
@@ -127,6 +132,12 @@
   }
   const at = (cid, tail = '') => `/company/cards/${encodeURIComponent(cid)}${tail}`;
   function close() { open = null; Company.redraw(); }
+  // Off the row now, sent after: the server's answer, or its refusal, draws the row again.
+  function leave(set, cid, path, method) {
+    set.add(cid);
+    Company.redraw();
+    send(path, method, {}).finally(() => { set.delete(cid); Company.redraw(); });
+  }
 
   function wire(root) {
     if (!$('.pc-row', root)) return;
@@ -162,12 +173,12 @@
       other.other.value = '';
       answer(other.closest('[data-pc-asking]').dataset.pcAsking, text);
     };
-    $$('[data-pc-cancel]', root).forEach((b) => (b.onclick = () => send(at(b.dataset.pcCancel, '/cancel'), 'POST', {})));
+    $$('[data-pc-cancel]', root).forEach((b) => (b.onclick = () => leave(closing, b.dataset.pcCancel, at(b.dataset.pcCancel, '/cancel'), 'POST')));
     $$('[data-pc-menu]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = menu === b.dataset.pcMenu ? null : b.dataset.pcMenu; Company.redraw(); }));
     $$('[data-pc-refresh]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; b.disabled = true; send(at(b.dataset.pcRefresh, '/refresh'), 'POST', {}); }));
     $$('[data-pc-change]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; open = b.dataset.pcChange; Company.redraw(); const input = $('#pc-ask input'); if (input) { input.focus(); input.select(); } }));
     $$('[data-pc-login]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); Company.openSettings('logins'); }));
-    $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; send(at(b.dataset.pcRemove), 'DELETE'); }));
+    $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; leave(removing, b.dataset.pcRemove, at(b.dataset.pcRemove), 'DELETE'); }));
     if (menu) document.addEventListener('click', () => { if (menu) { menu = null; Company.redraw(); } }, { once: true });
   }
 

@@ -105,6 +105,16 @@ class ProjectCardsTest {
         assertEquals(ProjectCards.Slot.New, changing.last())
     }
 
+    @Test fun aClosedOrRemovedCardLeavesTheRowBeforeTheServerAnswers() {
+        val c = CompanySetup.of(project)
+        val asking = c.cards.first { it.asking }
+        assertFalse("a new card closed goes at once", ProjectCards.slots(c.cards, null, closing = setOf(asking.id)).any { it is ProjectCards.Slot.Questions })
+        val changed = c.cards.map { if (it.id == asking.id) it.copy(changing = true, body = CardBody(value = "7")) else it }
+        val back = ProjectCards.slots(changed, null, closing = setOf(asking.id))[2]
+        assertEquals("a closed Change is the card it was", ProjectCards.Slot.Card(changed[2].copy(state = "ready")), back)
+        assertEquals(c.cards.size - 1, ProjectCards.slots(c.cards, null, removing = setOf("k1")).count { it !is ProjectCards.Slot.New })
+    }
+
     @Test fun twelveCardsHaveNoNewCard() {
         val twelve = (1..12).map { ProjectCard(id = "k$it", ask = "a", state = "ready", body = CardBody(value = "1")) }
         assertFalse(ProjectCards.slots(twelve, null).contains(ProjectCards.Slot.New))

@@ -85,11 +85,16 @@ object ProjectCards {
         data object New : Slot { override val wide get() = false }
     }
 
-    /** The row's slots in order: [open] is "new", a card's id (its Change) or null. New card goes once there are 12. */
-    fun slots(cards: List<ProjectCard>, open: String?): List<Slot> {
-        val shown = cards.take(MAX).map { k ->
+    /**
+     * The row's slots in order: [open] is "new", a card's id (its Change) or null. New card goes once there are 12.
+     * Cards the owner closed ([closing], X on the questions) or removed ([removing]) leave the row at once, before the
+     * server answers: a closed Change is the card it was again, a new card that is closed goes.
+     */
+    fun slots(cards: List<ProjectCard>, open: String?, closing: Set<String> = emptySet(), removing: Set<String> = emptySet()): List<Slot> {
+        val shown = cards.take(MAX).filter { k -> k.id !in removing && !(k.id in closing && k.asking && !k.changing) }.map { k ->
             when {
                 open == k.id -> Slot.Ask(k)
+                k.asking && k.id in closing -> Slot.Card(k.copy(state = "ready"))
                 k.asking -> Slot.Questions(k)
                 else -> Slot.Card(k)
             }
