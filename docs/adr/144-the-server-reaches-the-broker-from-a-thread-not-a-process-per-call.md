@@ -22,5 +22,5 @@ On hq, inside gVisor, that node start costs 350-500 ms, whatever the call does. 
 ## Consequences
 
 - A broker call costs a socket round trip plus the broker's own work, instead of a node start plus that.
-- The broker still starts a file worker as the principal for each `files` call, which is a node start of its own under gVisor; whether that is the next thing to remove is measured with the `[held]` log after this change.
+- The broker still started a file worker as the principal for each `files` call, a node start of its own under gVisor (about 230 ms on hq); [ADR 145](145-the-broker-keeps-one-file-worker-for-each-principal.md) keeps one per principal instead.
 - One more thread in the server, idle between calls and not keeping the process alive.
