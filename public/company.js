@@ -359,10 +359,12 @@ const Company = (() => {
   // every one. `pieceLabel` is the name a pick and the settings give it.
   // The teams are no piece on the web since #838: each team is a row of keys under the board, always (ADR 132).
   const PIECES = ['days', 'goals', 'calendar', 'todo'];
-  const onBoard = (c, k) => !Array.isArray(c?.board) || c.board.includes(k);
+  // An ongoing project (#925) has no 90 days, so no "90 days" piece.
+  const piecesOf = (c) => (c?.ongoing ? PIECES.filter((k) => k !== 'days') : PIECES);
+  const onBoard = (c, k) => !(c?.ongoing && k === 'days') && (!Array.isArray(c?.board) || c.board.includes(k));
   const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do') })[k];
   // The pieces the owner can add: the ones not on it, from a server that has them.
-  const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? PIECES.filter((k) => !c.board.includes(k)) : []);
+  const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? piecesOf(c).filter((k) => !c.board.includes(k)) : []);
   const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
   function wirePick(root) {
     $$('[data-space-pick]', root).forEach((b) => (b.onclick = () => openSpaces(b)));
@@ -515,8 +517,8 @@ const Company = (() => {
     if (naming) return drawNaming(root);
     const typed = $('#co-what', root)?.value || '';
     root.innerHTML = `<div class="co-start co-new">
-      <h1>${tr("You know where. We'll work out how.")}</h1>
-      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Goal, site or idea')}" aria-label="${tr('Goal, site or idea')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
+      <h1>${tr('What shall we take on?')}</h1>
+      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Goal, matter or site')}" aria-label="${tr('Goal, matter or site')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
       <div id="co-sources">${sourcesHTML(draft.sources, true)}</div>
       ${(state.features || []).includes('project-empty') ? `<button type="button" class="co-text-btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
     </div>`;
@@ -684,5 +686,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
 })();

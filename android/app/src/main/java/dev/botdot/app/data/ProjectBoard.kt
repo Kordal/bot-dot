@@ -9,15 +9,18 @@ object ProjectBoard {
     const val FEATURE = "project-board"
     val PIECES = listOf("days", "goals", "teams", "calendar", "todo")
 
+    /** The pieces [c] can have: an ongoing project (#925) has no 90 days, so no "days". */
+    fun piecesOf(c: Company): List<String> = if (c.ongoing) PIECES - "days" else PIECES
+
     /** Whether piece [k] is on the board of [c]. */
-    fun shows(c: Company, k: String): Boolean = c.board?.contains(k) ?: true
+    fun shows(c: Company, k: String): Boolean = k in piecesOf(c) && (c.board?.contains(k) ?: true)
 
     /** The pieces the owner can add: those not on it, from a botdot that has them. */
-    fun missing(features: List<String>, c: Company): List<String> = c.board?.takeIf { FEATURE in features }?.let { on -> PIECES.filter { it !in on } }.orEmpty()
+    fun missing(features: List<String>, c: Company): List<String> = c.board?.takeIf { FEATURE in features }?.let { on -> piecesOf(c).filter { it !in on } }.orEmpty()
 
     /** The board with [k] added at its end, or taken off; a project made before starts from every piece. */
     fun toggled(c: Company, k: String): List<String> {
-        val now = c.board ?: PIECES
+        val now = c.board ?: piecesOf(c)
         return if (k in now) now - k else now + k
     }
 

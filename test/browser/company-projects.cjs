@@ -52,7 +52,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     // "+": a new project, after the others.
     await page.locator('#rail [data-rail-new]').click(); // "+": New bot or New project (#853)
     await page.locator('.ct-menu [data-new-project]').click();
-    await page.locator('#view-company .co-new h1', { hasText: "You know where. We'll work out how." }).waitFor();
+    await page.locator('#view-company .co-new h1', { hasText: "What shall we take on?" }).waitFor();
     await page.locator('#co-what').fill('A tool for dog walkers');
     await page.locator('#co-ask .co-go').click();
     await page.locator('.co-steps li.on', { hasText: 'About' }).waitFor();
@@ -95,7 +95,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
     await page.locator('.cf-top [data-space-pick]').click();
     await page.locator('#spaces-sheet [data-space=""]').click();
-    await page.locator('#view-company .co-new h1', { hasText: "You know where. We'll work out how." }).waitFor();
+    await page.locator('#view-company .co-new h1', { hasText: "What shall we take on?" }).waitFor();
     await page.locator('#view-company [data-start-empty]').waitFor();
     if (shots) await page.screenshot({ path: path.join(shots, 'phone-new.png') });
     assert.deepEqual(errors, []);
