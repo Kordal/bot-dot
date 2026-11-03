@@ -64,18 +64,8 @@ object Spaces {
 
     // ---------- each bot in one space (#841) ----------
 
-    /** The bots in a team of one of [projects]: they are drawn in that project, not on Home. */
+    /** The bots in a team of one of [projects]. */
     fun teamBots(projects: List<Company>): Set<String> = projects.flatMap { c -> c.teams.flatMap { it.bots } }.toSet()
-
-    /** Home's bots: all but those in a project's team, unless Home's filter is on [all]. One that leaves its team is back in its own category. */
-    fun homeBots(bots: List<Bot>, projects: List<Company>, all: Boolean = false): List<Bot> = if (all) bots else teamBots(projects).let { t -> bots.filter { it.id !in t } }
-
-    /** Home's groups: all but the team chats of [projects]' teams, unless Home's filter is on [all]. */
-    fun homeGroups(groups: List<Group>, projects: List<Company>, all: Boolean = false): List<Group> {
-        if (all) return groups
-        val teams = projects.flatMap { c -> c.teams.map { it.id } }.toSet()
-        return groups.filter { it.team == null || it.team !in teams }
-    }
 
     /** The project each team bot is in, as the rail draws it: Home's Needs you marks a project's ask with its square. */
     fun spaceOfBot(projects: List<Company>): Map<String, Space> = buildMap {

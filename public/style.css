@@ -1753,11 +1753,6 @@ details.bs-row { display: block; }
    small plain name over its keys (#635). More than fit scroll. */
 .kp-keys { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-24); }
 .kp-page-keys { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
-/* Home's filter: All or No project, two words in one small pill over the keys. */
-.kp-filter { display: inline-flex; gap: var(--sp-4); margin: 0 0 var(--sp-12) var(--sp-8); padding: var(--sp-4); border-radius: var(--r-pill); background: var(--sunk); }
-.kp-filter button { border: 0; background: transparent; padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); color: var(--muted); font: inherit; font-size: var(--fs-12); cursor: pointer; }
-.kp-filter button:hover { color: var(--text); }
-.kp-filter button[aria-checked="true"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line-2); }
 .kp-cats { display: flex; flex-wrap: wrap; gap: var(--sp-8) var(--sp-32); margin-top: var(--sp-16); }
 .kp-page-head { margin: 0 0 var(--sp-8) var(--sp-8); font: inherit; font-size: var(--fs-12); color: var(--muted); }
 /* A key: its head with the dot of its state, its name, and while it works what it says it does. The open one sits in a

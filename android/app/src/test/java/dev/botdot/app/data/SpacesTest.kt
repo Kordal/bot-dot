@@ -67,29 +67,6 @@ class SpacesTest {
         assertEquals(Spaces.CHIEF, Spaces.defaultChat(null, listOf(chat), features)) // Home
     }
 
-    // ---------- each bot in one space (#841) ----------
-
-    @Test fun teamBotsAndTheirChatsLeaveHome() {
-        val chat = Group(id = "g7", name = "Growth", team = "t1")
-        val mine = Group(id = "g1", name = "Kitchen")
-        assertEquals(listOf("home"), Spaces.homeBots(bots, listOf(shop, gym)).map { it.id })
-        assertEquals(listOf("g1"), Spaces.homeGroups(listOf(chat, mine), listOf(shop, gym)).map { it.id })
-        // Without projects, everything is Home's, as before.
-        assertEquals(bots, Spaces.homeBots(bots, emptyList()))
-        assertEquals(listOf("g7", "g1"), Spaces.homeGroups(listOf(chat, mine), emptyList()).map { it.id })
-    }
-
-    @Test fun homesFilterOnAllKeepsTeamBotsAndChats() {
-        val chat = Group(id = "g7", name = "Growth", team = "t1")
-        assertEquals(bots, Spaces.homeBots(bots, listOf(shop, gym), all = true))
-        assertEquals(listOf("g7"), Spaces.homeGroups(listOf(chat), listOf(shop, gym), all = true).map { it.id })
-    }
-
-    @Test fun aBotThatLeavesItsTeamIsBackOnHome() {
-        val left = shop.copy(teams = listOf(growth.copy(bots = listOf("b2"))))
-        assertEquals(listOf("b1", "home"), Spaces.homeBots(bots, listOf(left)).map { it.id })
-    }
-
     @Test fun homesNeedsYouListsAllAndAProjectOnlyItsOwn() {
         val waiting = listOf(Waiting("#fff", "Allow?", bot = "b2"), Waiting("#fff", "Allow?", bot = "home"), Waiting(null, "Chief's"))
         assertEquals(listOf("b2"), Spaces.needsIn(shop, waiting).map { it.bot })
