@@ -216,21 +216,95 @@ test('admin page: the state is no uppercase pill, and the meters are in tabular 
   assert.match(rule('td.meter'), /tabular-nums/);
 });
 
-test('admin page: the rail has the groups Accounts, Usage, Sign-ups, Feedback and Settings, every section is in one, and no note or subtitle is left', () => {
+test('admin page: the rail has the groups Accounts, Usage, Sign-ups, Feedback, Audit log and Settings, every section is in one, and no note or subtitle is left', () => {
   const html = pages.admin();
   const nav = html.slice(html.indexOf('<nav'), html.indexOf('</nav>'));
   const top = nav.slice(0, nav.indexOf('<div class="subnav">'));
-  assert.deepEqual([...top.matchAll(/<\/svg>([^<]+)/g)].map((m) => m[1]), ['Accounts', 'Usage', 'Sign-ups', 'Feedback', 'Settings']);
+  assert.deepEqual([...top.matchAll(/<\/svg>([^<]+)/g)].map((m) => m[1]), ['Accounts', 'Usage', 'Sign-ups', 'Feedback', 'Audit log', 'Settings']);
   const main = html.slice(html.indexOf('<main>'), html.indexOf('</main>'));
   const groups = main.split('<div class="group"').slice(1);
-  assert.equal(groups.length, 5);
+  assert.equal(groups.length, 6);
   const sections = (g) => [...g.matchAll(/<section id="([^"]+)">/g)].map((m) => m[1]);
-  assert.deepEqual(groups.map(sections), [['accounts'], ['usage'], ['sign-up-links'], ['feedback'], ['machine', 'update-section', 'rooms', 'group-router', 'replays', 'boat']]);
-  assert.match(groups[4], /^ id="settings">/);
+  assert.deepEqual(groups.map(sections), [['accounts'], ['usage'], ['sign-up-links'], ['feedback'], ['audit'], ['machine', 'update-section', 'rooms', 'group-router', 'replays', 'boat']]);
+  assert.match(groups[5], /^ id="settings">/);
   // Every section is reachable from the rail: a group's own link, or Settings' links to each of its sections.
   for (const id of groups.flatMap(sections)) assert.ok(nav.includes(`href="#${id}"`), id);
   assert.doesNotMatch(html, /class="(note|sub)"|class="note |\.note \{|\.sub \{/);
   assert.doesNotMatch(pages.ADMIN_SCRIPT, /'note'|'note |\bnote'/);
   assert.match(html, /<h1 class="brand">/);
   assert.equal((html.match(/<h1/g) || []).length, 1);
+});
+
+// The audit log's half of the script (#911): its list, its two filters and Older, with fetch answering from `log`.
+async function auditPage(log) {
+  const d = dom();
+  const calls = [];
+  const fetch = async (path) => {
+    calls.push(path);
+    const q = new URL(path, 'http://x').searchParams;
+    let entries = log.filter((e) => (!q.get('account') || e.account === q.get('account')) && (!q.get('action') || e.action === q.get('action')) && (!q.get('before') || e.at < q.get('before')));
+    const more = entries.length > 2;
+    entries = entries.slice(0, 2);
+    return { ok: true, json: async () => ({ entries, more, accounts: ['bob', 'cat'], actions: ['account-made', 'suspend', 'slowed-down'] }) };
+  };
+  const src = pages.ADMIN_SCRIPT;
+  const helpers = src.slice(src.indexOf('  const said'), src.indexOf('  // ---------- shares and load'));
+  const part = src.slice(src.indexOf('  // ---------- the audit log'), src.indexOf('  // Shared rooms (ADR 060)'));
+  const ctx = vm.createContext({ document: d.document, fetch, URL, URLSearchParams, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, confirm: () => true });
+  vm.runInContext(`${helpers}\n${part}\n Object.assign(this, { showAudit });`, ctx);
+  await ctx.showAudit(false);
+  const byId = (id) => d.document.getElementById(id);
+  const lines = () => byId('audit-list').children.map((li) => li.textContent);
+  const tick = () => new Promise((r) => setImmediate(r));
+  return { ...d, byId, calls, lines, tick };
+}
+
+const LOG = [
+  { at: '2026-11-03T10:03:00.000Z', actor: 'ann', action: 'suspend', account: 'bob' },
+  { at: '2026-11-03T10:02:00.000Z', actor: 'front-door', action: 'slowed-down', detail: '203.0.113.9 · after failed sign-ins' },
+  { at: '2026-11-03T10:01:00.000Z', actor: 'front-door', action: 'account-made', account: 'bob', detail: 'from a sign-up link' },
+];
+
+test('admin page: the audit log lists entries newest first, in words, and Older shows the ones before', async () => {
+  const { byId, calls, lines, fire, tick } = await auditPage(LOG);
+  assert.equal(lines().length, 2);
+  assert.match(lines()[0], /^Suspended · bob/);
+  assert.match(lines()[0], /ann · /);
+  assert.match(lines()[1], /^Slowed down203\.0\.113\.9 · after failed sign-ins · botdot · /, "the front door's own entries are botdot's");
+  assert.equal(byId('audit-more').hidden, false);
+  fire(byId('audit-more'), 'click');
+  await tick(); await tick();
+  assert.equal(calls.at(-1), '/admin/audit?before=2026-11-03T10%3A02%3A00.000Z');
+  assert.equal(lines().length, 3);
+  assert.match(lines()[2], /^Account made · bob/);
+  assert.equal(byId('audit-more').hidden, true);
+});
+
+test('admin page: the audit log filters by account and by action, both together', async () => {
+  const { byId, calls, lines, fire, tick } = await auditPage(LOG);
+  const accounts = byId('audit-account').children.slice(1).map((o) => o.value);
+  assert.deepEqual(accounts, ['bob', 'cat']);
+  assert.deepEqual(byId('audit-action').children.slice(1).map((o) => o.textContent), ['Account made', 'Suspended', 'Slowed down']);
+  byId('audit-account').value = 'bob';
+  fire(byId('audit-account'), 'change');
+  await tick(); await tick();
+  assert.equal(calls.at(-1), '/admin/audit?account=bob');
+  assert.equal(lines().length, 2);
+  byId('audit-action').value = 'account-made';
+  fire(byId('audit-action'), 'change');
+  await tick(); await tick();
+  assert.equal(calls.at(-1), '/admin/audit?account=bob&action=account-made');
+  assert.equal(lines().length, 1);
+  assert.equal(byId('audit-account').value, 'bob', 'what is picked stays');
+  byId('audit-account').value = 'cat';
+  fire(byId('audit-account'), 'change');
+  await tick(); await tick();
+  assert.deepEqual(lines(), ['Nothing here yet.']);
+});
+
+test('admin page: the audit log has a rail link and its filters wrap at phone width', () => {
+  const html = pages.admin();
+  assert.match(html, /<a href="#audit">.*Audit log<\/a>/);
+  assert.match(html, /<section id="audit"><h2>Audit log<\/h2>\n<div class="find">/);
+  assert.match(html, /\.find \{ display: flex; gap: var\(--sp-12\); flex-wrap: wrap; \}/);
 });

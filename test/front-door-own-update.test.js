@@ -170,6 +170,8 @@ test('the admin page lists what waits on each account, and its "Update now" asks
   const now = await a.post('/admin/accounts/bob/update', {});
   assert.equal(now.status, 202, now.text);
   assert.deepEqual(asked(), ['SWITCH-bob']);
+  const entry = (await a.get('/admin/audit?action=update-now')).data.entries[0];
+  assert.deepEqual([entry.actor, entry.action, entry.account], ['ann', 'update-now', 'bob'], 'kept in the audit log (#911)');
   assert.equal((await a.post('/admin/accounts/ann/update', {})).status, 409, "the admin's own waits for nothing");
   assert.equal((await (await bob()).post('/admin/accounts/bob/update', {})).status, 404, 'only the admin');
   const page = (await a.get('/front-door/admin.js')).text;
