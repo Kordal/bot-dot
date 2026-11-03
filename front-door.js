@@ -52,6 +52,7 @@ const pages = require('./lib/front-door/pages');
 const calls = require('./lib/front-door/calls');
 const loadFiles = require('./lib/front-door/load');
 const capacity = require('./lib/front-door/capacity');
+const blockRules = require('./lib/front-door/blocks');
 const whatsNew = require('./lib/whats-new');
 const roomStore = require('./lib/front-door/rooms');
 const roomTurns = require('./lib/front-door/room-turns');
@@ -520,6 +521,13 @@ function signUpLink(token) {
   return opens ? { for: ONE_ACCOUNT } : null;
 }
 
+// A passkey that is right, from an address an access block stops: no session (#913). The admin's account is never
+// stopped, so that the admin is never shut out of the admin page.
+function refusedSignIn(req, res, account) {
+  refusalAudited('blocked', clientOf(req), 'no access', account);
+  return send(res, 403, { error: BLOCKED, refused: true });
+}
+
 async function signInRoutes(req, res, p) {
   // Until the first account is made, nobody can sign in, and only the install's link makes it.
   if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn() : pages.notYet());
@@ -545,6 +553,7 @@ async function signInRoutes(req, res, p) {
     }
     tries.succeeded(clientOf(req));
     doors.counted(credential.id, count);
+    if (key.account !== ADMIN && shutOut(clientOf(req))) return refusedSignIn(req, res, key.account);
     return signedIn(req, res, 200, key.account, app, handoff);
   }
   // A native app, back from the browser with the code and the secret it kept: its own session.
@@ -557,6 +566,7 @@ async function signInRoutes(req, res, p) {
       return send(res, 401, { error: "That sign-in didn't come from this app. Sign in again." });
     }
     tries.succeeded(clientOf(req));
+    if (waiting.account !== ADMIN && shutOut(clientOf(req))) return refusedSignIn(req, res, waiting.account);
     return send(res, 200, { ok: true, account: waiting.account }, { 'Set-Cookie': sessionCookie(doors.newSession(waiting.account, waiting.app)) });
   }
   if (p === '/sign-out' && req.method === 'POST') {
@@ -637,6 +647,7 @@ async function signInRoutes(req, res, p) {
   const signIn = !!link.signIn;
   // A full machine makes no account (#912): the link stays open for later, and the admin's install link always works.
   if (!signIn && !ONE_ACCOUNT && link.for !== ADMIN) {
+    if (signUpRefused(req, res, link)) return;
     const c = capacityNow();
     if (c.full) return refusedFull(req, res, token, link, c);
   }
@@ -676,6 +687,7 @@ async function signInRoutes(req, res, p) {
     audited('passkey-added', { actor: 'front-door', account: name, detail: "from the admin's sign-in link" });
     return signedIn(req, res, 201, name, body.app, handoff);
   }
+  if (!ONE_ACCOUNT && name !== ADMIN && !blockRules.local(clientOf(req))) doors.countSignUp(blockRules.limitKey(clientOf(req)));
   console.log(`[front door] account ${name} was made ${ONE_ACCOUNT ? 'with the setup key' : 'from a sign-up link'}`);
   audited('account-made', { actor: 'front-door', account: name, detail: 'from a sign-up link' });
   askForAccount(name);
@@ -706,6 +718,59 @@ function refusedFull(req, res, token, link, c) {
   req.resume();
   return send(res, 409, { error: FULL, full: true });
 }
+
+// ---------- blocked addresses (#913) ----------
+
+// The admin's blocks and the daily limit of new accounts per address (lib/front-door/blocks.js). A blocked person is
+// told plainly, never the block's note or range. A refusal is an audit entry once an hour for each address and kind:
+// a page and its files asked again and again write one.
+const BLOCKED = "You can't reach this machine from here.";
+const NO_SIGN_UP = 'This machine takes no new accounts from here.';
+const LIMITED = 'Too many new accounts from here today. Try again tomorrow.';
+const refusalAt = new Map(); // `${action} ${client}` → when it was last kept
+function refusalAudited(action, client, detail, account) {
+  const key = `${action} ${client}`;
+  const now = Date.now();
+  for (const [k, t] of refusalAt) if (now - t > 3600_000) refusalAt.delete(k);
+  if (refusalAt.has(key)) return;
+  refusalAt.set(key, now);
+  console.log(`[front door] refused ${client}: ${detail}`);
+  audited(action, { actor: 'front-door', account, detail: `${client} · ${detail}` });
+}
+// The live access block that stops this client, or null. None on a machine of one account, which has no admin page.
+const shutOut = (client) => (ONE_ACCOUNT ? null : blockRules.blocking(doors.blocks(), client, 'access'));
+// What a client an access block stops may still reach: signing in, which lets the admin's account alone through.
+const OPEN_TO_BLOCKED = new Set(['/sign-in', '/sign-in/options', '/sign-in/handoff', '/front-door/passkey.js']);
+function refused(req, res, status, text, headers = {}) {
+  req.resume();
+  if (req.method === 'GET' && !new URL(req.url, ORIGIN.origin).pathname.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store');
+    for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
+    return html(res, status, pages.refused(text));
+  }
+  return send(res, status, { error: text, refused: true }, headers);
+}
+// Whether a sign-up from this client is refused (answered here, and true): a block, or the daily limit reached.
+function signUpRefused(req, res, link) {
+  const client = clientOf(req);
+  const block = blockRules.blocking(doors.blocks(), client, 'sign-up');
+  if (block) {
+    refusalAudited('blocked', client, block.level === 'access' ? 'no access' : 'no sign-up', link.for);
+    refused(req, res, 403, NO_SIGN_UP);
+    return true;
+  }
+  if (blockRules.local(client)) return false;
+  const made = doors.signUpsFrom(blockRules.limitKey(client));
+  const limit = doors.signUpLimit();
+  if (made.length < limit) return false;
+  refusalAudited('sign-up-limited', client, `${made.length} account${made.length === 1 ? '' : 's'} in a day`, link.for);
+  const wait = Math.max(1, Math.ceil((Date.parse(made[made.length - limit]) + blockRules.DAY - Date.now()) / 1000));
+  refused(req, res, 429, LIMITED, { 'Retry-After': String(wait) });
+  return true;
+}
+// The blocks and the limit as the admin page reads them; address: the admin's own, as the front door sees it.
+const blocksNow = (req) => ({ blocks: doors.blocks(), limit: doors.signUpLimit(), address: clientOf(req) });
+const blockText = (b) => `${b.cidr} · ${b.level === 'access' ? 'no access' : 'no sign-up'} · ${b.until ? `until ${utc(b.until)}` : 'until removed'}${b.note ? ` · ${b.note}` : ''}`;
 
 // ---------- shared rooms ----------
 
@@ -1084,6 +1149,35 @@ async function adminRoutes(req, res, p, account) {
     audited('max-accounts', { detail: max === null ? 'none' : `${max} account${max === 1 ? '' : 's'}` });
     return send(res, 200, capacityNow());
   }
+  // Blocked addresses and the daily limit of new accounts per address (#913).
+  if (p === '/admin/blocks' && req.method === 'GET') return send(res, 200, blocksNow(req));
+  if (p === '/admin/blocks' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const own = clientOf(req);
+    // The admin is never shut out by a block of their own address: refused, and said why.
+    if (body.level === 'access' && typeof body.cidr === 'string') {
+      const cidr = blockRules.checkCidr(body.cidr);
+      if (blockRules.covers(cidr, own)) return send(res, 409, { error: `This block covers your own address, ${own}: it would shut you out.`, own: true });
+    }
+    const block = doors.addBlock(body);
+    console.log(`[front door] the admin blocked ${blockText(block)}`);
+    audited('block-added', { detail: blockText(block) });
+    return send(res, 201, { block, ...blocksNow(req) });
+  }
+  if (p === '/admin/blocks/limit' && req.method === 'POST') {
+    const limit = doors.setSignUpLimit(((await readJson(req)) || {}).limit);
+    console.log(`[front door] the admin set the limit of new accounts per address: ${limit} a day`);
+    audited('sign-up-limit', { detail: `${limit} account${limit === 1 ? '' : 's'} a day` });
+    return send(res, 200, blocksNow(req));
+  }
+  const blockMatch = p.match(/^\/admin\/blocks\/([0-9a-f]{16})\/remove$/);
+  if (blockMatch && req.method === 'POST') {
+    await readJson(req);
+    const block = doors.removeBlock(blockMatch[1]);
+    console.log(`[front door] the admin removed the block of ${block.cidr}`);
+    audited('block-removed', { detail: blockText(block) });
+    return send(res, 200, blocksNow(req));
+  }
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
     const accounts = doors.setDefaultShare(await readJson(req));
@@ -1279,6 +1373,11 @@ const server = http.createServer(async (req, res) => {
     const isAdmin = !ONE_ACCOUNT && (p === '/admin' || p.startsWith('/admin/'));
     const own = isAdmin || p === '/sign-in' || p === '/sign-in/options' || p === '/sign-in/handoff' || p === '/sign-out' || p === '/sign-out-everywhere' || p.startsWith('/sign-up/') || p.startsWith('/front-door/');
     if (own && req.method !== 'GET' && req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
+    // An access block (#913): from there only signing in is reached, and only the admin's account gets through.
+    if (!OPEN_TO_BLOCKED.has(p) && !FONTS[p] && shutOut(clientOf(req)) && !(ADMIN && doors.sessionAccount(sessionOf(req)) === ADMIN)) {
+      refusalAudited('blocked', clientOf(req), 'no access', doors.sessionAccount(sessionOf(req)) || undefined);
+      return refused(req, res, 403, BLOCKED);
+    }
     if (p === '/front-door/passkey.js' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(pages.SCRIPT);
@@ -1334,6 +1433,7 @@ server.on('upgrade', (req, socket, head) => {
   socket.on('error', () => socket.destroy());
   const account = String(req.headers.host || '').toLowerCase() === ORIGIN.host ? doors.sessionAccount(sessionOf(req)) : null;
   if (!account) { socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
+  if (account !== ADMIN && shutOut(clientOf(req))) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
   if (doors.isSuspended(account)) { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
   const up = net.connect(socketOf(account));
   up.on('error', () => { socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); up.destroy(); });
