@@ -8,6 +8,7 @@ const FRONT_DOOR_SOCKET = process.env.BOT_DOT_FRONT_DOOR_SOCKET || '';
 // A restore staged before the last restart goes in place first, before anything opens the data.
 require('./lib/backup').applyPendingRestore(process.env.BOT_DOT_DATA || require('path').join(__dirname, 'data'));
 const http = require('http');
+const held = require('./lib/held');
 const fs = require('./lib/principal-fs');
 const path = require('path');
 const { Readable } = require('stream'); // a held request of the Chief's, done on the owner's yes (replayAsChief)
@@ -849,6 +850,7 @@ async function serveScreen(req, res, { botId, rest }) {
 
 // Every request, on the port and on the front door's socket.
 async function respond(req, res) {
+  held.request(req.method, req.url);
   try {
     await handle(req, res);
   } catch (e) {
@@ -1023,6 +1025,7 @@ if (FRONT_DOOR_SOCKET) {
 } else console.log('No front door socket (BOT_DOT_FRONT_DOOR_SOCKET): nobody can use this botdot server as its owner.');
 
 server.listen(PORT, HOST, () => {
+  held.watch(); // a held event loop is logged with what held it (lib/held.js)
   if (!UPDATES_BY_ADMIN) updates.start();
   backups.start();
   B.identity.keepSignedIn();
