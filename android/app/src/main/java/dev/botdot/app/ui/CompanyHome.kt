@@ -154,7 +154,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             val tiles = buildList {
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
                 if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }) } }) }
-                if (dev.botdot.app.data.ProjectCards.shows(features, c)) dev.botdot.app.data.ProjectCards.slots(c.cards, cards.shown).forEach { s ->
+                if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
                     add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                         CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = false))
                         if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))

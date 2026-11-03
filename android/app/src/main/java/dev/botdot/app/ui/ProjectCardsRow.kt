@@ -91,12 +91,22 @@ import kotlinx.serialization.json.putJsonArray
  * line and a bar; a card built a moment ago has a green outline. Each card: refresh, and a menu Change, Refresh, Remove.
  */
 /** What the cards share while drawn (#776): the one open (a Change, or [ProjectCards.NEW]), refused words, fresh cards. */
-internal class CardsState(val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>, val logins: Boolean = false) {
+internal class CardsState(
+    val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>, val logins: Boolean = false,
+    /** Cards closed or removed whose answer has not come yet: off the row at once ([ProjectCards.slots]). */
+    val closing: MutableList<String> = mutableListOf(), val removing: MutableList<String> = mutableListOf(),
+) {
     var open by openState
     var refused by refusedState
     // A card removed meanwhile closes its Change.
     val shown get() = open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }
     fun send(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = ui.call(block, done)
+    fun slots(): List<ProjectCards.Slot> = ProjectCards.slots(c.cards, shown, closing.toSet(), removing.toSet())
+    /** [id] off the row now, then [block] sent; its answer, or its refusal, draws the row again. */
+    fun leave(list: MutableList<String>, id: String, block: suspend (Api) -> Company) {
+        list += id
+        send(block) { list -= id }
+    }
     /** The board's tile of [s] (#784): its card's, or New card's. */
     fun tileOf(s: ProjectCards.Slot): String = when (s) {
         is ProjectCards.Slot.Card -> "card:${s.card.id}"
@@ -122,7 +132,9 @@ internal fun rememberCards(ui: CompanyUi, c: Company): CardsState {
         try { delay(4000) } finally { fresh.removeAll(built) }
     }
     val server by ui.app.store.version.value.collectAsState()
-    val st = CardsState(ui, c, open, refused, fresh, logins = ProjectLogins.FEATURE in server?.features.orEmpty())
+    val closing = remember(c.id) { mutableStateListOf<String>() }
+    val removing = remember(c.id) { mutableStateListOf<String>() }
+    val st = CardsState(ui, c, open, refused, fresh, logins = ProjectLogins.FEATURE in server?.features.orEmpty(), closing = closing, removing = removing)
     // Back on Close: the ask field closes, nothing is sent.
     BackHandler(enabled = st.shown != null) { st.open = null }
     return st
@@ -140,11 +152,11 @@ internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier) {
         }
         is ProjectCards.Slot.Questions -> QuestionsCard(m, s.card,
             onAnswer = { text -> st.send({ it.answerCard(s.card.id, text) }) },
-            onClose = { st.send({ it.cancelCard(s.card.id) }) })
+            onClose = { st.leave(st.closing, s.card.id) { it.cancelCard(s.card.id) } })
         is ProjectCards.Slot.Card -> BoardCard(m, s.card, fresh = s.card.id in st.fresh,
             onRefresh = { st.send({ it.refreshCard(s.card.id) }) },
             onChange = { st.refused = null; st.open = s.card.id },
-            onRemove = { st.send({ it.removeCard(s.card.id) }) },
+            onRemove = { st.leave(st.removing, s.card.id) { it.removeCard(s.card.id) } },
             onLogin = if (st.logins && s.card.failed && s.card.needsLogin != null) ({ st.ui.settingsOpen = true }) else null)
     }
 }
@@ -162,7 +174,7 @@ internal fun CardPicks(st: CardsState, pieces: List<String>) {
 internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = emptyList()) {
     val st = rememberCards(ui, c)
     Column(verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        ProjectCards.lines(ProjectCards.slots(c.cards, st.shown)).forEach { line ->
+        ProjectCards.lines(st.slots()).forEach { line ->
             Row(Modifier.fillMaxWidth().then(if (line.size > 1) Modifier.height(IntrinsicSize.Min) else Modifier), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                 line.forEach { s -> CardSlot(st, s, Modifier.weight(1f).then(if (line.size > 1) Modifier.fillMaxHeight() else Modifier)) }
                 if (line.size == 1 && !line[0].wide) Spacer(Modifier.weight(1f))
