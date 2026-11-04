@@ -68,8 +68,38 @@ test('a public install puts Caddy in front of the front door, on the domain alon
   assert.equal(test.env.BOT_DOT_TLS, 'internal', 'kept for a rerun');
 
   const late = rerun(t, '', {}, { caddy: false });
-  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself\./);
+  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open\./);
   assert.match(late.said, /\/sign-up\/T0KEN/, 'and the installer goes on to the link');
+});
+
+test('a public install shows the exact DNS record its domain needs, and whether it is set', (t) => {
+  const unset = rerun(t, '', {}, { caddy: false });
+  const record = /Set this DNS for botdot\.example\.com at your domain's provider:\n {6}A {5}botdot\.example\.com {2}203\.0\.113\.7\n {4}Now it doesn't resolve\./g;
+  assert.equal(unset.said.match(record).length, 2, 'before the downloads, and again when Caddy doesn\'t answer');
+  assert.doesNotMatch(unset.said, /AAAA/, 'no IPv6 on this machine, none asked for');
+  assert.ok(unset.said.indexOf('Set this DNS') < unset.said.indexOf('front door is running'), 'shown before the long steps');
+
+  const elsewhere = rerun(t, '', { STAND_IN_A: '198.51.100.1', STAND_IN_AAAA: '2001:db8::1' });
+  assert.match(elsewhere.said, /A {5}botdot\.example\.com {2}203\.0\.113\.7\n {4}Now it points at 198\.51\.100\.1, 2001:db8::1\.\n {4}Remove its AAAA record: this machine has no IPv6\./);
+
+  const six = rerun(t, '', { STAND_IN_IP6: '2001:db8::7' });
+  assert.match(six.said, /A {5}botdot\.example\.com {2}203\.0\.113\.7\n {6}AAAA {2}botdot\.example\.com {2}2001:db8::7\n/);
+
+  const set = rerun(t, '', { STAND_IN_A: '203.0.113.7' });
+  assert.match(set.said, /botdot\.example\.com points at this machine \(203\.0\.113\.7\)/);
+  assert.doesNotMatch(set.said, /Set this DNS/);
+
+  const proxied = rerun(t, '', { STAND_IN_A: '104.21.32.1 172.67.10.2' });
+  assert.match(proxied.said, /Now it points at 104\.21\.32\.1, 172\.67\.10\.2\.\n {4}That is Cloudflare's proxy: set the record to DNS only \(grey cloud\)\./);
+
+  const noCertificate = rerun(t, '', { STAND_IN_A: '203.0.113.7' }, { caddy: false });
+  assert.ok(noCertificate.calls.includes(`compose --project-directory ${noCertificate.dir}/front-door restart caddy`), 'the DNS is set: Caddy tries again now, not after its back-off');
+  assert.match(noCertificate.said, /Caddy has no certificate for botdot\.example\.com yet\. Keep ports 80, 443 and 8443 open to this machine\./);
+  assert.doesNotMatch(noCertificate.said, /Set this DNS/);
+
+  const test = rerun(t, '', { BOT_DOT_TLS: 'internal' }, { caddy: false });
+  assert.doesNotMatch(test.said, /Set this DNS|\.com points at this machine/, 'a test machine\'s domain isn\'t on the internet');
+  assert.doesNotMatch(test.system, /cdn-cgi/);
 });
 
 test('a tailnet install gives the front door its Tailscale name with Serve, and nothing on the internet', (t) => {

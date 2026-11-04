@@ -1099,6 +1099,42 @@ if [ -z "$REACH" ]; then
 fi
 # valid_domain NAME: a host name of letters, digits, dashes and dots, with a dot.
 valid_domain() { printf '%s' "$1" | grep -Eq '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*[a-z0-9]$'; }
+# public_ip URL: this machine's address as the internet sees it, from Cloudflare's trace (an address, so no DNS);
+# empty when it can't be had in 5 seconds.
+public_ip() { curl -fsS --max-time 5 "$1" </dev/null 2>/dev/null | sed -n 's/^ip=\([0-9a-fA-F.:]*\)$/\1/p' | head -n 1 || true; }
+# resolved FAMILY: the addresses $NAME resolves to now (ahostsv4 or ahostsv6), on one line; loopback and the IPv4 in
+# IPv6 left out.
+resolved() { getent "$1" "$NAME" </dev/null 2>/dev/null | awk '{print $1}' | grep -Ev '^(127\.|::1$|::ffff:)' | sort -u | tr '\n' ' ' | sed 's/ $//' || true; }
+# dns_check: whether $NAME points at this machine; when it doesn't, the exact records to set. Returns 1 then.
+dns_check() {
+  ip4_="$(public_ip https://1.1.1.1/cdn-cgi/trace)"
+  ip6_="$(public_ip 'https://[2606:4700:4700::1111]/cdn-cgi/trace')"
+  case "$ip6_" in *:*) ;; *) ip6_='' ;; esac
+  case "$ip4_" in *.*.*.*) ;; *) ip4_='' ;; esac
+  now4_="$(resolved ahostsv4)" now6_="$(resolved ahostsv6)"
+  if [ -n "$ip4_" ] && [ "$now4_" = "$ip4_" ] && { [ -z "$now6_" ] || [ "$now6_" = "$ip6_" ]; }; then
+    ok "$NAME points at this machine ($ip4_${now6_:+, $now6_})"
+    return 0
+  fi
+  if [ -z "$ip4_" ] && [ -z "$ip6_" ]; then
+    warn "Point $NAME at this machine's public IP address: an A record (and AAAA for IPv6). This machine couldn't find its address."
+  else
+    warn "Set this DNS for $NAME at your domain's provider:"
+    [ -z "$ip4_" ] || printf '      A     %s  %s\n' "$NAME" "$ip4_"
+    [ -z "$ip6_" ] || printf '      AAAA  %s  %s\n' "$NAME" "$ip6_"
+  fi
+  if [ -n "$now4_$now6_" ]; then say "    Now it points at $(printf '%s %s' "$now4_" "$now6_" | sed 's/^ *//; s/ *$//; s/  */, /g')."
+  else say "    Now it doesn't resolve."; fi
+  [ -z "$now6_" ] || [ -n "$ip6_" ] || say "    Remove its AAAA record: this machine has no IPv6."
+  # Cloudflare's proxy (the orange cloud) answers in place of this machine, so Caddy never gets the certificate.
+  for a_ in $now4_ $now6_; do
+    case "$a_" in 104.1[6-9].* | 104.2[0-7].* | 172.6[4-9].* | 172.7[01].* | 188.114.9[6-9].* | 162.15[89].* | 2606:4700:* | 2a06:98c0:*)
+      say "    That is Cloudflare's proxy: set the record to DNS only (grey cloud)."
+      break ;;
+    esac
+  done
+  return 1
+}
 if [ "$REACH" = public ]; then
   DOMAIN="$(get_env "$ENV" BOT_DOT_DOMAIN)"
   DOMAIN="${DOMAIN:-${BOT_DOT_DOMAIN:-}}"
@@ -1111,6 +1147,8 @@ if [ "$REACH" = public ]; then
     [ -n "$DOMAIN" ] || die "No domain, so nothing more was changed."
   done
   NAME="$DOMAIN"
+  # Shown before the long downloads, so the record can be set while they run. A test machine's domain isn't on the internet.
+  if [ "$MODE" = install ] && [ "${BOT_DOT_TLS:-$(get_env "$ENV" BOT_DOT_TLS)}" != internal ]; then dns_check || true; fi
 elif [ "$REACH" = local ]; then
   # On this computer only (ADR 136): localhost, which a passkey can belong to (127.0.0.1 can't), on the port the
   # install chose, and bots' interactive pages on the next one, an origin of its own.
@@ -2069,16 +2107,27 @@ fi
 # 6. Reached on the domain or the tailnet
 
 if [ "$REACH" = public ]; then
-  i=0
-  until curl -fsSk -o /dev/null --resolve "$NAME:443:127.0.0.1" "https://$NAME/api/version" 2>/dev/null; do
-    i=$((i + 1))
-    if [ "$i" -ge 60 ]; then
-      warn "Caddy doesn't answer on https://$NAME yet. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself. See: cd $DOOR && docker compose logs caddy"
-      break
-    fi
-    sleep 1
-  done
-  [ "$i" -ge 60 ] || ok "Caddy answers on https://$NAME"
+  # caddy_answers: Caddy answers on the domain with its certificate within a minute.
+  caddy_answers() {
+    i=0
+    until curl -fsSk -o /dev/null --resolve "$NAME:443:127.0.0.1" "https://$NAME/api/version" 2>/dev/null; do
+      i=$((i + 1))
+      [ "$i" -lt 60 ] || return 1
+      sleep 1
+    done
+  }
+  if caddy_answers; then
+    ok "Caddy answers on https://$NAME"
+  elif [ "$TLS" != internal ] && DNS_SAID="$(dns_check)"; then
+    say "$DNS_SAID"
+    # The DNS was set while the installer ran: Caddy waits longer after each failed try, so a restart tries now.
+    $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || true
+    if caddy_answers; then ok "Caddy answers on https://$NAME"
+    else warn "Caddy has no certificate for $NAME yet. Keep ports 80, 443 and 8443 open to this machine. See: cd $DOOR && docker compose logs caddy"; fi
+  else
+    warn "Caddy doesn't answer on https://$NAME yet. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open. See: cd $DOOR && docker compose logs caddy"
+    [ "$TLS" = internal ] || say "$DNS_SAID"
+  fi
 elif [ "$REACH" = local ]; then
   ok "Reachable on this computer only, at $ORIGIN"
 else
