@@ -28,14 +28,14 @@ function askEverythingAllowed(name) {
 // A bot's computer moves between this machine and boat.dev (#556): its files copied along, or not. true, false, or
 // null for neither (the switch is taken back).
 const COMPUTER_PLACE = {
-  linux: [tr('Copy its files to this machine?'), tr("Copy the bots' files to this machine?")],
-  boat: [tr('Copy its files to the External Virtual PC?'), tr("Copy the bots' files to the External Virtual PC?")],
+  linux: tr('Copy its files to this machine?'),
+  boat: tr('Copy its files to the External Virtual PC?'),
 };
-// all: the bots' files, for the account's switch (settings.js); else one bot's.
-function askMoveFiles(to, all = false) {
+// One bot's files, when its computer moves.
+function askMoveFiles(to) {
   return new Promise((resolve) => {
     const m = openModal(`
-      <div class="modal-head"><h2>${COMPUTER_PLACE[to][all ? 1 : 0]}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${COMPUTER_PLACE[to]}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-foot">
         <button type="button" class="btn" id="move-empty">${tr('Start empty')}</button>
         <button type="button" class="btn primary" id="move-copy">${tr('Copy files')}</button>

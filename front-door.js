@@ -1227,7 +1227,7 @@ async function adminRoutes(req, res, p, account) {
     const q = new URL(req.url, 'http://x').searchParams;
     return send(res, 200, audit.list({ account: q.get('account') || undefined, action: q.get('action') || undefined, before: q.get('before') || undefined, limit: Number(q.get('limit')) || undefined }));
   }
-  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update|sign-out)$/);
+  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update|sign-out|computer)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);
   return send(res, 404, { error: 'Not found' });
 }
@@ -1263,7 +1263,10 @@ if (!ONE_ACCOUNT) setInterval(() => askLong().catch((e) => console.error(`[front
 async function listAccounts() {
   return Promise.all(doors.listAccounts().map(async (a) => {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';
+    // Where its computer is (ADR 146), while boat.dev has a key: asked of the account, which keeps it.
+    const computer = state === 'running' && boat?.shown().keySet ? (await askAccount(a.name, 'GET', '/api/settings/computer', null, 2000)).data?.place : undefined;
     return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(longOf.has(a.name) ? { long: longOf.get(a.name) } : {}),
+      ...(computer === 'linux' || computer === 'boat' ? { computer } : {}),
       ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
   }));
 }
@@ -1288,6 +1291,20 @@ async function accountAction(req, res, name, action) {
     audited('share', { account: name, detail: body.default === true ? `the default, ${shareText(share)}` : shareText(share) });
     askMachine(name);
     return send(res, 200, { ok: true, share });
+  }
+  // Where the account's computer is (ADR 146): this machine or its External Virtual PC on boat.dev, for every bot of
+  // it with a computer, their files copied along with moveFiles. The admin alone chooses it; the account keeps it.
+  if (action === 'computer') {
+    const place = body.place;
+    if (place !== 'linux' && place !== 'boat') return send(res, 400, { error: 'place is linux or boat.' });
+    const moveFiles = body.moveFiles === true;
+    const r = await askAccount(name, 'PUT', '/api/settings/computer', { place, moveFiles }, 10_000);
+    if (!r.status) return send(res, 502, { error: `The account ${name} isn't running: its computer can be moved once it is.` });
+    if (r.status !== 200) return send(res, r.status, { error: r.data?.error || `The account ${name} didn't move its computer.` });
+    const where = place === 'boat' ? 'the External Virtual PC' : 'this machine';
+    console.log(`[front door] the admin moved the computer of the account ${name} to ${where}${moveFiles ? ', its files copied' : ''}`);
+    audited('computer', { account: name, detail: `${where}${moveFiles ? ' · files copied' : ' · started empty'}` });
+    return send(res, 200, { ok: true, computer: r.data.place });
   }
   // "Update now" for an account that waits (ADR 053): as its owner's, to the version the admin installed.
   if (action === 'update') {
