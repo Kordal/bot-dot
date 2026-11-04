@@ -94,6 +94,7 @@ impl Kept {
     }
 
     /// The address and its session go. When it was the one shown, the first that is left is shown.
+    #[cfg_attr(mobile, allow(dead_code))]
     pub fn remove(&mut self, address: &str) {
         self.botdots.retain(|b| b.address != address);
         if self.last.as_deref() == Some(address) {

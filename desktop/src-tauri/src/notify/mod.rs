@@ -20,7 +20,9 @@ use self::windows as system;
 #[cfg(not(any(target_os = "macos", windows)))]
 mod system {
     pub fn start(_: &str) {}
+    #[cfg_attr(mobile, allow(dead_code))]
     pub fn check() {}
+    #[cfg_attr(mobile, allow(dead_code))]
     pub fn settings(_: &str) -> Option<String> {
         None
     }
@@ -81,16 +83,19 @@ pub fn start(id: &str, on_click: impl Fn(String, String) + Send + Sync + 'static
 }
 
 /// Whether the system has the app's notifications turned off, as last found.
+#[cfg_attr(mobile, allow(dead_code))]
 pub fn off() -> bool {
     OFF.load(Ordering::SeqCst)
 }
 
 /// Asks the system again: the owner may have changed its settings meanwhile.
+#[cfg_attr(mobile, allow(dead_code))]
 pub fn check() {
     system::check();
 }
 
 /// The system's settings of the app's notifications, to open.
+#[cfg_attr(mobile, allow(dead_code))]
 pub fn settings(id: &str) -> Option<String> {
     system::settings(id)
 }
