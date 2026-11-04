@@ -156,7 +156,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // From the message box: a message that did not go comes back into it, with the line that says why.
     fun sendText(text: String, attachments: List<dev.botdot.app.data.Attachment>) { vm.send(text, attachments, replyTo = vm.replying?.runId) }
     // An empty chat (#727): the box in the middle, under its head and name, and its jobs under it. Gone with the first message.
-    val empty = loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null && vm.queued.isEmpty()
+    val empty = loaded && runs.isEmpty() && waiting.isEmpty() && vm.sent == null && vm.queued.isEmpty() && vm.started.isEmpty()
     @Composable fun box() = Composer(
         placeholder = tr("Message"),
         files = files,
@@ -236,6 +236,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], null), sent), bot?.color, room = true)
                             else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], false), sent), bot?.color)
                         }
+                        vm.started.forEach { q -> androidx.compose.runtime.key(q.id) { SentBubble(SentMessage(q.id, q.text, q.attachments), above = false) } } // its turn came: until its run is here
                         WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
                         ChatNeeds(app, botId, onNeeds)

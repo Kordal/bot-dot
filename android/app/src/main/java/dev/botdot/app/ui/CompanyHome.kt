@@ -141,8 +141,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
-        val here = remember(c, waiting) { dev.botdot.app.data.Spaces.needsIn(c, waiting) }
-        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onAnswer = { id, yes ->
+        val here = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()).let { dev.botdot.app.data.Spaces.underLeads(c, it, bots) } }
+        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
             ui.scope.launch {
                 runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
                 ui.app.store.needs.refresh()
@@ -152,28 +152,31 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
-                if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
+                if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
                 // An ongoing project's monthly review (#925) stands where the 90-day line would.
-                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m -> Box(m) { CheckinCard(ui, k, ways, ongoing = true) } }) }
-                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
+                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, ongoing = true) } }) }
+                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m, _ -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
                 if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
-                    add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        // A card fills its tile, its list as many lines as it holds; the ask keeps its picks under it.
-                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card), canvas = true)
+                    add(Tile(cards.tileOf(s)) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                        // On the canvas a card fills its tile, its list as many lines as it holds; in the phone's column
+                        // it takes its own height, as in the flow. The ask keeps its picks under it.
+                        CardSlot(cards, s, if (fixed) Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card) else Modifier.fillMaxWidth(), canvas = fixed)
                         if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
                     } })
                 }
                 if (on("teams")) {
-                    c.suggestion?.let { sg -> add(Tile("suggest") { m -> Box(m) { SuggestedCard(ui, c, sg) } }) }
-                    add(Tile("new-team") { m -> Box(m) { NewTeam(ui, c) } })
+                    c.suggestion?.let { sg -> add(Tile("suggest") { m, _ -> Box(m) { SuggestedCard(ui, c, sg) } }) }
+                    add(Tile("new-team") { m, _ -> Box(m) { NewTeam(ui, c) } })
                 }
-                if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m -> Box(m) { CalendarTile(ui, c, bots) } })
-                if (on("todo")) add(Tile("todo") { m -> Column(m) { TodoPanel(ui, c, bots, waiting, ways, features) } })
+                if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
+                if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
         // The flow of a project never arranged; with the canvas, a long press here starts it.
-        Column(Modifier.fillMaxWidth().then(if (canvas) Modifier.pointerInput(Unit) {
+        // On a phone (ADR 147) the board is read as a column: the tiles are arranged on a wider screen.
+        val roomy = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= BoardCanvas.NARROW
+        Column(Modifier.fillMaxWidth().then(if (canvas && roomy) Modifier.pointerInput(Unit) {
             holdAndDrag(onHold = { started = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); true })
         } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         if (on("days")) {
@@ -194,7 +197,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             }
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
         }
-        if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
+        if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
         }
         }
         // Its teams' keys (#841), in place of the floor's rooms and desks.

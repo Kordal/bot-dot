@@ -59,6 +59,8 @@ struct App {
     feed_numbers: AtomicU64,
     /// The botdot on this computer is being set up.
     setting_up: AtomicBool,
+    /// The botdot on this computer is being removed.
+    removing: AtomicBool,
 }
 
 impl App {
@@ -141,7 +143,9 @@ fn open_target(app: &AppHandle, address: &str, target: &str) {
     refresh_menus(app);
     let mut page = url.clone();
     page.set_fragment(Some(&route::fragment_of(target)));
-    let _ = enter_at(app, &url, &cookie, page);
+    // The cookie off the main thread: there it deadlocks on Windows.
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { enter_at(&app, &url, &cookie, page) });
 }
 
 fn open_in_browser(app: &AppHandle, url: &Url) {
@@ -233,10 +237,12 @@ fn on_menu(app: &AppHandle, id: &str) {
             if let Some(address) = current {
                 let _ = state.keep(|kept| kept.remove(&address));
                 follow_feeds(app);
-                if let Some(url) = address::parse(&address) {
-                    forget_cookies(app, &url);
-                }
                 to_screen(app, false);
+                // The cookies off the main thread: there they deadlock on Windows, and the window stays black.
+                if let Some(url) = address::parse(&address) {
+                    let app = app.clone();
+                    std::thread::spawn(move || forget_cookies(&app, &url));
+                }
             }
         }
         #[cfg(any(target_os = "macos", windows))]
@@ -379,7 +385,9 @@ fn update_local(app: &AppHandle) {
     });
 }
 
-// Asked once, with what is lost. The VM and the launch agent go first: a botdot that didn't go stays in the app.
+// Asked once, with what is lost. The window leaves the botdot's page first, for the app's screen, which says it is
+// being removed: on Windows a window still on the page of a botdot whose VM went stayed black, even through a new start
+// of the app. The VM and the launch agent go next: a botdot that didn't go stays in the app.
 #[cfg(any(target_os = "macos", windows))]
 fn remove_local(app: &AppHandle) {
     let (words, asking) = (menu::words(), app.clone());
@@ -389,45 +397,51 @@ fn remove_local(app: &AppHandle) {
         move |yes| {
             let Some(vm) = local::Vm::of(&app).filter(|_| yes) else { return };
             tauri::async_runtime::spawn_blocking(move || {
-                if !vm.remove() {
-                    app.dialog().message(words.not_done).show(|_| {});
+                let state = app.state::<App>();
+                if state.removing.swap(true, Ordering::SeqCst) {
                     return;
                 }
-                let state = app.state::<App>();
+                screen_shown(&app);
                 let address = state.kept.lock().unwrap().local_address();
-                let _ = state.keep(|kept| {
-                    kept.local = None;
-                    if let Some(address) = &address {
-                        kept.remove(address);
-                    }
-                });
-                follow_feeds(&app);
-                // On Windows the window stayed black on the page of the botdot that went, whatever it was told, until
-                // the app started again: so it starts again, on its screen, once its cookies went, or a few seconds on.
-                #[cfg(windows)]
-                {
-                    let (gone, waited) = std::sync::mpsc::channel();
-                    let forgetting = app.clone();
-                    std::thread::spawn(move || {
-                        if let Some(url) = address.as_deref().and_then(address::parse) {
-                            forget_cookies(&forgetting, &url);
+                let removed = vm.remove();
+                if removed {
+                    let _ = state.keep(|kept| {
+                        kept.local = None;
+                        if let Some(address) = &address {
+                            kept.remove(address);
                         }
-                        let _ = gone.send(());
                     });
-                    let _ = waited.recv_timeout(std::time::Duration::from_secs(5));
-                    app.restart();
-                }
-                #[cfg(not(windows))]
-                {
+                    follow_feeds(&app);
                     if let Some(url) = address.as_deref().and_then(address::parse) {
                         forget_cookies(&app, &url);
                     }
-                    to_screen(&app, false);
-                    refresh_menus(&app);
+                }
+                state.removing.store(false, Ordering::SeqCst);
+                screen_shown(&app);
+                if !removed {
+                    app.dialog().message(words.not_done).show(|_| {});
                 }
             });
         }
     });
+}
+
+// The app's screen and the menus, from a thread of the app's own, which waits until the window is on the screen.
+#[cfg(any(target_os = "macos", windows))]
+fn screen_shown(app: &AppHandle) {
+    let main = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        to_screen(&main, false);
+        refresh_menus(&main);
+    });
+    let screen = app.state::<App>().screen.lock().unwrap().clone();
+    let on_screen = || main_window(app).and_then(|w| w.url().ok()).zip(screen.as_ref()).is_some_and(|(url, screen)| url.origin() == screen.origin());
+    for _ in 0..50 {
+        if on_screen() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
 }
 
 /// The button "Run botdot on this Mac" (or PC): the VM and botdot in it, from nothing or from where a setup stopped. What
@@ -492,6 +506,8 @@ struct Start {
     here: bool,
     /// The setup is running.
     running: bool,
+    /// The botdot on this computer is being removed.
+    removing: bool,
 }
 
 /// What the screen shows when it opens: the botdot shown now goes straight in with its session, unless a new address is
@@ -499,6 +515,9 @@ struct Start {
 #[tauri::command]
 async fn start(app: AppHandle, adding: bool) -> Start {
     let state = app.state::<App>();
+    if state.removing.load(Ordering::SeqCst) {
+        return Start { removing: true, ..Start::default() };
+    }
     let here = cfg!(any(target_os = "macos", windows)) && !state.kept.lock().unwrap().has_local();
     let plain = Start { here, running: state.setting_up.load(Ordering::SeqCst), ..Start::default() };
     let current = if adding { None } else { state.kept.lock().unwrap().current().cloned() };
@@ -584,6 +603,7 @@ fn main() {
                 feeds: Mutex::new(HashMap::new()),
                 feed_numbers: AtomicU64::new(0),
                 setting_up: AtomicBool::new(false),
+                removing: AtomicBool::new(false),
             });
             let clicks = handle.clone();
             notify::start(&app.config().identifier, move |address, target| {

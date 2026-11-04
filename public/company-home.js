@@ -308,14 +308,19 @@
   function needsHTML(c, items) {
     if (!items.length) return '';
     const shown = items.slice(0, 3);
-    const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
+    // A member's ask is drawn under its lead (ADR 148): the lead's face, the member's words.
+    const head = (x) => { const l = underLead(c, x); return l ? botFigure(colorOf(l), 'idle', '', outfitOf(l)) : x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure(); };
     const acts = (x, i) => (answersInline(x)
       ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
       : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
     const more = items.length - shown.length;
-    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
+    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
   }
-  const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c]);
+  // The lead a member's ask is drawn under in this project (ADR 148), or null.
+  const underLead = (c, x) => { const id = Keypad.leadOf(c, x?.bot?.id); return id ? botById(id) : null; };
+  const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups);
+  // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
+  const projectAsking = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
 
   // ---------- the panel: the To-do (#692), or a team ----------
   // The To-do's filter (All, You, Bots, Done) and what the Add field will give the new item: who it is for (null:
@@ -362,11 +367,11 @@
   }
   function todoPanelHTML(c) {
     const asks = filter === 'all' || filter === 'you';
-    const waits = asks ? needs() : [];
-    const asking = asks ? state.bots.filter((b) => question(b)) : [];
+    const waits = asks ? projectNeeds(c) : [];
+    const asking = asks ? projectAsking(c) : [];
     const items = CompanyTodo.shown(c.todos, filter);
     const rows = [
-      ...waits.map((x, i) => `<div class="cf-row">${head(x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
+      ...waits.map((x, i) => `<div class="cf-row">${head(underLead(c, x) || x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
       ...items.map(todoHTML),
     ].join('');
@@ -451,11 +456,11 @@
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
     const box = $('.sp-needs', root);
-    if (box) wireNeedRows(box, asks, openNeed);
+    if (box) wireNeedRows(box, asks, openNeed, openNeedInChat);
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
-    const waits = needs();
+    const waits = projectNeeds(c);
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
     // Reply to a standup's ask: the lead's chat, with what blocks the team quoted in the box.

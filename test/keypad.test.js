@@ -282,3 +282,36 @@ test('asksOf: Home lists every ask; a project only its own bots\' asks, a batch 
   assert.deepEqual(Keypad.asksOf(items, projects[0], projects), [items[0], items[3]]);
   assert.deepEqual(Keypad.asksOf(items, projects[1], projects), [items[1]]);
 });
+
+test('asksOf: a project also lists what was asked in its teams\' group chats, the Chief\'s too; nothing of other bots', () => {
+  const groups = [{ id: 'g1', team: 't1' }, { id: 'g2', team: 't2' }, { id: 'g3' }];
+  const items = [
+    { kind: 'ask', bot: { id: 'chief' }, group: { id: 'g1' } }, // the Chief, in p1's team chat
+    { kind: 'ask', bot: { id: 'recipes' }, group: { id: 'g1' } }, // a bot of no team, asked in p1's team chat
+    { kind: 'ask', bot: { id: 'chief' } }, // the Chief's own chat: Home only
+    { kind: 'ask', bot: { id: 'recipes' }, group: { id: 'g3' } }, // a group of no team: Home only
+    { kind: 'suggestion', bot: { id: 'linkedin' } }, // a bot of no team: Home only
+    { kind: 'batch', bot: { id: 'chief' }, group: { id: 'g2' }, items: [{ kind: 'ask', bot: { id: 'chief' }, group: { id: 'g2' } }] },
+  ];
+  assert.deepEqual(Keypad.asksOf(items, projects[0], projects, groups), [items[0], items[1]]);
+  assert.deepEqual(Keypad.asksOf(items, projects[1], projects, groups), [items[5]]);
+  assert.deepEqual(Keypad.asksOf(items, projects[0], projects), [], 'without the groups only its bots\' asks');
+  assert.equal(Keypad.asksOf(items, null, projects, groups), items);
+});
+
+test('a project\'s To-do lists only its own asks and its team bots\' questions, as its Needs you does', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'company-home.js'), 'utf8');
+  const panel = src.slice(src.indexOf('function todoPanelHTML'), src.indexOf('function todoPanelHTML') + 600);
+  assert.match(panel, /waits = asks \? projectNeeds\(c\)/);
+  assert.match(panel, /asking = asks \? projectAsking\(c\)/);
+  assert.doesNotMatch(src, /\bwaits = needs\(\)/, 'the To-do\'s buttons answer the rows it shows');
+});
+
+test('leadOf: a member\'s ask is drawn under its team\'s lead in a project; a lead\'s, a stranger\'s and a lone bot\'s are not (ADR 148)', () => {
+  assert.equal(Keypad.leadOf(projects[0], 'planner'), 'ops');
+  assert.equal(Keypad.leadOf(projects[0], 'ops'), null);
+  assert.equal(Keypad.leadOf(projects[0], 'coach'), null);
+  assert.equal(Keypad.leadOf(projects[1], 'coach'), null);
+  assert.equal(Keypad.leadOf(projects[0], undefined), null);
+  assert.equal(Keypad.leadOf({ teams: [{ id: 't', bots: ['a', 'b'] }] }, 'b'), null);
+});
