@@ -347,7 +347,11 @@ fn local_ready(app: &AppHandle, installed: local::Installed) {
     let _ = state.keep(|kept| kept.local = address.port());
     refresh_menus(app);
     match installed.sign_up.as_deref().and_then(|page| Url::parse(page).ok()) {
-        Some(page) => {
+        Some(mut page) => {
+            // The computer's user name, which the page offers as the login name (the front door makes it one).
+            if let Some(user) = ["USERNAME", "USER"].iter().find_map(|k| std::env::var(k).ok()).filter(|u| !u.is_empty()) {
+                page.query_pairs_mut().append_pair("name", &user);
+            }
             let secret = Secret::new();
             open_in_browser(app, &secret.on(page));
             *state.waiting.lock().unwrap() = Some((address, secret));

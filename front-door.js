@@ -521,6 +521,14 @@ function signUpLink(token) {
   return opens ? { for: ONE_ACCOUNT } : null;
 }
 
+// The name a sign-up page for the account `account` offers to sign in with: `asked` (the desktop app sends its
+// computer's user name) made into a name as the installer makes one of the user who ran it, when nobody has it, else
+// the account's own.
+function suggestedLogin(asked, account) {
+  const made = String(asked || '').toLowerCase().replace(/[_.]/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^[^a-z]+/, '').slice(0, 24);
+  return store.ACCOUNT_NAME.test(made) && !doors.loginTaken(made, account) ? made : account;
+}
+
 // A passkey that is right, from an address an access block stops: no session (#913). The admin's account is never
 // stopped, so that the admin is never shut out of the admin page.
 function refusedSignIn(req, res, account) {
@@ -651,7 +659,10 @@ async function signInRoutes(req, res, p) {
     const c = capacityNow();
     if (c.full) return refusedFull(req, res, token, link, c);
   }
-  if (req.method === 'GET' && !options) return html(res, 200, signIn ? pages.newPasskey({ name: link.for }) : pages.signUp({ name: link.for }));
+  if (req.method === 'GET' && !options) {
+    if (signIn) return html(res, 200, pages.newPasskey({ name: link.for, login: doors.loginOf(link.for) }));
+    return html(res, 200, pages.signUp({ name: link.for, login: link.for ? suggestedLogin(new URL(req.url, 'http://x').searchParams.get('name'), link.for) : null }));
+  }
   if (req.method !== 'POST') return false;
   const body = await readJson(req);
   // One account: its own name, whatever the page sent.
@@ -659,24 +670,28 @@ async function signInRoutes(req, res, p) {
   if (!store.ACCOUNT_NAME.test(name)) return send(res, 400, { error: store.NAME_RULE });
   if (link.for && name !== link.for) return send(res, 400, { error: `This ${signIn ? 'sign-in' : 'sign-up'} link is for the account ${link.for}.` });
   if (signIn && !doors.accountExists(name)) return send(res, 410, { error: 'This sign-in link was used or has ended.' });
-  if (!signIn && (doors.accountExists(name) || stillErasing(name))) return send(res, 409, { error: 'That name is taken.' });
+  if (!signIn && (doors.accountExists(name) || doors.loginTaken(name) || stillErasing(name))) return send(res, 409, { error: 'That name is taken.' });
+  // The name the passkey signs in with: an account the link names takes the one its owner chose, else its own.
+  const login = signIn ? doors.loginOf(name) : link.for && typeof body.login === 'string' && body.login.trim() ? body.login.trim() : name;
+  if (!store.ACCOUNT_NAME.test(login)) return send(res, 400, { error: store.NAME_RULE });
+  if (!signIn && login !== name && doors.loginTaken(login, name)) return send(res, 409, { error: 'That name is taken.' });
   if (options) {
     const userId = signIn ? doors.userIdOf(name) : crypto.randomBytes(16).toString('base64url');
-    const challenge = newChallenge(clientOf(req), { kind: 'create', token, name, userId });
-    return send(res, 200, { publicKey: webauthn.creationOptions({ rpId: RP_ID, challenge, userId, name }) });
+    const challenge = newChallenge(clientOf(req), { kind: 'create', token, name, login, userId });
+    return send(res, 200, { publicKey: webauthn.creationOptions({ rpId: RP_ID, challenge, userId, name: login }) });
   }
   const handoff = handoffOf(body, res);
   if (!handoff) return;
   const waiting = takeChallenge(body.credential, 'create');
-  if (!waiting || waiting.token !== token || waiting.name !== name) return send(res, 400, { error: 'That passkey was not made for this sign-up. Try again.' });
+  if (!waiting || waiting.token !== token || waiting.name !== name || waiting.login !== login) return send(res, 400, { error: 'That passkey was not made for this sign-up. Try again.' });
   let key;
   try { key = webauthn.verifyRegistration(body.credential, { rpId: RP_ID, origin: ORIGIN.origin, challenge: waiting.challenge }); } catch {
     return send(res, 400, { error: 'That passkey could not be checked. Try again.' });
   }
   try {
     if (signIn) doors.addPasskey({ token, name, passkey: key });
-    else if (ONE_ACCOUNT) doors.createOnlyAccount({ name, userId: waiting.userId, passkey: key });
-    else doors.createAccount({ token, name, userId: waiting.userId, passkey: key });
+    else if (ONE_ACCOUNT) doors.createOnlyAccount({ name, login, userId: waiting.userId, passkey: key });
+    else doors.createAccount({ token, name, login, userId: waiting.userId, passkey: key });
   } catch (e) {
     if (e.status) return send(res, e.status, { error: e.message });
     throw e;
