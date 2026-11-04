@@ -92,6 +92,13 @@ A first install also asks whether to use Jev as the decision model (with an Open
 
 `BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
 
+`BOT_DOT_MANAGED=1` makes a managed machine, which the fleet console runs ([ADR 154](adr/154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md)). It is chosen at the first install, never asked, and kept: a machine installed without it stays as it is. It needs `BOT_DOT_REACH` `public` or `tailnet`, and asks nothing: the first account is `BOT_DOT_ADMIN` (default `owner`), the Jev and boat.dev keys come only from `BOT_DOT_OPENROUTER_KEY` and `BOT_DOT_BOAT_KEY`. A managed machine has no admin page and no admin. `BOT_DOT_VARIANT` says how many accounts it holds, and is kept:
+
+- `one` (the default): one account. Its passkey is made with the setup key: the install ends with the link `https://<name>/sign-up/<setup key>` until the account exists.
+- `several`: the first account is made the same way; later accounts come only from sign-up links root's step makes.
+
+Each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, never overcommitted: the machine holds as many accounts as it has CPUs for and, after 2 GB of RAM for the system, RAM for. A Contabo Cloud VPS 6 (6 CPUs, 12 GB) holds one account, a Cloud VPS 8 (8 CPUs, 24 GB) two. An install on a machine without room for one share stops before it installs anything, and a sign-up link makes no account that wouldn't fit. A rerun with `BOT_DOT_VARIANT=several` turns a machine of one account into one of several without a reinstall, keeping the account and its passkeys; going back to `one` is refused while the machine has another account.
+
 ## The Android app's sign-in
 
 The Android app signs in on your front door's own sign-in page, in the phone's browser: **Sign in with your passkey** opens the page, your password manager there (Proton Pass, Bitwarden, Google Password Manager) offers the passkey, and the browser comes back to the app signed in. It works with any domain and any build of the app, the releases' or your own, with nothing to set on the server.

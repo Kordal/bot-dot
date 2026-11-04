@@ -9,6 +9,8 @@
 #   a tailnet only:  Tailscale Serve gives the front door its HTTPS name, and nothing is on the internet
 # or, for the desktop app, on this computer only (local, ADR 136): http://localhost:<port>, one account
 #                    (FRONT_DOOR_ONE_ACCOUNT) whose passkey is made with FRONT_DOOR_SETUP_KEY, and no admin page
+# A managed machine (FRONT_DOOR_MANAGED, ADR 154), on a public domain or a tailnet, has no admin page either: one
+# account, or several whose first (FRONT_DOOR_FIRST_ACCOUNT) is made with the setup key.
 services:
   front-door:
     image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
@@ -33,6 +35,8 @@ services:
       # On this computer only (local): its one account, and the setup key that makes its passkey.
       FRONT_DOOR_ONE_ACCOUNT: ${FRONT_DOOR_ONE_ACCOUNT:-}
       FRONT_DOOR_SETUP_KEY: ${FRONT_DOOR_SETUP_KEY:-}
+      FRONT_DOOR_MANAGED: ${FRONT_DOOR_MANAGED:-}
+      FRONT_DOOR_FIRST_ACCOUNT: ${FRONT_DOOR_FIRST_ACCOUNT:-}
       FRONT_DOOR_HOST: 127.0.0.1
       FRONT_DOOR_PORT: ${FRONT_DOOR_PORT:-4700}
       # Bots' interactive pages (#399, ADR 072): the sandbox's own address, on the front door's second port.

@@ -74,6 +74,14 @@
 # installer makes and keeps in .env, which only root reads; the install's last line, for the app, is the one line
 #   BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/<setup key>"}
 # without signUp once the account exists.
+# BOT_DOT_MANAGED=1 makes a managed machine (ADR 154), which the fleet console runs through root's step: on a public or
+# tailnet reach, chosen at the first install and, like local, never offered in a question. Its front door has no admin
+# page and no admin; each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, and the machine
+# holds only as many as it has CPUs and, after 2 GB for the system, RAM for. BOT_DOT_VARIANT (kept, default one):
+#   one      one account (BOT_DOT_ADMIN, default owner), as on local: its passkey is made with the setup key
+#   several  the first account is made so too, and later ones only from sign-up links root's step makes
+# A rerun with BOT_DOT_VARIANT=several turns one into several and keeps the account; back to one is refused while the
+# machine has another account. The install ends with the setup key's sign-up link until the first account exists.
 # BOT_DOT_TLS=internal gives Caddy its own certificate authority in place of Let's Encrypt, for a test machine
 # whose domain is not on the internet.
 #
@@ -196,6 +204,12 @@ set_env() {
   chmod 600 "$1"
 }
 get_env() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1; }
+# A managed machine (ADR 154), as its install chose: 1 or nothing. Its accounts' default share is 4 CPUs, 8 GB of RAM and
+# 40 GB of disk (MANAGED_SHARE in lib/front-door/capacity.js), guaranteed, so not half the machine's RAM.
+MANAGED="$(get_env "$ENV" BOT_DOT_MANAGED 2>/dev/null || true)"
+[ "$MANAGED" = 1 ] || MANAGED=''
+MANAGED_SHARE="4 8 40"
+[ -z "$MANAGED" ] || DEFAULT_SHARE="$MANAGED_SHARE"
 # registry_of IMAGE: the registry an image is named on, none for one built on this machine. owner_of IMAGE: its owner there.
 registry_of() { case "$1" in */*) h="${1%%/*}"; case "$h" in *.*) printf '%s' "$h" ;; esac ;; esac; }
 owner_of() { r="${1#*/}"; printf '%s' "${r%%/*}"; }
@@ -260,6 +274,38 @@ valid_share() {
   for v_ in "$@"; do case "$v_" in '' | *[!0-9]*) return 1 ;; esac; done
   [ "$1" -ge 1 ] && [ "$2" -ge 2 ] && [ "$3" -ge 12 ]
 }
+
+# new_setup_key: a secret the front door takes as a setup key (32 to 100 base64url characters), which makes the first
+# account's passkey (ADR 136, ADR 154).
+new_setup_key() { od -An -N32 -tx1 /dev/urandom | tr -d ' \n' | head -c 64; }
+
+# managed_accounts: the accounts of this machine, one name a line: those made on it and those the front door asked for.
+managed_accounts() {
+  {
+    for ma in "$ACCOUNTS"/*/; do ma="$(basename "$ma")"; ! valid_account "$ma" || [ ! -f "$ACCOUNTS/$ma/compose.yaml" ] || printf '%s\n' "$ma"; done
+    for ma in "$REQUESTS"/*; do ma="$(basename "$ma")"; ! valid_account "$ma" || printf '%s\n' "$ma"; done
+  } | sort -u
+}
+
+# room_for_shares N: stops the install unless the machine holds N shares of DEFAULT_SHARE, never overcommitted, beside
+# 2 GB of RAM for the system (ADR 154), as lib/front-door/capacity.js counts: CPUs against the shares' CPUs, RAM less
+# the reserve against theirs. What can't be read refuses nothing.
+room_for_shares() {
+  # shellcheck disable=SC2086 # three numbers
+  set -- "$1" $DEFAULT_SHARE
+  rs_cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || grep -c '^processor' "$PROC/cpuinfo" 2>/dev/null || true)"
+  rs_kb="$(awk '/^MemTotal:/ { print $2 }' "$PROC/meminfo" 2>/dev/null || true)"
+  case "$rs_cpus" in '' | *[!0-9]*) rs_cpus='' ;; esac
+  case "$rs_kb" in '' | *[!0-9]*) rs_kb='' ;; esac
+  { [ -n "$rs_cpus" ] && [ "$rs_cpus" -lt $(($1 * $2)) ]; } || { [ -n "$rs_kb" ] && [ "$rs_kb" -lt $((($1 * $3 + 2) * 1048576)) ]; } || return 0
+  rs_gb='?'
+  [ -z "$rs_kb" ] || rs_gb="$(awk -v k="$rs_kb" 'BEGIN { printf "%.1f", k / 1048576 }')"
+  die "This machine has ${rs_cpus:-?} CPUs and $rs_gb GB of RAM: a managed machine needs $2 CPUs and $3 GB of RAM for each of its $1 account$([ "$1" = 1 ] || echo s), and 2 GB more for the system. Nothing was changed."
+}
+# A managed machine without room for one share is refused before anything is installed.
+if [ "$MODE" = install ] && { [ -n "$MANAGED" ] || [ "${BOT_DOT_MANAGED:-}" = 1 ]; }; then
+  ( DEFAULT_SHARE="$MANAGED_SHARE"; room_for_shares 1 ) || exit 1
+fi
 
 # The systemd that runs this machine, if one does.
 SYSTEMD=''
@@ -1083,6 +1129,15 @@ fi
 
 if [ "$MODE" = install ]; then
 
+# A managed machine is chosen at the first install, never asked, and kept: a machine installed without it stays so.
+if [ -z "$MANAGED" ] && [ "${BOT_DOT_MANAGED:-}" = 1 ]; then
+  [ -z "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] \
+    || die "This machine isn't managed, and that is chosen at its first install, so nothing was changed."
+  MANAGED=1
+  DEFAULT_SHARE="$MANAGED_SHARE"
+fi
+case "${BOT_DOT_MANAGED:-}" in '' | 0 | 1) ;; *) die "BOT_DOT_MANAGED is 1, or nothing for a machine that isn't managed." ;; esac
+
 # A passkey belongs to one address, so it is chosen once: a rerun keeps it. A botdot on this computer only (local) is
 # never offered: only the desktop app, which gives the answer, installs one.
 REACH="$(get_env "$ENV" BOT_DOT_REACH)"
@@ -1162,8 +1217,7 @@ elif [ "$REACH" = local ]; then
   NAME="localhost:$DOOR_PORT"
   set_env "$ENV" FRONT_DOOR_PORT "$DOOR_PORT"
   # The setup key that makes the one account's passkey: made once, in .env alone, which only root reads.
-  [ -n "$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)" ] \
-    || set_env "$ENV" FRONT_DOOR_SETUP_KEY "$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n' | head -c 64)"
+  [ -n "$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)" ] || set_env "$ENV" FRONT_DOOR_SETUP_KEY "$(new_setup_key)"
 else
   if ! command -v tailscale >/dev/null 2>&1; then
     ask "botdot on a tailnet needs Tailscale. Install it now?" y || die "botdot on a tailnet needs Tailscale (https://tailscale.com/download). Install it and run this again."
@@ -1182,17 +1236,18 @@ else
 fi
 ORIGIN="https://$NAME"
 [ "$REACH" != local ] || ORIGIN="http://$NAME"
+[ -z "$MANAGED" ] || [ "$REACH" != local ] || die "A managed machine is reached on a public domain or a tailnet, not on this computer only."
 set_env "$ENV" BOT_DOT_REACH "$REACH"
 [ "$REACH" != public ] || set_env "$ENV" BOT_DOT_DOMAIN "$DOMAIN"
 set_env "$ENV" FRONT_DOOR_ORIGIN "$ORIGIN"
 
-# The admin's own account: an ordinary account, made by the install's sign-up link. On this computer only it is the
-# one account, made with the setup key, and its name is never asked.
+# The admin's own account: an ordinary account, made by the install's sign-up link. On this computer only, and on a
+# managed machine, it is the first account, made with the setup key, which is no admin, and its name is never asked.
 ADMIN="$(get_env "$ENV" FRONT_DOOR_ADMIN)"
 FIRST=''
 [ -n "$ADMIN" ] || FIRST=1
 ADMIN="${ADMIN:-${BOT_DOT_ADMIN:-}}"
-[ "$REACH" != local ] || ADMIN="${ADMIN:-owner}"
+[ "$REACH" != local ] && [ -z "$MANAGED" ] || ADMIN="${ADMIN:-owner}"
 if [ -z "$ADMIN" ]; then
   SUGGEST="$(printf '%s' "${SUDO_USER:-}" | tr 'A-Z_.' 'a-z--' | sed 's/[^a-z0-9-]//g; s/^[^a-z]*//' | cut -c1-24)"
   valid_account "$SUGGEST" || SUGGEST=''
@@ -1209,6 +1264,35 @@ fi
 valid_account "$ADMIN" || die "BOT_DOT_ADMIN: an account's name is $ACCOUNT_RULE."
 set_env "$ENV" FRONT_DOOR_ADMIN "$ADMIN"
 [ "$REACH" != local ] || set_env "$ENV" FRONT_DOOR_ONE_ACCOUNT "$ADMIN"
+
+# A managed machine's variant (ADR 154): one account or several, kept; one grows into several without a reinstall, and
+# goes back only while it has no account but its first.
+if [ -n "$MANAGED" ]; then
+  VARIANT_WAS="$(get_env "$ENV" BOT_DOT_VARIANT)"
+  VARIANT="${BOT_DOT_VARIANT:-${VARIANT_WAS:-one}}"
+  case "$VARIANT" in one | several) ;; *) die "BOT_DOT_VARIANT is one or several." ;; esac
+  # The accounts this machine has: those made on it, and those the front door asked for that aren't made yet.
+  HELD_ACCOUNTS="$(managed_accounts)"
+  if [ "$VARIANT" = one ] && [ "$VARIANT_WAS" = several ]; then
+    OTHERS="$(printf '%s\n' "$HELD_ACCOUNTS" | grep -vx "$ADMIN" | grep . | tr '\n' ' ' | sed 's/ $//' || true)"
+    [ -z "$OTHERS" ] || die "This machine holds more accounts than $ADMIN ($OTHERS), so it stays a machine of several accounts. Nothing was changed."
+  fi
+  HELD_COUNT="$(printf '%s\n' "$HELD_ACCOUNTS" | grep -c . || true)"
+  [ "${HELD_COUNT:-0}" -gt 0 ] || HELD_COUNT=1
+  room_for_shares "$HELD_COUNT"
+  set_env "$ENV" BOT_DOT_MANAGED 1
+  set_env "$ENV" BOT_DOT_VARIANT "$VARIANT"
+  set_env "$ENV" FRONT_DOOR_MANAGED 1
+  if [ "$VARIANT" = one ]; then
+    set_env "$ENV" FRONT_DOOR_ONE_ACCOUNT "$ADMIN"
+    set_env "$ENV" FRONT_DOOR_FIRST_ACCOUNT ''
+  else
+    set_env "$ENV" FRONT_DOOR_ONE_ACCOUNT ''
+    set_env "$ENV" FRONT_DOOR_FIRST_ACCOUNT "$ADMIN"
+  fi
+  [ -n "$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)" ] || set_env "$ENV" FRONT_DOOR_SETUP_KEY "$(new_setup_key)"
+  [ -z "$VARIANT_WAS" ] || [ "$VARIANT_WAS" = "$VARIANT" ] || ok "This machine now holds $([ "$VARIANT" = one ] && echo 'one account' || echo 'several accounts'): its accounts and passkeys are kept"
+fi
 
 # Jev, the decision model, and boat.dev, the External Virtual PC (#513, #529): each asked once, on the first install,
 # never on this computer only, which has no admin page. BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand
@@ -1233,7 +1317,7 @@ take_key() {
     esac
     return 0
   fi
-  [ -n "$FIRST" ] && [ -z "$UNATTENDED" ] || return 0
+  [ -n "$FIRST" ] && [ -z "$UNATTENDED" ] && [ -z "$MANAGED" ] || return 0
   while ask "$4" n; do
     ask_secret "$5"
     [ -n "$REPLY" ] || return 0
@@ -1353,6 +1437,9 @@ start_door() {
   # A front door that doesn't know one account would make the admin's sign-up link and an admin page on this computer.
   [ "$REACH" != local ] || grep -q FRONT_DOOR_ONE_ACCOUNT "$DOOR/compose.yaml" \
     || die "This version of botdot can't run on this computer only: its front door has no one-account mode. Take a newer one."
+  # Nor one without a managed mode on a managed machine: it would make an admin page.
+  [ -z "$MANAGED" ] || grep -q FRONT_DOOR_MANAGED "$DOOR/compose.yaml" \
+    || die "This version of botdot has no managed mode, so it can't run on this machine. Take a newer one."
   $DOOR_COMPOSE up -d --remove-orphans </dev/null >/dev/null 2>&1 || $DOOR_COMPOSE up -d --remove-orphans </dev/null
   [ -z "$CADDY_CHANGED" ] || $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || warn "Caddy didn't restart with its new settings. Restart it: cd $DOOR && docker compose restart caddy"
   CADDY_CHANGED=''
@@ -2197,6 +2284,20 @@ if [ "$REACH" = local ]; then
   SIGN_UP=''
   [ -n "$(door_state "$ADMIN")" ] || SIGN_UP=",\"signUp\":\"$ORIGIN/sign-up/$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)\""
   say "BOTDOT_LOCAL {\"origin\":\"$ORIGIN\"$SIGN_UP}"
+  exit 0
+fi
+
+# A managed machine (ADR 154): no admin page, and the setup key's sign-up link until the first account exists.
+if [ -n "$MANAGED" ]; then
+  say ""
+  warn "Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself."
+  say ""
+  bold "Done. botdot is at $ORIGIN"
+  if [ -z "$(door_state "$ADMIN")" ]; then
+    say "Open this link to make the account $ADMIN (it works until that account exists):"
+    say ""
+    say "  $ORIGIN/sign-up/$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)"
+  fi
   exit 0
 fi
 

@@ -38,8 +38,16 @@
 //                     sign-in in the browser use it: today the app signs in on the sign-in page, with a hand-off
 // FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (npm start, ADR 028): no
 //                     sign-up link is printed or opens, and the account's passkey is made with FRONT_DOOR_SETUP_KEY
-// FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT: the secret (32 to 100 base64url characters) that only its starter
-//                     holds, which opens the one account's sign-up page until that account exists
+// FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT or FRONT_DOOR_FIRST_ACCOUNT: the secret (32 to 100 base64url
+//                     characters) that only its starter holds, which opens that account's sign-up page until it exists
+// FRONT_DOOR_MANAGED  1 on a managed machine (ADR 154), which the fleet console runs through root's step: no admin page
+//                     (/admin and /admin/… are 404), no admin, no feedback and no shared rooms, and each account has a
+//                     guaranteed share (4 CPUs, 8 GB of RAM, 40 GB of disk by default) that a new account must fit
+//                     beside the others' (lib/front-door/capacity.js). One account with FRONT_DOOR_ONE_ACCOUNT; several
+//                     with FRONT_DOOR_FIRST_ACCOUNT, the first one, made with the setup key, and the others from
+//                     sign-up links root's step makes
+// FRONT_DOOR_FIRST_ACCOUNT  with FRONT_DOOR_MANAGED: the first account of a managed machine of several, whose passkey
+//                     is made with FRONT_DOOR_SETUP_KEY while the machine has no account
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
@@ -90,10 +98,19 @@ if (ONE_ACCOUNT !== null && !store.ACCOUNT_NAME.test(ONE_ACCOUNT)) {
   console.error("FRONT_DOOR_ONE_ACCOUNT is an account's name: 2 to 31 lowercase letters, digits and dashes, starting with a letter.");
   process.exit(1);
 }
-const SETUP_KEY = ONE_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
+// A managed machine (ADR 154): its first account, when it holds several.
+const MANAGED = process.env.FRONT_DOOR_MANAGED === '1';
+const FIRST_ACCOUNT = MANAGED && !ONE_ACCOUNT ? process.env.FRONT_DOOR_FIRST_ACCOUNT || null : null;
+if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
+  console.error("FRONT_DOOR_FIRST_ACCOUNT is an account's name: 2 to 24 lowercase letters, digits and dashes, starting with a letter.");
+  process.exit(1);
+}
+// The account the setup key makes: the one account, or a managed machine's first.
+const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
+const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
 // The machine's RAM sizes the default share (#126): the last root's step measured, kept while its file is stale.
 let machineRam = null;
-const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; } });
+const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null });
 
 if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
   if (ONE_ACCOUNT) {
@@ -206,7 +223,8 @@ setInterval(() => {
   for (const map of [challenges, handoffs]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
 const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
-const ADMIN = process.env.FRONT_DOOR_ADMIN || null;
+// A managed machine has no admin: the fleet console is (ADR 154).
+const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
 const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
@@ -513,12 +531,12 @@ function takeHandoff(code, verifier) {
   return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(waiting.challenge)) ? waiting : null;
 }
 
-// The sign-up this token opens: an open sign-up link, or on a machine of one account, the setup key until that
-// account exists (for that account), and nothing else.
+// The sign-up this token opens: the setup key while the machine has no account (for the account it makes: the one
+// account, or a managed machine's first), else, unless the machine holds one account, an open sign-up link.
 function signUpLink(token) {
-  if (!ONE_ACCOUNT) return doors.openLink(token);
-  const opens = !!SETUP_KEY && !doors.accountCount() && token.length === SETUP_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(SETUP_KEY));
-  return opens ? { for: ONE_ACCOUNT } : null;
+  const setup = !!SETUP_KEY && !doors.accountCount() && token.length === SETUP_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(SETUP_KEY));
+  if (setup) return { for: SETUP_ACCOUNT, setup: true };
+  return ONE_ACCOUNT ? null : doors.openLink(token);
 }
 
 // The name a sign-up page for the account `account` offers to sign in with: `asked` (the desktop app sends its
@@ -654,7 +672,7 @@ async function signInRoutes(req, res, p) {
   // The admin's sign-in link: a new passkey for an account that exists.
   const signIn = !!link.signIn;
   // A full machine makes no account (#912): the link stays open for later, and the admin's install link always works.
-  if (!signIn && !ONE_ACCOUNT && link.for !== ADMIN) {
+  if (!signIn && !link.setup && !ONE_ACCOUNT && link.for !== ADMIN) {
     if (signUpRefused(req, res, link)) return;
     const c = capacityNow();
     if (c.full) return refusedFull(req, res, token, link, c);
@@ -690,7 +708,7 @@ async function signInRoutes(req, res, p) {
   }
   try {
     if (signIn) doors.addPasskey({ token, name, passkey: key });
-    else if (ONE_ACCOUNT) doors.createOnlyAccount({ name, login, userId: waiting.userId, passkey: key });
+    else if (link.setup) doors.createOnlyAccount({ name, login, userId: waiting.userId, passkey: key });
     else doors.createAccount({ token, name, login, userId: waiting.userId, passkey: key });
   } catch (e) {
     if (e.status) return send(res, e.status, { error: e.message });
@@ -702,17 +720,19 @@ async function signInRoutes(req, res, p) {
     audited('passkey-added', { actor: 'front-door', account: name, detail: "from the admin's sign-in link" });
     return signedIn(req, res, 201, name, body.app, handoff);
   }
-  if (!ONE_ACCOUNT && name !== ADMIN && !blockRules.local(clientOf(req))) doors.countSignUp(blockRules.limitKey(clientOf(req)));
-  console.log(`[front door] account ${name} was made ${ONE_ACCOUNT ? 'with the setup key' : 'from a sign-up link'}`);
-  audited('account-made', { actor: 'front-door', account: name, detail: 'from a sign-up link' });
+  if (!link.setup && !ONE_ACCOUNT && name !== ADMIN && !blockRules.local(clientOf(req))) doors.countSignUp(blockRules.limitKey(clientOf(req)));
+  console.log(`[front door] account ${name} was made ${link.setup ? 'with the setup key' : 'from a sign-up link'}`);
+  audited('account-made', { actor: 'front-door', account: name, detail: link.setup ? 'with the setup key' : 'from a sign-up link' });
   askForAccount(name);
   return signedIn(req, res, 201, name, body.app, handoff);
 }
 
 // How many more accounts this machine takes (#912): { room, max, accounts, full }. room: accounts that still fit its
 // measured RAM and disk (lib/front-door/capacity.js), null while nothing is measured; full: a sign-up link makes no account now.
+// On a managed machine room is counted by shares (ADR 154): what the machine has against the shares its accounts hold.
 function capacityNow() {
-  const c = { room: capacity.room(load.machine()), max: doors.maxAccounts(), accounts: doors.accountCount() };
+  const room = MANAGED ? capacity.roomByShares(load.machine(), doors.listAccounts().map((a) => a.share), doors.defaultShare()) : capacity.room(load.machine());
+  const c = { room, max: doors.maxAccounts(), accounts: doors.accountCount() };
   return { ...c, full: capacity.full(c) };
 }
 const FULL = 'This machine is full. Your link still works: try it again later.';
@@ -1431,6 +1451,8 @@ const server = http.createServer(async (req, res) => {
     try { p = new URL(req.url, ORIGIN.origin).pathname; } catch { return send(res, 400, { error: 'Bad address' }); }
     // A write from a page of another site can't send this header without a preflight, which nothing approves.
     // A machine of one account (the Mac app's) has no admin page (ADR 028): there /admin is the account's own.
+    // A managed machine has none either, and nothing answers there (ADR 154): the fleet console is its admin.
+    if (MANAGED && (p === '/admin' || p.startsWith('/admin/'))) return send(res, 404, { error: 'Not found' });
     const isAdmin = !ONE_ACCOUNT && (p === '/admin' || p.startsWith('/admin/'));
     const own = isAdmin || p === '/sign-in' || p === '/sign-in/options' || p === '/sign-in/handoff' || p === '/sign-out' || p === '/sign-out-everywhere' || p.startsWith('/sign-up/') || p.startsWith('/front-door/');
     if (own && req.method !== 'GET' && req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
@@ -1581,7 +1603,7 @@ server.listen(PORT, HOST, () => {
     ? `[front door] the Android app signs in as botdot's release build and with ${more} more key${more === 1 ? '' : 's'} from FRONT_DOOR_ANDROID_KEYS`
     : "[front door] FRONT_DOOR_ANDROID_KEYS is not set: the Android app signs in only as botdot's release build; a build of your own needs its signing key's SHA-256 there (docs/install-linux.md)");
   // Until the first account is made, every start prints a link that makes it: the admin's own (ADR 028).
-  if (!doors.accountCount() && !ONE_ACCOUNT) {
+  if (!doors.accountCount() && !ONE_ACCOUNT && !MANAGED) {
     const { url } = doors.newSignUpLink({ origin: ORIGIN.origin, account: ADMIN });
     console.log(`Sign-up link for the first account${ADMIN ? `, ${ADMIN},` : ''} which is the admin's: ${url}`);
   }
