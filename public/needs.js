@@ -1,8 +1,6 @@
 // ---------- Needs you: everything waiting for the owner, as small heads in a banner and cards on a page ----------
 
 // Jobs, memory changes, login and payment requests, and a locked Bitwarden, each with its bot (none: the Chief's).
-// then: what a yes on it starts, as the botdot server says it (docs/api.md, "What follows a yes"): on an ask and on
-// a waiting tile, and for a waiting job in the live feed's list of what waits.
 // The memory changes that wait, guarded ones too (docs/api.md, "A guarded change"): each is a card here.
 const MEMORY_WAITS = '/memory/pending?guarded=1';
 // group: the group a card was asked in, `{ id, name }` (groupOfNeed): it stands at the end of that group's chat
@@ -18,13 +16,13 @@ function needsList(bw) {
       return { key: `req:${r.id}`, kind: r.kind === 'card' ? 'pay' : 'login', r, bot: chief ? CHIEF_BOT : r.bot, color: chief ? CHIEF_COLOR : colorOf(r.bot) };
     }),
     ...(bw && bw.configured && !bw.unlocked ? [{ key: 'bitwarden', kind: 'bitwarden', bot: bw.wantedBy, color: bw.wantedBy ? colorOf(bw.wantedBy) : CHIEF_COLOR }] : []),
-    ...pendingJobs().map(({ bot, job }) => ({ key: `job:${job.id}${changeKey(job)}`, kind: 'job', bot, job, color: bot.color, then: job.then || fedJobThen(bot.id, job.id) })),
+    ...pendingJobs().map(({ bot, job }) => ({ key: `job:${job.id}${changeKey(job)}`, kind: 'job', bot, job, color: bot.color })),
     ...(state.memPending || []).map((p) => ({ key: `mem:${p.id}`, kind: 'memory', p, bot: p.bot, color: colorOf(p.bot) })),
     // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
     // The Chief's own action in a connected app (`chief`, ADR 047) is the Chief's card, as a skill it asks for is.
-    ...(state.asks || []).map((a) => ({ key: `ask:${a.id}`, kind: 'ask', a, bot: a.bot || (a.kind === 'skill' || a.chief ? CHIEF_BOT : null), color: a.bot ? colorOf(a.bot) : CHIEF_COLOR, then: a.then })),
+    ...(state.asks || []).map((a) => ({ key: `ask:${a.id}`, kind: 'ask', a, bot: a.bot || (a.kind === 'skill' || a.chief ? CHIEF_BOT : null), color: a.bot ? colorOf(a.bot) : CHIEF_COLOR })),
     // A tile on the Board with a script: it runs on this computer, so it waits for you.
-    ...(state.dash?.pending || []).map((t) => { const b = botById(t.bot); return { key: `tile:${t.id}:${tileScripts(t).join('').length}${changeKey(t)}`, kind: 'tile', t, bot: b || null, color: b ? b.color : CHIEF_COLOR, then: t.then }; }),
+    ...(state.dash?.pending || []).map((t) => { const b = botById(t.bot); return { key: `tile:${t.id}:${tileScripts(t).join('').length}${changeKey(t)}`, kind: 'tile', t, bot: b || null, color: b ? b.color : CHIEF_COLOR }; }),
     // A bot's plan for the Chief: nothing happens until you approve it (here or in its chat).
     ...(state.chats || []).filter((c) => c.waiting).map((c) => ({ key: `sug:${c.id}`, kind: 'suggestion', chat: c, bot: c.waiting.from, color: colorOf(c.waiting.from) })),
   ];
@@ -71,8 +69,6 @@ const ownYes = (x) => x.a?.batch?.own === true;
 // on this page, is a new card and not the answered one.
 const changeKey = (x) => (changeOf(x) ? `:change:${said(changeOf(x).at)}` : '');
 
-// What a yes on a waiting job starts: the feed lists the waiting jobs (`approvals.jobs`), each with its `then`.
-const fedJobThen = (botId, jobId) => (Array.isArray(state.approvals?.jobs) ? state.approvals.jobs : []).find((j) => j?.botId === botId && j.jobId === jobId)?.then;
 
 const needsFigures = (items) => `<span class="needs-figs">${items.map((x, i) => `<i style="animation-delay:${(i * 0.15).toFixed(2)}s">${x.bot ? botMark(x.bot) : Figure.small(CHIEF_COLOR, Figure.CHIEF)}</i>`).join('')}</span>`;
 
@@ -140,14 +136,12 @@ function needCardHTML(x, here = null) {
   if (x.kind === 'batch') return batchCardHTML(x, here);
   // Whose it is, and for a card asked in a group, in which: the group's own chat says only the bot.
   const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">${tr('in {group}', { group: esc(x.group.name) })}</span>` : ''}` : '';
-  // Under the body, one line that says who carries on after a yes, when the server says something does.
-  const then = thenLine(x.then, here);
   const card = (title, meta, body, actions, cls = '') => `
     <div class="${['card', 'need-card', cls, needsOpen.has(x.key) ? 'open' : ''].filter(Boolean).join(' ')}" data-need="${esc(x.key)}" title="${tr('Click to see it all')}">
       ${who ? `<div class="need-who">${who}</div>` : ''}
       <div class="need-title">${title}</div>
       ${meta ? `<div class="need-meta">${meta}</div>` : ''}
-      ${body || ''}${then ? `<div class="need-meta need-then">${esc(then)}</div>` : ''}
+      ${body || ''}
       <div class="need-actions">${actions}</div>
     </div>`;
   // A job: one that waits for its first OK, or a change to an approved one (jobCard). The no and the yes read the
@@ -390,12 +384,6 @@ function approveAll(open) {
 // so, as a server from before `decline-words` sends it. A button that reads the server's words asks nothing.
 const asksBeforeNo = (x) => x.kind === 'job' && !changeOf(x.job) && !said(x.job.no);
 
-// Who carries on after a yes, in the server's words (docs/api.md, "What follows a yes"): `text`, or `here` on a
-// card that stands in the Chief chat it names. '' when the server says nothing: the yes changes the setting only.
-function thenLine(then, here = null) {
-  return (here && then?.chatId === here && said(then.here)) || said(then?.text);
-}
-
 // What changes on a bot (an ask's `parts`), in the server's order. A text that changes (it has `was`) is one
 // block: what goes, struck, above what comes, so that a closed card shows the start of both. Anything else is a
 // row of its label and what it becomes. One changed text is named by the card's title; several each stand under
@@ -436,7 +424,7 @@ const rowsCut = (a) => Array.isArray(a?.rows) && a.rows.some((r) => r?.more === 
 const tooLong = (a) => a?.more === true;
 
 // What a card draws beyond its key that can change while it waits: the page draws it again when this does.
-const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.batch?.title, x.a?.batch?.own, thenLine(x.then, here), x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
+const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.batch?.title, x.a?.batch?.own, x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
 
 // Back to where Needs you was opened from (state.cameFrom, needs-return.js): false when there is nowhere.
 function leaveNeeds() {
@@ -544,9 +532,8 @@ function chatNeeds(scope) {
     return botId === scope && !fromChief(x);
   })];
 }
-// Tiles bots suggested for the Board, as cards (in the bot's chat; on the Board they're faded tiles). `then`: the
-// bot that suggested one in a run carries on after Add (docs/api.md, "What a bot proposed").
-const tileSuggestions = () => (state.dash?.suggestions || []).map((s) => ({ key: `tsug:${s.id}`, kind: 'tilesug', s, bot: botById(s.bot) || null, color: botById(s.bot)?.color || CHIEF_COLOR, then: s.then }));
+// Tiles bots suggested for the Board, as cards (in the bot's chat; on the Board they're faded tiles).
+const tileSuggestions = () => (state.dash?.suggestions || []).map((s) => ({ key: `tsug:${s.id}`, kind: 'tilesug', s, bot: botById(s.bot) || null, color: botById(s.bot)?.color || CHIEF_COLOR }));
 
 // The chats an ask's card stands in, besides the Needs you page: its bot's, the Chief's, a group's (chatNeeds).
 function chatsOfAsk(x) {
@@ -651,7 +638,6 @@ function markAnswered(x, yes, always, answer, chats) {
   $$(`.need-card[data-need="${CSS.escape(x.key)}"]`).forEach((el) => {
     el.classList.add('done');
     $('.need-actions', el).innerHTML = `<span class="muted">${esc(label)}</span>`; // the server's words are text
-    $('.need-then', el)?.remove(); // "when you allow it" is answered: the label says what follows now
     $('.need-until', el)?.remove(); // and so is "until you answer"
     const chat = el.closest('.chat-needs');
     if (chat) chatDecided.set(`${chat.dataset.scope} ${x.key}`, { scope: chat.dataset.scope, title: $('.need-title', el).textContent, label }); // a tool's card is in two chats

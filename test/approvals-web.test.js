@@ -328,22 +328,18 @@ test('web: a tile with `change` has the same card with its scripts, and its answ
   assert.deepEqual(plain(same.scriptsWas), [], 'scripts that stay are drawn once');
 });
 
-test('web: a waiting job, a suggested tile and a changed bot with `then` say who carries on, as a permission card does', async () => {
+test('web: a waiting job, a suggested tile and a changed bot with `then` draw no line before the yes; the yes says who carries on', async () => {
   const THEN = { who: 'bot', text: 'Coder carries on when you approve it.' };
   const sug = { id: 's1', bot: 'coder', reason: 'You asked for the disk.', at: '2026-10-07T09:00:00.000Z', then: THEN, tile: { kind: 'value', title: 'Disk', scripts: ['df -h /'] } };
   const ask = { id: 'b1', kind: 'bot-change', botId: 'coder', bot: CODER, by: 'bot', title: 'Change its instructions', reason: 'To do it right', details: 'x', then: THEN };
   const p = page({ state: { bots: withJobs({ ...AI, then: THEN }, { ...CHANGED, id: 'j2', then: THEN }), asks: [ask], dash: { pending: [], suggestions: [sug] } }, answer: () => ({ ok: true, tile: {}, carriesOn: { who: 'bot', text: 'it carries on' } }) });
   const cards = p.chatNeeds('coder');
   assert.deepEqual(plain(cards.map((x) => x.kind)), ['tilesug', 'job', 'job', 'ask']);
-  for (const x of cards) assert.equal(thenOf(p.needCardHTML(x)), THEN.text, x.key);
-  const html = p.needCardHTML(p.item(`job:j2:change:${CHANGE.at}`));
-  assert.ok(html.indexOf('need-until') < html.indexOf('need-then'), 'a change says that it runs as approved, then who carries on');
+  for (const x of cards) assert.equal(thenOf(p.needCardHTML(x)), null, x.key);
   // The yes on a suggested tile says that the bot carries on.
   const card = p.show('tsug:s1', 'coder');
   await p.decide(cards[0], true);
   assert.equal(card.actions.innerHTML, '<span class="muted">On your Board · it carries on</span>');
-  const none = page({ state: { bots: [CODER], dash: { pending: [], suggestions: [{ ...sug, then: undefined }] } } });
-  assert.equal(thenOf(none.needCardHTML(none.chatNeeds('coder')[0])), null, 'a server that says nothing: no line');
 });
 
 // ---------- The jobs panel and the job dialog ----------
@@ -362,7 +358,7 @@ function panel() {
   });
   vm.runInContext(`${cut('const AI_WHEN_TEXT = {', 'const readJob = ')}
     ${cut('// Jobs waiting for the owner\'s OK', '// ---------- connectors (apps through Composio)')}
-    ${cut('// Words of the server\'s that a card draws', '// Who carries on after a yes')}
+    ${cut('// Words of the server\'s that a card draws', '// What changes on a bot (an ask\'s `parts`)')}
     this.page = { jobStatus, jobCardHTML, jobChangeNote, drawJobChange, jobLineSig, openJobApproval };`, ctx);
   return { ...ctx.page, ctx, opened, toasts, calls, modal };
 }
@@ -483,7 +479,7 @@ function wired(x, { agrees = true } = {}) {
     confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
   });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
-    ${cut('// Words of the server\'s that a card draws', '// Who carries on after a yes')}
+    ${cut('// Words of the server\'s that a card draws', '// What changes on a bot (an ask\'s `parts`)')}
     ${cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat')}
     ${cut('// "Always approve" a script job', '// A job in one line')}
     wireNeedCards({}, [${JSON.stringify(x)}]);`, ctx);
