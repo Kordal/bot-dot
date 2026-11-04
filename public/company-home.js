@@ -308,13 +308,16 @@
   function needsHTML(c, items) {
     if (!items.length) return '';
     const shown = items.slice(0, 3);
-    const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
+    // A member's ask is drawn under its lead (ADR 148): the lead's face, the member's words.
+    const head = (x) => { const l = underLead(c, x); return l ? botFigure(colorOf(l), 'idle', '', outfitOf(l)) : x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure(); };
     const acts = (x, i) => (answersInline(x)
       ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
       : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
     const more = items.length - shown.length;
     return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
   }
+  // The lead a member's ask is drawn under in this project (ADR 148), or null.
+  const underLead = (c, x) => { const id = Keypad.leadOf(c, x?.bot?.id); return id ? botById(id) : null; };
   const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups);
   // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
   const projectAsking = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
@@ -368,7 +371,7 @@
     const asking = asks ? projectAsking(c) : [];
     const items = CompanyTodo.shown(c.todos, filter);
     const rows = [
-      ...waits.map((x, i) => `<div class="cf-row">${head(x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
+      ...waits.map((x, i) => `<div class="cf-row">${head(underLead(c, x) || x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
       ...items.map(todoHTML),
     ].join('');

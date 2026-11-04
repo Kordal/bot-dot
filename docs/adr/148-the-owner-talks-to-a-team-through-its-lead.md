@@ -13,11 +13,11 @@ A project's team has one lead (ADR 110) that answers for the team (ADR 114). A m
 - **The lead asks the owner** in its reply, every member's question in one message, each with the member's name, and passes the answer on with `message_bot`. It answers a member itself only from what the owner already said or decided (the decisions, the plan, the project's rules). It still never approves anything for the owner.
 - **A card stays the member's.** What only the owner's tap answers (`ask_permission`, `ask_override`, `ask_skill` and the other cards, ADR 054-056) is asked for by the member as before, since a bot never changes another bot's settings and a bot's message is never the owner's OK; the member then tells the lead in one line (priority: false) that it waits, so the lead's next message to the owner can carry it.
 - **A team bot may always message its lead, and a lead its members** (`company.teamLinks`, `mayMessageIds` in `lib/bots.js`), whatever "May message" says: the owner made the team. A bot kept to the owner ("Other bots may ask it" off) is still not reached, and a bot outside the team is reached only as its settings say.
-- Nothing in the API or the apps changes: the lead's questions reach the owner as any bot's do (Asks in the list, Needs you, the project's to-do).
+- The API does not change: the lead's questions reach the owner as any bot's do (Asks in the list, Needs you, the project's to-do).
 
 ## Alternatives
 
-- **Members' cards moved to the lead's chat, or drawn under the lead in Needs you.** Left for later: it changes what the apps draw, and the card's question is still the member's own; the project's views of Needs you are being scoped to the team first (#954).
+- **Members' cards moved to the lead's chat.** Rejected: the card's question is the member's own, and its answer starts the member again. Drawing them under the lead in a project's views was left for later, and is done (see the amendment).
 - **The lead approves for the owner within the team.** Rejected again, as in ADR 114: an OK is the owner's.
 - **"May message" left as it is, the member told to use ask_permission for its lead.** Rejected: a team whose member could not reach its lead would ask the owner for the right to ask the owner.
 
@@ -26,3 +26,7 @@ A project's team has one lead (ADR 110) that answers for the team (ADR 114). A m
 - The owner hears from a team's lead; a member speaks to the owner when the owner writes to it, or for a card.
 - A member's question waits one hop longer: the lead's run, then the owner. The lead's turn already batches them.
 - A team bot's note grows by some 200 characters for a lead and 350 for a member; the bound test of a bot's prompt with every cap hit is 127,000 characters (DECISIONS.md, 2026-11-04).
+
+## Amendment (2026-11-04)
+
+The alternative left for later is done, on the web page and in the Android app: in a project's Needs you and its to-do, a member's card is drawn under its team's lead, with the lead's face beside the member's words (`Keypad.leadOf`, `Spaces.leadOf` and `Spaces.underLeads`). The card is still the member's: it names the member, Allow and No answer it, and its words open the member's chat. Home draws every card as before, each with its own bot's face.

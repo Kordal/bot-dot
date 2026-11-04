@@ -306,3 +306,12 @@ test('a project\'s To-do lists only its own asks and its team bots\' questions, 
   assert.match(panel, /asking = asks \? projectAsking\(c\)/);
   assert.doesNotMatch(src, /\bwaits = needs\(\)/, 'the To-do\'s buttons answer the rows it shows');
 });
+
+test('leadOf: a member\'s ask is drawn under its team\'s lead in a project; a lead\'s, a stranger\'s and a lone bot\'s are not (ADR 148)', () => {
+  assert.equal(Keypad.leadOf(projects[0], 'planner'), 'ops');
+  assert.equal(Keypad.leadOf(projects[0], 'ops'), null);
+  assert.equal(Keypad.leadOf(projects[0], 'coach'), null);
+  assert.equal(Keypad.leadOf(projects[1], 'coach'), null);
+  assert.equal(Keypad.leadOf(projects[0], undefined), null);
+  assert.equal(Keypad.leadOf({ teams: [{ id: 't', bots: ['a', 'b'] }] }, 'b'), null);
+});

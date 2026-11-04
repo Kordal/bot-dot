@@ -83,6 +83,19 @@ object Spaces {
         return waiting.filter { (it.bot != null && it.bot in bots) || (it.group != null && it.group in chats) }
     }
 
+    /** The lead a member's ask is drawn under in [project] (ADR 148); null for a lead, a bot of none of its teams, or a team without another lead. */
+    fun leadOf(project: Company, bot: String?): String? {
+        if (bot == null) return null
+        val t = project.teams.firstOrNull { bot in it.bots } ?: return null
+        return t.lead?.takeIf { it.isNotEmpty() && it != bot }
+    }
+
+    /** [waiting] as a project draws it: a member's ask under its lead, with the lead's face and the member's words and chat (ADR 148). */
+    fun underLeads(project: Company, waiting: List<Waiting>, bots: List<Bot>): List<Waiting> = waiting.map { w ->
+        val lead = leadOf(project, w.bot)?.let { id -> bots.firstOrNull { it.id == id } }
+        if (lead == null) w else w.copy(color = lead.color ?: w.color, outfit = lead.outfit ?: w.outfit)
+    }
+
     /** The bots of a project that ask the owner a question: its teams' only. */
     fun askingIn(project: Company, bots: List<Bot>, asks: (Bot) -> Boolean): List<Bot> = teamBots(listOf(project)).let { t -> bots.filter { it.id in t && asks(it) } }
 }

@@ -134,7 +134,14 @@ function asksOf(items, project, projects, groups) {
   return items.filter((x) => mine(x) || (x.kind === 'batch' && (x.items || []).some(mine)));
 }
 
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf };
+// The lead a member's ask is drawn under in a project's views (ADR 148): the owner talks to a team through its lead.
+// null for a lead, a bot in none of the project's teams, or a team without another lead.
+function leadOf(project, botId) {
+  const t = botId && (project?.teams || []).find((x) => (x.bots || []).includes(botId));
+  return t && t.lead && t.lead !== botId ? t.lead : null;
+}
+
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, leadOf };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

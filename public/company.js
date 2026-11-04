@@ -475,9 +475,21 @@ const Company = (() => {
     if (root.dataset.sig === sig && root.firstElementChild) return;
     root.dataset.sig = sig;
     root.classList.remove('sp-has-field');
+    // A button on the same screen draws it again where the owner was, not at its top (a redraw empties the page for
+    // a moment, and the browser takes the page back to the top); another screen or project opens at its top.
+    const home = !settingsOpen && c?.phase === 'running' && steps.home && current !== 'start';
+    const screen = JSON.stringify([c?.id || null, settingsOpen, home || !c ? !!home : stepOf(c), !home && c && stepOf(c) === 'about' ? steps.ticks?.about?.(c)?.[1] ?? null : null]);
+    const top = root.dataset.screen === screen ? root.scrollTop : 0;
+    root.dataset.screen = screen;
+    try { drawScreen(root, c, home); } finally {
+      // Again once laid out: WebKit (Safari, the desktop app on a Mac) can take it back to the top after the draw.
+      if (top) { root.scrollTop = top; requestAnimationFrame(() => { if (root.dataset.screen === screen && root.scrollTop < top) root.scrollTop = top; }); }
+    }
+  }
+  function drawScreen(root, c, home) {
     if (settingsOpen) { steps.settings(root, c); return; }
     if (!c) drawStart(root);
-    else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
+    else if (home) steps.home(root, c);
     else {
       const at = stepOf(c);
       // The ⋯ at the bar's end: its settings and its delete, while setting up too (#791, #801).
