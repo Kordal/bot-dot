@@ -149,9 +149,10 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.ok(fs.existsSync(path.join(done.dir, 'accounts', 'owner', 'compose.yaml')), "the account's botdot server is made");
   assert.match(done.system, /^curl -fsS -o \/dev\/null -H Host: localhost:4700 http:\/\/127\.0\.0\.1:4700\/api\/version$/m);
   const lines = done.said.trim().split('\n');
-  assert.equal(lines.at(-1), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
+  assert.match(lines.at(-1), /^BOTDOT_READY \{"origin":"http:\/\/localhost:4700","version":"[0-9a-f]*","reach":"local","accounts":\["owner"\]\}$/, 'the last line is the one for a program, without the key (#981)');
+  assert.equal(lines.at(-2), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
   assert.equal(done.said.split(key).length, 2, 'the key is on the screen in that line alone');
-  assert.deepEqual(JSON.parse(lines.at(-1).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
+  assert.deepEqual(JSON.parse(lines.at(-2).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
 
   // A rerun keeps the address, the key and the account; once the account exists its line has no sign-up address.
   const dotenv = fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8');
@@ -161,14 +162,14 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.equal(again.env.BOT_DOT_REACH, 'local', 'how it is reached is chosen once');
   assert.equal(again.env.FRONT_DOOR_ORIGIN, 'http://localhost:4700', 'and its address, which its passkey belongs to');
   assert.equal(again.env.FRONT_DOOR_SETUP_KEY, key);
-  assert.equal(again.said.trim().split('\n').at(-1), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
+  assert.equal(again.said.trim().split('\n').at(-2), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
 
   const port = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '5100', BOT_DOT_ADMIN: 'bart' } });
   assert.equal(port.status, 0, port.stderr);
   assert.equal(port.env.FRONT_DOOR_ORIGIN, 'http://localhost:5100');
   assert.equal(port.env.FRONT_DOOR_SITES_ORIGIN, 'http://localhost:5101');
   assert.equal(port.env.FRONT_DOOR_ONE_ACCOUNT, 'bart');
-  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\n$/);
+  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\nBOTDOT_READY \{"origin":"http:\/\/localhost:5100",[^\n]*"accounts":\["bart"\]\}\n$/);
 
   const bad = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '80' } });
   assert.equal(bad.status, 1);
