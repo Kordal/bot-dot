@@ -1376,7 +1376,6 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .bw-bar { display: flex; align-items: center; gap: var(--sp-8); flex-wrap: wrap; padding: var(--sp-12) var(--sp-16); margin-bottom: var(--sp-16); font-size: var(--fs-14); }
 
 /* live steps of a running bot */
-.screen-steps { margin-top: var(--sp-12); }
 .screen-usage { margin-top: var(--sp-12); font-size: var(--fs-12); display: grid; gap: var(--sp-4); }
 .usage-row { display: flex; gap: var(--sp-12); justify-content: space-between; }
 .usage-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
