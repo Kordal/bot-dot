@@ -247,6 +247,12 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
     assert.match(compose, new RegExp(`\\n  ${service}:\\n(    .*\\n)*?    runtime: runsc-uds\\b`), service);
   }
   assert.deepEqual(daemon['exec-opts'], ['native.cgroupdriver=cgroupfs']);
+  // gVisor through root's script beside the share, which sizes each sandbox by it (ADR 152).
+  assert.equal(daemon.runtimes.runsc.path, `${home}/share/runsc`);
+  const runsc = path.join(home, 'share', 'runsc');
+  assert.equal(fs.statSync(runsc).mode & 0o777, 0o755);
+  assert.match(fs.readFileSync(runsc, 'utf8'), /^RUNSC='\/\S+\/runsc'$/m, 'the machine\'s runsc');
+  assert.match(done.system, new RegExp(`^chown 0:0 ${home}/share$`, 'm'), 'root\'s');
 
   // Started by systemd as the account's own user.
   const unit = fs.readFileSync(path.join(done.etc, 'systemd', 'system', 'botdot-account@.service'), 'utf8');
