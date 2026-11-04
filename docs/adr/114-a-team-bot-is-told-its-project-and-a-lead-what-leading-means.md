@@ -1,6 +1,6 @@
 # ADR-114: A team bot is told its project, and a lead what leading means
 
-- **Status:** Accepted (2026-10-29)
+- **Status:** Accepted (2026-10-29); its member rule superseded by [ADR 148](148-the-owner-talks-to-a-team-through-its-lead.md)
 - **Owning task:** [#693](https://github.com/Kordal/bot-dot/issues/693), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
 
 ## Context
