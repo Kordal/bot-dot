@@ -88,6 +88,8 @@ cd bot-dot-source && sudo make images && sudo BOT_DOT_IMAGE=bot-dot/server:lates
 
 To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below).
 
+A first install also asks whether to use Jev as the decision model (with an OpenRouter key) and boat.dev for the External Virtual PC (with a boat.dev API key). Each key is checked before it is kept; one that is refused is asked again, and one that can't be checked is set later on the admin page, where both can be changed. Set `BOT_DOT_OPENROUTER_KEY` and `BOT_DOT_BOAT_KEY` to answer beforehand, or set either to nothing to skip it without a question.
+
 `BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
 
 ## The Android app's sign-in
