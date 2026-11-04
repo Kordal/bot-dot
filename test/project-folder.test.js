@@ -120,6 +120,38 @@ test("the owner's Files opens the folder alone, starting nothing new for it whil
   docker.answer('exec.txt', null);
 });
 
+test("a path in a team bot's reply opens the file in its project's folder, relative or in full", async () => {
+  docker.answer('inspect.json', RUNNING);
+  const file = Buffer.from('# Quick install\n').toString('base64');
+  docker.answer('exec.txt', `ok 16 1760000000\n${file}`);
+  const open = (bot, p) => srv.api(`/bots/${bot.id}/path?path=${encodeURIComponent(p)}&view=1`);
+  const script = () => execs().at(-1).args.at(-1);
+  // Relative to the project's folder, as the bot names it: not in its workspace on botdot, so read there.
+  let r = await open(writer, 'install-docs/QUICK-INSTALL.md');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.text, '# Quick install\n');
+  assert.equal(r.data.name, 'QUICK-INSTALL.md');
+  assert.ok(execs().at(-1).args.includes('botdot.account.computer'), "from botdot's own seat");
+  assert.match(script(), /p='\/workspace\/projects\/Fernhill Shop\/install-docs\/QUICK-INSTALL\.md'/);
+  assert.match(script(), /'\/workspace\/projects\/Fernhill Shop'\/\*\)/, 'inside the project folder only');
+  // In full, for a bot without the computer too.
+  r = await open(writer, '/workspace/projects/Fernhill Shop/install-docs/QUICK-INSTALL.md');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.text, '# Quick install\n');
+  // A bot on the computer: its own folder there is looked in first.
+  r = await open(coder, 'notes.md');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.match(script(), new RegExp(`p='/workspace/${coder.id}/notes\\.md'`));
+  // Nowhere: gone, and a path of another project or out of the folder stays refused.
+  docker.answer('exec.txt', 'gone\n');
+  r = await open(writer, 'install-docs/NOPE.md');
+  assert.deepEqual([r.status, r.data.state], [404, 'gone']);
+  r = await open(writer, '/workspace/projects/Other/x.md');
+  assert.equal(r.status, 404, "another project's folder is not the bot's");
+  assert.equal((await open(writer, 'install-docs/../../x.md')).status, 403);
+  docker.answer('exec.txt', null);
+});
+
 test("a card's build reads its own project's folder, read-only, and no other project's", async (t) => {
   docker.answer('inspect.json', RUNNING);
   const other = (await srv.api('/company', { method: 'POST', body: { start: 'Elm Street' } })).data.id;

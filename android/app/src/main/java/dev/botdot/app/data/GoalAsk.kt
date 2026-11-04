@@ -9,4 +9,9 @@ object GoalAsk {
     const val FEATURE = "objective-change"
 
     fun shows(features: Collection<String>?): Boolean = FEATURE in features.orEmpty()
+
+    /** Remove in a goal card's menu (`DELETE /api/company/objectives/:id`): only on a botdot that says `objective-remove`. */
+    const val REMOVE = "objective-remove"
+
+    fun removes(features: Collection<String>?): Boolean = REMOVE in features.orEmpty()
 }

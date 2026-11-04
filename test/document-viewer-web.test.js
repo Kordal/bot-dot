@@ -142,7 +142,7 @@ test('web: the states: gone, too large, no preview, and a computer that is off w
   const pdf = { name: 'contract.pdf', size: 9, at: null, kind: 'none', type: 'application/pdf', truncated: false };
   const v = viewer({ '/bots/news/path?path=x.log&view=1': big, '/files/r1/contract.pdf?view=1': pdf, '/bots/news/path?path=%2Fworkspace%2Fa.md&view=1': off });
   await v.click({ view: '/files/r1/gone.md', viewName: 'gone.md' });
-  assert.match(v.box.innerHTML, /This file is gone/);
+  assert.match(v.box.innerHTML, /File not found/);
   await v.click({ view: '/bots/news/path?path=x.log', viewName: 'x.log', viewBot: 'news' });
   assert.match(v.box.innerHTML, /Too large to show whole\.<\/b> Showing its start/);
   await v.click({ view: '/files/r1/contract.pdf', viewName: 'contract.pdf' });
