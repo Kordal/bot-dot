@@ -36,6 +36,13 @@ fixes. botdot updates itself from Settings → Updates.
 - **Root on the machine reaches every account**: its data, its bots and the logins they hold. The
   installer says so, and so does the sign-up page, before the passkey is made. Keep root to yourself, and don't let an account's owner be root on the machine
   unless they are its admin.
+- A managed machine (ADR 154) is one VPS per customer, holding one account or several, and has no
+  admin page: the front door serves no `/admin`. Its admin is the fleet console, outside this
+  repository, which reaches the machine only through an agent that connects out, opens no port and
+  runs a closed list of signed commands by writing root's request files and reading its status and
+  load files, as the front door does. The console never sees inside an account. gVisor stays on a
+  one-account machine too: an escape from a computer would be root on the VPS, where the agent's
+  console key and the backup keys are.
 - A job's call (ADR 026) needs no session: the front door passes `/call/<account>/<bot>/<job>` to that
   account's botdot server, and the job's key alone lets it in, from the internet too when the front door
   is public. The front door slows down repeated wrong keys. Treat a call key like a password.
