@@ -51,7 +51,8 @@ const toolsLib = require('./lib/tools');
 const feed = require('./lib/events');
 // Web Push (issue #87): a browser that turned on "Notifications on this device" is sent what the phone shows, by
 // botdot itself, through the browser's push service (lib/push.js). http endpoints only for the tests' stand-in.
-const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1' });
+// The iOS app's devices get theirs through the project's push relay (lib/apns.js, ADR 150), when its address is set.
+const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1', relay: process.env.BOT_DOT_PUSH_RELAY });
 push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN });
@@ -336,7 +337,7 @@ async function versionInfo() {
   const u = await updates.status().catch(() => null);
   const revision = u?.version?.revision || GIT_REV;
   // whatsNew: the newest note this version ships, so the front door can say what a waiting update brings (#303).
-  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), boat: B.boatReady(), android: withoutFile(androidApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
+  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: [...(UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES), ...(push.relayOn() ? ['apns-push'] : [])], docker: fs.existsSync('/.dockerenv'), boat: B.boatReady(), android: withoutFile(androidApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
 }
 
 // What needs the owner, now: for the feed's first message and to notice changes.

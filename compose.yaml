@@ -39,6 +39,8 @@ services:
       BOT_DOT_HELPER_SOCKET: /run/botdot/helper.sock
       # How long a command in Claude Code's Bash may run (ADR 131): empty is the default, 0 no limit.
       BOT_DOT_BASH_MAX_SECONDS: ${BOT_DOT_BASH_MAX_SECONDS:-}
+      # The push relay the iOS app's notifications go through (ADR 150): empty sends them nothing.
+      BOT_DOT_PUSH_RELAY: ${BOT_DOT_PUSH_RELAY:-}
     volumes:
       - ./data:/data                                # bots, runs, memory, skills, vault (encrypted)
       - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data
