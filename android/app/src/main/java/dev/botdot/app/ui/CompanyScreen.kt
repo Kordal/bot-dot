@@ -177,6 +177,12 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     }
 
     /** One call that answers the company; [done] says whether it went. */
+    // Goals the owner removed until the server answers: off the board at once, back on a refusal.
+    val removingGoals = mutableStateListOf<String>()
+    fun removeGoal(id: String) {
+        removingGoals += id
+        call({ it.removeObjective(id) }) { removingGoals -= id }
+    }
     fun call(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = scope.launch {
         val a = api ?: run { tell(tr("Can't reach botdot.")); done(false); return@launch }
         runCatching { block(a) }.onSuccess { took(it); done(true) }.onError { tell(it.message); done(false) }

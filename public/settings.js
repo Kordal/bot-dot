@@ -363,7 +363,6 @@ function renderSettings() {
       ${state.features.includes('boat-size') && state.status?.boat ? `<details class="bs-row bs-more" id="boat-size-card">
         <summary><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary>
         <div class="bs-body">
-          ${state.features.includes('account-computer') ? `<label class="field">${tr('Where')}<select id="computer-place" disabled><option value="linux">${tr('This machine')}</option><option value="boat">${tr('External Virtual PC')}</option></select></label>` : ''}
           <label class="field" id="boat-size-field">${tr('Size')}<select id="boat-size" disabled${tipAttrs(tr('Each machine takes it when it starts next.'))}><option>${tr('Loading…')}</option></select></label>
         </div>
       </details>` : ''}
@@ -435,31 +434,16 @@ function wireLanguage(root) {
 }
 
 // Where the account's computer is (#579): this machine or its External Virtual PC on boat.dev, for every bot with a
-// computer. A switch asks once whether the bots' files go along.
+// computer. Only the admin moves it, on the admin page (ADR 146): here it is the card's value, and the card, which holds
+// the External Virtual PC's size, shows only while the computer is there.
+const PLACE_NAMES = { linux: () => tr('This machine'), boat: () => tr('External Virtual PC') };
 async function loadComputerPlace(root) {
-  const pick = $('#computer-place', root);
-  if (!pick) return;
+  const card = $('#boat-size-card', root);
+  if (!card || !state.features.includes('account-computer')) return;
   let place;
   try { ({ place } = await api('/settings/computer')); } catch { return; }
-  const show = () => {
-    pick.value = place;
-    $('#boat-size-field', root).hidden = place !== 'boat';
-    $('#computer-place-val', root).textContent = pick.selectedOptions[0]?.textContent || '';
-  };
-  show();
-  pick.disabled = false;
-  pick.onchange = async () => {
-    const to = pick.value;
-    pick.value = place; // back at the saved one until the answer
-    const copy = state.bots.some((b) => b.computer === 'linux' || b.computer === 'boat') ? await askMoveFiles(to, true) : false;
-    if (copy === null) return;
-    try {
-      ({ place } = await api('/settings/computer', { method: 'PUT', body: { place: to, moveFiles: copy } }));
-      show();
-      flashSaved($('#view-settings'));
-      await refresh();
-    } catch (err) { toast(err.message, true); }
-  };
+  $('#computer-place-val', root).textContent = PLACE_NAMES[place]?.() || '';
+  card.hidden = place !== 'boat';
 }
 
 // The size of the account's boat.dev machines (#539): the sizes boat.dev makes now, and the chosen one even when not.

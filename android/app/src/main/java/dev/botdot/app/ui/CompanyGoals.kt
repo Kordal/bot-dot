@@ -24,7 +24,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
@@ -72,18 +72,22 @@ import kotlinx.coroutines.launch
  * [CompanyFloor]'s.
  */
 @Composable
-internal fun Goals(ui: CompanyUi, c: Company, onChat: ((String) -> Unit)? = null) {
-    if (c.objectives.isEmpty()) return
+internal fun Goals(ui: CompanyUi, c: Company, onChat: ((String) -> Unit)? = null, removable: Boolean = false) {
+    val shown = c.objectives.filter { it.id !in ui.removingGoals }
+    if (shown.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        c.objectives.forEach { GoalCard(ui, c, it, onChat) }
+        shown.forEach { GoalCard(ui, c, it, onChat, removable) }
     }
 }
 
 internal fun displayName(k: String): String = when (k) { "pace" -> tr("Pace chart"); "bar" -> tr("Bar"); else -> tr("Status") }
 
-/** [onChat]: "Change" in its menu asks the Chief to change it (#820) and opens the chat it started; null: no Change. */
+/**
+ * [onChat]: "Change" in its menu asks the Chief to change it (#820) and opens the chat it started; null: no Change.
+ * [removable]: Remove in its menu (feature `objective-remove`): the goal leaves at once and comes back on a refusal.
+ */
 @Composable
-internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective, onChat: ((String) -> Unit)? = null) {
+internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective, onChat: ((String) -> Unit)? = null, removable: Boolean = false) {
     val p = LocalPaper.current
     val show = CompanyFloor.displayOf(o)
     val numeric = o.target > 0
@@ -101,7 +105,7 @@ internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective, onChat: ((String)
             if (o.steps.isNotEmpty()) Text("${CompanyFloor.stepsDone(o)}/${o.steps.size}", color = p.faint, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(end = Space.s8))
             Box {
-                RoundButton(Icons.Outlined.BarChart, tr("Show as"), size = 36.dp) { menu = true }
+                RoundButton(Icons.Filled.MoreHoriz, tr("More"), size = 36.dp) { menu = true }
                 DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
                     CompanyFloor.DISPLAYS.forEach { k ->
                         DropdownMenuItem({ Text(displayName(k), color = p.text) }, {
@@ -112,6 +116,10 @@ internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective, onChat: ((String)
                     if (onChat != null) {
                         HorizontalDivider(color = p.line)
                         DropdownMenuItem({ Text(tr("Change"), color = p.text) }, { menu = false; asking = true })
+                    }
+                    if (removable) {
+                        HorizontalDivider(color = p.line)
+                        DropdownMenuItem({ Text(tr("Remove"), color = p.err) }, { menu = false; ui.removeGoal(o.id) })
                     }
                 }
             }

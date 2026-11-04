@@ -1,7 +1,8 @@
 // Optional browser check of the objectives above the floor (#690): node test/browser/company-goals.cjs [shots dir]
 // Day 1: each objective with a target shows where it starts (the number, Day 1 of 90, the first check-in), no flat
 // chart. Day 23: a pace chart with the line to the target and the history; "Show as" Bar is saved and stays after a
-// reload; an objective with no number is its steps, ticked from the card. Wide and phone. Scratch data only.
+// reload; an objective with no number is its steps, ticked from the card; Remove in a goal's menu takes it off the board.
+// Wide and phone. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -13,6 +14,8 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
   let browser;
   try {
     await srv.api('/setup', { method: 'PUT', body: { done: true } });
+    const unseen = (await srv.api('/whats-new')).data.entries; // no What's new over the page
+    if (unseen.length) await srv.api('/whats-new/seen', { method: 'POST', body: { id: unseen[0].id } });
     const lead = await makeBot(srv, { name: 'Demo Scheduler', color: '#1d9e75' });
     const poster = await makeBot(srv, { name: 'Launch Poster', color: '#d4537e' });
     const loose = await makeBot(srv, { name: 'test-researcher', color: '#639922' });
@@ -32,7 +35,13 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       page.on('pageerror', (e) => errors.push(e.message));
 
       write(1, [users]);
+      // The project's page: opened from the rail, as the owner opens it.
+      const open = async () => {
+        await page.waitForFunction(() => typeof Company !== 'undefined' && Company.projects().length > 0, null, { timeout: 20000 });
+        await page.evaluate((id) => Company.enter(id), c.id);
+      };
       await page.goto(`${srv.base}/#company`);
+      await open();
       const goal = page.locator('.cf-goal[data-cf-goal="o1"]');
       await goal.waitFor({ timeout: 20000 });
       assert.equal(await goal.locator('.cf-chart').count(), 0, 'no chart on day 1');
@@ -42,6 +51,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
 
       write(23, [{ ...users, current: 31, history: [{ day: 1, value: 7 }, { day: 8, value: 12 }, { day: 15, value: 22 }] }, launch]);
       await page.reload();
+      await open();
       await goal.locator('.cf-chart').waitFor({ timeout: 20000 });
       assert.equal(await goal.locator('polyline.cf-actual').count(), 1);
       assert.equal(await goal.locator('.cf-pace').innerText(), 'On track'); // the line is at about 24.7
@@ -57,6 +67,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await steps.locator('input[data-cf-step]').nth(1).check();
         await waitFor(async () => (await srv.api('/company')).data.company.objectives[1].steps[1].done, { what: 'the step ticked' });
         await page.reload();
+        await open();
         await goal.locator('.cf-bar.big').waitFor({ timeout: 20000 });
         assert.equal(await goal.locator('.cf-chart').count(), 0);
         assert.equal(await steps.locator('.cf-n').innerText(), '2/2');
@@ -64,6 +75,16 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.locator('.cf-menu').waitFor();
         await page.keyboard.press('Escape');
         await page.locator('.cf-menu').waitFor({ state: 'detached' });
+        // Remove in the goal's menu: off the board at once, gone on the server, still gone after a reload.
+        await steps.locator('[data-cf-show]').click();
+        if (shots) await page.screenshot({ path: path.join(shots, `${name}-menu.png`) });
+        await steps.locator('[data-cf-remove]').click();
+        await steps.waitFor({ state: 'detached', timeout: 2000 });
+        await waitFor(async () => (await srv.api('/company')).data.company.objectives.every((o) => o.id !== 'o2'), { what: 'the goal removed' });
+        await page.reload();
+        await open();
+        await goal.waitFor({ timeout: 20000 });
+        assert.equal(await steps.count(), 0);
       } else {
         // The view slides in: the card ends up inside the window, no wider than the phone.
         await page.waitForFunction((w) => { const r = document.querySelector('.cf-goal').getBoundingClientRect(); return r.left >= 0 && r.right <= w; }, viewport.width, { timeout: 5000 });

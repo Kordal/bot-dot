@@ -142,7 +142,6 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
     val botsNow by store.bots.value.collectAsState()
     val chiefNow by store.chief.value.collectAsState()
     val dashNow by store.dashboard.value.collectAsState()
-    val jobThens by store.jobThens.value.collectAsState() // who carries on after the yes on a waiting job
     val groupsNow by store.groups.value.collectAsState()
     val cardGroups by store.cardGroups.value.collectAsState() // the group a waiting job or tile was asked in
     // A card asked in a group says so after its bot's name ("Coder in Dev"), by the group's name as it is now.
@@ -282,7 +281,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         onDecline = { act(tr("Declined")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
                 } }
                 items(jobsLeft(waitingJobs, decided.map { it.key }), key = { (b, j) -> jobKey(b, j) }) { (b, j) -> Moves {
-                    JobApproval(jobWho(b, j), j, (j.then ?: jobThens["${b.id}/${j.id}"])?.line(),
+                    JobApproval(jobWho(b, j), j,
                         onAlways = { if (j.touchesScript) scriptWarning = b to j else alwaysJob(b, j) },
                         onApprove = { decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } },
                         onDecline = { decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, false) { api!!.approveJob(b.id, j.id, false) } })
@@ -297,7 +296,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 items(tilesLeft(tiles, decided.map { it.key }), key = { tileKey(it) }) { t -> Moves {
                     val b = bots.firstOrNull { it.id == t.bot }
                     val who = inGroup(b?.named() ?: chiefNamed(), cardGroups[CardGroups.tileKey(t.id)])
-                    TileApproval(who, t, t.then?.line(),
+                    TileApproval(who, t,
                         onApprove = { decide(tileKey(t), who, tileCard(t).title, true) { api!!.approveTile(t.id, true) } },
                         onDecline = { decide(tileKey(t), who, tileCard(t).title, false) { api!!.approveTile(t.id, false) } })
                 } }
@@ -350,13 +349,12 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
  * the permissions and skills it asked for, its memory changes and its logins; in the Chief's
  * (scope "chief"), the jobs the Chief set up, the skills and logins it asked for. A tool to install is in both:
  * the Chief asked for it, and it is installed for that bot; so is a bot change the Chief asked for. Logins and
- * payments open Needs you, where passwords are typed. [chiefChat]: the Chief chat on screen (all of them show the
- * same cards): a card whose yes makes the Chief carry on in that very chat says "in this chat".
+ * payments open Needs you, where passwords are typed.
  * In a group's chat (scope "group:<id>"): the cards asked in that group, each with its bot's name. Such a card
  * stands in no bot's own chat and not in the Chief's ([chatCards]).
  */
 @Composable
-fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: String? = null) {
+fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val cs = rememberCoroutineScope()
@@ -365,7 +363,6 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
     val needsNow by store.needs.value.collectAsState()
     val botsNow by store.bots.value.collectAsState()
     val dashNow by store.dashboard.value.collectAsState()
-    val jobThens by store.jobThens.value.collectAsState() // who carries on after the yes on a waiting job
     val cardGroups by store.cardGroups.value.collectAsState() // the group a waiting job or tile was asked in
     val server by store.version.value.collectAsState() // its features: whether it writes a memory card's words
     val features = server?.features
@@ -433,7 +430,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
             }
         }
         jobs.forEach { (b, j) ->
-            JobApproval(whoOf(b), j, (j.then ?: jobThens["${b.id}/${j.id}"])?.line(chiefChat),
+            JobApproval(whoOf(b), j,
                 onAlways = { if (j.touchesScript) scriptWarning = b to j else alwaysJob(b, j) },
                 onApprove = { decide(jobKey(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } },
                 onDecline = { decide(jobKey(b, j), jobCard(j).title, false) { api!!.approveJob(b.id, j.id, false) } })
@@ -447,7 +444,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         // In the Chief's chat the card of a tool, and of a changed bot, says which bot it is for, as it looks now.
         val askWho = { a: Ask -> if (chief || group != null) a.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, it.color) } else null }
         val oneAsk: @Composable (Ask) -> Unit = { a ->
-            AskApproval(a, askWho(a), chiefChat) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
+            AskApproval(a, askWho(a)) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
         }
         // What one run waits on is one card here too (#277).
         askCards(myAsks).forEach { card ->
@@ -466,13 +463,12 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit, chiefChat: Str
         mySuggestions.forEach { x ->
             Card(null, tr("Put “{title}” on your Board?", "title" to x.tile.title), x.reason, expandable = x.tile.scripts.isNotEmpty()) {
                 x.tile.scripts.forEach { Body(it, mono = true) }
-                ThenLine(x.then?.line(chiefChat))
                 Buttons(tr("Add"), { decide("s:${x.id}", x.tile.title, true, tr("On your Board")) { api!!.answerSuggestion(x.id, true) } },
                     tr("No"), { decide("s:${x.id}", x.tile.title, false, tr("Not added")) { api!!.answerSuggestion(x.id, false) } })
             }
         }
         myTiles.forEach { t ->
-            TileApproval(whoOf(bots.firstOrNull { it.id == t.bot }), t, t.then?.line(chiefChat),
+            TileApproval(whoOf(bots.firstOrNull { it.id == t.bot }), t,
                 onApprove = { decide(tileKey(t), tileCard(t).title, true) { api!!.approveTile(t.id, true) } },
                 onDecline = { decide(tileKey(t), tileCard(t).title, false) { api!!.approveTile(t.id, false) } })
         }
@@ -796,9 +792,9 @@ private fun ButtonSpinner(color: Color) {
 @Composable
 private fun Muted(text: String) = Text(text, color = LocalPaper.current.muted, style = MaterialTheme.typography.bodyMedium)
 
-/** Who carries on after the yes, in the server's sentence: one line under the card's body, also on a closed card. Nothing without one. */
+/** One muted line under the card's body, also on a closed card. Nothing without one. */
 @Composable
-private fun ThenLine(text: String?) {
+private fun MutedLine(text: String?) {
     if (!text.isNullOrBlank()) Text(text, color = LocalPaper.current.muted, fontSize = Type.s12)
 }
 
@@ -962,7 +958,7 @@ private fun CardRequest(r: LoginRequest, who: Named, onAllow: () -> Unit, onDecl
 }
 
 @Composable
-private fun JobApproval(who: Named?, j: Job, then: String?, onAlways: () -> Unit, onApprove: () -> Unit, onDecline: () -> Unit) {
+private fun JobApproval(who: Named?, j: Job, onAlways: () -> Unit, onApprove: () -> Unit, onDecline: () -> Unit) {
     val card = jobCard(j)
     val script = card.script != null
     Card(who, card.title, card.meta, expandable = true) {
@@ -982,8 +978,7 @@ private fun JobApproval(who: Named?, j: Job, then: String?, onAlways: () -> Unit
             card.also.forEach { Faint(it) }
         }
         if (j.assessment.isNotBlank() && open) Muted(j.assessment)
-        ThenLine(card.line)
-        ThenLine(then)
+        MutedLine(card.line)
         Buttons(card.yes, onApprove, card.no, onDecline, onAlways = onAlways, connects = j.createsConnection)
     }
 }
@@ -1005,7 +1000,7 @@ private fun WasNow(was: String, now: String) {
 
 /** A tile of the Board whose script, or a change to it, waits for your OK: the scripts, in full when opened. */
 @Composable
-private fun TileApproval(who: Named?, t: Tile, then: String?, onApprove: () -> Unit, onDecline: () -> Unit) {
+private fun TileApproval(who: Named?, t: Tile, onApprove: () -> Unit, onDecline: () -> Unit) {
     val card = tileCard(t)
     Card(who, card.title, card.meta, expandable = true) {
         if (card.scriptsWas.isNotEmpty()) {
@@ -1014,8 +1009,7 @@ private fun TileApproval(who: Named?, t: Tile, then: String?, onApprove: () -> U
             if (card.scripts.isNotEmpty()) Faint(if (card.scripts.size == 1) tr("New script") else tr("New scripts"))
         }
         card.scripts.forEach { Body(it.ifBlank { tr("(empty)") }, mono = true) }
-        ThenLine(card.line)
-        ThenLine(then)
+        MutedLine(card.line)
         Buttons(card.yes, onApprove, card.no, onDecline)
     }
 }
@@ -1194,13 +1188,11 @@ internal fun askTitle(a: Ask): String = when {
 
 /**
  * A permission or a skill a bot (or the Chief) asked for, a tool the Chief asks to install for a bot, a changed bot,
- * an action in a connected app, or a switch of a saved login. answer(title, yes, label, always). [chiefChat]: the Chief chat the card stands in,
- * if it stands in one: its line then says "in this chat" for that chat ([dev.botdot.app.data.Then.line]).
+ * an action in a connected app, or a switch of a saved login. answer(title, yes, label, always).
  */
 @Composable
-private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: (String, Boolean, String?, Boolean) -> Unit) {
+private fun AskApproval(a: Ask, who: Named?, answer: (String, Boolean, String?, Boolean) -> Unit) {
     val decide: (String, Boolean, String?) -> Unit = { title, yes, label -> answer(title, yes, label, false) }
-    val then = a.then?.line(chiefChat)
     if (a.kind == "connector-action") {
         // The server's title and the action's fields as rows, drawn as a tool's facts are: every row, and every value
         // in full on an opened card; under the title, whether its run still waits. From a server that sends neither:
@@ -1221,7 +1213,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (rows.isNotEmpty()) Facts(rows, whole = LocalCardOpen.current)
             if (connectorDetails(a)) Body(a.details)
             if (connectorTooLong(a)) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
-            ThenLine(then)
             if (connectorAlways(a)) TextButton(onClick = { asking = true }) { Text(always) }
             if (connectorOnce(a)) Buttons(tr("Allow once"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) })
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -1240,7 +1231,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         Card(who, a.title, a.chiefActionLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
             if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
-            ThenLine(then)
             if (a.chiefActionYes) Buttons(tr("Approve"), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) },
                 onAlways = always?.let { { asking = true } }, alwaysLabel = always ?: tr("Always approve"))
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -1263,7 +1253,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         val parts = a.parts
         Card(who, a.title, a.reason, expandable = true) {
             if (parts.isNotEmpty()) ChangedParts(parts) else Body(a.details)
-            ThenLine(then)
             Buttons(changeYes(a), { decide(a.title, true, tr("Approved")) }, tr("Decline"), { decide(a.title, false, null) })
         }
     } else if (ToolCard.isTool(a)) {
@@ -1274,7 +1263,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
             if (t.body.isNotEmpty()) Body(t.body)
             if (t.warning.isNotEmpty()) Warning(t.warning)
             if (t.facts.isNotEmpty() && LocalCardOpen.current) Facts(t.facts)
-            ThenLine(then)
             Buttons(ToolCard.INSTALL, { decide(t.title, true, ToolCard.answered(true)) }, ToolCard.DECLINE, { decide(t.title, false, ToolCard.answered(false)) })
         }
     } else if (a.kind == "vault-switch" || a.kind == "vault-remove" || a.kind == "vault-file" || a.kind == "override" || a.kind == "computer-step") {
@@ -1287,7 +1275,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         Card(who, a.title, a.reason, expandable = true) {
             if (a.parts.isNotEmpty()) ChangedParts(a.parts)
             if (warning.isNotEmpty()) Warning(warning)
-            ThenLine(then)
             // A rule a bot asks to lift (#253) has the server's second yes, `always`: "Allow always for this bot".
             val always = if (a.kind == "override") a.always?.takeIf { it.isNotBlank() } else null
             Buttons(a.yes ?: tr("Allow"), { decide(a.title, true, tr("Allowed")) }, tr("Decline"), { decide(a.title, false, null) },
@@ -1297,7 +1284,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         val title = tr("Let it {what}?", "what" to (a.what?.label ?: a.permission))
         Card(who, title, a.reason, expandable = true) {
             Body(tr("{hint}. It can't until you allow it; you can change this in its settings.", "hint" to (a.what?.hint ?: "").replaceFirstChar { it.uppercase() }))
-            ThenLine(then)
             Buttons(tr("Allow"), { decide(title, true, tr("Allowed")) }, tr("Decline"), { decide(title, false, null) })
         }
     } else if (a.written) {
@@ -1306,7 +1292,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         val title = skillTitle(a)
         Card(who, title, a.reason, expandable = true) {
             Body(a.skill?.instructions.orEmpty().ifBlank { tr("(empty)") })
-            ThenLine(then)
             Buttons(tr("Approve"), { decide(title, true, tr("Approved")) }, tr("Decline"), { decide(title, false, null) })
         }
     } else {
@@ -1315,7 +1300,6 @@ private fun AskApproval(a: Ask, who: Named?, chiefChat: String? = null, answer: 
         val forWhom = if (a.forBots.isNotEmpty()) " · " + tr("for {names}", "names" to a.forBots.joinToString(", ") { it.name }) else ""
         Card(who, title, a.url.removePrefix("https://").removePrefix("www.") + forWhom, expandable = true) {
             Body(k.description.ifBlank { tr("No description.") } + (if (k.files > 1) " " + trn(k.files, "({n} file)", "({n} files)") else "") + (if (k.exists) " " + tr("It replaces your skill of the same name.") else "") + (if (a.reason.isNotBlank()) "\n\n" + tr("Why: {reason}", "reason" to a.reason) else ""))
-            ThenLine(then)
             Buttons(tr("Install"), { decide(title, true, tr("Installed")) }, tr("Decline"), { decide(title, false, null) })
         }
     }

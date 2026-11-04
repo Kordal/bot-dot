@@ -118,7 +118,7 @@ const DocViewer = (() => {
     if (c.error) {
       const e = c.error;
       const back = `<button type="button" class="btn sm" data-dv="close">${tr('Back to the chat')}</button>`;
-      const body = e.status === 404 ? stateHTML(tr('This file is gone'), tr('Nothing is at this path any more. It may have been moved or deleted.'), back)
+      const body = e.status === 404 ? stateHTML(tr('File not found'), tr('Nothing is at this path. It may not be made yet, or it was moved or deleted.'), back)
         : e.state === 'computer-off' ? stateHTML(tr('The computer is off'), tr("This file is on the account's computer, which is stopped. Start it to open the file."), `${c.bot ? `<button type="button" class="btn sm primary" data-dv="start">${tr('Start the computer')}</button>` : ''}<button type="button" class="btn sm" data-dv="close">${tr('Not now')}</button>`)
           : stateHTML(tr("Couldn't open it"), e.message || '', back);
       return `${headHTML(c)}<div class="dv-body">${body}</div>`;

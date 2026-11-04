@@ -42,22 +42,23 @@ test('web: a bot change the Chief asked for stands in the Chief\'s chat, in that
   assert.match(p.needCardHTML(p.item('ask:b1'), 'c1'), /<div class="need-who"><svg class="fig fig-small"><\/svg>News Watcher<\/div>/);
 });
 
-test('web: at the end of the Chief\'s chat it says "in this chat" in the chat that asked, and names that chat in another', () => {
+test('web: at the end of the Chief\'s chat the card stands last, in every Chief chat, and no line says who carries on', () => {
   const p = page({ state: { asks: [WEB], bots: [NEWS] } });
   const chief = p.thread('c1');
   p.updateChatNeeds(chief.thread, 'chief');
   assert.equal(titleOf(chief.box.innerHTML), 'Let News Watcher browse the web?');
-  assert.equal(thenOf(chief.box.innerHTML), 'The Chief carries on in this chat when you allow it.');
+  assert.equal(thenOf(chief.box.innerHTML), null);
   assert.equal(chief.thread.lastElementChild, chief.box, 'the cards are the last thing in the chat');
   // All the Chief's chats share one box of cards: the change shows in whichever is open.
   chief.thread.dataset.chat = 'c9';
   p.updateChatNeeds(chief.thread, 'chief');
-  assert.equal(thenOf(chief.box.innerHTML), 'The Chief carries on in “Morning tech news” when you allow it.');
+  assert.equal(titleOf(chief.box.innerHTML), 'Let News Watcher browse the web?');
+  assert.equal(thenOf(chief.box.innerHTML), null);
   const bots = p.thread();
   p.updateChatNeeds(bots.thread, 'news');
-  assert.equal(thenOf(bots.box.innerHTML), HERE.text, 'in the bot\'s chat');
+  assert.equal(thenOf(bots.box.innerHTML), null, 'in the bot\'s chat');
   p.renderNeeds();
-  assert.equal(thenOf(p.needsPage.innerHTML), HERE.text, 'in Needs you');
+  assert.equal(thenOf(p.needsPage.innerHTML), null, 'in Needs you');
 });
 
 test('web: answered in one place, it fades in the others at once, and is gone from them when the page draws again', async () => {
