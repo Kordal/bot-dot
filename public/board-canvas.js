@@ -115,6 +115,13 @@ function drag(layout, id, edge, dx, dy) {
 // The bottom of the lowest tile: how high the canvas is.
 const height = (layout) => Math.max(0, ...Object.values(layout).map((r) => r[1] + r[3]));
 
+// Narrower than this (in pixels or dp) an app reads the board as one column (ADR 147): the canvas scaled down to a
+// phone's width would draw its text a third of its size.
+const NARROW = 600;
+
+// The tiles in the order a column reads them: from the top, and left to right where two start at the same height.
+const order = (layout) => Object.keys(layout).sort((a, b) => layout[a][1] - layout[b][1] || layout[a][0] - layout[b][0]);
+
 // A layout as sent to botdot: { tile: [x, y, w, h] } with known ids and numbers, at most MAX_TILES; null for none.
 // Throws a message for anything else.
 function check(v) {
@@ -132,7 +139,7 @@ function check(v) {
   return out;
 }
 
-const api = { W, GAP, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, height, check };
+const api = { W, GAP, NARROW, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, height, order, check };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.BoardCanvas = api;
 

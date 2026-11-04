@@ -87,6 +87,13 @@ class BoardCanvasTest {
         assertEquals(30, BoardCanvas.height(mapOf("a" to R(0, 10, 5, 20), "b" to R(0, 0, 5, 5))))
     }
 
+    @Test fun aColumnReadsFromTheTopThenLeftToRight() {
+        val l = mapOf("todo" to R(800, 0, 392, 560), "goal:o1" to R(0, 0, 592, 260), "card:k" to R(0, 276, 392, 220), "new-card" to R(408, 276, 392, 64), "days" to R(0, 600, 1200, 140))
+        assertEquals(listOf("goal:o1", "todo", "card:k", "new-card", "days"), BoardCanvas.order(l))
+        assertEquals(emptyList<String>(), BoardCanvas.order(emptyMap()))
+        assertEquals(600, BoardCanvas.NARROW)
+    }
+
     @Test fun theLayoutIsReadAndSentWhole() = runBlocking {
         val c = CompanySetup.of("""{"id":"c1","phase":"running","layout":{"calendar":[0,0,600,300],"desk":[0,0,1,1]}}""")
         assertEquals(mapOf("calendar" to R(0, 0, 600, 300)), BoardCanvas.of(c.layout))

@@ -3111,6 +3111,12 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .bc-tile.moving, .bc-held { z-index: 3; outline: 2px solid var(--text); outline-offset: -2px; border-radius: var(--r-14); }
 .bc-held { transform: scale(1.01); transition: transform var(--t1); }
 body.bc-dragging, body.bc-dragging * { user-select: none; cursor: grabbing; }
+/* A phone's width (ADR 147): one column in the canvas's reading order, each tile full width at its own height. */
+.bc-wrap.bc-column { overflow: visible; }
+.bc-column .bc-canvas { position: static; display: flex; flex-direction: column; gap: var(--sp-16); }
+.bc-column .bc-tile { position: static; overflow: visible; }
+.bc-column .bc-tile > * { flex: none; }
+.bc-column .pc-more { display: none; }
 .cf-home img { -webkit-user-drag: none; }
 @media (hover: none) { .cf-home { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
 
