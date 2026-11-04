@@ -30,6 +30,10 @@ services:
       FRONT_DOOR_ORIGIN: ${FRONT_DOOR_ORIGIN:?install.sh sets FRONT_DOOR_ORIGIN}
       FRONT_DOOR_ADMIN: ${FRONT_DOOR_ADMIN:-}
       FRONT_DOOR_ANDROID_KEYS: ${FRONT_DOOR_ANDROID_KEYS:-}
+      # The terms and the privacy policy an owner agrees to at sign-up (#987): none unless the installer was given them.
+      FRONT_DOOR_TERMS_URL: ${FRONT_DOOR_TERMS_URL:-}
+      FRONT_DOOR_PRIVACY_URL: ${FRONT_DOOR_PRIVACY_URL:-}
+      FRONT_DOOR_TERMS_VERSION: ${FRONT_DOOR_TERMS_VERSION:-}
       # On this computer only (local): its one account, and the setup key that makes its passkey.
       FRONT_DOOR_ONE_ACCOUNT: ${FRONT_DOOR_ONE_ACCOUNT:-}
       FRONT_DOOR_SETUP_KEY: ${FRONT_DOOR_SETUP_KEY:-}

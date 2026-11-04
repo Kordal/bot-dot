@@ -64,6 +64,8 @@
 #
 # Settings you can pass in: BOT_DOT_DIR (default /var/lib/botdot), BOT_DOT_IMAGE, BOT_DOT_COMPUTER_IMAGE, and the
 # answers: BOT_DOT_REACH (public or tailnet), BOT_DOT_DOMAIN and BOT_DOT_ADMIN (the admin's account's name).
+# FRONT_DOOR_TERMS_URL, FRONT_DOOR_PRIVACY_URL and FRONT_DOOR_TERMS_VERSION (default 1), kept once given: with both
+# addresses, sign-up asks the owner to agree to the terms and the privacy policy (docs/install-linux.md).
 # A first install also asks whether to use Jev, the decision model, and boat.dev, the External Virtual PC, and for
 # each one's key; BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand (empty: no). Both are set later on the
 # admin page too.
@@ -1317,6 +1319,12 @@ set_env "$ENV" BOT_DOT_SOCKETS "$SOCKETS"
 set_env "$ENV" COMPOSE_PROJECT_NAME botdot
 # The Android app's signing keys, whose passkey sign-in the front door takes (docs/api.md): given once, kept.
 [ -z "${FRONT_DOOR_ANDROID_KEYS:-}" ] || set_env "$ENV" FRONT_DOOR_ANDROID_KEYS "$FRONT_DOOR_ANDROID_KEYS"
+# The terms and the privacy policy an owner agrees to at sign-up, and their version (#987): given once, kept; a
+# new FRONT_DOOR_TERMS_VERSION asks every owner once more at their next sign-in. Unset, nothing is asked.
+for setting in FRONT_DOOR_TERMS_URL FRONT_DOOR_PRIVACY_URL FRONT_DOOR_TERMS_VERSION; do
+  eval "given=\${$setting:-}"
+  [ -z "$given" ] || set_env "$ENV" "$setting" "$given"
+done
 # Bots' interactive pages (#399, ADR 072): the same name on port 8443, an origin of its own, which the front door
 # answers on its second port. An update sets it up on an install made before it.
 if [ "$REACH" = local ]; then set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "http://localhost:$SITES_PORT"

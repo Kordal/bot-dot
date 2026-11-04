@@ -86,11 +86,25 @@ A **self-built botdot server** instead builds both images from the source on the
 cd bot-dot-source && sudo make images && sudo BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sh install.sh
 ```
 
-To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below).
+To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below); for terms of service, `FRONT_DOOR_TERMS_URL`, `FRONT_DOOR_PRIVACY_URL` and `FRONT_DOOR_TERMS_VERSION` (below).
 
 A first install also asks whether to use Jev as the decision model (with an OpenRouter key) and boat.dev for the External Virtual PC (with a boat.dev API key). Each key is checked before it is kept; one that is refused is asked again, and one that can't be checked is set later on the admin page, where both can be changed. Set `BOT_DOT_OPENROUTER_KEY` and `BOT_DOT_BOAT_KEY` to answer beforehand, or set either to nothing to skip it without a question.
 
 `BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
+
+## Terms and privacy policy
+
+A machine you sell as hosting can ask each owner to agree to your terms of service and privacy policy. Give the installer three settings, once; it keeps them in `/var/lib/botdot/front-door/.env`:
+
+- `FRONT_DOOR_TERMS_URL`: the address of your terms of service.
+- `FRONT_DOOR_PRIVACY_URL`: the address of your privacy policy.
+- `FRONT_DOOR_TERMS_VERSION`: their version, 1 to 40 letters, digits, dots, dashes and underscores (`1` when not set).
+
+```bash
+sudo FRONT_DOOR_TERMS_URL=https://example.com/terms FRONT_DOOR_PRIVACY_URL=https://example.com/privacy FRONT_DOOR_TERMS_VERSION=2026-11 sh bot-dot-source/install.sh
+```
+
+With both addresses set, the sign-up page, from a sign-up link or from the setup key, shows one box, "I agree to the Terms and the Privacy policy", each word a link that opens in a new tab, and makes no passkey until it is ticked. The front door keeps the version and the time in the account's record (`front-door.json`) and writes a `terms-agreed` entry to the audit log. When you change the version, every owner is asked once more at their next sign-in, before the account opens. Without both addresses nothing is asked.
 
 ## The Android app's sign-in
 
