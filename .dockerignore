@@ -14,13 +14,11 @@
 !deploy/desktop/
 # The What's new notes the server shows after an update (#219).
 !whats-new/
-# Read back out of the image by install.sh, the Mac app and the updater in Settings.
+# Read back out of the image by install.sh and the updater in Settings.
 !compose.yaml
 !compose.front-door.yaml
-!compose.mac.yaml
-# The Android app CI puts here for botdot to hand out (images.yml); no Mac app until it is released (ADR 022).
+# The Android app CI puts here for botdot to hand out (images.yml).
 !android-app/
-!mac-app/
 
 # …and never secrets or clutter, even inside those.
 **/.env

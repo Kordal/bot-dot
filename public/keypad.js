@@ -96,48 +96,45 @@ function pin(bots, groups, item, at) {
 //   working  a run is going ("Working"; "Working ×2" while `runs`, the runs going, is 2 or more: ADR 062)
 //   needs    it asks the owner something, or a card of its waits in Needs you ("Needs you")
 //   unread   new replies the owner has not read ("2 unread")
-//   done     its last run finished ("Done")
+//   done     its last run finished, and the owner has not opened its chat since ("Done")
 //   failed   its last run did not, as the list says it ("Couldn't finish")
-//   idle     anything else ("Idle"): no run yet, or the owner stopped the last one.
-// last: the status of its newest run ("success", "error", "stopped"…), null for none.
+//   idle     anything else ("Idle"): no run yet, the owner stopped the last one, or has seen it finish.
+// last: the status of its newest run ("success", "error", "stopped"…), null for none. seen: the owner read its chat
+// after that run ended (seen(), from the chat's `readAt`).
 // A key shows it as one line under its name (#664): a dot in the state's colour and its text; while it works, what it
 // does now in place of "Working". The Android app draws the same line.
-function status({ running = false, runs = 0, needs = false, unread = 0, last = null } = {}) {
+function status({ running = false, runs = 0, needs = false, unread = 0, last = null, seen = false } = {}) {
   if (running) return { kind: 'working', text: runs > 1 ? tr('Working ×{n}', { n: runs }) : tr('Working') };
   if (needs) return { kind: 'needs', text: tr('Needs you') };
   if (unread > 0) return { kind: 'unread', text: trn(unread, '{n} unread', '{n} unread') };
-  if (last === 'success') return { kind: 'done', text: tr('Done') };
+  if (last === 'success') return seen ? { kind: 'idle', text: tr('Idle') } : { kind: 'done', text: tr('Done') };
   if (last && last !== 'stopped' && last !== 'running') return { kind: 'failed', text: tr("Couldn't finish") };
   return { kind: 'idle', text: tr('Idle') };
 }
+// Whether the owner read a chat after its last run ended: `readAt` is the chat's read position (docs/api.md, New
+// replies), `endedAt` when that run ended, both ISO times. A server without `readAt`: never, and Done stays.
+const seen = (readAt, endedAt) => typeof readAt === 'string' && typeof endedAt === 'string' && !!endedAt && readAt >= endedAt;
 
-// Each bot in one space (#838, ADR 132): Home's keys leave out every bot in a project's team and every team's chat
-// (a group with `team`), which are that project's. A bot that leaves its team is Home's again, in its own category.
-// projects: the projects as the apps load them, each with `teams` of { id, bots }.
-// all: Home's filter is on All, the owner's choice on this device: every bot and chat stays.
-function home(bots, groups, projects, all = false) {
-  if (all) return { bots, groups };
-  const teams = (projects || []).flatMap((p) => p.teams || []);
-  const inTeam = new Set(teams.flatMap((t) => t.bots || []));
-  const teamIds = new Set(teams.map((t) => t.id));
-  return { bots: bots.filter((b) => !inTeam.has(b.id)), groups: groups.filter((g) => !(g.team && teamIds.has(g.team))) };
-}
 // Map(bot id → its project): the project whose team a bot is in (a bot is in at most one team, ADR 110).
 function projectOf(projects) {
   const map = new Map();
   for (const p of projects || []) for (const t of p.teams || []) for (const id of t.bots || []) if (!map.has(id)) map.set(id, p);
   return map;
 }
-// What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots. An ask
-// names its bot (`bot.id`); a batch holds several, and is the project's when one of them is.
-function asksOf(items, project, projects) {
+// What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots, and those
+// asked in one of its teams' group chats (the Chief's there too). An ask names its bot (`bot.id`) and the group it was
+// asked in (`group.id`, needs.js); groups: the account's, each with the `team` it is the chat of. A batch holds
+// several, and is the project's when one of them is.
+function asksOf(items, project, projects, groups) {
   if (!project) return items;
   const of = projectOf(projects);
-  const mine = (x) => of.get(x.bot?.id)?.id === project.id;
-  return items.filter((x) => (x.kind === 'batch' ? (x.items || []).some(mine) : mine(x)));
+  const teams = new Set((project.teams || []).map((t) => t.id));
+  const teamChats = new Set((groups || []).filter((g) => g && teams.has(g.team)).map((g) => g.id));
+  const mine = (x) => of.get(x.bot?.id)?.id === project.id || teamChats.has(x.group?.id);
+  return items.filter((x) => mine(x) || (x.kind === 'batch' && (x.items || []).some(mine)));
 }
 
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, home, projectOf, asksOf };
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

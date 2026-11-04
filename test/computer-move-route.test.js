@@ -76,11 +76,16 @@ test('a machine of its own from before stays its own, its files untouched, while
 test("the account's switch moves every bot with a computer there, its files copied along", async () => {
   assert.equal((await botOf('alone')).boatOwnMachine, undefined, 'no bot has a machine of its own any more');
   assert.equal((await srv.api('/settings/computer')).data.place, 'linux', 'boat.dev has no key here');
-  assert.equal((await srv.asChief('/settings/computer', { method: 'PUT', body: { place: 'linux' } })).status, 403, 'only the owner');
-  const boat = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'boat' } });
+  // Only the admin switches it, through the front door (ADR 146): not the owner, not the Chief.
+  const ADMIN = { 'X-Botdot-Room': '1' };
+  assert.equal((await srv.asChief('/settings/computer', { method: 'PUT', body: { place: 'linux' }, headers: ADMIN })).status, 403, 'not the Chief');
+  const owner = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'linux' } });
+  assert.deepEqual([owner.status, owner.data.error], [403, "Not done: the admin chooses where the account's computer is, on the admin page. Nothing was changed."]);
+  assert.equal((await srv.api('/settings/computer')).data.place, 'linux', 'the owner still reads it');
+  const boat = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'boat' }, headers: ADMIN });
   assert.equal(boat.status, 400);
   assert.match(boat.data.error, /External Virtual PC is not set up/);
-  const r = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'linux', moveFiles: true } });
+  const r = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'linux', moveFiles: true }, headers: ADMIN });
   assert.deepEqual(r.data, { place: 'linux', boat: false });
   for (const id of ['alone', 'older']) assert.equal((await botOf(id)).computer, 'linux');
   assert.equal((await botOf('idle')).computer, 'none', 'a bot without a computer gets none');

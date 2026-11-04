@@ -89,4 +89,11 @@ class DocumentViewTest {
         assertEquals("From News Monitor · 12 KB · 09:14", DocumentView.subtitle("News Monitor", FileView(size = 12 * 1024), "09:14"))
         assertEquals("", DocumentView.subtitle("", null, ""))
     }
+
+    @Test fun aPdfIsDrawnInTheAppWhenItCanBeBroughtOutWhole() {
+        assertTrue(DocumentView.isPdf(FileView(name = "scan.pdf", kind = "none", type = "application/pdf", size = 5_600_000)))
+        assertFalse(DocumentView.isPdf(FileView(name = "scan.pdf", kind = "none", type = "application/pdf", downloadable = false)))
+        assertFalse(DocumentView.isPdf(FileView(name = "a.docx", kind = "none", type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document")))
+        assertFalse(DocumentView.isPdf(null))
+    }
 }

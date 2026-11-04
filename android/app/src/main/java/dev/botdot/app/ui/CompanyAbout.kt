@@ -258,7 +258,8 @@ private fun leave(ui: CompanyUi, c: Company, to: AboutScreen) {
 @Composable
 private fun hasDelivery(ui: CompanyUi): Boolean {
     val server by ui.app.store.version.value.collectAsState()
-    return CompanySetup.DELIVERY in server?.features.orEmpty()
+    // An ongoing project (#925) has no delivery date.
+    return CompanySetup.DELIVERY in server?.features.orEmpty() && ui.company()?.ongoing != true
 }
 
 /** "I want my <who> to…": the stories, by group; the Chief suggests some for each group, and a group that is missing. */

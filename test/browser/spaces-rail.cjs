@@ -2,7 +2,7 @@
 // In a wide window with a project the "Bots | Projects" switch gives way to the rail: Home, the project's square, "+",
 // and the top bar's tools at its foot. Home opens the Chief, the project its team chat, and the chat column stands at
 // the same place in both, at the default width and at one the owner set. The space is remembered, a gone project falls
-// back to Home, and with no project the rail holds Home and "+" (#853). Home's filter shows every bot (All) or leaves the team bots to their project (No project, #838). Below 1001 px (#839) the title
+// back to Home, and with no project the rail holds Home and "+" (#853). Home shows every bot, team ones too. Below 1001 px (#839) the title
 // opens the spaces sheet and the bottom field the space's chat, full screen, Back the project again. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -87,18 +87,12 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.reload();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor({ timeout: 20000 });
 
-    // Home's filter: All (the start) shows the team's bot and chat too; No project leaves them to the project (#838).
+    // Home shows every bot and chat, the team's too, with no filter over the keys.
     await page.locator('#rail #brand').click();
     await page.waitForFunction(() => !document.querySelector('.app.place-company'));
-    const homeNames = () => page.locator('#kp-keys .key .name').allInnerTexts();
-    assert.equal(await page.locator('#kp-keys [data-home-bots="all"]').getAttribute('aria-checked'), 'true', 'All at the start');
-    for (const name of ['Ops Watchkeeper', 'Recipe Finder', 'Quotz IT team']) assert.ok((await homeNames()).includes(name), `Home on All: ${name}`);
-    await page.locator('#kp-keys [data-home-bots="own"]').click();
-    await page.waitForFunction(() => document.querySelector('#kp-keys [data-home-bots="own"]')?.getAttribute('aria-checked') === 'true');
-    assert.deepEqual(await homeNames(), ['Chief of Staff', 'Recipe Finder'], 'Home on No project: the Chief and the bot in no team');
-    if (shots) await page.screenshot({ path: path.join(shots, 'spaces-home-filter.png') });
-    await page.reload();
-    await page.locator('#kp-keys [data-home-bots="own"][aria-checked="true"]').waitFor({ timeout: 20000 });
+    const homeNames = await page.locator('#kp-keys .key .name').allInnerTexts();
+    for (const name of ['Ops Watchkeeper', 'Recipe Finder', 'Quotz IT team']) assert.ok(homeNames.includes(name), `Home: ${name}`);
+    assert.equal(await page.locator('.kp-filter, [data-home-bots]').count(), 0, 'no filter');
     await page.locator('#rail .rail-sq').click();
     await page.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor();
     assert.equal(await page.locator('.sp-chip', { hasText: 'Quotz IT team' }).count(), 1, 'the team\'s name');
@@ -172,7 +166,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.equal(await page.locator('#view-chief form textarea').inputValue(), 'A new bot that ');
     await page.locator('#rail [data-rail-new]').click();
     await page.locator('.ct-menu [data-new-project]').click();
-    await page.locator('#view-company h1', { hasText: "You know where. We'll work out how." }).waitFor();
+    await page.locator('#view-company h1', { hasText: "What shall we take on?" }).waitFor();
     assert.equal(await page.locator('#company-side').isVisible(), false, 'no project tree');
     assert.equal(await page.locator('#rail [data-rail-new].here').count(), 1, 'New project is the space on screen');
     if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-new.png') });

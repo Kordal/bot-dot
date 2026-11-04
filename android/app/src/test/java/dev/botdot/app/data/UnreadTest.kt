@@ -93,6 +93,9 @@ class UnreadTest {
         assertEquals(0 to null, read[1].unread to read[1].firstUnread)
         assertSame(read, Unread.set(read, "b", 0, null)) // nothing changed: the same list, so nothing is drawn again
         assertSame(read, Unread.set(read, "gone", 3, "r9")) // a bot the app doesn't have
+        val seen = Unread.set(read, "b", 0, null, "2026-11-03T08:00:00.000Z") // read again, nothing new: its key says Idle
+        assertEquals("2026-11-03T08:00:00.000Z", seen[1].readAt)
+        assertSame(seen, Unread.set(seen, "b", 0, null)) // an event without readAt keeps the one it had
     }
 
     @Test fun theAppMakesUpAnIdTheServerTakes() {

@@ -8,6 +8,7 @@ const FRONT_DOOR_SOCKET = process.env.BOT_DOT_FRONT_DOOR_SOCKET || '';
 // A restore staged before the last restart goes in place first, before anything opens the data.
 require('./lib/backup').applyPendingRestore(process.env.BOT_DOT_DATA || require('path').join(__dirname, 'data'));
 const http = require('http');
+const held = require('./lib/held');
 const fs = require('./lib/principal-fs');
 const path = require('path');
 const { Readable } = require('stream'); // a held request of the Chief's, done on the owner's yes (replayAsChief)
@@ -56,9 +57,8 @@ const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN });
 const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
 // An account on a machine of one or more (ADR 028) never updates itself: the admin updates the front door and every
-// account together, on the admin page (#473). Only the Mac app's local botdot server, the one account on its owner's
-// own Mac, keeps its own update, which the Mac app starts.
-const UPDATES_BY_ADMIN = !!process.env.BOT_DOT_ACCOUNT && process.env.BOT_DOT_PLATFORM !== 'mac';
+// account together, on the admin page (#473).
+const UPDATES_BY_ADMIN = !!process.env.BOT_DOT_ACCOUNT;
 const BY_ADMIN = 'The admin updates botdot for every account at once, on the admin page.';
 const vaultHttp = require('./lib/vault-http');
 const pageBlocks = require('./lib/page-blocks');
@@ -123,10 +123,12 @@ const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault s
 B.onChangeRequested((change) => changeTrials.request(change));
 // What each bot's teammates are told it reaches (#136): the names and kinds of the Vault's items shared with it, never a value.
 B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind: x.kind || 'login' })));
-// What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js): a held
-// change of the bot (bot-changes.js waitingWords) and a permission it asked for.
+// What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js) and for
+// every run (lib/bots.js cardsNote): a held change of the bot (bot-changes.js waitingWords), a permission it asked
+// for, and any other card of it in Needs you, by the line its notification says.
 B.onWaitingOnCards((bot) => [...asks.list(), ...changeTrials.list()].filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
-  : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`] : [])));
+  : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`]
+  : [asksLib.askText(a, { appName: B.appName })].filter(Boolean).map((line) => `your OK on “${line}”`))));
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
 // The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
 const irreversibleStepsLib = require('./lib/irreversible-steps');
@@ -291,16 +293,14 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'mac-app', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
-// The apps that came with this image (CI puts the Android app in android-app/, see images.yml,
-// and no Mac app in mac-app/ until it is released, ADR 022), so phones and Macs update from
-// botdot itself over Tailscale. Nothing when running from source. Each folder has app.json:
+// The app that came with this image (CI puts the Android app in android-app/, see images.yml), so phones update
+// from botdot itself. Nothing when running from source. The folder has app.json:
 // { versionCode, versionName, file, sha256 }.
 const ANDROID_DIR = process.env.BOT_DOT_ANDROID_DIR || path.join(__dirname, 'android-app');
-const MAC_DIR = process.env.BOT_DOT_MAC_DIR || path.join(__dirname, 'mac-app');
 function appFile(dir, f) {
   const file = path.join(dir, path.basename(f?.file || ''));
   return f?.file && fs.existsSync(file) ? { sha256: f.sha256, release: f.release, size: fs.statSync(file).size, file } : null;
@@ -314,7 +314,6 @@ function appIn(dir) {
   } catch { return null; }
 }
 const androidApp = () => appIn(ANDROID_DIR);
-const macApp = () => appIn(MAC_DIR);
 const withoutFile = ({ file, ...a }) => a;
 // The page's own files as this server sends them, in a word (`web` in GET /api/version): an open page compares it with
 // the one it was loaded with and loads itself again after an update that changed them (public/fresh.js). Read once:
@@ -337,7 +336,7 @@ async function versionInfo() {
   const u = await updates.status().catch(() => null);
   const revision = u?.version?.revision || GIT_REV;
   // whatsNew: the newest note this version ships, so the front door can say what a waiting update brings (#303).
-  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), boat: B.boatReady(), android: withoutFile(androidApp() || {}), mac: withoutFile(macApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
+  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), boat: B.boatReady(), android: withoutFile(androidApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
 }
 
 // What needs the owner, now: for the feed's first message and to notice changes.
@@ -534,7 +533,7 @@ const CHIEF_ROUTES = [
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['POST', /^company\/(teams|todos|decisions|events|card-request)$/],
   ['PUT', /^(company\/(plan|suggestion|standup|layout|dates)|company\/(teams|objectives|todos|events|cards)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
-  ['DELETE', /^(company\/events\/[^/]+|chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
+  ['DELETE', /^(company\/(events|cards|objectives)\/[^/]+|chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method && re.test(parts.join('/')));
 
@@ -687,7 +686,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 // of the calls to it (test/board.test.js).
 const ctx = { ACCOUNT, audit, secretFiles, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, irreversibleSteps, roomRuns, backups, connectedApps, tools, chiefReview, PORT,
-  ALLOWED_HOSTS, callAddresses, androidApp, macApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
+  ALLOWED_HOSTS, callAddresses, androidApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
   fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
 // A bot's computer and its jobs: bots.js and vault.js hand those requests on to them.
@@ -849,6 +848,7 @@ async function serveScreen(req, res, { botId, rest }) {
 
 // Every request, on the port and on the front door's socket.
 async function respond(req, res) {
+  held.request(req.method, req.url);
   try {
     await handle(req, res);
   } catch (e) {
@@ -1023,6 +1023,7 @@ if (FRONT_DOOR_SOCKET) {
 } else console.log('No front door socket (BOT_DOT_FRONT_DOOR_SOCKET): nobody can use this botdot server as its owner.');
 
 server.listen(PORT, HOST, () => {
+  held.watch(); // a held event loop is logged with what held it (lib/held.js)
   if (!UPDATES_BY_ADMIN) updates.start();
   backups.start();
   B.identity.keepSignedIn();

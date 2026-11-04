@@ -8,7 +8,7 @@ mod dialogs;
 mod feed;
 mod handoff;
 mod keep;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 mod local;
 mod menu;
 mod notify;
@@ -30,7 +30,7 @@ use tauri_plugin_autostart::ManagerExt;
 #[cfg(target_os = "macos")]
 use tauri::RunEvent;
 use tauri_plugin_deep_link::DeepLinkExt;
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_window_state::StateFlags;
@@ -38,7 +38,7 @@ use tauri_plugin_window_state::StateFlags;
 /// How a start at login starts: in the tray, with no window.
 const HIDDEN: &str = "--hidden";
 /// The seconds a VM's front door has to answer once the VM is up.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 const WAKE_TRIES: u32 = 60;
 
 struct App {
@@ -59,6 +59,8 @@ struct App {
     feed_numbers: AtomicU64,
     /// The botdot on this computer is being set up.
     setting_up: AtomicBool,
+    /// The botdot on this computer is being removed.
+    removing: AtomicBool,
 }
 
 impl App {
@@ -141,7 +143,9 @@ fn open_target(app: &AppHandle, address: &str, target: &str) {
     refresh_menus(app);
     let mut page = url.clone();
     page.set_fragment(Some(&route::fragment_of(target)));
-    let _ = enter_at(app, &url, &cookie, page);
+    // The cookie off the main thread: there it deadlocks on Windows.
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { enter_at(&app, &url, &cookie, page) });
 }
 
 fn open_in_browser(app: &AppHandle, url: &Url) {
@@ -233,17 +237,19 @@ fn on_menu(app: &AppHandle, id: &str) {
             if let Some(address) = current {
                 let _ = state.keep(|kept| kept.remove(&address));
                 follow_feeds(app);
-                if let Some(url) = address::parse(&address) {
-                    forget_cookies(app, &url);
-                }
                 to_screen(app, false);
+                // The cookies off the main thread: there they deadlock on Windows, and the window stays black.
+                if let Some(url) = address::parse(&address) {
+                    let app = app.clone();
+                    std::thread::spawn(move || forget_cookies(&app, &url));
+                }
             }
         }
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         Asked::UpdateLocal => update_local(app),
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "macos", windows))]
         Asked::RemoveLocal => remove_local(app),
-        #[cfg(not(target_os = "macos"))]
+        #[cfg(not(any(target_os = "macos", windows)))]
         Asked::UpdateLocal | Asked::RemoveLocal => {}
         Asked::Login => {
             let autolaunch = app.autolaunch();
@@ -311,7 +317,7 @@ async fn reachable(app: &AppHandle, address: &Url) -> bool {
     if answers(address).await {
         return true;
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", windows))]
     if wake_local(app, address).await {
         return true;
     }
@@ -319,14 +325,14 @@ async fn reachable(app: &AppHandle, address: &Url) -> bool {
     false
 }
 
-// The botdot on this Mac doesn't answer: its VM is started, and given the time its front door takes to come back.
-#[cfg(target_os = "macos")]
+// The botdot on this computer doesn't answer: its VM is started, and given the time its front door takes to come back.
+#[cfg(any(target_os = "macos", windows))]
 async fn wake_local(app: &AppHandle, address: &Url) -> bool {
     let ours = app.state::<App>().kept.lock().unwrap().local_address().as_deref() == Some(address.as_str());
-    let Some(lima) = local::Lima::of(app).filter(|_| ours) else { return false };
+    let Some(vm) = local::Vm::of(app).filter(|_| ours) else { return false };
     let address = address.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        lima.wake()
+        vm.wake()
             && (0..WAKE_TRIES).any(|_| {
                 std::thread::sleep(std::time::Duration::from_secs(1));
                 handoff::reachable(&address)
@@ -337,7 +343,7 @@ async fn wake_local(app: &AppHandle, address: &Url) -> bool {
 }
 
 // The sign-up in the browser, which ends as a sign-in does, or the sign-in when the account exists already.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn local_ready(app: &AppHandle, installed: local::Installed) {
     let (Some(address), state) = (address::parse(&installed.origin), app.state::<App>()) else {
         let _ = app.emit("local-failed", Vec::<String>::new());
@@ -365,57 +371,84 @@ fn local_ready(app: &AppHandle, installed: local::Installed) {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", windows))]
 fn update_local(app: &AppHandle) {
-    let Some(lima) = local::Lima::of(app) else { return };
+    let Some(vm) = local::Vm::of(app) else { return };
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let words = menu::words();
-        app.dialog().message(if lima.update() { words.updating } else { words.not_done }).show(|_| {});
+        app.dialog().message(if vm.update() { words.updating } else { words.not_done }).show(|_| {});
     });
 }
 
-// Asked once, with what is lost. The VM and the launch agent go first: a botdot that didn't go stays in the app.
-#[cfg(target_os = "macos")]
+// Asked once, with what is lost. The window leaves the botdot's page first, for the app's screen, which says it is
+// being removed: on Windows a window still on the page of a botdot whose VM went stayed black, even through a new start
+// of the app. The VM and the launch agent go next: a botdot that didn't go stays in the app.
+#[cfg(any(target_os = "macos", windows))]
 fn remove_local(app: &AppHandle) {
     let (words, asking) = (menu::words(), app.clone());
     let buttons = MessageDialogButtons::OkCancelCustom(words.remove.to_string(), words.cancel.to_string());
     asking.dialog().message(words.remove_local_asks).kind(MessageDialogKind::Warning).buttons(buttons).show({
         let app = app.clone();
         move |yes| {
-            let Some(lima) = local::Lima::of(&app).filter(|_| yes) else { return };
+            let Some(vm) = local::Vm::of(&app).filter(|_| yes) else { return };
             tauri::async_runtime::spawn_blocking(move || {
-                if !lima.remove() {
-                    app.dialog().message(words.not_done).show(|_| {});
+                let state = app.state::<App>();
+                if state.removing.swap(true, Ordering::SeqCst) {
                     return;
                 }
-                let state = app.state::<App>();
+                screen_shown(&app);
                 let address = state.kept.lock().unwrap().local_address();
-                let _ = state.keep(|kept| {
-                    kept.local = None;
-                    if let Some(address) = &address {
-                        kept.remove(address);
+                let removed = vm.remove();
+                if removed {
+                    let _ = state.keep(|kept| {
+                        kept.local = None;
+                        if let Some(address) = &address {
+                            kept.remove(address);
+                        }
+                    });
+                    follow_feeds(&app);
+                    if let Some(url) = address.as_deref().and_then(address::parse) {
+                        forget_cookies(&app, &url);
                     }
-                });
-                follow_feeds(&app);
-                if let Some(url) = address.as_deref().and_then(address::parse) {
-                    forget_cookies(&app, &url);
                 }
-                to_screen(&app, false);
-                refresh_menus(&app);
+                state.removing.store(false, Ordering::SeqCst);
+                screen_shown(&app);
+                if !removed {
+                    app.dialog().message(words.not_done).show(|_| {});
+                }
             });
         }
     });
 }
 
-/// The button "Run botdot on this Mac": the VM and botdot in it, from nothing or from where a setup stopped. What it
-/// does comes to the screen as events, and it ends in the browser, for the passkey.
-#[cfg(target_os = "macos")]
+// The app's screen and the menus, from a thread of the app's own, which waits until the window is on the screen.
+#[cfg(any(target_os = "macos", windows))]
+fn screen_shown(app: &AppHandle) {
+    let main = app.clone();
+    let _ = app.run_on_main_thread(move || {
+        to_screen(&main, false);
+        refresh_menus(&main);
+    });
+    let screen = app.state::<App>().screen.lock().unwrap().clone();
+    let on_screen = || main_window(app).and_then(|w| w.url().ok()).zip(screen.as_ref()).is_some_and(|(url, screen)| url.origin() == screen.origin());
+    for _ in 0..50 {
+        if on_screen() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
+/// The button "Run botdot on this Mac" (or PC): the VM and botdot in it, from nothing or from where a setup stopped. What
+/// it does comes to the screen as events, and it ends in the browser, for the passkey. A PC without WSL gets it first,
+/// and carries on after the restart that follows.
+#[cfg(any(target_os = "macos", windows))]
 #[tauri::command]
 fn run_here(app: AppHandle) -> Result<(), &'static str> {
     let state = app.state::<App>();
-    let lima = local::Lima::of(&app).ok_or("failed")?;
-    let size = lima.size().ok_or("small")?;
+    let vm = local::Vm::of(&app).ok_or("failed")?;
+    let size = vm.size().ok_or("small")?;
     if state.setting_up.swap(true, Ordering::SeqCst) {
         return Ok(());
     }
@@ -425,13 +458,15 @@ fn run_here(app: AppHandle) -> Result<(), &'static str> {
     refresh_menus(&app);
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let done = lima.set_up(&size, port, |line| {
+        let said = |line: &str| {
             let _ = app.emit("local-line", line);
-        });
+        };
+        let done = vm.prepare(said).map(|ready| ready.then(|| vm.set_up(&size, port, said)));
         app.state::<App>().setting_up.store(false, Ordering::SeqCst);
         match done {
-            Ok(installed) => local_ready(&app, installed),
-            Err(lines) => {
+            Ok(Some(Ok(installed))) => local_ready(&app, installed),
+            Ok(None) => restart(&app),
+            Ok(Some(Err(lines))) | Err(lines) => {
                 let _ = app.emit("local-failed", lines);
             }
         }
@@ -439,7 +474,20 @@ fn run_here(app: AppHandle) -> Result<(), &'static str> {
     Ok(())
 }
 
-#[cfg(not(target_os = "macos"))]
+// Said once: Windows restarts to finish WSL's install, and the app, which starts at sign-in, carries on after it.
+#[cfg(any(target_os = "macos", windows))]
+fn restart(app: &AppHandle) {
+    let words = menu::words();
+    let _ = app.emit("local-restart", ());
+    let buttons = MessageDialogButtons::OkCancelCustom(words.restart.to_string(), words.later.to_string());
+    app.dialog().message(words.restart_asks).buttons(buttons).show(|now| {
+        if now {
+            let _ = std::process::Command::new("shutdown.exe").args(["/r", "/t", "0"]).status();
+        }
+    });
+}
+
+#[cfg(not(any(target_os = "macos", windows)))]
 #[tauri::command]
 fn run_here() -> Result<(), &'static str> {
     Err("failed")
@@ -454,6 +502,8 @@ struct Start {
     here: bool,
     /// The setup is running.
     running: bool,
+    /// The botdot on this computer is being removed.
+    removing: bool,
 }
 
 /// What the screen shows when it opens: the botdot shown now goes straight in with its session, unless a new address is
@@ -461,7 +511,10 @@ struct Start {
 #[tauri::command]
 async fn start(app: AppHandle, adding: bool) -> Start {
     let state = app.state::<App>();
-    let here = cfg!(target_os = "macos") && !state.kept.lock().unwrap().has_local();
+    if state.removing.load(Ordering::SeqCst) {
+        return Start { removing: true, ..Start::default() };
+    }
+    let here = cfg!(any(target_os = "macos", windows)) && !state.kept.lock().unwrap().has_local();
     let plain = Start { here, running: state.setting_up.load(Ordering::SeqCst), ..Start::default() };
     let current = if adding { None } else { state.kept.lock().unwrap().current().cloned() };
     let address = current.as_ref().and_then(|b| address::parse(&b.address));
@@ -546,6 +599,7 @@ fn main() {
                 feeds: Mutex::new(HashMap::new()),
                 feed_numbers: AtomicU64::new(0),
                 setting_up: AtomicBool::new(false),
+                removing: AtomicBool::new(false),
             });
             let clicks = handle.clone();
             notify::start(&app.config().identifier, move |address, target| {
@@ -559,10 +613,10 @@ fn main() {
                 }
             });
             follow_feeds(&handle);
-            #[cfg(target_os = "macos")]
+            #[cfg(any(target_os = "macos", windows))]
             if app.state::<App>().kept.lock().unwrap().local.is_some() {
-                if let Some(lima) = local::Lima::of(&handle) {
-                    std::thread::spawn(move || lima.keep_agent());
+                if let Some(vm) = local::Vm::of(&handle) {
+                    std::thread::spawn(move || vm.keep_agent());
                 }
             }
             let builder = WebviewWindowBuilder::new(&handle, "main", WebviewUrl::App("index.html".into())).title("botdot").inner_size(1200.0, 800.0).min_inner_size(420.0, 500.0).visible(!hidden);
@@ -607,6 +661,11 @@ fn main() {
             // A click shows the window on Windows, and the menu on the Mac, as the menu bar's icons do there.
             tray.show_menu_on_left_click(cfg!(target_os = "macos")).build(app)?;
             refresh_menus(&handle);
+            // A setup that stopped, at WSL's restart among others, carries on as the app starts at sign-in.
+            #[cfg(windows)]
+            if app.state::<App>().kept.lock().unwrap().setup_stopped() {
+                let _ = run_here(handle.clone());
+            }
             Ok(())
         })
         .on_menu_event(|app, event| on_menu(app, event.id().as_ref()))

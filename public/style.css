@@ -389,7 +389,10 @@ button.chip:hover { color: var(--text); }
 .actions:empty { display: none; }
 /* A mail draft in the Chief's chat (#415) */
 .mail-card { width: 100%; max-width: 560px; background: var(--raise-2); box-shadow: var(--lift); border-radius: var(--r-14); overflow: hidden; }
-.mail-card[hidden], .mail-text[hidden] { display: none; }
+.mail-card[hidden], .mail-text[hidden], .mail-files[hidden] { display: none; }
+.mail-files { margin: 0; padding: var(--sp-8) var(--sp-16) 0; }
+.mail-files .file-chip { background: var(--fill); }
+.mail-files a.file-chip.link:hover { filter: brightness(1.3); }
 .mail-head { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-4) var(--sp-12); margin: 0; padding: var(--sp-16) var(--sp-16) var(--sp-12); border-bottom: 1px solid var(--line); font-size: var(--fs-14); }
 .mail-head dt { color: var(--faint); }
 .mail-head dd { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -931,8 +934,6 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .need-title { font-weight: 600; font-size: var(--fs-16); }
 .need-meta { font-size: var(--fs-12); color: var(--muted); }
 /* Who carries on after your OK: one line under the body, in the text's colour, whole also on a closed card. */
-.need-meta.need-then { color: var(--text); }
-.need-card:not(.open) .need-meta.need-then { white-space: normal; }
 /* A change to an approved job or tile: its line under the title holds the approved schedule and the new one, so it
    wraps on a closed card too and is never cut at a phone's width. Its own line, "Runs as you approved it until
    you answer.", is drawn as the line of who carries on. */
@@ -1373,7 +1374,6 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .bw-bar { display: flex; align-items: center; gap: var(--sp-8); flex-wrap: wrap; padding: var(--sp-12) var(--sp-16); margin-bottom: var(--sp-16); font-size: var(--fs-14); }
 
 /* live steps of a running bot */
-.screen-steps { margin-top: var(--sp-12); }
 .screen-usage { margin-top: var(--sp-12); font-size: var(--fs-12); display: grid; gap: var(--sp-4); }
 .usage-row { display: flex; gap: var(--sp-12); justify-content: space-between; }
 .usage-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1737,7 +1737,8 @@ details.bs-row { display: block; }
 .kp-needs { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; padding: var(--sp-4); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); }
 .kp-need { display: flex; align-items: center; gap: var(--sp-12); min-height: 52px; padding: var(--sp-8) var(--sp-8) var(--sp-8) var(--sp-12); }
 .kp-need .avatar { width: 34px; height: 34px; }
-.kp-need-text { flex: 1; min-width: 0; font-size: var(--fs-14); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kp-need-text { flex: 1; min-width: 0; align-self: stretch; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-14); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.kp-need-text:hover b { text-decoration: underline; text-underline-offset: 3px; }
 .kp-need-text b::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: var(--sp-8); border-radius: 50%; background: var(--warn); vertical-align: 2px; } /* what was the tinted frame (#723) */
 .kp-need-text b { font-weight: 600; }
 .kp-need-text span { color: var(--muted); }
@@ -1753,11 +1754,6 @@ details.bs-row { display: block; }
    small plain name over its keys (#635). More than fit scroll. */
 .kp-keys { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-24); }
 .kp-page-keys { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
-/* Home's filter: All or No project, two words in one small pill over the keys. */
-.kp-filter { display: inline-flex; gap: var(--sp-4); margin: 0 0 var(--sp-12) var(--sp-8); padding: var(--sp-4); border-radius: var(--r-pill); background: var(--sunk); }
-.kp-filter button { border: 0; background: transparent; padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); color: var(--muted); font: inherit; font-size: var(--fs-12); cursor: pointer; }
-.kp-filter button:hover { color: var(--text); }
-.kp-filter button[aria-checked="true"] { background: var(--bg); color: var(--text); box-shadow: 0 0 0 1px var(--line-2); }
 .kp-cats { display: flex; flex-wrap: wrap; gap: var(--sp-8) var(--sp-32); margin-top: var(--sp-16); }
 .kp-page-head { margin: 0 0 var(--sp-8) var(--sp-8); font: inherit; font-size: var(--fs-12); color: var(--muted); }
 /* A key: its head with the dot of its state, its name, and while it works what it says it does. The open one sits in a
@@ -2047,6 +2043,8 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pg-older span { flex: 1 1 220px; }
 .dv-body.dv-site-body { display: flex; padding: 0; overflow: hidden; }
 .dv-site { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); color-scheme: dark; }
+.dv-body.dv-frame-body { display: flex; padding: 0; overflow: hidden; }
+.dv-pdf { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg); }
 .pg-version { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-8) 0; border-top: 1px solid var(--line); }
 .pg-version .pg-text { flex: 1; }
 .pg-version.on b { color: var(--ok-text); }
@@ -2180,6 +2178,8 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pc-table td { padding: var(--sp-4) 0; border-top: 1px solid var(--line); }
 .pc-table tr:first-child td { border-top: 0; }
 .pc-table .num { text-align: right; padding-left: var(--sp-12); white-space: nowrap; }
+/* The row of cards shows a list's first items; on an arranged board a card shows as many as it holds (ProjectCards.fit). */
+.pc-row .pc-more { display: none; }
 .pc-failed { color: var(--err); font-size: var(--fs-14); }
 .pc-failed.quiet { color: var(--faint); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-login { align-self: flex-start; margin-top: var(--sp-12); } /* a card that needs a login of the project (#804) */
@@ -2388,6 +2388,7 @@ body.files-open .doc-viewer { position: fixed; inset: 0; z-index: 40; width: aut
 .fx-pv-head b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fx-pv-body { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-16) var(--sp-16); }
 .fx-pv-img { max-width: 100%; border-radius: var(--r-8); }
+.fx-pv-pdf { display: block; width: 100%; height: 100%; min-height: 360px; border: 0; border-radius: var(--r-8); background: var(--bg); }
 .fx-pv-text { white-space: pre-wrap; word-break: break-word; margin: 0; color: var(--muted); }
 .fx-pv-table table { border-collapse: collapse; font-size: var(--fs-12); }
 .fx-pv-table th, .fx-pv-table td { border-bottom: 1px solid var(--line); padding: var(--sp-4) var(--sp-8); text-align: left; white-space: nowrap; }
@@ -2590,7 +2591,12 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .co-facts { display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); }
 .co-facts svg { color: var(--ok-text); }
 .co-foot { position: sticky; bottom: 0; display: flex; justify-content: space-between; align-items: center; padding: var(--sp-16) 0; background: var(--bg); }
-.co-wait { align-items: center; }
+.co-start.co-wait { align-items: center; text-align: center; padding-top: 20vh; }
+/* The Chief at work while it proposes the team: its head full size (.co-start svg is the icons' 16 px). */
+.co-wait .avatar.lg { width: 96px; height: 96px; }
+.co-start .avatar.head svg { width: 100%; height: 100%; }
+.co-wait-line { margin: 0; font-size: var(--fs-16); color: var(--text); text-wrap: balance; }
+.co-wait[data-state="failed"] .co-wait-line { color: var(--muted); }
 .co-made-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-8); }
 .co-made-list li { display: flex; align-items: center; gap: var(--sp-12); min-height: 40px; }
 .co-made-list li > span:first-of-type { flex: 1; }
@@ -2695,6 +2701,8 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-menu button[aria-checked="true"] { color: var(--text); }
 .cf-menu button[aria-checked="true"]::after { content: "✓"; float: right; margin-left: var(--sp-12); }
 .cf-menu hr { margin: var(--sp-4) var(--sp-8); border: 0; border-top: 1px solid var(--line-2); }
+.cf-menu .danger { color: var(--err); }
+.cf-menu .danger:hover { color: var(--err); }
 .cf-src { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--faint); font-size: var(--fs-12); white-space: nowrap; text-overflow: ellipsis; }
 .cf-src.failed { color: var(--warn-text); }
 .cf-source { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); margin: var(--sp-12) 0 var(--sp-4); }
@@ -3103,6 +3111,12 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .bc-tile.moving, .bc-held { z-index: 3; outline: 2px solid var(--text); outline-offset: -2px; border-radius: var(--r-14); }
 .bc-held { transform: scale(1.01); transition: transform var(--t1); }
 body.bc-dragging, body.bc-dragging * { user-select: none; cursor: grabbing; }
+/* A phone's width (ADR 147): one column in the canvas's reading order, each tile full width at its own height. */
+.bc-wrap.bc-column { overflow: visible; }
+.bc-column .bc-canvas { position: static; display: flex; flex-direction: column; gap: var(--sp-16); }
+.bc-column .bc-tile { position: static; overflow: visible; }
+.bc-column .bc-tile > * { flex: none; }
+.bc-column .pc-more { display: none; }
 .cf-home img { -webkit-user-drag: none; }
 @media (hover: none) { .cf-home { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; } }
 

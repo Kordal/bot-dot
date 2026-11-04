@@ -4,12 +4,11 @@
 // $FAKE_DOCKER_OUT/inspect.json, `docker image inspect` image.json, `docker exec` exec.txt; anything else prints nothing.
 // On PATH it must be called "docker": helpers.fakeDocker() puts a small wrapper by that name in a folder.
 //
-// For the Mac app's setup (BotDotKit's LocalServer tests), files in $FAKE_DOCKER_OUT steer it:
+// Files in $FAKE_DOCKER_OUT steer Docker and the registry:
 //   down        `docker info` fails, as when Docker isn't running
 //   private     `docker pull` fails until `docker login` got the token in good-token
 //   good-token  the token `docker login --password-stdin` accepts
 //   missing     the image `docker pull` can't download now
-// and `docker run … cat /opt/bot-dot/compose.mac.yaml` prints the real compose.mac.yaml.
 //
 // For the image cleanup (lib/image-cleanup.js), host.json in $FAKE_DOCKER_OUT is a small Docker host:
 //   images      [{ Id, RepoTags, RepoDigests, Labels }]
@@ -52,9 +51,6 @@ if (args[0] === 'run' && args.includes('/check/lib/signed-image.js')) {
   const revision = args.includes('--revision') ? ` ${has('revision') ? fs.readFileSync(path.join(OUT, 'revision'), 'utf8').trim() : 'd'.repeat(40)}` : '';
   process.stdout.write(`${name.lastIndexOf(':') > name.lastIndexOf('/') ? name.slice(0, name.lastIndexOf(':')) : name}@sha256:${'c'.repeat(64)}${revision}\n`);
   process.exit(0);
-}
-if (args[0] === 'run' && args.at(-1) === '/opt/bot-dot/compose.mac.yaml') {
-  process.stdout.write(fs.readFileSync(path.join(__dirname, '..', '..', 'compose.mac.yaml'), 'utf8'));
 }
 
 const hostFile = path.join(OUT, 'host.json');

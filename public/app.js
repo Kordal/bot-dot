@@ -1017,7 +1017,7 @@ async function refresh() {
     api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
-    if (state.view === 'bot' && state.botId) loadInbox(state.botId);
+    if (state.view === 'bot' && state.botId) { loadInbox(state.botId); readOwnRuns(state.botId); }
     render();
   } catch (e) {
     // No toast from the background: while botdot is away the standing line says it (setAway), once.
@@ -1107,6 +1107,11 @@ function show({ view: v, panel, via }, fresh = false) {
   state.view = v;
   state.panel = panel;
   state.via = via; // the jobs came from the settings: Back returns there
+  // A page opened from Setup goes back to Setup; any other way in, to Settings. Moving between them keeps it.
+  if (changed && SUB_PAGES.includes(v) && !SUB_PAGES.includes(from)) {
+    state.subFrom = from === 'setup' ? 'setup' : 'settings';
+    $$('.sub-back').forEach((b) => (b.innerHTML = subBackLabel())); // pages kept from an earlier visit
+  }
   const now = panelPage();
   if (changed && v === 'connectors') delete $('#view-connectors').dataset.ready; // fresh data each visit
   if (changed && v === 'vault') delete $('#view-vault').dataset.ready;
@@ -1194,8 +1199,10 @@ const ICON = {
 };
 const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="${tr('Back')}">${ICON.back}</button>`;
 const PAGE_BACK = `<button class="btn sm page-back" data-back>${ICON.back} ${tr('Back')}</button>`;
-// Activity, Skills, Connectors and Vault: back to Settings, where they open from.
-const SUB_BACK = `<button class="btn sm sub-back" data-to-settings>${ICON.back} ${tr('Settings')}</button>`;
+// Activity, Skills, Pages, Connectors and Vault: back to where they were opened from, Setup or else Settings.
+const SUB_PAGES = ['runs', 'skills', 'pages', 'connectors', 'vault'];
+const subBackLabel = () => `${ICON.back} ${state.subFrom === 'setup' ? tr('Setup') : tr('Settings')}`;
+const subBack = () => `<button class="btn sm sub-back" data-sub-back>${subBackLabel()}</button>`;
 
 // "18:32" today, "Mon" this week, "Sep 21" otherwise.
 function shortTime(iso) {

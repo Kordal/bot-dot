@@ -64,6 +64,9 @@
 #
 # Settings you can pass in: BOT_DOT_DIR (default /var/lib/botdot), BOT_DOT_IMAGE, BOT_DOT_COMPUTER_IMAGE, and the
 # answers: BOT_DOT_REACH (public or tailnet), BOT_DOT_DOMAIN and BOT_DOT_ADMIN (the admin's account's name).
+# A first install also asks whether to use Jev, the decision model, and boat.dev, the External Virtual PC, and for
+# each one's key; BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand (empty: no). Both are set later on the
+# admin page too.
 #
 # BOT_DOT_REACH=local is the desktop app's botdot, in a Linux VM of its own on the owner's computer (ADR 136): one
 # account (BOT_DOT_ADMIN, default owner) at http://localhost:<port> (BOT_DOT_PORT, default 4700), and nothing else
@@ -165,6 +168,8 @@ ask() {
   if [ "$2" = y ]; then hint='[Y/n]'; else hint='[y/N]'; fi
   printf '%s %s ' "$1" "$hint"
   read_line
+  # Without a terminal nothing echoed the answer: it ends the question's line, as a person's Enter would.
+  [ "$TTY" = /dev/tty ] || printf '%s\n' "$REPLY"
   case "$REPLY" in
     [Yy]*) return 0 ;;
     [Nn]*) return 1 ;;
@@ -659,6 +664,7 @@ if ! command -v docker >/dev/null 2>&1; then
   warn "Docker isn't installed."
   ask "Install Docker now, with Docker's official install script (get.docker.com)?" y \
     || die "botdot needs Docker. Install it (https://docs.docker.com/engine/install/) and run this again."
+  say "Installing Docker…"
   curl -fsSL https://get.docker.com | sh
 fi
 # The machine's own Docker: the front door, and Caddy for a public domain.
@@ -704,6 +710,7 @@ if [ -n "$MISSING" ]; then
   warn "Each account runs in a rootless Docker under gVisor, which needs:$MISSING"
   command -v apt-get >/dev/null 2>&1 || die "Install them with your system's packages (gVisor: https://gvisor.dev/docs/user_guide/install/) and run this again."
   ask "Install them now with apt-get (gVisor's runsc from gVisor's own repository)?" y || die "botdot needs them. Install them and run this again."
+  say "Installing$MISSING…"
   case "$MISSING" in
     *runsc*)
       mkdir -p "$ETC/apt/keyrings" "$ETC/apt/sources.list.d"
@@ -1007,6 +1014,7 @@ hand_images() {
       if [ -n "$($A ps -aq --filter label=botdot.computer=account </dev/null 2>/dev/null || true)" ]; then
         ok "The bots' computer keeps its image; its Update or reset takes the newest"
       else
+        say "Downloading the bots' computer (about 7 GB the first time)…"
         pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it."
       fi ;;
     load)
@@ -1091,6 +1099,42 @@ if [ -z "$REACH" ]; then
 fi
 # valid_domain NAME: a host name of letters, digits, dashes and dots, with a dot.
 valid_domain() { printf '%s' "$1" | grep -Eq '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*[a-z0-9]$'; }
+# public_ip URL: this machine's address as the internet sees it, from Cloudflare's trace (an address, so no DNS);
+# empty when it can't be had in 5 seconds.
+public_ip() { curl -fsS --max-time 5 "$1" </dev/null 2>/dev/null | sed -n 's/^ip=\([0-9a-fA-F.:]*\)$/\1/p' | head -n 1 || true; }
+# resolved FAMILY: the addresses $NAME resolves to now (ahostsv4 or ahostsv6), on one line; loopback and the IPv4 in
+# IPv6 left out.
+resolved() { getent "$1" "$NAME" </dev/null 2>/dev/null | awk '{print $1}' | grep -Ev '^(127\.|::1$|::ffff:)' | sort -u | tr '\n' ' ' | sed 's/ $//' || true; }
+# dns_check: whether $NAME points at this machine; when it doesn't, the exact records to set. Returns 1 then.
+dns_check() {
+  ip4_="$(public_ip https://1.1.1.1/cdn-cgi/trace)"
+  ip6_="$(public_ip 'https://[2606:4700:4700::1111]/cdn-cgi/trace')"
+  case "$ip6_" in *:*) ;; *) ip6_='' ;; esac
+  case "$ip4_" in *.*.*.*) ;; *) ip4_='' ;; esac
+  now4_="$(resolved ahostsv4)" now6_="$(resolved ahostsv6)"
+  if [ -n "$ip4_" ] && [ "$now4_" = "$ip4_" ] && { [ -z "$now6_" ] || [ "$now6_" = "$ip6_" ]; }; then
+    ok "$NAME points at this machine ($ip4_${now6_:+, $now6_})"
+    return 0
+  fi
+  if [ -z "$ip4_" ] && [ -z "$ip6_" ]; then
+    warn "Point $NAME at this machine's public IP address: an A record (and AAAA for IPv6). This machine couldn't find its address."
+  else
+    warn "Set this DNS for $NAME at your domain's provider:"
+    [ -z "$ip4_" ] || printf '      A     %s  %s\n' "$NAME" "$ip4_"
+    [ -z "$ip6_" ] || printf '      AAAA  %s  %s\n' "$NAME" "$ip6_"
+  fi
+  if [ -n "$now4_$now6_" ]; then say "    Now it points at $(printf '%s %s' "$now4_" "$now6_" | sed 's/^ *//; s/ *$//; s/  */, /g')."
+  else say "    Now it doesn't resolve."; fi
+  [ -z "$now6_" ] || [ -n "$ip6_" ] || say "    Remove its AAAA record: this machine has no IPv6."
+  # Cloudflare's proxy (the orange cloud) answers in place of this machine, so Caddy never gets the certificate.
+  for a_ in $now4_ $now6_; do
+    case "$a_" in 104.1[6-9].* | 104.2[0-7].* | 172.6[4-9].* | 172.7[01].* | 188.114.9[6-9].* | 162.15[89].* | 2606:4700:* | 2a06:98c0:*)
+      say "    That is Cloudflare's proxy: set the record to DNS only (grey cloud)."
+      break ;;
+    esac
+  done
+  return 1
+}
 if [ "$REACH" = public ]; then
   DOMAIN="$(get_env "$ENV" BOT_DOT_DOMAIN)"
   DOMAIN="${DOMAIN:-${BOT_DOT_DOMAIN:-}}"
@@ -1103,6 +1147,8 @@ if [ "$REACH" = public ]; then
     [ -n "$DOMAIN" ] || die "No domain, so nothing more was changed."
   done
   NAME="$DOMAIN"
+  # Shown before the long downloads, so the record can be set while they run. A test machine's domain isn't on the internet.
+  if [ "$MODE" = install ] && [ "${BOT_DOT_TLS:-$(get_env "$ENV" BOT_DOT_TLS)}" != internal ]; then dns_check || true; fi
 elif [ "$REACH" = local ]; then
   # On this computer only (ADR 136): localhost, which a passkey can belong to (127.0.0.1 can't), on the port the
   # install chose, and bots' interactive pages on the next one, an origin of its own.
@@ -1119,6 +1165,7 @@ elif [ "$REACH" = local ]; then
 else
   if ! command -v tailscale >/dev/null 2>&1; then
     ask "botdot on a tailnet needs Tailscale. Install it now?" y || die "botdot on a tailnet needs Tailscale (https://tailscale.com/download). Install it and run this again."
+    say "Installing Tailscale…"
     curl -fsSL https://tailscale.com/install.sh | sh
   fi
   if ! tailscale status >/dev/null 2>&1; then
@@ -1140,6 +1187,8 @@ set_env "$ENV" FRONT_DOOR_ORIGIN "$ORIGIN"
 # The admin's own account: an ordinary account, made by the install's sign-up link. On this computer only it is the
 # one account, made with the setup key, and its name is never asked.
 ADMIN="$(get_env "$ENV" FRONT_DOOR_ADMIN)"
+FIRST=''
+[ -n "$ADMIN" ] || FIRST=1
 ADMIN="${ADMIN:-${BOT_DOT_ADMIN:-}}"
 [ "$REACH" != local ] || ADMIN="${ADMIN:-owner}"
 if [ -z "$ADMIN" ]; then
@@ -1158,6 +1207,53 @@ fi
 valid_account "$ADMIN" || die "BOT_DOT_ADMIN: an account's name is $ACCOUNT_RULE."
 set_env "$ENV" FRONT_DOOR_ADMIN "$ADMIN"
 [ "$REACH" != local ] || set_env "$ENV" FRONT_DOOR_ONE_ACCOUNT "$ADMIN"
+
+# Jev, the decision model, and boat.dev, the External Virtual PC (#513, #529): each asked once, on the first install,
+# never on this computer only, which has no admin page. BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand
+# (empty: no), on any install. A key is checked as the admin page checks it, with the image's own check, and handed to
+# the front door in data/install-keys.json, which it takes and removes; one that isn't taken is set on the admin page.
+# check_key LIB KEY: ok, refused, billing or unreachable. The key goes on standard input, never on a command line.
+check_key() {
+  printf '%s' "$2" | $D run --rm -i --entrypoint node "$IMAGE" -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{require("./lib/"+process.argv[1]).checkKey(s.trim()).then((r)=>process.stdout.write(r),()=>process.stdout.write("unreachable"))})' "$1" 2>/dev/null || true
+}
+# take_key LIB SERVICE VAR "Question" "Prompt" -> KEY_TAKEN: the key VAR gives or the person pastes, once checked; empty
+# for none.
+take_key() {
+  KEY_TAKEN=''
+  eval "given_set=\${$3+1} given=\${$3:-}"
+  if [ -n "$given_set" ]; then
+    [ -n "$given" ] || return 0
+    case "$(check_key "$1" "$given")" in
+      ok) KEY_TAKEN="$given"; ok "$2 key set" ;;
+      refused) warn "$2 refused $3: set the key on the admin page." ;;
+      billing) warn "boat.dev wants a plan or a payment method on this account first: set the key on the admin page then." ;;
+      *) warn "$2 couldn't be reached: set the key on the admin page." ;;
+    esac
+    return 0
+  fi
+  [ -n "$FIRST" ] && [ -z "$UNATTENDED" ] || return 0
+  while ask "$4" n; do
+    ask_secret "$5"
+    [ -n "$REPLY" ] || return 0
+    case "$(check_key "$1" "$REPLY")" in
+      ok) KEY_TAKEN="$REPLY"; ok "$2 key set"; return 0 ;;
+      refused) warn "$2 refused this key." ;;
+      billing) warn "boat.dev wants a plan or a payment method on this account first: set the key on the admin page then."; return 0 ;;
+      *) warn "$2 couldn't be reached: set the key on the admin page."; return 0 ;;
+    esac
+  done
+}
+if [ "$REACH" != local ]; then
+  take_key group-router OpenRouter BOT_DOT_OPENROUTER_KEY "Use Jev as the decision model?" "OpenRouter key:"
+  OPENROUTER_KEY="$KEY_TAKEN"
+  take_key boat boat.dev BOT_DOT_BOAT_KEY "Use boat.dev for the External Virtual PC?" "boat.dev API key:"
+  BOAT_KEY="$KEY_TAKEN"
+  # A checked key is letters, digits, dashes and underscores alone (KEY in lib/group-router.js and lib/boat.js).
+  if [ -n "$OPENROUTER_KEY$BOAT_KEY" ]; then
+    json_key() { if [ -n "$1" ]; then printf '"%s"' "$1"; else printf null; fi; }
+    (umask 077; printf '{"openrouter":%s,"boat":%s}\n' "$(json_key "$OPENROUTER_KEY")" "$(json_key "$BOAT_KEY")" > "$DOOR/data/install-keys.json")
+  fi
+fi
 fi
 
 # running_accounts: each account whose Docker runs now, one name a line. A stopped (suspended) one gets the new version
@@ -1200,6 +1296,8 @@ if ! id -u "$DOOR_USER" >/dev/null 2>&1; then
 fi
 chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data"
 chmod 700 "$DOOR/data"
+# The keys the install took (above), the front door's to take.
+[ ! -f "$DOOR/data/install-keys.json" ] || { chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data/install-keys.json"; chmod 600 "$DOOR/data/install-keys.json"; }
 # Where the front door asks for new accounts: it may add and remove files there, and root's step reads their names.
 mkdir -p "$REQUESTS"
 chown "0:$(id -g "$DOOR_USER")" "$REQUESTS"
@@ -2009,16 +2107,27 @@ fi
 # 6. Reached on the domain or the tailnet
 
 if [ "$REACH" = public ]; then
-  i=0
-  until curl -fsSk -o /dev/null --resolve "$NAME:443:127.0.0.1" "https://$NAME/api/version" 2>/dev/null; do
-    i=$((i + 1))
-    if [ "$i" -ge 60 ]; then
-      warn "Caddy doesn't answer on https://$NAME yet. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself. See: cd $DOOR && docker compose logs caddy"
-      break
-    fi
-    sleep 1
-  done
-  [ "$i" -ge 60 ] || ok "Caddy answers on https://$NAME"
+  # caddy_answers: Caddy answers on the domain with its certificate within a minute.
+  caddy_answers() {
+    i=0
+    until curl -fsSk -o /dev/null --resolve "$NAME:443:127.0.0.1" "https://$NAME/api/version" 2>/dev/null; do
+      i=$((i + 1))
+      [ "$i" -lt 60 ] || return 1
+      sleep 1
+    done
+  }
+  if caddy_answers; then
+    ok "Caddy answers on https://$NAME"
+  elif [ "$TLS" != internal ] && DNS_SAID="$(dns_check)"; then
+    say "$DNS_SAID"
+    # The DNS was set while the installer ran: Caddy waits longer after each failed try, so a restart tries now.
+    $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || true
+    if caddy_answers; then ok "Caddy answers on https://$NAME"
+    else warn "Caddy has no certificate for $NAME yet. Keep ports 80, 443 and 8443 open to this machine. See: cd $DOOR && docker compose logs caddy"; fi
+  else
+    warn "Caddy doesn't answer on https://$NAME yet. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open. See: cd $DOOR && docker compose logs caddy"
+    [ "$TLS" = internal ] || say "$DNS_SAID"
+  fi
 elif [ "$REACH" = local ]; then
   ok "Reachable on this computer only, at $ORIGIN"
 else

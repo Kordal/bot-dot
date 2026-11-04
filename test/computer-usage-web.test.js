@@ -9,7 +9,7 @@ const path = require('path');
 const vm = require('vm');
 const { app, cut } = require('./web-page');
 
-const screen = cut('function computerLabel(', '// Plain-language explanation for a failed or stopped run');
+const screen = cut('function openScreen(', '// Plain-language explanation for a failed or stopped run');
 const settings = cut('function renderBotSettings(', '// The bits of the settings page that follow');
 
 test('web: the screen dialog has no "Turn off", "Turn on" or "Always on", and asks the server to stop nothing', () => {

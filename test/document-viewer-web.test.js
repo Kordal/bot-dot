@@ -142,12 +142,22 @@ test('web: the states: gone, too large, no preview, and a computer that is off w
   const pdf = { name: 'contract.pdf', size: 9, at: null, kind: 'none', type: 'application/pdf', truncated: false };
   const v = viewer({ '/bots/news/path?path=x.log&view=1': big, '/files/r1/contract.pdf?view=1': pdf, '/bots/news/path?path=%2Fworkspace%2Fa.md&view=1': off });
   await v.click({ view: '/files/r1/gone.md', viewName: 'gone.md' });
-  assert.match(v.box.innerHTML, /This file is gone/);
+  assert.match(v.box.innerHTML, /File not found/);
   await v.click({ view: '/bots/news/path?path=x.log', viewName: 'x.log', viewBot: 'news' });
   assert.match(v.box.innerHTML, /Too large to show whole\.<\/b> Showing its start/);
   await v.click({ view: '/files/r1/contract.pdf', viewName: 'contract.pdf' });
+  assert.match(v.box.innerHTML, /<iframe class="dv-pdf" src="\/api\/files\/r1\/contract\.pdf" title="contract\.pdf"><\/iframe>/, "a PDF is drawn by the browser's own viewer");
+  assert.match(v.box.innerHTML, /href="\/api\/files\/r1\/contract\.pdf" download="contract\.pdf"/, 'its Download downloads');
+  assert.doesNotMatch(v.box.innerHTML, /No preview/);
+  // Open in full window keeps the frame, so the PDF stays on the page it was on.
+  v.ctx.DocViewer.now().full = true;
+  assert.match(v.ctx.DocViewer.html(v.ctx.DocViewer.now()), /dv-frame-body/);
+  // A browser with no PDF viewer (a phone's): no preview, and Download opens it in a tab, which hands it to the phone.
+  v.ctx.navigator = { pdfViewerEnabled: false };
+  await v.click({ view: '/files/r1/contract.pdf', viewName: 'contract.pdf' });
   assert.match(v.box.innerHTML, /No preview for this kind of file/);
-  assert.match(v.box.innerHTML, /href="\/api\/files\/r1\/contract\.pdf" target="_blank"/, 'a PDF still opens in the browser');
+  assert.match(v.box.innerHTML, /href="\/api\/files\/r1\/contract\.pdf" target="_blank"/);
+  delete v.ctx.navigator;
   await v.click({ view: '/bots/news/path?path=%2Fworkspace%2Fa.md', viewName: 'a.md', viewBot: 'news' });
   assert.match(v.box.innerHTML, /The computer is off/);
   assert.match(v.box.innerHTML, /data-dv="start">Start the computer</);

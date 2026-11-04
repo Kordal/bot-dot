@@ -70,6 +70,10 @@ object DocumentView {
         return rows
     }
 
+    /** A PDF the app draws itself ([dev.botdot.app.ui.PdfPages]): botdot names it by its `type` (its `kind` stays
+     *  "none", so an older app keeps its Save and Open buttons), and only one it can bring out whole. */
+    fun isPdf(v: FileView?): Boolean = v != null && v.type == "application/pdf" && v.downloadable && v.interactive == null
+
     fun sepOf(name: String): Char = if (name.endsWith(".tsv", ignoreCase = true)) '\t' else ','
 
     private fun number(v: String): Double? = v.trim().takeIf { it.isNotEmpty() }?.replace(",", "")?.toDoubleOrNull()

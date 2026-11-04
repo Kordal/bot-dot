@@ -178,6 +178,36 @@ test('a check-in waits from day 30 until it is answered; Stop switches off the j
   assert.deepEqual([await on(a.id), await on(b.id), await on(c.id)], [0, 0, before.c]);
 });
 
+test('an ongoing project (#925): no 90 days, a monthly review every 30 days, and its bots told it has no end', async () => {
+  const was = (await srv.api('/company')).data.company;
+  const ops = { setup: { shape: 'ops', questions: ['runs', 'care', 'first'], stories: false, swot: false }, goal: 'Car serviced on time', deliverBy: '', board: ['days', 'goals'] };
+  await running(29, ops);
+  let co = (await srv.api('/company')).data.company;
+  assert.equal(co.ongoing, true);
+  assert.deepEqual(co.board, ['goals'], 'no 90-day line on its board');
+  assert.deepEqual(co.objectives.map((o) => o.display), ['bar', 'bar'], 'a bar, not a pace to day 90');
+  assert.equal(co.checkin, null, 'none before day 30');
+  assert.ok((await srv.api('/version')).data.features.includes('project-ongoing'));
+  await running(125, { ...ops, checkins: [{ day: 30, decision: 'keep', at: null }] });
+  co = (await srv.api('/company')).data.company;
+  assert.equal(co.checkin.day, 120, 'the last month it reached, past day 90');
+  assert.deepEqual(co.checkin.objectives.map((o) => [o.id, o.onTrack]), [['o1', false], ['o2', false]], 'on track only once met');
+  const r = await srv.api('/company/checkins', { method: 'POST', body: { day: 120, decision: 'keep' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.company.checkins.map((k) => k.day), [30, 120]);
+  assert.equal(r.data.company.decisions.at(-1).text, 'Monthly review (day 120): Keep going');
+  const store = companyLib.create({ file: path.join(srv.data, 'company.json') });
+  const note = store.promptNote();
+  assert.match(note, /ongoing, no end date, running since \d{4}-\d{2}-\d{2}/);
+  assert.match(note, /What should keep working: Car serviced on time/);
+  assert.doesNotMatch(note, /of 90|90-day|Target delivery/);
+  // Any other project keeps its 90 days.
+  await running(31, { setup: was.setup, goal: was.goal, deliverBy: was.deliverBy, board: was.board, decisions: was.decisions });
+  co = (await srv.api('/company')).data.company;
+  assert.equal(co.ongoing, undefined);
+  assert.equal(co.checkin.day, 30);
+});
+
 test('the Chief drafts the week\'s plan; the owner approves it or asks for a change', async () => {
   await running(10);
   assert.equal((await srv.api('/company/plan/approve', { method: 'POST', body: {} })).status, 404);
@@ -189,13 +219,22 @@ test('the Chief drafts the week\'s plan; the owner approves it or asks for a cha
   assert.equal(r.data.plan.week, companyLib.weekOf(new Date()));
   assert.equal((await srv.asChief('/company/plan/approve', { method: 'POST', body: {} })).status, 403);
   assert.equal((await srv.api('/company/plan/change', { method: 'POST', body: { text: ' ' } })).status, 400);
+  // The owner last wrote to the Chief about something else: the project's turns never go there.
+  const other = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  await srv.api(`/chief/chats/${other.id}/messages`, { method: 'POST', body: { text: 'Something unrelated' } });
+  await waitFor(async () => !(await srv.api(`/chief/chats/${other.id}`)).data.messages.some((m) => m.pending), { what: 'its reply' });
   r = await srv.api('/company/plan/change', { method: 'POST', body: { text: 'Less outreach this week' } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   r = await srv.api('/company/plan/approve', { method: 'POST', body: {} });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.plan.approved, true);
-  // Both were the Chief's turns: they landed in a Chief chat.
-  await waitFor(async () => (await srv.api('/chief')).data.chats.some((x) => x.title === 'Project'), { what: 'a Chief chat' });
+  // Both were the Chief's turns: they landed in the project's own Chief chat, named after it, the same one twice.
+  const { name } = (await srv.api('/company')).data.company;
+  const mine = await waitFor(async () => { const x = (await srv.api('/chief')).data.chats.filter((y) => y.title === name); return x.length && x; }, { what: "the project's Chief chat" });
+  assert.equal(mine.length, 1);
+  const turns = await waitFor(async () => { const x = (await srv.api(`/chief/chats/${mine[0].id}`)).data.messages.filter((m) => m.role === 'chief' && !m.pending); return x.length >= 2 && x; }, { what: 'both turns' });
+  assert.equal(turns.length, 2);
+  assert.equal((await srv.api(`/chief/chats/${other.id}`)).data.messages.filter((m) => m.role === 'chief').length, 1, 'nothing more in the other chat');
 });
 
 test('a new week is due once a plan of it was neither drafted nor asked for', () => {

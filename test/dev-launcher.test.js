@@ -1,5 +1,5 @@
 // npm start (scripts/dev.js, #71): botdot on this machine for development, its server behind the real front door
-// with one account and a setup key, as the Mac app's local server was. It prints the sign-up link; a passkey made
+// with one account and a setup key. It prints the sign-up link; a passkey made
 // there signs in, and the signed-in session reaches the server. Started again, it says to sign in instead.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

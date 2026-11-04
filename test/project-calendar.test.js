@@ -170,3 +170,10 @@ test('a bot in no team of the project is refused', async () => {
   assert.deepEqual([r.ok, r.error], [false, 'You are in no team of a project.']);
   srv.unhold();
 });
+
+test('an ongoing project (#925) has a monthly review every 30 days, past day 90, in place of days 30, 60 and 90', () => {
+  const c = { phase: 'running', startedAt: new Date(2026, 0, 1, 9).toISOString(), setup: { shape: 'ops' }, checkins: [{ day: 120, decision: 'keep' }], teams: [], todos: [], events: [] };
+  const all = calendar.items(c, { from: '2026-04-01', to: '2026-06-30' }).filter((x) => x.kind === 'checkin');
+  assert.deepEqual(all.map((x) => [x.day, x.n, x.monthly, x.decision]), [['2026-04-30', 120, true, 'keep'], ['2026-05-30', 150, true, undefined], ['2026-06-29', 180, true, undefined]]);
+  assert.equal(calendar.itemLine(all[0]), '2026-04-30 Monthly review (day 120) (the owner chose keep)');
+});

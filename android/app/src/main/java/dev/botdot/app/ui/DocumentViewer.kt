@@ -305,11 +305,16 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             }
         }
         if (exporting && v?.text != null) ExportSheet(req.name, v.plain ?: v.text) { exporting = false }
+        val noPreview: @Composable () -> Unit = { ViewerState(tr("No preview for this kind of file"), tr("The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.")) {
+            Button(onClick = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, req.src, req.name); tell(tr("Saving {name} to Downloads", "name" to req.name)) } },
+                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
+            SecondaryButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
+        } }
         when {
             e != null -> {
                 val status = (e as? ApiException)?.status
                 when (status) {
-                    404 -> ViewerState(tr("This file is gone"), tr("Nothing is at this path any more. It may have been moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+                    404 -> ViewerState(tr("File not found"), tr("Nothing is at this path. It may not be made yet, or it was moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
                     409 -> ViewerState(tr("The computer is off"), tr("This file is on the account's computer, which is stopped. Start it to open the file.")) {
                         req.botId?.let { botId ->
                             Button(onClick = { withApi(tr("start it")) { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
@@ -326,11 +331,8 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) }
             }
             site != null && req.page != null -> InteractiveFrame(site, values, onDownload = download)
-            v.kind == "none" -> ViewerState(tr("No preview for this kind of file"), tr("The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.")) {
-                Button(onClick = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, req.src, req.name); tell(tr("Saving {name} to Downloads", "name" to req.name)) } },
-                    colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
-                SecondaryButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
-            }
+            DocumentView.isPdf(v) -> PdfPages(req.src, req.name, noPreview)
+            v.kind == "none" -> noPreview()
             v.kind == "image" -> Box(Modifier.fillMaxSize().padding(Space.s12), contentAlignment = Alignment.Center) {
                 api?.let { AsyncImage(it.url(req.src), contentDescription = req.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
             }

@@ -17,9 +17,6 @@ test: ## Run the tests that need nothing running
 # The Android checks of .github/workflows/tests.yml, one target per step, with the
 # same commands; android-build is local only (CI's tests and lint compile the app).
 # A target whose tool is missing fails saying which one.
-# mac-build and mac-test build and test the stopped Mac app (ADR 031) on a Mac; no
-# workflow runs them. Where the full Xcode is installed and not selected, they use
-# it from /Applications.
 
 .PHONY: android-tools
 android-tools:
@@ -59,37 +56,6 @@ desktop-test: desktop-tools ## Run the desktop app's tests
 .PHONY: desktop-lint
 desktop-lint: desktop-tools ## Lint the desktop app as CI does
 	cd desktop/src-tauri && cargo clippy --locked --all-targets -- -D warnings
-
-ifeq ($(origin DEVELOPER_DIR),undefined)
-ifneq ($(wildcard /Applications/Xcode.app/Contents/Developer),)
-ifneq ($(shell xcodebuild -version >/dev/null 2>&1 && echo ok),ok)
-export DEVELOPER_DIR := /Applications/Xcode.app/Contents/Developer
-endif
-endif
-endif
-
-.PHONY: mac-tools
-mac-tools:
-	@xcodebuild -version >/dev/null 2>&1 \
-		|| { echo "Xcode is missing: the Mac targets need the full Xcode, not only its command line tools (xcode-select, or DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer)"; exit 1; }
-
-# The output goes to macos/build, which Git ignores.
-.PHONY: mac-build
-mac-build: mac-tools ## Build the Mac app
-	xcodebuild -project macos/BotDot.xcodeproj -scheme BotDot -configuration Debug -derivedDataPath macos/build build -quiet
-
-.PHONY: mac-test
-mac-test: mac-tools ## Test the Mac app's data layer (BotDotKit) against real botdot test servers
-	@command -v node >/dev/null 2>&1 \
-		|| { echo "Node.js is missing: the BotDotKit tests start botdot test servers with it"; exit 1; }
-	cd macos/BotDotKit && swift test
-
-# The Mac app is not released: the owner's Mac gets it from here. APPLICATIONS is the folder it
-# goes to. Without a selected Xcode it uses the one in /Applications (macos/install.sh).
-APPLICATIONS ?= /Applications
-.PHONY: mac-install
-mac-install: ## Build the Mac app and put it in Applications in place of the one there, then open it
-	@./macos/install.sh "$(APPLICATIONS)"
 
 # A self-built botdot server (CONTEXT.md): both images from this source, named without a registry, which
 # install.sh then installs without a token or a download. SERVER_IMAGE and COMPUTER_IMAGE rename them. The label

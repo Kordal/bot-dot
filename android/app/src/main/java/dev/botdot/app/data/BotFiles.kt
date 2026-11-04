@@ -38,7 +38,7 @@ object BotFiles {
 
     /** A file of the document viewer (#251), by its API path, fetched again each time (a bot may have rewritten it)
      *  into the app's cache for Share and Open in another app. */
-    private suspend fun cached(context: Context, api: Api, src: String, name: String): File {
+    suspend fun cached(context: Context, api: Api, src: String, name: String): File {
         val dest = File(File(File(context.cacheDir, "botfiles"), "viewer-${src.hashCode().toUInt().toString(16)}"), name.substringAfterLast('/'))
         api.downloadTo(src, dest)
         return dest

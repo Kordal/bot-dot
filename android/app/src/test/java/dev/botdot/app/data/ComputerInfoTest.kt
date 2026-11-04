@@ -71,4 +71,10 @@ class ComputerInfoTest {
         assertEquals("https://desk.example/stream.html#token=t", d.url)
         assertFalse("only an https address is shown", json.decodeFromString<BoatDesktop>("""{"state":"running","url":"javascript:alert(1)"}""").running)
     }
+
+    @Test fun onlyTheAdminMovesTheAccountsComputerOnAServerThatSaysSo() {
+        assertTrue(ComputerPlace.byAdmin(listOf("account-computer", "computer-place-admin")))
+        assertFalse("an older server: the owner's switch stays", ComputerPlace.byAdmin(listOf("account-computer")))
+        assertFalse(ComputerPlace.byAdmin(null))
+    }
 }

@@ -64,24 +64,25 @@ object Spaces {
 
     // ---------- each bot in one space (#841) ----------
 
-    /** The bots in a team of one of [projects]: they are drawn in that project, not on Home. */
+    /** The bots in a team of one of [projects]. */
     fun teamBots(projects: List<Company>): Set<String> = projects.flatMap { c -> c.teams.flatMap { it.bots } }.toSet()
-
-    /** Home's bots: all but those in a project's team, unless Home's filter is on [all]. One that leaves its team is back in its own category. */
-    fun homeBots(bots: List<Bot>, projects: List<Company>, all: Boolean = false): List<Bot> = if (all) bots else teamBots(projects).let { t -> bots.filter { it.id !in t } }
-
-    /** Home's groups: all but the team chats of [projects]' teams, unless Home's filter is on [all]. */
-    fun homeGroups(groups: List<Group>, projects: List<Company>, all: Boolean = false): List<Group> {
-        if (all) return groups
-        val teams = projects.flatMap { c -> c.teams.map { it.id } }.toSet()
-        return groups.filter { it.team == null || it.team !in teams }
-    }
 
     /** The project each team bot is in, as the rail draws it: Home's Needs you marks a project's ask with its square. */
     fun spaceOfBot(projects: List<Company>): Map<String, Space> = buildMap {
         for (c in projects) { val s = Space(c.id, ManyProjects.nameOf(c), c.color ?: ManyProjects.DEFAULT_COLOR, 0); for (t in c.teams) for (b in t.bots) putIfAbsent(b, s) }
     }
 
-    /** A project's Needs you: what waits about one of its team bots. Home lists all of it. */
-    fun needsIn(project: Company, waiting: List<Waiting>): List<Waiting> = teamBots(listOf(project)).let { t -> waiting.filter { it.bot != null && it.bot in t } }
+    /**
+     * A project's Needs you: what waits about one of its team bots, and what was asked in one of its teams' group chats
+     * (the Chief's there too). Home lists all of it; a bot of no team, or the Chief's own chat, waits on Home only.
+     */
+    fun needsIn(project: Company, waiting: List<Waiting>, groups: List<Group> = emptyList()): List<Waiting> {
+        val bots = teamBots(listOf(project))
+        val teams = project.teams.map { it.id }.toSet()
+        val chats = groups.filter { it.team != null && it.team in teams }.map { it.id }.toSet()
+        return waiting.filter { (it.bot != null && it.bot in bots) || (it.group != null && it.group in chats) }
+    }
+
+    /** The bots of a project that ask the owner a question: its teams' only. */
+    fun askingIn(project: Company, bots: List<Bot>, asks: (Bot) -> Boolean): List<Bot> = teamBots(listOf(project)).let { t -> bots.filter { it.id in t && asks(it) } }
 }

@@ -188,11 +188,11 @@ test('web: an action too long to show in full: its rows, one line that says so, 
   assert.equal(reads, 0, 'and not read to be drawn either: megabytes, each time the card is drawn');
   assert.match(html, /<div class="card need-card need-rows" data-need="ask:k1"/);
   assert.equal(metaOf(html), 'Mail Writer waits for your answer', 'the line under the title stays');
-  // After its run stopped waiting: the same, and who carries on stands under the line.
+  // After its run stopped waiting: the same, and no line says who carries on.
   const late = draw({ ...LATE, rows, more: true });
   assert.deepEqual(buttonsOf(late), ['Decline', 'Always allow']);
-  assert.ok(late.indexOf(LINE) < late.indexOf('need-then') && late.indexOf('need-then') < late.indexOf('need-actions'));
-  assert.equal(thenOf(late), 'It carries on when you allow it.');
+  assert.ok(late.indexOf(LINE) < late.indexOf('need-actions'));
+  assert.equal(thenOf(late), null);
   // One value longer than a card: no row fits. The card says so, and still draws no `details`.
   for (const none of [[], undefined]) {
     const bare = draw({ ...HELD, rows: none, more: true });
@@ -236,16 +236,15 @@ test('web: under the title it says that the bot waits for the answer, while its 
   assert.equal(metaOf(draw({ ...HELD, bot: null })), 'The bot waits for your answer', 'a bot that is gone');
 });
 
-test('web: once the bot stopped waiting it says since when, with the page\'s time of today, and who carries on', () => {
+test('web: once the bot stopped waiting it says since when, with the page\'s time of today', () => {
   const p = page({ state: { asks: [LATE] } });
   const html = p.needCardHTML(p.item('ask:k1'));
   const time = p.msgTime(STOPPED_AT);
   assert.match(time, /^\d{1,2}[:.]\d{2}(\s?[AP]M)?$/i, `today: the hour and the minute alone (${time})`);
   assert.match(time, /52/);
   assert.equal(metaOf(html), `Mail Writer stopped waiting at ${esc(time)}`);
-  assert.equal(thenOf(html), 'It carries on when you allow it.');
+  assert.equal(thenOf(html), null);
   assert.deepEqual(rowsOf(html).map((r) => r[0]), ['To', 'Subject', 'Text'], 'the rows stay');
-  assert.ok(html.indexOf('need-facts') < html.indexOf('need-then') && html.indexOf('need-then') < html.indexOf('need-actions'), 'who carries on under the rows');
   // From a day before: the day with the time, as the page writes the time of an older message.
   const before = new Date(Date.now() - 20 * 3600e3);
   const iso = new Date(before.getTime() - (before.toDateString() === new Date().toDateString() ? 12 * 3600e3 : 0)).toISOString();
@@ -288,7 +287,7 @@ test('web: the page draws the card again when its run stops waiting', () => {
   p.renderNeeds();
   for (const html of [chat.box.innerHTML, p.needsPage.innerHTML]) {
     assert.match(metaOf(html), /^Mail Writer stopped waiting at /);
-    assert.equal(thenOf(html), 'It carries on when you allow it.');
+    assert.equal(thenOf(html), null);
   }
   // It stands in its bot's chat and in Needs you, not in the Chief's.
   assert.deepEqual(plain(p.chatNeeds('mail').map((x) => x.key)), ['ask:k1']);
@@ -337,7 +336,6 @@ test('web: every word of the action is text, never markup', () => {
     'a row\'s value': { ...HELD, rows: [{ label: 'L', value: BAD }] },
     'the bot\'s name, in the line under the title': { ...HELD, bot: { ...MAIL, name: BAD } },
     'the bot\'s name, once it stopped waiting': { ...LATE, bot: { ...MAIL, name: BAD } },
-    'who carries on': { ...LATE, then: { who: 'bot', text: BAD } },
     details: { ...OLD, details: BAD },
     reason: { ...OLD, reason: BAD },
   };

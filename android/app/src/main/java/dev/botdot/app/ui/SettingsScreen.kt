@@ -173,8 +173,10 @@ fun SettingsScreen(
                 Rule()
             }
 
-            if (boatSizes != null || computerPlace != null) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
-                computerPlace?.let { c ->
+            val sizeShown = boatSizes != null && (computerPlace == null || computerPlace?.place == "boat")
+            if (sizeShown || (computerPlace != null && !dev.botdot.app.data.ComputerPlace.byAdmin(server?.features))) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
+                // Only the admin moves it, on the admin page, on a server that says so (ADR 146): then it is the section's value alone.
+                computerPlace?.takeUnless { dev.botdot.app.data.ComputerPlace.byAdmin(server?.features) }?.let { c ->
                     Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
                         if (to == c.place) return@Choice
                         // Every bot with a computer moves along: whether their files go too is asked first (#556).

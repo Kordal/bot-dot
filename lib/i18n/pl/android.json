@@ -597,8 +597,8 @@
   "It no longer keeps up to date": "Już nie jest aktualizowana na bieżąco",
   "Saving schedule…": "Zapisywanie harmonogramu…",
   "It keeps up to date now": "Teraz jest aktualizowana na bieżąco",
-  "This file is gone": "Tego pliku już nie ma",
-  "Nothing is at this path any more. It may have been moved or deleted.": "Pod tą ścieżką już nic nie ma. Mogło zostać przeniesione albo usunięte.",
+  "File not found": "Nie znaleziono pliku",
+  "Nothing is at this path. It may not be made yet, or it was moved or deleted.": "Pod tą ścieżką nic nie ma. Może jeszcze nie powstał albo został przeniesiony lub usunięty.",
   "Back to the chat": "Wróć do czatu",
   "The computer is off": "Komputer jest wyłączony",
   "This file is on the account's computer, which is stopped. Start it to open the file.": "Ten plik jest na komputerze konta, który jest zatrzymany. Uruchom go, żeby otworzyć plik.",
@@ -704,8 +704,8 @@
   "Here": "Tutaj",
   "Project": "Projekt",
   "New project": "Nowy projekt",
-  "You know where. We'll work out how.": "Ty wiesz dokąd. My wymyślimy jak.",
-  "Goal, site or idea": "Cel, strona lub pomysł",
+  "What shall we take on?": "Czym się zajmiemy?",
+  "Goal, matter or site": "Cel, sprawa lub strona",
   "New bot": "Nowy bot",
   "A new bot that ": "Nowy bot, który ",
   "Start from scratch": "Zacznij od zera",
@@ -1276,5 +1276,6 @@
   "Add a note": "Dodaj notatkę",
   "Decision": "Ustalenie",
   "Fact": "Fakt",
-  "No project": "Bez projektu"
+  "Putting your team together…": "Składam twój zespół…",
+  "Almost there…": "Już prawie…"
 }

@@ -18,10 +18,11 @@ const CODE = [
   cut('// A change that waits beside an approved job or tile', 'function showJobApprovals()'),
   cut('const tileScripts = ', '// A group has no bot of its own'),
   cut('function needsItems() {', '// The banner:'),
+  cut('let seenNeed = null;', 'function openNeed(x) {'),
   cut('const needsDone = new Map();', '// The buttons on need cards'),
   cut('const chatDecided = new Map();', '// "Always approve" a script job'),
   cut('async function decide(x, yes', 'async function refreshNeeds() {'),
-  'this.page = { batched, decideBatch, needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, thenLine, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
+  'this.page = { batched, decideBatch, needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, openNeedInChat, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
 ].join('\n');
 
 // The page with what the server sent. state: asks, bots (with their jobs), dash, approvals.
@@ -43,6 +44,7 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {} } = {}) {
     // The moment's wait before Needs you leaves after its last card (needs-return.js): kept, run by the test.
     setTimeout: (fn, ms) => { timers.push({ fn, ms, on: true }); return timers.length; }, clearTimeout: (n) => { if (timers[n - 1]) timers[n - 1].on = false; },
     showList: () => went.push(['list']), setView: (v, id) => went.push([v, id]), openChiefChat: (id) => went.push(['chief', id]),
+    openChief: () => went.push(['chief']), openNeed: (x) => went.push(['need', x.key]), requestAnimationFrame: (fn) => fn(), drawGroupCards() {},
     document: { createElement: () => element() },
     $: (sel, root) => (root ? root.querySelector(sel) : sel === '#view-needs' ? needsPage : screen[sel] || null),
     $$: (sel) => onScreen.filter((c) => sel === `.need-card[data-need="${c.key}"]`),

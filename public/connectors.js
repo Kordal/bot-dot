@@ -24,7 +24,7 @@ async function renderConnectors(force = false) {
   // A page that can't be drawn says why, never stays blank (#464).
   try { drawConnectors(); } catch (e) { root.innerHTML = `${connHead()}<div class="req-note">${tr("Couldn't show your apps: {why}", { why: esc(e.message) })}</div>`; }
 }
-const connHead = () => `${SUB_BACK}
+const connHead = () => `${subBack()}
     <div class="section-head"><div><h1>${tr('Connectors')}</h1></div></div>`;
 
 async function loadCatalog(reset) {

@@ -68,8 +68,38 @@ test('a public install puts Caddy in front of the front door, on the domain alon
   assert.equal(test.env.BOT_DOT_TLS, 'internal', 'kept for a rerun');
 
   const late = rerun(t, '', {}, { caddy: false });
-  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself\./);
+  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open\./);
   assert.match(late.said, /\/sign-up\/T0KEN/, 'and the installer goes on to the link');
+});
+
+test('a public install shows the exact DNS record its domain needs, and whether it is set', (t) => {
+  const unset = rerun(t, '', {}, { caddy: false });
+  const record = /Set this DNS for botdot\.example\.com at your domain's provider:\n {6}A {5}botdot\.example\.com {2}203\.0\.113\.7\n {4}Now it doesn't resolve\./g;
+  assert.equal(unset.said.match(record).length, 2, 'before the downloads, and again when Caddy doesn\'t answer');
+  assert.doesNotMatch(unset.said, /AAAA/, 'no IPv6 on this machine, none asked for');
+  assert.ok(unset.said.indexOf('Set this DNS') < unset.said.indexOf('front door is running'), 'shown before the long steps');
+
+  const elsewhere = rerun(t, '', { STAND_IN_A: '198.51.100.1', STAND_IN_AAAA: '2001:db8::1' });
+  assert.match(elsewhere.said, /A {5}botdot\.example\.com {2}203\.0\.113\.7\n {4}Now it points at 198\.51\.100\.1, 2001:db8::1\.\n {4}Remove its AAAA record: this machine has no IPv6\./);
+
+  const six = rerun(t, '', { STAND_IN_IP6: '2001:db8::7' });
+  assert.match(six.said, /A {5}botdot\.example\.com {2}203\.0\.113\.7\n {6}AAAA {2}botdot\.example\.com {2}2001:db8::7\n/);
+
+  const set = rerun(t, '', { STAND_IN_A: '203.0.113.7' });
+  assert.match(set.said, /botdot\.example\.com points at this machine \(203\.0\.113\.7\)/);
+  assert.doesNotMatch(set.said, /Set this DNS/);
+
+  const proxied = rerun(t, '', { STAND_IN_A: '104.21.32.1 172.67.10.2' });
+  assert.match(proxied.said, /Now it points at 104\.21\.32\.1, 172\.67\.10\.2\.\n {4}That is Cloudflare's proxy: set the record to DNS only \(grey cloud\)\./);
+
+  const noCertificate = rerun(t, '', { STAND_IN_A: '203.0.113.7' }, { caddy: false });
+  assert.ok(noCertificate.calls.includes(`compose --project-directory ${noCertificate.dir}/front-door restart caddy`), 'the DNS is set: Caddy tries again now, not after its back-off');
+  assert.match(noCertificate.said, /Caddy has no certificate for botdot\.example\.com yet\. Keep ports 80, 443 and 8443 open to this machine\./);
+  assert.doesNotMatch(noCertificate.said, /Set this DNS/);
+
+  const test = rerun(t, '', { BOT_DOT_TLS: 'internal' }, { caddy: false });
+  assert.doesNotMatch(test.said, /Set this DNS|\.com points at this machine/, 'a test machine\'s domain isn\'t on the internet');
+  assert.doesNotMatch(test.system, /cdn-cgi/);
 });
 
 test('a tailnet install gives the front door its Tailscale name with Serve, and nothing on the internet', (t) => {
@@ -673,7 +703,7 @@ test('botdot takes the machine\'s time zone, or UTC when it has none', (t) => {
 });
 
 test('compose gives the server, the helper and the front door the time zone of .env, or UTC', () => {
-  for (const [name, services] of [['compose.yaml', ['bot-dot', 'docker-helper']], ['compose.mac.yaml', ['bot-dot', 'docker-helper']], ['compose.front-door.yaml', ['front-door']]]) {
+  for (const [name, services] of [['compose.yaml', ['bot-dot', 'docker-helper']], ['compose.front-door.yaml', ['front-door']]]) {
     const compose = fs.readFileSync(path.join(ROOT, name), 'utf8');
     for (const service of services) {
       const block = compose.slice(compose.indexOf(`\n  ${service}:\n`) + 1).split(/\n {2}(?=\S)/)[0];
@@ -690,7 +720,74 @@ test('an account\'s botdot server keeps a network of its own, and its helper the
   assert.match(compose, /- \$\{DOCKER_SOCKET:-\/var\/run\/docker\.sock\}:\/var\/run\/docker\.sock/);
   assert.match(compose, /- \$\{BOT_DOT_FRONT_DOOR_FOLDER:-\.\/front-door\}:\/run\/front-door/);
   assert.match(compose, /BOT_DOT_FRONT_DOOR_SOCKET: \/run\/front-door\/botdot\.sock/);
-  for (const name of ['compose.yaml', 'compose.mac.yaml', 'compose.front-door.yaml', 'install.sh', 'README.md', 'docs/install-linux.md']) {
+  for (const name of ['compose.yaml', 'compose.front-door.yaml', 'install.sh', 'README.md', 'docs/install-linux.md']) {
     assert.doesNotMatch(fs.readFileSync(path.join(ROOT, name), 'utf8'), /BOT_DOT_ALLOWED_USERS/, `${name}: the variable does nothing since the front door`);
   }
+});
+
+// --- Jev and boat.dev ------------------------------------------------------------------------------
+
+// The image's key check (lib/group-router.js and lib/boat.js checkKey), stood in for: a key starting "good" is taken,
+// "down" can't be checked, any other is refused. It writes down which check it was asked and the key it read.
+const keyChecks = [
+  'case "$*" in *checkKey*) k="$(cat)"; for a; do l="$a"; done; echo "checkKey $l $k" >> "$STAND_IN_LOG";',
+  '  case "$k" in good*) printf ok ;; down*) printf unreachable ;; *) printf refused ;; esac; exit 0 ;; esac',
+];
+const keysOf = (done) => { const f = path.join(done.dir, 'front-door', 'data', 'install-keys.json'); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
+
+test('a first install asks for Jev and boat.dev, checks each key, asks again after a refusal, and hands them to the front door', (t) => {
+  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\ny\nwrong-key-1\ny\ngood-openrouter-1\ny\ngood-boat-1\n' });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.match(done.said, /Use Jev as the decision model\? \[y\/N\]/);
+  assert.match(done.said, /OpenRouter key:/);
+  assert.match(done.said, /OpenRouter refused this key\./);
+  assert.match(done.said, /Use boat\.dev for the External Virtual PC\? \[y\/N\]/);
+  assert.match(done.said, /boat\.dev API key:/);
+  assert.ok(!done.said.includes('good-openrouter-1') && !done.said.includes('good-boat-1'), 'a key is never shown');
+  assert.match(done.system, /checkKey group-router wrong-key-1\ncheckKey group-router good-openrouter-1\ncheckKey boat good-boat-1/);
+  assert.ok(done.calls.every((c) => !c.includes('good-')), 'a key goes on standard input, never on a command line');
+  assert.deepEqual(keysOf(done), { openrouter: 'good-openrouter-1', boat: 'good-boat-1' });
+  assert.equal(fs.statSync(path.join(done.dir, 'front-door', 'data', 'install-keys.json')).mode & 0o777, 0o600);
+  assert.match(done.system, /chown \d+:\d+ \S*front-door\/data\/install-keys\.json/, "the front door's to take");
+  assert.ok(!Object.keys(done.env).some((k) => /OPENROUTER|BOAT/.test(k)), 'no key in .env');
+
+  const again = installer(t, { dotenv: fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8'), dockerFirst: keyChecks });
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.said, /Jev|boat\.dev/, 'a rerun asks nothing again: the admin page sets them');
+});
+
+test('a first install with no answer takes neither, and an unreachable check is left to the admin page', (t) => {
+  const none = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\n' });
+  assert.equal(none.status, 0, `${none.said}\n${none.stderr}`);
+  assert.match(none.said, /Use Jev as the decision model\?/);
+  assert.equal(keysOf(none), null);
+  assert.doesNotMatch(none.system, /checkKey/);
+
+  const down = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\ny\ndown-key-1\nn\n' });
+  assert.equal(down.status, 0, `${down.said}\n${down.stderr}`);
+  assert.match(down.said, /OpenRouter couldn't be reached: set the key on the admin page\./);
+  assert.equal(keysOf(down), null);
+});
+
+test('BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand, empty is no, and a refused one only warns', (t) => {
+  const given = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'public', BOT_DOT_DOMAIN: 'bots.example.org', BOT_DOT_ADMIN: 'bea', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-2', BOT_DOT_BOAT_KEY: '' } });
+  assert.equal(given.status, 0, `${given.said}\n${given.stderr}`);
+  assert.doesNotMatch(given.said, /Use Jev|Use boat\.dev/, 'nothing asked');
+  assert.match(given.said, /OpenRouter key set/);
+  assert.deepEqual(keysOf(given), { openrouter: 'good-openrouter-2', boat: null });
+
+  const rerunGiven = rerun(t, '', { BOT_DOT_BOAT_KEY: 'good-boat-2' }, { dockerFirst: keyChecks });
+  assert.deepEqual(keysOf(rerunGiven), { openrouter: null, boat: 'good-boat-2' }, 'on a rerun too');
+
+  const refused = rerun(t, '', { BOT_DOT_BOAT_KEY: 'bad-boat-2' }, { dockerFirst: keyChecks });
+  assert.match(refused.said, /boat\.dev refused BOT_DOT_BOAT_KEY: set the key on the admin page\./);
+  assert.equal(keysOf(refused), null);
+});
+
+test('botdot on this computer only never asks for Jev or boat.dev: it has no admin page', (t) => {
+  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'local', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-3' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.doesNotMatch(done.said, /Jev|boat\.dev|OpenRouter/);
+  assert.doesNotMatch(done.system, /checkKey/);
+  assert.equal(keysOf(done), null);
 });
