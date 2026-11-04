@@ -94,4 +94,18 @@ class SpacesTest {
         assertEquals(listOf("b1"), Spaces.askingIn(shop, bots) { it.asks != null }.map { it.id })
         assertEquals(emptyList<Bot>(), Spaces.askingIn(gym, bots) { it.asks != null })
     }
+
+    @Test fun aMembersAskIsDrawnUnderItsLeadInTheProject() {
+        assertEquals("b2", Spaces.leadOf(shop, "b1"))
+        assertEquals(null, Spaces.leadOf(shop, "b2"))
+        assertEquals(null, Spaces.leadOf(shop, "home"))
+        assertEquals(null, Spaces.leadOf(shop, null))
+        val team = listOf(Bot(id = "b1", name = "Scout", color = "#111111"), Bot(id = "b2", name = "Writer", color = "#ff9500"))
+        val shown = Spaces.underLeads(shop, listOf(Waiting("#111111", "Scout asks to browse the web", bot = "b1", permission = "a1"), Waiting("#222222", "Lead's own", bot = "b2")), team)
+        assertEquals("#ff9500", shown[0].color)
+        assertEquals("b1", shown[0].bot) // its chat and its card stay the member's
+        assertEquals("a1", shown[0].permission)
+        assertEquals("Scout asks to browse the web", shown[0].text)
+        assertEquals("#222222", shown[1].color)
+    }
 }
