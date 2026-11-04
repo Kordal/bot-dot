@@ -155,7 +155,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
                 // An ongoing project's monthly review (#925) stands where the 90-day line would.
                 else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m -> Box(m) { CheckinCard(ui, k, ways, ongoing = true) } }) }
-                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }) } }) }
+                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
                 if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
                     add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                         // A card fills its tile, its list as many lines as it holds; the ask keeps its picks under it.
@@ -181,7 +181,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             c.checkin?.let { CheckinCard(ui, it, ways) }
         } else if (c.ongoing) c.checkin?.let { CheckinCard(ui, it, ways, ongoing = true) }
         val goals = CompanyFloor.DISPLAY in features
-        if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) })
+        if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features))
         // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
         Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {

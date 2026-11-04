@@ -45,7 +45,10 @@
   // ---------- the objectives (#690): each as its display shows it ----------
   const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
   const PACE = { ahead: () => tr('Ahead'), on: () => tr('On track'), behind: () => tr('Behind') };
-  const SHOW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg>';
+  // A goal's menu opens from "…" (MORE), as a card's does (project-cards.js): Show as, Update from an app, and Remove
+  // (feature `objective-remove`), which takes the goal off the board at once and puts it back if the server refuses.
+  const canRemove = () => (state.features || []).includes('objective-remove');
+  const removingGoals = new Set();
   const numHTML = (o) => `<div class="cf-goal-num">${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></div>`;
   const paceHTML = (p) => (p ? `<span class="cf-pace${p.state === 'behind' ? ' behind' : ''}">${PACE[p.state]()}</span>` : '');
   // Day 1: no chart yet, where it starts: the number to reach, the day, the first check-in.
@@ -85,9 +88,9 @@
     else body = `<div class="cf-goal-info">${numHTML(o)}${paceHTML(p)}</div>${chartHTML(o, c)}`;
     const count = o.steps?.length ? `<span class="cf-n">${CompanyFloor.stepsDone(o)}/${o.steps.length}</span>` : '';
     const fromApp = numeric ? `<hr><button type="button" role="menuitem" data-cf-source="${esc(o.id)}">${tr('Update from an app')}</button>` : '';
-    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}${fromApp}</div>` : '';
+    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}${fromApp}${canRemove() ? `<hr><button type="button" role="menuitem" class="danger" data-cf-remove="${esc(o.id)}">${tr('Remove')}</button>` : ''}</div>` : '';
     return `<section class="cf-goal ${show}" style="--c:${esc(o.color)}" data-cf-goal="${esc(o.id)}">
-      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}${canAsk() ? `<button type="button" class="icon-btn cf-goal-edit" data-cf-ask="${esc(o.id)}" aria-label="${tr('Change')}" aria-expanded="${asking?.id === o.id}">${PEN}</button>` : ''}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
+      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}${canAsk() ? `<button type="button" class="icon-btn cf-goal-edit" data-cf-ask="${esc(o.id)}" aria-label="${tr('Change')}" aria-expanded="${asking?.id === o.id}">${PEN}</button>` : ''}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('More')}" aria-expanded="${menuFor === o.id}">${MORE}</button>${menu}</div>
       ${sourceFormHTML(o)}<div class="cf-goal-body">${body}</div>
     </section>`;
   }
@@ -190,7 +193,10 @@
       <button type="submit" class="btn sm primary">${tr('Save')}</button>${stop}${close}
     </form>`;
   }
-  const goalsHTML = (c) => (c.objectives.length ? `<div class="cf-goals${c.objectives.length === 1 ? ' one' : ''}">${c.objectives.map((o) => goalHTML(o, c)).join('')}</div>` : '');
+  const goalsHTML = (c) => {
+    const shown = c.objectives.filter((o) => !removingGoals.has(o.id));
+    return shown.length ? `<div class="cf-goals${shown.length === 1 ? ' one' : ''}">${shown.map((o) => goalHTML(o, c)).join('')}</div>` : '';
+  };
   // ---------- the 90 days (#673): the timeline, the check-in, the week's plan, a new bot ----------
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   const byChief = () => `<span class="cf-by">${chiefFigure('sm')}${esc(chiefTitle())}</span>`;
@@ -516,6 +522,16 @@
       sourceFor = b.dataset.cfSource;
       if (!apps) loadApps();
       Company.redraw();
+    }));
+    $$('[data-cf-remove]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      const id = b.dataset.cfRemove;
+      menuFor = null;
+      if (sourceFor === id) sourceFor = null;
+      if (asking?.id === id) closeAsk();
+      removingGoals.add(id);
+      Company.redraw();
+      send(`/company/objectives/${encodeURIComponent(id)}`, 'DELETE').finally(() => { removingGoals.delete(id); Company.redraw(); });
     }));
     const sourceSent = async (id, source) => { if (await send(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', { source })) { sourceFor = null; Company.redraw(); } };
     $$('[data-cf-source-close]', root).forEach((b) => (b.onclick = () => { sourceFor = null; Company.redraw(); }));
