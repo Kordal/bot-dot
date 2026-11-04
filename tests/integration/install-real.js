@@ -561,6 +561,72 @@ const cases = [
       assert.ok(machine.exec('cat', `${DIR}/accounts/bob/.env`).includes(`BOT_DOT_IMAGE=${release2}\n`), 'pinned in its .env');
     },
   },
+  {
+    // #979, ADR 155: root's step updates to the version a request names, keeps a snapshot of the account's data before
+    // its switch, takes it back on a rollback request, and puts it back when the named version doesn't start.
+    name: 'a named update keeps a snapshot of the data, a rollback request restores it, and so does a failed switch',
+    async run(machine) {
+      const REQUESTS = `${DIR}/front-door/requests`, STATUS = `${DIR}/front-door/status`;
+      const read = (file) => { try { return JSON.parse(machine.exec('cat', file)); } catch { return null; } };
+      const marker = () => machine.exec('cat', `${HOME}/data/release-marker`);
+      const mark = (text) => machine.exec('sh', '-c', `echo ${text} > ${HOME}/data/release-marker && chmod 666 ${HOME}/data/release-marker`);
+      const pinned = () => machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/.env`);
+      // A release of the stand-in server: committed with a label of its own (another digest), CMD replacing its command.
+      const release = async (n, cmd) => {
+        await machine.load(stage.server());
+        machine.inner('create', '--name', `release-${n}`, stage.server());
+        machine.inner('commit', '--change', `LABEL dev.botdot.test.release=${n}`, ...(cmd ? ['--change', `CMD ${JSON.stringify(cmd)}`] : []), `release-${n}`, `release-${n}:latest`);
+        machine.inner('rm', '-v', `release-${n}`);
+        machine.inner('image', 'rm', stage.server());
+        machine.publish(`release-${n}:latest`, `${SERVER}:release-${n}`);
+        return machine.sign(`${SERVER}:release-${n}`, { app: 'server', version: n, revision: String(n).repeat(40) });
+      };
+      // An update root's step takes from the request file, as the console writes it: how it went.
+      const updateTo = async (image) => {
+        const was = read(`${STATUS}/update.json`)?.at || '';
+        machine.exec('sh', '-c', `echo ${image.split('@')[1]} > ${REQUESTS}/UPDATE`);
+        return until(`the update to ${image}`, () => { const u = read(`${STATUS}/update.json`); return u && u.at !== was && u.state !== 'updating' && u; }, 15 * 60_000);
+      };
+
+      await machine.load(stage.server());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      const one = machine.sign(`${SERVER}:latest`, { app: 'server', version: 1, revision: '1'.repeat(40) });
+      stage.step('install.sh, release 1');
+      const said = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest` });
+      machine.signUp(said);
+      answers(machine);
+      mark('release-1');
+
+      stage.step('an update to release 2, named by its digest');
+      const two = await release(2);
+      const named = await updateTo(two);
+      assert.equal(named.state, 'updated', JSON.stringify(named));
+      assert.equal(named.named, two.split('@')[1], 'update.json says the version asked for');
+      assert.equal(pinned(), two, 'the account runs exactly that release');
+      await until('the account on release 2', () => { try { answers(machine); return true; } catch { return false; } }, 5 * 60_000);
+      assert.equal(machine.exec('cat', `${HOME}/snapshot/data/release-marker`), 'release-1', 'its data was kept before the switch');
+      assert.equal(machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/snapshot/.env`), one, 'with the version it ran');
+
+      stage.step('a rollback request takes it back to the snapshot and release 1');
+      mark('release-2');
+      machine.exec('touch', `${REQUESTS}/ROLLBACK-${ADMIN}`);
+      const back = await until('the rollback', () => { const a = read(`${STATUS}/account-${ADMIN}.json`); return a && a.state !== 'updated' && a; }, 10 * 60_000);
+      assert.equal(back.state, 'rolledback', JSON.stringify(back));
+      assert.equal(pinned(), one, 'it runs release 1 again');
+      assert.equal(marker(), 'release-1', 'with its data as the snapshot kept it');
+      assert.equal(machine.exec('sh', '-c', `ls -A ${HOME} | grep -E '^(snapshot|data\\.after)$' || true`), '', 'the snapshot is used up');
+      answers(machine);
+
+      stage.step('an update to release 3, which changes the data and never starts: the snapshot comes back');
+      const three = await release(3, ['sh', '-c', 'echo release-3 > /data/release-marker; echo "This release does not start." >&2; exit 1']);
+      const failed = await updateTo(three);
+      assert.equal(failed.state, 'failed', JSON.stringify(failed));
+      assert.deepEqual(failed.accounts.map((a) => [a.name, a.result]), [[ADMIN, 'kept']]);
+      assert.equal(pinned(), one, 'it runs the version it ran');
+      assert.equal(marker(), 'release-1', 'with its data as it was before the switch');
+      answers(machine);
+    },
+  },
 ];
 
 stage.run(async () => {

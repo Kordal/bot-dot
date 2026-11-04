@@ -40,7 +40,9 @@ if (args[0] === 'login') {
 // install.sh's signature check (`docker run … node /check/lib/signed-image.js <image> <app>`, a token on
 // stdin) says what signed.json in $FAKE_DOCKER_OUT has for the image: { "<image>": "<why it was refused>" };
 // any other image is signed, as its repository at sha256:c…c. With `private`, it wants the token in good-token.
-// `--revision` after the app adds the source revision it was built from.
+// `--revision` after the app adds the source revision it was built from; `--release` that and the release's version
+// (release in $FAKE_DOCKER_OUT, else 1), which `--installed <n>` refuses when it is older. `--at <digest>` gives that
+// release, signed at its own digest.
 if (args[0] === 'run' && args.includes('/check/lib/signed-image.js')) {
   const [image] = args.slice(args.indexOf('/check/lib/signed-image.js') + 1);
   const token = fs.readFileSync(0, 'utf8').trim();
@@ -48,9 +50,14 @@ if (args[0] === 'run' && args.includes('/check/lib/signed-image.js')) {
   const refused = has('signed.json') ? JSON.parse(fs.readFileSync(path.join(OUT, 'signed.json'), 'utf8'))[image] : null;
   if (refused) { process.stdout.write(`${refused}\n`); process.exit(1); }
   const name = image.split('@')[0];
+  const option = (o) => (args.includes(o) ? args[args.indexOf(o) + 1] : null);
+  const version = has('release') ? Number(fs.readFileSync(path.join(OUT, 'release'), 'utf8').trim()) : 1;
+  if (option('--installed') !== null && version < Number(option('--installed'))) { process.stdout.write('it is older than the version this machine runs\n'); process.exit(1); }
+  const at = option('--at');
   // With --revision, the source revision after it: revision in $FAKE_DOCKER_OUT, else d…d.
-  const revision = args.includes('--revision') ? ` ${has('revision') ? fs.readFileSync(path.join(OUT, 'revision'), 'utf8').trim() : 'd'.repeat(40)}` : '';
-  process.stdout.write(`${name.lastIndexOf(':') > name.lastIndexOf('/') ? name.slice(0, name.lastIndexOf(':')) : name}@sha256:${'c'.repeat(64)}${revision}\n`);
+  const rev = has('revision') ? fs.readFileSync(path.join(OUT, 'revision'), 'utf8').trim() : 'd'.repeat(40);
+  const revision = args.includes('--revision') ? ` ${rev}` : args.includes('--release') ? ` ${rev} ${version}` : '';
+  process.stdout.write(`${name.lastIndexOf(':') > name.lastIndexOf('/') ? name.slice(0, name.lastIndexOf(':')) : name}@sha256:${at && at.length === 64 ? at : 'c'.repeat(64)}${revision}\n`);
   process.exit(0);
 }
 

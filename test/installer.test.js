@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob } = require('./installer-helpers');
+const { checked, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob } = require('./installer-helpers');
 
 // --- A first install ------------------------------------------------------------------------------
 
@@ -574,8 +574,8 @@ test('an update with room in every account goes on, and so does one whose regist
   const roomy = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers() });
   assert.equal(roomy.status, 0, `${roomy.said}\n${roomy.stderr}`);
   assert.equal(downloads(roomy), 2);
-  // Short of room, but nothing to download: the account has every layer.
-  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '1' } });
+  // Short of room, but nothing to download: the account has every layer, and room only for the snapshot of its data.
+  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '64' } });
   assert.equal(has.status, 0, `${has.said}\n${has.stderr}`);
   // An older registry's answer: no layers, no check.
   const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1' } });
@@ -593,7 +593,7 @@ test('a computer image that could not be downloaded now is downloaded by botdot 
 test('the image it is given is installed as its repository\'s signed release, as the updater does', (t) => {
   const mine = `ghcr.io/kordal/bot-dot@sha256:${'b'.repeat(64)}`;
   const { env, checks } = rerun(t, `BOT_DOT_IMAGE=ghcr.io/kordal/bot-dot${PIN}\n`, { BOT_DOT_IMAGE: mine });
-  assert.equal(checks[0].at(-2), mine);
+  assert.equal(checked(checks[0])[0], mine);
   assert.equal(env.BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);
 });
 
@@ -604,7 +604,7 @@ test('compose starts what .env names, not the names the installer was given', ()
 
 test('both images\' signatures are checked before anything of botdot\'s is downloaded', (t) => {
   const { docker, checks } = rerun(t);
-  assert.deepEqual(checks.map((args) => args.slice(-2)), [['ghcr.io/kordal/bot-dot:latest', 'server'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
+  assert.deepEqual(checks.map((args) => checked(args).slice(0, 2)), [['ghcr.io/kordal/bot-dot:latest', 'server'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
   const lastCheck = docker.reduce((last, c, i) => (c.call.includes('/check/lib/signed-image.js') ? i : last), -1);
   assert.ok(docker.findIndex((c) => DOWNLOADS.test(c.call)) > lastCheck, docker.map((c) => c.call).join('\n'));
 });

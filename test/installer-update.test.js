@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { ROOT, script, code, PIN, SIGNED, installer, rerun, roomAnswers, SELF, withBob, status, running } = require('./installer-helpers');
+const { checked, ROOT, script, code, PIN, SIGNED, installer, rerun, roomAnswers, SELF, withBob, status, running } = require('./installer-helpers');
 
 // --- The admin page's update (#473): root's step updates the front door and every account together -------------
 
@@ -28,11 +28,11 @@ test("root's step has the installer and the release check it needs, and says the
 test("the admin page's update takes the newest signed release of the repositories the install pinned", (t) => {
   const repo = 'registry.example:5000/team';
   const { env, checks } = rerun(t, `BOT_DOT_IMAGE=${repo}/bot-dot${PIN}\nBOT_DOT_COMPUTER_IMAGE=${repo}/bot-dot-desktop${PIN}\n`, {}, { args: ['--update'] });
-  assert.deepEqual(checks.map((args) => args.slice(-2)), [[`${repo}/bot-dot:latest`, 'server'], [`${repo}/bot-dot-desktop:latest`, 'desktop']]);
+  assert.deepEqual(checks.map((args) => checked(args).slice(0, 2)), [[`${repo}/bot-dot:latest`, 'server'], [`${repo}/bot-dot-desktop:latest`, 'desktop']]);
   assert.equal(env.BOT_DOT_IMAGE, `${repo}/bot-dot${SIGNED}`);
   // A person's rerun without names goes to botdot's own images, as before.
   const again = rerun(t, `BOT_DOT_IMAGE=${repo}/bot-dot${PIN}\n`);
-  assert.equal(again.checks[0].at(-2), 'ghcr.io/kordal/bot-dot:latest');
+  assert.equal(checked(again.checks[0])[0], 'ghcr.io/kordal/bot-dot:latest');
 });
 
 test('an update asks nothing: what needs an answer stops it, and says to run the installer', (t) => {
