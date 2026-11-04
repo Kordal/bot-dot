@@ -12,7 +12,14 @@ ADD --checksum=sha256:9f93b974adcb4d166996af969b6cd371287d1a3e52733704727884d9b7
     https://github.com/mamba-org/micromamba-releases/releases/download/2.9.0-0/micromamba-linux-aarch64 /micromamba
 FROM micromamba-${TARGETARCH} AS micromamba
 
-FROM ${BASE}
+# Chrome for Testing's headless shell, for the tools that render web pages into images and video (Puppeteer,
+# Hyperframes): they download it on first use otherwise, about 120 MB, which at a slow host's speed took longer than
+# a bot's command may (Quotz on hq, 2026-11-04). It exists for amd64 only; an arm64 computer goes without it, and
+# then nothing points at it.
+FROM ${BASE} AS desktop-arm64
+FROM ${BASE} AS desktop-amd64
+ENV HYPERFRAMES_BROWSER_PATH=/opt/chrome-headless-shell/chrome-headless-shell
+FROM desktop-${TARGETARCH}
 USER root
 
 # The upstream VM-derived filesystem includes a guest kernel. Containers use the host
@@ -49,6 +56,24 @@ RUN npm install -g npm@10.9.9 \
  && /opt/computer-server/venv/bin/pip install --no-cache-dir \
       'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'authlib==1.9.1' 'pillow==13.0.0' 'certifi==2026.10.19' \
  && /opt/computer-server/venv/bin/pip check
+
+# The headless shell, pinned by the sha256 of its archive (the version Hyperframes 0.9 asks for), with the libraries
+# it needs; it runs once here so a missing one fails the build, not a bot's render.
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = amd64 ]; then \
+      apt-get update \
+   && apt-get install -y --no-install-recommends ca-certificates curl unzip libnss3 libnspr4 libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 \
+        libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2t64 \
+   && curl -fsSL -o /tmp/chrome-headless-shell.zip \
+        https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.30/linux64/chrome-headless-shell-linux64.zip \
+   && echo '1b150320178ecabe39726bcf3198ebb896ba2b7a07d870db1710914c42d55221  /tmp/chrome-headless-shell.zip' | sha256sum -c - \
+   && unzip -q /tmp/chrome-headless-shell.zip -d /opt \
+   && mv /opt/chrome-headless-shell-linux64 /opt/chrome-headless-shell \
+   && rm /tmp/chrome-headless-shell.zip \
+   && chmod -R a+rX,go-w /opt/chrome-headless-shell \
+   && /opt/chrome-headless-shell/chrome-headless-shell --version \
+   && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035): there is no wall between
 # bots here. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
