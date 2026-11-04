@@ -219,17 +219,46 @@ document.addEventListener('animationend', (e) => { if (e.animationName === 'arri
 const queuedList = (list) => (Array.isArray(list) ? list : []).filter((q) => q && typeof q.id === 'string' && q.id);
 // Those of a chat, "bot:<id>" or "chief:<chatId>": a bot's come with the bots, a Chief chat's with the chat,
 // and both with the feed's `queued`. The page keeps none of its own: what it draws is the server's list.
+// A bot's that has its run on the page already started: a list read before that, drawn late, does not show it twice.
 function queuedIn(chat) {
   const [kind, id] = chatParts(chat);
-  return kind === 'bot' ? queuedList(botById(id)?.queued) : kind === 'chief' ? chiefQueued.get(id) || [] : [];
+  return kind === 'bot' ? queuedList(botById(id)?.queued).filter((q) => !runOnPage(q.id)) : kind === 'chief' ? chiefQueued.get(id) || [] : [];
 }
 // The feed's list for a chat, or a list the page was answered with.
 function setQueued(chat, list) {
   const [kind, id] = chatParts(chat);
   if (kind === 'chief') chiefQueued.set(id, queuedList(list));
-  else if (kind === 'bot' && botById(id)) botById(id).queued = queuedList(list);
-  else return;
+  else if (kind === 'bot' && botById(id)) {
+    const next = queuedList(list);
+    const ids = new Set(next.map((q) => q.id));
+    queuedList(botById(id).queued).filter((q) => !ids.has(q.id) && !takenBack.has(q.id)).forEach((q) => queuedStarts(chat, q));
+    botById(id).queued = next;
+  } else return;
   placeStatusLines();
+}
+// A bot's waiting message whose turn came: it left the server's list, and its run (the same id) is not on the page
+// yet, since the runs are read again only after the feed said so, and a busy botdot answers late. Until its run is
+// there it stands as it stood, without its buttons: the owner's message never leaves the chat in between. Its run is
+// asked for by its id; one that is not there (taken back elsewhere, its bot deleted) takes the message away.
+const starting = new Map(); // chat -> [{ id, text, attachments }]
+// The ids of the waiting messages this page takes back: they leave the list without starting.
+const takenBack = new Set();
+const runOnPage = (id) => [...state.runs, ...(typeof own !== 'undefined' && own ? own.runs : [])].some((r) => r?.id === id || (Array.isArray(r?.steered) && r.steered.some((x) => x?.id === id)));
+function startingIn(chat) {
+  const list = (starting.get(chat) || []).filter((q) => !runOnPage(q.id) && !takenBack.has(q.id));
+  if (list.length) starting.set(chat, list); else starting.delete(chat);
+  return list;
+}
+function queuedStarts(chat, q) {
+  if (runOnPage(q.id) || (starting.get(chat) || []).some((x) => x.id === q.id)) return;
+  starting.set(chat, [...(starting.get(chat) || []), { id: q.id, text: q.text, attachments: q.attachments }]);
+  const over = () => { starting.set(chat, (starting.get(chat) || []).filter((x) => x.id !== q.id)); placeStatusLines(); };
+  api(`/runs/${encodeURIComponent(q.id)}`).then((run) => {
+    if (!run || run.id !== q.id || run.status === 'queued') return over(); // not a run that started: the feed and the next refresh say where it is
+    if (!state.runs.some((r) => r.id === run.id)) state.runs = [run, ...state.runs];
+    over();
+    redrawBotChat(chatParts(chat)[1]);
+  }).catch(over);
 }
 // One waiting message: the owner's bubble, faded, with what it waits for and the way back. In a bot's chat and a
 // Chief chat, also Steer (ADR 040): the run or reply that is going reads it at its next tool call; until then it
@@ -255,16 +284,18 @@ function queuedHTML(q, chat) {
 function updateChatQueued(thread, chat, sent = null, arrives = false) {
   if (!thread) return;
   const list = chat ? queuedIn(chat) : [];
+  const started = chat ? startingIn(chat) : [];
   let box = $('.chat-queued', thread);
-  if (!box && !list.length && !sent) return;
+  if (!box && !list.length && !sent && !started.length) return;
   if (!box) { box = document.createElement('div'); box.className = 'chat-queued'; }
   const cards = $('.chat-needs', thread);
   if (cards ? box.nextElementSibling !== cards : box !== thread.lastElementChild) { if (cards) cards.before(box); else thread.append(box); }
-  const sig = JSON.stringify([chat, list.map((q) => [q.id, q.text, q.attachments, q.steering === true]), mentionSig(), sent]);
+  const sig = JSON.stringify([chat, started.map((q) => q.id), list.map((q) => [q.id, q.text, q.attachments, q.steering === true]), mentionSig(), sent]);
   if (box.dataset.sig === sig) return;
   const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
   box.dataset.sig = sig;
-  box.innerHTML = list.map((q) => queuedHTML(q, chat)).join('') + (sent ? sentHTML(sent, chat) : '');
+  box.innerHTML = started.map((q) => sentHTML({ text: typeof q.text === 'string' ? q.text : '', attachments: Array.isArray(q.attachments) ? q.attachments : [] }, chat).replace(' data-sent>', '>')).join('')
+    + list.map((q) => queuedHTML(q, chat)).join('') + (sent ? sentHTML(sent, chat) : '');
   $$('[data-take-back]', box).forEach((b) => (b.onclick = () => takeBack(chat, b.dataset.takeBack, b)));
   $$('[data-steer]', box).forEach((b) => (b.onclick = () => steerQueued(chat, b.dataset.steer, b)));
   if (sent && arrives) arrive($('[data-sent]', box));
@@ -295,6 +326,7 @@ async function takeBack(chat, queuedId, button) {
   const form = kind === 'chief' ? $('#view-chief form') : botForm(id);
   const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
+  takenBack.add(queuedId); // the feed may say it left the list before botdot answers here
   try {
     const back = await api(`${kind === 'chief' ? `/chief/chats/${encodeURIComponent(id)}` : `/bots/${encodeURIComponent(id)}`}/queued/${encodeURIComponent(queuedId)}`, { method: 'DELETE' });
     setQueued(chat, queuedIn(chat).filter((q) => q.id !== queuedId)); // gone at once; the feed's list follows
@@ -307,6 +339,7 @@ async function takeBack(chat, queuedId, button) {
       failedSends.set(chat, { text: withFailed(text, kept?.text || ''), held: [...readyFiles(back?.attachments), ...(kept?.held || [])], err: kept?.err || null, sent: null });
     }
   } catch (e) {
+    takenBack.delete(queuedId); // it stays, or it started
     if (button) button.disabled = false;
     if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? form : null, tr('It has already started.')); await again(); return; }
     toast(e.message, true);
