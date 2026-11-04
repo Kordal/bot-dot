@@ -75,11 +75,14 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
             runCatching { ui.api!!.proposeTeam() }.onSuccess(ui::took).onError { ui.proposeFailed = it.message ?: tr("That didn't work") }
             ui.proposing = false
         }
+        // One call of up to two minutes (web: public/company-team.js): the Chief at work says so, and a long wait too.
+        var long by remember(c.id, ui.proposeFailed) { mutableStateOf(false) }
+        LaunchedEffect(c.id, ui.proposeFailed) { kotlinx.coroutines.delay(30_000); long = true }
         return StepPage(null) {
             if (ui.proposeFailed.isNotEmpty()) {
                 Text(ui.proposeFailed, color = p.muted, fontSize = Type.s16)
                 GoButton(tr("Try again")) { ui.proposeFailed = "" }
-            } else ChiefAtWork()
+            } else ChiefAtWork(if (long) tr("Almost there…") else tr("Putting your team together…"))
         }
     }
     // The apps the account has connected: a bot that needs another shows Connect.
