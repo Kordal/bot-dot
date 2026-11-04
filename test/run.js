@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // npm test: the tests, then a check that they left no stand-in Claude (fixtures/fake-claude.js) of this
 // checkout running. One that outlives its test server goes on for hours, and they add up run after run.
-// Those already there before the tests began (an earlier run's) are not counted. Arguments go to node --test.
+// Those already there before the tests began (an earlier run's) are not counted. Arguments go to node --test: options before the files, files after them.
 const os = require('os');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
@@ -22,7 +22,11 @@ async function main() {
   try { before = new Set(fakes().map((f) => f.pid)); } catch (e) { console.error(`No check for leftover stand-in Claudes: ps did not run (${e.message})`); }
   // Two test files per core: most of a test's time is spent waiting on its server, not computing.
   const concurrency = Math.max(4, os.availableParallelism() * 2);
-  const tests = spawn(process.execPath, ['--test', `--test-concurrency=${concurrency}`, 'test/*.test.js', 'tests/*.test.js', ...process.argv.slice(2)], { cwd: ROOT, stdio: 'inherit' });
+  // Options go before the files: node --test reads one after them (--test-shard=1/2) as a file.
+  const args = process.argv.slice(2);
+  const options = args.filter((a) => a.startsWith('-'));
+  const files = args.filter((a) => !a.startsWith('-'));
+  const tests = spawn(process.execPath, ['--test', `--test-concurrency=${concurrency}`, ...options, 'test/*.test.js', 'tests/*.test.js', ...files], { cwd: ROOT, stdio: 'inherit' });
   const code = await new Promise((resolve) => { tests.on('error', () => resolve(1)); tests.on('exit', (c) => resolve(c ?? 1)); });
   if (!before) process.exit(code);
   // One whose server has just gone ends within a moment by itself; what is still there after that was left.

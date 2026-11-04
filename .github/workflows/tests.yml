@@ -56,7 +56,25 @@ jobs:
           echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
           echo "Testing: server $SERVER, Android $ANDROID"
 
-  server:
+  # The server tests, split over two machines by file (node --test --test-shard): on one they took 6 to 7.5 minutes,
+  # the longest step of every pull request and of each image build.
+  server-tests:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - run: npm test -- --test-shard=${{ matrix.shard }}/2
+
+  # The checks of make lint, beside the tests.
+  server-lint:
     needs: changes
     if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
@@ -65,7 +83,6 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
-      - run: npm test
       # Every relative link in the Markdown files leads somewhere, and the checker's own tests.
       - run: bash tests/integration/check-docs.sh
       - run: node --test scripts/check-docs.test.mjs
@@ -74,6 +91,19 @@ jobs:
       # Font sizes, weights, radii and spacings keep to the scales (make lint, #721).
       - run: node scripts/check-css-tokens.js
       - run: bash scripts/typecheck.sh
+
+  # The one check named "server": passed when both shards and the lint passed, skipped when the server isn't tested.
+  server:
+    needs: [changes, server-tests, server-lint]
+    if: always() && needs.changes.outputs.server == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TESTS: ${{ needs.server-tests.result }}
+          LINT: ${{ needs.server-lint.result }}
+        run: |
+          echo "Tests: $TESTS, lint: $LINT"
+          [ "$TESTS" = success ] && [ "$LINT" = success ]
 
   # The bots' and the Chief's own Linux users (identity.js): real processes under their users try
   # the owner's controls. Needs root, so in a container.
