@@ -113,7 +113,7 @@ test('web: the Connectors page draws a connection without a status, and says why
   const el = () => ({ dataset: {}, focus() {}, setSelectionRange() {} });
   const data = { configured: true, account: 'own', keyHint: '…1234', connections: [{ id: 'ca_1', toolkit: 'github', app: { name: 'GitHub MCP' }, usedBy: [] }], reconnect: [] };
   const ctx = vm.createContext({ ...words,
-    state: { view: 'connectors', bots: [] }, esc, encodeURIComponent, URLSearchParams, toast() {}, SUB_BACK: '', botLabel: () => '',
+    state: { view: 'connectors', bots: [] }, esc, encodeURIComponent, URLSearchParams, toast() {}, subBack: () => '', botLabel: () => '',
     $: (q) => (q === '#view-connectors' ? root : el()), $$: () => [], document: { addEventListener() {} },
     api: async (p) => (p === '/connectors' ? data : p.startsWith('/connectors/catalog') ? { items: [], nextOffset: null, total: 0 } : []),
   });

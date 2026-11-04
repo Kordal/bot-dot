@@ -6,8 +6,8 @@ initSideGrip();
 initChatGrip();
 initSearch(); // the search field behind its icon in the top bar (list.js)
 initQuote(); // the Quote button by text selected in a chat (chief.js)
-// The pages opened from Settings go back to it.
-document.addEventListener('click', (e) => { if (e.target.closest('[data-to-settings]')) setView('settings'); });
+// The pages opened from Settings (or Setup) go back there.
+document.addEventListener('click', (e) => { if (e.target.closest('[data-sub-back]')) setView(state.subFrom || 'settings'); });
 document.addEventListener('click', (e) => { if (e.target.closest('[data-sign-in]')) setView('setup'); }); // the standing line's "Sign in"
 $('#contact-search').oninput = () => { searchChats(); renderContacts(); markSearch(); };
 addEventListener('keydown', onKeypadKey); // the keypad's keys, where it is shown
