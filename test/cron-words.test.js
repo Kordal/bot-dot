@@ -221,7 +221,7 @@ function jobsPage(extra = {}) {
     ${cut('// "18:32" today', '// When a message in a chat was sent')}
     ${cut('const AI_WHEN_TEXT = {', '// A script job\'s run in the chat')}
     ${cut('const jobReq = {', '// ---------- connectors')}
-    ${cut('// Words of the server\'s that a card draws', '// Who carries on after a yes')}
+    ${cut('// Words of the server\'s that a card draws', '// What changes on a bot (an ask\'s `parts`)')}
     ${cut('// A job in one line', '// Approve or decline one card')}
     Object.assign(globalThis, { CRON_PRESETS, shortTime, jobCardHTML, wireJobCard, jobStatus, jobLine, openJobApproval });`, page);
   return page;

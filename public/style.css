@@ -934,8 +934,6 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .need-title { font-weight: 600; font-size: var(--fs-16); }
 .need-meta { font-size: var(--fs-12); color: var(--muted); }
 /* Who carries on after your OK: one line under the body, in the text's colour, whole also on a closed card. */
-.need-meta.need-then { color: var(--text); }
-.need-card:not(.open) .need-meta.need-then { white-space: normal; }
 /* A change to an approved job or tile: its line under the title holds the approved schedule and the new one, so it
    wraps on a closed card too and is never cut at a phone's width. Its own line, "Runs as you approved it until
    you answer.", is drawn as the line of who carries on. */
