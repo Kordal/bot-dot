@@ -442,7 +442,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } },
             modifier = Modifier.fillMaxSize(),
         ) {
-            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage) {
+            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage,
+                onMove = { k, place -> save(k.id, ListLayout.change(place, group = k is Keypad.Key.OfGroup, pinned = k.pinned)) }) {
                 AboveKeys()
                 if (bots != null && pages.isEmpty()) Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(Space.s16))
             }
