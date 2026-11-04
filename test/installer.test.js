@@ -334,6 +334,62 @@ test('an account installed before computers kept their files gets --overlay2=non
   assert.match(again.system.slice(first.system.length), /^systemctl restart botdot-account@ann$/m, 'its computers keep their files from their next start');
 });
 
+// The log limits every container's Docker gets (#980).
+const LOGS = { 'log-driver': 'json-file', 'log-opts': { 'max-size': '20m', 'max-file': '5' } };
+const logsOf = (daemon) => ({ 'log-driver': daemon['log-driver'], 'log-opts': daemon['log-opts'] });
+const machineDaemon = (done) => path.join(done.etc, 'docker', 'daemon.json');
+
+test("the machine's and every account's Docker keep containers' logs to a fixed size, and the machine's restarts once for it (#980)", (t) => {
+  const first = rerun(t);
+  assert.deepEqual(logsOf(JSON.parse(fs.readFileSync(path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json'), 'utf8'))), LOGS);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), LOGS);
+  assert.equal(fs.statSync(machineDaemon(first)).mode & 0o777, 0o644);
+  assert.equal(first.system.match(/^systemctl restart docker$/gm).length, 1);
+  assert.ok(first.system.indexOf('systemctl restart docker') < first.system.indexOf('useradd'), 'before anything of botdot runs in it');
+  const again = installer(t, { again: first });
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.system.slice(first.system.length), /^systemctl restart docker$/m, 'a rerun leaves it running');
+});
+
+test("the admin's own Docker settings are kept: the limits join them, and a log driver the admin chose stays (#980)", (t) => {
+  const first = rerun(t);
+  fs.writeFileSync(machineDaemon(first), '{\n  "registry-mirrors": ["https://mirror.example.com"]\n}\n');
+  const joined = installer(t, { again: first });
+  assert.equal(joined.status, 0, joined.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), { ...LOGS, 'registry-mirrors': ['https://mirror.example.com'] });
+  assert.match(joined.system.slice(first.system.length), /^systemctl restart docker$/m);
+  const own = '{ "log-driver": "journald" }\n';
+  fs.writeFileSync(machineDaemon(first), own);
+  const kept = installer(t, { again: joined });
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.equal(fs.readFileSync(machineDaemon(first), 'utf8'), own);
+  assert.doesNotMatch(kept.system.slice(joined.system.length), /^systemctl restart docker$/m);
+});
+
+test('an update of a machine installed before log limits gives them to its Docker and every account\'s, each restarted once (#980)', (t) => {
+  const first = rerun(t);
+  const account = path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json');
+  const before = JSON.parse(fs.readFileSync(account, 'utf8'));
+  delete before['log-driver'];
+  delete before['log-opts'];
+  fs.writeFileSync(account, JSON.stringify(before, null, 2));
+  fs.rmSync(machineDaemon(first));
+  const update = installer(t, { again: first, args: ['--update'] });
+  assert.equal(update.status, 0, `${update.said}\n${update.stderr}`);
+  assert.deepEqual(logsOf(JSON.parse(fs.readFileSync(account, 'utf8'))), LOGS);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), LOGS);
+  const after = update.system.slice(first.system.length);
+  assert.equal(after.match(/^systemctl restart docker$/gm).length, 1);
+  assert.equal(after.match(/^systemctl restart botdot-account@ann$/gm).length, 1);
+});
+
+test("without systemd the machine's Docker gets its log limits in its settings, and the installer says they apply after its restart (#980)", (t) => {
+  const done = rerun(t, '', {}, { systemd: false });
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(done), 'utf8')), LOGS);
+  assert.doesNotMatch(done.system, /^systemctl restart docker$/m);
+  assert.match(done.said + done.stderr, /only after it next restarts/);
+});
+
 test('without systemd the account\'s Docker is started now, as its own user, and the installer says it won\'t come back by itself', (t) => {
   const done = rerun(t, '', {}, { systemd: false });
   assert.match(done.system, /^su -s \/bin\/sh botdot-ann -c cd '.+\/accounts\/ann' && exec env HOME='.+\/accounts\/ann' XDG_RUNTIME_DIR='.+\/run\/ann' PATH=\S+ nohup '.+\/dockerd-rootless\.sh' >> '.+\/accounts\/ann\/docker\.log' 2>&1 &$/m);

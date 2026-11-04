@@ -76,6 +76,26 @@ function startComputer(machine, image) {
   return { id, container };
 }
 
+// #980: a container's log in the account's Docker is json-file, rotated at 20 MB and kept to five files: 130 MB written
+// leave at most 100 MB. The machine's Docker has the same limits in its settings (it reads them when it next starts:
+// the test machine has no systemd to restart it).
+function logsStayWithinLimit(machine, image) {
+  stage.step('a container\'s log stops growing past its limit');
+  const MB = 1024 * 1024;
+  const chatty = machine.account(ADMIN, 'run', '-d', '--network', 'none', '--entrypoint', 'node', image, '-e',
+    "const l = 'x'.repeat(1023) + '\\n'; let n = 0; (function w() { while (n < 130 * 1024) { n++; if (!process.stdout.write(l)) return process.stdout.once('drain', w); } })()");
+  assert.equal(machine.account(ADMIN, 'wait', chatty), '0');
+  const made = JSON.parse(machine.account(ADMIN, 'inspect', chatty))[0];
+  assert.deepEqual(made.HostConfig.LogConfig, { Type: 'json-file', Config: { 'max-size': '20m', 'max-file': '5' } });
+  const sizes = machine.exec('sh', '-c', `stat -c %s ${made.LogPath}*`).split('\n').map(Number);
+  assert.ok(sizes.length > 1 && sizes.length <= 5, `rotated, five files at most: ${sizes}`);
+  for (const size of sizes) assert.ok(size <= 20 * MB + 64 * 1024, `each file about 20 MB at most: ${sizes}`);
+  assert.ok(sizes.reduce((a, b) => a + b, 0) < 101 * MB, `100 MB at most of the 130 MB written: ${sizes}`);
+  machine.account(ADMIN, 'rm', chatty);
+  const own = JSON.parse(machine.exec('cat', '/etc/docker/daemon.json'));
+  assert.deepEqual([own['log-driver'], own['log-opts']], ['json-file', { 'max-size': '20m', 'max-file': '5' }], 'the machine\'s Docker has the same limits');
+}
+
 // A stand-in tailscaled for root's Tailscale folder (#106): it notes its arguments there and listens on its socket, as
 // botdot-tailscale waits for (deploy/desktop/botdot-tailscale), and a state that holds a login, as tailscaled keeps it
 // once approved.
@@ -200,6 +220,7 @@ const cases = [
       assert.ok(machine.downloads().some((request) => request.includes('/blobs/')), 'the registry\'s log shows what was downloaded, which the refused installs are checked by');
       accountIsWalledOff(machine);
       helperHasNoPrivileges(machine);
+      logsStayWithinLimit(machine, server);
 
       stage.step('botdot before the sign-up, and the admin\'s sign-up through Caddy');
       const before = machine.api('GET', '/sign-in');
