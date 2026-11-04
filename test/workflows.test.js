@@ -238,13 +238,17 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.ok([].concat(jobs.evidence.needs).includes('build'));
 });
 
-// A Mac runs only the desktop app's builds (ADR 137), never the stopped native Mac app.
+// A Mac runs only the Tauri project's builds: the desktop app (ADR 137) and the iOS app (ADR 151), never the stopped
+// native Mac app.
 test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
   assert.equal(tests.mac, undefined);
   assert.equal(tests.changes.outputs.mac, undefined);
+  const ios = workflow('ios.yml').jobs.simulator;
+  assert.equal(ios.defaults.run['working-directory'], 'desktop/src-tauri', 'the iOS app is the Tauri project');
   for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (name === 'ios.yml') continue;
     const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
     assert.doesNotMatch(text, /make mac-|runs-on: macos|xcodebuild|swift (build|test)|working-directory: macos/, name);
     if (name !== 'desktop.yml') assert.doesNotMatch(text, /\bmacos-(latest|\d)/, name);

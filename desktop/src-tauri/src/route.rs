@@ -43,6 +43,29 @@ pub fn new_window(door: &Url, to: &Url) -> Window {
     }
 }
 
+/// On iOS a page can't open a window of its own: wry has no new windows there. A link that would open one, or
+/// `window.open` with an address, goes in this window instead, where `left_door` sends another site to Safari.
+/// `window.open('about:blank')` gives `null`, and the page's own code then goes itself. Only the window's own page,
+/// not its frames. A desktop opens windows (`new_window`) and needs nothing.
+#[cfg(mobile)]
+pub const NEW_WINDOWS_IN_PLACE: &str = r#"(() => {
+  const go = (to) => {
+    try {
+      const url = new URL(to, location.href);
+      if (url.protocol === 'https:' || url.protocol === 'http:') location.assign(url.href);
+    } catch {}
+  };
+  window.open = (to) => { if (to && String(to) !== 'about:blank') go(String(to)); return null; };
+  addEventListener('click', (event) => {
+    const link = event.target instanceof Element && event.target.closest('a[target="_blank"]');
+    if (!link || !link.href || event.defaultPrevented || link.hasAttribute('download')) return;
+    event.preventDefault();
+    go(link.href);
+  });
+})();"#;
+#[cfg(desktop)]
+pub const NEW_WINDOWS_IN_PLACE: &str = "";
+
 /// Where a notification's target opens on a page loaded for it, as the service worker opens it (`public/sw.js`).
 pub fn fragment_of(target: &str) -> String {
     let id_ok = |id: &str| !id.is_empty() && id.len() <= 80 && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
