@@ -2700,6 +2700,8 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-menu button[aria-checked="true"] { color: var(--text); }
 .cf-menu button[aria-checked="true"]::after { content: "✓"; float: right; margin-left: var(--sp-12); }
 .cf-menu hr { margin: var(--sp-4) var(--sp-8); border: 0; border-top: 1px solid var(--line-2); }
+.cf-menu .danger { color: var(--err); }
+.cf-menu .danger:hover { color: var(--err); }
 .cf-src { flex: 0 1 auto; min-width: 0; overflow: hidden; color: var(--faint); font-size: var(--fs-12); white-space: nowrap; text-overflow: ellipsis; }
 .cf-src.failed { color: var(--warn-text); }
 .cf-source { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-8); margin: var(--sp-12) 0 var(--sp-4); }

@@ -20,6 +20,7 @@ test('the ask names the goal in one quoted line, then the owner’s words', () =
 let project, goal;
 test('a change ask starts a Chief chat with the goal named; the features say objective-change', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('objective-change'));
+  assert.ok((await srv.api('/version')).data.features.includes('objective-remove'), 'the apps show Remove in a goal\'s menu');
   assert.equal((await srv.api('/company', { method: 'POST', body: { name: 'My Gym Advisor', empty: true } })).status, 201);
   project = (await srv.api('/company', { method: 'PATCH', body: { objectives: [{ name: 'Sets logged with weight and reps', target: 100, current: 0 }] } })).data;
   goal = project.objectives[0];
