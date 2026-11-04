@@ -80,6 +80,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -87,6 +88,7 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Answered
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Ask
+import dev.botdot.app.data.SecretWords
 import dev.botdot.app.data.AskCard
 import dev.botdot.app.data.askCards
 import dev.botdot.app.data.AskSkill
@@ -307,7 +309,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         is AskCard.One -> {
                             val a = card.ask
                             val who = askWho(a)
-                            AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                            AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
                         }
                         is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()),
                             onAll = { yes ->
@@ -318,7 +320,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                                 }
                             }) { a ->
                             val who = askWho(a)
-                            AskApproval(a, who) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                            AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
                         }
                     }
                 } }
@@ -444,7 +446,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
         // In the Chief's chat the card of a tool, and of a changed bot, says which bot it is for, as it looks now.
         val askWho = { a: Ask -> if (chief || group != null) a.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, it.color) } else null }
         val oneAsk: @Composable (Ask) -> Unit = { a ->
-            AskApproval(a, askWho(a)) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
+            AskApproval(a, askWho(a), reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
         }
         // What one run waits on is one card here too (#277).
         askCards(myAsks).forEach { card ->
@@ -798,11 +800,34 @@ private fun MutedLine(text: String?) {
     if (!text.isNullOrBlank()) Text(text, color = LocalPaper.current.muted, fontSize = Type.s12)
 }
 
+/** The secret a yes saves (`vault-save`, ADR 153): dots until Show reads it from the server; Hide forgets it. */
+@Composable
+private fun SecretRow(words: SecretWords, reveal: suspend () -> String) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var value by remember { mutableStateOf<String?>(null) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Text(words.label, color = p.muted, fontSize = Type.s12)
+        Text(value ?: "••••••••", color = p.text, fontSize = Type.s14, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+        TextButton(onClick = { if (value != null) value = null else scope.launch { value = runCatching { reveal() }.getOrNull() } }) {
+            Text(if (value == null) words.show else words.hide)
+        }
+    }
+}
+
+/** Show or Hide at the end of a secret the owner types: they see what they typed. */
+@Composable
+private fun RevealToggle(shown: Boolean, onToggle: () -> Unit) {
+    TextButton(onClick = onToggle) { Text(if (shown) tr("Hide") else tr("Show")) }
+}
+
 @Composable
 internal fun PasswordField(value: String, onChange: (String) -> Unit, label: String) {
+    var shown by remember { mutableStateOf(false) }
     Field(
         value = value, onValueChange = onChange, label = { Text(label) }, singleLine = true,
-        visualTransformation = PasswordVisualTransformation(),
+        trailingIcon = { RevealToggle(shown) { shown = !shown } },
+        visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
         modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Password },
     )
@@ -811,9 +836,11 @@ internal fun PasswordField(value: String, onChange: (String) -> Unit, label: Str
 /** A secret of several lines (a private key, #155): masked as a password is, its line breaks kept. */
 @Composable
 internal fun SecretBox(value: String, onChange: (String) -> Unit, label: String) {
+    var shown by remember { mutableStateOf(false) }
     Field(
         value = value, onValueChange = onChange, label = { Text(label) }, minLines = 3, maxLines = 6,
-        visualTransformation = PasswordVisualTransformation(),
+        trailingIcon = { RevealToggle(shown) { shown = !shown } },
+        visualTransformation = if (shown) VisualTransformation.None else PasswordVisualTransformation(),
         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
         modifier = Modifier.fillMaxWidth(),
@@ -1191,7 +1218,7 @@ internal fun askTitle(a: Ask): String = when {
  * an action in a connected app, or a switch of a saved login. answer(title, yes, label, always).
  */
 @Composable
-private fun AskApproval(a: Ask, who: Named?, answer: (String, Boolean, String?, Boolean) -> Unit) {
+private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { "" }, answer: (String, Boolean, String?, Boolean) -> Unit) {
     val decide: (String, Boolean, String?) -> Unit = { title, yes, label -> answer(title, yes, label, false) }
     if (a.kind == "connector-action") {
         // The server's title and the action's fields as rows, drawn as a tool's facts are: every row, and every value
@@ -1265,7 +1292,7 @@ private fun AskApproval(a: Ask, who: Named?, answer: (String, Boolean, String?, 
             if (t.facts.isNotEmpty() && LocalCardOpen.current) Facts(t.facts)
             Buttons(ToolCard.INSTALL, { decide(t.title, true, ToolCard.answered(true)) }, ToolCard.DECLINE, { decide(t.title, false, ToolCard.answered(false)) })
         }
-    } else if (a.kind == "vault-switch" || a.kind == "vault-remove" || a.kind == "vault-file" || a.kind == "override" || a.kind == "computer-step") {
+    } else if (a.kind == "vault-switch" || a.kind == "vault-remove" || a.kind == "vault-save" || a.kind == "vault-file" || a.kind == "override" || a.kind == "computer-step") {
         // A switch of a saved login a bot asks for: the server's title, the bot's reason, the login and the switch as
         // rows, the warning of "Usable in its computer", and the server's word on the yes. As on the web page. A Vault
         // entry a bot asks to remove is drawn the same way: its rows name the entry, the bot and Bitwarden's Trash. So
@@ -1274,6 +1301,8 @@ private fun AskApproval(a: Ask, who: Named?, answer: (String, Boolean, String?, 
         val warning = ToolCard.text(a.warning)
         Card(who, a.title, a.reason, expandable = true) {
             if (a.parts.isNotEmpty()) ChangedParts(a.parts)
+            // A secret a bot asks to save (ADR 153): hidden until the owner's Show, as on the web page.
+            a.secret?.let { SecretRow(it, reveal) }
             if (warning.isNotEmpty()) Warning(warning)
             // A rule a bot asks to lift (#253) has the server's second yes, `always`: "Allow always for this bot".
             val always = if (a.kind == "override") a.always?.takeIf { it.isNotBlank() } else null

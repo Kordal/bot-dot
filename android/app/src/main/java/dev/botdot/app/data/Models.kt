@@ -705,6 +705,9 @@ data class ChatHit(
     val at: String? = null, val snippet: String = "",
 )
 
+/** The words of the row of a secret a bot asks to save (`vault-save`, ADR 153): its label, and Show and Hide. */
+data class SecretWords(val label: String, val show: String, val hide: String)
+
 /**
  * Something a bot (or the Chief) asked you for: a permission it lacks, a skill to install from a link, or a tool to
  * install on the botdot server for one bot ([bot]).
@@ -712,7 +715,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post" | "computer-step"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-save" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post" | "computer-step"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -757,7 +760,14 @@ data class Ask(
     @SerialName("groupName") val groupNameValue: JsonElement? = null,
     // The card it shares with everything else its run waits on (docs/api.md, "One card per run"), kept as it came.
     @SerialName("batch") val batchValue: JsonElement? = null,
+    // A secret a bot asks to save in the Vault (`vault-save`, ADR 153): the words of its row, never the secret itself.
+    @SerialName("secret") val secretValue: JsonElement? = null,
 ) {
+    /** The row of the secret a yes saves (`vault-save`), hidden until Show, or null. */
+    val secret: SecretWords? get() = (secretValue as? JsonObject)?.let { o ->
+        SecretWords(o["label"].textOrNull() ?: return@let null, o["show"].textOrNull() ?: return@let null, o["hide"].textOrNull() ?: return@let null)
+    }
+
     /** The card of several it is on, or null: a card of its own. */
     val batch: AskBatch? get() = AskBatch.of(batchValue)
 

@@ -584,5 +584,13 @@
   "Reading the computer's logs": "Czytam logi komputera",
   "Restarting the account's computer": "Restartuję komputer konta",
   "Asking you to reset the computer": "Proszę cię o reset komputera",
-  "Checking the reminders": "Sprawdzam przypomnienia"
+  "Checking the reminders": "Sprawdzam przypomnienia",
+  "Let {bot} replace the secret of “{entry}”?": "Czy {bot} może podmienić sekret „{entry}”?",
+  "Let {bot} save “{entry}” in the Vault?": "Czy {bot} może zapisać „{entry}” w Sejfie?",
+  "Username": "Nazwa użytkownika",
+  "made by botdot": "wygenerowany przez botdot",
+  "{path} on its computer": "{path} na jego komputerze",
+  "Shared with": "Udostępniony",
+  "Asks to replace the secret of “{entry}”": "Prosi o podmianę sekretu „{entry}”",
+  "Asks to save “{entry}” in the Vault": "Prosi o zapisanie „{entry}” w Sejfie"
 }
