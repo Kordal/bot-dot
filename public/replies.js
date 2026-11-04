@@ -82,24 +82,32 @@ const loadFeatures = () => api('/version').then((v) => { state.features = v.feat
 const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); if (takeChiefName(c.chief?.name)) drawChiefName(); renderContacts(); }).catch(() => {});
 
 let readChat = null; // the chat last seen on screen and in front
+let shownChat = null; // the chat last seen on screen, in front or not
+let hid = false; // the page was hidden (minimised, another tab) since it was last in front
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hid = true; });
 function syncRead() {
   if (!state.features.includes('unread')) return; // a server from before: nothing is new, nothing to report
   const open = chatOpen();
+  // The chat stayed on screen while another window was in front (the desktop app beside another app): its new
+  // replies came in sight, so coming back (a click in it, an answer tapped) does not take the chat up to its line.
+  const stayed = !!open && open === shownChat && !hid;
+  shownChat = open;
   if (newLine.open(open)) drawNewLine(); // the chat was left: its line goes
   const chat = inFront() ? open : null;
+  if (chat) hid = false;
   if (chat === readChat) return;
   readChat = chat;
   if (!chat) { report.show(null); return; }
   Push.clear(window, chat); // its notifications on this device go (push.js)
   // It came on screen: place the line from what the server says is new, then say the chat is being read.
-  placeNewLine(chat, unreadKnown(chat));
+  placeNewLine(chat, unreadKnown(chat), !stayed);
   unreadNow(chat).catch(() => null).then((now) => {
     if (readChat !== chat) return;
-    if (now) placeNewLine(chat, now);
+    if (now) placeNewLine(chat, now, !stayed);
     report.show(chat);
   });
 }
-function placeNewLine(chat, model) { if (newLine.arrive(chat, model)) drawNewLine(); }
+function placeNewLine(chat, model, scroll = true) { if (newLine.arrive(chat, model, scroll)) drawNewLine(); }
 function drawNewLine() {
   if (state.view === 'bot') renderBotChat();
   if (state.view === 'group') renderGroupChat();
