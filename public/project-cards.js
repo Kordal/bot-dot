@@ -21,6 +21,10 @@
   const wasBuilding = new Set();
   const fresh = new Set();
   const FRESH_MS = 4000;
+  // Cards the owner closed (X on the questions) or removed, until the server answers: gone from the row at once, a
+  // closed Change back as the card it was. A refusal puts them back.
+  const closing = new Set();
+  const removing = new Set();
 
   const on = () => (state.features || []).includes('project-cards');
   const tone = (t) => (t === 'ok' || t === 'bad' || t === 'muted' ? ` ${t}` : '');
@@ -31,14 +35,17 @@
     const hi = Math.max(...list.map((b) => b.value), 1);
     return `<div class="pc-bars">${list.map((b, i) => `<span class="pc-bar${i === list.length - 1 ? ' last' : ''}"><i style="height:${Math.max(4, Math.round((b.value / hi) * 100))}%"></i><small>${esc(b.label)}</small></span>`).join('')}</div>`;
   }
+  // The row of cards shows the first FLOW items or rows; a card on an arranged board as many as its height holds (fit).
+  const FLOW = { list: 5, rows: 6 };
+  const more = (i, n) => (i >= n ? ' class="pc-more"' : '');
   function list(items) {
-    return `<ul class="pc-list">${items.map((x) => {
+    return `<ul class="pc-list pc-fit">${items.map((x, i) => {
       const inner = `${x.ref ? `<span class="pc-ref">${esc(x.ref)}</span>` : ''}<span class="pc-text">${esc(x.text)}</span>${x.tag ? `<span class="kit-pill ${x.level ? kitLevel(x.level) : 'info'}">${esc(x.tag)}</span>` : ''}`;
-      return `<li>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>` : inner}</li>`;
+      return `<li${more(i, FLOW.list)}>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>` : inner}</li>`;
     }).join('')}</ul>`;
   }
   function table(rows) {
-    return `<table class="pc-table"><tbody>${rows.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${esc(r.value)}</td><td class="num pc-sub${tone(r.tone)}">${r.change ? esc(r.change) : ''}</td></tr>`).join('')}</tbody></table>`;
+    return `<table class="pc-table"><tbody class="pc-fit">${rows.map((r, i) => `<tr${more(i, FLOW.rows)}><td>${esc(r.label)}</td><td class="num">${esc(r.value)}</td><td class="num pc-sub${tone(r.tone)}">${r.change ? esc(r.change) : ''}</td></tr>`).join('')}</tbody></table>`;
   }
   function bodyHTML(b) {
     const big = `<div class="pc-big"><b>${esc(b.value)}</b>${b.sub ? `<span class="pc-sub${tone(b.tone)}">${esc(b.sub)}</span>` : ''}</div>`;
@@ -115,7 +122,8 @@
     }
     if (menu && !cards.some((k) => k.id === menu)) menu = null;
     if (open && open !== 'new' && !cards.some((k) => k.id === open)) open = null;
-    const items = cards.map((k) => (open === k.id ? askHTML(k.title || k.ask, k.id) : k.state === 'asking' ? questionsHTML(k) : cardHTML(k)));
+    const items = cards.filter((k) => !removing.has(k.id) && !(closing.has(k.id) && k.state === 'asking' && !k.changing))
+      .map((k) => (open === k.id ? askHTML(k.title || k.ask, k.id) : closing.has(k.id) && k.state === 'asking' ? cardHTML({ ...k, state: 'ready' }) : k.state === 'asking' ? questionsHTML(k) : cardHTML(k)));
     const full = cards.length >= 12;
     const tail = open === 'new' ? askHTML('') + picksHTML(c) : full ? '' : `<button type="button" class="pc-new" data-pc-new>${ICON.plus}${tr('New card')}</button>`;
     return `<div class="pc-row">${items.join('')}${tail}</div>`;
@@ -127,6 +135,12 @@
   }
   const at = (cid, tail = '') => `/company/cards/${encodeURIComponent(cid)}${tail}`;
   function close() { open = null; Company.redraw(); }
+  // Off the row now, sent after: the server's answer, or its refusal, draws the row again.
+  function leave(set, cid, path, method) {
+    set.add(cid);
+    Company.redraw();
+    send(path, method, {}).finally(() => { set.delete(cid); Company.redraw(); });
+  }
 
   function wire(root) {
     if (!$('.pc-row', root)) return;
@@ -162,16 +176,27 @@
       other.other.value = '';
       answer(other.closest('[data-pc-asking]').dataset.pcAsking, text);
     };
-    $$('[data-pc-cancel]', root).forEach((b) => (b.onclick = () => send(at(b.dataset.pcCancel, '/cancel'), 'POST', {})));
+    $$('[data-pc-cancel]', root).forEach((b) => (b.onclick = () => leave(closing, b.dataset.pcCancel, at(b.dataset.pcCancel, '/cancel'), 'POST')));
     $$('[data-pc-menu]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = menu === b.dataset.pcMenu ? null : b.dataset.pcMenu; Company.redraw(); }));
     $$('[data-pc-refresh]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; b.disabled = true; send(at(b.dataset.pcRefresh, '/refresh'), 'POST', {}); }));
     $$('[data-pc-change]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; open = b.dataset.pcChange; Company.redraw(); const input = $('#pc-ask input'); if (input) { input.focus(); input.select(); } }));
     $$('[data-pc-login]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); Company.openSettings('logins'); }));
-    $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; send(at(b.dataset.pcRemove), 'DELETE'); }));
+    $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; leave(removing, b.dataset.pcRemove, at(b.dataset.pcRemove), 'DELETE'); }));
     if (menu) document.addEventListener('click', () => { if (menu) { menu = null; Company.redraw(); } }, { once: true });
+  }
+
+  // A card on an arranged board (board-canvas-view.js) shows as many whole items or rows as its height holds, one at
+  // least: resized taller, it shows more of what it read.
+  function fit(root) {
+    for (const card of $$('.pc-card', root)) {
+      const rows = $$('.pc-fit > *', card);
+      if (!rows.length) continue;
+      for (const r of rows) r.style.display = '';
+      for (let n = rows.length - 1; n > 0 && card.scrollHeight > card.clientHeight; n--) rows[n].style.display = 'none';
+    }
   }
 
   // The fields the floor keeps when it is drawn again.
   const FIELDS = ['#pc-ask input', '#pc-other input'];
-  window.ProjectCards = { html, wire, FIELDS };
+  window.ProjectCards = { html, wire, fit, FIELDS, FLOW };
 })();

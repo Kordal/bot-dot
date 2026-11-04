@@ -299,11 +299,3 @@ test('a reply the owner has not read, under more runs than the chat draws, is re
   // A run that is not this bot's is never reached.
   assert.equal(await Unread.reach(reply, page(busy.id)), null);
 });
-
-test('the Mac app: its Dock icon shows a dot while something waits for your OK, and none for a new reply', () => {
-  const notifier = fs.readFileSync(path.join(__dirname, '..', 'macos', 'BotDot', 'App', 'Notifier.swift'), 'utf8');
-  assert.match(notifier, /NSApp\.dockTile\.badgeLabel = needs\.isEmpty \? nil : "●"/);
-  assert.match(notifier, /requestAuthorization\(options: \[\.alert, \.sound, \.badge\]\)/);
-  assert.equal(notifier.match(/badgeLabel/g).length, 1, 'set from what waits, and nowhere else');
-  assert.doesNotMatch(notifier, /\.badge = |content\.badge|c\.badge/, 'a notification carries no badge number');
-});

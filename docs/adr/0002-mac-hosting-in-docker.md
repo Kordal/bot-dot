@@ -1,5 +1,7 @@
 # A local botdot server on a Mac runs in Docker
 
+> Superseded by [ADR 142](142-the-mac-apps-code-is-removed.md) (2026-11-03): the Mac app and `compose.mac.yaml` are removed.
+
 Amended by [ADR 136](136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md): the desktop app's local botdot runs the Linux installer in a VM of its own (WSL2 on Windows, Lima on macOS), not in Docker Desktop.
 
 When the Mac app sets up botdot on the user's own Mac, it runs the same published images in Docker that `install.sh` uses on Linux. It does not bundle Node and run the server natively. With Docker, bots running `claude -p` with shell access are kept away from the user's home folder, the bots' computers already need Docker, and there is one tested setup and update path (the server updates itself through the Docker socket). The cost is a large dependency: the user must have Docker Desktop, OrbStack or Colima, and the app can only point them to the Docker Desktop download.

@@ -78,7 +78,7 @@ async function until(label, probe, timeout = 180_000) {
 function buildServer(tag, temp) {
   const context = path.join(temp, 'server');
   fs.mkdirSync(context);
-  execFileSync('tar', ['-x', '-C', context], { input: execFileSync('git', ['archive', 'HEAD', 'server.js', 'front-door.js', 'package.json', 'lib', 'public', 'chief-skills', 'vendor', 'deploy/desktop', 'compose.yaml', 'compose.front-door.yaml', 'compose.mac.yaml'], { cwd: root, maxBuffer: 256 * 1024 * 1024 }) });
+  execFileSync('tar', ['-x', '-C', context], { input: execFileSync('git', ['archive', 'HEAD', 'server.js', 'front-door.js', 'package.json', 'lib', 'public', 'chief-skills', 'vendor', 'deploy/desktop', 'compose.yaml', 'compose.front-door.yaml'], { cwd: root, maxBuffer: 256 * 1024 * 1024 }) });
   fs.writeFileSync(path.join(temp, 'server.Dockerfile'), [
     `FROM ${CLI_IMAGE} AS cli`, `FROM ${NODE_IMAGE}`,
     'COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker',

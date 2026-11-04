@@ -54,7 +54,7 @@ test("the admin's session gets the admin page, web only, from the front door its
   assert.equal(seen(), was, 'no botdot server saw it');
 });
 
-test("the admin page has the web page's look: its colours, its fonts from the front door, a rail and account cards (#22)", async () => {
+test("the admin page has the web page's look: its colours, its fonts from the front door, a rail and an accounts table (#22, #910)", async () => {
   const b = await admin();
   const was = seen();
   const page = await b.get('/admin');
@@ -63,7 +63,7 @@ test("the admin page has the web page's look: its colours, its fonts from the fr
   assert.match(page.text, /url\("\/front-door\/fonts\/Geist\.ttf"\)/);
   assert.match(page.text, /<nav class="nav" aria-label="Admin sections">/);
   assert.match(page.text, /<a class="back" href="\/">/);
-  assert.match(page.text, /<ul id="account-list" class="cards">/);
+  assert.match(page.text, /<table id="account-table">/);
   assert.match(page.headers['content-security-policy'], /font-src 'self'/);
   for (const f of ['Geist.ttf', 'GeistMono.ttf']) {
     const font = await b.get(`/front-door/fonts/${f}`);

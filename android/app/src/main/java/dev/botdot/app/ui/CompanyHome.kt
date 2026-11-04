@@ -153,10 +153,13 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
+                // An ongoing project's monthly review (#925) stands where the 90-day line would.
+                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m -> Box(m) { CheckinCard(ui, k, ways, ongoing = true) } }) }
                 if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }) } }) }
-                if (dev.botdot.app.data.ProjectCards.shows(features, c)) dev.botdot.app.data.ProjectCards.slots(c.cards, cards.shown).forEach { s ->
+                if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
                     add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = false))
+                        // A card fills its tile, its list as many lines as it holds; the ask keeps its picks under it.
+                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card), canvas = true)
                         if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
                     } })
                 }
@@ -176,7 +179,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
             c.checkin?.let { CheckinCard(ui, it, ways) }
-        }
+        } else if (c.ongoing) c.checkin?.let { CheckinCard(ui, it, ways, ongoing = true) }
         val goals = CompanyFloor.DISPLAY in features
         if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) })
         // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
@@ -230,7 +233,7 @@ private fun DaysLine(c: Company, day: Int) {
 }
 
 @Composable
-private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
+private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays, ongoing: Boolean = false) {
     val p = LocalPaper.current
     var busy by remember(k.day) { mutableStateOf(false) }
     fun answer(decision: String) {
@@ -241,7 +244,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
             runCatching { a.answerCheckin(k.day, decision) }.onSuccess { d ->
                 ui.took(d.company)
                 if (decision == "stop") ui.tell(trn(d.paused, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."))
-                if (decision == "change") ways.onChiefSay(tr("Day {n} check-in: I want to change direction.", "n" to k.day) + " ")
+                if (decision == "change") ways.onChiefSay((if (ongoing) tr("Monthly review: I want to change direction.") else tr("Day {n} check-in: I want to change direction.", "n" to k.day)) + " ")
             }.onFailure { ui.tell(it.message) }
             busy = false
         }
@@ -249,7 +252,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
     Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.warn.copy(alpha = 0.35f), Radius.card).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(tr("Day {n} check-in", "n" to k.day), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(if (ongoing) tr("Monthly review") else tr("Day {n} check-in", "n" to k.day), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             ByChief()
         }
         k.objectives.forEach { o ->

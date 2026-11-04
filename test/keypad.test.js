@@ -243,6 +243,24 @@ test('status: Working, then Needs you, then unread, then the last run: Done, Cou
   assert.deepEqual(S(), { kind: 'idle', text: 'Idle' });
 });
 
+test('status: a finished run the owner has seen says Idle; Couldn\'t finish and the rest stay', () => {
+  const S = (o) => Keypad.status(o);
+  assert.deepEqual(S({ last: 'success', seen: true }), { kind: 'idle', text: 'Idle' });
+  assert.deepEqual(S({ last: 'error', seen: true }), { kind: 'failed', text: "Couldn't finish" });
+  assert.deepEqual(S({ needs: true, last: 'success', seen: true }), { kind: 'needs', text: 'Needs you' }, 'Needs you stays until the owner acts');
+  assert.deepEqual(S({ unread: 1, last: 'success', seen: true }), { kind: 'unread', text: '1 unread' });
+  assert.deepEqual(S({ running: true, last: 'success', seen: true }), { kind: 'working', text: 'Working' });
+});
+
+test('seen: the chat was read at or after the run ended; a server without readAt: never', () => {
+  assert.equal(Keypad.seen('2026-11-03T08:00:01.000Z', '2026-11-03T08:00:00.000Z'), true);
+  assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', '2026-11-03T08:00:00.000Z'), true);
+  assert.equal(Keypad.seen('2026-11-03T07:59:59.000Z', '2026-11-03T08:00:00.000Z'), false, 'a run that ended after the last read: Done');
+  assert.equal(Keypad.seen(undefined, '2026-11-03T08:00:00.000Z'), false);
+  assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', undefined), false);
+  assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', ''), false);
+});
+
 // ---------- spaces (ADR 132) ----------
 
 const projects = [

@@ -165,6 +165,8 @@ ask() {
   if [ "$2" = y ]; then hint='[Y/n]'; else hint='[y/N]'; fi
   printf '%s %s ' "$1" "$hint"
   read_line
+  # Without a terminal nothing echoed the answer: it ends the question's line, as a person's Enter would.
+  [ "$TTY" = /dev/tty ] || printf '%s\n' "$REPLY"
   case "$REPLY" in
     [Yy]*) return 0 ;;
     [Nn]*) return 1 ;;
@@ -659,6 +661,7 @@ if ! command -v docker >/dev/null 2>&1; then
   warn "Docker isn't installed."
   ask "Install Docker now, with Docker's official install script (get.docker.com)?" y \
     || die "botdot needs Docker. Install it (https://docs.docker.com/engine/install/) and run this again."
+  say "Installing Docker…"
   curl -fsSL https://get.docker.com | sh
 fi
 # The machine's own Docker: the front door, and Caddy for a public domain.
@@ -704,6 +707,7 @@ if [ -n "$MISSING" ]; then
   warn "Each account runs in a rootless Docker under gVisor, which needs:$MISSING"
   command -v apt-get >/dev/null 2>&1 || die "Install them with your system's packages (gVisor: https://gvisor.dev/docs/user_guide/install/) and run this again."
   ask "Install them now with apt-get (gVisor's runsc from gVisor's own repository)?" y || die "botdot needs them. Install them and run this again."
+  say "Installing$MISSING…"
   case "$MISSING" in
     *runsc*)
       mkdir -p "$ETC/apt/keyrings" "$ETC/apt/sources.list.d"
@@ -1007,6 +1011,7 @@ hand_images() {
       if [ -n "$($A ps -aq --filter label=botdot.computer=account </dev/null 2>/dev/null || true)" ]; then
         ok "The bots' computer keeps its image; its Update or reset takes the newest"
       else
+        say "Downloading the bots' computer (about 7 GB the first time)…"
         pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it."
       fi ;;
     load)
@@ -1119,6 +1124,7 @@ elif [ "$REACH" = local ]; then
 else
   if ! command -v tailscale >/dev/null 2>&1; then
     ask "botdot on a tailnet needs Tailscale. Install it now?" y || die "botdot on a tailnet needs Tailscale (https://tailscale.com/download). Install it and run this again."
+    say "Installing Tailscale…"
     curl -fsSL https://tailscale.com/install.sh | sh
   fi
   if ! tailscale status >/dev/null 2>&1; then

@@ -69,6 +69,8 @@ data class Company(
     val layout: Map<String, List<Double>>? = null,
     /** The Vault logins its cards call the owner's own servers with (#804, [ProjectLogins]). */
     val logins: List<ProjectLogin> = emptyList(),
+    /** An ongoing project (#925, shape "ops": a home, a car): no 90 days, no delivery date, a monthly review for the check-ins. */
+    val ongoing: Boolean = false,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"

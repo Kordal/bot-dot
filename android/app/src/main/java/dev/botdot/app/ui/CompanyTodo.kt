@@ -336,7 +336,7 @@ private fun Decisions(ui: CompanyUi, c: Company) {
 private fun DecisionRow(ui: CompanyUi, d: Decision) {
     val p = LocalPaper.current
     val words = mapOf("keep" to tr("Keep going"), "change" to tr("Change direction"), "stop" to tr("Stop"))
-    val text = if (d.by == "checkin" && d.day != null && words[d.decision] != null) "${tr("Day {n} check-in", "n" to d.day)}: ${words[d.decision]}" else d.text
+    val text = if (d.by == "checkin" && d.day != null && words[d.decision] != null) "${if (ui.company()?.ongoing == true) tr("Monthly review") else tr("Day {n} check-in", "n" to d.day)}: ${words[d.decision]}" else d.text
     val day = d.at?.let { runCatching { Instant.parse(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() }.getOrNull() }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {

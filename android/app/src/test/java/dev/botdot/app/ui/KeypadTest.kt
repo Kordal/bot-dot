@@ -3,7 +3,9 @@ package dev.botdot.app.ui
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Group
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -290,6 +292,22 @@ class KeypadTest {
         assertEquals(Keypad.Status(Keypad.StatusKind.FAILED, "Couldn't finish"), Keypad.status(last = "interrupted"))
         assertEquals("the owner stopped it", Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status(last = "stopped"))
         assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status())
+    }
+
+    @Test fun aFinishedRunTheOwnerHasSeenSaysIdle() {
+        assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status(last = "success", seen = true))
+        assertEquals(Keypad.Status(Keypad.StatusKind.FAILED, "Couldn't finish"), Keypad.status(last = "error", seen = true))
+        assertEquals("Needs you stays until the owner acts", Keypad.Status(Keypad.StatusKind.NEEDS, "Needs you"), Keypad.status(needs = true, last = "success", seen = true))
+        assertEquals(Keypad.Status(Keypad.StatusKind.UNREAD, "1 unread"), Keypad.status(unread = 1, last = "success", seen = true))
+        assertEquals(Keypad.Status(Keypad.StatusKind.WORKING, "Working"), Keypad.status(running = true, last = "success", seen = true))
+    }
+
+    @Test fun seenWhenTheChatWasReadAtOrAfterTheRunEnded() {
+        assertTrue(Keypad.seen("2026-11-03T08:00:01.000Z", "2026-11-03T08:00:00.000Z"))
+        assertTrue(Keypad.seen("2026-11-03T08:00:00.000Z", "2026-11-03T08:00:00.000Z"))
+        assertFalse("a run that ended after the last read: Done", Keypad.seen("2026-11-03T07:59:59.000Z", "2026-11-03T08:00:00.000Z"))
+        assertFalse("a server without readAt", Keypad.seen(null, "2026-11-03T08:00:00.000Z"))
+        assertFalse(Keypad.seen("2026-11-03T08:00:00.000Z", null))
     }
 
     @Test fun howLongARunHasBeenGoing() {

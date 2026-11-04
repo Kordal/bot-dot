@@ -145,8 +145,13 @@ test('the Chief\'s line changes at most once a second, the last change always go
   // Four changes within the second: one goes out, when the second is over, with the last words.
   play(result('a'), use('Read', { file_path: '/tmp/plan.md' }, 'b'), result('b'), use('WebFetch', { url: 'https://www.nytimes.com/' }, 'c'));
   await sleep(200);
-  assert.deepEqual(live.texts(), ['Searching the web'], 'held');
-  assert.deepEqual(await activity(), { tool: 'WebSearch', text: 'Searching the web' }, 'the chat says what the stream said last');
+  const [texts, now] = [live.texts(), await activity()];
+  // Looked at within the second (it ends no sooner than EVERY after `played`), both must still hold the first
+  // words. A busy machine may look only after it ended: then the times below are what shows it was held.
+  if (Date.now() - played < EVERY - 20) {
+    assert.deepEqual(texts, ['Searching the web'], 'held');
+    assert.deepEqual(now, { tool: 'WebSearch', text: 'Searching the web' }, 'the chat says what the stream said last');
+  }
   await live.reads('Reading nytimes.com');
   assert.deepEqual(live.texts(), ['Searching the web', 'Reading nytimes.com'], 'one change, with the last words');
   assert.ok(live.events.filter((e) => e.type === 'activity')[1].cameAt - played >= EVERY - 5, 'not before the second was over');

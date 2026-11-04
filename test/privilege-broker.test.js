@@ -527,3 +527,47 @@ test('the shells of Bash that run long are counted, and nothing else', (t) => {
   add(4, 60000, '/bin/sh -c server', 100);
   assert.deepEqual(longCommands(proc), { count: 1, oldestSeconds: 900 });
 });
+
+// ADR 145: a node start costs 200-400 ms under gVisor, so a principal's file requests go to one worker the broker
+// keeps for it, as that principal, one at a time, until it has had none for a while.
+test("a principal's file requests go to one kept worker, as the principal, and it ends when idle", { skip: !ROOT_LINUX && 'needs isolated Linux root', timeout: 30000 }, async (t) => {
+  const fs = require('node:fs'); const os = require('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'broker-kept-')); fs.chmodSync(dir, 0o755);
+  const data = path.join(dir, 'data');
+  fs.mkdirSync(data, { mode: 0o711 }); fs.chmodSync(data, 0o711);
+  for (const name of ['homes', 'workspaces', 'skill-packs']) { fs.mkdirSync(path.join(data, name), { mode: 0o711 }); fs.chmodSync(path.join(data, name), 0o711); }
+  const socket = path.join(dir, 'broker.sock');
+  const old = process.env.BOT_DOT_FILE_WORKER_KEEP_MS; process.env.BOT_DOT_FILE_WORKER_KEEP_MS = '1500';
+  const fresh = () => { delete require.cache[require.resolve('../lib/privilege-broker')]; return require('../lib/privilege-broker'); };
+  const { createBroker, CHIEF_UID } = fresh();
+  if (old === undefined) delete process.env.BOT_DOT_FILE_WORKER_KEEP_MS; else process.env.BOT_DOT_FILE_WORKER_KEEP_MS = old;
+  const server = createBroker({ dataDir: data, socket });
+  await new Promise((resolve) => server.listen(socket, resolve));
+  t.after(async () => { server.stopChildren(); await new Promise((resolve) => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }); });
+  const workers = () => fs.readdirSync('/proc').filter((d) => /^\d+$/.test(d)).filter((pid) => {
+    try { return fs.readFileSync(`/proc/${pid}/cmdline`, 'utf8').split('\0').join(' ').includes('principal-fs-worker.js serve') && fs.statSync(`/proc/${pid}`).uid === 60500
+      && Number(/PPid:\s+(\d+)/.exec(fs.readFileSync(`/proc/${pid}/status`, 'utf8'))[1]) === process.pid; } catch { return false; } // this broker's, not another test file's
+  });
+  const file = (op, args) => ask(socket, { operation: 'files', principal: 'chief', request: { op, args } });
+  const ws = path.join(data, 'workspaces', '_chief');
+  const written = await file('writeFileSync', [path.join(ws, 'a.md'), 'hello']);
+  assert.ok(!written.error && !written.value?.error, JSON.stringify(written));
+  assert.equal(fs.statSync(path.join(ws, 'a.md')).uid, CHIEF_UID ?? 60500, 'written as the principal');
+  const start = Date.now();
+  const answers = await Promise.all(Array.from({ length: 20 }, () => file('readFileSync', [path.join(ws, 'a.md'), 'utf8'])));
+  const took = Date.now() - start;
+  for (const a of answers) assert.equal(a.value.value, 'hello');
+  assert.equal(workers().length, 1, 'one worker for the principal');
+  assert.ok(took < 5000, `20 requests took ${took} ms`);
+  // A refusal comes back as before, and the worker goes on.
+  const outside = await file('readFileSync', ['/etc/passwd', 'utf8']);
+  assert.equal(outside.value.error.code, 'EACCES');
+  // A worker that dies is started again for the next request.
+  for (const pid of workers()) process.kill(Number(pid), 'SIGKILL');
+  for (let i = 0; i < 50 && workers().length; i++) await new Promise((r) => setTimeout(r, 50));
+  await new Promise((r) => setTimeout(r, 300)); // the broker hears of its exit
+  assert.equal((await file('readFileSync', [path.join(ws, 'a.md'), 'utf8'])).value.value, 'hello');
+  // Idle, it ends.
+  for (let i = 0; i < 80 && workers().length; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(workers().length, 0, 'the idle worker ended');
+});

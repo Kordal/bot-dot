@@ -120,6 +120,7 @@ class GroupsTest {
         assertEquals(3 to "r1", new[0].unread to new[0].firstUnread)
         val read = Groups.on(new, event("group_unread", """{"chat":"group:g1","groupId":"g1","unread":0,"firstUnread":null,"readAt":"2026-10-08T10:00:00Z"}"""))
         assertEquals("read in any app: its dots go here too", 0 to null, read[0].unread to read[0].firstUnread)
+        assertEquals("its read position: a key whose last reply is older says Idle", "2026-10-08T10:00:00Z", read[0].readAt)
         assertSame("nothing changed", read, Groups.setUnread(read, "g1", 0, null))
     }
 

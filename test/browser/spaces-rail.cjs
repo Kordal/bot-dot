@@ -166,7 +166,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.equal(await page.locator('#view-chief form textarea').inputValue(), 'A new bot that ');
     await page.locator('#rail [data-rail-new]').click();
     await page.locator('.ct-menu [data-new-project]').click();
-    await page.locator('#view-company h1', { hasText: "You know where. We'll work out how." }).waitFor();
+    await page.locator('#view-company h1', { hasText: "What shall we take on?" }).waitFor();
     assert.equal(await page.locator('#company-side').isVisible(), false, 'no project tree');
     assert.equal(await page.locator('#rail [data-rail-new].here').count(), 1, 'New project is the space on screen');
     if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-new.png') });

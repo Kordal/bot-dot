@@ -68,6 +68,7 @@ lib/choices.js       quick-answer buttons ([[choices: …]]) and the card of que
 lib/setup.js         the setup page's data: first-run state, time zone, Claude sign-in from the browser, and whether this Claude Code takes its prompt from a file
 Dockerfile, compose.yaml   the all-in-one image (on the official llama.cpp server image) and how to run it
 .github/workflows/images.yml   builds and publishes the images (Intel + ARM)
+.github/workflows/build-all.yml   one click releases all: Android, then the images, and the desktop app beside them (deploy/build-all.sh)
 lib/self-mcp.js      a bot's tools for itself: its jobs, and learning (remember, create_skill…)
 lib/jobs.js          scheduled jobs: AI or script, approval, running scripts
 lib/connectors.js    Composio: API key, marketplace, connections, running actions
@@ -87,5 +88,4 @@ lib/tools-worker.js  the installer itself, run as the tools user: micromamba wit
 lib/problems.js      a failed run, said in plain words (web and phone)
 public/              the UI (vanilla HTML/CSS/JS)
 vendor/novnc/        botdot's own copy of noVNC, the live-screen viewer
-macos/               the stopped Mac app (ADR 031): see macos/README.md
 ```

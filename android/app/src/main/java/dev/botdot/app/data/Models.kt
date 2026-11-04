@@ -197,6 +197,7 @@ data class Bot(
     val undo: String? = null, // the change a card made to its main assignment or rules that one tap undoes (#596); null when none, or from an older server
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
+    val readAt: String? = null, // how far the owner has read its chat: a run that ended before says Idle on its key, not Done
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].
     @SerialName("queued") val queuedValue: JsonElement? = null,
     // Its open question to the owner (`asks-you`), kept as it came. Read it through [asks].
@@ -353,7 +354,7 @@ data class TakenBack(val text: String, val attachments: List<Attachment>) {
 @Serializable
 data class Attachment(
     val name: String,
-    val file: String,
+    val file: String = "", // "" for a file named only: a mail draft's file the chat has none of
     val size: Long = 0,
     val readable: String? = null,
 )
@@ -539,6 +540,7 @@ data class MailDraft(
     val sentAt: String? = null, val earlier: Boolean = false,
     val botId: String? = null, val runId: String? = null, val bot: String? = null,
     val unsaved: Boolean = false, // a look's draft (#422): in no mailbox until Send now
+    val attachments: List<Attachment> = emptyList(), // the files the mail carries; a file of the chat has its `file`
 )
 
 @Serializable
