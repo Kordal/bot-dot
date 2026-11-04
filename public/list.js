@@ -140,9 +140,7 @@ function drawContacts() {
   // The rows are the keypad's pages (keypad.js): the pinned bots and groups right below the Chief, in the order you
   // gave them; the rest by category.
   const row = (x) => (x.members ? groupContactHTML(x) : contact(x));
-  // Home's bots and chats (#838); a search finds every one.
-  const home = q ? null : homeKeys();
-  const pages = Keypad.pages(home ? matching.filter((b) => home.bots.includes(b)) : matching, home ? chats.filter((g) => home.groups.includes(g)) : chats);
+  const pages = Keypad.pages(matching, chats);
   top.push(...(pages.find((p) => p.kind === 'pinned')?.keys || []).map(row));
   items.push(...top);
   if (!q && typeof roomsRowHTML === 'function') items.push(roomsRowHTML()); // shared rooms, when they are on (rooms.js)
@@ -194,24 +192,9 @@ function drawContacts() {
 // The Chief's row and its key (Esc): the chat with new replies, else the one its preview shows.
 const openChief = () => openChiefChat((state.chats.find((c) => Unread.count(c)) || state.chats[0])?.id || null);
 
-// The projects, from a server with `company` (company.js loads them): each bot is in one space (#838), so Home's
-// keys and list leave out the projects' team bots and team chats (Keypad.home), unless the owner's filter is on All.
+// The projects, from a server with `company` (company.js loads them). Home shows every bot and chat, team ones too.
 const spaceProjects = () => ((state.features || []).includes('company') ? state.projects || (state.company ? [state.company] : []) : []);
-// Home's filter: All (every bot and chat, the start) or No project (only those in no project's team), on this device.
-const HOME_BOTS = 'botdot.homeBots';
-const homeAll = () => { try { return localStorage.getItem(HOME_BOTS) !== 'own'; } catch { return true; } };
-const setHomeAll = (all) => { try { localStorage.setItem(HOME_BOTS, all ? 'all' : 'own'); } catch {} renderContacts(); };
-const homeKeys = () => Keypad.home(state.bots, state.groups, spaceProjects(), homeAll());
-// The filter over Home's keys, while a bot or a chat is in a project's team: else both would show the same.
-function homeFilterHTML() {
-  const own = Keypad.home(state.bots, state.groups, spaceProjects());
-  if (own.bots.length === state.bots.length && own.groups.length === state.groups.length) return '';
-  const all = homeAll();
-  const opt = (on, value, text) => `<button type="button" role="radio" aria-checked="${on}" data-home-bots="${value}">${esc(text)}</button>`;
-  return `<div class="kp-filter" role="radiogroup" aria-label="${esc(tr('Bots'))}">${opt(all, 'all', tr('All'))}${opt(!all, 'own', tr('No project'))}</div>`;
-}
-const wireHomeFilter = (root) => $$('[data-home-bots]', root).forEach((el) => (el.onclick = () => setHomeAll(el.dataset.homeBots === 'all')));
-const keypadPages = () => { const h = homeKeys(); return Keypad.pages(h.bots, h.groups); };
+const keypadPages = () => Keypad.pages(state.bots, state.groups);
 // A page's name as shown: Other's in the page's language, a category's as the owner wrote it.
 const pageName = (p) => (p.kind === 'other' ? tr('Other') : p.name);
 // A category's page folds as the list's category does (#171), with the list's folded names: folding it in one folds it
@@ -316,11 +299,10 @@ function drawKeypad() {
   drawBoardLine($('#kp-board'));
   const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n, null, Keypad.digitOf(digits, k.x)) : '')).join('');
   const cats = pages.slice(1).map((p, n) => `<section class="kp-page${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${n + 1}">${pageHead(p, `data-page-fold="${n + 1}"`)}</h3><div class="kp-page-keys">${keysOf(n + 1)}</div></section>`).join('');
-  keys.innerHTML = `${homeFilterHTML()}<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
+  keys.innerHTML = `<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
   $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
   $$('[data-key-chief]', keys).forEach((el) => (el.onclick = openChief));
-  wireHomeFilter(keys);
   wireKeyDrags(pages, all, keys);
   drawKeypadSections(found);
   if (typeof drawRoomsKeys === 'function') drawRoomsKeys(); // shared rooms, beside Needs you (rooms.js)
@@ -352,8 +334,7 @@ function drawKeypadSections(pages) {
   const section = (p, n) => `<section class="kp-section${p.kind === 'pinned' ? ' kp-sec-pinned' : ''}${pageFolded(p) ? ' folded' : ''}" data-section="${n}">${p.kind === 'pinned' ? '' : `<h3 class="kp-sec-head">${pageHead(p, `data-section-fold="${n}"`)}</h3>`}<div class="kp-sec-keys">${pageFolded(p) ? '' : p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`;
   const pinned = pages[0]?.kind === 'pinned' ? 1 : 0;
   const cats = pages.slice(pinned).map((p, n) => section(p, n + pinned)).join('');
-  sections.innerHTML = `${homeFilterHTML()}${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
-  wireHomeFilter(sections);
+  sections.innerHTML = `${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-section-fold]', sections).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.sectionFold)])));
   $$('[data-section-key]', sections).forEach((el) => (el.onclick = () => { const [n, i] = el.dataset.sectionKey.split('.').map(Number); openKey(pages[n].keys[i]); }));
   // The Chief's field: its head, its name where the message goes, and the send arrow. A tap opens its chat, ready to write in.
