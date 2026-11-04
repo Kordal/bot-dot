@@ -1,6 +1,6 @@
 // The admin page's accounts (#910): a table to search by part of a name, sort by name, joined, last seen, CPU, RAM and
 // disk, and filter by state, all three together. A row opens what the card had (#725): the share and the update in
-// words, and every action (Change share, Move to External Virtual PC or this machine, Update now, Suspend or Resume, Sign out everywhere, New sign-in link, Delete), on the same routes;
+// words, and every action (Change share, Move computer to External Virtual PC or this machine, Update now, Suspend or Resume, Sign out everywhere, New sign-in link, Delete), on the same routes;
 // Delete is plain there and red only in its own box. The marks stay in the row: Disk full, near its RAM, long
 // commands. The admin page's own script (ADMIN_SCRIPT) runs against a small stand-in DOM.
 const { test } = require('node:test');
@@ -173,7 +173,7 @@ test('admin page: Sign out everywhere ends the sessions and says so; on the admi
 
 test('admin page: a row opens every action of today; each does it on the same route; Delete is red only in its box', async () => {
   const { open, buttons, fire, calls, tick, row, byId } = await page();
-  for (const [name, acts] of [['ann', ['Change share', 'Sign out everywhere', 'New sign-in link']], ['bob', ['Change share', 'Move to External Virtual PC', 'Update now', 'Suspend', 'Sign out everywhere', 'New sign-in link', 'Delete']], ['cat', ['Change share', 'Resume', 'Sign out everywhere', 'New sign-in link', 'Delete']]]) {
+  for (const [name, acts] of [['ann', ['Change share', 'Sign out everywhere', 'New sign-in link']], ['bob', ['Change share', 'Move computer to External Virtual PC', 'Update now', 'Suspend', 'Sign out everywhere', 'New sign-in link', 'Delete']], ['cat', ['Change share', 'Resume', 'Sign out everywhere', 'New sign-in link', 'Delete']]]) {
     const box = open(name);
     assert.equal(row(name).getAttribute('aria-expanded'), 'true');
     assert.deepEqual(buttons(box).map((b) => b.textContent), acts, name);
@@ -340,7 +340,7 @@ test("admin page: only the admin moves an account's computer (ADR 146), its bots
   const { open, buttons, fire, calls, tick } = await page();
   const box = open('bob');
   assert.match(box.querySelector('p').textContent, / · This machine · /, 'the row says where it is');
-  fire(buttons(box).find((b) => b.textContent === 'Move to External Virtual PC'), 'click');
+  fire(buttons(box).find((b) => b.textContent === 'Move computer to External Virtual PC'), 'click');
   const asked = box.querySelector('.confirm');
   assert.equal(asked.querySelector('p').textContent, 'Copy the bots’ files of bob to the External Virtual PC?');
   assert.deepEqual(buttons(asked).map((b) => b.textContent), ['Copy files', 'Start empty', 'Close']);
