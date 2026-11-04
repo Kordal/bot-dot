@@ -556,7 +556,10 @@ internal fun StepPage(foot: (@Composable () -> Unit)?, content: @Composable () -
 
 /** The Chief, at work for the setup. */
 @Composable
-internal fun ChiefAtWork() = Box(Modifier.fillMaxWidth().padding(vertical = Space.s24), contentAlignment = Alignment.Center) { BotFigure(CHIEF_COLOR, "working", 56, FigureDef.CHIEF) }
+internal fun ChiefAtWork(line: String? = null) = Column(Modifier.fillMaxWidth().padding(vertical = Space.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+    BotFigure(CHIEF_COLOR, "working", if (line == null) 56 else 96, FigureDef.CHIEF)
+    if (line != null) Text(line, color = LocalPaper.current.text, fontSize = Type.s16, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+}
 
 /**
  * A project's default chat as a field at the bottom (#840, C-5), where no chat column stands beside the project: its
