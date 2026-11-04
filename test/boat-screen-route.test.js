@@ -38,3 +38,9 @@ test("a boat bot's screen tools wait for its machine's screen, and say why there
   srv.unhold();
   assert.equal(fs.existsSync(path.join(srv.data, 'computer-holds.json')), false, 'nothing held on the account\'s computer');
 });
+
+test("only the front door asks an account to erase its boat.dev machines (#982)", async () => {
+  const r = await srv.api('/boat/erase', { method: 'POST', body: {} });
+  assert.equal(r.status, 403);
+  assert.equal(r.data.error, 'Only the front door asks for an erase.');
+});

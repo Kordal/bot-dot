@@ -20,6 +20,13 @@ const { createStage, until, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR, REGIS
 // The names `make images` gives a self-built botdot server's images.
 const SELF_SERVER = 'bot-dot/server:latest', SELF_DESKTOP = 'bot-dot/desktop:latest';
 const HOME = `${DIR}/accounts/${ADMIN}`;
+// readyOf(said): the run's last line for a program, BOTDOT_READY and its JSON (#981), the one such line it printed.
+function readyOf(said) {
+  const lines = said.trim().split('\n');
+  assert.equal(lines.filter((l) => l.startsWith('BOTDOT_READY ')).length, 1, `one BOTDOT_READY line:\n${said}`);
+  assert.match(lines.at(-1), /^BOTDOT_READY \{/, `the run's last line is BOTDOT_READY:\n${said}`);
+  return JSON.parse(lines.at(-1).slice('BOTDOT_READY '.length));
+}
 const NOT_YET = "Open the link from your server's install";
 const ROOT_REACHES = 'Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself.';
 
@@ -190,6 +197,12 @@ const cases = [
       assert.ok(said.includes(ROOT_REACHES), `the installer says that root reaches every account:\n${said}`);
       assert.ok(said.indexOf(ROOT_REACHES) < said.indexOf('/sign-up/'), 'before the link');
       assert.ok(said.includes(`Until it is used, botdot shows only "${NOT_YET}".`));
+      const ready = readyOf(said);
+      assert.equal(ready.origin, `https://${DOMAIN}`);
+      assert.equal(ready.reach, 'public');
+      assert.match(ready.version, /^[0-9a-f]{7,12}$/);
+      assert.deepEqual(ready.accounts, [ADMIN]);
+      assert.ok(said.includes(`  ${ready.signUp}\n`), `signUp is the admin's link the installer printed:\n${said}`);
 
       // What was checked is what runs: both images pinned by their signed digests, in the account's Docker.
       const env = machine.exec('cat', `${HOME}/.env`);
@@ -216,6 +229,12 @@ const cases = [
       const again = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
       assert.doesNotMatch(again, /\/sign-up\//, `once the account is made there is no link:\n${again}`);
       assert.ok(again.includes(ROOT_REACHES));
+      assert.deepEqual(readyOf(again), { origin: `https://${DOMAIN}`, version: ready.version, reach: 'public', accounts: [ADMIN] }, 'no signUp once the account exists');
+      answers(machine);
+
+      stage.step("root's update ends with the line too");
+      const updated = machine.exec('sh', `${DIR}/bin/install.sh`, '--update');
+      assert.deepEqual(readyOf(updated), { origin: `https://${DOMAIN}`, version: ready.version, reach: 'public', accounts: [ADMIN] }, `the version it runs:\n${updated}`);
       answers(machine);
     },
   },
@@ -241,10 +260,15 @@ const cases = [
         try { parsed = JSON.parse(parsed); } catch { /* not JSON */ }
         return { status: Number(out.slice(at + 1)), body: parsed };
       };
+      // The app's line, just before the one for a program (#981), which carries no setup key.
       const lineOf = (said) => {
-        const last = said.trim().split('\n').at(-1);
-        assert.match(last, /^BOTDOT_LOCAL \{/, `the install's last line is the app's:\n${said}`);
-        return JSON.parse(last.slice('BOTDOT_LOCAL '.length));
+        const ready = readyOf(said);
+        assert.equal(ready.origin, ORIGIN);
+        assert.equal(ready.reach, 'local');
+        assert.ok(!('signUp' in ready), `the setup key stays in the app's line alone:\n${said}`);
+        const app = said.trim().split('\n').at(-2);
+        assert.match(app, /^BOTDOT_LOCAL \{/, `the line before it is the app's:\n${said}`);
+        return JSON.parse(app.slice('BOTDOT_LOCAL '.length));
       };
 
       stage.step('install.sh, local');

@@ -37,6 +37,21 @@ The installer asks before it installs anything. It asks how people reach botdot 
 3. makes your account: the Linux user `botdot-<name>`, its rootless Docker, and its botdot server in `/var/lib/botdot/accounts/<name>`;
 4. ends with the address and **your sign-up link**. Open it and make your passkey: that account is the admin's. Until the link is used, botdot shows only "Open the link from your server's install".
 
+**The last line, for a program.** Every install and every update, on a public domain, a tailnet or a botdot on one computer, ends with one line that a program such as a fleet console reads instead of the prose above it: `BOTDOT_READY` and a JSON object on the same line.
+
+```
+BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":"public","accounts":["ann"],"signUp":"https://botdot.example.com/sign-up/…"}
+```
+
+- `origin`: the address people open.
+- `version`: the version the front door and the accounts now run, as the admin page shows it.
+- `reach`: `public`, `tailnet` or `local`.
+- `variant`: `one` or `several`, on a managed machine only; absent until managed mode exists.
+- `accounts`: the names of the accounts this machine runs.
+- `signUp`: the admin's sign-up link, while that account doesn't exist yet; absent afterwards. An update makes no link, so its line has none; a botdot on one computer keeps its setup key in its own `BOTDOT_LOCAL` line, the one before, which the desktop app reads ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
+
+A run that fails prints no such line.
+
 ## More accounts
 
 Open **`https://<your address>/admin`**, the admin page, signed in as yourself, and choose **New sign-up link**. Hand the link to one person: it works once, for 7 days, and you can revoke it there. The page lists every link: open, used (by which account) or ended. No other account reaches the admin page, and it never shows what is inside an account.

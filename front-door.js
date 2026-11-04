@@ -1345,6 +1345,22 @@ const utc = (t) => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} 
 // A share in an audit entry's words: "2 CPUs · 5 GB RAM · 30 GB disk".
 const shareText = (s) => `${s.cpu} CPU${s.cpu === 1 ? '' : 's'} · ${s.ram} GB RAM · ${s.disk} GB disk`;
 
+// A deleted account's machines on boat.dev (#982): its botdot server deletes them before root's step stops it for good.
+// Null when there is nothing to say (no key on this machine, nothing on boat.dev), else { text, failed }: what was
+// deleted, or why not all of it was. A failure never stops the erase: it is said in the log, the audit entry and the
+// answer to the admin.
+const BOAT_ERASE_MS = Number(process.env.BOT_DOT_BOAT_ERASE_MS) || 90_000;
+async function eraseBoat(name) {
+  if (!boat?.shown().keySet || !fs.existsSync(path.join(SOCKETS, name))) return null;
+  const { status, data } = await askAccount(name, 'POST', '/api/boat/erase', {}, BOAT_ERASE_MS);
+  const machines = (n) => `${n} machine${n === 1 ? '' : 's'}`;
+  if (status === 200 && Number.isInteger(data?.deleted) && Array.isArray(data?.failed)) {
+    if (!data.failed.length) return data.deleted ? { text: `boat.dev: ${machines(data.deleted)} deleted`, failed: false } : null;
+    return { text: `boat.dev: ${machines(data.failed.length)} not deleted (${line(data.failed[0]?.error, 200) || 'no answer'})${data.deleted ? `, ${data.deleted} deleted` : ''}`, failed: true };
+  }
+  return { text: `boat.dev: its machines not deleted (${doors.isSuspended(name) ? 'the account is suspended, so its server is stopped' : 'its server gave no answer'})`, failed: true };
+}
+
 // The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
 async function accountAction(req, res, name, action) {
@@ -1400,13 +1416,14 @@ async function accountAction(req, res, name, action) {
   }
   if (action === 'delete') {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
+    const boatGone = await eraseBoat(name);
     doors.deleteAccount(name);
     roomsWithout(name);
     usage?.forget(name);
-    console.log(`[front door] the admin deleted the account ${name}; the machine erases it`);
-    audited('delete', { account: name });
+    console.log(`[front door] the admin deleted the account ${name}; the machine erases it${boatGone ? ` (${boatGone.text})` : ''}`);
+    audited('delete', { account: name, detail: boatGone?.text });
     askMachine(name);
-    return send(res, 200, { ok: true });
+    return send(res, 200, { ok: true, ...(boatGone?.failed ? { boat: boatGone.text } : {}) });
   }
   doors.setSuspended(name, action === 'suspend');
   console.log(`[front door] the admin ${action === 'suspend' ? 'suspended' : 'resumed'} the account ${name}`);

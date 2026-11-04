@@ -30,6 +30,8 @@ services:
       PORT: 4747
       # The account this botdot server belongs to: the front door names it on every request.
       BOT_DOT_ACCOUNT: ${BOT_DOT_ACCOUNT:-}
+      # The botdot machine's own id (install.sh makes it once): in the names of the account's machines on boat.dev.
+      BOT_DOT_INSTANCE: ${BOT_DOT_INSTANCE:-}
       BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/botdot.sock
       # Optional instead of /login: a token from `claude setup-token`
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
