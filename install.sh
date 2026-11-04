@@ -115,6 +115,8 @@ SOURCE="$(cd "$(dirname "$0")" 2>/dev/null && pwd || true)"
 # --overlay2=none: what a container writes goes to its own layer on the account's disk. runsc's default
 # (root:self) keeps it in an overlay of the sandbox, dropped when the container stops, so a bot's computer lost its
 # home, its SSH keys, its Tailscale login and what it installed on every stop (#68).
+# Without cgroups runsc sizes a sandbox by the machine: each account runs it through runsc_share, which sizes it by
+# the account's share (ADR 152).
 RUNSC_FLAGS='"--ignore-cgroups", "--net-raw", "--overlay2=none"'
 # runsc-uds, the runtime of botdot's server and its Docker helper alone (compose.yaml): they meet through Unix sockets
 # in their mounts, which gVisor lets a container reach only with --host-uds. Every other container, a bot's computer
@@ -1453,6 +1455,50 @@ share() {
   printf '{"cpu":%s,"ram":%s}\n' "$2" "$3" > "$ACCOUNTS/$1/share/share.json.new"
   chmod 644 "$ACCOUNTS/$1/share/share.json.new"
   mv "$ACCOUNTS/$1/share/share.json.new" "$ACCOUNTS/$1/share/share.json"
+  runsc_share "$ACCOUNTS/$1/share/runsc"
+}
+
+# runsc_share FILE: the runtime the account's Docker runs gVisor through (its daemon.json), beside its share.json
+# (ADR 152). Under --ignore-cgroups runsc sizes a sandbox by the machine, not the account's unit: a computer on a share
+# of 9 GB and 4 CPUs of a 16 GB, 8 CPU machine saw 16 GB and 8 CPUs, and tools that size themselves by that (Chrome,
+# make -j, Node's workers) ran past the share and were ended at its limit. As a sandbox is made, runsc reads the RAM
+# from a /proc/meminfo whose MemTotal is the share's, in a mount namespace of its own, and runs on as many of the CPUs
+# as the share, from a place the account's name picks, so that accounts spread over the machine. Any other call, a
+# share that isn't smaller, or a machine without unshare or taskset, is runsc as it is.
+runsc_share() {
+  cat > "$1.new" <<'SCRIPT'
+#!/bin/sh
+# botdot (install.sh): gVisor's runsc, sized by the account's share (share.json beside it, ADR 152).
+RUNSC='@RUNSC@'
+case " $* " in *" create "*|*" run "*|*" restore "*) ;; *) exec "$RUNSC" "$@" ;; esac
+here="$(dirname "$0")"
+share="$(cat "$here/share.json" 2>/dev/null || true)"
+ram="$(printf '%s' "$share" | sed -n 's/.*"ram":\([0-9][0-9]*\).*/\1/p')"
+cpu="$(printf '%s' "$share" | sed -n 's/.*"cpu":\([0-9][0-9]*\).*/\1/p')"
+cpus=''
+if [ -n "$cpu" ] && command -v taskset >/dev/null 2>&1; then
+  start="$(basename "$(dirname "$here")" | cksum | cut -d ' ' -f 1)"
+  cpus="$(awk -v want="$cpu" -v start="$start" '/^Cpus_allowed_list:/ {
+    k = split($2, r, ","); n = 0
+    for (i = 1; i <= k; i++) { m = split(r[i], e, "-"); for (c = e[1]; c <= (m > 1 ? e[2] : e[1]); c++) all[n++] = c }
+    if (want >= n) exit
+    for (i = 0; i < want; i++) out = out (i ? "," : "") all[(start + i) % n]
+    print out }' /proc/self/status 2>/dev/null || true)"
+fi
+mem=''
+if [ -n "$ram" ] && command -v unshare >/dev/null 2>&1 && unshare -m true 2>/dev/null; then
+  mem="$(mktemp 2>/dev/null || true)"
+  awk -v kb="$((ram * 1048576))" '/^MemTotal:/ { if ($2 <= kb) exit 1; print "MemTotal:       " kb " kB"; next } { print }' /proc/meminfo > "$mem" 2>/dev/null || { rm -f "$mem"; mem=''; }
+fi
+if [ -n "$mem" ]; then
+  exec unshare -m sh -c 'mount --bind "$1" /proc/meminfo 2>/dev/null; rm -f "$1"; cpus="$2"; shift 2; if [ -n "$cpus" ]; then exec taskset -c "$cpus" "$@"; fi; exec "$@"' sh "$mem" "$cpus" "$RUNSC" "$@"
+fi
+if [ -n "$cpus" ]; then exec taskset -c "$cpus" "$RUNSC" "$@"; fi
+exec "$RUNSC" "$@"
+SCRIPT
+  sed -i "s|@RUNSC@|$RUNSC|" "$1.new"
+  chmod 755 "$1.new"
+  mv "$1.new" "$1"
 }
 
 # answers FOLDER HOME: the botdot server whose socket is in FOLDER (an account's, named as it, its compose file in HOME)
@@ -1516,8 +1562,8 @@ account() {
 {
   "default-runtime": "runsc",
   "runtimes": {
-    "runsc": { "path": "$RUNSC", "runtimeArgs": [$RUNSC_FLAGS] },
-    "runsc-uds": { "path": "$RUNSC", "runtimeArgs": [$RUNSC_UDS_FLAGS] }
+    "runsc": { "path": "$home/share/runsc", "runtimeArgs": [$RUNSC_FLAGS] },
+    "runsc-uds": { "path": "$home/share/runsc", "runtimeArgs": [$RUNSC_UDS_FLAGS] }
   },
   "exec-opts": ["native.cgroupdriver=cgroupfs"]
 }

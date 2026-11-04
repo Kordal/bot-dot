@@ -62,6 +62,12 @@ function startComputer(machine, image) {
   assert.equal(made.HostConfig.Runtime, 'runsc', 'under gVisor');
   assert.throws(() => machine.inner('inspect', container), 'and not in the machine\'s own Docker');
   assert.equal(machine.account(ADMIN, 'exec', container, 'sh', '-c', `test -d /workspace/${id} && ls /run/botdot-desktop/screen-*.pid >/dev/null && echo yes`), 'yes', 'the bot\'s screen runs, and its folder is made');
+  // gVisor sizes it by the account's share, not the machine (ADR 152): its RAM and CPUs are the share's.
+  const share = JSON.parse(machine.exec('cat', `${HOME}/share/share.json`));
+  const [ram, cpus] = machine.account(ADMIN, 'exec', container, 'sh', '-c', "awk '/^MemTotal:/ { print $2 }' /proc/meminfo; nproc").split('\n').map(Number);
+  const [machineRam, machineCpus] = machine.exec('sh', '-c', "awk '/^MemTotal:/ { print $2 }' /proc/meminfo; nproc").split('\n').map(Number);
+  assert.ok(ram <= Math.min(share.ram * 1048576, machineRam), `the computer's RAM is the share's ${share.ram} GB: ${ram} kB of ${machineRam}`);
+  assert.equal(cpus, Math.min(share.cpu, machineCpus), `the computer's CPUs are the share's ${share.cpu}`);
 
   stage.step(`asking to stop the computer of bot ${id}`);
   const stopped = machine.api('POST', `/api/bots/${id}/computer`, { action: 'stop' });
