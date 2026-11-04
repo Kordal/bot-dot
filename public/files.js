@@ -555,6 +555,7 @@ const Files = (() => {
     const place = e.place || (c.place.root === 'kept' ? { root: 'server' } : c.place);
     const src = at(c, 'file', e.path, place);
     if (typeof DocViewer !== 'undefined' && (state.features || []).includes('document-viewer')) return DocViewer.open({ src, name: e.name, from: c.bot.name, bot: place.root === 'server' ? '' : c.bot.id });
+    if (globalThis.Ios?.open(window, `/api${src}`, { name: e.name })) return undefined; // an iPhone's own window (ios.js)
     return window.open(`/api${src}`, '_blank', 'noopener');
   }
 

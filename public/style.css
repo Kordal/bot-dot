@@ -87,6 +87,11 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* ---------- shell ---------- */
 /* Clipped: a pane sliding in from the right (motion.js) never widens the page, which a phone would zoom out to. */
 .app { display: flex; height: 100dvh; overflow: clip; }
+/* The keyboard open on an iPhone (ios.js): the page is pinned to what it leaves visible, so the chat's header and its
+   field both stay on screen; the keyboard covers the home bar, so no room is kept for it. */
+html.kb, html.kb body { overflow: hidden; }
+html.kb .app { position: fixed; left: 0; right: 0; top: var(--kb-top, 0px); height: var(--kb-h, 100dvh); }
+html.kb .composer, html.kb .kp-chief { margin-bottom: var(--sp-12); }
 .sidebar { width: var(--side-w, 300px); container-type: inline-size; container-name: side; flex: none; display: flex; flex-direction: column; background: var(--panel); padding-top: env(safe-area-inset-top); }
 /* The list's right edge, dragged to resize it (list.js, initSideGrip): no width of its own, a strip of 9px to catch
    the pointer, and a line while it is touched. Only where the list has its full layout (see responsive). The
@@ -799,9 +804,16 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md a .site-icon.globe svg { width: 15px; height: 15px; fill: none; stroke: var(--faint); stroke-width: 1.6; }
 
 /* ---------- modal / forms ---------- */
-dialog { border: 0; border-radius: var(--r-14); padding: 0; background: var(--raise-2); color: var(--text); box-shadow: var(--lift), var(--shadow-lg); width: min(680px, calc(100% - 24px)); max-height: calc(100dvh - 40px); }
+dialog { border: 0; border-radius: var(--r-14); padding: 0; background: var(--raise-2); color: var(--text); box-shadow: var(--lift), var(--shadow-lg); width: min(680px, calc(100% - 24px)); max-height: calc(var(--kb-h, 100dvh) - 40px); }
 dialog::backdrop { background: rgba(10, 10, 9, .35); backdrop-filter: blur(2px); }
 dialog.viewer { width: auto; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 0; border: 0; border-radius: var(--r-14); background: #fff; overflow: hidden; cursor: zoom-out; }
+/* A page of this botdot opened over this one where a new window would lose the sign-in (ios.js): the whole screen,
+   its bar under the notch, Close back to where the owner was. */
+dialog.page-sheet { position: fixed; inset: 0; width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border-radius: 0; display: flex; flex-direction: column; background: var(--bg); }
+dialog.page-sheet::backdrop { background: transparent; }
+.page-sheet-bar { flex: none; display: flex; align-items: center; gap: var(--sp-8); padding: calc(var(--sp-8) + env(safe-area-inset-top)) calc(var(--sp-8) + env(safe-area-inset-right)) var(--sp-8) calc(var(--sp-16) + env(safe-area-inset-left)); border-bottom: 1px solid var(--line); background: var(--panel); }
+.page-sheet-bar b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+dialog.page-sheet iframe { flex: 1; width: 100%; border: 0; background: #fff; }
 dialog.viewer img { display: block; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); object-fit: contain; }
 dialog.viewer::backdrop { background: rgba(10, 10, 9, .75); }
 img.shot, .file-image { cursor: zoom-in; }
