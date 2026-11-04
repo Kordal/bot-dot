@@ -9,7 +9,7 @@ Since ADR 098 an account's computer is in one place for all its bots: this machi
 
 ## Decision
 
-The admin moves an account's computer, per account, on the admin page: the account's row says where it is while boat.dev has a key, and "Move to External Virtual PC" or "Move to this machine" asks whether its bots' files go along ("Copy files", "Start empty"). `POST /admin/accounts/<name>/computer` `{ place, moveFiles? }` asks the account's botdot server with the front door's own header (`x-botdot-room: 1`, which it strips from every request a person sends), and keeps an audit entry `computer`.
+The admin moves an account's computer, per account, on the admin page: the account's row says where it is while boat.dev has a key, and "Move computer to External Virtual PC" or "Move computer to this machine" asks whether its bots' files go along ("Copy files", "Start empty"). `POST /admin/accounts/<name>/computer` `{ place, moveFiles? }` asks the account's botdot server with the front door's own header (`x-botdot-room: 1`, which it strips from every request a person sends), and keeps an audit entry `computer`.
 
 The account keeps the place, as before. `PUT /api/settings/computer` is the front door's alone: the owner and the Chief get `403`. `GET` stays the owner's, and `features` says `computer-place-admin`, so the apps show no switch: Settings → Computer shows where it is, and opens only while it is the External Virtual PC, for its size.
 
