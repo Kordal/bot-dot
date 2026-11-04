@@ -1158,6 +1158,8 @@ data class ComputerPlace(val place: String = "linux", val boat: Boolean = false)
     companion object {
         val options get() = listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))
         fun shows(features: List<String>?, boat: Boolean?) = boat == true && "account-computer" in features.orEmpty()
+        /** Only the admin moves it, on the admin page (ADR 146): the owner sees where it is, no switch. */
+        fun byAdmin(features: List<String>?) = "computer-place-admin" in features.orEmpty()
     }
 }
 

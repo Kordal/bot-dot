@@ -1,6 +1,6 @@
 // The admin page's accounts (#910): a table to search by part of a name, sort by name, joined, last seen, CPU, RAM and
 // disk, and filter by state, all three together. A row opens what the card had (#725): the share and the update in
-// words, and every action (Change share, Update now, Suspend or Resume, Sign out everywhere, New sign-in link, Delete), on the same routes;
+// words, and every action (Change share, Move to External Virtual PC or this machine, Update now, Suspend or Resume, Sign out everywhere, New sign-in link, Delete), on the same routes;
 // Delete is plain there and red only in its own box. The marks stay in the row: Disk full, near its RAM, long
 // commands. The admin page's own script (ADMIN_SCRIPT) runs against a small stand-in DOM.
 const { test } = require('node:test');
@@ -63,7 +63,7 @@ const now = Date.now();
 const ACCOUNTS = [
   { name: 'ann', admin: true, state: 'running', created: new Date(now - 30 * 24 * HOUR).toISOString(), lastSeen: new Date(now - 2 * HOUR).toISOString(),
     share: { cpu: 2, ram: 5, disk: 30 }, ownShare: false, use: { cpu: 1.1, ram: 2.5e9, diskUsed: 16e9, diskSize: 40e9, computers: 1 } },
-  { name: 'bob', state: 'running', created: new Date(now - 3 * 24 * HOUR).toISOString(), lastSeen: new Date(now - 5 * 60_000).toISOString(),
+  { name: 'bob', state: 'running', created: new Date(now - 3 * 24 * HOUR).toISOString(), lastSeen: new Date(now - 5 * 60_000).toISOString(), computer: 'linux',
     share: { cpu: 1, ram: 3, disk: 20 }, ownShare: true, use: { cpu: 0.2, ram: 2.9e9, diskUsed: 20e9, diskSize: 20e9, computers: 0, full: true },
     long: { count: 2, oldestSeconds: 1200 }, update: { canUpdate: true, autoUpdate: false } },
   { name: 'cat', state: 'suspended', created: new Date(now - HOUR).toISOString(), share: { cpu: 1, ram: 3, disk: 20 }, ownShare: false, use: null },
@@ -173,7 +173,7 @@ test('admin page: Sign out everywhere ends the sessions and says so; on the admi
 
 test('admin page: a row opens every action of today; each does it on the same route; Delete is red only in its box', async () => {
   const { open, buttons, fire, calls, tick, row, byId } = await page();
-  for (const [name, acts] of [['ann', ['Change share', 'Sign out everywhere', 'New sign-in link']], ['bob', ['Change share', 'Update now', 'Suspend', 'Sign out everywhere', 'New sign-in link', 'Delete']], ['cat', ['Change share', 'Resume', 'Sign out everywhere', 'New sign-in link', 'Delete']]]) {
+  for (const [name, acts] of [['ann', ['Change share', 'Sign out everywhere', 'New sign-in link']], ['bob', ['Change share', 'Move to External Virtual PC', 'Update now', 'Suspend', 'Sign out everywhere', 'New sign-in link', 'Delete']], ['cat', ['Change share', 'Resume', 'Sign out everywhere', 'New sign-in link', 'Delete']]]) {
     const box = open(name);
     assert.equal(row(name).getAttribute('aria-expanded'), 'true');
     assert.deepEqual(buttons(box).map((b) => b.textContent), acts, name);
@@ -228,7 +228,7 @@ test('admin page: a row keeps the marks, the dates relative with the full date i
   assert.match(cells('bob')[6].className, /err/, 'a full disk is red');
   const lines = (name) => open(name).querySelectorAll('p').map((p) => p.textContent);
   assert.deepEqual(lines('ann'), ['Computer on · Default share: 2 CPUs · 5 GB RAM · 30 GB disk']);
-  assert.deepEqual(lines('bob'), ['Computer off · Own share: 1 CPU · 3 GB RAM · 20 GB disk', 'Its owner chooses when it moves to a new version, up to the deadline.']);
+  assert.deepEqual(lines('bob'), ['Computer off · This machine · Own share: 1 CPU · 3 GB RAM · 20 GB disk', 'Its owner chooses when it moves to a new version, up to the deadline.']);
   const t = Date.parse('2026-10-29T12:00:00Z');
   assert.equal(ctx.ago('2026-10-29T11:59:40Z', t), 'just now');
   assert.equal(ctx.ago('2026-10-29T11:15:00Z', t), '45 min ago');
@@ -334,4 +334,18 @@ test('admin page: the audit log has a rail link and its filters wrap at phone wi
   assert.match(html, /<a href="#audit">.*Audit log<\/a>/);
   assert.match(html, /<section id="audit"><h2>Audit log<\/h2>\n<div class="find">/);
   assert.match(html, /\.find \{ display: flex; gap: var\(--sp-12\); flex-wrap: wrap; \}/);
+});
+
+test("admin page: only the admin moves an account's computer (ADR 146), its bots' files copied or not, on its own route", async () => {
+  const { open, buttons, fire, calls, tick } = await page();
+  const box = open('bob');
+  assert.match(box.querySelector('p').textContent, / · This machine · /, 'the row says where it is');
+  fire(buttons(box).find((b) => b.textContent === 'Move to External Virtual PC'), 'click');
+  const asked = box.querySelector('.confirm');
+  assert.equal(asked.querySelector('p').textContent, 'Copy the bots’ files of bob to the External Virtual PC?');
+  assert.deepEqual(buttons(asked).map((b) => b.textContent), ['Copy files', 'Start empty', 'Close']);
+  calls.length = 0;
+  fire(buttons(asked).find((b) => b.textContent === 'Copy files'), 'click');
+  await tick();
+  assert.deepEqual(calls[0], ['POST', '/admin/accounts/bob/computer']);
 });
