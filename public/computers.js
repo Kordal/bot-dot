@@ -45,8 +45,12 @@ function usageRows(usage) {
 // on the account's computer, the owner watches until Take control lifts the shield that keeps clicks and keys off it.
 const BOAT_ASK_MS = 4 * 60_000;
 const boatFrameUrl = (url) => `/boat-desktop.html#u=${encodeURIComponent(url)}`;
+// boat.dev's stream draws no frame in WebKit (Safari, the Mac app) nor is known to in Firefox: there the screen is
+// botdot's own viewer, as on the account's computer (ADR 149). navigator.userAgentData is Chromium's alone.
+const boatViaVnc = () => state.features.includes('boat-desktop-vnc') && !navigator.userAgentData;
 function openBoatComputer(bot) {
   let control = false;
+  const vnc = boatViaVnc();
   const m = openModal(`
     <div class="modal-head"><h2>${tr("{name}'s computer", { name: botLabel(bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body">
@@ -65,13 +69,20 @@ function openBoatComputer(bot) {
   let shown = false, timer = null, open = true;
   const shield = () => {
     $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
+    if (vnc) {
+      // noVNC takes the mouse and keys only when opened with them, as on the account's computer.
+      $('#screen-full', m).href = screenUrl(bot.id, control);
+      const f = $('#screen-frame iframe', m);
+      if (f) f.src = screenUrl(bot.id, control);
+      return;
+    }
     $('#screen-shield', m)?.classList.toggle('hidden', control);
     $('#screen-frame iframe', m)?.setAttribute('tabindex', control ? '0' : '-1'); // no keys reach it by Tab either
   };
   const ask = async () => {
     if (!open) return;
     let d;
-    try { d = await api(`/bots/${bot.id}/computer/desktop`, { method: 'POST' }); } catch (e) {
+    try { d = await api(`/bots/${bot.id}/computer/desktop`, { method: 'POST', ...(vnc ? { body: { via: 'vnc' } } : {}) }); } catch (e) {
       shown = false;
       $('#screen-frame', m).innerHTML = `<div class="screen-off"><div class="big">🖥</div>${esc(e.message)}</div>`;
       $('#screen-control', m).disabled = true;
@@ -89,10 +100,15 @@ function openBoatComputer(bot) {
       timer = setTimeout(ask, 3000);
       return;
     }
-    $('#screen-full', m).href = d.url;
+    $('#screen-full', m).href = vnc ? screenUrl(bot.id, control) : d.url;
     $('#screen-full', m).classList.remove('hidden');
     $('#screen-control', m).disabled = false;
-    if (!shown) {
+    if (!shown && vnc) {
+      shown = true;
+      $('#screen-frame', m).innerHTML = `<iframe src="${screenUrl(bot.id, control)}" title="${esc(tr('Live screen'))}"></iframe>`;
+      keepScreenConnected($('#screen-frame iframe', m));
+      line();
+    } else if (!shown) {
       shown = true;
       $('#screen-frame', m).innerHTML = `<iframe src="${esc(boatFrameUrl(d.url))}" title="${esc(tr('Live screen'))}" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe><div class="screen-shield" id="screen-shield"></div>`;
       shield();

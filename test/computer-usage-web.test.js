@@ -77,7 +77,7 @@ test("web: a bot on boat.dev opens its own machine's desktop and line, with noth
   const boat = cut('function openBoatComputer(', 'function openScreen(');
   assert.doesNotMatch(boat, /screen-reset|screen-update|usage|vnc\.html/, "nothing of the account's computer");
   assert.match(boat, /d\.text/, "the server's words");
-  assert.match(boat, /\/computer\/desktop`, \{ method: 'POST' \}/, 'a new address from the server each time');
+  assert.match(boat, /\/computer\/desktop`, \{ method: 'POST'/, 'a new address from the server each time');
   assert.match(boat, /boatFrameUrl\(d\.url\)/, 'in the frame of its own');
   assert.match(boat, /screen-shield/, 'watching until Take control');
   assert.match(cut('const boatFrameUrl', 'function openBoatComputer('), /\/boat-desktop\.html#u=\$\{encodeURIComponent\(url\)\}/, 'the address in the fragment, never sent to botdot');
@@ -86,4 +86,13 @@ test("web: a bot on boat.dev opens its own machine's desktop and line, with noth
   assert.match(app, /updatePip\(bot, bot\.computer === 'linux' \?/);
   assert.match(app, /ev\.meta\.computer && ev\.meta\.status === 'running' && state\.bots\.find\(\(b\) => b\.id === ev\.meta\.botId\)\?\.computer === 'linux'/);
   assert.match(app, /part\('bot-screen'\)\.classList\.toggle\('hidden', bot\.computer !== 'linux' && bot\.computer !== 'boat'\)/);
+});
+
+test("web: outside Chromium a boat machine's screen is botdot's own viewer, asked with via: vnc, as on the account's computer (ADR 149)", () => {
+  const boat = cut('function openBoatComputer(', 'function openScreen(');
+  assert.match(cut('const boatViaVnc', 'function openBoatComputer('), /state\.features\.includes\('boat-desktop-vnc'\) && !navigator\.userAgentData/, 'Chromium keeps the stream; an older server keeps it too');
+  assert.match(boat, /vnc \? \{ body: \{ via: 'vnc' \} \} : \{\}/);
+  assert.match(boat, /<iframe src="\$\{screenUrl\(bot\.id, control\)\}"/, "botdot's noVNC, watching until Take control");
+  assert.match(boat, /keepScreenConnected\(/);
+  assert.match(boat, /href = vnc \? screenUrl\(bot\.id, control\) : d\.url/, 'full screen is the viewer too');
 });

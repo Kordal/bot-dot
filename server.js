@@ -13,6 +13,7 @@ const fs = require('./lib/principal-fs');
 const path = require('path');
 const { Readable } = require('stream'); // a held request of the Chief's, done on the owner's yes (replayAsChief)
 const B = require('./lib/bots');
+const boatStream = require('./lib/boat-stream');
 const botFiles = require('./lib/bot-files'); // a bot's files, for a held card's title (#235)
 const audit = require('./lib/audit').create(B.DATA_DIR);
 const calls = require('./lib/calls');
@@ -51,7 +52,8 @@ const toolsLib = require('./lib/tools');
 const feed = require('./lib/events');
 // Web Push (issue #87): a browser that turned on "Notifications on this device" is sent what the phone shows, by
 // botdot itself, through the browser's push service (lib/push.js). http endpoints only for the tests' stand-in.
-const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1' });
+// The iOS app's devices get theirs through the project's push relay (lib/apns.js, ADR 150), when its address is set.
+const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1', relay: process.env.BOT_DOT_PUSH_RELAY });
 push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
 const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN });
@@ -293,7 +295,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -336,7 +338,7 @@ async function versionInfo() {
   const u = await updates.status().catch(() => null);
   const revision = u?.version?.revision || GIT_REV;
   // whatsNew: the newest note this version ships, so the front door can say what a waiting update brings (#303).
-  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES, docker: fs.existsSync('/.dockerenv'), boat: B.boatReady(), android: withoutFile(androidApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
+  return { app: 'bot-dot', version: PKG_VERSION, revision, short: revision ? revision.slice(0, 7) : null, apiVersion: API_VERSION, features: [...(UPDATES_BY_ADMIN ? FEATURES.filter((f) => f !== 'updates') : FEATURES), ...(push.relayOn() ? ['apns-push'] : [])], docker: fs.existsSync('/.dockerenv'), boat: B.boatReady(), android: withoutFile(androidApp() || {}), whatsNew: whatsNew.newest(), web: pageStamp() };
 }
 
 // What needs the owner, now: for the feed's first message and to notice changes.
@@ -832,8 +834,9 @@ async function serveScreen(req, res, { botId, rest }) {
     res.writeHead(404);
     return res.end('Not found');
   }
-  // The bot's own screen on the account's computer (#105).
-  const { state } = file === path.join(NOVNC, 'vnc.html') ? await B.computers.screenState(botId) : { state: 'running' };
+  // The bot's own screen on the account's computer (#105), or its External Virtual PC's once botdot's viewer is up there.
+  const boat = B.bots.get(botId)?.computer === 'boat';
+  const { state } = file !== path.join(NOVNC, 'vnc.html') ? { state: 'running' } : boat ? { state: B.boatStream(botId) ? 'running' : 'stopped' } : await B.computers.screenState(botId);
   if (state !== 'running') {
     const why = state === 'off' ? "This bot's screen starts when it first uses its computer." : "This bot's computer is turned off.";
     res.writeHead(503, { 'Content-Type': 'text/html' });
@@ -979,6 +982,20 @@ async function screenSocket(req, socket, head) {
   let sameOrigin = false;
   try { sameOrigin = new URL(origin).host === req.headers.host; } catch { /* no origin */ }
   if (!screen || !/^\/websockify(\?|$)/.test(screen.rest) || gate(req) || !sameOrigin) return socket.destroy();
+  // A boat.dev machine's screen (ADR 149): on to the address boat.dev carries it on, once botdot's viewer is up there.
+  if (B.bots.get(screen.botId)?.computer === 'boat') {
+    const stream = B.boatStream(screen.botId);
+    if (!stream || socket.destroyed) return socket.destroy();
+    const up = boatStream.open(stream, req, head);
+    const close = () => { socket.destroy(); up.destroy(); };
+    up.on('error', close);
+    up.on('close', close);
+    socket.on('error', close);
+    socket.on('close', close);
+    socket.pipe(up);
+    up.pipe(socket);
+    return;
+  }
   // Only to the bot's own screen, once it is on (#105).
   const running = (await B.computers.screenState(screen.botId).catch(() => ({}))).state === 'running';
   if (!running || socket.destroyed) return socket.destroy();

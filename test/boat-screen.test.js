@@ -18,7 +18,7 @@ const SECRET = 'hunter2-pass';
 
 // boat.dev with a machine as far as the screen uses it: the kit on its disk, computer-server and the bridge running
 // until it stops, detached commands, files.
-function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false, bridgeDies = false, silent = 0, unreachable = 0, notReady = 0 } = {}) {
+function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE_SHA : null, kitFails = false, desktopRefuses = false, installing = false, slow = false, bridgeDies = false, vncDies = false, silent = 0, unreachable = 0, notReady = 0 } = {}) {
   const machines = new Map();
   const calls = [];
   let n = 0;
@@ -40,9 +40,10 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
     if (!box) return reply(404, { ok: false, code: 'not_found' });
     if (!m[2] && method === 'GET') return reply(200, { ok: true, sandbox: { id: box.id, state: box.state } });
     if (!m[2] && method === 'PATCH') return reply(200, { ok: true });
-    if (m[2] === 'stop') { Object.assign(box, { state: 'archived', server: false, bridge: false }); return reply(202, { ok: true }); }
+    if (m[2] === 'stop') { Object.assign(box, { state: 'archived', server: false, bridge: false, vnc: false, ws: false }); return reply(202, { ok: true }); }
     if (m[2] === 'resume') { box.state = 'ready'; return reply(202, { ok: true }); }
     if (m[2] === 'files' && method === 'PUT') { box.files.set(data.path, Buffer.from(data.content, data.encoding === 'base64' ? 'base64' : 'utf8').toString()); return reply(200, { ok: true }); }
+    if (m[2] === 'host' && method === 'POST') return reply(200, { ok: true, type: 'port.hosted', success: true, port: data.port, url: `https://swift-otter-9021-${data.port}.on.boat.dev?_token=tok-${box.id}`, isProtected: true, access: 'private', localhost: data.localhost });
     if (m[2] !== 'commands') return reply(400, { ok: false });
     const c = data.command;
     // boat.dev restarted a running machine under botdot (seen live): its commands are refused until it is back.
@@ -51,6 +52,8 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
       if (c.includes('botdot-boat-kit')) box.installing = c.match(/botdot-boat-kit (\S+)/)[1];
       else if (c.includes('computer_server')) box.server = true;
       else if (c.includes('camoufox-browser --serve')) box.bridge = !bridgeDies;
+      else if (c.includes('x11vnc -display :0')) box.vnc = true;
+      else if (c.includes('-m websockify 127.0.0.1:')) box.ws = !vncDies;
       else box.programs.push(c);
       return reply(200, { ok: true, type: 'command.started', processId: 1 });
     }
@@ -69,6 +72,9 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
       if (desktopRefuses) return ran("the machine's desktop (:0) did not let botdot in", 3);
       return ran(`${box.server ? 'server\n' : ''}${box.bridge ? 'bridge\n' : ''}sha ${box.bridgeSha || ''}\n`);
     }
+    if (c.includes("pgrep -f 'x11[v]nc")) return ran(`${box.vnc ? 'vnc\n' : ''}${box.ws ? 'ws\n' : ''}`);
+    if (c.includes('socket.create_connection(("127.0.0.1", 47110)')) return ran('', box.vnc && box.ws ? 0 : 1);
+    if (c.includes('/tmp/botdot-vnc.log')) return ran('==> /tmp/botdot-vnc-ws.log <==\nModuleNotFoundError: No module named \'websockify\'\n');
     if (c.includes('install -m 0755 /tmp/')) { Object.assign(box, { bridgeSha: boatLib.BRIDGE_SHA, bridge: false }); return ran(''); }
     if (c.includes('botdot-bridge.log')) return ran(`${box.bridge ? '' : "Camoufox's bridge is not running\nModuleNotFoundError: No module named 'camoufox'\n"}${box.server ? '' : 'computer-server is not answering\n'}`);
     if (c.includes('test -S /run/botdot-browser/bridge-0.sock')) return ran('', !box.bridge ? 9 : !box.server ? 7 : 0);
@@ -442,4 +448,69 @@ test('a request that took too long is not asked again', async (t) => {
   const r = await boat.request('coder', '/cmd', { command: 'type_text', params: { text: 'once' } });
   assert.equal(r.ok, false);
   assert.equal(box().asked.filter((c) => !c.includes("'/status'")).length, 1, 'typed once');
+});
+
+// The owner's screen through botdot's own viewer (ADR 149), for a browser that can't show boat.dev's stream.
+
+test("botdot's viewer of a boat machine: its screen, x11vnc and websockify on the machine's loopback, carried by boat.dev to an address only botdot holds", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  let now = 1e6;
+  const logged = [];
+  const warn = console.warn, log = console.log;
+  console.warn = (...a) => logged.push(a.join(' ')); console.log = (...a) => logged.push(a.join(' '));
+  t.after(() => { console.warn = warn; console.log = log; });
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION }, { now: () => now, restAfterMs: 30 * 60_000 });
+  assert.deepEqual(await boat.vncScreen('coder'), { starting: true }, 'no machine yet: it starts in the background');
+  await settle(() => boat.isUp('coder'));
+  assert.equal(boat.vncStream('coder'), null);
+  assert.deepEqual(await boat.vncScreen('coder'), { starting: true }, 'its screen starts in the background');
+  await settle(() => boat.vncStream('coder'));
+  assert.deepEqual(boat.vncStream('coder'), { host: 'swift-otter-9021-47110.on.boat.dev', token: `tok-${[...b.machines.keys()][0]}` });
+  assert.deepEqual(await boat.vncScreen('coder'), {});
+  const started = b.commands().filter((c) => c.detached).map((c) => c.command);
+  assert.ok(started.some((c) => c.includes('computer_server')), 'the screen first');
+  const vnc = started.find((c) => c.includes('x11vnc'));
+  assert.match(vnc, /x11vnc -display :0 -localhost -rfbport 5911 -shared -forever -nopw/, 'x11vnc on the loopback alone');
+  assert.match(started.find((c) => c.includes('websockify')), /-m websockify 127\.0\.0\.1:47110 127\.0\.0\.1:5911$/, 'websockify too');
+  const hosted = b.calls.filter((c) => c.path.endsWith('/host'));
+  assert.equal(hosted.length, 1);
+  assert.deepEqual([hosted[0].method, hosted[0].body.port, hosted[0].body.localhost, hosted[0].body.public], ['POST', 47110, true, undefined], 'gated by its token, never public');
+  await boat.vncScreen('coder');
+  assert.equal(b.commands().filter((c) => c.detached).length, started.length, 'once up, an ask starts nothing again');
+  assert.ok(!logged.some((l) => l.includes('tok-')), 'the token is never logged');
+  now += 20 * 60_000;
+  await boat.vncScreen('coder');
+  now += 20 * 60_000;
+  assert.deepEqual(await boat.restIdle(), [], 'watching counts as use');
+  now += 31 * 60_000;
+  assert.deepEqual(await boat.restIdle(), ['coder']);
+  assert.equal(boat.vncStream('coder'), null, 'a stopped machine has no screen to pass on to');
+  assert.deepEqual(await boat.vncScreen('coder'), { starting: true });
+  await settle(() => boat.isUp('coder'));
+  await boat.vncScreen('coder');
+  await settle(() => boat.vncStream('coder'));
+  assert.equal(b.commands().filter((c) => c.detached && c.command.includes('x11vnc')).length, 2, 'started again with the machine');
+});
+
+test("a viewer of a boat machine that doesn't come up says why once, with the end of its logs, and the next ask tries again", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  let now = 1e6;
+  const sleep = async (ms) => { now += ms; };
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION, vncDies: true }, { now: () => now, sleep });
+  await boat.vncScreen('coder');
+  await settle(() => boat.isUp('coder'));
+  assert.deepEqual(await boat.vncScreen('coder'), { starting: true });
+  let said = null;
+  for (let i = 0; i < 200 && !said; i++) { await new Promise((r) => setImmediate(r)); said = await boat.vncScreen('coder').then(() => null, (e) => e.message); }
+  assert.match(said, /your machine's screen didn't start in time: .*No module named 'websockify'/s);
+  assert.ok(!b.calls.some((c) => c.path.endsWith('/host')), 'nothing carried for a screen that is not up');
+  assert.deepEqual(await boat.vncScreen('coder'), { starting: true }, 'the next ask starts it again');
+});
+
+test('the kit installs x11vnc and websockify for botdot\'s viewer', () => {
+  const kit = fs.readFileSync(path.join(ROOT, 'deploy', 'desktop', 'botdot-boat-kit'), 'utf8');
+  assert.match(kit, /apt-get install [^\n]*x11vnc/);
+  assert.match(kit, /\/opt\/computer-server\/venv\/bin\/pip install --no-cache-dir 'websockify==0\.13\.0'/);
 });
