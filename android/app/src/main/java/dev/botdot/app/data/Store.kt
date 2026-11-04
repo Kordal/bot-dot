@@ -398,10 +398,7 @@ data class Needs(
  * One thing that waits for the owner, as home's Needs you rows show it. [permission]: the id of a permission a bot asks
  * for, whose row says all there is to it, so the row itself answers it with No and Allow; anything else opens Needs you.
  */
-data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null, val permission: String? = null, val group: String? = null) {
-    /** The chat its card stands in: the group it was asked in ("group:<id>"), else its bot's; null: the Chief's. */
-    val chat: String? get() = group?.let { "group:$it" } ?: bot
-}
+data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null, val permission: String? = null, val group: String? = null)
 
 private const val NO_COLOR = "#888780" // the grey of a bot without a colour (FigureDef.GREY)
 

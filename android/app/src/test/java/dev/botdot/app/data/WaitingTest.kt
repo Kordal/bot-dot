@@ -56,7 +56,7 @@ class WaitingTest {
         val ask = Ask(id = "a1", kind = "permission", permission = "files", bot = BotRef(id = "b1", name = "Coder"))
         val group = kotlinx.serialization.json.JsonPrimitive("g1")
         val rows = waitingOf(listOf(coder.copy(jobs = emptyList())), null, Needs(asks = listOf(ask, ask.copy(id = "a2", groupIdValue = group))), null)
-        assertEquals(listOf("b1", "group:g1"), rows.map { it.chat })
+        assertEquals(listOf("b1" to null, "b1" to "g1"), rows.map { it.bot to it.group })
         assertEquals(listOf("a1", "a2"), rows.map { it.permission })
     }
 

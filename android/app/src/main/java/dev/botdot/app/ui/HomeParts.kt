@@ -247,12 +247,12 @@ internal val HOME_TILES: String get() = tr("Tiles on home")
 /**
  * Needs you over the keys (#636): one warm card, a row per thing that waits, its bot's head and what it wants. A
  * permission a bot asks for is all its row says, so the row answers it with No and Allow ([onAnswer]: its id and the
- * answer); a tap on its words opens the chat its card stands in ([onChat]: [dev.botdot.app.data.Waiting.chat]), where
+ * answer); a tap on its words opens the chat its card stands in ([onChat]: the group it was asked in, else its bot's), where
  * the card says what it is about. A tap on any other row opens Needs you ([onReview]), where its card shows the rest.
  * The first [NEEDS_ROWS] rows, then how many more.
  */
 @Composable
-internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (String) -> dev.botdot.app.data.Spaces.Space? = { null }, onReview: () -> Unit, onChat: (String) -> Unit = { onReview() }, onAnswer: (String, Boolean) -> Unit) {
+internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (String) -> dev.botdot.app.data.Spaces.Space? = { null }, onReview: () -> Unit, onChat: (dev.botdot.app.data.Waiting) -> Unit = { onReview() }, onAnswer: (String, Boolean) -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
     val chief = chiefNamed()
@@ -266,7 +266,7 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (S
             Spacer(Modifier.size(10.dp))
             Box(Modifier.size(6.dp).clip(CircleShape).background(p.warn)) // what was the tinted frame (#723)
             Spacer(Modifier.size(Space.s8))
-            val words = if (w.permission == null) Modifier else Modifier.clip(Radius.small).clickable(onClickLabel = w.text) { w.chat?.let(onChat) ?: onReview() }
+            val words = if (w.permission == null) Modifier else Modifier.clip(Radius.small).clickable(onClickLabel = w.text) { onChat(w) }
             Text(w.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).then(words))
             // An ask from a project's bot, on Home (#841): that project's small square.
             w.bot?.let(projectOf)?.let { s -> Box(Modifier.padding(start = Space.s8).semantics { contentDescription = s.name }) { SpaceSquare(s.name, s.color, 18.dp) } }
