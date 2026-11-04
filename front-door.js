@@ -59,6 +59,7 @@ const roomTurns = require('./lib/front-door/room-turns');
 const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
+const installKeys = require('./lib/front-door/install-keys');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
 const auditStore = require('./lib/front-door/audit');
@@ -830,6 +831,26 @@ function handBoat(changed = false) {
 if (boat) {
   setTimeout(() => handBoat(), 3000).unref();
   setInterval(() => handBoat(), Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
+}
+// The keys the installer took (install.sh, lib/front-door/install-keys.js): taken when the front door starts and, should
+// an install leave them while it runs, within a minute.
+function takeInstallKeys() {
+  const took = installKeys.take(DATA, { groupRouter, boat });
+  if (!took) return;
+  if (took.openrouter) {
+    console.log('[front door] the installer chose Jev as the decision model');
+    audited('decision-model', { detail: 'Jev, a new key · from the installer' });
+    handRouter();
+  }
+  if (took.boat) {
+    console.log('[front door] the installer set the boat.dev key');
+    audited('boat-key-set', { detail: 'from the installer' });
+    handBoat(true);
+  }
+}
+if (groupRouter || boat) {
+  takeInstallKeys();
+  setInterval(takeInstallKeys, 60_000).unref();
 }
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();
