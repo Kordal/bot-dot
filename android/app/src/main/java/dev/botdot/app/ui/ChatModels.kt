@@ -67,6 +67,15 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
     /** The owner's messages that wait until the bot is free, oldest first: the server's list (`queued` on the bot). */
     var queued by mutableStateOf<List<Queued>>(emptyList())
         private set
+    /**
+     * The owner's messages whose turn came: they left [queued], and their runs (the same ids) are not in the chat yet,
+     * which reads them again only after the feed said so. Drawn as they stood until then, without buttons: a message
+     * never leaves the chat in between.
+     */
+    private var starting by mutableStateOf<List<Queued>>(emptyList())
+    val started: List<Queued> by derivedStateOf { stillStarting(starting, all) }
+    private val takenBack = HashSet<String>() // the messages this chat took back: they leave the list without starting
+    private val taking = HashSet<String>() // being taken back now
     var waiting by mutableStateOf<List<InboxNote>>(emptyList()) // notes for its next run
         private set
     var loaded by mutableStateOf(false)
@@ -114,7 +123,15 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         viewModelScope.launch { app.api.filterNotNull().first(); load() }
         // What waits for it, from the list of bots the app keeps: fetched while this chat looks at it, and put in
         // place there whenever the feed's `queued` event says the list changed (Store).
-        viewModelScope.launch { app.store.bots.value.collect { bots -> bots?.firstOrNull { it.id == botId }?.let { queued = it.queued } } }
+        viewModelScope.launch {
+            app.store.bots.value.collect { bots ->
+                bots?.firstOrNull { it.id == botId }?.let { b ->
+                    val left = leftQueue(starting, queued, b.queued, taking + takenBack)
+                    queued = b.queued
+                    if (left.size > starting.size) { starting = left; viewModelScope.launch { findStarted() } }
+                }
+            }
+        }
         // What changed for this bot: its newest runs again, once a burst is over.
         viewModelScope.launch {
             app.feed.events.collect { ev ->
@@ -141,6 +158,18 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
             }
         }
         viewModelScope.launch { kicks.debounce(250).collect { refresh() } }
+    }
+
+    /** The runs of the messages that started, into the chat: one botdot has no run for (taken back elsewhere) goes. */
+    private suspend fun findStarted() {
+        refresh()
+        val a = app.api.value
+        for (q in stillStarting(starting, all)) {
+            val run = runCatching { a?.run(q.id) }.getOrNull()
+            if (run != null && run.id == q.id && !run.isQueued) all = withAnswer(all, run)
+            else starting = starting.filterNot { it.id == q.id }
+        }
+        starting = stillStarting(starting, all)
     }
 
     /** The newest page, from scratch. */
@@ -225,8 +254,6 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         app.store.bots.update { bots -> bots.map { if (it.id == botId) it.copy(queuedValue = withWaiting(it.queuedValue, q)) else it } }
     }
 
-    private val taking = HashSet<String>()
-
     /**
      * "Take back" on a message that waits: it leaves the server, and its text and files are in the message box
      * again, as after a failed send. When it has started meanwhile, the box's line says so and the chat shows its run.
@@ -236,7 +263,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         val taken = app.scope.async { outbox.takeBack { (app.api.value ?: throw ApiException(NOT_CONNECTED)).takeBack(botId, q.id) } }
         viewModelScope.launch {
             // Gone from the list the app keeps, before the server's list says so: this chat's follows it.
-            if (taken.await()) app.store.bots.update { all -> all.map { if (it.id == botId) it.copy(queuedValue = without(it.queuedValue, q.id)) else it } }
+            if (taken.await()) { takenBack.add(q.id); app.store.bots.update { all -> all.map { if (it.id == botId) it.copy(queuedValue = without(it.queuedValue, q.id)) else it } } }
             taking.remove(q.id)
             refresh(); app.store.bots.refresh()
         }
@@ -638,6 +665,19 @@ internal val WORKING: String get() = tr("Working…")
 
 /** A chat's working line: the line it has ([line], "" for none), or "Working…" while a message of the owner's is on its way ([sent]). */
 internal fun lineWith(line: String, sent: SentMessage?): String = line.ifEmpty { if (sent != null) WORKING else "" }
+
+/**
+ * What waits for a bot's chat to draw its run: [starting] with each message that left the list ([had] then [now]) without
+ * being taken back ([takenBack]): its turn came.
+ */
+internal fun leftQueue(starting: List<Queued>, had: List<Queued>, now: List<Queued>, takenBack: Set<String>): List<Queued> {
+    val ids = now.mapTo(HashSet()) { it.id }
+    return starting + had.filter { q -> q.id !in ids && q.id !in takenBack && starting.none { it.id == q.id } }
+}
+
+/** Those of [starting] whose run is not among [runs] yet: a run with its id, or one it was steered into. */
+internal fun stillStarting(starting: List<Queued>, runs: List<Run>): List<Queued> =
+    starting.filter { q -> runs.none { r -> (r.id == q.id && !r.isQueued) || r.steered.any { it.id == q.id } } }
 
 /** The owner's own messages among a bot's [runs] and those that wait for it: what [SentMessage.unlessIn] looks through. */
 internal fun ownWords(runs: List<Run>, queued: List<Queued>): List<Queued> =

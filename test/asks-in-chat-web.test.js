@@ -19,10 +19,11 @@ function page() {
     notesFoldHTML: () => '', filesHTML: () => '', botFilesHTML: () => '', copyBtn: () => '',
     escMentions: (t) => esc(t), md: (t) => esc(t), learnedChips: () => '', questionsHTML: () => '',
     choicesHTML: (c) => (c ? `<div class="choices">${c.map(esc).join('|')}</div>` : ''),
-    plain: (t) => String(t ?? ''), fmtTime: () => '09:41', runFigure: () => '', statusPill: () => '', renderBotChat: () => {}, pages: [],
+    plain: (t) => String(t ?? ''), fmtTime: () => '09:41', runFigure: () => '', statusPill: () => '', renderBotChat: () => {}, pages: [], asked: [], redrawn: 0,
+    redrawBotChat: () => { ctx.redrawn++; },
   });
-  ctx.api = (url) => Promise.resolve(ctx.pages.shift() || []);
-  vm.runInContext(`${cut('const ENDED_BY = {', 'function detailsInfo(meta) {')}\n${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\n${cut('// The run a bot\'s chat reaches back to', '// The plan under a reply that is done')}\nObject.assign(this, { botThreadHTML, chatBack, chatRuns, reachNew });`, ctx);
+  ctx.api = (url) => { ctx.asked.push(url); return Promise.resolve(ctx.pages.shift() || []); };
+  vm.runInContext(`${cut('const ENDED_BY = {', 'function detailsInfo(meta) {')}\n${cut('function messagedLabel(r) {', '// Notes other bots left')}\n${cut('function botThreadHTML(bot, runs, newFirst = null) {', '// "Run now" under the notes that wait')}\n${cut('// The run a bot\'s chat reaches back to', '// The plan under a reply that is done')}\nObject.assign(this, { botThreadHTML, chatBack, chatRuns, reachNew, readOwnRuns });`, ctx);
   return ctx;
 }
 
@@ -54,4 +55,33 @@ test('web: the chat reads back to the run its open question is from when the pag
   ctx.reachNew('iw', 'old');
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(ctx.chatRuns('iw', 'old').map((r) => r.id), ['old'], 'the question is in the chat');
+});
+
+test('web: a bot\'s chat reads its own newest runs: other bots\' runs do not push the owner\'s messages out of it', async () => {
+  const ctx = page();
+  // The page's newest runs of all bots hold none of this bot's: a busy account's other bots (their jobs, quiet ones too).
+  ctx.state.runs = [run('x', 50, { botId: 'other' })];
+  assert.deepEqual([...ctx.chatRuns('iw', null)].map((r) => r.id), [], 'read, with no "New" line: the chat was empty');
+  ctx.pages.push([run('mine', 2, { prompt: "Why I don't see those files?" }), run('quiet', 1, { quiet: true })]);
+  ctx.readOwnRuns('iw');
+  assert.deepEqual([...ctx.asked], ['/runs?botId=iw&limit=40']);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual([...ctx.chatRuns('iw', null)].map((r) => r.id), ['mine'], 'its own run is in its chat; a quiet one is not');
+  assert.equal(ctx.redrawn, 1, 'the chat is drawn again');
+  // The page's copy of a run it holds is the newest: it stands once.
+  ctx.state.runs = [run('mine', 2, { status: 'running', result: null }), run('x', 50, { botId: 'other' })];
+  assert.deepEqual([...ctx.chatRuns('iw', null)].map((r) => [r.id, r.status]), [['mine', 'running']]);
+  // Read again with nothing new: not drawn again. Another bot's chat does not take them.
+  ctx.pages.push([run('mine', 2, { prompt: "Why I don't see those files?" }), run('quiet', 1, { quiet: true })]);
+  ctx.readOwnRuns('iw');
+  await new Promise((r) => setImmediate(r));
+  assert.equal(ctx.redrawn, 1);
+  assert.deepEqual([...ctx.chatRuns('other', null)].map((r) => r.id), ['x']);
+  // A chat that was left meanwhile does not keep what came for it.
+  ctx.pages.push([run('late', 3)]);
+  ctx.readOwnRuns('iw');
+  ctx.state.botId = 'other';
+  await new Promise((r) => setImmediate(r));
+  ctx.state.botId = 'iw';
+  assert.ok(![...ctx.chatRuns('iw', null)].some((r) => r.id === 'late'));
 });
