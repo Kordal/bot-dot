@@ -231,7 +231,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * and an irreversible step on a bot's computer (`computer-step=1`, ADR 107) too:
      * this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1"))
+    /** The secret a bot asks to save in the Vault (`vault-save`, ADR 153), read on the owner's Show only. */
+    suspend fun askSecret(id: String): String =
+        json.parseToJsonElement(get("/asks/${enc(id)}/secret")).jsonObject["value"]?.jsonPrimitive?.contentOrNull.orEmpty()
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))

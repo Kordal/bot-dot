@@ -6,7 +6,7 @@ const { startServer, makeBot, heldRun, self, waitFor, feed } = require('./helper
 const asksLib = require('../lib/asks');
 
 let srv; let bot;
-const ALL = '/asks?override=1&vault-switch=1&vault-remove=1&vault-file=1&chief-action=1';
+const ALL = '/asks?override=1&vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&chief-action=1';
 const cards = async () => (await srv.api(ALL)).data;
 const idle = () => waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.every((r) => !['running', 'queued'].includes(r.status)), { what: 'its runs to end' });
 const override = (token, action) => self(srv, token, 'ask', { kind: 'override', rule: 'Never touch the config', action, reason: 'The owner asked.' });

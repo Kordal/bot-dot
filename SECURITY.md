@@ -114,7 +114,10 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   runs out of time, and at most 64 KB. A secret the owner allowed on a card to be kept in a file
   (`place_secret_file`, [ADR 051](docs/adr/051-the-owner-may-keep-a-vault-secret-in-a-file.md)) stays on
   disk where botdot wrote it, readable by every bot on the computer, until the owner removes it on the
-  Vault page; the bot never sees its value. The Vault's "Usable in its computer" card and its file dialog
+  Vault page; the bot never sees its value. A secret a bot asks to save in the Vault (`save_to_vault`,
+  [ADR 153](docs/adr/153-a-bot-saves-a-secret-in-the-vault-on-the-owners-yes.md)) is read by botdot from a
+  file on the computer, or made by botdot, never passed in the bot's call; it waits encrypted on the
+  owner's card, which alone can show it, and is saved only on their yes. The Vault's "Usable in its computer" card and its file dialog
   say that every bot on the account's computer can read it. Saved logins used through
   `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
   gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).

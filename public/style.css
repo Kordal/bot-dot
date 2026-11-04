@@ -838,6 +838,8 @@ dialog.wide { width: min(1080px, calc(100% - 24px)); }
 .row.one { grid-template-columns: 1fr; } /* a Vault item of type Other: the secret alone, across the form */
 label.field { display: grid; gap: var(--sp-8); font-size: var(--fs-12); font-weight: 400; color: var(--muted); }
 label.field .hint { font-weight: 400; color: var(--faint); }
+.secret-input { display: flex; gap: var(--sp-8); align-items: flex-start; min-width: 0; }
+.secret-input > input, .secret-input > textarea { flex: 1; min-width: 0; }
 /* Feedback (settings.js, openFeedback; #216): Bug or Feature request, and a send that failed, said in its colour. */
 .feedback-kinds { display: flex; gap: var(--sp-16); font-size: var(--fs-14); }
 .feedback-kinds label { display: flex; align-items: center; gap: var(--sp-8); cursor: pointer; }
@@ -922,6 +924,9 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .need-card.need-rows:not(.open) .need-facts dd:nth-child(-n+6) { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .need-card.need-rows.open .need-facts dd { white-space: pre-wrap; }
 .need-card:not(.open) .need-body ~ .need-part { display: none; }
+.need-secret { display: flex; align-items: center; gap: var(--sp-8); margin-top: var(--sp-8); min-width: 0; }
+.need-secret-label { color: var(--muted); font-size: var(--fs-12); }
+.need-secret code { flex: 1; min-width: 0; overflow-wrap: anywhere; user-select: all; }
 /* A changed text of a bot is one block: what goes, struck, above what comes. Closed, the block shows the start
    of both: two lines of the old text, three of the new. */
 .need-change .nb + .nb { margin-top: var(--sp-8); }

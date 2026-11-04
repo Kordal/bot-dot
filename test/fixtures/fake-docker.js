@@ -9,6 +9,7 @@
 //   private     `docker pull` fails until `docker login` got the token in good-token
 //   good-token  the token `docker login --password-stdin` accepts
 //   missing     the image `docker pull` can't download now
+//   labels.txt  what `docker inspect` of the account computer's labels prints, e.g. 2|2
 //
 // For the image cleanup (lib/image-cleanup.js), host.json in $FAKE_DOCKER_OUT is a small Docker host:
 //   images      [{ Id, RepoTags, RepoDigests, Labels }]
@@ -102,6 +103,8 @@ if (fs.existsSync(hostFile) && (['ps'].includes(args[0]) || args[0] === 'image' 
   process.exit(0);
 }
 
+// The labels of the account's computer (lib/computers.js labels()) are in labels.txt, where a test gives them.
+if (args[0] === 'inspect' && args.some((a) => a.includes('botdot.network-version')) && has('labels.txt')) { process.stdout.write(fs.readFileSync(path.join(OUT, 'labels.txt'), 'utf8')); process.exit(0); }
 const answer = args[0] === 'inspect' ? 'inspect.json' : args[0] === 'image' && args[1] === 'inspect' ? 'image.json' : args[0] === 'exec' ? 'exec.txt' : null;
 if (answer) {
   try { process.stdout.write(fs.readFileSync(path.join(OUT, answer), 'utf8')); } catch { /* nothing to say */ }

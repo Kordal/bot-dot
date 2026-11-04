@@ -201,11 +201,12 @@ function needCardHTML(x, here = null) {
   // secrets a bot asks to keep in a file (`vault-file`, #253): the secrets, the file, and who can read it there. A rule a bot
   // asks to lift (`override`) too, with the server's second yes, `always`, between the two. And an irreversible step on
   // a bot's computer (`computer-step`, ADR 107): the site, the control and what the page says of it.
-  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove' || x.a.kind === 'vault-file' || x.a.kind === 'override' || x.a.kind === 'computer-step')) {
+  // A secret a bot asks to save in the Vault (`vault-save`, ADR 153) too, with its secret hidden until Show.
+  if (x.kind === 'ask' && (x.a.kind === 'vault-switch' || x.a.kind === 'vault-remove' || x.a.kind === 'vault-save' || x.a.kind === 'vault-file' || x.a.kind === 'override' || x.a.kind === 'computer-step')) {
     const warning = said(x.a.warning);
     const always = x.a.kind === 'override' ? said(x.a.always) : '';
     return card(esc(said(x.a.title)), esc(said(x.a.reason)),
-      `${partsHTML(x.a.parts)}${warning ? `<div class="need-body need-warn" role="note"><div class="nb">⚠️ ${esc(warning)}</div></div>` : ''}`,
+      `${partsHTML(x.a.parts)}${secretHTML(x.a.secret)}${warning ? `<div class="need-body need-warn" role="note"><div class="nb">⚠️ ${esc(warning)}</div></div>` : ''}`,
       `<button class="btn sm" data-need-no>${tr('Decline')}</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}<button class="btn sm primary" data-need-yes>${esc(said(x.a.yes) || tr('Allow'))}</button>`, 'need-rows');
   }
   // An action in a connected app: the server's title, whether its run still waits for the answer, and the action's
@@ -407,6 +408,19 @@ function approveAll(open) {
 // so, as a server from before `decline-words` sends it. A button that reads the server's words asks nothing.
 const asksBeforeNo = (x) => x.kind === 'job' && !changeOf(x.job) && !said(x.job.no);
 
+// The secret a yes saves (`secret` of a `vault-save` ask): hidden, and read from the server on Show, only while shown.
+const secretHTML = (s) => (s && typeof s === 'object' ? `<div class="need-secret"><span class="need-secret-label">${esc(said(s.label))}</span><code class="mono" data-need-secret>••••••••</code><button type="button" class="btn sm ghost" data-need-show data-show="${esc(said(s.show))}" data-hide="${esc(said(s.hide))}">${esc(said(s.show))}</button></div>` : '');
+async function toggleSecret(x, button, el) {
+  const out = $('[data-need-secret]', el);
+  if (button.dataset.shown) { out.textContent = '••••••••'; delete button.dataset.shown; button.textContent = button.dataset.show; return; }
+  try {
+    const { value } = await api(`/asks/${encodeURIComponent(x.a.id)}/secret`);
+    out.textContent = value;
+    button.dataset.shown = '1';
+    button.textContent = button.dataset.hide;
+  } catch (e) { toast(e.message, true); }
+}
+
 // What changes on a bot (an ask's `parts`), in the server's order. A text that changes (it has `was`) is one
 // block: what goes, struck, above what comes, so that a closed card shows the start of both. Anything else is a
 // row of its label and what it becomes. One changed text is named by the card's title; several each stand under
@@ -506,6 +520,8 @@ function wireNeedCards(root, items) {
     if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => answerNeed(x, false, no);
     if (op) op.onclick = () => openNeed(x);
+    const show = $('[data-need-show]', el);
+    if (show) show.onclick = () => toggleSecret(x, show, el);
     el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
   });
 }
@@ -687,6 +703,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').catch(() => state.asks);
   await refresh();
 }

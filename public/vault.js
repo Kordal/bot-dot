@@ -54,11 +54,25 @@ function vaultTypeFields(type, { username = '', isNew = true } = {}) {
   const t = VAULT_TYPES[vaultType(type)];
   const keep = isNew ? '' : ` <span class="hint">${tr('leave empty to keep the current one')}</span>`;
   const secret = t.multiline
-    ? `<label class="field">${t.secret}${keep}<textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${isNew ? ' required' : ' placeholder="••••••••"'}></textarea></label><label class="field">${tr('Or pick its file')}<input type="file" name="secretFile"></label>`
-    : `<label class="field">${t.secret}${keep}<input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}></label>`;
+    ? `<label class="field">${t.secret}${keep}<span class="secret-input"><textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${isNew ? ' required' : ' placeholder="••••••••"'}></textarea>${revealButton()}</span></label><label class="field">${tr('Or pick its file')}<input type="file" name="secretFile"></label>`
+    : `<label class="field">${t.secret}${keep}<span class="secret-input"><input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}>${revealButton()}</span></label>`;
   const user = t.username ? `<label class="field">${t.username}${t.optional ? ` <span class="hint">${tr('optional')}</span>` : ''}${t.hint ? ` <span class="hint">${t.hint}</span>` : ''}<input type="text" name="username" value="${esc(username)}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>` : '';
   // A secret of several lines takes the form's width, under its username.
   return `<div class="row${!t.username || t.multiline ? ' one' : ''}" data-type-fields>${user}${secret}</div>`;
+}
+
+// Show and Hide beside a secret the owner types: they see what they typed. One listener on the form, for its field
+// also when it is drawn again for another type (wireVaultType).
+const revealButton = () => `<button type="button" class="btn sm ghost" data-reveal aria-pressed="false">${tr('Show')}</button>`;
+function revealOnClick(e) {
+  const button = e.target.closest?.('[data-reveal]');
+  if (!button) return;
+  e.preventDefault();
+  const field = button.parentElement.querySelector('input, textarea');
+  const shown = button.getAttribute('aria-pressed') !== 'true';
+  if (field.tagName === 'TEXTAREA') field.classList.toggle('masked', !shown); else field.type = shown ? 'text' : 'password';
+  button.setAttribute('aria-pressed', String(shown));
+  button.textContent = shown ? tr('Hide') : tr('Show');
 }
 
 // A secret of several lines read from its file, as it is: its line breaks too.
@@ -78,6 +92,7 @@ function wireSecretFile(form) {
 // address (a GitHub App's api.github.com) fills an empty address field.
 function wireVaultType(form, { username = '', isNew = true } = {}) {
   let kept = username;
+  form.addEventListener('click', revealOnClick);
   wireSecretFile(form);
   form.type.onchange = () => {
     if (form.username) kept = form.username.value;
