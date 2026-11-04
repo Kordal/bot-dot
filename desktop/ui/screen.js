@@ -5,8 +5,8 @@ const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
 const WORDS = {
-  en: { address: 'botdot address', go: 'Continue', invalid: "That's not a botdot address.", unreachable: "Can't reach botdot there.", failed: "The sign-in didn't finish. Try again.", here: 'Run botdot on this Mac', small: 'This Mac needs at least 12 GB of memory and 40 GB of free disk.', setting: 'Setting up botdot…', passkey: 'Make your passkey in the browser.', stopped: "botdot didn't start on this Mac. Try again." },
-  pl: { address: 'Adres botdota', go: 'Dalej', invalid: 'To nie jest adres botdota.', unreachable: 'Nie mogę połączyć się z botdotem pod tym adresem.', failed: 'Logowanie się nie udało. Spróbuj jeszcze raz.', here: 'Uruchom botdota na tym Macu', small: 'Ten Mac potrzebuje co najmniej 12 GB pamięci i 40 GB wolnego miejsca.', setting: 'Konfiguruję botdota…', passkey: 'Utwórz klucz dostępu w przeglądarce.', stopped: 'Botdot nie uruchomił się na tym Macu. Spróbuj jeszcze raz.' },
+  en: { address: 'botdot address', go: 'Continue', invalid: "That's not a botdot address.", unreachable: "Can't reach botdot there.", failed: "The sign-in didn't finish. Try again.", here: 'Run botdot on this Mac', small: 'This Mac needs at least 12 GB of memory and 40 GB of free disk.', setting: 'Installing botdot and what it needs…', passkey: 'Make your passkey in the browser.', stopped: "botdot didn't start on this Mac. Try again." },
+  pl: { address: 'Adres botdota', go: 'Dalej', invalid: 'To nie jest adres botdota.', unreachable: 'Nie mogę połączyć się z botdotem pod tym adresem.', failed: 'Logowanie się nie udało. Spróbuj jeszcze raz.', here: 'Uruchom botdota na tym Macu', small: 'Ten Mac potrzebuje co najmniej 12 GB pamięci i 40 GB wolnego miejsca.', setting: 'Instaluję botdota i to, czego potrzebuje…', passkey: 'Utwórz klucz dostępu w przeglądarce.', stopped: 'Botdot nie uruchomił się na tym Macu. Spróbuj jeszcze raz.' },
 };
 // On Windows the computer is a PC, and WSL may need a restart first.
 const PC = {
@@ -29,10 +29,11 @@ address.setAttribute('aria-label', words.address);
 go.textContent = words.go;
 here.textContent = words.here;
 
-// While the setup runs, one line says what it is doing.
-function setting(text) {
+// While the setup runs, one plain line and a spinner; the installer's own lines show only when it fails.
+function setting(text, busy = true) {
   form.hidden = true;
   line.textContent = text;
+  line.classList.toggle('busy', busy);
   line.hidden = false;
 }
 
@@ -66,9 +67,9 @@ here.addEventListener('click', async () => {
   }
 });
 
-listen('local-line', ({ payload }) => setting(payload));
+listen('local-line', () => setting(words.setting));
 listen('local-passkey', () => {
-  setting(words.passkey);
+  setting(words.passkey, false);
   form.hidden = false;
   address.hidden = go.hidden = true;
 });
@@ -78,7 +79,7 @@ listen('local-failed', ({ payload }) => {
   last.textContent = payload.join('\n');
   last.hidden = !payload.length;
 });
-listen('local-restart', () => setting(words.restart));
+listen('local-restart', () => setting(words.restart, false));
 listen('sign-in-failed', () => {
   ended();
   address.hidden = go.hidden = false;
