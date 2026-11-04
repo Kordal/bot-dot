@@ -313,7 +313,7 @@
       ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
       : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
     const more = items.length - shown.length;
-    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
+    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
   }
   const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c]);
 
@@ -451,7 +451,7 @@
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
     const box = $('.sp-needs', root);
-    if (box) wireNeedRows(box, asks, openNeed);
+    if (box) wireNeedRows(box, asks, openNeed, openNeedInChat);
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));

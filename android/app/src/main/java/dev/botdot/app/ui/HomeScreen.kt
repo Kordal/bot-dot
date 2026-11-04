@@ -330,7 +330,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
         BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
-        if (needs > 0) NeedsRows(waiting, projectOf = { spaceOfBot[it] }, onReview = onNeedsYou, onAnswer = { id, yes ->
+        if (needs > 0) NeedsRows(waiting, projectOf = { spaceOfBot[it] }, onReview = onNeedsYou, onChat = { w -> w.group?.let(onGroup) ?: w.bot?.let(onBot) ?: onNeedsYou() }, onAnswer = { id, yes ->
             scope.launch {
                 runCatching { (api ?: throw ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }
                     .onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't answer"), android.widget.Toast.LENGTH_LONG).show() }

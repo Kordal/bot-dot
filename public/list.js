@@ -388,11 +388,12 @@ function wireKeyDrags(pages, all, keys) {
 // Needs you on the keypad and on a phone (#635): one row per thing that waits, at most three, then "+N more", which
 // opens the Needs you page. A row has its bot's head, its name and what it wants (needLine). A plain yes or no that the
 // row says whole (answersInline, needs.js) has No and Allow, answered as its card's buttons answer it; anything else
-// has Review, which opens it as its card does (`open`: needs.js, openNeed). The keys of the bots `waits` holds (all that
+// has Review, which opens it as its card does (`open`: needs.js, openNeed). A row's words open it too (`see`: needs.js,
+// openNeedInChat), a No and Allow row's at its card in its chat. The keys of the bots `waits` holds (all that
 // waits, also while the rows are not shown on the Needs you page) have the amber dot, so they are drawn again when
 // those bots change.
 const NEED_ROWS = 3;
-function drawKeypadNeeds(items, open, waits = items) {
+function drawKeypadNeeds(items, open, waits = items, see = open) {
   const shown = items.slice(0, NEED_ROWS);
   const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
   const acts = (x, i) => (answersInline(x)
@@ -402,21 +403,22 @@ function drawKeypadNeeds(items, open, waits = items) {
   // An ask from a project's bot carries that project's small square on Home (#838).
   const of = Keypad.projectOf(spaceProjects());
   const square = (x) => { const p = of.get(x.bot?.id); return p ? `<span class="kp-proj" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(p.name || p.start || '')}">${esc((p.name || p.start || '?').charAt(0).toUpperCase())}</span>` : ''; };
-  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${square(x)}${acts(x, i)}</div>`).join('')
+  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${square(x)}${acts(x, i)}</div>`).join('')
     + (more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : '');
   for (const id of ['#kp-needs', '#kp-phone-needs']) {
     const el = $(id);
     if (!el) continue;
     el.classList.toggle('hidden', !items.length);
     el.innerHTML = html;
-    wireNeedRows(el, shown, open);
+    wireNeedRows(el, shown, open, see);
   }
   const waiting = needsBots(waits);
   if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; renderContacts(); }
 }
 // A Needs you row's buttons (drawKeypadNeeds, and a project's own Needs you in company-home.js): No and Allow
-// answer it, Review opens it, "+N more" opens the Needs you page.
-function wireNeedRows(el, shown, open) {
+// answer it, Review opens it, its words show it (`see`), "+N more" opens the Needs you page.
+function wireNeedRows(el, shown, open, see = open) {
+  $$('[data-kp-see]', el).forEach((b) => (b.onclick = () => see(shown[Number(b.dataset.kpSee)])));
   $$('[data-kp-yes]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpYes)], true, b)));
   $$('[data-kp-no]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpNo)], false, b)));
   $$('[data-kp-open]', el).forEach((b) => (b.onclick = () => open(shown[Number(b.dataset.kpOpen)])));
