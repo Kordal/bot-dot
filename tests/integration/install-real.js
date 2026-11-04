@@ -516,6 +516,90 @@ const cases = [
       assert.ok(machine.exec('cat', `${DIR}/accounts/bob/.env`).includes(`BOT_DOT_IMAGE=${release2}\n`), 'pinned in its .env');
     },
   },
+  {
+    // #986: root's step writes a backup set of the whole machine, and puts it back on a fresh install of the same
+    // version on another machine: the owner signs in there with the passkey made on the first, and finds the bot,
+    // a file it left in its workspace and a Vault entry that still decrypts.
+    name: 'a backup set of the whole machine, put back on a clean machine',
+    async run(machine) {
+      const images = async (m) => {
+        await m.load(stage.server());
+        await m.load(stage.computer());
+        m.publish(stage.server(), `${SERVER}:latest`);
+        m.publish(stage.computer(), `${DESKTOP}:latest`);
+        m.sign(`${SERVER}:latest`, { app: 'server' });
+        return m.sign(`${DESKTOP}:latest`, { app: 'desktop' });
+      };
+      const env = { BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` };
+      // A request of root's, which the loop of root's step takes, and the status it ends with.
+      const ask = async (m, request, file, states) => {
+        m.exec('rm', '-f', `${DIR}/front-door/status/${file}`);
+        m.exec('touch', `${DIR}/front-door/requests/${request}`);
+        return until(`root's step to answer ${request}`, () => {
+          const said = JSON.parse(m.exec('sh', '-c', `cat ${DIR}/front-door/status/${file} 2>/dev/null || echo null`));
+          return said && states.includes(said.state) ? said : null;
+        }, 15 * 60_000);
+      };
+      const server = (m) => m.account(ADMIN, 'compose', '--project-directory', HOME, 'ps', '-q', 'bot-dot');
+      const secretOf = (m, name) => m.account(ADMIN, 'exec', '--user', '60000:60000', server(m), 'node', '-e',
+        "const v = require('/opt/bot-dot/lib/vault'); const e = JSON.parse(require('fs').readFileSync('/data/vault.json', 'utf8')).entries.find((x) => x.name === process.argv[1]); process.stdout.write(v.decrypt(e.secret))", name);
+
+      const computerImage = await images(machine);
+      stage.step('install.sh on the first machine, a bot with a file in its workspace, and a Vault entry');
+      const said = machine.install(env);
+      const key = machine.signUp(said);
+      answers(machine);
+      const { id, container } = startComputer(machine, computerImage);
+      machine.account(ADMIN, 'exec', '-u', 'box', container, 'sh', '-c', `echo "kept in the set" > /workspace/${id}/notes.md`);
+      const saved = machine.api('POST', '/api/vault', { name: 'Restore test', site: 'https://example.com', username: 'ann', password: 'a secret kept' });
+      assert.equal(saved.status, 201, JSON.stringify(saved.body));
+      assert.equal(secretOf(machine, 'Restore test'), 'a secret kept');
+
+      stage.step('a backup set, asked of root\'s step');
+      const done = await ask(machine, 'BACKUP', 'backup.json', ['done', 'failed', 'refused']);
+      assert.equal(done.state, 'done', JSON.stringify(done));
+      const manifest = JSON.parse(machine.exec('cat', `${DIR}/backup/manifest.json`));
+      assert.deepEqual(manifest.accounts, [ADMIN]);
+      const parts = manifest.parts.map((p) => p.path);
+      for (const p of ['front-door/data.tar', `accounts/${ADMIN}/data.tar`, `accounts/${ADMIN}/env`, `accounts/${ADMIN}/config.tar`, `accounts/${ADMIN}/workspace.tar`, `accounts/${ADMIN}/home.tar`]) {
+        assert.ok(parts.includes(p), `the set holds ${p}: ${parts.join(', ')}`);
+      }
+      assert.match(machine.exec('sh', '-c', `cd ${DIR}/backup && stat -c '%a %U' . manifest.json accounts/${ADMIN}/env | sort -u`), /^600 root\n700 root$/, 'root\'s alone');
+      assert.equal(machine.account(ADMIN, 'inspect', '--format', '{{.State.Status}}', container), 'running', 'the computer kept running');
+
+      stage.step('a clean machine, the same version installed on it, and the set put back');
+      const other = await stage.machine();
+      await images(other);
+      const fresh = other.install(env);
+      assert.match(fresh, /\/sign-up\//, 'a fresh install, whose admin has no passkey yet');
+      spawnSync('sh', ['-c', `docker exec ${machine.name} tar -C ${DIR} -cf - backup | docker exec -i ${other.name} tar -C ${DIR} -xpf -`], { stdio: 'inherit' });
+      // A damaged set is refused, and nothing changes.
+      other.exec('sh', '-c', `cp ${DIR}/backup/accounts/${ADMIN}/env /root/env && echo X=1 >> ${DIR}/backup/accounts/${ADMIN}/env`);
+      const damaged = await ask(other, 'RESTORE', 'restore.json', ['restored', 'failed', 'refused']);
+      assert.equal(damaged.state, 'refused', JSON.stringify(damaged));
+      assert.match(damaged.error, /doesn't match its checksum/);
+      assert.equal(other.api('GET', '/sign-in').status, 200);
+      other.exec('cp', '/root/env', `${DIR}/backup/accounts/${ADMIN}/env`);
+      const restored = await ask(other, 'RESTORE', 'restore.json', ['restored', 'failed', 'refused']);
+      assert.equal(restored.state, 'restored', `${JSON.stringify(restored)}\n${other.exec('tail', '-n', '60', `${DIR}/requests.log`)}`);
+
+      stage.step('the owner signs in on the clean machine with the passkey of the first');
+      const options = other.api('POST', '/sign-in/options', {}, { jar: 'restored' });
+      assert.equal(options.status, 200, JSON.stringify(options.body));
+      const signedIn = other.api('POST', '/sign-in', { credential: key.signIn(options.body.publicKey) }, { jar: 'restored' });
+      assert.equal(signedIn.status, 200, `the old passkey signs in: ${JSON.stringify(signedIn.body)}`);
+      const bots = other.api('GET', '/api/bots', undefined, { jar: 'restored' });
+      assert.ok(JSON.stringify(bots.body).includes(`"${id}"`), `the bot is back: ${JSON.stringify(bots.body).slice(0, 400)}`);
+      const started = other.api('POST', `/api/bots/${id}/computer`, { action: 'start' }, { jar: 'restored' });
+      assert.equal(started.status, 200, JSON.stringify(started.body));
+      const computer = other.account(ADMIN, 'ps', '--filter', 'label=botdot.computer=account', '--format', '{{.Names}}');
+      assert.equal(other.account(ADMIN, 'exec', '-u', 'box', computer, 'cat', `/workspace/${id}/notes.md`), 'kept in the set', 'the bot\'s file is in its workspace');
+      assert.equal(other.account(ADMIN, 'exec', '-u', 'box', computer, 'stat', '-c', '%U', `/workspace/${id}/notes.md`), 'box', 'and still box\'s');
+      assert.ok(JSON.stringify(other.api('GET', '/api/vault', undefined, { jar: 'restored' }).body).includes('Restore test'));
+      assert.equal(secretOf(other, 'Restore test'), 'a secret kept', 'the Vault entry decrypts with the restored key');
+      stage.remove(other);
+    },
+  },
 ];
 
 stage.run(async () => {
