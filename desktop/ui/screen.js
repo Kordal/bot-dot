@@ -13,6 +13,8 @@ const PC = {
   en: { here: 'Run botdot on this PC', small: 'This PC needs at least 16 GB of memory and 40 GB of free disk.', stopped: "botdot didn't start on this PC. Try again.", restart: 'Restart Windows to carry on.' },
   pl: { here: 'Uruchom botdota na tym komputerze', small: 'Ten komputer potrzebuje co najmniej 16 GB pamięci i 40 GB wolnego miejsca.', stopped: 'Botdot nie uruchomił się na tym komputerze. Spróbuj jeszcze raz.', restart: 'Uruchom Windows ponownie, żeby kontynuować.' },
 };
+// While the botdot on this computer is being removed.
+const REMOVING = { en: 'Removing botdot…', pl: 'Usuwam botdota…' };
 const language = navigator.language.toLowerCase().startsWith('pl') ? 'pl' : 'en';
 const words = navigator.userAgent.includes('Windows') ? { ...WORDS[language], ...PC[language] } : WORDS[language];
 
@@ -88,6 +90,7 @@ listen('sign-in-failed', () => {
 
 invoke('start', { adding: new URLSearchParams(location.search).has('add') }).then((start) => {
   if (start.entering) return;
+  if (start.removing) return setting(REMOVING[language]);
   address.value = start.address || '';
   if (start.error) said.textContent = words[start.error];
   here.hidden = !start.here;
