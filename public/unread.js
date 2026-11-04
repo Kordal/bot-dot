@@ -117,13 +117,14 @@ function lineKeeper() {
   let first = null;
   let jump = false; // the line was just placed: scroll to it once
   return {
-    // The chat came on screen, and the server says this about it.
-    arrive(c, model) {
+    // The chat came on screen, and the server says this about it. scroll: false when the chat stayed on screen while
+    // its new replies came (the window was only behind another): the line marks them, the chat stays where it was.
+    arrive(c, model, scroll = true) {
       if (c !== chat) { chat = c; first = null; jump = false; }
       if (!count(model) || model.firstUnread === null || model.firstUnread === undefined) return false;
       if (first === model.firstUnread) return false;
       first = model.firstUnread;
-      jump = true;
+      jump = scroll;
       return true;
     },
     // The chat that is open now (null: none). Leaving a chat takes its line away.

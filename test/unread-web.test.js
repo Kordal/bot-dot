@@ -107,6 +107,15 @@ test('web: the line is placed when the chat comes on screen and stays until the 
   assert.equal(k.open(null), false);
 });
 
+test('web: a line for replies that came while the chat stayed on screen is drawn without a scroll to it', () => {
+  const k = Unread.lineKeeper();
+  k.open('bot:a');
+  // The window was behind another one with the chat in sight; it comes back, and a reply came meanwhile.
+  assert.equal(k.arrive('bot:a', { unread: 1, firstUnread: 'r9' }, false), true, 'the line is placed');
+  assert.equal(k.first('bot:a'), 'r9');
+  assert.equal(k.takeJump(), false, 'the chat stays where the owner was');
+});
+
 test('web: a chat with nothing new, or a server without the fields, gets no line', () => {
   const k = Unread.lineKeeper();
   k.open('chief:c1');
