@@ -121,13 +121,17 @@ function projectOf(projects) {
   for (const p of projects || []) for (const t of p.teams || []) for (const id of t.bots || []) if (!map.has(id)) map.set(id, p);
   return map;
 }
-// What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots. An ask
-// names its bot (`bot.id`); a batch holds several, and is the project's when one of them is.
-function asksOf(items, project, projects) {
+// What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots, and those
+// asked in one of its teams' group chats (the Chief's there too). An ask names its bot (`bot.id`) and the group it was
+// asked in (`group.id`, needs.js); groups: the account's, each with the `team` it is the chat of. A batch holds
+// several, and is the project's when one of them is.
+function asksOf(items, project, projects, groups) {
   if (!project) return items;
   const of = projectOf(projects);
-  const mine = (x) => of.get(x.bot?.id)?.id === project.id;
-  return items.filter((x) => (x.kind === 'batch' ? (x.items || []).some(mine) : mine(x)));
+  const teams = new Set((project.teams || []).map((t) => t.id));
+  const teamChats = new Set((groups || []).filter((g) => g && teams.has(g.team)).map((g) => g.id));
+  const mine = (x) => of.get(x.bot?.id)?.id === project.id || teamChats.has(x.group?.id);
+  return items.filter((x) => mine(x) || (x.kind === 'batch' && (x.items || []).some(mine)));
 }
 
 const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf };

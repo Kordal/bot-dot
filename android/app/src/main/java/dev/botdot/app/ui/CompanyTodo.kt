@@ -99,13 +99,14 @@ internal fun YouHead(size: Int = 24) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+/** [waiting]: what waits in this project only (Spaces.needsIn), as its Needs you lists it. */
 internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List<Waiting>, ways: CompanyWays, features: Collection<String>) {
     val p = LocalPaper.current
     val full = ProjectTodo.FEATURE in features
     var filter by rememberSaveable { mutableStateOf("all") }
     val asks = !full || filter == "all" || filter == "you"
     val waits = if (asks) waiting else emptyList()
-    val asking = if (asks) bots.filter { question(it) != null } else emptyList()
+    val asking = if (asks) dev.botdot.app.data.Spaces.askingIn(c, bots) { question(it) != null } else emptyList()
     val items = if (full) ProjectTodo.shown(c.todos, filter) else CompanyFloor.todos(c.todos)
     val standupAsks = if (asks && ProjectStandup.FEATURE in features) ProjectStandup.asks(c, bots).size else 0
     val n = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks

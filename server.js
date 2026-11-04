@@ -123,10 +123,12 @@ const secretFiles = require('./lib/secret-files').create(B.DATA_DIR); // Vault s
 B.onChangeRequested((change) => changeTrials.request(change));
 // What each bot's teammates are told it reaches (#136): the names and kinds of the Vault's items shared with it, never a value.
 B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind: x.kind || 'login' })));
-// What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js): a held
-// change of the bot (bot-changes.js waitingWords) and a permission it asked for.
+// What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js) and for
+// every run (lib/bots.js cardsNote): a held change of the bot (bot-changes.js waitingWords), a permission it asked
+// for, and any other card of it in Needs you, by the line its notification says.
 B.onWaitingOnCards((bot) => [...asks.list(), ...changeTrials.list()].filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
-  : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`] : [])));
+  : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`]
+  : [asksLib.askText(a, { appName: B.appName })].filter(Boolean).map((line) => `your OK on “${line}”`))));
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
 // The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
 const irreversibleStepsLib = require('./lib/irreversible-steps');

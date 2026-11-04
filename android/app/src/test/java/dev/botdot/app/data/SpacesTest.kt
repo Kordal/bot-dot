@@ -75,4 +75,23 @@ class SpacesTest {
         assertEquals("Shop", marks["b2"]?.name)
         assertEquals(null, marks["home"])
     }
+
+    @Test fun aProjectAlsoListsWhatWasAskedInItsTeamChatsAndNothingOfOtherBots() {
+        val chats = listOf(Group(id = "g1", team = "t1"), Group(id = "g2"))
+        val waiting = listOf(
+            Waiting(null, "Chief in the team chat", group = "g1"),
+            Waiting("#fff", "Cook in the team chat", bot = "home", group = "g1"),
+            Waiting(null, "Chief's own chat"),
+            Waiting("#fff", "Cook in a group of no team", bot = "home", group = "g2"),
+            Waiting("#fff", "Writer", bot = "b2"),
+        )
+        assertEquals(listOf("Chief in the team chat", "Cook in the team chat", "Writer"), Spaces.needsIn(shop, waiting, chats).map { it.text })
+        assertEquals(emptyList<Waiting>(), Spaces.needsIn(gym, waiting, chats))
+        assertEquals(5, waiting.size) // Home lists all of it
+    }
+
+    @Test fun aProjectsQuestionsAreItsTeamBotsOnly() {
+        assertEquals(listOf("b1"), Spaces.askingIn(shop, bots) { it.asks != null }.map { it.id })
+        assertEquals(emptyList<Bot>(), Spaces.askingIn(gym, bots) { it.asks != null })
+    }
 }
