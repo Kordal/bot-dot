@@ -26,7 +26,7 @@ const SUB = 165536;
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
   'apt-get', 'dpkg', 'dpkg-query', 'iptables', 'ip6tables', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
-  'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'truncate', 'df', 'getconf']);
+  'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'truncate', 'df', 'getconf', 'getent']);
 let systemTools = null;
 function machineTools() {
   if (systemTools) return systemTools;
@@ -142,7 +142,10 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   // curl: the front door answers on 127.0.0.1, Caddy on the domain (unless `caddy` is false).
   // An account's botdot server answers on its socket while the socket is there (a stopped one's is removed below), and
   // only a request that names its account, as the front door's do.
-  stand('curl', `${said('curl')}\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
+  // getent: the domain resolves to STAND_IN_A and STAND_IN_AAAA (nothing unless given).
+  stand('getent', 'case "$1" in ahostsv4) a="${STAND_IN_A:-}" ;; ahostsv6) a="${STAND_IN_AAAA:-}" ;; *) exit 2 ;; esac\n[ -n "$a" ] || exit 2\nfor x in $a; do echo "$x STREAM $2"; done');
+  // Cloudflare's trace says this machine's public IPv4 is 203.0.113.7, and it has no IPv6 (STAND_IN_IP6 gives it one).
+  stand('curl', `${said('curl')}\ncase "$*" in *1.1.1.1/cdn-cgi/trace*) echo ip=203.0.113.7; exit 0 ;; *2606:4700:4700::1111*/cdn-cgi/trace*) [ -n "\${STAND_IN_IP6:-}" ] || exit 7; echo "ip=$STAND_IN_IP6"; exit 0 ;; esac\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
   for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns']) stand(name, 'exit 0');
   stand('runsc', 'echo "runsc version release-20261005.0"');
   for (const [name, body] of Object.entries({ tailscale: tailscale(), ...bins })) {
