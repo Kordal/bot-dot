@@ -136,6 +136,8 @@ function drawSetup() {
       state: 'ok', icon: '📱', title: tr('Your phone'),
       body: tr('Private on your tailnet at {address}, and only your passkey signs in to your account.<br>On your phone, open it and choose <b>Add to Home Screen</b> to use it like an app.', { address: `<b>https://${esc(a.host)}</b>` }),
     });
+  } else if (a.public) {
+    phone = setupItem({ state: 'ok', icon: '📱', title: tr('Your phone'), body: tr('Open {address} on your phone and choose <b>Add to Home Screen</b>.', { address: `<b>https://${esc(a.public)}</b>` }) });
   } else if (a.tailnetHost) {
     phone = setupItem({ state: 'ok', icon: '📱', title: tr('Your phone'), body: tr('Also private on your tailnet at {address}. Open it on your phone and choose <b>Add to Home Screen</b>.', { address: `<b>https://${esc(a.tailnetHost)}</b>` }) });
   } else {
