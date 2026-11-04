@@ -37,6 +37,21 @@ The installer asks before it installs anything. It asks how people reach botdot 
 3. makes your account: the Linux user `botdot-<name>`, its rootless Docker, and its botdot server in `/var/lib/botdot/accounts/<name>`;
 4. ends with the address and **your sign-up link**. Open it and make your passkey: that account is the admin's. Until the link is used, botdot shows only "Open the link from your server's install".
 
+**The last line, for a program.** Every install and every update, on a public domain, a tailnet or a botdot on one computer, ends with one line that a program such as a fleet console reads instead of the prose above it: `BOTDOT_READY` and a JSON object on the same line.
+
+```
+BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":"public","accounts":["ann"],"signUp":"https://botdot.example.com/sign-up/…"}
+```
+
+- `origin`: the address people open.
+- `version`: the version the front door and the accounts now run, as the admin page shows it.
+- `reach`: `public`, `tailnet` or `local`.
+- `variant`: `one` or `several`, on a managed machine only (below); absent elsewhere.
+- `accounts`: the names of the accounts this machine runs.
+- `signUp`: the admin's sign-up link, while that account doesn't exist yet; absent afterwards. An update makes no link, so its line has none; a botdot on one computer keeps its setup key in its own `BOTDOT_LOCAL` line, the one before, which the desktop app reads ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)). On a managed machine it is the setup key's link to the first account, printed nowhere else.
+
+A run that fails prints no such line.
+
 ## More accounts
 
 Open **`https://<your address>/admin`**, the admin page, signed in as yourself, and choose **New sign-up link**. Hand the link to one person: it works once, for 7 days, and you can revoke it there. The page lists every link: open, used (by which account) or ended. No other account reaches the admin page, and it never shows what is inside an account.
@@ -94,7 +109,7 @@ A first install also asks whether to use Jev as the decision model (with an Open
 
 `BOT_DOT_MANAGED=1` makes a managed machine, which the fleet console runs ([ADR 154](adr/154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md)). It is chosen at the first install, never asked, and kept: a machine installed without it stays as it is. It needs `BOT_DOT_REACH` `public` or `tailnet`, and asks nothing: the first account is `BOT_DOT_ADMIN` (default `owner`), the Jev and boat.dev keys come only from `BOT_DOT_OPENROUTER_KEY` and `BOT_DOT_BOAT_KEY`. A managed machine has no admin page and no admin. `BOT_DOT_VARIANT` says how many accounts it holds, and is kept:
 
-- `one` (the default): one account. Its passkey is made with the setup key: the install ends with the link `https://<name>/sign-up/<setup key>` until the account exists.
+- `one` (the default): one account. Its passkey is made with the setup key: `signUp` in the install's `BOTDOT_READY` line is `https://<name>/sign-up/<setup key>` until the account exists.
 - `several`: the first account is made the same way; later accounts come only from sign-up links root's step makes.
 
 Each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, never overcommitted: the machine holds as many accounts as it has CPUs for and, after 2 GB of RAM for the system, RAM for. A Contabo Cloud VPS 6 (6 CPUs, 12 GB) holds one account, a Cloud VPS 8 (8 CPUs, 24 GB) two. An install on a machine without room for one share stops before it installs anything, and a sign-up link makes no account that wouldn't fit. A rerun with `BOT_DOT_VARIANT=several` turns a machine of one account into one of several without a reinstall, keeping the account and its passkeys; going back to `one` is refused while the machine has another account.

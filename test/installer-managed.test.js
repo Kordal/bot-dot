@@ -36,7 +36,11 @@ test('a managed machine of one account: no admin, its passkey from the setup key
   const key = done.env.FRONT_DOOR_SETUP_KEY;
   assert.match(key, /^[0-9a-f]{64}$/);
   assert.ok(!done.calls.some((c) => /sign-up-link/.test(c)), 'no sign-up link is made');
-  assert.match(done.said, /Open this link to make the account owner \(it works until that account exists\):\n\n {2}https:\/\/botdot\.example\.com\/sign-up\/[0-9a-f]{64}\n$/);
+  const ready = JSON.parse(done.said.trim().split('\n').at(-1).replace(/^BOTDOT_READY /, ''));
+  assert.equal(ready.signUp, `https://botdot.example.com/sign-up/${key}`, "the setup key's link, for the fleet console");
+  assert.equal(ready.variant, 'one');
+  assert.equal(ready.reach, 'public');
+  assert.deepEqual(ready.accounts, ['owner']);
   assert.equal(done.said.split(key).length, 2, 'the key is on the screen in that line alone');
   assert.doesNotMatch(done.said, /admin page|\/admin/);
   assert.match(done.system, /^systemctl set-property botdot-account@owner\.service CPUQuota=400% MemoryHigh=infinity MemoryMax=8G$/m, 'the managed share');
@@ -50,8 +54,8 @@ test('a managed machine of one account: no admin, its passkey from the setup key
   assert.equal(again.env.BOT_DOT_MANAGED, '1', 'managed is chosen once');
   assert.equal(again.env.BOT_DOT_REACH, 'public');
   assert.equal(again.env.FRONT_DOOR_SETUP_KEY, key);
-  assert.doesNotMatch(again.said, /sign-up|Open this link/);
-  assert.match(again.said, /Done\. botdot is at https:\/\/botdot\.example\.com\S*\n$/, 'its last line');
+  assert.doesNotMatch(again.said, /sign-up/);
+  assert.match(again.said, /\nBOTDOT_READY \{"origin":"https:\/\/botdot\.example\.com","version":"[^"]*","reach":"public","variant":"one","accounts":\["owner"\]\}\n$/, 'its last line');
 });
 
 test('one grows into several without a reinstall, and goes back only while it has no other account', (t) => {
@@ -93,7 +97,7 @@ test('several from the start makes the first account with the setup key, on a ta
   assert.equal(done.env.FRONT_DOOR_ONE_ACCOUNT, '');
   assert.match(done.system, /^tailscale serve --bg 4700$/m);
   assert.ok(!done.calls.some((c) => /sign-up-link/.test(c)));
-  assert.match(done.said, /Open this link to make the account bart \(it works until that account exists\):\n\n {2}https:\/\/vm\.example\.ts\.net\/sign-up\/[0-9a-f]{64}\n$/);
+  assert.match(done.said, /\nBOTDOT_READY \{.*"variant":"several".*"signUp":"https:\/\/vm\.example\.ts\.net\/sign-up\/[0-9a-f]{64}"\}\n$/);
   assert.ok(fs.existsSync(path.join(done.dir, 'accounts', 'bart', 'compose.yaml')));
 });
 

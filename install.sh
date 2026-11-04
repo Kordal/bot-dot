@@ -81,7 +81,13 @@
 #   one      one account (BOT_DOT_ADMIN, default owner), as on local: its passkey is made with the setup key
 #   several  the first account is made so too, and later ones only from sign-up links root's step makes
 # A rerun with BOT_DOT_VARIANT=several turns one into several and keeps the account; back to one is refused while the
-# machine has another account. The install ends with the setup key's sign-up link until the first account exists.
+# machine has another account. Until the first account exists, the setup key's sign-up link is in BOTDOT_READY alone.
+# Every install and update, on every reach, ends with one line for a program such as the fleet console (#981):
+#   BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":"public","accounts":["ann"],
+#                 "signUp":"https://botdot.example.com/sign-up/<token>"}
+# signUp is the admin's sign-up link while that account doesn't exist yet, and only an install's: an update makes no
+# link, and a local install keeps its setup key in BOTDOT_LOCAL alone. A managed machine's line also has its variant
+# ("variant":"one" or "several"), and its signUp is the setup key's link, printed nowhere else.
 # BOT_DOT_TLS=internal gives Caddy its own certificate authority in place of Let's Encrypt, for a test machine
 # whose domain is not on the internet.
 #
@@ -1109,6 +1115,12 @@ host_time_zone() {
 # setup page chooses another.
 [ -n "$(get_env "$ENV" TZ)" ] || set_env "$ENV" TZ "$(host_time_zone)"
 TZ_NAME="$(get_env "$ENV" TZ)"
+# This machine's id (#982), made once and kept: it goes in the names of its accounts' machines on boat.dev, so that
+# the same account name on two botdot machines reads apart there.
+case "$(get_env "$ENV" BOT_DOT_INSTANCE)" in
+  '' | *[!a-z0-9]*) set_env "$ENV" BOT_DOT_INSTANCE "$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" ;;
+esac
+INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
 [ "$MODE" != install ] || ok "Time zone $TZ_NAME (change TZ in $ENV)"
 
 # An update asks nothing, here neither: how people reach botdot and the admin's name are what the install answered.
@@ -1703,6 +1715,7 @@ JSON
   if [ -n "$TOKEN" ]; then set_env "$aenv" BOT_DOT_REGISTRY_TOKEN "$TOKEN"; fi
   set_env "$aenv" TZ "$TZ_NAME"
   set_env "$aenv" BOT_DOT_ACCOUNT "$name"
+  set_env "$aenv" BOT_DOT_INSTANCE "$INSTANCE"
   set_env "$aenv" BOT_DOT_FRONT_DOOR_FOLDER "$folder"
   set_env "$aenv" DOCKER_SOCKET "$run/docker.sock"
   # Its data folder, the account's own when it is made: botdot's privilege supervisor gives it to the server's user
@@ -2218,6 +2231,25 @@ UNIT
   ok "This VM can't reach the computer it runs on or that computer's network"
 fi
 
+# ready_line [SIGN_UP]: the run's last line, for a program (#981): BOTDOT_READY and JSON with the origin, the version,
+# how botdot is reached, the accounts this machine runs and, while the admin's account doesn't exist yet, the link that
+# makes it. Every value is checked where it is made (a domain, hex, account names, a link of the front door's own), so
+# none needs escaping.
+ready_line() {
+  rl_accounts=''
+  for rl in "$ACCOUNTS"/*/; do
+    rl="$(basename "$rl")"
+    [ -f "$ACCOUNTS/$rl/compose.yaml" ] && valid_account "$rl" || continue
+    rl_accounts="$rl_accounts${rl_accounts:+,}\"$rl\""
+  done
+  rl_link=''
+  case "${1:-}" in "$ORIGIN"/sign-up/*) printf '%s' "$1" | grep -Eq '^https?://[A-Za-z0-9.:/_-]+$' && rl_link="$1" ;; esac
+  rl_variant=''
+  [ -z "$MANAGED" ] || rl_variant="$(get_env "$ENV" BOT_DOT_VARIANT)"
+  case "$rl_variant" in one | several) ;; *) rl_variant='' ;; esac
+  say "BOTDOT_READY {\"origin\":\"$ORIGIN\",\"version\":\"$VERSION\",\"reach\":\"$REACH\"${rl_variant:+,\"variant\":\"$rl_variant\"},\"accounts\":[$rl_accounts]${rl_link:+,\"signUp\":\"$rl_link\"}}"
+}
+
 # serve_sites: on a tailnet, Tailscale Serve passes the name's port 8443 to the front door's second port, for bots'
 # interactive pages (#399). Kept as it is when it is there already; a failure leaves botdot working without them.
 serve_sites() {
@@ -2233,6 +2265,7 @@ if [ "$MODE" = update ]; then
   phase done
   # The accounts this run couldn't update, once the rest is done (#194).
   [ -z "$NOT_UPDATED" ] || die "Not every account was updated: $NOT_UPDATED. The others run the new version."
+  ready_line
   exit 0
 fi
 
@@ -2284,20 +2317,21 @@ if [ "$REACH" = local ]; then
   SIGN_UP=''
   [ -n "$(door_state "$ADMIN")" ] || SIGN_UP=",\"signUp\":\"$ORIGIN/sign-up/$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)\""
   say "BOTDOT_LOCAL {\"origin\":\"$ORIGIN\"$SIGN_UP}"
+  # The setup key stays in the app's line alone (ADR 136).
+  ready_line
   exit 0
 fi
 
-# A managed machine (ADR 154): no admin page, and the setup key's sign-up link until the first account exists.
+# A managed machine (ADR 154): no admin page, and the setup key's sign-up link, until the first account exists, in its
+# BOTDOT_READY line alone, for the fleet console.
 if [ -n "$MANAGED" ]; then
   say ""
   warn "Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself."
   say ""
   bold "Done. botdot is at $ORIGIN"
-  if [ -z "$(door_state "$ADMIN")" ]; then
-    say "Open this link to make the account $ADMIN (it works until that account exists):"
-    say ""
-    say "  $ORIGIN/sign-up/$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)"
-  fi
+  LINK=''
+  [ -n "$(door_state "$ADMIN")" ] || LINK="$ORIGIN/sign-up/$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)"
+  ready_line "$LINK"
   exit 0
 fi
 
@@ -2316,3 +2350,4 @@ if [ -n "$LINK" ]; then
 fi
 say "Make sign-up links for other people on the admin page: https://$NAME/admin"
 say "Update every account later on the admin page, or by running this installer again. Each account's data is in $ACCOUNTS/<account>/data."
+ready_line "$LINK"
