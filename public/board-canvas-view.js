@@ -5,6 +5,8 @@
 // pixels (a click without a move still clicks) and resizes from its edges and corners; on a touch screen a long press
 // picks it up, then it drags; the focused tile moves with the arrows and resizes with Shift and the arrows. A tile it
 // would cover slides down. Each drop is saved at once; the first starts from where the tiles stood in the flow.
+// Narrower than BoardCanvas.NARROW (a phone, ADR 147) the tiles stand in one column in the canvas's reading order,
+// at their own height, and are not moved there.
 (() => {
   const B = window.BoardCanvas;
   const STEP = 8;
@@ -114,16 +116,29 @@
   }
 
   const scaleOf = (wrap) => wrap.clientWidth / B.W;
+  // A phone's width (ADR 147): the tiles one under another, full width, in the canvas's reading order.
+  const narrow = (el) => el.clientWidth > 0 && el.clientWidth < B.NARROW;
   function place(wrap, layout = shown?.layout) {
     if (!layout) return;
-    const s = scaleOf(wrap);
     const canvas = $('.bc-canvas', wrap);
+    const column = narrow(wrap);
+    wrap.classList.toggle('bc-column', column);
+    if (column) {
+      const at = new Map(B.order(layout).map((id, i) => [id, i]));
+      canvas.style.transform = '';
+      canvas.style.width = '';
+      wrap.style.height = '';
+      for (const t of $$('.bc-tile', canvas)) Object.assign(t.style, { left: '', top: '', width: '', height: '', order: String(at.get(t.dataset.tile) ?? at.size) });
+      return;
+    }
+    const s = scaleOf(wrap);
+    canvas.style.width = `${B.W}px`;
     canvas.style.transform = `scale(${s})`;
     wrap.style.height = `${B.height(layout) * s}px`;
     for (const t of $$('.bc-tile', canvas)) {
       const r = layout[t.dataset.tile];
       if (!r) continue;
-      Object.assign(t.style, { left: `${r[0]}px`, top: `${r[1]}px`, width: `${r[2]}px`, height: `${r[3]}px` });
+      Object.assign(t.style, { left: `${r[0]}px`, top: `${r[1]}px`, width: `${r[2]}px`, height: `${r[3]}px`, order: '' });
     }
     window.ProjectCards?.fit(canvas);
   }
@@ -131,6 +146,8 @@
   // The tile a press at `target` picks up, and its element on the canvas or in the flow; none in a field or the title.
   function tileAt(target, home) {
     if (!(target instanceof Element) || target.closest(FIELD) || target.closest('.cf-top, .sp-needs, .sp-teams')) return null;
+    // On a phone's width the board is a column to read: its tiles are arranged on a wider screen.
+    if (narrow(home)) return null;
     const t = target.closest('.bc-tile');
     if (t && home.contains(t)) return { id: t.dataset.tile, el: t };
     if (shown) return null;
@@ -245,7 +262,7 @@
 
   function key(e, t, c) {
     const d = { ArrowLeft: [-STEP, 0], ArrowRight: [STEP, 0], ArrowUp: [0, -STEP], ArrowDown: [0, STEP] }[e.key];
-    if (!d || e.target !== t) return;
+    if (!d || e.target !== t || t.closest('.bc-column')) return;
     e.preventDefault();
     shown.layout = B.drag(shown.layout, t.dataset.tile, e.shiftKey ? 'se' : null, d[0], d[1]);
     place(t.closest('.bc-wrap'));

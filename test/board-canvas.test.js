@@ -91,3 +91,10 @@ test('height: the bottom of the lowest tile', () => {
   assert.equal(B.height({}), 0);
   assert.equal(B.height({ a: [0, 10, 5, 20], b: [0, 0, 5, 5] }), 30);
 });
+
+test('order: a column reads the tiles from the top, left to right where two start level (ADR 147)', () => {
+  const layout = { todo: [800, 0, 392, 560], 'goal:o1': [0, 0, 592, 260], 'card:k': [0, 276, 392, 220], 'new-card': [408, 276, 392, 64], days: [0, 600, 1200, 140] };
+  assert.deepEqual(B.order(layout), ['goal:o1', 'todo', 'card:k', 'new-card', 'days']);
+  assert.deepEqual(B.order({}), []);
+  assert.equal(B.NARROW, 600);
+});

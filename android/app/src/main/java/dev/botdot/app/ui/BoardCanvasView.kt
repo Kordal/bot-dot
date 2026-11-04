@@ -5,12 +5,16 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.key
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -33,8 +37,11 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.BoardCanvas
 import kotlin.math.roundToInt
 
-/** A tile of the board: its id ([BoardCanvas]) and how it is drawn, filling the modifier it is given. */
-internal class Tile(val id: String, val draw: @Composable (Modifier) -> Unit)
+/**
+ * A tile of the board: its id ([BoardCanvas]) and how it is drawn in the modifier it is given; `fixed` when the tile has
+ * the height the owner gave it on the canvas, not when it stands in the phone's column at its own height (ADR 147).
+ */
+internal class Tile(val id: String, val draw: @Composable (Modifier, Boolean) -> Unit)
 
 /**
  * A long press anywhere inside, even on a tile's own buttons: seen before them (the Initial pass), so once [onHold]
@@ -72,10 +79,29 @@ internal suspend fun PointerInputScope.holdAndDrag(onHold: (Offset) -> Boolean, 
  * it on a canvas [BoardCanvas.W] wide, drawn at that size and scaled to the screen's width; two fingers zoom and pan.
  * A long press on a tile, then a drag, moves it, from near an edge or corner resizes it (#821, ADR 130: no Arrange
  * mode); a tile in the way slides down, and each drop is [save]d whole. Without [saved] the tiles take the first free
- * spots, and are saved at once so every app shows the same.
+ * spots, and are saved at once so every app shows the same. Narrower than [BoardCanvas.NARROW] (a phone, ADR 147) the
+ * tiles stand in one column in the canvas's reading order, full width at their own height, and are moved on a wider screen.
  */
 @Composable
 internal fun BoardCanvasView(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>?, save: (Map<String, BoardCanvas.R>) -> Unit) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth < BoardCanvas.NARROW.dp) BoardColumn(tiles, saved) else BoardCanvasFree(tiles, saved, save)
+    }
+}
+
+/** The board on a phone (ADR 147): its tiles one under another, in the order the canvas reads, each full width. */
+@Composable
+private fun BoardColumn(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>?) {
+    val ids = tiles.map { it.id }
+    val order = remember(saved, ids) { BoardCanvas.order(BoardCanvas.complete(saved, ids)) }
+    val byId = tiles.associateBy { it.id }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+        for (id in order) byId[id]?.let { t -> key(id) { t.draw(Modifier.fillMaxWidth(), false) } }
+    }
+}
+
+@Composable
+private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>?, save: (Map<String, BoardCanvas.R>) -> Unit) {
     val p = LocalPaper.current
     val haptic = LocalHapticFeedback.current
     val ids = tiles.map { it.id }
@@ -131,7 +157,7 @@ internal fun BoardCanvasView(tiles: List<Tile>, saved: Map<String, BoardCanvas.R
                 for (t in tiles) {
                     val r = places[t.id] ?: continue
                     Box(Modifier.offset(unit * r.x, unit * r.y).size(unit * r.w, unit * r.h)) {
-                        t.draw(Modifier.matchParentSize())
+                        t.draw(Modifier.matchParentSize(), true)
                         // The held tile is outlined while the finger has it.
                         if (held == t.id) Box(Modifier.matchParentSize().border(2.dp, p.text, Radius.card))
                     }
