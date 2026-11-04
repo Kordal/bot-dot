@@ -164,3 +164,53 @@ test('runs of one bot see what the others are doing: the plan at the start, a ne
   for (const r of [first.rec, rec2, rec3]) srv.release(r);
   for (const id of [first.run.id, second.data.id, byChief.data.id]) assert.equal((await srv.finished(id)).status, 'success');
 });
+
+// The owner's case (Quotz): a run in a group works on a video in French; in the bot's own chat the owner says "always
+// write in English", and the bot saves it. The run that was already going hears it at its next tool call, as the
+// owner's words, and only a note the owner said reaches it.
+test('what the owner tells a bot to keep in one run reaches its other runs that go on, at their next tool call', async () => {
+  const bot = await makeBot(srv, { name: 'Video Maker', emoji: '🎞️' });
+  srv.reply('Done.');
+  const first = await heldRun(srv, bot, 'Make the launch video in French');
+  assert.equal(await hook(first.token), null);
+
+  const said = await send(bot, 'Always write in English, whatever the language of the video.');
+  const rec2 = await srv.nextRun(isRunOf(bot), 'the owner\'s message');
+  const token2 = rec2.self.env.RUN_TOKEN;
+  const saved = (await self(srv, token2, 'memory', { action: 'add', scope: 'self', text: 'Always write replies in English, whatever the language of the video.', topic: 'language' })).data;
+  assert.equal(saved.result, 'saved');
+  assert.equal(saved.note.source, 'owner');
+
+  const heard = await hook(first.token);
+  assert.match(heard, /the owner told you in another run of yours to keep this, and it is saved to your memory as what the owner said:\n<owner-said>\n- Always write replies in English, whatever the language of the video\.\n<\/owner-said>\nIt holds for this run too: follow it from your next step on, your final reply included\./);
+  assert.match(heard, /Another run of yours has started beside this one/, 'and the run beside it, as before');
+  assert.equal(await hook(first.token), null, 'once');
+  assert.equal(await hook(token2), null, 'the run that saved it is not told its own note');
+
+  srv.release(rec2);
+  await srv.finished(said.data.id);
+  srv.unhold();
+  srv.release(first.rec);
+  await srv.finished(first.run.id);
+});
+
+
+// The owner's case (Quotz): a run that carries on after their OK works on the video while they write to the bot again;
+// the run their message starts is told the video is being done now, not that it still waits for the card.
+test('a run beside one that carries on after the owner\'s OK is told it goes on now', async () => {
+  const { kit, BASH } = require('./carry-on-helpers');
+  const k = kit(srv);
+  const bot = await makeBot(srv, { name: 'Renderer', emoji: '🎥', allowedTools: ['Read'] });
+  srv.reply('I need to run commands.');
+  await k.refused(bot, [BASH], { prompt: 'Render the launch video' });
+  const [card] = await k.asksOf(bot);
+  srv.hold();
+  await k.answer(card, true);
+  const carrying = await srv.nextRun((x) => isRunOf(bot)(x) && /^botdot writes this/.test(x.stdin || ''), 'the run that carries on');
+  const msg = await send(bot, 'Always write in English.');
+  const rec2 = await srv.nextRun((x) => isRunOf(bot)(x) && (x.stdin || '').includes('Always write in English.'), 'the owner\'s message');
+  assert.match(rec2.system, /<other-runs>\n- Render the launch video \(the owner has answered its card: it goes on with it now\)\n/);
+  srv.release(rec2); srv.release(carrying);
+  await srv.finished(msg.data.id);
+  srv.unhold();
+});
