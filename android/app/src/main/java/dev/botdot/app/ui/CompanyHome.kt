@@ -142,7 +142,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
         val here = remember(c, waiting) { dev.botdot.app.data.Spaces.needsIn(c, waiting) }
-        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onAnswer = { id, yes ->
+        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { if (!it.startsWith("group:")) ways.onBot(it) else ways.onTeam?.invoke(it.removePrefix("group:")) ?: ways.onNeeds() }, onAnswer = { id, yes ->
             ui.scope.launch {
                 runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
                 ui.app.store.needs.refresh()

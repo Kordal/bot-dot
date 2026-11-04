@@ -211,6 +211,12 @@ test('web: Needs you is a row per thing that waits: its bot, what it wants, and 
   el.click('kp-open', '1');
   el.click('kp-open', '2');
   assert.deepEqual(p.said.opened, ['job:j1', 'bitwarden'], 'Review opens it as its card does');
+  el.click('kp-see', '1');
+  assert.deepEqual(p.said.opened, ['job:j1', 'bitwarden', 'job:j1'], 'and so do its words');
+  const seen = [];
+  p.ctx.drawKeypadNeeds([ASK('a1')], () => {}, undefined, (x) => seen.push(x.key));
+  p.doc['#kp-needs'].click('kp-see', '0');
+  assert.deepEqual(seen, ['ask:a1'], 'a No and Allow row\'s words show what it is about');
   p.ctx.drawKeypadNeeds([{ ...job, line: '<b>one</b>' }], () => {});
   assert.ok(el.innerHTML.includes('&lt;b&gt;one&lt;/b&gt;'), 'escaped');
   p.ctx.drawKeypadNeeds([], () => {});

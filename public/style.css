@@ -1737,7 +1737,8 @@ details.bs-row { display: block; }
 .kp-needs { flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; padding: var(--sp-4); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); }
 .kp-need { display: flex; align-items: center; gap: var(--sp-12); min-height: 52px; padding: var(--sp-8) var(--sp-8) var(--sp-8) var(--sp-12); }
 .kp-need .avatar { width: 34px; height: 34px; }
-.kp-need-text { flex: 1; min-width: 0; font-size: var(--fs-14); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kp-need-text { flex: 1; min-width: 0; align-self: stretch; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-14); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.kp-need-text:hover b { text-decoration: underline; text-underline-offset: 3px; }
 .kp-need-text b::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: var(--sp-8); border-radius: 50%; background: var(--warn); vertical-align: 2px; } /* what was the tinted frame (#723) */
 .kp-need-text b { font-weight: 600; }
 .kp-need-text span { color: var(--muted); }

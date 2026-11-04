@@ -112,10 +112,33 @@ function showNeeds() {
     banner.innerHTML = `${needsFigures(items)}<span>${tr('Waiting for your OK')}</span><button class="btn sm primary" id="needs-open">${tr('Review')}</button>`;
     $('#needs-open').onclick = review;
   }
-  drawKeypadNeeds(state.view === 'needs' ? [] : items, openNeed, items); // the same, on the keypad, a row each
+  drawKeypadNeeds(state.view === 'needs' ? [] : items, openNeed, items, openNeedInChat); // the same, on the keypad, a row each
   if (state.view === 'needs') renderNeeds();
   drawChatCards(); // the cards at the end of the open bot's or Chief's chat
   if (state.view === 'group') drawGroupCards(); // the cards at the end of the open group (groups.js)
+}
+
+// A row of Needs you that answers in place (answersInline) says only a line: its words open the card where it stands, at
+// the end of its bot's chat (or the group's, or the Chief's, chatNeeds), unfolded and scrolled to. Any other row opens
+// as its Review does, and so does a card that stands in no chat.
+let seenNeed = null; // the card to scroll to once its chat is drawn (updateChatNeeds)
+function openNeedInChat(x) {
+  const scope = answersInline(x) ? [x.group && `group:${x.group.id}`, x.a.botId, 'chief'].find((s) => s && chatNeeds(s).some((c) => c.key === x.key)) : null;
+  if (!scope) return openNeed(x);
+  seenNeed = x.key;
+  needsOpen.add(x.key);
+  if (scope === 'chief') openChief();
+  else if (scope.startsWith('group:')) setView('group', scope.slice(6));
+  else setView('bot', scope);
+  // The chat that was open already is not drawn again: its cards are.
+  requestAnimationFrame(() => (state.view === 'group' ? drawGroupCards() : drawChatCards()));
+}
+function toSeenNeed(thread) {
+  const card = seenNeed && $(`.need-card[data-need="${CSS.escape(seenNeed)}"]`, thread);
+  if (!card) return;
+  seenNeed = null;
+  card.classList.add('open');
+  card.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
 function openNeed(x) {
@@ -573,7 +596,7 @@ function updateChatNeeds(thread, scope) {
   if (!box) { box = document.createElement('div'); box.className = 'chat-needs'; }
   if (box !== thread.lastElementChild) thread.append(box); // new messages go above it
   const sig = JSON.stringify([scope, items.map((x) => [x.key, x.job?.cron, x.job?.script, x.job?.prompt, needLive(x, here)]), done]);
-  if (box.dataset.sig === sig) return;
+  if (box.dataset.sig === sig) return toSeenNeed(thread);
   const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
   box.dataset.sig = sig;
   box.dataset.scope = scope;
@@ -582,6 +605,7 @@ function updateChatNeeds(thread, scope) {
   wireNeedCards(box, items);
   wireBatchCards(box, drawn);
   if (atBottom) thread.scrollTop = thread.scrollHeight;
+  toSeenNeed(thread);
 }
 
 // "Always approve" a script job: its later changes run without you seeing them, so say what that means first.
