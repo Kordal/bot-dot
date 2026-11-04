@@ -30,6 +30,9 @@ test('the lead is told the project, the goal, its team with their jobs and what 
   assert.match(note, /collect what they send back into one reply/);
   assert.match(note, /never approve anything for the owner/);
   assert.match(note, /may still message any member directly/);
+  assert.match(note, /The owner talks to the team through you/);
+  assert.match(note, /answer it yourself only from what the owner already said or decided/);
+  assert.match(note, /every member's question in one message, each with the member's name, and pass the owner's answer on with message_bot/);
   done();
 });
 
@@ -41,16 +44,21 @@ test('in a turn in a group the lead and a member are told to work there by namin
   assert.doesNotMatch(lead, /message_bot/);
   const member = s.botNote('m1', of, { group: true });
   assert.match(member, /answer the lead in this group, in your reply/);
+  assert.match(member, /name the lead and ask it, not the owner/);
+  assert.match(lead, /The owner talks to the team through you/);
   assert.doesNotMatch(member, /send what the lead asks for back/);
   done();
 });
 
-test('a member is told who leads it and to ask the owner directly; a bot in no team, or no project, is told nothing', () => {
+test('a member is told who leads it and to ask the lead, not the owner, for what it needs from the owner (ADR 148); a bot in no team, or no project, is told nothing', () => {
   const { s, file, done } = store(company());
   const note = s.botNote('m1', of);
   assert.match(note, /^You are on team "Growth" in the owner's project "Fernhill"\. Lead Finder \(id l1\) leads it\./);
   assert.match(note, /Also on it: Lead Finder \(id l1\) \(lead\): Finds people who may buy; Support \(id m2\)\./);
-  assert.match(note, /ask the owner directly, not the lead/);
+  assert.match(note, /When you need something from the owner \(a decision, an answer, a file, a login\), ask the lead with message_bot \(priority: true\), not the owner/);
+  assert.match(note, /Ask the owner directly only when they wrote to you themselves or the lead can't be messaged/);
+  assert.match(note, /A card only the owner can answer \(ask_permission, ask_override, ask_skill\) is still yours to ask for: then tell the lead/);
+  assert.doesNotMatch(note, /ask the owner directly, not the lead/);
   assert.doesNotMatch(note, /As the lead/);
   assert.equal(s.botNote('x9', of), '');
   fs.rmSync(file);
@@ -71,13 +79,13 @@ test('the note follows the team: a new lead, a new goal, a bot that leaves', () 
   done();
 });
 
-// The fixed words are short (about 500 characters for a lead, 200 for a member), and with every text of the owner's
+// The fixed words are short (about 750 characters for a lead, 650 for a member, ADR 148), and with every text of the owner's
 // at its longest, made of "<" that prints longer, the whole note stays bounded: the bot's prompt is at its cap.
 test("the note's length is bounded", () => {
   const { s, done } = store(company({ goal: '' }));
   const fixed = (id) => s.botNote(id, () => null).replace(/\n?Your team: .*|\n?Also on it: .*/g, '');
-  assert.ok(fixed('l1').length <= 520, `lead ${fixed('l1').length}`);
-  assert.ok(fixed('m1').length <= 260, `member ${fixed('m1').length}`);
+  assert.ok(fixed('l1').length <= 760, `lead ${fixed('l1').length}`);
+  assert.ok(fixed('m1').length <= 650, `member ${fixed('m1').length}`);
   const long = (n) => '<a'.repeat(n);
   const ids = Array.from({ length: 40 }, (_, i) => `b${String(i).padStart(7, '0')}`);
   const many = Object.fromEntries(ids.map((id) => [id, { name: long(60), job: long(200) }]));
@@ -86,8 +94,8 @@ test("the note's length is bounded", () => {
   const member = big.s.botNote(ids[1], (id) => many[id]);
   assert.match(lead, /; and 33 more\./, 'six members named');
   assert.ok(!/<a/.test(lead), 'no tag');
-  assert.ok(lead.length <= 1400, `lead ${lead.length}`);
-  assert.ok(member.length <= 1300, `member ${member.length}`);
+  assert.ok(lead.length <= 1750, `lead ${lead.length}`);
+  assert.ok(member.length <= 1700, `member ${member.length}`);
   big.done();
   done();
 });
