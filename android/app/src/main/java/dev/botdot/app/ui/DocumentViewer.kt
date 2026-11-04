@@ -314,7 +314,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             e != null -> {
                 val status = (e as? ApiException)?.status
                 when (status) {
-                    404 -> ViewerState(tr("This file is gone"), tr("Nothing is at this path any more. It may have been moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+                    404 -> ViewerState(tr("File not found"), tr("Nothing is at this path. It may not be made yet, or it was moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
                     409 -> ViewerState(tr("The computer is off"), tr("This file is on the account's computer, which is stopped. Start it to open the file.")) {
                         req.botId?.let { botId ->
                             Button(onClick = { withApi(tr("start it")) { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
