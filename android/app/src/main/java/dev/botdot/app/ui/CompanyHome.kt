@@ -141,7 +141,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
-        val here = remember(c, waiting) { dev.botdot.app.data.Spaces.needsIn(c, waiting) }
+        val here = remember(c, waiting, groups) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()) }
         if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
             ui.scope.launch {
                 runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
@@ -169,7 +169,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                     add(Tile("new-team") { m, _ -> Box(m) { NewTeam(ui, c) } })
                 }
                 if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
-                if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, waiting, ways, features) } })
+                if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
@@ -197,7 +197,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             }
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
         }
-        if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
+        if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
         }
         }
         // Its teams' keys (#841), in place of the floor's rooms and desks.

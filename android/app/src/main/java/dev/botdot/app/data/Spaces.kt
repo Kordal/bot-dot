@@ -72,6 +72,17 @@ object Spaces {
         for (c in projects) { val s = Space(c.id, ManyProjects.nameOf(c), c.color ?: ManyProjects.DEFAULT_COLOR, 0); for (t in c.teams) for (b in t.bots) putIfAbsent(b, s) }
     }
 
-    /** A project's Needs you: what waits about one of its team bots. Home lists all of it. */
-    fun needsIn(project: Company, waiting: List<Waiting>): List<Waiting> = teamBots(listOf(project)).let { t -> waiting.filter { it.bot != null && it.bot in t } }
+    /**
+     * A project's Needs you: what waits about one of its team bots, and what was asked in one of its teams' group chats
+     * (the Chief's there too). Home lists all of it; a bot of no team, or the Chief's own chat, waits on Home only.
+     */
+    fun needsIn(project: Company, waiting: List<Waiting>, groups: List<Group> = emptyList()): List<Waiting> {
+        val bots = teamBots(listOf(project))
+        val teams = project.teams.map { it.id }.toSet()
+        val chats = groups.filter { it.team != null && it.team in teams }.map { it.id }.toSet()
+        return waiting.filter { (it.bot != null && it.bot in bots) || (it.group != null && it.group in chats) }
+    }
+
+    /** The bots of a project that ask the owner a question: its teams' only. */
+    fun askingIn(project: Company, bots: List<Bot>, asks: (Bot) -> Boolean): List<Bot> = teamBots(listOf(project)).let { t -> bots.filter { it.id in t && asks(it) } }
 }
