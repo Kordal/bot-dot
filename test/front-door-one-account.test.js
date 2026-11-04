@@ -134,13 +134,26 @@ test("one account: no sign-up link, the setup key makes the account's one passke
     const page = await sheet.get(`/sign-up/${SETUP_KEY}?app=android&handoff=${h.challenge}`);
     assert.equal(page.status, 200);
     assert.match(page.text, /admin of this machine can technically reach everything/i);
-    assert.match(page.text, /Your account's name: <b>owner<\/b>/);
-    assert.match(page.text, /<input id="name" name="name" type="hidden" value="owner">/, 'shown, not a field to type in');
+    assert.match(page.text, /<input id="name" name="name" type="hidden" value="owner">/, "the account's name is set");
+    assert.match(page.text, /<input id="login" name="login" required [^>]*value="owner">/, 'the login name is a field, the account\'s name at first');
+    // The desktop app sends the computer's user name, which the page offers instead, made into a name.
+    const offered = await sheet.get(`/sign-up/${SETUP_KEY}?name=Bart.Kordal&app=desktop&handoff=${h.challenge}`);
+    assert.match(offered.text, /<input id="login" name="login" required [^>]*value="bart-kordal">/);
+    const odd = await sheet.get(`/sign-up/${SETUP_KEY}?name=${encodeURIComponent('<9>')}`);
+    assert.match(odd.text, /<input id="login" name="login" required [^>]*value="owner">/, 'no name in it: the account\'s own');
+    // A login name that isn't one is refused.
+    const bad = await sheet.post(`/sign-up/${SETUP_KEY}/options`, { name: 'owner', login: 'Bart!' });
+    assert.equal(bad.status, 400);
     const key = passkey.create({ rpId: one.rpId, origin: one.origin });
-    const options = await sheet.post(`/sign-up/${SETUP_KEY}/options`, { name: 'someone-else' });
+    const options = await sheet.post(`/sign-up/${SETUP_KEY}/options`, { name: 'someone-else', login: 'bart' });
     assert.equal(options.status, 200, options.text);
-    assert.equal(options.data.publicKey.user.name, 'owner');
-    const made = await sheet.post(`/sign-up/${SETUP_KEY}`, { name: 'someone-else', credential: key.register(options.data.publicKey), app: 'android', handoff: h.challenge });
+    assert.equal(options.data.publicKey.user.name, 'bart', 'the passkey is named as its owner chose');
+    assert.equal(options.data.publicKey.user.displayName, 'bart');
+    // The passkey made for one login name makes no account with another.
+    const swapped = await sheet.post(`/sign-up/${SETUP_KEY}`, { name: 'owner', login: 'eve', credential: passkey.create({ rpId: one.rpId, origin: one.origin }).register(options.data.publicKey), app: 'android', handoff: h.challenge });
+    assert.equal(swapped.status, 400);
+    const again1 = await sheet.post(`/sign-up/${SETUP_KEY}/options`, { name: 'owner', login: 'bart' });
+    const made = await sheet.post(`/sign-up/${SETUP_KEY}`, { name: 'someone-else', login: 'bart', credential: key.register(again1.data.publicKey), app: 'android', handoff: h.challenge });
     assert.equal(made.status, 201, made.text);
     assert.equal(made.data.account, 'owner');
     assert.equal(made.headers['set-cookie'], undefined);
