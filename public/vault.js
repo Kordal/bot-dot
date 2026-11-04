@@ -107,7 +107,7 @@ async function renderVault() {
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `${b.name}` : id; };
   const locked = bw.configured && !bw.unlocked;
   root.innerHTML = `
-    ${SUB_BACK}
+    ${subBack()}
     <div class="section-head">
       <div><h1 title="${esc(bw.configured ? tr("Your Bitwarden's bot-dot folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them.") : tr('Saved logins your bots can use without ever seeing the password.'))}">${tr('Vault')}</h1></div>
       ${locked ? '' : `<div class="vault-add">${bw.unlocked ? `<button class="btn" id="add-file">＋ ${tr('File')}</button><button class="btn" id="add-ssh-key">＋ ${tr('SSH key')}</button>` : ''}<button class="btn primary" id="add-login">＋ ${tr('Add')}</button></div>`}

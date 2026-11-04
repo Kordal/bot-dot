@@ -20,7 +20,7 @@ async function renderSkills() {
   if (state.view !== 'skills') return;
   const botChip = (id) => { const b = isChief({ id }) ? CHIEF_BOT : state.bots.find((x) => x.id === id); return b ? `<span class="chip" title="${esc(b.name)}">${botLabel(b)}</span>` : ''; };
   root.innerHTML = `
-    ${SUB_BACK}
+    ${subBack()}
     <div class="section-head">
       <div><h1>${tr('Skills')}</h1></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
