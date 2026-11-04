@@ -1068,6 +1068,12 @@ host_time_zone() {
 # setup page chooses another.
 [ -n "$(get_env "$ENV" TZ)" ] || set_env "$ENV" TZ "$(host_time_zone)"
 TZ_NAME="$(get_env "$ENV" TZ)"
+# This machine's id (#982), made once and kept: it goes in the names of its accounts' machines on boat.dev, so that
+# the same account name on two botdot machines reads apart there.
+case "$(get_env "$ENV" BOT_DOT_INSTANCE)" in
+  '' | *[!a-z0-9]*) set_env "$ENV" BOT_DOT_INSTANCE "$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')" ;;
+esac
+INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
 [ "$MODE" != install ] || ok "Time zone $TZ_NAME (change TZ in $ENV)"
 
 # An update asks nothing, here neither: how people reach botdot and the admin's name are what the install answered.
@@ -1621,6 +1627,7 @@ JSON
   if [ -n "$TOKEN" ]; then set_env "$aenv" BOT_DOT_REGISTRY_TOKEN "$TOKEN"; fi
   set_env "$aenv" TZ "$TZ_NAME"
   set_env "$aenv" BOT_DOT_ACCOUNT "$name"
+  set_env "$aenv" BOT_DOT_INSTANCE "$INSTANCE"
   set_env "$aenv" BOT_DOT_FRONT_DOOR_FOLDER "$folder"
   set_env "$aenv" DOCKER_SOCKET "$run/docker.sock"
   # Its data folder, the account's own when it is made: botdot's privilege supervisor gives it to the server's user
