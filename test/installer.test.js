@@ -277,6 +277,7 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
   assert.equal(env.BOT_DOT_FRONT_DOOR_FOLDER, folder);
   assert.equal(env.DOCKER_SOCKET, `${done.run}/ann/docker.sock`);
   assert.equal(env.TZ, 'UTC');
+  assert.match(env.BOT_DOT_INSTANCE, /^[0-9a-f]{8}$/, "the machine's own id, in its boat.dev machines' names (#982)");
   assert.ok(done.accountCalls('ann').includes(`compose --project-directory ${home} up -d --remove-orphans`));
   assert.ok(!done.calls.some((c) => /^compose --project-directory .*accounts/.test(c)), 'never in the machine\'s Docker');
   assert.match(done.said, /The account ann is running/);
@@ -294,6 +295,7 @@ test('a rerun keeps its Docker running when nothing of its settings changed', (t
   const again = installer(t, { again: first });
   assert.equal(again.status, 0, again.stderr);
   const after = again.system.slice(first.system.length);
+  assert.equal(again.accountEnv('ann').BOT_DOT_INSTANCE, first.accountEnv('ann').BOT_DOT_INSTANCE, "the machine's id is made once and kept");
   assert.match(after, /^systemctl start botdot-account@ann$/m);
   assert.doesNotMatch(after, /^systemctl restart/m, 'its bots keep running');
   assert.doesNotMatch(after, /^useradd .*botdot-ann$/m, 'its user is there already');
