@@ -519,6 +519,12 @@ RESTIC_VERSION=0.19.1
 RESTIC_SUMS='linux_amd64 f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
 linux_arm64 a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465'
 OFFSITE_KEEP='--keep-daily 7 --keep-weekly 4 --keep-monthly 3'
+# offsite_keep: what forget keeps: the admin page's number of latest backups (ADR 161), from offsite-keep.json in the
+# front door's data ({"last":N}, 1 to 99), or OFFSITE_KEEP.
+offsite_keep() {
+  ok_last="$(sed -n 's/^{"last":\([1-9][0-9]\{0,1\}\)}$/\1/p' "$DOOR/data/offsite-keep.json" 2>/dev/null | head -n 1)"
+  if [ -n "$ok_last" ]; then printf -- '--keep-last %s' "$ok_last"; else printf '%s' "$OFFSITE_KEEP"; fi
+}
 # The weekly check reads one of this many parts of the repository's data, the next each week (#1018).
 OFFSITE_SUBSETS=20
 # An erased account's off-site snapshots stay this many days (#1019): an erase made by mistake can still be restored.
@@ -652,19 +658,7 @@ offsite_prepare() {
     mv "$OFFSITE/password.new" "$OFFSITE/password"
   fi
   chmod 600 "$OFFSITE/password"
-  case "$OFFSITE_REPO" in sftp:*)
-    command -v ssh >/dev/null 2>&1 || die "The off-site backup signs in with SSH, which this machine lacks: sudo apt install openssh-client"
-    if [ ! -s "$OFFSITE/ssh_key" ]; then
-      command -v ssh-keygen >/dev/null 2>&1 || die "The off-site backup needs ssh-keygen to make its key: sudo apt install openssh-client"
-      rm -f "$OFFSITE/ssh_key" "$OFFSITE/ssh_key.pub"
-      ssh-keygen -q -t ed25519 -N '' -C "botdot-$INSTANCE" -f "$OFFSITE/ssh_key" </dev/null >/dev/null || die "Couldn't make the off-site backup's SSH key."
-      op_at="$(printf '%s' "$OFFSITE_REPO" | sed -n 's#^sftp:\(//\)\{0,1\}\([^@/:]*@[^/:]*\).*#\2#p')"
-      say "This machine signs in to the off-site repository with a new SSH key, $OFFSITE/ssh_key.pub:"
-      say "  $(cat "$OFFSITE/ssh_key.pub")"
-      case "$op_at" in *.your-storagebox.de) say "Add it to the Storage Box: cat $OFFSITE/ssh_key.pub | ssh -p 23 $op_at install-ssh-key" ;; esac
-    fi
-    chmod 600 "$OFFSITE/ssh_key" ;;
-  esac
+  offsite_key
   if [ -n "$op_new" ]; then
     if [ -t 1 ]; then
       bold "The off-site repository's password, shown this once: keep a copy off this machine, as without it the backup can't be read"
@@ -686,6 +680,22 @@ offsite_prepare() {
     *) die "Couldn't open the off-site repository $OFFSITE_REPO: $(offsite_why "$OFFSITE/err")" ;;
   esac
   rm -f "$OFFSITE/err"
+}
+# offsite_key: for an SFTP repository, the SSH key this machine signs in with, made once, its public half said.
+offsite_key() {
+  case "$OFFSITE_REPO" in sftp:*)
+    command -v ssh >/dev/null 2>&1 || die "The off-site backup signs in with SSH, which this machine lacks: sudo apt install openssh-client"
+    if [ ! -s "$OFFSITE/ssh_key" ]; then
+      command -v ssh-keygen >/dev/null 2>&1 || die "The off-site backup needs ssh-keygen to make its key: sudo apt install openssh-client"
+      rm -f "$OFFSITE/ssh_key" "$OFFSITE/ssh_key.pub"
+      ssh-keygen -q -t ed25519 -N '' -C "botdot-$INSTANCE" -f "$OFFSITE/ssh_key" </dev/null >/dev/null || die "Couldn't make the off-site backup's SSH key."
+      op_at="$(printf '%s' "$OFFSITE_REPO" | sed -n 's#^sftp:\(//\)\{0,1\}\([^@/:]*@[^/:]*\).*#\2#p')"
+      say "This machine signs in to the off-site repository with a new SSH key, $OFFSITE/ssh_key.pub:"
+      say "  $(cat "$OFFSITE/ssh_key.pub")"
+      case "$op_at" in *.your-storagebox.de) say "Add it to the Storage Box: cat $OFFSITE/ssh_key.pub | ssh -p 23 $op_at install-ssh-key" ;; esac
+    fi
+    chmod 600 "$OFFSITE/ssh_key" ;;
+  esac
 }
 
 # offsite_part PATH PART ACCOUNT COMMAND…: COMMAND's output as the part PATH of the off-site backup, tagged with PART
@@ -843,14 +853,16 @@ offsite_run() {
   offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"forget\"$OS_LAST"
   offsite_forget_erased
   os_prune=''
-  [ -z "$OS_FORGOT" ] && [ -n "$(find "$OFFSITE/pruned" -mtime -7 2>/dev/null)" ] || os_prune=--prune
+  os_keep="$(offsite_keep)"
+  # A new number of backups kept frees its room now, not within the week.
+  [ -z "$OS_FORGOT" ] && [ -n "$(find "$OFFSITE/pruned" -mtime -7 2>/dev/null)" ] && [ "$(cat "$OFFSITE/keep" 2>/dev/null || true)" = "$os_keep" ] || os_prune=--prune
   set +e
   # shellcheck disable=SC2086 # options
-  r forget --quiet --host "$INSTANCE" $OFFSITE_KEEP $os_prune > "$OFFSITE/err" 2>&1
+  r forget --quiet --host "$INSTANCE" $os_keep $os_prune > "$OFFSITE/err" 2>&1
   os_done=$?
   set -e
   if [ "$os_done" = 0 ]; then
-    [ -z "$os_prune" ] || touch "$OFFSITE/pruned"
+    [ -z "$os_prune" ] || { touch "$OFFSITE/pruned"; printf '%s\n' "$os_keep" > "$OFFSITE/keep"; }
   else
     os_why="$(offsite_why "$OFFSITE/err")"
     warn "The off-site backup's old snapshots weren't removed: $os_why"
@@ -924,6 +936,119 @@ offsite_backup() {
 # offsite_units: on a machine with an off-site repository, root's step for it every night, at 02:00 and as many minutes
 # after as its instance id picks of 120 (botdot-offsite.timer), and one the timer missed, the machine being off, when it
 # is on again. On one without, none.
+# ---------- the off-site backup set up from the admin page (ADR 161) ----------
+#
+# The front door made a sub-account of a Hetzner Storage Box for this machine (lib/front-door/storage-box.js) and asks
+# with OFFSITE-SET, whose lines are the repository's address, the repository's password (root's alone: one the front
+# door wrote is ignored) and the sub-account's password. This step puts this machine's SSH key on the sub-account with
+# that password, once (install-ssh-key), and forgets it; keeps the address in .env; opens or makes the repository; and
+# starts a run. A new password of the repository is left for the admin page in the front door's data
+# (offsite-password.json), which shows it until the admin says it is kept elsewhere. A front door may only name a
+# Storage Box's address. How it went is in status/offsite.json: setting-up, then the run's own states, or off with
+# setup and the error, the address taken out of .env again.
+OFFSITE_SET=OFFSITE-SET
+OFFSITE_STORAGE_BOX='sftp://[a-z0-9-]{1,40}@[a-z0-9.-]{1,200}\.your-storagebox\.de:23/botdot'
+# offsite_key_on USER@HOST: this machine's public key on the Storage Box sub-account, put there with the password in
+# OFFSITE/subpass; tried again for a while, as Hetzner may not have finished making the sub-account.
+offsite_key_on() {
+  printf '#!/bin/sh\ncat %s\n' "$OFFSITE/subpass" > "$OFFSITE/askpass"
+  chmod 700 "$OFFSITE/askpass"
+  ko_try=0
+  while :; do
+    set +e
+    SSH_ASKPASS="$OFFSITE/askpass" SSH_ASKPASS_REQUIRE=force DISPLAY="${DISPLAY:-botdot}" ssh -p 23 \
+      -o UserKnownHostsFile="$OFFSITE/known_hosts" -o StrictHostKeyChecking=accept-new -o PubkeyAuthentication=no \
+      -o PreferredAuthentications=password,keyboard-interactive -o NumberOfPasswordPrompts=1 -o ConnectTimeout=20 \
+      "$1" install-ssh-key < "$OFFSITE/ssh_key.pub" > "$OFFSITE/err" 2>&1
+    ko_done=$?
+    set -e
+    [ "$ko_done" != 0 ] || { rm -f "$OFFSITE/err"; ok "This machine's key is on $1"; return 0; }
+    ko_try=$((ko_try + 1))
+    [ "$ko_try" -lt "${OFFSITE_KEY_TRIES:-6}" ] || break
+    sleep "${OFFSITE_KEY_WAIT:-10}"
+  done
+  die "Couldn't put this machine's key on $1: $(grep -v '^[[:space:]]*$' "$OFFSITE/err" 2>/dev/null | tail -n 1 | plain_line 200)"
+}
+# offsite_set REQUEST: the off-site backup set up as the request REQUEST asks, which is removed as it is read.
+offsite_set() {
+  os_root=''
+  ! by_root "$1" || os_root=1
+  os_repo="$(sed -n 1p "$1" | tr -d '\r')"
+  os_pass="$(sed -n 2p "$1" | tr -d '\r')"
+  os_sub="$(sed -n 3p "$1" | tr -d '\r')"
+  rm -f -- "$1"
+  [ -n "$os_root" ] || os_pass=''
+  if [ -z "$os_root" ] && ! printf '%s' "$os_repo" | grep -Eqx "$OFFSITE_STORAGE_BOX"; then
+    offsite_said off '"setup":true,"error":"Only a Hetzner Storage Box is set up from the admin page."'
+    warn "An off-site setup the front door asked for named no Storage Box, so it was refused."
+    return 0
+  fi
+  case "$os_repo" in '' | *[[:space:]]* | -*)
+    offsite_said off '"setup":true,"error":"The request named no repository."'
+    return 0 ;;
+  esac
+  offsite_said setting-up
+  os_before="$(get_env "$ENV" BOT_DOT_OFFSITE_REPO)"
+  os_had="$( [ -s "$OFFSITE/password" ] && echo 1 || true)"
+  os_why="$RUN/offsite-why"
+  mkdir -p "$RUN"
+  rm -f "$os_why"
+  set +e
+  (
+    set -e
+    umask 077
+    ACCOUNT_WHY="$os_why"
+    mkdir -p "$OFFSITE"
+    chmod 700 "$OFFSITE"
+    [ -z "$os_pass" ] || [ -n "$os_had" ] || { printf '%s\n' "$os_pass" > "$OFFSITE/password"; chmod 600 "$OFFSITE/password"; }
+    set_env "$ENV" BOT_DOT_OFFSITE_REPO "$os_repo"
+    OFFSITE_REPO="$os_repo"
+    INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
+    offsite_key
+    if [ -n "$os_sub" ]; then
+      printf '%s\n' "$os_sub" > "$OFFSITE/subpass"
+      chmod 600 "$OFFSITE/subpass"
+      offsite_key_on "$(printf '%s' "$os_repo" | sed -n 's#^sftp:\(//\)\{0,1\}\([^@/:]*@[^/:]*\).*#\2#p')"
+    fi
+    offsite_prepare
+    if [ -z "$os_had" ] && [ -z "$os_pass" ]; then
+      os_data="$DOOR/data"
+      printf '{"password":"%s","at":"%s"}\n' "$(cat "$OFFSITE/password")" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$os_data/offsite-password.json.new"
+      chown "$(stat -c %u:%g "$os_data")" "$os_data/offsite-password.json.new"
+      chmod 600 "$os_data/offsite-password.json.new"
+      mv "$os_data/offsite-password.json.new" "$os_data/offsite-password.json"
+    fi
+  ) </dev/null
+  os_done=$?
+  set -e
+  rm -f "$OFFSITE/subpass" "$OFFSITE/askpass"
+  if [ "$os_done" = 0 ]; then
+    ok "The off-site backup is set up: $os_repo"
+    offsite_start
+    return 0
+  fi
+  os_text="$(cut -f2- "$os_why" 2>/dev/null || true)"
+  rm -f "$os_why"
+  if [ -n "$os_before" ]; then set_env "$ENV" BOT_DOT_OFFSITE_REPO "$os_before"
+  else { grep -v '^BOT_DOT_OFFSITE_REPO=' "$ENV" || true; } > "$ENV.tmp"; mv "$ENV.tmp" "$ENV"; chmod 600 "$ENV"; fi
+  # A password made for a repository that was never opened is no one's: the next setup makes and shows its own.
+  [ -n "$os_had" ] || rm -f "$OFFSITE/password"
+  offsite_said off "\"setup\":true,\"error\":\"$(printf '%s' "${os_text:-The off-site setup stopped without saying why}" | plain_line 300)\""
+  warn "The off-site backup wasn't set up${os_text:+: $os_text}"
+}
+# offsite_start: a run now, of its own, which systemd starts (the timer's own run isn't started twice); without
+# systemd, in the background.
+offsite_start() {
+  if [ -n "$SYSTEMD" ]; then
+    offsite_units
+    systemctl start --no-block botdot-offsite.service </dev/null || warn "systemd didn't start the off-site backup. See: systemctl status botdot-offsite.service"
+    say "The off-site backup started: see status/offsite.json, or journalctl -u botdot-offsite"
+  else
+    nohup env BOT_DOT_DIR="$DIR" BOT_DOT_RUN="$RUN" BOT_DOT_ETC="$ETC" sh "$BIN/install.sh" --offsite >> "$DIR/offsite.log" 2>&1 </dev/null 9>&- &
+    say "The off-site backup started in the background: see status/offsite.json, or $DIR/offsite.log"
+  fi
+}
+
 offsite_units() {
   [ -n "$SYSTEMD" ] || return 0
   if [ -z "$(offsite_repo)" ]; then
@@ -2021,7 +2146,7 @@ if [ -n "$MANAGED" ]; then
 fi
 
 # Jev, the decision model, boat.dev, the External Virtual PC (#513, #529), and Composio for the admin's own account's
-# connectors (ADR 160): each asked once, on the first install, never on this computer only, which has no admin page.
+# connectors (ADR 161): each asked once, on the first install, never on this computer only, which has no admin page.
 # BOT_DOT_OPENROUTER_KEY, BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer beforehand (empty: no), on any install. A key
 # is checked as the admin page (the Connectors page for Composio) checks it, with the image's own check, and handed to
 # the front door in data/install-keys.json, which it takes and removes; one that isn't taken is set on that page.
@@ -3203,28 +3328,20 @@ if [ "$MODE" = requested ]; then
     rm -f -- "$request"
     if [ "$kind" = restore ]; then restore_set; else backup_set; fi
   done
-  # An off-site backup now (#1016), root's alone too: in a run of its own, as it can take hours, which systemd starts
-  # (and the timer's own run isn't started twice); without systemd, in the background.
+  # The off-site backup set up (ADR 161), by root or by the front door for the admin page.
+  request="$REQUESTS/$OFFSITE_SET"
+  if [ -f "$request" ] && [ ! -L "$request" ]; then offsite_set "$request"; fi
+  # An off-site backup now (#1016), asked by root or by the admin page's "Back up now" (ADR 161): in a run of its own,
+  # as it can take hours.
   request="$REQUESTS/$OFFSITE_REQUEST"
   if [ -f "$request" ] && [ ! -L "$request" ]; then
-    if ! by_root "$request"; then
-      rm -f -- "$request"
-      offsite_said refused '"error":"Only root asks for this."'
-      warn "An off-site backup request that root didn't make was refused."
+    rm -f -- "$request"
+    if [ -z "$(offsite_repo)" ]; then
+      # off, not failed: a machine without off-site has no backup to miss, so nobody is told one failed (#1017).
+      offsite_said off "\"error\":\"This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO.\""
+      warn "This machine has no off-site repository, so it wasn't backed up off-site."
     else
-      rm -f -- "$request"
-      if [ -z "$(offsite_repo)" ]; then
-        # off, not failed: a machine without off-site has no backup to miss, so nobody is told one failed (#1017).
-        offsite_said off "\"error\":\"This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO.\""
-        warn "This machine has no off-site repository, so it wasn't backed up off-site."
-      elif [ -n "$SYSTEMD" ]; then
-        offsite_units
-        systemctl start --no-block botdot-offsite.service </dev/null || warn "systemd didn't start the off-site backup. See: systemctl status botdot-offsite.service"
-        say "The off-site backup started: see status/offsite.json, or journalctl -u botdot-offsite"
-      else
-        nohup env BOT_DOT_DIR="$DIR" BOT_DOT_RUN="$RUN" BOT_DOT_ETC="$ETC" sh "$BIN/install.sh" --offsite >> "$DIR/offsite.log" 2>&1 </dev/null 9>&- &
-        say "The off-site backup started in the background: see status/offsite.json, or $DIR/offsite.log"
-      fi
+      offsite_start
     fi
   fi
   if [ -f "$REQUESTS/$UPDATE" ] && [ ! -L "$REQUESTS/$UPDATE" ]; then
@@ -3268,7 +3385,7 @@ if [ "$MODE" = requested ]; then
     name="$(basename "$request")"
     taken=''
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
-    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
+    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$OFFSITE_SET" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
     elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then

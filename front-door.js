@@ -75,6 +75,7 @@ const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
 const installKeys = require('./lib/front-door/install-keys');
+const storageBox = require('./lib/front-door/storage-box');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
 const auditStore = require('./lib/front-door/audit');
@@ -982,6 +983,51 @@ function offsiteStatus(now = Date.now()) {
   return { state: s.state, at: when(s.at), lastSuccess, ...(failed ? { error: line(s.error, 300) } : {}), check, restoreTest,
     late: failed || restoreTest?.state === 'failed' || !since || now - Date.parse(since) > OFFSITE_LATE_MS };
 }
+// The off-site backup set up from the admin page (ADR 161): the front door makes the Storage Box's sub-account
+// (lib/front-door/storage-box.js) and asks root's step with OFFSITE-SET (its lines: the repository's address, an empty
+// line where root alone may give the repository's password, and the sub-account's password once); root puts this
+// machine's key on it and opens the repository, says setting-up in status/offsite.json, then off with setup and the
+// error when it fails, and leaves the repository's new password in OFFSITE_PASSWORD, which the admin page shows until
+// the admin says it is saved. OFFSITE asks for a run now.
+const OFFSITE_SET = 'OFFSITE-SET';
+const OFFSITE_NOW = 'OFFSITE';
+const OFFSITE_PASSWORD = path.join(DATA, 'offsite-password.json');
+// The number of latest backups the repository keeps, as the admin set it, read by root's step's forget; none: 7 days,
+// 4 weeks and 3 months (ADR 157).
+const OFFSITE_KEEP = path.join(DATA, 'offsite-keep.json');
+function offsiteKeep() {
+  try { const n = JSON.parse(fs.readFileSync(OFFSITE_KEEP, 'utf8')).last; return Number.isInteger(n) && n >= 1 && n <= 99 ? n : null; } catch { return null; }
+}
+const requested = (name) => !!REQUESTS && fs.existsSync(path.join(REQUESTS, name));
+function offsiteSetup() {
+  const s = readStatus('offsite.json');
+  let password = null;
+  try {
+    const j = JSON.parse(fs.readFileSync(OFFSITE_PASSWORD, 'utf8'));
+    if (typeof j?.password === 'string' && /^[\x21-\x7e]{8,200}$/.test(j.password)) password = j.password;
+  } catch { /* none waits */ }
+  return {
+    can: !!REQUESTS,
+    busy: requested(OFFSITE_SET) || s?.state === 'setting-up',
+    now: requested(OFFSITE_NOW),
+    error: s?.state === 'off' && s.setup === true ? line(s.error, 300) : null,
+    password,
+    keep: offsiteKeep(),
+  };
+}
+async function connectStorageBox(token, box) {
+  const boxes = await storageBox.boxes(token);
+  if (!boxes.length) throw new storageBox.HetznerError('This project has no Storage Box.', 400);
+  const chosen = boxes.length === 1 ? boxes[0] : boxes.find((b) => b.id === box);
+  if (!chosen) return { boxes };
+  const name = storageBox.subaccountName(ORIGIN.hostname);
+  const sub = await storageBox.subaccount(token, chosen.id, name, /^[0-9a-f]{8}$/.test(process.env.BOT_DOT_INSTANCE || '') ? process.env.BOT_DOT_INSTANCE : '');
+  const repo = `sftp://${sub.username}@${sub.server}:23/botdot`;
+  fs.writeFileSync(path.join(REQUESTS, OFFSITE_SET), `${repo}\n\n${sub.password}\n`, { mode: 0o640 });
+  console.log(`[front door] the admin connected the Storage Box ${chosen.name}: ${sub.username}`);
+  audited('offsite-connected', { detail: `${chosen.name} · ${sub.username}` });
+  return { repo };
+}
 const OFFSITE_TOLD = path.join(DATA, 'offsite-told.json'); // { late }: what the admin's account was last told
 function tellOffsite() {
   const o = ADMIN && !ONE_ACCOUNT ? offsiteStatus() : null;
@@ -1079,7 +1125,7 @@ function takeInstallKeys() {
   }
   handComposio();
 }
-// The installer's Composio key (ADR 160): the admin's own account's (a managed machine's first), handed until that
+// The installer's Composio key (ADR 161): the admin's own account's (a managed machine's first), handed until that
 // account answers, which it does once it is made and running. It takes it only while it has no key of its own.
 const COMPOSIO_TO = ADMIN || SETUP_ACCOUNT;
 let handingComposio = false;
@@ -1321,7 +1367,49 @@ async function adminRoutes(req, res, p, account) {
   }
   if (p === '/admin/update' && req.method === 'GET') return send(res, 200, updateStatus());
   // The off-site backup (#1017): null on a machine without one.
-  if (p === '/admin/offsite' && req.method === 'GET') return send(res, 200, { offsite: offsiteStatus() });
+  if (p === '/admin/offsite' && req.method === 'GET') return send(res, 200, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  // A Storage Box connected with a Hetzner API token (ADR 161): the token is used here and kept nowhere.
+  if (p === '/admin/offsite' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const token = typeof body.token === 'string' ? body.token.trim() : '';
+    if (!/^[\x21-\x7e]{10,200}$/.test(token)) return send(res, 400, { error: 'Paste a Hetzner API token.' });
+    const setup = offsiteSetup();
+    if (!setup.can) return send(res, 409, { error: "This machine's off-site backup is set up with its installer." });
+    if (offsiteStatus() || setup.busy) return send(res, 409, { error: 'This machine has an off-site backup already.' });
+    try {
+      const done = await connectStorageBox(token, Number.isInteger(body.box) ? body.box : null);
+      if (done.boxes) return send(res, 200, { boxes: done.boxes, offsite: null, setup: offsiteSetup() });
+    } catch (e) {
+      if (e instanceof storageBox.HetznerError) return send(res, e.status, { error: e.message });
+      throw e;
+    }
+    return send(res, 202, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  }
+  if (p === '/admin/offsite/now' && req.method === 'POST') {
+    await readJson(req);
+    const o = offsiteStatus();
+    if (!o || !REQUESTS) return send(res, 409, { error: 'This machine has no off-site backup.' });
+    if (o.state !== 'backing-up') {
+      try { fs.writeFileSync(path.join(REQUESTS, OFFSITE_NOW), '', { flag: 'wx', mode: 0o640 }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
+      audited('offsite-now');
+    }
+    return send(res, 202, { offsite: o, setup: offsiteSetup() });
+  }
+  if (p === '/admin/offsite/keep' && req.method === 'POST') {
+    const last = ((await readJson(req)) || {}).last;
+    if (last !== null && !(Number.isInteger(last) && last >= 1 && last <= 99)) return send(res, 400, { error: 'Keep 1 to 99 backups.' });
+    if (last === null) fs.rmSync(OFFSITE_KEEP, { force: true });
+    else fs.writeFileSync(OFFSITE_KEEP, JSON.stringify({ last }), { mode: 0o644 });
+    console.log(`[front door] the admin set the off-site backups kept: ${last ?? '7 days, 4 weeks, 3 months'}`);
+    audited('offsite-keep', { detail: last ? `${last} latest` : '7 days · 4 weeks · 3 months' });
+    return send(res, 200, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  }
+  // The repository's password is shown until the admin says it is kept elsewhere; then it is gone from here.
+  if (p === '/admin/offsite/password-saved' && req.method === 'POST') {
+    await readJson(req);
+    fs.rmSync(OFFSITE_PASSWORD, { force: true });
+    return send(res, 200, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  }
   // The deadline (ADR 053): the days an account whose owner turned "Update automatically" off waits at most.
   if (p === '/admin/update/days' && req.method === 'POST') {
     const days = doors.setUpdateDays(((await readJson(req)) || {}).days);
