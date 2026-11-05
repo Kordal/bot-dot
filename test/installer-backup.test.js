@@ -30,6 +30,8 @@ function machine(t) {
   const profile = path.join(volume(m.home, 'botdot-bob.account.computer-browser'), 'profiles', 'b1');
   fs.mkdirSync(profile, { recursive: true });
   for (const f of ['cookies.sqlite', 'lock', '.parentlock', 'SingletonLock']) fs.writeFileSync(path.join(profile, f), f);
+  fs.mkdirSync(volume(m.home, 'botdot-bob.account.computer-tailscale'), { recursive: true });
+  fs.writeFileSync(path.join(volume(m.home, 'botdot-bob.account.computer-tailscale'), 'tailscaled.state'), '{"_machinekey":"x"}');
   fs.writeFileSync(path.join(dir, 'front-door', 'data', 'audit.jsonl'), '{"what":"sign-in"}\n');
   m.door({ accounts: { ann: {}, bob: {} }, passkeys: { k1: { account: 'ann' } } });
   // The version the install wrote, as of an image with a source revision.
@@ -52,8 +54,8 @@ test('a backup set holds the front door\'s data and every account\'s data, .env,
   assert.deepEqual(manifest.accounts, ['ann', 'bob']);
   assert.deepEqual(manifest.parts.map((p) => p.path).sort(), [
     'accounts/ann/data.tar', 'accounts/ann/env',
-    'accounts/bob/browser.tar', 'accounts/bob/config.tar', 'accounts/bob/data.tar', 'accounts/bob/env', 'accounts/bob/workspace.tar',
-    'front-door/data.tar',
+    'accounts/bob/browser.tar', 'accounts/bob/config.tar', 'accounts/bob/data.tar', 'accounts/bob/env', 'accounts/bob/tailscale.tar',
+    'accounts/bob/workspace.tar', 'front-door/data.tar',
   ]);
   for (const part of manifest.parts) {
     assert.equal(part.sha256, sha256(path.join(m.set, part.path)), `${part.path}'s checksum`);
@@ -71,6 +73,7 @@ test('a backup set holds the front door\'s data and every account\'s data, .env,
   const browser = members(path.join(m.set, 'accounts', 'bob', 'browser.tar'));
   assert.ok(browser.includes('./profiles/b1/cookies.sqlite'), 'the browser\'s logins');
   assert.deepEqual(browser.filter((f) => /lock$/i.test(f)), [], 'without a profile\'s lock files');
+  assert.ok(members(path.join(m.set, 'accounts', 'bob', 'tailscale.tar')).includes('./tailscaled.state'), 'the computer\'s tailnet identity');
 
   // Root's alone.
   for (const f of ['', 'manifest.json', 'front-door', 'front-door/data.tar', 'accounts/bob', 'accounts/bob/env']) {
@@ -175,11 +178,26 @@ test('a restore puts the front door\'s data back first, then each account with i
   const bob = done.docker.filter((c) => c.host.endsWith('/bob/docker.sock')).map((c) => c.call);
   const down = bob.findIndex((c) => /^compose .* down$/.test(c));
   const puts = bob.map((c, i) => [c, i]).filter(([c]) => /^run --rm -i --pull never --network none --user 0:0 -v /.test(c));
-  assert.deepEqual(puts.map(([c]) => c.match(/-v (\S+):\/v/)[1].replace(m.home, '~')), ['~/data', 'bob_bot-dot-config', 'botdot-bob.account.computer-workspace', 'botdot-bob.account.computer-browser']);
+  assert.deepEqual(puts.map(([c]) => c.match(/-v (\S+):\/v/)[1].replace(m.home, '~')), ['~/data', 'bob_bot-dot-config', 'botdot-bob.account.computer-workspace', 'botdot-bob.account.computer-browser', 'botdot-bob.account.computer-tailscale']);
   assert.ok(down >= 0 && puts.every(([, i]) => i > down), 'its server is stopped before its parts go back');
   const up = bob.map((c, i) => [c, i]).filter(([c]) => /^compose .* up -d/.test(c)).map(([, i]) => i);
   assert.ok(up.some((i) => i > puts.at(-1)[1]), 'and started again after');
   assert.ok(bob.includes('volume create --label botdot.volume=account --label botdot.instance=bob botdot-bob.account.computer-workspace'), 'a computer\'s volume is made for it');
+});
+
+test('a set made before the computer\'s Tailscale identity was in it still restores, without that volume (#1021)', (t) => {
+  const m = machine(t);
+  m.step('BACKUP');
+  const manifest = path.join(m.set, 'manifest.json');
+  const old = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+  old.parts = old.parts.filter((p) => p.path !== 'accounts/bob/tailscale.tar');
+  fs.writeFileSync(manifest, `${JSON.stringify(old)}\n`);
+  fs.rmSync(path.join(m.set, 'accounts', 'bob', 'tailscale.tar'));
+  m.door({ accounts: { ann: {} } });
+  const done = m.step('RESTORE', { dockerFirst: extracts });
+  assert.equal(status(done, 'restore.json').state, 'restored');
+  const bob = done.docker.filter((c) => c.host.endsWith('/bob/docker.sock')).map((c) => c.call);
+  assert.ok(!bob.some((c) => c.includes('computer-tailscale')), 'no Tailscale volume is made or emptied');
 });
 
 test('a set of another version, of another admin, or with a part whose checksum doesn\'t match is refused, and nothing changes', (t) => {
