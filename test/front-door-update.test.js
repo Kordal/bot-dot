@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 const store = require('../lib/front-door/store');
 
 let door, requests, status;
@@ -39,7 +39,7 @@ async function signUp(name, link) {
 let annB = null, bobB = null;
 const admin = async () => (annB ||= await signUp('ann', door.firstLink));
 const bob = async () => (bobB ||= await signUp('bob', door.newLink()));
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 const said = (name, value) => fs.writeFileSync(path.join(status, name), typeof value === 'string' ? value : JSON.stringify(value));
 const asked = () => fs.readdirSync(requests);
 

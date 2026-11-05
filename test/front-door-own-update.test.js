@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 
 const DAY = 24 * 3600_000;
 let door, requests, status;
@@ -44,7 +44,7 @@ const said = (name, value) => fs.writeFileSync(path.join(status, name), typeof v
 const asked = () => fs.readdirSync(requests).sort();
 const clear = () => { for (const f of fs.readdirSync(requests)) fs.rmSync(path.join(requests, f)); };
 const kept = () => JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8'));
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 
 test("every account's owner chooses, the admin's own too (#274)", async () => {
   const b = await bob();

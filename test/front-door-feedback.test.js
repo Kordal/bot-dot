@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 const store = require('../lib/front-door/store');
 const pages = require('../lib/front-door/pages');
 
@@ -42,7 +42,7 @@ async function owner(name, app) {
   stands[name] = await standIn(door, name);
   return signUp(name, { path: new URL(link).pathname }, app);
 }
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 const kept = () => JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8')).feedback;
 
 test('a bug from the web page and a feature request from the Android app are listed on the admin page, newest first', async () => {
