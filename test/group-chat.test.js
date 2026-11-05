@@ -294,6 +294,26 @@ test("a turn that waited does not start beside another turn of its message, and 
   assert.ok(runs[2].startedAt >= runs[1].endedAt, "Mid's turn started when End's had ended");
 });
 
+test("a member's plan is on its turn in the chat's working and on the feed as group_run_plan, and never as run_plan", async (t) => {
+  const { group, bots: [solo, other] } = await team(srv, 'Planner', ['Planner Solo', 'Planner Other']);
+  t.after(() => letGo(srv, solo));
+  hold(srv, solo);
+  reply(srv, other, 'PASS');
+  const f = await feed(srv);
+  t.after(() => f.close());
+  await send(srv, group, { text: '@Planner Solo deploy the console.' });
+  await atWork(srv, group, [solo]);
+  await waitFor(() => ranOf(srv, solo).length === 1, { what: "Planner Solo's turn to be going" });
+  const [rec] = ranOf(srv, solo);
+  const todos = { todos: [{ content: 'Check the server', status: 'in_progress', activeForm: 'Checking the server' }, { content: 'Deploy', status: 'pending', activeForm: 'Deploying' }] };
+  fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'p1', name: 'TodoWrite', input: todos }] } }]));
+  const [w] = (await waitFor(async () => { const x = await chatOf(srv, group); return x.working[0]?.plan ? x : null; }, { what: "the turn's plan" })).working;
+  assert.deepEqual(w.plan.steps.map((s) => [s.text, s.status]), [['Check the server', 'doing'], ['Deploy', 'todo']]);
+  const ev = await f.wait('group_run_plan', (d) => d.runId === w.runId);
+  assert.deepEqual([ev.data.groupId, ev.data.chat, ev.data.botId, ev.data.plan.steps.length], [group.id, `group:${group.id}`, solo.id, 2]);
+  assert.ok(!f.events.some((e) => e.type === 'run_plan' && e.data.runId === w.runId), "a turn's plan is never drawn in the bot's own chat");
+});
+
 test('a member that is paused, taken out of the group or deleted while its turn waited is skipped, and leaves nothing', async (t) => {
   const { group, bots: [lead, ben, cal, dan, eve] } = await team(srv, 'Leaving', ['Lead', 'Ben', 'Cal', 'Dan', 'Eve']);
   t.after(() => { for (const b of [ben, cal, dan, eve]) letGo(srv, b); });

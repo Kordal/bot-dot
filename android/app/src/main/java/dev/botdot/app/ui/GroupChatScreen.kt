@@ -61,6 +61,7 @@ import dev.botdot.app.data.Groups
 import dev.botdot.app.data.MEMORY_CHIPS
 import dev.botdot.app.data.Mentions
 import dev.botdot.app.data.OpeningLine
+import dev.botdot.app.data.Plan
 import dev.botdot.app.data.ReplyDraft
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunEvent
@@ -202,6 +203,8 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
                         if (isTrue(d["passed"])) { heldDrafts.passed(d.str("id")); publishDrafts() } // a pass leaves nothing, not even its draft
                         kicks.tryEmit(Unit)
                     }
+                    // A member's plan changed: on its turn as the chat holds it, drawn above the message box.
+                    ev.type == "group_run_plan" -> d.str("runId").let { run -> working = working.map { if (it.runId == run) it.copy(plan = Plan.of(d["plan"])) else it } }
                     ev.type == "group_asks" -> asks = GroupAsks.of(d["asks"])
                     ev.type == "group_limit" -> { limit = GroupLimit.of(d["limit"]); kicks.tryEmit(Unit) }
                 }
@@ -333,6 +336,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val signedOut by app.store.claude.signedOut.collectAsState()
     val listState = rememberLazyListState()
     val chatKey = groupKey(groupId)
+    // The plan of a member at work, above the message box (docs/api.md, "The plan"), folded as the owner left it here.
+    var planFolded by remember(groupId) { mutableStateOf(app.plans.folded(chatKey)) }
+    val groupPlan = GroupWorking.planOf(vm.working)
 
     LaunchedEffect(vm) { vm.notes.collect { scope.launch { snack.showSnackbar(it) } } }
     // Deleted, here or in another app: there is no chat to show. The list is read once more first: a group made a
@@ -403,7 +409,11 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                 }
                 else ChatBar(null, "idle", group?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its name and its members"), picture = { GroupPicture(members, 32) })
             },
-            bottomBar = {
+            bottomBar = { Column {
+                groupPlan?.let { (w, view) ->
+                    val bot = bots.firstOrNull { it.id == w.botId }
+                    PlanDock(view, bot?.color, bot?.name ?: tr("It"), planFolded, onFold = { planFolded = it; app.plans.setFolded(chatKey, it) }, onDismiss = {})
+                }
                 Composer(
                     placeholder = group?.name?.let { tr("Message {name}…", "name" to it) } ?: tr("Message the group…"),
                     files = vm.files,
@@ -414,7 +424,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                     onError = { scope.launch { snack.showSnackbar(it) } },
                     onSignIn = onSignIn.takeIf { signedOut },
                 )
-            },
+            } },
         ) { pad ->
             LazyColumn(
                 Modifier.fillMaxSize(),
@@ -536,7 +546,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
                     CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName), LocalProductSaver provides r.botId) {
-                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files) }
+                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
                     }
                 }
                 else -> when (val ended = endedWords(r, features)) {

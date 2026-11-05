@@ -460,7 +460,7 @@ function groupReplyHTML(r, asks = null) {
     ${botFigure(color, r.status === 'error' ? 'failed' : 'idle', 'g-head', bot?.outfit || null, bot?.id || '')}
     <div class="stack">
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
-      <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}</div>
+      <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${globalThis.Plan && r.plan ? Plan.replyHTML(r.plan) : ''}</div>
       ${learnedChips(r)}
       <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
       ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
@@ -652,9 +652,20 @@ function renderGroupChat() {
   // A reply that is new in the open chat arrives (replies.js, "a reply arrives"): its whole row, once.
   for (const id of repliesArrive(arrivals.group, thread, key, groupReplyIds(chat))) arrive($(`[data-reply="${CSS.escape(id)}"]`, items));
   followGroupDrafts(chat);
+  drawGroupPlan(chat);
   drawGroupTail(g, chat);
   updateChatNeeds(thread, key);
   setSendBusy(form, false);
+}
+
+// The plan above the message box (plan.js; docs/api.md, "The plan"): of the member at work that started last and has
+// one, as a bot's own chat draws its running run's. A turn's plan folds and unfolds by the group's chat.
+function drawGroupPlan(chat) {
+  const slot = $('#view-group .plan-slot');
+  if (!slot || !globalThis.Plan) return;
+  const w = [...chat.working].reverse().find((x) => Plan.has(x.plan));
+  if (w) slot.style.setProperty('--c', memberColor(w.botId));
+  Plan.draw(slot, `group:${chat.id}`, w ? { kind: 'live', plan: w.plan, id: w.runId, who: memberName(w.botId) } : null);
 }
 
 // ---------- a member's reply as it is written ----------
@@ -865,6 +876,13 @@ function followGroups(es) {
     renderContacts();
     redrawGroup(d.groupId);
     again(d.groupId);
+  });
+  // A member's plan changed (docs/api.md, "The plan"): on its turn as the open chat holds it.
+  on('group_run_plan', (d) => {
+    const w = open(d.groupId)?.working.find((x) => x.runId === d.runId);
+    if (!w || JSON.stringify(w.plan ?? null) === JSON.stringify(d.plan ?? null)) return;
+    if (d.plan) w.plan = d.plan; else delete w.plan;
+    redrawGroup(d.groupId);
   });
   // The owner's message as it is now: taken, or whom it waits for changed. And one that was taken back.
   on('group_message', (d) => {
