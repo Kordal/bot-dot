@@ -192,7 +192,7 @@ test('the admin page script draws a share and a use as text, and an account neve
   assert.match(pages.ADMIN_SCRIPT, /'Disk full'|' Disk full'/);
   assert.doesNotMatch(pages.ADMIN_SCRIPT, /innerHTML/);
   // The pages an account's owner sees say nothing of a share.
-  for (const html of [pages.signIn(), pages.signUp(), pages.making(), pages.starting(), pages.notRunning(), pages.paused()]) {
+  for (const html of [pages.signIn(), pages.signUp(), pages.making(), pages.starting(), pages.updating(), pages.notRunning(), pages.paused()]) {
     assert.doesNotMatch(html.replace(/<style>[\s\S]*?<\/style>/, ''), /share|load|limit|quota|GB|CPU/i);
   }
 });

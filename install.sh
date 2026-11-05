@@ -938,7 +938,7 @@ gb() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1e9 }'; }
 # (lib/image-layers.js, from the new image itself once it is here: root's copy of the installer may be older than it,
 # ADR 036), three times over (the download, then unpacked at about twice its size) and 1 GB for the account to go on
 # working. An account short of it stops the update with what it needs, before any account is changed. When the
-# registry's answer gives no sizes, the update goes on without the check.
+# registry's answer gives no sizes, only the room for the snapshot of each account's data is checked.
 room_for_accounts() {
   ls "$ACCOUNTS"/*/compose.yaml >/dev/null 2>&1 || return 0
   if $D image inspect "$SERVER_SIGNED" </dev/null >/dev/null 2>&1; then
@@ -948,7 +948,8 @@ room_for_accounts() {
     rf_runner="$(get_env "$ENV" BOT_DOT_IMAGE)"
     rf_layers="$(check_node image-layers.js "$SERVER_SIGNED" 2>/dev/null || true)"
   fi
-  [ -n "$rf_layers" ] || { warn "Couldn't tell how much room the update needs in each account; it goes on without that check."; return 0; }
+  # Without the layers' sizes the new image counts as nothing, and the snapshot of each account's data is still checked.
+  [ -n "$rf_layers" ] || warn "Couldn't tell how much room the new image needs in each account; only the room for each account's snapshot is checked."
   for rf in "$ACCOUNTS"/*/; do
     rf="$(basename "$rf")"
     [ -f "$ACCOUNTS/$rf/compose.yaml" ] || continue
@@ -1736,16 +1737,30 @@ snapshot_of() {
   printf '%s' "$so_s"
 }
 # take_snapshot NAME: the account NAME's snapshot, made now ($A is its Docker). What fails leaves it running the version
-# it runs, and stops its switch.
+# it runs, and stops its switch. With rsync it is copied twice: once while its botdot server runs, which takes as long
+# as the data is big (an account's data can be 100 GB in millions of files), then again with the server stopped, which
+# copies only what changed meanwhile, so that the account is down for seconds, not for the whole copy. Without rsync
+# the server is stopped for one whole copy.
 take_snapshot() {
   ts_home="$ACCOUNTS/$1"
   say "Keeping a snapshot of the account $1's data before it switches"
   rm -rf -- "$ts_home/snapshot" "$ts_home/snapshot.new"
+  ts_first=''
+  if command -v rsync >/dev/null 2>&1 && mkdir -m 700 "$ts_home/snapshot.new"; then
+    # A file that changes or goes while it is copied is copied again below.
+    rsync -aHAX --numeric-ids "$ts_home/data/" "$ts_home/snapshot.new/data/" </dev/null >/dev/null 2>&1
+    case $? in 0 | 23 | 24) ts_first=1 ;; esac
+  fi
   # Stopped, so that the copy is of data nothing writes meanwhile; the switch starts it again on the new version.
   $A compose --project-directory "$ts_home" stop bot-dot </dev/null >/dev/null 2>&1 \
-    || die "Couldn't stop its botdot server to keep a snapshot of its data, so it wasn't switched."
-  if mkdir -m 700 "$ts_home/snapshot.new" && cp -a "$ts_home/data" "$ts_home/snapshot.new/data" \
-    && cp -p "$ts_home/compose.yaml" "$ts_home/.env" "$ts_home/snapshot.new/" && date -u +%Y-%m-%dT%H:%M:%SZ > "$ts_home/snapshot.new/at"; then
+    || { rm -rf -- "$ts_home/snapshot.new"; die "Couldn't stop its botdot server to keep a snapshot of its data, so it wasn't switched."; }
+  if [ -n "$ts_first" ]; then
+    rsync -aHAX --numeric-ids --delete "$ts_home/data/" "$ts_home/snapshot.new/data/" </dev/null >/dev/null 2>&1
+  else
+    rm -rf -- "$ts_home/snapshot.new"
+    mkdir -m 700 "$ts_home/snapshot.new" && cp -a "$ts_home/data" "$ts_home/snapshot.new/data"
+  fi
+  if [ "$?" = 0 ] && cp -p "$ts_home/compose.yaml" "$ts_home/.env" "$ts_home/snapshot.new/" && date -u +%Y-%m-%dT%H:%M:%SZ > "$ts_home/snapshot.new/at"; then
     mv "$ts_home/snapshot.new" "$ts_home/snapshot"
   else
     rm -rf -- "$ts_home/snapshot.new"

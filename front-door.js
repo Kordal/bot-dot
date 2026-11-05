@@ -353,6 +353,15 @@ function updateStatus() {
   const selfBuilt = installed.selfBuilt === true;
   return { version: short(installed.version), selfBuilt, asked, update, newest: !selfBuilt && newest.version && newest.at ? newest : null, days: doors.updateDays() };
 }
+// Whether the account is being updated now, so that its botdot server is stopped for its switch: the admin's update
+// at this account's switch, or the switch of this account alone. A stale one isn't.
+const UPDATING = 'Your account is being updated. It takes a few minutes; try again then.';
+function beingUpdated(account) {
+  const last = readStatus('update.json');
+  const fresh = (at) => !!when(at) && Date.now() - Date.parse(at) <= UPDATE_STALE_MS;
+  if (last && last.state === 'updating' && last.phase === 'switch' && last.account === account && fresh(last.at)) return true;
+  return accountStatus(account)?.state === 'switching';
+}
 function askForUpdate() {
   if (!REQUESTS) return false;
   try { fs.writeFileSync(path.join(REQUESTS, UPDATE), `${new Date().toISOString()}\n`, { flag: 'wx', mode: 0o640 }); } catch (e) {
@@ -1494,6 +1503,9 @@ function pass(req, res, account, { path: to = req.url, headers: sent = headersFo
   up.on('error', () => {
     if (res.headersSent) return res.destroy();
     const page = to === req.url && (req.method === 'GET' || req.method === 'HEAD') && !String(req.url).startsWith('/api/');
+    if (notRunning === NOT_RUNNING && beingUpdated(account)) {
+      return page ? html(res, 503, pages.updating()) : send(res, 503, { error: UPDATING, updating: true }, { 'Retry-After': '15' });
+    }
     // Down with nothing asked of the machine (its server or its Docker stopped): the machine is asked to start it
     // again, at most once in a few minutes, and the owner sees it starting. A job's call only learns it isn't running.
     if (!asked(account) && !(notRunning === NOT_RUNNING && revive(account))) {
