@@ -58,6 +58,8 @@ function machine(t, { repo = null } = {}) {
   const profile = path.join(volume(m.home, 'botdot-bob.account.computer-browser'), 'profiles', 'b1');
   fs.mkdirSync(profile, { recursive: true });
   for (const f of ['cookies.sqlite', 'lock', 'SingletonLock']) fs.writeFileSync(path.join(profile, f), f);
+  fs.mkdirSync(volume(m.home, 'botdot-bob.account.computer-tailscale'), { recursive: true });
+  fs.writeFileSync(path.join(volume(m.home, 'botdot-bob.account.computer-tailscale'), 'tailscaled.state'), '{}');
   fs.writeFileSync(path.join(dir, 'front-door', 'data', 'audit.jsonl'), '{"what":"sign-in"}\n');
   m.door({ accounts: { ann: {}, bob: {} } });
   fs.writeFileSync(path.join(dir, 'front-door', 'status', 'version.json'), '{"version":"abc1234","selfBuilt":false}\n');
@@ -89,7 +91,7 @@ test('the off-site backup streams every part of a set into the repository, made 
     'front-door/data.tar',
     'accounts/ann/data.tar', 'accounts/ann/env',
     'accounts/bob/data.tar', 'accounts/bob/env', 'accounts/bob/config.tar', 'accounts/bob/workspace.tar', 'accounts/bob/browser.tar',
-    'manifest.json',
+    'accounts/bob/tailscale.tar', 'manifest.json',
   ]);
   for (const c of calls.filter((c) => / backup /.test(c))) {
     assert.match(c, /--stdin-from-command -- /, 'streamed, from the command that makes it');
@@ -131,7 +133,7 @@ test('the off-site backup streams every part of a set into the repository, made 
 
   const said = status(done, 'offsite.json');
   assert.equal(said.state, 'done');
-  assert.equal(said.bytesAdded, 900);
+  assert.equal(said.bytesAdded, 1000);
   assert.equal(said.lastSuccess, said.finished);
   assert.ok(said.started <= said.finished);
   assert.deepEqual(Object.keys(said.snapshots), backups);

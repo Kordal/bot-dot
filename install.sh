@@ -514,12 +514,15 @@ OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --ex
 # A tar's exit 1 (a file changed while it was read) is no failure; restic counts any other exit as one.
 OFFSITE_TAR='tar "$@"; s=$?; [ "$s" -le 1 ] || exit "$s"'
 
-# The parts of a set, its computer's volumes and their lock files (A backup set, below).
-SET_VOLUMES='workspace home browser'
+# The parts of a set, its computer's volumes and their lock files (A backup set, below). tailscale holds the computer's
+# tailnet identity (#1021), so a restored computer stays on the tailnet without a new approval; a restore puts it back
+# only with the account's containers stopped, so no other copy of that computer runs with it.
+SET_VOLUMES='workspace home browser tailscale'
 SET_LOCKS='lock .parentlock parent.lock SingletonLock SingletonSocket SingletonCookie'
 # plain_line N: its input as one line of plain text of at most N characters, for update.json.
 plain_line() { tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-"$1"; }
-# account_volume NAME VOLUME: the folder of the account NAME's Docker volume VOLUME (config, workspace, home, browser).
+# account_volume NAME VOLUME: the folder of the account NAME's Docker volume VOLUME (config, workspace, home, browser,
+# tailscale).
 account_volume() {
   case "$2" in config) av="$1_bot-dot-config" ;; *) av="botdot-$1.account.computer-$2" ;; esac
   printf '%s/%s/.local/share/docker/volumes/%s/_data' "$ACCOUNTS" "$1" "$av"
