@@ -4,7 +4,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { checked, installer, rerun, roomAnswers, withBob, status } = require('./installer-helpers');
+const { checked, installer, withBob, status } = require('./installer-helpers');
 
 const NAMED = `sha256:${'e'.repeat(64)}`;
 const REVISION = 'f'.repeat(40);
@@ -74,19 +74,34 @@ test('a named version older than the one the front door runs is refused', (t) =>
   refusedAtCheck(update(t, NAMED, { answers: { release: '3' } }, { dotenv: 'BOT_DOT_RELEASE=5\n' }), /it is older than the version this machine runs/);
 });
 
-test("each account's data is kept as a snapshot before its switch, with what it ran, and only one", (t) => {
+test("each account's data is kept as a snapshot before its switch, and goes once its new server answers", (t) => {
   const { home, calls, log, update: u } = update(t, NAMED);
   assert.equal(u.state, 'updated', log);
-  const snap = path.join(home, 'snapshot');
-  assert.equal(fs.readFileSync(path.join(snap, 'data', 'note'), 'utf8'), 'before', 'its data');
-  assert.match(fs.readFileSync(path.join(snap, 'compose.yaml'), 'utf8'), /# the version before/, 'the compose file it ran');
-  assert.ok(fs.existsSync(path.join(snap, '.env')));
-  assert.equal(fs.statSync(snap).mode & 0o777, 0o700, "root's alone");
   const stop = calls('bob').findIndex((c) => /^compose .* stop bot-dot$/.test(c));
   assert.ok(stop >= 0 && stop < calls('bob').findIndex((c) => /^compose .* up -d/.test(c)), 'its server stops for the copy, before the switch');
   assert.match(log, /Keeping a snapshot of the account bob's data before it switches/);
-  assert.deepEqual(fs.readdirSync(home).filter((f) => f.startsWith('snapshot')), ['snapshot'], 'one snapshot');
+  assert.deepEqual(fs.readdirSync(home).filter((f) => f.startsWith('snapshot')), [], 'no copy of its data stays on its disk');
 });
+
+test("an account whose disk wouldn't keep a fifth free after the snapshot switches without one", (t) => {
+  const { home, calls, log, update: u } = update(t, NAMED, { given: { STAND_IN_DISK_FREE: '1024' } });
+  assert.equal(u.state, 'updated', log);
+  assert.match(log, /The account bob's disk has no room for a snapshot of its data \(0\.0 GB\), so it switches without one/);
+  assert.doesNotMatch(log, /Keeping a snapshot of the account bob/);
+  assert.ok(!calls('bob').some((c) => /^compose .* stop bot-dot$/.test(c)), "its server isn't stopped for a copy");
+  assert.deepEqual(fs.readdirSync(home).filter((f) => f.startsWith('snapshot')), []);
+});
+
+// A snapshot as a switch that didn't finish leaves it: root's own, with the data and what the account ran before.
+function snapshotOf(r) {
+  const snap = path.join(r.home, 'snapshot');
+  fs.mkdirSync(path.join(snap, 'data'), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(path.join(snap, 'data', 'note'), 'before');
+  fs.writeFileSync(path.join(snap, 'compose.yaml'), `${fs.readFileSync(path.join(r.home, 'compose.yaml'), 'utf8')}# the version before\n`);
+  fs.copyFileSync(path.join(r.home, '.env'), path.join(snap, '.env'));
+  fs.writeFileSync(path.join(snap, 'at'), `${new Date().toISOString()}\n`);
+  return snap;
+}
 
 test("a new server that doesn't answer gets its data back from the snapshot, with its version (ADR 044)", (t) => {
   // bob's first `compose up` of the update starts a server that changes its data and never answers.
@@ -110,6 +125,7 @@ test("a new server that doesn't answer gets its data back from the snapshot, wit
 test('a rollback request takes an account back to its snapshot and the version before, and its status file says so', (t) => {
   const r = update(t, NAMED);
   assert.equal(r.update.state, 'updated', r.log);
+  snapshotOf(r);
   fs.writeFileSync(path.join(r.home, 'data', 'note'), 'after');
   const done = r.step('ROLLBACK-bob');
   assert.match(done.said, /Rolling the account bob back to its snapshot/);
@@ -130,20 +146,7 @@ test('a rollback request takes an account back to its snapshot and the version b
 test("a snapshot the account's own user made is not trusted", (t) => {
   const r = update(t, NAMED);
   const snap = path.join(r.home, 'snapshot');
-  fs.rmSync(snap, { recursive: true });
   fs.symlinkSync('/etc', snap);
   const done = r.step('ROLLBACK-bob');
   assert.equal(status(done, 'account-bob.json').error, 'It has no snapshot to go back to.');
-});
-
-test("an update stops before any download when an account's disk has no room for the snapshot of its data", (t) => {
-  const first = rerun(t);
-  const data = path.join(first.dir, 'accounts', 'ann', 'data');
-  fs.mkdirSync(data, { recursive: true });
-  fs.writeFileSync(path.join(data, 'big'), Buffer.alloc(2 * 1024 * 1024));
-  // Room for the image's layers it lacks (none) but not for 2 MB of data: 1 MB free.
-  const done = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`sha256:${'e'.repeat(64)} 500000000\\n`), given: { STAND_IN_DISK_FREE: '1024' } });
-  assert.notEqual(done.status, 0, done.said);
-  assert.match(done.stderr, /The account ann needs 0\.0 GB free for this update and has 0\.0 GB/);
-  assert.ok(!done.calls.slice(first.calls.length).some((c) => /^pull -q ghcr\.io\/kordal\/bot-dot@/.test(c)), 'nothing downloaded');
 });
