@@ -26,7 +26,7 @@ const SUB = 165536;
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
   'apt-get', 'dpkg', 'dpkg-query', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
-  'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'truncate', 'df', 'getconf', 'getent']);
+  'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent']);
 let systemTools = null;
 function machineTools() {
   if (systemTools) return systemTools;
@@ -119,7 +119,7 @@ case " $* " in *" --create-home "*) h="$(echo " $* " | sed 's/.* --home-dir \\([
 case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${users}" ;; *) echo "$name:$((1001 + n)):$((1001 + n))" >> "${users}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subuid')}"; echo "$name:${SUB}:65536" >> "${path.join(etc, 'subgid')}" ;; esac
 h=''; prev=''; for a in "$@"; do [ "$prev" = --home-dir ] && h="$a"; prev="$a"; done
 echo "$name:x:$(grep "^$name:" "${users}" | cut -d: -f2-3):botdot:$h:/usr/sbin/nologin" >> "${path.join(etc, 'passwd')}"`);
-  for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs', 'iptables', 'ip6tables']) stand(name, said(name));
+  for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs', 'fstrim', 'iptables', 'ip6tables']) stand(name, said(name));
   // iptables-restore: what it was asked, then the rules it was given, one a line.
   for (const name of ['iptables-restore', 'ip6tables-restore']) stand(name, `${said(name)}\ncat >> "$STAND_IN_LOG"`);
   // An account's disk: an image file the stand-in truncate writes its size in, mounted (as a mark) by mount.

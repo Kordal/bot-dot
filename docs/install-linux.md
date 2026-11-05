@@ -114,6 +114,20 @@ A first install also asks whether to use Jev as the decision model (with an Open
 
 Each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, never overcommitted: the machine holds as many accounts as it has CPUs for and, after 2 GB of RAM for the system, RAM for. A Contabo Cloud VPS 6 (6 CPUs, 12 GB) holds one account, a Cloud VPS 8 (8 CPUs, 24 GB) two. An install on a machine without room for one share stops before it installs anything, and a sign-up link makes no account that wouldn't fit. A rerun with `BOT_DOT_VARIANT=several` turns a machine of one account into one of several without a reinstall, keeping the account and its passkeys; going back to `one` is refused while the machine has another account.
 
+### Sign-in and sign-up links without the admin page
+
+On a managed machine root's step makes the links the admin page makes elsewhere, each asked with a file of root's in the front door's requests folder:
+
+```sh
+# a sign-in link that gives the account ann a new passkey, for an owner who lost every device (1 day, works once)
+sudo touch /var/lib/botdot/front-door/requests/SIGN-IN-ann
+# a sign-up link for another account, on a machine of several (7 days, works once); a name on its first line keeps it for that account
+sudo touch /var/lib/botdot/front-door/requests/SIGN-UP
+echo bob | sudo tee /var/lib/botdot/front-door/requests/SIGN-UP
+```
+
+The front door makes the link as the admin page does, and root's step writes it in `/var/lib/botdot/front-door/status/sign-in-ann.json`, `sign-up.json` or `sign-up-bob.json`, which only root and the front door read: `state` (`made`, `refused` or `failed`), `at`, `kind` (`sign-in` or `sign-up`), `account`, and `url` and `expires` once made, or `error`. A sign-up on a machine of one account, a sign-in for an account that doesn't exist, a sign-up for a name that is taken and a request the front door made, not root, are refused. An account made from a sign-up link must fit beside the others' shares, as any other. Every link made or refused is in the audit log, by `console`, without the link; the link is in no log. They work on a machine with an admin page too.
+
 A managed machine's computers can't reach its network ([ADR 156](adr/156-a-managed-machines-computers-reach-no-private-address-metadata-or-smtp.md)): root's firewall, `botdot-egress`, refuses the accounts' Linux users every new connection to a private range, a link-local address (the cloud's metadata at `169.254.169.254`) and TCP 25 and 465, over IPv4 and IPv6, before any account's Docker starts. DNS to the machine's resolvers, the machine itself and every answer stay open; the front door and Caddy aren't touched. Its rules: `sudo iptables -S BOTDOT-GUARD`.
 
 ## Terms and privacy policy
@@ -166,7 +180,7 @@ echo sha256:<64 hex digits> | sudo tee /var/lib/botdot/front-door/requests/UPDAT
 sudo touch /var/lib/botdot/front-door/requests/ROLLBACK-<account>
 ```
 
-An empty `UPDATE` takes the newest release, as the admin page's button does. A digest that isn't one of botdot's signed releases, or one older than the release the front door runs, is refused at `check`, and nothing is downloaded or restarted; `update.json` in `/var/lib/botdot/front-door/status` says the version asked for (`named`) and how it went. The bots' computer goes to the release built from the same source. Releases signed before 5 November 2026 can't be named. Before an account switches to another version, its botdot server stops and its data folder, with the compose file and `.env` it ran, is copied to `snapshot/` in its home, on its own disk; the update's disk check counts that room. Each account keeps one snapshot, replaced at its next switch. A new server that doesn't answer gets its data back from it along with its version. A rollback request restores the snapshot, starts the version it ran then and uses the snapshot up; `status/account-<account>.json` says `rolledback`, or `kept` or `failed` with why. What the account did since its switch is gone after a rollback.
+An empty `UPDATE` takes the newest release, as the admin page's button does. A digest that isn't one of botdot's signed releases, or one older than the release the front door runs, is refused at `check`, and nothing is downloaded or restarted; `update.json` in `/var/lib/botdot/front-door/status` says the version asked for (`named`) and how it went. The bots' computer goes to the release built from the same source. Releases signed before 5 November 2026 can't be named. Before an account switches to another version, its data folder, with the compose file and `.env` it ran, is copied to `snapshot/` in its home, on its own disk: with rsync while its botdot server runs, then again with it stopped for what changed. An account whose disk wouldn't keep a fifth free after the copy switches without one. A new server that doesn't answer gets its data back from it along with its version; one that answers removes it at once, so no copy of the data stays on the account's disk. A rollback request finds a snapshot only after a switch that didn't finish; it restores the snapshot, starts the version it ran then and uses the snapshot up; `status/account-<account>.json` says `rolledback`, or `kept` or `failed` with why. What the account did since its switch is gone after a rollback.
 
 Running the installer again from a newer source does the same, and also updates the installer that the admin page's Update runs:
 

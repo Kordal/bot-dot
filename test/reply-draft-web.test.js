@@ -30,7 +30,7 @@ test('web: every stream case of the shared fixture is drawn as its blocks', () =
 
 test('web: a draft cut mid-table, inside a fence or at an unclosed ** or [ never draws broken', () => {
   const table = md(draftSource('| Host | Free |\n|---|---|\n| pve | 41% |\n| nas | 1'));
-  assert.equal(table, '<table><tr><th>Host</th><th>Free</th></tr><tr><td>pve</td><td>41%</td></tr></table>', 'no half row');
+  assert.equal(table, '<div class="md-table"><table><thead><tr><th>Host</th><th class="num">Free</th></tr></thead><tbody><tr><td>pve</td><td class="num">41%</td></tr></tbody></table></div>', 'no half row');
   // Without the Copy buttons of the code blocks and their boxes (#285, test/code-copy-web.test.js).
   const noCopy = (html) => html.replace(/<div class="code-block">(<pre[\s\S]*?<\/pre>)<button [^>]*code-copy[\s\S]*?<\/button><\/div>/g, '$1');
   const code = noCopy(md(draftSource('```sh\n# rm -rf\n- x')));

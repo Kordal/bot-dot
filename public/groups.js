@@ -292,7 +292,7 @@ function renderGroupSettings() {
   // Nothing to add: the group is full, or every bot is in it. A team's chat follows its team (#697): nothing here.
   $('#gs-add', root).classList.toggle('hidden', !!g.team || g.members.length >= GROUP_MAX || !state.bots.some((b) => !g.members.includes(b.id)));
   $('#gs-delete', root).classList.toggle('hidden', !!g.team);
-  name.disabled = !!g.team;
+  name.disabled = !!g.team && !(state.features || []).includes('team-chat-rename'); // a team's chat is renamed with its team
 }
 
 // ---------- a group's notes (ADR 139) ----------

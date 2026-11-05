@@ -675,6 +675,18 @@ function hideOpenMarks(line) {
   return cut.size ? line.split('').filter((_, i) => !cut.has(i)).join('') : line;
 }
 
+// A table scrolls sideways in its box when it is wider than the chat, so its columns are never squeezed into a
+// letter each; a column of only numbers lines up on the right.
+const NUM_CELL = /^[-+−]?\d[\d\s.,:]*%?$/;
+function tableHTML(rows, inline) {
+  const cols = Math.max(...rows.map((r) => r.length));
+  const body = rows.slice(1);
+  const num = Array.from({ length: cols }, (_, c) => body.some((r) => r[c]) && body.every((r) => !r[c] || NUM_CELL.test(r[c])));
+  const cell = (tag, c, text) => `<${tag}${num[c] ? ' class="num"' : ''}>${inline(text)}</${tag}>`;
+  const row = (r, tag) => `<tr>${r.map((c, ci) => cell(tag, ci, c)).join('')}</tr>`;
+  return `<div class="md-table"><table><thead>${row(rows[0], 'th')}</thead>${body.length ? `<tbody>${body.map((r) => row(r, 'td')).join('')}</tbody>` : ''}</table></div>`;
+}
+
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth, and task: "done" or
 // "todo" for a task item), quote (text),
 // rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
@@ -795,7 +807,7 @@ function mdParts(blocks, botId) {
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
-    else if (b.type === 'table') out.push('<table>' + b.rows.map((r, ri) => `<tr>${r.map((c) => (ri === 0 ? `<th>${inline(c)}</th>` : `<td>${inline(c)}</td>`)).join('')}</tr>`).join('') + '</table>');
+    else if (b.type === 'table') out.push(tableHTML(b.rows, inline));
     else out.push(`<p>${text(b.text)}</p>`);
   }
   return out;

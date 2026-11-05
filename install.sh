@@ -44,6 +44,11 @@
 # fresh install of the same version with one named RESTORE (below, "A backup set"): BOT_DOT_DIR/backup holds it, and
 # status/backup.json and status/restore.json say how it went.
 #
+# A link for a machine without an admin page (#985), root's alone too: SIGN-IN-<account> asks for a sign-in link that
+# makes that account a new passkey, and SIGN-UP for a sign-up link (for the account named on its first line, if any; a
+# machine of one account takes none). The link is in status/sign-in-<account>.json or status/sign-up[-<account>].json
+# ("A link asked by root alone", below), which only root and the front door read, and nowhere else.
+#
 # An account whose owner turned "Update automatically" off is left waiting on the version it runs, with the new one in
 # its Docker (ADR 053). "Update now", from its owner's Settings or the admin page, or the deadline the admin set, asks
 # with an empty file named SWITCH-<account>, which no account can be named either: root's step then switches that
@@ -339,6 +344,16 @@ put() {
 # A number, or null when what was measured isn't one.
 num() { case "$1" in '' | *[!0-9.]* | *.*.*) printf 'null' ;; *) printf '%s' "$1" ;; esac; }
 
+# trim_disk NAME: the account NAME's disk gives the machine back the blocks its files no longer hold. Its image is a
+# sparse file that only grows: what is deleted inside (a snapshot of its data, a bot's files, Docker's images) stays
+# taken on the machine's disk until the disk is trimmed. Once a day (write_load) and as soon as its snapshot goes.
+# Not mounted with discard, which slows every write. Without fstrim, or a disk that isn't mounted, nothing.
+trim_disk() {
+  command -v fstrim >/dev/null 2>&1 && mountpoint -q "$ACCOUNTS/$1" 2>/dev/null || return 0
+  fstrim "$ACCOUNTS/$1" </dev/null >/dev/null 2>&1 || warn "Couldn't give this machine back the free space of the account $1's disk."
+  mkdir -p "$RUN/load" && touch "$RUN/load/$1.trimmed"
+}
+
 # write_load: the machine's load, and each account's use of its share, measured from outside the accounts, for the
 # admin page: LOAD/machine.json and LOAD/account-<account>.json (lib/front-door/load.js reads them). CPU is how many CPUs the
 # account used since the last time (from its unit's CPU time), RAM what its unit holds less its file cache, computers whether its one
@@ -393,6 +408,7 @@ write_load() {
     [ ! -S "$RUN/$n/docker.sock" ] || computers="$(env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker ps -q --filter label=botdot.computer=account --filter status=running </dev/null 2>/dev/null | wc -l | tr -d ' ' || true)"
     size='' used='' full=false
     if mountpoint -q "$ACCOUNTS/$n" 2>/dev/null; then
+      [ -n "$(find "$RUN/load/$n.trimmed" -mmin -1440 2>/dev/null)" ] || trim_disk "$n"
       # shellcheck disable=SC2046
       set -- $(df -Pk "$ACCOUNTS/$n" 2>/dev/null | awk 'NR == 2 { printf "%.0f %.0f %.0f", $2 * 1024, $3 * 1024, $4 * 1024 }' || true)
       size="${1:-}" used="${2:-}"
@@ -405,7 +421,7 @@ write_load() {
     [ -e "$f" ] || continue
     n="$(basename "$f" .json)"
     n="${n#account-}"
-    [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n" "$RUN/load/$n.high"
+    [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n" "$RUN/load/$n.high" "$RUN/load/$n.trimmed"
   done
 }
 # An image from a registry is installed only once its signature is botdot's, checked before anything is
@@ -938,7 +954,7 @@ gb() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1e9 }'; }
 # (lib/image-layers.js, from the new image itself once it is here: root's copy of the installer may be older than it,
 # ADR 036), three times over (the download, then unpacked at about twice its size) and 1 GB for the account to go on
 # working. An account short of it stops the update with what it needs, before any account is changed. When the
-# registry's answer gives no sizes, only the room for the snapshot of each account's data is checked.
+# registry's answer gives no sizes, the update goes on without the check.
 room_for_accounts() {
   ls "$ACCOUNTS"/*/compose.yaml >/dev/null 2>&1 || return 0
   if $D image inspect "$SERVER_SIGNED" </dev/null >/dev/null 2>&1; then
@@ -948,8 +964,7 @@ room_for_accounts() {
     rf_runner="$(get_env "$ENV" BOT_DOT_IMAGE)"
     rf_layers="$(check_node image-layers.js "$SERVER_SIGNED" 2>/dev/null || true)"
   fi
-  # Without the layers' sizes the new image counts as nothing, and the snapshot of each account's data is still checked.
-  [ -n "$rf_layers" ] || warn "Couldn't tell how much room the new image needs in each account; only the room for each account's snapshot is checked."
+  [ -n "$rf_layers" ] || { warn "Couldn't tell how much room the update needs in each account; it goes on without that check."; return 0; }
   for rf in "$ACCOUNTS"/*/; do
     rf="$(basename "$rf")"
     [ -f "$ACCOUNTS/$rf/compose.yaml" ] || continue
@@ -964,10 +979,7 @@ room_for_accounts() {
     # The bytes of the layers it lacks, each counted once, three times over and 1 GB; 0 when it lacks none.
     rf_need="$({ printf '%s\n' "$rf_have" | sed 's/^/have /'; printf '%s\n' "$rf_layers" | sed 's/^/new /'; } \
       | awk '$1 == "have" { h[$2] = 1 } $1 == "new" && !($2 in h) && !($2 in s) { s[$2] = 1; t += $3 } END { printf "%.0f", (t > 0 ? t * 3 + 1e9 : 0) }')"
-    # And the snapshot of its data its switch keeps (#979), less the one of its switch before, which goes first.
-    rf_data="$(du -sk "$ACCOUNTS/$rf/data" 2>/dev/null | awk '{ printf "%.0f", $1 * 1024 }' || true)"
-    rf_snap="$(du -sk "$ACCOUNTS/$rf/snapshot" 2>/dev/null | awk '{ printf "%.0f", $1 * 1024 }' || true)"
-    rf_need="$(awk -v n="$rf_need" -v d="${rf_data:-0}" -v o="${rf_snap:-0}" 'BEGIN { printf "%.0f", n + (d > o ? d - o : 0) }')"
+    # The snapshot of its data isn't counted: one without room is skipped at its switch (take_snapshot).
     rf_free="$(df -Pk "$ACCOUNTS/$rf" 2>/dev/null | awk 'NR == 2 { printf "%.0f", $4 * 1024 }' || true)"
     [ -n "$rf_free" ] && [ "$rf_need" -gt "$rf_free" ] || continue
     die "The account $rf needs $(gb "$rf_need") GB free for this update and has $(gb "$rf_free") GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. No account was changed."
@@ -1728,6 +1740,10 @@ compose_up() {
 # a copy of its data folder, with the compose.yaml and .env it ran, is kept in its home as `snapshot`, root's alone, on
 # its own disk. The one of its switch before goes first: an account has at most one. A server that doesn't answer gets
 # its data back with its version (ADR 044), and a rollback request (ROLLBACK-<name>) takes it back to the snapshot later.
+# The snapshot goes as soon as the new server answers: it holds a whole copy of the account's data on its disk, and an
+# account of much data would live on a nearly full one. So a rollback request finds one only after a switch that
+# didn't finish. None is made when the account's disk wouldn't keep a fifth free after it: the account then switches
+# without one.
 # snapshot_of NAME: the account's snapshot folder, when it has one this step made: root's own folder (the account's
 # user, who owns its home, can rename one but can't make one root's), with the data, compose.yaml and .env in it.
 snapshot_of() {
@@ -1743,8 +1759,15 @@ snapshot_of() {
 # the server is stopped for one whole copy.
 take_snapshot() {
   ts_home="$ACCOUNTS/$1"
-  say "Keeping a snapshot of the account $1's data before it switches"
   rm -rf -- "$ts_home/snapshot" "$ts_home/snapshot.new"
+  # Room for it, with a fifth of its disk left after it: else it switches without one, and can't be rolled back.
+  ts_data="$(du -sk "$ts_home/data" 2>/dev/null | awk '{ print $1 }' || true)"
+  ts_disk="$(df -Pk "$ts_home" 2>/dev/null | awk 'NR == 2 { print $2, $4 }' || true)"
+  if [ -n "$ts_data" ] && [ -n "$ts_disk" ] && [ "$(printf '%s %s\n' "$ts_data" "$ts_disk" | awk '{ print ($3 - $1 < $2 / 5) ? 1 : 0 }')" = 1 ]; then
+    warn "The account $1's disk has no room for a snapshot of its data ($(awk -v k="$ts_data" 'BEGIN { printf "%.1f", k / 1048576 }') GB), so it switches without one and can't be rolled back to this version."
+    return 1
+  fi
+  say "Keeping a snapshot of the account $1's data before it switches"
   ts_first=''
   if command -v rsync >/dev/null 2>&1 && mkdir -m 700 "$ts_home/snapshot.new"; then
     # A file that changes or goes while it is copied is copied again below.
@@ -1948,7 +1971,7 @@ JSON
   snapped=''
   if [ -f "$home/compose.yaml" ] && [ -f "$aenv" ]; then
     # A switch to another signed version keeps a snapshot of its data first (#979).
-    if [ -n "$REGISTRY" ] && [ -d "$home/data" ] && [ "$(get_env "$aenv" BOT_DOT_IMAGE)" != "$IMAGE" ]; then take_snapshot "$name"; snapped=1; fi
+    if [ -n "$REGISTRY" ] && [ -d "$home/data" ] && [ "$(get_env "$aenv" BOT_DOT_IMAGE)" != "$IMAGE" ]; then ! take_snapshot "$name" || snapped=1; fi
     cp -p "$home/compose.yaml" "$home/compose.yaml.before"
     cp -p "$aenv" "$home/.env.before"
   fi
@@ -1981,6 +2004,9 @@ JSON
     die "Its new botdot server didn't start, so it runs the version it ran before."
   fi
   rm -f "$home/compose.yaml.before" "$home/.env.before"
+  # Its snapshot was for a new server that doesn't start: it answers, so the copy of its data goes.
+  rm -rf -- "$home/snapshot"
+  trim_disk "$name"
   ok "The account $name is running"
   # One that waited, or was switching, runs the version the front door pins now (ADR 053).
   [ ! -f "$DOOR/status/account-$name.json" ] || account_said "$name" updated
@@ -2452,6 +2478,7 @@ rollback_one() {
   if cp -a "$ro_snap/data" "$ro_home/data" && cp -p "$ro_snap/compose.yaml" "$ro_home/compose.yaml" && cp -p "$ro_snap/.env" "$ro_home/.env" \
     && compose_up "$ro_home" && answers "$SOCKETS/$1" "$ro_home"; then
     rm -rf -- "$ro_home/data.after" "$ro_snap"
+    trim_disk "$1"
     rm -f "$ro_home/compose.yaml.before" "$ro_home/.env.before"
     ro_version="$(revision_of "$ro_image" "$A")"
     account_said "$1" rolledback "${ro_version:+\"version\":\"$ro_version\"}"
@@ -2468,6 +2495,65 @@ rollback_one() {
   compose_up "$ro_home" || true
   if answers "$SOCKETS/$1" "$ro_home"; then account_said "$1" kept '"error":"Its botdot server did not start from its snapshot, so it runs the version it ran."'
   else account_said "$1" failed '"error":"Its botdot server did not start, neither from its snapshot nor on the version it ran."'; fi
+}
+
+# A link asked by root alone (#985), on a machine with no admin page to make it (ADR 154): SIGN-IN-<account> asks for a
+# sign-in link that makes that account a new passkey, and SIGN-UP for a sign-up link, for the account named on its
+# first line or, empty, for any name. The front door makes it as the admin page does, with the same expiry and single
+# use, and keeps an audit entry by the console; root writes it in status/sign-in-<account>.json, status/sign-up.json or
+# status/sign-up-<account>.json, which only root and the front door read: state (made, refused or failed), at, kind,
+# account, and url and expires once made, or error. The link is printed nowhere else: not in root's step's log, not in
+# the audit log.
+SIGN_IN=SIGN-IN-
+SIGN_UP=SIGN-UP
+
+# door_link sign-in|sign-up STATUS [ACCOUNT]: the link asked of the front door, in status/STATUS.json.
+door_link() {
+  dl_kind="$1" dl_file="$DOOR/status/$2.json" dl_name="${3:-}"
+  dl_err="$RUN/link-err"
+  mkdir -p "$DOOR/status"
+  set +e
+  dl_line="$($D compose --project-directory "$DOOR" exec -T front-door node front-door.js "$dl_kind-link" ${dl_name:+--account "$dl_name"} --by console </dev/null 2>"$dl_err" | head -n 1)"
+  set -e
+  dl_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  case "$dl_line" in
+    '{"state":"made",'*'}' | '{"state":"refused",'*'}')
+      put "$dl_file" "{\"at\":\"$dl_at\",${dl_line#\{}"
+      case "$dl_line" in
+        '{"state":"made",'*) ok "A $dl_kind link${dl_name:+ for $dl_name} is in $dl_file" ;;
+        *) warn "The $dl_kind link${dl_name:+ for $dl_name} was refused: $(printf '%s' "$dl_line" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 200)" ;;
+      esac ;;
+    *)
+      dl_why="$(head -n 1 "$dl_err" 2>/dev/null | plain_line 200)"
+      put "$dl_file" "{\"state\":\"failed\",\"at\":\"$dl_at\",\"kind\":\"$dl_kind\"${dl_name:+,\"account\":\"$dl_name\"},\"error\":\"The front door made no link${dl_why:+: $dl_why}\"}"
+      warn "The front door made no $dl_kind link${dl_name:+ for $dl_name}${dl_why:+: $dl_why}" ;;
+  esac
+  rm -f "$dl_err"
+}
+# link_request FILE: the link request FILE taken: refused unless root made it.
+link_request() {
+  lr="$1"
+  lr_base="${lr##*/}"
+  lr_name=''
+  case "$lr_base" in
+    "$SIGN_UP") lr_kind=sign-up
+      lr_name="$(head -c 100 "$lr" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)" ;;
+    *) lr_kind=sign-in lr_name="${lr_base#"$SIGN_IN"}" ;;
+  esac
+  if [ -n "$lr_name" ] && ! valid_account "$lr_name"; then
+    rm -f -- "$lr"
+    warn "Not an account's name, so no $lr_kind link was made: $(printf '%s' "$lr_name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
+    return 0
+  fi
+  lr_status="$lr_kind${lr_name:+-$lr_name}"
+  if ! by_root "$lr"; then
+    rm -f -- "$lr"
+    put "$DOOR/status/$lr_status.json" "{\"state\":\"refused\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"kind\":\"$lr_kind\"${lr_name:+,\"account\":\"$lr_name\"},\"error\":\"Only root asks for this.\"}"
+    warn "A $lr_kind link request that root didn't make was refused."
+    return 0
+  fi
+  rm -f -- "$lr"
+  door_link "$lr_kind" "$lr_status" "$lr_name"
 }
 
 if [ "$MODE" = requested ]; then
@@ -2515,6 +2601,11 @@ if [ "$MODE" = requested ]; then
       set -e
     else warn "Not an account's name, so nothing was rolled back: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"; fi
   done
+  # The links root asked for (#985).
+  for request in "$REQUESTS/$SIGN_UP" "$REQUESTS/$SIGN_IN"*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    link_request "$request"
+  done
   for request in "$REQUESTS"/* "$REQUESTS"/.[!.]* "$REQUESTS"/..?*; do
     [ -e "$request" ] || [ -L "$request" ] || continue
     name="$(basename "$request")"
@@ -2522,7 +2613,7 @@ if [ "$MODE" = requested ]; then
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
-    elif case "$name" in SWITCH-* | ROLLBACK-*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
+    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else

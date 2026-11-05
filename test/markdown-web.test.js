@@ -96,13 +96,13 @@ test('web: nothing a bot writes is markup, in any block (Rule 6)', () => {
   assert.equal(html.match(/&lt;script&gt;/g).length, 13, 'every one of them is there, as text');
   // The only tags are the page's own.
   const tags = new Set([...html.matchAll(/<\/?([a-z0-9]+)[^>]*>/g)].map((m) => m[1]));
-  assert.deepEqual([...tags].sort(), ['a', 'blockquote', 'br', 'button', 'code', 'div', 'h1', 'h3', 'hr', 'li', 'ol', 'p', 'path', 'pre', 'rect', 'svg', 'table', 'td', 'th', 'tr', 'ul'].sort());
+  assert.deepEqual([...tags].sort(), ['a', 'blockquote', 'br', 'button', 'code', 'div', 'h1', 'h3', 'hr', 'li', 'ol', 'p', 'path', 'pre', 'rect', 'svg', 'table', 'tbody', 'td', 'th', 'thead', 'tr', 'ul'].sort());
   assert.match(md('7. x'), /^<ol start="7">/);
   assert.doesNotMatch(md('99999999999999999999. x'), /start=/, 'a number too long to be one is text');
 });
 
 test('web: tables, code blocks, links, bold, italic and inline code are drawn as before', () => {
-  assert.equal(md('| A | B |\n|---|:-:|\n| 1 | **2** |'), '<table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td><strong>2</strong></td></tr></table>');
+  assert.equal(md('| A | B |\n|---|:-:|\n| 1 | **2** |'), '<div class="md-table"><table><thead><tr><th class="num">A</th><th>B</th></tr></thead><tbody><tr><td class="num">1</td><td><strong>2</strong></td></tr></tbody></table></div>');
   assert.equal(noCopy(md('```js\nconst a = 1 < 2;\n```')), '<pre><code>const a = 1 &lt; 2;</code></pre>');
   assert.equal(md('See [the page](https://example.com/a?b=1), **bold**, *italic* and `code`.'),
     '<p>See <a href="https://example.com/a?b=1" target="_blank" rel="noopener">the page</a>, <strong>bold</strong>, <em>italic</em> and <code>code</code>.</p>');
@@ -110,10 +110,18 @@ test('web: tables, code blocks, links, bold, italic and inline code are drawn as
   assert.equal(md(null), '');
 });
 
+test('web: a table scrolls in its own box, and a column of only numbers lines up on the right', () => {
+  const html = md('| Service | Count | Keys |\n|---|---|---|\n| Stripe | 9 | A, B |\n| AI | 1 234,5 | C |\n| R2 | | D |\n| Time | 12:30 | 5 |');
+  assert.match(html, /^<div class="md-table"><table><thead>/);
+  assert.deepEqual([...html.matchAll(/<t[hd]( class="num")?>([^<]*)</g)].filter((m) => m[1]).map((m) => m[2]), ['Count', '9', '1 234,5', '', '12:30']);
+  assert.equal(md('| Only |\n|---|'), '<div class="md-table"><table><thead><tr><th>Only</th></tr></thead></table></div>', 'a header alone');
+  assert.doesNotMatch(md('| A |\n|---|\n| 9 apples |'), /num/, 'a number with words is text');
+});
+
 test('web: ~~text~~ is struck through wherever the other marks work, never in code (#267)', () => {
   assert.equal(md('~~struck~~'), '<p><del>struck</del></p>');
   assert.equal(md('# ~~a~~\n\n- ~~b~~\n\n> ~~c~~\n\n| ~~d~~ |\n|---|\n| **~~e~~** |'),
-    '<h1><del>a</del></h1>\n<ul><li><del>b</del></li></ul>\n<blockquote><del>c</del></blockquote>\n<table><tr><th><del>d</del></th></tr><tr><td><strong><del>e</del></strong></td></tr></table>');
+    '<h1><del>a</del></h1>\n<ul><li><del>b</del></li></ul>\n<blockquote><del>c</del></blockquote>\n<div class="md-table"><table><thead><tr><th><del>d</del></th></tr></thead><tbody><tr><td><strong><del>e</del></strong></td></tr></tbody></table></div>');
   assert.equal(md('`~~code~~` and ~~not~~'), '<p><code>~~code~~</code> and <del>not</del></p>');
   assert.equal(noCopy(md('```\n~~kept~~\n```')), '<pre><code>~~kept~~</code></pre>');
   assert.equal(md('~~open, ~one~ and ~~ spaced ~~'), '<p>~~open, ~one~ and ~~ spaced ~~</p>', 'unclosed, single or spaced tildes are text');

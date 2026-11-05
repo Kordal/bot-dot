@@ -46,6 +46,7 @@ class GroupsTest {
         assertEquals(4 to 2, Groups.teamCount(g, bots))
         assertEquals("a bot that is gone is not counted", 3 to 1, Groups.teamCount(g, bots.drop(1)))
         assertTrue(Groups.TEAM_CHATS == "team-chats")
+        assertEquals("the server feature that renames a team from its chat", "team-chat-rename", Groups.TEAM_CHAT_RENAME)
     }
 
     @Test fun aGroupCarriesItsMembersItsPlaceAndWhatItsChatHolds() {
