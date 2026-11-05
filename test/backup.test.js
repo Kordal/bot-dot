@@ -185,14 +185,40 @@ test('an existing legacy backup key still creates backups that its old passphras
   } finally { await legacy.stop(); }
 });
 
+test("root's step gets a consistent copy of memory.db, through the front door's socket alone (#1015)", async () => {
+  const { DatabaseSync } = require('node:sqlite');
+  await a.api('/memory/notes', { method: 'POST', body: { owner: '_shared', text: 'The spare key is under the blue pot.' } });
+  assert.equal((await a.api('/backups/snapshot', { method: 'POST' })).status, 403, "a person's request: the front door strips the header from theirs");
+  assert.equal((await a.api('/backups/snapshot', { headers: { 'x-botdot-room': '1' } })).status, 405);
+  const chief = await fetch(`http://127.0.0.1:${a.botdotPort}/api/backups/snapshot`, { method: 'POST', headers: { 'X-Chief-Key': a.chiefKey, 'x-botdot-room': '1', 'X-Bot-Dot': '1' } });
+  assert.equal(chief.status, 403, 'not the Chief');
+  const r = await a.api('/backups/snapshot', { method: 'POST', headers: { 'x-botdot-room': '1' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  const file = path.join(a.data, '.snapshot', 'memory.db');
+  assert.equal(r.data.bytes, fs.statSync(file).size);
+  assert.deepEqual(fs.readdirSync(path.join(a.data, '.snapshot')), ['memory.db'], 'no temp file is left');
+  const db = new DatabaseSync(file, { readOnly: true });
+  const texts = db.prepare('SELECT text FROM notes').all().map((n) => n.text);
+  db.close();
+  assert.ok(texts.includes('The spare key is under the blue pot.'), 'the copy opens and holds the notes');
+  assert.ok(!fs.existsSync(`${file}-wal`), 'a whole file, no WAL of its own');
+  // Asked again, it replaces the copy.
+  assert.equal((await a.api('/backups/snapshot', { method: 'POST', headers: { 'x-botdot-room': '1' } })).status, 200);
+  assert.deepEqual(fs.readdirSync(path.join(a.data, '.snapshot')), ['memory.db']);
+});
+
 test('what a backup cut off by a restart left is removed when the server starts', () => {
   const os = require('os');
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
   const dir = path.join(dataDir, 'backups');
   fs.mkdirSync(dir);
   for (const n of ['bot-dot-20261104-231853.bdb.part', '.memory-4242.db', 'bot-dot-20261021-030952.bdb', 'notes.txt']) fs.writeFileSync(path.join(dir, n), 'x');
+  // A copy of memory.db for root that a restart cut off, and one root didn't remove (#1015).
+  fs.mkdirSync(path.join(dataDir, '.snapshot'));
+  for (const n of ['memory.db.4242.tmp', 'memory.db', 'other']) fs.writeFileSync(path.join(dataDir, '.snapshot', n), 'x');
   require('../lib/backup').create({ dataDir, memory: {} }).start();
   assert.deepEqual(fs.readdirSync(dir).sort(), ['bot-dot-20261021-030952.bdb', 'notes.txt'], 'finished backups and anything else stay');
+  assert.deepEqual(fs.readdirSync(path.join(dataDir, '.snapshot')), ['other']);
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 

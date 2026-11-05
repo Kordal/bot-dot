@@ -81,6 +81,33 @@ test('a backup set holds the front door\'s data and every account\'s data, .env,
   assert.equal(status(done, 'backup.json').state, 'done');
 });
 
+test("an account's memory.db is the copy its server made for the set, not the live file and its WAL (#1015)", (t) => {
+  const m = machine(t);
+  const data = path.join(m.home, 'data');
+  fs.writeFileSync(path.join(data, 'memory.db'), 'the live file');
+  fs.writeFileSync(path.join(data, 'memory.db-wal'), 'its WAL');
+  fs.mkdirSync(path.join(data, 'workspaces', 'b1'), { recursive: true });
+  fs.writeFileSync(path.join(data, 'workspaces', 'b1', 'memory.db'), "a bot's own file of that name");
+  const content = (tar, member) => spawnSync('tar', ['-xOf', tar, member], { encoding: 'utf8' }).stdout;
+  const bobTar = path.join(m.set, 'accounts', 'bob', 'data.tar');
+
+  m.step('BACKUP');
+  let listed = members(bobTar);
+  assert.equal(content(bobTar, './memory.db'), 'a consistent copy');
+  assert.ok(!listed.includes('./memory.db-wal') && !listed.includes('./.snapshot/memory.db'), listed.join(' '));
+  assert.equal(content(bobTar, './workspaces/b1/memory.db'), "a bot's own file of that name", 'only the top one is replaced');
+  assert.ok(!fs.existsSync(path.join(data, '.snapshot', 'memory.db')), 'the copy goes once it is in the set');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(m.set, 'manifest.json'), 'utf8')).memory.bob, 'copy');
+
+  // A server that doesn't run writes nothing: its file is copied as it is, and the manifest says so.
+  fs.rmSync(path.join(m.dir, 'sockets', 'bob', 'botdot.sock'));
+  m.step('BACKUP');
+  listed = members(bobTar);
+  assert.equal(content(bobTar, './memory.db'), 'the live file');
+  assert.ok(listed.includes('./memory.db-wal'));
+  assert.equal(JSON.parse(fs.readFileSync(path.join(m.set, 'manifest.json'), 'utf8')).memory.bob, 'as-is');
+});
+
 test('a set whose owners are written as the account\'s Docker sees them, so the restore gives them to the same users', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
   const m = machine(t);
   // The stand-in useradd gives bob the sub-IDs from 165536: the server's user, 60000 in bob's Docker, is 225535 here.
