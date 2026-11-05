@@ -959,6 +959,36 @@ function handBoat(changed = false) {
     askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
   }
 }
+// The off-site backup (#1017): root's step says how its runs went in status/offsite.json (#1016); a machine without one
+// has none, or says state off, and nothing is said of it. It is late when its last run failed, or its last good one
+// (before any, the first run's start) is older than OFFSITE_LATE_MS. The admin's /admin shows it, and their account is
+// told once when it turns late and once when it works again (POST /api/backups/machine), the account holding what it
+// is told through quiet hours. A managed machine has no admin: the fleet console's agent reads the status file itself.
+const OFFSITE_LATE_MS = Number(process.env.FRONT_DOOR_OFFSITE_LATE_MS) || 26 * 3600_000;
+function offsiteStatus(now = Date.now()) {
+  const s = readStatus('offsite.json');
+  if (!s || !['backing-up', 'done', 'failed'].includes(s.state)) return null;
+  const lastSuccess = when(s.lastSuccess);
+  const since = lastSuccess || when(s.started) || when(s.at);
+  const failed = s.state === 'failed';
+  return { state: s.state, at: when(s.at), lastSuccess, ...(failed ? { error: line(s.error, 300) } : {}), late: failed || !since || now - Date.parse(since) > OFFSITE_LATE_MS };
+}
+const OFFSITE_TOLD = path.join(DATA, 'offsite-told.json'); // { late }: what the admin's account was last told
+function tellOffsite() {
+  const o = ADMIN && !ONE_ACCOUNT ? offsiteStatus() : null;
+  if (!o) return;
+  let told = false;
+  try { told = JSON.parse(fs.readFileSync(OFFSITE_TOLD, 'utf8')).late === true; } catch { /* never told */ }
+  if (o.late === told) return;
+  askAccount(ADMIN, 'POST', '/api/backups/machine', { late: o.late, lastSuccess: o.lastSuccess, error: o.error || null }, 10_000).then((r) => {
+    if (r.status !== 200) return; // told again at the next look
+    fs.writeFileSync(OFFSITE_TOLD, JSON.stringify({ late: o.late, at: new Date().toISOString() }), { mode: 0o600 });
+  });
+}
+if (ADMIN && !ONE_ACCOUNT) {
+  setTimeout(tellOffsite, 5000).unref();
+  setInterval(tellOffsite, Number(process.env.FRONT_DOOR_OFFSITE_EVERY_MS) || 10 * 60_000).unref();
+}
 if (boat) {
   setTimeout(() => handBoat(), 3000).unref();
   setInterval(() => handBoat(), Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
@@ -1206,6 +1236,8 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, { ok: true, link });
   }
   if (p === '/admin/update' && req.method === 'GET') return send(res, 200, updateStatus());
+  // The off-site backup (#1017): null on a machine without one.
+  if (p === '/admin/offsite' && req.method === 'GET') return send(res, 200, { offsite: offsiteStatus() });
   // The deadline (ADR 053): the days an account whose owner turned "Update automatically" off waits at most.
   if (p === '/admin/update/days' && req.method === 'POST') {
     const days = doors.setUpdateDays(((await readJson(req)) || {}).days);

@@ -500,7 +500,8 @@ fi
 # instance, the account and the part; one that fails doesn't stop the others. Snapshots are kept 7 days, 4 weeks and 3
 # months, and what they no longer hold is pruned once a week. How it went is in status/offsite.json: state
 # (backing-up, done or failed), started, finished, lastSuccess, bytesAdded, snapshots (each part's), failed (the parts
-# that failed), part (the one it stopped in) and error. A machine without the setting does none of it.
+# that failed), part (the one it stopped in) and error. A machine without the setting does none of it; asked for one
+# (OFFSITE), it says state off, which no admin is warned of (#1017).
 OFFSITE="$DIR/offsite"
 OFFSITE_REQUEST=OFFSITE
 RESTIC_VERSION=0.19.1
@@ -2968,7 +2969,8 @@ if [ "$MODE" = requested ]; then
     else
       rm -f -- "$request"
       if [ -z "$(offsite_repo)" ]; then
-        offsite_said failed "\"part\":\"check\",\"error\":\"This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO.\""
+        # off, not failed: a machine without off-site has no backup to miss, so nobody is told one failed (#1017).
+        offsite_said off "\"error\":\"This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO.\""
         warn "This machine has no off-site repository, so it wasn't backed up off-site."
       elif [ -n "$SYSTEMD" ]; then
         offsite_units
