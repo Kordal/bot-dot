@@ -236,7 +236,7 @@ A backup set is a copy of the whole machine, to rebuild a lost server: root asks
 sudo touch /var/lib/botdot/front-door/requests/BACKUP
 ```
 
-Root's step writes the set into `/var/lib/botdot/backup`, which only root reads. It holds the front door's data (accounts, passkeys, sign-up links, the audit log) and, for each account, suspended ones too, its data folder (without its own backups in `data/backups`), its `.env`, its server's `/config` volume with the Vault's key, and its computer's volumes: `workspace` (the bots' files and project folders), `home` and `browser` (the browser profiles, without their lock files). Each part is a plain tar file, and `manifest.json` lists the version, the machine's instance id, the admin's name, the accounts and a sha256 of each part. A computer that runs keeps running while it is copied. The set is made beside the last one, which it replaces only once it is complete: a set that fails leaves the last one as it was. It is on the machine's own disk, so copy the folder off the machine (restic, for example): it holds every account's data and the Vault keys, unencrypted.
+Root's step writes the set into `/var/lib/botdot/backup`, which only root reads. It holds the front door's data (accounts, passkeys, sign-up links, the audit log) and, for each account, suspended ones too, its data folder (without its own backups in `data/backups`), its `.env`, its server's `/config` volume with the Vault's key, and its computer's volumes: `workspace` (the bots' files and project folders), `home` and `browser` (the browser profiles, without their lock files). Each part is a plain tar file, and `manifest.json` lists the version, the machine's instance id, the admin's name, the accounts and a sha256 of each part. A computer that runs keeps running while it is copied. The set is made beside the last one, which it replaces only once it is complete: a set that fails leaves the last one as it was. It is on the machine's own disk, so copy the folder off the machine: it holds every account's data and the Vault keys, unencrypted. [Off-site](#off-site) backs the same parts up without that copy.
 
 To put a set back, install the same version on a clean machine, with the same domain and admin's name, put the set in `/var/lib/botdot/backup`, and ask with a file named `RESTORE`:
 
@@ -247,6 +247,26 @@ sudo touch /var/lib/botdot/front-door/requests/RESTORE
 Root's step checks the whole set first: a set of another version or another admin, or one whose checksum doesn't match, is refused and nothing changes. Then it stops the front door, puts its data back and starts it, and makes each account, puts its data, `.env`, Vault key and computer's volumes back, and starts it again. Owners sign in with their passkeys as before. A request the front door made, not root, is refused.
 
 How each went is in `/var/lib/botdot/front-door/status/backup.json` and `restore.json`: `state` (`backing-up`, `done`, `failed` or `refused`; `restoring`, `restored`, `failed` or `refused`), `at`, the `phase` (and `account`) it is in or stopped in, and `error`. Root's step's log, `journalctl -u botdot-accounts` (or `/var/lib/botdot/requests.log` without systemd), says more.
+
+### Off-site
+
+A machine can back itself up every night to a restic repository off the machine, such as a sub-account of a Hetzner Storage Box ([ADR 157](adr/157-the-machine-backs-itself-up-off-site-with-restic.md)). Each part of a backup set goes straight into the repository, encrypted on the machine with a password the repository never holds, and nothing is kept on the machine's disk. Give the repository's address once, as root, and run the first backup:
+
+```sh
+sudo BOT_DOT_OFFSITE_REPO=sftp://u123456-sub1@u123456-sub1.your-storagebox.de:23/botdot sh /var/lib/botdot/bin/install.sh --offsite
+```
+
+The first run downloads restic 0.19.1 (checked by its sha256) into `/var/lib/botdot/bin`, and makes what it needs in `/var/lib/botdot/offsite`, which only root reads: a random password for the repository (`password`; `BOT_DOT_OFFSITE_PASSWORD` gives your own instead) and an SSH key (`ssh_key`). It prints the key's public half and, for a Storage Box, the line that adds it there (`cat … | ssh -p 23 u123456-sub1@… install-ssh-key`, which asks for the sub-account's password once). Run it again once the key is in, and it makes the repository and backs up. **Keep a copy of the password off the machine** (in Bitwarden, for example): without it the backups can't be read. Use one sub-account for each machine, and turn on the Storage Box's automatic snapshots, which the machine can't delete.
+
+From then on `botdot-offsite.timer` runs it every night between 02:00 and 04:00, at a minute of the machine's own, and an empty file named `OFFSITE` in the requests folder runs it at once:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/OFFSITE
+```
+
+It backs up the front door's data, then for each account its data folder (without `data/backups`, `node_modules`, unfinished `.part` files and the live `memory.db`, whose copy in `data/.snapshot` goes in), its `.env`, its `/config` volume and its computer's volumes, and a `manifest.json`, each as a snapshot tagged `instance=`, `account=` and `part=`. A part that fails doesn't stop the others. It keeps 7 daily, 4 weekly and 3 monthly snapshots, and prunes once a week. To get a part back: `restic dump --tag part=data,account=ann latest /accounts/ann/data.tar > data.tar` with `RESTIC_REPOSITORY` and `RESTIC_PASSWORD_FILE` set.
+
+How the last run went is in `/var/lib/botdot/front-door/status/offsite.json`: `state` (`backing-up`, `done`, `failed` or `refused`), `started`, `finished`, `lastSuccess`, `bytesAdded`, `snapshots` (each part's id), `failed` (the parts that failed), `part` (where it stopped) and `error`. `journalctl -u botdot-offsite` says more. Without `BOT_DOT_OFFSITE_REPO` none of this runs.
 
 ## Uninstall
 
@@ -274,7 +294,7 @@ sudo tailscale serve --https=443 off
 sudo tailscale serve --https=8443 off
 ```
 
-That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account (and its lines in `/etc/subuid` and `/etc/subgid`), `sudo userdel botdot-door`, `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares), and on Ubuntu 24.04 `sudo apparmor_parser -R /etc/apparmor.d/botdot-rootlesskit && sudo rm /etc/apparmor.d/botdot-rootlesskit`.
+That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account (and its lines in `/etc/subuid` and `/etc/subgid`), `sudo userdel botdot-door`, `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system/botdot-offsite.timer /etc/systemd/system/botdot-offsite.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares), and on Ubuntu 24.04 `sudo apparmor_parser -R /etc/apparmor.d/botdot-rootlesskit && sudo rm /etc/apparmor.d/botdot-rootlesskit`.
 
 ## Platforms
 

@@ -343,7 +343,7 @@ test('a typed yes removes the front door, every account, root\'s step, the AppAr
   const done = uninstall(t, first, { input: 'yes\nn\n', given: { STAND_IN_PACKAGES: 'runsc' } });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const system = done.system.slice(before);
-  assert.match(system, /^systemctl disable --now botdot-accounts\.path botdot-load\.timer$/m, "root's step stops first");
+  assert.match(system, /^systemctl disable --now botdot-accounts\.path botdot-load\.timer botdot-offsite\.timer$/m, "root's step stops first");
   assert.ok(done.calls.includes(`compose --project-directory ${first.dir}/front-door down -v --remove-orphans`), JSON.stringify(done.calls));
   for (const name of ['ann', 'bob']) {
     assert.match(system, new RegExp(`^systemctl disable --now botdot-account@${name}$`, 'm'));
