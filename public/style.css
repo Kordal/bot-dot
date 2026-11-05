@@ -3083,10 +3083,9 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 }
 
 /* ---------- a team's chat (#697, groups.js): its faces in a row, the lead first with the crown, the team's colour on top ---------- */
-.group-pic.team-pic { display: flex; align-items: center; width: auto; }
-.group-pic.team-pic > i { position: relative; inset: auto; transform: none; flex: none; margin-left: -6px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg); }
-.group-pic.team-pic > i:first-child { margin-left: 0; z-index: 3; }
-.group-pic.team-pic > i:nth-child(2) { z-index: 2; }
+/* Side by side with a small gap, no ring (as on Android): a ring in the page's black showed as a dark circle on a lighter panel. */
+.group-pic.team-pic { display: flex; align-items: center; gap: var(--sp-4); width: auto; }
+.group-pic.team-pic > i { position: relative; inset: auto; transform: none; flex: none; }
 .group-pic.team-pic.n1 > i, .contact .group-pic.team-pic > i { left: auto; top: auto; transform: none; }
 .group-pic > i svg.team-crown { position: absolute; top: -6px; left: -4px; width: 9px; height: 9px; border: 2px solid #1d1a10; box-sizing: content-box; border-radius: 50%; fill: #f5c542; background: #1d1a10; }
 #group-pic .team-pic > i { width: 28px; height: 28px; }

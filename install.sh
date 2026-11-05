@@ -943,7 +943,7 @@ gb() { awk -v b="$1" 'BEGIN { printf "%.1f", b / 1e9 }'; }
 # (lib/image-layers.js, from the new image itself once it is here: root's copy of the installer may be older than it,
 # ADR 036), three times over (the download, then unpacked at about twice its size) and 1 GB for the account to go on
 # working. An account short of it stops the update with what it needs, before any account is changed. When the
-# registry's answer gives no sizes, only the room for the snapshot of each account's data is checked.
+# registry's answer gives no sizes, the update goes on without the check.
 room_for_accounts() {
   ls "$ACCOUNTS"/*/compose.yaml >/dev/null 2>&1 || return 0
   if $D image inspect "$SERVER_SIGNED" </dev/null >/dev/null 2>&1; then
@@ -953,8 +953,7 @@ room_for_accounts() {
     rf_runner="$(get_env "$ENV" BOT_DOT_IMAGE)"
     rf_layers="$(check_node image-layers.js "$SERVER_SIGNED" 2>/dev/null || true)"
   fi
-  # Without the layers' sizes the new image counts as nothing, and the snapshot of each account's data is still checked.
-  [ -n "$rf_layers" ] || warn "Couldn't tell how much room the new image needs in each account; only the room for each account's snapshot is checked."
+  [ -n "$rf_layers" ] || { warn "Couldn't tell how much room the update needs in each account; it goes on without that check."; return 0; }
   for rf in "$ACCOUNTS"/*/; do
     rf="$(basename "$rf")"
     [ -f "$ACCOUNTS/$rf/compose.yaml" ] || continue
@@ -969,10 +968,7 @@ room_for_accounts() {
     # The bytes of the layers it lacks, each counted once, three times over and 1 GB; 0 when it lacks none.
     rf_need="$({ printf '%s\n' "$rf_have" | sed 's/^/have /'; printf '%s\n' "$rf_layers" | sed 's/^/new /'; } \
       | awk '$1 == "have" { h[$2] = 1 } $1 == "new" && !($2 in h) && !($2 in s) { s[$2] = 1; t += $3 } END { printf "%.0f", (t > 0 ? t * 3 + 1e9 : 0) }')"
-    # And the snapshot of its data its switch keeps (#979), less the one of its switch before, which goes first.
-    rf_data="$(du -sk "$ACCOUNTS/$rf/data" 2>/dev/null | awk '{ printf "%.0f", $1 * 1024 }' || true)"
-    rf_snap="$(du -sk "$ACCOUNTS/$rf/snapshot" 2>/dev/null | awk '{ printf "%.0f", $1 * 1024 }' || true)"
-    rf_need="$(awk -v n="$rf_need" -v d="${rf_data:-0}" -v o="${rf_snap:-0}" 'BEGIN { printf "%.0f", n + (d > o ? d - o : 0) }')"
+    # The snapshot of its data isn't counted: one without room is skipped at its switch (take_snapshot).
     rf_free="$(df -Pk "$ACCOUNTS/$rf" 2>/dev/null | awk 'NR == 2 { printf "%.0f", $4 * 1024 }' || true)"
     [ -n "$rf_free" ] && [ "$rf_need" -gt "$rf_free" ] || continue
     die "The account $rf needs $(gb "$rf_need") GB free for this update and has $(gb "$rf_free") GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. No account was changed."
@@ -1733,6 +1729,10 @@ compose_up() {
 # a copy of its data folder, with the compose.yaml and .env it ran, is kept in its home as `snapshot`, root's alone, on
 # its own disk. The one of its switch before goes first: an account has at most one. A server that doesn't answer gets
 # its data back with its version (ADR 044), and a rollback request (ROLLBACK-<name>) takes it back to the snapshot later.
+# The snapshot goes as soon as the new server answers: it holds a whole copy of the account's data on its disk, and an
+# account of much data would live on a nearly full one. So a rollback request finds one only after a switch that
+# didn't finish. None is made when the account's disk wouldn't keep a fifth free after it: the account then switches
+# without one.
 # snapshot_of NAME: the account's snapshot folder, when it has one this step made: root's own folder (the account's
 # user, who owns its home, can rename one but can't make one root's), with the data, compose.yaml and .env in it.
 snapshot_of() {
@@ -1748,8 +1748,15 @@ snapshot_of() {
 # the server is stopped for one whole copy.
 take_snapshot() {
   ts_home="$ACCOUNTS/$1"
-  say "Keeping a snapshot of the account $1's data before it switches"
   rm -rf -- "$ts_home/snapshot" "$ts_home/snapshot.new"
+  # Room for it, with a fifth of its disk left after it: else it switches without one, and can't be rolled back.
+  ts_data="$(du -sk "$ts_home/data" 2>/dev/null | awk '{ print $1 }' || true)"
+  ts_disk="$(df -Pk "$ts_home" 2>/dev/null | awk 'NR == 2 { print $2, $4 }' || true)"
+  if [ -n "$ts_data" ] && [ -n "$ts_disk" ] && [ "$(printf '%s %s\n' "$ts_data" "$ts_disk" | awk '{ print ($3 - $1 < $2 / 5) ? 1 : 0 }')" = 1 ]; then
+    warn "The account $1's disk has no room for a snapshot of its data ($(awk -v k="$ts_data" 'BEGIN { printf "%.1f", k / 1048576 }') GB), so it switches without one and can't be rolled back to this version."
+    return 1
+  fi
+  say "Keeping a snapshot of the account $1's data before it switches"
   ts_first=''
   if command -v rsync >/dev/null 2>&1 && mkdir -m 700 "$ts_home/snapshot.new"; then
     # A file that changes or goes while it is copied is copied again below.
@@ -1953,7 +1960,7 @@ JSON
   snapped=''
   if [ -f "$home/compose.yaml" ] && [ -f "$aenv" ]; then
     # A switch to another signed version keeps a snapshot of its data first (#979).
-    if [ -n "$REGISTRY" ] && [ -d "$home/data" ] && [ "$(get_env "$aenv" BOT_DOT_IMAGE)" != "$IMAGE" ]; then take_snapshot "$name"; snapped=1; fi
+    if [ -n "$REGISTRY" ] && [ -d "$home/data" ] && [ "$(get_env "$aenv" BOT_DOT_IMAGE)" != "$IMAGE" ]; then ! take_snapshot "$name" || snapped=1; fi
     cp -p "$home/compose.yaml" "$home/compose.yaml.before"
     cp -p "$aenv" "$home/.env.before"
   fi
@@ -1986,6 +1993,8 @@ JSON
     die "Its new botdot server didn't start, so it runs the version it ran before."
   fi
   rm -f "$home/compose.yaml.before" "$home/.env.before"
+  # Its snapshot was for a new server that doesn't start: it answers, so the copy of its data goes.
+  rm -rf -- "$home/snapshot"
   ok "The account $name is running"
   # One that waited, or was switching, runs the version the front door pins now (ADR 053).
   [ ! -f "$DOOR/status/account-$name.json" ] || account_said "$name" updated
