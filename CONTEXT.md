@@ -271,7 +271,7 @@ Where the admin creates and revokes sign-up links, suspends or deletes accounts,
 _Avoid_: dashboard (the Board's old name), admin panel, console
 
 **Feedback**:
-A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole.
+A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole. On a managed machine the fleet console is that admin, and its operator reads it there ([ADR 164](docs/adr/164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md)).
 _Avoid_: ticket, issue, support request, bug report (for both kinds)
 
 **What's new**:

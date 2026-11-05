@@ -64,7 +64,7 @@ test('managed, one account on a public origin: no admin page, and the setup key 
   assert.equal((await b.get('/admin')).status, 404);
   assert.equal((await b.get('/admin/accounts')).status, 404);
   assert.equal(owner.seen.filter((r) => r.url.startsWith('/admin')).length, 0, 'never passed on to the account');
-  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, feedback: false, feedbackScreenshots: false, updates: false, rooms: false, roomLinks: false });
+  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, feedback: true, feedbackScreenshots: true, updates: false, rooms: false, roomLinks: false });
   assert.equal((await b.get('/api/bots')).data.account, 'owner');
 });
 
@@ -153,4 +153,56 @@ test("managed, one account: the console's keys in install-keys.json are taken, a
   assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'composio-key.json'), 'utf8')).key, 'ak_fromtheconsole');
   assert.equal(owner.seen.find((r) => r.url === '/api/group-router').headers['x-botdot-room'], '1', 'as the front door itself');
   assert.ok(!fs.existsSync(file), 'the file is taken');
+});
+
+// Feedback on a managed machine (ADR 164): kept as anywhere, and written whole to the outbox the console's agent empties.
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(120, 7)]);
+
+test('managed: a report goes to the outbox whole, screenshots as base64, under its own name', async (t) => {
+  const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
+  const owner = await standIn(door, 'owner');
+  t.after(async () => { await door.stop(); owner.close(); });
+  const { b, done } = await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner' });
+  assert.equal(done.status, 201, done.text);
+
+  const sent = await b.post('/front-door/feedback', { kind: 'bug', text: '  Approve does nothing  ', screenshots: [{ data: PNG.toString('base64') }] });
+  assert.equal(sent.status, 201, sent.text);
+  const dir = path.join(door.data, 'outbox');
+  assert.deepEqual(fs.readdirSync(dir), [`feedback-${sent.data.id}.json`], 'one file, nothing hidden left behind');
+  assert.equal(fs.statSync(dir).mode & 0o777, 0o700);
+  assert.equal(fs.statSync(path.join(dir, `feedback-${sent.data.id}.json`)).mode & 0o777, 0o600);
+  const kept = JSON.parse(fs.readFileSync(path.join(dir, `feedback-${sent.data.id}.json`), 'utf8'));
+  assert.deepEqual({ ...kept, created: undefined }, { id: sent.data.id, account: 'owner', created: undefined, kind: 'bug', text: 'Approve does nothing', app: 'web', version: null, screenshots: [{ type: 'image/png', data: PNG.toString('base64') }] });
+  assert.ok(Date.now() - Date.parse(kept.created) < 60_000);
+  assert.equal(owner.seen.filter((r) => r.url.includes('feedback')).length, 0, 'no botdot server saw it');
+
+  const plain = await b.post('/front-door/feedback', { kind: 'feature', text: 'A dark theme' });
+  assert.equal(plain.status, 201, plain.text);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, `feedback-${plain.data.id}.json`), 'utf8')).screenshots, []);
+});
+
+test('managed: a report the outbox can\'t take is not kept, and the owner is told to try later', async (t) => {
+  const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
+  const owner = await standIn(door, 'owner');
+  t.after(async () => { await door.stop(); owner.close(); });
+  const { b } = await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner' });
+  // A file where the folder should be: nothing can be written there.
+  fs.writeFileSync(path.join(door.data, 'outbox'), 'not a folder');
+  const sent = await b.post('/front-door/feedback', { kind: 'bug', text: 'Lost?' });
+  assert.equal(sent.status, 503, sent.text);
+  assert.match(sent.data.error, /Try again later/);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8')).feedback, [], 'not kept either');
+});
+
+test('the outbox counts the reports that wait and says when it is full', () => {
+  const dir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'fd-outbox-')), 'outbox');
+  const box = require('../lib/front-door/outbox').create(dir, { waitingMax: 2 });
+  assert.equal(box.full(), false, 'no folder yet');
+  box.put({ id: 'a'.repeat(32), account: 'owner', created: new Date().toISOString(), kind: 'bug', text: 'x', app: 'web', version: null });
+  assert.equal(box.full(), false);
+  fs.writeFileSync(path.join(dir, 'unrelated.txt'), '');
+  box.put({ id: 'b'.repeat(32), account: 'owner', created: new Date().toISOString(), kind: 'bug', text: 'y', app: 'web', version: null });
+  assert.equal(box.waiting(), 2);
+  assert.equal(box.full(), true);
+  fs.rmSync(path.dirname(dir), { recursive: true, force: true });
 });

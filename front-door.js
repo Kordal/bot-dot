@@ -44,7 +44,8 @@
 // FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT or FRONT_DOOR_FIRST_ACCOUNT: the secret (32 to 100 base64url
 //                     characters) that only its starter holds, which opens that account's sign-up page until it exists
 // FRONT_DOOR_MANAGED  1 on a managed machine (ADR 154), which the fleet console runs through root's step: no admin page
-//                     (/admin and /admin/… are 404), no admin, no feedback and no shared rooms, and each account has a
+//                     (/admin and /admin/… are 404), no admin and no shared rooms, its Feedback goes to the console
+//                     through FRONT_DOOR_DATA/outbox (ADR 164), and each account has a
 //                     guaranteed share (4 CPUs, 8 GB of RAM, 40 GB of disk by default) that a new account must fit
 //                     beside the others' (lib/front-door/capacity.js). One account with FRONT_DOOR_ONE_ACCOUNT; several
 //                     with FRONT_DOOR_FIRST_ACCOUNT, the first one, made with the setup key, and the others from
@@ -80,6 +81,7 @@ const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
 const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
+const outboxLib = require('./lib/front-door/outbox');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -257,8 +259,11 @@ const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
 const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
-// Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin.
-const FEEDBACK = !ONE_ACCOUNT && !!ADMIN;
+// Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
+// goes to the fleet console, through an outbox beside the front door's data that the console's agent empties (ADR 164).
+const outbox = MANAGED ? outboxLib.create(path.join(DATA, 'outbox')) : null;
+const FEEDBACK = !!outbox || (!ONE_ACCOUNT && !!ADMIN);
+const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
 const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
 const roomsOn = () => !!rooms && !!ADMIN && rooms.isOn();
@@ -745,8 +750,21 @@ async function signInRoutes(req, res, p) {
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!FEEDBACK) return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
+    // A managed machine whose console has been away long enough that 100 reports wait for it (ADR 164).
+    if (outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
     const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
     const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
+    // On a managed machine a report is kept only with its file in the outbox, so the console never misses one the
+    // owner was told went (ADR 164).
+    if (outbox) {
+      try {
+        outbox.put(report, (report.screenshots || []).map((_, n) => doors.feedbackScreenshot(report.id, n)).filter(Boolean));
+      } catch (e) {
+        console.error(`[front door] couldn't put the feedback of ${account} in the outbox: ${e.message}`);
+        doors.deleteFeedback(report.id);
+        return send(res, 503, { error: FEEDBACK_WAITS });
+      }
+    }
     console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)`);
     return send(res, 201, { ok: true, id: report.id });
   }
