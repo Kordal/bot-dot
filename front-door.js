@@ -939,8 +939,9 @@ function askAccount(account, method, to, body, timeoutMs) {
 }
 
 // The group router the admin chose (#513): handed to every account's botdot server on a change and every minute, so
-// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile.
-const groupRouter = ONE_ACCOUNT ? null : groupRouterStore.open(DATA);
+// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile. A managed machine of one
+// account has it too: the fleet console sets its key (ADR 162).
+const groupRouter = ONE_ACCOUNT && !MANAGED ? null : groupRouterStore.open(DATA);
 function handRouter() {
   if (!groupRouter) return;
   const body = groupRouter.forAccounts();
