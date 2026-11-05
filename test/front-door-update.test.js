@@ -238,6 +238,7 @@ test('Update asks the machine once, with a file no account can be named, and say
   assert.equal(first.status, 202, first.text);
   assert.equal(first.data.asked, true);
   assert.deepEqual(asked(), ['UPDATE']);
+  assert.equal(fs.readFileSync(path.join(requests, 'UPDATE'), 'utf8'), '', 'empty: it names no version, so root takes the newest (#979)');
   assert.ok(!store.ACCOUNT_NAME.test('UPDATE'), 'no account is named so');
   // Not hidden: systemd's DirectoryNotEmpty, which starts root's step, skips files whose name starts with a dot.
   assert.ok(!asked()[0].startsWith('.'));

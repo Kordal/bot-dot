@@ -70,6 +70,13 @@ test('a request that names no digest is refused at check', (t) => {
   refusedAtCheck(update(t, 'latest please'), /Refused the version asked for: name it as sha256: and the 64 hex digits/);
 });
 
+test("the admin page's Update of a front door from before #979, which writes the time it asked, takes the newest", (t) => {
+  const { update: u, log } = update(t, `${new Date().toISOString()}\n`);
+  assert.equal(u.state, 'updated', log);
+  assert.equal(u.named, undefined, "it names no version");
+  assert.doesNotMatch(log, /Refused the version asked for/);
+});
+
 test('a named version older than the one the front door runs is refused', (t) => {
   refusedAtCheck(update(t, NAMED, { answers: { release: '3' } }, { dotenv: 'BOT_DOT_RELEASE=5\n' }), /it is older than the version this machine runs/);
 });
