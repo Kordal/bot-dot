@@ -104,7 +104,7 @@ function logsStayWithinLimit(machine, image) {
 }
 
 // #984: on a managed machine, a container of the account's Docker, under gVisor and leaving as a computer does (through
-// the account's slirp4netns, as its Linux user), is refused a private address (the machine's gateway), the cloud's
+// the account's slirp4netns, as its Linux user), is refused a private address, the cloud's
 // metadata address and SMTP, each by its rule, and still reaches an internet host on 443 and resolves names. The
 // probe tries each "host port" and says how it went: open, or the error.
 const PROBE = `const net = require('node:net'), dns = require('node:dns');
@@ -115,8 +115,9 @@ const one = (t) => new Promise((ok) => { const [host, port] = t.split(' '); cons
 function computersAreGuarded(machine) {
   stage.step('a computer is refused private addresses, the metadata address and SMTP, and reaches the internet');
   const image = machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/.env`);
-  const gateway = machine.exec('sh', '-c', "ip -4 route show default | awk '{ print $3; exit }'");
-  assert.match(gateway, /^(10|172|192)\./, `the machine's gateway is a private address: ${gateway}`);
+  // A private address outside the account's own networks (its Docker's bridges in 172.16/12 and 192.168/16, slirp4netns's
+  // 10.0.2/24), so that the connection leaves through slirp4netns, as one to the provider's private network would.
+  const priv = '10.255.255.1';
   // The packets each of the guard's rules refused: its line in `iptables -L -v -x -n`, by what it matches.
   const counts = () => {
     const lines = machine.exec('iptables', '-L', 'BOTDOT-GUARD', '-v', '-x', '-n').split('\n');
@@ -124,7 +125,7 @@ function computersAreGuarded(machine) {
     return { private: of('172.16.0.0/12') + of('10.0.0.0/8') + of('192.168.0.0/16'), metadata: of('169.254.0.0/16'), smtp: of('25,465') };
   };
   const before = counts();
-  const targets = [`${gateway} 80`, '169.254.169.254 80', '1.1.1.1 25', '1.1.1.1 443'];
+  const targets = [`${priv} 80`, '169.254.169.254 80', '1.1.1.1 25', '1.1.1.1 443'];
   const said = JSON.parse(machine.account(ADMIN, 'run', '--rm', '--entrypoint', 'node', image, '-e', PROBE, ...targets));
   const after = counts();
   for (const t of targets.slice(0, 3)) assert.notEqual(said[t], 'open', `${t} is refused: ${JSON.stringify(said)}`);
