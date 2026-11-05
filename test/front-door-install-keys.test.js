@@ -18,7 +18,7 @@ function stores(t) {
 test('both keys are taken: Jev becomes the decision model and boat.dev has its key, and the file goes', (t) => {
   const s = stores(t);
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: 'sk-or-v1-goodgoodgood', boat: 'boat_goodgoodgood' }));
-  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: true });
+  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: true, composio: false });
   assert.deepEqual(s.groupRouter.shown(), { router: 'jev', keySet: true, wakeGate: false, replaysPerHour: 0 });
   assert.equal(s.groupRouter.forAccounts().key, 'sk-or-v1-goodgoodgood');
   assert.equal(s.boat.forAccounts().key, 'boat_goodgoodgood');
@@ -33,7 +33,7 @@ test('a key left out is not touched, and what the admin set stays', (t) => {
   const s = stores(t);
   s.boat.set('boat_fromtheadminpage');
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: 'sk-or-v1-goodgoodgood', boat: null }));
-  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: false });
+  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: false, composio: false });
   assert.equal(s.boat.forAccounts().key, 'boat_fromtheadminpage');
 });
 
@@ -41,7 +41,7 @@ test('a file that is not JSON or holds no key takes nothing, and goes', (t) => {
   const s = stores(t);
   for (const text of ['not json', '{"openrouter":"x\\"y","boat":"short"}']) {
     fs.writeFileSync(s.file, text);
-    assert.deepEqual(installKeys.take(s.dir, s), { openrouter: false, boat: false });
+    assert.deepEqual(installKeys.take(s.dir, s), { openrouter: false, boat: false, composio: false });
     assert.ok(!fs.existsSync(s.file));
   }
   assert.equal(s.groupRouter.shown().router, 'haiku');
@@ -51,10 +51,35 @@ test('a file that is not JSON or holds no key takes nothing, and goes', (t) => {
 test('a machine of one account, which has no stores, takes nothing', (t) => {
   const s = stores(t);
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: 'sk-or-v1-goodgoodgood', boat: 'boat_goodgoodgood' }));
-  assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false });
+  assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false, composio: false });
 });
 
 test('the front door takes them when it starts and every minute after', () => {
   const code = fs.readFileSync(path.join(__dirname, '..', 'front-door.js'), 'utf8');
   assert.match(code, /takeInstallKeys\(\);\n\s*setInterval\(takeInstallKeys, 60_000\)/);
+});
+
+// The Composio key (ADR 160) is the admin's account's: it waits in composio-key.json, which only the front door reads,
+// until that account takes it.
+test('the Composio key waits for the admin\'s account, on a machine of one account too, until it is handed', (t) => {
+  const s = stores(t);
+  assert.equal(installKeys.composio(s.dir), null);
+  fs.writeFileSync(s.file, JSON.stringify({ openrouter: null, boat: null, composio: 'ak_goodgoodgood' }));
+  assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false, composio: true });
+  assert.ok(!fs.existsSync(s.file));
+  assert.equal(installKeys.composio(s.dir), 'ak_goodgoodgood');
+  assert.equal(fs.statSync(path.join(s.dir, 'composio-key.json')).mode & 0o777, 0o600);
+  assert.equal(s.groupRouter.shown().router, 'haiku', 'never the machine\'s');
+  installKeys.handed(s.dir);
+  assert.equal(installKeys.composio(s.dir), null);
+  fs.writeFileSync(s.file, JSON.stringify({ composio: 'x"y' }));
+  assert.equal(installKeys.take(s.dir, s).composio, false);
+  assert.equal(installKeys.composio(s.dir), null);
+});
+
+test('the front door hands the Composio key to the admin\'s account and keeps it while no answer comes', () => {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'front-door.js'), 'utf8');
+  assert.match(code, /const COMPOSIO_TO = ADMIN \|\| SETUP_ACCOUNT;/);
+  assert.match(code, /askAccount\(COMPOSIO_TO, 'POST', '\/api\/connectors\/install-key', \{ key \}/);
+  assert.match(code, /if \(!r\.status \|\| r\.status >= 500\) return;[^\n]*\n\s*installKeys\.handed\(DATA\);/);
 });
