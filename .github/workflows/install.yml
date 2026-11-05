@@ -36,12 +36,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  install-real:
+  # The cases in four shares, each on a machine of its own (INSTALL_REAL_SHARD, every 4th case): one runner took 16
+  # minutes for them one after another.
+  install-real-shard:
+    name: install-real (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
       - run: make install-real
+        env:
+          INSTALL_REAL_SHARD: ${{ matrix.shard }}/4
+
+  # One check named as before, green when every share passed.
+  install-real:
+    needs: install-real-shard
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: test "${{ needs.install-real-shard.result }}" = success
