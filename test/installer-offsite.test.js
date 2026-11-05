@@ -244,7 +244,7 @@ test('a machine without an off-site repository has no timer, and an OFFSITE requ
   const done = m.step('OFFSITE');
   assert.doesNotMatch(done.system, /botdot-offsite/);
   const said = status(done, 'offsite.json');
-  assert.equal(said.state, 'failed');
+  assert.equal(said.state, 'off', 'no backup to miss (#1017)');
   assert.match(said.error, /This machine has no off-site repository/);
 });
 

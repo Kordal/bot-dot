@@ -376,3 +376,33 @@ test("a restored computer's files that can't go back yet stay, and status says w
     assert.ok(!fs.existsSync(path.join(dataDir, '.restore-pending', 'data', '.computer')));
   });
 });
+
+test("a backup's last error and last success are kept across a restart (#1017)", async (t) => {
+  const os = require('os');
+  const top = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
+  const dataDir = path.join(top, 'data');
+  fs.mkdirSync(dataDir, { recursive: true });
+  const saved = { file: process.env.BOT_DOT_VAULT_KEY_FILE, key: process.env.BOT_DOT_VAULT_KEY };
+  process.env.BOT_DOT_VAULT_KEY_FILE = path.join(top, 'config', 'vault.key');
+  process.env.BOT_DOT_VAULT_KEY = 'ab'.repeat(32);
+  t.after(() => {
+    for (const [k, v] of [['BOT_DOT_VAULT_KEY_FILE', saved.file], ['BOT_DOT_VAULT_KEY', saved.key]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    fs.rmSync(top, { recursive: true, force: true });
+  });
+  const make = (snapshot) => require('../lib/backup').create({ dataDir, memory: { snapshot } });
+  const first = make(() => { throw new Error('database is locked'); });
+  first.setPassphrase(PASS);
+  const since = first.status().since;
+  assert.ok(since, 'when backups were turned on');
+  await assert.rejects(first.run(), /database is locked/);
+  const after = make(() => {}).status();
+  assert.equal(after.lastError, 'database is locked');
+  assert.equal(after.error, 'database is locked');
+  assert.equal(after.lastSuccess, null);
+  assert.equal(after.since, since);
+  const good = make((p) => fs.writeFileSync(p, 'memory'));
+  await good.run();
+  const now = make(() => {}).status();
+  assert.equal(now.lastError, null);
+  assert.ok(Date.parse(now.lastSuccess) >= Date.parse(since));
+});

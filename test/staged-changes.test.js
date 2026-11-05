@@ -16,7 +16,8 @@ after(async () => { srv.unhold(); await srv.stop(); });
 // for 09:00 in a test that runs at 09:00 would start by itself and take the place of "Run now".
 const hourAway = (by) => (new Date().getUTCHours() + by) % 24;
 const AT = hourAway(12), EARLIER = hourAway(9);
-const daily = (h) => `Daily at ${String(h).padStart(2, '0')}:00`;
+// lib/cron-words.js: daily at 02:00 has a name of its own, which a run between 14:00 and 15:00 UTC meets.
+const daily = (h) => (h === 2 ? 'Nightly at 02:00' : `Daily at ${String(h).padStart(2, '0')}:00`);
 const REPORT = { name: 'Morning report', kind: 'ai', cron: `0 ${AT} * * *`, prompt: 'Write the report.' };
 const SCRIPT = { name: 'Disk check', kind: 'script', cron: '0 * * * *', script: 'df -h', assessment: 'A clear rule: no AI needed.' };
 const waitingOf = async (bot) => { const f = await feed(srv); const h = await f.wait('hello'); f.close(); return h.data.approvals.jobs.filter((j) => j.botId === bot.id); };
