@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (by the owner, 2026-10-21)
 - **Owning task:** [#216](https://github.com/Kordal/bot-dot/issues/216)
+- **Amended by:** [ADR 164](164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md): on a managed machine, Feedback goes to the fleet console
 - **Changes:** [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md), the line "The admin page never shows what is inside an account"
 
 ## Context
