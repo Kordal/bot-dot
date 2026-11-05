@@ -76,7 +76,7 @@
   "Download": "Pobierz",
   "Change passphrase": "Zmień hasło",
   "Backed up": "Kopia gotowa",
-  "New backup passphrase (at least 8 characters). Older backups still need the old one.": "Nowe hasło kopii (co najmniej 8 znaków). Starsze kopie nadal wymagają starego.",
+  "New backup passphrase (at least {n} characters). Older backups still need the old one.": "Nowe hasło kopii (co najmniej {n} znaków). Starsze kopie nadal wymagają starego.",
   "Passphrase changed. The next backups use it.": "Hasło zmienione. Kolejne kopie będą go używać.",
   "Board": "Tablica",
   "Nothing on it yet": "Jeszcze nic na niej nie ma",

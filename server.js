@@ -175,7 +175,7 @@ B.chatOfRun((runId) => chief.chatOfRun(runId));
 B.chatToTell((chatId) => chief.chatToTell(chatId));
 connectorApprovals.start(); // no run of before the start waits for an answer any more
 irreversibleSteps.start();
-const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit });
+const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit, computer: B.computers });
 // Tools installed on the botdot server for one bot, on the owner's OK (ADR 007).
 const connectedApps = connectedAppsLib.create({ tellChief: (turn) => chief.tell(turn) });
 // A change tried on a bot's past tasks before the owner sees it (ADR 101): one replay at a time, at the admin's pace;
