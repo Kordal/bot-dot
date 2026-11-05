@@ -995,9 +995,29 @@ function tellOffsite() {
     fs.writeFileSync(OFFSITE_TOLD, JSON.stringify({ late: o.late, at: new Date().toISOString() }), { mode: 0o600 });
   });
 }
-if (ADMIN && !ONE_ACCOUNT) {
-  setTimeout(tellOffsite, 5000).unref();
-  setInterval(tellOffsite, Number(process.env.FRONT_DOOR_OFFSITE_EVERY_MS) || 10 * 60_000).unref();
+// An erased account's off-site snapshots that root's step forgot after the grace period (#1019), in
+// status/offsite-forgotten.json: each kept once in the audit log, the ones kept remembered in offsite-audited.json.
+const OFFSITE_AUDITED = path.join(DATA, 'offsite-audited.json');
+function auditForgotten() {
+  const list = readStatus('offsite-forgotten.json')?.forgotten;
+  if (!audit || !Array.isArray(list)) return;
+  let done = [];
+  try { done = JSON.parse(fs.readFileSync(OFFSITE_AUDITED, 'utf8')).done || []; } catch { /* none yet */ }
+  const fresh = list.filter((f) => f && store.ACCOUNT_NAME.test(f.account) && when(f.erased) && when(f.at) && !done.includes(`${f.account} ${f.at}`));
+  if (!fresh.length) return;
+  for (const f of fresh) {
+    audited('offsite-forgotten', { actor: 'front-door', account: f.account, detail: `erased ${utc(when(f.erased))} · ${Number.isInteger(f.snapshots) ? f.snapshots : 0} snapshots` });
+    done.push(`${f.account} ${f.at}`);
+  }
+  fs.writeFileSync(OFFSITE_AUDITED, JSON.stringify({ done: done.slice(-100) }), { mode: 0o600 });
+}
+function watchOffsite() {
+  try { tellOffsite(); } catch (e) { console.error(`[front door] off-site backup: ${e.message}`); }
+  try { auditForgotten(); } catch (e) { console.error(`[front door] off-site forgets: ${e.message}`); }
+}
+if ((ADMIN && !ONE_ACCOUNT) || audit) {
+  setTimeout(watchOffsite, 5000).unref();
+  setInterval(watchOffsite, Number(process.env.FRONT_DOOR_OFFSITE_EVERY_MS) || 10 * 60_000).unref();
 }
 if (boat) {
   setTimeout(() => handBoat(), 3000).unref();

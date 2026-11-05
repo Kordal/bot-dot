@@ -276,6 +276,10 @@ sudo sh /var/lib/botdot/bin/install.sh --restore-test ann
 
 It restores that account's parts of the latest backup into `/var/lib/botdot/restore-test`, checks each part's size against what restic recorded and that each tar reads to its end, opens `memory.db` (its SQLite header, and with `sqlite3` installed its quick check), counts the bots, and removes the folder. It is refused, before anything is restored, when the disk would keep less than 512 MB free, and says how much it needs. How it went is in `status/restore-test.json` (`state` `testing`, `passed`, `failed` or `refused`, `at`, `account`, `snapshot`, `bytes`, `bots`, `error`); a failed test counts as a late backup on the admin page until one passes.
 
+**Erased accounts** ([#1019](https://github.com/Kordal/bot-dot/issues/1019)). When the machine erases an account the admin deleted, its part of the backup set in `/var/lib/botdot/backup` goes at once, and its off-site snapshots 14 days later: the erase is written down in `/var/lib/botdot/offsite/erased`, and the first night's run after the 14 days forgets that account's snapshots and prunes what they held. Each account's snapshots are tagged with its born stamp (`born=…`, kept in `/var/lib/botdot/born`), so a new account made under the same name is never touched. Each forget is in `status/offsite-forgotten.json` and in the audit log (`offsite-forgotten`). Within the 14 days an account erased by mistake can still be restored from the repository.
+
+If your machine sets `FRONT_DOOR_PRIVACY_URL`, the policy can say this of backups: an account's data is backed up every night to encrypted off-site storage and kept there for at most 3 months (7 daily, 4 weekly and 3 monthly snapshots); when an account is deleted, its data leaves the machine at once and its backups are deleted within 15 days. The Storage Box's own snapshots, if you turn them on, keep the repository as it was for as long as you set there: count them in the 3 months.
+
 ## Uninstall
 
 On the server, from the source you installed with:
