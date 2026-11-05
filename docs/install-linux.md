@@ -148,6 +148,17 @@ Your bots run unattended under that sign-in: scheduled jobs run while you sleep,
 
 The admin updates botdot for every account at once: **Update every account** on the admin page. The front door and every account move to the newest signed release, and the page says the version each runs and how the last update went. An owner, the admin included, can turn off **Update automatically** in **Settings → Updates**: the update then downloads the new version into that account but leaves its bots on the version they run, marked waiting on the admin page, until the owner (or the admin, on the account's card) taps **Update now**, or until the deadline the admin sets on the admin page (7 days unless set otherwise, 1 to 60) ([ADR 053](adr/053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md)). Running the installer by hand still moves every account. A step that would need an answer (a new question of a newer installer) stops the update, and the page says to run the installer yourself.
 
+**A named version, a snapshot and a rollback** ([ADR 155](adr/155-an-update-can-name-its-version-and-keeps-a-snapshot-of-each-accounts-data.md)). Root's step takes the same requests from whatever writes them as root, such as a fleet console, as files in `/var/lib/botdot/front-door/requests`:
+
+```bash
+# Update every account to exactly this signed release: the server image's digest, on the file's first line.
+echo sha256:<64 hex digits> | sudo tee /var/lib/botdot/front-door/requests/UPDATE
+# Take one account back to its snapshot and the version it ran before its last switch.
+sudo touch /var/lib/botdot/front-door/requests/ROLLBACK-<account>
+```
+
+An empty `UPDATE` takes the newest release, as the admin page's button does. A digest that isn't one of botdot's signed releases, or one older than the release the front door runs, is refused at `check`, and nothing is downloaded or restarted; `update.json` in `/var/lib/botdot/front-door/status` says the version asked for (`named`) and how it went. The bots' computer goes to the release built from the same source. Releases signed before 5 November 2026 can't be named. Before an account switches to another version, its botdot server stops and its data folder, with the compose file and `.env` it ran, is copied to `snapshot/` in its home, on its own disk; the update's disk check counts that room. Each account keeps one snapshot, replaced at its next switch. A new server that doesn't answer gets its data back from it along with its version. A rollback request restores the snapshot, starts the version it ran then and uses the snapshot up; `status/account-<account>.json` says `rolledback`, or `kept` or `failed` with why. What the account did since its switch is gone after a rollback.
+
 Running the installer again from a newer source does the same, and also updates the installer that the admin page's Update runs:
 
 ```bash

@@ -1,7 +1,7 @@
 // The installer's test helpers (install.sh, #466, ADR 028): install.sh on a stand-in machine, with stand-ins for
 // docker, the machine's tools (useradd, chown, setfacl, systemctl, su, tailscale, curl…) and the account's rootless
 // Docker. Nothing is installed and nothing runs: each stand-in writes down what it was asked, and the tests read what
-// the installer did and said. The installer tests are in four files, so that they run side by side (installer*.test.js).
+// the installer did and said. The installer tests are in five files, so that they run side by side (installer*.test.js).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -222,4 +222,7 @@ const running = (image, { account = '', old = '' } = {}) => [
   `[ "$1" = ps ] && [ "$2" = --format ] && { i='${image}'; case "\${DOCKER_HOST:-}" in *'/${account || '-'}/'*) i='${old}' ;; esac; for s in front-door bot-dot docker-helper; do echo "$s $i"; done; exit 0; }`,
 ];
 
-module.exports = { ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob, status, running };
+// What a signature check was asked: the image, which of botdot's, and its options.
+const checked = (args) => args.slice(args.indexOf('/check/lib/signed-image.js') + 1);
+
+module.exports = { checked, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob, status, running };

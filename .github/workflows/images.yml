@@ -385,5 +385,7 @@ jobs:
           if [ '${{ matrix.image }}' = app ]; then APP=server; fi
           node deploy/sign-image.js "$APP" '${{ github.run_number }}' "$GITHUB_SHA" "$IMAGE" "$DIGEST"
           # Under accounts-release, not release: a botdot from before accounts reads `release` and is never offered
-          # this version as an update (lib/registry.js RELEASE_TAG, ADR 028).
-          docker buildx imagetools create --annotation "index:dev.botdot.release=$(cat image-release.json)" -t "$IMAGE:accounts-release" "$IMAGE@$DIGEST"
+          # this version as an update (lib/registry.js RELEASE_TAG, ADR 028). The same signed index stays under a tag of
+          # its image's digest and one of its source revision, so that a machine can be updated to this very release
+          # later, and its computer image found by the revision (#979).
+          docker buildx imagetools create --annotation "index:dev.botdot.release=$(cat image-release.json)" -t "$IMAGE:accounts-release" -t "$IMAGE:accounts-release-${DIGEST#sha256:}" -t "$IMAGE:accounts-release-$GITHUB_SHA" "$IMAGE@$DIGEST"

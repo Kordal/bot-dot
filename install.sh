@@ -242,8 +242,11 @@ phase() {
   [ "$MODE" = update ] || return 0
   say "== $1${2:+ ($2)}"
   [ -n "${BOT_DOT_UPDATE_AT:-}" ] || return 0
-  write_status update.json "{\"state\":\"updating\",\"at\":\"$BOT_DOT_UPDATE_AT\",\"from\":\"${BOT_DOT_UPDATE_FROM:-}\",\"phase\":\"$1\"${2:+,\"account\":\"$2\"}}"
+  write_status update.json "{\"state\":\"updating\",\"at\":\"$BOT_DOT_UPDATE_AT\",\"from\":\"${BOT_DOT_UPDATE_FROM:-}\"$(named_field "${BOT_DOT_UPDATE_TO:-}"),\"phase\":\"$1\"${2:+,\"account\":\"$2\"}}"
 }
+# named_field TO: update.json's "named", the version the update was asked for (#979), after a comma; nothing for the
+# newest, and nothing for a name that isn't a digest.
+named_field() { if printf '%s' "$1" | grep -Eqx 'sha256:[0-9a-f]{64}'; then printf ',"named":"%s"' "$1"; fi; }
 
 # install: install or update (the default). requested: root's step that makes the accounts the front door asked for.
 # update (--update): the update the admin asked for on the admin page, which root's step runs: phases of its own, not
@@ -790,10 +793,21 @@ saved_latest() {
   [ -n "$UNATTENDED" ] || return 0
   v="$(get_env "$ENV" "$1")"
   [ -n "$(registry_of "$v")" ] || return 0
-  v="${v%@sha256:*}"
-  case "${v##*/}" in *:*) v="${v%:*}" ;; esac
-  printf '%s:latest' "$v"
+  printf '%s:latest' "$(repository_of "$v")"
 }
+# repository_of IMAGE: its repository, without a tag or a digest.
+repository_of() {
+  ro_v="${1%@sha256:*}"
+  case "${ro_v##*/}" in *:*) ro_v="${ro_v%:*}" ;; esac
+  printf '%s' "$ro_v"
+}
+# named_to: the version an update was asked for (#979), BOT_DOT_UPDATE_TO, as sha256: and the 64 hex digits of the
+# server image's digest; nothing for the newest; "invalid" for anything else, which the update refuses at check.
+named_to() {
+  [ "$MODE" = update ] && [ -n "${BOT_DOT_UPDATE_TO:-}" ] || return 0
+  if printf '%s' "$BOT_DOT_UPDATE_TO" | grep -Eqx 'sha256:[0-9a-f]{64}'; then printf '%s' "$BOT_DOT_UPDATE_TO"; else printf invalid; fi
+}
+NAMED_TO="$(named_to)"
 IMAGE="${BOT_DOT_IMAGE:-$(saved_local BOT_DOT_IMAGE)}"
 IMAGE="${IMAGE:-$(saved_latest BOT_DOT_IMAGE)}"
 IMAGE="${IMAGE:-$IMAGES/bot-dot:latest}"
@@ -805,9 +819,10 @@ else
   COMPUTER_IMAGE="${COMPUTER_IMAGE:-$IMAGES/bot-dot-desktop:latest}"
 fi
 
-# check NAME server|desktop: $SIGNED is what NAME installs as. A refusal ends the installer.
+# check NAME server|desktop [OPTION…]: $SIGNED is what NAME installs as (with the OPTIONs of signed-image.js, more after
+# it). A refusal ends the installer.
 check() {
-  if SIGNED="$(signed "$1" "$2")"; then return 0; else status=$?; fi
+  if SIGNED="$(signed "$@")"; then return 0; else status=$?; fi
   if [ "$status" = 2 ] && [ -z "$TOKEN" ]; then
     say ""
     say "The registry refused to hand over botdot's images without a token (a private fork or a mirror?)."
@@ -816,7 +831,7 @@ check() {
     ask_secret "Token:"
     TOKEN="$REPLY"
     [ -n "$TOKEN" ] || die "No token, so the images can't be downloaded."
-    if SIGNED="$(signed "$1" "$2")"; then return 0; else status=$?; fi
+    if SIGNED="$(signed "$@")"; then return 0; else status=$?; fi
   fi
   [ "$status" != 2 ] || die "That token didn't work for $REGISTRY. Check that it has the read:packages scope."
   die "Refused $1: ${SIGNED:-it could not be checked}. Nothing was downloaded or started."
@@ -886,6 +901,10 @@ room_for_accounts() {
     # The bytes of the layers it lacks, each counted once, three times over and 1 GB; 0 when it lacks none.
     rf_need="$({ printf '%s\n' "$rf_have" | sed 's/^/have /'; printf '%s\n' "$rf_layers" | sed 's/^/new /'; } \
       | awk '$1 == "have" { h[$2] = 1 } $1 == "new" && !($2 in h) && !($2 in s) { s[$2] = 1; t += $3 } END { printf "%.0f", (t > 0 ? t * 3 + 1e9 : 0) }')"
+    # And the snapshot of its data its switch keeps (#979), less the one of its switch before, which goes first.
+    rf_data="$(du -sk "$ACCOUNTS/$rf/data" 2>/dev/null | awk '{ printf "%.0f", $1 * 1024 }' || true)"
+    rf_snap="$(du -sk "$ACCOUNTS/$rf/snapshot" 2>/dev/null | awk '{ printf "%.0f", $1 * 1024 }' || true)"
+    rf_need="$(awk -v n="$rf_need" -v d="${rf_data:-0}" -v o="${rf_snap:-0}" 'BEGIN { printf "%.0f", n + (d > o ? d - o : 0) }')"
     rf_free="$(df -Pk "$ACCOUNTS/$rf" 2>/dev/null | awk 'NR == 2 { printf "%.0f", $4 * 1024 }' || true)"
     [ -n "$rf_free" ] && [ "$rf_need" -gt "$rf_free" ] || continue
     die "The account $rf needs $(gb "$rf_need") GB free for this update and has $(gb "$rf_free") GB. Give it a bigger disk share, or update or reset its computer so the old computer image can go, then update again. No account was changed."
@@ -939,13 +958,32 @@ elif [ -n "$REGISTRY" ]; then
   [ -f "$SOURCE/lib/signed-image.js" ] || die "The installer checks the signature of botdot's images with botdot's source, and it isn't next to this installer. Get the source and run the install.sh in it."
   $D image inspect "$CHECK_NODE" </dev/null >/dev/null 2>&1 || pull "$CHECK_NODE" \
     || die "Couldn't download $CHECK_NODE, which checks the signature of botdot's images$(because)."
-  check "$IMAGE" server
-  SERVER_SIGNED="$SIGNED"
+  if [ -n "$NAMED_TO" ]; then
+    # An update to the version named (#979): that very release of the repository .env pins, by its own signed tag, and
+    # never one older than the release the front door runs (BOT_DOT_RELEASE); the bots' computer of the same source.
+    [ "$NAMED_TO" != invalid ] || die "Refused the version asked for: name it as sha256: and the 64 hex digits of the server image's digest. Nothing was downloaded or started."
+    IMAGE="$(repository_of "$IMAGE")@$NAMED_TO"
+    RUNS_RELEASE="$(get_env "$ENV" BOT_DOT_RELEASE)"
+    case "$RUNS_RELEASE" in '' | *[!0-9]*) RUNS_RELEASE=0 ;; esac
+    check "$IMAGE" server --release --at "${NAMED_TO#sha256:}" --installed "$RUNS_RELEASE"
+  else
+    check "$IMAGE" server --release
+  fi
+  SERVER_SIGNED="$(printf '%s' "$SIGNED" | cut -d' ' -f1)"
+  SERVER_REVISION="$(printf '%s' "$SIGNED" | cut -s -d' ' -f2)"
+  SERVER_RELEASE="$(printf '%s' "$SIGNED" | cut -s -d' ' -f3)"
+  case "$SERVER_RELEASE" in *[!0-9]*) SERVER_RELEASE='' ;; esac
   # The bots' computer is downloaded into each account now, so the first bot that needs one doesn't wait for it.
   # One on another registry is downloaded and checked by botdot when a bot needs it.
   COMPUTER_SIGNED=''
   if [ "$(registry_of "$COMPUTER_IMAGE")" = "$REGISTRY" ]; then
-    check "$COMPUTER_IMAGE" desktop
+    if [ -n "$NAMED_TO" ]; then
+      printf '%s' "$SERVER_REVISION" | grep -Eqx '[0-9a-f]{40}' || die "Refused $IMAGE: its signature names no source revision. Nothing was downloaded or started."
+      COMPUTER_IMAGE="$(repository_of "$COMPUTER_IMAGE"):latest"
+      check "$COMPUTER_IMAGE" desktop --at "$SERVER_REVISION"
+    else
+      check "$COMPUTER_IMAGE" desktop
+    fi
     COMPUTER_SIGNED="$SIGNED"
   fi
   # The admin page's update finds nothing new: the front door and every running account run these very images, so
@@ -972,6 +1010,7 @@ elif [ -n "$REGISTRY" ]; then
 else
   # Self-built: nothing is signed in to or downloaded.
   phase check
+  [ -z "$NAMED_TO" ] || die "A version can be named only for botdot's signed images from a registry; this botdot server is self-built. Nothing was changed."
   $D image inspect "$IMAGE" </dev/null >/dev/null 2>&1 || die "The image $IMAGE isn't on this machine. Build it in botdot's source with: make images"
   ok "Using the local image $IMAGE"
   if [ -n "$(registry_of "$COMPUTER_IMAGE")" ]; then :
@@ -1022,6 +1061,8 @@ door_files() {
   [ "$IMAGE" = "$IMAGES/bot-dot:latest" ] || set_env "$ENV" BOT_DOT_IMAGE "$IMAGE"
   # Only the pin of an earlier run stays when the newer computer could not be downloaded now.
   set_env "$ENV" BOT_DOT_COMPUTER_IMAGE "$COMPUTER_IMAGE"
+  # The signed release's version number, so that an update to a named version older than it is refused (#979).
+  [ -z "${SERVER_RELEASE:-}" ] || set_env "$ENV" BOT_DOT_RELEASE "$SERVER_RELEASE"
 }
 [ "$MODE" != install ] || door_files
 # From here .env names the images: the names this run was given would beat it in compose, and a tag there
@@ -1574,6 +1615,43 @@ compose_up() {
   $A compose --project-directory "$1" up -d --remove-orphans </dev/null >/dev/null 2>&1 || $A compose --project-directory "$1" up -d --remove-orphans </dev/null
 }
 
+# The snapshot of an account (#979, ADR 155): before it switches to another signed version, its botdot server stops and
+# a copy of its data folder, with the compose.yaml and .env it ran, is kept in its home as `snapshot`, root's alone, on
+# its own disk. The one of its switch before goes first: an account has at most one. A server that doesn't answer gets
+# its data back with its version (ADR 044), and a rollback request (ROLLBACK-<name>) takes it back to the snapshot later.
+# snapshot_of NAME: the account's snapshot folder, when it has one this step made: root's own folder (the account's
+# user, who owns its home, can rename one but can't make one root's), with the data, compose.yaml and .env in it.
+snapshot_of() {
+  so_s="$ACCOUNTS/$1/snapshot"
+  [ -d "$so_s" ] && [ ! -L "$so_s" ] && [ "$(stat -c %u "$so_s")" = "$(stat -c %u "$ACCOUNTS")" ] || return 1
+  [ -d "$so_s/data" ] && [ ! -L "$so_s/data" ] && [ -f "$so_s/compose.yaml" ] && [ ! -L "$so_s/compose.yaml" ] && [ -f "$so_s/.env" ] && [ ! -L "$so_s/.env" ] || return 1
+  printf '%s' "$so_s"
+}
+# take_snapshot NAME: the account NAME's snapshot, made now ($A is its Docker). What fails leaves it running the version
+# it runs, and stops its switch.
+take_snapshot() {
+  ts_home="$ACCOUNTS/$1"
+  say "Keeping a snapshot of the account $1's data before it switches"
+  rm -rf -- "$ts_home/snapshot" "$ts_home/snapshot.new"
+  # Stopped, so that the copy is of data nothing writes meanwhile; the switch starts it again on the new version.
+  $A compose --project-directory "$ts_home" stop bot-dot </dev/null >/dev/null 2>&1 \
+    || die "Couldn't stop its botdot server to keep a snapshot of its data, so it wasn't switched."
+  if mkdir -m 700 "$ts_home/snapshot.new" && cp -a "$ts_home/data" "$ts_home/snapshot.new/data" \
+    && cp -p "$ts_home/compose.yaml" "$ts_home/.env" "$ts_home/snapshot.new/" && date -u +%Y-%m-%dT%H:%M:%SZ > "$ts_home/snapshot.new/at"; then
+    mv "$ts_home/snapshot.new" "$ts_home/snapshot"
+  else
+    rm -rf -- "$ts_home/snapshot.new"
+    compose_up "$ts_home" || true
+    die "Couldn't keep a snapshot of its data (is its disk full?), so it wasn't switched."
+  fi
+}
+# restore_data NAME SNAPSHOT: the account NAME's data folder is the snapshot's again; its botdot server is stopped first.
+restore_data() {
+  $A compose --project-directory "$ACCOUNTS/$1" stop bot-dot </dev/null >/dev/null 2>&1 || true
+  rm -rf -- "$ACCOUNTS/$1/data"
+  cp -a "$2/data" "$ACCOUNTS/$1/data"
+}
+
 # account NAME [CPU RAM DISK]: makes or updates the account NAME with that share (DEFAULT_SHARE without one) and
 # starts its botdot server.
 account() {
@@ -1657,7 +1735,10 @@ JSON
   # What it ran until now, put back when its new server doesn't start (#194, ADR 044). Its old images are still in its
   # Docker: they go only once the new server answers (below), and the cleanup before a download keeps them.
   rm -f "$home/compose.yaml.before" "$home/.env.before"
+  snapped=''
   if [ -f "$home/compose.yaml" ] && [ -f "$aenv" ]; then
+    # A switch to another signed version keeps a snapshot of its data first (#979).
+    if [ -n "$REGISTRY" ] && [ -d "$home/data" ] && [ "$(get_env "$aenv" BOT_DOT_IMAGE)" != "$IMAGE" ]; then take_snapshot "$name"; snapped=1; fi
     cp -p "$home/compose.yaml" "$home/compose.yaml.before"
     cp -p "$aenv" "$home/.env.before"
   fi
@@ -1681,6 +1762,8 @@ JSON
     # The new version's logs, before its container is replaced by the old one's.
     $A compose --project-directory "$home" logs --no-color --tail 40 </dev/null 2>&1 | sed 's/^/    /' || true
     warn "The account $name's new botdot server didn't start, so it goes back to the version it ran."
+    # Its data as the snapshot kept it, in case the new version changed it already.
+    if [ -n "$snapped" ] && snap="$(snapshot_of "$name")"; then restore_data "$name" "$snap"; say "  Its data is the snapshot's again."; fi
     mv "$home/compose.yaml.before" "$home/compose.yaml"
     mv "$home/.env.before" "$aenv"
     compose_up "$home" || true
@@ -1790,28 +1873,29 @@ log_tail() {
     | sed 's/[[:space:]]*$//; /^$/d' | tail -n 40 | cut -c1-300 | sed 's/\\/\\\\/g; s/"/\\"/g' \
     | awk 'BEGIN { printf "[" } { printf "%s\"%s\"", (NR > 1 ? "," : ""), $0 } END { printf "]" }'
 }
+# update_all [TO]: the update, to the version TO when the request named one (#979).
 update_all() {
   from="$(version_now)"
   at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  write_status update.json "{\"state\":\"updating\",\"at\":\"$at\",\"from\":\"$from\"}"
+  write_status update.json "{\"state\":\"updating\",\"at\":\"$at\",\"from\":\"$from\"$(named_field "${1:-}")}"
   set +e
   results="$RUN/update-results"
   rm -f "$results"
-  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" BOT_DOT_UPDATE_RESULTS="$results" BOT_DOT_UPDATE_AT="$at" BOT_DOT_UPDATE_FROM="$from" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
+  BOT_DOT_LOCKED="${BOT_DOT_LOCKED:-}" BOT_DOT_UPDATE_RESULTS="$results" BOT_DOT_UPDATE_AT="$at" BOT_DOT_UPDATE_FROM="$from" BOT_DOT_UPDATE_TO="${1:-}" sh "$SOURCE/install.sh" --update > "$DIR/update.log" 2>&1 </dev/null
   updated=$?
   set -e
   chmod 600 "$DIR/update.log"
   accounts="$(account_results "$results")"
   rm -f "$results"
   if [ "$updated" = 0 ]; then
-    write_status update.json "{\"state\":\"updated\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\"$accounts}"
+    write_status update.json "{\"state\":\"updated\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\"$(named_field "${1:-}")$accounts}"
     ok "botdot is updated, the front door and every account"
   else
     # The installer's last ✗ line, as plain text.
     why="$(tr -d '\033' < "$DIR/update.log" | sed -n 's/\[[0-9;]*m//g; s/^✗ //p' | tail -n 1 | plain_line 500)"
     # The phase it stopped in, as it wrote it last (none from an installer before phases).
     stopped="$(sed -n 's/.*\("phase":"[a-z-]*"\(,"account":"[a-z0-9-]*"\)\{0,1\}\).*/,\1/p' "$DOOR/status/update.json" 2>/dev/null || true)"
-    write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-The update stopped without saying why}\"$accounts$stopped,\"log\":$(log_tail)}"
+    write_status update.json "{\"state\":\"failed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$from\",\"to\":\"$(version_now)\",\"error\":\"${why:-The update stopped without saying why}\"$(named_field "${1:-}")$accounts$stopped,\"log\":$(log_tail)}"
     warn "The update stopped: ${why:-see $DIR/update.log}"
   fi
 }
@@ -1853,10 +1937,75 @@ switch_one() {
   warn "The account $1 wasn't switched: $so_text"
 }
 
+# revision_of IMAGE [DOCKER]: the source revision IMAGE was built from, 7 characters, or nothing.
+revision_of() {
+  ro_="$(${2:-$D} image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$1" </dev/null 2>/dev/null | cut -c1-7 || true)"
+  case "$ro_" in '' | *[!0-9a-f]*) ;; *) printf '%s' "$ro_" ;; esac
+}
+# rollback_one NAME: the account NAME back to its snapshot (#979, ADR 155), as asked with ROLLBACK-NAME: its data,
+# compose.yaml and .env as they were before its last switch, its botdot server started on the version it ran then and
+# made to answer. One that doesn't answer gets what it ran just before back, data and all. How it went is in
+# status/account-NAME.json: rolledback, with the version it runs, or kept or failed, with why. A snapshot used goes.
+rollback_one() {
+  ro_state="$(door_state "$1")"
+  case "$ro_state" in running*) ;; *) warn "The account $1 isn't running, so it wasn't rolled back."; return 0 ;; esac
+  ro_home="$ACCOUNTS/$1"
+  A="env DOCKER_HOST=unix://$RUN/$1/docker.sock docker"
+  if ! { [ -f "$ro_home/compose.yaml" ] && [ -f "$ro_home/.env" ] && $A info </dev/null >/dev/null 2>&1; }; then
+    account_said "$1" kept '"error":"Its botdot server was not running, so it was not rolled back."'
+    warn "The account $1's Docker isn't running, so it wasn't rolled back."
+    return 0
+  fi
+  if ! ro_snap="$(snapshot_of "$1")"; then
+    account_said "$1" kept '"error":"It has no snapshot to go back to."'
+    warn "The account $1 has no snapshot to go back to."
+    return 0
+  fi
+  ro_image="$(get_env "$ro_snap/.env" BOT_DOT_IMAGE)"
+  # The version it ran then, which the cleanup after its switch removed from its Docker: downloaded again, pinned by the
+  # digest that was checked when it was installed.
+  if [ -n "$ro_image" ] && ! $A image inspect "$ro_image" </dev/null >/dev/null 2>&1; then
+    if [ -z "$(registry_of "$ro_image")" ] || ! pull "$ro_image" "$A"; then
+      account_said "$1" kept "\"error\":\"$(printf "Couldn't download the version it ran before%s" "$(because)" | plain_line 300)\""
+      warn "The account $1 wasn't rolled back: couldn't download $ro_image$(because)."
+      return 0
+    fi
+  fi
+  say "Rolling the account $1 back to its snapshot"
+  cp -p "$ro_home/compose.yaml" "$ro_home/compose.yaml.before"
+  cp -p "$ro_home/.env" "$ro_home/.env.before"
+  $A compose --project-directory "$ro_home" stop bot-dot </dev/null >/dev/null 2>&1 || true
+  rm -rf -- "$ro_home/data.after"
+  mv "$ro_home/data" "$ro_home/data.after"
+  if cp -a "$ro_snap/data" "$ro_home/data" && cp -p "$ro_snap/compose.yaml" "$ro_home/compose.yaml" && cp -p "$ro_snap/.env" "$ro_home/.env" \
+    && compose_up "$ro_home" && answers "$SOCKETS/$1" "$ro_home"; then
+    rm -rf -- "$ro_home/data.after" "$ro_snap"
+    rm -f "$ro_home/compose.yaml.before" "$ro_home/.env.before"
+    ro_version="$(revision_of "$ro_image" "$A")"
+    account_said "$1" rolledback "${ro_version:+\"version\":\"$ro_version\"}"
+    ok "The account $1 is rolled back to its snapshot${ro_version:+, on version $ro_version}"
+    return 0
+  fi
+  $A compose --project-directory "$ro_home" logs --no-color --tail 40 </dev/null 2>&1 | sed 's/^/    /' || true
+  warn "The account $1's botdot server didn't start from its snapshot, so it goes back to what it ran."
+  $A compose --project-directory "$ro_home" stop bot-dot </dev/null >/dev/null 2>&1 || true
+  rm -rf -- "$ro_home/data"
+  mv "$ro_home/data.after" "$ro_home/data"
+  mv "$ro_home/compose.yaml.before" "$ro_home/compose.yaml"
+  mv "$ro_home/.env.before" "$ro_home/.env"
+  compose_up "$ro_home" || true
+  if answers "$SOCKETS/$1" "$ro_home"; then account_said "$1" kept '"error":"Its botdot server did not start from its snapshot, so it runs the version it ran."'
+  else account_said "$1" failed '"error":"Its botdot server did not start, neither from its snapshot nor on the version it ran."'; fi
+}
+
 if [ "$MODE" = requested ]; then
   if [ -f "$REQUESTS/$UPDATE" ] && [ ! -L "$REQUESTS/$UPDATE" ]; then
+    # An update to a version named in the request (#979): its first line, sha256: and the server image's 64 hex digits.
+    # An empty request takes the newest; anything else is refused by the update, at check.
+    to="$(head -c 200 "$REQUESTS/$UPDATE" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)"
     rm -f -- "$REQUESTS/$UPDATE"
-    update_all
+    if [ -n "$to" ] && ! printf '%s' "$to" | grep -Eqx 'sha256:[0-9a-f]{64}'; then to=invalid; fi
+    update_all "$to"
   fi
   # "Update now" for one account (ADR 053), after the admin's update, which would have switched or left it anyway.
   for request in "$REQUESTS"/SWITCH-*; do
@@ -1866,6 +2015,19 @@ if [ "$MODE" = requested ]; then
     if valid_account "$name"; then switch_one "$name"
     else warn "Not an account's name, so nothing was switched: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"; fi
   done
+  # A rollback for one account to its snapshot (#979), after any switch.
+  for request in "$REQUESTS"/ROLLBACK-*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    name="${request##*/ROLLBACK-}"
+    rm -f -- "$request"
+    if valid_account "$name"; then
+      # In a subshell of its own, which stops at its first failure, so that the requests after it are taken.
+      set +e
+      ( set -e; rollback_one "$name" )
+      [ "$?" = 0 ] || warn "The account $name wasn't rolled back (see above)."
+      set -e
+    else warn "Not an account's name, so nothing was rolled back: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"; fi
+  done
   for request in "$REQUESTS"/* "$REQUESTS"/.[!.]* "$REQUESTS"/..?*; do
     [ -e "$request" ] || [ -L "$request" ] || continue
     name="$(basename "$request")"
@@ -1873,7 +2035,7 @@ if [ "$MODE" = requested ]; then
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if [ "$name" = "$UPDATE" ] && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
-    elif case "$name" in SWITCH-*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
+    elif case "$name" in SWITCH-* | ROLLBACK-*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else
@@ -1964,11 +2126,6 @@ waits() {
   [ "$w_ran" != "$IMAGE" ] || return 1
   [ "$w_ran" = "$w_pin" ] || { [ "$w_pin" = "$IMAGE" ] && [ "$(account_was "$1")" = waiting ]; } || return 1
   door_waits "$1"
-}
-# revision_of IMAGE [DOCKER]: the source revision IMAGE was built from, 7 characters, or nothing.
-revision_of() {
-  ro_="$(${2:-$D} image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$1" </dev/null 2>/dev/null | cut -c1-7 || true)"
-  case "$ro_" in '' | *[!0-9a-f]*) ;; *) printf '%s' "$ro_" ;; esac
 }
 # wait_for NAME: the account NAME stays on the version it runs, waits for this one since it first did, and keeps its
 # old images (ADR 053).
