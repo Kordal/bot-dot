@@ -971,7 +971,16 @@ function offsiteStatus(now = Date.now()) {
   const lastSuccess = when(s.lastSuccess);
   const since = lastSuccess || when(s.started) || when(s.at);
   const failed = s.state === 'failed';
-  return { state: s.state, at: when(s.at), lastSuccess, ...(failed ? { error: line(s.error, 300) } : {}), late: failed || !since || now - Date.parse(since) > OFFSITE_LATE_MS };
+  // The weekly check (#1018) as the last run said it, and the last restore test (`install.sh --restore-test`), whose
+  // failure is late too until one passes.
+  const check = s.check && typeof s.check === 'object' && when(s.check.at)
+    ? { at: when(s.check.at), subset: /^\d{1,2}\/\d{1,2}$/.test(s.check.subset) ? s.check.subset : null, ok: s.check.ok === true, ...(s.check.ok === true ? {} : { error: line(s.check.error, 200) }) } : null;
+  const t = readStatus('restore-test.json');
+  const restoreTest = t && ['testing', 'passed', 'failed', 'refused'].includes(t.state) && when(t.at)
+    ? { state: t.state, at: when(t.at), account: store.ACCOUNT_NAME.test(t.account) ? t.account : null,
+      ...(Number.isInteger(t.bots) ? { bots: t.bots } : {}), ...(['failed', 'refused'].includes(t.state) ? { error: line(t.error, 300) } : {}) } : null;
+  return { state: s.state, at: when(s.at), lastSuccess, ...(failed ? { error: line(s.error, 300) } : {}), check, restoreTest,
+    late: failed || restoreTest?.state === 'failed' || !since || now - Date.parse(since) > OFFSITE_LATE_MS };
 }
 const OFFSITE_TOLD = path.join(DATA, 'offsite-told.json'); // { late }: what the admin's account was last told
 function tellOffsite() {
@@ -980,7 +989,8 @@ function tellOffsite() {
   let told = false;
   try { told = JSON.parse(fs.readFileSync(OFFSITE_TOLD, 'utf8')).late === true; } catch { /* never told */ }
   if (o.late === told) return;
-  askAccount(ADMIN, 'POST', '/api/backups/machine', { late: o.late, lastSuccess: o.lastSuccess, error: o.error || null }, 10_000).then((r) => {
+  const error = o.error || (o.restoreTest?.state === 'failed' ? `the restore test of ${o.restoreTest.account} failed: ${o.restoreTest.error}` : null);
+  askAccount(ADMIN, 'POST', '/api/backups/machine', { late: o.late, lastSuccess: o.lastSuccess, error }, 10_000).then((r) => {
     if (r.status !== 200) return; // told again at the next look
     fs.writeFileSync(OFFSITE_TOLD, JSON.stringify({ late: o.late, at: new Date().toISOString() }), { mode: 0o600 });
   });

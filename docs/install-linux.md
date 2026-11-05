@@ -266,7 +266,15 @@ sudo touch /var/lib/botdot/front-door/requests/OFFSITE
 
 It backs up the front door's data, then for each account its data folder (without `data/backups`, `node_modules` and unfinished `.part` files, and with a consistent copy of `memory.db`, as in a set), its `.env`, its `/config` volume and its computer's volumes, and a `manifest.json`, each as a snapshot tagged `instance=`, `account=` and `part=`. A part that fails doesn't stop the others. It keeps 7 daily, 4 weekly and 3 monthly snapshots, and prunes once a week. To get a part back: `restic dump --tag part=data,account=ann latest /accounts/ann/data.tar > data.tar` with `RESTIC_REPOSITORY` and `RESTIC_PASSWORD_FILE` set.
 
-How the last run went is in `/var/lib/botdot/front-door/status/offsite.json`: `state` (`backing-up`, `done`, `failed` or `refused`), `started`, `finished`, `lastSuccess`, `bytesAdded`, `snapshots` (each part's id), `failed` (the parts that failed), `part` (where it stopped) and `error`. `journalctl -u botdot-offsite` says more. Without `BOT_DOT_OFFSITE_REPO` none of this runs.
+How the last run went is in `/var/lib/botdot/front-door/status/offsite.json`: `state` (`backing-up`, `done`, `failed` or `refused`; `off` when `OFFSITE` was asked on a machine without a repository), `started`, `finished`, `lastSuccess`, `bytesAdded`, `snapshots` (each part's id), `failed` (the parts that failed), `part` (where it stopped), `error` and `check` (the last weekly check, below). `journalctl -u botdot-offsite` says more. Without `BOT_DOT_OFFSITE_REPO` none of this runs. The admin page shows it under the version, and tells the admin's account once when it is late (the last run failed, or the last good one is older than 26 hours) and once when it works again.
+
+**Drills** ([#1018](https://github.com/Kordal/bot-dot/issues/1018)). Once a week the night's run also reads back and checks one twentieth of what the repository holds (`restic check --read-data-subset=n/20`, the next twentieth each week, so every blob is read within 20 weeks); a check that fails fails the run. To test a restore of one account at real size:
+
+```sh
+sudo sh /var/lib/botdot/bin/install.sh --restore-test ann
+```
+
+It restores that account's parts of the latest backup into `/var/lib/botdot/restore-test`, checks each part's size against what restic recorded and that each tar reads to its end, opens `memory.db` (its SQLite header, and with `sqlite3` installed its quick check), counts the bots, and removes the folder. It is refused, before anything is restored, when the disk would keep less than 512 MB free, and says how much it needs. How it went is in `status/restore-test.json` (`state` `testing`, `passed`, `failed` or `refused`, `at`, `account`, `snapshot`, `bytes`, `bots`, `error`); a failed test counts as a late backup on the admin page until one passes.
 
 ## Uninstall
 

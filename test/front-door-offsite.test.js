@@ -71,6 +71,23 @@ test('a backup whose last good run is older than 26 hours is late though none fa
   assert.equal((await browser.get('/admin/offsite')).data.offsite.late, false, 'the first run, under way');
 });
 
+test('a failed restore test is late too, until one passes, and the weekly check is shown (#1018)', async () => {
+  said({ state: 'done', at: ago(1), lastSuccess: ago(1), check: { at: ago(1), subset: '3/20', ok: true } });
+  const write = (v) => fs.writeFileSync(path.join(status, 'restore-test.json'), JSON.stringify(v));
+  write({ state: 'failed', at: ago(0), account: 'ann', error: 'accounts/ann/data.tar came back with 3 bytes, and restic recorded 4096.' });
+  let o = (await browser.get('/admin/offsite')).data.offsite;
+  assert.equal(o.late, true);
+  assert.deepEqual(o.check, { at: o.check.at, subset: '3/20', ok: true });
+  assert.deepEqual({ state: o.restoreTest.state, account: o.restoreTest.account }, { state: 'failed', account: 'ann' });
+  const before = told().length;
+  await waitFor(() => told().length > before && told().at(-1).late === true, { what: 'the admin told of the failed test' });
+  assert.match(told().at(-1).error, /^the restore test of ann failed: accounts\/ann\/data.tar came back/);
+  write({ state: 'passed', at: ago(0), account: 'ann', bots: 3 });
+  o = (await browser.get('/admin/offsite')).data.offsite;
+  assert.equal(o.late, false);
+  assert.equal(o.restoreTest.bots, 3);
+});
+
 test('nobody signed out sees it', async () => {
   const other = door.browser();
   assert.notEqual((await other.get('/admin/offsite')).status, 200, 'not without the admin\'s session');

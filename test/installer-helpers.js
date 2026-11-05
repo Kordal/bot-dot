@@ -128,7 +128,7 @@ echo "$name:x:$(grep "^$name:" "${users}" | cut -d: -f2-3):botdot:$h:/usr/sbin/n
   stand('mount', `${said('mount')}\necho "$4" >> "${mounts}"`);
   stand('mountpoint', `grep -qx "$2" "${mounts}" 2>/dev/null`);
   stand('losetup', `${said('losetup')}\n[ "$1" = -j ] && echo "/dev/loop7: []: ($2)"\nexit 0`);
-  stand('df', `case "$2" in *accounts/*) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "/dev/loop7 31457280 10485760 \${STAND_IN_DISK_FREE:-20971520} 34% $2" ;; *) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "/dev/sda1 62914560 17825792 45088768 29% /" ;; esac`);
+  stand('df', `case "$2" in *accounts/*) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "/dev/loop7 31457280 10485760 \${STAND_IN_DISK_FREE:-20971520} 34% $2" ;; *) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "/dev/sda1 62914560 17825792 \${STAND_IN_ROOT_FREE:-45088768} 29% /" ;; esac`);
   stand('getconf', 'echo 4');
   stand('userdel', `${said('userdel')}
 grep -v "^$1:" "${users}" > "${users}.new"; mv "${users}.new" "${users}"
