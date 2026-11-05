@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     app: BotDotApp,
-    onSkills: () -> Unit, onConnectors: () -> Unit, onVault: () -> Unit, onPages: () -> Unit,
+    onSkills: () -> Unit, onConnectors: () -> Unit, onVault: () -> Unit, onPages: () -> Unit, onStorage: () -> Unit = {},
     onChangeServer: () -> Unit, onBattery: () -> Unit, onBack: () -> Unit,
 ) {
     val p = LocalPaper.current
@@ -158,6 +158,7 @@ fun SettingsScreen(
             if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
             Link(tr("Connectors"), onClick = onConnectors)
             Link(tr("Vault"), onClick = onVault)
+            if (dev.botdot.app.data.Storage.shows(server?.features)) Link(tr("Storage"), onClick = onStorage) // what the account's files take on the disk
             Spacer(Modifier.height(Space.s16))
 
             Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }

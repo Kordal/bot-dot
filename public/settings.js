@@ -324,8 +324,9 @@ function drawChiefSkills(root) {
   }).catch(() => { box.innerHTML = `<span class="faint">${tr("Couldn't load skills.")}</span>`; });
 }
 
-// The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361).
-const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Connectors')], ['vault', tr('Vault')]];
+// The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361); Storage what the
+// account's files take on the disk (storage.js).
+const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Connectors')], ['vault', tr('Vault')], ['storage', tr('Storage')]];
 
 // The rows to the pages above. Drawn again on every refresh, also while the rows below keep their edits, so that
 // Activity always shows the tasks running now.
@@ -333,7 +334,7 @@ function drawSettingsLinks(root) {
   const box = $('#settings-links', root);
   if (!box) return;
   const running = runningTasks();
-  box.innerHTML = SETTINGS_PAGES.filter(([view]) => view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())).map(([view, label]) => `
+  box.innerHTML = SETTINGS_PAGES.filter(([view]) => (view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())) && (view !== 'storage' || (state.features || []).includes('storage'))).map(([view, label]) => `
       <button type="button" class="bs-row bs-link" data-go="${view}"><b>${label}</b>${view === 'runs' && running ? `<span class="bs-val">${trn(running, '{n} running', '{n} running')}</span>` : ''}${CHEV}</button>`).join('');
   $$('[data-go]', box).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
 }
