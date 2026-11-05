@@ -213,6 +213,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun storage(): Storage.Answer = json.decodeFromString(get("/storage"))
     suspend fun checkStorage(): Storage.Answer = json.decodeFromString(send("POST", "/storage/check"))
     suspend fun clearCaches(): Storage.Answer = json.decodeFromString(send("POST", "/storage/clear-caches"))
+    /** Deletes what a deleted bot left (Storage's own route: the Files routes take only a bot that is there). */
+    suspend fun deleteGone(w: Storage.Where) { send("DELETE", Storage.goneQuery(w) { enc(it) }) }
     suspend fun usage(from: String? = null, to: String? = null): Usage.Answer = json.decodeFromString(get("/usage${Usage.query(from, to)}"))
 
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))

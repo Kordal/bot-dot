@@ -12,8 +12,9 @@ object Storage {
     const val FEATURE = "storage"
     val GROUPS = listOf("computer", "bots", "projects", "uploads", "chats", "caches", "other")
 
-    /** Where Files opens a node: a bot's folder ({ bot, root }) or a project's ({ project }). */
-    @Serializable data class Place(val bot: String? = null, val root: String? = null, val project: String? = null)
+    /** Where Files opens a node: a bot's folder ({ bot, root }) or a project's ({ project }). [gone]: a deleted bot's,
+     *  which no Files route opens: Storage deletes it itself ([goneQuery]). */
+    @Serializable data class Place(val bot: String? = null, val root: String? = null, val project: String? = null, val gone: Boolean = false)
     @Serializable data class Node(
         val name: String = "", val bytes: Long = 0, val dir: Boolean = true, val files: Long = 0, val kids: List<Node> = emptyList(),
         val rest: Long = 0, val place: Place? = null, val path: String? = null, val label: String? = null,
@@ -70,8 +71,11 @@ object Storage {
         at?.place != null -> Where(at.place, join(at.base, kid.name))
         else -> null
     }
-    /** A whole bot's folder, or its uploads folder, is never deleted from here. */
-    fun deletable(w: Where?): Boolean = w != null && w.path.isNotEmpty() && w.path != "uploads"
+    /** A whole bot's folder, or its uploads folder, is never deleted from here; what a deleted bot left goes whole too. */
+    fun deletable(w: Where?): Boolean = w != null && (w.place.gone || (w.path.isNotEmpty() && w.path != "uploads"))
+
+    /** DELETE /api/storage/gone's query for what a deleted bot left. */
+    fun goneQuery(w: Where, enc: (String) -> String): String = "/storage/gone?bot=${enc(w.place.bot.orEmpty())}&root=${enc(w.place.root ?: "server")}&path=${enc(w.path)}"
 
     /** Whose files these are, as [UploadedFiles.owner] takes it, and the root of their place. */
     fun ownerOf(p: Place): String = when {

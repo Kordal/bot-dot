@@ -120,7 +120,7 @@ fun StorageScreen(app: BotDotApp, onFiles: (owner: String, root: String, path: S
                 if (w != null) Box {
                     IconButton(onClick = { menu = if (menu == key) null else key; ask = null }) { Icon(Icons.Filled.MoreHoriz, contentDescription = tr("More"), tint = p.muted) }
                     DropdownMenu(expanded = menu == key, onDismissRequest = { menu = null }) {
-                        DropdownMenuItem(text = { Text(tr("Open in Files")) }, onClick = {
+                        if (!w.place.gone) DropdownMenuItem(text = { Text(tr("Open in Files")) }, onClick = {
                             menu = null
                             val folder = if (dir) w.path else w.path.substringBeforeLast('/', "")
                             onFiles(Storage.ownerOf(w.place), Storage.rootOf(w.place), folder)
@@ -138,10 +138,10 @@ fun StorageScreen(app: BotDotApp, onFiles: (owner: String, root: String, path: S
             if (ask == key && w != null) Box(Modifier.padding(horizontal = Space.s12)) {
                 val words = if (dir) tr("Delete {name}? {size}, {count}.", "name" to name, "size" to Storage.size(bytes), "count" to trn(files.toInt(), "{n} file", "{n} files"))
                     else tr("Delete {name}? {size}.", "name" to name, "size" to Storage.size(bytes))
-                Ask(words, tr("Delete"), busy, onCancel = { ask = null }) {
+                Ask(words, if (busy) tr("Deleting…") else tr("Delete"), busy, onCancel = { ask = null }) {
                     busy = true
                     scope.launch {
-                        runCatching { api!!.deleteFromWorkspace(Storage.ownerOf(w.place), Storage.rootOf(w.place), w.path) }
+                        runCatching { if (w.place.gone) api!!.deleteGone(w) else api!!.deleteFromWorkspace(Storage.ownerOf(w.place), Storage.rootOf(w.place), w.path) }
                             .onSuccess { ask = null; tell(tr("Deleted")); load() }.onFailure { tell(it.message ?: tr("Couldn't delete")) }
                         busy = false
                     }
@@ -186,7 +186,7 @@ fun StorageScreen(app: BotDotApp, onFiles: (owner: String, root: String, path: S
                         Text(Storage.size(g.bytes), color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = Space.s8))
                         Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
                     }
-                    if (ask == key) Ask(tr("Clear the caches? {size}.", "size" to Storage.size(g.bytes)), tr("Clear"), busy, onCancel = { ask = null }) {
+                    if (ask == key) Ask(tr("Clear the caches? {size}.", "size" to Storage.size(g.bytes)), if (busy) tr("Clearing…") else tr("Clear"), busy, onCancel = { ask = null }) {
                         busy = true
                         scope.launch {
                             runCatching { api!!.clearCaches() }.onSuccess { data = it; ask = null; tell(tr("Cleared {size}", "size" to Storage.size(it.freed))) }.onFailure { tell(it.message ?: tr("Couldn't clear")) }
