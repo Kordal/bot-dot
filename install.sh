@@ -2004,15 +2004,17 @@ settle() {
   [ "$#" = 0 ] || shift
   case "$s" in
     running)
-      # Its Docker answers when it runs: suspending stops it. One that runs gets its share now.
-      if [ -f "$ACCOUNTS/$n/compose.yaml" ] && env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker info </dev/null >/dev/null 2>&1; then
+      # Its Docker answers when it runs: suspending stops it. One that runs gets its share now. One whose Docker runs
+      # but whose botdot server doesn't answer (the front door asks when it finds it down) is started again below.
+      if [ -f "$ACCOUNTS/$n/compose.yaml" ] && env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker info </dev/null >/dev/null 2>&1 \
+        && curl -fsS -o /dev/null --max-time 5 -H "X-Botdot-Account: $n" --unix-socket "$SOCKETS/$n/botdot.sock" http://botdot/api/version </dev/null 2>/dev/null; then
         # shellcheck disable=SC2086 # three numbers
         valid_share "$@" || set -- $DEFAULT_SHARE
         disk "$n" "$3"
         share "$n" "$1" "$2"
         ok "The account $n is made already, and runs, with its share: $1 CPUs, $2 GB of RAM, $3 GB of disk"
       elif [ -f "$ACCOUNTS/$n/compose.yaml" ]; then
-        say "Starting the account $n again, which the admin resumed"
+        say "Starting the account $n again, which the admin resumed or which stopped"
         account "$n" "$@"
       else
         say "Making the account $n, which a sign-up link made at the front door"

@@ -86,7 +86,20 @@ test("the admin page lists each account's name, when it was made, when it was la
   const zed = await signUp('zed', (await browsers.ann.post('/admin/links', {})).data.url);
   fs.rmSync(path.join(requests, 'zed'), { force: true });
   assert.equal((await listed('zed')).state, 'stopped');
+  // Found down with nothing asked: the machine is asked to start it again, and its owner sees it starting.
+  const down = await zed.get('/api/bots');
+  assert.equal(down.status, 503);
+  assert.equal(down.data.starting, true);
+  assert.ok(asked('zed'), 'the machine is asked to start zed again');
+  // Not again for a while, once the machine was done: not running, and a page that looks again by itself.
+  fs.rmSync(path.join(requests, 'zed'));
   assert.equal((await zed.get('/api/bots')).status, 502);
+  assert.ok(!asked('zed'), 'asked once in a while');
+  const home = await zed.get('/');
+  assert.equal(home.status, 503);
+  assert.match(home.headers['content-type'], /^text\/html/);
+  assert.match(home.text, /Your account isn't running\./);
+  assert.match(home.text, /http-equiv="refresh"/);
 });
 
 test('a suspended account: its owner sees only "Your account is paused by the admin", and resume brings it back', async () => {
