@@ -134,6 +134,39 @@ test('the Chief reads Storage and asks for a check; only the owner clears the ca
   assert.ok(audit.some((l) => l.action === 'storage.caches-cleared'));
 });
 
+test('what a deleted bot left on botdot is marked gone and deleted with Storage\'s own route, the owner\'s alone (the Files routes answer "Bot not found")', async () => {
+  const left = path.join(srv.data, 'workspaces', 'c624cda0');
+  write(path.join(left, 'repo-copy', 'pack.bin'), 3 * MB);
+  write(path.join(left, 'repo-copy-2', 'pack.bin'), 2 * MB);
+  write(path.join(left, 'uploads', 'photo.jpg'), 1 * MB);
+  const v = await checked(true);
+  const node = group(v, 'bots').kids.find((k) => k.bot === 'c624cda0');
+  assert.deepEqual(node.place, { bot: 'c624cda0', root: 'server', gone: true });
+  assert.deepEqual(v.largest.find((f) => f.path === 'repo-copy/pack.bin').place, { bot: 'c624cda0', root: 'server', gone: true });
+  assert.equal((await srv.api(`/bots/c624cda0/workspace?path=repo-copy`, { method: 'DELETE' })).status, 404, 'the Files routes take only a bot that is there');
+  const gone = (q) => `/storage/gone?bot=c624cda0&root=server&path=${encodeURIComponent(q)}`;
+  assert.equal((await srv.asChief(gone('repo-copy'), { method: 'DELETE' })).status, 403);
+  assert.equal((await srv.api(gone('../homes'), { method: 'DELETE' })).status, 403);
+  assert.equal((await srv.api(`/storage/gone?bot=${bot.id}&path=reports`, { method: 'DELETE' })).status, 409, 'a bot that is there goes through Files');
+  const one = await srv.api(gone('repo-copy'), { method: 'DELETE' });
+  assert.equal(one.status, 200, JSON.stringify(one.data));
+  assert.equal(fs.existsSync(path.join(left, 'repo-copy')), false);
+  assert.ok(fs.existsSync(path.join(left, 'repo-copy-2')));
+  let after = (await srv.api('/storage')).data;
+  assert.equal(after.checkedAt, v.checkedAt, 'no new check');
+  assert.ok(!after.largest.some((f) => f.path === 'repo-copy/pack.bin'));
+  // The whole folder, its uploads too.
+  const all = await srv.api(gone(''), { method: 'DELETE' });
+  assert.equal(all.status, 200, JSON.stringify(all.data));
+  assert.equal(fs.existsSync(left), false);
+  after = (await srv.api('/storage')).data;
+  assert.ok(!group(after, 'bots').kids.some((k) => k.bot === 'c624cda0'));
+  assert.ok(!group(after, 'uploads').kids.some((k) => k.bot === 'c624cda0'));
+  assert.equal((await srv.api(gone(''), { method: 'DELETE' })).status, 404);
+  const audit = fs.readFileSync(path.join(srv.data, 'audit.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.ok(audit.some((l) => l.action === 'workspace-file.deleted' && l.bot === 'c624cda0' && l.path === '/'), 'written as a delete in Files is');
+});
+
 test('through the broker a bot\'s walk is its answer\'s value, and the total is what the account\'s own disk uses', async () => {
   const { create } = require('../lib/storage');
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-storage-broker-'));
@@ -161,5 +194,34 @@ test('through the broker a bot\'s walk is its answer\'s value, and the total is 
   // Without a disk of its own, only what was counted.
   const plain = await create({ dataDir, bots: () => [], brokered: () => true, client, ownDisk: () => false, diskUsed: () => 37_000 * MB }).check();
   assert.ok(!plain.groups.find((g) => g.id === 'other').kids.some((k) => k.label === 'disk'));
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
+
+test('what a deleted bot left goes as that bot through the broker, and on the computer with the folder\'s own checks', async () => {
+  const { create } = require('../lib/storage');
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-storage-gone-'));
+  const ws = path.join(dataDir, 'workspaces', 'old1');
+  write(path.join(ws, 'a', 'x.bin'), 10);
+  write(path.join(ws, 'b.bin'), 10);
+  const asked = [];
+  const client = { call: async (operation, { principal, request }) => {
+    asked.push([principal, request.op, request.args[0]]);
+    return { value: fs[request.op](...request.args) };
+  } };
+  const shells = [];
+  const computers = { inspect: async () => ({ state: 'running' }), runShell: async (seat, { command }) => { shells.push([seat, command]); return { code: 0, stdout: 'ok\n' }; } };
+  const s = create({ dataDir, bots: () => [{ id: 'r1', name: 'Researcher' }], brokered: () => true, client, computers });
+  await assert.rejects(s.removeGone({ bot: 'r1', rel: 'a' }), (e) => e.status === 409);
+  await assert.rejects(s.removeGone({ bot: '../x' }), (e) => e.status === 400);
+  await s.removeGone({ bot: 'old1', rel: 'a' });
+  assert.deepEqual(asked.map(([p, op, a]) => [p, op, path.relative(dataDir, a)]), [['old1', 'lstatSync', 'workspaces/old1/a'], ['old1', 'rmSync', 'workspaces/old1/a']]);
+  await s.removeGone({ bot: 'old1', rel: '' });
+  assert.equal(fs.existsSync(ws), false, 'its emptied folder goes too');
+  await s.removeGone({ bot: 'old1', root: 'computer', rel: 'repo' });
+  assert.equal(shells[0][0], 'projects');
+  assert.match(shells[0][1], /^sudo -n sh -c /);
+  assert.match(shells[0][1], /\/workspace\/old1/);
+  const off = create({ dataDir, bots: () => [], computers: { inspect: async () => ({ state: 'stopped' }) } });
+  await assert.rejects(off.removeGone({ bot: 'old1', root: 'computer', rel: 'repo' }), (e) => e.status === 409 && e.state === 'computer-off');
   fs.rmSync(dataDir, { recursive: true, force: true });
 });

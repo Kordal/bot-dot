@@ -1,7 +1,7 @@
 // Settings → Storage (docs/api.md, Storage; lib/storage.js): what the account's files take on the disk. The total and
 // a bar of the groups, a row each, then the largest files; a group or a folder opens to what it holds, largest first.
 // A folder or file a Files place can open has a menu: Open in Files, Ask the Chief, and Delete, which asks on its own
-// row first and deletes with the Files routes. Caches are cleared from their row, after the same question.
+// row first and deletes with the Files routes (what a deleted bot left, with Storage's own). Caches are cleared from their row, after the same question.
 // Only from a server whose features have `storage`; settings.js links it, app.js shows it.
 
 const StoragePage = (() => {
@@ -58,7 +58,8 @@ const StoragePage = (() => {
     if (!at?.place) return null;
     return { place: at.place, path: join(at.base, at.rel, kid.name) };
   }
-  const deletable = (w) => !!w && !!w.path && w.path !== 'uploads';
+  // A bot's whole folder and its uploads stay, except what a deleted bot left (`gone`): that goes whole too.
+  const deletable = (w) => !!w && (!!w.place?.gone || (!!w.path && w.path !== 'uploads'));
 
   async function load() {
     try { cur.data = await api('/storage'); cur.error = null; } catch (e) { cur.error = e.message; }
@@ -115,13 +116,13 @@ const StoragePage = (() => {
         <span class="st-size">${size(bytes)}</span>
         ${menu ? `<button type="button" class="icon-btn st-more" data-st-menu="${key}" aria-label="${esc(tr('More'))}" aria-expanded="${open}">⋯</button>` : opens ? CHEV : '<span></span>'}
         ${open ? `<div class="menu st-menu" role="menu">
-          <button type="button" role="menuitem" data-st-files="${key}">${tr('Open in Files')}</button>
+          ${w.place?.gone ? '' : `<button type="button" role="menuitem" data-st-files="${key}">${tr('Open in Files')}</button>`}
           <button type="button" role="menuitem" data-st-chief="${key}">${tr('Ask the Chief')}</button>
           ${deletable(w) ? `<button type="button" role="menuitem" class="danger" data-st-delete="${key}">${tr('Delete…')}</button>` : ''}
         </div>` : ''}
       </div>${ask}`;
   }
-  const askRow = (words, yes) => `<div class="st-confirm" role="alertdialog"><span>${esc(words)}</span><button type="button" class="btn sm" data-st-cancel${cur.busy ? ' disabled' : ''}>${tr('Cancel')}</button><button type="button" class="btn sm st-danger" data-st-yes${cur.busy ? ' disabled' : ''}>${esc(yes)}</button></div>`;
+  const askRow = (words, yes) => `<div class="st-confirm" role="alertdialog"><span>${esc(words)}</span><button type="button" class="btn sm" data-st-cancel${cur.busy ? ' disabled' : ''}>${tr('Cancel')}</button><button type="button" class="btn sm st-danger${cur.busy ? ' spin' : ''}" data-st-yes${cur.busy ? ' disabled aria-busy="true"' : ''}>${esc(cur.busy ? (cur.ask?.what === 'clear' ? tr('Clearing…') : tr('Deleting…')) : yes)}</button></div>`;
 
   // The rows of what is shown, by key: { name, bytes, dir, files, w } for a menu's and a question's actions.
   function rowsByKey() {
@@ -147,6 +148,7 @@ const StoragePage = (() => {
 
   // The Files route of a place: a bot's folder on botdot or on the computer, the Chief's, or a project's.
   function filesBase(place) {
+    if (place.gone) return `/storage/gone?bot=${encodeURIComponent(place.bot)}&root=${encodeURIComponent(place.root || 'server')}&`;
     if (place.project) return `/projects/${encodeURIComponent(place.project)}/workspace?`;
     if (place.bot === '_chief') return '/chief/workspace?';
     return `/bots/${encodeURIComponent(place.bot)}/workspace?root=${encodeURIComponent(place.root || 'server')}&`;
