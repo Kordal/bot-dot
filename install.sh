@@ -505,6 +505,12 @@ fi
 # (backing-up, done or failed), started, finished, lastSuccess, bytesAdded, snapshots (each part's), failed (the parts
 # that failed), part (the one it stopped in) and error. A machine without the setting does none of it; asked for one
 # (OFFSITE), it says state off, which no admin is warned of (#1017).
+#
+# An erased account's snapshots (#1019) are forgotten OFFSITE_GRACE_DAYS after the erase, and pruned in the same run:
+# the erase writes the account, its born stamp and the time in OFFSITE/erased. Each account's parts are tagged with
+# born=<its stamp> (BOT_DOT_DIR/born/<name>, made at its first off-site backup), so that a forget never touches an account
+# made again under the same name; the snapshots of a part made before the stamp, which have none, are of the account
+# that had the name then, and go with it. What was forgotten is in status/offsite-forgotten.json, for the audit log.
 OFFSITE="$DIR/offsite"
 OFFSITE_REQUEST=OFFSITE
 RESTIC_VERSION=0.19.1
@@ -514,6 +520,9 @@ linux_arm64 a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465'
 OFFSITE_KEEP='--keep-daily 7 --keep-weekly 4 --keep-monthly 3'
 # The weekly check reads one of this many parts of the repository's data, the next each week (#1018).
 OFFSITE_SUBSETS=20
+# An erased account's off-site snapshots stay this many days (#1019): an erase made by mistake can still be restored.
+OFFSITE_GRACE_DAYS=14
+BORN="$DIR/born"
 # What of an account's data stays out: its own backups, what a project installs again and what a backup cut off left.
 # Its memory database is the consistent copy its server makes (#1015) when it can, as in a set (offsite_run).
 OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --exclude=*.part --anchored'
@@ -685,7 +694,9 @@ offsite_part() {
   shift 3
   offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"$op_path\"$OS_LAST"
   set +e
-  r backup --json --quiet --host "$INSTANCE" --tag "instance=$INSTANCE,part=$op_part${op_account:+,account=$op_account}" \
+  op_born=''
+  [ -z "$op_account" ] || op_born=",born=$(account_born "$op_account")"
+  r backup --json --quiet --host "$INSTANCE" --tag "instance=$INSTANCE,part=$op_part${op_account:+,account=$op_account}$op_born" \
     --stdin-filename "$op_path" --stdin-from-command -- "$@" > "$OFFSITE/out" 2> "$OFFSITE/err"
   op_done=$?
   set -e
@@ -704,6 +715,72 @@ offsite_part() {
   OS_FAILED="$OS_FAILED${OS_FAILED:+,}\"$op_path\""
   [ -n "$OS_ERROR" ] || { OS_ERROR="$op_path: $op_why"; OS_STOPPED="$op_path"; }
 }
+# account_born NAME: the account NAME's born stamp (UTC, as 20261105T030000Z), made now when it has none.
+account_born() {
+  [ -s "$BORN/$1" ] || { mkdir -p "$BORN"; chmod 700 "$BORN"; date -u +%Y%m%dT%H%M%SZ > "$BORN/$1"; }
+  cat "$BORN/$1"
+}
+# offsite_erase NAME: the account NAME, erased now, written down for its off-site snapshots' forget, and its born stamp
+# gone, so that an account made again under its name gets one of its own. Nothing on a machine without the backup.
+offsite_erase() {
+  oe_born="$(cat "$BORN/$1" 2>/dev/null || true)"
+  rm -f -- "$BORN/$1"
+  [ -n "$(get_env "$ENV" BOT_DOT_OFFSITE_REPO)" ] || return 0
+  mkdir -p "$OFFSITE"
+  chmod 700 "$OFFSITE"
+  printf '%s %s %s %s\n' "$1" "${oe_born:--}" "$(date +%s)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$OFFSITE/erased"
+}
+# offsite_ids FILE BORN: the ids in FILE (restic snapshots --json) of the snapshots tagged born=BORN, or with no born
+# tag at all (made before born stamps); with BORN -, only those.
+offsite_ids() {
+  tr -d '\n' < "$1" | grep -o '"tags":\[[^]]*\]\|"id":"[0-9a-f]\{64\}"' | awk -v born="\"born=$2\"" '
+    /^"tags"/ { t = $0; next }
+    { if (!index(t, "\"born=") || (born != "\"born=-\"" && index(t, born))) print substr($0, 7, 64); t = "" }' || true
+}
+# offsite_forget_erased: the snapshots of each account erased more than OFFSITE_GRACE_DAYS ago forgotten, and the
+# account written in status/offsite-forgotten.json (its last 50); one that fails stays for the next run, and fails this
+# one. OS_FORGOT is set when any was forgotten, for the prune that follows.
+offsite_forget_erased() {
+  [ -s "$OFFSITE/erased" ] || return 0
+  of_now="$(date +%s)"
+  : > "$OFFSITE/erased.left"
+  while read -r of_name of_born of_epoch of_at; do
+    valid_account "$of_name" || continue
+    case "$of_epoch" in '' | *[!0-9]*) continue ;; esac
+    if [ $((of_now - of_epoch)) -lt $((OFFSITE_GRACE_DAYS * 86400)) ]; then
+      echo "$of_name $of_born $of_epoch $of_at" >> "$OFFSITE/erased.left"
+      continue
+    fi
+    set +e
+    r snapshots --json --host "$INSTANCE" --tag "instance=$INSTANCE,account=$of_name" > "$OFFSITE/out" 2> "$OFFSITE/err"
+    of_done=$?
+    of_ids=''
+    if [ "$of_done" = 0 ]; then
+      of_ids="$(offsite_ids "$OFFSITE/out" "$of_born")"
+      # shellcheck disable=SC2086 # one id per word
+      [ -z "$of_ids" ] || r forget --quiet $of_ids > "$OFFSITE/out" 2> "$OFFSITE/err"
+      of_done=$?
+    fi
+    set -e
+    if [ "$of_done" != 0 ]; then
+      of_why="$(offsite_why "$OFFSITE/out" "$OFFSITE/err")"
+      warn "The off-site snapshots of the erased account $of_name weren't forgotten: $of_why"
+      [ -n "$OS_ERROR" ] || { OS_ERROR="forget $of_name: $of_why"; OS_STOPPED=forget; }
+      echo "$of_name $of_born $of_epoch $of_at" >> "$OFFSITE/erased.left"
+      continue
+    fi
+    of_count="$(printf '%s' "$of_ids" | grep -c . || true)"
+    [ "$of_count" = 0 ] || OS_FORGOT=1
+    echo "$of_name $of_born $of_at $(date -u +%Y-%m-%dT%H:%M:%SZ) $of_count" >> "$OFFSITE/forgotten"
+    ok "The off-site snapshots of the account $of_name, erased $of_at, are forgotten: $of_count"
+  done < "$OFFSITE/erased"
+  mv "$OFFSITE/erased.left" "$OFFSITE/erased"
+  rm -f "$OFFSITE/out" "$OFFSITE/err"
+  [ -s "$OFFSITE/forgotten" ] || return 0
+  tail -n 50 "$OFFSITE/forgotten" > "$OFFSITE/forgotten.new"
+  mv "$OFFSITE/forgotten.new" "$OFFSITE/forgotten"
+  write_status offsite-forgotten.json "{\"forgotten\":[$(awk '{ printf "%s{\"account\":\"%s\",\"erased\":\"%s\",\"at\":\"%s\",\"snapshots\":%d}", (NR > 1 ? "," : ""), $1, $3, $4, $5 }' "$OFFSITE/forgotten")]}"
+}
 # offsite_tar PATH PART ACCOUNT FOLDER [TAR OPTION…]: FOLDER's contents as the part PATH, a tar as a set's.
 offsite_tar() {
   ot_path="$1" ot_part="$2" ot_account="$3" ot_from="$4"
@@ -714,7 +791,7 @@ offsite_tar() {
 # offsite_run: every part, then the manifest, then the snapshots kept, in status/offsite.json as it goes.
 offsite_run() {
   OS_STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" OS_LAST="$(offsite_last)"
-  OS_BYTES=0 OS_SNAPSHOTS='' OS_FAILED='' OS_ERROR='' OS_STOPPED=''
+  OS_BYTES=0 OS_SNAPSHOTS='' OS_FAILED='' OS_ERROR='' OS_STOPPED='' OS_FORGOT=''
   offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"check\"$OS_LAST"
   offsite_prepare
   # What a run cut off left: its lock, which restic removes only when it is stale.
@@ -760,10 +837,12 @@ offsite_run() {
   offsite_part manifest.json manifest '' cat "$OFFSITE/manifest.json"
   rm -f "$OFFSITE/manifest.json"
 
-  # The snapshots kept, and once a week what they no longer hold pruned.
+  # The erased accounts' snapshots forgotten, the snapshots kept, and once a week, or when an erased account's went,
+  # what they no longer hold pruned.
   offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"forget\"$OS_LAST"
+  offsite_forget_erased
   os_prune=''
-  [ -n "$(find "$OFFSITE/pruned" -mtime -7 2>/dev/null)" ] || os_prune=--prune
+  [ -z "$OS_FORGOT" ] && [ -n "$(find "$OFFSITE/pruned" -mtime -7 2>/dev/null)" ] || os_prune=--prune
   set +e
   # shellcheck disable=SC2086 # options
   r forget --quiet --host "$INSTANCE" $OFFSITE_KEEP $os_prune > "$OFFSITE/err" 2>&1
@@ -1066,6 +1145,9 @@ remove_account() {
 erase_account() {
   [ "$1" != "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The account $1 is the admin's own, so it wasn't erased."
   remove_account "$1"
+  # Its off-site snapshots go after the grace period (#1019), and its part of the backup set at once.
+  offsite_erase "$1"
+  set_drop "$1"
   # Its user's UID leaves a managed machine's guard of its computers (#984), so that no later user inherits its rules.
   [ -z "$MANAGED" ] || [ ! -f "$BIN/egress.sh" ] || sh "$BIN/egress.sh" </dev/null || warn "Couldn't rebuild the firewall of the accounts' computers; the next account made rebuilds it."
 }
@@ -2728,6 +2810,22 @@ switch_one() {
 # sub-IDs the new machine gave it. A new set is made beside the last one and takes its place only once it is complete.
 SET="$DIR/backup"
 BACKUP=BACKUP
+# set_drop NAME: the erased account NAME's part of the set gone at once (#1019), and the manifest without it; a set
+# whose manifest can't be written so goes whole, as it would no longer restore.
+set_drop() {
+  [ -d "$SET/accounts/$1" ] || return 0
+  sd_manifest="$(json "JSON.stringify({ ...j, accounts: j.accounts.filter((a) => a !== '$1'), memory: Object.fromEntries(Object.entries(j.memory || {}).filter(([a]) => a !== '$1')), parts: j.parts.filter((p) => !p.path.startsWith('accounts/$1/')) })" < "$SET/manifest.json" 2>/dev/null || true)"
+  rm -rf -- "${SET:?}/accounts/$1"
+  if [ -n "$sd_manifest" ]; then
+    printf '%s\n' "$sd_manifest" > "$SET/manifest.json.new"
+    chmod 600 "$SET/manifest.json.new"
+    mv "$SET/manifest.json.new" "$SET/manifest.json"
+    ok "The account $1 is out of the backup set"
+  else
+    rm -rf -- "$SET"
+    warn "The backup set held the account $1 and couldn't be rewritten without it, so it is gone; the next one is whole."
+  fi
+}
 RESTORE=RESTORE
 
 # set_said backup|restore STATE [FIELDS]: status/backup.json or status/restore.json.

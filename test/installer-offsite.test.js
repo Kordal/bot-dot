@@ -30,12 +30,26 @@ case "$1" in
     case " \${STAND_IN_RESTIC_FAIL:-} " in *" $name "*) "$@" > /dev/null; echo '{"message_type":"exit_error","code":1,"message":"Fatal: unable to save snapshot: no space left on device"}'; exit 1 ;; esac
     "$@" > "${repo}/parts/$name" || { s=$?; echo "{\\"message_type\\":\\"exit_error\\",\\"code\\":1,\\"message\\":\\"Fatal: unable to save snapshot: command failed: exit status $s\\"}"; exit 1; }
     echo "$tags" > "${repo}/parts/$name.tags"
+    echo "$(printf '%s %s' "$name" "$tags" | sha256sum | cut -c1-64) $tags $name" >> "${repo}/snaps"
     echo "{\\"message_type\\":\\"summary\\",\\"data_added_packed\\":100,\\"snapshot_id\\":\\"$(printf '%s' "$name" | sha256sum | cut -c1-64)\\"}" ;;
   check) echo "$2" >> "${repo}/checked"
     [ -z "\${STAND_IN_RESTIC_DAMAGED:-}" ] || { echo "Pack 3f1a: hash mismatch" >&2; exit 1; } ;;
   # A part's snapshot is the sha256 of its name, as backup says it: snapshots, dump and stats find the part by it.
-  snapshots) [ -f "${repo}/parts/manifest.json" ] || { echo '[]'; exit 0; }
+  # With --tag account=…: every snapshot kept (snaps) whose tags hold all those asked, as restic lists them.
+  snapshots) want=''; prev=''; for a in "$@"; do [ "$prev" != --tag ] || want="$a"; prev="$a"; done
+    case "$want" in *account=*)
+      out=''
+      [ ! -f "${repo}/snaps" ] || while read -r id tags name; do
+        ok=1; for w in $(echo "$want" | tr , ' '); do case ",$tags," in *",$w,"*) ;; *) ok='' ;; esac; done
+        [ -z "$ok" ] || out="$out\${out:+,}{\\"time\\":\\"2026-11-01T03:00:00Z\\",\\"paths\\":[\\"/$name\\"],\\"tags\\":[\\"$(echo "$tags" | sed 's/,/","/g')\\"],\\"id\\":\\"$id\\",\\"short_id\\":\\"$(echo "$id" | cut -c1-8)\\"}"
+      done < "${repo}/snaps"
+      echo "[$out]"; exit 0 ;;
+    esac
+    [ -f "${repo}/parts/manifest.json" ] || { echo '[]'; exit 0; }
     echo "[{\\"id\\":\\"$(printf '%s' manifest.json | sha256sum | cut -c1-64)\\",\\"paths\\":[\\"/manifest.json\\"]}]" ;;
+  # forget with snapshot ids: those gone from snaps.
+  forget) case "$*" in *--keep-daily*) ;; *) [ -z "\${STAND_IN_RESTIC_NO_FORGET:-}" ] ;; esac || { echo "Fatal: unable to create lock in backend: repository is already locked" >&2; exit 1; }
+    for a in "$@"; do case "$a" in ????????????????????????????????????????????????????????????????) grep -v "^$a " "${repo}/snaps" > "${repo}/snaps.new"; mv "${repo}/snaps.new" "${repo}/snaps"; echo "$a" >> "${repo}/forgotten" ;; esac; done ;;
   dump) for f in $(cd "${repo}/parts" && find . -type f ! -name '*.tags' | sed 's#^./##'); do
       [ "$(printf '%s' "$f" | sha256sum | cut -c1-64)" = "$2" ] && { [ -z "\${STAND_IN_RESTIC_SHORT:-}" ] || [ "$f" != "$STAND_IN_RESTIC_SHORT" ] || { head -c 3 "${repo}/parts/$f"; exit 0; }; cat "${repo}/parts/$f"; exit 0; }
     done; echo "Fatal: no snapshot $2" >&2; exit 1 ;;
@@ -116,7 +130,7 @@ test('the off-site backup streams every part of a set into the repository, made 
     assert.match(c, /--host [0-9a-f]{8} /);
   }
   const tags = (part) => fs.readFileSync(path.join(m.parts, `${part}.tags`), 'utf8').trim();
-  assert.match(tags('accounts/bob/workspace.tar'), /^instance=[0-9a-f]{8},part=workspace,account=bob$/);
+  assert.match(tags('accounts/bob/workspace.tar'), /^instance=[0-9a-f]{8},part=workspace,account=bob,born=\d{8}T\d{6}Z$/);
   assert.match(tags('front-door/data.tar'), /^instance=[0-9a-f]{8},part=front-door$/);
 
   assert.ok(members(path.join(m.parts, 'front-door', 'data.tar')).includes('./audit.jsonl'));
@@ -369,4 +383,82 @@ test('a restore test of an account the backup lacks, or with no name, says so', 
   const bad = m.restoreTest('');
   assert.notEqual(bad.status, 0);
   assert.match(bad.stderr, /Name the account to test the restore of/);
+});
+
+// An erased account's snapshots (#1019): what the stand-in repository keeps of the account NAME, as "part born".
+const kept = (m, name) => fs.readFileSync(path.join(m.store, 'snaps'), 'utf8').split('\n').filter(Boolean).map((l) => l.split(' '))
+  .filter(([, tags]) => tags.split(',').includes(`account=${name}`)).map(([, tags, part]) => `${part} ${(tags.match(/born=(\S+)/) || [])[1] || '-'}`).sort();
+const DAY = 86400;
+
+test('an erased account\'s off-site snapshots are forgotten after the grace period and pruned, and one made again under its name is untouched', (t) => {
+  const m = machine(t);
+  fs.mkdirSync(path.join(m.dir, 'born'), { recursive: true });
+  fs.writeFileSync(path.join(m.dir, 'born', 'bob'), '20260101T000000Z\n');
+  m.offsite();
+  // A part of bob's from before born stamps, as an earlier version kept it.
+  const instance = fs.readFileSync(path.join(m.parts, 'front-door', 'data.tar.tags'), 'utf8').match(/instance=(\w+)/)[1];
+  fs.appendFileSync(path.join(m.store, 'snaps'), `${'e'.repeat(64)} instance=${instance},part=env,account=bob accounts/bob/env\n`);
+  assert.deepEqual(kept(m, 'bob').filter((k) => / -$/.test(k)), ['accounts/bob/env -']);
+
+  m.door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
+  const erased = m.step('bob');
+  assert.match(erased.said, /The account bob is erased/);
+  const [name, born, epoch] = fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8').trim().split(' ');
+  assert.deepEqual([name, born], ['bob', '20260101T000000Z'], 'the erase is written down with its born stamp');
+  assert.ok(Math.abs(Number(epoch) - Date.now() / 1000) < 60);
+  assert.ok(!fs.existsSync(path.join(m.dir, 'born', 'bob')), 'its stamp goes with it');
+
+  // Made again under the same name, and backed up, before the grace period ends: nothing of bob's is forgotten yet.
+  m.door({ accounts: { ann: {}, bob: {} } });
+  m.step('bob');
+  const inGrace = m.offsite();
+  assert.equal(inGrace.status, 0, inGrace.stderr);
+  assert.ok(!resticCalls(inGrace).some((c) => / forget --quiet [0-9a-f]{64}/.test(c)), 'nothing forgotten in the grace period');
+  const newBorn = fs.readFileSync(path.join(m.dir, 'born', 'bob'), 'utf8').trim();
+  assert.notEqual(newBorn, '20260101T000000Z', 'the new bob has a stamp of its own');
+
+  // The grace period over.
+  fs.writeFileSync(path.join(m.secrets, 'erased'), `bob 20260101T000000Z ${Math.floor(Date.now() / 1000) - 15 * DAY} 2026-10-21T12:00:00Z\n`);
+  const after = m.offsite();
+  assert.equal(after.status, 0, after.stderr);
+  assert.match(after.said, /The off-site snapshots of the account bob, erased 2026-10-21T12:00:00Z, are forgotten: 7/);
+  const calls = resticCalls(after);
+  assert.match(calls.find((c) => / snapshots /.test(c) && /account=bob/.test(c)), /--host [0-9a-f]{8} --tag instance=[0-9a-f]{8},account=bob$/);
+  assert.match(calls.find((c) => / forget --quiet [0-9a-f]{64}/.test(c)), /forget --quiet( [0-9a-f]{64}){7}$/);
+  assert.match(calls.find((c) => / forget --quiet --host /.test(c)), /--prune$/, 'pruned in the same run');
+  assert.deepEqual(kept(m, 'bob').map((k) => k.split(' ')[1]).filter((b, i, a) => a.indexOf(b) === i), [newBorn], 'only the new bob\'s are kept');
+  assert.ok(kept(m, 'ann').length > 0, "ann's are untouched");
+  assert.equal(fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8'), '', 'the erase is done');
+  const forgotten = status(after, 'offsite-forgotten.json').forgotten;
+  assert.equal(forgotten.length, 1);
+  assert.deepEqual({ ...forgotten[0], at: null }, { account: 'bob', erased: '2026-10-21T12:00:00Z', at: null, snapshots: 7 });
+  assert.equal(status(after, 'offsite.json').state, 'done');
+
+  const later = m.offsite();
+  assert.ok(!resticCalls(later).some((c) => / forget --quiet [0-9a-f]{64}/.test(c)), 'forgotten once');
+});
+
+test('a forget that fails keeps the erase for the next run, and fails this one', (t) => {
+  const m = machine(t);
+  m.offsite();
+  m.door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
+  m.step('bob');
+  const line = fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8').trim().split(' ');
+  line[2] = String(Math.floor(Date.now() / 1000) - 15 * DAY);
+  fs.writeFileSync(path.join(m.secrets, 'erased'), `${line.join(' ')}\n`);
+  const done = m.offsite({ given: { STAND_IN_RESTIC_NO_FORGET: '1' } });
+  assert.match(done.stderr + done.said, /The off-site snapshots of the erased account bob weren't forgotten: .*already locked/);
+  const said = status(done, 'offsite.json');
+  assert.equal(said.state, 'failed');
+  assert.match(said.error, /^forget bob: /);
+  assert.equal(fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8'), `${line.join(' ')}\n`, 'kept for the next run');
+  const again = m.offsite();
+  assert.match(again.said, /The off-site snapshots of the account bob, .* are forgotten: 6/);
+});
+
+test('a machine without the off-site backup writes no erase down', (t) => {
+  const { first, door, step } = withBob(t);
+  door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
+  step('bob');
+  assert.ok(!fs.existsSync(path.join(first.dir, 'offsite', 'erased')));
 });

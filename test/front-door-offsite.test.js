@@ -92,3 +92,18 @@ test('nobody signed out sees it', async () => {
   const other = door.browser();
   assert.notEqual((await other.get('/admin/offsite')).status, 200, 'not without the admin\'s session');
 });
+
+test('an erased account\'s off-site snapshots that root\'s step forgot are kept in the audit log, once each (#1019)', async () => {
+  const entries = () => fs.readFileSync(path.join(door.data, 'audit.jsonl'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)).filter((e) => e.action === 'offsite-forgotten');
+  const forgot = { account: 'bob', erased: '2026-10-21T12:00:00Z', at: '2026-11-05T03:10:00Z', snapshots: 7 };
+  fs.writeFileSync(path.join(status, 'offsite-forgotten.json'), JSON.stringify({ forgotten: [forgot, { account: '../x', erased: 'no', at: 'no' }] }));
+  await waitFor(() => entries().length === 1, { what: 'the audit entry' });
+  assert.deepEqual(entries().map(({ actor, account, detail }) => ({ actor, account, detail })), [{ actor: 'front-door', account: 'bob', detail: 'erased 2026-10-21 12:00 UTC · 7 snapshots' }]);
+  fs.writeFileSync(path.join(status, 'offsite-forgotten.json'), JSON.stringify({ forgotten: [forgot, { ...forgot, account: 'carol', at: '2026-11-06T03:10:00Z' }] }));
+  await waitFor(() => entries().length === 2, { what: 'the next one' });
+  await sleep(600);
+  assert.deepEqual(entries().map((e) => e.account), ['bob', 'carol'], 'each once');
+  const audit = await browser.get('/admin/audit?action=offsite-forgotten');
+  assert.equal(audit.status, 200);
+  assert.ok(audit.data.actions.includes('offsite-forgotten'));
+});

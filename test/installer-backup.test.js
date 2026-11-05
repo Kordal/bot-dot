@@ -226,3 +226,18 @@ test('a set of another version, of another admin, or with a part whose checksum 
   refused(() => fs.writeFileSync(manifest, good.replace('accounts/bob/env', '../../etc/passwd')), /a part that can't be one/);
   refused(() => fs.rmSync(manifest), /There is no backup set/);
 });
+
+test('an erased account leaves the backup set at once, and the set still names a checksum for each part it holds (#1019)', (t) => {
+  const m = machine(t);
+  m.step('BACKUP');
+  m.door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
+  const done = m.step('bob');
+  assert.match(done.said, /The account bob is out of the backup set/);
+  assert.ok(!fs.existsSync(path.join(m.set, 'accounts', 'bob')));
+  const manifest = JSON.parse(fs.readFileSync(path.join(m.set, 'manifest.json'), 'utf8'));
+  assert.deepEqual(manifest.accounts, ['ann']);
+  assert.ok(!('bob' in manifest.memory));
+  assert.ok(manifest.parts.length > 0 && manifest.parts.every((p) => !p.path.startsWith('accounts/bob/')));
+  for (const p of manifest.parts) assert.equal(sha256(path.join(m.set, p.path)), p.sha256, p.path);
+  assert.equal(manifest.kind, 'botdot-backup-set');
+});
