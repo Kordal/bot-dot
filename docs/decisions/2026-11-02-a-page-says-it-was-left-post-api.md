@@ -1,0 +1,1 @@
+2026-11-02 (#899): a page says it was left (`POST /api/presence` with `away`) on `visibilitychange` and on a `blur` after which the document has no focus, so a frame inside the page that takes the focus doesn't count as leaving; pages are counted by their own id, so one left doesn't end another in use.

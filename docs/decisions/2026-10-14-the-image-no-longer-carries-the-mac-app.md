@@ -1,0 +1,1 @@
+2026-10-14: The image no longer carries the Mac app for Macs to update from (`fetch mac-v` in `images.yml`) until the Mac app is released, because a public image would hand out a Mac app that ADR 022 says is not released. The Android app stays in it. ([#426](https://github.com/Kordal/bot-dot/issues/426))

@@ -1,0 +1,1 @@
+2026-10-14: The Vault item of a call key has botdot's own `*.ts.net` name as its website, because the Vault asks every item for one and that is where the key is used; `localhost` while botdot has no tailnet name. Rejected: a made-up placeholder site (it would look like a real address in the Vault). ([#408](https://github.com/Kordal/bot-dot/issues/408))

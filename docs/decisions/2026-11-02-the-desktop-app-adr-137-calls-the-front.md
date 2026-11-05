@@ -1,0 +1,1 @@
+2026-11-02: The desktop app (ADR 137) calls the front door with `ureq`, whose small blocking client is enough for two requests, on the system's certificates. `dialogs.rs` adds `alert()` and `confirm()` to wry's delegate class at run time, since wry has no setting for them and the page's 32 `confirm()` calls would answer false without asking on the Mac.

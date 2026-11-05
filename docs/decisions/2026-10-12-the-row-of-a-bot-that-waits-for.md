@@ -1,0 +1,1 @@
+2026-10-12: The row of a bot that waits for the owner's OK keeps its working preview in the Mac app's list: the web page and the Android app do the same, and only the chat's line says "Waiting for your OK". ([#379](https://github.com/Kordal/bot-dot/issues/379))

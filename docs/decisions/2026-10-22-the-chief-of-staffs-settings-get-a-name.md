@@ -1,0 +1,1 @@
+2026-10-22: The Chief of Staff's settings get a Name field (#379), an exception to rule 5 the owner asked for: a bot is renamed in its settings, and the Chief should be too. It uses the route `set_your_name` already called (`PUT /api/settings/chief-name`), so a refused name is the same sentence in chat and in the apps.

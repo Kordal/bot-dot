@@ -1,0 +1,1 @@
+2026-11-04: botdot's own Chief turns about a project go to one Chief chat per project (`chief-project-chats.json`, `chief.projectChat`), not the chat the owner last used: a weekly plan drafted in an unrelated chat read the web there and its card named that chat. The cards no longer draw `then` ("The Chief carries on in … when you allow it."); the server still sends it.

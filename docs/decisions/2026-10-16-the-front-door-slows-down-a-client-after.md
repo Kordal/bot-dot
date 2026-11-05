@@ -1,0 +1,1 @@
+2026-10-16: The front door slows down a client after 5 failed sign-ins or sign-up links that don't work, each next try waiting twice as long up to 15 minutes, counted in memory: a restart forgets them, which costs a guesser one restart they can't cause.

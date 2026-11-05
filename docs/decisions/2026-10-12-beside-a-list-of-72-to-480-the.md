@@ -1,0 +1,1 @@
+2026-10-12: Beside a list of 72 to 480 the chat keeps 420 on the web page and the Mac and 280 on Android, because an Android screen of 600 already shows the list of 300 beside the chat, and an unfolded phone is about 690 wide. Rejected: 420 on Android too (an unfolded phone could only make its list narrower). ([#385](https://github.com/Kordal/bot-dot/issues/385))

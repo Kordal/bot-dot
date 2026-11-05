@@ -1,0 +1,1 @@
+2026-11-04: Root's step takes a `BACKUP` or `RESTORE` request only from a file root made (its owner is `BOT_DOT_DIR`'s), since the front door writes in the same folder: a restore rolls every account back, and the front door must never be able to ask for one.

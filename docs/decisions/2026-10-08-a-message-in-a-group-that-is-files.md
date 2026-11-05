@@ -1,0 +1,1 @@
+2026-10-08: A message in a group that is files and no words is kept with the text "Have a look at the attached files.", the words a bot's own chat already uses for it, because a turn is a run with a request and the chat shows one. Rejected: refusing a message without words (the owner drops a file into a chat without typing). (GRP-003)

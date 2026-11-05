@@ -1,0 +1,1 @@
+2026-10-16: The front door asks every passkey to verify the person (`userVerification: "required"`, the UV flag checked), so that a sign-in is the device and its PIN, face or fingerprint, never only the device in someone's hand.

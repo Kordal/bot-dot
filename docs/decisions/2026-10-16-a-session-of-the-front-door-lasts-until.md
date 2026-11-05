@@ -1,0 +1,1 @@
+2026-10-16: A session of the front door lasts until it is signed out, with no expiry on the server, as ADR 028 asks ("keeps its own session until it is signed out"); "Sign out everywhere" (#468) is what ends a stolen one. Its cookie lasts 400 days, the most a browser keeps one.

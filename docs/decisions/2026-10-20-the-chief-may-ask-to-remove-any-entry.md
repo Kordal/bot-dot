@@ -1,0 +1,1 @@
+2026-10-20: The Chief may ask to remove any entry of the Vault, not only an SSH key, because a bot's remove_login already may (#132) and the owner allows each removal on a card; the Chief's card is the same kind, without a bot (#183).

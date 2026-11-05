@@ -1,0 +1,1 @@
+2026-10-30: A bot on the External Virtual PC is told to show a phone emulator with scrcpy (already on boat.dev's machines) and to say something is on the screen only after a screenshot shows it. The owner's view was right: the bot had started the emulator with `-no-window`. No new tool or screen.

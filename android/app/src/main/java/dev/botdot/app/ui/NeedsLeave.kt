@@ -6,7 +6,7 @@ package dev.botdot.app.ui
  * The web page decides the same in public/needs-return.js.
  */
 object NeedsLeave {
-    /** How long the answered cards stay readable before the screen leaves (docs/DECISIONS.md). */
+    /** How long the answered cards stay readable before the screen leaves (docs/decisions/). */
     const val DELAY_MS = 1200L
 
     /** After one look at the screen: whether a card stood open during this visit, and whether to leave now. */

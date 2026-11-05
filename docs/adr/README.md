@@ -2,7 +2,7 @@
 
 An Architecture Decision Record (ADR) is a short document capturing one significant architecture decision: its context, the decision itself, and its consequences. ADRs give future contributors — human and AI — the reasoning behind the architecture, not just its current shape.
 
-Any architecture change requires an ADR. A smaller choice that is not architecture (a library within the agreed stack, a default, a workaround) is one dated line in [DECISIONS.md](../DECISIONS.md) instead.
+Any architecture change requires an ADR. A smaller choice that is not architecture (a library within the agreed stack, a default, a workaround) is a file of its own in [decisions/](../decisions/README.md) instead.
 
 ## Naming
 

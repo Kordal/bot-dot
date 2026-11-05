@@ -290,7 +290,7 @@ Early. It is version 0.x, so expect breaking changes. Only the latest version on
 
 ### Who builds it?
 
-One person, with Claude: most of the code is written by Claude Code, ticket by ticket, test-first and reviewed before each commit, following [AGENTS.md](../AGENTS.md). Why things are built the way they are is in the [ADRs](adr/README.md) and [DECISIONS.md](DECISIONS.md).
+One person, with Claude: most of the code is written by Claude Code, ticket by ticket, test-first and reviewed before each commit, following [AGENTS.md](../AGENTS.md). Why things are built the way they are is in the [ADRs](adr/README.md) and [decisions](decisions/README.md).
 
 ### How do I run it from source or contribute?
 

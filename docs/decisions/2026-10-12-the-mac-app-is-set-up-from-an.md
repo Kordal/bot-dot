@@ -1,0 +1,1 @@
+2026-10-12: The Mac app is set up from an image built on this Mac by a preference (`defaults write dev.botdot.mac botdot.image bot-dot:dev`), not a field in the setup, because only someone who builds botdot needs it (Minimal UI). An image named without a registry is never downloaded, as in `install.sh`. ([#379](https://github.com/Kordal/bot-dot/issues/379))

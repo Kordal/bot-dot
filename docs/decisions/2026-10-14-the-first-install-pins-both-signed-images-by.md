@@ -1,0 +1,1 @@
+2026-10-14: The first install pins both signed images by digest in `.env`, as an update from Settings does, and downloads the digest that was checked, never the tag, which may have moved since. A rerun of `install.sh` replaces the pins with the newest signed ones instead of removing them. ([#430](https://github.com/Kordal/bot-dot/issues/430))

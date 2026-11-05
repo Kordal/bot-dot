@@ -1,0 +1,1 @@
+2026-11-05: The off-site backup (#1016, ADR 157) pins restic 0.19.1 by the sha256 of its release file and keeps it in root's `BOT_DOT_DIR/bin`, not from apt: Ubuntu 24.04 ships 0.16.4, which has no `--stdin-from-command`. A restic of the machine's own, 0.17 or newer, is used only when the download can't be made.

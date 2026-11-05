@@ -1,0 +1,1 @@
+2026-10-12: The Mac app says "Can't reach botdot" from the live feed alone (it ended or never opened, until its next event), as the Android app, because the feed is one place to know it. Rejected: also from each failed request, as the web page (a request can fail for its own reasons while the feed is up). ([#379](https://github.com/Kordal/bot-dot/issues/379))

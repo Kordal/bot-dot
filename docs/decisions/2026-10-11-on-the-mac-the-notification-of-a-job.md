@@ -1,0 +1,1 @@
+2026-10-11: On the Mac the notification of a job whose yes approves a script has no yes button, worked out from the job: a change to an approved job always, a job that was never approved on a server with `needs-text`, where the feed gives the phone `yesOn: "card"`. The Mac does not read the feed's entry for jobs. (#371)

@@ -1,0 +1,1 @@
+2026-10-24: The size of boat.dev machines is the account's, not each bot's, and Settings show each size's price per hour from boat.dev's docs (#539, ADR 088): the owner asked for it per account; the prices are boat.dev's public ones, kept in `lib/boat.js` because its API has no price list for an API key. Rejected: a size per bot, one more choice in every bot's settings.

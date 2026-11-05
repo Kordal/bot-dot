@@ -1,0 +1,1 @@
+2026-10-22: The skills every bot gets ship as one plugin, `bot-skills/` named `kit` (`kit:pages`), passed with `--plugin-dir` to every bot run that uses skills and to the Chief's turns, rather than copied into each bot's library: an update of botdot updates them, and the owner switches one off for a bot as any skill (#398).

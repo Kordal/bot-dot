@@ -1,0 +1,1 @@
+2026-10-11: On the Mac one message box serves all the Chief of Staff's chats, as on Android and the web page, so a message that could not be sent in one Chief chat is handed back in whichever Chief chat is open. A box per chat would be a change for all three apps, with a draft per chat. (#368)

@@ -1,0 +1,1 @@
+2026-10-26: A waiting teammate's question that the asker does not put to the owner opens in the teammate's own chat once the asker's follow-up ends (#574), rather than making #310 ask in both chats: asked once where the owner talks, never lost. Decided on the server from what the follow-up did (it asked, or it never saw the question), not from its words.

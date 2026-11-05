@@ -1,0 +1,1 @@
+2026-10-11: A memory notification on the Mac has Approve and Decline only when those are the server's two button words; a guarded change has none and opens its card (#372). The Mac's notification buttons are fixed categories and cannot carry "Forget for good" or "Keep".

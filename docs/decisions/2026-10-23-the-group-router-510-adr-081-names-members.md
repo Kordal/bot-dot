@@ -1,0 +1,1 @@
+2026-10-23: The group router (#510, ADR 081) names members to the model by their number on the list, not by name, so that an answer can be checked without matching names, and a single bad number makes the whole answer no pick. Its question to Claude Code replaces the system prompt and reads no settings files (`--system-prompt`, `--setting-sources ''`): about 1.1 s instead of 2 s.

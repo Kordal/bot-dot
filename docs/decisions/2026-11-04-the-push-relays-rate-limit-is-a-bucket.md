@@ -1,0 +1,1 @@
+2026-11-04: The push relay's rate limit is a bucket per device token of 30 pushes, refilled one every 10 s (360 an hour): a busy account rings a few dozen times an hour, a loop past that is cut. Buckets are filed under the token's hash and dropped once full again, at most 100 000 (#964).

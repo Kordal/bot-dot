@@ -1,0 +1,1 @@
+2026-11-05: A backup cut off by a restart leaves a `.part` (and a copy of memory.db) that its server removes when it starts, since only one backup runs per data folder; on hq one account held 33 of them (26 GB) and no finished backup since 21 October.

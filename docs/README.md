@@ -12,7 +12,7 @@ For working on botdot:
 
 - [Development](development.md): running it from the source, the tests and the code layout.
 - [Release signatures](release-signing.md): how updates are signed and checked.
-- [Decisions](DECISIONS.md) and the [ADRs](adr/README.md): why botdot is built the way it is.
+- [Decisions](decisions/README.md) and the [ADRs](adr/README.md): why botdot is built the way it is.
 - [Product](product/vision.md): the vision, each milestone's scope and the owner's test lists.
 
 [Archive](archive/README.md): past working notes, kept for history.

@@ -1,0 +1,1 @@
+2026-11-05: A table in a reply breaks words only at spaces and scrolls sideways in its own box when wider than the chat: a long identifier (`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`) is kept whole rather than broken at its underscores, as one copied from a table must read as written. A column of only numbers lines up on the right, on the web and in the Android app.

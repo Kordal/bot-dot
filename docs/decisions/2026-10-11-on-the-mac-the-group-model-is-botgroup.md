@@ -1,0 +1,1 @@
+2026-10-11: On the Mac the group model is `BotGroup` and the list's fields are `groupChats` / `pinnedGroupChats`, because SwiftUI owns `Group` and `SidebarSections.groups` already means categories. A category's count in the list counts its bots and its groups. (#374)

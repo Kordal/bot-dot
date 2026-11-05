@@ -1,0 +1,1 @@
+2026-11-04: Erasing an account deletes its boat.dev machines with a DELETE alone, running or not, without a stop first (a stop saves a snapshot that is thrown away a moment later). A machine made before the instance id keeps its old name rather than being renamed on its next start, as #982 asks: it is found by its id (#982).

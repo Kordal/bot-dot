@@ -1,0 +1,1 @@
+2026-11-01: A project's chat column gets its own handle on its left edge, sizing the same kept width as the Bots chat handle (`botdot.chat.width`, `--chat-w`), not a separate board width, so the Bots ↔ Projects switch keeps the chat still (#828) and the board takes the rest, never under 360 px (#833). Rejected: scaling the whole board (tiles already fit the canvas width).

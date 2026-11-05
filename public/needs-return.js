@@ -5,7 +5,7 @@
 
 (function (root) {
 
-// How long the answered cards stay readable before the page leaves, in milliseconds (docs/DECISIONS.md).
+// How long the answered cards stay readable before the page leaves, in milliseconds (docs/decisions/).
 const DELAY = 1200;
 
 // Where the page returns to, from the page the owner leaves for it: the view and its id (the bot, the group or

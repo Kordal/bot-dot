@@ -1,0 +1,1 @@
+2026-10-24: Left behind on the account's computer is more than 100 processes or more than one CPU on no bot's screen, at three checks two minutes apart while no bot runs (#535, ADR 089): an idle computer has fewer than ten there, and a bot's sudo or daemons can be counted there while it works.
