@@ -171,11 +171,15 @@ test("the installer's key, from the front door alone, is taken only while there 
   assert.equal((await srv.api('/connectors')).data.configured, false);
 
   const refused = await hand('pk_wrong_wrong_wrong');
-  assert.equal(refused.status, 400, 'refused by Composio: the front door stops handing it');
+  assert.equal(refused.status, 400, 'refused by Composio: the front door hands it again later');
+  const shown = (await srv.api('/connectors')).data;
+  assert.equal(shown.configured, false);
+  assert.match(shown.error, /^The key botdot was given was refused: Composio doesn't accept that key/, 'the Connectors page says why');
   assert.equal((await hand('')).status, 400);
 
   const taken = await hand(OWN_KEY);
   assert.equal(taken.status, 200, JSON.stringify(taken.data));
+  assert.equal((await srv.api('/connectors')).data.error, null, 'the refusal is forgotten once a key works');
   assert.deepEqual([taken.data.configured, taken.data.account, taken.data.keyHint], [true, 'own', '…_789']);
   assert.ok(!file().includes(OWN_KEY), 'kept encrypted');
 
