@@ -14,14 +14,15 @@ const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 
 // What every stand-in botdot server answers with: anything from inside an account carries it.
 const INSIDE = 'inside-the-account-7f3c';
-let door, requests;
+let door, requests, status;
 const stands = {};
 const keys = {};
 const userIds = {};
 const browsers = {};
 before(async () => {
   requests = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-requests-'));
-  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_REQUESTS: requests } });
+  status = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-status-'));
+  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_REQUESTS: requests, FRONT_DOOR_STATUS: status } });
   stands.ann = await inside('ann');
   browsers.ann = await signUp('ann', door.firstLink);
   for (const name of ['bob', 'cat', 'dan']) {
@@ -86,7 +87,36 @@ test("the admin page lists each account's name, when it was made, when it was la
   const zed = await signUp('zed', (await browsers.ann.post('/admin/links', {})).data.url);
   fs.rmSync(path.join(requests, 'zed'), { force: true });
   assert.equal((await listed('zed')).state, 'stopped');
+  // Found down with nothing asked: the machine is asked to start it again, and its owner sees it starting.
+  const down = await zed.get('/api/bots');
+  assert.equal(down.status, 503);
+  assert.equal(down.data.starting, true);
+  assert.ok(asked('zed'), 'the machine is asked to start zed again');
+  // Not again for a while, once the machine was done: not running, and a page that looks again by itself.
+  fs.rmSync(path.join(requests, 'zed'));
   assert.equal((await zed.get('/api/bots')).status, 502);
+  assert.ok(!asked('zed'), 'asked once in a while');
+  const home = await zed.get('/');
+  assert.equal(home.status, 503);
+  assert.match(home.headers['content-type'], /^text\/html/);
+  assert.match(home.text, /Your account isn't running\./);
+  assert.match(home.text, /http-equiv="refresh"/);
+
+  // While the machine's update has it stopped for its switch: it is being updated, and nothing is asked of the machine.
+  const update = path.join(status, 'update.json');
+  fs.writeFileSync(update, JSON.stringify({ state: 'updating', at: new Date().toISOString(), phase: 'switch', account: 'zed' }));
+  const updatingPage = await zed.get('/');
+  assert.equal(updatingPage.status, 503);
+  assert.match(updatingPage.text, /Your account is being updated\./);
+  assert.match(updatingPage.text, /http-equiv="refresh"/);
+  const api = await zed.get('/api/bots');
+  assert.equal(api.status, 503);
+  assert.equal(api.data.updating, true);
+  assert.equal(api.headers['retry-after'], '15');
+  // Another account's switch is not zed's.
+  fs.writeFileSync(update, JSON.stringify({ state: 'updating', at: new Date().toISOString(), phase: 'switch', account: 'bob' }));
+  assert.equal((await zed.get('/api/bots')).status, 502);
+  fs.rmSync(update);
 });
 
 test('a suspended account: its owner sees only "Your account is paused by the admin", and resume brings it back', async () => {

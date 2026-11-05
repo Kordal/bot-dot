@@ -577,11 +577,19 @@ test('an update with room in every account goes on, and so does one whose regist
   // Short of room, but nothing to download: the account has every layer, and room only for the snapshot of its data.
   const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '64' } });
   assert.equal(has.status, 0, `${has.said}\n${has.stderr}`);
-  // An older registry's answer: no layers, no check.
-  const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1' } });
+  // An older registry's answer: no layers, so the new image counts as nothing, and only the snapshot's room is checked.
+  const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '64' } });
   assert.equal(unknown.status, 0, `${unknown.said}\n${unknown.stderr}`);
-  assert.match(unknown.said, /Couldn't tell how much room the update needs in each account; it goes on without that check\./);
+  assert.match(unknown.said, /Couldn't tell how much room the new image needs in each account; only the room for each account's snapshot is checked\./);
   assert.equal(downloads(unknown), 2);
+  // Even then, an account whose disk can't take the snapshot of its data stops the update before any download.
+  const data = path.join(first.dir, 'accounts', 'ann', 'data');
+  fs.mkdirSync(data, { recursive: true });
+  fs.writeFileSync(path.join(data, 'big'), Buffer.alloc(2 * 1024 * 1024));
+  const full = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1024' } });
+  assert.notEqual(full.status, 0, full.said);
+  assert.match(full.stderr, /The account ann needs [0-9.]+ GB free for this update/);
+  assert.ok(!full.docker.slice(unknown.docker.length).some((c) => /^pull -q ghcr\.io\/kordal\/bot-dot@/.test(c.call)), 'nothing downloaded');
 });
 
 test('a computer image that could not be downloaded now is downloaded by botdot later', (t) => {

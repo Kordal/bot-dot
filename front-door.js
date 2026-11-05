@@ -268,6 +268,19 @@ const asked = (account) => !!REQUESTS && store.ACCOUNT_NAME.test(account) && fs.
 // Whether the machine is still making this account (its socket's folder isn't there yet), or starting it again.
 const making = (account) => asked(account) && !fs.existsSync(path.join(SOCKETS, account));
 const starting = (account) => asked(account) && fs.existsSync(path.join(SOCKETS, account));
+// An account that should run but doesn't answer, with nothing asked: the machine is asked to start it again (root's
+// step makes it match the front door's data), once in REVIVE_MS, so that a server that can't start isn't asked forever.
+const REVIVE_MS = 5 * 60 * 1000;
+const revived = new Map();
+function revive(account) {
+  if (!REQUESTS || !doors.accountExists(account) || doors.isSuspended(account) || doors.wasDeleted(account)) return false;
+  const now = Date.now();
+  if (now - (revived.get(account) || 0) < REVIVE_MS) return false;
+  revived.set(account, now);
+  console.error(`[front door] the account ${account}'s botdot server doesn't answer: the machine is asked to start it again`);
+  askMachine(account);
+  return asked(account);
+}
 // A name the admin deleted whose account the machine hasn't erased yet: nobody takes it until the machine has.
 const stillErasing = (name) => doors.wasDeleted(name) && (asked(name) || fs.existsSync(path.join(SOCKETS, name)));
 // Whether the account's botdot server answers on its socket: a connection, opened and closed, with nothing sent.
@@ -339,6 +352,15 @@ function updateStatus() {
   const asked = !!REQUESTS && fs.existsSync(path.join(REQUESTS, UPDATE));
   const selfBuilt = installed.selfBuilt === true;
   return { version: short(installed.version), selfBuilt, asked, update, newest: !selfBuilt && newest.version && newest.at ? newest : null, days: doors.updateDays() };
+}
+// Whether the account is being updated now, so that its botdot server is stopped for its switch: the admin's update
+// at this account's switch, or the switch of this account alone. A stale one isn't.
+const UPDATING = 'Your account is being updated. It takes a few minutes; try again then.';
+function beingUpdated(account) {
+  const last = readStatus('update.json');
+  const fresh = (at) => !!when(at) && Date.now() - Date.parse(at) <= UPDATE_STALE_MS;
+  if (last && last.state === 'updating' && last.phase === 'switch' && last.account === account && fresh(last.at)) return true;
+  return accountStatus(account)?.state === 'switching';
 }
 function askForUpdate() {
   if (!REQUESTS) return false;
@@ -1480,10 +1502,18 @@ function pass(req, res, account, { path: to = req.url, headers: sent = headersFo
   });
   up.on('error', () => {
     if (res.headersSent) return res.destroy();
-    if (!asked(account)) return send(res, 502, { error: notRunning });
+    const page = to === req.url && (req.method === 'GET' || req.method === 'HEAD') && !String(req.url).startsWith('/api/');
+    if (notRunning === NOT_RUNNING && beingUpdated(account)) {
+      return page ? html(res, 503, pages.updating()) : send(res, 503, { error: UPDATING, updating: true }, { 'Retry-After': '15' });
+    }
+    // Down with nothing asked of the machine (its server or its Docker stopped): the machine is asked to start it
+    // again, at most once in a few minutes, and the owner sees it starting. A job's call only learns it isn't running.
+    if (!asked(account) && !(notRunning === NOT_RUNNING && revive(account))) {
+      return page ? html(res, 503, pages.notRunning()) : send(res, 502, { error: notRunning });
+    }
     // The machine is still making this account, or starting it again: a page says so and looks again by itself.
     const made = !making(account);
-    if (to === req.url && (req.method === 'GET' || req.method === 'HEAD') && !String(req.url).startsWith('/api/')) return html(res, 503, made ? pages.starting() : pages.making());
+    if (page) return html(res, 503, made ? pages.starting() : pages.making());
     send(res, 503, made ? { error: STARTING, starting: true } : { error: MAKING, making: true }, { 'Retry-After': made ? '10' : '30' });
   });
   res.on('close', () => { if (!res.writableFinished) up.destroy(); });

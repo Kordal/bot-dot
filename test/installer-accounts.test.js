@@ -119,6 +119,16 @@ test("root's step starts a resumed account again as it was, and leaves a running
   assert.match(done.said, /The account bob is running/);
 });
 
+test("root's step starts again an account whose Docker runs but whose botdot server doesn't answer", (t) => {
+  const { first, door, step, upIn } = withBob(t);
+  door({ accounts: { ann: {}, bob: {} } });
+  fs.rmSync(path.join(first.dir, 'sockets', 'bob', 'botdot.sock')); // its server stopped
+  const done = step('bob');
+  assert.match(done.said, /Starting the account bob again/);
+  assert.ok(upIn(done, 'bob'), 'its botdot server starts');
+  assert.doesNotMatch(done.system, /^useradd/m, 'the same user, made once');
+});
+
 test("root's step reads the front door again when it is done, so the admin's resume meanwhile isn't lost", (t) => {
   const { first, door, step, upIn, started } = withBob(t);
   door({ accounts: { ann: {}, bob: { suspended: '2026-10-16T12:00:00.000Z' } } });
