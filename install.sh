@@ -2059,10 +2059,16 @@ if [ "$REACH" != local ]; then
   OPENROUTER_KEY="$KEY_TAKEN"
   take_key boat boat.dev BOT_DOT_BOAT_KEY "Use boat.dev for the External Virtual PC?" "boat.dev API key:"
   BOAT_KEY="$KEY_TAKEN"
-  # A checked key is letters, digits, dashes and underscores alone (KEY in lib/group-router.js and lib/boat.js).
-  if [ -n "$OPENROUTER_KEY$BOAT_KEY" ]; then
+  # A managed machine's Composio key (ADR 160), the fleet console's to give: BOT_DOT_COMPOSIO_KEY, never asked.
+  COMPOSIO_KEY=''
+  if [ -n "$MANAGED" ]; then
+    take_key connectors Composio BOT_DOT_COMPOSIO_KEY '' ''
+    COMPOSIO_KEY="$KEY_TAKEN"
+  fi
+  # A checked key is letters, digits, dashes and underscores alone (KEY in lib/front-door/install-keys.js).
+  if [ -n "$OPENROUTER_KEY$BOAT_KEY$COMPOSIO_KEY" ]; then
     json_key() { if [ -n "$1" ]; then printf '"%s"' "$1"; else printf null; fi; }
-    (umask 077; printf '{"openrouter":%s,"boat":%s}\n' "$(json_key "$OPENROUTER_KEY")" "$(json_key "$BOAT_KEY")" > "$DOOR/data/install-keys.json")
+    (umask 077; printf '{"openrouter":%s,"boat":%s%s}\n' "$(json_key "$OPENROUTER_KEY")" "$(json_key "$BOAT_KEY")" "${COMPOSIO_KEY:+,\"composio\":\"$COMPOSIO_KEY\"}" > "$DOOR/data/install-keys.json")
   fi
 fi
 fi
@@ -3178,7 +3184,40 @@ link_request() {
   door_link "$lr_kind" "$lr_status" "$lr_name"
 }
 
+# The fleet console's keys for a managed machine (ADR 160), root's alone: KEYS, lines of `openrouter KEY` and
+# `composio KEY`, written 600 by the console's agent and removed as soon as it is read. They reach the front door the
+# way the installer's do, in data/install-keys.json, which it takes within a minute. status/keys.json says which were
+# handed on, never a key.
+KEYS_REQUEST=KEYS
+keys_request() {
+  kr="$REQUESTS/$KEYS_REQUEST"
+  if ! by_root "$kr"; then
+    rm -f -- "$kr"
+    write_status keys.json "{\"state\":\"refused\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"error\":\"Only root asks for this.\"}"
+    warn "A keys request that root didn't make was refused."
+    return 0
+  fi
+  kr_openrouter="$(head -c 2000 "$kr" | sed -n 's/^openrouter \([A-Za-z0-9_-]\{8,300\}\)$/\1/p' | head -n 1)"
+  kr_composio="$(head -c 2000 "$kr" | sed -n 's/^composio \([A-Za-z0-9_-]\{8,300\}\)$/\1/p' | head -n 1)"
+  rm -f -- "$kr"
+  if [ -z "$kr_openrouter$kr_composio" ]; then
+    write_status keys.json "{\"state\":\"refused\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"error\":\"The request named no key.\"}"
+    warn "A keys request named no key."
+    return 0
+  fi
+  kr_json() { if [ -n "$1" ]; then printf '"%s"' "$1"; else printf null; fi; }
+  mkdir -p "$DOOR/data"
+  (umask 077; printf '{"openrouter":%s,"boat":null,"composio":%s}\n' "$(kr_json "$kr_openrouter")" "$(kr_json "$kr_composio")" > "$DOOR/data/install-keys.json.new")
+  chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data/install-keys.json.new" 2>/dev/null || true
+  mv "$DOOR/data/install-keys.json.new" "$DOOR/data/install-keys.json"
+  write_status keys.json "{\"state\":\"handed\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"openrouter\":$([ -n "$kr_openrouter" ] && echo true || echo false),\"composio\":$([ -n "$kr_composio" ] && echo true || echo false)}"
+  ok "The console's keys are handed to the front door"
+  unset kr_openrouter kr_composio
+}
+
 if [ "$MODE" = requested ]; then
+  # The console's keys (ADR 160), first: they take nothing else's time.
+  if [ -f "$REQUESTS/$KEYS_REQUEST" ] && [ ! -L "$REQUESTS/$KEYS_REQUEST" ]; then keys_request; fi
   # A backup set's requests (#986), root's alone: one the front door made is refused. A restore comes first, and a
   # set is made before an update, of what ran until then.
   for request in "$REQUESTS/$RESTORE" "$REQUESTS/$BACKUP"; do
@@ -3259,7 +3298,7 @@ if [ "$MODE" = requested ]; then
     name="$(basename "$request")"
     taken=''
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
-    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
+    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$KEYS_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
     elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then

@@ -158,3 +158,37 @@ test('a connection Composio lists without a status reads "UNKNOWN", and one with
     assert.deepEqual(r.data.connections.map((c) => [c.id, c.toolkit, c.status]), [['ca_notion', 'notion', 'UNKNOWN'], ['ca_gmail', 'gmail', 'ACTIVE']]);
   } finally { seen.odd = false; }
 });
+
+// ADR 160: a managed machine's Composio key, handed by the front door alone, kept in memory and never answered.
+test("the machine's key from the front door runs Connectors while the account has none, and the account's own key wins", async (t) => {
+  const MACHINE_KEY = 'pk_the_machine_key_1';
+  const a = await startServer({ env: { COMPOSIO_API_URL: `http://127.0.0.1:${fake.address().port}` } });
+  t.after(() => a.stop());
+  const hand = (key, headers = { 'x-botdot-room': '1' }) => a.api('/connectors/machine-key', { method: 'POST', headers, body: { key } });
+  assert.equal((await hand(OWN_KEY, {})).status, 403, 'not the owner');
+  assert.equal((await a.api('/connectors/machine-key', { headers: { 'x-botdot-room': '1' } })).status, 405);
+  assert.equal((await hand(OWN_KEY)).status, 200);
+  const r = await a.api('/connectors');
+  assert.equal(r.status, 200);
+  assert.deepEqual([r.data.configured, r.data.account, r.data.keyHint, r.data.keyRejected], [true, 'machine', null, false]);
+  assert.ok(!JSON.stringify(r.data).includes(OWN_KEY), 'never answered');
+  assert.ok(!fs.existsSync(path.join(a.data, 'connectors.json')) || !fs.readFileSync(path.join(a.data, 'connectors.json'), 'utf8').includes(OWN_KEY), 'never stored in the account');
+  assert.equal((await a.api('/connectors/catalog')).status, 200, 'Connectors work on it');
+
+  // The account's own key is used over it.
+  assert.equal((await a.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY_2 } })).status, 200);
+  assert.equal((await a.api('/connectors')).data.account, 'own');
+  await a.api('/connectors/key', { method: 'DELETE' });
+  assert.equal((await a.api('/connectors')).data.account, 'machine', 'back on the machine key');
+
+  // A refused machine key is the operator's to replace: the owner is told so.
+  await hand(MACHINE_KEY);
+  const x = await a.api('/connectors/connect', { method: 'POST', body: { app: 'gmail' } });
+  assert.equal(x.status, 401);
+  assert.match(x.data.error, /this machine's Composio key/);
+  assert.equal((await a.api('/connectors')).data.keyRejected, true);
+
+  // Dropped, Connectors wait for a key again.
+  await hand(null);
+  assert.equal((await a.api('/connectors')).data.configured, false);
+});

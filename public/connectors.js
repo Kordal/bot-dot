@@ -44,6 +44,11 @@ function drawConnectors() {
   if (state.view !== 'connectors' || !conn.data) return;
   const d = conn.data;
   const head = connHead();
+  if (d.keyRejected && d.account === 'machine') {
+    // The machine's key (ADR 160) is the operator's to replace, not the owner's.
+    root.innerHTML = `${head}<div class="card setup-card"><h3>${tr("Composio no longer accepts this machine's key")}</h3></div>`;
+    return;
+  }
   if (!d.configured || d.keyRejected) {
     // No key yet, or Composio refuses it (#409): nothing on the page works until one is pasted.
     const title = !d.configured ? tr('Add your Composio key')
@@ -66,7 +71,7 @@ function drawConnectors() {
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
   root.innerHTML = `${head}
-    ${conn.replacing ? `<div class="key-line">${keyForm(tr('New Composio API key'), tr('Save'))}<button class="btn sm" id="conn-cancel">${tr('Cancel')}</button></div>`
+    ${d.account === 'machine' ? '' : conn.replacing ? `<div class="key-line">${keyForm(tr('New Composio API key'), tr('Save'))}<button class="btn sm" id="conn-cancel">${tr('Cancel')}</button></div>`
       : `<div class="key-line"><span>${tr('Composio key {key}', { key: esc(d.keyHint || '') })}</span><button class="btn sm" id="conn-replace">${tr('Replace')}</button><button class="btn sm danger" id="conn-forget">${tr('Remove')}</button></div>`}
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
     <h3 class="page-sub">${tr('Your apps')}</h3>

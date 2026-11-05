@@ -74,6 +74,7 @@ const roomTurns = require('./lib/front-door/room-turns');
 const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
+const composioStore = require('./lib/front-door/composio');
 const installKeys = require('./lib/front-door/install-keys');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
@@ -938,8 +939,9 @@ function askAccount(account, method, to, body, timeoutMs) {
 }
 
 // The group router the admin chose (#513): handed to every account's botdot server on a change and every minute, so
-// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile.
-const groupRouter = ONE_ACCOUNT ? null : groupRouterStore.open(DATA);
+// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile. A managed machine of one
+// account has it too: the fleet console sets its key (ADR 160).
+const groupRouter = ONE_ACCOUNT && !MANAGED ? null : groupRouterStore.open(DATA);
 function handRouter() {
   if (!groupRouter) return;
   const body = groupRouter.forAccounts();
@@ -958,6 +960,14 @@ function handBoat(changed = false) {
   for (const name of body.key ? names : [...boatRemovedFrom]) {
     askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
   }
+}
+// The machine's Composio key (ADR 160): a managed machine's alone, set by the fleet console, handed to every account
+// on a change and, while one is set, every minute.
+const composio = MANAGED ? composioStore.open(DATA) : null;
+function handComposio() {
+  if (!composio) return;
+  const body = composio.forAccounts();
+  for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/connectors/machine-key', body, 5000);
 }
 // The off-site backup (#1017): root's step says how its runs went in status/offsite.json (#1016); a machine without one
 // has none, or says state off, and nothing is said of it. It is late when its last run failed, or its last good one
@@ -1066,7 +1076,7 @@ if (boat) {
 // The keys the installer took (install.sh, lib/front-door/install-keys.js): taken when the front door starts and, should
 // an install leave them while it runs, within a minute.
 function takeInstallKeys() {
-  const took = installKeys.take(DATA, { groupRouter, boat });
+  const took = installKeys.take(DATA, { groupRouter, boat, composio });
   if (!took) return;
   if (took.openrouter) {
     console.log('[front door] the installer chose Jev as the decision model');
@@ -1078,10 +1088,19 @@ function takeInstallKeys() {
     audited('boat-key-set', { detail: 'from the installer' });
     handBoat(true);
   }
+  if (took.composio) {
+    console.log("[front door] the machine's Composio key is set");
+    audited('composio-key-set', { detail: 'from the installer or the fleet console' });
+    handComposio();
+  }
 }
-if (groupRouter || boat) {
+if (groupRouter || boat || composio) {
   takeInstallKeys();
   setInterval(takeInstallKeys, 60_000).unref();
+}
+if (composio) {
+  setTimeout(handComposio, 3000).unref();
+  setInterval(() => { if (composio.shown().keySet) handComposio(); }, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
 }
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();

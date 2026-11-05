@@ -1197,6 +1197,7 @@
   "Add your Composio key": "Dodaj swój klucz Composio",
   "Composio no longer accepts your key {key}": "Composio nie przyjmuje już twojego klucza {key}",
   "Composio no longer accepts botdot's Composio account": "Composio nie przyjmuje już konta Composio botdot",
+  "Composio no longer accepts this machine's key": "Composio nie przyjmuje już klucza tej maszyny",
   "New Composio API key": "Nowy klucz API Composio",
   "Composio API key": "Klucz API Composio",
   "Composio key {key}": "Klucz Composio {key}",

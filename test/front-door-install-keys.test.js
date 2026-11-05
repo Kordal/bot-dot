@@ -18,7 +18,7 @@ function stores(t) {
 test('both keys are taken: Jev becomes the decision model and boat.dev has its key, and the file goes', (t) => {
   const s = stores(t);
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: 'sk-or-v1-goodgoodgood', boat: 'boat_goodgoodgood' }));
-  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: true });
+  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: true, composio: false });
   assert.deepEqual(s.groupRouter.shown(), { router: 'jev', keySet: true, wakeGate: false, replaysPerHour: 0 });
   assert.equal(s.groupRouter.forAccounts().key, 'sk-or-v1-goodgoodgood');
   assert.equal(s.boat.forAccounts().key, 'boat_goodgoodgood');
@@ -33,7 +33,7 @@ test('a key left out is not touched, and what the admin set stays', (t) => {
   const s = stores(t);
   s.boat.set('boat_fromtheadminpage');
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: 'sk-or-v1-goodgoodgood', boat: null }));
-  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: false });
+  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: true, boat: false, composio: false });
   assert.equal(s.boat.forAccounts().key, 'boat_fromtheadminpage');
 });
 
@@ -41,7 +41,7 @@ test('a file that is not JSON or holds no key takes nothing, and goes', (t) => {
   const s = stores(t);
   for (const text of ['not json', '{"openrouter":"x\\"y","boat":"short"}']) {
     fs.writeFileSync(s.file, text);
-    assert.deepEqual(installKeys.take(s.dir, s), { openrouter: false, boat: false });
+    assert.deepEqual(installKeys.take(s.dir, s), { openrouter: false, boat: false, composio: false });
     assert.ok(!fs.existsSync(s.file));
   }
   assert.equal(s.groupRouter.shown().router, 'haiku');
@@ -51,10 +51,23 @@ test('a file that is not JSON or holds no key takes nothing, and goes', (t) => {
 test('a machine of one account, which has no stores, takes nothing', (t) => {
   const s = stores(t);
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: 'sk-or-v1-goodgoodgood', boat: 'boat_goodgoodgood' }));
-  assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false });
+  assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false, composio: false });
 });
 
 test('the front door takes them when it starts and every minute after', () => {
   const code = fs.readFileSync(path.join(__dirname, '..', 'front-door.js'), 'utf8');
   assert.match(code, /takeInstallKeys\(\);\n\s*setInterval\(takeInstallKeys, 60_000\)/);
+});
+
+test("a managed machine's Composio key is taken into composio.json (ADR 160), and a machine without the store takes none", (t) => {
+  const composioStore = require('../lib/front-door/composio');
+  const s = stores(t);
+  const composio = composioStore.open(s.dir);
+  fs.writeFileSync(s.file, JSON.stringify({ openrouter: null, boat: null, composio: 'ak_machinemachine' }));
+  assert.deepEqual(installKeys.take(s.dir, { ...s, composio }), { openrouter: false, boat: false, composio: true });
+  assert.equal(composio.forAccounts().key, 'ak_machinemachine');
+  assert.deepEqual(composio.shown(), { keySet: true });
+  assert.equal(composioStore.open(s.dir).forAccounts().key, 'ak_machinemachine', 'kept');
+  fs.writeFileSync(s.file, JSON.stringify({ composio: 'ak_machinemachine' }));
+  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: false, boat: false, composio: false });
 });
