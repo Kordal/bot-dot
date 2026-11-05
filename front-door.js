@@ -1019,6 +1019,46 @@ if ((ADMIN && !ONE_ACCOUNT) || audit) {
   setTimeout(watchOffsite, 5000).unref();
   setInterval(watchOffsite, Number(process.env.FRONT_DOOR_OFFSITE_EVERY_MS) || 10 * 60_000).unref();
 }
+// Each account's own off-site backup (ADR 158): what root's step says of the machine's runs, told to every account
+// whenever it changes for it (POST /api/backups/offsite), so that its owner sees in Settings when its data last went
+// off-site. A run's account counts as backed up when its data part was (snapshots["accounts/<name>/data.tar"]); when that
+// last happened is kept in offsite-accounts.json, since status/offsite.json holds the last run alone. A machine without
+// an off-site backup tells every account it is off.
+const OFFSITE_ACCOUNTS = path.join(DATA, 'offsite-accounts.json'); // { <account>: when its data last went off-site }
+const offsiteTold = new Map(); // account → what it was last told, as JSON
+function offsiteOfAccounts(now = Date.now()) {
+  const s = readStatus('offsite.json');
+  const on = !!s && ['backing-up', 'done', 'failed'].includes(s.state);
+  let last = {};
+  try { const j = JSON.parse(fs.readFileSync(OFFSITE_ACCOUNTS, 'utf8')); if (j && typeof j === 'object') last = j; } catch { /* none yet */ }
+  const names = doors.listAccounts().map((a) => a.name);
+  const finished = on ? when(s.finished) : null;
+  const done = new Set();
+  if (finished && s.snapshots && typeof s.snapshots === 'object') {
+    for (const k of Object.keys(s.snapshots)) { const m = /^accounts\/([a-z][a-z0-9-]{1,30})\/data\.tar$/.exec(k); if (m) done.add(m[1]); }
+  }
+  let changed = false;
+  for (const n of done) if (names.includes(n) && (!last[n] || Date.parse(last[n]) < Date.parse(finished))) { last[n] = finished; changed = true; }
+  for (const n of Object.keys(last)) if (!names.includes(n)) { delete last[n]; changed = true; }
+  if (changed) fs.writeFileSync(OFFSITE_ACCOUNTS, JSON.stringify(last), { mode: 0o600 });
+  const failed = new Set(on && Array.isArray(s.failed) ? s.failed.filter((p) => typeof p === 'string') : []);
+  return Object.fromEntries(names.map((n) => {
+    if (!on) return [n, { state: 'off', lastSuccess: null, late: false }];
+    const lastSuccess = last[n] || null;
+    const state = s.state === 'backing-up' ? 'backing-up' : finished && !done.has(n) && [...failed].some((p) => p === `accounts/${n}` || p.startsWith(`accounts/${n}/`)) ? 'failed' : 'done';
+    return [n, { state, lastSuccess, late: state === 'failed' || (!!lastSuccess && now - Date.parse(lastSuccess) > OFFSITE_LATE_MS) }];
+  }));
+}
+function tellAccountsOffsite() {
+  for (const [name, o] of Object.entries(offsiteOfAccounts())) {
+    const body = JSON.stringify(o);
+    if (offsiteTold.get(name) === body) continue;
+    offsiteTold.set(name, body);
+    askAccount(name, 'POST', '/api/backups/offsite', o, 10_000).then((r) => { if (r.status !== 200) offsiteTold.delete(name); }, () => offsiteTold.delete(name));
+  }
+}
+setTimeout(() => { try { tellAccountsOffsite(); } catch (e) { console.error(`[front door] accounts' off-site backup: ${e.message}`); } }, 5000).unref();
+setInterval(() => { try { tellAccountsOffsite(); } catch (e) { console.error(`[front door] accounts' off-site backup: ${e.message}`); } }, Number(process.env.FRONT_DOOR_OFFSITE_TELL_MS) || 60_000).unref();
 if (boat) {
   setTimeout(() => handBoat(), 3000).unref();
   setInterval(() => handBoat(), Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();

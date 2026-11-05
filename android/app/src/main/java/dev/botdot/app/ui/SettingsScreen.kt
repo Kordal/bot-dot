@@ -90,7 +90,9 @@ fun SettingsScreen(
     var computerPlace by remember { mutableStateOf<dev.botdot.app.data.ComputerPlace?>(null) } // where the account's computer is (#579)
     var askPlace by remember { mutableStateOf<String?>(null) } // the place a switch asks about first
     val botsNow by app.store.bots.value.collectAsState()
-    var backingUp by remember { mutableStateOf(false) }
+    var preparing by remember { mutableStateOf(false) }
+    var pass1 by remember { mutableStateOf("") }
+    var pass2 by remember { mutableStateOf("") }
     var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
     var updateNotes by remember { mutableStateOf<List<dev.botdot.app.data.WhatsNew.Entry>>(emptyList()) } // what a waiting version brings (#303)
     var confirmUpdateNow by remember { mutableStateOf(false) }
@@ -263,24 +265,30 @@ fun SettingsScreen(
             }
 
             backups?.let { b ->
-                FoldSection(tr("Backups"), backupValue(b, backingUp)) {
-                    // Turned on with a passphrase on the web page only.
-                    if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
-                    else {
-                        if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                            SecondaryButton(enabled = !backingUp && !b.running, onClick = {
-                                backingUp = true
-                                scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
-                            }) { Text(tr("Back up now"), color = p.text) }
-                            b.last?.let { f ->
-                                // To Downloads, with the app's session (BackupDownload): this account's backup alone.
-                                SecondaryButton(onClick = {
-                                    runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
-                                        .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
-                                }) { Text(tr("Download"), color = p.text) }
+                FoldSection(tr("Backups"), backupValue(b, preparing)) {
+                    val o = b.offsite
+                    val lastGood = o?.lastSuccess
+                    if (o?.state == "failed" && lastGood != null) Hint(tr("Last backup {ago}", "ago" to shortTime(lastGood)))
+                    // A download of this account made now (ADR 158), with a passphrase chosen for it, to Downloads.
+                    if (server?.features?.contains("backup-download") == true) {
+                        Field(pass1, { pass1 = it }, placeholder = { Text(tr("Passphrase")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        Field(pass2, { pass2 = it }, placeholder = { Text(tr("Again")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        SecondaryButton(enabled = !preparing && !b.preparing && pass1.length >= b.minPassphrase, onClick = {
+                            if (pass1 != pass2) { tell(tr("The two don't match")); return@SecondaryButton }
+                            preparing = true
+                            val phrase = pass1
+                            scope.launch {
+                                runCatching { api!!.backupDownload(phrase) }
+                                    .onSuccess { asked ->
+                                        pass1 = ""; pass2 = ""
+                                        runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, asked) }
+                                            .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
+                                    }.onError { tell(it.message ?: tr("Couldn't download")) }
+                                preparing = false
                             }
-                        }
+                        }) { Text(if (preparing || b.preparing) tr("Preparing…") else tr("Download"), color = p.text) }
                     }
                 }
             }
@@ -423,9 +431,14 @@ internal fun claudeValue(c: dev.botdot.app.data.ClaudeStatus): String = when {
     else -> c.email ?: tr("Signed in")
 }
 
-/** The Backups row's value: what it does now, when it last did it, or that it is off. */
-internal fun backupValue(b: dev.botdot.app.data.BackupInfo, backingUp: Boolean): String = when {
-    !b.configured -> tr("Off")
-    backingUp || b.running -> tr("Backing up…")
-    else -> b.last?.let { shortTime(it.at) } ?: tr("None yet")
+/** The Backups row's value: the off-site backup's state, or when the account's data last went off-site (ADR 158). */
+internal fun backupValue(b: dev.botdot.app.data.BackupInfo, preparing: Boolean): String {
+    val o = b.offsite
+    return when {
+        preparing || b.preparing -> tr("Preparing…")
+        o == null || o.state == "off" -> tr("Off")
+        o.state == "backing-up" -> tr("Backing up…")
+        o.state == "failed" -> tr("Failed")
+        else -> o.lastSuccess?.let { shortTime(it) } ?: tr("No backup yet")
+    }
 }

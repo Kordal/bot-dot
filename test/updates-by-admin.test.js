@@ -36,13 +36,9 @@ test('the web page has no update of botdot', () => {
 
 test('a backup holds the account it was made in, is named with it, and restores into it', async () => {
   const ann = await start({ account: 'ann' });
-  assert.equal((await ann.api('/backups/passphrase', { method: 'PUT', body: { passphrase: PASS } })).status, 200);
-  const made = await ann.api('/backups/now', { method: 'POST' });
-  const name = made.data.last.name;
-  const res = await fetch(`${ann.base}/api/backups/${name}`, { headers: { 'X-Bot-Dot': '1' } });
-  assert.equal(res.status, 200);
-  assert.equal(res.headers.get('content-disposition'), `attachment; filename="${name.replace(/^bot-dot-/, 'bot-dot-ann-')}"`);
-  const file = Buffer.from(await res.arrayBuffer());
+  const { file, name, disposition } = await ann.backup(PASS);
+  assert.match(name, /^bot-dot-ann-\d{8}-\d{6}\.bdb$/);
+  assert.equal(disposition, `attachment; filename="${name}"`);
 
   // Restored into the same account (a fresh one of the same name, as after moving machines): the manifest names it.
   const again = await start({ account: 'ann' });

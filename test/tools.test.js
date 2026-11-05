@@ -591,14 +591,12 @@ test('a backup holds tools.json and not the tools; a restore on an empty data fo
   // A cache that an install of the second way was stopped over (tools-worker.js) is not data either.
   fs.mkdirSync(path.join(srv.data, 'tools', '.cache', 'pkgs'), { recursive: true });
   fs.writeFileSync(path.join(srv.data, 'tools', '.cache', 'pkgs', 'left.conda'), 'a package');
-  await srv.api('/backups/passphrase', { method: 'PUT', body: { passphrase: 'correct horse battery' } });
-  const made = await srv.api('/backups/now', { method: 'POST' });
-  assert.equal(made.status, 200, JSON.stringify(made.data));
+  const made = await srv.backup('correct horse battery');
   const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-tools-restore-'));
   const freshEnv = { ...env, BOT_DOT_TOOLS_CACHE: path.join(fresh, 'tools-cache') };
   let b = await startServer({ dir: fresh, env: freshEnv });
   try {
-    const up = await b.api('/backups/upload', { method: 'POST', raw: fs.readFileSync(path.join(srv.data, 'backups', made.data.last.name)) });
+    const up = await b.api('/backups/upload', { method: 'POST', raw: made.file });
     const r = await b.api('/backups/restore', { method: 'POST', body: { file: up.data.file, passphrase: 'correct horse battery' } });
     assert.equal(r.status, 200, JSON.stringify(r.data));
     const staged = path.join(b.data, '.restore-pending', 'data');
