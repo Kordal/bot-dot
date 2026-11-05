@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 
 let door;
 const stands = {};
@@ -143,7 +143,7 @@ test("a person can't ask for a room turn: the front door strips the room header 
 });
 
 test('a request without a session never reaches a botdot server', async () => {
-  const counts = () => Object.values(stands).map((s) => s.seen.length).join();
+  const counts = () => seenOf(stands);
   const was = counts();
   const b = browser();
   const api = await b.get('/api/bots');
@@ -292,7 +292,7 @@ test("a call reaches its account's botdot server without a session, as the job's
   await signUp('pat');
   const stand = await standIn(door, 'pat', KEYED);
   try {
-    const others = Object.values(stands).map((s) => s.seen.length).join();
+    const others = seenOf(stands);
     const r = await call('/call/pat/b123/j456', {
       key: 'right', body: '{"camera":"garage"}',
       headers: { 'X-Forwarded-For': '203.0.113.9', Cookie: 'theme=dark', 'X-Chief-Key': 'k', 'X-Run-Token': 't', 'Tailscale-User-Login': 'a@b.c', 'X-Botdot-Account': 'bob' },
@@ -307,7 +307,7 @@ test("a call reaches its account's botdot server without a session, as the job's
     assert.equal(got.headers['x-botdot-account'], 'pat');
     assert.equal(got.headers['x-forwarded-for'], '203.0.113.9', 'the sender, as Caddy or Serve in front named it');
     for (const h of ['cookie', 'x-chief-key', 'x-run-token', 'tailscale-user-login']) assert.equal(got.headers[h], undefined, h);
-    assert.equal(Object.values(stands).map((s) => s.seen.length).join(), others, "no other account's botdot server saw it");
+    assert.equal(seenOf(stands), others, "no other account's botdot server saw it");
     // A signed call's signature, in either form (#37), reaches it too; the botdot server checks it.
     const signed = { 'X-Botdot-Timestamp': '1800000000', 'X-Botdot-Signature-256': `sha256=${'a'.repeat(64)}`, 'X-Hub-Signature-256': `sha256=${'b'.repeat(64)}`, 'X-GitHub-Event': 'push' };
     assert.equal((await call('/call/pat/b123/j456', { key: 'right', body: '{}', headers: signed })).status, 202);
@@ -317,7 +317,7 @@ test("a call reaches its account's botdot server without a session, as the job's
 });
 
 test('a call to an account that does not exist, or to no call address, reaches no botdot server', async () => {
-  const counts = () => Object.values(stands).map((s) => s.seen.length).join();
+  const counts = () => seenOf(stands);
   const was = counts();
   const r = await call('/call/nobody-here/b1/j1', { key: 'right' });
   assert.equal(r.status, 401);
