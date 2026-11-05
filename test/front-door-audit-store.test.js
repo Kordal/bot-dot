@@ -70,3 +70,16 @@ test('entries older than 13 months are dropped, on start and as time goes by', (
   t = Date.parse('2026-12-02T00:00:00Z');
   assert.deepEqual(auditStore.open(d, { now: () => t }).list().entries, [], 'on start too');
 });
+
+test('an entry another process appended (the command line\'s links, #985) is listed, and the next one comes after it', () => {
+  const d = dir();
+  let t = Date.parse('2026-11-05T08:00:00Z');
+  const server = auditStore.open(d, { now: () => t });
+  server.record({ actor: 'front-door', action: 'account-made', account: 'ann' });
+  auditStore.open(d, { now: () => t }).record({ actor: 'console', action: 'sign-in-link', account: 'ann', detail: 'until 2026-11-06 08:00 UTC' });
+  assert.deepEqual(server.list().entries.map((e) => `${e.actor} ${e.action}`), ['console sign-in-link', 'front-door account-made']);
+  server.record({ actor: 'front-door', action: 'passkey-added', account: 'ann' });
+  const lines = fs.readFileSync(path.join(d, 'audit.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.deepEqual(lines.map((e) => e.action), ['account-made', 'sign-in-link', 'passkey-added']);
+  assert.ok(lines[2].at > lines[1].at, 'later than the other process\'s');
+});

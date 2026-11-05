@@ -44,6 +44,11 @@
 # fresh install of the same version with one named RESTORE (below, "A backup set"): BOT_DOT_DIR/backup holds it, and
 # status/backup.json and status/restore.json say how it went.
 #
+# A link for a machine without an admin page (#985), root's alone too: SIGN-IN-<account> asks for a sign-in link that
+# makes that account a new passkey, and SIGN-UP for a sign-up link (for the account named on its first line, if any; a
+# machine of one account takes none). The link is in status/sign-in-<account>.json or status/sign-up[-<account>].json
+# ("A link asked by root alone", below), which only root and the front door read, and nowhere else.
+#
 # An account whose owner turned "Update automatically" off is left waiting on the version it runs, with the new one in
 # its Docker (ADR 053). "Update now", from its owner's Settings or the admin page, or the deadline the admin set, asks
 # with an empty file named SWITCH-<account>, which no account can be named either: root's step then switches that
@@ -2479,6 +2484,65 @@ rollback_one() {
   else account_said "$1" failed '"error":"Its botdot server did not start, neither from its snapshot nor on the version it ran."'; fi
 }
 
+# A link asked by root alone (#985), on a machine with no admin page to make it (ADR 154): SIGN-IN-<account> asks for a
+# sign-in link that makes that account a new passkey, and SIGN-UP for a sign-up link, for the account named on its
+# first line or, empty, for any name. The front door makes it as the admin page does, with the same expiry and single
+# use, and keeps an audit entry by the console; root writes it in status/sign-in-<account>.json, status/sign-up.json or
+# status/sign-up-<account>.json, which only root and the front door read: state (made, refused or failed), at, kind,
+# account, and url and expires once made, or error. The link is printed nowhere else: not in root's step's log, not in
+# the audit log.
+SIGN_IN=SIGN-IN-
+SIGN_UP=SIGN-UP
+
+# door_link sign-in|sign-up STATUS [ACCOUNT]: the link asked of the front door, in status/STATUS.json.
+door_link() {
+  dl_kind="$1" dl_file="$DOOR/status/$2.json" dl_name="${3:-}"
+  dl_err="$RUN/link-err"
+  mkdir -p "$DOOR/status"
+  set +e
+  dl_line="$($D compose --project-directory "$DOOR" exec -T front-door node front-door.js "$dl_kind-link" ${dl_name:+--account "$dl_name"} --by console </dev/null 2>"$dl_err" | head -n 1)"
+  set -e
+  dl_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  case "$dl_line" in
+    '{"state":"made",'*'}' | '{"state":"refused",'*'}')
+      put "$dl_file" "{\"at\":\"$dl_at\",${dl_line#\{}"
+      case "$dl_line" in
+        '{"state":"made",'*) ok "A $dl_kind link${dl_name:+ for $dl_name} is in $dl_file" ;;
+        *) warn "The $dl_kind link${dl_name:+ for $dl_name} was refused: $(printf '%s' "$dl_line" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 200)" ;;
+      esac ;;
+    *)
+      dl_why="$(head -n 1 "$dl_err" 2>/dev/null | plain_line 200)"
+      put "$dl_file" "{\"state\":\"failed\",\"at\":\"$dl_at\",\"kind\":\"$dl_kind\"${dl_name:+,\"account\":\"$dl_name\"},\"error\":\"The front door made no link${dl_why:+: $dl_why}\"}"
+      warn "The front door made no $dl_kind link${dl_name:+ for $dl_name}${dl_why:+: $dl_why}" ;;
+  esac
+  rm -f "$dl_err"
+}
+# link_request FILE: the link request FILE taken: refused unless root made it.
+link_request() {
+  lr="$1"
+  lr_base="${lr##*/}"
+  lr_name=''
+  case "$lr_base" in
+    "$SIGN_UP") lr_kind=sign-up
+      lr_name="$(head -c 100 "$lr" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)" ;;
+    *) lr_kind=sign-in lr_name="${lr_base#"$SIGN_IN"}" ;;
+  esac
+  if [ -n "$lr_name" ] && ! valid_account "$lr_name"; then
+    rm -f -- "$lr"
+    warn "Not an account's name, so no $lr_kind link was made: $(printf '%s' "$lr_name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
+    return 0
+  fi
+  lr_status="$lr_kind${lr_name:+-$lr_name}"
+  if ! by_root "$lr"; then
+    rm -f -- "$lr"
+    put "$DOOR/status/$lr_status.json" "{\"state\":\"refused\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"kind\":\"$lr_kind\"${lr_name:+,\"account\":\"$lr_name\"},\"error\":\"Only root asks for this.\"}"
+    warn "A $lr_kind link request that root didn't make was refused."
+    return 0
+  fi
+  rm -f -- "$lr"
+  door_link "$lr_kind" "$lr_status" "$lr_name"
+}
+
 if [ "$MODE" = requested ]; then
   # A backup set's requests (#986), root's alone: one the front door made is refused. A restore comes first, and a
   # set is made before an update, of what ran until then.
@@ -2524,6 +2588,11 @@ if [ "$MODE" = requested ]; then
       set -e
     else warn "Not an account's name, so nothing was rolled back: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"; fi
   done
+  # The links root asked for (#985).
+  for request in "$REQUESTS/$SIGN_UP" "$REQUESTS/$SIGN_IN"*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    link_request "$request"
+  done
   for request in "$REQUESTS"/* "$REQUESTS"/.[!.]* "$REQUESTS"/..?*; do
     [ -e "$request" ] || [ -L "$request" ] || continue
     name="$(basename "$request")"
@@ -2531,7 +2600,7 @@ if [ "$MODE" = requested ]; then
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
-    elif case "$name" in SWITCH-* | ROLLBACK-*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
+    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else
