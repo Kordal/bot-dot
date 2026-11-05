@@ -238,7 +238,8 @@ test('each account gets its share: CPU and RAM on its unit and, for its computer
   assert.equal(fs.statSync(path.join(home, 'share', 'share.json')).mode & 0o777, 0o644);
   assert.match(done.system, new RegExp(`^truncate -s 30G ${done.dir}/disks/ann\\.img\\.new$`, 'm'));
   assert.match(done.system, new RegExp(`^mkfs\\.ext4 -q -F -m 0 ${done.dir}/disks/ann\\.img\\.new$`, 'm'));
-  assert.match(done.system, new RegExp(`^mount -o loop ${done.dir}/disks/ann\\.img ${home}$`, 'm'));
+  assert.match(done.system, new RegExp(`^mount -o loop,discard ${done.dir}/disks/ann\\.img ${home}$`, 'm'), 'what it deletes goes back to the machine');
+  assert.match(done.system, new RegExp(`^fstrim ${home}$`, 'm'));
   assert.equal(fs.statSync(path.join(done.dir, 'disks')).mode & 0o777, 0o700, "only root reaches the accounts' disks");
   // The account's docker-helper reads the file, read-only, and nothing else of the account does.
   const compose = fs.readFileSync(path.join(ROOT, 'compose.yaml'), 'utf8');
@@ -250,6 +251,7 @@ test('each account gets its share: CPU and RAM on its unit and, for its computer
   const again = rerun(t, '', {}, { again: done, dotenv: null });
   const since = again.system.slice(done.system.length);
   assert.doesNotMatch(since, /^(truncate|mkfs\.ext4|mount -o loop|resize2fs)/m);
+  assert.match(since, new RegExp(`^fstrim ${home}$`, 'm'), 'and gives back what was deleted before, as a disk mounted without discard kept it');
 });
 
 test("the share in the installer is the front door's default", () => {

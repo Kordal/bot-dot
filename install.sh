@@ -1590,7 +1590,7 @@ Environment=XDG_RUNTIME_DIR=$RUN/%i
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 RuntimeDirectory=${RUN#/run/}/%i
 RuntimeDirectoryMode=0700
-ExecStartPre=+/bin/sh -c '[ ! -f $DISKS/%i.img ] || mountpoint -q $ACCOUNTS/%i || mount -o loop $DISKS/%i.img $ACCOUNTS/%i'
+ExecStartPre=+/bin/sh -c '[ ! -f $DISKS/%i.img ] || mountpoint -q $ACCOUNTS/%i || mount -o loop,discard $DISKS/%i.img $ACCOUNTS/%i'
 ExecStart=$ROOTLESS
 Delegate=yes
 Restart=always
@@ -1608,7 +1608,8 @@ fi
 # disk NAME GB: the account NAME's disk, an ext4 image of GB, mounted as its home: it fills that and no more, and a run
 # that fills it fails with "No space left on the server". A bigger share grows it at once; a smaller one applies to
 # accounts made from then on (ext4 doesn't shrink while it is mounted). An account whose home was made before disk
-# shares keeps it as it is, without one. Without the machine's tools (mkfs.ext4, losetup) no account has one.
+# shares keeps it as it is, without one. Without the machine's tools (mkfs.ext4, losetup) no account has one. The image
+# stays sparse: what the account deletes is given back to the machine.
 disk() {
   img="$DISKS/$1.img"
   dhome="$ACCOUNTS/$1"
@@ -1631,7 +1632,10 @@ disk() {
     chmod 600 "$img"
   fi
   mkdir -p "$dhome"
-  mountpoint -q "$dhome" || mount -o loop "$img" "$dhome" </dev/null || die "Couldn't mount the disk of the account $1 ($img)."
+  mountpoint -q "$dhome" || mount -o loop,discard "$img" "$dhome" </dev/null || die "Couldn't mount the disk of the account $1 ($img)."
+  # What the account deletes goes back to the machine: discard frees it in the image as it goes, and fstrim gives back
+  # what was deleted before (a disk mounted without discard kept it, 54 of bottasan1-droid's 144 GB on hq).
+  ! command -v fstrim >/dev/null 2>&1 || fstrim "$dhome" </dev/null >/dev/null 2>&1 || warn "Couldn't give back the free room of the account $1's disk to this machine now; it does at the next update."
   if [ "$(wc -c < "$img" | tr -d ' ')" -lt "$(($2 * 1073741824))" ]; then
     truncate -s "${2}G" "$img"
     dev="$(losetup -j "$img" | head -n 1 | cut -d: -f1)"
