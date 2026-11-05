@@ -357,6 +357,8 @@ class TurnLines(private val features: () -> Collection<String>? = { null }) {
 object Groups {
     /** The feature of a botdot that gives each team of a project a chat (#697, ADR 119). */
     const val TEAM_CHATS = "team-chats"
+    /** A team's chat is renamed with its team: PUT of its `name` renames the team in its project. */
+    const val TEAM_CHAT_RENAME = "team-chat-rename"
 
     /** The chat of the team [teamId] (#697); null without one. */
     fun teamChat(groups: List<Group>, teamId: String): Group? = groups.firstOrNull { it.team == teamId }
