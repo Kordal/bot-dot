@@ -33,7 +33,7 @@ class UpdatesByAdminTest {
         })
         val api = Api("https://botdot.example.com", session)
         assertEquals(mapOf("Cookie" to "botdot_session=s3cret"), BackupDownload.headers(api))
-        assertEquals("https://botdot.example.com/api/backups/bot-dot-20261016-0300.bdb", api.backupUrl("bot-dot-20261016-0300.bdb"))
+        assertEquals("https://botdot.example.com/api/backups/download/0123abcd", api.backupUrl(BackupDownloadAsked("/api/backups/download/0123abcd", "bot-dot-ann-20261105-160000.bdb")))
         kept.clear()
         assertEquals("signed out, nothing is sent", emptyMap<String, String>(), BackupDownload.headers(api))
         assertEquals("without a session (an older botdot)", emptyMap<String, String>(), BackupDownload.headers(Api("https://botdot.example.com")))
