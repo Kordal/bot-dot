@@ -75,12 +75,15 @@ test('a named version older than the one the front door runs is refused', (t) =>
 });
 
 test("each account's data is kept as a snapshot before its switch, and goes once its new server answers", (t) => {
-  const { home, calls, log, update: u } = update(t, NAMED);
+  const { home, calls, log, update: u, done } = update(t, NAMED);
   assert.equal(u.state, 'updated', log);
   const stop = calls('bob').findIndex((c) => /^compose .* stop bot-dot$/.test(c));
   assert.ok(stop >= 0 && stop < calls('bob').findIndex((c) => /^compose .* up -d/.test(c)), 'its server stops for the copy, before the switch');
   assert.match(log, /Keeping a snapshot of the account bob's data before it switches/);
   assert.deepEqual(fs.readdirSync(home).filter((f) => f.startsWith('snapshot')), [], 'no copy of its data stays on its disk');
+  // Its disk is an image that only grows: the copy's blocks go back to the machine at once.
+  const trimmed = done.system.indexOf(`fstrim ${home}`);
+  assert.ok(trimmed >= 0, `its disk is trimmed:\n${done.system}`);
 });
 
 test("an account whose disk wouldn't keep a fifth free after the snapshot switches without one", (t) => {
