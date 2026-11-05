@@ -1,4 +1,4 @@
-# ADR-161: The fleet console gives a managed machine its operator's keys
+# ADR-162: The fleet console gives a managed machine its operator's keys
 
 - **Status:** Accepted
 - **Owning task:** the owner's request in the project thread "Share my API keys across all servers": every machine the owner runs from the console uses only the owner's own keys, safely, for Jev and Composio.

@@ -1,4 +1,4 @@
-// install.sh on a stand-in machine (test/installer-helpers.js): the fleet console's keys for a managed machine (ADR 161),
+// install.sh on a stand-in machine (test/installer-helpers.js): the fleet console's keys for a managed machine (ADR 162),
 // KEYS, root's alone. Root's step hands them to the front door in data/install-keys.json, as the installer's keys are
 // handed, says which it handed in status/keys.json, and writes no key in a log or a status file. The front door's side
 // is in test/front-door-install-keys.test.js and test/front-door-managed.test.js.

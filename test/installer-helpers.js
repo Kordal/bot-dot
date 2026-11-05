@@ -202,8 +202,9 @@ function withBob(t) {
   const data = path.join(first.dir, 'front-door', 'data', 'front-door.json');
   const door = (d) => fs.writeFileSync(data, typeof d === 'string' ? d : JSON.stringify({ accounts: {}, passkeys: {}, sessions: {}, signUpLinks: {}, deleted: {}, ...d }));
   let seen = { system: first.system.length, docker: first.docker.length };
-  const step = (name, options = {}) => {
-    fs.writeFileSync(path.join(requests, name), '');
+  // body: what the request file holds (most are empty).
+  const step = (name, { body = '', ...options } = {}) => {
+    fs.writeFileSync(path.join(requests, name), body);
     const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], ...options });
     assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
     assert.deepEqual(fs.readdirSync(requests), [], 'the request is taken');

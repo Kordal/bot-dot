@@ -135,7 +135,7 @@ test('a managed machine without a first account, or a setup key, makes no accoun
   assert.match(bad.stderr, /FRONT_DOOR_FIRST_ACCOUNT is an account's name/);
 });
 
-// ADR 161: the fleet console's keys reach a managed machine of one account as the installer's do (install-keys.json):
+// ADR 162: the fleet console's keys reach a managed machine of one account as the installer's do (install-keys.json):
 // the account is handed the decision model with Jev's key, and the Composio key as the installer's (ADR 160).
 test("managed, one account: the console's keys in install-keys.json are taken, and Jev's is handed to the account", async (t) => {
   const { waitFor } = require('./helpers');
