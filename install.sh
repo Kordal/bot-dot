@@ -2187,7 +2187,9 @@ switch_one() {
 # A set holds, as plain tar files that restic can deduplicate, with a sha256 of each in manifest.json beside the
 # version, the instance id, the admin's name and the accounts:
 #   front-door/data.tar          the front door's data: accounts, passkeys, sign-up links, the audit log
-#   accounts/<name>/data.tar     the account's data folder, without its own backups (data/backups)
+#   accounts/<name>/data.tar     the account's data folder, without its own backups (data/backups); its memory.db is a
+#                                consistent copy its botdot server made for the set (memory_copy), or, when the server
+#                                doesn't run or can't make one, the file as it is ("memory" in the manifest says which)
 #   accounts/<name>/env          its .env
 #   accounts/<name>/config.tar   its server's /config volume, with the Vault's key
 #   accounts/<name>/<volume>.tar its computer's volumes: workspace (the bots' files and project folders), home and
@@ -2234,6 +2236,19 @@ set_tar() {
   rm -f "$st_to.err"
 }
 
+# memory_copy NAME: the account NAME's botdot server asked, on the front door's socket, for a consistent copy of its
+# memory.db (#1015) in data/.snapshot/memory.db. The live file can't be copied as it is while the server writes it (its
+# WAL changes between the two reads), and under gVisor no lock taken from here holds the server off. Fails when the
+# server doesn't run (its memory then stands still, and the file is copied as it is) or is of a version without it.
+memory_copy() {
+  mc_file="$ACCOUNTS/$1/data/.snapshot/memory.db"
+  rm -f -- "$mc_file"
+  [ -S "$SOCKETS/$1/botdot.sock" ] || return 1
+  curl -fsS -o /dev/null --max-time 600 -X POST -H "X-Botdot-Account: $1" -H 'X-Botdot-Room: 1' -H 'X-Bot-Dot: 1' \
+    --unix-socket "$SOCKETS/$1/botdot.sock" http://botdot/api/backups/snapshot </dev/null 2>/dev/null || return 1
+  [ -f "$mc_file" ] && [ ! -L "$mc_file" ]
+}
+
 # make_set: the set, in SET.new, then in SET's place.
 make_set() {
   tar --help 2>/dev/null | grep -q -- --owner-map || die "This machine's tar can't write a backup set: it needs GNU tar 1.29 or newer."
@@ -2243,6 +2258,7 @@ make_set() {
   chown 0:0 "$new"
   chmod 700 "$new"
   ms_accounts=''
+  ms_memory=''
   for home in "$ACCOUNTS"/*/; do
     n="$(basename "$home")"
     valid_account "$n" && [ -f "$ACCOUNTS/$n/compose.yaml" ] || continue
@@ -2264,7 +2280,15 @@ make_set() {
     ns_maps "$n" "$out"
     maps="--owner-map=$out/uids --group-map=$out/gids"
     # shellcheck disable=SC2086 # two options
-    set_tar "$home/data" "$out/data.tar" $maps --exclude=./backups
+    if memory_copy "$n"; then
+      set_tar "$home/data" "$out/data.tar" $maps --anchored --exclude=./backups --exclude=./memory.db --exclude=./memory.db-wal \
+        --exclude=./memory.db-shm --transform='s,^\./\.snapshot/memory\.db$,./memory.db,'
+      ms_memory="$ms_memory${ms_memory:+,}\"$n\":\"copy\""
+    else
+      set_tar "$home/data" "$out/data.tar" $maps --anchored --exclude=./backups --exclude=./.snapshot
+      ms_memory="$ms_memory${ms_memory:+,}\"$n\":\"as-is\""
+    fi
+    rm -f -- "$home/data/.snapshot/memory.db"
     cp "$home/.env" "$out/env"
     for v in config $SET_VOLUMES; do
       [ -d "$(account_volume "$n" "$v")" ] || continue
@@ -2283,8 +2307,8 @@ make_set() {
   done
   names=''
   for n in $ms_accounts; do names="$names${names:+,}\"$n\""; done
-  printf '{"kind":"botdot-backup-set","format":1,"version":"%s","instance":"%s","admin":"%s","at":"%s","accounts":[%s],"parts":[%s]}\n' \
-    "$(version_now)" "$INSTANCE" "$(get_env "$ENV" FRONT_DOOR_ADMIN)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$names" "$parts" > "$new/manifest.json"
+  printf '{"kind":"botdot-backup-set","format":1,"version":"%s","instance":"%s","admin":"%s","at":"%s","accounts":[%s],"memory":{%s},"parts":[%s]}\n' \
+    "$(version_now)" "$INSTANCE" "$(get_env "$ENV" FRONT_DOOR_ADMIN)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$names" "$ms_memory" "$parts" > "$new/manifest.json"
   find "$new" -type d -exec chmod 700 {} + -o -type f -exec chmod 600 {} +
   chown -R 0:0 "$new"
 
