@@ -592,5 +592,6 @@
   "{path} on its computer": "{path} na jego komputerze",
   "Shared with": "Udostępniony",
   "Asks to replace the secret of “{entry}”": "Prosi o podmianę sekretu „{entry}”",
-  "Asks to save “{entry}” in the Vault": "Prosi o zapisanie „{entry}” w Sejfie"
+  "Asks to save “{entry}” in the Vault": "Prosi o zapisanie „{entry}” w Sejfie",
+  "Looking at what takes space": "Sprawdza, co zajmuje miejsce"
 }

@@ -1057,7 +1057,7 @@ const runningTasks = () => activityRuns().filter((r) => r.status === 'running').
 const tasksRunning = (n) => trn(n, '{n} task running', '{n} tasks running');
 // The Settings button: marked while one of its pages is open.
 function markMore() {
-  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
+  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'storage', 'settings', 'setup'].includes(state.view));
   // The logo's dot pulses while the Chief or a bot is working.
   $('#brand').classList.toggle('busy', !!state.chiefBusy || state.bots.some((b) => b.running));
   const ca = $('#chief-avatar');
@@ -1069,7 +1069,7 @@ function renderStatus() {
   if (!state.status?.claudeBin) toast(tr('Claude Code CLI not found. Bots cannot run.'), true);
 }
 
-// Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | rooms (with state.roomId, rooms.js) | runs | skills | vault | settings | setup | connectors | dashboard | needs.
+// Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | rooms (with state.roomId, rooms.js) | runs | skills | vault | storage | settings | setup | connectors | dashboard | needs.
 // A bot's settings, its jobs and the Chief's settings are no views: they are drawn in the panel beside
 // the chat (panel.js). setView still takes their names, botsettings, botjobs and chiefsettings, and the
 // address keeps them. A group's panel is groupsettings.
@@ -1115,6 +1115,7 @@ function show({ view: v, panel, via }, fresh = false) {
   const now = panelPage();
   if (changed && v === 'connectors') delete $('#view-connectors').dataset.ready; // fresh data each visit
   if (changed && v === 'vault') delete $('#view-vault').dataset.ready;
+  if (changed && v === 'storage' && typeof StoragePage !== 'undefined') queueMicrotask(() => StoragePage.open()); // fresh each visit (storage.js)
   if (changed && v === 'dashboard') loadDash();
   if (changed && v === 'setup') { delete $('#view-setup').dataset.ready; state.setup = null; }
   if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; stayOnNeeds(); }
@@ -1199,8 +1200,8 @@ const ICON = {
 };
 const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="${tr('Back')}">${ICON.back}</button>`;
 const PAGE_BACK = `<button class="btn sm page-back" data-back>${ICON.back} ${tr('Back')}</button>`;
-// Activity, Skills, Pages, Connectors and Vault: back to where they were opened from, Setup or else Settings.
-const SUB_PAGES = ['runs', 'skills', 'pages', 'connectors', 'vault'];
+// Activity, Skills, Pages, Connectors, Vault and Storage: back to where they were opened from, Setup or else Settings.
+const SUB_PAGES = ['runs', 'skills', 'pages', 'connectors', 'vault', 'storage'];
 const subBackLabel = () => `${ICON.back} ${state.subFrom === 'setup' ? tr('Setup') : tr('Settings')}`;
 const subBack = () => `<button class="btn sm sub-back" data-sub-back>${subBackLabel()}</button>`;
 

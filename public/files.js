@@ -941,12 +941,12 @@ const Files = (() => {
   // ---------- open and close ----------
 
   // Opens Files for `bot` ({ id, name, color, state, outfit, computer }, or the Chief's { id: '_chief', name, base:
-  // '/chief' }), at the top of its folder on botdot.
-  function open(bot) {
+  // '/chief' }), at the top of its folder on botdot, or at `at`: { place: { root, project? }, path }, a folder (Storage).
+  function open(bot, at = null) {
     const el = box();
     let view = 'list';
     try { view = localStorage.getItem('botdot-files-view') === 'grid' ? 'grid' : 'list'; } catch { /* none kept */ }
-    const c = { bot, place: bot.folder ? { root: 'project', project: bot.folder } : { root: 'server' }, path: '', data: null, error: null, sort: 'name', view, sel: new Set(), anchor: null, focus: null, preview: null, back: [], fwd: [], projects: [], kept: [], pins: [], menu: null, sheet: null, dialog: null, selecting: false, query: '', results: null, drop: false, busy: null, searches: (state.features || []).includes('workspace-search') };
+    const c = { bot, place: at?.place || (bot.folder ? { root: 'project', project: bot.folder } : { root: 'server' }), path: at?.path || '', data: null, error: null, sort: 'name', view, sel: new Set(), anchor: null, focus: null, preview: null, back: [], fwd: [], projects: [], kept: [], pins: [], menu: null, sheet: null, dialog: null, selecting: false, query: '', results: null, drop: false, busy: null, searches: (state.features || []).includes('workspace-search') };
     c.pins = readPins(c);
     cur = c;
     if (el) {
@@ -958,7 +958,7 @@ const Files = (() => {
     return load(c);
   }
   // Opens a project's folder (#702) alone: `folder` its name in /workspace/projects, `name` and `color` the project's.
-  const openFolder = ({ folder, name, color }) => open({ id: `project:${folder}`, name, color, folder, base: `/projects/${encodeURIComponent(folder)}` });
+  const openFolder = ({ folder, name, color }, rel = '') => open({ id: `project:${folder}`, name, color, folder, base: `/projects/${encodeURIComponent(folder)}` }, rel ? { place: { root: 'project', project: folder }, path: rel } : null);
   function close() {
     cur = null;
     const el = box();
