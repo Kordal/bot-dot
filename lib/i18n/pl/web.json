@@ -1757,5 +1757,6 @@
   "Ask the Chief": "Zapytaj Szefa",
   "Delete…": "Usuń…",
   "What is {name} ({size}) in {whose}’s files, and can it go?": "Co to jest {name} ({size}) w plikach: {whose} i czy można to usunąć?",
-  "Cleared {size}": "Wyczyszczono {size}"
+  "Cleared {size}": "Wyczyszczono {size}",
+  "System": "System"
 }

@@ -508,10 +508,9 @@ RESTIC_VERSION=0.19.1
 RESTIC_SUMS='linux_amd64 f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
 linux_arm64 a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465'
 OFFSITE_KEEP='--keep-daily 7 --keep-weekly 4 --keep-monthly 3'
-# What of an account's data stays out: its own backups, what a project installs again, what a backup cut off left, and
-# the live memory database, which a tar can't read whole while the server writes it (its copy, .snapshot/memory.db
-# from #1015, goes in).
-OFFSITE_DATA_SKIP='--exclude=./backups --exclude=node_modules --exclude=*.part --exclude=./memory.db --exclude=./memory.db-wal --exclude=./memory.db-shm'
+# What of an account's data stays out: its own backups, what a project installs again and what a backup cut off left.
+# Its memory database is the consistent copy its server makes (#1015) when it can, as in a set (offsite_run).
+OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --exclude=*.part --anchored'
 # A tar's exit 1 (a file changed while it was read) is no failure; restic counts any other exit as one.
 OFFSITE_TAR='tar "$@"; s=$?; [ "$s" -le 1 ] || exit "$s"'
 
@@ -534,6 +533,19 @@ ns_maps() {
     [ -n "$nm_sub" ] || die "The account $1 has no sub-IDs in $ETC/sub${nm}id."
     awk -v h="$nm_id" -v s="$nm_sub" 'BEGIN { print "+" h " root:0"; for (i = 0; i < 65536; i++) print "+" (s + i) " n:" (i + 1) }' > "$2/${nm}ids"
   done
+}
+
+# memory_copy NAME: the account NAME's botdot server asked, on the front door's socket, for a consistent copy of its
+# memory.db (#1015) in data/.snapshot/memory.db. The live file can't be copied as it is while the server writes it (its
+# WAL changes between the two reads), and under gVisor no lock taken from here holds the server off. Fails when the
+# server doesn't run (its memory then stands still, and the file is copied as it is) or is of a version without it.
+memory_copy() {
+  mc_file="$ACCOUNTS/$1/data/.snapshot/memory.db"
+  rm -f -- "$mc_file"
+  [ -S "$SOCKETS/$1/botdot.sock" ] || return 1
+  curl -fsS -o /dev/null --max-time 600 -X POST -H "X-Botdot-Account: $1" -H 'X-Botdot-Room: 1' -H 'X-Bot-Dot: 1' \
+    --unix-socket "$SOCKETS/$1/botdot.sock" http://botdot/api/backups/snapshot </dev/null 2>/dev/null || return 1
+  [ -f "$mc_file" ] && [ ! -L "$mc_file" ]
 }
 
 # offsite_repo: the off-site repository's address, or nothing. One given as BOT_DOT_OFFSITE_REPO is kept in .env.
@@ -713,8 +725,13 @@ offsite_run() {
       [ -n "$OS_ERROR" ] || { OS_ERROR="accounts/$n: $os_why"; OS_STOPPED="accounts/$n"; }
       continue
     fi
+    # Its memory as the set has it: the server's consistent copy in the live file's place, or, when it can't make one,
+    # the file as it is.
+    if memory_copy "$n"; then os_memory="--exclude=./memory.db --exclude=./memory.db-wal --exclude=./memory.db-shm --transform=s,^\./\.snapshot/memory\.db$,./memory.db,"
+    else os_memory='--exclude=./.snapshot'; fi
     # shellcheck disable=SC2086 # options
-    offsite_tar "accounts/$n/data.tar" data "$n" "$home/data" "--owner-map=$maps/uids" "--group-map=$maps/gids" $OFFSITE_DATA_SKIP
+    offsite_tar "accounts/$n/data.tar" data "$n" "$home/data" "--owner-map=$maps/uids" "--group-map=$maps/gids" --anchored $OFFSITE_DATA_SKIP $os_memory
+    rm -f -- "$home/data/.snapshot/memory.db"
     offsite_part "accounts/$n/env" env "$n" cat "$ACCOUNTS/$n/.env"
     for v in config $SET_VOLUMES; do
       [ -d "$(account_volume "$n" "$v")" ] || continue
@@ -2354,6 +2371,8 @@ JSON
   set_env "$aenv" BOT_DOT_INSTANCE "$INSTANCE"
   set_env "$aenv" BOT_DOT_FRONT_DOOR_FOLDER "$folder"
   set_env "$aenv" DOCKER_SOCKET "$run/docker.sock"
+  # A disk of its own (disk below): what Storage shows in all is then what that disk uses.
+  if mountpoint -q "$home" 2>/dev/null; then set_env "$aenv" BOT_DOT_OWN_DISK 1; else set_env "$aenv" BOT_DOT_OWN_DISK ''; fi
   # Its data folder, the account's own when it is made: botdot's privilege supervisor gives it to the server's user
   # when the server starts, and that stays. Its Docker restarted the server already when this step starts it again
   # (a resume, a rerun), so changing the owner now would leave the server unable to write its data.
@@ -2552,7 +2571,9 @@ switch_one() {
 # A set holds, as plain tar files that restic can deduplicate, with a sha256 of each in manifest.json beside the
 # version, the instance id, the admin's name and the accounts:
 #   front-door/data.tar          the front door's data: accounts, passkeys, sign-up links, the audit log
-#   accounts/<name>/data.tar     the account's data folder, without its own backups (data/backups)
+#   accounts/<name>/data.tar     the account's data folder, without its own backups (data/backups); its memory.db is a
+#                                consistent copy its botdot server made for the set (memory_copy), or, when the server
+#                                doesn't run or can't make one, the file as it is ("memory" in the manifest says which)
 #   accounts/<name>/env          its .env
 #   accounts/<name>/config.tar   its server's /config volume, with the Vault's key
 #   accounts/<name>/<volume>.tar its computer's volumes: workspace (the bots' files and project folders), home and
@@ -2591,6 +2612,7 @@ make_set() {
   chown 0:0 "$new"
   chmod 700 "$new"
   ms_accounts=''
+  ms_memory=''
   for home in "$ACCOUNTS"/*/; do
     n="$(basename "$home")"
     valid_account "$n" && [ -f "$ACCOUNTS/$n/compose.yaml" ] || continue
@@ -2612,7 +2634,15 @@ make_set() {
     ns_maps "$n" "$out"
     maps="--owner-map=$out/uids --group-map=$out/gids"
     # shellcheck disable=SC2086 # two options
-    set_tar "$home/data" "$out/data.tar" $maps --exclude=./backups
+    if memory_copy "$n"; then
+      set_tar "$home/data" "$out/data.tar" $maps --anchored --exclude=./backups --exclude=./memory.db --exclude=./memory.db-wal \
+        --exclude=./memory.db-shm --transform='s,^\./\.snapshot/memory\.db$,./memory.db,'
+      ms_memory="$ms_memory${ms_memory:+,}\"$n\":\"copy\""
+    else
+      set_tar "$home/data" "$out/data.tar" $maps --anchored --exclude=./backups --exclude=./.snapshot
+      ms_memory="$ms_memory${ms_memory:+,}\"$n\":\"as-is\""
+    fi
+    rm -f -- "$home/data/.snapshot/memory.db"
     cp "$home/.env" "$out/env"
     for v in config $SET_VOLUMES; do
       [ -d "$(account_volume "$n" "$v")" ] || continue
@@ -2631,8 +2661,8 @@ make_set() {
   done
   names=''
   for n in $ms_accounts; do names="$names${names:+,}\"$n\""; done
-  printf '{"kind":"botdot-backup-set","format":1,"version":"%s","instance":"%s","admin":"%s","at":"%s","accounts":[%s],"parts":[%s]}\n' \
-    "$(version_now)" "$INSTANCE" "$(get_env "$ENV" FRONT_DOOR_ADMIN)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$names" "$parts" > "$new/manifest.json"
+  printf '{"kind":"botdot-backup-set","format":1,"version":"%s","instance":"%s","admin":"%s","at":"%s","accounts":[%s],"memory":{%s},"parts":[%s]}\n' \
+    "$(version_now)" "$INSTANCE" "$(get_env "$ENV" FRONT_DOOR_ADMIN)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$names" "$ms_memory" "$parts" > "$new/manifest.json"
   find "$new" -type d -exec chmod 700 {} + -o -type f -exec chmod 600 {} +
   chown -R 0:0 "$new"
 

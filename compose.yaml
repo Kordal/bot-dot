@@ -43,6 +43,8 @@ services:
       BOT_DOT_BASH_MAX_SECONDS: ${BOT_DOT_BASH_MAX_SECONDS:-}
       # The push relay the iOS app's notifications go through (ADR 150): empty sends them nothing.
       BOT_DOT_PUSH_RELAY: ${BOT_DOT_PUSH_RELAY:-}
+      # 1 when the account has a disk of its own (install.sh): Storage then counts what that disk uses in all.
+      BOT_DOT_OWN_DISK: ${BOT_DOT_OWN_DISK:-}
     volumes:
       - ./data:/data                                # bots, runs, memory, skills, vault (encrypted)
       - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data

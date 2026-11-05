@@ -295,6 +295,10 @@ test('a bot asks the Chief for a tool; the card says so, and the result names th
   assert.match(await mine.text('ask_chief_for_tool', { name: 'tree', reason: 'Still missing.' }), /asked already/);
   assert.equal(srv.runs().filter((r) => r.botdot && r.stdin.includes('Tool: tree')).length, 1);
   assert.match((await mine.call('ask_chief_for_tool', { name: 'gh', reason: 'x' })).content[0].text, /gh 2\.101\.0 is already installed for you/);
+  // A browser is never asked for: the bot is told to render with the computer's headless Chrome (#960), the Chief is not started.
+  const asking = srv.runs().length;
+  assert.match((await mine.call('ask_chief_for_tool', { name: 'Chromium', reason: 'Hyperframes says Browser not available.' })).content[0].text, /Nothing was asked\. [^]*\$HYPERFRAMES_BROWSER_PATH[^]*\/usr\/bin\/chromium[^]*Never Firefox/);
+  assert.equal(srv.runs().length, asking, 'no Chief turn for a browser');
   srv.release(fresh);
   srv.release(first.rec);
   await srv.finished(first.run.id);

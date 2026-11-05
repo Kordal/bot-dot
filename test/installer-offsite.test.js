@@ -45,14 +45,12 @@ function machine(t, { repo = null } = {}) {
   fs.writeFileSync(path.join(ann, 'data', 'bots.json'), '[{"id":"b1"}]');
   fs.writeFileSync(path.join(ann, 'data', 'backups', 'bot-dot-20261101-0300.bdb'), 'an account backup');
   fs.writeFileSync(path.join(ann, 'data', 'backups', 'bot-dot-20261102-0300.bdb.part'), 'a backup cut off');
-  for (const f of ['memory.db', 'memory.db-wal', 'memory.db-shm']) fs.writeFileSync(path.join(ann, 'data', f), 'live');
-  fs.mkdirSync(path.join(ann, 'data', '.snapshot'), { recursive: true });
-  fs.writeFileSync(path.join(ann, 'data', '.snapshot', 'memory.db'), 'its copy');
   fs.mkdirSync(path.join(ann, 'data', 'workspaces', 'b1', 'app', 'node_modules', 'left-pad'), { recursive: true });
   fs.writeFileSync(path.join(ann, 'data', 'workspaces', 'b1', 'app', 'package.json'), '{}');
   fs.writeFileSync(path.join(ann, 'data', 'workspaces', 'b1', 'app', 'node_modules', 'left-pad', 'index.js'), '');
   fs.mkdirSync(path.join(m.home, 'data'), { recursive: true });
   fs.writeFileSync(path.join(m.home, 'data', 'vault.json'), '[]');
+  for (const f of ['memory.db', 'memory.db-wal', 'memory.db-shm']) fs.writeFileSync(path.join(m.home, 'data', f), 'live');
   fs.mkdirSync(volume(m.home, 'bob_bot-dot-config'), { recursive: true });
   fs.writeFileSync(path.join(volume(m.home, 'bob_bot-dot-config'), 'vault.key'), 'ab'.repeat(32));
   fs.mkdirSync(path.join(volume(m.home, 'botdot-bob.account.computer-workspace'), 'b1'), { recursive: true });
@@ -104,11 +102,16 @@ test('the off-site backup streams every part of a set into the repository, made 
   assert.ok(members(path.join(m.parts, 'front-door', 'data.tar')).includes('./audit.jsonl'));
   const ann = members(path.join(m.parts, 'accounts', 'ann', 'data.tar'));
   assert.ok(ann.includes('./bots.json'));
-  assert.ok(ann.includes('./.snapshot/memory.db'), 'the memory database\'s copy');
   assert.ok(ann.includes('./workspaces/b1/app/package.json'));
-  for (const left of ['./backups', './memory.db', './memory.db-wal', './memory.db-shm', 'node_modules', '.part']) {
+  for (const left of ['./backups', 'node_modules', '.part']) {
     assert.ok(!ann.some((f) => f === left || f.startsWith(`${left}/`) || (!left.startsWith('./') && f.includes(left))), `without ${left}`);
   }
+  // bob's memory is the consistent copy its server made (#1015), in the live file's place, and the copy goes after.
+  const bobTar = path.join(m.parts, 'accounts', 'bob', 'data.tar');
+  const bob = members(bobTar);
+  assert.equal(spawnSync('tar', ['-xOf', bobTar, './memory.db'], { encoding: 'utf8' }).stdout, 'a consistent copy');
+  assert.ok(!bob.includes('./memory.db-wal') && !bob.includes('./memory.db-shm') && !bob.includes('./.snapshot/memory.db'), bob.join(' '));
+  assert.ok(!fs.existsSync(path.join(m.home, 'data', '.snapshot', 'memory.db')));
   assert.equal(fs.readFileSync(path.join(m.parts, 'accounts', 'bob', 'env'), 'utf8'), fs.readFileSync(path.join(m.home, '.env'), 'utf8'));
   assert.ok(members(path.join(m.parts, 'accounts', 'bob', 'config.tar')).includes('./vault.key'));
   const browser = members(path.join(m.parts, 'accounts', 'bob', 'browser.tar'));
