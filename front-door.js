@@ -10,6 +10,9 @@
 //   node front-door.js sign-in-link --account NAME     print a new sign-in link (1 day, works once) that makes a new
 //                                                      passkey for the account NAME (status 3 when there is none): the
 //                                                      admin's own way back in after losing every device
+//   … --by console                                   either one asked by the fleet console through root's step
+//                                                      (#985): one line of JSON, the link or why it was refused, and
+//                                                      an audit entry by the console
 //
 // FRONT_DOOR_ORIGIN   the address people open, e.g. https://botdot.example.com (a passkey belongs to its name)
 // FRONT_DOOR_SOCKETS  the folder of the accounts' botdot servers' sockets: <folder>/<account>/botdot.sock, each in a
@@ -111,6 +114,8 @@ if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
   console.error("FRONT_DOOR_FIRST_ACCOUNT is an account's name: 2 to 24 lowercase letters, digits and dashes, starting with a letter.");
   process.exit(1);
 }
+// A managed machine has no admin: the fleet console is (ADR 154).
+const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
 // The account the setup key makes: the one account, or a managed machine's first.
 const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
 const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
@@ -118,26 +123,53 @@ const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FR
 let machineRam = null;
 const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null });
 
+// The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
+// admin page alone. None on a machine of one account, which has no admin page, unless it asks for agreement to terms
+// (#987), whose record the operator keeps, or is managed (ADR 154), whose links the fleet console asks for (#985). Never a key, a session, a link or a passkey in an entry: each detail below
+// is written here, from what the front door knows, never from a request.
+const audit = ONE_ACCOUNT && !TERMS && !MANAGED ? null : auditStore.open(DATA);
+function audited(action, { account, detail, actor = ADMIN } = {}) {
+  if (!audit) return;
+  try { audit.record({ actor: actor || 'front-door', action, account, detail }); } catch (e) { console.error(`[front door] couldn't keep an audit entry (${action}): ${e.message}`); }
+}
+// A failed try counted against a client; the one after which it waits is kept in the audit log.
+function failedTry(limit, client, what) {
+  if (limit.failed(client) === limits.FREE) audited('slowed-down', { actor: 'front-door', detail: `${client} · after failed ${what}` });
+}
+
+// The links printed on the command line: the install's sign-up link, the admin's way back in, and those the fleet
+// console asks of root's step on a managed machine (#985), with --by console. A console's link is one line of JSON
+// for root's step to keep, { state: 'made', kind, account?, url, expires } or { state: 'refused', kind, account?, error },
+// and every one made or refused is an audit entry by the console, never with the link in it (ADR 141).
 if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
-  if (ONE_ACCOUNT) {
-    console.error(`This machine holds one account, ${ONE_ACCOUNT}, and takes no sign-up links.`);
-    process.exit(1);
-  }
+  const kind = process.argv[2] === 'sign-in-link' ? 'sign-in' : 'sign-up';
   const at = process.argv.indexOf('--account');
   const account = at > 0 ? process.argv[at + 1] ?? '' : null;
+  const by = process.argv.indexOf('--by');
+  const byConsole = by > 0 && process.argv[by + 1] === 'console';
+  const named = account && store.ACCOUNT_NAME.test(account) ? account : undefined;
+  const refused = (error, status) => {
+    if (!byConsole) { console.error(error); process.exit(status); }
+    audited('link-refused', { actor: 'console', account: named, detail: `${kind} link · ${error}` });
+    console.log(JSON.stringify({ state: 'refused', kind, ...(named ? { account: named } : {}), error }));
+    process.exit(status);
+  };
+  // One account takes no sign-up link; a new passkey for it, from a sign-in link, it does.
+  if (ONE_ACCOUNT && kind === 'sign-up') refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no sign-up links.`, 1);
   try {
-    const { url, expires } = process.argv[2] === 'sign-in-link'
+    const { url, expires } = kind === 'sign-in'
       ? doors.newSignInLink({ origin: ORIGIN.origin, account: account ?? '' })
       : doors.newSignUpLink({ origin: ORIGIN.origin, account });
-    console.log(`${url}\n(works once, until ${new Date(expires).toISOString()})`);
+    if (byConsole) {
+      audited(kind === 'sign-in' ? 'sign-in-link' : 'link-made', { actor: 'console', account: named, detail: `until ${new Date(expires).toISOString().slice(0, 16).replace('T', ' ')} UTC` });
+      console.log(JSON.stringify({ state: 'made', kind, ...(named ? { account: named } : {}), url, expires: new Date(expires).toISOString() }));
+    } else console.log(`${url}\n(works once, until ${new Date(expires).toISOString()})`);
     process.exit(0);
   } catch (e) {
     if (!e.status) throw e;
-    console.error(e.message);
-    process.exit(e.status === 409 || e.status === 404 ? 3 : 2);
+    refused(e.message, e.status === 409 || e.status === 404 ? 3 : 2);
   }
 }
-
 const SOCKETS = process.env.FRONT_DOOR_SOCKETS ? path.resolve(process.env.FRONT_DOOR_SOCKETS) : null;
 if (!SOCKETS) {
   console.error("Set FRONT_DOOR_SOCKETS to the folder of the accounts' botdot servers' sockets.");
@@ -195,19 +227,6 @@ const PAUSED = 'Your account is paused by the admin.';
 const tries = limits.create(); // failed sign-ins and sign-up links
 const callTries = limits.create(); // calls with a wrong key, or none, or to an account that doesn't exist
 
-// The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
-// admin page alone. None on a machine of one account, which has no admin page, unless it asks for agreement to terms
-// (#987), whose record the operator keeps. Never a key, a session, a link or a passkey in an entry: each detail below
-// is written here, from what the front door knows, never from a request.
-const audit = ONE_ACCOUNT && !TERMS ? null : auditStore.open(DATA);
-function audited(action, { account, detail, actor = ADMIN } = {}) {
-  if (!audit) return;
-  try { audit.record({ actor: actor || 'front-door', action, account, detail }); } catch (e) { console.error(`[front door] couldn't keep an audit entry (${action}): ${e.message}`); }
-}
-// A failed try counted against a client; the one after which it waits is kept in the audit log.
-function failedTry(limit, client, what) {
-  if (limit.failed(client) === limits.FREE) audited('slowed-down', { actor: 'front-door', detail: `${client} · after failed ${what}` });
-}
 // The challenges given out and not yet answered: challenge → { kind: 'create' | 'get', client, until, token?, name?,
 // userId? }. Asking for one needs no sign-in, so each client holds at most CHALLENGES_PER_CLIENT and all of them at
 // most CHALLENGES_MAX: past that, the oldest goes.
@@ -234,8 +253,6 @@ setInterval(() => {
   for (const map of [challenges, handoffs, agreements]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
 const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
-// A managed machine has no admin: the fleet console is (ADR 154).
-const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
 const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
@@ -565,11 +582,13 @@ function takeHandoff(code, verifier) {
 }
 
 // The sign-up this token opens: the setup key while the machine has no account (for the account it makes: the one
-// account, or a managed machine's first), else, unless the machine holds one account, an open sign-up link.
+// account, or a managed machine's first), else an open sign-up link, or on a machine of one account its sign-in link.
 function signUpLink(token) {
   const setup = !!SETUP_KEY && !doors.accountCount() && token.length === SETUP_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(SETUP_KEY));
   if (setup) return { for: SETUP_ACCOUNT, setup: true };
-  return ONE_ACCOUNT ? null : doors.openLink(token);
+  // One account opens no sign-up link, only a sign-in link for itself, which makes it a new passkey (#985).
+  const link = doors.openLink(token);
+  return ONE_ACCOUNT && !(link?.signIn && link.for === ONE_ACCOUNT) ? null : link;
 }
 
 // The name a sign-up page for the account `account` offers to sign in with: `asked` (the desktop app sends its
