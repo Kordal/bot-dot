@@ -175,7 +175,9 @@ const logsOf = (name) => [
 }).filter(Boolean).join('\n');
 
 async function startMachine(name, { image, step }) {
-  docker('run', '-d', '--privileged', '--name', name, '-e', 'DOCKER_TLS_CERTDIR=', image);
+  // BOT_DOT_ANSWER_TRIES: a release that never starts is given up on after 20 s, not install.sh's 90; one that is
+  // starting still gets its 10 minutes. Every install.sh on the machine has it, the update loop's too.
+  docker('run', '-d', '--privileged', '--name', name, '-e', 'DOCKER_TLS_CERTDIR=', '-e', 'BOT_DOT_ANSWER_TRIES=20', image);
   const inner = (...args) => docker('exec', name, 'docker', ...args);
   const machine = {
     name,

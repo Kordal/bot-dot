@@ -11,7 +11,9 @@
 // account's Docker itself.
 //
 // To add a case, add { name, run } to `cases`: run(machine, stage) gets a fresh machine. INSTALL_REAL_CASE runs
-// only the cases whose name contains it; INSTALL_REAL_KEEP leaves the machines there to look at a failure.
+// only the cases whose name contains it; INSTALL_REAL_SHARD=N/M the Nth of M shares of them, every Mth case from the
+// Nth (install.yml runs the shares on machines of their own); INSTALL_REAL_KEEP leaves the machines there to look at a
+// failure.
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
@@ -835,8 +837,11 @@ const cases = [
 
 stage.run(async () => {
   const only = process.env.INSTALL_REAL_CASE;
-  const chosen = cases.filter((c) => !only || c.name.includes(only));
-  assert.ok(chosen.length, `no case is named like "${only}"`);
+  const shard = process.env.INSTALL_REAL_SHARD;
+  const [n, of] = shard ? shard.split('/').map(Number) : [1, 1];
+  assert.ok(Number.isInteger(n) && Number.isInteger(of) && n >= 1 && n <= of, `INSTALL_REAL_SHARD is N/M, not "${shard}"`);
+  const chosen = cases.filter((c, i) => i % of === n - 1 && (!only || c.name.includes(only)));
+  assert.ok(chosen.length, only ? `no case is named like "${only}"${shard ? ` in share ${shard}` : ''}` : `no case in share ${shard}`);
   for (const c of chosen) {
     stage.step(`--- ${c.name}`);
     const machine = await stage.machine();

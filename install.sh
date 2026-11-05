@@ -2104,14 +2104,16 @@ SCRIPT
 # answers, as the front door asks it, within about 2 minutes (90 tries, each a second apart and at most a second long).
 # A socket alone isn't enough: a botdot server that stopped leaves its socket behind, and the next one removes it only
 # once it starts. One whose container still runs after that is still starting, and gets up to 10 minutes: an account
-# held at its memory limit started in 6, and was rolled back and said not to run (#519).
+# held at its memory limit started in 6, and was rolled back and said not to run (#519). BOT_DOT_ANSWER_TRIES sets the
+# 90 tries for `make install-real`, whose releases that never start would otherwise wait them out on every run.
 answers() {
   i=0
+  tries="${BOT_DOT_ANSWER_TRIES:-90}"
   until [ -S "$1/botdot.sock" ] && curl -fsS -o /dev/null --max-time 1 -H "X-Botdot-Account: $(basename "$1")" --unix-socket "$1/botdot.sock" http://botdot/api/version </dev/null 2>/dev/null; do
     i=$((i + 1))
-    if [ "$i" -ge 90 ]; then
+    if [ "$i" -ge "$tries" ]; then
       [ "$i" -lt 600 ] && [ -n "$($A compose --project-directory "$2" ps -q --status running bot-dot </dev/null 2>/dev/null)" ] || return 1
-      [ "$i" -gt 90 ] || say "  The account $(basename "$1")'s botdot server is still starting. Waiting up to 10 minutes."
+      [ "$i" -gt "$tries" ] || say "  The account $(basename "$1")'s botdot server is still starting. Waiting up to 10 minutes."
     fi
     sleep 1
   done
