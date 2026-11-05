@@ -112,6 +112,7 @@ import dev.botdot.app.ui.ShareScreen
 import dev.botdot.app.ui.PausedScreen
 import dev.botdot.app.ui.SignInScreen
 import dev.botdot.app.ui.VaultScreen
+import dev.botdot.app.ui.StorageScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
