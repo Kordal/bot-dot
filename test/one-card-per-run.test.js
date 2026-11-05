@@ -120,12 +120,14 @@ test('the card of several: where it was asked, its title, and which yes Allow al
     { id: 'g', kind: 'skill', botId: null, chatId: 'c1' },
     { id: 'h', kind: 'bot-change', botId: 'b2', by: 'chief', chatId: 'c1' },
     { id: 'i', kind: 'skill', botId: null },
+    { id: 'j', kind: 'vault-remove', botId: 'b2', runs: [{ id: 'r2' }] },
   ];
   const out = asksLib.batchesOf(list, { runOf, title });
-  assert.deepEqual(Object.keys(out).sort(), ['a', 'b', 'c', 'd', 'f', 'g', 'h']);
+  assert.deepEqual(Object.keys(out).sort(), ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j']);
   assert.deepEqual(out.a, { id: 'run-r1', title: 'run-r1:4', count: 4 });
   assert.equal(out.b.own, true, 'a Vault secret keeps its own yes');
   assert.equal(out.c.own, undefined);
+  assert.equal(out.j.own, undefined, "a Vault entry removed goes to Bitwarden's Trash: Allow all removes it");
   assert.equal(out.d.own, true, 'an action too long to show in full is never allowed once');
   assert.equal(out.h.id, 'chat-c1', "the Chief's change to a bot is on the card of the Chief's chat");
   assert.equal(out.f.count, 3);
