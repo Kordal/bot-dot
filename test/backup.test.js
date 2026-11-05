@@ -130,19 +130,22 @@ test('no restore while bots are working', async () => {
 });
 
 
-test('oversized backup upload is refused without creating a temporary file', async () => {
+test('an upload larger than the disk has room for is refused, saying how much it needs, without a temporary file (#1020)', async () => {
   const http = require('node:http');
-  const status = await new Promise((resolve, reject) => {
-    const req = http.request({ host: '127.0.0.1', port: a.port, path: '/api/backups/upload', method: 'POST', headers: { 'X-Bot-Dot': '1', 'Content-Length': String(256 * 1024 * 1024 + 1) } }, (res) => { res.resume(); resolve(res.statusCode); req.destroy(); });
+  const answer = await new Promise((resolve, reject) => {
+    const req = http.request({ host: '127.0.0.1', port: a.port, path: '/api/backups/upload', method: 'POST', headers: { 'X-Bot-Dot': '1', 'Content-Length': String(2 ** 52) } }, (res) => {
+      let body = ''; res.on('data', (c) => { body += c; }); res.on('end', () => { resolve({ status: res.statusCode, body: JSON.parse(body) }); req.destroy(); });
+    });
     req.on('error', reject); req.flushHeaders();
   });
-  assert.equal(status, 413);
+  assert.equal(answer.status, 507);
+  assert.match(answer.body.error, /^There isn't room on the disk for this backup: it needs \d+ GB and [\d.]+ GB is free\./);
   assert.ok(!fs.readdirSync(path.join(a.data, 'backups')).some((name) => name.startsWith('upload-')));
 });
 
-// 257 MB go through the stand-in front door to reach the 256 MB limit: on a busy machine (a CI runner) that
-// takes longer than 20 s.
-test('chunked backup uploads enforce the size limit and aborted uploads leave no temporary file', { timeout: 60000 }, async (t) => {
+// 257 MB go through the stand-in front door, past the 256 MB the upload was once capped at (#1020): on a busy machine
+// (a CI runner) that takes longer than 20 s.
+test('a chunked upload over 256 MB is taken whole, and an aborted one leaves no temporary file', { timeout: 60000 }, async (t) => {
   const http = require('node:http');
   const { once } = require('node:events');
   const srv = await startServer();
@@ -151,15 +154,17 @@ test('chunked backup uploads enforce the size limit and aborted uploads leave no
   let req;
   const response = new Promise((resolve, reject) => {
     req = http.request({ host: '127.0.0.1', port: srv.port, path: '/api/backups/upload', method: 'POST', headers: { 'X-Bot-Dot': '1' } }, (res) => {
-      res.resume(); res.on('end', () => resolve(res.statusCode));
+      let body = ''; res.on('data', (c) => { body += c; }); res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
     });
     req.on('error', reject);
   });
   const chunk = Buffer.alloc(1024 * 1024);
   for (let n = 0; n < 257; n++) if (!req.write(chunk)) await once(req, 'drain');
   req.end();
-  assert.equal(await response, 413);
-  assert.deepEqual(uploads(), []);
+  const done = await response;
+  assert.equal(done.status, 201, JSON.stringify(done.body));
+  assert.equal(fs.statSync(path.join(srv.data, 'backups', done.body.file)).size, 257 * 1024 * 1024);
+  fs.rmSync(path.join(srv.data, 'backups', done.body.file));
   const aborted = http.request({ host: '127.0.0.1', port: srv.port, path: '/api/backups/upload', method: 'POST', headers: { 'X-Bot-Dot': '1' } });
   aborted.on('error', () => {});
   t.after(() => aborted.destroy());
@@ -168,6 +173,36 @@ test('chunked backup uploads enforce the size limit and aborted uploads leave no
   aborted.destroy();
   await waitFor(() => uploads().length === 0, { what: 'aborted backup cleanup' });
   assert.equal((await srv.api('/version')).status, 200);
+});
+
+test('an upload without a length that fills the disk stops there, says so and leaves no file (#1020)', async () => {
+  const os = require('os');
+  const { PassThrough } = require('stream');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-upload-'));
+  const file = path.join(dir, 'upload-1.tmp');
+  const req = Object.assign(new PassThrough(), { headers: {} });
+  let left = 100 * 1024 * 1024; // what the disk has room for
+  const saving = require('../lib/backup-upload').save(req, file, { free: () => left });
+  const piece = Buffer.alloc(16 * 1024 * 1024);
+  for (let n = 0; n < 8; n++) { req.write(piece); left -= piece.length; }
+  req.end();
+  await assert.rejects(saving, (e) => e.status === 507 && /disk filled up/.test(e.message));
+  assert.deepEqual(fs.readdirSync(dir), []);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('the page, docs/api.md and the server ask for the same shortest passphrase (#1020)', async () => {
+  const { MIN_PASSPHRASE } = require('../lib/backup');
+  assert.equal((await a.api('/backups')).data.minPassphrase, MIN_PASSPHRASE);
+  const page = fs.readFileSync(path.join(ROOT, 'public', 'settings.js'), 'utf8');
+  const card = page.slice(page.indexOf('// Settings → Backups'), page.indexOf('// Setup → Restore a backup'));
+  assert.match(card, /b\.minPassphrase \|\| 12/);
+  assert.equal(MIN_PASSPHRASE, 12, 'the fallback for a server that sends none');
+  assert.doesNotMatch(card, /minlength="\d|at least \d+ characters/, 'no number of its own on the page');
+  assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'lib', 'i18n', 'pl', 'web.json'), 'utf8'), /co najmniej \d+ znak/);
+  const api = fs.readFileSync(path.join(ROOT, 'docs', 'api.md'), 'utf8');
+  assert.match(api, /`minPassphrase` \(12\)/);
+  assert.doesNotMatch(api, /PUT \/api\/backups\/passphrase` with `\{ passphrase \}` \(at least \d/);
 });
 
 test('an existing legacy backup key still creates backups that its old passphrase can restore', async () => {
@@ -254,4 +289,90 @@ test('a backup reads each file up to 8 MB in one call, not as a stream (one for 
     for (const [k, v] of [['BOT_DOT_VAULT_KEY_FILE', saved.file], ['BOT_DOT_VAULT_KEY', saved.key]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
     fs.rmSync(top, { recursive: true, force: true });
   }
+});
+
+// A stand-in for the account's computer (lib/computers.js backupWorkspace): its /workspace packed as `packed`, steps
+// written down, pieces taken in kept.
+function standInComputer(packed, { running = true } = {}) {
+  const calls = [];
+  const taken = [];
+  let unpacked = null;
+  return {
+    calls, taken, unpacked: () => unpacked,
+    ensure: async () => { calls.push('ensure'); },
+    backupWorkspace: async (s) => {
+      calls.push(s.op);
+      if (!running) return s.op === 'pack' ? { code: 0, size: 0, none: true } : { code: null, error: "the computer isn't running" };
+      if (s.op === 'pack') return { code: 0, size: packed.length };
+      if (s.op === 'read') return { code: 0, data: packed.subarray(s.offset, s.offset + s.length).toString('base64') };
+      if (s.op === 'write') { taken.push(Buffer.from(s.data, 'base64')); return { code: 0 }; }
+      if (s.op === 'unpack') { unpacked = Buffer.concat(taken); return { code: 0 }; }
+      return { code: 0 };
+    },
+  };
+}
+async function withBackup(t, computer, work) {
+  const os = require('os');
+  const top = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
+  const dataDir = path.join(top, 'data');
+  fs.mkdirSync(dataDir, { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'bots.json'), '[]');
+  const saved = { file: process.env.BOT_DOT_VAULT_KEY_FILE, key: process.env.BOT_DOT_VAULT_KEY };
+  process.env.BOT_DOT_VAULT_KEY_FILE = path.join(top, 'config', 'vault.key');
+  process.env.BOT_DOT_VAULT_KEY = 'ab'.repeat(32);
+  t.after(() => {
+    for (const [k, v] of [['BOT_DOT_VAULT_KEY_FILE', saved.file], ['BOT_DOT_VAULT_KEY', saved.key]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    fs.rmSync(top, { recursive: true, force: true });
+  });
+  const backup = require('../lib/backup').create({ dataDir, memory: { snapshot: (p) => fs.writeFileSync(p, 'memory') }, computer });
+  backup.setPassphrase(PASS);
+  await work(backup, dataDir);
+}
+
+test("a backup carries the computer's /workspace, read in pieces, and a restore puts it back once the computer runs (#1020)", async (t) => {
+  // Over one piece, so it is read in two.
+  const packed = require('crypto').randomBytes(3 * 1024 * 1024 + 4321);
+  const computer = standInComputer(packed);
+  await withBackup(t, computer, async (backup, dataDir) => {
+    const made = await backup.run();
+    assert.deepEqual(computer.calls, ['pack', 'read', 'read', 'drop']);
+    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    const staged = path.join(dataDir, '.restore-pending', 'data', '.computer', 'workspace.tgz');
+    assert.ok(fs.readFileSync(staged).equals(packed), 'the packed workspace, whole');
+    require('../lib/backup').applyPendingRestore(dataDir);
+    computer.calls.length = 0;
+    await backup.restoreWorkspace();
+    assert.equal(computer.calls[0], 'ensure', 'the computer is started first');
+    assert.deepEqual(computer.calls.slice(1, -1).every((c) => c === 'write'), true);
+    assert.equal(computer.calls.at(-1), 'unpack');
+    assert.ok(computer.unpacked().equals(packed), 'the same bytes go back, in order');
+    assert.ok(!fs.existsSync(path.join(dataDir, '.computer')), 'and the copy here is removed');
+    assert.equal(backup.status().workspaceError, undefined);
+  });
+});
+
+test("an account whose computer doesn't run is backed up as before, and a backup of it restores (#1020)", async (t) => {
+  const computer = standInComputer(Buffer.alloc(0), { running: false });
+  await withBackup(t, computer, async (backup, dataDir) => {
+    const made = await backup.run();
+    assert.deepEqual(computer.calls, ['pack']);
+    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    assert.ok(!fs.existsSync(path.join(dataDir, '.restore-pending', 'data', '.computer')));
+  });
+});
+
+test("a restored computer's files that can't go back yet stay, and status says why (#1020)", async (t) => {
+  const computer = standInComputer(Buffer.from('x'));
+  computer.backupWorkspace = async (s) => (s.op === 'write' ? { code: null, error: "the computer isn't running" } : { code: 0 });
+  await withBackup(t, computer, async (backup, dataDir) => {
+    fs.mkdirSync(path.join(dataDir, '.computer'));
+    fs.writeFileSync(path.join(dataDir, '.computer', 'workspace.tgz'), 'tgz');
+    await backup.restoreWorkspace();
+    assert.match(backup.status().workspaceError, /Couldn't put back the computer's files: the computer isn't running/);
+    assert.ok(fs.existsSync(path.join(dataDir, '.computer', 'workspace.tgz')), 'kept for the next try');
+    // A backup made meanwhile doesn't carry the waiting copy as a file of the data.
+    const made = await backup.run();
+    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    assert.ok(!fs.existsSync(path.join(dataDir, '.restore-pending', 'data', '.computer')));
+  });
 });

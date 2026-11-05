@@ -107,6 +107,14 @@ test("owner edits and power settings never turn off the account's computer (#104
 test("a seat may carry its bot's name, which its commits on the computer carry (#547)", () => {
   const { validate } = require('../lib/docker-helper');
   assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, name: 'Claude Coder' }]), true);
+  // The account's /workspace in the owner's backup (#1020): the move's steps, no bot, no path of anyone's.
+  assert.equal(validate('backupWorkspace', [{ op: 'pack' }]), true);
+  assert.equal(validate('backupWorkspace', [{ op: 'read', offset: 3145728, length: 3145728 }]), true);
+  assert.equal(validate('backupWorkspace', [{ op: 'write', offset: 0, data: 'YWJj' }]), true);
+  assert.equal(validate('backupWorkspace', [{ op: 'pack', path: '/etc' }]), false);
+  assert.equal(validate('backupWorkspace', [{ op: 'run' }]), false);
+  assert.equal(validate('backupWorkspace', [{ op: 'write', data: 'not base64!' }]), false);
+  assert.equal(validate('backupWorkspace', [{ bot: 'ops', screen: 2 }, { op: 'pack' }]), false);
   assert.equal(validate('runShell', [{ bot: 'ops', screen: 2, name: 'Ops' }, { command: 'git log' }]), true);
   for (const name of [42, 'x'.repeat(201), null]) assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, name }]), false, String(name));
   assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, image: 'evil' }]), false);
