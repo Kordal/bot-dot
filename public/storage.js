@@ -11,7 +11,7 @@ const StoragePage = (() => {
   };
   const LABELS = {
     home: () => tr('Home'), browser: () => tr('Browser'), system: () => tr('Installed programs'), runs: () => tr('Runs'),
-    memory: () => tr('Memory'), botdot: () => 'botdot', computer: () => tr('Computer'),
+    memory: () => tr('Memory'), botdot: () => 'botdot', computer: () => tr('Computer'), disk: () => tr('System'),
   };
   const FOLDER = '<svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg>';
   const FILE = '<svg viewBox="0 0 16 16"><path d="M4 2h5l3 3v9H4z"/></svg>';

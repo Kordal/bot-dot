@@ -1985,6 +1985,8 @@ JSON
   set_env "$aenv" BOT_DOT_INSTANCE "$INSTANCE"
   set_env "$aenv" BOT_DOT_FRONT_DOOR_FOLDER "$folder"
   set_env "$aenv" DOCKER_SOCKET "$run/docker.sock"
+  # A disk of its own (disk below): what Storage shows in all is then what that disk uses.
+  if mountpoint -q "$home" 2>/dev/null; then set_env "$aenv" BOT_DOT_OWN_DISK 1; else set_env "$aenv" BOT_DOT_OWN_DISK ''; fi
   # Its data folder, the account's own when it is made: botdot's privilege supervisor gives it to the server's user
   # when the server starts, and that stays. Its Docker restarted the server already when this step starts it again
   # (a resume, a rerun), so changing the owner now would leave the server unable to write its data.
