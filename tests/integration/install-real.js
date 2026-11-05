@@ -403,6 +403,38 @@ const cases = [
       assert.equal(machine.api('GET', '/admin').status, 404, 'not for the account either');
       assert.equal(machine.api('GET', '/front-door/session').body.admin, false);
 
+      // #985: the links the admin page makes elsewhere, asked of root's step by root, kept where only root and the
+      // front door read them, and in no log.
+      const linkAsked = async (request, file, text = '') => {
+        machine.exec('rm', '-f', `${DIR}/front-door/status/${file}`);
+        machine.exec('sh', '-c', `printf '%s' '${text}' > ${DIR}/front-door/requests/${request}`);
+        return until(`root's step to answer ${request}`, () => {
+          const said = JSON.parse(machine.exec('sh', '-c', `cat ${DIR}/front-door/status/${file} 2>/dev/null || echo null`));
+          return said && ['made', 'refused', 'failed'].includes(said.state) ? said : null;
+        }, 5 * 60_000);
+      };
+      stage.step("a sign-in link and a refused sign-up link, asked of root's step");
+      const signIn = await linkAsked(`SIGN-IN-${ADMIN}`, `sign-in-${ADMIN}.json`);
+      assert.equal(signIn.state, 'made', JSON.stringify({ ...signIn, url: undefined }));
+      assert.equal(signIn.account, ADMIN);
+      assert.match(machine.exec('stat', '-c', '%a %U %G', `${DIR}/front-door/status/sign-in-${ADMIN}.json`), /^640 root botdot-door$/);
+      // A browser signed in before stands for the lost devices, whose sessions end; the default one signs in again with
+      // the new passkey, for the steps after this one.
+      machine.exec('cp', '/root/cookies', '/root/lost-device');
+      machine.signUp(signIn.url, ADMIN);
+      assert.equal(machine.api('GET', '/front-door/session').body.account, ADMIN, 'the new passkey signs in');
+      assert.equal(machine.api('GET', '/api/status', undefined, { jar: 'lost-device' }).status, 401, "the lost devices' sessions end");
+      answers(machine);
+      assert.equal(machine.api('GET', new URL(signIn.url).pathname).status, 410, 'once');
+      const noSignUp = await linkAsked('SIGN-UP', 'sign-up.json');
+      assert.equal(noSignUp.state, 'refused', 'a machine of one account takes no sign-up link');
+      const token = new URL(signIn.url).pathname.split('/').pop();
+      const audit = machine.exec('cat', `${DIR}/front-door/data/audit.jsonl`);
+      assert.match(audit, /"actor":"console","action":"sign-in-link"/);
+      assert.match(audit, /"actor":"console","action":"link-refused"/);
+      const logs = machine.exec('sh', '-c', `journalctl -u botdot-accounts --no-pager 2>/dev/null; cat ${DIR}/requests.log 2>/dev/null; true`) + machine.exec('docker', 'compose', '--project-directory', `${DIR}/front-door`, 'logs', '--no-color');
+      for (const [where, text] of [['the audit log', audit], ["root's step's and the front door's logs", logs]]) assert.ok(!text.includes(token), `the link is not in ${where}`);
+
       stage.step('install.sh again, several accounts');
       const again = machine.install({ ...IMAGES, BOT_DOT_VARIANT: 'several' });
       assert.match(again, /This machine now holds several accounts: its accounts and passkeys are kept/);
@@ -411,6 +443,10 @@ const cases = [
       assert.match(machine.exec('cat', `${DIR}/front-door/.env`), new RegExp(`^FRONT_DOOR_FIRST_ACCOUNT=${ADMIN}$`, 'm'));
       answers(machine);
       assert.equal(machine.api('GET', '/admin').status, 404);
+      const signUp = await linkAsked('SIGN-UP', 'sign-up-bea.json', 'bea');
+      assert.equal(signUp.state, 'made', JSON.stringify({ ...signUp, url: undefined }));
+      assert.equal(signUp.account, 'bea');
+      assert.ok([200, 409].includes(machine.api('GET', new URL(signUp.url).pathname).status), 'its page, or the machine is full');
 
       stage.step('back to one account, which it still is');
       assert.equal(machine.tryInstall({ ...IMAGES, BOT_DOT_VARIANT: 'one' }).status, 0, 'with no other account it goes back');
@@ -731,9 +767,9 @@ const cases = [
     },
   },
   {
-    // #979, ADR 155: root's step updates to the version a request names, keeps a snapshot of the account's data before
-    // its switch, takes it back on a rollback request, and puts it back when the named version doesn't start.
-    name: 'a named update keeps a snapshot of the data, a rollback request restores it, and so does a failed switch',
+    // #979, ADR 155: root's step updates to the version a request names, keeps a snapshot of the account's data for its
+    // switch alone (it goes once the new server answers), and puts it back when the named version doesn't start.
+    name: 'a named update keeps a snapshot of the data for its switch alone, and a failed switch gets it back',
     async run(machine) {
       const REQUESTS = `${DIR}/front-door/requests`, STATUS = `${DIR}/front-door/status`;
       const read = (file) => { try { return JSON.parse(machine.exec('cat', file)); } catch { return null; } };
@@ -773,17 +809,16 @@ const cases = [
       assert.equal(named.named, two.split('@')[1], 'update.json says the version asked for');
       assert.equal(pinned(), two, 'the account runs exactly that release');
       await until('the account on release 2', () => { try { answers(machine); return true; } catch { return false; } }, 5 * 60_000);
-      assert.equal(machine.exec('cat', `${HOME}/snapshot/data/release-marker`), 'release-1', 'its data was kept before the switch');
-      assert.equal(machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/snapshot/.env`), one, 'with the version it ran');
+      assert.equal(marker(), 'release-1', 'its data came through the switch');
+      assert.equal(machine.exec('sh', '-c', `ls -A ${HOME} | grep -E '^snapshot' || true`), '', 'its snapshot went once the new server answered');
 
-      stage.step('a rollback request takes it back to the snapshot and release 1');
+      stage.step('a rollback request after a switch that finished has no snapshot to go back to');
       mark('release-2');
       machine.exec('touch', `${REQUESTS}/ROLLBACK-${ADMIN}`);
       const back = await until('the rollback', () => { const a = read(`${STATUS}/account-${ADMIN}.json`); return a && a.state !== 'updated' && a; }, 10 * 60_000);
-      assert.equal(back.state, 'rolledback', JSON.stringify(back));
-      assert.equal(pinned(), one, 'it runs release 1 again');
-      assert.equal(marker(), 'release-1', 'with its data as the snapshot kept it');
-      assert.equal(machine.exec('sh', '-c', `ls -A ${HOME} | grep -E '^(snapshot|data\\.after)$' || true`), '', 'the snapshot is used up');
+      assert.equal(back.state, 'kept', JSON.stringify(back));
+      assert.equal(back.error, 'It has no snapshot to go back to.');
+      assert.equal(pinned(), two, 'it runs release 2 still');
       answers(machine);
 
       stage.step('an update to release 3, which changes the data and never starts: the snapshot comes back');
@@ -791,8 +826,8 @@ const cases = [
       const failed = await updateTo(three);
       assert.equal(failed.state, 'failed', JSON.stringify(failed));
       assert.deepEqual(failed.accounts.map((a) => [a.name, a.result]), [[ADMIN, 'kept']]);
-      assert.equal(pinned(), one, 'it runs the version it ran');
-      assert.equal(marker(), 'release-1', 'with its data as it was before the switch');
+      assert.equal(pinned(), two, 'it runs the version it ran');
+      assert.equal(marker(), 'release-2', 'with its data as it was before the switch');
       answers(machine);
     },
   },

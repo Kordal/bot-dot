@@ -51,6 +51,9 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   // Its own screen and browser, and its own folder (#105).
   assert.match(rec.system, /You have a screen of your own on it, a plain desktop \(1024x768, windows only: no panel or desktop icons\) with your own Camoufox browser/);
   assert.match(rec.system, /The owner can watch your screen and take the mouse and keyboard at any time/);
+  // Rendering pages into video takes a headless Chrome, which it finds itself, never a browser the owner installs.
+  assert.ok(rec.system.includes("Don't browse with Chromium. Tools that render pages into images or video (Hyperframes, Puppeteer, Playwright) need a headless Chrome, never Firefox: use the one at $HYPERFRAMES_BROWSER_PATH, or /usr/bin/chromium"));
+  assert.match(rec.system, /Never ask the owner to install a browser for this\./);
   // Two places, one word each (#545): its workspace on botdot and its computer, and what crosses between them.
   assert.ok(rec.system.includes(`your workspace on botdot (Read, Write, Bash, uploads/) and your computer, whose folder /workspace/${bot.id} your commands start in`));
   assert.ok(rec.system.includes(`Files handed to you are in uploads/ on both. attach_file and message_bot take a path on your computer too (/workspace/${bot.id}/… or /home/box/…).`));

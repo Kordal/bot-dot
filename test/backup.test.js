@@ -184,3 +184,14 @@ test('an existing legacy backup key still creates backups that its old passphras
     assert.equal(restored.status, 200);
   } finally { await legacy.stop(); }
 });
+
+test('what a backup cut off by a restart left is removed when the server starts', () => {
+  const os = require('os');
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
+  const dir = path.join(dataDir, 'backups');
+  fs.mkdirSync(dir);
+  for (const n of ['bot-dot-20261104-231853.bdb.part', '.memory-4242.db', 'bot-dot-20261021-030952.bdb', 'notes.txt']) fs.writeFileSync(path.join(dir, n), 'x');
+  require('../lib/backup').create({ dataDir, memory: {} }).start();
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['bot-dot-20261021-030952.bdb', 'notes.txt'], 'finished backups and anything else stay');
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});

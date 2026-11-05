@@ -574,7 +574,8 @@ test('an update with room in every account goes on, and so does one whose regist
   const roomy = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers() });
   assert.equal(roomy.status, 0, `${roomy.said}\n${roomy.stderr}`);
   assert.equal(downloads(roomy), 2);
-  // Short of room, but nothing to download: the account has every layer, and room only for the snapshot of its data.
+  // Short of room, but nothing to download: the account has every layer. The snapshot of its data isn't counted: one
+  // without room is skipped at its switch.
   const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '64' } });
   assert.equal(has.status, 0, `${has.said}\n${has.stderr}`);
   // An older registry's answer: no layers, no check.
