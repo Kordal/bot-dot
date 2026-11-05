@@ -295,6 +295,7 @@ private fun Table(rows: List<List<String>>, cells: List<AnnotatedString>, color:
     val cols = rows.maxOf { it.size }
     // cells: each row's styled cells, one after another (rows can be shorter than the widest).
     val starts = rows.runningFold(0) { at, row -> at + row.size }
+    val num = numericColumns(rows)
     Layout(
         content = {
             for ((ri, row) in rows.withIndex()) for (c in 0 until cols) {
@@ -319,11 +320,27 @@ private fun Table(rows: List<List<String>>, cells: List<AnnotatedString>, color:
             var y = 0
             for (r in rows.indices) {
                 var x = 0
-                for (c in 0 until cols) { placed[r * cols + c].place(x, y); x += widths[c] + gapX }
+                for (c in 0 until cols) {
+                    val m = placed[r * cols + c]
+                    m.place(if (num[c]) x + widths[c] - m.width else x, y); x += widths[c] + gapX
+                }
                 y += heights[r] + gapY
                 if (r == 0 && rows.size > 1) { rule.place(0, y); y += headerExtra }
             }
         }
+    }
+}
+
+private val NUM_CELL = Regex("""^[-+−]?\d[\d\s.,:]*%?$""")
+
+/** Which columns hold only numbers below the header (at least one, blanks allowed): they line up on the right, as on
+ *  the web (app.js tableHTML). */
+internal fun numericColumns(rows: List<List<String>>): BooleanArray {
+    val cols = rows.maxOf { it.size }
+    val body = rows.drop(1)
+    return BooleanArray(cols) { c ->
+        val cells = body.map { it.getOrElse(c) { "" } }
+        cells.any { it.isNotEmpty() } && cells.all { it.isEmpty() || NUM_CELL.matches(it) }
     }
 }
 

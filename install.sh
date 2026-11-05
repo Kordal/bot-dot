@@ -344,6 +344,16 @@ put() {
 # A number, or null when what was measured isn't one.
 num() { case "$1" in '' | *[!0-9.]* | *.*.*) printf 'null' ;; *) printf '%s' "$1" ;; esac; }
 
+# trim_disk NAME: the account NAME's disk gives the machine back the blocks its files no longer hold. Its image is a
+# sparse file that only grows: what is deleted inside (a snapshot of its data, a bot's files, Docker's images) stays
+# taken on the machine's disk until the disk is trimmed. Once a day (write_load) and as soon as its snapshot goes.
+# Not mounted with discard, which slows every write. Without fstrim, or a disk that isn't mounted, nothing.
+trim_disk() {
+  command -v fstrim >/dev/null 2>&1 && mountpoint -q "$ACCOUNTS/$1" 2>/dev/null || return 0
+  fstrim "$ACCOUNTS/$1" </dev/null >/dev/null 2>&1 || warn "Couldn't give this machine back the free space of the account $1's disk."
+  mkdir -p "$RUN/load" && touch "$RUN/load/$1.trimmed"
+}
+
 # write_load: the machine's load, and each account's use of its share, measured from outside the accounts, for the
 # admin page: LOAD/machine.json and LOAD/account-<account>.json (lib/front-door/load.js reads them). CPU is how many CPUs the
 # account used since the last time (from its unit's CPU time), RAM what its unit holds less its file cache, computers whether its one
@@ -398,6 +408,7 @@ write_load() {
     [ ! -S "$RUN/$n/docker.sock" ] || computers="$(env DOCKER_HOST="unix://$RUN/$n/docker.sock" docker ps -q --filter label=botdot.computer=account --filter status=running </dev/null 2>/dev/null | wc -l | tr -d ' ' || true)"
     size='' used='' full=false
     if mountpoint -q "$ACCOUNTS/$n" 2>/dev/null; then
+      [ -n "$(find "$RUN/load/$n.trimmed" -mmin -1440 2>/dev/null)" ] || trim_disk "$n"
       # shellcheck disable=SC2046
       set -- $(df -Pk "$ACCOUNTS/$n" 2>/dev/null | awk 'NR == 2 { printf "%.0f %.0f %.0f", $2 * 1024, $3 * 1024, $4 * 1024 }' || true)
       size="${1:-}" used="${2:-}"
@@ -410,7 +421,7 @@ write_load() {
     [ -e "$f" ] || continue
     n="$(basename "$f" .json)"
     n="${n#account-}"
-    [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n" "$RUN/load/$n.high"
+    [ -f "$ACCOUNTS/$n/compose.yaml" ] || rm -f "$f" "$RUN/load/$n" "$RUN/load/$n.high" "$RUN/load/$n.trimmed"
   done
 }
 # An image from a registry is installed only once its signature is botdot's, checked before anything is
@@ -1995,6 +2006,7 @@ JSON
   rm -f "$home/compose.yaml.before" "$home/.env.before"
   # Its snapshot was for a new server that doesn't start: it answers, so the copy of its data goes.
   rm -rf -- "$home/snapshot"
+  trim_disk "$name"
   ok "The account $name is running"
   # One that waited, or was switching, runs the version the front door pins now (ADR 053).
   [ ! -f "$DOOR/status/account-$name.json" ] || account_said "$name" updated
@@ -2466,6 +2478,7 @@ rollback_one() {
   if cp -a "$ro_snap/data" "$ro_home/data" && cp -p "$ro_snap/compose.yaml" "$ro_home/compose.yaml" && cp -p "$ro_snap/.env" "$ro_home/.env" \
     && compose_up "$ro_home" && answers "$SOCKETS/$1" "$ro_home"; then
     rm -rf -- "$ro_home/data.after" "$ro_snap"
+    trim_disk "$1"
     rm -f "$ro_home/compose.yaml.before" "$ro_home/.env.before"
     ro_version="$(revision_of "$ro_image" "$A")"
     account_said "$1" rolledback "${ro_version:+\"version\":\"$ro_version\"}"
