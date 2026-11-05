@@ -81,7 +81,10 @@ jobs:
           xcrun simctl install "$DEVICE" "$APP"
           xcrun simctl launch "$DEVICE" dev.botdot.ios
           sleep 15
-          xcrun simctl spawn "$DEVICE" launchctl list | grep -q 'dev.botdot.ios' || { echo "The app is not running"; exit 1; }
+          # Read whole, then searched: `grep -q` stops reading at the first match, and under pipefail the SIGPIPE
+          # it gives launchctl read as an app that isn't running.
+          RUNNING="$(xcrun simctl spawn "$DEVICE" launchctl list)"
+          grep -q 'dev.botdot.ios' <<<"$RUNNING" || { echo "The app is not running"; exit 1; }
           mkdir -p "$GITHUB_WORKSPACE/out"
           xcrun simctl io "$DEVICE" screenshot "$GITHUB_WORKSPACE/out/ios-simulator.png"
 

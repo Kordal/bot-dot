@@ -623,7 +623,9 @@ pub fn run() {
     let builder = desktop_plugins(builder);
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
-        .plugin(tauri_plugin_opener::init())
+        // Without its script: it takes every click on a `target="_blank"` link in every page and asks the app over
+        // IPC, which the front door's page may not use, so the link did nothing. Such a link goes to `on_new_window`.
+        .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![start, connect, run_here])
         .setup(move |app| {
