@@ -36,6 +36,22 @@ fixes. botdot updates itself from Settings → Updates.
 - **Root on the machine reaches every account**: its data, its bots and the logins they hold. The
   installer says so, and so does the sign-up page, before the passkey is made. Keep root to yourself, and don't let an account's owner be root on the machine
   unless they are its admin.
+- A managed machine (ADR 154) is one VPS per customer, holding one account or several, and has no
+  admin page: the front door serves no `/admin`. Its admin is the fleet console, outside this
+  repository, which reaches the machine only through an agent that connects out, opens no port and
+  runs a closed list of signed commands by writing root's request files and reading its status and
+  load files, as the front door does. The console never sees inside an account. gVisor stays on a
+  one-account machine too: an escape from a computer would be root on the VPS, where the agent's
+  console key and the backup keys are.
+- **A managed machine's computers can't reach its network** (#984). Each account's computers and
+  containers leave as that account's Linux user, and on a managed machine root's firewall
+  (`botdot-egress`, in place before any account's Docker starts) refuses every new connection of
+  those users to private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`,
+  `fc00::/7`), to link-local addresses (`169.254/16`, `fe80::/10`, so the cloud's metadata and
+  cloud-init's user-data at `169.254.169.254`) and to TCP ports 25 and 465 anywhere, so a bot sends no
+  spam from the VPS's address. DNS to the machine's resolvers stays open, and so does the machine
+  itself (the front door, Caddy) and every answer. The front door's and Caddy's own traffic isn't
+  touched. A machine that isn't managed keeps ADR 034: its computers reach the local network.
 - A job's call (ADR 026) needs no session: the front door passes `/call/<account>/<bot>/<job>` to that
   account's botdot server, and the job's key alone lets it in, from the internet too when the front door
   is public. The front door slows down repeated wrong keys. Treat a call key like a password.

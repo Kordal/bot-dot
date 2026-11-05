@@ -1,7 +1,7 @@
 // The installer's test helpers (install.sh, #466, ADR 028): install.sh on a stand-in machine, with stand-ins for
 // docker, the machine's tools (useradd, chown, setfacl, systemctl, su, tailscale, curl…) and the account's rootless
 // Docker. Nothing is installed and nothing runs: each stand-in writes down what it was asked, and the tests read what
-// the installer did and said. The installer tests are in four files, so that they run side by side (installer*.test.js).
+// the installer did and said. The installer tests are in five files, so that they run side by side (installer*.test.js).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -25,7 +25,7 @@ const SUB = 165536;
 // The machine's own tools, without those a test stands in for or leaves out: a Linux machine may have the real
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
-  'apt-get', 'dpkg', 'dpkg-query', 'iptables', 'ip6tables', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
+  'apt-get', 'dpkg', 'dpkg-query', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
   'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'truncate', 'df', 'getconf', 'getent']);
 let systemTools = null;
 function machineTools() {
@@ -120,6 +120,8 @@ case " $* " in *" --system "*) echo "$name:$((990 - n)):$((990 - n))" >> "${user
 h=''; prev=''; for a in "$@"; do [ "$prev" = --home-dir ] && h="$a"; prev="$a"; done
 echo "$name:x:$(grep "^$name:" "${users}" | cut -d: -f2-3):botdot:$h:/usr/sbin/nologin" >> "${path.join(etc, 'passwd')}"`);
   for (const name of ['chown', 'setfacl', 'apparmor_parser', 'gpg', 'nohup', 'umount', 'mkfs.ext4', 'resize2fs', 'iptables', 'ip6tables']) stand(name, said(name));
+  // iptables-restore: what it was asked, then the rules it was given, one a line.
+  for (const name of ['iptables-restore', 'ip6tables-restore']) stand(name, `${said(name)}\ncat >> "$STAND_IN_LOG"`);
   // An account's disk: an image file the stand-in truncate writes its size in, mounted (as a mark) by mount.
   const mounts = path.join(top, 'mounts');
   stand('truncate', `${said('truncate')}\ndd if=/dev/zero of="$3" bs=1 count=0 seek="$(( \${2%G} * 1073741824 ))" 2>/dev/null`);
@@ -222,4 +224,7 @@ const running = (image, { account = '', old = '' } = {}) => [
   `[ "$1" = ps ] && [ "$2" = --format ] && { i='${image}'; case "\${DOCKER_HOST:-}" in *'/${account || '-'}/'*) i='${old}' ;; esac; for s in front-door bot-dot docker-helper; do echo "$s $i"; done; exit 0; }`,
 ];
 
-module.exports = { ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob, status, running };
+// What a signature check was asked: the image, which of botdot's, and its options.
+const checked = (args) => args.slice(args.indexOf('/check/lib/signed-image.js') + 1);
+
+module.exports = { checked, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob, status, running };

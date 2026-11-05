@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob } = require('./installer-helpers');
+const { checked, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob } = require('./installer-helpers');
 
 // --- A first install ------------------------------------------------------------------------------
 
@@ -149,9 +149,10 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.ok(fs.existsSync(path.join(done.dir, 'accounts', 'owner', 'compose.yaml')), "the account's botdot server is made");
   assert.match(done.system, /^curl -fsS -o \/dev\/null -H Host: localhost:4700 http:\/\/127\.0\.0\.1:4700\/api\/version$/m);
   const lines = done.said.trim().split('\n');
-  assert.equal(lines.at(-1), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
+  assert.match(lines.at(-1), /^BOTDOT_READY \{"origin":"http:\/\/localhost:4700","version":"[0-9a-f]*","reach":"local","accounts":\["owner"\]\}$/, 'the last line is the one for a program, without the key (#981)');
+  assert.equal(lines.at(-2), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
   assert.equal(done.said.split(key).length, 2, 'the key is on the screen in that line alone');
-  assert.deepEqual(JSON.parse(lines.at(-1).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
+  assert.deepEqual(JSON.parse(lines.at(-2).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
 
   // A rerun keeps the address, the key and the account; once the account exists its line has no sign-up address.
   const dotenv = fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8');
@@ -161,14 +162,14 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.equal(again.env.BOT_DOT_REACH, 'local', 'how it is reached is chosen once');
   assert.equal(again.env.FRONT_DOOR_ORIGIN, 'http://localhost:4700', 'and its address, which its passkey belongs to');
   assert.equal(again.env.FRONT_DOOR_SETUP_KEY, key);
-  assert.equal(again.said.trim().split('\n').at(-1), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
+  assert.equal(again.said.trim().split('\n').at(-2), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
 
   const port = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '5100', BOT_DOT_ADMIN: 'bart' } });
   assert.equal(port.status, 0, port.stderr);
   assert.equal(port.env.FRONT_DOOR_ORIGIN, 'http://localhost:5100');
   assert.equal(port.env.FRONT_DOOR_SITES_ORIGIN, 'http://localhost:5101');
   assert.equal(port.env.FRONT_DOOR_ONE_ACCOUNT, 'bart');
-  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\n$/);
+  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\nBOTDOT_READY \{"origin":"http:\/\/localhost:5100",[^\n]*"accounts":\["bart"\]\}\n$/);
 
   const bad = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '80' } });
   assert.equal(bad.status, 1);
@@ -277,6 +278,7 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
   assert.equal(env.BOT_DOT_FRONT_DOOR_FOLDER, folder);
   assert.equal(env.DOCKER_SOCKET, `${done.run}/ann/docker.sock`);
   assert.equal(env.TZ, 'UTC');
+  assert.match(env.BOT_DOT_INSTANCE, /^[0-9a-f]{8}$/, "the machine's own id, in its boat.dev machines' names (#982)");
   assert.ok(done.accountCalls('ann').includes(`compose --project-directory ${home} up -d --remove-orphans`));
   assert.ok(!done.calls.some((c) => /^compose --project-directory .*accounts/.test(c)), 'never in the machine\'s Docker');
   assert.match(done.said, /The account ann is running/);
@@ -294,6 +296,7 @@ test('a rerun keeps its Docker running when nothing of its settings changed', (t
   const again = installer(t, { again: first });
   assert.equal(again.status, 0, again.stderr);
   const after = again.system.slice(first.system.length);
+  assert.equal(again.accountEnv('ann').BOT_DOT_INSTANCE, first.accountEnv('ann').BOT_DOT_INSTANCE, "the machine's id is made once and kept");
   assert.match(after, /^systemctl start botdot-account@ann$/m);
   assert.doesNotMatch(after, /^systemctl restart/m, 'its bots keep running');
   assert.doesNotMatch(after, /^useradd .*botdot-ann$/m, 'its user is there already');
@@ -332,6 +335,62 @@ test('an account installed before computers kept their files gets --overlay2=non
   assert.equal(again.status, 0, again.stderr);
   assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).runtimes.runsc.runtimeArgs.includes('--overlay2=none'));
   assert.match(again.system.slice(first.system.length), /^systemctl restart botdot-account@ann$/m, 'its computers keep their files from their next start');
+});
+
+// The log limits every container's Docker gets (#980).
+const LOGS = { 'log-driver': 'json-file', 'log-opts': { 'max-size': '20m', 'max-file': '5' } };
+const logsOf = (daemon) => ({ 'log-driver': daemon['log-driver'], 'log-opts': daemon['log-opts'] });
+const machineDaemon = (done) => path.join(done.etc, 'docker', 'daemon.json');
+
+test("the machine's and every account's Docker keep containers' logs to a fixed size, and the machine's restarts once for it (#980)", (t) => {
+  const first = rerun(t);
+  assert.deepEqual(logsOf(JSON.parse(fs.readFileSync(path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json'), 'utf8'))), LOGS);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), LOGS);
+  assert.equal(fs.statSync(machineDaemon(first)).mode & 0o777, 0o644);
+  assert.equal(first.system.match(/^systemctl restart docker$/gm).length, 1);
+  assert.ok(first.system.indexOf('systemctl restart docker') < first.system.indexOf('useradd'), 'before anything of botdot runs in it');
+  const again = installer(t, { again: first });
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.system.slice(first.system.length), /^systemctl restart docker$/m, 'a rerun leaves it running');
+});
+
+test("the admin's own Docker settings are kept: the limits join them, and a log driver the admin chose stays (#980)", (t) => {
+  const first = rerun(t);
+  fs.writeFileSync(machineDaemon(first), '{\n  "registry-mirrors": ["https://mirror.example.com"]\n}\n');
+  const joined = installer(t, { again: first });
+  assert.equal(joined.status, 0, joined.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), { ...LOGS, 'registry-mirrors': ['https://mirror.example.com'] });
+  assert.match(joined.system.slice(first.system.length), /^systemctl restart docker$/m);
+  const own = '{ "log-driver": "journald" }\n';
+  fs.writeFileSync(machineDaemon(first), own);
+  const kept = installer(t, { again: joined });
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.equal(fs.readFileSync(machineDaemon(first), 'utf8'), own);
+  assert.doesNotMatch(kept.system.slice(joined.system.length), /^systemctl restart docker$/m);
+});
+
+test('an update of a machine installed before log limits gives them to its Docker and every account\'s, each restarted once (#980)', (t) => {
+  const first = rerun(t);
+  const account = path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json');
+  const before = JSON.parse(fs.readFileSync(account, 'utf8'));
+  delete before['log-driver'];
+  delete before['log-opts'];
+  fs.writeFileSync(account, JSON.stringify(before, null, 2));
+  fs.rmSync(machineDaemon(first));
+  const update = installer(t, { again: first, args: ['--update'] });
+  assert.equal(update.status, 0, `${update.said}\n${update.stderr}`);
+  assert.deepEqual(logsOf(JSON.parse(fs.readFileSync(account, 'utf8'))), LOGS);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), LOGS);
+  const after = update.system.slice(first.system.length);
+  assert.equal(after.match(/^systemctl restart docker$/gm).length, 1);
+  assert.equal(after.match(/^systemctl restart botdot-account@ann$/gm).length, 1);
+});
+
+test("without systemd the machine's Docker gets its log limits in its settings, and the installer says they apply after its restart (#980)", (t) => {
+  const done = rerun(t, '', {}, { systemd: false });
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(done), 'utf8')), LOGS);
+  assert.doesNotMatch(done.system, /^systemctl restart docker$/m);
+  assert.match(done.said + done.stderr, /only after it next restarts/);
 });
 
 test('without systemd the account\'s Docker is started now, as its own user, and the installer says it won\'t come back by itself', (t) => {
@@ -515,8 +574,8 @@ test('an update with room in every account goes on, and so does one whose regist
   const roomy = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers() });
   assert.equal(roomy.status, 0, `${roomy.said}\n${roomy.stderr}`);
   assert.equal(downloads(roomy), 2);
-  // Short of room, but nothing to download: the account has every layer.
-  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '1' } });
+  // Short of room, but nothing to download: the account has every layer, and room only for the snapshot of its data.
+  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '64' } });
   assert.equal(has.status, 0, `${has.said}\n${has.stderr}`);
   // An older registry's answer: no layers, no check.
   const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1' } });
@@ -534,7 +593,7 @@ test('a computer image that could not be downloaded now is downloaded by botdot 
 test('the image it is given is installed as its repository\'s signed release, as the updater does', (t) => {
   const mine = `ghcr.io/kordal/bot-dot@sha256:${'b'.repeat(64)}`;
   const { env, checks } = rerun(t, `BOT_DOT_IMAGE=ghcr.io/kordal/bot-dot${PIN}\n`, { BOT_DOT_IMAGE: mine });
-  assert.equal(checks[0].at(-2), mine);
+  assert.equal(checked(checks[0])[0], mine);
   assert.equal(env.BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);
 });
 
@@ -545,7 +604,7 @@ test('compose starts what .env names, not the names the installer was given', ()
 
 test('both images\' signatures are checked before anything of botdot\'s is downloaded', (t) => {
   const { docker, checks } = rerun(t);
-  assert.deepEqual(checks.map((args) => args.slice(-2)), [['ghcr.io/kordal/bot-dot:latest', 'server'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
+  assert.deepEqual(checks.map((args) => checked(args).slice(0, 2)), [['ghcr.io/kordal/bot-dot:latest', 'server'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
   const lastCheck = docker.reduce((last, c, i) => (c.call.includes('/check/lib/signed-image.js') ? i : last), -1);
   assert.ok(docker.findIndex((c) => DOWNLOADS.test(c.call)) > lastCheck, docker.map((c) => c.call).join('\n'));
 });

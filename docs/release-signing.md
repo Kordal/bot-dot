@@ -56,7 +56,9 @@ key in a release signed with the old one first.
 ## Where a release is published
 
 An image's signed release is an index tagged `accounts-release` in its repository, whose annotation
-`dev.botdot.release` is the signed manifest (`lib/registry.js`, `RELEASE_TAG`). A botdot from before accounts
+`dev.botdot.release` is the signed manifest (`lib/registry.js`, `RELEASE_TAG`). The same index is also tagged
+`accounts-release-<the image digest's 64 hex digits>` and `accounts-release-<its source revision>`, so that an update
+can name that release later and find its computer image by the revision (`lib/signed-image.js --at`, [ADR 155](adr/155-an-update-can-name-its-version-and-keeps-a-snapshot-of-each-accounts-data.md)). A botdot from before accounts
 reads the tag `release`, which stays at the last version without accounts: a botdot with accounts is installed
 again and never offered to one as an update ([ADR 028](adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)).
 

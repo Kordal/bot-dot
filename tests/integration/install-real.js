@@ -20,6 +20,13 @@ const { createStage, until, REGISTRY, SERVER, DESKTOP, DOMAIN, ADMIN, DIR, REGIS
 // The names `make images` gives a self-built botdot server's images.
 const SELF_SERVER = 'bot-dot/server:latest', SELF_DESKTOP = 'bot-dot/desktop:latest';
 const HOME = `${DIR}/accounts/${ADMIN}`;
+// readyOf(said): the run's last line for a program, BOTDOT_READY and its JSON (#981), the one such line it printed.
+function readyOf(said) {
+  const lines = said.trim().split('\n');
+  assert.equal(lines.filter((l) => l.startsWith('BOTDOT_READY ')).length, 1, `one BOTDOT_READY line:\n${said}`);
+  assert.match(lines.at(-1), /^BOTDOT_READY \{/, `the run's last line is BOTDOT_READY:\n${said}`);
+  return JSON.parse(lines.at(-1).slice('BOTDOT_READY '.length));
+}
 const NOT_YET = "Open the link from your server's install";
 const ROOT_REACHES = 'Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself.';
 
@@ -74,6 +81,61 @@ function startComputer(machine, image) {
   assert.equal(stopped.status, 409, `the account's computer stays on: ${JSON.stringify(stopped.body)}`);
   assert.equal(machine.account(ADMIN, 'inspect', '--format', '{{.State.Status}}', container), 'running');
   return { id, container };
+}
+
+// #980: a container's log in the account's Docker is json-file, rotated at 20 MB and kept to five files: 130 MB written
+// leave at most 100 MB. The machine's Docker has the same limits in its settings (it reads them when it next starts:
+// the test machine has no systemd to restart it).
+function logsStayWithinLimit(machine, image) {
+  stage.step('a container\'s log stops growing past its limit');
+  const MB = 1024 * 1024;
+  const chatty = machine.account(ADMIN, 'run', '-d', '--network', 'none', '--entrypoint', 'node', image, '-e',
+    "const l = 'x'.repeat(1023) + '\\n'; let n = 0; (function w() { while (n < 130 * 1024) { n++; if (!process.stdout.write(l)) return process.stdout.once('drain', w); } })()");
+  assert.equal(machine.account(ADMIN, 'wait', chatty), '0');
+  const made = JSON.parse(machine.account(ADMIN, 'inspect', chatty))[0];
+  assert.deepEqual(made.HostConfig.LogConfig, { Type: 'json-file', Config: { 'max-size': '20m', 'max-file': '5' } });
+  const sizes = machine.exec('sh', '-c', `stat -c %s ${made.LogPath}*`).split('\n').map(Number);
+  assert.ok(sizes.length > 1 && sizes.length <= 5, `rotated, five files at most: ${sizes}`);
+  for (const size of sizes) assert.ok(size <= 20 * MB + 64 * 1024, `each file about 20 MB at most: ${sizes}`);
+  assert.ok(sizes.reduce((a, b) => a + b, 0) < 101 * MB, `100 MB at most of the 130 MB written: ${sizes}`);
+  machine.account(ADMIN, 'rm', chatty);
+  const own = JSON.parse(machine.exec('cat', '/etc/docker/daemon.json'));
+  assert.deepEqual([own['log-driver'], own['log-opts']], ['json-file', { 'max-size': '20m', 'max-file': '5' }], 'the machine\'s Docker has the same limits');
+}
+
+// #984: on a managed machine, a container of the account's Docker, under gVisor and leaving as a computer does (through
+// the account's slirp4netns, as its Linux user), is refused a private address, the cloud's
+// metadata address and SMTP, each by its rule, and still reaches an internet host on 443 and resolves names. The
+// probe tries each "host port" and says how it went: open, or the error.
+const PROBE = `const net = require('node:net'), dns = require('node:dns');
+const one = (t) => new Promise((ok) => { const [host, port] = t.split(' '); const s = net.connect({ host, port: Number(port) });
+  const end = (r) => { s.destroy(); ok(r); }; s.setTimeout(10000, () => end('timeout')); s.on('connect', () => end('open')); s.on('error', (e) => end(e.code)); });
+(async () => { const out = {}; for (const t of process.argv.slice(1)) out[t] = await one(t);
+  out.dns = await new Promise((ok) => dns.lookup('github.com', (e) => ok(e ? e.code : 'ok'))); console.log(JSON.stringify(out)); })();`;
+function computersAreGuarded(machine) {
+  stage.step('a computer is refused private addresses, the metadata address and SMTP, and reaches the internet');
+  const image = machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/.env`);
+  // A private address outside the account's own networks (its Docker's bridges in 172.16/12 and 192.168/16, slirp4netns's
+  // 10.0.2/24), so that the connection leaves through slirp4netns, as one to the provider's private network would.
+  const priv = '10.255.255.1';
+  // The packets each of the guard's rules refused: its line in `iptables -L -v -x -n`, by what it matches.
+  const counts = () => {
+    const lines = machine.exec('iptables', '-L', 'BOTDOT-GUARD', '-v', '-x', '-n').split('\n');
+    const of = (what) => Number(lines.find((l) => l.includes('REJECT') && l.includes(what))?.trim().split(/\s+/)[0] ?? NaN);
+    return { private: of('172.16.0.0/12') + of('10.0.0.0/8') + of('192.168.0.0/16'), metadata: of('169.254.0.0/16'), smtp: of('25,465') };
+  };
+  const before = counts();
+  const targets = [`${priv} 80`, '169.254.169.254 80', '1.1.1.1 25', '1.1.1.1 443'];
+  const said = JSON.parse(machine.account(ADMIN, 'run', '--rm', '--entrypoint', 'node', image, '-e', PROBE, ...targets));
+  const after = counts();
+  for (const t of targets.slice(0, 3)) assert.notEqual(said[t], 'open', `${t} is refused: ${JSON.stringify(said)}`);
+  assert.ok(after.private > before.private, `the private address by its rule: ${JSON.stringify({ before, after })}`);
+  assert.ok(after.metadata > before.metadata, `the metadata address by its rule: ${JSON.stringify({ before, after })}`);
+  assert.ok(after.smtp > before.smtp, `port 25 by its rule: ${JSON.stringify({ before, after })}`);
+  assert.equal(said['1.1.1.1 443'], 'open', `an internet host on 443 is reached: ${JSON.stringify(said)}`);
+  assert.equal(said.dns, 'ok', 'and names resolve');
+  // Only the accounts' Linux users go through the guard: the front door's and Caddy's traffic doesn't.
+  assert.equal(machine.exec('iptables', '-S', 'BOTDOT-EGRESS').split('\n').filter((l) => l.includes('--uid-owner')).length, 1, 'one account, one user');
 }
 
 // A stand-in tailscaled for root's Tailscale folder (#106): it notes its arguments there and listens on its socket, as
@@ -190,6 +252,12 @@ const cases = [
       assert.ok(said.includes(ROOT_REACHES), `the installer says that root reaches every account:\n${said}`);
       assert.ok(said.indexOf(ROOT_REACHES) < said.indexOf('/sign-up/'), 'before the link');
       assert.ok(said.includes(`Until it is used, botdot shows only "${NOT_YET}".`));
+      const ready = readyOf(said);
+      assert.equal(ready.origin, `https://${DOMAIN}`);
+      assert.equal(ready.reach, 'public');
+      assert.match(ready.version, /^[0-9a-f]{7,12}$/);
+      assert.deepEqual(ready.accounts, [ADMIN]);
+      assert.ok(said.includes(`  ${ready.signUp}\n`), `signUp is the admin's link the installer printed:\n${said}`);
 
       // What was checked is what runs: both images pinned by their signed digests, in the account's Docker.
       const env = machine.exec('cat', `${HOME}/.env`);
@@ -200,6 +268,8 @@ const cases = [
       assert.ok(machine.downloads().some((request) => request.includes('/blobs/')), 'the registry\'s log shows what was downloaded, which the refused installs are checked by');
       accountIsWalledOff(machine);
       helperHasNoPrivileges(machine);
+      logsStayWithinLimit(machine, server);
+      assert.equal(machine.exec('sh', '-c', 'iptables -S BOTDOT-EGRESS >/dev/null 2>&1 && echo there || echo none'), 'none', 'a machine that isn\'t managed has no guard of its computers (#984)');
 
       stage.step('botdot before the sign-up, and the admin\'s sign-up through Caddy');
       const before = machine.api('GET', '/sign-in');
@@ -216,6 +286,12 @@ const cases = [
       const again = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
       assert.doesNotMatch(again, /\/sign-up\//, `once the account is made there is no link:\n${again}`);
       assert.ok(again.includes(ROOT_REACHES));
+      assert.deepEqual(readyOf(again), { origin: `https://${DOMAIN}`, version: ready.version, reach: 'public', accounts: [ADMIN] }, 'no signUp once the account exists');
+      answers(machine);
+
+      stage.step("root's update ends with the line too");
+      const updated = machine.exec('sh', `${DIR}/bin/install.sh`, '--update');
+      assert.deepEqual(readyOf(updated), { origin: `https://${DOMAIN}`, version: ready.version, reach: 'public', accounts: [ADMIN] }, `the version it runs:\n${updated}`);
       answers(machine);
     },
   },
@@ -241,10 +317,15 @@ const cases = [
         try { parsed = JSON.parse(parsed); } catch { /* not JSON */ }
         return { status: Number(out.slice(at + 1)), body: parsed };
       };
+      // The app's line, just before the one for a program (#981), which carries no setup key.
       const lineOf = (said) => {
-        const last = said.trim().split('\n').at(-1);
-        assert.match(last, /^BOTDOT_LOCAL \{/, `the install's last line is the app's:\n${said}`);
-        return JSON.parse(last.slice('BOTDOT_LOCAL '.length));
+        const ready = readyOf(said);
+        assert.equal(ready.origin, ORIGIN);
+        assert.equal(ready.reach, 'local');
+        assert.ok(!('signUp' in ready), `the setup key stays in the app's line alone:\n${said}`);
+        const app = said.trim().split('\n').at(-2);
+        assert.match(app, /^BOTDOT_LOCAL \{/, `the line before it is the app's:\n${said}`);
+        return JSON.parse(app.slice('BOTDOT_LOCAL '.length));
       };
 
       stage.step('install.sh, local');
@@ -284,6 +365,55 @@ const cases = [
       const again = machine.install({ BOT_DOT_REACH: 'local', BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` });
       assert.deepEqual(lineOf(again), { origin: ORIGIN }, 'once the account is made, no sign-up address');
       assert.equal(local('GET', '/api/version').status, 200, 'the same browser is still signed in: account and passkey kept');
+    },
+  },
+  {
+    // #983 (ADR 154): a managed machine of one account on a public domain: no admin page, its passkey made with the
+    // setup key's link, and a rerun that turns it into a machine of several and keeps the account and its passkey.
+    name: 'a managed install: one account without an admin page, then several, keeping the account',
+    async run(machine) {
+      await machine.load(stage.server());
+      await machine.load(stage.computer());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      machine.publish(stage.computer(), `${DESKTOP}:latest`);
+      machine.sign(`${SERVER}:latest`, { app: 'server' });
+      machine.sign(`${DESKTOP}:latest`, { app: 'desktop' });
+      const IMAGES = { BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` };
+
+      stage.step('install.sh, managed, one account');
+      const said = machine.install({ ...IMAGES, BOT_DOT_MANAGED: '1', BOT_DOT_VARIANT: 'one' });
+      assert.match(said, /The front door is running/);
+      assert.match(said, new RegExp(`The account ${ADMIN} is running`));
+      assert.doesNotMatch(said, /admin page|\/admin/, `no admin page is named:\n${said}`);
+      const env = machine.exec('cat', `${DIR}/front-door/.env`);
+      assert.match(env, /^FRONT_DOOR_MANAGED=1$/m);
+      assert.match(env, new RegExp(`^FRONT_DOOR_ONE_ACCOUNT=${ADMIN}$`, 'm'));
+      assert.match(machine.exec('cat', `${HOME}/share/share.json`), /^\{"cpu":4,"ram":8\}$/, 'the managed share');
+      assert.equal(machine.api('GET', '/admin').status, 404, 'no admin page');
+
+      const ready = readyOf(said);
+      assert.equal(ready.variant, 'one');
+      assert.match(ready.signUp, new RegExp(`^https://${DOMAIN.replace('.', '\\.')}/sign-up/[0-9a-f]{64}$`), "the setup key's link");
+
+      stage.step('the passkey, made with the setup key');
+      machine.signUp(ready.signUp);
+      answers(machine);
+      computersAreGuarded(machine);
+      answers(machine);
+      assert.equal(machine.api('GET', '/admin').status, 404, 'not for the account either');
+      assert.equal(machine.api('GET', '/front-door/session').body.admin, false);
+
+      stage.step('install.sh again, several accounts');
+      const again = machine.install({ ...IMAGES, BOT_DOT_VARIANT: 'several' });
+      assert.match(again, /This machine now holds several accounts: its accounts and passkeys are kept/);
+      assert.doesNotMatch(again, /\/sign-up\//, `the account exists, so no link:\n${again}`);
+      assert.deepEqual(readyOf(again), { origin: `https://${DOMAIN}`, version: ready.version, reach: 'public', variant: 'several', accounts: [ADMIN] });
+      assert.match(machine.exec('cat', `${DIR}/front-door/.env`), new RegExp(`^FRONT_DOOR_FIRST_ACCOUNT=${ADMIN}$`, 'm'));
+      answers(machine);
+      assert.equal(machine.api('GET', '/admin').status, 404);
+
+      stage.step('back to one account, which it still is');
+      assert.equal(machine.tryInstall({ ...IMAGES, BOT_DOT_VARIANT: 'one' }).status, 0, 'with no other account it goes back');
     },
   },
   {
@@ -598,6 +728,72 @@ const cases = [
       assert.ok(JSON.stringify(other.api('GET', '/api/vault', undefined, { jar: 'restored' }).body).includes('Restore test'));
       assert.equal(secretOf(other, 'Restore test'), 'a secret kept', 'the Vault entry decrypts with the restored key');
       stage.remove(other);
+    },
+  },
+  {
+    // #979, ADR 155: root's step updates to the version a request names, keeps a snapshot of the account's data before
+    // its switch, takes it back on a rollback request, and puts it back when the named version doesn't start.
+    name: 'a named update keeps a snapshot of the data, a rollback request restores it, and so does a failed switch',
+    async run(machine) {
+      const REQUESTS = `${DIR}/front-door/requests`, STATUS = `${DIR}/front-door/status`;
+      const read = (file) => { try { return JSON.parse(machine.exec('cat', file)); } catch { return null; } };
+      const marker = () => machine.exec('cat', `${HOME}/data/release-marker`);
+      const mark = (text) => machine.exec('sh', '-c', `echo ${text} > ${HOME}/data/release-marker && chmod 666 ${HOME}/data/release-marker`);
+      const pinned = () => machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/.env`);
+      // A release of the stand-in server: committed with a label of its own (another digest), CMD replacing its command.
+      const release = async (n, cmd) => {
+        await machine.load(stage.server());
+        machine.inner('create', '--name', `release-${n}`, stage.server());
+        machine.inner('commit', '--change', `LABEL dev.botdot.test.release=${n}`, ...(cmd ? ['--change', `CMD ${JSON.stringify(cmd)}`] : []), `release-${n}`, `release-${n}:latest`);
+        machine.inner('rm', '-v', `release-${n}`);
+        machine.inner('image', 'rm', stage.server());
+        machine.publish(`release-${n}:latest`, `${SERVER}:release-${n}`);
+        return machine.sign(`${SERVER}:release-${n}`, { app: 'server', version: n, revision: String(n).repeat(40) });
+      };
+      // An update root's step takes from the request file, as the console writes it: how it went.
+      const updateTo = async (image) => {
+        const was = read(`${STATUS}/update.json`)?.at || '';
+        machine.exec('sh', '-c', `echo ${image.split('@')[1]} > ${REQUESTS}/UPDATE`);
+        return until(`the update to ${image}`, () => { const u = read(`${STATUS}/update.json`); return u && u.at !== was && u.state !== 'updating' && u; }, 15 * 60_000);
+      };
+
+      await machine.load(stage.server());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      const one = machine.sign(`${SERVER}:latest`, { app: 'server', version: 1, revision: '1'.repeat(40) });
+      stage.step('install.sh, release 1');
+      const said = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest` });
+      machine.signUp(said);
+      answers(machine);
+      mark('release-1');
+
+      stage.step('an update to release 2, named by its digest');
+      const two = await release(2);
+      const named = await updateTo(two);
+      assert.equal(named.state, 'updated', JSON.stringify(named));
+      assert.equal(named.named, two.split('@')[1], 'update.json says the version asked for');
+      assert.equal(pinned(), two, 'the account runs exactly that release');
+      await until('the account on release 2', () => { try { answers(machine); return true; } catch { return false; } }, 5 * 60_000);
+      assert.equal(machine.exec('cat', `${HOME}/snapshot/data/release-marker`), 'release-1', 'its data was kept before the switch');
+      assert.equal(machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/snapshot/.env`), one, 'with the version it ran');
+
+      stage.step('a rollback request takes it back to the snapshot and release 1');
+      mark('release-2');
+      machine.exec('touch', `${REQUESTS}/ROLLBACK-${ADMIN}`);
+      const back = await until('the rollback', () => { const a = read(`${STATUS}/account-${ADMIN}.json`); return a && a.state !== 'updated' && a; }, 10 * 60_000);
+      assert.equal(back.state, 'rolledback', JSON.stringify(back));
+      assert.equal(pinned(), one, 'it runs release 1 again');
+      assert.equal(marker(), 'release-1', 'with its data as the snapshot kept it');
+      assert.equal(machine.exec('sh', '-c', `ls -A ${HOME} | grep -E '^(snapshot|data\\.after)$' || true`), '', 'the snapshot is used up');
+      answers(machine);
+
+      stage.step('an update to release 3, which changes the data and never starts: the snapshot comes back');
+      const three = await release(3, ['sh', '-c', 'echo release-3 > /data/release-marker; echo "This release does not start." >&2; exit 1']);
+      const failed = await updateTo(three);
+      assert.equal(failed.state, 'failed', JSON.stringify(failed));
+      assert.deepEqual(failed.accounts.map((a) => [a.name, a.result]), [[ADMIN, 'kept']]);
+      assert.equal(pinned(), one, 'it runs the version it ran');
+      assert.equal(marker(), 'release-1', 'with its data as it was before the switch');
+      answers(machine);
     },
   },
 ];

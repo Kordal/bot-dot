@@ -283,6 +283,10 @@ fn on_menu(app: &AppHandle, id: &str) {
 // Every window of the app: where its page may go.
 fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle>) -> WebviewWindowBuilder<'a, Wry, AppHandle> {
     let (on_load, on_new_window) = (app.clone(), app.clone());
+    // The page's own drag and drop (a bot's key to another place, a file onto a chat): Tauri's handler, on by
+    // default, takes every drag for itself on macOS and Windows, and the page never sees it.
+    #[cfg(desktop)]
+    let builder = builder.disable_drag_drop_handler();
     builder
         .on_page_load(move |window, load| {
             let Some(door) = on_load.state::<App>().door() else { return };

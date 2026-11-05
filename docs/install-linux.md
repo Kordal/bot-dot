@@ -37,6 +37,21 @@ The installer asks before it installs anything. It asks how people reach botdot 
 3. makes your account: the Linux user `botdot-<name>`, its rootless Docker, and its botdot server in `/var/lib/botdot/accounts/<name>`;
 4. ends with the address and **your sign-up link**. Open it and make your passkey: that account is the admin's. Until the link is used, botdot shows only "Open the link from your server's install".
 
+**The last line, for a program.** Every install and every update, on a public domain, a tailnet or a botdot on one computer, ends with one line that a program such as a fleet console reads instead of the prose above it: `BOTDOT_READY` and a JSON object on the same line.
+
+```
+BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":"public","accounts":["ann"],"signUp":"https://botdot.example.com/sign-up/…"}
+```
+
+- `origin`: the address people open.
+- `version`: the version the front door and the accounts now run, as the admin page shows it.
+- `reach`: `public`, `tailnet` or `local`.
+- `variant`: `one` or `several`, on a managed machine only (below); absent elsewhere.
+- `accounts`: the names of the accounts this machine runs.
+- `signUp`: the admin's sign-up link, while that account doesn't exist yet; absent afterwards. An update makes no link, so its line has none; a botdot on one computer keeps its setup key in its own `BOTDOT_LOCAL` line, the one before, which the desktop app reads ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)). On a managed machine it is the setup key's link to the first account, printed nowhere else.
+
+A run that fails prints no such line.
+
 ## More accounts
 
 Open **`https://<your address>/admin`**, the admin page, signed in as yourself, and choose **New sign-up link**. Hand the link to one person: it works once, for 7 days, and you can revoke it there. The page lists every link: open, used (by which account) or ended. No other account reaches the admin page, and it never shows what is inside an account.
@@ -86,11 +101,34 @@ A **self-built botdot server** instead builds both images from the source on the
 cd bot-dot-source && sudo make images && sudo BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sh install.sh
 ```
 
-To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below).
+To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below); for terms of service, `FRONT_DOOR_TERMS_URL`, `FRONT_DOOR_PRIVACY_URL` and `FRONT_DOOR_TERMS_VERSION` (below).
 
 A first install also asks whether to use Jev as the decision model (with an OpenRouter key) and boat.dev for the External Virtual PC (with a boat.dev API key). Each key is checked before it is kept; one that is refused is asked again, and one that can't be checked is set later on the admin page, where both can be changed. Set `BOT_DOT_OPENROUTER_KEY` and `BOT_DOT_BOAT_KEY` to answer beforehand, or set either to nothing to skip it without a question.
 
 `BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
+
+`BOT_DOT_MANAGED=1` makes a managed machine, which the fleet console runs ([ADR 154](adr/154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md)). It is chosen at the first install, never asked, and kept: a machine installed without it stays as it is. It needs `BOT_DOT_REACH` `public` or `tailnet`, and asks nothing: the first account is `BOT_DOT_ADMIN` (default `owner`), the Jev and boat.dev keys come only from `BOT_DOT_OPENROUTER_KEY` and `BOT_DOT_BOAT_KEY`. A managed machine has no admin page and no admin. `BOT_DOT_VARIANT` says how many accounts it holds, and is kept:
+
+- `one` (the default): one account. Its passkey is made with the setup key: `signUp` in the install's `BOTDOT_READY` line is `https://<name>/sign-up/<setup key>` until the account exists.
+- `several`: the first account is made the same way; later accounts come only from sign-up links root's step makes.
+
+Each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, never overcommitted: the machine holds as many accounts as it has CPUs for and, after 2 GB of RAM for the system, RAM for. A Contabo Cloud VPS 6 (6 CPUs, 12 GB) holds one account, a Cloud VPS 8 (8 CPUs, 24 GB) two. An install on a machine without room for one share stops before it installs anything, and a sign-up link makes no account that wouldn't fit. A rerun with `BOT_DOT_VARIANT=several` turns a machine of one account into one of several without a reinstall, keeping the account and its passkeys; going back to `one` is refused while the machine has another account.
+
+A managed machine's computers can't reach its network ([ADR 156](adr/156-a-managed-machines-computers-reach-no-private-address-metadata-or-smtp.md)): root's firewall, `botdot-egress`, refuses the accounts' Linux users every new connection to a private range, a link-local address (the cloud's metadata at `169.254.169.254`) and TCP 25 and 465, over IPv4 and IPv6, before any account's Docker starts. DNS to the machine's resolvers, the machine itself and every answer stay open; the front door and Caddy aren't touched. Its rules: `sudo iptables -S BOTDOT-GUARD`.
+
+## Terms and privacy policy
+
+A machine you sell as hosting can ask each owner to agree to your terms of service and privacy policy. Give the installer three settings, once; it keeps them in `/var/lib/botdot/front-door/.env`:
+
+- `FRONT_DOOR_TERMS_URL`: the address of your terms of service.
+- `FRONT_DOOR_PRIVACY_URL`: the address of your privacy policy.
+- `FRONT_DOOR_TERMS_VERSION`: their version, 1 to 40 letters, digits, dots, dashes and underscores (`1` when not set).
+
+```bash
+sudo FRONT_DOOR_TERMS_URL=https://example.com/terms FRONT_DOOR_PRIVACY_URL=https://example.com/privacy FRONT_DOOR_TERMS_VERSION=2026-11 sh bot-dot-source/install.sh
+```
+
+With both addresses set, the sign-up page, from a sign-up link or from the setup key, shows one box, "I agree to the Terms and the Privacy policy", each word a link that opens in a new tab, and makes no passkey until it is ticked. The front door keeps the version and the time in the account's record (`front-door.json`) and writes a `terms-agreed` entry to the audit log. When you change the version, every owner is asked once more at their next sign-in, before the account opens. Without both addresses nothing is asked.
 
 ## The Android app's sign-in
 
@@ -118,6 +156,17 @@ Your bots run unattended under that sign-in: scheduled jobs run while you sleep,
 ## Updates
 
 The admin updates botdot for every account at once: **Update every account** on the admin page. The front door and every account move to the newest signed release, and the page says the version each runs and how the last update went. An owner, the admin included, can turn off **Update automatically** in **Settings → Updates**: the update then downloads the new version into that account but leaves its bots on the version they run, marked waiting on the admin page, until the owner (or the admin, on the account's card) taps **Update now**, or until the deadline the admin sets on the admin page (7 days unless set otherwise, 1 to 60) ([ADR 053](adr/053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md)). Running the installer by hand still moves every account. A step that would need an answer (a new question of a newer installer) stops the update, and the page says to run the installer yourself.
+
+**A named version, a snapshot and a rollback** ([ADR 155](adr/155-an-update-can-name-its-version-and-keeps-a-snapshot-of-each-accounts-data.md)). Root's step takes the same requests from whatever writes them as root, such as a fleet console, as files in `/var/lib/botdot/front-door/requests`:
+
+```bash
+# Update every account to exactly this signed release: the server image's digest, on the file's first line.
+echo sha256:<64 hex digits> | sudo tee /var/lib/botdot/front-door/requests/UPDATE
+# Take one account back to its snapshot and the version it ran before its last switch.
+sudo touch /var/lib/botdot/front-door/requests/ROLLBACK-<account>
+```
+
+An empty `UPDATE` takes the newest release, as the admin page's button does. A digest that isn't one of botdot's signed releases, or one older than the release the front door runs, is refused at `check`, and nothing is downloaded or restarted; `update.json` in `/var/lib/botdot/front-door/status` says the version asked for (`named`) and how it went. The bots' computer goes to the release built from the same source. Releases signed before 5 November 2026 can't be named. Before an account switches to another version, its botdot server stops and its data folder, with the compose file and `.env` it ran, is copied to `snapshot/` in its home, on its own disk; the update's disk check counts that room. Each account keeps one snapshot, replaced at its next switch. A new server that doesn't answer gets its data back from it along with its version. A rollback request restores the snapshot, starts the version it ran then and uses the snapshot up; `status/account-<account>.json` says `rolledback`, or `kept` or `failed` with why. What the account did since its switch is gone after a rollback.
 
 Running the installer again from a newer source does the same, and also updates the installer that the admin page's Update runs:
 

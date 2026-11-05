@@ -111,6 +111,44 @@ private class KeyDrag {
         }
         return if (pages.isNotEmpty() && lastPlace?.contains(at) == true) Aim(pages.lastIndex, pages.last().keys.size) else null
     }
+
+    /** The pages as they are now, and who saves where a key lands ([rememberKeyDrag]); null: no key moves. */
+    var pages: List<Keypad.Page> = emptyList()
+    var onMove: ((Keypad.Key, ListLayout.Place) -> Unit)? = null
+
+    /** Let go: the place it is dropped on, saved by whoever drew the keys. */
+    fun drop() {
+        val k = key ?: return
+        val on = aim(k, pages)
+        key = null
+        val place = on?.let { Keypad.move(pages, k, it.page, it.at) } ?: return
+        onMove?.invoke(k, place)
+    }
+
+    /** A page's heading: where it stands, for a drop on it. */
+    fun heading(i: Int): Modifier = Modifier.onGloballyPositioned { heads[i] = it.boundsInRoot() }
+
+    /** The key [k]: press and hold it, then drag it, a bot's key or a group's (a team's chat too); it follows the finger, above the others. */
+    fun of(k: Keypad.Key): Modifier = if (onMove == null) Modifier else Modifier
+        .onGloballyPositioned { keys[k.id] = it.boundsInRoot() }
+        .pointerInput(k.id) {
+            detectDragGesturesAfterLongPress(
+                onDragStart = { at -> start = (keys[k.id]?.topLeft ?: Offset.Zero) + at; moved = Offset.Zero; key = k },
+                onDrag = { change, amount -> change.consume(); moved += amount },
+                onDragEnd = { drop() },
+                onDragCancel = { key = null },
+            )
+        }
+        .then(if (key?.id == k.id) Modifier.zIndex(1f).graphicsLayer { translationX = moved.x; translationY = moved.y; alpha = 0.6f } else Modifier)
+}
+
+/** A [KeyDrag] that keeps [pages] and [onMove] as they are drawn now (#499). */
+@Composable
+private fun rememberKeyDrag(pages: List<Keypad.Page>, onMove: ((Keypad.Key, ListLayout.Place) -> Unit)?): KeyDrag {
+    val drag = remember { KeyDrag() }
+    drag.pages = pages
+    drag.onMove = onMove
+    return drag
 }
 
 /** What a dragged key is over: a page's heading ([at] null), or the place [at] on the page [page]. */
@@ -137,41 +175,19 @@ internal fun KeypadView(
     onMove: ((Keypad.Key, ListLayout.Place) -> Unit)? = null,
     folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
 ) {
-    val drag = remember { KeyDrag() }
-    val pagesNow by rememberUpdatedState(pages)
-    val move by rememberUpdatedState(onMove)
+    val drag = rememberKeyDrag(pages, onMove)
     val dragged = drag.key
     val aim = dragged?.let { drag.aim(it, pages) }
-    // Let go: the place it is dropped on, saved by whoever drew the keypad.
-    fun drop() {
-        val k = drag.key ?: return
-        val on = drag.aim(k, pagesNow)
-        drag.key = null
-        val place = on?.let { Keypad.move(pagesNow, k, it.page, it.at) } ?: return
-        move?.invoke(k, place)
-    }
-    // Press and hold a key, then drag it: it follows the finger, above the others.
-    fun dragging(k: Keypad.Key): Modifier = if (onMove == null) Modifier else Modifier
-        .onGloballyPositioned { drag.keys[k.id] = it.boundsInRoot() }
-        .pointerInput(k.id) {
-            detectDragGesturesAfterLongPress(
-                onDragStart = { at -> drag.start = (drag.keys[k.id]?.topLeft ?: Offset.Zero) + at; drag.moved = Offset.Zero; drag.key = k },
-                onDrag = { change, amount -> change.consume(); drag.moved += amount },
-                onDragEnd = { drop() },
-                onDragCancel = { drag.key = null },
-            )
-        }
-        .then(if (dragged?.id == k.id) Modifier.zIndex(1f).graphicsLayer { translationX = drag.moved.x; translationY = drag.moved.y; alpha = 0.6f } else Modifier)
     val digits = Keypad.digits(pages, Keypad.shownKeys(pages, folded))
     // While a key is dragged the keys stand still, so the finger moves the key and not the page.
     Column(modifier.fillMaxWidth().testTag(KEYPAD_PAGES).verticalScroll(rememberScrollState(), enabled = dragged == null).padding(horizontal = Space.s16, vertical = Space.s12)) {
         KeyPages(pages, folded, onFold,
-            heading = { i -> Modifier.onGloballyPositioned { drag.heads[i] = it.boundsInRoot() } },
+            heading = { i -> drag.heading(i) },
             headingLit = { i -> aim == Aim(i, null) },
             onHeadingGone = { i -> drag.heads.remove(i) },
         ) { i, n, k ->
             DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
-            QuietKey(look(k), WIDE_KEY, lit = k.id == active, aimed = aim == Aim(i, n), number = if (digitsShown) Keypad.digitOf(digits, k) else 0, modifier = dragging(k)) { onKey(k) }
+            QuietKey(look(k), WIDE_KEY, lit = k.id == active, aimed = aim == Aim(i, n), number = if (digitsShown) Keypad.digitOf(digits, k) else 0, modifier = drag.of(k)) { onKey(k) }
         }
         // The last place, after the last page's keys; with no bot yet, alone, where the first one is asked for.
         AskKey(onAsk, aimed = pages.isNotEmpty() && aim == Aim(pages.lastIndex, pages.last().keys.size),
@@ -363,20 +379,31 @@ internal const val CHIEF_FIELD = "chief-field"
  * with no digits; above them [header] (Needs you, the Board), below them the Chief's field, its head and name
  * ([onChief]; [chiefBusy]: it works; [chiefUnread]: its new replies). A key opens its chat ([onKey]) full screen, as
  * a row of the list does, and Back returns here. A phone's keys answer no keyboard. [folded] and [onFold]: a
- * category's page folds as on the keypad (#171).
+ * category's page folds as on the keypad (#171). [onMove]: a key pressed, held and dragged, as on the keypad.
  */
 @Composable
 internal fun KeypadSections(
     pages: List<Keypad.Page>, look: (Keypad.Key) -> KeyLook, onKey: (Keypad.Key) -> Unit, onChief: () -> Unit,
     modifier: Modifier = Modifier, chiefUnread: Int = 0, chiefBusy: Boolean = false, folded: Set<String> = emptySet(), onFold: ((Keypad.Page) -> Unit)? = null,
+    onMove: ((Keypad.Key, ListLayout.Place) -> Unit)? = null,
     header: @Composable () -> Unit = {},
 ) {
     val p = LocalPaper.current
+    val drag = rememberKeyDrag(pages, onMove)
+    val aim = drag.key?.let { drag.aim(it, pages) }
     Column(modifier) {
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
+        // While a key is dragged the sections stand still, so the finger moves the key and not the page.
+        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState(), enabled = drag.key == null)) {
             header()
             Box(Modifier.padding(start = Space.s12, end = Space.s12, top = Space.s12, bottom = Space.s12)) {
-                KeyPages(pages, folded, onFold) { _, _, k -> QuietKey(look(k), PHONE_KEY) { onKey(k) } }
+                KeyPages(pages, folded, onFold,
+                    heading = { i -> drag.heading(i) },
+                    headingLit = { i -> aim == Aim(i, null) },
+                    onHeadingGone = { i -> drag.heads.remove(i) },
+                ) { i, n, k ->
+                    DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
+                    QuietKey(look(k), PHONE_KEY, aimed = aim == Aim(i, n), modifier = drag.of(k)) { onKey(k) }
+                }
             }
         }
         val shape = Radius.pill
