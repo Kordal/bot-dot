@@ -64,6 +64,16 @@ class StorageTest {
         assertEquals("project/Launch", Storage.rootOf(pw.place))
     }
 
+    @Test fun what_a_deleted_bot_left_is_deleted_whole_with_storages_own_route() {
+        val left = Storage.Where(Storage.Place(bot = "c624cda0", root = "server", gone = true), "")
+        assertTrue(Storage.deletable(left))
+        assertTrue(Storage.deletable(left.copy(path = "uploads")))
+        assertEquals("/storage/gone?bot=c624cda0&root=server&path=", Storage.goneQuery(left) { it })
+        assertEquals("/storage/gone?bot=c624cda0&root=computer&path=a b", Storage.goneQuery(Storage.Where(left.place.copy(root = "computer"), "a b")) { it })
+        val parsed = Json { ignoreUnknownKeys = true }.decodeFromString<Storage.Place>("""{"bot":"c624cda0","root":"server","gone":true}""")
+        assertTrue(parsed.gone)
+    }
+
     @Test fun the_bar_shows_only_groups_that_hold_something() {
         val bar = Storage.bar(answer)
         assertEquals(listOf("computer", "projects"), bar.map { it.first })
