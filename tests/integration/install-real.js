@@ -103,6 +103,41 @@ function logsStayWithinLimit(machine, image) {
   assert.deepEqual([own['log-driver'], own['log-opts']], ['json-file', { 'max-size': '20m', 'max-file': '5' }], 'the machine\'s Docker has the same limits');
 }
 
+// #984: on a managed machine, a container of the account's Docker, under gVisor and leaving as a computer does (through
+// the account's slirp4netns, as its Linux user), is refused a private address, the cloud's
+// metadata address and SMTP, each by its rule, and still reaches an internet host on 443 and resolves names. The
+// probe tries each "host port" and says how it went: open, or the error.
+const PROBE = `const net = require('node:net'), dns = require('node:dns');
+const one = (t) => new Promise((ok) => { const [host, port] = t.split(' '); const s = net.connect({ host, port: Number(port) });
+  const end = (r) => { s.destroy(); ok(r); }; s.setTimeout(10000, () => end('timeout')); s.on('connect', () => end('open')); s.on('error', (e) => end(e.code)); });
+(async () => { const out = {}; for (const t of process.argv.slice(1)) out[t] = await one(t);
+  out.dns = await new Promise((ok) => dns.lookup('github.com', (e) => ok(e ? e.code : 'ok'))); console.log(JSON.stringify(out)); })();`;
+function computersAreGuarded(machine) {
+  stage.step('a computer is refused private addresses, the metadata address and SMTP, and reaches the internet');
+  const image = machine.exec('sh', '-c', `sed -n 's/^BOT_DOT_IMAGE=//p' ${HOME}/.env`);
+  // A private address outside the account's own networks (its Docker's bridges in 172.16/12 and 192.168/16, slirp4netns's
+  // 10.0.2/24), so that the connection leaves through slirp4netns, as one to the provider's private network would.
+  const priv = '10.255.255.1';
+  // The packets each of the guard's rules refused: its line in `iptables -L -v -x -n`, by what it matches.
+  const counts = () => {
+    const lines = machine.exec('iptables', '-L', 'BOTDOT-GUARD', '-v', '-x', '-n').split('\n');
+    const of = (what) => Number(lines.find((l) => l.includes('REJECT') && l.includes(what))?.trim().split(/\s+/)[0] ?? NaN);
+    return { private: of('172.16.0.0/12') + of('10.0.0.0/8') + of('192.168.0.0/16'), metadata: of('169.254.0.0/16'), smtp: of('25,465') };
+  };
+  const before = counts();
+  const targets = [`${priv} 80`, '169.254.169.254 80', '1.1.1.1 25', '1.1.1.1 443'];
+  const said = JSON.parse(machine.account(ADMIN, 'run', '--rm', '--entrypoint', 'node', image, '-e', PROBE, ...targets));
+  const after = counts();
+  for (const t of targets.slice(0, 3)) assert.notEqual(said[t], 'open', `${t} is refused: ${JSON.stringify(said)}`);
+  assert.ok(after.private > before.private, `the private address by its rule: ${JSON.stringify({ before, after })}`);
+  assert.ok(after.metadata > before.metadata, `the metadata address by its rule: ${JSON.stringify({ before, after })}`);
+  assert.ok(after.smtp > before.smtp, `port 25 by its rule: ${JSON.stringify({ before, after })}`);
+  assert.equal(said['1.1.1.1 443'], 'open', `an internet host on 443 is reached: ${JSON.stringify(said)}`);
+  assert.equal(said.dns, 'ok', 'and names resolve');
+  // Only the accounts' Linux users go through the guard: the front door's and Caddy's traffic doesn't.
+  assert.equal(machine.exec('iptables', '-S', 'BOTDOT-EGRESS').split('\n').filter((l) => l.includes('--uid-owner')).length, 1, 'one account, one user');
+}
+
 // A stand-in tailscaled for root's Tailscale folder (#106): it notes its arguments there and listens on its socket, as
 // botdot-tailscale waits for (deploy/desktop/botdot-tailscale), and a state that holds a login, as tailscaled keeps it
 // once approved.
@@ -234,6 +269,7 @@ const cases = [
       accountIsWalledOff(machine);
       helperHasNoPrivileges(machine);
       logsStayWithinLimit(machine, server);
+      assert.equal(machine.exec('sh', '-c', 'iptables -S BOTDOT-EGRESS >/dev/null 2>&1 && echo there || echo none'), 'none', 'a machine that isn\'t managed has no guard of its computers (#984)');
 
       stage.step('botdot before the sign-up, and the admin\'s sign-up through Caddy');
       const before = machine.api('GET', '/sign-in');
@@ -361,6 +397,8 @@ const cases = [
 
       stage.step('the passkey, made with the setup key');
       machine.signUp(ready.signUp);
+      answers(machine);
+      computersAreGuarded(machine);
       answers(machine);
       assert.equal(machine.api('GET', '/admin').status, 404, 'not for the account either');
       assert.equal(machine.api('GET', '/front-door/session').body.admin, false);
