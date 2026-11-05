@@ -31,14 +31,16 @@ const told = () => ann.seen.filter((r) => r.url === '/api/backups/machine').map(
 const ago = (hours) => new Date(Date.now() - hours * 3600_000).toISOString();
 
 test('a machine without an off-site backup shows no line and tells nobody, also after a request for one', async () => {
-  assert.deepEqual((await browser.get('/admin/offsite')).data, { offsite: null });
+  assert.equal((await browser.get('/admin/offsite')).data.offsite, null);
   said({ state: 'off', at: ago(0), error: 'This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO.' });
-  assert.deepEqual((await browser.get('/admin/offsite')).data, { offsite: null });
+  const off = (await browser.get('/admin/offsite')).data;
+  assert.equal(off.offsite, null);
+  assert.equal(off.setup.error, null, 'not a setup that failed');
   await sleep(600);
   assert.deepEqual(told(), []);
   const script = await browser.get('/front-door/admin.js');
   assert.match(script.text, /'\/admin\/offsite'/);
-  assert.match((await browser.get('/admin')).text, /<p id="offsite" hidden><\/p>/);
+  assert.match((await browser.get('/admin')).text, /<div class="panel update" id="offsite-state" hidden><div><p id="offsite"><\/p><\/div>/);
 });
 
 test('a good backup is a line and no message; a failed one tells the admin once, and a good one again says it works', async () => {
