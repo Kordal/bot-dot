@@ -86,6 +86,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var apps by remember { mutableStateOf<List<Connection>>(emptyList()) }
     var saving by remember { mutableStateOf(false) }
     var askDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) } // erasing its screen and logins can take a while: the button says so
     val server by app.store.version.value.collectAsState() // its features: whether it can duplicate a bot
     var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
     var copyName by remember { mutableStateOf("") }
@@ -412,7 +413,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (dev.botdot.app.data.Duplicate.shows(server?.features)) SecondaryButton(onClick = {
                 scope.launch { runCatching { (api ?: error(tr("Not connected to botdot"))).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: tr("Couldn't load")) } }
             }, modifier = Modifier.fillMaxWidth()) { Text(tr("Duplicate {name}", "name" to b.name), color = p.text) }
-            SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete {name}", "name" to b.name), color = p.err) }
+            SecondaryButton(onClick = { askDelete = true }, enabled = !deleting, modifier = Modifier.fillMaxWidth()) { Text(if (deleting) tr("Deleting…") else tr("Delete {name}", "name" to b.name), color = p.err) }
         }
     }
 
@@ -466,7 +467,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         confirmButton = {
             TextButton(onClick = {
                 askDelete = false
-                scope.launch { runCatching { api!!.deleteBot(botId) }.onSuccess { onDeleted() }.onError { tell(it.message ?: tr("Couldn't delete")) } }
+                deleting = true
+                scope.launch { runCatching { api!!.deleteBot(botId) }.onSuccess { onDeleted() }.onError { deleting = false; tell(it.message ?: tr("Couldn't delete")) } }
             }) { Text(tr("Delete"), color = p.err) }
         },
         dismissButton = { TextButton(onClick = { askDelete = false }) { Text(tr("Keep"), color = p.text) } },

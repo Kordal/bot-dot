@@ -803,10 +803,10 @@ document.addEventListener('pointerdown', (e) => {
 document.addEventListener('keydown', (e) => { if (homePick && e.key === 'Escape') closeHomePick(); });
 window.addEventListener('resize', () => placeHomePick());
 
-function removeTile(t) {
+async function removeTile(t) {
   const inside = t.kind === 'group' ? (state.dash?.tiles || []).filter((x) => x.parent === t.id) : [];
   if (inside.length) return removeGroup(t, inside.length);
-  if (!confirm(tr('Remove “{title}” from your Board?', { title: t.title }))) return;
+  if (!(await askFirst(tr('Remove “{title}” from your Board?', { title: t.title }), tr('Remove')))) return;
   api(`/dashboard/tiles/${t.id}`, { method: 'DELETE' }).then(() => loadDash(true)).catch((e) => toast(e.message, true));
 }
 

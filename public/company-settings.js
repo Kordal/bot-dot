@@ -261,9 +261,9 @@
         if (!(await call(was === 'new' ? '/company/teams' : `/company/teams/${encodeURIComponent(was)}`, was === 'new' ? 'POST' : 'PUT', body))) { editing = was; draft = body; Company.redraw(); }
       };
       const del = $('[data-ps-delete-team]', ed);
-      if (del) del.onclick = () => {
+      if (del) del.onclick = async () => {
         const t = c.teams.find((x) => x.id === del.dataset.psDeleteTeam);
-        if (!t || !confirm(tr('Delete the team {name}? Its bots stay.', { name: t.name }))) return;
+        if (!t || !(await askFirst(tr('Delete the team {name}? Its bots stay.', { name: t.name }), tr('Delete')))) return;
         editing = null; draft = null;
         call(`/company/teams/${encodeURIComponent(t.id)}`, 'DELETE');
       };

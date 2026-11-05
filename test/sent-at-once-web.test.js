@@ -67,7 +67,7 @@ function page({ features = ['message-waits', 'message-key'], reply = async () =>
     refresh: () => { said.refreshed++; return new Promise(() => {}); }, // the lists read again: its answer never comes here
     showChat: async (id) => { said.shown.push(id); },
     toast: (...a) => said.toasts.push(a), stopRun() {}, stopChief() {},
-    confirm: () => true, looksLikeSecret: () => false, matchMedia: () => ({ matches: false }),
+    askFirst: async () => true, looksLikeSecret: () => false, matchMedia: () => ({ matches: false }),
     fetch: () => assert.fail('nothing is uploaded here'),
     userBubble: (m) => `<div class="mine">${esc(m.text)}${(m.attachments || []).map((f) => `[${esc(f.name)}]`).join('')}</div>`, chiefBubble: () => '<div class="pending"></div>',
     syncRead() {}, updateChatNeeds() {}, writeHash() {}, markMore() {}, loadChief: async () => {},

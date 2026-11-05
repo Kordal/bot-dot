@@ -199,6 +199,7 @@ const { startServer, makeBot, waitFor } = require('../helpers');
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.evaluate((id) => setView('botsettings', id), other.id);
     await page.locator('#delete-bot').click();
+    await page.locator('#ask-first [data-ask-yes]').click();
     await waitFor(async () => (await srv.api('/bots')).data.every((b) => b.id !== other.id), { what: 'the bot deleted' });
     await page.locator('#view-chief textarea').waitFor();
     assert.equal(await seen('#panel'), false);

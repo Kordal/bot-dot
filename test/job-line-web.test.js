@@ -46,7 +46,7 @@ function page({ reply = async () => ({}) } = {}) {
     botById: (id) => state.bots.find((b) => b.id === id),
     shortTime: () => '15:00', ago: () => '20m ago', fmtTime: (t) => t, CRON_PRESETS: [],
     api: async (path, opts = {}) => { said.calls.push(`${opts.method || 'GET'} ${path}`); return reply(path, opts); },
-    toast: (...a) => said.toasts.push(a), refresh: async () => { said.refreshed++; }, confirm: () => true,
+    toast: (...a) => said.toasts.push(a), refresh: async () => { said.refreshed++; }, askFirst: async () => true,
     setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].fn = null; },
   });
   vm.runInContext(`${cut('const BY_WHO = ', 'function jobCardHTML(j, open = false) {')}

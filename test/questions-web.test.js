@@ -25,28 +25,29 @@ test('web: no undo of a bot\'s change but the one of a card\'s change to its mai
   assert.match(app, /bot\.undo \? `<button type="button" class="link-btn" data-bs-undo>\$\{tr\('Undo last change'\)\}<\/button>` : ''/, 'shown only while the server offers it');
 });
 
-test('web: still asked, unchanged', () => {
+test('web: still asked, unchanged, on the page and never with the browser\'s confirm()', () => {
   for (const [what, re] of [
-    ['deleting a bot', /if \(!confirm\(warning\)\) return;/],
-    ['resetting the account\'s computer, in the server\'s words (#107)', /if \(confirm\(`\$\{info\.reset\.title\}\\n\\n\$\{info\.reset\.text\}`\)\) forAll\('reset', tr\('Resetting…'\)\);/],
-    ['updating the account\'s computer (#107)', /if \(info\?\.update && confirm\(info\.update\.text\)\) forAll\('update', tr\('Updating…'\)\);/],
-    ['erasing a bot\'s old computer (#107)', /if \(!info\?\.old \|\| !confirm\(info\.old\.confirm\)\) return;/],
-    ['deleting a skill', /confirm\(tr\('Delete the skill "\{name\}"\? Bots that have it will stop using it\.', \{ name: k\.name \}\)\)/],
-    ['removing a job in the jobs panel', /if \(!confirm\(tr\('Remove this job\?'\)\)\) return;/],
-    ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| confirm\(tr\('Remove this job\?'\)\)\) return whileBusy\(button, tr\('Declining…'\), \(\) => decide\(x, false\)\);/],
-    ['Always allow on a connected-app card, in the server\'s words (#474)', /if \(confirm\(said\(x\.a\.warning\) \|\| \(x\.a\.chief \? tr\('Let \{name\} do this from now on, whatever the details\?', \{ name: chiefTitle\(\) \}\) : tr\('Let this bot do this from now on, whatever the details\?'\)\)\)\)/],
-    ['Always allow on a Chief\'s change after the web, in the server\'s words (#280)', /if \(confirm\(said\(x\.a\.warning\) \|\| `\$\{said\(x\.a\.always\)\}\?`\)\)/],
-    ['Always approve', /confirm\(scriptWarning\(x\.bot\.name, x\.job\.name\)\)/],
-    ['disconnecting an app', /confirm\(tr\('Disconnect \{app\}\? Bots lose access, and Composio revokes its access to your account\.', \{ app: c\?\.app\?\.name \|\| c\?\.toolkit \}\)\)/],
-    ['signing out of Claude', /confirm\(`\$\{tr\(\"Sign out of Claude\? Bots can't run until you sign in again\.\"\)\}/],
-    ['deleting a saved login', /confirm\(state\.bw\?\.configured \? tr\("Delete \\"\{name\}\\"\? It moves to Bitwarden's trash/],
-    ['the password hint', /confirm\(tr\('This looks like it contains a password\./],
-    ['signing out everywhere (#468)', /confirm\(tr\('Sign out everywhere\? Every browser and app signed in to your account/],
-    ['removing a secret kept in a file (#253)', /if \(!confirm\(tr\("Remove \{path\}\? The bot can't write it again without asking you on a card\.", \{ path: b\.dataset\.where \}\)\)\) return;/],
-    ['switching the account to a new version now (#259)', /if \(!confirm\(tr\('Update now\? Your account moves to the new version: your bots restart, and work still running stops\.'\)\)\) return;/],
-    ['removing the Anthropic API key (#35)', /confirm\(c\.subscription === true \? tr\('Remove the API key\? Bots will run on your Claude subscription\.'/],
+    ['deleting a bot', /if \(!\(await askFirst\(warning, tr\('Delete'\)\)\)\) return;/],
+    ['resetting the account\'s computer, in the server\'s words (#107)', /if \(await askFirst\(`\$\{info\.reset\.title\}\\n\\n\$\{info\.reset\.text\}`, tr\('Reset'\)\)\) forAll\('reset', tr\('Resetting…'\)\);/],
+    ['updating the account\'s computer (#107)', /if \(info\?\.update && await askFirst\(info\.update\.text, tr\('Update'\), \{ danger: false \}\)\) forAll\('update', tr\('Updating…'\)\);/],
+    ['erasing a bot\'s old computer (#107)', /if \(!info\?\.old \|\| !\(await askFirst\(info\.old\.confirm, tr\('Erase'\)\)\)\) return;/],
+    ['deleting a skill', /askFirst\(tr\('Delete the skill "\{name\}"\? Bots that have it will stop using it\.', \{ name: k\.name \}\), tr\('Delete'\)\)/],
+    ['removing a job in the jobs panel', /if \(!\(await askFirst\(tr\('Remove this job\?'\), tr\('Remove'\)\)\)\) return;/],
+    ['Decline on a job\'s card in Needs you, of a server whose button does not say that it removes', /if \(!asksBeforeNo\(x\) \|\| await askFirst\(tr\('Remove this job\?'\), tr\('Remove'\)\)\) return whileBusy\(button, tr\('Declining…'\), \(\) => decide\(x, false\)\);/],
+    ['Always allow on a connected-app card, in the server\'s words (#474)', /if \(await sure\(said\(x\.a\.warning\) \|\| \(x\.a\.chief \? tr\('Let \{name\} do this from now on, whatever the details\?', \{ name: chiefTitle\(\) \}\)/],
+    ['Always allow on a Chief\'s change after the web, in the server\'s words (#280)', /if \(await sure\(said\(x\.a\.warning\) \|\| `\$\{said\(x\.a\.always\)\}\?`\)\)/],
+    ['Always approve', /await sure\(scriptWarning\(x\.bot\.name, x\.job\.name\)\)/],
+    ['disconnecting an app', /askFirst\(tr\('Disconnect \{app\}\? Bots lose access, and Composio revokes its access to your account\.', \{ app: c\?\.app\?\.name \|\| c\?\.toolkit \}\), tr\('Disconnect'\)\)/],
+    ['signing out of Claude', /askFirst\(`\$\{tr\("Sign out of Claude\? Bots can't run until you sign in again\."\)\}/],
+    ['deleting a saved login', /askFirst\(state\.bw\?\.configured \? tr\("Delete \\"\{name\}\\"\? It moves to Bitwarden's trash/],
+    ['the password hint', /askFirst\(tr\('This looks like it contains a password\./],
+    ['signing out everywhere (#468)', /askFirst\(tr\('Sign out everywhere\? Every browser and app signed in to your account/],
+    ['removing a secret kept in a file (#253)', /if \(!\(await askFirst\(tr\("Remove \{path\}\? The bot can't write it again without asking you on a card\.", \{ path: b\.dataset\.where \}\), tr\('Remove'\)\)\)\) return;/],
+    ['switching the account to a new version now (#259)', /if \(!\(await askFirst\(tr\('Update now\? Your account moves to the new version: your bots restart, and work still running stops\.'\), tr\('Update now'\), \{ danger: false \}\)\)\) return;/],
+    ['removing the Anthropic API key (#35)', /askFirst\(c\.subscription === true \? tr\('Remove the API key\? Bots will run on your Claude subscription\.'/],
   ]) assert.match(app, re, what);
-  assert.equal((app.match(/\bconfirm\(/g) || []).length, 21, 'six questions fewer, none about a note, and no undo (#305); one more to sign out everywhere (#468); none to update botdot, which the admin does (#473); one more to remove the API key (#35); two more to update the account\'s computer and erase a bot\'s old one (#107); one more to delete a bot\'s file (#235), gone with Files (#603), which asks in its own file; one more to remove a secret kept in a file (#253); one more to switch the account to a new version now, before its bots restart (#259); one more before "Always allow" on a Chief\'s change after the web (#280; the shared-note one went with ADR 059)');
+  // The browser's confirm() shows nothing in the Mac app and answers no (test/ask-first-web.test.js keeps it out).
+  assert.equal((app.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n').match(/(?<![\w.])confirm\(/g) || []).length, 0);
 });
 
 // A bot's settings form, as far as the permission mode goes, wired by the page's own lines.

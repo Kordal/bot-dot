@@ -69,7 +69,7 @@ async function loadClaudeCard(fresh = true) {
     let running = 0;
     try { running = (await api('/setup')).running || 0; } catch { /* ask anyway */ }
     const stops = running ? `\n\n${trn(running, 'A bot is working right now; it will be stopped.', '{n} bots are working right now; they will be stopped.')}` : '';
-    if (!confirm(`${tr("Sign out of Claude? Bots can't run until you sign in again.")}${stops}`)) return;
+    if (!(await askFirst(`${tr("Sign out of Claude? Bots can't run until you sign in again.")}${stops}`, tr('Sign out')))) return;
     try {
       const r = await api('/setup/claude', { method: 'DELETE' });
       state.setup.claude = r.claude;

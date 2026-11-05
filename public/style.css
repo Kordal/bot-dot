@@ -570,6 +570,10 @@ a.file-mention:hover { background: color-mix(in srgb, currentColor 16%, transpar
 .btn.primary { background: var(--ink); color: var(--ink-text); }
 .btn.primary:hover { opacity: .88; }
 .btn.danger { color: var(--err); }
+.btn.primary.danger { background: var(--err); color: #fff; }
+#ask-first { width: min(440px, calc(100% - 24px)); }
+#ask-first .modal-body p { margin: 0; color: var(--muted); }
+#ask-first .modal-foot { border-top: 0; }
 .btn.ghost { background: transparent; }
 .btn.ghost:hover { background: var(--sunk); }
 .btn.sm { padding: var(--sp-4) var(--sp-12); font-size: var(--fs-12); }
@@ -1566,6 +1570,9 @@ label.bs-row { cursor: pointer; }
 .bs-link { width: 100%; border: 0; background: none; color: inherit; font: inherit; font-size: var(--fs-14); line-height: 32px; text-align: left; cursor: pointer; }
 #bs-undo:empty { display: none; }
 .bs-danger b { color: var(--err); }
+.bs-link.busy { cursor: progress; }
+.bs-link.busy b { display: inline-flex; align-items: center; gap: var(--sp-8); }
+.bs-link.busy b::before { content: ''; width: .9em; height: .9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btn-spin .8s linear infinite; flex: none; }
 .bs-note:empty { display: none; }
 .bs-note { min-height: 0; font-size: var(--fs-12); line-height: 1.45; padding-top: 0; color: var(--muted); }
 /* A row that opens what it holds under it: a <details> whose summary is the row. */

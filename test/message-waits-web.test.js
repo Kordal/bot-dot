@@ -56,7 +56,7 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
     api: async (path, opts = {}) => { said.calls.push(`${opts.method || 'GET'} ${path}`); if (opts.body) said.bodies.push(opts.body); return reply(path, opts); },
     refresh: async () => { said.refreshed++; }, showChat: async (id) => { said.shown.push(id); }, redrawBotChat: () => { said.redrawn++; },
     toast: (...a) => said.toasts.push(a), stopRun() {}, stopChief() {},
-    confirm: () => true, looksLikeSecret: () => false, matchMedia: () => ({ matches: false }),
+    askFirst: async () => true, looksLikeSecret: () => false, matchMedia: () => ({ matches: false }),
     fetch: () => assert.fail('nothing is uploaded here'),
     EventSource: class { constructor() { said.streams++; assert.fail('no stream is opened for a message that waits'); } },
     userBubble: (m) => `<div class="mine">${esc(m.text)}</div>`, chiefBubble: () => '<div class="pending"></div>',

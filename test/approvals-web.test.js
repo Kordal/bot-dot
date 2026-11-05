@@ -121,7 +121,7 @@ test('web: a job and a tile that wait for their first approval have the server\'
   assert.equal(p.asksBeforeNo(p.item('job:j3')), false);
   const wiring = cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat');
   assert.match(wiring, /if \(no\) no\.onclick = \(\) => answerNeed\(x, false, no\);/, 'a card\'s no, as its row on the keypad answers it');
-  assert.match(wiring, /if \(!asksBeforeNo\(x\) \|\| confirm\(tr\('Remove this job\?'\)\)\) return whileBusy\(button, tr\('Declining…'\), \(\) => decide\(x, false\)\);/);
+  assert.match(wiring, /if \(!asksBeforeNo\(x\) \|\| await askFirst\(tr\('Remove this job\?'\), tr\('Remove'\)\)\) return whileBusy\(button, tr\('Declining…'\), \(\) => decide\(x, false\)\);/);
 });
 
 test('web: the server\'s words are text, never markup', async () => {
@@ -476,60 +476,60 @@ function wired(x, { agrees = true } = {}) {
   const card = element(buttons, { dataset: { need: x.key } });
   const ctx = vm.createContext({
     ...words, $: (sel, el) => el.querySelector(sel), $$: () => [card], needsOpen: new Set(), openNeed() {}, ToolCard: { is: () => false }, tileScripts: () => [], AI_WHEN_TEXT: {},
-    confirm: (q) => { asked.push(q); return agrees; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
+    askFirst: async (q) => { asked.push(q); return agrees; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
   });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
     ${cut('// Words of the server\'s that a card draws', '// What changes on a bot (an ask\'s `parts`)')}
     ${cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat')}
     ${cut('// "Always approve" a script job', '// A job in one line')}
     wireNeedCards({}, [${JSON.stringify(x)}]);`, ctx);
-  const tap = (which) => { pressed = buttons[`[data-need-${which}]`]; pressed.onclick(); return { asked: asked.splice(0), decided: plain(decided.splice(0)) }; };
+  const tap = async (which) => { pressed = buttons[`[data-need-${which}]`]; await pressed.onclick(); return { asked: asked.splice(0), decided: plain(decided.splice(0)) }; };
   // What the pressed button said while its answer was on its way, and whether a spinner turned in it.
   const said = () => plain(busy.splice(0));
   return { tap, said };
 }
 
-test('web: the no on a card asks nothing when the button says what it does; "Always approve" warns before a script, also one a change brings', () => {
+test('web: the no on a card asks nothing when the button says what it does; "Always approve" warns before a script, also one a change brings', async () => {
   const item = (job) => ({ key: `job:${job.id}`, kind: 'job', bot: CODER, job });
   // The server's words on the button: the no goes out at once.
-  assert.deepEqual(wired(item(AI)).tap('no'), { asked: [], decided: [[false]] });
-  assert.deepEqual(wired(item(CHANGED)).tap('no'), { asked: [], decided: [[false]] }, 'a change\'s no keeps the job');
+  assert.deepEqual(await wired(item(AI)).tap('no'), { asked: [], decided: [[false]] });
+  assert.deepEqual(await wired(item(CHANGED)).tap('no'), { asked: [], decided: [[false]] }, 'a change\'s no keeps the job');
   // A server from before: the page's own question, and its answer counts.
-  assert.deepEqual(wired(item({ ...AI, no: undefined })).tap('no'), { asked: ['Remove this job?'], decided: [[false]] });
-  assert.deepEqual(wired(item({ ...AI, no: undefined }), { agrees: false }).tap('no'), { asked: ['Remove this job?'], decided: [] });
+  assert.deepEqual(await wired(item({ ...AI, no: undefined })).tap('no'), { asked: ['Remove this job?'], decided: [[false]] });
+  assert.deepEqual(await wired(item({ ...AI, no: undefined }), { agrees: false }).tap('no'), { asked: ['Remove this job?'], decided: [] });
   // "Always approve": no question for words, the warning for a script the job runs or would run after its change.
-  assert.deepEqual(wired(item(AI)).tap('always'), { asked: [], decided: [[true, true, true]] });
-  assert.deepEqual(wired(item(CHANGED)).tap('always'), { asked: [], decided: [[true, true, true]] });
+  assert.deepEqual(await wired(item(AI)).tap('always'), { asked: [], decided: [[true, true, true]] });
+  assert.deepEqual(await wired(item(CHANGED)).tap('always'), { asked: [], decided: [[true, true, true]] });
   for (const job of [SCRIPT, { ...CHANGED, change: { ...CHANGE, kind: 'script', script: 'uptime' } }]) {
-    const yes = wired(item(job)).tap('always');
+    const yes = await wired(item(job)).tap('always');
     assert.match(yes.asked[0], /^Always approve "(Disk check|Morning news)" from Coder\?\n\nIt's a script:/);
     assert.deepEqual(yes.decided, [[true, true, true]]);
-    assert.deepEqual(wired(item(job), { agrees: false }).tap('always').decided, [], 'not without the owner\'s yes to the warning');
+    assert.deepEqual((await wired(item(job), { agrees: false }).tap('always')).decided, [], 'not without the owner\'s yes to the warning');
   }
-  assert.deepEqual(wired(item(SCRIPT)).tap('yes'), { asked: [], decided: [[true]] });
+  assert.deepEqual(await wired(item(SCRIPT)).tap('yes'), { asked: [], decided: [[true]] });
 });
 
 // A change that makes a connection (#154): a call turned on or switched, or an address to tell when a run ends.
 const CALL = { ...CHANGED, change: { ...CHANGE, call: true, summary: 'Anything that can reach this machine and has the job\'s key can run this job now.' } };
 const NOTIFY = { ...CHANGED, change: { ...CHANGE, notifyUrl: 'https://example.com/hook' } };
 
-test('web: the yes of a card that turns on a call or a notify address says "Creating connection…" with a spinner; any other card keeps "Approving…"', () => {
+test('web: the yes of a card that turns on a call or a notify address says "Creating connection…" with a spinner; any other card keeps "Approving…"', async () => {
   const item = (job) => ({ key: `job:${job.id}`, kind: 'job', bot: CODER, job });
   for (const job of [CALL, NOTIFY, { ...CALL, change: { ...CALL.change, callMode: 'signed' } }, { ...CALL, call: true, change: { ...CALL.change, callMode: 'signed' } }]) {
     for (const which of ['yes', 'always']) {
       const w = wired(item(job));
-      w.tap(which);
+      await w.tap(which);
       assert.deepEqual(w.said(), [['Creating connection…', true]], `${which} of ${JSON.stringify(job.change)}`);
     }
   }
   // A job change (the screenshot's card), a new job, and a change of a job that takes calls or has its address already.
   for (const job of [CHANGED, AI, { ...CALL, call: true }, { ...NOTIFY, notifyUrl: 'https://example.com/hook' }]) {
     const w = wired(item(job));
-    w.tap('yes');
+    await w.tap('yes');
     assert.deepEqual(w.said(), [['Approving…', false]]);
   }
   const w = wired({ key: 'ask:p1', kind: 'ask', bot: CODER, a: { id: 'p1', kind: 'permission' } });
-  w.tap('yes');
+  await w.tap('yes');
   assert.deepEqual(w.said(), [['Approving…', false]], 'a permission keeps it');
 });
 

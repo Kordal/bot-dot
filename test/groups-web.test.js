@@ -49,7 +49,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     toast: (text, bad) => said.toasts.push([text, !!bad]), refresh: async () => { said.refreshed++; }, renderContacts: () => { said.contacts++; },
     flashSaved: () => { said.saved = (said.saved || 0) + 1; }, // "Saved" at the panel's top right (settings.js)
     setView: (v, sub) => said.views.push([v, sub]), setPanel() {}, leaveBot: () => { said.left++; }, setUnread: (chat, d) => said.unread.push([chat, d.unread]),
-    confirm: (t) => { said.confirms.push(t); return true; }, updateChatNeeds: (thread, scope) => said.needs.push(scope),
+    askFirst: async (t) => { said.confirms.push(t); return true; }, updateChatNeeds: (thread, scope) => said.needs.push(scope),
     showBoxNote: (form, text) => said.notes.push(text), openModal: (h) => { said.modals.push(h); return said.modal(h); },
     botFigure: (color, st = 'idle', size = '', outfit = null, bot = '') => `<div class="avatar head ${size}"${bot ? ` data-bot="${bot}"` : ''} data-st="${st}" data-c="${color}"></div>`,
     botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : ''),

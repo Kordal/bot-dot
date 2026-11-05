@@ -22,7 +22,7 @@ function page({ features = ['accounts'], session = { updates: true }, update = R
     state: { features },
     esc: (s) => String(s).replace(/</g, '&lt;'),
     toast: (text, bad = false) => toasts.push([text, bad]), flashSaved() {},
-    confirm: () => confirmed,
+    askFirst: async () => confirmed,
     setTimeout: () => 0, clearTimeout: () => {},
     $: (sel, root) => (sel === '#update-card' ? card : root ? root.querySelector(sel) : null),
     fetch: async (url, opts) => {

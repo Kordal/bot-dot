@@ -573,8 +573,8 @@ const Files = (() => {
     if (list.length === 1) {
       let n;
       try { n = await api(at(c, 'count', list[0].path)); } catch (err) { return toast(err.message, true); }
-      if (!confirm(deleteWords(list[0], n))) return undefined;
-    } else if (!confirm(trn(list.length, "Delete {n} item? Folders go with what they hold. This can't be undone.", "Delete {n} items? Folders go with what they hold. This can't be undone."))) return undefined;
+      if (!(await askFirst(deleteWords(list[0], n), tr('Delete')))) return undefined;
+    } else if (!(await askFirst(trn(list.length, "Delete {n} item? Folders go with what they hold. This can't be undone.", "Delete {n} items? Folders go with what they hold. This can't be undone."), tr('Delete')))) return undefined;
     let failed = 0;
     for (const e of list) { try { await api(at(c, '', e.path), { method: 'DELETE' }); } catch (err) { failed++; toast(`${e.name}: ${err.message}`, true); } }
     if (!failed) toast(list.length === 1 ? tr('Deleted {name}', { name: list[0].name }) : trn(list.length, 'Deleted {n} item', 'Deleted {n} items'));
@@ -582,7 +582,7 @@ const Files = (() => {
   }
 
   async function rename(c, e) {
-    const name = prompt(tr('New name for {name}', { name: e.name }), e.name);
+    const name = await askName(tr('New name for {name}', { name: e.name }), e.name, tr('Rename'));
     if (name === null || !name.trim() || name.trim() === e.name) return undefined;
     if (name.includes('/')) return toast(tr("A name can't have / in it. To put it in another folder, use Move to."), true);
     const to = parentOf(e.path) ? `${parentOf(e.path)}/${name.trim()}` : name.trim();
@@ -591,7 +591,7 @@ const Files = (() => {
   }
 
   async function newFolder(c, place = c.place, dir = c.path) {
-    const name = prompt(tr('Name of the new folder'));
+    const name = await askName(tr('Name of the new folder'), '', tr('Create'));
     if (!name?.trim()) return null;
     try { return (await api(at(c, 'folder', null, place), { method: 'POST', body: { path: dir, name: name.trim() } })).path; } catch (e) { toast(e.message, true); return null; }
   }
@@ -713,7 +713,7 @@ const Files = (() => {
       case 'upload-folder': return box()?.querySelector('[data-fx-folder]')?.click();
       case 'new-folder': { if (await newFolder(c)) return load(c); return draw(c); }
       case 'new-project': {
-        const name = prompt(tr('Name of the new project'));
+        const name = await askName(tr('Name of the new project'), '', tr('Create'));
         if (!name?.trim()) return undefined;
         let made;
         try { made = await api('/projects', { method: 'POST', body: { name: name.trim(), bots: [c.bot.id] } }); } catch (e) { return toast(e.message, true); }
@@ -750,7 +750,7 @@ const Files = (() => {
         const name = c.menuProject;
         let n;
         try { n = await api(at(c, 'count', '', { root: 'project', project: name })); } catch (err) { return toast(err.message, true); }
-        if (!confirm(deleteWords({ name }, n, true))) return undefined;
+        if (!(await askFirst(deleteWords({ name }, n, true), tr('Delete')))) return undefined;
         try { await api(`/projects/${encodeURIComponent(name)}`, { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
         toast(tr('Deleted {name}', { name }));
         await loadProjects(c);

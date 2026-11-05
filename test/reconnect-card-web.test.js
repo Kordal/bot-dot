@@ -15,7 +15,7 @@ function page({ connect = { redirectUrl: 'https://connect.example/gmail', connec
   const waits = [];
   const cards = [];
   const ctx = vm.createContext({ ...words,
-    state: { view: 'bot', bots: [] }, esc, encodeURIComponent, toast: (m) => toasts.push(m), confirm: () => true, location: {},
+    state: { view: 'bot', bots: [] }, esc, encodeURIComponent, toast: (m) => toasts.push(m), askFirst: async () => true, location: {},
     $: () => ({ dataset: {} }),
     window: { open: () => tab },
     document: {

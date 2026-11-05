@@ -62,8 +62,8 @@ function wireClaudeKey(root, c, redraw) {
   on('#claude-key-cancel', () => { state.setupKey = false; redraw(); });
   on('#claude-use-key', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'api-key' } }), tr('Bots now run on your API key')));
   on('#claude-use-sub', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } }), tr('Bots now run on your Claude subscription')));
-  on('#claude-key-remove', () => {
-    if (!confirm(c.subscription === true ? tr('Remove the API key? Bots will run on your Claude subscription.') : tr("Remove the API key? Bots can't run until you sign in to Claude or save a key again."))) return;
+  on('#claude-key-remove', async () => {
+    if (!(await askFirst(c.subscription === true ? tr('Remove the API key? Bots will run on your Claude subscription.') : tr("Remove the API key? Bots can't run until you sign in to Claude or save a key again."), tr('Remove')))) return;
     ask(() => api('/setup/claude/key', { method: 'DELETE' }), tr('API key removed'));
   });
   const form = $('#claude-key-form', root);
@@ -189,7 +189,7 @@ function drawSetup() {
     let running = 0;
     try { running = (await api('/setup')).running || 0; } catch { /* ask anyway */ }
     const stops = running ? `\n\n${trn(running, 'A bot is working right now; it will be stopped.', '{n} bots are working right now; they will be stopped.')}` : '';
-    if (!confirm(`${tr("Sign out of Claude? Bots can't run until you sign in again.")}${stops}`)) return;
+    if (!(await askFirst(`${tr("Sign out of Claude? Bots can't run until you sign in again.")}${stops}`, tr('Sign out')))) return;
     try {
       const r = await api('/setup/claude', { method: 'DELETE' });
       state.setup.claude = r.claude;

@@ -47,7 +47,7 @@ function page({ answer = () => [200, { rooms: [ROOM], invites: [INVITE] }], myBo
     $: (sel, root) => (root ? root.querySelector(sel) : els[sel] || null), $$: () => [],
     toast: (t, bad) => said.toasts.push([t, !!bad]), setView: (v, sub) => said.views.push([v, sub ?? null]),
     writeHash() {}, panelPage: () => null, renderBotSettings() {}, renderContacts: () => { said.contacts++; },
-    openModal: (h) => { said.modals.push(h); return element(); }, showBoxNote() {}, confirm: (t) => { said.confirms.push(t); return true; },
+    openModal: (h) => { said.modals.push(h); return element(); }, showBoxNote() {}, askFirst: async (t) => { said.confirms.push(t); return true; },
     md: (t) => `<p>${esc(t)}</p>`, copyBtn: () => '', msgTime: (iso) => String(iso).slice(11, 16), plain: (t) => t,
     escMentions: (t) => esc(t), botFigure: (c) => `<div class="avatar head" data-c="${c}"></div>`,
     Unread: { tint: (c) => c }, ICON: { back: '<back>' }, BACK_BTN: '<button data-back></button>',

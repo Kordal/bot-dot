@@ -267,7 +267,7 @@ function renderGroupSettings() {
     loadGroupNotes(g.id);
     $('#gs-delete', root).onclick = async () => {
       const now = groupById(root.dataset.group);
-      if (!now || !confirm(tr('Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.', { name: now.name }))) return;
+      if (!now || !(await askFirst(tr('Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.', { name: now.name }), tr('Delete')))) return;
       try { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'DELETE' }); toast(tr('{name} deleted', { name: now.name })); } catch (e) { toast(e.message, true); return; }
       state.groups = state.groups.filter((x) => x.id !== now.id);
       leaveBot();

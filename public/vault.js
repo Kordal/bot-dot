@@ -167,8 +167,8 @@ async function renderVault() {
     return (l.kind || 'login') === 'login' ? openLoginEditor(l) : openItemBots(l);
   }));
   // A secret kept in a file (#253): botdot deletes it where it wrote it, and the bot must ask on a card to write it again.
-  $$('[data-remove-file]').forEach((b) => (b.onclick = () => {
-    if (!confirm(tr("Remove {path}? The bot can't write it again without asking you on a card.", { path: b.dataset.where }))) return;
+  $$('[data-remove-file]').forEach((b) => (b.onclick = async () => {
+    if (!(await askFirst(tr("Remove {path}? The bot can't write it again without asking you on a card.", { path: b.dataset.where }), tr('Remove')))) return;
     whileBusy(b, tr('Removing…'), async () => {
       try { const r = await api(`/vault/secret-files/${encodeURIComponent(b.dataset.removeFile)}`, { method: 'DELETE' }); toast(r?.say || tr('Removed'), !!r?.byHand); } catch (e) { toast(e.message, true); }
       renderVault();
@@ -214,8 +214,8 @@ function openLoginEditor(login, { onSaved } = {}) {
   const form = $('#login-form', m);
   wireVaultType(form, { username: l.username, isNew });
   const del = $('#delete-login', m);
-  if (del) del.onclick = () => {
-    if (!confirm(state.bw?.configured ? tr("Delete \"{name}\"? It moves to Bitwarden's trash, where you can restore it for 30 days.", { name: l.name }) : tr('Delete "{name}" from the Vault?', { name: l.name }))) return;
+  if (del) del.onclick = async () => {
+    if (!(await askFirst(state.bw?.configured ? tr("Delete \"{name}\"? It moves to Bitwarden's trash, where you can restore it for 30 days.", { name: l.name }) : tr('Delete "{name}" from the Vault?', { name: l.name }), tr('Delete')))) return;
     whileBusy(del, tr('Deleting…'), async () => {
       try {
         await api(`/vault/${l.id}`, { method: 'DELETE' });

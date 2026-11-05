@@ -467,6 +467,49 @@ async function whileBusy(button, words, work, spin = false) {
   }
 }
 
+// A question before a step that can't be taken back, drawn by the page and never by the browser's confirm(): the
+// desktop app's WebKit on the Mac shows no confirm() or prompt() of its own and answers no, so the step never happened
+// and nothing said why. Its first paragraph is the question, the rest what goes with it. A yes resolves true; Cancel,
+// Escape or a second question before the first is answered resolve false. With `danger` the yes is red.
+function askFirst(question, yes = tr('OK'), { danger = true } = {}) {
+  return asked(question, yes, { danger });
+}
+
+// The same for a name or a passphrase to type (prompt()): what was typed, or null for Cancel or Escape. Enter is the yes.
+function askName(question, value = '', yes = tr('Save'), { secret = false } = {}) {
+  return asked(question, yes, { field: { value, secret } });
+}
+
+function asked(question, yes, { danger = false, field = null }) {
+  let m = $('#ask-first');
+  if (!m) { m = document.createElement('dialog'); m.id = 'ask-first'; document.body.append(m); }
+  if (m.open) m.close();
+  const [head, ...rest] = String(question).split(/\n\s*\n/);
+  m.innerHTML = `<form method="dialog"><div class="modal-head"><h2></h2></div>${rest.length || field ? '<div class="modal-body"></div>' : ''}
+    <div class="modal-foot"><button type="button" class="btn" data-ask-no></button><button class="btn primary${danger ? ' danger' : ''}" data-ask-yes></button></div></form>`;
+  $('h2', m).textContent = head.trim();
+  const body = $('.modal-body', m);
+  for (const text of rest) { const p = document.createElement('p'); p.textContent = text.trim(); body.append(p); }
+  const input = field ? document.createElement('input') : null;
+  if (input) {
+    input.type = field.secret ? 'password' : 'text';
+    input.value = field.value || '';
+    input.setAttribute('aria-label', head.trim());
+    body.append(input);
+  }
+  $('[data-ask-no]', m).textContent = tr('Cancel');
+  $('[data-ask-yes]', m).textContent = yes;
+  return new Promise((resolve) => {
+    let said = false;
+    $('form', m).onsubmit = (e) => { e.preventDefault(); said = true; m.close(); };
+    $('[data-ask-no]', m).onclick = () => m.close();
+    m.addEventListener('close', () => resolve(input ? (said ? input.value : null) : said), { once: true });
+    m.showModal();
+    // Cancel first for a question, so Enter can't say yes by itself; the field for a name, its text chosen.
+    if (input) { input.focus(); input.select(); } else $('[data-ask-no]', m).focus();
+  });
+}
+
 // A small pill in the corner for work that runs on after its dialog or button is done (Bitwarden's unlock, a page's
 // schedule): `busy` while it runs, `ok` (gone by itself), or `err`, which a tap tries again with `retry`.
 function cornerPill(kind, text, retry = null) {
