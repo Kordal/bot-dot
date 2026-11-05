@@ -412,6 +412,15 @@ test("root's step measures the machine's load and each account's use, from outsi
   assert.equal(ann.diskUsed, 10485760 * 1024);
   assert.equal(ann.full, false);
   assert.ok(Date.now() - Date.parse(ann.at) < 60_000);
+  // Its disk, an image that only grows, gives the machine back what its files no longer hold, once a day.
+  const trims = (done) => done.system.split('\n').filter((l) => l === `fstrim ${first.dir}/accounts/ann`).length;
+  assert.equal(trims(once), 1, once.system);
+  const sameDay = measure(1_000_000_000);
+  assert.equal(trims(sameDay), trims(once), 'not again within the day');
+  const stamp = path.join(first.run, 'load', 'ann.trimmed');
+  const dayAgo = new Date(Date.now() - 25 * 3600_000);
+  fs.utimesSync(stamp, dayAgo, dayAgo);
+  assert.equal(trims(measure(1_000_000_000)), trims(once) + 1, 'again a day later');
 
   // Its file cache is left out, as the machine's RAM leaves it out; its shared memory (gVisor's) stays in (#126).
   const cg = path.join(first.top, 'cgroup', 'system.slice', 'botdot-account@ann.service');
