@@ -37,15 +37,25 @@ before(async () => {
   team = r.data.teams[0];
 });
 
-test('a team gets its chat: its name, the lead first, its colour; the owner cannot rename it, change its members or delete it', async () => {
+test('a team gets its chat: its name, the lead first, its colour; renaming it renames the team; the owner cannot change its members or delete it', async () => {
   const g = await waitFor(() => teamChat(team.id), { what: 'the team chat' });
   assert.deepEqual([g.name, g.members, g.lead, g.color], ['Growth', [lead.id, writer.id, poster.id], lead.id, team.color]);
-  assert.ok((await srv.api('/version')).data.features.includes('team-chats'));
-  for (const body of [{ name: 'Other' }, { members: [lead.id, writer.id] }]) {
-    const r = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body });
-    assert.equal(r.status, 400, JSON.stringify(body));
-    assert.match(r.data.error, /team's chat/);
-  }
+  const { features } = (await srv.api('/version')).data;
+  assert.ok(features.includes('team-chats') && features.includes('team-chat-rename'));
+  // Renamed from its chat: the team in its project takes the name, and the chat follows it.
+  const renamed = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { name: '  Growth   crew ' } });
+  assert.equal(renamed.status, 200, JSON.stringify(renamed.data));
+  assert.equal(renamed.data.name, 'Growth crew');
+  assert.equal((await srv.api('/company')).data.company.teams.find((t) => t.id === team.id).name, 'Growth crew');
+  assert.equal((await teamChat(team.id)).name, 'Growth crew');
+  // A team has a name: an empty one is refused, and nothing changes.
+  const empty = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { name: ' ' } });
+  assert.equal(empty.status, 400);
+  assert.equal((await teamChat(team.id)).name, 'Growth crew');
+  assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { name: 'Growth' } })).status, 200);
+  const r = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { members: [lead.id, writer.id] } });
+  assert.equal(r.status, 400);
+  assert.match(r.data.error, /team's chat/);
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'DELETE' })).status, 409);
   // Its place in the list is still the owner's.
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { pinned: true } })).status, 200);

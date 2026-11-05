@@ -71,7 +71,8 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
  * A group's settings, opened from its chat's title: its name, its members each with a way to take it out, "Add a
  * bot", its notes (ADR 139), and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
  * botdot server refuses is said in its words. A team's chat (#697) follows its team in Projects: its panel shows its
- * faces, its members and its notes, and nothing that renames it, changes its members or deletes it.
+ * faces, its name, which renames the team with it, its members and its notes, and nothing that changes its members or
+ * deletes it.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,7 +108,8 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
         val team = g.team != null
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) { if (team) TeamPicture(Groups.teamFaces(g, bots), g.lead, 56) else GroupPicture(members, 72) }
-            if (!team) GroupName(app, g, ::change)
+            // A team's chat is renamed with its team, on a server that does it.
+            if (!team || versionNow?.features?.contains(Groups.TEAM_CHAT_RENAME) == true) GroupName(app, g, ::change)
             Section(tr("Members")) {
                 if (members.isEmpty() && !team) Hint(tr("Its bots are all gone. Add one, or delete the group."))
                 members.forEach { b ->
