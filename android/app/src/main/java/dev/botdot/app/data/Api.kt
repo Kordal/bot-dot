@@ -209,6 +209,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }
 
     /** Token usage for a range of the account's days (#301); without days, today. */
+    /** Storage (docs/api.md, Storage): the last check; a new one; the caches cleared. */
+    suspend fun storage(): Storage.Answer = json.decodeFromString(get("/storage"))
+    suspend fun checkStorage(): Storage.Answer = json.decodeFromString(send("POST", "/storage/check"))
+    suspend fun clearCaches(): Storage.Answer = json.decodeFromString(send("POST", "/storage/clear-caches"))
     suspend fun usage(from: String? = null, to: String? = null): Usage.Answer = json.decodeFromString(get("/usage${Usage.query(from, to)}"))
 
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
