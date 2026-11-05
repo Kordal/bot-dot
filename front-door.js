@@ -381,7 +381,8 @@ function beingUpdated(account) {
 }
 function askForUpdate() {
   if (!REQUESTS) return false;
-  try { fs.writeFileSync(path.join(REQUESTS, UPDATE), `${new Date().toISOString()}\n`, { flag: 'wx', mode: 0o640 }); } catch (e) {
+  // Empty: a first line is the version asked for (#979), and the admin page's Update asks for the newest.
+  try { fs.writeFileSync(path.join(REQUESTS, UPDATE), '', { flag: 'wx', mode: 0o640 }); } catch (e) {
     if (e.code !== 'EEXIST') throw e;
   }
   return true;

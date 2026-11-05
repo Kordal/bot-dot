@@ -2574,9 +2574,11 @@ if [ "$MODE" = requested ]; then
   done
   if [ -f "$REQUESTS/$UPDATE" ] && [ ! -L "$REQUESTS/$UPDATE" ]; then
     # An update to a version named in the request (#979): its first line, sha256: and the server image's 64 hex digits.
-    # An empty request takes the newest; anything else is refused by the update, at check.
+    # An empty request takes the newest, and so does the time a front door from before #979 wrote in it (the admin
+    # page's Update); anything else is refused by the update, at check.
     to="$(head -c 200 "$REQUESTS/$UPDATE" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)"
     rm -f -- "$REQUESTS/$UPDATE"
+    if printf '%s' "$to" | grep -Eqx '[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z'; then to=''; fi
     if [ -n "$to" ] && ! printf '%s' "$to" | grep -Eqx 'sha256:[0-9a-f]{64}'; then to=invalid; fi
     update_all "$to"
   fi
