@@ -195,3 +195,37 @@ test('what a backup cut off by a restart left is removed when the server starts'
   assert.deepEqual(fs.readdirSync(dir).sort(), ['bot-dot-20261021-030952.bdb', 'notes.txt'], 'finished backups and anything else stay');
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
+
+test('a backup reads each file up to 8 MB in one call, not as a stream (one for each would start processes)', async () => {
+  const os = require('os');
+  const pfs = require('../lib/principal-fs');
+  const top = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
+  const dataDir = path.join(top, 'data');
+  fs.mkdirSync(path.join(dataDir, 'workspaces', 'b1'), { recursive: true });
+  for (let i = 0; i < 20; i++) fs.writeFileSync(path.join(dataDir, 'workspaces', 'b1', `f${i}.txt`), `file ${i}\n`);
+  fs.mkdirSync(path.join(dataDir, 'workspaces', 'b1', 'app', 'node_modules', 'left-pad'), { recursive: true });
+  fs.writeFileSync(path.join(dataDir, 'workspaces', 'b1', 'app', 'node_modules', 'left-pad', 'big.js'), Buffer.alloc(9 * 1024 * 1024, 2));
+  fs.writeFileSync(path.join(dataDir, 'big.bin'), Buffer.alloc(9 * 1024 * 1024, 1));
+  const saved = { file: process.env.BOT_DOT_VAULT_KEY_FILE, key: process.env.BOT_DOT_VAULT_KEY };
+  process.env.BOT_DOT_VAULT_KEY_FILE = path.join(top, 'config', 'vault.key');
+  process.env.BOT_DOT_VAULT_KEY = 'ab'.repeat(32);
+  const streamed = [];
+  const original = pfs.createReadStream;
+  pfs.createReadStream = (name, options) => { streamed.push(path.relative(dataDir, name)); return original(name, options); };
+  try {
+    const backup = require('../lib/backup').create({ dataDir, memory: { snapshot: (p) => fs.writeFileSync(p, 'memory') } });
+    backup.setPassphrase(PASS);
+    const made = await backup.run();
+    assert.ok(made.size > 0);
+    assert.deepEqual(streamed, ['big.bin'], 'only the file over 8 MB is streamed, and nothing of node_modules is read');
+    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    const staged = path.join(dataDir, '.restore-pending', 'data');
+    assert.equal(fs.readFileSync(path.join(staged, 'workspaces', 'b1', 'f7.txt'), 'utf8'), 'file 7\n', 'a file read whole comes back as it was');
+    assert.equal(fs.statSync(path.join(staged, 'big.bin')).size, 9 * 1024 * 1024);
+    assert.ok(fs.existsSync(path.join(staged, 'workspaces', 'b1', 'app')) && !fs.existsSync(path.join(staged, 'workspaces', 'b1', 'app', 'node_modules')), 'node_modules is left out');
+  } finally {
+    pfs.createReadStream = original;
+    for (const [k, v] of [['BOT_DOT_VAULT_KEY_FILE', saved.file], ['BOT_DOT_VAULT_KEY', saved.key]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    fs.rmSync(top, { recursive: true, force: true });
+  }
+});
