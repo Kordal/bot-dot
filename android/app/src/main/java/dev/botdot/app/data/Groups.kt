@@ -184,12 +184,16 @@ sealed interface GroupItem {
  * A member at work in a group (`working` on its chat): its run, what it said it is about to do, and, from a server
  * with `working-line`, what its line reads now ([TurnLines.read]).
  */
-data class GroupWorking(val botId: String, val runId: String, val messageId: String? = null, val startedAt: String? = null, val openingLine: String? = null, val workingLine: String? = null) {
+data class GroupWorking(val botId: String, val runId: String, val messageId: String? = null, val startedAt: String? = null, val openingLine: String? = null, val workingLine: String? = null, val plan: Plan? = null) {
     companion object {
         fun list(v: JsonElement?): List<GroupWorking> = (v as? JsonArray).orEmpty().mapNotNull { e ->
             val o = e as? JsonObject ?: return@mapNotNull null
-            GroupWorking(o["botId"].textOrNull() ?: return@mapNotNull null, o["runId"].textOrNull() ?: return@mapNotNull null, o["messageId"].textOrNull(), o["startedAt"].textOrNull(), o["openingLine"].textOrNull(), o["workingLine"].textOrNull())
+            GroupWorking(o["botId"].textOrNull() ?: return@mapNotNull null, o["runId"].textOrNull() ?: return@mapNotNull null, o["messageId"].textOrNull(), o["startedAt"].textOrNull(), o["openingLine"].textOrNull(), o["workingLine"].textOrNull(), Plan.of(o["plan"]))
         }
+
+        /** The plan above a group's message box (docs/api.md, "The plan"): of the member at work that started last and has one. */
+        fun planOf(working: List<GroupWorking>): Pair<GroupWorking, PlanView>? =
+            working.lastOrNull { it.plan != null }?.let { w -> w to PlanView(w.plan!!, stopped = false, id = w.runId) }
     }
 }
 

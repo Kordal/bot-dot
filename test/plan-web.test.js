@@ -150,3 +150,30 @@ test('web: a bot\'s steps from the feed land on its running run and draw its ope
   assert.equal(state.runs[1].steps.count, 1, 'a run that ended keeps the steps of its record');
   heard.run_steps({ data: 'not json' });
 });
+
+test("web: a group's chat draws the plan of its member at work above the box, and follows group_run_plan", () => {
+  const groups = read('groups.js');
+  const cut = (from, to) => { const a = groups.indexOf(from); const b = groups.indexOf(to, a + 1); assert.ok(a >= 0 && b > a, `groups.js has "${from}"`); return groups.slice(a, b); };
+  const drawn = [];
+  const slot = { style: { setProperty() {} } };
+  const ctx = vm.createContext({ ...words, JSON, Plan: { has: Plan.has, draw: (...a) => drawn.push(a) }, $: () => slot, memberColor: () => '#123456', memberName: (id) => `Bot ${id}` });
+  vm.runInContext(cut('function drawGroupPlan(chat) {', '// ---------- a member\'s reply as it is written'), ctx);
+  const chat = { id: 'g1', working: [{ botId: 'lead', runId: 'r1', plan: plan('doing', 'todo') }, { botId: 'helper', runId: 'r2' }] };
+  ctx.drawGroupPlan(chat);
+  assert.deepEqual(JSON.parse(JSON.stringify(drawn[0].slice(1))), ['group:g1', { kind: 'live', plan: plan('doing', 'todo'), id: 'r1', who: 'Bot lead' }]);
+  ctx.drawGroupPlan({ id: 'g1', working: [] });
+  assert.equal(drawn[1][2], null, 'nobody at work: no plan');
+  // The feed's plan lands on the turn the open chat holds, and draws it again.
+  const heard = {};
+  let draws = 0;
+  const open = { id: 'g1', working: [{ botId: 'lead', runId: 'r1' }] };
+  const feed = vm.createContext({ ...words, JSON, groupChat: open, redrawGroup: () => { draws++; } });
+  vm.runInContext(`const open = (groupId) => (groupChat?.id === groupId ? groupChat : null); const on = (t, fn) => { heard[t] = fn; };`, Object.assign(feed, { heard }));
+  vm.runInContext(cut("  on('group_run_plan', (d) => {", '  // The owner\'s message as it is now'), feed);
+  heard.group_run_plan({ groupId: 'g1', runId: 'r1', plan: plan('doing') });
+  assert.equal(open.working[0].plan.steps.length, 1);
+  heard.group_run_plan({ groupId: 'g1', runId: 'r1', plan: plan('doing') });
+  assert.equal(draws, 1, 'the same plan again draws nothing');
+  heard.group_run_plan({ groupId: 'g1', runId: 'r1', plan: null });
+  assert.equal(open.working[0].plan, undefined);
+});
