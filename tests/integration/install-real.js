@@ -418,8 +418,13 @@ const cases = [
       assert.equal(signIn.state, 'made', JSON.stringify({ ...signIn, url: undefined }));
       assert.equal(signIn.account, ADMIN);
       assert.match(machine.exec('stat', '-c', '%a %U %G', `${DIR}/front-door/status/sign-in-${ADMIN}.json`), /^640 root botdot-door$/);
-      machine.signUp(signIn.url, ADMIN, { jar: 'lost-every-device' });
-      assert.equal(machine.api('GET', '/front-door/session', undefined, { jar: 'lost-every-device' }).body.account, ADMIN, 'the new passkey signs in');
+      // A browser signed in before stands for the lost devices, whose sessions end; the default one signs in again with
+      // the new passkey, for the steps after this one.
+      machine.exec('cp', '/root/cookies', '/root/lost-device');
+      machine.signUp(signIn.url, ADMIN);
+      assert.equal(machine.api('GET', '/front-door/session').body.account, ADMIN, 'the new passkey signs in');
+      assert.equal(machine.api('GET', '/api/status', undefined, { jar: 'lost-device' }).status, 401, "the lost devices' sessions end");
+      answers(machine);
       assert.equal(machine.api('GET', new URL(signIn.url).pathname).status, 410, 'once');
       const noSignUp = await linkAsked('SIGN-UP', 'sign-up.json');
       assert.equal(noSignUp.state, 'refused', 'a machine of one account takes no sign-up link');
