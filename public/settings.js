@@ -361,12 +361,7 @@ function renderSettings() {
         <summary><b>${tr('Bots with their own model')}</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
         <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
       </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}
-      ${state.features.includes('boat-size') && state.status?.boat ? `<details class="bs-row bs-more" id="boat-size-card">
-        <summary><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary>
-        <div class="bs-body">
-          <label class="field" id="boat-size-field">${tr('Size')}<select id="boat-size" disabled${tipAttrs(tr('Each machine takes it when it starts next.'))}><option>${tr('Loading…')}</option></select></label>
-        </div>
-      </details>` : ''}
+      ${state.features.includes('boat-size') && state.status?.boat ? `<div class="bs-row" id="boat-size-card" hidden><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span></div>` : ''}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
       <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
       ${pushCardHTML()}
@@ -385,7 +380,6 @@ function renderSettings() {
   drawSettingsLinks(root);
   loadBackupsCard();
   loadComputerPlace(root);
-  loadBoatSize(root);
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   wireLanguage(root);
   const form = $('#settings-form', root);
@@ -434,34 +428,19 @@ function wireLanguage(root) {
   };
 }
 
-// Where the account's computer is (#579): this machine or its External Virtual PC on boat.dev, for every bot with a
-// computer. Only the admin moves it, on the admin page (ADR 146): here it is the card's value, and the card, which holds
-// the External Virtual PC's size, shows only while the computer is there.
-const PLACE_NAMES = { linux: () => tr('This machine'), boat: () => tr('External Virtual PC') };
+// Where the account's computer is (#579) and, on its External Virtual PC on boat.dev, its size: the admin chooses both,
+// on the admin page (ADR 146, ADR 163), so here they are a row's value, shown only while the computer is there.
+const boatSizeLabel = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 async function loadComputerPlace(root) {
-  const card = $('#boat-size-card', root);
-  if (!card || !state.features.includes('account-computer')) return;
-  let place;
-  try { ({ place } = await api('/settings/computer')); } catch { return; }
-  $('#computer-place-val', root).textContent = PLACE_NAMES[place]?.() || '';
-  card.hidden = place !== 'boat';
-}
-
-// The size of the account's boat.dev machines (#539): the sizes boat.dev makes now, and the chosen one even when not.
-const boatSizeLabel = (s) => `${s.id[0].toUpperCase()}${s.id.slice(1)} · ${s.cpus} CPU · ${s.memoryGB} GB`;
-async function loadBoatSize(root) {
-  const pick = $('#boat-size', root);
-  if (!pick) return;
-  let r;
-  try { r = await api('/settings/boat-size'); } catch { $('#boat-size-card', root).hidden = true; return; }
-  pick.innerHTML = r.sizes.filter((s) => s.available || s.id === r.size).map((s) => `<option value="${esc(s.id)}"${s.id === r.size ? ' selected' : ''}>${esc(boatSizeLabel(s))}</option>`).join('');
-  pick.disabled = false;
-  pick.onchange = async () => {
-    try {
-      await api('/settings/boat-size', { method: 'PUT', body: { size: pick.value } });
-      flashSaved($('#view-settings'));
-    } catch (err) { toast(err.message, true); }
-  };
+  const row = $('#boat-size-card', root);
+  if (!row) return;
+  let place = 'boat';
+  if (state.features.includes('account-computer')) { try { ({ place } = await api('/settings/computer')); } catch { return; } }
+  if (place !== 'boat') return;
+  let size = '';
+  try { size = boatSizeLabel((await api('/settings/boat-size')).size); } catch { /* the place alone */ }
+  $('#computer-place-val', root).textContent = [tr('External Virtual PC'), size].filter(Boolean).join(' · ');
+  row.hidden = false;
 }
 
 // ---------- installing the app ----------

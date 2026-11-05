@@ -1177,6 +1177,12 @@ data class ComputerPlace(val place: String = "linux", val boat: Boolean = false)
 data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = emptyList()) {
     /** What the picker offers: the sizes boat.dev makes now, and the chosen one even when not. */
     val offered get() = sizes.filter { it.available || it.id == size }.map { it.id to it.label }
+    /** The chosen size's name: "Large". */
+    val sizeName get() = size.replaceFirstChar { it.uppercase() }
+    companion object {
+        /** Only the admin chooses it, on the admin page (ADR 163): the owner sees it, no picker. */
+        fun byAdmin(features: List<String>?) = "boat-size-admin" in features.orEmpty()
+    }
 }
 
 @Serializable

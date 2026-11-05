@@ -349,3 +349,26 @@ test("admin page: only the admin moves an account's computer (ADR 146), its bots
   await tick();
   assert.deepEqual(calls[0], ['POST', '/admin/accounts/bob/computer']);
 });
+
+test("admin page: only the admin chooses the size of an account's External Virtual PC (ADR 163), from the sizes boat.dev makes", async () => {
+  const bob = ACCOUNTS.find((a) => a.name === 'bob');
+  Object.assign(bob, { computer: 'boat', boatSize: { size: 'default', sizes: [{ id: 'small', cpus: 2, memoryGB: 4, available: true }, { id: 'default', cpus: 4, memoryGB: 8, available: true }, { id: 'xlarge', cpus: 16, memoryGB: 32, available: false }] } });
+  try {
+    const { open, buttons, fire, calls, tick } = await page();
+    const box = open('bob');
+    assert.match(box.querySelector('p').textContent, / · External Virtual PC Default · /, 'the row says where it is and its size');
+    fire(buttons(box).find((b) => b.textContent === 'Change size'), 'click');
+    const asked = box.querySelector('.confirm');
+    const pick = asked.querySelector('select');
+    assert.deepEqual(pick.children.map((o) => [o.value, o.textContent]), [['small', 'Small · 2 CPU · 4 GB'], ['default', 'Default · 4 CPU · 8 GB']], 'only what boat.dev makes now');
+    assert.deepEqual(buttons(asked).map((b) => b.textContent), ['Save', 'Close']);
+    pick.value = 'small';
+    calls.length = 0;
+    fire(buttons(asked).find((b) => b.textContent === 'Save'), 'click');
+    await tick();
+    assert.deepEqual(calls[0], ['POST', '/admin/accounts/bob/boat-size']);
+  } finally {
+    bob.computer = 'linux';
+    delete bob.boatSize;
+  }
+});
