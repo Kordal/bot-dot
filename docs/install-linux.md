@@ -214,6 +214,26 @@ Set a passphrase in **Settings → Backups**, and botdot backs up every night at
 
 To restore, on the same server or a new one: install botdot, open it, and choose **Restore a backup** on its setup page. botdot restarts with your data, and you sign in to Claude again.
 
+### The whole machine
+
+A backup set is a copy of the whole machine, to rebuild a lost server: root asks root's step for one, and it needs no passphrase. Ask for one with an empty file named `BACKUP` in the front door's requests folder:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/BACKUP
+```
+
+Root's step writes the set into `/var/lib/botdot/backup`, which only root reads. It holds the front door's data (accounts, passkeys, sign-up links, the audit log) and, for each account, suspended ones too, its data folder (without its own backups in `data/backups`), its `.env`, its server's `/config` volume with the Vault's key, and its computer's volumes: `workspace` (the bots' files and project folders), `home` and `browser` (the browser profiles, without their lock files). Each part is a plain tar file, and `manifest.json` lists the version, the machine's instance id, the admin's name, the accounts and a sha256 of each part. A computer that runs keeps running while it is copied. The set is made beside the last one, which it replaces only once it is complete: a set that fails leaves the last one as it was. It is on the machine's own disk, so copy the folder off the machine (restic, for example): it holds every account's data and the Vault keys, unencrypted.
+
+To put a set back, install the same version on a clean machine, with the same domain and admin's name, put the set in `/var/lib/botdot/backup`, and ask with a file named `RESTORE`:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/RESTORE
+```
+
+Root's step checks the whole set first: a set of another version or another admin, or one whose checksum doesn't match, is refused and nothing changes. Then it stops the front door, puts its data back and starts it, and makes each account, puts its data, `.env`, Vault key and computer's volumes back, and starts it again. Owners sign in with their passkeys as before. A request the front door made, not root, is refused.
+
+How each went is in `/var/lib/botdot/front-door/status/backup.json` and `restore.json`: `state` (`backing-up`, `done`, `failed` or `refused`; `restoring`, `restored`, `failed` or `refused`), `at`, the `phase` (and `account`) it is in or stopped in, and `error`. Root's step's log, `journalctl -u botdot-accounts` (or `/var/lib/botdot/requests.log` without systemd), says more.
+
 ## Uninstall
 
 On the server, from the source you installed with:
@@ -222,7 +242,7 @@ On the server, from the source you installed with:
 sudo sh bot-dot-source/install.sh --uninstall
 ```
 
-It lists what it removes and asks you to type `yes`, as this can't be undone: the front door, every account (its botdot server, its computer, its rootless Docker, its Linux user `botdot-<name>`, its disk and its data, backups included), the front door's user `botdot-door`, botdot's systemd units, the AppArmor profile `botdot-rootlesskit`, Tailscale Serve's setting for botdot and `/var/lib/botdot` with the passkeys. Download each account's backup first if you want to keep it. Then it asks once more whether to remove the packages the installer may have installed (`runsc`, `docker-ce-rootless-extras` and gVisor's apt source); Docker itself and Tailscale always stay. botdot's images stay in Docker too: `sudo docker image ls` lists them, and `sudo docker image rm` removes one. `BOT_DOT_YES=1` answers the first question and asks nothing, and keeps the packages. Anything it couldn't remove is listed at the end, and running it again finishes what it can.
+It lists what it removes and asks you to type `yes`, as this can't be undone: the front door, every account (its botdot server, its computer, its rootless Docker, its Linux user `botdot-<name>`, its disk and its data, backups included), the front door's user `botdot-door`, botdot's systemd units, the AppArmor profile `botdot-rootlesskit`, Tailscale Serve's setting for botdot and `/var/lib/botdot` with the passkeys and the backup set. Download each account's backup first if you want to keep it. Then it asks once more whether to remove the packages the installer may have installed (`runsc`, `docker-ce-rootless-extras` and gVisor's apt source); Docker itself and Tailscale always stay. botdot's images stay in Docker too: `sudo docker image ls` lists them, and `sudo docker image rm` removes one. `BOT_DOT_YES=1` answers the first question and asks nothing, and keeps the packages. Anything it couldn't remove is listed at the end, and running it again finishes what it can.
 
 The source you cloned goes with `rm -rf ~/bot-dot-source`, and on a tailnet the server leaves it in Tailscale's admin console.
 

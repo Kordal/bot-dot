@@ -40,6 +40,10 @@
 #
 #   sh BOT_DOT_DIR/bin/install.sh --update
 #
+# A backup set of the whole machine (#986) is asked by root alone, with an empty file named BACKUP, and put back on a
+# fresh install of the same version with one named RESTORE (below, "A backup set"): BOT_DOT_DIR/backup holds it, and
+# status/backup.json and status/restore.json say how it went.
+#
 # An account whose owner turned "Update automatically" off is left waiting on the version it runs, with the new one in
 # its Docker (ADR 053). "Update now", from its owner's Settings or the admin page, or the deadline the admin set, asks
 # with an empty file named SWITCH-<account>, which no account can be named either: root's step then switches that
@@ -534,7 +538,7 @@ erase_account() {
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
 UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service"
-OWN="front-door accounts sockets disks bin update.log requests.log"
+OWN="front-door accounts sockets disks bin backup update.log requests.log"
 PACKAGES="runsc docker-ce-rootless-extras"
 
 # installed_accounts: each account this machine has: its folder, its socket folder, its disk or its Linux user.
@@ -2128,6 +2132,266 @@ switch_one() {
   warn "The account $1 wasn't switched: $so_text"
 }
 
+# A backup set (#986): a complete copy of this machine in one folder, SET, that only root reads, for the fleet
+# console's agent to take off the machine (restic). Root asks for one with an empty file named BACKUP in REQUESTS, and
+# puts one back on a fresh install of the same version with one named RESTORE; only a request root made is taken, as
+# the front door may write in REQUESTS. Neither name can be an account's. How each went is in status/backup.json and
+# status/restore.json: state (backing-up, done or failed; restoring, restored, failed or refused), when, the phase it
+# is in or stopped in, and why it failed.
+#
+# A set holds, as plain tar files that restic can deduplicate, with a sha256 of each in manifest.json beside the
+# version, the instance id, the admin's name and the accounts:
+#   front-door/data.tar          the front door's data: accounts, passkeys, sign-up links, the audit log
+#   accounts/<name>/data.tar     the account's data folder, without its own backups (data/backups)
+#   accounts/<name>/env          its .env
+#   accounts/<name>/config.tar   its server's /config volume, with the Vault's key
+#   accounts/<name>/<volume>.tar its computer's volumes: workspace (the bots' files and project folders), home and
+#                                browser (the browser profiles, without their lock files)
+# An account's files are read from its disk as root, so a suspended account is in the set too and a running computer
+# keeps running untouched, and their owners are written as its rootless Docker sees them (from 0 to 65536), so that
+# the restore, which writes them through the new account's own Docker, gives them to the same users there whatever
+# sub-IDs the new machine gave it. A new set is made beside the last one and takes its place only once it is complete.
+SET="$DIR/backup"
+BACKUP=BACKUP
+RESTORE=RESTORE
+SET_VOLUMES='workspace home browser'
+SET_LOCKS='lock .parentlock parent.lock SingletonLock SingletonSocket SingletonCookie'
+
+# set_said backup|restore STATE [FIELDS]: status/backup.json or status/restore.json.
+set_said() { write_status "$1.json" "{\"state\":\"$2\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${3:+,$3}}"; }
+# by_root FILE: FILE was made by root, as BOT_DOT_DIR was, and not by the front door.
+by_root() { [ "$(stat -c %u -- "$1" 2>/dev/null)" = "$(stat -c %u -- "$DIR")" ]; }
+# account_volume NAME VOLUME: the folder of the account NAME's Docker volume VOLUME (config, workspace, home, browser).
+account_volume() {
+  case "$2" in config) av="$1_bot-dot-config" ;; *) av="botdot-$1.account.computer-$2" ;; esac
+  printf '%s/%s/.local/share/docker/volumes/%s/_data' "$ACCOUNTS" "$1" "$av"
+}
+# ns_maps NAME FOLDER: tar's owner and group maps from the machine's IDs of the account NAME to its Docker's own: its
+# Linux user is that Docker's root, and its sub-IDs from the first are 1 to 65536 there.
+ns_maps() {
+  for nm in u g; do
+    nm_id="$(id -"$nm" "botdot-$1")"
+    nm_sub="$(awk -F: -v u="botdot-$1" '$1 == u { print $2; exit }' "$ETC/sub${nm}id" 2>/dev/null)"
+    [ -n "$nm_sub" ] || die "The account $1 has no sub-IDs in $ETC/sub${nm}id."
+    awk -v h="$nm_id" -v s="$nm_sub" 'BEGIN { print "+" h " root:0"; for (i = 0; i < 65536; i++) print "+" (s + i) " n:" (i + 1) }' > "$2/${nm}ids"
+  done
+}
+# set_tar FOLDER FILE [TAR OPTION…]: FOLDER's contents in FILE. A file that changed while it was read (a running
+# account) is no failure; anything else is.
+set_tar() {
+  st_from="$1" st_to="$2"
+  shift 2
+  set +e
+  tar -C "$st_from" --numeric-owner "$@" -cf "$st_to" . 2> "$st_to.err"
+  st_done=$?
+  set -e
+  [ "$st_done" -le 1 ] || die "Couldn't copy $st_from: $(tail -n 1 "$st_to.err")"
+  rm -f "$st_to.err"
+}
+
+# make_set: the set, in SET.new, then in SET's place.
+make_set() {
+  tar --help 2>/dev/null | grep -q -- --owner-map || die "This machine's tar can't write a backup set: it needs GNU tar 1.29 or newer."
+  new="$SET.new"
+  rm -rf -- "$new"
+  mkdir -p "$new/front-door" "$new/accounts"
+  chown 0:0 "$new"
+  chmod 700 "$new"
+  ms_accounts=''
+  for home in "$ACCOUNTS"/*/; do
+    n="$(basename "$home")"
+    valid_account "$n" && [ -f "$ACCOUNTS/$n/compose.yaml" ] || continue
+    ms_accounts="$ms_accounts $n"
+  done
+  # Room for it, on the machine's own disk, beside the last set.
+  # shellcheck disable=SC2046 # one folder per word
+  ms_need="$(du -sk "$DOOR/data" $(for n in $ms_accounts; do printf '%s/%s/data %s/%s/.local/share/docker/volumes ' "$ACCOUNTS" "$n" "$ACCOUNTS" "$n"; done) 2>/dev/null | awk '{ s += $1 } END { printf "%.0f", s }')"
+  ms_free="$(df -Pk "$DIR" | awk 'NR == 2 { print $4 }')"
+  [ -z "$ms_free" ] || [ "$ms_free" -gt "$((ms_need + ms_need / 10))" ] || die "This machine's disk has $((ms_free / 1024)) MB free, and the set needs about $((ms_need / 1024)) MB."
+
+  set_said backup backing-up '"phase":"front-door"'
+  set_tar "$DOOR/data" "$new/front-door/data.tar"
+  for n in $ms_accounts; do
+    set_said backup backing-up "\"phase\":\"account\",\"account\":\"$n\""
+    home="$ACCOUNTS/$n"
+    out="$new/accounts/$n"
+    mkdir -p "$out"
+    ns_maps "$n" "$out"
+    maps="--owner-map=$out/uids --group-map=$out/gids"
+    # shellcheck disable=SC2086 # two options
+    set_tar "$home/data" "$out/data.tar" $maps --exclude=./backups
+    cp "$home/.env" "$out/env"
+    for v in config $SET_VOLUMES; do
+      [ -d "$(account_volume "$n" "$v")" ] || continue
+      skip=''
+      [ "$v" != browser ] || for l in $SET_LOCKS; do skip="$skip --exclude=$l"; done
+      # shellcheck disable=SC2086 # options
+      set_tar "$(account_volume "$n" "$v")" "$out/$v.tar" $maps $skip
+    done
+    rm -f "$out/uids" "$out/gids"
+  done
+
+  # The manifest, with a checksum of each part.
+  parts=''
+  for f in $(cd "$new" && find . -type f | sed 's#^\./##' | sort); do
+    parts="$parts${parts:+,}{\"path\":\"$f\",\"sha256\":\"$(sha256sum "$new/$f" | cut -d' ' -f1)\",\"bytes\":$(wc -c < "$new/$f" | tr -d ' ')}"
+  done
+  names=''
+  for n in $ms_accounts; do names="$names${names:+,}\"$n\""; done
+  printf '{"kind":"botdot-backup-set","format":1,"version":"%s","instance":"%s","admin":"%s","at":"%s","accounts":[%s],"parts":[%s]}\n' \
+    "$(version_now)" "$INSTANCE" "$(get_env "$ENV" FRONT_DOOR_ADMIN)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$names" "$parts" > "$new/manifest.json"
+  find "$new" -type d -exec chmod 700 {} + -o -type f -exec chmod 600 {} +
+  chown -R 0:0 "$new"
+
+  # The last set goes only now that this one is complete.
+  rm -rf -- "$SET.old"
+  [ ! -e "$SET" ] || mv -- "$SET" "$SET.old"
+  mv -- "$new" "$SET"
+  rm -rf -- "$SET.old"
+}
+
+# backup_set: the set asked for, and how it went in status/backup.json. One that fails leaves the last one as it was.
+backup_set() {
+  say "Making a backup set of this machine in $SET"
+  set_said backup backing-up '"phase":"check"'
+  bs_why="$RUN/backup-why"
+  rm -f "$bs_why"
+  set +e
+  ( set -e; umask 077; ACCOUNT_WHY="$bs_why"; make_set )
+  bs_done=$?
+  set -e
+  if [ "$bs_done" = 0 ]; then
+    set_said backup done "\"version\":\"$(version_now)\",\"bytes\":$(du -sk "$SET" | awk '{ printf "%.0f", $1 * 1024 }')"
+    ok "The backup set is in $SET"
+    return 0
+  fi
+  bs_text="$(cut -f2- "$bs_why" 2>/dev/null || true)"
+  rm -f "$bs_why"
+  rm -rf -- "$SET.new"
+  bs_stopped="$(sed -n 's/.*\("phase":"[a-z-]*"\(,"account":"[a-z0-9-]*"\)\{0,1\}\).*/,\1/p' "$DOOR/status/backup.json" 2>/dev/null || true)"
+  set_said backup failed "\"error\":\"$(printf '%s' "${bs_text:-The backup set stopped without saying why}" | plain_line 300)\"$bs_stopped"
+  warn "The backup set wasn't made${bs_text:+: $bs_text}. The last one is as it was."
+}
+
+# put_part FILE NAME FOLDER|VOLUME: the part FILE of a set put in the account NAME's bind folder or volume, emptied
+# first, through the account's own Docker ($A), whose root gives each file the owner it had there.
+put_part() {
+  $A run --rm -i --pull never --network none --user 0:0 -v "$3:/v" --entrypoint sh "$IMAGE" -c 'find /v -mindepth 1 -delete && tar -x -p --numeric-owner -f - -C /v' < "$1" \
+    || die "Couldn't put back $(basename "$1") of the account $2."
+}
+# restore_account NAME: the account NAME made as the restored front door says, its server stopped, its data, .env,
+# Vault key and computer's volumes put back from the set, and started again through the usual phases.
+restore_account() {
+  ra="$1"
+  ra_from="$SET/accounts/$ra"
+  ra_state="$(door_state "$ra")"
+  case "$ra_state" in running* | suspended*) ;; *) die "The set's front door has no account $ra." ;; esac
+  # shellcheck disable=SC2086 # its share's three numbers, after its state
+  set -- ${ra_state#* }
+  [ "$ra_state" != "${ra_state%% *}" ] || set --
+  account "$ra" "$@"
+  ra_home="$ACCOUNTS/$ra"
+  A="env DOCKER_HOST=unix://$RUN/$ra/docker.sock docker"
+  $A compose --project-directory "$ra_home" down </dev/null >/dev/null 2>&1 || die "Couldn't stop the account $ra's botdot server."
+  for ra_c in $($A ps -aq </dev/null 2>/dev/null); do $A rm -f "$ra_c" </dev/null >/dev/null 2>&1 || true; done
+  put_part "$ra_from/data.tar" "$ra" "$ra_home/data"
+  cp "$ra_from/env" "$ra_home/.env"
+  chown "$(id -u "botdot-$ra"):$(id -g "botdot-$ra")" "$ra_home/.env"
+  chmod 600 "$ra_home/.env"
+  for ra_v in config $SET_VOLUMES; do
+    [ -f "$ra_from/$ra_v.tar" ] || continue
+    case "$ra_v" in
+      config) ra_vol="${ra}_bot-dot-config" ;;
+      *) ra_vol="botdot-$ra.account.computer-$ra_v"
+        $A volume inspect "$ra_vol" </dev/null >/dev/null 2>&1 || $A volume create --label botdot.volume=account --label "botdot.instance=$ra" "$ra_vol" </dev/null >/dev/null ;;
+    esac
+    put_part "$ra_from/$ra_v.tar" "$ra" "$ra_vol"
+  done
+  account "$ra" "$@"
+  case "$ra_state" in suspended*) stop_account "$ra"; ok "The account $ra is back, and suspended as it was" ;; *) ok "The account $ra is back" ;; esac
+}
+# restore_set: the set in SET put back on this machine, the front door's data first, then each account. It is checked
+# whole first: a set of another version, of another admin, or with a part whose checksum doesn't match is refused, and
+# nothing changes.
+restore_set() {
+  say "Putting back the backup set in $SET"
+  set_said restore restoring '"phase":"check"'
+  rs_why="$RUN/restore-why"
+  rm -f "$rs_why"
+  set +e
+  ( set -e; ACCOUNT_WHY="$rs_why"; ACCOUNT_RESULT=refused; check_set; ACCOUNT_RESULT=failed; put_set )
+  rs_done=$?
+  set -e
+  if [ "$rs_done" = 0 ]; then
+    set_said restore restored "\"version\":\"$(version_now)\""
+    ok "The backup set is back on this machine"
+    return 0
+  fi
+  rs_line="$(cat "$rs_why" 2>/dev/null || true)"
+  rm -f "$rs_why"
+  rs_result="${rs_line%%	*}"
+  rs_text="${rs_line#*	}"
+  case "$rs_result" in refused | failed) ;; *) rs_result=failed rs_text='' ;; esac
+  rs_stopped=''
+  [ "$rs_result" = refused ] || rs_stopped="$(sed -n 's/.*\("phase":"[a-z-]*"\(,"account":"[a-z0-9-]*"\)\{0,1\}\).*/,\1/p' "$DOOR/status/restore.json" 2>/dev/null || true)"
+  set_said restore "$rs_result" "\"error\":\"$(printf '%s' "${rs_text:-The restore stopped without saying why}" | plain_line 300)\"$rs_stopped"
+  warn "The backup set wasn't put back${rs_text:+: $rs_text}"
+}
+check_set() {
+  [ -f "$SET/manifest.json" ] || die "There is no backup set in $SET."
+  manifest="$(cat "$SET/manifest.json")"
+  field() { printf '%s' "$manifest" | json "$1"; }
+  [ "$(field 'j.kind + "/" + j.format')" = botdot-backup-set/1 ] || die "$SET/manifest.json is not a backup set this version reads."
+  cs_version="$(field 'j.version')"
+  [ -n "$cs_version" ] && [ "$cs_version" = "$(version_now)" ] || die "The set is of version ${cs_version:-unknown}, and this machine runs $(version_now): install version ${cs_version:-unknown} and put it back there."
+  cs_admin="$(field 'j.admin')"
+  [ "$cs_admin" = "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The set's admin is $cs_admin, and this machine's is $(get_env "$ENV" FRONT_DOOR_ADMIN): install with BOT_DOT_ADMIN=$cs_admin."
+  SET_ACCOUNTS="$(field 'j.accounts.join(" ")')"
+  for n in $SET_ACCOUNTS; do valid_account "$n" || die "The set names an account that can't be one."; done
+  sums="$RUN/set-sums"
+  field 'j.parts.map((p) => p.sha256 + "  " + p.path).join("\n")' > "$sums"
+  while read -r cs_sum cs_path; do
+    case "$cs_path" in front-door/data.tar | accounts/*/data.tar | accounts/*/env | accounts/*/*.tar) ;; *) die "The set has a part that can't be one: $cs_path." ;; esac
+    case "$cs_path" in *..* | */*/*/*/*) die "The set has a part that can't be one: $cs_path." ;; esac
+    case "$cs_sum" in *[!0-9a-f]* | '') die "The set's checksum of $cs_path can't be one." ;; esac
+  done < "$sums"
+  [ -f "$SET/front-door/data.tar" ] && grep -q '  front-door/data.tar$' "$sums" || die "The set has no front door's data."
+  for n in $SET_ACCOUNTS; do grep -q "  accounts/$n/data.tar$" "$sums" && grep -q "  accounts/$n/env$" "$sums" || die "The set has no data of the account $n."; done
+  (cd "$SET" && sha256sum -c --quiet "$sums" >/dev/null 2>&1) || { rm -f "$sums"; die "A part of the set doesn't match its checksum: the set is damaged, so nothing was put back."; }
+  rm -f "$sums"
+  SET_INSTANCE="$(field 'j.instance')"
+}
+put_set() {
+  set_said restore restoring '"phase":"front-door"'
+  $D compose --project-directory "$DOOR" stop </dev/null >/dev/null 2>&1 || die "Couldn't stop the front door."
+  rm -rf -- "$DOOR/data.new"
+  mkdir -p "$DOOR/data.new"
+  tar -x -p --numeric-owner -f "$SET/front-door/data.tar" -C "$DOOR/data.new" || die "Couldn't put back the front door's data."
+  chown -R "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data.new"
+  chmod 700 "$DOOR/data.new"
+  rm -rf -- "$DOOR/data"
+  mv -- "$DOOR/data.new" "$DOOR/data"
+  case "$SET_INSTANCE" in '' | *[!0-9a-f]*) ;; *) set_env "$ENV" BOT_DOT_INSTANCE "$SET_INSTANCE"; INSTANCE="$SET_INSTANCE" ;; esac
+  $D compose --project-directory "$DOOR" up -d </dev/null >/dev/null 2>&1 || $D compose --project-directory "$DOOR" up -d </dev/null || die "The front door didn't start again."
+  ps_host="$(get_env "$ENV" FRONT_DOOR_ORIGIN | sed 's#^https*://##')"
+  ps_port="$(get_env "$ENV" FRONT_DOOR_PORT)"
+  i=0
+  until curl -fsS -o /dev/null -H "Host: $ps_host" "http://127.0.0.1:${ps_port:-$DOOR_PORT}/api/version" </dev/null 2>/dev/null; do
+    i=$((i + 1))
+    [ "$i" -lt 120 ] || die "The front door didn't answer after the restore."
+    sleep 1
+  done
+  for n in $SET_ACCOUNTS; do
+    set_said restore restoring "\"phase\":\"account\",\"account\":\"$n\""
+    restore_account "$n"
+  done
+  for home in "$ACCOUNTS"/*/; do
+    n="$(basename "$home")"
+    valid_account "$n" && [ -f "$home/compose.yaml" ] || continue
+    case " $SET_ACCOUNTS " in *" $n "*) ;; *) warn "The account $n isn't in the set, and the front door no longer knows it: it was left as it is." ;; esac
+  done
+}
+
 # revision_of IMAGE [DOCKER]: the source revision IMAGE was built from, 7 characters, or nothing.
 revision_of() {
   ro_="$(${2:-$D} image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$1" </dev/null 2>/dev/null | cut -c1-7 || true)"
@@ -2190,6 +2454,21 @@ rollback_one() {
 }
 
 if [ "$MODE" = requested ]; then
+  # A backup set's requests (#986), root's alone: one the front door made is refused. A restore comes first, and a
+  # set is made before an update, of what ran until then.
+  for request in "$REQUESTS/$RESTORE" "$REQUESTS/$BACKUP"; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    kind=backup
+    [ "$request" != "$REQUESTS/$RESTORE" ] || kind=restore
+    if ! by_root "$request"; then
+      rm -f -- "$request"
+      set_said "$kind" refused '"error":"Only root asks for this."'
+      warn "A $kind request that root didn't make was refused."
+      continue
+    fi
+    rm -f -- "$request"
+    if [ "$kind" = restore ]; then restore_set; else backup_set; fi
+  done
   if [ -f "$REQUESTS/$UPDATE" ] && [ ! -L "$REQUESTS/$UPDATE" ]; then
     # An update to a version named in the request (#979): its first line, sha256: and the server image's 64 hex digits.
     # An empty request takes the newest; anything else is refused by the update, at check.
@@ -2224,7 +2503,7 @@ if [ "$MODE" = requested ]; then
     name="$(basename "$request")"
     taken=''
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
-    if [ "$name" = "$UPDATE" ] && [ -f "$request" ] && [ ! -L "$request" ]; then continue
+    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
     elif case "$name" in SWITCH-* | ROLLBACK-*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
