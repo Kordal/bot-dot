@@ -31,6 +31,17 @@ case "$1" in
     "$@" > "${repo}/parts/$name" || { s=$?; echo "{\\"message_type\\":\\"exit_error\\",\\"code\\":1,\\"message\\":\\"Fatal: unable to save snapshot: command failed: exit status $s\\"}"; exit 1; }
     echo "$tags" > "${repo}/parts/$name.tags"
     echo "{\\"message_type\\":\\"summary\\",\\"data_added_packed\\":100,\\"snapshot_id\\":\\"$(printf '%s' "$name" | sha256sum | cut -c1-64)\\"}" ;;
+  check) echo "$2" >> "${repo}/checked"
+    [ -z "\${STAND_IN_RESTIC_DAMAGED:-}" ] || { echo "Pack 3f1a: hash mismatch" >&2; exit 1; } ;;
+  # A part's snapshot is the sha256 of its name, as backup says it: snapshots, dump and stats find the part by it.
+  snapshots) [ -f "${repo}/parts/manifest.json" ] || { echo '[]'; exit 0; }
+    echo "[{\\"id\\":\\"$(printf '%s' manifest.json | sha256sum | cut -c1-64)\\",\\"paths\\":[\\"/manifest.json\\"]}]" ;;
+  dump) for f in $(cd "${repo}/parts" && find . -type f ! -name '*.tags' | sed 's#^./##'); do
+      [ "$(printf '%s' "$f" | sha256sum | cut -c1-64)" = "$2" ] && { [ -z "\${STAND_IN_RESTIC_SHORT:-}" ] || [ "$f" != "$STAND_IN_RESTIC_SHORT" ] || { head -c 3 "${repo}/parts/$f"; exit 0; }; cat "${repo}/parts/$f"; exit 0; }
+    done; echo "Fatal: no snapshot $2" >&2; exit 1 ;;
+  stats) id="$5"; for f in $(cd "${repo}/parts" && find . -type f ! -name '*.tags' | sed 's#^./##'); do
+      [ "$(printf '%s' "$f" | sha256sum | cut -c1-64)" = "$id" ] && { echo "{\\"total_size\\":$(wc -c < "${repo}/parts/$f" | tr -d ' '),\\"total_file_count\\":1}"; exit 0; }
+    done; exit 1 ;;
 esac
 exit 0
 `;
@@ -72,7 +83,14 @@ function machine(t, { repo = null } = {}) {
     seen = done.system.length;
     return since;
   };
-  return { ...m, dir, store, parts: path.join(store, 'parts'), offsite, secrets: path.join(dir, 'offsite') };
+  // restoreTest(account): `install.sh --restore-test ACCOUNT` (#1018), as the admin runs it.
+  const restoreTest = (account, { given = {} } = {}) => {
+    const done = installer(t, { again: m.first, dotenv: '', script: path.join(dir, 'bin', 'install.sh'), args: ['--restore-test', account], given: { BOT_DOT_OFFSITE_REPO: address, ...given }, bins: { restic: restic(store) } });
+    const since = { ...done, system: done.system.slice(seen) };
+    seen = done.system.length;
+    return since;
+  };
+  return { ...m, dir, store, parts: path.join(store, 'parts'), offsite, restoreTest, secrets: path.join(dir, 'offsite') };
 }
 const resticCalls = (done) => done.system.split('\n').filter((l) => l.startsWith('restic ')).map((l) => l.slice(7));
 
@@ -147,7 +165,7 @@ test('the off-site backup streams every part of a set into the repository, made 
   assert.match(fs.readFileSync(path.join(m.secrets, 'password'), 'utf8'), /^[0-9a-f]{64}$/, 'a new password, made at random');
   assert.match(done.said, new RegExp(`A new password for the off-site repository is in ${m.secrets}/password: keep a copy off this machine`));
   assert.ok(done.system.includes(`restic-env ${m.store} ${m.secrets}/password ${m.secrets}/cache`), 'the password from its file, never on the command line');
-  assert.deepEqual(fs.readdirSync(m.secrets).sort(), ['cache', 'password', 'pruned']);
+  assert.deepEqual(fs.readdirSync(m.secrets).sort(), ['cache', 'check-next', 'check.json', 'checked', 'password', 'pruned']);
   assert.ok(!fs.existsSync(path.join(m.dir, 'backup')), 'no set on the machine\'s disk');
   assert.match(fs.readFileSync(path.join(m.dir, 'front-door', '.env'), 'utf8'), new RegExp(`^BOT_DOT_OFFSITE_REPO=${m.store}$`, 'm'), 'the repository is kept in .env');
 
@@ -257,4 +275,98 @@ test('an OFFSITE request root didn\'t make is refused', { skip: process.getuid?.
   const done = m.step('bob');
   assert.equal(status(done, 'offsite.json').state, 'refused');
   assert.doesNotMatch(done.system, /botdot-offsite\.service/);
+});
+
+// The restore drills (#1018): a weekly check of a rotating twentieth, and a restore test of one account.
+test('once a week a run checks the next twentieth of the repository, and says so in its status', (t) => {
+  const m = machine(t);
+  m.offsite();
+  assert.equal(fs.readFileSync(path.join(m.store, 'checked'), 'utf8'), '--read-data-subset=1/20\n');
+  let said = status(m.offsite(), 'offsite.json');
+  assert.equal(fs.readFileSync(path.join(m.store, 'checked'), 'utf8').split('\n').filter(Boolean).length, 1, 'not again within the week');
+  assert.deepEqual({ subset: said.check.subset, ok: said.check.ok }, { subset: '1/20', ok: true }, 'the last check stays in the status');
+  // A week later, the next twentieth; after the twentieth, the first again.
+  fs.utimesSync(path.join(m.secrets, 'checked'), new Date(Date.now() - 8 * 86400_000), new Date(Date.now() - 8 * 86400_000));
+  fs.writeFileSync(path.join(m.secrets, 'check-next'), '20\n');
+  said = status(m.offsite(), 'offsite.json');
+  assert.equal(said.check.subset, '20/20');
+  assert.equal(fs.readFileSync(path.join(m.secrets, 'check-next'), 'utf8').trim(), '1');
+});
+
+test('a check that finds damage fails the run, as a part that fails does', (t) => {
+  const m = machine(t);
+  const done = m.offsite({ given: { STAND_IN_RESTIC_DAMAGED: '1' } });
+  const said = status(done, 'offsite.json');
+  assert.equal(said.state, 'failed');
+  assert.equal(said.part, 'integrity');
+  assert.match(said.error, /^check 1\/20: Pack 3f1a: hash mismatch/);
+  assert.deepEqual({ ok: said.check.ok, error: said.check.error }, { ok: false, error: 'Pack 3f1a: hash mismatch' });
+  assert.ok(!fs.existsSync(path.join(m.secrets, 'checked')), 'checked again at the next run');
+});
+
+// bob's memory as a real SQLite file begins, and his bots, before the backup the test restores.
+// His server is down, so the set takes the file as it is rather than the stand-in server's copy.
+function withBobsData(m) {
+  const sock = fs.readFileSync(path.join(m.home, '.env'), 'utf8').match(/^BOT_DOT_FRONT_DOOR_FOLDER=(.*)$/m);
+  if (sock) fs.rmSync(path.join(sock[1], 'botdot.sock'), { force: true });
+  // A real database, as sqlite3's quick check (when the machine has it) opens it.
+  const db = path.join(m.home, 'data', 'memory.db');
+  fs.rmSync(db, { force: true });
+  const { DatabaseSync } = require('node:sqlite');
+  const memory = new DatabaseSync(db);
+  memory.exec("CREATE TABLE memories (id INTEGER PRIMARY KEY, text TEXT); INSERT INTO memories (text) VALUES ('a fact');");
+  memory.close();
+  fs.writeFileSync(path.join(m.home, 'data', 'bots.json'), JSON.stringify([{ id: 'b1', jobs: [{ id: 'j1' }], rules: 'say {hi}' }, { id: 'b2' }]));
+}
+
+test('a restore test restores one account\'s parts of the latest backup, checks them, counts its bots and leaves nothing', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  const done = m.restoreTest('bob');
+  assert.equal(done.status, 0, done.stderr);
+  assert.match(done.said, /The restore test of bob passed: 2 bots/);
+  const said = status(done, 'restore-test.json');
+  assert.deepEqual({ state: said.state, account: said.account, bots: said.bots }, { state: 'passed', account: 'bob', bots: 2 });
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.ok(said.bytes > 4096);
+  const dumped = resticCalls(done).filter((c) => / dump /.test(c)).map((c) => c.split(' ').at(-1));
+  assert.deepEqual(dumped.sort(), ['accounts/bob/browser.tar', 'accounts/bob/config.tar', 'accounts/bob/data.tar', 'accounts/bob/env', 'accounts/bob/tailscale.tar', 'accounts/bob/workspace.tar', 'manifest.json']);
+  assert.ok(!fs.existsSync(path.join(m.dir, 'restore-test')), 'the scratch folder is removed');
+});
+
+test('a part that comes back short fails the test, which says so in its status', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  const done = m.restoreTest('bob', { given: { STAND_IN_RESTIC_SHORT: 'accounts/bob/workspace.tar' } });
+  assert.notEqual(done.status, 0);
+  const said = status(done, 'restore-test.json');
+  assert.equal(said.state, 'failed');
+  assert.match(said.error, /^accounts\/bob\/workspace.tar came back with 3 bytes, and restic recorded \d+\.$/);
+  assert.match(done.stderr, /came back with 3 bytes/);
+  assert.ok(!fs.existsSync(path.join(m.dir, 'restore-test')));
+});
+
+test('a restore test the disk has no room for is refused before anything is restored, saying what it needs', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  const done = m.restoreTest('bob', { given: { STAND_IN_ROOT_FREE: '1024' } });
+  assert.notEqual(done.status, 0);
+  const said = status(done, 'restore-test.json');
+  assert.equal(said.state, 'refused');
+  assert.match(said.error, /^It needs 0\.5 GB free in \S+ and has 0\.0 GB\.$/);
+  assert.ok(!resticCalls(done).some((c) => / dump \S+ accounts\//.test(c)), 'nothing of the account is restored');
+});
+
+test('a restore test of an account the backup lacks, or with no name, says so', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const none = m.restoreTest('carol');
+  assert.notEqual(none.status, 0);
+  assert.match(status(none, 'restore-test.json').error, /holds no data of the account carol/);
+  const bad = m.restoreTest('');
+  assert.notEqual(bad.status, 0);
+  assert.match(bad.stderr, /Name the account to test the restore of/);
 });

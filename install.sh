@@ -288,6 +288,9 @@ case "${1:-}" in
   --update) MODE=update UNATTENDED=1 ;;
   --load) MODE=load ;;
   --offsite) MODE=offsite ;;
+  # --restore-test ACCOUNT (#1018): one account's parts of the latest off-site backup restored into a scratch folder,
+  # checked and removed.
+  --restore-test) MODE=restore-test RESTORE_TEST="${2:-}" ;;
   --uninstall) MODE=uninstall ;;
   *) die "Unknown option $1. Run it as: sudo sh install.sh" ;;
 esac
@@ -509,6 +512,8 @@ RESTIC_VERSION=0.19.1
 RESTIC_SUMS='linux_amd64 f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
 linux_arm64 a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465'
 OFFSITE_KEEP='--keep-daily 7 --keep-weekly 4 --keep-monthly 3'
+# The weekly check reads one of this many parts of the repository's data, the next each week (#1018).
+OFFSITE_SUBSETS=20
 # What of an account's data stays out: its own backups, what a project installs again and what a backup cut off left.
 # Its memory database is the consistent copy its server makes (#1015) when it can, as in a set (offsite_run).
 OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --exclude=*.part --anchored'
@@ -564,6 +569,9 @@ offsite_repo() {
 offsite_said() { write_status offsite.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${2:+,$2}}"; }
 # offsite_last: the last success offsite.json names, as its field after a comma, or nothing.
 offsite_last() { sed -n 's/.*\("lastSuccess":"[0-9TZ:-]*"\).*/,\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true; }
+
+# offsite_check: the last weekly check (#1018) as offsite.json's "check" after a comma, or nothing before one.
+offsite_check() { [ -s "$OFFSITE/check.json" ] && printf ',"check":%s' "$(cat "$OFFSITE/check.json")" || true; }
 
 # restic_ok FILE: FILE is restic 0.17 or newer, the first with --stdin-from-command.
 restic_ok() {
@@ -770,8 +778,33 @@ offsite_run() {
   fi
   rm -f "$OFFSITE/err"
 
+  # Once a week a twentieth of what the repository holds read back and checked (#1018), the next twentieth each week,
+  # so that every blob is read within 20 weeks. A check that fails fails the run, as a part does.
+  if [ -z "$(find "$OFFSITE/checked" -mtime -7 2>/dev/null)" ]; then
+    os_n="$(cat "$OFFSITE/check-next" 2>/dev/null || true)"
+    case "$os_n" in '' | *[!0-9]*) os_n=1 ;; esac
+    { [ "$os_n" -ge 1 ] && [ "$os_n" -le $OFFSITE_SUBSETS ]; } || os_n=1
+    offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"integrity\"$OS_LAST"
+    set +e
+    r check --read-data-subset="$os_n/$OFFSITE_SUBSETS" > "$OFFSITE/err" 2>&1
+    os_done=$?
+    set -e
+    os_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    if [ "$os_done" = 0 ]; then
+      touch "$OFFSITE/checked"
+      echo $((os_n % OFFSITE_SUBSETS + 1)) > "$OFFSITE/check-next"
+      printf '{"at":"%s","subset":"%s/%s","ok":true}' "$os_at" "$os_n" "$OFFSITE_SUBSETS" > "$OFFSITE/check.json"
+    else
+      os_why="$(offsite_why "$OFFSITE/err")"
+      warn "The off-site repository's check of $os_n/$OFFSITE_SUBSETS failed: $os_why"
+      printf '{"at":"%s","subset":"%s/%s","ok":false,"error":"%s"}' "$os_at" "$os_n" "$OFFSITE_SUBSETS" "$(printf '%s' "$os_why" | plain_line 200)" > "$OFFSITE/check.json"
+      [ -n "$OS_ERROR" ] || { OS_ERROR="check $os_n/$OFFSITE_SUBSETS: $os_why"; OS_STOPPED=integrity; }
+    fi
+    rm -f "$OFFSITE/err"
+  fi
+
   os_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  os_fields="\"started\":\"$OS_STARTED\",\"finished\":\"$os_finished\",\"bytesAdded\":$OS_BYTES,\"snapshots\":{$OS_SNAPSHOTS},\"failed\":[$OS_FAILED]"
+  os_fields="\"started\":\"$OS_STARTED\",\"finished\":\"$os_finished\",\"bytesAdded\":$OS_BYTES,\"snapshots\":{$OS_SNAPSHOTS},\"failed\":[$OS_FAILED]$(offsite_check)"
   if [ -z "$OS_ERROR" ]; then
     offsite_said done "$os_fields,\"lastSuccess\":\"$os_finished\""
     ok "This machine is backed up to $OFFSITE_REPO"
@@ -857,6 +890,111 @@ UNIT
   systemctl daemon-reload </dev/null
   systemctl enable --now botdot-offsite.timer </dev/null >/dev/null 2>&1 || warn "systemd didn't start botdot-offsite.timer, so this machine isn't backed up off-site every night. See: systemctl status botdot-offsite.timer"
 }
+
+# A restore drill (#1018): `install.sh --restore-test ACCOUNT` restores the account's parts of the latest off-site
+# backup (its newest manifest's snapshots) into a scratch folder in BOT_DOT_DIR, checks each part's size against what
+# restic recorded (restic checks every blob's hash as it reads it) and that each tar reads to its end, opens the
+# memory database (its SQLite header, and with sqlite3 its quick check) and counts the bots in bots.json, then removes
+# the folder. One that would leave the disk with less than OFFSITE_TEST_ROOM free is refused, saying what it needs.
+# How it went is in status/restore-test.json: state (testing, passed, failed or refused), at, account, snapshot (the
+# manifest's), bytes, bots, and error; a failed one counts as a failed backup for the admin's warning (#1017).
+OFFSITE_TEST_ROOM=$((512 * 1024 * 1024))
+restore_test_said() { write_status restore-test.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"account\":\"$RESTORE_TEST\"${2:+,$2}}"; }
+# json_count_top FILE: how many objects the JSON array in FILE holds at its top (strings with braces in them counted
+# right), or nothing for a file that isn't one.
+json_count_top() {
+  awk '
+    { for (i = 1; i <= length($0); i++) { c = substr($0, i, 1)
+        if (esc) { esc = 0; continue }
+        if (str) { if (c == "\\") esc = 1; else if (c == "\"") str = 0; continue }
+        if (c == "\"") str = 1
+        else if (c == "[" || c == "{") { if (depth == 1 && c == "{") n++; if (depth == 0 && c == "[") arr = 1; depth++ }
+        else if (c == "]" || c == "}") depth--
+      } }
+    END { if (arr && depth == 0) print n + 0 }' "$1" 2>/dev/null
+}
+offsite_restore_test() {
+  restore_test_said testing
+  offsite_prepare
+  rt_dir="$DIR/restore-test"
+  rm -rf -- "$rt_dir"
+  mkdir -p "$rt_dir"
+  chmod 700 "$rt_dir"
+  # shellcheck disable=SC2064 # the folder now
+  trap "rm -rf -- '$rt_dir'" EXIT
+  # The newest manifest, and the account's parts it names.
+  r snapshots --json --host "$INSTANCE" --tag part=manifest --latest 1 > "$rt_dir/snapshots" 2> "$rt_dir/err" \
+    || die "Couldn't list the off-site backups: $(offsite_why "$rt_dir/err")"
+  rt_manifest="$(grep -o '"id":"[0-9a-f]\{64\}"' "$rt_dir/snapshots" | tail -n 1 | cut -d'"' -f4)"
+  [ -n "$rt_manifest" ] || die "The off-site repository holds no finished backup of this machine yet."
+  r dump "$rt_manifest" manifest.json > "$rt_dir/manifest.json" 2> "$rt_dir/err" || die "Couldn't read the latest backup's manifest: $(offsite_why "$rt_dir/err")"
+  rt_parts="$(grep -o "\"accounts/$RESTORE_TEST/[a-z]*\(\.tar\)\{0,1\}\":\"[0-9a-f]\{64\}\"" "$rt_dir/manifest.json" | tr -d '"' || true)"
+  printf '%s\n' "$rt_parts" | grep -q "^accounts/$RESTORE_TEST/data.tar:" || die "The latest off-site backup holds no data of the account $RESTORE_TEST."
+  # Its size, before anything is restored.
+  rt_need=0
+  for rt_p in $rt_parts; do
+    r stats --json --mode restore-size "${rt_p#*:}" > "$rt_dir/stats" 2> "$rt_dir/err" || die "Couldn't read the size of ${rt_p%%:*}: $(offsite_why "$rt_dir/err")"
+    rt_size="$(sed -n 's/.*"total_size":\([0-9]*\).*/\1/p' "$rt_dir/stats")"
+    rt_need=$((rt_need + ${rt_size:-0}))
+    printf '%s %s\n' "${rt_p%%:*}" "${rt_size:-0}" >> "$rt_dir/sizes"
+  done
+  rt_free=$(($(df -Pk "$DIR" | awk 'NR == 2 { print $4 }') * 1024))
+  if [ $((rt_need + OFFSITE_TEST_ROOM)) -gt "$rt_free" ]; then
+    rt_gb() { awk -v b="$1" 'BEGIN { printf "%.1f GB", b / 1073741824 }'; }
+    restore_test_said refused "\"bytes\":$rt_need,\"error\":\"It needs $(rt_gb $((rt_need + OFFSITE_TEST_ROOM))) free in $DIR and has $(rt_gb "$rt_free").\""
+    die "The restore test of $RESTORE_TEST needs $(rt_gb $((rt_need + OFFSITE_TEST_ROOM))) free in $DIR (its parts and 512 MB to spare), and it has $(rt_gb "$rt_free")."
+  fi
+  say "Restoring $RESTORE_TEST from the off-site backup into $rt_dir to test it"
+  while read -r rt_path rt_size; do
+    rt_id="$(printf '%s\n' "$rt_parts" | grep "^$rt_path:" | cut -d: -f2)"
+    mkdir -p "$rt_dir/$(dirname "$rt_path")"
+    r dump "$rt_id" "$rt_path" > "$rt_dir/$rt_path" 2> "$rt_dir/err" || die "Couldn't restore $rt_path: $(offsite_why "$rt_dir/err")"
+    rt_got="$(wc -c < "$rt_dir/$rt_path" | tr -d ' ')"
+    [ "$rt_got" = "$rt_size" ] || die "$rt_path came back with $rt_got bytes, and restic recorded $rt_size."
+    case "$rt_path" in *.tar) tar -tf "$rt_dir/$rt_path" > /dev/null 2> "$rt_dir/err" || die "$rt_path doesn't read to its end: $(offsite_why "$rt_dir/err")" ;; esac
+  done < "$rt_dir/sizes"
+  mkdir -p "$rt_dir/data"
+  tar -xf "$rt_dir/accounts/$RESTORE_TEST/data.tar" -C "$rt_dir/data" ./memory.db ./bots.json 2> "$rt_dir/err" || die "The account's data holds no memory.db or bots.json: $(offsite_why "$rt_dir/err")"
+  [ "$(head -c 15 "$rt_dir/data/memory.db")" = "SQLite format 3" ] || die "The account's memory.db isn't an SQLite database."
+  if command -v sqlite3 >/dev/null 2>&1; then
+    rt_q="$(sqlite3 "$rt_dir/data/memory.db" 'PRAGMA quick_check' 2>&1 | head -n 1)"
+    [ "$rt_q" = ok ] || die "The account's memory.db failed its check: $rt_q"
+  fi
+  rt_bots="$(json_count_top "$rt_dir/data/bots.json")"
+  [ -n "$rt_bots" ] || die "The account's bots.json isn't a list."
+  restore_test_said passed "\"snapshot\":\"$rt_manifest\",\"bytes\":$rt_need,\"bots\":$rt_bots"
+  ok "The restore test of $RESTORE_TEST passed: $rt_bots bots, $(awk -v b="$rt_need" 'BEGIN { printf "%.1f GB", b / 1073741824 }') read back"
+}
+
+if [ "$MODE" = restore-test ]; then
+  [ "$(id -u)" = 0 ] || die "The restore test reads the off-site repository with root's key, so it runs as root. Run it with: sudo sh $BIN/install.sh --restore-test <account>"
+  [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
+  valid_account "$RESTORE_TEST" || die "Name the account to test the restore of: sudo sh $BIN/install.sh --restore-test <account>"
+  rt_why="$RUN/restore-test-why"
+  mkdir -p "$RUN"
+  rm -f "$rt_why"
+  set +e
+  (
+    set -e
+    umask 077
+    ACCOUNT_WHY="$rt_why"
+    # One at a time with the nightly backup: both use the repository's lock and the same cache.
+    if command -v flock >/dev/null 2>&1; then
+      exec 8>"$RUN/offsite.lock"
+      flock -n 8 || die "An off-site backup runs now: test the restore when it is done."
+    fi
+    offsite_restore_test
+  )
+  rt_done=$?
+  set -e
+  [ "$rt_done" != 0 ] || exit 0
+  rt_text="$(cut -f2- "$rt_why" 2>/dev/null || true)"
+  rm -f "$rt_why"
+  if ! grep -q '"state":"refused"' "$DOOR/status/restore-test.json" 2>/dev/null; then
+    restore_test_said failed "\"error\":\"$(printf '%s' "${rt_text:-The restore test stopped without saying why}" | plain_line 300)\""
+  fi
+  die "${rt_text:-The restore test stopped without saying why}"
+fi
 
 if [ "$MODE" = offsite ]; then
   [ "$(id -u)" = 0 ] || die "The off-site backup reads every account's files, so it runs as root. Run it with: sudo sh $BIN/install.sh --offsite"
