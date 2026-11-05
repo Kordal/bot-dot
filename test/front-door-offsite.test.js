@@ -13,7 +13,7 @@ const { waitFor, sleep } = require('./helpers');
 let door, status, ann, browser;
 before(async () => {
   status = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-status-'));
-  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_STATUS: status, FRONT_DOOR_OFFSITE_EVERY_MS: '200' } });
+  door = await startFrontDoor({ env: { FRONT_DOOR_ADMIN: 'ann', FRONT_DOOR_STATUS: status, FRONT_DOOR_OFFSITE_EVERY_MS: '200', FRONT_DOOR_OFFSITE_TELL_MS: '200' } });
   ann = await standIn(door, 'ann');
   browser = door.browser();
   const key = passkey.create({ rpId: door.rpId, origin: door.origin });
@@ -106,4 +106,35 @@ test('an erased account\'s off-site snapshots that root\'s step forgot are kept 
   const audit = await browser.get('/admin/audit?action=offsite-forgotten');
   assert.equal(audit.status, 200);
   assert.ok(audit.data.actions.includes('offsite-forgotten'));
+});
+
+test("each account is told its own off-site backup: off, then when its data last went off-site, kept from run to run (ADR 158)", async () => {
+  const mine = () => ann.seen.filter((r) => r.url === '/api/backups/offsite').map((r) => ({ ...JSON.parse(r.body), room: r.headers['x-botdot-room'] }));
+  fs.rmSync(path.join(status, 'restore-test.json'), { force: true });
+  said({ state: 'off', at: ago(0) });
+  await waitFor(() => mine().at(-1)?.state === 'off', { what: 'ann told it is off' });
+  assert.deepEqual(mine().at(-1), { state: 'off', lastSuccess: null, late: false, room: '1' });
+  const n = mine().length;
+  await sleep(600);
+  assert.equal(mine().length, n, 'told once while nothing changes');
+
+  const first = ago(2);
+  said({ state: 'done', at: first, started: ago(3), finished: first, lastSuccess: first, snapshots: { 'front-door/data.tar': 'a1', 'accounts/ann/data.tar': 'b2', 'accounts/ann/env': 'c3' }, failed: [] });
+  await waitFor(() => mine().at(-1)?.state === 'done', { what: 'ann told it is done' });
+  assert.deepEqual(mine().at(-1), { state: 'done', lastSuccess: first, late: false, room: '1' });
+
+  said({ state: 'backing-up', at: ago(0), started: ago(0), part: 'accounts/ann/data.tar', lastSuccess: first });
+  await waitFor(() => mine().at(-1)?.state === 'backing-up', { what: 'ann told it is running' });
+  assert.equal(mine().at(-1).lastSuccess, first, 'the last success stays while a run is under way');
+
+  // A run in which ann's data failed: failed, late, with the last success of before.
+  said({ state: 'failed', at: ago(0), started: ago(1), finished: ago(0), lastSuccess: first, snapshots: { 'front-door/data.tar': 'a9' }, failed: ['accounts/ann/data.tar'], part: 'accounts/ann/data.tar', error: 'accounts/ann/data.tar: tar exited 2' });
+  await waitFor(() => mine().at(-1)?.state === 'failed', { what: 'ann told it failed' });
+  assert.deepEqual(mine().at(-1), { state: 'failed', lastSuccess: first, late: true, room: '1' });
+  // One that failed elsewhere: done for ann.
+  const later = ago(0);
+  said({ state: 'failed', at: later, started: ago(1), finished: later, lastSuccess: first, snapshots: { 'accounts/ann/data.tar': 'd4' }, failed: ['accounts/bob/data.tar'], error: 'accounts/bob/data.tar: tar exited 2' });
+  await waitFor(() => mine().at(-1)?.state === 'done', { what: 'ann told hers is done' });
+  assert.deepEqual(mine().at(-1), { state: 'done', lastSuccess: later, late: false, room: '1' });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(door.data, 'offsite-accounts.json'), 'utf8')), { ann: later });
 });

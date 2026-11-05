@@ -109,7 +109,7 @@ No. Your bots, chats, memory and settings stay. The bots' computer keeps the ver
 
 ### How do I back up and restore?
 
-Set a passphrase in **Settings → Backups**. botdot then backs up every night at 03:00 and keeps the last 7. A backup is one encrypted file with all of the account's data and the Vault's key; it leaves out the Claude and Bitwarden sign-ins and the account's computer. **Download** one now and then to keep a copy off the server, and keep the passphrase safe: without it, a backup can't be opened. To restore, install botdot and choose **Restore a backup** on its setup page ([Back up and restore](install-linux.md#back-up-and-restore)).
+A machine with an off-site backup (set up by its admin) backs every account up every night, encrypted, to storage off the machine; **Settings → Backups** says when your account's data last went there. **Download** makes a backup of your account now: one file, encrypted with a passphrase you choose then, holding all of the account's data, the Vault's key and the computer's `/workspace`; it leaves out the Claude and Bitwarden sign-ins. Keep the passphrase safe: without it, the file can't be opened. To restore, install botdot and choose **Restore a backup** on its setup page ([Back up and restore](install-linux.md#back-up-and-restore)).
 
 ### How do I uninstall?
 

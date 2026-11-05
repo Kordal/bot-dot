@@ -1,4 +1,5 @@
-// Backups (lib/backup.js): encrypted, the last 7 kept, and a restore into a fresh install.
+// Backups (lib/backup.js, ADR 158): a download made on request, encrypted with the passphrase given then, never kept on
+// the machine; the off-site backup's state as the front door says it; and a restore into a fresh install.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -11,21 +12,30 @@ let a, b;
 before(async () => { a = await startServer(); });
 after(async () => { await a?.stop(); await b?.stop(); });
 
-test('off until a passphrase is set', async () => {
-  assert.equal((await a.api('/backups')).data.configured, false);
-  assert.match((await a.api('/backups/now', { method: 'POST' })).data.error, /passphrase first/);
-  assert.match((await a.api('/backups/passphrase', { method: 'PUT', body: { passphrase: 'short' } })).data.error, /12 characters/);
-  assert.match((await a.api('/backups/passphrase', { method: 'PUT', body: { passphrase: '12345678901' } })).data.error, /12 characters/);
-  assert.equal((await a.api('/backups/passphrase', { method: 'PUT', body: { passphrase: '123456789012' } })).status, 200);
-  const config = JSON.parse(fs.readFileSync(path.join(a.dir, 'config', 'backup.key'), 'utf8'));
-  assert.deepEqual({ N: config.N, r: config.r, p: config.p }, { N: 131072, r: 8, p: 1 });
-  assert.equal((await a.api('/backups/passphrase', { method: 'PUT', body: { passphrase: PASS } })).data.configured, true);
-  const key = fs.readFileSync(path.join(a.dir, 'config', 'backup.key'), 'utf8');
-  assert.ok(!key.includes('horse'), 'only a key made from the passphrase is stored');
+test('a download needs a passphrase of 12 characters, and the old nightly routes are gone', async () => {
+  const st = (await a.api('/backups')).data;
+  assert.deepEqual(st, { offsite: null, preparing: false, minPassphrase: 12 }, 'nothing said of the off-site backup yet');
+  for (const passphrase of [undefined, 'short', '12345678901']) {
+    const r = await a.api('/backups/download', { method: 'POST', body: { passphrase } });
+    assert.equal(r.status, 400);
+    assert.match(r.data.error, /12 characters/);
+  }
+  assert.equal((await a.api('/backups/passphrase', { method: 'PUT', body: { passphrase: PASS } })).status, 410);
+  assert.match((await a.api('/backups/now', { method: 'POST' })).data.error, /off-site now/);
+  assert.equal((await a.api('/backups/download/0123456789abcdef0123456789abcdef')).status, 404, 'no download asked for');
+  const chief = await a.asChief('/backups/download', { method: 'POST', body: { passphrase: PASS } });
+  assert.equal(chief.status, 403, 'not the Chief');
+  // The off-site backup's state, from the front door alone.
+  assert.equal((await a.api('/backups/offsite', { method: 'POST', body: { state: 'done' } })).status, 403, "a person's request");
+  assert.equal((await a.api('/backups/offsite', { method: 'POST', headers: { 'x-botdot-room': '1' }, body: { state: 'nope' } })).status, 400);
+  const told = await a.api('/backups/offsite', { method: 'POST', headers: { 'x-botdot-room': '1' }, body: { state: 'done', lastSuccess: '2026-11-05T02:14:00Z', late: false } });
+  assert.equal(told.status, 200, JSON.stringify(told.data));
+  assert.deepEqual((await a.api('/backups')).data.offsite, { state: 'done', lastSuccess: '2026-11-05T02:14:00.000Z', late: false });
 });
 
 let bot, group;
-test('a backup is encrypted, small, and downloads as is; the last 7 are kept', async () => {
+let file;
+test('a download is encrypted, small, made once at its address and kept nowhere on the machine', async () => {
   bot = await makeBot(a, { name: 'Home Keeper', emoji: '🏠' });
   // A group of two bots, with its place in the list and how far the owner has read it (ADR 018).
   const second = await makeBot(a, { name: 'Garden Keeper', emoji: '🌱' });
@@ -60,23 +70,32 @@ test('a backup is encrypted, small, and downloads as is; the last 7 are kept', a
   fs.writeFileSync(path.join(a.data, 'checkups.json'), JSON.stringify({ day: '2026-10-01', ranAt: '2026-10-01T07:30:00.000Z', proposals: [{ id: 'p1', kind: 'rule', bot: 'Shopper', change: 'Ask once.', evidence: 'said twice', day: '2026-09-30', at: '2026-10-01T07:30:00.000Z', shown: 1, status: 'declined', decidedAt: '2026-10-01T08:00:00.000Z', chatId: 'gone', n: 1 }] }));
   assert.equal((await a.api('/chief/checkup/now', { method: 'POST' })).status, 404, 'a checkup by hand is for test environments only');
 
-  const r = await a.api('/backups/now', { method: 'POST' });
-  assert.equal(r.data.count, 1);
-  const raw = fs.readFileSync(path.join(a.data, 'backups', r.data.last.name));
-  for (const plain of ['Warsaw', 'Home Keeper', 'milk', 's3cret']) assert.ok(!raw.includes(plain), `no "${plain}" in the file`);
-  assert.ok(raw.length < 300_000, 'the model and the spare are left out');
-  const dl = await a.api(`/backups/${r.data.last.name}`);
-  assert.equal(Buffer.compare(dl.data, raw), 0);
-  for (let i = 0; i < 7; i++) { await sleep(1050); await a.api('/backups/now', { method: 'POST' }); }
-  const s = (await a.api('/backups')).data;
-  assert.equal(s.count, 7);
-  assert.ok(!fs.existsSync(path.join(a.data, 'backups', r.data.last.name)), 'the oldest is gone');
+  // Old nightly backups of before ADR 158, and their key: a whole download makes them go.
+  fs.mkdirSync(path.join(a.data, 'backups'), { recursive: true });
+  fs.writeFileSync(path.join(a.data, 'backups', 'bot-dot-20261101-030000.bdb'), 'old');
+  fs.writeFileSync(path.join(a.dir, 'config', 'backup.key'), '{}');
+
+  const asked = await a.api('/backups/download', { method: 'POST', body: { passphrase: PASS } });
+  assert.equal(asked.status, 200, JSON.stringify(asked.data));
+  assert.match(asked.data.url, /^\/api\/backups\/download\/[0-9a-f]{32}$/);
+  assert.match(asked.data.name, /^bot-dot-([a-z][a-z0-9-]+-)?\d{8}-\d{6}\.bdb$/);
+  assert.deepEqual(fs.readdirSync(path.join(a.data, 'backups')).filter((n) => n !== 'state.json').map((n) => n.replace(/^\.memory-\d+\.db$/, '.memory-<pid>.db')).sort(), ['.memory-<pid>.db', 'bot-dot-20261101-030000.bdb'], 'only the copy of the memory waits');
+  const res = await fetch(`${a.base}${asked.data.url}`, { headers: { 'X-Bot-Dot': '1' } });
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-disposition'), `attachment; filename="${asked.data.name}"`);
+  file = Buffer.from(await res.arrayBuffer());
+  for (const plain of ['Warsaw', 'Home Keeper', 'milk', 's3cret']) assert.ok(!file.includes(plain), `no "${plain}" in the file`);
+  assert.ok(file.length < 300_000, 'the model and the spare are left out');
+  assert.equal((await fetch(`${a.base}${asked.data.url}`, { headers: { 'X-Bot-Dot': '1' } })).status, 404, 'fetched once');
+  assert.deepEqual(fs.readdirSync(path.join(a.data, 'backups')).sort(), ['state.json'], 'nothing kept: no file, no copy of the memory, no old backups');
+  assert.ok(!fs.existsSync(path.join(a.dir, 'config', 'backup.key')), 'nor their key');
+  const audit = fs.readFileSync(path.join(a.data, 'audit.log'), 'utf8');
+  assert.match(audit, /"action":"backup\.downloaded"/);
 });
 
 test('restore into a fresh install brings everything back', async () => {
-  const newest = (await a.api('/backups')).data.last.name;
   b = await startServer();
-  const up = await b.api('/backups/upload', { method: 'POST', raw: fs.readFileSync(path.join(a.data, 'backups', newest)) });
+  const up = await b.api('/backups/upload', { method: 'POST', raw: file });
   assert.ok(up.data.file);
   const wrong = await b.api('/backups/restore', { method: 'POST', body: { file: up.data.file, passphrase: 'wrong passphrase' } });
   assert.match(wrong.data.error, /Wrong passphrase/);
@@ -123,7 +142,7 @@ test('no restore while bots are working', async () => {
   b.hold();
   await b.api(`/bots/${bot2.id}/run`, { method: 'POST', body: { prompt: 'work' } });
   await waitFor(async () => (await b.api(`/runs?botId=${bot2.id}`)).data[0]?.status === 'running');
-  const up = await b.api('/backups/upload', { method: 'POST', raw: fs.readFileSync(path.join(a.data, 'backups', (await a.api('/backups')).data.last.name)) });
+  const up = await b.api('/backups/upload', { method: 'POST', raw: file });
   const r = await b.api('/backups/restore', { method: 'POST', body: { file: up.data.file, passphrase: PASS } });
   assert.equal(r.status, 409);
   b.unhold();
@@ -191,7 +210,7 @@ test('an upload without a length that fills the disk stops there, says so and le
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-test('the page, docs/api.md and the server ask for the same shortest passphrase (#1020)', async () => {
+test('the page, the app, docs/api.md and the server ask for the same shortest passphrase (#1020)', async () => {
   const { MIN_PASSPHRASE } = require('../lib/backup');
   assert.equal((await a.api('/backups')).data.minPassphrase, MIN_PASSPHRASE);
   const page = fs.readFileSync(path.join(ROOT, 'public', 'settings.js'), 'utf8');
@@ -200,24 +219,30 @@ test('the page, docs/api.md and the server ask for the same shortest passphrase 
   assert.equal(MIN_PASSPHRASE, 12, 'the fallback for a server that sends none');
   assert.doesNotMatch(card, /minlength="\d|at least \d+ characters/, 'no number of its own on the page');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'lib', 'i18n', 'pl', 'web.json'), 'utf8'), /co najmniej \d+ znak/);
+  const model = fs.readFileSync(path.join(ROOT, 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
+  assert.match(model, /val minPassphrase: Int = 12/);
   const api = fs.readFileSync(path.join(ROOT, 'docs', 'api.md'), 'utf8');
   assert.match(api, /`minPassphrase` \(12\)/);
-  assert.doesNotMatch(api, /PUT \/api\/backups\/passphrase` with `\{ passphrase \}` \(at least \d/);
 });
 
-test('an existing legacy backup key still creates backups that its old passphrase can restore', async () => {
+test('a backup of before ADR 158, made with a key of the older strength, still restores with its passphrase', async (t) => {
   const crypto = require('node:crypto');
-  const legacy = await startServer();
-  try {
-    const salt = Buffer.alloc(16, 7);
-    const key = crypto.scryptSync('old password', salt, 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 });
-    fs.mkdirSync(path.join(legacy.dir, 'config'), { recursive: true });
-    fs.writeFileSync(path.join(legacy.dir, 'config', 'backup.key'), JSON.stringify({ salt: salt.toString('hex'), key: key.toString('hex') }));
-    const made = await legacy.api('/backups/now', { method: 'POST' });
-    assert.equal(made.status, 200);
-    const restored = await legacy.api('/backups/restore', { method: 'POST', body: { file: made.data.last.name, passphrase: 'old password' } });
-    assert.equal(restored.status, 200);
-  } finally { await legacy.stop(); }
+  const zlib = require('node:zlib');
+  const os = require('os');
+  const top = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
+  t.after(() => fs.rmSync(top, { recursive: true, force: true }));
+  const entry = (h, body = Buffer.alloc(0)) => { const j = Buffer.from(JSON.stringify(h)); const n = Buffer.alloc(4); n.writeUInt32BE(j.length); return Buffer.concat([n, j, body]); };
+  const bots = Buffer.from('[{"id":"b1","name":"Old Keeper"}]');
+  const plain = zlib.gzipSync(Buffer.concat([entry({ manifest: true, kind: 'bot-dot-backup', version: 1, createdAt: '2026-10-01T03:00:00.000Z', account: null, vaultKey: 'ab'.repeat(32) }), entry({ p: 'bots.json', size: bots.length, mode: 0o600 }, bots)]));
+  const salt = Buffer.alloc(16, 7);
+  const iv = Buffer.alloc(12, 3);
+  const cipher = crypto.createCipheriv('aes-256-gcm', crypto.scryptSync('old password', salt, 32, { N: 1 << 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }), iv);
+  const file = path.join(top, 'bot-dot-20261001-030000.bdb');
+  fs.writeFileSync(file, Buffer.concat([Buffer.from('BDBACKUP1\n'), salt, iv, cipher.update(plain), cipher.final(), cipher.getAuthTag()]));
+  const dataDir = path.join(top, 'data');
+  fs.mkdirSync(dataDir);
+  const r = await require('../lib/backup').create({ dataDir, memory: {} }).stage(file, 'old password');
+  assert.deepEqual([r.createdAt, r.bots], ['2026-10-01T03:00:00.000Z', 1]);
 });
 
 test("root's step gets a consistent copy of memory.db, through the front door's socket alone (#1015)", async () => {
@@ -275,11 +300,10 @@ test('a backup reads each file up to 8 MB in one call, not as a stream (one for 
   pfs.createReadStream = (name, options) => { streamed.push(path.relative(dataDir, name)); return original(name, options); };
   try {
     const backup = require('../lib/backup').create({ dataDir, memory: { snapshot: (p) => fs.writeFileSync(p, 'memory') } });
-    backup.setPassphrase(PASS);
-    const made = await backup.run();
-    assert.ok(made.size > 0);
+    const file = await made(backup, dataDir);
+    assert.ok(fs.statSync(file).size > 0);
     assert.deepEqual(streamed, ['big.bin'], 'only the file over 8 MB is streamed, and nothing of node_modules is read');
-    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    await backup.stage(file, PASS);
     const staged = path.join(dataDir, '.restore-pending', 'data');
     assert.equal(fs.readFileSync(path.join(staged, 'workspaces', 'b1', 'f7.txt'), 'utf8'), 'file 7\n', 'a file read whole comes back as it was');
     assert.equal(fs.statSync(path.join(staged, 'big.bin')).size, 9 * 1024 * 1024);
@@ -290,6 +314,14 @@ test('a backup reads each file up to 8 MB in one call, not as a stream (one for 
     fs.rmSync(top, { recursive: true, force: true });
   }
 });
+
+// A download made with the module itself, into a file under dataDir/out: its path.
+async function made(backup, dataDir) {
+  const r = await backup.prepare(PASS);
+  const file = path.join(dataDir, '..', r.name);
+  assert.equal(await backup.download(r.token, fs.createWriteStream(file)), true);
+  return file;
+}
 
 // A stand-in for the account's computer (lib/computers.js backupWorkspace): its /workspace packed as `packed`, steps
 // written down, pieces taken in kept.
@@ -325,7 +357,6 @@ async function withBackup(t, computer, work) {
     fs.rmSync(top, { recursive: true, force: true });
   });
   const backup = require('../lib/backup').create({ dataDir, memory: { snapshot: (p) => fs.writeFileSync(p, 'memory') }, computer });
-  backup.setPassphrase(PASS);
   await work(backup, dataDir);
 }
 
@@ -334,9 +365,9 @@ test("a backup carries the computer's /workspace, read in pieces, and a restore 
   const packed = require('crypto').randomBytes(3 * 1024 * 1024 + 4321);
   const computer = standInComputer(packed);
   await withBackup(t, computer, async (backup, dataDir) => {
-    const made = await backup.run();
+    const file = await made(backup, dataDir);
     assert.deepEqual(computer.calls, ['pack', 'read', 'read', 'drop']);
-    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    await backup.stage(file, PASS);
     const staged = path.join(dataDir, '.restore-pending', 'data', '.computer', 'workspace.tgz');
     assert.ok(fs.readFileSync(staged).equals(packed), 'the packed workspace, whole');
     require('../lib/backup').applyPendingRestore(dataDir);
@@ -354,9 +385,9 @@ test("a backup carries the computer's /workspace, read in pieces, and a restore 
 test("an account whose computer doesn't run is backed up as before, and a backup of it restores (#1020)", async (t) => {
   const computer = standInComputer(Buffer.alloc(0), { running: false });
   await withBackup(t, computer, async (backup, dataDir) => {
-    const made = await backup.run();
+    const file = await made(backup, dataDir);
     assert.deepEqual(computer.calls, ['pack']);
-    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    await backup.stage(file, PASS);
     assert.ok(!fs.existsSync(path.join(dataDir, '.restore-pending', 'data', '.computer')));
   });
 });
@@ -371,38 +402,33 @@ test("a restored computer's files that can't go back yet stay, and status says w
     assert.match(backup.status().workspaceError, /Couldn't put back the computer's files: the computer isn't running/);
     assert.ok(fs.existsSync(path.join(dataDir, '.computer', 'workspace.tgz')), 'kept for the next try');
     // A backup made meanwhile doesn't carry the waiting copy as a file of the data.
-    const made = await backup.run();
-    await backup.stage(path.join(dataDir, 'backups', made.name), PASS);
+    await backup.stage(await made(backup, dataDir), PASS);
     assert.ok(!fs.existsSync(path.join(dataDir, '.restore-pending', 'data', '.computer')));
   });
 });
 
-test("a backup's last error and last success are kept across a restart (#1017)", async (t) => {
+test("the off-site backup's state is kept across a restart, and the account's old backups go once its data is off-site (ADR 158)", async (t) => {
   const os = require('os');
   const top = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-backup-'));
   const dataDir = path.join(top, 'data');
-  fs.mkdirSync(dataDir, { recursive: true });
-  const saved = { file: process.env.BOT_DOT_VAULT_KEY_FILE, key: process.env.BOT_DOT_VAULT_KEY };
+  fs.mkdirSync(path.join(dataDir, 'backups'), { recursive: true });
+  const saved = process.env.BOT_DOT_VAULT_KEY_FILE;
   process.env.BOT_DOT_VAULT_KEY_FILE = path.join(top, 'config', 'vault.key');
-  process.env.BOT_DOT_VAULT_KEY = 'ab'.repeat(32);
   t.after(() => {
-    for (const [k, v] of [['BOT_DOT_VAULT_KEY_FILE', saved.file], ['BOT_DOT_VAULT_KEY', saved.key]]) if (v === undefined) delete process.env[k]; else process.env[k] = v;
+    if (saved === undefined) delete process.env.BOT_DOT_VAULT_KEY_FILE; else process.env.BOT_DOT_VAULT_KEY_FILE = saved;
     fs.rmSync(top, { recursive: true, force: true });
   });
-  const make = (snapshot) => require('../lib/backup').create({ dataDir, memory: { snapshot } });
-  const first = make(() => { throw new Error('database is locked'); });
-  first.setPassphrase(PASS);
-  const since = first.status().since;
-  assert.ok(since, 'when backups were turned on');
-  await assert.rejects(first.run(), /database is locked/);
-  const after = make(() => {}).status();
-  assert.equal(after.lastError, 'database is locked');
-  assert.equal(after.error, 'database is locked');
-  assert.equal(after.lastSuccess, null);
-  assert.equal(after.since, since);
-  const good = make((p) => fs.writeFileSync(p, 'memory'));
-  await good.run();
-  const now = make(() => {}).status();
-  assert.equal(now.lastError, null);
-  assert.ok(Date.parse(now.lastSuccess) >= Date.parse(since));
+  for (const n of ['bot-dot-20261101-030000.bdb', 'bot-dot-20261102-030000.bdb', 'replaced-20261020000000']) fs.writeFileSync(path.join(dataDir, 'backups', n), 'x');
+  fs.mkdirSync(path.join(top, 'config'));
+  fs.writeFileSync(path.join(top, 'config', 'backup.key'), '{}');
+  const make = () => require('../lib/backup').create({ dataDir, memory: {} });
+  const first = make();
+  assert.throws(() => first.offsite({ state: 'gone' }), /off, backing-up, done or failed/);
+  assert.deepEqual(first.offsite({ state: 'off', lastSuccess: '2026-11-05T02:10:00Z', late: true }), { state: 'off', lastSuccess: null, late: false });
+  first.offsite({ state: 'done', lastSuccess: null });
+  assert.equal(fs.readdirSync(path.join(dataDir, 'backups')).filter((n) => n.endsWith('.bdb')).length, 2, 'kept while no off-site copy holds the account');
+  assert.deepEqual(first.offsite({ state: 'failed', lastSuccess: '2026-11-05T02:10:00Z', late: true }), { state: 'failed', lastSuccess: '2026-11-05T02:10:00.000Z', late: true });
+  assert.deepEqual(fs.readdirSync(path.join(dataDir, 'backups')).sort(), ['replaced-20261020000000', 'state.json'], 'gone once it is off-site; what a restore replaced stays');
+  assert.ok(!fs.existsSync(path.join(top, 'config', 'backup.key')));
+  assert.deepEqual(make().status().offsite, { state: 'failed', lastSuccess: '2026-11-05T02:10:00.000Z', late: true }, 'after a restart');
 });

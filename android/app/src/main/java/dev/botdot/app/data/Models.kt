@@ -1183,10 +1183,15 @@ data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = e
 data class SettingsInfo(val settings: AppSettings = AppSettings(), val models: List<ModelChoice> = emptyList(), val efforts: List<EffortChoice> = emptyList())
 
 @Serializable
-data class BackupInfo(val configured: Boolean = false, val running: Boolean = false, val error: String? = null, val last: BackupFile? = null, val count: Int = 0)
+data class BackupInfo(val offsite: OffsiteBackup? = null, val preparing: Boolean = false, val minPassphrase: Int = 12)
 
+/** The account's off-site backup (ADR 158): state off, backing-up, done or failed; lastSuccess when its data last went off-site. */
 @Serializable
-data class BackupFile(val name: String, val size: Long = 0, val at: String = "")
+data class OffsiteBackup(val state: String = "off", val lastSuccess: String? = null, val late: Boolean = false)
+
+/** A download asked for: fetched once at [url] (under /api) within 15 minutes, saved as [name]. */
+@Serializable
+data class BackupDownloadAsked(val url: String, val name: String)
 
 @Serializable
 data class Skill(val name: String, val description: String = "", val instructions: String = "", val source: String? = null, val createdBy: String? = null, val usedBy: List<String> = emptyList(),

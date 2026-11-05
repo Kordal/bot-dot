@@ -598,8 +598,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun setComputerPlace(place: String, moveFiles: Boolean): ComputerPlace = json.decodeFromString(send("PUT", "/settings/computer", buildJsonObject { put("place", place); put("moveFiles", moveFiles) }))
     suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
     suspend fun setBoatSize(size: String): BoatSizes = json.decodeFromString(send("PUT", "/settings/boat-size", buildJsonObject { put("size", size) }))
-    suspend fun backupNow(): BackupInfo = json.decodeFromString(send("POST", "/backups/now"))
-    fun backupUrl(name: String) = url("/backups/${enc(name)}")
+    /** A backup of the account made now (ADR 158), encrypted with [passphrase]: where to fetch it, once. Only with `backup-download` in its features. */
+    suspend fun backupDownload(passphrase: String): BackupDownloadAsked = json.decodeFromString(send("POST", "/backups/download", buildJsonObject { put("passphrase", passphrase) }))
+    /** The address of a download asked for ([BackupDownloadAsked.url], which starts with /api). */
+    fun backupUrl(asked: BackupDownloadAsked) = baseUrl.trimEnd('/') + asked.url
     /** The session's cookie, for a download Android makes itself (a backup): the front door lets in nothing without it. */
     fun sessionCookie(): String? = session?.token(baseUrl.trimEnd('/'))?.let { "${Session.COOKIE}=$it" }
 

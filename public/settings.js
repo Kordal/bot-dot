@@ -751,56 +751,50 @@ async function sendFeedback(m) {
 
 // ---------- backups ----------
 
-// Settings → Backups (lib/backup.js): nightly, encrypted with your passphrase, the last few kept.
+// Settings → Backups (lib/backup.js, ADR 158): when this account's data last went off-site, and a download of it made
+// now, encrypted with a passphrase chosen for it.
 async function loadBackupsCard() {
   const card = $('#backups-card');
   if (!card) return;
   let b;
   try { b = await api('/backups'); } catch (e) { card.querySelector('.bs-val').textContent = e.message; return; }
-  const head = (value) => `<summary><b>${tr('Backups')}</b><span class="bs-val">${esc(value)}</span>${CHEV}</summary>`;
   // The server's shortest passphrase (12 before it said so).
   const min = b.minPassphrase || 12;
-  // Off: a passphrase turns them on. The one line kept says what losing it costs.
-  if (!b.configured) {
-    card.innerHTML = `${head(tr('Off'))}
-      <div class="bs-body">
-      <p class="muted">${tr("Without the passphrase a backup can't be opened: keep it safe.")}</p>
-      <form id="backup-pass" class="backup-pass" autocomplete="off">
-        <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="${min}" required autocomplete="new-password">
-        <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="${min}" required autocomplete="new-password">
-        <button class="btn primary sm">${tr('Turn on')}</button>
-      </form>
-      </div>`;
-    $('#backup-pass', card).onsubmit = async (e) => {
-      e.preventDefault();
-      const f = e.target;
-      if (f.p1.value !== f.p2.value) return toast(tr("The two don't match"), true);
-      try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: f.p1.value } }); f.reset(); toast(tr('Backups are on')); await api('/backups/now', { method: 'POST' }); } catch (err) { toast(err.message, true); }
-      loadBackupsCard();
-    };
-    return;
-  }
-  const last = b.last ? esc(tr('Last backup {ago} · {count} kept', { ago: ago(b.last.at), count: b.count })) : tr('No backup yet');
-  card.innerHTML = `${head(tr('03:00 daily'))}
+  const o = b.offsite;
+  const value = !o || o.state === 'off' ? tr('Off')
+    : o.state === 'backing-up' ? tr('Backing up…')
+    : o.state === 'failed' ? tr('Failed')
+    : o.lastSuccess ? ago(o.lastSuccess) : tr('No backup yet');
+  card.innerHTML = `<summary><b>${tr('Backups')}</b><span class="bs-val${o?.late ? ' bs-late' : ''}">${esc(value)}</span>${CHEV}</summary>
     <div class="bs-body">
-    <p class="muted">${b.running ? tr('Backing up…') : last}</p>
-    ${b.error ? `<div class="req-note">${esc(b.error)}</div>` : ''}
-    <div class="backup-actions">
-      <button class="btn sm" id="backup-now" ${b.running ? 'disabled' : ''}>${tr('Back up now')}</button>
-      ${b.last ? `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.last.name)}" download>${tr('Download')}</a>` : ''}
-      <button class="link-btn" id="backup-change">${tr('Change passphrase')}</button>
-    </div>
+    ${o && o.state === 'failed' && o.lastSuccess ? `<p class="muted">${esc(tr('Last backup {ago}', { ago: ago(o.lastSuccess) }))}</p>` : ''}
+    <form id="backup-download" class="backup-pass" autocomplete="off">
+      <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="${min}" required autocomplete="new-password">
+      <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="${min}" required autocomplete="new-password">
+      <button class="btn sm" ${b.preparing ? 'disabled' : ''}>${b.preparing ? tr('Preparing…') : tr('Download')}</button>
+    </form>
     </div>`;
-  $('#backup-now', card).onclick = async (e) => {
-    e.target.disabled = true;
-    e.target.textContent = tr('Backing up…');
-    try { await api('/backups/now', { method: 'POST' }); toast(tr('Backed up')); } catch (err) { toast(err.message, true); }
-    loadBackupsCard();
-  };
-  $('#backup-change', card).onclick = async () => {
-    const p = await askName(tr('New backup passphrase (at least {n} characters). Older backups still need the old one.', { n: min }), '', tr('Change'), { secret: true });
-    if (!p) return;
-    try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: p } }); toast(tr('Passphrase changed. The next backups use it.')); } catch (err) { toast(err.message, true); }
+  $('#backup-download', card).onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.p1.value !== f.p2.value) return toast(tr("The two don't match"), true);
+    const go = f.querySelector('button');
+    go.disabled = true;
+    go.textContent = tr('Preparing…');
+    try {
+      const r = await api('/backups/download', { method: 'POST', body: { passphrase: f.p1.value } });
+      f.reset();
+      // Fetched once, by the browser's own download: the file is made as it comes.
+      const a = document.createElement('a');
+      a.href = r.url;
+      a.download = r.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast(tr('Downloading'));
+    } catch (err) { toast(err.message, true); }
+    go.disabled = false;
+    go.textContent = tr('Download');
   };
 }
 

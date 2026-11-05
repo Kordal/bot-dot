@@ -1596,8 +1596,7 @@ details.bs-row { display: block; }
 .job-script:not(.hidden) { display: grid; gap: var(--sp-12); }
 .backup-pass { display: flex; gap: var(--sp-8); flex-wrap: wrap; }
 .backup-pass input { flex: 1 1 140px; min-width: 0; }
-.backup-actions { display: flex; gap: var(--sp-8); align-items: center; flex-wrap: wrap; }
-.backup-actions .link-btn { margin-left: auto; }
+.bs-val.bs-late { color: var(--err); }
 .bs-fold .pick-list .skill-name { font-family: inherit; font-size: var(--fs-14); }
 
 /* The head of a chat's settings: its figure and its name to type over, what it does under it. The title of Settings

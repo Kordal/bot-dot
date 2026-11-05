@@ -52,9 +52,7 @@ test('nonroot backup and restore preserve files created privately by a bot', { s
     }
     assert.match(await run('umask 077; printf "private bot file" > private.txt; echo saved'),/saved/);
     const passphrase='nonroot synthetic backup phrase';
-    assert.equal((await srv.api('/backups/passphrase',{method:'PUT',body:{passphrase}})).status,200);
-    const made=await srv.api('/backups/now',{method:'POST'});assert.equal(made.status,200,JSON.stringify(made.data));
-    const raw=(await srv.api(`/backups/${made.data.last.name}`)).data;
+    const raw=(await srv.backup(passphrase)).file;
     assert.ok(Buffer.isBuffer(raw));
     await run('rm private.txt; echo removed');
     const up=await srv.api('/backups/upload',{method:'POST',raw});
