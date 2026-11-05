@@ -33,7 +33,7 @@ object Storage {
     }
     fun nameOf(n: Node): String = when (n.label) {
         "home" -> tr("Home"); "browser" -> tr("Browser"); "system" -> tr("Installed programs"); "runs" -> tr("Runs")
-        "memory" -> tr("Memory"); "botdot" -> "botdot"; "computer" -> tr("Computer"); else -> n.name
+        "memory" -> tr("Memory"); "botdot" -> "botdot"; "computer" -> tr("Computer"); "disk" -> tr("System"); else -> n.name
     }
 
     /** 14 GB, 6.4 GB, 812 MB, 4 KB: by thousands, as a Mac counts. */

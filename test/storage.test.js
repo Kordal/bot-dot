@@ -133,3 +133,33 @@ test('the Chief reads Storage and asks for a check; only the owner clears the ca
   const audit = fs.readFileSync(path.join(srv.data, 'audit.log'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
   assert.ok(audit.some((l) => l.action === 'storage.caches-cleared'));
 });
+
+test('through the broker a bot\'s walk is its answer\'s value, and the total is what the account\'s own disk uses', async () => {
+  const { create } = require('../lib/storage');
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-storage-broker-'));
+  fs.mkdirSync(path.join(dataDir, 'workspaces', 'r1'), { recursive: true });
+  fs.mkdirSync(path.join(dataDir, 'homes', 'r1'), { recursive: true });
+  fs.mkdirSync(path.join(dataDir, 'homes', 'gone'), { recursive: true });
+  const asked = [];
+  // The broker answers a file operation as { value } or { error } (lib/principal-fs-worker.js).
+  const client = { call: async (operation, { principal, request }) => {
+    asked.push([operation, principal, request.op]);
+    if (principal === 'gone') return { error: { code: 'EIO', message: 'Principal filesystem operation failed' } };
+    return { value: { bytes: request.args[0].includes('workspaces') ? 50 * MB : 7 * MB, files: 3, kids: [{ name: 'reports', bytes: 50 * MB, dir: true }], largest: [] } };
+  } };
+  const s = create({ dataDir, bots: () => [{ id: 'r1', name: 'Researcher' }], brokered: () => true, client, ownDisk: () => true, diskUsed: () => 37_000 * MB });
+  const v = await s.check();
+  assert.deepEqual(asked.filter(([, p]) => p === 'r1').map(([o, , op]) => [o, op]), [['files', 'sizeTreeSync'], ['files', 'sizeTreeSync']]);
+  const bots = v.groups.find((g) => g.id === 'bots');
+  assert.equal(bots.bytes, 50 * MB);
+  assert.equal(bots.kids[0].name, 'Researcher');
+  assert.ok(v.groups.find((g) => g.id === 'chats').bytes >= 7 * MB);
+  const total = v.groups.reduce((n, g) => n + g.bytes, 0);
+  assert.equal(total, 37_000 * MB, 'the total is what the disk uses');
+  const system = v.groups.find((g) => g.id === 'other').kids.find((k) => k.label === 'disk');
+  assert.ok(system.bytes > 36_000 * MB);
+  // Without a disk of its own, only what was counted.
+  const plain = await create({ dataDir, bots: () => [], brokered: () => true, client, ownDisk: () => false, diskUsed: () => 37_000 * MB }).check();
+  assert.ok(!plain.groups.find((g) => g.id === 'other').kids.some((k) => k.label === 'disk'));
+  fs.rmSync(dataDir, { recursive: true, force: true });
+});
