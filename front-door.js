@@ -1067,22 +1067,36 @@ if (boat) {
 // an install leave them while it runs, within a minute.
 function takeInstallKeys() {
   const took = installKeys.take(DATA, { groupRouter, boat });
-  if (!took) return;
-  if (took.openrouter) {
+  if (took?.openrouter) {
     console.log('[front door] the installer chose Jev as the decision model');
     audited('decision-model', { detail: 'Jev, a new key · from the installer' });
     handRouter();
   }
-  if (took.boat) {
+  if (took?.boat) {
     console.log('[front door] the installer set the boat.dev key');
     audited('boat-key-set', { detail: 'from the installer' });
     handBoat(true);
   }
+  handComposio();
 }
-if (groupRouter || boat) {
-  takeInstallKeys();
-  setInterval(takeInstallKeys, 60_000).unref();
+// The installer's Composio key (ADR 160): the admin's own account's (a managed machine's first), handed until that
+// account answers, which it does once it is made and running. It takes it only while it has no key of its own.
+const COMPOSIO_TO = ADMIN || SETUP_ACCOUNT;
+let handingComposio = false;
+function handComposio() {
+  const key = COMPOSIO_TO && !handingComposio ? installKeys.composio(DATA) : null;
+  if (!key) return;
+  handingComposio = true;
+  askAccount(COMPOSIO_TO, 'POST', '/api/connectors/install-key', { key }, 30_000).then((r) => {
+    handingComposio = false;
+    if (!r.status || r.status >= 500) return; // not made, not running, or Composio gave no answer: next minute
+    installKeys.handed(DATA);
+    if (r.status !== 200) console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key: ${r.data?.error || r.status}`);
+    else if (!r.data?.kept) console.log(`[front door] the installer's Composio key went to ${COMPOSIO_TO}`);
+  });
 }
+takeInstallKeys();
+setInterval(takeInstallKeys, 60_000).unref();
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();
   setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();

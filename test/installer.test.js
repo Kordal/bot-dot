@@ -793,7 +793,7 @@ test('an account\'s botdot server keeps a network of its own, and its helper the
 
 // --- Jev and boat.dev ------------------------------------------------------------------------------
 
-// The image's key check (lib/group-router.js and lib/boat.js checkKey), stood in for: a key starting "good" is taken,
+// The image's key check (lib/group-router.js, lib/boat.js and lib/connectors.js checkKey), stood in for: a key starting "good" is taken,
 // "down" can't be checked, any other is refused. It writes down which check it was asked and the key it read.
 const keyChecks = [
   'case "$*" in *checkKey*) k="$(cat)"; for a; do l="$a"; done; echo "checkKey $l $k" >> "$STAND_IN_LOG";',
@@ -801,25 +801,31 @@ const keyChecks = [
 ];
 const keysOf = (done) => { const f = path.join(done.dir, 'front-door', 'data', 'install-keys.json'); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
 
-test('a first install asks for Jev and boat.dev, checks each key, asks again after a refusal, and hands them to the front door', (t) => {
-  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\ny\nwrong-key-1\ny\ngood-openrouter-1\ny\ngood-boat-1\n' });
+test('a first install asks for Jev, boat.dev and Composio, checks each key, asks again after a refusal, and hands them to the front door', (t) => {
+  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\ny\nwrong-key-1\ny\ngood-openrouter-1\ny\ngood-boat-1\ny\ngood-composio-1\n' });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   assert.match(done.said, /Use Jev as the decision model\? \[y\/N\]/);
   assert.match(done.said, /OpenRouter key:/);
   assert.match(done.said, /OpenRouter refused this key\./);
   assert.match(done.said, /Use boat\.dev for the External Virtual PC\? \[y\/N\]/);
   assert.match(done.said, /boat\.dev API key:/);
-  assert.ok(!done.said.includes('good-openrouter-1') && !done.said.includes('good-boat-1'), 'a key is never shown');
-  assert.match(done.system, /checkKey group-router wrong-key-1\ncheckKey group-router good-openrouter-1\ncheckKey boat good-boat-1/);
+  assert.match(done.said, /Use Composio for connectors\? \[y\/N\]/);
+  assert.match(done.said, /Composio API key:/);
+  // Where each key is made, on the line before its prompt.
+  assert.match(done.said, /https:\/\/openrouter\.ai\/settings\/keys\nOpenRouter key:/);
+  assert.match(done.said, /https:\/\/boat\.dev\/dashboard\?tab=api-keys\nboat\.dev API key:/);
+  assert.match(done.said, /https:\/\/platform\.composio\.dev\nComposio API key:/);
+  assert.ok(!['good-openrouter-1', 'good-boat-1', 'good-composio-1'].some((k) => done.said.includes(k)), 'a key is never shown');
+  assert.match(done.system, /checkKey group-router wrong-key-1\ncheckKey group-router good-openrouter-1\ncheckKey boat good-boat-1\ncheckKey connectors good-composio-1/);
   assert.ok(done.calls.every((c) => !c.includes('good-')), 'a key goes on standard input, never on a command line');
-  assert.deepEqual(keysOf(done), { openrouter: 'good-openrouter-1', boat: 'good-boat-1' });
+  assert.deepEqual(keysOf(done), { openrouter: 'good-openrouter-1', boat: 'good-boat-1', composio: 'good-composio-1' });
   assert.equal(fs.statSync(path.join(done.dir, 'front-door', 'data', 'install-keys.json')).mode & 0o777, 0o600);
   assert.match(done.system, /chown \d+:\d+ \S*front-door\/data\/install-keys\.json/, "the front door's to take");
-  assert.ok(!Object.keys(done.env).some((k) => /OPENROUTER|BOAT/.test(k)), 'no key in .env');
+  assert.ok(!Object.keys(done.env).some((k) => /OPENROUTER|BOAT|COMPOSIO/.test(k)), 'no key in .env');
 
   const again = installer(t, { dotenv: fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8'), dockerFirst: keyChecks });
   assert.equal(again.status, 0, again.stderr);
-  assert.doesNotMatch(again.said, /Jev|boat\.dev/, 'a rerun asks nothing again: the admin page sets them');
+  assert.doesNotMatch(again.said, /Jev|boat\.dev|Composio/, 'a rerun asks nothing again: the admin page and the Connectors page set them');
 });
 
 test('a first install with no answer takes neither, and an unreachable check is left to the admin page', (t) => {
@@ -835,25 +841,33 @@ test('a first install with no answer takes neither, and an unreachable check is 
   assert.equal(keysOf(down), null);
 });
 
-test('BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand, empty is no, and a refused one only warns', (t) => {
-  const given = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'public', BOT_DOT_DOMAIN: 'bots.example.org', BOT_DOT_ADMIN: 'bea', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-2', BOT_DOT_BOAT_KEY: '' } });
+test('BOT_DOT_OPENROUTER_KEY, BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer beforehand, empty is no, and a refused one only warns', (t) => {
+  const given = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'public', BOT_DOT_DOMAIN: 'bots.example.org', BOT_DOT_ADMIN: 'bea', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-2', BOT_DOT_BOAT_KEY: '', BOT_DOT_COMPOSIO_KEY: '' } });
   assert.equal(given.status, 0, `${given.said}\n${given.stderr}`);
-  assert.doesNotMatch(given.said, /Use Jev|Use boat\.dev/, 'nothing asked');
+  assert.doesNotMatch(given.said, /Use Jev|Use boat\.dev|Use Composio/, 'nothing asked');
   assert.match(given.said, /OpenRouter key set/);
-  assert.deepEqual(keysOf(given), { openrouter: 'good-openrouter-2', boat: null });
+  assert.deepEqual(keysOf(given), { openrouter: 'good-openrouter-2', boat: null, composio: null });
 
   const rerunGiven = rerun(t, '', { BOT_DOT_BOAT_KEY: 'good-boat-2' }, { dockerFirst: keyChecks });
-  assert.deepEqual(keysOf(rerunGiven), { openrouter: null, boat: 'good-boat-2' }, 'on a rerun too');
+  assert.deepEqual(keysOf(rerunGiven), { openrouter: null, boat: 'good-boat-2', composio: null }, 'on a rerun too');
+
+  const composio = rerun(t, '', { BOT_DOT_COMPOSIO_KEY: 'good-composio-2' }, { dockerFirst: keyChecks });
+  assert.match(composio.said, /Composio key set/);
+  assert.deepEqual(keysOf(composio), { openrouter: null, boat: null, composio: 'good-composio-2' });
+
+  const composioRefused = rerun(t, '', { BOT_DOT_COMPOSIO_KEY: 'bad-composio-2' }, { dockerFirst: keyChecks });
+  assert.match(composioRefused.said, /Composio refused BOT_DOT_COMPOSIO_KEY: set the key on the Connectors page\./);
+  assert.equal(keysOf(composioRefused), null);
 
   const refused = rerun(t, '', { BOT_DOT_BOAT_KEY: 'bad-boat-2' }, { dockerFirst: keyChecks });
   assert.match(refused.said, /boat\.dev refused BOT_DOT_BOAT_KEY: set the key on the admin page\./);
   assert.equal(keysOf(refused), null);
 });
 
-test('botdot on this computer only never asks for Jev or boat.dev: it has no admin page', (t) => {
-  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'local', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-3' } });
+test('botdot on this computer only never asks for Jev, boat.dev or Composio: it has no admin page', (t) => {
+  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'local', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-3', BOT_DOT_COMPOSIO_KEY: 'good-composio-3' } });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
-  assert.doesNotMatch(done.said, /Jev|boat\.dev|OpenRouter/);
+  assert.doesNotMatch(done.said, /Jev|boat\.dev|OpenRouter|Composio/);
   assert.doesNotMatch(done.system, /checkKey/);
   assert.equal(keysOf(done), null);
 });

@@ -82,8 +82,9 @@
 # FRONT_DOOR_TERMS_URL, FRONT_DOOR_PRIVACY_URL and FRONT_DOOR_TERMS_VERSION (default 1), kept once given: with both
 # addresses, sign-up asks the owner to agree to the terms and the privacy policy (docs/install-linux.md).
 # A first install also asks whether to use Jev, the decision model, and boat.dev, the External Virtual PC, and for
-# each one's key; BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand (empty: no). Both are set later on the
-# admin page too.
+# each one's key, and for the Composio key of the admin's own account's connectors; BOT_DOT_OPENROUTER_KEY,
+# BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer beforehand (empty: no). The first two are set later on the admin page
+# too, the Composio key on the Connectors page.
 #
 # BOT_DOT_REACH=local is the desktop app's botdot, in a Linux VM of its own on the owner's computer (ADR 136): one
 # account (BOT_DOT_ADMIN, default owner) at http://localhost:<port> (BOT_DOT_PORT, default 4700), and nothing else
@@ -2019,16 +2020,17 @@ if [ -n "$MANAGED" ]; then
   [ -z "$VARIANT_WAS" ] || [ "$VARIANT_WAS" = "$VARIANT" ] || ok "This machine now holds $([ "$VARIANT" = one ] && echo 'one account' || echo 'several accounts'): its accounts and passkeys are kept"
 fi
 
-# Jev, the decision model, and boat.dev, the External Virtual PC (#513, #529): each asked once, on the first install,
-# never on this computer only, which has no admin page. BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand
-# (empty: no), on any install. A key is checked as the admin page checks it, with the image's own check, and handed to
-# the front door in data/install-keys.json, which it takes and removes; one that isn't taken is set on the admin page.
+# Jev, the decision model, boat.dev, the External Virtual PC (#513, #529), and Composio for the admin's own account's
+# connectors (ADR 160): each asked once, on the first install, never on this computer only, which has no admin page.
+# BOT_DOT_OPENROUTER_KEY, BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer beforehand (empty: no), on any install. A key
+# is checked as the admin page (the Connectors page for Composio) checks it, with the image's own check, and handed to
+# the front door in data/install-keys.json, which it takes and removes; one that isn't taken is set on that page.
 # check_key LIB KEY: ok, refused, billing or unreachable. The key goes on standard input, never on a command line.
 check_key() {
   printf '%s' "$2" | $D run --rm -i --entrypoint node "$IMAGE" -e 'let s="";process.stdin.on("data",(d)=>{s+=d}).on("end",()=>{require("./lib/"+process.argv[1]).checkKey(s.trim()).then((r)=>process.stdout.write(r),()=>process.stdout.write("unreachable"))})' "$1" 2>/dev/null || true
 }
-# take_key LIB SERVICE VAR "Question" "Prompt" -> KEY_TAKEN: the key VAR gives or the person pastes, once checked; empty
-# for none.
+# take_key LIB SERVICE VAR "Question" "Prompt" LINK PAGE -> KEY_TAKEN: the key VAR gives or the person pastes, once
+# checked; empty for none. LINK is where the key is made, shown before its prompt; PAGE where it is set later.
 take_key() {
   KEY_TAKEN=''
   eval "given_set=\${$3+1} given=\${$3:-}"
@@ -2036,33 +2038,40 @@ take_key() {
     [ -n "$given" ] || return 0
     case "$(check_key "$1" "$given")" in
       ok) KEY_TAKEN="$given"; ok "$2 key set" ;;
-      refused) warn "$2 refused $3: set the key on the admin page." ;;
-      billing) warn "boat.dev wants a plan or a payment method on this account first: set the key on the admin page then." ;;
-      *) warn "$2 couldn't be reached: set the key on the admin page." ;;
+      refused) warn "$2 refused $3: set the key on the $7." ;;
+      billing) warn "boat.dev wants a plan or a payment method on this account first: set the key on the $7 then." ;;
+      *) warn "$2 couldn't be reached: set the key on the $7." ;;
     esac
     return 0
   fi
   [ -n "$FIRST" ] && [ -z "$UNATTENDED" ] && [ -z "$MANAGED" ] || return 0
   while ask "$4" n; do
+    say "  $6"
     ask_secret "$5"
     [ -n "$REPLY" ] || return 0
     case "$(check_key "$1" "$REPLY")" in
       ok) KEY_TAKEN="$REPLY"; ok "$2 key set"; return 0 ;;
       refused) warn "$2 refused this key." ;;
-      billing) warn "boat.dev wants a plan or a payment method on this account first: set the key on the admin page then."; return 0 ;;
-      *) warn "$2 couldn't be reached: set the key on the admin page."; return 0 ;;
+      billing) warn "boat.dev wants a plan or a payment method on this account first: set the key on the $7 then."; return 0 ;;
+      *) warn "$2 couldn't be reached: set the key on the $7."; return 0 ;;
     esac
   done
 }
 if [ "$REACH" != local ]; then
-  take_key group-router OpenRouter BOT_DOT_OPENROUTER_KEY "Use Jev as the decision model?" "OpenRouter key:"
+  take_key group-router OpenRouter BOT_DOT_OPENROUTER_KEY "Use Jev as the decision model?" "OpenRouter key:" \
+    https://openrouter.ai/settings/keys "admin page"
   OPENROUTER_KEY="$KEY_TAKEN"
-  take_key boat boat.dev BOT_DOT_BOAT_KEY "Use boat.dev for the External Virtual PC?" "boat.dev API key:"
+  take_key boat boat.dev BOT_DOT_BOAT_KEY "Use boat.dev for the External Virtual PC?" "boat.dev API key:" \
+    'https://boat.dev/dashboard?tab=api-keys' "admin page"
   BOAT_KEY="$KEY_TAKEN"
-  # A checked key is letters, digits, dashes and underscores alone (KEY in lib/group-router.js and lib/boat.js).
-  if [ -n "$OPENROUTER_KEY$BOAT_KEY" ]; then
+  take_key connectors Composio BOT_DOT_COMPOSIO_KEY "Use Composio for connectors?" "Composio API key:" \
+    https://platform.composio.dev "Connectors page"
+  COMPOSIO_KEY="$KEY_TAKEN"
+  # A checked key is letters, digits, dashes and underscores alone (KEY in lib/group-router.js, lib/boat.js and
+  # lib/connectors.js checkKey).
+  if [ -n "$OPENROUTER_KEY$BOAT_KEY$COMPOSIO_KEY" ]; then
     json_key() { if [ -n "$1" ]; then printf '"%s"' "$1"; else printf null; fi; }
-    (umask 077; printf '{"openrouter":%s,"boat":%s}\n' "$(json_key "$OPENROUTER_KEY")" "$(json_key "$BOAT_KEY")" > "$DOOR/data/install-keys.json")
+    (umask 077; printf '{"openrouter":%s,"boat":%s,"composio":%s}\n' "$(json_key "$OPENROUTER_KEY")" "$(json_key "$BOAT_KEY")" "$(json_key "$COMPOSIO_KEY")" > "$DOOR/data/install-keys.json")
   fi
 fi
 fi
