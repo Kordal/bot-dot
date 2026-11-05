@@ -518,6 +518,8 @@ remove_account() {
 erase_account() {
   [ "$1" != "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The account $1 is the admin's own, so it wasn't erased."
   remove_account "$1"
+  # Its user's UID leaves a managed machine's guard of its computers (#984), so that no later user inherits its rules.
+  [ -z "$MANAGED" ] || [ ! -f "$BIN/egress.sh" ] || sh "$BIN/egress.sh" </dev/null || warn "Couldn't rebuild the firewall of the accounts' computers; the next account made rebuilds it."
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -531,7 +533,7 @@ erase_account() {
 
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
-UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service"
+UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service"
 OWN="front-door accounts sockets disks bin update.log requests.log"
 PACKAGES="runsc docker-ce-rootless-extras"
 
@@ -642,6 +644,15 @@ if [ "$MODE" = uninstall ]; then
       set -e
       [ "$gone" = 0 ] || { left "the account $n (see above)"; failed=1; }
     done
+    # A managed machine's guard of its computers (#984), once no account runs: each account's unit requires it.
+    if [ -f "$ETC/systemd/system/botdot-egress.service" ] || [ -f "$BIN/egress.sh" ]; then
+      [ -z "$SYSTEMD" ] || systemctl disable --now botdot-egress </dev/null >/dev/null 2>&1 || true
+      for t in iptables ip6tables; do
+        $t -D OUTPUT -j BOTDOT-EGRESS 2>/dev/null || true
+        for c in BOTDOT-EGRESS BOTDOT-GUARD; do $t -F "$c" 2>/dev/null || true; done
+        for c in BOTDOT-EGRESS BOTDOT-GUARD; do $t -X "$c" 2>/dev/null || true; done
+      done
+    fi
     if id -u "$DOOR_USER" >/dev/null 2>&1; then userdel "$DOOR_USER" </dev/null || left "the Linux user $DOOR_USER"; fi
     for u in $UNITS; do rm -f -- "$ETC/systemd/system/$u"; done
     rm -rf -- "$ETC"/systemd/system.control/botdot-account@*.service.d "$ETC"/systemd/system/*.wants/botdot-*
@@ -1554,12 +1565,17 @@ fi
 # account's disk as its home first (as root, `+`), and doesn't start without it: rootless Docker would fill the bare
 # folder beneath. Its CPU and RAM share are set on it (systemctl set-property, kept in /etc/systemd/system.control).
 if [ -n "$SYSTEMD" ] && { [ "$MODE" = install ] || [ "$MODE" = update ]; }; then
+  # On a managed machine it starts only behind the guard of its computers (#984).
+  EGRESS_UNIT=''
+  [ -z "$MANAGED" ] || EGRESS_UNIT='
+Requires=botdot-egress.service
+After=botdot-egress.service'
   cat > "$ETC/systemd/system/botdot-account@.service.new" <<UNIT
 # botdot (install.sh): the rootless Docker of the account %i, as its own Linux user, botdot-%i (ADR 028).
 [Unit]
 Description=botdot: the rootless Docker of the account %i
 Wants=network-online.target
-After=network-online.target
+After=network-online.target$EGRESS_UNIT
 
 [Service]
 User=botdot-%i
@@ -1740,6 +1756,91 @@ restore_data() {
   cp -a "$2/data" "$ACCOUNTS/$1/data"
 }
 
+# egress_guard: on a managed machine (ADR 154, #984), what the accounts' computers can't reach. A computer's traffic
+# leaves as its account's slirp4netns does, as the account's Linux user, through this machine's OUTPUT: there, a new
+# connection of an account's user to a private range, to link-local (the cloud's metadata at 169.254.169.254) or to
+# TCP 25 or 465 is refused, over IPv4 and IPv6. DNS to the machine's resolvers stays open, and so does this machine
+# itself (loopback: the front door and Caddy) and every answer. The front door, Caddy and anything else of the machine's
+# own run as other users, and aren't touched. The rules are rebuilt at once (iptables-restore), from each account in
+# ACCOUNTS: at boot before Docker (botdot-egress, which every account's unit requires), and whenever an account is made.
+egress_guard() {
+  mkdir -p "$BIN"
+  chmod 700 "$BIN"
+  eg_dns="$(for f in /run/systemd/resolve/resolv.conf "$ETC/resolv.conf"; do [ ! -f "$f" ] || awk '$1 == "nameserver" { print $2 }' "$f"; done | sort -u | tr '\n' ' ')"
+  {
+    cat <<HEAD
+#!/bin/sh
+# botdot (install.sh): what a managed machine's computers can't reach (ADR 154, #984). Rebuilt by the installer.
+set -e
+ACCOUNTS='$ACCOUNTS'
+RESOLV='/run/systemd/resolve/resolv.conf $ETC/resolv.conf'
+RESOLVERS='$eg_dns'
+HEAD
+    cat <<'BODY'
+uids=''
+for home in "$ACCOUNTS"/*/; do
+  [ -d "$home" ] || continue
+  u="$(id -u "botdot-$(basename "$home")" 2>/dev/null)" || continue
+  uids="$uids $u"
+done
+# shellcheck disable=SC2086 # addresses and files, one a word
+dns="$({ printf '%s\n' $RESOLVERS; for f in $RESOLV; do [ ! -f "$f" ] || awk '$1 == "nameserver" { print $2 }' "$f"; done; } | sed 's/%.*//' | sort -u)"
+rules() {
+  echo '*filter'
+  echo ':BOTDOT-EGRESS - [0:0]'
+  echo ':BOTDOT-GUARD - [0:0]'
+  for u in $uids; do echo "-A BOTDOT-EGRESS -m owner --uid-owner $u -j BOTDOT-GUARD"; done
+  echo '-A BOTDOT-GUARD -m conntrack ! --ctstate NEW -j RETURN'
+  echo '-A BOTDOT-GUARD -o lo -j RETURN'
+  for d in $dns; do
+    case "$1:$d" in 4:*:* | 6:*.*) continue ;; esac
+    echo "-A BOTDOT-GUARD -d $d -p udp --dport 53 -j RETURN"
+    echo "-A BOTDOT-GUARD -d $d -p tcp --dport 53 -j RETURN"
+  done
+  echo '-A BOTDOT-GUARD -p tcp -m multiport --dports 25,465 -j REJECT --reject-with tcp-reset'
+  if [ "$1" = 4 ]; then nets='0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 198.18.0.0/15'
+  else nets='fc00::/7 fe80::/10 ::ffff:0:0/96'; fi
+  for n in $nets; do echo "-A BOTDOT-GUARD -d $n -j REJECT"; done
+  echo 'COMMIT'
+}
+rules 4 | iptables-restore -n
+iptables -C OUTPUT -j BOTDOT-EGRESS 2>/dev/null || iptables -I OUTPUT -j BOTDOT-EGRESS
+ip6tables -L -n >/dev/null 2>&1 || exit 0
+rules 6 | ip6tables-restore -n
+ip6tables -C OUTPUT -j BOTDOT-EGRESS 2>/dev/null || ip6tables -I OUTPUT -j BOTDOT-EGRESS
+BODY
+  } > "$BIN/egress.sh.new"
+  mv "$BIN/egress.sh.new" "$BIN/egress.sh"
+  chmod 700 "$BIN/egress.sh"
+  if [ -n "$SYSTEMD" ]; then
+    cat > "$ETC/systemd/system/botdot-egress.service.new" <<UNIT
+# botdot (install.sh): what a managed machine's computers can't reach, in place before any account's Docker starts
+# (ADR 154, #984).
+[Unit]
+Description=botdot: keep the accounts' computers from private addresses, the cloud's metadata and SMTP
+DefaultDependencies=no
+After=local-fs.target
+Wants=network-pre.target
+Before=network-pre.target docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh $BIN/egress.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+    if ! cmp -s "$ETC/systemd/system/botdot-egress.service.new" "$ETC/systemd/system/botdot-egress.service" 2>/dev/null; then
+      mv "$ETC/systemd/system/botdot-egress.service.new" "$ETC/systemd/system/botdot-egress.service"
+      systemctl daemon-reload </dev/null
+    else rm -f "$ETC/systemd/system/botdot-egress.service.new"; fi
+    systemctl enable botdot-egress </dev/null >/dev/null 2>&1 || die "systemd didn't enable botdot-egress. See: systemctl status botdot-egress"
+  fi
+  # Run here, not restarted: every account's unit requires it, and a restart would restart them all.
+  sh "$BIN/egress.sh" </dev/null || die "The firewall that keeps the accounts' computers from private addresses and SMTP didn't start, so no account was started. See: sh $BIN/egress.sh"
+}
+
 # account NAME [CPU RAM DISK]: makes or updates the account NAME with that share (DEFAULT_SHARE without one) and
 # starts its botdot server.
 account() {
@@ -1770,6 +1871,8 @@ account() {
       printf '%s:%s:65536\n' "$user" "$start" >> "$ETC/$map"
     fi
   done
+  # On a managed machine its user's way out is guarded before its Docker starts (#984).
+  [ -z "$MANAGED" ] || egress_guard
   sub_uid="$(awk -F: -v u="$user" '$1 == u { print $2; exit }' "$ETC/subuid")"
   sub_gid="$(awk -F: -v u="$user" '$1 == u { print $2; exit }' "$ETC/subgid")"
 
