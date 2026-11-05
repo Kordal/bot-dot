@@ -183,11 +183,6 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     ) { pad ->
         val i = info ?: return@Scaffold
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            if (i.keyRejected && i.account == "machine") {
-                // The machine's key (ADR 160) is the operator's to replace, not the owner's.
-                item { Section(tr("Composio no longer accepts this machine's key")) {} }
-                return@LazyColumn
-            }
             if (!i.configured || i.keyRejected) {
                 // No key yet, or Composio refuses it (#409): botdot makes no Composio account, so the owner pastes one.
                 val title = when {
@@ -198,8 +193,8 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 item { Section(title) { ComposioKeyField({ saveKey(it) }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } } }
                 return@LazyColumn
             }
-            // The key, always at the top: replaced or removed here (#440). The machine's key (ADR 160) is not the owner's.
-            if (i.account != "machine") item {
+            // The key, always at the top: replaced or removed here (#440).
+            item {
                 if (replacing) Section(null) { ComposioKeyField({ saveKey(it) }, onCancel = { replacing = false }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } }
                 else Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(tr("Composio key {key}", "key" to i.keyHint.orEmpty()).trim(), color = p.text, modifier = Modifier.weight(1f))

@@ -159,36 +159,39 @@ test('a connection Composio lists without a status reads "UNKNOWN", and one with
   } finally { seen.odd = false; }
 });
 
-// ADR 160: a managed machine's Composio key, handed by the front door alone, kept in memory and never answered.
-test("the machine's key from the front door runs Connectors while the account has none, and the account's own key wins", async (t) => {
-  const MACHINE_KEY = 'pk_the_machine_key_1';
-  const a = await startServer({ env: { COMPOSIO_API_URL: `http://127.0.0.1:${fake.address().port}` } });
-  t.after(() => a.stop());
-  const hand = (key, headers = { 'x-botdot-room': '1' }) => a.api('/connectors/machine-key', { method: 'POST', headers, body: { key } });
-  assert.equal((await hand(OWN_KEY, {})).status, 403, 'not the owner');
-  assert.equal((await a.api('/connectors/machine-key', { headers: { 'x-botdot-room': '1' } })).status, 405);
-  assert.equal((await hand(OWN_KEY)).status, 200);
-  const r = await a.api('/connectors');
-  assert.equal(r.status, 200);
-  assert.deepEqual([r.data.configured, r.data.account, r.data.keyHint, r.data.keyRejected], [true, 'machine', null, false]);
-  assert.ok(!JSON.stringify(r.data).includes(OWN_KEY), 'never answered');
-  assert.ok(!fs.existsSync(path.join(a.data, 'connectors.json')) || !fs.readFileSync(path.join(a.data, 'connectors.json'), 'utf8').includes(OWN_KEY), 'never stored in the account');
-  assert.equal((await a.api('/connectors/catalog')).status, 200, 'Connectors work on it');
+// The installer's Composio key (ADR 160): the front door hands it to the admin's account, which takes it only while it
+// has no key, checked as a pasted one is. A person, the Chief or a bot can't hand one.
+test("the installer's key, from the front door alone, is taken only while there is no key", async () => {
+  const room = { 'x-botdot-room': '1' };
+  const hand = (key, headers = room) => srv.api('/connectors/install-key', { method: 'POST', body: { key }, headers });
+  await srv.api('/connectors/key', { method: 'DELETE' });
+  assert.equal((await hand(OWN_KEY, {})).status, 403, "a person's request: the front door strips the header from theirs");
+  const chief = await fetch(`http://127.0.0.1:${srv.botdotPort}/api/connectors/install-key`, { method: 'POST', headers: { 'X-Chief-Key': srv.chiefKey, 'x-botdot-room': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ key: OWN_KEY }) });
+  assert.equal(chief.status, 403);
+  assert.equal((await srv.api('/connectors')).data.configured, false);
 
-  // The account's own key is used over it.
-  assert.equal((await a.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY_2 } })).status, 200);
-  assert.equal((await a.api('/connectors')).data.account, 'own');
-  await a.api('/connectors/key', { method: 'DELETE' });
-  assert.equal((await a.api('/connectors')).data.account, 'machine', 'back on the machine key');
+  const refused = await hand('pk_wrong_wrong_wrong');
+  assert.equal(refused.status, 400, 'refused by Composio: the front door stops handing it');
+  assert.equal((await hand('')).status, 400);
 
-  // A refused machine key is the operator's to replace: the owner is told so.
-  await hand(MACHINE_KEY);
-  const x = await a.api('/connectors/connect', { method: 'POST', body: { app: 'gmail' } });
-  assert.equal(x.status, 401);
-  assert.match(x.data.error, /this machine's Composio key/);
-  assert.equal((await a.api('/connectors')).data.keyRejected, true);
+  const taken = await hand(OWN_KEY);
+  assert.equal(taken.status, 200, JSON.stringify(taken.data));
+  assert.deepEqual([taken.data.configured, taken.data.account, taken.data.keyHint], [true, 'own', '…_789']);
+  assert.ok(!file().includes(OWN_KEY), 'kept encrypted');
 
-  // Dropped, Connectors wait for a key again.
-  await hand(null);
-  assert.equal((await a.api('/connectors')).data.configured, false);
+  await srv.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY_2 } });
+  const kept = await hand(OWN_KEY);
+  assert.equal(kept.status, 200);
+  assert.equal(kept.data.kept, true);
+  assert.equal((await srv.api('/connectors')).data.keyHint, '…ne_2', "the owner's own key stays");
+});
+
+test('checkKey answers ok, refused or unreachable, as the installer reads it', async () => {
+  const { checkKey } = require('../lib/connectors');
+  const answer = (status) => async () => ({ ok: status < 300, status });
+  assert.equal(await checkKey('pk_good_good_good', { fetch: answer(200) }), 'ok');
+  assert.equal(await checkKey('pk_bad_bad_bad', { fetch: answer(401) }), 'refused');
+  assert.equal(await checkKey('pk_down_down_down', { fetch: answer(503) }), 'unreachable');
+  assert.equal(await checkKey('pk_down_down_down', { fetch: async () => { throw new Error('no network'); } }), 'unreachable');
+  assert.equal(await checkKey('x"y', { fetch: answer(200) }), 'refused', 'not a key at all');
 });

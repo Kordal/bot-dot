@@ -74,7 +74,6 @@ const roomTurns = require('./lib/front-door/room-turns');
 const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
-const composioStore = require('./lib/front-door/composio');
 const installKeys = require('./lib/front-door/install-keys');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
@@ -940,7 +939,7 @@ function askAccount(account, method, to, body, timeoutMs) {
 
 // The group router the admin chose (#513): handed to every account's botdot server on a change and every minute, so
 // that one that started again has it back (it keeps it in memory alone). Haiku meanwhile. A managed machine of one
-// account has it too: the fleet console sets its key (ADR 160).
+// account has it too: the fleet console sets its key (ADR 161).
 const groupRouter = ONE_ACCOUNT && !MANAGED ? null : groupRouterStore.open(DATA);
 function handRouter() {
   if (!groupRouter) return;
@@ -960,14 +959,6 @@ function handBoat(changed = false) {
   for (const name of body.key ? names : [...boatRemovedFrom]) {
     askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
   }
-}
-// The machine's Composio key (ADR 160): a managed machine's alone, set by the fleet console, handed to every account
-// on a change and, while one is set, every minute.
-const composio = MANAGED ? composioStore.open(DATA) : null;
-function handComposio() {
-  if (!composio) return;
-  const body = composio.forAccounts();
-  for (const { name } of doors.listAccounts()) askAccount(name, 'POST', '/api/connectors/machine-key', body, 5000);
 }
 // The off-site backup (#1017): root's step says how its runs went in status/offsite.json (#1016); a machine without one
 // has none, or says state off, and nothing is said of it. It is late when its last run failed, or its last good one
@@ -1076,32 +1067,37 @@ if (boat) {
 // The keys the installer took (install.sh, lib/front-door/install-keys.js): taken when the front door starts and, should
 // an install leave them while it runs, within a minute.
 function takeInstallKeys() {
-  const took = installKeys.take(DATA, { groupRouter, boat, composio });
-  if (!took) return;
-  if (took.openrouter) {
+  const took = installKeys.take(DATA, { groupRouter, boat });
+  if (took?.openrouter) {
     console.log('[front door] the installer chose Jev as the decision model');
     audited('decision-model', { detail: 'Jev, a new key · from the installer' });
     handRouter();
   }
-  if (took.boat) {
+  if (took?.boat) {
     console.log('[front door] the installer set the boat.dev key');
     audited('boat-key-set', { detail: 'from the installer' });
     handBoat(true);
   }
-  if (took.composio) {
-    console.log("[front door] the machine's Composio key is set");
-    audited('composio-key-set', { detail: 'from the installer or the fleet console' });
-    handComposio();
-  }
+  handComposio();
 }
-if (groupRouter || boat || composio) {
-  takeInstallKeys();
-  setInterval(takeInstallKeys, 60_000).unref();
+// The installer's Composio key (ADR 160): the admin's own account's (a managed machine's first), handed until that
+// account answers, which it does once it is made and running. It takes it only while it has no key of its own.
+const COMPOSIO_TO = ADMIN || SETUP_ACCOUNT;
+let handingComposio = false;
+function handComposio() {
+  const key = COMPOSIO_TO && !handingComposio ? installKeys.composio(DATA) : null;
+  if (!key) return;
+  handingComposio = true;
+  askAccount(COMPOSIO_TO, 'POST', '/api/connectors/install-key', { key }, 30_000).then((r) => {
+    handingComposio = false;
+    if (!r.status || r.status >= 500) return; // not made, not running, or Composio gave no answer: next minute
+    installKeys.handed(DATA);
+    if (r.status !== 200) console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key: ${r.data?.error || r.status}`);
+    else if (!r.data?.kept) console.log(`[front door] the installer's Composio key went to ${COMPOSIO_TO}`);
+  });
 }
-if (composio) {
-  setTimeout(handComposio, 3000).unref();
-  setInterval(() => { if (composio.shown().keySet) handComposio(); }, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
-}
+takeInstallKeys();
+setInterval(takeInstallKeys, 60_000).unref();
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();
   setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();

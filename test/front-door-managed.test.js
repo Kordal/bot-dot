@@ -135,9 +135,9 @@ test('a managed machine without a first account, or a setup key, makes no accoun
   assert.match(bad.stderr, /FRONT_DOOR_FIRST_ACCOUNT is an account's name/);
 });
 
-// ADR 160: the fleet console's keys reach a managed machine of one account as the installer's do (install-keys.json),
-// and every account is handed the decision model and the machine's Composio key; the keys are never answered.
-test("managed, one account: the console's OpenRouter and Composio keys in install-keys.json are taken and handed to the account", async (t) => {
+// ADR 161: the fleet console's keys reach a managed machine of one account as the installer's do (install-keys.json):
+// the account is handed the decision model with Jev's key, and the Composio key as the installer's (ADR 160).
+test("managed, one account: the console's keys in install-keys.json are taken, and Jev's is handed to the account", async (t) => {
   const { waitFor } = require('./helpers');
   const data = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-keys-'));
   const file = path.join(data, 'install-keys.json');
@@ -147,10 +147,10 @@ test("managed, one account: the console's OpenRouter and Composio keys in instal
   t.after(async () => { await door.stop(); owner.close(); fs.rmSync(data, { recursive: true, force: true }); });
   assert.equal((await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner' })).done.status, 201);
   const last = (url) => owner.seen.filter((r) => r.url === url).map((r) => JSON.parse(r.body)).at(-1);
-  await waitFor(() => (last('/api/group-router')?.key && last('/api/connectors/machine-key')?.key ? true : null), { what: 'the keys to be handed' });
+  await waitFor(() => (last('/api/group-router')?.key ? true : null), { what: "Jev's key to be handed" });
   assert.deepEqual([last('/api/group-router').router, last('/api/group-router').key], ['jev', 'sk-or-v1-fromtheconsole']);
-  assert.equal(last('/api/connectors/machine-key').key, 'ak_fromtheconsole');
-  assert.equal(owner.seen.find((r) => r.url === '/api/connectors/machine-key').headers['x-botdot-room'], '1', 'as the front door itself');
+  // The Composio key waits for the first account as the installer's does (ADR 160, test/front-door-install-keys.test.js).
+  assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'composio-key.json'), 'utf8')).key, 'ak_fromtheconsole');
+  assert.equal(owner.seen.find((r) => r.url === '/api/group-router').headers['x-botdot-room'], '1', 'as the front door itself');
   assert.ok(!fs.existsSync(file), 'the file is taken');
-  assert.equal(JSON.parse(fs.readFileSync(path.join(data, 'composio.json'), 'utf8')).key, 'ak_fromtheconsole');
 });

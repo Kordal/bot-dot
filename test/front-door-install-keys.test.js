@@ -59,15 +59,27 @@ test('the front door takes them when it starts and every minute after', () => {
   assert.match(code, /takeInstallKeys\(\);\n\s*setInterval\(takeInstallKeys, 60_000\)/);
 });
 
-test("a managed machine's Composio key is taken into composio.json (ADR 160), and a machine without the store takes none", (t) => {
-  const composioStore = require('../lib/front-door/composio');
+// The Composio key (ADR 160) is the admin's account's: it waits in composio-key.json, which only the front door reads,
+// until that account takes it.
+test('the Composio key waits for the admin\'s account, on a machine of one account too, until it is handed', (t) => {
   const s = stores(t);
-  const composio = composioStore.open(s.dir);
-  fs.writeFileSync(s.file, JSON.stringify({ openrouter: null, boat: null, composio: 'ak_machinemachine' }));
-  assert.deepEqual(installKeys.take(s.dir, { ...s, composio }), { openrouter: false, boat: false, composio: true });
-  assert.equal(composio.forAccounts().key, 'ak_machinemachine');
-  assert.deepEqual(composio.shown(), { keySet: true });
-  assert.equal(composioStore.open(s.dir).forAccounts().key, 'ak_machinemachine', 'kept');
-  fs.writeFileSync(s.file, JSON.stringify({ composio: 'ak_machinemachine' }));
-  assert.deepEqual(installKeys.take(s.dir, s), { openrouter: false, boat: false, composio: false });
+  assert.equal(installKeys.composio(s.dir), null);
+  fs.writeFileSync(s.file, JSON.stringify({ openrouter: null, boat: null, composio: 'ak_goodgoodgood' }));
+  assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false, composio: true });
+  assert.ok(!fs.existsSync(s.file));
+  assert.equal(installKeys.composio(s.dir), 'ak_goodgoodgood');
+  assert.equal(fs.statSync(path.join(s.dir, 'composio-key.json')).mode & 0o777, 0o600);
+  assert.equal(s.groupRouter.shown().router, 'haiku', 'never the machine\'s');
+  installKeys.handed(s.dir);
+  assert.equal(installKeys.composio(s.dir), null);
+  fs.writeFileSync(s.file, JSON.stringify({ composio: 'x"y' }));
+  assert.equal(installKeys.take(s.dir, s).composio, false);
+  assert.equal(installKeys.composio(s.dir), null);
+});
+
+test('the front door hands the Composio key to the admin\'s account and keeps it while no answer comes', () => {
+  const code = fs.readFileSync(path.join(__dirname, '..', 'front-door.js'), 'utf8');
+  assert.match(code, /const COMPOSIO_TO = ADMIN \|\| SETUP_ACCOUNT;/);
+  assert.match(code, /askAccount\(COMPOSIO_TO, 'POST', '\/api\/connectors\/install-key', \{ key \}/);
+  assert.match(code, /if \(!r\.status \|\| r\.status >= 500\) return;[^\n]*\n\s*installKeys\.handed\(DATA\);/);
 });

@@ -212,21 +212,3 @@ test('a machine that is not managed has no such rules, and the uninstaller remov
   assert.ok(after.indexOf('systemctl disable --now botdot-egress') > after.indexOf('userdel botdot-owner'), 'once no account runs');
   assert.ok(!fs.existsSync(path.join(done.etc, 'systemd', 'system', 'botdot-egress.service')));
 });
-
-// ADR 160: the fleet console's Composio key for the machine, checked as the other keys are, on a managed machine alone.
-test("BOT_DOT_COMPOSIO_KEY gives a managed machine its Composio key; a machine that isn't managed takes none", (t) => {
-  const keyChecks = [
-    'case "$*" in *checkKey*) k="$(cat)"; for a; do l="$a"; done; echo "checkKey $l $k" >> "$STAND_IN_LOG";',
-    '  case "$k" in good*) printf ok ;; *) printf refused ;; esac; exit 0 ;; esac',
-  ];
-  const keysOf = (done) => { const f = path.join(done.dir, 'front-door', 'data', 'install-keys.json'); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
-  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { ...MANAGED, BOT_DOT_OPENROUTER_KEY: 'good-openrouter-9', BOT_DOT_COMPOSIO_KEY: 'good-composio-9' } });
-  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
-  assert.match(done.system, /checkKey connectors good-composio-9/);
-  assert.deepEqual(keysOf(done), { openrouter: 'good-openrouter-9', boat: null, composio: 'good-composio-9' });
-
-  const plain = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { ...PUBLIC, BOT_DOT_ADMIN: 'ann', BOT_DOT_COMPOSIO_KEY: 'good-composio-9' } });
-  assert.equal(plain.status, 0, `${plain.said}\n${plain.stderr}`);
-  assert.doesNotMatch(plain.system, /checkKey connectors/);
-  assert.equal(keysOf(plain), null);
-});

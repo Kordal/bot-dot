@@ -1,0 +1,1 @@
+2026-11-05: Each key question of a first install (OpenRouter, boat.dev, Composio) prints the address where that key is made on the line before its prompt, because the person installing should not have to look it up. Rejected: a sentence of help per key (the owner's rule against helper text). (ADR 160)
