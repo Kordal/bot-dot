@@ -62,6 +62,8 @@ test('at night the machine\'s news waits, and good news before the bad was said 
 test('the front door alone says how the machine\'s backup goes, and the Chief says it in a chat', async (t) => {
   const a = await startServer();
   t.after(() => a.stop());
+  // No quiet hours: the message would wait through the default night (22-7) when CI runs then.
+  await a.api('/settings', { method: 'PUT', body: { quietHours: { start: 0, end: 0, timeZone: 'UTC' } } });
   assert.equal((await a.api('/backups/machine', { method: 'POST', body: { late: true } })).status, 403, 'not the owner');
   assert.equal((await a.api('/backups/machine', { method: 'POST', headers: { 'x-botdot-room': '1' }, body: {} })).status, 400);
   const r = await a.api('/backups/machine', { method: 'POST', headers: { 'x-botdot-room': '1' }, body: { late: true, lastSuccess: '2026-11-04T02:10:00Z', error: 'Fatal: unable to open repository' } });
