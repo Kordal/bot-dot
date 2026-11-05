@@ -33,7 +33,7 @@ class StorageTest {
         assertEquals("6.4 GB", Storage.size(6_400_000_000))
         assertEquals("6 MB", Storage.size(6_000_000))
         assertEquals("812 MB", Storage.size(812_000_000))
-        assertEquals("4 KB", Storage.size(4_096))
+        assertEquals("4.1 KB", Storage.size(4_096))
         assertEquals("0 B", Storage.size(0))
     }
 
