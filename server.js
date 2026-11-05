@@ -175,7 +175,7 @@ B.chatOfRun((runId) => chief.chatOfRun(runId));
 B.chatToTell((chatId) => chief.chatToTell(chatId));
 connectorApprovals.start(); // no run of before the start waits for an answer any more
 irreversibleSteps.start();
-const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit });
+const backups = require('./lib/backup').create({ dataDir: B.DATA_DIR, memory: B.memory, revision: process.env.BOT_DOT_REVISION, account: ACCOUNT || null, audit, computer: B.computers });
 // A backup that stops working is said by the Chief, once and not at night (#1017).
 const backupAlert = require('./lib/backup-alert').create({ dataDir: B.DATA_DIR, backups, post: (text) => chief.post(text), quietHours: () => B.settings.get().quietHours });
 // Tools installed on the botdot server for one bot, on the owner's OK (ADR 007).

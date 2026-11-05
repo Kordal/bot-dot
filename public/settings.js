@@ -758,14 +758,16 @@ async function loadBackupsCard() {
   let b;
   try { b = await api('/backups'); } catch (e) { card.querySelector('.bs-val').textContent = e.message; return; }
   const head = (value) => `<summary><b>${tr('Backups')}</b><span class="bs-val">${esc(value)}</span>${CHEV}</summary>`;
+  // The server's shortest passphrase (12 before it said so).
+  const min = b.minPassphrase || 12;
   // Off: a passphrase turns them on. The one line kept says what losing it costs.
   if (!b.configured) {
     card.innerHTML = `${head(tr('Off'))}
       <div class="bs-body">
       <p class="muted">${tr("Without the passphrase a backup can't be opened: keep it safe.")}</p>
       <form id="backup-pass" class="backup-pass" autocomplete="off">
-        <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="8" required autocomplete="new-password">
-        <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="8" required autocomplete="new-password">
+        <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="${min}" required autocomplete="new-password">
+        <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="${min}" required autocomplete="new-password">
         <button class="btn primary sm">${tr('Turn on')}</button>
       </form>
       </div>`;
@@ -796,7 +798,7 @@ async function loadBackupsCard() {
     loadBackupsCard();
   };
   $('#backup-change', card).onclick = async () => {
-    const p = await askName(tr('New backup passphrase (at least 8 characters). Older backups still need the old one.'), '', tr('Change'), { secret: true });
+    const p = await askName(tr('New backup passphrase (at least {n} characters). Older backups still need the old one.', { n: min }), '', tr('Change'), { secret: true });
     if (!p) return;
     try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: p } }); toast(tr('Passphrase changed. The next backups use it.')); } catch (err) { toast(err.message, true); }
   };
