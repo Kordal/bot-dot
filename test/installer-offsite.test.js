@@ -309,7 +309,13 @@ test('a check that finds damage fails the run, as a part that fails does', (t) =
 function withBobsData(m) {
   const sock = fs.readFileSync(path.join(m.home, '.env'), 'utf8').match(/^BOT_DOT_FRONT_DOOR_FOLDER=(.*)$/m);
   if (sock) fs.rmSync(path.join(sock[1], 'botdot.sock'), { force: true });
-  fs.writeFileSync(path.join(m.home, 'data', 'memory.db'), Buffer.concat([Buffer.from('SQLite format 3\0'), Buffer.alloc(4080)]));
+  // A real database, as sqlite3's quick check (when the machine has it) opens it.
+  const db = path.join(m.home, 'data', 'memory.db');
+  fs.rmSync(db, { force: true });
+  const { DatabaseSync } = require('node:sqlite');
+  const memory = new DatabaseSync(db);
+  memory.exec("CREATE TABLE memories (id INTEGER PRIMARY KEY, text TEXT); INSERT INTO memories (text) VALUES ('a fact');");
+  memory.close();
   fs.writeFileSync(path.join(m.home, 'data', 'bots.json'), JSON.stringify([{ id: 'b1', jobs: [{ id: 'j1' }], rules: 'say {hi}' }, { id: 'b2' }]));
 }
 
