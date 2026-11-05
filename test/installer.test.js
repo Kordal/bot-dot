@@ -709,7 +709,7 @@ test('a missing docker compose names the package for each Docker', (t) => {
 test('the installer removes no image of botdot by name: botdot decides which old ones go', () => {
   // The one removal: in an account's Docker of a self-built install, the images a newer build left without a name,
   // each by its id and never forced (lib/image-cleanup.js knows only the signed images).
-  const removals = code.split('\n').filter((l) => /\bimage\s+(rm|prune)\b|\brmi\b|\bprune\b/.test(l)).map((l) => l.trim());
+  const removals = code.split('\n').filter((l) => /\bimage\s+(rm|prune)\b|\brmi\b|\b(system|container|volume|builder|buildx)\s+prune\b/.test(l)).map((l) => l.trim());
   assert.deepEqual(removals, ['case "$was" in sha256:*) $A image rm "$was" </dev/null >/dev/null 2>&1 || true ;; esac']);
   assert.match(code, /for was in \$\(\$A image ls -q --no-trunc --filter dangling=true/);
 });

@@ -277,7 +277,7 @@ test('one installer runs at a time: another waits for it, and then runs', async 
 test('what the installer leaves running holds no lock: an account\'s Docker and the loop without systemd', () => {
   // Started with the lock's descriptor, either would hold it after the run, and the next installer would wait for ever.
   const lasting = code.split('\n').filter((line) => /nohup/.test(line));
-  assert.equal(lasting.length, 2);
+  assert.equal(lasting.length, 3, 'an account\'s Docker, the loop without systemd and an off-site backup without systemd');
   for (const line of lasting) assert.match(line, /9>&-/, line.trim());
   assert.doesNotMatch(code, /export BOT_DOT_LOCKED/, 'only the update root\'s step starts, and the installer it hands over to, go on under its hold');
 });

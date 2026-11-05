@@ -44,6 +44,12 @@
 # fresh install of the same version with one named RESTORE (below, "A backup set"): BOT_DOT_DIR/backup holds it, and
 # status/backup.json and status/restore.json say how it went.
 #
+# A machine whose .env names an off-site repository (BOT_DOT_OFFSITE_REPO, #1016, ADR 157) backs itself up there every
+# night with restic, and at once on root's empty file named OFFSITE ("Off-site backup", below), saying how it went in
+# status/offsite.json:
+#
+#   sh BOT_DOT_DIR/bin/install.sh --offsite
+#
 # A link for a machine without an admin page (#985), root's alone too: SIGN-IN-<account> asks for a sign-in link that
 # makes that account a new passkey, and SIGN-UP for a sign-up link (for the account named on its first line, if any; a
 # machine of one account takes none). The link is in status/sign-in-<account>.json or status/sign-up[-<account>].json
@@ -281,6 +287,7 @@ case "${1:-}" in
   --requested) MODE=requested ;;
   --update) MODE=update UNATTENDED=1 ;;
   --load) MODE=load ;;
+  --offsite) MODE=offsite ;;
   --uninstall) MODE=uninstall ;;
   *) die "Unknown option $1. Run it as: sudo sh install.sh" ;;
 esac
@@ -476,6 +483,385 @@ if [ "$MODE" = load ]; then
   exit 0
 fi
 
+# ---------------------------------------------------------------------------------------------
+# Off-site backup (#1016, ADR 157)
+#
+# A machine whose .env names an off-site repository, BOT_DOT_OFFSITE_REPO (a restic repository's address: for a Hetzner
+# Storage Box's sub-account sftp://u1-sub1@u1-sub1.your-storagebox.de:23/botdot), streams a backup set's parts into it
+# every night, encrypted on this machine, and keeps no copy here. Its secrets are in OFFSITE, root's alone: the
+# repository's password (password), which the repository never holds and a copy of which is kept off the machine, and
+# the SSH key it signs in with (ssh_key, its known_hosts beside it), both made once when they aren't there. Root's step
+# runs it every night (botdot-offsite.timer) between 02:00 and 04:00 on the machine's clock, at a minute its instance
+# id picks, and at once when root asks with an empty file named OFFSITE in REQUESTS:
+#
+#   sh BOT_DOT_DIR/bin/install.sh --offsite
+#
+# Each part is one `restic backup --stdin-from-command` of the tar a set makes (owner maps kept), tagged with the
+# instance, the account and the part; one that fails doesn't stop the others. Snapshots are kept 7 days, 4 weeks and 3
+# months, and what they no longer hold is pruned once a week. How it went is in status/offsite.json: state
+# (backing-up, done or failed), started, finished, lastSuccess, bytesAdded, snapshots (each part's), failed (the parts
+# that failed), part (the one it stopped in) and error. A machine without the setting does none of it.
+OFFSITE="$DIR/offsite"
+OFFSITE_REQUEST=OFFSITE
+RESTIC_VERSION=0.19.1
+# The sha256 of each restic release file this installer takes (restic's SHA256SUMS of v0.19.1).
+RESTIC_SUMS='linux_amd64 f415415624dcc452f2a02b8c33641791a8c6d6d3b65bbb3543fcf9a25151585c
+linux_arm64 a5f64aaab53d51e311fa3829124c5b703f2d14cf187d8640b6be3b2b49376465'
+OFFSITE_KEEP='--keep-daily 7 --keep-weekly 4 --keep-monthly 3'
+# What of an account's data stays out: its own backups, what a project installs again and what a backup cut off left.
+# Its memory database is the consistent copy its server makes (#1015) when it can, as in a set (offsite_run).
+OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --exclude=*.part --anchored'
+# A tar's exit 1 (a file changed while it was read) is no failure; restic counts any other exit as one.
+OFFSITE_TAR='tar "$@"; s=$?; [ "$s" -le 1 ] || exit "$s"'
+
+# The parts of a set, its computer's volumes and their lock files (A backup set, below).
+SET_VOLUMES='workspace home browser'
+SET_LOCKS='lock .parentlock parent.lock SingletonLock SingletonSocket SingletonCookie'
+# plain_line N: its input as one line of plain text of at most N characters, for update.json.
+plain_line() { tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-"$1"; }
+# account_volume NAME VOLUME: the folder of the account NAME's Docker volume VOLUME (config, workspace, home, browser).
+account_volume() {
+  case "$2" in config) av="$1_bot-dot-config" ;; *) av="botdot-$1.account.computer-$2" ;; esac
+  printf '%s/%s/.local/share/docker/volumes/%s/_data' "$ACCOUNTS" "$1" "$av"
+}
+# ns_maps NAME FOLDER: tar's owner and group maps from the machine's IDs of the account NAME to its Docker's own: its
+# Linux user is that Docker's root, and its sub-IDs from the first are 1 to 65536 there.
+ns_maps() {
+  for nm in u g; do
+    nm_id="$(id -"$nm" "botdot-$1")"
+    nm_sub="$(awk -F: -v u="botdot-$1" '$1 == u { print $2; exit }' "$ETC/sub${nm}id" 2>/dev/null)"
+    [ -n "$nm_sub" ] || die "The account $1 has no sub-IDs in $ETC/sub${nm}id."
+    awk -v h="$nm_id" -v s="$nm_sub" 'BEGIN { print "+" h " root:0"; for (i = 0; i < 65536; i++) print "+" (s + i) " n:" (i + 1) }' > "$2/${nm}ids"
+  done
+}
+
+# memory_copy NAME: the account NAME's botdot server asked, on the front door's socket, for a consistent copy of its
+# memory.db (#1015) in data/.snapshot/memory.db. The live file can't be copied as it is while the server writes it (its
+# WAL changes between the two reads), and under gVisor no lock taken from here holds the server off. Fails when the
+# server doesn't run (its memory then stands still, and the file is copied as it is) or is of a version without it.
+memory_copy() {
+  mc_file="$ACCOUNTS/$1/data/.snapshot/memory.db"
+  rm -f -- "$mc_file"
+  [ -S "$SOCKETS/$1/botdot.sock" ] || return 1
+  curl -fsS -o /dev/null --max-time 600 -X POST -H "X-Botdot-Account: $1" -H 'X-Botdot-Room: 1' -H 'X-Bot-Dot: 1' \
+    --unix-socket "$SOCKETS/$1/botdot.sock" http://botdot/api/backups/snapshot </dev/null 2>/dev/null || return 1
+  [ -f "$mc_file" ] && [ ! -L "$mc_file" ]
+}
+
+# offsite_repo: the off-site repository's address, or nothing. One given as BOT_DOT_OFFSITE_REPO is kept in .env.
+offsite_repo() {
+  if [ -n "${BOT_DOT_OFFSITE_REPO:-}" ] && [ -f "$ENV" ]; then
+    case "$BOT_DOT_OFFSITE_REPO" in *[[:space:]]* | -*) die "BOT_DOT_OFFSITE_REPO isn't a restic repository's address: $BOT_DOT_OFFSITE_REPO" ;; esac
+    [ "$(get_env "$ENV" BOT_DOT_OFFSITE_REPO)" = "$BOT_DOT_OFFSITE_REPO" ] || set_env "$ENV" BOT_DOT_OFFSITE_REPO "$BOT_DOT_OFFSITE_REPO"
+  fi
+  get_env "$ENV" BOT_DOT_OFFSITE_REPO
+}
+# offsite_said STATE [FIELDS]: status/offsite.json.
+offsite_said() { write_status offsite.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${2:+,$2}}"; }
+# offsite_last: the last success offsite.json names, as its field after a comma, or nothing.
+offsite_last() { sed -n 's/.*\("lastSuccess":"[0-9TZ:-]*"\).*/,\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true; }
+
+# restic_ok FILE: FILE is restic 0.17 or newer, the first with --stdin-from-command.
+restic_ok() {
+  ro_v="$("$1" version </dev/null 2>/dev/null | sed -n 's/^restic \([0-9][0-9]*\)\.\([0-9][0-9]*\)\..*/\1 \2/p')"
+  [ -n "$ro_v" ] || return 1
+  # shellcheck disable=SC2086 # two numbers
+  set -- $ro_v
+  [ "$1" -gt 0 ] || [ "$2" -ge 17 ]
+}
+# offsite_restic: the restic in RESTIC: the pinned one in BIN, downloaded from restic's releases and checked by its
+# sha256 when it isn't there yet; when that can't be, one this machine has, of 0.17 or newer.
+offsite_restic() {
+  RESTIC="$BIN/restic"
+  if [ -x "$RESTIC" ] && "$RESTIC" version </dev/null 2>/dev/null | grep -q "^restic $RESTIC_VERSION "; then return 0; fi
+  case "$(uname -m)" in x86_64 | amd64) or_arch=linux_amd64 ;; aarch64 | arm64) or_arch=linux_arm64 ;; *) or_arch='' ;; esac
+  or_sum="$(printf '%s\n' "$RESTIC_SUMS" | awk -v a="$or_arch" '$1 == a { print $2 }')"
+  if [ -n "$or_sum" ] && command -v bunzip2 >/dev/null 2>&1; then
+    mkdir -p "$BIN"
+    chmod 700 "$BIN"
+    or_file="$BIN/restic.bz2.new"
+    rm -f "$or_file" "$BIN/restic.new"
+    say "Downloading restic $RESTIC_VERSION…"
+    if curl -fsSL --max-time 600 -o "$or_file" "https://github.com/restic/restic/releases/download/v$RESTIC_VERSION/restic_${RESTIC_VERSION}_$or_arch.bz2" </dev/null 2>/dev/null \
+      && [ "$(sha256sum "$or_file" 2>/dev/null | cut -d' ' -f1)" = "$or_sum" ] \
+      && bunzip2 -c "$or_file" > "$BIN/restic.new" 2>/dev/null; then
+      rm -f "$or_file"
+      chmod 700 "$BIN/restic.new"
+      mv "$BIN/restic.new" "$RESTIC"
+      return 0
+    fi
+    rm -f "$or_file" "$BIN/restic.new"
+  fi
+  or_own="$(command -v restic 2>/dev/null || true)"
+  if [ -n "$or_own" ] && restic_ok "$or_own"; then
+    RESTIC="$or_own"
+    return 0
+  fi
+  die "Couldn't download restic $RESTIC_VERSION with its checksum, and this machine has no restic of 0.17 or newer."
+}
+# r ARG…: restic on the off-site repository, signing in with OFFSITE's key, and never asking.
+r() {
+  RESTIC_REPOSITORY="$OFFSITE_REPO" RESTIC_PASSWORD_FILE="$OFFSITE/password" RESTIC_CACHE_DIR="$OFFSITE/cache" \
+    "$RESTIC" -o "sftp.args=-i $OFFSITE/ssh_key -o IdentitiesOnly=yes -o UserKnownHostsFile=$OFFSITE/known_hosts -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ServerAliveInterval=60" "$@" </dev/null
+}
+# offsite_why FILE…: the last thing restic or tar said of a failure in FILE…, as plain text.
+offsite_why() {
+  ow_="$(cat "$@" 2>/dev/null | sed -n 's/.*"message_type":"exit_error".*"message":"\([^"]*\)".*/\1/p' | tail -n 1)"
+  [ -n "$ow_" ] || ow_="$(cat "$@" 2>/dev/null | grep -v '^{' | grep -v '^[[:space:]]*$' | tail -n 1)"
+  printf '%s' "${ow_:-restic stopped without saying why}" | sed "s/$(printf '\033')\[[0-9;]*m//g" | plain_line 200 | sed 's/^ *//'
+}
+
+# offsite_prepare: OFFSITE with its password and SSH key, each made once, restic, and the repository, made on its first
+# use (format 2). A new password is made at random unless BOT_DOT_OFFSITE_PASSWORD gives one, and is shown once to a
+# person who runs this, for a copy off the machine; without that copy the backup can't be read.
+offsite_prepare() {
+  OFFSITE_REPO="$(offsite_repo)"
+  [ -n "$OFFSITE_REPO" ] || die "This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO (docs/install-linux.md)."
+  INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
+  case "$INSTANCE" in '' | *[!0-9a-f]*) die "This machine has no instance id: run the installer again." ;; esac
+  mkdir -p "$OFFSITE/cache"
+  chown 0:0 "$OFFSITE" "$OFFSITE/cache"
+  chmod 700 "$OFFSITE" "$OFFSITE/cache"
+  op_new=''
+  if [ ! -s "$OFFSITE/password" ]; then
+    if [ -n "${BOT_DOT_OFFSITE_PASSWORD:-}" ]; then printf '%s\n' "$BOT_DOT_OFFSITE_PASSWORD" > "$OFFSITE/password.new"
+    else od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > "$OFFSITE/password.new"; op_new=1; fi
+    chmod 600 "$OFFSITE/password.new"
+    mv "$OFFSITE/password.new" "$OFFSITE/password"
+  fi
+  chmod 600 "$OFFSITE/password"
+  case "$OFFSITE_REPO" in sftp:*)
+    command -v ssh >/dev/null 2>&1 || die "The off-site backup signs in with SSH, which this machine lacks: sudo apt install openssh-client"
+    if [ ! -s "$OFFSITE/ssh_key" ]; then
+      command -v ssh-keygen >/dev/null 2>&1 || die "The off-site backup needs ssh-keygen to make its key: sudo apt install openssh-client"
+      rm -f "$OFFSITE/ssh_key" "$OFFSITE/ssh_key.pub"
+      ssh-keygen -q -t ed25519 -N '' -C "botdot-$INSTANCE" -f "$OFFSITE/ssh_key" </dev/null >/dev/null || die "Couldn't make the off-site backup's SSH key."
+      op_at="$(printf '%s' "$OFFSITE_REPO" | sed -n 's#^sftp:\(//\)\{0,1\}\([^@/:]*@[^/:]*\).*#\2#p')"
+      say "This machine signs in to the off-site repository with a new SSH key, $OFFSITE/ssh_key.pub:"
+      say "  $(cat "$OFFSITE/ssh_key.pub")"
+      case "$op_at" in *.your-storagebox.de) say "Add it to the Storage Box: cat $OFFSITE/ssh_key.pub | ssh -p 23 $op_at install-ssh-key" ;; esac
+    fi
+    chmod 600 "$OFFSITE/ssh_key" ;;
+  esac
+  if [ -n "$op_new" ]; then
+    if [ -t 1 ]; then
+      bold "The off-site repository's password, shown this once: keep a copy off this machine, as without it the backup can't be read"
+      say "  $(cat "$OFFSITE/password")"
+    else
+      warn "A new password for the off-site repository is in $OFFSITE/password: keep a copy off this machine, as without it the backup can't be read."
+    fi
+  fi
+  offsite_restic
+  set +e
+  r cat config > /dev/null 2> "$OFFSITE/err"
+  op_done=$?
+  set -e
+  case "$op_done" in
+    0) ;;
+    # 10: there is no repository there yet.
+    10) r init --repository-version 2 > /dev/null 2> "$OFFSITE/err" || die "Couldn't make the off-site repository $OFFSITE_REPO: $(offsite_why "$OFFSITE/err")"
+      ok "The off-site repository $OFFSITE_REPO is made" ;;
+    *) die "Couldn't open the off-site repository $OFFSITE_REPO: $(offsite_why "$OFFSITE/err")" ;;
+  esac
+  rm -f "$OFFSITE/err"
+}
+
+# offsite_part PATH PART ACCOUNT COMMAND…: COMMAND's output as the part PATH of the off-site backup, tagged with PART
+# and ACCOUNT (none for the machine's own). One that fails is named in OS_FAILED, and the run goes on.
+offsite_part() {
+  op_path="$1" op_part="$2" op_account="$3"
+  shift 3
+  offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"$op_path\"$OS_LAST"
+  set +e
+  r backup --json --quiet --host "$INSTANCE" --tag "instance=$INSTANCE,part=$op_part${op_account:+,account=$op_account}" \
+    --stdin-filename "$op_path" --stdin-from-command -- "$@" > "$OFFSITE/out" 2> "$OFFSITE/err"
+  op_done=$?
+  set -e
+  op_line="$(grep '"message_type":"summary"' "$OFFSITE/out" 2>/dev/null | tail -n 1 || true)"
+  op_id="$(printf '%s' "$op_line" | sed -n 's/.*"snapshot_id":"\([0-9a-f]*\)".*/\1/p')"
+  op_bytes="$(printf '%s' "$op_line" | sed -n 's/.*"data_added_packed":\([0-9]*\).*/\1/p')"
+  if [ "$op_done" = 0 ] && [ -n "$op_id" ]; then
+    OS_BYTES=$((OS_BYTES + ${op_bytes:-0}))
+    OS_SNAPSHOTS="$OS_SNAPSHOTS${OS_SNAPSHOTS:+,}\"$op_path\":\"$op_id\""
+    rm -f "$OFFSITE/out" "$OFFSITE/err"
+    return 0
+  fi
+  op_why="$(offsite_why "$OFFSITE/out" "$OFFSITE/err")"
+  rm -f "$OFFSITE/out" "$OFFSITE/err"
+  warn "The off-site backup of $op_path failed: $op_why"
+  OS_FAILED="$OS_FAILED${OS_FAILED:+,}\"$op_path\""
+  [ -n "$OS_ERROR" ] || { OS_ERROR="$op_path: $op_why"; OS_STOPPED="$op_path"; }
+}
+# offsite_tar PATH PART ACCOUNT FOLDER [TAR OPTION…]: FOLDER's contents as the part PATH, a tar as a set's.
+offsite_tar() {
+  ot_path="$1" ot_part="$2" ot_account="$3" ot_from="$4"
+  shift 4
+  offsite_part "$ot_path" "$ot_part" "$ot_account" sh -c "$OFFSITE_TAR" tar -C "$ot_from" --numeric-owner "$@" -cf - .
+}
+
+# offsite_run: every part, then the manifest, then the snapshots kept, in status/offsite.json as it goes.
+offsite_run() {
+  OS_STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" OS_LAST="$(offsite_last)"
+  OS_BYTES=0 OS_SNAPSHOTS='' OS_FAILED='' OS_ERROR='' OS_STOPPED=''
+  offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"check\"$OS_LAST"
+  offsite_prepare
+  # What a run cut off left: its lock, which restic removes only when it is stale.
+  r unlock > /dev/null 2>&1 || true
+  say "Backing up this machine to $OFFSITE_REPO"
+  offsite_tar front-door/data.tar front-door '' "$DOOR/data"
+  os_accounts=''
+  for home in "$ACCOUNTS"/*/; do
+    n="$(basename "$home")"
+    valid_account "$n" && [ -f "$ACCOUNTS/$n/compose.yaml" ] || continue
+    os_accounts="$os_accounts${os_accounts:+,}\"$n\""
+    maps="$OFFSITE/maps"
+    rm -rf -- "$maps"
+    mkdir -p "$maps"
+    chmod 700 "$maps"
+    if ! ( ACCOUNT_WHY=''; ns_maps "$n" "$maps" ) > "$OFFSITE/err" 2>&1; then
+      os_why="$(offsite_why "$OFFSITE/err")"
+      warn "The account $n wasn't backed up off-site: $os_why"
+      OS_FAILED="$OS_FAILED${OS_FAILED:+,}\"accounts/$n\""
+      [ -n "$OS_ERROR" ] || { OS_ERROR="accounts/$n: $os_why"; OS_STOPPED="accounts/$n"; }
+      continue
+    fi
+    # Its memory as the set has it: the server's consistent copy in the live file's place, or, when it can't make one,
+    # the file as it is.
+    if memory_copy "$n"; then os_memory="--exclude=./memory.db --exclude=./memory.db-wal --exclude=./memory.db-shm --transform=s,^\./\.snapshot/memory\.db$,./memory.db,"
+    else os_memory='--exclude=./.snapshot'; fi
+    # shellcheck disable=SC2086 # options
+    offsite_tar "accounts/$n/data.tar" data "$n" "$home/data" "--owner-map=$maps/uids" "--group-map=$maps/gids" --anchored $OFFSITE_DATA_SKIP $os_memory
+    rm -f -- "$home/data/.snapshot/memory.db"
+    offsite_part "accounts/$n/env" env "$n" cat "$ACCOUNTS/$n/.env"
+    for v in config $SET_VOLUMES; do
+      [ -d "$(account_volume "$n" "$v")" ] || continue
+      skip=''
+      [ "$v" != browser ] || for l in $SET_LOCKS; do skip="$skip --exclude=$l"; done
+      # shellcheck disable=SC2086 # options
+      offsite_tar "accounts/$n/$v.tar" "$v" "$n" "$(account_volume "$n" "$v")" "--owner-map=$maps/uids" "--group-map=$maps/gids" $skip
+    done
+    rm -rf -- "$maps"
+  done
+  # The manifest: what a restore from here needs to know of the run, and each part's snapshot.
+  printf '{"kind":"botdot-offsite","format":1,"version":"%s","instance":"%s","admin":"%s","at":"%s","accounts":[%s],"snapshots":{%s},"failed":[%s]}\n' \
+    "$(version_now)" "$INSTANCE" "$(get_env "$ENV" FRONT_DOOR_ADMIN)" "$OS_STARTED" "$os_accounts" "$OS_SNAPSHOTS" "$OS_FAILED" > "$OFFSITE/manifest.json"
+  offsite_part manifest.json manifest '' cat "$OFFSITE/manifest.json"
+  rm -f "$OFFSITE/manifest.json"
+
+  # The snapshots kept, and once a week what they no longer hold pruned.
+  offsite_said backing-up "\"started\":\"$OS_STARTED\",\"part\":\"forget\"$OS_LAST"
+  os_prune=''
+  [ -n "$(find "$OFFSITE/pruned" -mtime -7 2>/dev/null)" ] || os_prune=--prune
+  set +e
+  # shellcheck disable=SC2086 # options
+  r forget --quiet --host "$INSTANCE" $OFFSITE_KEEP $os_prune > "$OFFSITE/err" 2>&1
+  os_done=$?
+  set -e
+  if [ "$os_done" = 0 ]; then
+    [ -z "$os_prune" ] || touch "$OFFSITE/pruned"
+  else
+    os_why="$(offsite_why "$OFFSITE/err")"
+    warn "The off-site backup's old snapshots weren't removed: $os_why"
+    [ -n "$OS_ERROR" ] || { OS_ERROR="forget: $os_why"; OS_STOPPED=forget; }
+  fi
+  rm -f "$OFFSITE/err"
+
+  os_finished="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  os_fields="\"started\":\"$OS_STARTED\",\"finished\":\"$os_finished\",\"bytesAdded\":$OS_BYTES,\"snapshots\":{$OS_SNAPSHOTS},\"failed\":[$OS_FAILED]"
+  if [ -z "$OS_ERROR" ]; then
+    offsite_said done "$os_fields,\"lastSuccess\":\"$os_finished\""
+    ok "This machine is backed up to $OFFSITE_REPO"
+  else
+    offsite_said failed "$os_fields$OS_LAST,\"part\":\"$OS_STOPPED\",\"error\":\"$(printf '%s' "$OS_ERROR" | plain_line 300)\""
+    warn "The off-site backup ended with a failure: $OS_ERROR"
+  fi
+}
+
+# offsite_backup: the off-site backup, run once at a time. One that couldn't start says why in status/offsite.json.
+offsite_backup() {
+  ob_why="$RUN/offsite-why"
+  mkdir -p "$RUN"
+  rm -f "$ob_why"
+  set +e
+  (
+    set -e
+    umask 077
+    ACCOUNT_WHY="$ob_why"
+    if command -v flock >/dev/null 2>&1; then
+      exec 8>"$RUN/offsite.lock"
+      flock -n 8 || { say "An off-site backup runs already."; exit 0; }
+    fi
+    offsite_run
+  )
+  ob_done=$?
+  set -e
+  [ "$ob_done" != 0 ] || return 0
+  ob_text="$(cut -f2- "$ob_why" 2>/dev/null || true)"
+  rm -f "$ob_why"
+  ob_part="$(sed -n 's/.*"part":"\([^"]*\)".*/\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true)"
+  offsite_said failed "\"finished\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"$(offsite_last),\"part\":\"${ob_part:-check}\",\"error\":\"$(printf '%s' "${ob_text:-The off-site backup stopped without saying why}" | plain_line 300)\""
+  warn "The off-site backup didn't run${ob_text:+: $ob_text}"
+  return 1
+}
+
+# offsite_units: on a machine with an off-site repository, root's step for it every night, at 02:00 and as many minutes
+# after as its instance id picks of 120 (botdot-offsite.timer), and one the timer missed, the machine being off, when it
+# is on again. On one without, none.
+offsite_units() {
+  [ -n "$SYSTEMD" ] || return 0
+  if [ -z "$(offsite_repo)" ]; then
+    [ -f "$ETC/systemd/system/botdot-offsite.timer" ] || return 0
+    systemctl disable --now botdot-offsite.timer </dev/null >/dev/null 2>&1 || true
+    rm -f "$ETC/systemd/system/botdot-offsite.timer" "$ETC/systemd/system/botdot-offsite.service"
+    systemctl daemon-reload </dev/null || true
+    return 0
+  fi
+  ou_id="$(get_env "$ENV" BOT_DOT_INSTANCE)"
+  case "$ou_id" in '' | *[!0-9a-f]*) ou_id=0 ;; esac
+  ou_minute=$((0x$ou_id % 120))
+  ou_at="$(printf '%02d:%02d' $((2 + ou_minute / 60)) $((ou_minute % 60)))"
+  cat > "$ETC/systemd/system/botdot-offsite.timer.new" <<UNIT
+# botdot (install.sh): every night, this machine's backup to its off-site repository (#1016, ADR 157).
+[Unit]
+Description=botdot: back this machine up off-site
+
+[Timer]
+OnCalendar=*-*-* $ou_at:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+  cat > "$ETC/systemd/system/botdot-offsite.service.new" <<UNIT
+# botdot (install.sh): root's step backs this machine up to the off-site repository BOT_DOT_OFFSITE_REPO names in
+# $ENV, and says how it went in $DOOR/status/offsite.json.
+[Unit]
+Description=botdot: back this machine up off-site
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Nice=10
+IOSchedulingClass=idle
+Environment=BOT_DOT_DIR=$DIR BOT_DOT_RUN=$RUN BOT_DOT_ETC=$ETC
+ExecStart=/bin/sh $BIN/install.sh --offsite
+UNIT
+  for unit in botdot-offsite.timer botdot-offsite.service; do
+    mv "$ETC/systemd/system/$unit.new" "$ETC/systemd/system/$unit"
+  done
+  systemctl daemon-reload </dev/null
+  systemctl enable --now botdot-offsite.timer </dev/null >/dev/null 2>&1 || warn "systemd didn't start botdot-offsite.timer, so this machine isn't backed up off-site every night. See: systemctl status botdot-offsite.timer"
+}
+
+if [ "$MODE" = offsite ]; then
+  [ "$(id -u)" = 0 ] || die "The off-site backup reads every account's files, so it runs as root. Run it with: sudo sh $BIN/install.sh --offsite"
+  [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
+  offsite_units
+  offsite_backup || exit 1
+  exit 0
+fi
+
 # account_pids NAME [COMMAND]: the processes of the account NAME's Linux user and of its subordinate users (its
 # containers' users), or only those named COMMAND, from /proc (a machine without procps has it too).
 account_pids() {
@@ -553,8 +939,8 @@ erase_account() {
 
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
-UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service"
-OWN="front-door accounts sockets disks bin backup update.log requests.log"
+UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service botdot-offsite.timer botdot-offsite.service"
+OWN="front-door accounts sockets disks bin backup offsite update.log requests.log"
 PACKAGES="runsc docker-ce-rootless-extras"
 
 # installed_accounts: each account this machine has: its folder, its socket folder, its disk or its Linux user.
@@ -642,8 +1028,8 @@ if [ "$MODE" = uninstall ]; then
     say ""
     # Root's step first, so that it makes nothing again meanwhile.
     if [ -n "$SYSTEMD" ]; then
-      systemctl disable --now botdot-accounts.path botdot-load.timer </dev/null >/dev/null 2>&1 || true
-      systemctl stop botdot-accounts.service botdot-load.service </dev/null >/dev/null 2>&1 || true
+      systemctl disable --now botdot-accounts.path botdot-load.timer botdot-offsite.timer </dev/null >/dev/null 2>&1 || true
+      systemctl stop botdot-accounts.service botdot-load.service botdot-offsite.service </dev/null >/dev/null 2>&1 || true
       if [ -f "$ETC/systemd/system/botdot-local-firewall.service" ]; then
         systemctl disable --now botdot-local-firewall </dev/null >/dev/null 2>&1 || true
         iptables -D OUTPUT -j BOTDOT-LOCAL 2>/dev/null || true
@@ -2085,8 +2471,6 @@ settle() {
 # What it did is in update.json beside version.json, for the admin page: the phase it is in, and after a failure the
 # phase it stopped in and the last lines of all it said, which is in BOT_DOT_DIR/update.log.
 UPDATE=UPDATE
-# plain_line N: its input as one line of plain text of at most N characters, for update.json.
-plain_line() { tr -d '"\\' | tr -c "A-Za-z0-9 .,:;()/_@+='-" ' ' | sed 's/ *$//' | cut -c1-"$1"; }
 # account_results FILE: the lines each_account and wait_for wrote (NAME<tab>updated|kept|failed|waiting<tab>version<tab>why), as
 # update.json's "accounts" after a comma, each why as plain text; nothing when there are none (an installer from before
 # #194).
@@ -2201,28 +2585,11 @@ switch_one() {
 SET="$DIR/backup"
 BACKUP=BACKUP
 RESTORE=RESTORE
-SET_VOLUMES='workspace home browser'
-SET_LOCKS='lock .parentlock parent.lock SingletonLock SingletonSocket SingletonCookie'
 
 # set_said backup|restore STATE [FIELDS]: status/backup.json or status/restore.json.
 set_said() { write_status "$1.json" "{\"state\":\"$2\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${3:+,$3}}"; }
 # by_root FILE: FILE was made by root, as BOT_DOT_DIR was, and not by the front door.
 by_root() { [ "$(stat -c %u -- "$1" 2>/dev/null)" = "$(stat -c %u -- "$DIR")" ]; }
-# account_volume NAME VOLUME: the folder of the account NAME's Docker volume VOLUME (config, workspace, home, browser).
-account_volume() {
-  case "$2" in config) av="$1_bot-dot-config" ;; *) av="botdot-$1.account.computer-$2" ;; esac
-  printf '%s/%s/.local/share/docker/volumes/%s/_data' "$ACCOUNTS" "$1" "$av"
-}
-# ns_maps NAME FOLDER: tar's owner and group maps from the machine's IDs of the account NAME to its Docker's own: its
-# Linux user is that Docker's root, and its sub-IDs from the first are 1 to 65536 there.
-ns_maps() {
-  for nm in u g; do
-    nm_id="$(id -"$nm" "botdot-$1")"
-    nm_sub="$(awk -F: -v u="botdot-$1" '$1 == u { print $2; exit }' "$ETC/sub${nm}id" 2>/dev/null)"
-    [ -n "$nm_sub" ] || die "The account $1 has no sub-IDs in $ETC/sub${nm}id."
-    awk -v h="$nm_id" -v s="$nm_sub" 'BEGIN { print "+" h " root:0"; for (i = 0; i < 65536; i++) print "+" (s + i) " n:" (i + 1) }' > "$2/${nm}ids"
-  done
-}
 # set_tar FOLDER FILE [TAR OPTION…]: FOLDER's contents in FILE. A file that changed while it was read (a running
 # account) is no failure; anything else is.
 set_tar() {
@@ -2234,19 +2601,6 @@ set_tar() {
   set -e
   [ "$st_done" -le 1 ] || die "Couldn't copy $st_from: $(tail -n 1 "$st_to.err")"
   rm -f "$st_to.err"
-}
-
-# memory_copy NAME: the account NAME's botdot server asked, on the front door's socket, for a consistent copy of its
-# memory.db (#1015) in data/.snapshot/memory.db. The live file can't be copied as it is while the server writes it (its
-# WAL changes between the two reads), and under gVisor no lock taken from here holds the server off. Fails when the
-# server doesn't run (its memory then stands still, and the file is copied as it is) or is of a version without it.
-memory_copy() {
-  mc_file="$ACCOUNTS/$1/data/.snapshot/memory.db"
-  rm -f -- "$mc_file"
-  [ -S "$SOCKETS/$1/botdot.sock" ] || return 1
-  curl -fsS -o /dev/null --max-time 600 -X POST -H "X-Botdot-Account: $1" -H 'X-Botdot-Room: 1' -H 'X-Bot-Dot: 1' \
-    --unix-socket "$SOCKETS/$1/botdot.sock" http://botdot/api/backups/snapshot </dev/null 2>/dev/null || return 1
-  [ -f "$mc_file" ] && [ ! -L "$mc_file" ]
 }
 
 # make_set: the set, in SET.new, then in SET's place.
@@ -2598,6 +2952,29 @@ if [ "$MODE" = requested ]; then
     rm -f -- "$request"
     if [ "$kind" = restore ]; then restore_set; else backup_set; fi
   done
+  # An off-site backup now (#1016), root's alone too: in a run of its own, as it can take hours, which systemd starts
+  # (and the timer's own run isn't started twice); without systemd, in the background.
+  request="$REQUESTS/$OFFSITE_REQUEST"
+  if [ -f "$request" ] && [ ! -L "$request" ]; then
+    if ! by_root "$request"; then
+      rm -f -- "$request"
+      offsite_said refused '"error":"Only root asks for this."'
+      warn "An off-site backup request that root didn't make was refused."
+    else
+      rm -f -- "$request"
+      if [ -z "$(offsite_repo)" ]; then
+        offsite_said failed "\"part\":\"check\",\"error\":\"This machine has no off-site repository: name one with BOT_DOT_OFFSITE_REPO.\""
+        warn "This machine has no off-site repository, so it wasn't backed up off-site."
+      elif [ -n "$SYSTEMD" ]; then
+        offsite_units
+        systemctl start --no-block botdot-offsite.service </dev/null || warn "systemd didn't start the off-site backup. See: systemctl status botdot-offsite.service"
+        say "The off-site backup started: see status/offsite.json, or journalctl -u botdot-offsite"
+      else
+        nohup env BOT_DOT_DIR="$DIR" BOT_DOT_RUN="$RUN" BOT_DOT_ETC="$ETC" sh "$BIN/install.sh" --offsite >> "$DIR/offsite.log" 2>&1 </dev/null 9>&- &
+        say "The off-site backup started in the background: see status/offsite.json, or $DIR/offsite.log"
+      fi
+    fi
+  fi
   if [ -f "$REQUESTS/$UPDATE" ] && [ ! -L "$REQUESTS/$UPDATE" ]; then
     # An update to a version named in the request (#979): its first line, sha256: and the server image's 64 hex digits.
     # An empty request takes the newest, and so does the time a front door from before #979 wrote in it (the admin
@@ -2639,7 +3016,7 @@ if [ "$MODE" = requested ]; then
     name="$(basename "$request")"
     taken=''
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
-    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
+    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
     elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
@@ -2882,11 +3259,21 @@ UNIT
   systemctl daemon-reload </dev/null
   systemctl enable --now botdot-accounts.path </dev/null >/dev/null 2>&1 || warn "systemd didn't start botdot-accounts.path, so sign-up links can't make accounts yet. See: systemctl status botdot-accounts.path"
   systemctl enable --now botdot-load.timer </dev/null >/dev/null 2>&1 || warn "systemd didn't start botdot-load.timer, so the admin page shows no load. See: systemctl status botdot-load.timer"
+  offsite_units
 elif ! { [ -f "$RUN/requests.pid" ] && kill -0 "$(cat "$RUN/requests.pid")" 2>/dev/null; }; then
   mkdir -p "$RUN"
   nohup sh -c "i=0; while :; do [ -z \"\$(ls -A '$REQUESTS' 2>/dev/null)\" ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --requested; [ \$((i % 20)) != 0 ] || BOT_DOT_DIR='$DIR' BOT_DOT_RUN='$RUN' BOT_DOT_ETC='$ETC' sh '$BIN/install.sh' --load; i=\$((i + 1)); sleep 3; done" >> "$DIR/requests.log" 2>&1 </dev/null 9>&- &
   echo "$!" > "$RUN/requests.pid"
   warn "This machine has no systemd, so the accounts sign-up links make are made by a loop started now, which doesn't start again after a restart. Run this installer again after one. Its log: $DIR/requests.log"
+fi
+# An off-site repository given now or kept (#1016): its key, password, restic and repository made ready now, so that
+# what is new of them is said to the admin running this, not in the night. One that isn't ready stops nothing.
+if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$(offsite_repo)" ]; then
+  set +e
+  ( ACCOUNT_WHY=''; offsite_prepare )
+  op_ready=$?
+  set -e
+  [ "$op_ready" = 0 ] || warn "The off-site backup isn't ready (see above). It tries again tonight, and sudo sh $BIN/install.sh --offsite tries now."
 fi
 
 # On this computer only, the VM's way out is the computer itself: its gateway is the computer's own localhost, and
