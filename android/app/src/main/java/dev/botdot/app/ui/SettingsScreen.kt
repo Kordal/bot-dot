@@ -177,7 +177,10 @@ fun SettingsScreen(
             }
 
             val sizeShown = boatSizes != null && (computerPlace == null || computerPlace?.place == "boat")
-            if (sizeShown || (computerPlace != null && !dev.botdot.app.data.ComputerPlace.byAdmin(server?.features))) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
+            // The admin chooses the External Virtual PC's size too, on the admin page (ADR 163): a row with where it is and its size.
+            if (dev.botdot.app.data.BoatSizes.byAdmin(server?.features)) {
+                if (sizeShown) Fact(tr("Computer"), listOfNotNull(tr("External Virtual PC"), boatSizes?.sizeName).joinToString(" · "))
+            } else if (sizeShown || (computerPlace != null && !dev.botdot.app.data.ComputerPlace.byAdmin(server?.features))) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
                 // Only the admin moves it, on the admin page, on a server that says so (ADR 146): then it is the section's value alone.
                 computerPlace?.takeUnless { dev.botdot.app.data.ComputerPlace.byAdmin(server?.features) }?.let { c ->
                     Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
@@ -419,6 +422,19 @@ private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
             Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
             Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
+        }
+        Rule()
+    }
+}
+
+/** A row that only says something: its name and its [value], and a thin line under it. */
+@Composable
+private fun Fact(text: String, value: String) {
+    val p = LocalPaper.current
+    Column {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
         }
         Rule()
     }

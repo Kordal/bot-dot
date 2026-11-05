@@ -1563,7 +1563,7 @@ async function adminRoutes(req, res, p, account) {
     const q = new URL(req.url, 'http://x').searchParams;
     return send(res, 200, audit.list({ account: q.get('account') || undefined, action: q.get('action') || undefined, before: q.get('before') || undefined, limit: Number(q.get('limit')) || undefined }));
   }
-  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update|sign-out|computer)$/);
+  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update|sign-out|computer|boat-size)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);
   return send(res, 404, { error: 'Not found' });
 }
@@ -1601,8 +1601,12 @@ async function listAccounts() {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';
     // Where its computer is (ADR 146), while boat.dev has a key: asked of the account, which keeps it.
     const computer = state === 'running' && boat?.shown().keySet ? (await askAccount(a.name, 'GET', '/api/settings/computer', null, 2000)).data?.place : undefined;
+    // And, while it is the External Virtual PC, its size and the sizes boat.dev makes (ADR 163): the admin's too.
+    const size = computer === 'boat' ? (await askAccount(a.name, 'GET', '/api/settings/boat-size', null, 2000)).data : null;
+    const boatSize = typeof size?.size === 'string' && Array.isArray(size.sizes)
+      ? { size: size.size, sizes: size.sizes.map((s) => ({ id: String(s.id), cpus: s.cpus, memoryGB: s.memoryGB, available: s.available !== false })) } : null;
     return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(longOf.has(a.name) ? { long: longOf.get(a.name) } : {}),
-      ...(computer === 'linux' || computer === 'boat' ? { computer } : {}),
+      ...(computer === 'linux' || computer === 'boat' ? { computer } : {}), ...(boatSize ? { boatSize } : {}),
       ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
   }));
 }
@@ -1657,6 +1661,17 @@ async function accountAction(req, res, name, action) {
     console.log(`[front door] the admin moved the computer of the account ${name} to ${where}${moveFiles ? ', its files copied' : ''}`);
     audited('computer', { account: name, detail: `${where}${moveFiles ? ' · files copied' : ' · started empty'}` });
     return send(res, 200, { ok: true, computer: r.data.place });
+  }
+  // The size of the account's External Virtual PC (ADR 163): the admin alone chooses it, as where it is. Each machine
+  // takes it when it starts next.
+  if (action === 'boat-size') {
+    if (typeof body.size !== 'string' || !body.size) return send(res, 400, { error: 'size is one of the sizes boat.dev makes.' });
+    const r = await askAccount(name, 'PUT', '/api/settings/boat-size', { size: body.size }, 10_000);
+    if (!r.status) return send(res, 502, { error: `The account ${name} isn't running: its size can be changed once it is.` });
+    if (r.status !== 200) return send(res, r.status, { error: r.data?.error || `The account ${name} didn't change its size.` });
+    console.log(`[front door] the admin set the size of the External Virtual PC of the account ${name} to ${r.data.size}`);
+    audited('boat-size', { account: name, detail: r.data.size });
+    return send(res, 200, { ok: true, size: r.data.size });
   }
   // "Update now" for an account that waits (ADR 053): as its owner's, to the version the admin installed.
   if (action === 'update') {

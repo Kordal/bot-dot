@@ -11,6 +11,8 @@ const { startFrontDoor, standIn } = require('./front-door-helpers');
 let door, stub;
 const stands = {};
 const places = { ann: 'linux', bob: 'linux' };
+const sizes = { ann: 'default', bob: 'default' };
+const SIZES = [{ id: 'default', cpus: 4, memoryGB: 8, diskGB: 50, perHour: 0.1, available: true }, { id: 'large', cpus: 8, memoryGB: 16, diskGB: 100, perHour: 0.2, available: false, reason: 'limit' }];
 // An account's botdot server: answers where its computer is, and moves it when the front door itself asks.
 const answer = (name) => (req) => {
   if (req.url !== '/api/settings/computer') return null;
@@ -28,6 +30,10 @@ before(async () => {
         const a = answer(name)(req);
         if (a) return a;
         if (req.url === '/api/settings/computer' && req.method === 'PUT') { places[name] = places.next; return [200, { place: places[name], boat: true }]; }
+        if (req.url === '/api/settings/boat-size') {
+          if (req.method !== 'GET') { if (req.headers['x-botdot-room'] !== '1') return [403, { error: 'not the front door' }]; sizes[name] = sizes.next; }
+          return [200, { size: sizes[name], sizes: SIZES }];
+        }
         return null;
       },
     });
@@ -72,4 +78,20 @@ test("the admin moves an account's computer on the admin page; its owner can't; 
   const own = await bob.post('/api/settings/computer', { place: 'linux' }, { 'X-Botdot-Room': '1' });
   assert.equal(own.status, 403);
   assert.equal(stands.bob.seen.at(-1).headers['x-botdot-room'], undefined);
+
+  // The size of its External Virtual PC (ADR 163): the admin's too, and in the list only while the computer is there.
+  const rows = Object.fromEntries((await a.get('/admin/accounts')).data.accounts.map((x) => [x.name, x.boatSize]));
+  assert.equal(rows.ann, undefined, 'on this machine: no size');
+  assert.deepEqual(rows.bob, { size: 'default', sizes: [{ id: 'default', cpus: 4, memoryGB: 8, available: true }, { id: 'large', cpus: 8, memoryGB: 16, available: false }] }, 'no prices');
+  assert.equal((await bob.post('/admin/accounts/bob/boat-size', { size: 'large' })).status, 404, 'only the admin');
+  assert.equal((await a.post('/admin/accounts/bob/boat-size', {})).status, 400);
+  sizes.next = 'large';
+  const sized = await a.post('/admin/accounts/bob/boat-size', { size: 'large' });
+  assert.deepEqual([sized.status, sized.data], [200, { ok: true, size: 'large' }]);
+  const sizePut = stands.bob.seen.find((r) => r.method === 'PUT' && r.url === '/api/settings/boat-size');
+  assert.deepEqual([JSON.parse(sizePut.body), sizePut.headers['x-botdot-room']], [{ size: 'large' }, '1']);
+  const sizeEntry = (await a.get('/admin/audit?action=boat-size')).data.entries[0];
+  assert.deepEqual([sizeEntry.account, sizeEntry.detail], ['bob', 'large']);
+  assert.equal((await bob.post('/api/settings/boat-size', { size: 'default' }, { 'X-Botdot-Room': '1' })).status, 403, "the owner's own request never carries the header");
 });
+

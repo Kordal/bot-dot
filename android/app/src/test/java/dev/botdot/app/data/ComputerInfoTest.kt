@@ -77,4 +77,11 @@ class ComputerInfoTest {
         assertFalse("an older server: the owner's switch stays", ComputerPlace.byAdmin(listOf("account-computer")))
         assertFalse(ComputerPlace.byAdmin(null))
     }
+
+    @Test fun onlyTheAdminChoosesTheExternalVirtualPcsSizeOnAServerThatSaysSo() {
+        assertTrue(BoatSizes.byAdmin(listOf("boat-size", "boat-size-admin")))
+        assertFalse("an older server: the owner's picker stays", BoatSizes.byAdmin(listOf("boat-size")))
+        assertFalse(BoatSizes.byAdmin(null))
+        assertEquals("Large", json.decodeFromString<BoatSizes>("""{"size":"large","sizes":[]}""").sizeName)
+    }
 }
