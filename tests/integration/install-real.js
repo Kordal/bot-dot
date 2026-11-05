@@ -332,6 +332,53 @@ const cases = [
     },
   },
   {
+    // #983 (ADR 154): a managed machine of one account on a public domain: no admin page, its passkey made with the
+    // setup key's link, and a rerun that turns it into a machine of several and keeps the account and its passkey.
+    name: 'a managed install: one account without an admin page, then several, keeping the account',
+    async run(machine) {
+      await machine.load(stage.server());
+      await machine.load(stage.computer());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      machine.publish(stage.computer(), `${DESKTOP}:latest`);
+      machine.sign(`${SERVER}:latest`, { app: 'server' });
+      machine.sign(`${DESKTOP}:latest`, { app: 'desktop' });
+      const IMAGES = { BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` };
+
+      stage.step('install.sh, managed, one account');
+      const said = machine.install({ ...IMAGES, BOT_DOT_MANAGED: '1', BOT_DOT_VARIANT: 'one' });
+      assert.match(said, /The front door is running/);
+      assert.match(said, new RegExp(`The account ${ADMIN} is running`));
+      assert.doesNotMatch(said, /admin page|\/admin/, `no admin page is named:\n${said}`);
+      const env = machine.exec('cat', `${DIR}/front-door/.env`);
+      assert.match(env, /^FRONT_DOOR_MANAGED=1$/m);
+      assert.match(env, new RegExp(`^FRONT_DOOR_ONE_ACCOUNT=${ADMIN}$`, 'm'));
+      assert.match(machine.exec('cat', `${HOME}/share/share.json`), /^\{"cpu":4,"ram":8\}$/, 'the managed share');
+      assert.equal(machine.api('GET', '/admin').status, 404, 'no admin page');
+
+      const ready = readyOf(said);
+      assert.equal(ready.variant, 'one');
+      assert.match(ready.signUp, new RegExp(`^https://${DOMAIN.replace('.', '\\.')}/sign-up/[0-9a-f]{64}$`), "the setup key's link");
+
+      stage.step('the passkey, made with the setup key');
+      machine.signUp(ready.signUp);
+      answers(machine);
+      assert.equal(machine.api('GET', '/admin').status, 404, 'not for the account either');
+      assert.equal(machine.api('GET', '/front-door/session').body.admin, false);
+
+      stage.step('install.sh again, several accounts');
+      const again = machine.install({ ...IMAGES, BOT_DOT_VARIANT: 'several' });
+      assert.match(again, /This machine now holds several accounts: its accounts and passkeys are kept/);
+      assert.doesNotMatch(again, /\/sign-up\//, `the account exists, so no link:\n${again}`);
+      assert.deepEqual(readyOf(again), { origin: `https://${DOMAIN}`, version: ready.version, reach: 'public', variant: 'several', accounts: [ADMIN] });
+      assert.match(machine.exec('cat', `${DIR}/front-door/.env`), new RegExp(`^FRONT_DOOR_FIRST_ACCOUNT=${ADMIN}$`, 'm'));
+      answers(machine);
+      assert.equal(machine.api('GET', '/admin').status, 404);
+
+      stage.step('back to one account, which it still is');
+      assert.equal(machine.tryInstall({ ...IMAGES, BOT_DOT_VARIANT: 'one' }).status, 0, 'with no other account it goes back');
+    },
+  },
+  {
     // #76: `install.sh --uninstall` after an install leaves nothing of botdot's: no botdot-* user, unit, container,
     // AppArmor profile or BOT_DOT_DIR, and the machine's Docker still works, with what else it ran.
     name: 'an uninstall after an install leaves nothing of botdot, and Docker works',

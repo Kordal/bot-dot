@@ -20,7 +20,8 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   const sockets = socketsDir || path.join(dir, 's');
   fs.mkdirSync(sockets, { recursive: true });
   const port = await freePort();
-  const origin = `http://localhost:${port}`;
+  // A test may give the front door another address, a public one: the requests then name its host.
+  const origin = env.FRONT_DOOR_ORIGIN || `http://localhost:${port}`;
   const log = [];
   const child = spawn(process.execPath, ['front-door.js'], {
     cwd: ROOT,
@@ -30,7 +31,7 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   child.stdout.on('data', (c) => log.push(String(c)));
   child.stderr.on('data', (c) => log.push(String(c)));
   const exited = new Promise((r) => child.on('exit', r));
-  const host = `localhost:${port}`;
+  const host = new URL(origin).host;
 
   // One request as a browser sends it: Host is the front door's own name. Each on a connection of its own: a kept-alive
   // one that waited out the front door's keep-alive (5 s) while a slow test held the event loop is closed by the
@@ -83,7 +84,7 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   });
 
   const door = {
-    port, origin, rpId: 'localhost', data, sockets, log, browser, request, upgrade,
+    port, origin, rpId: new URL(origin).hostname, data, sockets, log, browser, request, upgrade,
     firstLink: null,
     // A new sign-up link, made `ageDays` ago.
     newLink({ ageDays = 0 } = {}) {
@@ -95,9 +96,10 @@ async function startFrontDoor({ env = {}, sockets: socketsDir, tries = 3 } = {})
   // The free port was let go before the front door took it: under load another test's server can take it first.
   // Then the front door stops at once, and starts again on another port.
   const taken = () => child.exitCode !== null && /EADDRINUSE/.test(log.join(''));
-  // Its data folder is new, so it has no account: unless it holds one account, it prints the first sign-up link as
+  // Its data folder is new, so it has no account: unless it holds one account or is managed, it prints the first sign-up link as
   // it starts. Its output comes on a pipe of its own, which may reach this side after its first answer does.
-  const printed = () => (env.FRONT_DOOR_ONE_ACCOUNT ? true : log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/));
+  // A managed machine prints none either: its first account is made with the setup key (ADR 154).
+  const printed = () => (env.FRONT_DOOR_ONE_ACCOUNT || env.FRONT_DOOR_MANAGED ? true : log.join('').match(/https?:\/\/\S+\/sign-up\/\S+/));
   try {
     await waitFor(async () => {
       if (taken()) return true;
