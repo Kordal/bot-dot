@@ -48,6 +48,10 @@
 //                     sign-up links root's step makes
 // FRONT_DOOR_FIRST_ACCOUNT  with FRONT_DOOR_MANAGED: the first account of a managed machine of several, whose passkey
 //                     is made with FRONT_DOOR_SETUP_KEY while the machine has no account
+// FRONT_DOOR_TERMS_URL, FRONT_DOOR_PRIVACY_URL, FRONT_DOOR_TERMS_VERSION  the terms of service and the privacy policy
+//                     an owner agrees to at sign-up, and their version (default 1), for a machine sold as hosting (#987,
+//                     lib/front-door/terms.js): with both addresses set, no passkey is made before "I agree" is ticked,
+//                     and a sign-in after the version changed asks once more. Unset: nothing is asked
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
@@ -71,6 +75,7 @@ const installKeys = require('./lib/front-door/install-keys');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
 const auditStore = require('./lib/front-door/audit');
+const termsLib = require('./lib/front-door/terms');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -98,6 +103,7 @@ if (ONE_ACCOUNT !== null && !store.ACCOUNT_NAME.test(ONE_ACCOUNT)) {
   console.error("FRONT_DOOR_ONE_ACCOUNT is an account's name: 2 to 31 lowercase letters, digits and dashes, starting with a letter.");
   process.exit(1);
 }
+const TERMS = termsLib.fromEnv(process.env, (line) => console.error(line));
 // A managed machine (ADR 154): its first account, when it holds several.
 const MANAGED = process.env.FRONT_DOOR_MANAGED === '1';
 const FIRST_ACCOUNT = MANAGED && !ONE_ACCOUNT ? process.env.FRONT_DOOR_FIRST_ACCOUNT || null : null;
@@ -190,9 +196,10 @@ const tries = limits.create(); // failed sign-ins and sign-up links
 const callTries = limits.create(); // calls with a wrong key, or none, or to an account that doesn't exist
 
 // The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
-// admin page alone. None on a machine of one account, which has no admin page. Never a key, a session, a link or a
-// passkey in an entry: each detail below is written here, from what the front door knows, never from a request.
-const audit = ONE_ACCOUNT ? null : auditStore.open(DATA);
+// admin page alone. None on a machine of one account, which has no admin page, unless it asks for agreement to terms
+// (#987), whose record the operator keeps. Never a key, a session, a link or a passkey in an entry: each detail below
+// is written here, from what the front door knows, never from a request.
+const audit = ONE_ACCOUNT && !TERMS ? null : auditStore.open(DATA);
 function audited(action, { account, detail, actor = ADMIN } = {}) {
   if (!audit) return;
   try { audit.record({ actor: actor || 'front-door', action, account, detail }); } catch (e) { console.error(`[front door] couldn't keep an audit entry (${action}): ${e.message}`); }
@@ -219,8 +226,12 @@ const HANDOFFS_MAX = 1000;
 const HANDOFF_CHALLENGE = /^[A-Za-z0-9_-]{43}$/; // a SHA-256 in base64url
 const APP_CALLBACK = 'botdot://signed-in';
 const HANDOFF_APPS = ['android', 'desktop']; // the apps that sign in through the browser
+// Sign-ins whose passkey was right, waiting for their owner to agree to terms that changed (#987):
+// code → { account, app, handoff, until }. Each works once, for 10 minutes, kept in memory only.
+const agreements = new Map();
+const AGREEMENT_MS = 10 * 60_000;
 setInterval(() => {
-  for (const map of [challenges, handoffs]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
+  for (const map of [challenges, handoffs, agreements]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
 const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
 // A managed machine has no admin: the fleet console is (ADR 154).
@@ -554,9 +565,30 @@ function refusedSignIn(req, res, account) {
   return send(res, 403, { error: BLOCKED, refused: true });
 }
 
+// ---------- the terms an owner agrees to (#987) ----------
+
+const NOT_AGREED = 'Tick the box to agree to the Terms and the Privacy policy first.';
+// Whether the account's owner must agree to the terms in force before it opens: never when this machine asks for none.
+const mustAgree = (account) => !!TERMS && doors.termsOf(account)?.version !== TERMS.version;
+function agreedLog(account, version, how) {
+  console.log(`[front door] the account ${account} agreed to the terms, version ${version}, ${how}`);
+  audited('terms-agreed', { actor: 'front-door', account, detail: `version ${version} · ${how}` });
+}
+function agreedNow(account, how) {
+  doors.agreeToTerms(account, TERMS.version);
+  agreedLog(account, TERMS.version, how);
+}
+// A right passkey for an account that hasn't agreed to these terms: no session yet, a code that waits for its "I agree".
+function askAgreement(res, account, app, handoff) {
+  if (agreements.size >= HANDOFFS_MAX) agreements.delete(agreements.keys().next().value);
+  const code = crypto.randomBytes(32).toString('base64url');
+  agreements.set(code, { account, app, handoff, until: Date.now() + AGREEMENT_MS });
+  return send(res, 200, { ok: false, agreement: code, terms: { terms: TERMS.terms, privacy: TERMS.privacy, version: TERMS.version } });
+}
+
 async function signInRoutes(req, res, p) {
   // Until the first account is made, nobody can sign in, and only the install's link makes it.
-  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn() : pages.notYet());
+  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn({ terms: TERMS }) : pages.notYet());
   if (p === '/sign-in/options' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
     return send(res, 200, { publicKey: webauthn.requestOptions({ rpId: RP_ID, challenge: newChallenge(clientOf(req), { kind: 'get' }) }) });
@@ -580,7 +612,24 @@ async function signInRoutes(req, res, p) {
     tries.succeeded(clientOf(req));
     doors.counted(credential.id, count);
     if (key.account !== ADMIN && shutOut(clientOf(req))) return refusedSignIn(req, res, key.account);
+    if (mustAgree(key.account)) return askAgreement(res, key.account, app, handoff);
     return signedIn(req, res, 200, key.account, app, handoff);
+  }
+  // The owner agreed to the terms that changed since their last agreement (#987): the sign-in it waited for goes on.
+  if (p === '/sign-in/agree' && req.method === 'POST') {
+    if (slowedDown(req, res)) return;
+    const { agreement, agree } = (await readJson(req)) || {};
+    const waiting = typeof agreement === 'string' ? agreements.get(agreement) : null;
+    if (!waiting || waiting.until < Date.now()) {
+      if (waiting) agreements.delete(agreement);
+      failedTry(tries, clientOf(req), 'sign-ins');
+      return send(res, 401, { error: 'That sign-in has ended. Sign in again.' });
+    }
+    if (agree !== true) return send(res, 400, { error: NOT_AGREED });
+    agreements.delete(agreement);
+    if (!doors.accountExists(waiting.account)) return send(res, 401, { error: 'That sign-in has ended. Sign in again.' });
+    agreedNow(waiting.account, 'at sign-in');
+    return signedIn(req, res, 200, waiting.account, waiting.app, waiting.handoff);
   }
   // A native app, back from the browser with the code and the secret it kept: its own session.
   if (p === '/sign-in/handoff' && req.method === 'POST') {
@@ -678,8 +727,8 @@ async function signInRoutes(req, res, p) {
     if (c.full) return refusedFull(req, res, token, link, c);
   }
   if (req.method === 'GET' && !options) {
-    if (signIn) return html(res, 200, pages.newPasskey({ name: link.for, login: doors.loginOf(link.for) }));
-    return html(res, 200, pages.signUp({ name: link.for, login: link.for ? suggestedLogin(new URL(req.url, 'http://x').searchParams.get('name'), link.for) : null }));
+    if (signIn) return html(res, 200, pages.newPasskey({ name: link.for, login: doors.loginOf(link.for), terms: mustAgree(link.for) ? TERMS : null }));
+    return html(res, 200, pages.signUp({ name: link.for, login: link.for ? suggestedLogin(new URL(req.url, 'http://x').searchParams.get('name'), link.for) : null, terms: TERMS }));
   }
   if (req.method !== 'POST') return false;
   const body = await readJson(req);
@@ -693,6 +742,9 @@ async function signInRoutes(req, res, p) {
   const login = signIn ? doors.loginOf(name) : link.for && typeof body.login === 'string' && body.login.trim() ? body.login.trim() : name;
   if (!store.ACCOUNT_NAME.test(login)) return send(res, 400, { error: store.NAME_RULE });
   if (!signIn && login !== name && doors.loginTaken(login, name)) return send(res, 409, { error: 'That name is taken.' });
+  // No passkey before the box is ticked (#987): a sign-up, or a new passkey for an account that hasn't agreed to these.
+  const agreeing = signIn ? mustAgree(name) : !!TERMS;
+  if (agreeing && body.agree !== true) return send(res, 400, { error: NOT_AGREED });
   if (options) {
     const userId = signIn ? doors.userIdOf(name) : crypto.randomBytes(16).toString('base64url');
     const challenge = newChallenge(clientOf(req), { kind: 'create', token, name, login, userId });
@@ -708,8 +760,8 @@ async function signInRoutes(req, res, p) {
   }
   try {
     if (signIn) doors.addPasskey({ token, name, passkey: key });
-    else if (link.setup) doors.createOnlyAccount({ name, login, userId: waiting.userId, passkey: key });
-    else doors.createAccount({ token, name, login, userId: waiting.userId, passkey: key });
+    else if (link.setup) doors.createOnlyAccount({ name, login, userId: waiting.userId, passkey: key, terms: TERMS?.version });
+    else doors.createAccount({ token, name, login, userId: waiting.userId, passkey: key, terms: TERMS?.version });
   } catch (e) {
     if (e.status) return send(res, e.status, { error: e.message });
     throw e;
@@ -718,11 +770,13 @@ async function signInRoutes(req, res, p) {
   if (signIn) {
     console.log(`[front door] the account ${name} has a new passkey, from the admin's sign-in link; its other sessions ended`);
     audited('passkey-added', { actor: 'front-door', account: name, detail: "from the admin's sign-in link" });
+    if (agreeing) agreedNow(name, "with the admin's sign-in link");
     return signedIn(req, res, 201, name, body.app, handoff);
   }
   if (!link.setup && !ONE_ACCOUNT && name !== ADMIN && !blockRules.local(clientOf(req))) doors.countSignUp(blockRules.limitKey(clientOf(req)));
   console.log(`[front door] account ${name} was made ${link.setup ? 'with the setup key' : 'from a sign-up link'}`);
   audited('account-made', { actor: 'front-door', account: name, detail: link.setup ? 'with the setup key' : 'from a sign-up link' });
+  if (TERMS) agreedLog(name, TERMS.version, 'at sign-up');
   askForAccount(name);
   return signedIn(req, res, 201, name, body.app, handoff);
 }
@@ -1471,7 +1525,7 @@ const server = http.createServer(async (req, res) => {
     // A managed machine has none either, and nothing answers there (ADR 154): the fleet console is its admin.
     if (MANAGED && (p === '/admin' || p.startsWith('/admin/'))) return send(res, 404, { error: 'Not found' });
     const isAdmin = !ONE_ACCOUNT && (p === '/admin' || p.startsWith('/admin/'));
-    const own = isAdmin || p === '/sign-in' || p === '/sign-in/options' || p === '/sign-in/handoff' || p === '/sign-out' || p === '/sign-out-everywhere' || p.startsWith('/sign-up/') || p.startsWith('/front-door/');
+    const own = isAdmin || p === '/sign-in' || p === '/sign-in/options' || p === '/sign-in/handoff' || p === '/sign-in/agree' || p === '/sign-out' || p === '/sign-out-everywhere' || p.startsWith('/sign-up/') || p.startsWith('/front-door/');
     if (own && req.method !== 'GET' && req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
     // An access block (#913): from there only signing in is reached, and only the admin's account gets through.
     if (!OPEN_TO_BLOCKED.has(p) && !FONTS[p] && shutOut(clientOf(req)) && !(ADMIN && doors.sessionAccount(sessionOf(req)) === ADMIN)) {

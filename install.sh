@@ -64,6 +64,8 @@
 #
 # Settings you can pass in: BOT_DOT_DIR (default /var/lib/botdot), BOT_DOT_IMAGE, BOT_DOT_COMPUTER_IMAGE, and the
 # answers: BOT_DOT_REACH (public or tailnet), BOT_DOT_DOMAIN and BOT_DOT_ADMIN (the admin's account's name).
+# FRONT_DOOR_TERMS_URL, FRONT_DOOR_PRIVACY_URL and FRONT_DOOR_TERMS_VERSION (default 1), kept once given: with both
+# addresses, sign-up asks the owner to agree to the terms and the privacy policy (docs/install-linux.md).
 # A first install also asks whether to use Jev, the decision model, and boat.dev, the External Virtual PC, and for
 # each one's key; BOT_DOT_OPENROUTER_KEY and BOT_DOT_BOAT_KEY answer beforehand (empty: no). Both are set later on the
 # admin page too.
@@ -139,6 +141,9 @@ RUNSC_UDS_FLAGS="$RUNSC_FLAGS, \"--host-uds=all\""
 # The runtimes an account's Docker knows (its daemon.json, below, and Docker's own runc). A compose.yaml that names
 # another is from a newer version than this installer (#142).
 RUNTIMES='runc runsc runsc-uds'
+# Every container's log, in the machine's Docker and in each account's: json-file, rotated at 20 MB and kept to five files,
+# 100 MB at most, about a day of a busy server (#980). Docker applies it to a container when it is made.
+LOG_OPTS='"log-driver": "json-file", "log-opts": { "max-size": "20m", "max-file": "5" }'
 # Where the front door asks for new accounts, and root's copy of this installer that makes them.
 REQUESTS="$DOOR/requests"
 BIN="$DIR/bin"
@@ -727,6 +732,35 @@ if ! docker info >/dev/null 2>&1; then
   systemctl start docker 2>/dev/null || true
   docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start it (sudo systemctl start docker) and run this again."
 fi
+# machine_logs: the machine's Docker keeps its containers' logs to LOG_OPTS, written once into its daemon.json beside
+# what is there, and restarted once to read it. A daemon.json that names a log driver or its options is the admin's,
+# and stays as it is. The front door and Caddy come back by their restart policy and get the limits when an update
+# makes them again.
+machine_logs() {
+  ml_file="$ETC/docker/daemon.json"
+  if [ -s "$ml_file" ] && [ "$(tr -d ' \t\r\n' < "$ml_file")" != '{}' ]; then
+    grep -qE '"log-(driver|opts)"' "$ml_file" && return 0
+    awk -v add="$LOG_OPTS" '!done && sub(/\{/, "{ " add ",") { done = 1 } { print }' "$ml_file" > "$ml_file.new"
+  else
+    mkdir -p "$ETC/docker"
+    printf '{\n  %s\n}\n' "$LOG_OPTS" > "$ml_file.new"
+  fi
+  chmod 644 "$ml_file.new"
+  mv "$ml_file.new" "$ml_file"
+  if [ -z "$SYSTEMD" ]; then
+    warn "This machine has no systemd, so its Docker keeps containers' logs to 100 MB each only after it next restarts."
+    return 0
+  fi
+  say "Restarting this machine's Docker once, to keep containers' logs to 100 MB each…"
+  systemctl restart docker </dev/null || die "Docker didn't restart with its new settings in $ml_file. See: systemctl status docker"
+  ml_i=0
+  until $D info </dev/null >/dev/null 2>&1; do
+    ml_i=$((ml_i + 1))
+    [ "$ml_i" -lt 60 ] || die "Docker didn't start again after its restart. See: systemctl status docker"
+    sleep 1
+  done
+}
+case "$MODE" in install | update) machine_logs ;; esac
 # Which package gives `docker compose` depends on where Docker came from. Debian 12's own docker-compose is the old
 # Compose 1 (only `docker-compose`), and Debian 12 has no Compose 2 package at all.
 $D compose version </dev/null >/dev/null 2>&1 || die "Docker Compose (docker compose) is missing. Install the package for your Docker and run this again:
@@ -1413,6 +1447,12 @@ set_env "$ENV" BOT_DOT_SOCKETS "$SOCKETS"
 set_env "$ENV" COMPOSE_PROJECT_NAME botdot
 # The Android app's signing keys, whose passkey sign-in the front door takes (docs/api.md): given once, kept.
 [ -z "${FRONT_DOOR_ANDROID_KEYS:-}" ] || set_env "$ENV" FRONT_DOOR_ANDROID_KEYS "$FRONT_DOOR_ANDROID_KEYS"
+# The terms and the privacy policy an owner agrees to at sign-up, and their version (#987): given once, kept; a
+# new FRONT_DOOR_TERMS_VERSION asks every owner once more at their next sign-in. Unset, nothing is asked.
+for setting in FRONT_DOOR_TERMS_URL FRONT_DOOR_PRIVACY_URL FRONT_DOOR_TERMS_VERSION; do
+  eval "given=\${$setting:-}"
+  [ -z "$given" ] || set_env "$ENV" "$setting" "$given"
+done
 # Bots' interactive pages (#399, ADR 072): the same name on port 8443, an origin of its own, which the front door
 # answers on its second port. An update sets it up on an install made before it.
 if [ "$REACH" = local ]; then set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "http://localhost:$SITES_PORT"
@@ -1664,7 +1704,8 @@ account() {
     "runsc": { "path": "$home/share/runsc", "runtimeArgs": [$RUNSC_FLAGS] },
     "runsc-uds": { "path": "$home/share/runsc", "runtimeArgs": [$RUNSC_UDS_FLAGS] }
   },
-  "exec-opts": ["native.cgroupdriver=cgroupfs"]
+  "exec-opts": ["native.cgroupdriver=cgroupfs"],
+  $LOG_OPTS
 }
 JSON
   changed=''
