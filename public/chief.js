@@ -295,7 +295,7 @@ function wireComposer(form, onSend, uploadTo, chat) {
     const text = ta.value.trim();
     if (files?.busy()) return toast(tr('Wait a moment: the files are still uploading.'));
     if (!text && !files?.count()) return;
-    if (looksLikeSecret(text) && !confirm(tr('This looks like it contains a password.\n\nMessages are sent to the AI and saved on disk. Let the bot ask for it instead: it opens a secure box that goes straight into your Vault.\n\nSend anyway?'))) return;
+    if (looksLikeSecret(text) && !(await askFirst(tr('This looks like it contains a password.\n\nMessages are sent to the AI and saved on disk. Let the bot ask for it instead: it opens a secure box that goes straight into your Vault.\n\nSend anyway?'), tr('Send')))) return;
     const held = files ? files.held() : [];
     const sent = failed && failed.text === text && same(failed.files, held) ? failed : { text, files: held, key: messageKey() };
     failed = null;

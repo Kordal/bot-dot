@@ -204,7 +204,7 @@ function wireJobCard(card, bot) {
   };
   card.addEventListener('change', (e) => { if (e.target.name !== 'jobEnabled') { clearTimeout(timer); timer = setTimeout(save, 300); } });
   $('[data-remove-job]', card).onclick = async () => {
-    if (!confirm(tr('Remove this job?'))) return;
+    if (!(await askFirst(tr('Remove this job?'), tr('Remove')))) return;
     try { await api(jobUrl(), { method: 'DELETE' }); card.remove(); toast(tr('Job removed')); refresh(); } catch (e) { toast(e.message, true); }
   };
   const sw = $('.switch', card);

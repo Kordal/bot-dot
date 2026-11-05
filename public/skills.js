@@ -102,7 +102,7 @@ function openSkillEditor(skill, opts = {}) {
   if (opts.onDone) m.addEventListener('close', () => opts.onDone(doneName), { once: true });
   const del = $('#delete-skill', m);
   if (del) del.onclick = async () => {
-    if (!confirm(tr('Delete the skill "{name}"? Bots that have it will stop using it.', { name: k.name }))) return;
+    if (!(await askFirst(tr('Delete the skill "{name}"? Bots that have it will stop using it.', { name: k.name }), tr('Delete')))) return;
     await api(`/skills/${encodeURIComponent(k.name)}`, { method: 'DELETE' });
     m.close();
     toast(tr('Skill deleted'));

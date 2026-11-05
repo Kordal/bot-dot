@@ -72,7 +72,7 @@ const ACCOUNTS = [
 ];
 
 // The script's account half (helpers, shares and the table), with fetch answering from `ACCOUNTS`.
-async function page({ confirm = () => true, location = { assign() {} } } = {}) {
+async function page({ askFirst = async () => true, location = { assign() {} } } = {}) {
   const d = dom();
   const calls = [];
   const fetch = async (path, opts) => {
@@ -83,7 +83,7 @@ async function page({ confirm = () => true, location = { assign() {} } } = {}) {
   };
   const src = pages.ADMIN_SCRIPT;
   const part = src.slice(src.indexOf('  const said'), src.indexOf('  const what = (l)'));
-  const ctx = vm.createContext({ document: d.document, fetch, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, confirm, location });
+  const ctx = vm.createContext({ document: d.document, fetch, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, askFirst, location });
   vm.runInContext(`${part}\n async function showLinks() {}\n Object.assign(this, { showAccounts, ago });`, ctx);
   await ctx.showAccounts();
   const byId = (id) => d.document.getElementById(id);
@@ -149,7 +149,7 @@ test('admin page: Sign out everywhere ends the sessions and says so; on the admi
   const asked = [];
   let yes = false;
   const went = [];
-  const { open, buttons, fire, calls, tick } = await page({ confirm: (q) => { asked.push(q); return yes; }, location: { assign: (to) => went.push(to) } });
+  const { open, buttons, fire, calls, tick } = await page({ askFirst: async (q) => { asked.push(q); return yes; }, location: { assign: (to) => went.push(to) } });
   let box = open('bob');
   calls.length = 0;
   fire(buttons(box).find((b) => b.textContent === 'Sign out everywhere'), 'click');
@@ -277,7 +277,7 @@ async function auditPage(log) {
   const src = pages.ADMIN_SCRIPT;
   const helpers = src.slice(src.indexOf('  const said'), src.indexOf('  // ---------- shares and load'));
   const part = src.slice(src.indexOf('  // ---------- the audit log'), src.indexOf('  // Shared rooms (ADR 060)'));
-  const ctx = vm.createContext({ document: d.document, fetch, URL, URLSearchParams, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, confirm: () => true });
+  const ctx = vm.createContext({ document: d.document, fetch, URL, URLSearchParams, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, askFirst: async () => true });
   vm.runInContext(`${helpers}\n${part}\n Object.assign(this, { showAudit });`, ctx);
   await ctx.showAudit(false);
   const byId = (id) => d.document.getElementById(id);

@@ -14,7 +14,7 @@ function page({ features = ['accounts'], fetch = answer(200, { ok: true, ended: 
     ...words,
     state: { features },
     toast: (text, bad = false) => toasts.push([text, bad]),
-    confirm: () => confirmed,
+    askFirst: async () => confirmed,
     fetch: async (url, opts) => { calls.push([url, opts]); return fetch(url, opts); },
     location: { assign: (to) => went.push(to) },
   });

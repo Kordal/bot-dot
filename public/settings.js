@@ -590,7 +590,7 @@ function drawUpdateCard(u) {
   };
   const now = $('#update-now', card);
   if (now) now.onclick = async () => {
-    if (!confirm(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'))) return;
+    if (!(await askFirst(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'), tr('Update now'), { danger: false }))) return;
     now.disabled = true;
     try { drawUpdateCard(await frontDoorPost('/front-door/update/now', {})); } catch (err) { toast(err.message, true); now.disabled = false; }
   };
@@ -621,7 +621,7 @@ const signOutCardHTML = () => (state.features.includes('accounts') ? `
     </details>` : '');
 
 async function signOutEverywhere() {
-  if (!confirm(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'))) return;
+  if (!(await askFirst(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'), tr('Sign out everywhere')))) return;
   let res;
   // The front door's own route, not botdot's: no botdot server, and so no Chief or bot, reaches a session.
   try { res = await fetch('/sign-out-everywhere', { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast(tr("Can't reach botdot."), true); return; }
@@ -795,7 +795,7 @@ async function loadBackupsCard() {
     loadBackupsCard();
   };
   $('#backup-change', card).onclick = async () => {
-    const p = prompt(tr('New backup passphrase (at least 8 characters). Older backups still need the old one.'));
+    const p = await askName(tr('New backup passphrase (at least 8 characters). Older backups still need the old one.'), '', tr('Change'), { secret: true });
     if (!p) return;
     try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: p } }); toast(tr('Passphrase changed. The next backups use it.')); } catch (err) { toast(err.message, true); }
   };

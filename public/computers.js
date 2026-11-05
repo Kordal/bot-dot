@@ -208,11 +208,11 @@ function openScreen(botId) {
       describe();
     } catch (e) { toast(e.message, true); }
   };
-  $('#screen-reset', m).onclick = () => {
+  $('#screen-reset', m).onclick = async () => {
     if (!info?.reset) return;
-    if (confirm(`${info.reset.title}\n\n${info.reset.text}`)) forAll('reset', tr('Resetting…'));
+    if (await askFirst(`${info.reset.title}\n\n${info.reset.text}`, tr('Reset'))) forAll('reset', tr('Resetting…'));
   };
-  $('#screen-update-yes', m).onclick = () => { if (info?.update && confirm(info.update.text)) forAll('update', tr('Updating…')); };
+  $('#screen-update-yes', m).onclick = async () => { if (info?.update && await askFirst(info.update.text, tr('Update'), { danger: false })) forAll('update', tr('Updating…')); };
   // A bot's old computer of its own: its files copied into its folder, then the old one erased.
   $('#screen-old-copy', m).onclick = async () => {
     try {
@@ -222,7 +222,7 @@ function openScreen(botId) {
     } catch (e) { toast(e.message, true); }
   };
   $('#screen-old-erase', m).onclick = async () => {
-    if (!info?.old || !confirm(info.old.confirm)) return;
+    if (!info?.old || !(await askFirst(info.old.confirm, tr('Erase')))) return;
     await act('reset', tr('Erasing…'));
     describe();
   };

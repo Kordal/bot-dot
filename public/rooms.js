@@ -508,13 +508,14 @@ function openRoomSettings(id) {
     const add = $('[data-add-bot]', form);
     if (add) add.onclick = () => act(add, async () => takeRoom((await post('/bots', { bot: form.bot.value }))?.room));
     $$('[data-remove-bot]', form).forEach((el) => (el.onclick = () => act(el, async () => takeRoom((await post('/bots/remove', { bot: el.dataset.removeBot }))?.room))));
-    $('[data-leave-room]', form).onclick = (e) => {
-      if (!confirm(tr('Leave {name}? Your bots leave with you; the room stays with the others.', { name: room.name }))) return;
-      act(e.target, async () => { await post('/leave'); dropRoom(id); m.close(); setView('rooms'); });
+    $('[data-leave-room]', form).onclick = async (e) => {
+      const leave = e.currentTarget;
+      if (!(await askFirst(tr('Leave {name}? Your bots leave with you; the room stays with the others.', { name: room.name }), tr('Leave')))) return;
+      act(leave, async () => { await post('/leave'); dropRoom(id); m.close(); setView('rooms'); });
     };
     const del = $('[data-delete-room]', form);
-    if (del) del.onclick = () => {
-      if (!confirm(tr('Delete {name} for everyone in it? Its messages go too.', { name: room.name }))) return;
+    if (del) del.onclick = async () => {
+      if (!(await askFirst(tr('Delete {name} for everyone in it? Its messages go too.', { name: room.name }), tr('Delete')))) return;
       act(del, async () => { await post('/delete'); dropRoom(id); m.close(); setView('rooms'); });
     };
     form.onsubmit = (e) => e.preventDefault();

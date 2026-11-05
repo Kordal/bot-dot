@@ -517,7 +517,9 @@ function wireNeedCards(root, items) {
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => answerNeed(x, true, yes);
-    if (always) always.onclick = () => { if (x.a?.kind === 'chief-action') { if (confirm(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (confirm(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || confirm(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    // Its warning is asked on the page, its yes in the button's own words.
+    const sure = (q) => askFirst(q, always.textContent, { danger: false });
+    if (always) always.onclick = async () => { if (x.a?.kind === 'chief-action') { if (await sure(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (await sure(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || await sure(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => answerNeed(x, false, no);
     if (op) op.onclick = () => openNeed(x);
     const show = $('[data-need-show]', el);
@@ -528,9 +530,9 @@ function wireNeedCards(root, items) {
 
 // A card's yes or no, from its button (on its card, or its row on the keypad): the button says it works until the
 // answer comes. A job's no asks first where it removes the job.
-function answerNeed(x, yes, button) {
+async function answerNeed(x, yes, button) {
   if (yes) return whileApproving(button, x.job, () => decide(x, true));
-  if (!asksBeforeNo(x) || confirm(tr('Remove this job?'))) return whileBusy(button, tr('Declining…'), () => decide(x, false));
+  if (!asksBeforeNo(x) || await askFirst(tr('Remove this job?'), tr('Remove'))) return whileBusy(button, tr('Declining…'), () => decide(x, false));
 }
 
 // Allow all and Decline all on the cards of several (batchCardHTML). drawn: the cards as they were drawn.
