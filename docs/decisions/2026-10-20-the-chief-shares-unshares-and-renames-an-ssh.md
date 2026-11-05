@@ -1,0 +1,1 @@
+2026-10-20: The Chief shares, unshares and renames an SSH key with no card in a turn the owner started, by bots to add and take off rather than a whole list, so a change held after a web read keeps what the owner changed meanwhile; it never replaces a key's bytes under the same name: a new key gets a new name (#182, #180 decision 6).

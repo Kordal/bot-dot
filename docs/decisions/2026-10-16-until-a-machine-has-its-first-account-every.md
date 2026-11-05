@@ -1,0 +1,1 @@
+2026-10-16: Until a machine has its first account, every start of the front door prints a new sign-up link, because the front door keeps only a link's hash and can't print one again; any of them makes the admin's account, and the others end after 7 days.

@@ -1,0 +1,1 @@
+2026-11-02: Android team keys (#841): a team's chip opens its team chat and, held (or without a team chat), the team's sheet with Make lead, so the floor's room is not needed for it; the canvas tiles of the old rooms and the Chief's office are simply no longer drawn. The project tree is gone with the floor.

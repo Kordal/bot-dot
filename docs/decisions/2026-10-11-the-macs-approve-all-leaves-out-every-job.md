@@ -1,0 +1,1 @@
+2026-10-11: The Mac's "Approve all" leaves out every job and tile that runs a script against any botdot server, also one from before Milestone 8, and every guarded memory change. No server feature announces it, and the Android app does the same (#371).

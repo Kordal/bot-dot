@@ -1,0 +1,1 @@
+2026-10-21: `make staging REF=<branch>` stops below 15 GB free and warns below 25 GB (in the Docker data folder and `/var/lib/botdot`), as both images are built and then copied into each account's Docker; both limits can be set (`STAGING_MIN_GB`, `STAGING_WARN_GB`). It refuses a checkout with changes of its own rather than build something that is not the branch.

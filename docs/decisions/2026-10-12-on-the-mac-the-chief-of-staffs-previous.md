@@ -1,0 +1,1 @@
+2026-10-12: On the Mac the Chief of Staff's previous chats stay behind a clock button in its chat's header. On the web page they are in its settings, which the Mac's do not list yet. The bot's empty chat keeps its "Run its main assignment" button for the same reason: the Mac has no other place to start it. (#382)

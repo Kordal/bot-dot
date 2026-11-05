@@ -1,0 +1,1 @@
+2026-11-04: botdot for customers is one VPS per customer, a managed machine of one account or several with a share of at least 4 CPUs and 8 GB per account and no admin page, run from a fleet console in a private repository through an agent that connects out (ADR 154, [#978](https://github.com/Kordal/bot-dot/issues/978)).

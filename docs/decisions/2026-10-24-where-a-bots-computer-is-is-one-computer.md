@@ -1,0 +1,1 @@
+2026-10-24: Where a bot's computer is, is one "Computer" choice with "· free" and "· costs" in its options, not a switch, a second row and a helper line (#541, ADR 088): the owner couldn't find the second row; the price words in the options keep the one hint rule 5 allows. Rejected: keeping the switch and moving the row up.

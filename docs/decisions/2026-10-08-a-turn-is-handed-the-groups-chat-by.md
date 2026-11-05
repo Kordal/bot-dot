@@ -1,0 +1,1 @@
+2026-10-08: A turn is handed the group's chat by a function of `lib/chat-history.js` that reads the chat newest first from a generator, because a group can hold hundreds of replies and the block's caps are met after some thirty of them: no more run files are read than the block holds. Rejected: building the whole chat and cutting it (500 files read for every turn). (GRP-003)

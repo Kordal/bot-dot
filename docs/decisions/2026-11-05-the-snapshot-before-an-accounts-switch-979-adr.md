@@ -1,0 +1,1 @@
+2026-11-05: The snapshot before an account's switch (#979, ADR 155) goes as soon as its new server answers (the owner's choice over keeping it 7 days), and is skipped when the account's disk wouldn't keep a fifth free after it, instead of the update's disk check stopping every account's update for it.

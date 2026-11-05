@@ -22,7 +22,7 @@
 //                     its session alone reaches the admin page, /admin
 // FRONT_DOOR_REQUESTS the folder where the front door asks the machine to make, stop, start again or erase an account:
 //                     one empty file per account, named as it, which install.sh's root step takes, reading what the
-//                     account should be from this front door's data (docs/DECISIONS.md, 2026-10-16, #467, #470); and
+//                     account should be from this front door's data (docs/decisions/, 2026-10-16, #467, #470); and
 //                     the admin page's update, as a file named UPDATE, which no account can be named (#473); and
 //                     "Update now" for one account, as a file named SWITCH-<account> (ADR 053)
 // FRONT_DOOR_STATUS   the folder where root's step says back what it did: version.json (the version installed),

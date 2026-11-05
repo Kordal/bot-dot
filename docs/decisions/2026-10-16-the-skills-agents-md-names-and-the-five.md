@@ -1,0 +1,1 @@
+2026-10-16: The skills `AGENTS.md` names, and the five they call, are copied unchanged from [mattpocock/skills](https://github.com/mattpocock/skills) (MIT) into `.claude/skills/`, with the source commit in its README, so that cloud sessions have them. Rejected: installing them per machine with `npx skills` or the plugin (a cloud session starts from the repository alone).

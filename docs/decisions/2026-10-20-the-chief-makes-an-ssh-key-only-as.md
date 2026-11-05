@@ -1,0 +1,1 @@
+2026-10-20: The Chief makes an SSH key only as a new one botdot generates, never with a private key it sends (#181), and `list_vault` hands it every SSH key's public key, because a key must not pass through a chat and a public key is no secret (#180, decisions 5 and 6).

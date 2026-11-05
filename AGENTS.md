@@ -48,7 +48,7 @@ One botdot server holds the truth, and each app is a native window onto its API.
 
 ## Rules
 
-1. **Architecture changes** require an ADR in `docs/adr/` (see [docs/adr/README.md](docs/adr/README.md)). Read the ADRs that cover the code you are about to change: they hold the reasons the code cannot show. A smaller choice a later reader would question (a library, a default, a rejected approach) gets one dated line in [docs/DECISIONS.md](docs/DECISIONS.md), in the change that made it.
+1. **Architecture changes** require an ADR in `docs/adr/` (see [docs/adr/README.md](docs/adr/README.md)). Read the ADRs that cover the code you are about to change: they hold the reasons the code cannot show. A smaller choice a later reader would question (a library, a default, a rejected approach) gets a file of its own in [docs/decisions/](docs/decisions/README.md), in the change that made it (one file each, so two pull requests never conflict on it).
 2. **Tests** accompany every piece of functionality; a change is done when its tests pass. `make lint` and `make test` need nothing running: run both before calling a change done. `make help` lists the slower suites (the real tool install, the real install, the image cleanup, the Android build, tests and lint); run the ones that cover what you changed. A change to what an install runs (`install.sh`, `compose*.yaml`, the `Dockerfile`, the docker-helper, the updater, `.github/workflows/images.yml`) is done when `make install-real` passes.
 3. **Stay on task.** Implement only the selected ticket. Unrelated follow-up work becomes a new issue in the tracker, not a part of the change.
 4. **The API is the contract.** A change to what the server sends or accepts is written in `docs/api.md` in the same task, and announced in `features` when apps must check for it.
@@ -108,7 +108,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | --- | --- |
 | `docs/product/` | Vision, milestone scope, the owner's test lists and, under `improvements/`, improvement reports |
 | `docs/adr/` | Architecture Decision Records |
-| `docs/DECISIONS.md` | One dated line per small, non-obvious choice that is not architecture |
+| `docs/decisions/` | One file per small, non-obvious choice that is not architecture (`YYYY-MM-DD-short-name.md`, one dated line) |
 | `docs/agents/` | What the skills read: the issue tracker (`issue-tracker.md`), the triage labels (`triage-labels.md`) and the domain documents (`domain.md`) |
 | `docs/archive/` | Past working notes, kept for history: reviews, audits, acceptance and memory reports, research notes, feature test lists and the Milestone 1 screenshots (`evidence/`) |
 | `docs/screenshots/` | The README's screenshots of the web page and the phone |

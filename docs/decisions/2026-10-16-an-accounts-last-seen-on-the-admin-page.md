@@ -1,0 +1,1 @@
+2026-10-16: An account's "last seen" on the admin page is when one of its sessions last reached the front door, written at most every 5 minutes so that not every request rewrites `front-door.json`. Whether it runs is a connection to its socket that sends nothing: the admin page never asks a botdot server anything. ([#470](https://github.com/Kordal/bot-dot/issues/470))

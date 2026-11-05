@@ -1,0 +1,1 @@
+2026-10-29: The Projects screen's row of docked chats spans the whole main column, over the bottom of the panel on its right, and a panel may narrow from 340 to 300 px before one goes under "+N" (owner's ask after #714: as many chats as the screen holds). Rejected: keeping the row clear of the panel on the right, which left two chats on a 1440 px window.

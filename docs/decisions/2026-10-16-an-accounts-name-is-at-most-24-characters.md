@@ -1,0 +1,1 @@
+2026-10-16: An account's name is at most 24 characters (was 31), so that its Linux user `botdot-<name>` fits Linux's 32-character limit. The installer asks the admin's name and binds the first sign-up link to it, because it makes the admin's Linux user, Docker and botdot server before anyone signs up. ([#466](https://github.com/Kordal/bot-dot/issues/466))

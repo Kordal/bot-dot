@@ -1,0 +1,1 @@
+2026-10-08: A group's chat is read with a route of its own, `GET /api/group-chats/:id/chat`, with its pages cut by the id of the oldest item held, because the chat is two things in one order, the owner's messages and the members' runs, and `GET /api/runs?group=` holds only the second. Rejected: a page by offset (a reply that lands meanwhile shifts every page). (GRP-002)

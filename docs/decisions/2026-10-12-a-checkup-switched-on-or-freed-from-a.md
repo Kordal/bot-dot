@@ -1,0 +1,1 @@
+2026-10-12: A checkup switched on, or freed from a busy Chief, within two hours of its time still runs that day, and one whose run failed is not tried again that day, because the day is taken when the run starts. Rejected: retrying a failed checkup each minute (a signed-out Claude would be started 120 times). (#387)

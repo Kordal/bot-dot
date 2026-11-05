@@ -1,0 +1,1 @@
+2026-10-29: The Projects screens (#741) take the scales by the rules of #721 on the web page and of #722 on Android (on Android a tie below 16 goes up, from 16 on down; a 13 sp text is 12 when muted or faint, else 14; corners of 5 dp and less stay). The web check holds no section any more, and `TokenScaleTest` allows Theme.kt alone.

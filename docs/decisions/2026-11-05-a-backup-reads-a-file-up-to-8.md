@@ -1,0 +1,1 @@
+2026-11-05: A backup reads a file up to 8 MB in one call (through the broker's kept file worker for a bot's files) and streams only bigger ones: a brokered stream starts a relay process and a worker for each file, and a workspace of many small files kept one account's backup going for over ten hours, so every restart cut it off.

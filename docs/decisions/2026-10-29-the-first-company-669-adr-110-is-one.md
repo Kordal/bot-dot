@@ -1,0 +1,1 @@
+2026-10-29: The first Company (#669, ADR 110) is one per account, at `/api/company` with no id in the path: the mockups and the owner's use have one. The start text is a site when it is one word shaped like a host name (`fernhill.app`, `https://x.io/about`), anything with a space is an idea; a site names the company from its host ("Fernhill") until the Chief names it.

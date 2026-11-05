@@ -1,0 +1,1 @@
+2026-10-23: A message the Chief sends a bot ends the bot's open question as the owner's own message does (#517). The Chief writes for the owner and passes on answers given on a Needs you card or in its chat; a teammate's message still answers nothing, since only the owner can give the OK (#233).

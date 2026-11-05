@@ -1,0 +1,1 @@
+2026-10-16: An account's name is chosen on the sign-up page (2 to 31 lowercase letters, digits and dashes, starting with a letter), because it names the account's socket and, later, its call addresses (`/call/<account>/…`), and the admin page lists accounts by it.

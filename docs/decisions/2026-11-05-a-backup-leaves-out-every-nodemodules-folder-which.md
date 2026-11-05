@@ -1,0 +1,1 @@
+2026-11-05: A backup leaves out every `node_modules` folder, which a project installs again from its own files: on hq they were 2.65 million of one account's 2.8 million files, and with them its backup never finished between restarts.

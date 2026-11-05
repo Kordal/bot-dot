@@ -1,0 +1,1 @@
+2026-11-03 (#914): A session's last use is written where its account is read (the store's sessionAccount), not by a call of its own, so every way in counts (a page, an API call, a WebSocket, a room); an ended session goes when it is met and when a new one is made. The cookie keeps its 400-day Max-Age: the server's 90 days unused decide when a session ends.

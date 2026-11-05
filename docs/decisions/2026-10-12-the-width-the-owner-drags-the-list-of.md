@@ -1,0 +1,1 @@
+2026-10-12: The width the owner drags the list of bots to is kept on the device (`localStorage`, `@AppStorage`, the Android app's settings), because a width that suits a Mac's window does not suit an unfolded phone. Rejected: keeping it on the botdot server (one width for every screen). ([#385](https://github.com/Kordal/bot-dot/issues/385))

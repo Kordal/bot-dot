@@ -1,0 +1,1 @@
+2026-10-29: A project mention (#700) ranks after a tile and before a skill: nothing that matched a bot, a page or a tile before changes, and a skill named like a project is the one case that does. Its summary is handed to the run as a page's text is (ADR 078), so no new ADR.

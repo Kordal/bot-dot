@@ -1,0 +1,1 @@
+2026-10-16: A botdot server's socket for the front door is `0600` in a folder of its own, so the Chief's and the bots' users, who share its container, can't open it. Who else reaches it, across an account's rootless Docker, is the install's to set (#466, #467).

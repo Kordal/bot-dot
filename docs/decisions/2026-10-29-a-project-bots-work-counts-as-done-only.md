@@ -1,0 +1,1 @@
+2026-10-29: A project bot's work counts as done only when its file is in the project's folder (#771): the team note says so and the lead's report run checks the folder first. A check on the server of what a report claims was rejected: a report is free text, and reading the folder for each report would start the account's computer for it.

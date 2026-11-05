@@ -1,0 +1,1 @@
+2026-10-29: On Android (#705) a bot's or a team's chat opened from the Projects screen is one sheet over the floor, half or full height, not the web's row of docked panels: a phone has room for one chat, and the chat in it is the app's own chat screen, so nothing of sending, blocks or cards is drawn twice.

@@ -1,0 +1,1 @@
+2026-11-01: `run_shell` keeps its 600 s and Claude Code's Bash gets 900 s, because a bot's own tools already stop at 600 s and Bash has builds that run longer. Rejected: raising `run_shell` to 900 s (the limit only needs to hold). (#830)

@@ -1,0 +1,1 @@
+2026-10-08: A pass is a quiet run (`quietRun` is true for a run marked `passed`), because every reader that already leaves a quiet run out, the count of new replies, the chat block and the feed's `quiet`, then leaves a pass out without a rule of its own. Rejected: a check for `passed` in each reader (one more place to forget for the next reader). (GRP-002)
