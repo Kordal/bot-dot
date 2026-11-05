@@ -1147,14 +1147,24 @@ function takeInstallKeys() {
 // The installer's Composio key (ADR 161): the admin's own account's (a managed machine's first), handed until that
 // account answers, which it does once it is made and running. It takes it only while it has no key of its own.
 const COMPOSIO_TO = ADMIN || SETUP_ACCOUNT;
+// A key Composio refused is kept and handed again an hour later: a project key the fleet console has just made may
+// not be accepted yet, and the account says why on its Connectors page meanwhile.
+const COMPOSIO_REFUSED_WAIT_MS = Number(process.env.FRONT_DOOR_COMPOSIO_RETRY_MS) || 3600_000;
 let handingComposio = false;
+let composioRefusedAt = 0;
 function handComposio() {
+  if (Date.now() - composioRefusedAt < COMPOSIO_REFUSED_WAIT_MS) return;
   const key = COMPOSIO_TO && !handingComposio ? installKeys.composio(DATA) : null;
   if (!key) return;
   handingComposio = true;
   askAccount(COMPOSIO_TO, 'POST', '/api/connectors/install-key', { key }, 30_000).then((r) => {
     handingComposio = false;
     if (!r.status || r.status >= 500) return; // not made, not running, or Composio gave no answer: next minute
+    if (r.status === 400) {
+      composioRefusedAt = Date.now();
+      console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key, tried again in an hour: ${r.data?.error || r.status}`);
+      return;
+    }
     installKeys.handed(DATA);
     if (r.status !== 200) console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key: ${r.data?.error || r.status}`);
     else if (!r.data?.kept) console.log(`[front door] the installer's Composio key went to ${COMPOSIO_TO}`);

@@ -81,5 +81,6 @@ test('the front door hands the Composio key to the admin\'s account and keeps it
   const code = fs.readFileSync(path.join(__dirname, '..', 'front-door.js'), 'utf8');
   assert.match(code, /const COMPOSIO_TO = ADMIN \|\| SETUP_ACCOUNT;/);
   assert.match(code, /askAccount\(COMPOSIO_TO, 'POST', '\/api\/connectors\/install-key', \{ key \}/);
-  assert.match(code, /if \(!r\.status \|\| r\.status >= 500\) return;[^\n]*\n\s*installKeys\.handed\(DATA\);/);
+  assert.match(code, /if \(!r\.status \|\| r\.status >= 500\) return;/);
+  assert.match(code, /if \(r\.status === 400\) \{\s*composioRefusedAt = Date\.now\(\);[\s\S]{0,200}?return;\s*\}\s*installKeys\.handed\(DATA\);/, 'a refused key is kept and handed again later');
 });
