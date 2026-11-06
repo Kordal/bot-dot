@@ -21,7 +21,6 @@ body:
       options:
         - install.sh on a Linux server or VM
         - Self-built images (make images, then install.sh)
-        - Docker on a Mac (compose.mac.yaml)
         - From the source (npm start)
         - Other (say how below)
     validations:

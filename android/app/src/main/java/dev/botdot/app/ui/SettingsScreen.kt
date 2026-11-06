@@ -71,7 +71,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     app: BotDotApp,
-    onSkills: () -> Unit, onConnectors: () -> Unit, onVault: () -> Unit, onPages: () -> Unit,
+    onSkills: () -> Unit, onConnectors: () -> Unit, onVault: () -> Unit, onPages: () -> Unit, onStorage: () -> Unit = {},
     onChangeServer: () -> Unit, onBattery: () -> Unit, onBack: () -> Unit,
 ) {
     val p = LocalPaper.current
@@ -90,7 +90,9 @@ fun SettingsScreen(
     var computerPlace by remember { mutableStateOf<dev.botdot.app.data.ComputerPlace?>(null) } // where the account's computer is (#579)
     var askPlace by remember { mutableStateOf<String?>(null) } // the place a switch asks about first
     val botsNow by app.store.bots.value.collectAsState()
-    var backingUp by remember { mutableStateOf(false) }
+    var preparing by remember { mutableStateOf(false) }
+    var pass1 by remember { mutableStateOf("") }
+    var pass2 by remember { mutableStateOf("") }
     var update by remember { mutableStateOf<dev.botdot.app.data.OwnUpdate?>(null) }
     var updateNotes by remember { mutableStateOf<List<dev.botdot.app.data.WhatsNew.Entry>>(emptyList()) } // what a waiting version brings (#303)
     var confirmUpdateNow by remember { mutableStateOf(false) }
@@ -158,6 +160,7 @@ fun SettingsScreen(
             if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
             Link(tr("Connectors"), onClick = onConnectors)
             Link(tr("Vault"), onClick = onVault)
+            if (dev.botdot.app.data.Storage.shows(server?.features)) Link(tr("Storage"), onClick = onStorage) // what the account's files take on the disk
             Spacer(Modifier.height(Space.s16))
 
             Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
@@ -173,8 +176,13 @@ fun SettingsScreen(
                 Rule()
             }
 
-            if (boatSizes != null || computerPlace != null) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
-                computerPlace?.let { c ->
+            val sizeShown = boatSizes != null && (computerPlace == null || computerPlace?.place == "boat")
+            // The admin chooses the External Virtual PC's size too, on the admin page (ADR 163): a row with where it is and its size.
+            if (dev.botdot.app.data.BoatSizes.byAdmin(server?.features)) {
+                if (sizeShown) Fact(tr("Computer"), listOfNotNull(tr("External Virtual PC"), boatSizes?.sizeName).joinToString(" · "))
+            } else if (sizeShown || (computerPlace != null && !dev.botdot.app.data.ComputerPlace.byAdmin(server?.features))) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
+                // Only the admin moves it, on the admin page, on a server that says so (ADR 146): then it is the section's value alone.
+                computerPlace?.takeUnless { dev.botdot.app.data.ComputerPlace.byAdmin(server?.features) }?.let { c ->
                     Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
                         if (to == c.place) return@Choice
                         // Every bot with a computer moves along: whether their files go too is asked first (#556).
@@ -260,24 +268,30 @@ fun SettingsScreen(
             }
 
             backups?.let { b ->
-                FoldSection(tr("Backups"), backupValue(b, backingUp)) {
-                    // Turned on with a passphrase on the web page only.
-                    if (!b.configured) Hint(tr("Turn them on in botdot's web page."))
-                    else {
-                        if (!b.error.isNullOrBlank()) Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                            SecondaryButton(enabled = !backingUp && !b.running, onClick = {
-                                backingUp = true
-                                scope.launch { runCatching { api!!.backupNow() }.onSuccess { backups = it; tell(tr("Backed up")) }.onError { tell(it.message ?: tr("Couldn't back up")) }; backingUp = false }
-                            }) { Text(tr("Back up now"), color = p.text) }
-                            b.last?.let { f ->
-                                // To Downloads, with the app's session (BackupDownload): this account's backup alone.
-                                SecondaryButton(onClick = {
-                                    runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, f.name) }
-                                        .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
-                                }) { Text(tr("Download"), color = p.text) }
+                FoldSection(tr("Backups"), backupValue(b, preparing)) {
+                    val o = b.offsite
+                    val lastGood = o?.lastSuccess
+                    if (o?.state == "failed" && lastGood != null) Hint(tr("Last backup {ago}", "ago" to shortTime(lastGood)))
+                    // A download of this account made now (ADR 158), with a passphrase chosen for it, to Downloads.
+                    if (server?.features?.contains("backup-download") == true) {
+                        Field(pass1, { pass1 = it }, placeholder = { Text(tr("Passphrase")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        Field(pass2, { pass2 = it }, placeholder = { Text(tr("Again")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        SecondaryButton(enabled = !preparing && !b.preparing && pass1.length >= b.minPassphrase, onClick = {
+                            if (pass1 != pass2) { tell(tr("The two don't match")); return@SecondaryButton }
+                            preparing = true
+                            val phrase = pass1
+                            scope.launch {
+                                runCatching { api!!.backupDownload(phrase) }
+                                    .onSuccess { asked ->
+                                        pass1 = ""; pass2 = ""
+                                        runCatching { dev.botdot.app.data.BackupDownload.start(context, api!!, asked) }
+                                            .onSuccess { tell(tr("Downloading to Downloads")) }.onFailure { tell(it.message ?: tr("Couldn't download")) }
+                                    }.onError { tell(it.message ?: tr("Couldn't download")) }
+                                preparing = false
                             }
-                        }
+                        }) { Text(if (preparing || b.preparing) tr("Preparing…") else tr("Download"), color = p.text) }
                     }
                 }
             }
@@ -413,6 +427,19 @@ private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
     }
 }
 
+/** A row that only says something: its name and its [value], and a thin line under it. */
+@Composable
+private fun Fact(text: String, value: String) {
+    val p = LocalPaper.current
+    Column {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+            Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+            Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
+        }
+        Rule()
+    }
+}
+
 /** Claude's row in a word or two: what bots run on, or that they can't. */
 internal fun claudeValue(c: dev.botdot.app.data.ClaudeStatus): String = when {
     c.onApiKey -> tr("API key")
@@ -420,9 +447,14 @@ internal fun claudeValue(c: dev.botdot.app.data.ClaudeStatus): String = when {
     else -> c.email ?: tr("Signed in")
 }
 
-/** The Backups row's value: what it does now, when it last did it, or that it is off. */
-internal fun backupValue(b: dev.botdot.app.data.BackupInfo, backingUp: Boolean): String = when {
-    !b.configured -> tr("Off")
-    backingUp || b.running -> tr("Backing up…")
-    else -> b.last?.let { shortTime(it.at) } ?: tr("None yet")
+/** The Backups row's value: the off-site backup's state, or when the account's data last went off-site (ADR 158). */
+internal fun backupValue(b: dev.botdot.app.data.BackupInfo, preparing: Boolean): String {
+    val o = b.offsite
+    return when {
+        preparing || b.preparing -> tr("Preparing…")
+        o == null || o.state == "off" -> tr("Off")
+        o.state == "backing-up" -> tr("Backing up…")
+        o.state == "failed" -> tr("Failed")
+        else -> o.lastSuccess?.let { shortTime(it) } ?: tr("No backup yet")
+    }
 }

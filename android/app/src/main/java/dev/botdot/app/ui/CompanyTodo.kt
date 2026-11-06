@@ -99,13 +99,14 @@ internal fun YouHead(size: Int = 24) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+/** [waiting]: what waits in this project only (Spaces.needsIn), as its Needs you lists it. */
 internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List<Waiting>, ways: CompanyWays, features: Collection<String>) {
     val p = LocalPaper.current
     val full = ProjectTodo.FEATURE in features
     var filter by rememberSaveable { mutableStateOf("all") }
     val asks = !full || filter == "all" || filter == "you"
     val waits = if (asks) waiting else emptyList()
-    val asking = if (asks) bots.filter { question(it) != null } else emptyList()
+    val asking = if (asks) dev.botdot.app.data.Spaces.askingIn(c, bots) { question(it) != null } else emptyList()
     val items = if (full) ProjectTodo.shown(c.todos, filter) else CompanyFloor.todos(c.todos)
     val standupAsks = if (asks && ProjectStandup.FEATURE in features) ProjectStandup.asks(c, bots).size else 0
     val n = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks
@@ -336,7 +337,7 @@ private fun Decisions(ui: CompanyUi, c: Company) {
 private fun DecisionRow(ui: CompanyUi, d: Decision) {
     val p = LocalPaper.current
     val words = mapOf("keep" to tr("Keep going"), "change" to tr("Change direction"), "stop" to tr("Stop"))
-    val text = if (d.by == "checkin" && d.day != null && words[d.decision] != null) "${tr("Day {n} check-in", "n" to d.day)}: ${words[d.decision]}" else d.text
+    val text = if (d.by == "checkin" && d.day != null && words[d.decision] != null) "${if (ui.company()?.ongoing == true) tr("Monthly review") else tr("Day {n} check-in", "n" to d.day)}: ${words[d.decision]}" else d.text
     val day = d.at?.let { runCatching { Instant.parse(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() }.getOrNull() }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {

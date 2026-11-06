@@ -150,7 +150,7 @@ private data class FxCarry(val move: Boolean, val from: String, val entries: Lis
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
+fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPath: String = "", onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val server by app.store.version.value.collectAsState()
@@ -171,8 +171,8 @@ fun FilesScreen(app: BotDotApp, ownerId: String, onBack: () -> Unit) {
     val snack = remember { SnackbarHostState() }
     fun tell(s: String) { scope.launch { snack.showSnackbar(s) } }
 
-    var place by rememberSaveable(ownerId) { mutableStateOf(folder?.let(WorkspaceFiles::projectRoot) ?: WorkspaceFiles.SERVER) }
-    var path by rememberSaveable(ownerId) { mutableStateOf("") }
+    var place by rememberSaveable(ownerId) { mutableStateOf(startRoot.ifEmpty { null } ?: folder?.let(WorkspaceFiles::projectRoot) ?: WorkspaceFiles.SERVER) }
+    var path by rememberSaveable(ownerId) { mutableStateOf(startPath) }
     var sortName by rememberSaveable { mutableStateOf(FilesExplorer.Sort.NAME.name) }
     val sort = FilesExplorer.Sort.valueOf(sortName)
     var grid by rememberSaveable { mutableStateOf(false) }

@@ -18,7 +18,8 @@
   const appName = (slug) => APP_NAMES[slug] || slug.charAt(0).toUpperCase() + slug.slice(1);
   // What this page holds beside the company: the Chief at work, the open parts and a half-typed line.
   // reach: the gap whose menu is open ("key|kind|need"); vault: the Vault's entries for it, read when it opens.
-  const ui = { asking: false, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, apps: null, reach: null, vault: null };
+  // askedAt: when the proposal was asked for, so a long wait can say so.
+  const ui = { asking: false, askedAt: 0, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, apps: null, reach: null, vault: null };
 
   async function loadApps() {
     if (ui.apps) return;
@@ -30,9 +31,18 @@
   async function call(path, body, method = 'POST') {
     try { took(await api(Company.at(path), { method, ...(body ? { body } : {}) })); return true; } catch (e) { toast(e.message, true); return false; }
   }
+  // The Chief proposes the team: one call of up to two minutes (lib/company-team.js), so the page shows it at work.
+  // A 409 "busy" is the same proposal asked before (the page was reloaded meanwhile): it waits and reads the project
+  // again until the proposal is there.
+  const LONG = 30_000;
   async function propose() {
     ui.asking = true; ui.failed = '';
-    try { took(await api(Company.at('/company/proposal'), { method: 'POST' })); } catch (e) { ui.failed = e.message; }
+    if (!ui.askedAt) ui.askedAt = Date.now();
+    const id = state.company?.id;
+    const long = setTimeout(() => { if (ui.asking && state.company?.id === id) Company.redraw(); }, LONG);
+    try { took(await api(Company.at('/company/proposal'), { method: 'POST' })); ui.askedAt = 0; } catch (e) {
+      if (e.state === 'busy') { await new Promise((r) => setTimeout(r, 4000)); await Company.load(); } else { ui.failed = e.message; ui.askedAt = 0; }
+    } finally { clearTimeout(long); }
     ui.asking = false;
     Company.redraw();
   }
@@ -43,9 +53,11 @@
   function team(root, c) {
     if (!c.proposal) {
       if (!ui.asking && !ui.failed) propose();
+      const long = ui.askedAt && Date.now() - ui.askedAt >= LONG;
+      // data-state: what the step is doing, for a test or an agent reading the page.
       root.innerHTML = ui.failed
-        ? `<div class="co-start"><p class="co-given">${esc(ui.failed)}</p><div><button type="button" class="btn" data-again>${tr('Try again')}</button></div></div>`
-        : `<div class="co-start co-wait" aria-busy="true">${chiefFigure('lg')}</div>`;
+        ? `<div class="co-start co-wait" data-state="failed" role="alert">${botFigure(CHIEF_COLOR, 'idle', 'lg', Figure.CHIEF)}<p class="co-wait-line">${esc(ui.failed)}</p><button type="button" class="co-go" data-again>${tr('Try again')}</button></div>`
+        : `<div class="co-start co-wait" data-state="proposing" aria-busy="true" role="status">${botFigure(CHIEF_COLOR, 'working', 'lg', Figure.CHIEF)}<p class="co-wait-line">${long ? tr('Almost there…') : tr('Putting your team together…')}</p><div class="co-reading" aria-hidden="true"><span></span><span></span><span></span></div></div>`;
       const again = $('[data-again]', root);
       if (again) again.onclick = () => { ui.failed = ''; propose(); };
       return;

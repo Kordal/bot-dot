@@ -140,9 +140,7 @@ function drawContacts() {
   // The rows are the keypad's pages (keypad.js): the pinned bots and groups right below the Chief, in the order you
   // gave them; the rest by category.
   const row = (x) => (x.members ? groupContactHTML(x) : contact(x));
-  // Home's bots and chats (#838); a search finds every one.
-  const home = q ? null : homeKeys();
-  const pages = Keypad.pages(home ? matching.filter((b) => home.bots.includes(b)) : matching, home ? chats.filter((g) => home.groups.includes(g)) : chats);
+  const pages = Keypad.pages(matching, chats);
   top.push(...(pages.find((p) => p.kind === 'pinned')?.keys || []).map(row));
   items.push(...top);
   if (!q && typeof roomsRowHTML === 'function') items.push(roomsRowHTML()); // shared rooms, when they are on (rooms.js)
@@ -194,24 +192,9 @@ function drawContacts() {
 // The Chief's row and its key (Esc): the chat with new replies, else the one its preview shows.
 const openChief = () => openChiefChat((state.chats.find((c) => Unread.count(c)) || state.chats[0])?.id || null);
 
-// The projects, from a server with `company` (company.js loads them): each bot is in one space (#838), so Home's
-// keys and list leave out the projects' team bots and team chats (Keypad.home), unless the owner's filter is on All.
+// The projects, from a server with `company` (company.js loads them). Home shows every bot and chat, team ones too.
 const spaceProjects = () => ((state.features || []).includes('company') ? state.projects || (state.company ? [state.company] : []) : []);
-// Home's filter: All (every bot and chat, the start) or No project (only those in no project's team), on this device.
-const HOME_BOTS = 'botdot.homeBots';
-const homeAll = () => { try { return localStorage.getItem(HOME_BOTS) !== 'own'; } catch { return true; } };
-const setHomeAll = (all) => { try { localStorage.setItem(HOME_BOTS, all ? 'all' : 'own'); } catch {} renderContacts(); };
-const homeKeys = () => Keypad.home(state.bots, state.groups, spaceProjects(), homeAll());
-// The filter over Home's keys, while a bot or a chat is in a project's team: else both would show the same.
-function homeFilterHTML() {
-  const own = Keypad.home(state.bots, state.groups, spaceProjects());
-  if (own.bots.length === state.bots.length && own.groups.length === state.groups.length) return '';
-  const all = homeAll();
-  const opt = (on, value, text) => `<button type="button" role="radio" aria-checked="${on}" data-home-bots="${value}">${esc(text)}</button>`;
-  return `<div class="kp-filter" role="radiogroup" aria-label="${esc(tr('Bots'))}">${opt(all, 'all', tr('All'))}${opt(!all, 'own', tr('No project'))}</div>`;
-}
-const wireHomeFilter = (root) => $$('[data-home-bots]', root).forEach((el) => (el.onclick = () => setHomeAll(el.dataset.homeBots === 'all')));
-const keypadPages = () => { const h = homeKeys(); return Keypad.pages(h.bots, h.groups); };
+const keypadPages = () => Keypad.pages(state.bots, state.groups);
 // A page's name as shown: Other's in the page's language, a category's as the owner wrote it.
 const pageName = (p) => (p.kind === 'other' ? tr('Other') : p.name);
 // A category's page folds as the list's category does (#171), with the list's folded names: folding it in one folds it
@@ -235,12 +218,12 @@ let keysWaiting = new Set();
 function keyStatus(x) {
   if (x.members) {
     const cls = groupLine(x).cls;
-    return Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null });
+    return Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null, seen: Keypad.seen(x.readAt, x.last?.at) });
   }
   const r = state.runs.find((y) => y.botId === x.id);
   const running = !!x.running || r?.status === 'running';
   const runs = x.runningCount ?? state.runs.filter((y) => y.botId === x.id && y.status === 'running').length; // a server without it: the list's
-  return Keypad.status({ running, runs, needs: keyAsks(x) || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null });
+  return Keypad.status({ running, runs, needs: keyAsks(x) || keysWaiting.has(x.id), unread: Unread.count(x), last: r?.status ?? null, seen: Keypad.seen(x.readAt, r?.endedAt) });
 }
 // A key's state as one line under its name (#664): a coloured dot and the status's words: green while it works, where
 // the words are what it does now (its opening line, or which member of a group works and on what), amber while it needs
@@ -316,11 +299,10 @@ function drawKeypad() {
   drawBoardLine($('#kp-board'));
   const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n, null, Keypad.digitOf(digits, k.x)) : '')).join('');
   const cats = pages.slice(1).map((p, n) => `<section class="kp-page${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${n + 1}">${pageHead(p, `data-page-fold="${n + 1}"`)}</h3><div class="kp-page-keys">${keysOf(n + 1)}</div></section>`).join('');
-  keys.innerHTML = `${homeFilterHTML()}<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
+  keys.innerHTML = `<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
   $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
   $$('[data-key-chief]', keys).forEach((el) => (el.onclick = openChief));
-  wireHomeFilter(keys);
   wireKeyDrags(pages, all, keys);
   drawKeypadSections(found);
   if (typeof drawRoomsKeys === 'function') drawRoomsKeys(); // shared rooms, beside Needs you (rooms.js)
@@ -352,8 +334,7 @@ function drawKeypadSections(pages) {
   const section = (p, n) => `<section class="kp-section${p.kind === 'pinned' ? ' kp-sec-pinned' : ''}${pageFolded(p) ? ' folded' : ''}" data-section="${n}">${p.kind === 'pinned' ? '' : `<h3 class="kp-sec-head">${pageHead(p, `data-section-fold="${n}"`)}</h3>`}<div class="kp-sec-keys">${pageFolded(p) ? '' : p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`;
   const pinned = pages[0]?.kind === 'pinned' ? 1 : 0;
   const cats = pages.slice(pinned).map((p, n) => section(p, n + pinned)).join('');
-  sections.innerHTML = `${homeFilterHTML()}${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
-  wireHomeFilter(sections);
+  sections.innerHTML = `${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
   $$('[data-section-fold]', sections).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.sectionFold)])));
   $$('[data-section-key]', sections).forEach((el) => (el.onclick = () => { const [n, i] = el.dataset.sectionKey.split('.').map(Number); openKey(pages[n].keys[i]); }));
   // The Chief's field: its head, its name where the message goes, and the send arrow. A tap opens its chat, ready to write in.
@@ -407,11 +388,12 @@ function wireKeyDrags(pages, all, keys) {
 // Needs you on the keypad and on a phone (#635): one row per thing that waits, at most three, then "+N more", which
 // opens the Needs you page. A row has its bot's head, its name and what it wants (needLine). A plain yes or no that the
 // row says whole (answersInline, needs.js) has No and Allow, answered as its card's buttons answer it; anything else
-// has Review, which opens it as its card does (`open`: needs.js, openNeed). The keys of the bots `waits` holds (all that
+// has Review, which opens it as its card does (`open`: needs.js, openNeed). A row's words open it too (`see`: needs.js,
+// openNeedInChat), a No and Allow row's at its card in its chat. The keys of the bots `waits` holds (all that
 // waits, also while the rows are not shown on the Needs you page) have the amber dot, so they are drawn again when
 // those bots change.
 const NEED_ROWS = 3;
-function drawKeypadNeeds(items, open, waits = items) {
+function drawKeypadNeeds(items, open, waits = items, see = open) {
   const shown = items.slice(0, NEED_ROWS);
   const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
   const acts = (x, i) => (answersInline(x)
@@ -421,21 +403,22 @@ function drawKeypadNeeds(items, open, waits = items) {
   // An ask from a project's bot carries that project's small square on Home (#838).
   const of = Keypad.projectOf(spaceProjects());
   const square = (x) => { const p = of.get(x.bot?.id); return p ? `<span class="kp-proj" style="--c:${esc(p.color || '#8e7cff')}" title="${esc(p.name || p.start || '')}">${esc((p.name || p.start || '?').charAt(0).toUpperCase())}</span>` : ''; };
-  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${square(x)}${acts(x, i)}</div>`).join('')
+  const html = shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${square(x)}${acts(x, i)}</div>`).join('')
     + (more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : '');
   for (const id of ['#kp-needs', '#kp-phone-needs']) {
     const el = $(id);
     if (!el) continue;
     el.classList.toggle('hidden', !items.length);
     el.innerHTML = html;
-    wireNeedRows(el, shown, open);
+    wireNeedRows(el, shown, open, see);
   }
   const waiting = needsBots(waits);
   if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; renderContacts(); }
 }
 // A Needs you row's buttons (drawKeypadNeeds, and a project's own Needs you in company-home.js): No and Allow
-// answer it, Review opens it, "+N more" opens the Needs you page.
-function wireNeedRows(el, shown, open) {
+// answer it, Review opens it, its words show it (`see`), "+N more" opens the Needs you page.
+function wireNeedRows(el, shown, open, see = open) {
+  $$('[data-kp-see]', el).forEach((b) => (b.onclick = () => see(shown[Number(b.dataset.kpSee)])));
   $$('[data-kp-yes]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpYes)], true, b)));
   $$('[data-kp-no]', el).forEach((b) => (b.onclick = () => answerNeed(shown[Number(b.dataset.kpNo)], false, b)));
   $$('[data-kp-open]', el).forEach((b) => (b.onclick = () => open(shown[Number(b.dataset.kpOpen)])));

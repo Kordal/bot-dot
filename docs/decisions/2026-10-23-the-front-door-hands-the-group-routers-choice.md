@@ -1,0 +1,1 @@
+2026-10-23: The front door hands the group router's choice and key to every account every minute (#513, ADR 082), whether or not it changed: an account keeps it in memory only and says nothing when it starts, and one small request a minute per account is cheaper than a channel for that. Jev is given 2 s before Haiku is asked: it answered in at most 0.5 s on staging.

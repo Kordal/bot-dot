@@ -26,7 +26,7 @@ function box(onSend, { secret = false } = {}) {
   const ctx = vm.createContext({ ...words,
     ...finders(), Math, String, Promise, Map, WeakSet, crypto: globalThis.crypto,
     toast: (...a) => said.toasts.push(a),
-    confirm: (q) => { said.confirms.push(q); return true; },
+    askFirst: async (q) => { said.confirms.push(q); return true; },
     looksLikeSecret: () => secret,
     matchMedia: () => ({ matches: false }),
     fileChipHTML: (f) => `[${f.name}]`,

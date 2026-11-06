@@ -1,0 +1,1 @@
+2026-10-16: Calls (ADR 026) keep reaching botdot's own port, with their checks of the tailnet, until they go through the front door with the account in their address (#472); every other request of the owner is refused there from #465 on.

@@ -1,0 +1,1 @@
+2026-11-01: A command's memory limit is 60% of the account's RAM, because it must leave room for the screens and the server while a real build fits. Rejected: a fixed size (shares differ per account). (#830)

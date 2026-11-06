@@ -1,5 +1,5 @@
 // Optional browser check of the Company place (#669): node test/browser/company.cjs [shots dir]
-// The switch "Bots | Company" opens the Company place; with no company the start screen is "You know where. We'll work out how." with one
+// The switch "Bots | Company" opens the Company place; with no company the start screen is "What shall we take on?" with one
 // field (#801): its clip adds a link as a source chip; Go makes the company and the About step shows. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -20,7 +20,7 @@ const { goSpace } = require('../space-helpers');
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/`);
       await goSpace(page, 'new'); // no project yet: the rail's "+", or New project in the title's sheet (#853)
-      await page.locator('#view-company h1', { hasText: "You know where. We'll work out how." }).waitFor();
+      await page.locator('#view-company h1', { hasText: "What shall we take on?" }).waitFor();
       assert.equal(await page.locator('[data-example]').count(), 0, 'no examples (#801)');
       assert.equal(await page.locator('#company-side [data-project]').count(), 0, 'no project yet');
       const go = page.locator('#co-ask .co-go');

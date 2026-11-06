@@ -37,6 +37,24 @@ test('the registry is asked for the release of the image named', async () => {
   assert.equal(asked, 'registry.test:5000/kordal/bot-dot-desktop:latest');
 });
 
+test('a named release is asked for by its own tag, and must be the version named (#979)', async () => {
+  const asked = [];
+  const named = (at, m = release()) => signedRelease(`ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, 'server', { publicKey, at, remoteRelease: async (image, which) => { asked.push(which); return m; } });
+  assert.equal((await named(DIGEST)).file, `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, 'by its image\'s digest');
+  assert.equal((await named('a'.repeat(40))).revision, 'a'.repeat(40), 'or by its source revision');
+  assert.deepEqual(asked, [DIGEST, 'a'.repeat(40)]);
+  assert.deepEqual(await reason(named('c'.repeat(64))), { access: false, why: 'its signature is for another image' }, 'a tag that points at another release is refused');
+  assert.deepEqual(await reason(signedRelease('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, installed: 8, remoteRelease: async () => release() })),
+    { access: false, why: 'it is older than the version this machine runs' });
+});
+
+test('the registry keeps each release under a tag of its own beside the newest (#979)', async () => {
+  const registry = require('../lib/registry');
+  await assert.rejects(registry.remoteRelease('ghcr.io/kordal/bot-dot:latest', 'nothex'), /Not a digest or a revision/);
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'images.yml'), 'utf8');
+  assert.match(workflow, /-t "\$IMAGE:accounts-release" -t "\$IMAGE:accounts-release-\$\{DIGEST#sha256:\}" -t "\$IMAGE:accounts-release-\$GITHUB_SHA"/);
+});
+
 test('an image signed with another key is refused, and says so', async () => {
   const other = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' }).privateKey;
   assert.deepEqual(await reason(check(release({}, other))), { access: false, why: "it is signed, but not with botdot's release key" });
@@ -75,6 +93,8 @@ test('the command says why it refused, and needs an image and which of botdot\'s
   assert.match(local.stdout, /^it could not be checked \(.+\)\n$/);
   assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest'], { input: '', stdio: 'pipe' }), /Usage/);
   assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--other'], { input: '', stdio: 'pipe' }), /Usage/);
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--at', 'x'], { input: '', stdio: 'pipe' }), /Usage/, '--at takes a digest or a revision');
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--installed', '-1'], { input: '', stdio: 'pipe' }), /Usage/);
   const asked = spawnSync(process.execPath, [file, 'bot-dot:dev', 'server', '--revision'], { input: '', encoding: 'utf8' });
   assert.equal(asked.status, 1, 'with --revision, a refusal is said as without it');
   assert.match(asked.stdout, /^it could not be checked \(.+\)\n$/);
@@ -94,6 +114,6 @@ test('the release with accounts is read from its own tag, which a botdot from be
   try { await registry.remoteRelease('ghcr.io/kordal/bot-dot:latest'); } finally { global.fetch = real; }
   assert.deepEqual(asked, ['https://ghcr.io/v2/kordal/bot-dot/manifests/accounts-release']);
   const workflow = fs.readFileSync(path.join(__dirname, '..', '.github/workflows/images.yml'), 'utf8');
-  assert.match(workflow, /-t "\$IMAGE:accounts-release" "\$IMAGE@\$DIGEST"/, 'the image workflow signs under it');
+  assert.match(workflow, /-t "\$IMAGE:accounts-release" .*"\$IMAGE@\$DIGEST"/, 'the image workflow signs under it');
   assert.doesNotMatch(workflow, /\$IMAGE:release\b/, 'and no longer under the old tag');
 });

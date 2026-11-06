@@ -1,0 +1,1 @@
+2026-10-08: A group's row says "Coder asks: …" for its open question, where a bot's row says "Asks: …", because the row is several bots' and the server's own title for that question is "Coder asks". Rejected: "Asks: …" without the name (the owner would have to open the group to learn who). (GRP-005)

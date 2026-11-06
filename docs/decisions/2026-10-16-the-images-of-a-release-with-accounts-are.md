@@ -1,0 +1,1 @@
+2026-10-16: The images of a release with accounts are signed and published under the tag `accounts-release`, not `release`, so that an install from before accounts, which asks for `release`, is never offered this version as an update; its data folder stays as it is. ([#466](https://github.com/Kordal/bot-dot/issues/466))

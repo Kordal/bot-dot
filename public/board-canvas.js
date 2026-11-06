@@ -1,7 +1,7 @@
 // A project's board as a free canvas (#783, ADR 124): the rules of where its tiles stand. This file draws nothing
 // (company-home.js does); the server keeps a layout by the same rules (lib/company.js), so the page and botdot agree.
 //   - a layout is { [tile]: [x, y, w, h] } on a canvas W wide, in its units; an app scales it to its width.
-//   - a tile is `days`, `goal:<id>`, `room:<team>`, `chief`, `bot:<id>`, `suggest`, `new-team`, `calendar`, `todo`,
+//   - a tile is `days`, `goal:<id>`, `room:<team>`, `chief`, `bot:<id>`, `suggest`, `new-team`, `calendar`, `todo`, `files`,
 //     `card:<id>` or `new-card`; its kind (the part before `:`) gives its smallest and its first size.
 //   - no two tiles overlap: one the moved or resized tile would cover slides down below it, with GAP between them,
 //     and so on for what that one covers. Nothing is pulled up.
@@ -24,6 +24,7 @@ const KINDS = {
   'new-team': { min: [140, 56], size: [392, 64] },
   calendar: { min: [420, 260], size: [792, 340] },
   todo: { min: [280, 280], size: [392, 560] },
+  files: { min: [280, 120], size: [392, 260] },
   card: { min: [240, 140], size: [392, 220] },
   'new-card': { min: [200, 56], size: [392, 64] },
 };
@@ -115,6 +116,13 @@ function drag(layout, id, edge, dx, dy) {
 // The bottom of the lowest tile: how high the canvas is.
 const height = (layout) => Math.max(0, ...Object.values(layout).map((r) => r[1] + r[3]));
 
+// Narrower than this (in pixels or dp) an app reads the board as one column (ADR 147): the canvas scaled down to a
+// phone's width would draw its text a third of its size.
+const NARROW = 600;
+
+// The tiles in the order a column reads them: from the top, and left to right where two start at the same height.
+const order = (layout) => Object.keys(layout).sort((a, b) => layout[a][1] - layout[b][1] || layout[a][0] - layout[b][0]);
+
 // A layout as sent to botdot: { tile: [x, y, w, h] } with known ids and numbers, at most MAX_TILES; null for none.
 // Throws a message for anything else.
 function check(v) {
@@ -132,7 +140,7 @@ function check(v) {
   return out;
 }
 
-const api = { W, GAP, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, height, check };
+const api = { W, GAP, NARROW, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, height, order, check };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.BoardCanvas = api;
 

@@ -11,6 +11,8 @@ object BoardCanvas {
     const val FEATURE = "project-layout"
     const val W = 1200
     const val GAP = 16
+    /** Narrower than this, in dp, the board is read as one column (ADR 147): the canvas scaled to a phone draws its text a third of its size. */
+    const val NARROW = 600
     private const val MAX_H = 4000
 
     class Kind(val minW: Int, val minH: Int, val w: Int, val h: Int)
@@ -24,6 +26,7 @@ object BoardCanvas {
         "new-team" to Kind(140, 56, 392, 64),
         "calendar" to Kind(420, 260, 792, 340),
         "todo" to Kind(280, 280, 392, 560),
+        "files" to Kind(280, 120, 392, 260),
         "card" to Kind(240, 140, 392, 220),
         "new-card" to Kind(200, 56, 392, 64),
     )
@@ -111,6 +114,9 @@ object BoardCanvas {
         }
         return settle(layout + (id to fit(id, x, y, w, h)), id)
     }
+
+    /** The tiles in the order a column reads them: from the top, left to right where two start level. */
+    fun order(layout: Map<String, R>): List<String> = layout.keys.sortedWith(compareBy({ layout.getValue(it).y }, { layout.getValue(it).x }))
 
     /** How high the canvas is: the bottom of the lowest tile. */
     fun height(layout: Map<String, R>) = layout.values.maxOfOrNull { it.bottom } ?: 0

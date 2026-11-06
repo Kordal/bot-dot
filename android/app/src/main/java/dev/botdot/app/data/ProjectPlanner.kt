@@ -108,6 +108,8 @@ data class CalendarItem(
     val by: String? = null,
     val bot: String? = null,
     val n: Int? = null,
+    /** A check-in that is an ongoing project's monthly review (#925). */
+    val monthly: Boolean = false,
     val decision: String? = null,
     val done: Boolean = false,
     val repeat: Repeat? = null,

@@ -78,7 +78,7 @@ async function until(label, probe, timeout = 180_000) {
 function buildServer(tag, temp) {
   const context = path.join(temp, 'server');
   fs.mkdirSync(context);
-  execFileSync('tar', ['-x', '-C', context], { input: execFileSync('git', ['archive', 'HEAD', 'server.js', 'front-door.js', 'package.json', 'lib', 'public', 'chief-skills', 'vendor', 'deploy/desktop', 'compose.yaml', 'compose.front-door.yaml', 'compose.mac.yaml'], { cwd: root, maxBuffer: 256 * 1024 * 1024 }) });
+  execFileSync('tar', ['-x', '-C', context], { input: execFileSync('git', ['archive', 'HEAD', 'server.js', 'front-door.js', 'package.json', 'lib', 'public', 'chief-skills', 'vendor', 'deploy/desktop', 'compose.yaml', 'compose.front-door.yaml'], { cwd: root, maxBuffer: 256 * 1024 * 1024 }) });
   fs.writeFileSync(path.join(temp, 'server.Dockerfile'), [
     `FROM ${CLI_IMAGE} AS cli`, `FROM ${NODE_IMAGE}`,
     'COPY --from=cli /usr/local/bin/docker /usr/local/bin/docker',
@@ -175,7 +175,9 @@ const logsOf = (name) => [
 }).filter(Boolean).join('\n');
 
 async function startMachine(name, { image, step }) {
-  docker('run', '-d', '--privileged', '--name', name, '-e', 'DOCKER_TLS_CERTDIR=', image);
+  // BOT_DOT_ANSWER_TRIES: a release that never starts is given up on after 20 s, not install.sh's 90; one that is
+  // starting still gets its 10 minutes. Every install.sh on the machine has it, the update loop's too.
+  docker('run', '-d', '--privileged', '--name', name, '-e', 'DOCKER_TLS_CERTDIR=', '-e', 'BOT_DOT_ANSWER_TRIES=20', image);
   const inner = (...args) => docker('exec', name, 'docker', ...args);
   const machine = {
     name,
@@ -279,21 +281,24 @@ async function startMachine(name, { image, step }) {
 
   // `reference` (a tag or a digest in the local registry) is signed as its repository's release, as the image
   // workflow signs botdot's images: an index tagged RELEASE_TAG whose annotation is the signed manifest
-  // (docs/release-signing.md). key: the test key, or another one. The signed image, pinned by its digest.
-  machine.sign = (reference, { app, version = 1, key = TEST_KEY } = {}) => {
+  // (docs/release-signing.md), and under the tags of its own digest and its source revision (#979). key: the test key,
+  // or another one; revision: the source revision it says. The signed image, pinned by its digest.
+  machine.sign = (reference, { app, version = 1, key = TEST_KEY, revision = '0'.repeat(40) } = {}) => {
     const [, repo, tag, digest] = reference.match(/^[^/]+\/([^:@]+)(?::([\w.-]+))?(?:@(sha256:[a-f0-9]{64}))?$/);
     const head = machine.exec('curl', '-fsSI', '-H', `Accept: ${MANIFEST_TYPES}`, `https://${REGISTRY}/v2/${repo}/manifests/${digest || tag || 'latest'}`);
     const header = (field) => head.match(new RegExp(`^${field}:\\s*(\\S+)`, 'im'))[1];
-    const m = { app, version, revision: '0'.repeat(40), file: `${REGISTRY}/${repo}@${header('docker-content-digest')}`, sha256: header('docker-content-digest').slice(7) };
+    const m = { app, version, revision, file: `${REGISTRY}/${repo}@${header('docker-content-digest')}`, sha256: header('docker-content-digest').slice(7) };
     m.signature = crypto.sign('sha256', canonical(m), key).toString('base64');
     const index = { schemaVersion: 2, mediaType: 'application/vnd.oci.image.index.v1+json', manifests: [{ mediaType: header('content-type'), digest: `sha256:${m.sha256}`, size: Number(header('content-length')) }], annotations: { 'dev.botdot.release': JSON.stringify(m) } };
-    machine.innerInput(JSON.stringify(index), 'curl', '-fsS', '-X', 'PUT', '-H', 'Content-Type: application/vnd.oci.image.index.v1+json', '--data-binary', '@-', `https://${REGISTRY}/v2/${repo}/manifests/${RELEASE_TAG}`);
+    for (const tag of [RELEASE_TAG, `${RELEASE_TAG}-${m.sha256}`, `${RELEASE_TAG}-${revision}`]) {
+      machine.innerInput(JSON.stringify(index), 'curl', '-fsS', '-X', 'PUT', '-H', 'Content-Type: application/vnd.oci.image.index.v1+json', '--data-binary', '@-', `https://${REGISTRY}/v2/${repo}/manifests/${tag}`);
+    }
     return m.file;
   };
   // What was downloaded from the local registry so far, by the registry's log: the requests for an image's
-  // contents (its manifest by a tag other than RELEASE_TAG, or by digest, and its layers), not the pushes.
+  // contents (its manifest by a tag other than RELEASE_TAG and its own, or by digest, and its layers), not the pushes.
   machine.downloads = () => machine.exec('sh', '-c', 'docker logs registry 2>&1').split('\n')
-    .map((line) => line.match(/"GET (\/v2\/[^ ]+\/(?:blobs|manifests)\/[^ "]+)/)?.[1]).filter((request) => request && !request.endsWith(`/manifests/${RELEASE_TAG}`));
+    .map((line) => line.match(/"GET (\/v2\/[^ ]+\/(?:blobs|manifests)\/[^ "]+)/)?.[1]).filter((request) => request && !new RegExp(`/manifests/${RELEASE_TAG}(-[0-9a-f]+)?$`).test(request));
   return machine;
 }
 

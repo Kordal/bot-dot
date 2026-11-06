@@ -24,7 +24,7 @@ async function renderConnectors(force = false) {
   // A page that can't be drawn says why, never stays blank (#464).
   try { drawConnectors(); } catch (e) { root.innerHTML = `${connHead()}<div class="req-note">${tr("Couldn't show your apps: {why}", { why: esc(e.message) })}</div>`; }
 }
-const connHead = () => `${SUB_BACK}
+const connHead = () => `${subBack()}
     <div class="section-head"><div><h1>${tr('Connectors')}</h1></div></div>`;
 
 async function loadCatalog(reset) {
@@ -130,7 +130,7 @@ function drawConnectors() {
   $$('[data-app-bots]', root).forEach((b) => (b.onclick = () => chooseAppBots(b.dataset.appBots)));
   $$('[data-disconnect]', root).forEach((b) => (b.onclick = async () => {
     const c = d.connections.find((x) => x.id === b.dataset.disconnect);
-    if (!confirm(tr('Disconnect {app}? Bots lose access, and Composio revokes its access to your account.', { app: c?.app?.name || c?.toolkit }))) return;
+    if (!(await askFirst(tr('Disconnect {app}? Bots lose access, and Composio revokes its access to your account.', { app: c?.app?.name || c?.toolkit }), tr('Disconnect')))) return;
     try { const r = await api(`/connectors/connections/${encodeURIComponent(b.dataset.disconnect)}`, { method: 'DELETE' }); toast(r?.note || tr('Disconnected')); } catch (e) { toast(e.message, true); }
     await refresh();
     renderConnectors(true);
@@ -142,12 +142,12 @@ function drawConnectors() {
   const ownKey = $('#conn-key');
   if (ownKey) ownKey.onsubmit = async (e) => {
     e.preventDefault();
-    if (d.account === 'botdot' && d.connections.length && !confirm(tr('Use your own Composio account? Apps connected so far need connecting again there.'))) return;
+    if (d.account === 'botdot' && d.connections.length && !(await askFirst(tr('Use your own Composio account? Apps connected so far need connecting again there.'), tr('Use my account'), { danger: false }))) return;
     try { await api('/connectors/key', { method: 'PUT', body: { key: e.target.key.value } }); conn.replacing = false; conn.catalog = []; toast(tr('Saved')); renderConnectors(true); } catch (err) { toast(err.message, true); }
   };
   const forget = $('#conn-forget');
   if (forget) forget.onclick = async () => {
-    if (!confirm(tr('Remove your Composio key? Connectors stop working until you add another.'))) return;
+    if (!(await askFirst(tr('Remove your Composio key? Connectors stop working until you add another.'), tr('Remove')))) return;
     try { await api('/connectors/key', { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
     conn.catalog = [];
     conn.categories = [];

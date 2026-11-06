@@ -24,7 +24,7 @@ test('an empty project runs at once on a blank board, with no setup, answers or 
   assert.equal(c.phase, 'running');
   assert.equal(c.start, '');
   assert.ok(c.startedAt);
-  assert.deepEqual(c.board, []);
+  assert.deepEqual(c.board, ['files'], 'the Files tile alone');
   assert.deepEqual(c.teams, []);
   assert.deepEqual(c.sources, []);
   assert.equal(c.proposal, null);
@@ -46,4 +46,13 @@ test('without a name it is refused (#857); without empty a start is still needed
   assert.equal((await srv.api('/company', { method: 'POST', body: { empty: 'yes' } })).status, 400);
   assert.equal((await srv.api('/company', { method: 'POST', body: {} })).status, 400);
   assert.equal((await srv.asChief('/company', { method: 'POST', body: { empty: true, name: 'X' } })).status, 403);
+});
+
+test('an empty project keeps the sources added on the start screen', async () => {
+  const sources = [{ kind: 'link', url: 'https://qwotz.app/pricing', name: 'qwotz.app/pricing' }, { kind: 'file', name: 'brief.pdf', upload: { name: 'brief.pdf', file: 'uploads/brief.pdf', size: 12 } }];
+  const r = await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Qwotz', sources } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.deepEqual(r.data.sources.map((s) => [s.kind, s.name]), [['link', 'qwotz.app/pricing'], ['file', 'brief.pdf']]);
+  const again = (await srv.api(at('/company', r.data.id))).data.company;
+  assert.equal(again.sources.length, 2);
 });

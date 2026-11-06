@@ -45,8 +45,9 @@ test("the link a start prints is the admin's: it makes the account the install n
   const b = door.browser();
   const page = await b.get(door.firstLink.path);
   assert.equal(page.status, 200);
-  assert.match(page.text, /Your account's name: <b>admin<\/b>/, 'the name is set and cannot be changed');
-  assert.match(page.text, /<input id="name" name="name" type="hidden" value="admin">/);
+  assert.match(page.text, /<input id="name" name="name" type="hidden" value="admin">/, "the account's name is set");
+  assert.match(page.text, /<label for="login">Your login name<\/label>\n<input id="login" name="login" required [^>]*value="admin">/, 'the login name is a field, the account\'s name at first');
+  assert.doesNotMatch(page.text, /Your account's name:/);
   assert.match(page.text, /admin of this machine can technically reach everything in your account/i);
 
   const other = await b.post(`${door.firstLink.path}/options`, { name: 'mallory' });

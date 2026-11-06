@@ -249,7 +249,7 @@ test("web: the cards, the answered label and the confirmation say \"your Board\"
   assert.equal(times(app, /tr\('Put “\{title\}” on your Board\?', \{ title: esc\(t\.title\) \}\)/), 1, 'a suggested tile');
   assert.equal(times(app, /title: tr\('Put “\{title\}” on your Board\?', \{ title: t\.title \}\)/), 1, 'a tile whose script waits: its card\'s title, escaped where it is drawn (tileCard)');
   assert.ok(app.includes("if (x.kind === 'tilesug') return yes ? tr('On your Board') : tr('Not added');"));
-  assert.ok(app.includes("confirm(tr('Remove “{title}” from your Board?', { title: t.title }))"));
+  assert.ok(app.includes("askFirst(tr('Remove “{title}” from your Board?', { title: t.title }), tr('Remove'))"));
   assert.doesNotMatch(app, /your dashboard/i);
   assert.doesNotMatch(app, />Dashboard</);
   assert.doesNotMatch(app, /title="Dashboard"/);

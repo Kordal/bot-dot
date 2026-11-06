@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { ROOT, script, code, PIN, SIGNED, installer, rerun, roomAnswers, SELF, withBob, status, running } = require('./installer-helpers');
+const { checked, ROOT, script, code, PIN, SIGNED, installer, rerun, roomAnswers, SELF, withBob, status, running } = require('./installer-helpers');
 
 // --- The admin page's update (#473): root's step updates the front door and every account together -------------
 
@@ -28,11 +28,11 @@ test("root's step has the installer and the release check it needs, and says the
 test("the admin page's update takes the newest signed release of the repositories the install pinned", (t) => {
   const repo = 'registry.example:5000/team';
   const { env, checks } = rerun(t, `BOT_DOT_IMAGE=${repo}/bot-dot${PIN}\nBOT_DOT_COMPUTER_IMAGE=${repo}/bot-dot-desktop${PIN}\n`, {}, { args: ['--update'] });
-  assert.deepEqual(checks.map((args) => args.slice(-2)), [[`${repo}/bot-dot:latest`, 'server'], [`${repo}/bot-dot-desktop:latest`, 'desktop']]);
+  assert.deepEqual(checks.map((args) => checked(args).slice(0, 2)), [[`${repo}/bot-dot:latest`, 'server'], [`${repo}/bot-dot-desktop:latest`, 'desktop']]);
   assert.equal(env.BOT_DOT_IMAGE, `${repo}/bot-dot${SIGNED}`);
   // A person's rerun without names goes to botdot's own images, as before.
   const again = rerun(t, `BOT_DOT_IMAGE=${repo}/bot-dot${PIN}\n`);
-  assert.equal(again.checks[0].at(-2), 'ghcr.io/kordal/bot-dot:latest');
+  assert.equal(checked(again.checks[0])[0], 'ghcr.io/kordal/bot-dot:latest');
 });
 
 test('an update asks nothing: what needs an answer stops it, and says to run the installer', (t) => {
@@ -277,7 +277,7 @@ test('one installer runs at a time: another waits for it, and then runs', async 
 test('what the installer leaves running holds no lock: an account\'s Docker and the loop without systemd', () => {
   // Started with the lock's descriptor, either would hold it after the run, and the next installer would wait for ever.
   const lasting = code.split('\n').filter((line) => /nohup/.test(line));
-  assert.equal(lasting.length, 2);
+  assert.equal(lasting.length, 3, 'an account\'s Docker, the loop without systemd and an off-site backup without systemd');
   for (const line of lasting) assert.match(line, /9>&-/, line.trim());
   assert.doesNotMatch(code, /export BOT_DOT_LOCKED/, 'only the update root\'s step starts, and the installer it hands over to, go on under its hold');
 });
@@ -325,6 +325,8 @@ test("root's step looks for the newest signed version at most once an hour, and 
   assert.ok(once.checks[0].includes(`${first.dir}/bin/lib:/check/lib:ro`), 'root\'s copy of it');
   const latest = status(once, 'latest.json');
   assert.equal(latest.version, 'eeeeeee');
+  assert.equal(latest.revision, 'e'.repeat(40), 'the whole revision, for the fleet console');
+  assert.match(latest.digest, /^sha256:[0-9a-f]{64}$/, 'the signed digest, for the fleet console');
   assert.ok(Date.now() - Date.parse(latest.at) < 60_000);
 
   assert.deepEqual(look().checks, [], 'not again within the hour');
@@ -412,6 +414,15 @@ test("root's step measures the machine's load and each account's use, from outsi
   assert.equal(ann.diskUsed, 10485760 * 1024);
   assert.equal(ann.full, false);
   assert.ok(Date.now() - Date.parse(ann.at) < 60_000);
+  // Its disk, an image that only grows, gives the machine back what its files no longer hold, once a day.
+  const trims = (done) => done.system.split('\n').filter((l) => l === `fstrim ${first.dir}/accounts/ann`).length;
+  assert.equal(trims(once), 1, once.system);
+  const sameDay = measure(1_000_000_000);
+  assert.equal(trims(sameDay), trims(once), 'not again within the day');
+  const stamp = path.join(first.run, 'load', 'ann.trimmed');
+  const dayAgo = new Date(Date.now() - 25 * 3600_000);
+  fs.utimesSync(stamp, dayAgo, dayAgo);
+  assert.equal(trims(measure(1_000_000_000)), trims(once) + 1, 'again a day later');
 
   // Its file cache is left out, as the machine's RAM leaves it out; its shared memory (gVisor's) stays in (#126).
   const cg = path.join(first.top, 'cgroup', 'system.slice', 'botdot-account@ann.service');

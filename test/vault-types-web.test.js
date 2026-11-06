@@ -146,7 +146,7 @@ test('web: Other and GitHub App take a secret of several lines, masked, pasted o
 test('web: a saved item keeps its secret when the field is left empty; the username field starts with the stored one, escaped', () => {
   const saved = page.vaultTypeFields('login', { username: 'alice@example.com', isNew: false });
   assert.match(saved, /name="username" value="alice@example\.com"/);
-  assert.match(saved, /Password <span class="hint">leave empty to keep the current one<\/span><input type="password" name="password" autocomplete="new-password" placeholder="••••••••">/);
+  assert.match(saved, /Password <span class="hint">leave empty to keep the current one<\/span><span class="secret-input"><input type="password" name="password" autocomplete="new-password" placeholder="••••••••"><button type="button" class="btn sm ghost" data-reveal aria-pressed="false">Show<\/button><\/span>/);
   assert.doesNotMatch(saved, /required/);
   const evil = page.vaultTypeFields('api-token', { username: '"><img src=x onerror=1>' });
   assert.doesNotMatch(evil, /<img/);
@@ -155,7 +155,7 @@ test('web: a saved item keeps its secret when the field is left empty; the usern
 
 // A stand-in form: its username and secret fields are those of the markup last drawn into it.
 function standIn(type, opts) {
-  const form = { type: { value: type } };
+  const form = { type: { value: type }, addEventListener() {} };
   const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
   const draw = (html) => {
     form.html = html;

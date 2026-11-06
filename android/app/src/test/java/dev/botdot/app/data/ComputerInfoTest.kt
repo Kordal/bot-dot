@@ -71,4 +71,17 @@ class ComputerInfoTest {
         assertEquals("https://desk.example/stream.html#token=t", d.url)
         assertFalse("only an https address is shown", json.decodeFromString<BoatDesktop>("""{"state":"running","url":"javascript:alert(1)"}""").running)
     }
+
+    @Test fun onlyTheAdminMovesTheAccountsComputerOnAServerThatSaysSo() {
+        assertTrue(ComputerPlace.byAdmin(listOf("account-computer", "computer-place-admin")))
+        assertFalse("an older server: the owner's switch stays", ComputerPlace.byAdmin(listOf("account-computer")))
+        assertFalse(ComputerPlace.byAdmin(null))
+    }
+
+    @Test fun onlyTheAdminChoosesTheExternalVirtualPcsSizeOnAServerThatSaysSo() {
+        assertTrue(BoatSizes.byAdmin(listOf("boat-size", "boat-size-admin")))
+        assertFalse("an older server: the owner's picker stays", BoatSizes.byAdmin(listOf("boat-size")))
+        assertFalse(BoatSizes.byAdmin(null))
+        assertEquals("Large", json.decodeFromString<BoatSizes>("""{"size":"large","sizes":[]}""").sizeName)
+    }
 }

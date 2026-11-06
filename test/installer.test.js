@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
-const { ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob } = require('./installer-helpers');
+const { checked, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob } = require('./installer-helpers');
 
 // --- A first install ------------------------------------------------------------------------------
 
@@ -68,8 +68,38 @@ test('a public install puts Caddy in front of the front door, on the domain alon
   assert.equal(test.env.BOT_DOT_TLS, 'internal', 'kept for a rerun');
 
   const late = rerun(t, '', {}, { caddy: false });
-  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. Point the domain's DNS at this machine and keep ports 80, 443 and 8443 open: it fetches the certificate by itself\./);
+  assert.match(late.said, /Caddy doesn't answer on https:\/\/botdot\.example\.com yet\. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open\./);
   assert.match(late.said, /\/sign-up\/T0KEN/, 'and the installer goes on to the link');
+});
+
+test('a public install shows the exact DNS record its domain needs, and whether it is set', (t) => {
+  const unset = rerun(t, '', {}, { caddy: false });
+  const record = /Set this DNS for botdot\.example\.com at your domain's provider:\n {6}A {5}botdot\.example\.com {2}203\.0\.113\.7\n {4}Now it doesn't resolve\./g;
+  assert.equal(unset.said.match(record).length, 2, 'before the downloads, and again when Caddy doesn\'t answer');
+  assert.doesNotMatch(unset.said, /AAAA/, 'no IPv6 on this machine, none asked for');
+  assert.ok(unset.said.indexOf('Set this DNS') < unset.said.indexOf('front door is running'), 'shown before the long steps');
+
+  const elsewhere = rerun(t, '', { STAND_IN_A: '198.51.100.1', STAND_IN_AAAA: '2001:db8::1' });
+  assert.match(elsewhere.said, /A {5}botdot\.example\.com {2}203\.0\.113\.7\n {4}Now it points at 198\.51\.100\.1, 2001:db8::1\.\n {4}Remove its AAAA record: this machine has no IPv6\./);
+
+  const six = rerun(t, '', { STAND_IN_IP6: '2001:db8::7' });
+  assert.match(six.said, /A {5}botdot\.example\.com {2}203\.0\.113\.7\n {6}AAAA {2}botdot\.example\.com {2}2001:db8::7\n/);
+
+  const set = rerun(t, '', { STAND_IN_A: '203.0.113.7' });
+  assert.match(set.said, /botdot\.example\.com points at this machine \(203\.0\.113\.7\)/);
+  assert.doesNotMatch(set.said, /Set this DNS/);
+
+  const proxied = rerun(t, '', { STAND_IN_A: '104.21.32.1 172.67.10.2' });
+  assert.match(proxied.said, /Now it points at 104\.21\.32\.1, 172\.67\.10\.2\.\n {4}That is Cloudflare's proxy: set the record to DNS only \(grey cloud\)\./);
+
+  const noCertificate = rerun(t, '', { STAND_IN_A: '203.0.113.7' }, { caddy: false });
+  assert.ok(noCertificate.calls.includes(`compose --project-directory ${noCertificate.dir}/front-door restart caddy`), 'the DNS is set: Caddy tries again now, not after its back-off');
+  assert.match(noCertificate.said, /Caddy has no certificate for botdot\.example\.com yet\. Keep ports 80, 443 and 8443 open to this machine\./);
+  assert.doesNotMatch(noCertificate.said, /Set this DNS/);
+
+  const test = rerun(t, '', { BOT_DOT_TLS: 'internal' }, { caddy: false });
+  assert.doesNotMatch(test.said, /Set this DNS|\.com points at this machine/, 'a test machine\'s domain isn\'t on the internet');
+  assert.doesNotMatch(test.system, /cdn-cgi/);
 });
 
 test('a tailnet install gives the front door its Tailscale name with Serve, and nothing on the internet', (t) => {
@@ -119,9 +149,10 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.ok(fs.existsSync(path.join(done.dir, 'accounts', 'owner', 'compose.yaml')), "the account's botdot server is made");
   assert.match(done.system, /^curl -fsS -o \/dev\/null -H Host: localhost:4700 http:\/\/127\.0\.0\.1:4700\/api\/version$/m);
   const lines = done.said.trim().split('\n');
-  assert.equal(lines.at(-1), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
+  assert.match(lines.at(-1), /^BOTDOT_READY \{"origin":"http:\/\/localhost:4700","version":"[0-9a-f]*","reach":"local","accounts":\["owner"\]\}$/, 'the last line is the one for a program, without the key (#981)');
+  assert.equal(lines.at(-2), `BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/${key}"}`, "the last line is the app's");
   assert.equal(done.said.split(key).length, 2, 'the key is on the screen in that line alone');
-  assert.deepEqual(JSON.parse(lines.at(-1).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
+  assert.deepEqual(JSON.parse(lines.at(-2).slice('BOTDOT_LOCAL '.length)), { origin: 'http://localhost:4700', signUp: `http://localhost:4700/sign-up/${key}` });
 
   // A rerun keeps the address, the key and the account; once the account exists its line has no sign-up address.
   const dotenv = fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8');
@@ -131,14 +162,14 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.equal(again.env.BOT_DOT_REACH, 'local', 'how it is reached is chosen once');
   assert.equal(again.env.FRONT_DOOR_ORIGIN, 'http://localhost:4700', 'and its address, which its passkey belongs to');
   assert.equal(again.env.FRONT_DOOR_SETUP_KEY, key);
-  assert.equal(again.said.trim().split('\n').at(-1), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
+  assert.equal(again.said.trim().split('\n').at(-2), 'BOTDOT_LOCAL {"origin":"http://localhost:4700"}');
 
   const port = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '5100', BOT_DOT_ADMIN: 'bart' } });
   assert.equal(port.status, 0, port.stderr);
   assert.equal(port.env.FRONT_DOOR_ORIGIN, 'http://localhost:5100');
   assert.equal(port.env.FRONT_DOOR_SITES_ORIGIN, 'http://localhost:5101');
   assert.equal(port.env.FRONT_DOOR_ONE_ACCOUNT, 'bart');
-  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\n$/);
+  assert.match(port.said, /BOTDOT_LOCAL \{"origin":"http:\/\/localhost:5100","signUp":"http:\/\/localhost:5100\/sign-up\/[0-9a-f]{64}"\}\nBOTDOT_READY \{"origin":"http:\/\/localhost:5100",[^\n]*"accounts":\["bart"\]\}\n$/);
 
   const bad = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_PORT: '80' } });
   assert.equal(bad.status, 1);
@@ -217,6 +248,12 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
     assert.match(compose, new RegExp(`\\n  ${service}:\\n(    .*\\n)*?    runtime: runsc-uds\\b`), service);
   }
   assert.deepEqual(daemon['exec-opts'], ['native.cgroupdriver=cgroupfs']);
+  // gVisor through root's script beside the share, which sizes each sandbox by it (ADR 152).
+  assert.equal(daemon.runtimes.runsc.path, `${home}/share/runsc`);
+  const runsc = path.join(home, 'share', 'runsc');
+  assert.equal(fs.statSync(runsc).mode & 0o777, 0o755);
+  assert.match(fs.readFileSync(runsc, 'utf8'), /^RUNSC='\/\S+\/runsc'$/m, 'the machine\'s runsc');
+  assert.match(done.system, new RegExp(`^chown 0:0 ${home}/share$`, 'm'), 'root\'s');
 
   // Started by systemd as the account's own user.
   const unit = fs.readFileSync(path.join(done.etc, 'systemd', 'system', 'botdot-account@.service'), 'utf8');
@@ -241,6 +278,7 @@ test("the admin's account gets its own Linux user, rootless Docker under gVisor,
   assert.equal(env.BOT_DOT_FRONT_DOOR_FOLDER, folder);
   assert.equal(env.DOCKER_SOCKET, `${done.run}/ann/docker.sock`);
   assert.equal(env.TZ, 'UTC');
+  assert.match(env.BOT_DOT_INSTANCE, /^[0-9a-f]{8}$/, "the machine's own id, in its boat.dev machines' names (#982)");
   assert.ok(done.accountCalls('ann').includes(`compose --project-directory ${home} up -d --remove-orphans`));
   assert.ok(!done.calls.some((c) => /^compose --project-directory .*accounts/.test(c)), 'never in the machine\'s Docker');
   assert.match(done.said, /The account ann is running/);
@@ -258,6 +296,7 @@ test('a rerun keeps its Docker running when nothing of its settings changed', (t
   const again = installer(t, { again: first });
   assert.equal(again.status, 0, again.stderr);
   const after = again.system.slice(first.system.length);
+  assert.equal(again.accountEnv('ann').BOT_DOT_INSTANCE, first.accountEnv('ann').BOT_DOT_INSTANCE, "the machine's id is made once and kept");
   assert.match(after, /^systemctl start botdot-account@ann$/m);
   assert.doesNotMatch(after, /^systemctl restart/m, 'its bots keep running');
   assert.doesNotMatch(after, /^useradd .*botdot-ann$/m, 'its user is there already');
@@ -296,6 +335,62 @@ test('an account installed before computers kept their files gets --overlay2=non
   assert.equal(again.status, 0, again.stderr);
   assert.ok(JSON.parse(fs.readFileSync(file, 'utf8')).runtimes.runsc.runtimeArgs.includes('--overlay2=none'));
   assert.match(again.system.slice(first.system.length), /^systemctl restart botdot-account@ann$/m, 'its computers keep their files from their next start');
+});
+
+// The log limits every container's Docker gets (#980).
+const LOGS = { 'log-driver': 'json-file', 'log-opts': { 'max-size': '20m', 'max-file': '5' } };
+const logsOf = (daemon) => ({ 'log-driver': daemon['log-driver'], 'log-opts': daemon['log-opts'] });
+const machineDaemon = (done) => path.join(done.etc, 'docker', 'daemon.json');
+
+test("the machine's and every account's Docker keep containers' logs to a fixed size, and the machine's restarts once for it (#980)", (t) => {
+  const first = rerun(t);
+  assert.deepEqual(logsOf(JSON.parse(fs.readFileSync(path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json'), 'utf8'))), LOGS);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), LOGS);
+  assert.equal(fs.statSync(machineDaemon(first)).mode & 0o777, 0o644);
+  assert.equal(first.system.match(/^systemctl restart docker$/gm).length, 1);
+  assert.ok(first.system.indexOf('systemctl restart docker') < first.system.indexOf('useradd'), 'before anything of botdot runs in it');
+  const again = installer(t, { again: first });
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.system.slice(first.system.length), /^systemctl restart docker$/m, 'a rerun leaves it running');
+});
+
+test("the admin's own Docker settings are kept: the limits join them, and a log driver the admin chose stays (#980)", (t) => {
+  const first = rerun(t);
+  fs.writeFileSync(machineDaemon(first), '{\n  "registry-mirrors": ["https://mirror.example.com"]\n}\n');
+  const joined = installer(t, { again: first });
+  assert.equal(joined.status, 0, joined.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), { ...LOGS, 'registry-mirrors': ['https://mirror.example.com'] });
+  assert.match(joined.system.slice(first.system.length), /^systemctl restart docker$/m);
+  const own = '{ "log-driver": "journald" }\n';
+  fs.writeFileSync(machineDaemon(first), own);
+  const kept = installer(t, { again: joined });
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.equal(fs.readFileSync(machineDaemon(first), 'utf8'), own);
+  assert.doesNotMatch(kept.system.slice(joined.system.length), /^systemctl restart docker$/m);
+});
+
+test('an update of a machine installed before log limits gives them to its Docker and every account\'s, each restarted once (#980)', (t) => {
+  const first = rerun(t);
+  const account = path.join(first.dir, 'accounts', 'ann', '.config', 'docker', 'daemon.json');
+  const before = JSON.parse(fs.readFileSync(account, 'utf8'));
+  delete before['log-driver'];
+  delete before['log-opts'];
+  fs.writeFileSync(account, JSON.stringify(before, null, 2));
+  fs.rmSync(machineDaemon(first));
+  const update = installer(t, { again: first, args: ['--update'] });
+  assert.equal(update.status, 0, `${update.said}\n${update.stderr}`);
+  assert.deepEqual(logsOf(JSON.parse(fs.readFileSync(account, 'utf8'))), LOGS);
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(first), 'utf8')), LOGS);
+  const after = update.system.slice(first.system.length);
+  assert.equal(after.match(/^systemctl restart docker$/gm).length, 1);
+  assert.equal(after.match(/^systemctl restart botdot-account@ann$/gm).length, 1);
+});
+
+test("without systemd the machine's Docker gets its log limits in its settings, and the installer says they apply after its restart (#980)", (t) => {
+  const done = rerun(t, '', {}, { systemd: false });
+  assert.deepEqual(JSON.parse(fs.readFileSync(machineDaemon(done), 'utf8')), LOGS);
+  assert.doesNotMatch(done.system, /^systemctl restart docker$/m);
+  assert.match(done.said + done.stderr, /only after it next restarts/);
 });
 
 test('without systemd the account\'s Docker is started now, as its own user, and the installer says it won\'t come back by itself', (t) => {
@@ -479,8 +574,9 @@ test('an update with room in every account goes on, and so does one whose regist
   const roomy = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers() });
   assert.equal(roomy.status, 0, `${roomy.said}\n${roomy.stderr}`);
   assert.equal(downloads(roomy), 2);
-  // Short of room, but nothing to download: the account has every layer.
-  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '1' } });
+  // Short of room, but nothing to download: the account has every layer. The snapshot of its data isn't counted: one
+  // without room is skipped at its switch.
+  const has = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers(`${KEPT_LAYER} 500000000\\n`), given: { STAND_IN_DISK_FREE: '64' } });
   assert.equal(has.status, 0, `${has.said}\n${has.stderr}`);
   // An older registry's answer: no layers, no check.
   const unknown = installer(t, { again: first, dotenv: '', args: ['--update'], given: { STAND_IN_DISK_FREE: '1' } });
@@ -498,7 +594,7 @@ test('a computer image that could not be downloaded now is downloaded by botdot 
 test('the image it is given is installed as its repository\'s signed release, as the updater does', (t) => {
   const mine = `ghcr.io/kordal/bot-dot@sha256:${'b'.repeat(64)}`;
   const { env, checks } = rerun(t, `BOT_DOT_IMAGE=ghcr.io/kordal/bot-dot${PIN}\n`, { BOT_DOT_IMAGE: mine });
-  assert.equal(checks[0].at(-2), mine);
+  assert.equal(checked(checks[0])[0], mine);
   assert.equal(env.BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);
 });
 
@@ -509,7 +605,7 @@ test('compose starts what .env names, not the names the installer was given', ()
 
 test('both images\' signatures are checked before anything of botdot\'s is downloaded', (t) => {
   const { docker, checks } = rerun(t);
-  assert.deepEqual(checks.map((args) => args.slice(-2)), [['ghcr.io/kordal/bot-dot:latest', 'server'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
+  assert.deepEqual(checks.map((args) => checked(args).slice(0, 2)), [['ghcr.io/kordal/bot-dot:latest', 'server'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
   const lastCheck = docker.reduce((last, c, i) => (c.call.includes('/check/lib/signed-image.js') ? i : last), -1);
   assert.ok(docker.findIndex((c) => DOWNLOADS.test(c.call)) > lastCheck, docker.map((c) => c.call).join('\n'));
 });
@@ -613,7 +709,7 @@ test('a missing docker compose names the package for each Docker', (t) => {
 test('the installer removes no image of botdot by name: botdot decides which old ones go', () => {
   // The one removal: in an account's Docker of a self-built install, the images a newer build left without a name,
   // each by its id and never forced (lib/image-cleanup.js knows only the signed images).
-  const removals = code.split('\n').filter((l) => /\bimage\s+(rm|prune)\b|\brmi\b|\bprune\b/.test(l)).map((l) => l.trim());
+  const removals = code.split('\n').filter((l) => /\bimage\s+(rm|prune)\b|\brmi\b|\b(system|container|volume|builder|buildx)\s+prune\b/.test(l)).map((l) => l.trim());
   assert.deepEqual(removals, ['case "$was" in sha256:*) $A image rm "$was" </dev/null >/dev/null 2>&1 || true ;; esac']);
   assert.match(code, /for was in \$\(\$A image ls -q --no-trunc --filter dangling=true/);
 });
@@ -673,7 +769,7 @@ test('botdot takes the machine\'s time zone, or UTC when it has none', (t) => {
 });
 
 test('compose gives the server, the helper and the front door the time zone of .env, or UTC', () => {
-  for (const [name, services] of [['compose.yaml', ['bot-dot', 'docker-helper']], ['compose.mac.yaml', ['bot-dot', 'docker-helper']], ['compose.front-door.yaml', ['front-door']]]) {
+  for (const [name, services] of [['compose.yaml', ['bot-dot', 'docker-helper']], ['compose.front-door.yaml', ['front-door']]]) {
     const compose = fs.readFileSync(path.join(ROOT, name), 'utf8');
     for (const service of services) {
       const block = compose.slice(compose.indexOf(`\n  ${service}:\n`) + 1).split(/\n {2}(?=\S)/)[0];
@@ -690,7 +786,88 @@ test('an account\'s botdot server keeps a network of its own, and its helper the
   assert.match(compose, /- \$\{DOCKER_SOCKET:-\/var\/run\/docker\.sock\}:\/var\/run\/docker\.sock/);
   assert.match(compose, /- \$\{BOT_DOT_FRONT_DOOR_FOLDER:-\.\/front-door\}:\/run\/front-door/);
   assert.match(compose, /BOT_DOT_FRONT_DOOR_SOCKET: \/run\/front-door\/botdot\.sock/);
-  for (const name of ['compose.yaml', 'compose.mac.yaml', 'compose.front-door.yaml', 'install.sh', 'README.md', 'docs/install-linux.md']) {
+  for (const name of ['compose.yaml', 'compose.front-door.yaml', 'install.sh', 'README.md', 'docs/install-linux.md']) {
     assert.doesNotMatch(fs.readFileSync(path.join(ROOT, name), 'utf8'), /BOT_DOT_ALLOWED_USERS/, `${name}: the variable does nothing since the front door`);
   }
+});
+
+// --- Jev and boat.dev ------------------------------------------------------------------------------
+
+// The image's key check (lib/group-router.js, lib/boat.js and lib/connectors.js checkKey), stood in for: a key starting "good" is taken,
+// "down" can't be checked, any other is refused. It writes down which check it was asked and the key it read.
+const keyChecks = [
+  'case "$*" in *checkKey*) k="$(cat)"; for a; do l="$a"; done; echo "checkKey $l $k" >> "$STAND_IN_LOG";',
+  '  case "$k" in good*) printf ok ;; down*) printf unreachable ;; *) printf refused ;; esac; exit 0 ;; esac',
+];
+const keysOf = (done) => { const f = path.join(done.dir, 'front-door', 'data', 'install-keys.json'); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
+
+test('a first install asks for Jev, boat.dev and Composio, checks each key, asks again after a refusal, and hands them to the front door', (t) => {
+  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\ny\nwrong-key-1\ny\ngood-openrouter-1\ny\ngood-boat-1\ny\ngood-composio-1\n' });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.match(done.said, /Use Jev as the decision model\? \[y\/N\]/);
+  assert.match(done.said, /OpenRouter key:/);
+  assert.match(done.said, /OpenRouter refused this key\./);
+  assert.match(done.said, /Use boat\.dev for the External Virtual PC\? \[y\/N\]/);
+  assert.match(done.said, /boat\.dev API key:/);
+  assert.match(done.said, /Use Composio for connectors\? \[y\/N\]/);
+  assert.match(done.said, /Composio API key:/);
+  // Where each key is made, on the line before its prompt.
+  assert.match(done.said, /https:\/\/openrouter\.ai\/settings\/keys\nOpenRouter key:/);
+  assert.match(done.said, /https:\/\/boat\.dev\/dashboard\?tab=api-keys\nboat\.dev API key:/);
+  assert.match(done.said, /https:\/\/platform\.composio\.dev\nComposio API key:/);
+  assert.ok(!['good-openrouter-1', 'good-boat-1', 'good-composio-1'].some((k) => done.said.includes(k)), 'a key is never shown');
+  assert.match(done.system, /checkKey group-router wrong-key-1\ncheckKey group-router good-openrouter-1\ncheckKey boat good-boat-1\ncheckKey connectors good-composio-1/);
+  assert.ok(done.calls.every((c) => !c.includes('good-')), 'a key goes on standard input, never on a command line');
+  assert.deepEqual(keysOf(done), { openrouter: 'good-openrouter-1', boat: 'good-boat-1', composio: 'good-composio-1' });
+  assert.equal(fs.statSync(path.join(done.dir, 'front-door', 'data', 'install-keys.json')).mode & 0o777, 0o600);
+  assert.match(done.system, /chown \d+:\d+ \S*front-door\/data\/install-keys\.json/, "the front door's to take");
+  assert.ok(!Object.keys(done.env).some((k) => /OPENROUTER|BOAT|COMPOSIO/.test(k)), 'no key in .env');
+
+  const again = installer(t, { dotenv: fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8'), dockerFirst: keyChecks });
+  assert.equal(again.status, 0, again.stderr);
+  assert.doesNotMatch(again.said, /Jev|boat\.dev|Composio/, 'a rerun asks nothing again: the admin page and the Connectors page set them');
+});
+
+test('a first install with no answer takes neither, and an unreachable check is left to the admin page', (t) => {
+  const none = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\n' });
+  assert.equal(none.status, 0, `${none.said}\n${none.stderr}`);
+  assert.match(none.said, /Use Jev as the decision model\?/);
+  assert.equal(keysOf(none), null);
+  assert.doesNotMatch(none.system, /checkKey/);
+
+  const down = installer(t, { dotenv: '', dockerFirst: keyChecks, input: '1\nbots.example.org\nann\ny\ndown-key-1\nn\n' });
+  assert.equal(down.status, 0, `${down.said}\n${down.stderr}`);
+  assert.match(down.said, /OpenRouter couldn't be reached: set the key on the admin page\./);
+  assert.equal(keysOf(down), null);
+});
+
+test('BOT_DOT_OPENROUTER_KEY, BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer beforehand, empty is no, and a refused one only warns', (t) => {
+  const given = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'public', BOT_DOT_DOMAIN: 'bots.example.org', BOT_DOT_ADMIN: 'bea', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-2', BOT_DOT_BOAT_KEY: '', BOT_DOT_COMPOSIO_KEY: '' } });
+  assert.equal(given.status, 0, `${given.said}\n${given.stderr}`);
+  assert.doesNotMatch(given.said, /Use Jev|Use boat\.dev|Use Composio/, 'nothing asked');
+  assert.match(given.said, /OpenRouter key set/);
+  assert.deepEqual(keysOf(given), { openrouter: 'good-openrouter-2', boat: null, composio: null });
+
+  const rerunGiven = rerun(t, '', { BOT_DOT_BOAT_KEY: 'good-boat-2' }, { dockerFirst: keyChecks });
+  assert.deepEqual(keysOf(rerunGiven), { openrouter: null, boat: 'good-boat-2', composio: null }, 'on a rerun too');
+
+  const composio = rerun(t, '', { BOT_DOT_COMPOSIO_KEY: 'good-composio-2' }, { dockerFirst: keyChecks });
+  assert.match(composio.said, /Composio key set/);
+  assert.deepEqual(keysOf(composio), { openrouter: null, boat: null, composio: 'good-composio-2' });
+
+  const composioRefused = rerun(t, '', { BOT_DOT_COMPOSIO_KEY: 'bad-composio-2' }, { dockerFirst: keyChecks });
+  assert.match(composioRefused.said, /Composio refused BOT_DOT_COMPOSIO_KEY: set the key on the Connectors page\./);
+  assert.equal(keysOf(composioRefused), null);
+
+  const refused = rerun(t, '', { BOT_DOT_BOAT_KEY: 'bad-boat-2' }, { dockerFirst: keyChecks });
+  assert.match(refused.said, /boat\.dev refused BOT_DOT_BOAT_KEY: set the key on the admin page\./);
+  assert.equal(keysOf(refused), null);
+});
+
+test('botdot on this computer only never asks for Jev, boat.dev or Composio: it has no admin page', (t) => {
+  const done = installer(t, { dotenv: '', dockerFirst: keyChecks, given: { BOT_DOT_REACH: 'local', BOT_DOT_OPENROUTER_KEY: 'good-openrouter-3', BOT_DOT_COMPOSIO_KEY: 'good-composio-3' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.doesNotMatch(done.said, /Jev|boat\.dev|OpenRouter|Composio/);
+  assert.doesNotMatch(done.system, /checkKey/);
+  assert.equal(keysOf(done), null);
 });

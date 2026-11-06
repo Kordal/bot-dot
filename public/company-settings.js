@@ -68,7 +68,7 @@
   // The pieces on its board (#780), each on or off; a project made before has them all on.
   function boardHTML(c) {
     if (!(state.features || []).includes('project-board')) return '';
-    const pieces = Company.PIECES.map((k) => { const on = Company.onBoard(c, k); return `<button type="button" data-ps-piece="${k}" aria-pressed="${on}" class="${on ? 'on' : ''}">${esc(Company.pieceLabel(k))}</button>`; }).join('');
+    const pieces = (Company.piecesOf ? Company.piecesOf(c) : Company.PIECES).map((k) => { const on = Company.onBoard(c, k); return `<button type="button" data-ps-piece="${k}" aria-pressed="${on}" class="${on ? 'on' : ''}">${esc(Company.pieceLabel(k))}</button>`; }).join('');
     return row(tr('Board'), `<div class="ps-seg ps-pieces" role="group">${pieces}</div>`);
   }
 
@@ -94,8 +94,9 @@
     const sources = fed.length ? row(tr('Update from an app'), fed.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}"><span class="ps-show-name"><i class="ps-dot"></i>${esc(`${o.name} · ${o.source.app} · ${o.source.what}`)}</span>${seg('data-ps-every', EVERY, o.source.every || 'daily', ` data-ps-objective-id="${esc(o.id)}"`)}<button type="button" class="btn sm" data-ps-source-stop="${esc(o.id)}">${tr('Stop updating')}</button></div>`).join(''), 'top') : '';
     return section('goal', tr('Goal'), row(tr('Goal'), field('goal', c.goal, 300, tr('Goal')))
       + row(tr('Objectives'), objectives, 'top') + show + sources
-      + row(tr('Delivery'), `<input class="ps-input ps-date" type="date" data-ps-deliver value="${/^\d{4}-\d{2}-\d{2}$/.test(c.deliverBy || '') ? esc(c.deliverBy) : ''}" aria-label="${tr('Delivery')}" /><button type="button" class="btn sm${c.deliverBy === 'none' ? '' : ' ghost'}" data-ps-deliver-none aria-pressed="${c.deliverBy === 'none'}">${tr('Indefinite')}</button>`)
-      + (c.phase === 'running' ? row(tr('Start'), `<input class="ps-input ps-date" type="date" data-ps-startday value="${esc(started)}" aria-label="${tr('Start')}" />`) + row(tr('Check-ins'), checkins) : ''));
+      // An ongoing project (#925) has no delivery date and no check-ins: its monthly review comes on its own.
+      + (c.ongoing ? '' : row(tr('Delivery'), `<input class="ps-input ps-date" type="date" data-ps-deliver value="${/^\d{4}-\d{2}-\d{2}$/.test(c.deliverBy || '') ? esc(c.deliverBy) : ''}" aria-label="${tr('Delivery')}" /><button type="button" class="btn sm${c.deliverBy === 'none' ? '' : ' ghost'}" data-ps-deliver-none aria-pressed="${c.deliverBy === 'none'}">${tr('Indefinite')}</button>`))
+      + (c.phase === 'running' ? row(tr('Start'), `<input class="ps-input ps-date" type="date" data-ps-startday value="${esc(started)}" aria-label="${tr('Start')}" />`) + (c.ongoing ? '' : row(tr('Check-ins'), checkins)) : ''));
   }
 
   function teamHTML(c) {
@@ -183,7 +184,7 @@
     $$('[data-ps-color]', root).forEach((b) => (b.onclick = () => patch({ color: b.dataset.psColor })));
     $$('[data-ps-piece]', root).forEach((b) => (b.onclick = () => {
       const k = b.dataset.psPiece;
-      const list = Array.isArray(c.board) ? c.board : Company.PIECES;
+      const list = Array.isArray(c.board) ? c.board : (Company.piecesOf ? Company.piecesOf(c) : Company.PIECES);
       patch({ board: list.includes(k) ? list.filter((x) => x !== k) : [...list, k] });
     }));
     // Sources.
@@ -231,8 +232,10 @@
     if (startDay) startDay.onchange = () => { if (startDay.value) patch({ startDay: startDay.value }); };
     // The target delivery date (#792): a day, or No date; clearing the day leaves it unanswered.
     const deliver = $('[data-ps-deliver]', root);
-    deliver.onchange = () => patch({ deliverBy: deliver.value || '' });
-    $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
+    if (deliver) {
+      deliver.onchange = () => patch({ deliverBy: deliver.value || '' });
+      $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
+    }
     // Teams.
     $$('[data-ps-edit-team]', root).forEach((b) => (b.onclick = () => { editing = b.dataset.psEditTeam; draft = null; Company.redraw(); }));
     const newTeam = $('[data-ps-new-team]', root);
@@ -258,9 +261,9 @@
         if (!(await call(was === 'new' ? '/company/teams' : `/company/teams/${encodeURIComponent(was)}`, was === 'new' ? 'POST' : 'PUT', body))) { editing = was; draft = body; Company.redraw(); }
       };
       const del = $('[data-ps-delete-team]', ed);
-      if (del) del.onclick = () => {
+      if (del) del.onclick = async () => {
         const t = c.teams.find((x) => x.id === del.dataset.psDeleteTeam);
-        if (!t || !confirm(tr('Delete the team {name}? Its bots stay.', { name: t.name }))) return;
+        if (!t || !(await askFirst(tr('Delete the team {name}? Its bots stay.', { name: t.name }), tr('Delete')))) return;
         editing = null; draft = null;
         call(`/company/teams/${encodeURIComponent(t.id)}`, 'DELETE');
       };

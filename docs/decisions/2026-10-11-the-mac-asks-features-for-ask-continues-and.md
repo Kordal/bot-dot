@@ -1,0 +1,1 @@
+2026-10-11: The Mac asks `features` for `ask-continues` and `connector-waits` before it draws `then`, `carriesOn`, `parts`, `rows`, `held` and "Waiting for your OK". Android draws them whenever the fields are there. (#369)

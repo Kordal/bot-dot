@@ -112,6 +112,7 @@ import dev.botdot.app.ui.ShareScreen
 import dev.botdot.app.ui.PausedScreen
 import dev.botdot.app.ui.SignInScreen
 import dev.botdot.app.ui.VaultScreen
+import dev.botdot.app.ui.StorageScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -394,6 +395,7 @@ class MainActivity : ComponentActivity() {
                             onChiefSay = { app.chiefWords = it; open("chief/new") },
                             onTeam = { open("group/$it") },
                             onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
+                            onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
                             onGoalChat = { open("chief/$it") },
                         ), spaces = spaceWays, railed = railed, field = false)
                     }
@@ -495,6 +497,7 @@ class MainActivity : ComponentActivity() {
                                 onChiefSay = { app.chiefWords = it; open("chief/new") },
                                 onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
                                 onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
+                            onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
                                 onGoalChat = { dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
                             ), spaces = spaceWays)
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
@@ -520,8 +523,9 @@ class MainActivity : ComponentActivity() {
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
                     // A bot's files, or the Chief's (#603), full screen.
-                    composable("files/{id}") { e ->
-                        FilesScreen(app, e.arguments?.getString("id") ?: "") { nav.popBackStack() }
+                    // Storage opens one at a folder: ?root=…&path=….
+                    composable("files/{id}?root={root}&path={path}", arguments = listOf(navArgument("root") { defaultValue = "" }, navArgument("path") { defaultValue = "" })) { e ->
+                        FilesScreen(app, e.arguments?.getString("id") ?: "", startRoot = e.arguments?.getString("root").orEmpty(), startPath = e.arguments?.getString("path").orEmpty()) { nav.popBackStack() }
                     }
                     composable("screen/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
@@ -531,13 +535,17 @@ class MainActivity : ComponentActivity() {
                         if (bot?.computer == "boat") BoatScreen(app, id, name) { nav.popBackStack() } else LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {
-                        SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") }, onPages = { nav.navigate("pages") },
+                        SettingsScreen(app, onSkills = { nav.navigate("skills") }, onConnectors = { nav.navigate("connectors") }, onVault = { nav.navigate("vault") }, onPages = { nav.navigate("pages") }, onStorage = { nav.navigate("storage") },
                             onChangeServer = { nav.navigate("connect") }, onBattery = { askBackgroundOk() }) { nav.popBackStack() }
                     }
                     composable("skills") { SkillsScreen(app) { nav.popBackStack() } }
                     composable("pages") { PagesScreen(app) { nav.popBackStack() } }
                     composable("connectors") { ConnectorsScreen(app) { nav.popBackStack() } }
                     composable("vault") { VaultScreen(app) { nav.popBackStack() } }
+                    composable("storage") {
+                        StorageScreen(app, onFiles = { owner, root, path -> nav.navigate("files/${Uri.encode(owner)}?root=${Uri.encode(root)}&path=${Uri.encode(path)}") },
+                            onChief = { nav.navigate("chief/latest") }) { nav.popBackStack() }
+                    }
                     composable("share") {
                         ShareScreen(app, count = shared.size, text = sharedWords,
                             onPick = { who ->

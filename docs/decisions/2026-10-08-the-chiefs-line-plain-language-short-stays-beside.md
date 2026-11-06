@@ -1,0 +1,1 @@
+2026-10-08: The Chief's line "plain language, short" stays beside the new "aim for under 150 words", because the plan keeps every other line of both prompts as it was. Rejected: taking "short" out (a change to a line the plan does not name). (plan)

@@ -1,0 +1,1 @@
+2026-11-05: A managed machine's guard of its computers (#984, ADR 156) refuses TCP 25 and 465 with a TCP reset rather than an ICMP error, so a mail program fails at once; it also refuses `0.0.0.0/8` and `::ffff:0:0/96` (IPv4-mapped IPv6), which reach the same private addresses another way. No whats-new note: no managed machine runs yet.

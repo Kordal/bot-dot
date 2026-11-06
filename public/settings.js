@@ -324,8 +324,9 @@ function drawChiefSkills(root) {
   }).catch(() => { box.innerHTML = `<span class="faint">${tr("Couldn't load skills.")}</span>`; });
 }
 
-// The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361).
-const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Connectors')], ['vault', tr('Vault')]];
+// The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361); Storage what the
+// account's files take on the disk (storage.js).
+const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Connectors')], ['vault', tr('Vault')], ['storage', tr('Storage')]];
 
 // The rows to the pages above. Drawn again on every refresh, also while the rows below keep their edits, so that
 // Activity always shows the tasks running now.
@@ -333,7 +334,7 @@ function drawSettingsLinks(root) {
   const box = $('#settings-links', root);
   if (!box) return;
   const running = runningTasks();
-  box.innerHTML = SETTINGS_PAGES.filter(([view]) => view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())).map(([view, label]) => `
+  box.innerHTML = SETTINGS_PAGES.filter(([view]) => (view !== 'pages' || (typeof Pages !== 'undefined' && Pages.showsAll())) && (view !== 'storage' || (state.features || []).includes('storage'))).map(([view, label]) => `
       <button type="button" class="bs-row bs-link" data-go="${view}"><b>${label}</b>${view === 'runs' && running ? `<span class="bs-val">${trn(running, '{n} running', '{n} running')}</span>` : ''}${CHEV}</button>`).join('');
   $$('[data-go]', box).forEach((b) => (b.onclick = () => setView(b.dataset.go)));
 }
@@ -360,13 +361,7 @@ function renderSettings() {
         <summary><b>${tr('Bots with their own model')}</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
         <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
       </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}
-      ${state.features.includes('boat-size') && state.status?.boat ? `<details class="bs-row bs-more" id="boat-size-card">
-        <summary><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary>
-        <div class="bs-body">
-          ${state.features.includes('account-computer') ? `<label class="field">${tr('Where')}<select id="computer-place" disabled><option value="linux">${tr('This machine')}</option><option value="boat">${tr('External Virtual PC')}</option></select></label>` : ''}
-          <label class="field" id="boat-size-field">${tr('Size')}<select id="boat-size" disabled${tipAttrs(tr('Each machine takes it when it starts next.'))}><option>${tr('Loading…')}</option></select></label>
-        </div>
-      </details>` : ''}
+      ${state.features.includes('boat-size') && state.status?.boat ? `<div class="bs-row" id="boat-size-card" hidden><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span></div>` : ''}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
       <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
       ${pushCardHTML()}
@@ -385,7 +380,6 @@ function renderSettings() {
   drawSettingsLinks(root);
   loadBackupsCard();
   loadComputerPlace(root);
-  loadBoatSize(root);
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   wireLanguage(root);
   const form = $('#settings-form', root);
@@ -434,49 +428,19 @@ function wireLanguage(root) {
   };
 }
 
-// Where the account's computer is (#579): this machine or its External Virtual PC on boat.dev, for every bot with a
-// computer. A switch asks once whether the bots' files go along.
+// Where the account's computer is (#579) and, on its External Virtual PC on boat.dev, its size: the admin chooses both,
+// on the admin page (ADR 146, ADR 163), so here they are a row's value, shown only while the computer is there.
+const boatSizeLabel = (id) => id.charAt(0).toUpperCase() + id.slice(1);
 async function loadComputerPlace(root) {
-  const pick = $('#computer-place', root);
-  if (!pick) return;
-  let place;
-  try { ({ place } = await api('/settings/computer')); } catch { return; }
-  const show = () => {
-    pick.value = place;
-    $('#boat-size-field', root).hidden = place !== 'boat';
-    $('#computer-place-val', root).textContent = pick.selectedOptions[0]?.textContent || '';
-  };
-  show();
-  pick.disabled = false;
-  pick.onchange = async () => {
-    const to = pick.value;
-    pick.value = place; // back at the saved one until the answer
-    const copy = state.bots.some((b) => b.computer === 'linux' || b.computer === 'boat') ? await askMoveFiles(to, true) : false;
-    if (copy === null) return;
-    try {
-      ({ place } = await api('/settings/computer', { method: 'PUT', body: { place: to, moveFiles: copy } }));
-      show();
-      flashSaved($('#view-settings'));
-      await refresh();
-    } catch (err) { toast(err.message, true); }
-  };
-}
-
-// The size of the account's boat.dev machines (#539): the sizes boat.dev makes now, and the chosen one even when not.
-const boatSizeLabel = (s) => `${s.id[0].toUpperCase()}${s.id.slice(1)} · ${s.cpus} CPU · ${s.memoryGB} GB`;
-async function loadBoatSize(root) {
-  const pick = $('#boat-size', root);
-  if (!pick) return;
-  let r;
-  try { r = await api('/settings/boat-size'); } catch { $('#boat-size-card', root).hidden = true; return; }
-  pick.innerHTML = r.sizes.filter((s) => s.available || s.id === r.size).map((s) => `<option value="${esc(s.id)}"${s.id === r.size ? ' selected' : ''}>${esc(boatSizeLabel(s))}</option>`).join('');
-  pick.disabled = false;
-  pick.onchange = async () => {
-    try {
-      await api('/settings/boat-size', { method: 'PUT', body: { size: pick.value } });
-      flashSaved($('#view-settings'));
-    } catch (err) { toast(err.message, true); }
-  };
+  const row = $('#boat-size-card', root);
+  if (!row) return;
+  let place = 'boat';
+  if (state.features.includes('account-computer')) { try { ({ place } = await api('/settings/computer')); } catch { return; } }
+  if (place !== 'boat') return;
+  let size = '';
+  try { size = boatSizeLabel((await api('/settings/boat-size')).size); } catch { /* the place alone */ }
+  $('#computer-place-val', root).textContent = [tr('External Virtual PC'), size].filter(Boolean).join(' · ');
+  row.hidden = false;
 }
 
 // ---------- installing the app ----------
@@ -606,7 +570,7 @@ function drawUpdateCard(u) {
   };
   const now = $('#update-now', card);
   if (now) now.onclick = async () => {
-    if (!confirm(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'))) return;
+    if (!(await askFirst(tr('Update now? Your account moves to the new version: your bots restart, and work still running stops.'), tr('Update now'), { danger: false }))) return;
     now.disabled = true;
     try { drawUpdateCard(await frontDoorPost('/front-door/update/now', {})); } catch (err) { toast(err.message, true); now.disabled = false; }
   };
@@ -637,7 +601,7 @@ const signOutCardHTML = () => (state.features.includes('accounts') ? `
     </details>` : '');
 
 async function signOutEverywhere() {
-  if (!confirm(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'))) return;
+  if (!(await askFirst(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'), tr('Sign out everywhere')))) return;
   let res;
   // The front door's own route, not botdot's: no botdot server, and so no Chief or bot, reaches a session.
   try { res = await fetch('/sign-out-everywhere', { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast(tr("Can't reach botdot."), true); return; }
@@ -766,54 +730,50 @@ async function sendFeedback(m) {
 
 // ---------- backups ----------
 
-// Settings → Backups (lib/backup.js): nightly, encrypted with your passphrase, the last few kept.
+// Settings → Backups (lib/backup.js, ADR 158): when this account's data last went off-site, and a download of it made
+// now, encrypted with a passphrase chosen for it.
 async function loadBackupsCard() {
   const card = $('#backups-card');
   if (!card) return;
   let b;
   try { b = await api('/backups'); } catch (e) { card.querySelector('.bs-val').textContent = e.message; return; }
-  const head = (value) => `<summary><b>${tr('Backups')}</b><span class="bs-val">${esc(value)}</span>${CHEV}</summary>`;
-  // Off: a passphrase turns them on. The one line kept says what losing it costs.
-  if (!b.configured) {
-    card.innerHTML = `${head(tr('Off'))}
-      <div class="bs-body">
-      <p class="muted">${tr("Without the passphrase a backup can't be opened: keep it safe.")}</p>
-      <form id="backup-pass" class="backup-pass" autocomplete="off">
-        <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="8" required autocomplete="new-password">
-        <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="8" required autocomplete="new-password">
-        <button class="btn primary sm">${tr('Turn on')}</button>
-      </form>
-      </div>`;
-    $('#backup-pass', card).onsubmit = async (e) => {
-      e.preventDefault();
-      const f = e.target;
-      if (f.p1.value !== f.p2.value) return toast(tr("The two don't match"), true);
-      try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: f.p1.value } }); f.reset(); toast(tr('Backups are on')); await api('/backups/now', { method: 'POST' }); } catch (err) { toast(err.message, true); }
-      loadBackupsCard();
-    };
-    return;
-  }
-  const last = b.last ? esc(tr('Last backup {ago} · {count} kept', { ago: ago(b.last.at), count: b.count })) : tr('No backup yet');
-  card.innerHTML = `${head(tr('03:00 daily'))}
+  // The server's shortest passphrase (12 before it said so).
+  const min = b.minPassphrase || 12;
+  const o = b.offsite;
+  const value = !o || o.state === 'off' ? tr('Off')
+    : o.state === 'backing-up' ? tr('Backing up…')
+    : o.state === 'failed' ? tr('Failed')
+    : o.lastSuccess ? ago(o.lastSuccess) : tr('No backup yet');
+  card.innerHTML = `<summary><b>${tr('Backups')}</b><span class="bs-val${o?.late ? ' bs-late' : ''}">${esc(value)}</span>${CHEV}</summary>
     <div class="bs-body">
-    <p class="muted">${b.running ? tr('Backing up…') : last}</p>
-    ${b.error ? `<div class="req-note">${esc(b.error)}</div>` : ''}
-    <div class="backup-actions">
-      <button class="btn sm" id="backup-now" ${b.running ? 'disabled' : ''}>${tr('Back up now')}</button>
-      ${b.last ? `<a class="btn sm" href="/api/backups/${encodeURIComponent(b.last.name)}" download>${tr('Download')}</a>` : ''}
-      <button class="link-btn" id="backup-change">${tr('Change passphrase')}</button>
-    </div>
+    ${o && o.state === 'failed' && o.lastSuccess ? `<p class="muted">${esc(tr('Last backup {ago}', { ago: ago(o.lastSuccess) }))}</p>` : ''}
+    <form id="backup-download" class="backup-pass" autocomplete="off">
+      <input type="password" name="p1" placeholder="${esc(tr('Passphrase'))}" minlength="${min}" required autocomplete="new-password">
+      <input type="password" name="p2" placeholder="${esc(tr('Again'))}" minlength="${min}" required autocomplete="new-password">
+      <button class="btn sm" ${b.preparing ? 'disabled' : ''}>${b.preparing ? tr('Preparing…') : tr('Download')}</button>
+    </form>
     </div>`;
-  $('#backup-now', card).onclick = async (e) => {
-    e.target.disabled = true;
-    e.target.textContent = tr('Backing up…');
-    try { await api('/backups/now', { method: 'POST' }); toast(tr('Backed up')); } catch (err) { toast(err.message, true); }
-    loadBackupsCard();
-  };
-  $('#backup-change', card).onclick = async () => {
-    const p = prompt(tr('New backup passphrase (at least 8 characters). Older backups still need the old one.'));
-    if (!p) return;
-    try { await api('/backups/passphrase', { method: 'PUT', body: { passphrase: p } }); toast(tr('Passphrase changed. The next backups use it.')); } catch (err) { toast(err.message, true); }
+  $('#backup-download', card).onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target;
+    if (f.p1.value !== f.p2.value) return toast(tr("The two don't match"), true);
+    const go = f.querySelector('button');
+    go.disabled = true;
+    go.textContent = tr('Preparing…');
+    try {
+      const r = await api('/backups/download', { method: 'POST', body: { passphrase: f.p1.value } });
+      f.reset();
+      // Fetched once, by the browser's own download: the file is made as it comes.
+      const a = document.createElement('a');
+      a.href = r.url;
+      a.download = r.name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      toast(tr('Downloading'));
+    } catch (err) { toast(err.message, true); }
+    go.disabled = false;
+    go.textContent = tr('Download');
   };
 }
 

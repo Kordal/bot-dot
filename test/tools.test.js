@@ -295,6 +295,10 @@ test('a bot asks the Chief for a tool; the card says so, and the result names th
   assert.match(await mine.text('ask_chief_for_tool', { name: 'tree', reason: 'Still missing.' }), /asked already/);
   assert.equal(srv.runs().filter((r) => r.botdot && r.stdin.includes('Tool: tree')).length, 1);
   assert.match((await mine.call('ask_chief_for_tool', { name: 'gh', reason: 'x' })).content[0].text, /gh 2\.101\.0 is already installed for you/);
+  // A browser is never asked for: the bot is told to render with the computer's headless Chrome (#960), the Chief is not started.
+  const asking = srv.runs().length;
+  assert.match((await mine.call('ask_chief_for_tool', { name: 'Chromium', reason: 'Hyperframes says Browser not available.' })).content[0].text, /Nothing was asked\. [^]*\$HYPERFRAMES_BROWSER_PATH[^]*\/usr\/bin\/chromium[^]*Never Firefox/);
+  assert.equal(srv.runs().length, asking, 'no Chief turn for a browser');
   srv.release(fresh);
   srv.release(first.rec);
   await srv.finished(first.run.id);
@@ -587,14 +591,12 @@ test('a backup holds tools.json and not the tools; a restore on an empty data fo
   // A cache that an install of the second way was stopped over (tools-worker.js) is not data either.
   fs.mkdirSync(path.join(srv.data, 'tools', '.cache', 'pkgs'), { recursive: true });
   fs.writeFileSync(path.join(srv.data, 'tools', '.cache', 'pkgs', 'left.conda'), 'a package');
-  await srv.api('/backups/passphrase', { method: 'PUT', body: { passphrase: 'correct horse battery' } });
-  const made = await srv.api('/backups/now', { method: 'POST' });
-  assert.equal(made.status, 200, JSON.stringify(made.data));
+  const made = await srv.backup('correct horse battery');
   const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-tools-restore-'));
   const freshEnv = { ...env, BOT_DOT_TOOLS_CACHE: path.join(fresh, 'tools-cache') };
   let b = await startServer({ dir: fresh, env: freshEnv });
   try {
-    const up = await b.api('/backups/upload', { method: 'POST', raw: fs.readFileSync(path.join(srv.data, 'backups', made.data.last.name)) });
+    const up = await b.api('/backups/upload', { method: 'POST', raw: made.file });
     const r = await b.api('/backups/restore', { method: 'POST', body: { file: up.data.file, passphrase: 'correct horse battery' } });
     assert.equal(r.status, 200, JSON.stringify(r.data));
     const staged = path.join(b.data, '.restore-pending', 'data');

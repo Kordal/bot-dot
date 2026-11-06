@@ -27,6 +27,14 @@ The desktop app for Windows and Mac (#878) is a window onto a front door. Beside
 - **The VM's share of the Mac.** Half the CPUs (2 to 8), a third of the memory (8 to 16 GiB) and half the free disk (60 to 200 GiB, sparse). A Mac with under 12 GB of memory or 40 GB free is refused: the account alone takes 5 GiB. Plan on the whole VM's memory as the Mac's cost, since its page cache isn't given back. Only the front door's two ports are forwarded.
 - **A launch agent starts the VM at login,** `dev.botdot.vm`, with `RunAtLoad` and `limactl start`, which returns once the VM is ready and leaves it running. The app writes it again when it moved.
 
+## On Windows: the spike's result (#879)
+
+- **gVisor works, and there is no plan B.** On Windows 11 25H2 with WSL 3.0.3, kernel 6.18 and NAT networking: the real `install.sh` ran unchanged in a distribution made with `wsl --install Ubuntu-24.04 --name botdot --no-launch`, whose image has systemd on. systemd's units, rootless Docker, `runsc` and `runsc-uds` under systrap, the account's share, a computer with its screen, and a passkey at `http://localhost:4700` all worked. WSL forwards the distribution's `127.0.0.1` ports to Windows by itself.
+- **The distribution keeps away from Windows.** By default the image mounts every Windows drive and runs Windows programs, so the account's Linux user read the owner's files and ran `cmd.exe` as them. The app writes the distribution's own `/etc/wsl.conf` with `automount` and `interop` off before the installer runs, and restarts the distribution to read it. Nothing else of Windows changes: not the owner's other distributions, and not `.wslconfig`, so the VM's size is WSL's (half the memory unless the owner says otherwise) and the account's share follows it.
+- **A start at sign-in keeps it running.** A distribution with no `wsl.exe` left stops in about 15 s. `wsl.exe -d botdot --exec dbus-launch true` returns at once and leaves a process that keeps it running with no Windows process (15 minutes checked). The app puts that command in the user's `Run` key, under `conhost.exe --headless` so no window shows, and removes it with the distribution.
+- **WSL itself comes from Windows.** A PC without it gets `wsl.exe --install --no-distribution`, with Windows' own administrator prompt, then a restart; the app starts at sign-in and carries on where the setup stopped. A PC with less than 16 GB of memory or 40 GB free is refused.
+- **Not checked by the spike:** WSL's mirrored networking, where the distribution's loopback is Windows' own and `BOTDOT-LOCAL` lets loopback through.
+
 ## Alternatives
 
 - **Docker Desktop, as ADR 0002.** Rejected: no rootless Docker per account and no gVisor, so bots would run as on no other botdot, and a second compose file and install path to keep working.
@@ -38,7 +46,7 @@ The desktop app for Windows and Mac (#878) is a window onto a front door. Beside
 
 - The compose file of the old Mac app's local server (`compose.mac.yaml`) is not used and not changed.
 - Root in the VM reaches the account, as root on a server does; the VM is the owner's own.
-- The bots stop while the computer sleeps or the VM is stopped.
+- The bots stop while the computer sleeps or the VM is stopped, and on Windows while the owner is signed out.
 - A phone can't reach a local botdot: it answers on localhost only.
 - The key stays in `.env` after the account is made, where it opens nothing.
 - A front door from before this change doesn't know one account, so the installer refuses `local` with its image rather than make an admin's sign-up link on a computer.

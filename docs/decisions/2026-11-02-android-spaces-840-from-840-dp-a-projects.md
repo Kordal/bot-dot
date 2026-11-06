@@ -1,0 +1,1 @@
+2026-11-02: Android spaces (#840): from 840 dp a project's page takes the keypad's place left of the chat (its chats open in that chat), on a phone and beside the list it opens as the Projects screen did with its default chat as a field at the bottom; with no projects there is no rail and no sheet, so the first project is asked of the Chief.

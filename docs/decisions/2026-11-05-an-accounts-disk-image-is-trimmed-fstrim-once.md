@@ -1,0 +1,1 @@
+2026-11-05: An account's disk image is trimmed (fstrim) once a day and as soon as its snapshot goes, not mounted with `discard`: the image is a sparse file that never shrank (hq: 144 GB on the machine for 90 GB of files after a snapshot), and `discard` slows every write.

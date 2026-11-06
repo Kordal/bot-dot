@@ -1,6 +1,6 @@
 // Every job runs on GitHub's own throwaway machines (#528): the repository is public, and a fork's pull request
 // can change a workflow, so a runner of the owner's would run anyone's code (audit S1). The image carries the
-// Android app and no Mac app (ADR 031).
+// Android app and no native Mac app (ADR 142).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -132,7 +132,7 @@ test('no job a pull request starts holds a secret or the release environment', (
   }
   assert.deepEqual(found, []);
   // Signing and publishing are in jobs that only a nightly run or a run by hand starts.
-  for (const [name, job] of [['images.yml', 'publish'], ['android.yml', 'build']]) {
+  for (const [name, job] of [['images.yml', 'publish'], ['android.yml', 'build'], ['android.yml', 'publish']]) {
     assert.equal(workflows[name].jobs[job].environment, 'release', `${name} ${job}`);
     assert.deepEqual(triggersOf(workflows, name).map((t) => t.event).sort(), ['schedule', 'workflow_dispatch'], name);
   }
@@ -171,17 +171,31 @@ test('a nightly run that has nothing new does nothing; a run by hand always does
   assert.match(images, /startswith\(\\"android-v\\"\)\) \| select\(\.createdAt > /, 'or a newer Android release');
 });
 
-test('the image build tests the commit it builds first; a failure publishes nothing', () => {
+// The tests and the builds run side by side (a build pushes only its own platform tags, which nothing installs);
+// what is signed and published waits for both.
+test('the image build tests the commit it builds; a failure publishes nothing', () => {
   const jobs = workflow('images.yml').jobs;
   assert.equal(jobs.test.uses, './.github/workflows/tests.yml');
   assert.deepEqual(jobs.test.with, { android: false });
-  assert.ok([].concat(jobs.build.needs).includes('test'));
-  assert.equal(jobs.evidence.needs, 'build');
+  assert.ok(![].concat(jobs.build.needs).includes('test'), 'the build does not wait for the tests');
+  assert.deepEqual([].concat(jobs.evidence.needs).sort(), ['build', 'test']);
   assert.equal(jobs.publish.needs, 'evidence');
+  assert.doesNotMatch(jobs.evidence.if, /always\(\)|failure\(\)|cancelled\(\)/, 'a failed test stops the evidence');
+  const tags = jobs.build.steps.find((st) => st.id === 'build').with.tags;
+  assert.equal(tags, '${{ env.IMAGE }}:sha-${{ github.sha }}-${{ matrix.arch }}', 'the build pushes only its platform tag');
+});
+
+test('the Android release tests the commit it builds; a failure publishes nothing', () => {
+  const jobs = workflow('android.yml').jobs;
+  assert.deepEqual(jobs.test.with, { server: false });
+  assert.ok(![].concat(jobs.build.needs).includes('test'), 'the build does not wait for the tests');
+  assert.deepEqual([].concat(jobs.publish.needs).sort(), ['build', 'test']);
+  assert.equal(jobs.publish.if, undefined, 'a failed test stops the release');
+  assert.ok(!jobs.build.steps.some((st) => /gh release/.test(st.run || '')), 'only the publish job releases');
 });
 
 test('a nightly Android release starts no image build of its own; a run by hand starts one', () => {
-  const step = workflow('android.yml').jobs.build.steps.find((st) => /gh workflow run images\.yml/.test(st.run || ''));
+  const step = workflow('android.yml').jobs.publish.steps.find((st) => /gh workflow run images\.yml/.test(st.run || ''));
   assert.equal(step.if, "github.event_name == 'workflow_dispatch'");
 });
 
@@ -221,16 +235,20 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.ok(fixture >= 0 && fixture < steps.indexOf(scan), 'the scanner is shown to catch a deleted lower layer first');
   const findings = steps.find((st) => /node deploy\/layer-secrets\.js security-artifacts\/secrets\.json/.test(st.run || ''));
   assert.match(findings.if, /always\(\)/, 'the log names the layer and file when the scan fails');
-  assert.equal(jobs.evidence.needs, 'build');
+  assert.ok([].concat(jobs.evidence.needs).includes('build'));
 });
 
-// A Mac runs only the desktop app's builds (ADR 137), never the stopped native Mac app.
+// A Mac runs only the Tauri project's builds: the desktop app (ADR 137) and the iOS app (ADR 151), never the stopped
+// native Mac app.
 test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
   assert.equal(tests.mac, undefined);
   assert.equal(tests.changes.outputs.mac, undefined);
+  const ios = workflow('ios.yml').jobs.simulator;
+  assert.equal(ios.defaults.run['working-directory'], 'desktop/src-tauri', 'the iOS app is the Tauri project');
   for (const name of fs.readdirSync(WORKFLOWS)) {
+    if (name === 'ios.yml') continue;
     const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
     assert.doesNotMatch(text, /make mac-|runs-on: macos|xcodebuild|swift (build|test)|working-directory: macos/, name);
     if (name !== 'desktop.yml') assert.doesNotMatch(text, /\bmacos-(latest|\d)/, name);
@@ -243,4 +261,52 @@ test('no workflow bumps Claude Code', () => {
   for (const name of fs.readdirSync(WORKFLOWS)) {
     assert.doesNotMatch(fs.readFileSync(path.join(WORKFLOWS, name), 'utf8'), /dist-tags\.latest|bump\/claude-code/, name);
   }
+});
+
+// Build all: one click starts the three release workflows as runs by hand, so each keeps its version, tests and
+// publishing; it holds no secret and never builds anything itself.
+test('Build all starts the Android, image and desktop releases as their own runs and follows them', () => {
+  const wf = workflow('build-all.yml');
+  assert.deepEqual(Object.keys(wf.on), ['workflow_dispatch']);
+  assert.doesNotMatch(JSON.stringify(wf), /secrets\.|environment/);
+  const runs = (job) => wf.jobs[job].steps.map((st) => st.run || '').join('\n');
+  assert.match(runs('android'), /build-all\.sh start android\.yml/);
+  assert.match(runs('desktop'), /build-all\.sh start desktop-release\.yml/);
+  assert.equal(wf.jobs.images.needs, 'android', 'the image carries the newest released app');
+  assert.match(wf.jobs.images.if, /!cancelled\(\)/, 'the images are built when Android fails');
+  assert.match(runs('images'), /build-all\.sh find images\.yml/, 'it follows the build the Android run started');
+  assert.equal(wf.jobs.desktop.needs, undefined, 'the desktop app builds beside them');
+  for (const job of Object.values(wf.jobs)) assert.match(job.if, /github\.ref == 'refs\/heads\/main'/);
+  // What it relies on: a run of Android by hand starts the image build itself.
+  const step = workflow('android.yml').jobs.publish.steps.find((st) => /gh workflow run images\.yml/.test(st.run || ''));
+  assert.equal(step.if, "github.event_name == 'workflow_dispatch'");
+});
+
+test('build-all.sh finds the run it started and fails when it failed', () => {
+  const { execFileSync, spawnSync } = require('child_process');
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'build-all-'));
+  const log = path.join(dir, 'log');
+  // A fake gh: a run list answers the run once it was started; a run view says how it ended.
+  fs.writeFileSync(path.join(dir, 'gh'), [
+    '#!/usr/bin/env bash',
+    `echo "$*" >> ${JSON.stringify(log)}`,
+    'case "$1 $2" in',
+    `  "workflow run") touch ${JSON.stringify(path.join(dir, 'started'))} ;;`,
+    `  "run list") [ -e ${JSON.stringify(path.join(dir, 'started'))} ] && echo 42 ;;`,
+    '  "run view") [ "$3" = 42 ] && echo "completed success" || echo "completed failure" ;;',
+    'esac',
+    'exit 0',
+  ].join('\n'), { mode: 0o755 });
+  const script = path.join(__dirname, '..', 'deploy', 'build-all.sh');
+  const env = { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: 'o/r', BUILD_ALL_POLL: '0', BUILD_ALL_TRIES: '3', GITHUB_STEP_SUMMARY: path.join(dir, 'summary') };
+  assert.equal(execFileSync(script, ['find', 'images.yml', '2026-01-01T00:00:00Z'], { env, encoding: 'utf8' }), '');
+  assert.equal(execFileSync(script, ['start', 'android.yml'], { env, encoding: 'utf8' }).trim(), '42');
+  assert.match(fs.readFileSync(log, 'utf8'), /^workflow run android\.yml --repo o\/r --ref main$/m);
+  execFileSync(script, ['wait', '42', 'Android'], { env, stdio: 'pipe' });
+  assert.equal(spawnSync(script, ['wait', '7', 'Images'], { env }).status, 1, 'a failed run fails the job');
+  assert.equal(spawnSync(script, ['wait', '', 'Desktop'], { env }).status, 1, 'no run fails the job');
+  assert.equal(fs.readFileSync(path.join(dir, 'summary'), 'utf8'),
+    '- Android: [success](https://github.com/o/r/actions/runs/42)\n- Images: [failure](https://github.com/o/r/actions/runs/7)\n');
+  fs.rmSync(dir, { recursive: true, force: true });
 });

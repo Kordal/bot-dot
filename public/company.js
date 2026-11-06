@@ -358,11 +358,13 @@ const Company = (() => {
   // The pieces on a project's board (#780), as lib/company.js keeps them: a project without `board` (made before) has
   // every one. `pieceLabel` is the name a pick and the settings give it.
   // The teams are no piece on the web since #838: each team is a row of keys under the board, always (ADR 132).
-  const PIECES = ['days', 'goals', 'calendar', 'todo'];
-  const onBoard = (c, k) => !Array.isArray(c?.board) || c.board.includes(k);
-  const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do') })[k];
+  const PIECES = ['days', 'goals', 'calendar', 'todo', 'files'];
+  // An ongoing project (#925) has no 90 days, so no "90 days" piece.
+  const piecesOf = (c) => (c?.ongoing ? PIECES.filter((k) => k !== 'days') : PIECES);
+  const onBoard = (c, k) => !(c?.ongoing && k === 'days') && (!Array.isArray(c?.board) || c.board.includes(k));
+  const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do'), files: tr('Files') })[k];
   // The pieces the owner can add: the ones not on it, from a server that has them.
-  const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? PIECES.filter((k) => !c.board.includes(k)) : []);
+  const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? piecesOf(c).filter((k) => !c.board.includes(k)) : []);
   const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
   function wirePick(root) {
     $$('[data-space-pick]', root).forEach((b) => (b.onclick = () => openSpaces(b)));
@@ -473,9 +475,21 @@ const Company = (() => {
     if (root.dataset.sig === sig && root.firstElementChild) return;
     root.dataset.sig = sig;
     root.classList.remove('sp-has-field');
+    // A button on the same screen draws it again where the owner was, not at its top (a redraw empties the page for
+    // a moment, and the browser takes the page back to the top); another screen or project opens at its top.
+    const home = !settingsOpen && c?.phase === 'running' && steps.home && current !== 'start';
+    const screen = JSON.stringify([c?.id || null, settingsOpen, home || !c ? !!home : stepOf(c), !home && c && stepOf(c) === 'about' ? steps.ticks?.about?.(c)?.[1] ?? null : null]);
+    const top = root.dataset.screen === screen ? root.scrollTop : 0;
+    root.dataset.screen = screen;
+    try { drawScreen(root, c, home); } finally {
+      // Again once laid out: WebKit (Safari, the desktop app on a Mac) can take it back to the top after the draw.
+      if (top) { root.scrollTop = top; requestAnimationFrame(() => { if (root.dataset.screen === screen && root.scrollTop < top) root.scrollTop = top; }); }
+    }
+  }
+  function drawScreen(root, c, home) {
     if (settingsOpen) { steps.settings(root, c); return; }
     if (!c) drawStart(root);
-    else if (c.phase === 'running' && steps.home && current !== 'start') steps.home(root, c);
+    else if (home) steps.home(root, c);
     else {
       const at = stepOf(c);
       // The ⋯ at the bar's end: its settings and its delete, while setting up too (#791, #801).
@@ -515,8 +529,8 @@ const Company = (() => {
     if (naming) return drawNaming(root);
     const typed = $('#co-what', root)?.value || '';
     root.innerHTML = `<div class="co-start co-new">
-      <h1>${tr("You know where. We'll work out how.")}</h1>
-      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Goal, site or idea')}" aria-label="${tr('Goal, site or idea')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
+      <h1>${tr('What shall we take on?')}</h1>
+      <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Goal, matter or site')}" aria-label="${tr('Goal, matter or site')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
       <div id="co-sources">${sourcesHTML(draft.sources, true)}</div>
       ${(state.features || []).includes('project-empty') ? `<button type="button" class="co-text-btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
     </div>`;
@@ -558,7 +572,7 @@ const Company = (() => {
     input.value = typed;
     input.oninput = ready;
     ready();
-    form.onsubmit = (e) => { e.preventDefault(); const name = input.value.trim(); if (name) made({ empty: true, name }, go, () => { naming = false; typedWhat = ''; current = null; }); };
+    form.onsubmit = (e) => { e.preventDefault(); const name = input.value.trim(); if (!name) return; const sources = readySources(); if (sources) made({ empty: true, name, sources }, go, () => { naming = false; typedWhat = ''; draft.sources = []; current = null; }); };
     const back = () => {
       naming = false;
       drawStart(root);
@@ -619,9 +633,13 @@ const Company = (() => {
   async function begin(text, button) {
     const start = String(text || '').trim();
     if (!start) return;
-    if (draft.sources.some((s) => s.status === 'uploading')) return toast(tr('Wait for the files to finish uploading.'), true);
-    const sources = draft.sources.filter((s) => s.status === 'ready').map((s) => (s.kind === 'link' ? { kind: 'link', url: s.url, name: s.name } : { kind: 'file', name: s.name, upload: s.upload }));
-    made({ start, sources }, button, () => { draft.sources = []; current = 'about'; });
+    const sources = readySources();
+    if (sources) made({ start, sources }, button, () => { draft.sources = []; current = 'about'; });
+  }
+  // The sources picked on the start screen, for a new project of either kind; null while a file still uploads.
+  function readySources() {
+    if (draft.sources.some((s) => s.status === 'uploading')) { toast(tr('Wait for the files to finish uploading.'), true); return null; }
+    return draft.sources.filter((s) => s.status === 'ready').map((s) => (s.kind === 'link' ? { kind: 'link', url: s.url, name: s.name } : { kind: 'file', name: s.name, upload: s.upload }));
   }
   // A new project made and shown: from what the owner works on (its setup follows), or empty (#788: its blank board).
   async function made(body, button, then = () => { current = null; }) {
@@ -684,5 +702,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
 })();

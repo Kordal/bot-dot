@@ -249,16 +249,31 @@ function loadInbox(botId) {
 // that asks"), else none. The question is the newest reply that counts, so the "New" line is never below it.
 const chatBack = (bot, newFirst) => newFirst ?? bot?.asks?.runId ?? null;
 
-// The open chat's runs from further back than the page holds (state.runs is the newest 200 of all bots):
-// read when its "New" line or its open question is above them, and kept while that stays.
+// The open chat's own newest runs, read for it: state.runs is the newest 200 of all bots, and on an account whose
+// other bots run often (their jobs, quiet ones too) a bot's own runs fall out of it. Its chat then lost what the
+// owner had sent it, once the "New" line was gone. Read as the chat opens and with each refresh.
+let own = null; // { botId, runs }
+function readOwnRuns(botId) {
+  if (!botId) return;
+  api(`/runs?botId=${encodeURIComponent(botId)}&limit=${Unread.CHAT_RUNS}`).then((runs) => {
+    if (!Array.isArray(runs) || state.botId !== botId) return;
+    const sig = (x) => x.map((r) => `${r.id}:${r.status}`).join('|');
+    const was = own?.botId === botId ? sig(own.runs) : null;
+    own = { botId, runs };
+    if (was !== sig(runs)) redrawBotChat(botId);
+  }).catch(() => {}); // botdot away: the chat stays as it is, and the next refresh asks again
+}
+// The open chat's runs from further back than the page holds: read when its "New" line or its open question is above
+// them, and kept while that stays.
 let reached = null; // { botId, first, runs }
 function chatRuns(botId, first) {
   const held = state.runs.filter((r) => r.botId === botId);
   if (first === null) reached = null;
-  if (!reached || reached.botId !== botId || reached.first !== first) return held;
   const known = new Set(held.map((r) => r.id));
-  return held.concat(reached.runs.filter((r) => !r.quiet && !known.has(r.id)))
-    .sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)) || b.id.localeCompare(a.id));
+  const more = [...(own?.botId === botId ? own.runs : []), ...(reached && reached.botId === botId && reached.first === first ? reached.runs : [])]
+    .filter((r) => r && !r.quiet && !known.has(r.id) && (known.add(r.id), true)); // the page's own copy is the newest
+  if (!more.length) return held;
+  return held.concat(more).sort((a, b) => String(b.startedAt).localeCompare(String(a.startedAt)) || b.id.localeCompare(a.id));
 }
 function reachNew(botId, first) {
   if (reached && reached.botId === botId && reached.first === first) return; // being read, or it isn't there
@@ -375,6 +390,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     part('bot-screen').onclick = () => openScreen(bot.id);
     part('bot-files').onclick = () => { const b = botById(bot.id); if (b) Files.open(b); }; // files.js (#603)
     loadInbox(bot.id);
+    if (!docked) readOwnRuns(bot.id);
   }
   const av = part('bot-avatar');
   const look = bot.color + bot.state + JSON.stringify(bot.outfit || '');
@@ -391,6 +407,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   const waiting = state.inbox[bot.id] || [];
   const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${stepsSig(r)}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
   const thread = part('chat-thread');
+  holdChatEnd(thread);
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
     root.dataset.sig = sig;

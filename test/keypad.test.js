@@ -243,41 +243,30 @@ test('status: Working, then Needs you, then unread, then the last run: Done, Cou
   assert.deepEqual(S(), { kind: 'idle', text: 'Idle' });
 });
 
-// ---------- spaces (#838, ADR 132) ----------
+test('status: a finished run the owner has seen says Idle; Couldn\'t finish and the rest stay', () => {
+  const S = (o) => Keypad.status(o);
+  assert.deepEqual(S({ last: 'success', seen: true }), { kind: 'idle', text: 'Idle' });
+  assert.deepEqual(S({ last: 'error', seen: true }), { kind: 'failed', text: "Couldn't finish" });
+  assert.deepEqual(S({ needs: true, last: 'success', seen: true }), { kind: 'needs', text: 'Needs you' }, 'Needs you stays until the owner acts');
+  assert.deepEqual(S({ unread: 1, last: 'success', seen: true }), { kind: 'unread', text: '1 unread' });
+  assert.deepEqual(S({ running: true, last: 'success', seen: true }), { kind: 'working', text: 'Working' });
+});
+
+test('seen: the chat was read at or after the run ended; a server without readAt: never', () => {
+  assert.equal(Keypad.seen('2026-11-03T08:00:01.000Z', '2026-11-03T08:00:00.000Z'), true);
+  assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', '2026-11-03T08:00:00.000Z'), true);
+  assert.equal(Keypad.seen('2026-11-03T07:59:59.000Z', '2026-11-03T08:00:00.000Z'), false, 'a run that ended after the last read: Done');
+  assert.equal(Keypad.seen(undefined, '2026-11-03T08:00:00.000Z'), false);
+  assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', undefined), false);
+  assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', ''), false);
+});
+
+// ---------- spaces (ADR 132) ----------
 
 const projects = [
   { id: 'p1', name: 'Quotz IT', teams: [{ id: 't1', bots: ['ops', 'planner'], lead: 'ops' }] },
   { id: 'p2', name: 'Mila', teams: [{ id: 't2', bots: ['coach'], lead: 'coach' }] },
 ];
-
-test('home: a bot in a project\'s team and the team\'s chat leave Home; the rest stay, in their categories', () => {
-  const bots = [bot('Ops', { group: 'Tech' }), bot('Planner'), bot('Coach'), bot('Recipes', { group: 'Home' })];
-  const groups = [grp('Quotz IT team', { team: 't1' }), grp('Dev'), grp('Old team', { team: 'gone' })];
-  const h = Keypad.home(bots, groups, projects);
-  assert.deepEqual(h.bots.map((b) => b.name), ['Recipes']);
-  assert.deepEqual(h.groups.map((g) => g.name), ['Dev', 'Old team'], 'a chat whose team is in no project stays');
-  assert.deepEqual(shape(Keypad.pages(h.bots, h.groups)), ['category:Home: Recipes', 'other:Other: #Dev, #Old team']);
-});
-
-test('home: a bot that leaves its team is Home\'s again, in its own category', () => {
-  const bots = [bot('Ops', { group: 'Tech' })];
-  assert.deepEqual(Keypad.home(bots, [], projects).bots, []);
-  const left = [{ ...projects[0], teams: [{ id: 't1', bots: ['planner'], lead: 'planner' }] }];
-  assert.deepEqual(shape(Keypad.pages(Keypad.home(bots, [], left).bots, [])), ['category:Tech: Ops']);
-});
-
-test('home: with no projects nothing leaves', () => {
-  const bots = [bot('Ops')];
-  const groups = [grp('Dev', { team: 't1' })];
-  assert.deepEqual(Keypad.home(bots, groups, []), { bots, groups });
-});
-
-test('home: the filter on All keeps every bot and chat, team ones too', () => {
-  const bots = [bot('Ops', { group: 'Tech' }), bot('Recipes')];
-  const groups = [grp('Quotz IT team', { team: 't1' })];
-  assert.deepEqual(Keypad.home(bots, groups, projects, true), { bots, groups });
-  assert.deepEqual(Keypad.home(bots, groups, projects, false).bots.map((b) => b.name), ['Recipes']);
-});
 
 test('projectOf: each team bot\'s project', () => {
   const of = Keypad.projectOf(projects);
@@ -292,4 +281,37 @@ test('asksOf: Home lists every ask; a project only its own bots\' asks, a batch 
   assert.equal(Keypad.asksOf(items, null, projects), items);
   assert.deepEqual(Keypad.asksOf(items, projects[0], projects), [items[0], items[3]]);
   assert.deepEqual(Keypad.asksOf(items, projects[1], projects), [items[1]]);
+});
+
+test('asksOf: a project also lists what was asked in its teams\' group chats, the Chief\'s too; nothing of other bots', () => {
+  const groups = [{ id: 'g1', team: 't1' }, { id: 'g2', team: 't2' }, { id: 'g3' }];
+  const items = [
+    { kind: 'ask', bot: { id: 'chief' }, group: { id: 'g1' } }, // the Chief, in p1's team chat
+    { kind: 'ask', bot: { id: 'recipes' }, group: { id: 'g1' } }, // a bot of no team, asked in p1's team chat
+    { kind: 'ask', bot: { id: 'chief' } }, // the Chief's own chat: Home only
+    { kind: 'ask', bot: { id: 'recipes' }, group: { id: 'g3' } }, // a group of no team: Home only
+    { kind: 'suggestion', bot: { id: 'linkedin' } }, // a bot of no team: Home only
+    { kind: 'batch', bot: { id: 'chief' }, group: { id: 'g2' }, items: [{ kind: 'ask', bot: { id: 'chief' }, group: { id: 'g2' } }] },
+  ];
+  assert.deepEqual(Keypad.asksOf(items, projects[0], projects, groups), [items[0], items[1]]);
+  assert.deepEqual(Keypad.asksOf(items, projects[1], projects, groups), [items[5]]);
+  assert.deepEqual(Keypad.asksOf(items, projects[0], projects), [], 'without the groups only its bots\' asks');
+  assert.equal(Keypad.asksOf(items, null, projects, groups), items);
+});
+
+test('a project\'s To-do lists only its own asks and its team bots\' questions, as its Needs you does', () => {
+  const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', 'company-home.js'), 'utf8');
+  const panel = src.slice(src.indexOf('function todoPanelHTML'), src.indexOf('function todoPanelHTML') + 600);
+  assert.match(panel, /waits = asks \? projectNeeds\(c\)/);
+  assert.match(panel, /asking = asks \? projectAsking\(c\)/);
+  assert.doesNotMatch(src, /\bwaits = needs\(\)/, 'the To-do\'s buttons answer the rows it shows');
+});
+
+test('leadOf: a member\'s ask is drawn under its team\'s lead in a project; a lead\'s, a stranger\'s and a lone bot\'s are not (ADR 148)', () => {
+  assert.equal(Keypad.leadOf(projects[0], 'planner'), 'ops');
+  assert.equal(Keypad.leadOf(projects[0], 'ops'), null);
+  assert.equal(Keypad.leadOf(projects[0], 'coach'), null);
+  assert.equal(Keypad.leadOf(projects[1], 'coach'), null);
+  assert.equal(Keypad.leadOf(projects[0], undefined), null);
+  assert.equal(Keypad.leadOf({ teams: [{ id: 't', bots: ['a', 'b'] }] }, 'b'), null);
 });

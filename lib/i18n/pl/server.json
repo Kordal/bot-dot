@@ -318,7 +318,6 @@
   "This request was already answered": "Na tę prośbę już odpowiedziano",
   "Upload the backup first.": "Najpierw wyślij kopię zapasową.",
   "Bots are still working. Stop them, or wait until they are done.": "Boty wciąż pracują. Zatrzymaj je albo poczekaj, aż skończą.",
-  "No such backup": "Nie ma takiej kopii zapasowej",
   "No cached picture. Refresh the Board first.": "Brak zapisanego obrazu. Najpierw odśwież Tablicę.",
   "No such tile": "Nie ma takiego kafelka",
   "Say what should change": "Powiedz, co ma się zmienić",
@@ -543,6 +542,8 @@
   "Adding a tile": "Dodaję kafelek",
   "Changing a tile": "Zmieniam kafelek",
   "Changing a card": "Zmieniam kartę",
+  "Removing a card": "Usuwam kartę",
+  "Removing a goal": "Usuwam cel",
   "Looking at the board": "Przeglądam tablicę",
   "Removing a tile": "Usuwam kafelek",
   "Arranging the Board": "Układam Tablicę",
@@ -582,5 +583,14 @@
   "Reading the computer's logs": "Czytam logi komputera",
   "Restarting the account's computer": "Restartuję komputer konta",
   "Asking you to reset the computer": "Proszę cię o reset komputera",
-  "Checking the reminders": "Sprawdzam przypomnienia"
+  "Checking the reminders": "Sprawdzam przypomnienia",
+  "Let {bot} replace the secret of “{entry}”?": "Czy {bot} może podmienić sekret „{entry}”?",
+  "Let {bot} save “{entry}” in the Vault?": "Czy {bot} może zapisać „{entry}” w Sejfie?",
+  "Username": "Nazwa użytkownika",
+  "made by botdot": "wygenerowany przez botdot",
+  "{path} on its computer": "{path} na jego komputerze",
+  "Shared with": "Udostępniony",
+  "Asks to replace the secret of “{entry}”": "Prosi o podmianę sekretu „{entry}”",
+  "Asks to save “{entry}” in the Vault": "Prosi o zapisanie „{entry}” w Sejfie",
+  "Looking at what takes space": "Sprawdza, co zajmuje miejsce"
 }

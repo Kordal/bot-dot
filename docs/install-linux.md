@@ -4,7 +4,7 @@ The full install reference: what botdot needs, the installer, accounts, shares o
 
 **On a Linux server,** one machine serves several accounts, each signing in with a passkey and walled off from the others. Below is what it needs and the two commands that install it.
 
-botdot installs on Linux only. The Mac app, which could set botdot up on a Mac, is paused and not maintained ([ADR 031](adr/031-the-mac-app-is-stopped-again.md)): from a Mac, use the web page of a botdot on a Linux machine.
+botdot installs on Linux only. From a Mac, use the web page of a botdot on a Linux machine.
 
 ## What botdot needs, and whom it trusts
 
@@ -36,6 +36,21 @@ The installer asks before it installs anything. It asks how people reach botdot 
 2. starts the **front door** in `/var/lib/botdot/front-door`, with Caddy in front of it on a public domain, or Tailscale Serve on a tailnet;
 3. makes your account: the Linux user `botdot-<name>`, its rootless Docker, and its botdot server in `/var/lib/botdot/accounts/<name>`;
 4. ends with the address and **your sign-up link**. Open it and make your passkey: that account is the admin's. Until the link is used, botdot shows only "Open the link from your server's install".
+
+**The last line, for a program.** Every install and every update, on a public domain, a tailnet or a botdot on one computer, ends with one line that a program such as a fleet console reads instead of the prose above it: `BOTDOT_READY` and a JSON object on the same line.
+
+```
+BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":"public","accounts":["ann"],"signUp":"https://botdot.example.com/sign-up/…"}
+```
+
+- `origin`: the address people open.
+- `version`: the version the front door and the accounts now run, as the admin page shows it.
+- `reach`: `public`, `tailnet` or `local`.
+- `variant`: `one` or `several`, on a managed machine only (below); absent elsewhere.
+- `accounts`: the names of the accounts this machine runs.
+- `signUp`: the admin's sign-up link, while that account doesn't exist yet; absent afterwards. An update makes no link, so its line has none; a botdot on one computer keeps its setup key in its own `BOTDOT_LOCAL` line, the one before, which the desktop app reads ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)). On a managed machine it is the setup key's link to the first account, printed nowhere else.
+
+A run that fails prints no such line.
 
 ## More accounts
 
@@ -86,9 +101,52 @@ A **self-built botdot server** instead builds both images from the source on the
 cd bot-dot-source && sudo make images && sudo BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sh install.sh
 ```
 
-To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below).
+To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`), `BOT_DOT_DOMAIN` and `BOT_DOT_ADMIN`; for the Android app, `FRONT_DOOR_ANDROID_KEYS` (below); for terms of service, `FRONT_DOOR_TERMS_URL`, `FRONT_DOOR_PRIVACY_URL` and `FRONT_DOOR_TERMS_VERSION` (below).
+
+A first install also asks whether to use Jev as the decision model (with an OpenRouter key, made at https://openrouter.ai/settings/keys), boat.dev for the External Virtual PC (with a boat.dev API key, made at https://boat.dev/dashboard?tab=api-keys) and Composio for the admin's own account's connectors (with a Composio API key, made at https://platform.composio.dev). Each key is checked before it is kept; one that is refused is asked again, and one that can't be checked is set later: the OpenRouter and boat.dev keys on the admin page, where both can be changed, the Composio key on the admin's Connectors page. The Composio key goes to the admin's account only, once it is made, and only while it has no key of its own: every other account pastes its own ([ADR 160](adr/160-the-installer-gives-the-admins-account-its-composio-key.md)). Set `BOT_DOT_OPENROUTER_KEY`, `BOT_DOT_BOAT_KEY` and `BOT_DOT_COMPOSIO_KEY` to answer beforehand, or set any to nothing to skip it without a question.
 
 `BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
+
+`BOT_DOT_MANAGED=1` makes a managed machine, which the fleet console runs ([ADR 154](adr/154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md)). It is chosen at the first install, never asked, and kept: a machine installed without it stays as it is. It needs `BOT_DOT_REACH` `public` or `tailnet`, and asks nothing: the first account is `BOT_DOT_ADMIN` (default `owner`), the Jev, boat.dev and Composio keys come only from `BOT_DOT_OPENROUTER_KEY`, `BOT_DOT_BOAT_KEY` and `BOT_DOT_COMPOSIO_KEY` (the Composio key for the first account). A managed machine has no admin page and no admin. `BOT_DOT_VARIANT` says how many accounts it holds, and is kept:
+
+- `one` (the default): one account. Its passkey is made with the setup key: `signUp` in the install's `BOTDOT_READY` line is `https://<name>/sign-up/<setup key>` until the account exists.
+- `several`: the first account is made the same way; later accounts come only from sign-up links root's step makes.
+
+Each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, never overcommitted: the machine holds as many accounts as it has CPUs for and, after 2 GB of RAM for the system, RAM for. A Contabo Cloud VPS 6 (6 CPUs, 12 GB) holds one account, a Cloud VPS 8 (8 CPUs, 24 GB) two. An install on a machine without room for one share stops before it installs anything, and a sign-up link makes no account that wouldn't fit. A rerun with `BOT_DOT_VARIANT=several` turns a machine of one account into one of several without a reinstall, keeping the account and its passkeys; going back to `one` is refused while the machine has another account.
+
+### Sign-in and sign-up links without the admin page
+
+On a managed machine root's step makes the links the admin page makes elsewhere, each asked with a file of root's in the front door's requests folder:
+
+```sh
+# a sign-in link that gives the account ann a new passkey, for an owner who lost every device (1 day, works once)
+sudo touch /var/lib/botdot/front-door/requests/SIGN-IN-ann
+# a sign-up link for another account, on a machine of several (7 days, works once); a name on its first line keeps it for that account
+sudo touch /var/lib/botdot/front-door/requests/SIGN-UP
+echo bob | sudo tee /var/lib/botdot/front-door/requests/SIGN-UP
+```
+
+The front door makes the link as the admin page does, and root's step writes it in `/var/lib/botdot/front-door/status/sign-in-ann.json`, `sign-up.json` or `sign-up-bob.json`, which only root and the front door read: `state` (`made`, `refused` or `failed`), `at`, `kind` (`sign-in` or `sign-up`), `account`, and `url` and `expires` once made, or `error`. A sign-up on a machine of one account, a sign-in for an account that doesn't exist, a sign-up for a name that is taken and a request the front door made, not root, are refused. An account made from a sign-up link must fit beside the others' shares, as any other. Every link made or refused is in the audit log, by `console`, without the link; the link is in no log. They work on a machine with an admin page too.
+
+### The console's keys
+
+On a managed machine root's step also takes the fleet console's keys after the install ([ADR 162](adr/162-the-fleet-console-gives-a-managed-machine-its-operators-keys.md)): a file `KEYS` of root's (600) in the requests folder, with a line `openrouter <key>` (Jev, the decision model), `composio <key>` (the first account's Composio key, as the installer's) or both. Root's step removes it as soon as it is read and hands the keys to the front door in `data/install-keys.json`, which it takes within a minute, as it takes the installer's. `status/keys.json` says `state` (`handed` or `refused`), `at`, and `openrouter` and `composio`, each `true` when handed, or `error`; never a key. A key is letters, digits, dashes and underscores (8 to 300); a line that isn't one is not handed. A request the front door made, not root, is refused.
+
+A managed machine's computers can't reach its network ([ADR 156](adr/156-a-managed-machines-computers-reach-no-private-address-metadata-or-smtp.md)): root's firewall, `botdot-egress`, refuses the accounts' Linux users every new connection to a private range, a link-local address (the cloud's metadata at `169.254.169.254`) and TCP 25 and 465, over IPv4 and IPv6, before any account's Docker starts. DNS to the machine's resolvers, the machine itself and every answer stay open; the front door and Caddy aren't touched. Its rules: `sudo iptables -S BOTDOT-GUARD`.
+
+## Terms and privacy policy
+
+A machine you sell as hosting can ask each owner to agree to your terms of service and privacy policy. Give the installer three settings, once; it keeps them in `/var/lib/botdot/front-door/.env`:
+
+- `FRONT_DOOR_TERMS_URL`: the address of your terms of service.
+- `FRONT_DOOR_PRIVACY_URL`: the address of your privacy policy.
+- `FRONT_DOOR_TERMS_VERSION`: their version, 1 to 40 letters, digits, dots, dashes and underscores (`1` when not set).
+
+```bash
+sudo FRONT_DOOR_TERMS_URL=https://example.com/terms FRONT_DOOR_PRIVACY_URL=https://example.com/privacy FRONT_DOOR_TERMS_VERSION=2026-11 sh bot-dot-source/install.sh
+```
+
+With both addresses set, the sign-up page, from a sign-up link or from the setup key, shows one box, "I agree to the Terms and the Privacy policy", each word a link that opens in a new tab, and makes no passkey until it is ticked. The front door keeps the version and the time in the account's record (`front-door.json`) and writes a `terms-agreed` entry to the audit log. When you change the version, every owner is asked once more at their next sign-in, before the account opens. Without both addresses nothing is asked.
 
 ## The Android app's sign-in
 
@@ -116,6 +174,17 @@ Your bots run unattended under that sign-in: scheduled jobs run while you sleep,
 ## Updates
 
 The admin updates botdot for every account at once: **Update every account** on the admin page. The front door and every account move to the newest signed release, and the page says the version each runs and how the last update went. An owner, the admin included, can turn off **Update automatically** in **Settings → Updates**: the update then downloads the new version into that account but leaves its bots on the version they run, marked waiting on the admin page, until the owner (or the admin, on the account's card) taps **Update now**, or until the deadline the admin sets on the admin page (7 days unless set otherwise, 1 to 60) ([ADR 053](adr/053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md)). Running the installer by hand still moves every account. A step that would need an answer (a new question of a newer installer) stops the update, and the page says to run the installer yourself.
+
+**A named version, a snapshot and a rollback** ([ADR 155](adr/155-an-update-can-name-its-version-and-keeps-a-snapshot-of-each-accounts-data.md)). Root's step takes the same requests from whatever writes them as root, such as a fleet console, as files in `/var/lib/botdot/front-door/requests`:
+
+```bash
+# Update every account to exactly this signed release: the server image's digest, on the file's first line.
+echo sha256:<64 hex digits> | sudo tee /var/lib/botdot/front-door/requests/UPDATE
+# Take one account back to its snapshot and the version it ran before its last switch.
+sudo touch /var/lib/botdot/front-door/requests/ROLLBACK-<account>
+```
+
+An empty `UPDATE` takes the newest release, as the admin page's button does. A digest that isn't one of botdot's signed releases, or one older than the release the front door runs, is refused at `check`, and nothing is downloaded or restarted; `update.json` in `/var/lib/botdot/front-door/status` says the version asked for (`named`) and how it went. The bots' computer goes to the release built from the same source. Releases signed before 5 November 2026 can't be named. Before an account switches to another version, its data folder, with the compose file and `.env` it ran, is copied to `snapshot/` in its home, on its own disk: with rsync while its botdot server runs, then again with it stopped for what changed. An account whose disk wouldn't keep a fifth free after the copy switches without one. A new server that doesn't answer gets its data back from it along with its version; one that answers removes it at once, so no copy of the data stays on the account's disk. A rollback request finds a snapshot only after a switch that didn't finish; it restores the snapshot, starts the version it ran then and uses the snapshot up; `status/account-<account>.json` says `rolledback`, or `kept` or `failed` with why. What the account did since its switch is gone after a rollback.
 
 Running the installer again from a newer source does the same, and also updates the installer that the admin page's Update runs:
 
@@ -159,9 +228,65 @@ An account's bots, chats, runs, memory and encrypted vault are in `/var/lib/botd
 
 ## Back up and restore
 
-Set a passphrase in **Settings → Backups**, and botdot backs up every night at 03:00 into `data/backups`, keeping the last 7. A backup is one file, encrypted with your passphrase, holding everything in `data` and the vault's key. It leaves out the Claude and Bitwarden sign-ins, the account's computer (its files, `/workspace` included) and downloaded models. **Download** one now and then to keep a copy off the server, and keep the passphrase safe (in Bitwarden, for example): without it a backup can't be opened.
+Each account is backed up with the machine every night when the machine has an [off-site](#off-site) backup, and keeps no backups of its own on the machine ([ADR 158](adr/158-an-account-is-backed-up-off-site-and-downloaded-on-request.md)). In **Settings → Backups** its owner sees when the account's data last went off-site (or **Off**, on a machine without an off-site backup), and **Download** makes a backup of the account at that moment: one file, encrypted with a passphrase chosen for it, holding everything in `data`, the vault's key and the computer's `/workspace` (without `node_modules`). It leaves out the Claude and Bitwarden sign-ins and downloaded models. The file is made while it downloads and is never kept on the server. Keep the passphrase safe (in Bitwarden, for example): without it the file can't be opened. Backups an account made every night before this (in `data/backups`) are removed once its data is off-site, or once its owner downloads one; they still restore.
 
 To restore, on the same server or a new one: install botdot, open it, and choose **Restore a backup** on its setup page. botdot restarts with your data, and you sign in to Claude again.
+
+### The whole machine
+
+A backup set is a copy of the whole machine, to rebuild a lost server: root asks root's step for one, and it needs no passphrase. Ask for one with an empty file named `BACKUP` in the front door's requests folder:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/BACKUP
+```
+
+Root's step writes the set into `/var/lib/botdot/backup`, which only root reads. It holds the front door's data (accounts, passkeys, sign-up links, the audit log) and, for each account, suspended ones too, its data folder (without its own backups in `data/backups`), its `.env`, its server's `/config` volume with the Vault's key, and its computer's volumes: `workspace` (the bots' files and project folders), `home` and `browser` (the browser profiles, without their lock files). Each part is a plain tar file, and `manifest.json` lists the version, the machine's instance id, the admin's name, the accounts and a sha256 of each part. A computer that runs keeps running while it is copied. The set is made beside the last one, which it replaces only once it is complete: a set that fails leaves the last one as it was. It is on the machine's own disk, so copy the folder off the machine: it holds every account's data and the Vault keys, unencrypted. [Off-site](#off-site) backs the same parts up without that copy.
+
+To put a set back, install the same version on a clean machine, with the same domain and admin's name, put the set in `/var/lib/botdot/backup`, and ask with a file named `RESTORE`:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/RESTORE
+```
+
+Root's step checks the whole set first: a set of another version or another admin, or one whose checksum doesn't match, is refused and nothing changes. Then it stops the front door, puts its data back and starts it, and makes each account, puts its data, `.env`, Vault key and computer's volumes back, and starts it again. Owners sign in with their passkeys as before. A request the front door made, not root, is refused.
+
+How each went is in `/var/lib/botdot/front-door/status/backup.json` and `restore.json`: `state` (`backing-up`, `done`, `failed` or `refused`; `restoring`, `restored`, `failed` or `refused`), `at`, the `phase` (and `account`) it is in or stopped in, and `error`. Root's step's log, `journalctl -u botdot-accounts` (or `/var/lib/botdot/requests.log` without systemd), says more.
+
+### Off-site
+
+A machine can back itself up every night to a restic repository off the machine, such as a sub-account of a Hetzner Storage Box ([ADR 157](adr/157-the-machine-backs-itself-up-off-site-with-restic.md)). Each part of a backup set goes straight into the repository, encrypted on the machine with a password the repository never holds, and nothing is kept on the machine's disk.
+
+The quickest way is the admin page ([ADR 161](adr/161-the-admin-page-connects-a-hetzner-storage-box-for-the-off-site-backup.md)): in Settings → Off-site backup, paste an API token (read and write) of the Hetzner Console project that holds your Storage Box and press Connect. The front door makes a sub-account named after the machine (`botdot-hq` for `hq.example.com`) with SSH on, root's step puts the machine's key on it and makes the repository, and the first backup starts. The page then shows the repository's password once: save it (in Bitwarden, for example) and press Saved. The token and the sub-account's password are kept nowhere. Every account of the machine goes into that one sub-account, each tagged with its name.
+
+Or give the repository's address once, as root, and run the first backup:
+
+```sh
+sudo BOT_DOT_OFFSITE_REPO=sftp://u123456-sub1@u123456-sub1.your-storagebox.de:23/botdot sh /var/lib/botdot/bin/install.sh --offsite
+```
+
+The first run downloads restic 0.19.1 (checked by its sha256) into `/var/lib/botdot/bin`, and makes what it needs in `/var/lib/botdot/offsite`, which only root reads: a random password for the repository (`password`; `BOT_DOT_OFFSITE_PASSWORD` gives your own instead) and an SSH key (`ssh_key`). It prints the key's public half and, for a Storage Box, the line that adds it there (`cat … | ssh -p 23 u123456-sub1@… install-ssh-key`, which asks for the sub-account's password once). Run it again once the key is in, and it makes the repository and backs up. **Keep a copy of the password off the machine** (in Bitwarden, for example): without it the backups can't be read. Use one sub-account for each machine, and turn on the Storage Box's automatic snapshots, which the machine can't delete.
+
+From then on `botdot-offsite.timer` runs it every night between 02:00 and 04:00, at a minute of the machine's own, and an empty file named `OFFSITE` in the requests folder (or the admin page's Back up now) runs it at once:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/OFFSITE
+```
+
+It backs up the front door's data, then for each account its data folder (without `data/backups`, `node_modules` and unfinished `.part` files, and with a consistent copy of `memory.db`, as in a set), its `.env`, its `/config` volume and its computer's volumes, and a `manifest.json`, each as a snapshot tagged `instance=`, `account=` and `part=`. A part that fails doesn't stop the others. It keeps 7 daily, 4 weekly and 3 monthly snapshots, or the number of latest ones picked on the admin page (`offsite-keep.json` in the front door's data, `{"last":N}`), and prunes once a week and after that number changes. To get a part back: `restic dump --tag part=data,account=ann latest /accounts/ann/data.tar > data.tar` with `RESTIC_REPOSITORY` and `RESTIC_PASSWORD_FILE` set.
+
+How the last run went is in `/var/lib/botdot/front-door/status/offsite.json`: `state` (`setting-up` while the admin page's setup runs, `backing-up`, `done`, `failed` or `refused`; `off` when `OFFSITE` was asked on a machine without a repository, or with `setup: true` when the admin page's setup failed), `started`, `finished`, `lastSuccess`, `bytesAdded`, `snapshots` (each part's id), `failed` (the parts that failed), `part` (where it stopped), `error` and `check` (the last weekly check, below). `journalctl -u botdot-offsite` says more. Without `BOT_DOT_OFFSITE_REPO` none of this runs. The admin page shows it under the version, and tells the admin's account once when it is late (the last run failed, or the last good one is older than 26 hours) and once when it works again.
+
+**Drills** ([#1018](https://github.com/Kordal/bot-dot/issues/1018)). Once a week the night's run also reads back and checks one twentieth of what the repository holds (`restic check --read-data-subset=n/20`, the next twentieth each week, so every blob is read within 20 weeks); a check that fails fails the run. To test a restore of one account at real size:
+
+```sh
+sudo sh /var/lib/botdot/bin/install.sh --restore-test ann
+```
+
+It restores that account's parts of the latest backup into `/var/lib/botdot/restore-test`, checks each part's size against what restic recorded and that each tar reads to its end, opens `memory.db` (its SQLite header, and with `sqlite3` installed its quick check), counts the bots, and removes the folder. It is refused, before anything is restored, when the disk would keep less than 512 MB free, and says how much it needs. How it went is in `status/restore-test.json` (`state` `testing`, `passed`, `failed` or `refused`, `at`, `account`, `snapshot`, `bytes`, `bots`, `error`); a failed test counts as a late backup on the admin page until one passes.
+
+**Erased accounts** ([#1019](https://github.com/Kordal/bot-dot/issues/1019)). When the machine erases an account the admin deleted, its part of the backup set in `/var/lib/botdot/backup` goes at once, and its off-site snapshots 14 days later: the erase is written down in `/var/lib/botdot/offsite/erased`, and the first night's run after the 14 days forgets that account's snapshots and prunes what they held. Each account's snapshots are tagged with its born stamp (`born=…`, kept in `/var/lib/botdot/born`), so a new account made under the same name is never touched. Each forget is in `status/offsite-forgotten.json` and in the audit log (`offsite-forgotten`). Within the 14 days an account erased by mistake can still be restored from the repository.
+
+If your machine sets `FRONT_DOOR_PRIVACY_URL`, the policy can say this of backups: an account's data is backed up every night to encrypted off-site storage and kept there for at most 3 months (7 daily, 4 weekly and 3 monthly snapshots); when an account is deleted, its data leaves the machine at once and its backups are deleted within 15 days. The Storage Box's own snapshots, if you turn them on, keep the repository as it was for as long as you set there: count them in the 3 months.
 
 ## Uninstall
 
@@ -171,7 +296,7 @@ On the server, from the source you installed with:
 sudo sh bot-dot-source/install.sh --uninstall
 ```
 
-It lists what it removes and asks you to type `yes`, as this can't be undone: the front door, every account (its botdot server, its computer, its rootless Docker, its Linux user `botdot-<name>`, its disk and its data, backups included), the front door's user `botdot-door`, botdot's systemd units, the AppArmor profile `botdot-rootlesskit`, Tailscale Serve's setting for botdot and `/var/lib/botdot` with the passkeys. Download each account's backup first if you want to keep it. Then it asks once more whether to remove the packages the installer may have installed (`runsc`, `docker-ce-rootless-extras` and gVisor's apt source); Docker itself and Tailscale always stay. botdot's images stay in Docker too: `sudo docker image ls` lists them, and `sudo docker image rm` removes one. `BOT_DOT_YES=1` answers the first question and asks nothing, and keeps the packages. Anything it couldn't remove is listed at the end, and running it again finishes what it can.
+It lists what it removes and asks you to type `yes`, as this can't be undone: the front door, every account (its botdot server, its computer, its rootless Docker, its Linux user `botdot-<name>`, its disk and its data, backups included), the front door's user `botdot-door`, botdot's systemd units, the AppArmor profile `botdot-rootlesskit`, Tailscale Serve's setting for botdot and `/var/lib/botdot` with the passkeys and the backup set. Download each account's backup first if you want to keep it. Then it asks once more whether to remove the packages the installer may have installed (`runsc`, `docker-ce-rootless-extras` and gVisor's apt source); Docker itself and Tailscale always stay. botdot's images stay in Docker too: `sudo docker image ls` lists them, and `sudo docker image rm` removes one. `BOT_DOT_YES=1` answers the first question and asks nothing, and keeps the packages. Anything it couldn't remove is listed at the end, and running it again finishes what it can.
 
 The source you cloned goes with `rm -rf ~/bot-dot-source`, and on a tailnet the server leaves it in Tailscale's admin console.
 
@@ -189,7 +314,7 @@ sudo tailscale serve --https=443 off
 sudo tailscale serve --https=8443 off
 ```
 
-That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account (and its lines in `/etc/subuid` and `/etc/subgid`), `sudo userdel botdot-door`, `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares), and on Ubuntu 24.04 `sudo apparmor_parser -R /etc/apparmor.d/botdot-rootlesskit && sudo rm /etc/apparmor.d/botdot-rootlesskit`.
+That keeps your data. To remove it too (every account's bots, chats, memory, vault and backups, and the passkeys, for good): `sudo rm -rf /var/lib/botdot`, then `sudo userdel botdot-ann` for each account (and its lines in `/etc/subuid` and `/etc/subgid`), `sudo userdel botdot-door`, `sudo rm -r /etc/systemd/system/botdot-account@.service /etc/systemd/system/botdot-accounts.path /etc/systemd/system/botdot-accounts.service /etc/systemd/system/botdot-load.timer /etc/systemd/system/botdot-load.service /etc/systemd/system/botdot-offsite.timer /etc/systemd/system/botdot-offsite.service /etc/systemd/system.control/botdot-account@*.service.d` (the last are the accounts' CPU and RAM shares), and on Ubuntu 24.04 `sudo apparmor_parser -R /etc/apparmor.d/botdot-rootlesskit && sudo rm /etc/apparmor.d/botdot-rootlesskit`.
 
 ## Platforms
 

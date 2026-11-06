@@ -29,3 +29,7 @@ ADR 088 gave each bot whose computer is boat.dev a machine of its own. Every one
 - **No isolation between the bots on the shared machine.** They can read and change each other's files, use each other's browser logins, and see what botdot types there. Two bots on the screen at once get in each other's way. A bot that must be kept apart gets `boatOwnMachine`.
 - One machine runs while any boat bot works, so it is on for longer, but there is one machine instead of several.
 - A bot's browser logins (ADR 095) do not move to or from the account's machine: its one browser profile is its bots', and a bot's own profile replacing it would erase the others' logins. They stay on the old side.
+
+## Notes
+
+- 2026-11-04 (#982): a machine made from now on is named `botdot-<instance>-<account>` (a bot's own: `botdot-<instance>-<account>-<bot's name>-<bot id>`). `<instance>` is the botdot machine's own id, 8 hex characters that `install.sh` makes once and keeps in the front door's `.env` as `BOT_DOT_INSTANCE`, handed to each account's server; it tells apart the same account name (`owner`) on two botdot machines that share one boat.dev key. A machine made before keeps its name (its entry in `boat-machines.json` has no `instance`): botdot finds every machine by its stored id. When the admin deletes the account, its server deletes every machine it has there before root's step erases it (`POST /api/boat/erase`).

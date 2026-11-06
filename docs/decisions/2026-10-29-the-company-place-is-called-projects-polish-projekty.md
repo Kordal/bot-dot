@@ -1,0 +1,1 @@
+2026-10-29: The Company place is called Projects (Polish: Projekty) in everything the owner reads (#688), while code names, `/api/company`, the `company` feed event and the `company*` features keep their names, so apps and bots built against them keep working. Rejected: renaming the API now (every app and Chief tool would change at once for a word the owner never sees).

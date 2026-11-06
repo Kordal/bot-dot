@@ -65,3 +65,21 @@ test('web: a reply without a draft is as before', () => {
   assert.match(html, /<choices:Yes\|No>/);
   assert.match(html, /Started E-mail Assistant · View live screen/);
 });
+
+test('web: the files the mail carries are chips on the card, opened as the chat opens them', () => {
+  page.state.features = ['document-viewer', 'chat-attachments'];
+  page.state.chatId = 'c1';
+  try {
+    const files = [{ name: 'Scan.pdf', file: 'uploads/123-ab-Scan.pdf', size: 5800000 }, { name: 'chart.png', file: 'r9/chart.png', size: 300 }, { name: 'made-by-bot.pdf' }];
+    const html = chiefBubble(reply({ ...draft, attachments: files }), true);
+    assert.match(html, /<div class="mail-text">[^]*<\/div>\s*<div class="bubble-files mail-files">/, 'under the text, above the buttons');
+    assert.match(html, /<a class="file-chip link" href="\/api\/chief\/chats\/c1\/uploads\/123-ab-Scan\.pdf" download="Scan\.pdf" data-view="\/chief\/chats\/c1\/uploads\/123-ab-Scan\.pdf" data-view-name="Scan\.pdf" title="Scan\.pdf · 5\.5 MB">📕 <span class="fname">Scan\.pdf<\/span><\/a>/, 'the owner\'s upload opens in the viewer');
+    assert.match(html, /<a class="file-chip link" href="\/api\/files\/r9\/chart\.png" download="chart\.png" data-view="\/files\/r9\/chart\.png"/, 'a bot\'s file as under its reply');
+    assert.match(html, /<span class="file-chip " title="made-by-bot\.pdf">📕 <span class="fname">made-by-bot\.pdf<\/span><\/span>/, 'a name alone');
+    const sent = chiefBubble(reply({ ...draft, attachments: files, state: 'sent', sentAt: '2026-10-23T07:31:00Z' }, { choices: undefined }), true);
+    assert.match(sent, /<div class="bubble-files mail-files" hidden>/, 'a sent mail folds its files with its text');
+    assert.doesNotMatch(chiefBubble(reply(draft), true), /mail-files/, 'a mail without files has no row');
+  } finally {
+    page.state.features = [];
+  }
+});

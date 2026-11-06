@@ -117,6 +117,30 @@ test('web: answered in the chat and on the page at once, the chat says it once',
   assert.equal(bad.answeredAway.size + bad.chatDecided.size, 0);
 });
 
+test('web: the words of a No and Allow row in Needs you open its card in the chat it stands in, unfolded and scrolled to', () => {
+  const ask = (more = {}) => ({ ...PERMISSION, ...more });
+  const p = page({ state: { bots: [CODER], asks: [ask()] } });
+  p.openNeedInChat(p.item('ask:p1'));
+  assert.deepEqual(plain(p.went), [['bot', 'coder']], 'its bot\'s chat');
+  assert.equal(p.needsOpen.has('ask:p1'), true, 'its card unfolded');
+  // Once the chat draws its cards, the card is scrolled to, once.
+  const scrolled = [];
+  const card = element({}, { scrollIntoView: (o) => scrolled.push(o) });
+  const chat = p.thread();
+  chat.thread.querySelector = (sel) => (sel === '.chat-needs' ? chat.box : sel === '.need-card[data-need="ask:p1"]' ? card : null);
+  p.updateChatNeeds(chat.thread, 'coder');
+  p.updateChatNeeds(chat.thread, 'coder');
+  assert.deepEqual(plain(scrolled), [{ block: 'center', behavior: 'smooth' }]);
+  assert.equal(card.classList.contains('open'), true);
+  // Asked in a group: that group's chat. A row that opens its card (Review) does what Review does.
+  const g = page({ state: { bots: [CODER], asks: [ask({ groupId: 'g1', groupName: 'Dev' })] } });
+  g.openNeedInChat(g.item('ask:p1'));
+  assert.deepEqual(plain(g.went), [['group', 'g1']]);
+  const card2 = page({ state: { bots: [CODER], asks: [ask({ yesOn: 'card' })] } });
+  card2.openNeedInChat(card2.item('ask:p1'));
+  assert.deepEqual(plain(card2.went), [['need', 'ask:p1']]);
+});
+
 test('web: "Waiting for your OK" takes the owner to the card its run waits for', () => {
   const scrolled = [];
   const card = element({}, { scrollIntoView: (o) => scrolled.push(o) });

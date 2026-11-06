@@ -82,24 +82,32 @@ const loadFeatures = () => api('/version').then((v) => { state.features = v.feat
 const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); if (takeChiefName(c.chief?.name)) drawChiefName(); renderContacts(); }).catch(() => {});
 
 let readChat = null; // the chat last seen on screen and in front
+let shownChat = null; // the chat last seen on screen, in front or not
+let hid = false; // the page was hidden (minimised, another tab) since it was last in front
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') hid = true; });
 function syncRead() {
   if (!state.features.includes('unread')) return; // a server from before: nothing is new, nothing to report
   const open = chatOpen();
+  // The chat stayed on screen while another window was in front (the desktop app beside another app): its new
+  // replies came in sight, so coming back (a click in it, an answer tapped) does not take the chat up to its line.
+  const stayed = !!open && open === shownChat && !hid;
+  shownChat = open;
   if (newLine.open(open)) drawNewLine(); // the chat was left: its line goes
   const chat = inFront() ? open : null;
+  if (chat) hid = false;
   if (chat === readChat) return;
   readChat = chat;
   if (!chat) { report.show(null); return; }
   Push.clear(window, chat); // its notifications on this device go (push.js)
   // It came on screen: place the line from what the server says is new, then say the chat is being read.
-  placeNewLine(chat, unreadKnown(chat));
+  placeNewLine(chat, unreadKnown(chat), !stayed);
   unreadNow(chat).catch(() => null).then((now) => {
     if (readChat !== chat) return;
-    if (now) placeNewLine(chat, now);
+    if (now) placeNewLine(chat, now, !stayed);
     report.show(chat);
   });
 }
-function placeNewLine(chat, model) { if (newLine.arrive(chat, model)) drawNewLine(); }
+function placeNewLine(chat, model, scroll = true) { if (newLine.arrive(chat, model, scroll)) drawNewLine(); }
 function drawNewLine() {
   if (state.view === 'bot') renderBotChat();
   if (state.view === 'group') renderGroupChat();
@@ -135,6 +143,43 @@ function scrollToNew(thread, opening = false) {
   thread.scrollTop += line.getBoundingClientRect().top - thread.getBoundingClientRect().top - 28;
   return true;
 }
+// A fold opened or closed in a chat (a run's steps, a folded message, "More", a card in the chat) keeps the chat on
+// the text it showed. A chat at its end stays at its end: what opens grows upwards, never further than the line that
+// was clicked, which stays in sight. Any other chat keeps the clicked line where it was. WebKit (Safari, the Mac
+// app) has no scroll anchoring of its own.
+const FOLDS = 'summary, [data-expand], .reply-more, .need-card';
+document.addEventListener('click', (e) => {
+  const fold = e.target.closest?.(FOLDS);
+  const thread = fold?.closest('.chat-thread');
+  if (!thread || e.target.closest('a, input, textarea') || (fold.matches('.need-card') && e.target.closest('button'))) return;
+  const atEnd = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 4;
+  const top = fold.getBoundingClientRect().top;
+  requestAnimationFrame(() => keepFold(thread, fold.isConnected ? fold : null, top, atEnd));
+}, true);
+function keepFold(thread, fold, top, atEnd) {
+  if (!fold) { if (atEnd) thread.scrollTop = thread.scrollHeight; return; }
+  const now = fold.getBoundingClientRect().top;
+  if (!atEnd) { thread.scrollTop += now - top; return; }
+  const room = now - thread.getBoundingClientRect().top - 8; // how far the clicked line can go up and stay in sight
+  const toEnd = thread.scrollHeight - thread.clientHeight - thread.scrollTop;
+  if (toEnd > 0) thread.scrollTop += Math.min(toEnd, Math.max(0, room));
+}
+// A chat that gets shorter or taller (a plan above the message box, the box growing with what is typed) stays at its
+// end when it was there.
+const heldChats = new WeakMap(); // thread -> its last height
+const chatHeights = typeof ResizeObserver === 'function' ? new ResizeObserver((entries) => {
+  for (const { target: t } of entries) {
+    const was = heldChats.get(t);
+    const h = t.clientHeight;
+    heldChats.set(t, h);
+    if (was && h && h !== was && t.scrollHeight - t.scrollTop - was < 4) t.scrollTop = t.scrollHeight;
+  }
+}) : null;
+function holdChatEnd(thread) {
+  if (!thread || !chatHeights || heldChats.has(thread)) return;
+  heldChats.set(thread, thread.clientHeight);
+  chatHeights.observe(thread);
+}
 // A chat's new replies changed (the live feed's `unread`, or this page's own report).
 function setUnread(chat, now) {
   const [kind, id] = chatParts(chat);
@@ -144,8 +189,10 @@ function setUnread(chat, now) {
     return;
   }
   const bot = kind === 'bot' ? botById(id) : kind === 'group' ? groupById(id) : null; // a group has one count and one line, as a bot has
-  if (!bot || (Unread.count(bot) === Unread.count(now) && bot.firstUnread === now.firstUnread)) return;
-  Object.assign(bot, { unread: Unread.count(now), firstUnread: now.firstUnread ?? null });
+  if (!bot) return;
+  const readAt = typeof now.readAt === 'string' ? now.readAt : bot.readAt; // where it is read up to: a seen run's key says Idle
+  if ((Unread.count(bot) === Unread.count(now) && bot.firstUnread === now.firstUnread && bot.readAt === readAt)) return;
+  Object.assign(bot, { unread: Unread.count(now), firstUnread: now.firstUnread ?? null, ...(readAt ? { readAt } : {}) });
   renderContacts();
 }
 addEventListener('focus', syncRead);
@@ -217,17 +264,46 @@ document.addEventListener('animationend', (e) => { if (e.animationName === 'arri
 const queuedList = (list) => (Array.isArray(list) ? list : []).filter((q) => q && typeof q.id === 'string' && q.id);
 // Those of a chat, "bot:<id>" or "chief:<chatId>": a bot's come with the bots, a Chief chat's with the chat,
 // and both with the feed's `queued`. The page keeps none of its own: what it draws is the server's list.
+// A bot's that has its run on the page already started: a list read before that, drawn late, does not show it twice.
 function queuedIn(chat) {
   const [kind, id] = chatParts(chat);
-  return kind === 'bot' ? queuedList(botById(id)?.queued) : kind === 'chief' ? chiefQueued.get(id) || [] : [];
+  return kind === 'bot' ? queuedList(botById(id)?.queued).filter((q) => !runOnPage(q.id)) : kind === 'chief' ? chiefQueued.get(id) || [] : [];
 }
 // The feed's list for a chat, or a list the page was answered with.
 function setQueued(chat, list) {
   const [kind, id] = chatParts(chat);
   if (kind === 'chief') chiefQueued.set(id, queuedList(list));
-  else if (kind === 'bot' && botById(id)) botById(id).queued = queuedList(list);
-  else return;
+  else if (kind === 'bot' && botById(id)) {
+    const next = queuedList(list);
+    const ids = new Set(next.map((q) => q.id));
+    queuedList(botById(id).queued).filter((q) => !ids.has(q.id) && !takenBack.has(q.id)).forEach((q) => queuedStarts(chat, q));
+    botById(id).queued = next;
+  } else return;
   placeStatusLines();
+}
+// A bot's waiting message whose turn came: it left the server's list, and its run (the same id) is not on the page
+// yet, since the runs are read again only after the feed said so, and a busy botdot answers late. Until its run is
+// there it stands as it stood, without its buttons: the owner's message never leaves the chat in between. Its run is
+// asked for by its id; one that is not there (taken back elsewhere, its bot deleted) takes the message away.
+const starting = new Map(); // chat -> [{ id, text, attachments }]
+// The ids of the waiting messages this page takes back: they leave the list without starting.
+const takenBack = new Set();
+const runOnPage = (id) => [...state.runs, ...(typeof own !== 'undefined' && own ? own.runs : [])].some((r) => r?.id === id || (Array.isArray(r?.steered) && r.steered.some((x) => x?.id === id)));
+function startingIn(chat) {
+  const list = (starting.get(chat) || []).filter((q) => !runOnPage(q.id) && !takenBack.has(q.id));
+  if (list.length) starting.set(chat, list); else starting.delete(chat);
+  return list;
+}
+function queuedStarts(chat, q) {
+  if (runOnPage(q.id) || (starting.get(chat) || []).some((x) => x.id === q.id)) return;
+  starting.set(chat, [...(starting.get(chat) || []), { id: q.id, text: q.text, attachments: q.attachments }]);
+  const over = () => { starting.set(chat, (starting.get(chat) || []).filter((x) => x.id !== q.id)); placeStatusLines(); };
+  api(`/runs/${encodeURIComponent(q.id)}`).then((run) => {
+    if (!run || run.id !== q.id || run.status === 'queued') return over(); // not a run that started: the feed and the next refresh say where it is
+    if (!state.runs.some((r) => r.id === run.id)) state.runs = [run, ...state.runs];
+    over();
+    redrawBotChat(chatParts(chat)[1]);
+  }).catch(over);
 }
 // One waiting message: the owner's bubble, faded, with what it waits for and the way back. In a bot's chat and a
 // Chief chat, also Steer (ADR 040): the run or reply that is going reads it at its next tool call; until then it
@@ -253,16 +329,18 @@ function queuedHTML(q, chat) {
 function updateChatQueued(thread, chat, sent = null, arrives = false) {
   if (!thread) return;
   const list = chat ? queuedIn(chat) : [];
+  const started = chat ? startingIn(chat) : [];
   let box = $('.chat-queued', thread);
-  if (!box && !list.length && !sent) return;
+  if (!box && !list.length && !sent && !started.length) return;
   if (!box) { box = document.createElement('div'); box.className = 'chat-queued'; }
   const cards = $('.chat-needs', thread);
   if (cards ? box.nextElementSibling !== cards : box !== thread.lastElementChild) { if (cards) cards.before(box); else thread.append(box); }
-  const sig = JSON.stringify([chat, list.map((q) => [q.id, q.text, q.attachments, q.steering === true]), mentionSig(), sent]);
+  const sig = JSON.stringify([chat, started.map((q) => q.id), list.map((q) => [q.id, q.text, q.attachments, q.steering === true]), mentionSig(), sent]);
   if (box.dataset.sig === sig) return;
   const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
   box.dataset.sig = sig;
-  box.innerHTML = list.map((q) => queuedHTML(q, chat)).join('') + (sent ? sentHTML(sent, chat) : '');
+  box.innerHTML = started.map((q) => sentHTML({ text: typeof q.text === 'string' ? q.text : '', attachments: Array.isArray(q.attachments) ? q.attachments : [] }, chat).replace(' data-sent>', '>')).join('')
+    + list.map((q) => queuedHTML(q, chat)).join('') + (sent ? sentHTML(sent, chat) : '');
   $$('[data-take-back]', box).forEach((b) => (b.onclick = () => takeBack(chat, b.dataset.takeBack, b)));
   $$('[data-steer]', box).forEach((b) => (b.onclick = () => steerQueued(chat, b.dataset.steer, b)));
   if (sent && arrives) arrive($('[data-sent]', box));
@@ -293,6 +371,7 @@ async function takeBack(chat, queuedId, button) {
   const form = kind === 'chief' ? $('#view-chief form') : botForm(id);
   const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
+  takenBack.add(queuedId); // the feed may say it left the list before botdot answers here
   try {
     const back = await api(`${kind === 'chief' ? `/chief/chats/${encodeURIComponent(id)}` : `/bots/${encodeURIComponent(id)}`}/queued/${encodeURIComponent(queuedId)}`, { method: 'DELETE' });
     setQueued(chat, queuedIn(chat).filter((q) => q.id !== queuedId)); // gone at once; the feed's list follows
@@ -305,6 +384,7 @@ async function takeBack(chat, queuedId, button) {
       failedSends.set(chat, { text: withFailed(text, kept?.text || ''), held: [...readyFiles(back?.attachments), ...(kept?.held || [])], err: kept?.err || null, sent: null });
     }
   } catch (e) {
+    takenBack.delete(queuedId); // it stays, or it started
     if (button) button.disabled = false;
     if (e.status === 409) { showBoxNote(chatOpenIs(chat) ? form : null, tr('It has already started.')); await again(); return; }
     toast(e.message, true);

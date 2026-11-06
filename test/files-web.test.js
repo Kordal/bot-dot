@@ -33,7 +33,7 @@ function page({ answers = {}, features = ['files-explorer', 'document-viewer', '
       if (a instanceof Error) throw a;
       return typeof a === 'function' ? a(url, opts) : a;
     },
-    esc, toast: (t, bad) => toasts.push([t, !!bad]), confirm: (t) => { asked.push(t); return confirmed; }, prompt: (t) => { asked.push(t); return prompted; },
+    esc, toast: (t, bad) => toasts.push([t, !!bad]), askFirst: async (t) => { asked.push(t); return confirmed; }, askName: async (t) => { asked.push(t); return prompted; },
     fmtSize: (n) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`),
     state: { features, bots, computers }, Date, encodeURIComponent, setTimeout, clearTimeout, localStorage: { getItem: () => null, setItem() {} },
     matchMedia: () => ({ matches: false }), ...words,

@@ -209,6 +209,12 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }
 
     /** Token usage for a range of the account's days (#301); without days, today. */
+    /** Storage (docs/api.md, Storage): the last check; a new one; the caches cleared. */
+    suspend fun storage(): Storage.Answer = json.decodeFromString(get("/storage"))
+    suspend fun checkStorage(): Storage.Answer = json.decodeFromString(send("POST", "/storage/check"))
+    suspend fun clearCaches(): Storage.Answer = json.decodeFromString(send("POST", "/storage/clear-caches"))
+    /** Deletes what a deleted bot left (Storage's own route: the Files routes take only a bot that is there). */
+    suspend fun deleteGone(w: Storage.Where) { send("DELETE", Storage.goneQuery(w) { enc(it) }) }
     suspend fun usage(from: String? = null, to: String? = null): Usage.Answer = json.decodeFromString(get("/usage${Usage.query(from, to)}"))
 
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
@@ -231,7 +237,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
      * and an irreversible step on a bot's computer (`computer-step=1`, ADR 107) too:
      * this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1"))
+    /** The secret a bot asks to save in the Vault (`vault-save`, ADR 153), read on the owner's Show only. */
+    suspend fun askSecret(id: String): String =
+        json.parseToJsonElement(get("/asks/${enc(id)}/secret")).jsonObject["value"]?.jsonPrimitive?.contentOrNull.orEmpty()
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))
@@ -589,8 +598,10 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun setComputerPlace(place: String, moveFiles: Boolean): ComputerPlace = json.decodeFromString(send("PUT", "/settings/computer", buildJsonObject { put("place", place); put("moveFiles", moveFiles) }))
     suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
     suspend fun setBoatSize(size: String): BoatSizes = json.decodeFromString(send("PUT", "/settings/boat-size", buildJsonObject { put("size", size) }))
-    suspend fun backupNow(): BackupInfo = json.decodeFromString(send("POST", "/backups/now"))
-    fun backupUrl(name: String) = url("/backups/${enc(name)}")
+    /** A backup of the account made now (ADR 158), encrypted with [passphrase]: where to fetch it, once. Only with `backup-download` in its features. */
+    suspend fun backupDownload(passphrase: String): BackupDownloadAsked = json.decodeFromString(send("POST", "/backups/download", buildJsonObject { put("passphrase", passphrase) }))
+    /** The address of a download asked for ([BackupDownloadAsked.url], which starts with /api). */
+    fun backupUrl(asked: BackupDownloadAsked) = baseUrl.trimEnd('/') + asked.url
     /** The session's cookie, for a download Android makes itself (a backup): the front door lets in nothing without it. */
     fun sessionCookie(): String? = session?.token(baseUrl.trimEnd('/'))?.let { "${Session.COOKIE}=$it" }
 
@@ -736,7 +747,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
         return listOfNotNull(ref((JSON.parseToJsonElement(get("/company")) as? JsonObject)?.get("company")))
     }
     suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.startBody(start, sources)))
-    suspend fun startEmptyProject(name: String): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.emptyBody(name)))
+    suspend fun startEmptyProject(name: String, sources: List<SourceDraft> = emptyList()): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.emptyBody(name, sources)))
     /** The board's layout, all of it (#784). */
     suspend fun setLayout(layout: Map<String, List<Int>>): Company = CompanySetup.of(send("PUT", co("/company/layout"),
         buildJsonObject { put("layout", buildJsonObject { layout.forEach { (k, v) -> put(k, JsonArray(v.map { JsonPrimitive(it) })) } }) }))
@@ -766,6 +777,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     /** An objective's display, steps or tick (#690): only what is given is sent. */
     suspend fun setObjective(id: String, display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): Company =
         CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), CompanyFloor.objectiveBody(display, steps, done)))
+    /** Removes a goal (feature `objective-remove`): the company without it. */
+    suspend fun removeObjective(id: String): Company = CompanySetup.of(send("DELETE", co("/company/objectives/${enc(id)}")))
     /** Asks the Chief to change a goal (#820): the id of the Chief chat it started. */
     suspend fun askObjectiveChange(id: String, text: String): String =
         json.parseToJsonElement(send("POST", co("/company/objectives/${enc(id)}/change"), buildJsonObject { put("text", text) })).jsonObject.str("chatId")
@@ -776,6 +789,8 @@ class Api(val baseUrl: String, val session: Session? = null) {
     suspend fun addTodo(text: String, bot: String?, due: String?, repeat: Repeat?): Company =
         CompanySetup.of(send("POST", co("/company/todos"), ProjectTodo.addBody(text, bot, due, repeat)))
     suspend fun deleteTodo(id: String): Company = CompanySetup.of(send("DELETE", co("/company/todos/${enc(id)}")))
+    /** The Files tile (project-files): the newest files of the project's folder; `off`, none, while the computer is off. */
+    suspend fun projectFiles(): RecentFiles = json.decodeFromString(RecentFiles.serializer(), get(co("/company/files")))
     /** The project's calendar (#695): what falls on each day from [from] to [to], both included (at most 62 days). */
     suspend fun projectCalendar(from: String, to: String): List<CalendarItem> =
         json.decodeFromString(CalendarAnswer.serializer(), get(co("/company/calendar?from=${enc(from)}&to=${enc(to)}"))).items

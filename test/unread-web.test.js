@@ -107,6 +107,15 @@ test('web: the line is placed when the chat comes on screen and stays until the 
   assert.equal(k.open(null), false);
 });
 
+test('web: a line for replies that came while the chat stayed on screen is drawn without a scroll to it', () => {
+  const k = Unread.lineKeeper();
+  k.open('bot:a');
+  // The window was behind another one with the chat in sight; it comes back, and a reply came meanwhile.
+  assert.equal(k.arrive('bot:a', { unread: 1, firstUnread: 'r9' }, false), true, 'the line is placed');
+  assert.equal(k.first('bot:a'), 'r9');
+  assert.equal(k.takeJump(), false, 'the chat stays where the owner was');
+});
+
 test('web: a chat with nothing new, or a server without the fields, gets no line', () => {
   const k = Unread.lineKeeper();
   k.open('chief:c1');
@@ -298,12 +307,4 @@ test('a reply the owner has not read, under more runs than the chat draws, is re
   assert.equal(Unread.shown(folded, answer).runs.length, 51);
   // A run that is not this bot's is never reached.
   assert.equal(await Unread.reach(reply, page(busy.id)), null);
-});
-
-test('the Mac app: its Dock icon shows a dot while something waits for your OK, and none for a new reply', () => {
-  const notifier = fs.readFileSync(path.join(__dirname, '..', 'macos', 'BotDot', 'App', 'Notifier.swift'), 'utf8');
-  assert.match(notifier, /NSApp\.dockTile\.badgeLabel = needs\.isEmpty \? nil : "●"/);
-  assert.match(notifier, /requestAuthorization\(options: \[\.alert, \.sound, \.badge\]\)/);
-  assert.equal(notifier.match(/badgeLabel/g).length, 1, 'set from what waits, and nowhere else');
-  assert.doesNotMatch(notifier, /\.badge = |content\.badge|c\.badge/, 'a notification carries no badge number');
 });

@@ -1,0 +1,1 @@
+2026-10-14: The server keeps the last 20 refused calls with a wrong key and the last 20 of every other kind, per job, with the tailnet address and the Tailscale login when there is one, so that keyless requests cannot push the wrong keys out before the checkup reads them. Never the key or the body. ([#412](https://github.com/Kordal/bot-dot/issues/412))

@@ -67,29 +67,6 @@ class SpacesTest {
         assertEquals(Spaces.CHIEF, Spaces.defaultChat(null, listOf(chat), features)) // Home
     }
 
-    // ---------- each bot in one space (#841) ----------
-
-    @Test fun teamBotsAndTheirChatsLeaveHome() {
-        val chat = Group(id = "g7", name = "Growth", team = "t1")
-        val mine = Group(id = "g1", name = "Kitchen")
-        assertEquals(listOf("home"), Spaces.homeBots(bots, listOf(shop, gym)).map { it.id })
-        assertEquals(listOf("g1"), Spaces.homeGroups(listOf(chat, mine), listOf(shop, gym)).map { it.id })
-        // Without projects, everything is Home's, as before.
-        assertEquals(bots, Spaces.homeBots(bots, emptyList()))
-        assertEquals(listOf("g7", "g1"), Spaces.homeGroups(listOf(chat, mine), emptyList()).map { it.id })
-    }
-
-    @Test fun homesFilterOnAllKeepsTeamBotsAndChats() {
-        val chat = Group(id = "g7", name = "Growth", team = "t1")
-        assertEquals(bots, Spaces.homeBots(bots, listOf(shop, gym), all = true))
-        assertEquals(listOf("g7"), Spaces.homeGroups(listOf(chat), listOf(shop, gym), all = true).map { it.id })
-    }
-
-    @Test fun aBotThatLeavesItsTeamIsBackOnHome() {
-        val left = shop.copy(teams = listOf(growth.copy(bots = listOf("b2"))))
-        assertEquals(listOf("b1", "home"), Spaces.homeBots(bots, listOf(left)).map { it.id })
-    }
-
     @Test fun homesNeedsYouListsAllAndAProjectOnlyItsOwn() {
         val waiting = listOf(Waiting("#fff", "Allow?", bot = "b2"), Waiting("#fff", "Allow?", bot = "home"), Waiting(null, "Chief's"))
         assertEquals(listOf("b2"), Spaces.needsIn(shop, waiting).map { it.bot })
@@ -97,5 +74,38 @@ class SpacesTest {
         val marks = Spaces.spaceOfBot(listOf(shop, gym))
         assertEquals("Shop", marks["b2"]?.name)
         assertEquals(null, marks["home"])
+    }
+
+    @Test fun aProjectAlsoListsWhatWasAskedInItsTeamChatsAndNothingOfOtherBots() {
+        val chats = listOf(Group(id = "g1", team = "t1"), Group(id = "g2"))
+        val waiting = listOf(
+            Waiting(null, "Chief in the team chat", group = "g1"),
+            Waiting("#fff", "Cook in the team chat", bot = "home", group = "g1"),
+            Waiting(null, "Chief's own chat"),
+            Waiting("#fff", "Cook in a group of no team", bot = "home", group = "g2"),
+            Waiting("#fff", "Writer", bot = "b2"),
+        )
+        assertEquals(listOf("Chief in the team chat", "Cook in the team chat", "Writer"), Spaces.needsIn(shop, waiting, chats).map { it.text })
+        assertEquals(emptyList<Waiting>(), Spaces.needsIn(gym, waiting, chats))
+        assertEquals(5, waiting.size) // Home lists all of it
+    }
+
+    @Test fun aProjectsQuestionsAreItsTeamBotsOnly() {
+        assertEquals(listOf("b1"), Spaces.askingIn(shop, bots) { it.asks != null }.map { it.id })
+        assertEquals(emptyList<Bot>(), Spaces.askingIn(gym, bots) { it.asks != null })
+    }
+
+    @Test fun aMembersAskIsDrawnUnderItsLeadInTheProject() {
+        assertEquals("b2", Spaces.leadOf(shop, "b1"))
+        assertEquals(null, Spaces.leadOf(shop, "b2"))
+        assertEquals(null, Spaces.leadOf(shop, "home"))
+        assertEquals(null, Spaces.leadOf(shop, null))
+        val team = listOf(Bot(id = "b1", name = "Scout", color = "#111111"), Bot(id = "b2", name = "Writer", color = "#ff9500"))
+        val shown = Spaces.underLeads(shop, listOf(Waiting("#111111", "Scout asks to browse the web", bot = "b1", permission = "a1"), Waiting("#222222", "Lead's own", bot = "b2")), team)
+        assertEquals("#ff9500", shown[0].color)
+        assertEquals("b1", shown[0].bot) // its chat and its card stay the member's
+        assertEquals("a1", shown[0].permission)
+        assertEquals("Scout asks to browse the web", shown[0].text)
+        assertEquals("#222222", shown[1].color)
     }
 }

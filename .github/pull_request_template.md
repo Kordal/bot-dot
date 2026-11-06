@@ -5,7 +5,7 @@ After: what is true now.
 How:
 - What changed, and where.
 - The tests that cover it.
-- Docs: what was updated (docs/api.md for an API change, an ADR or a DECISIONS line for a choice).
+- Docs: what was updated (docs/api.md for an API change, an ADR or a file in docs/decisions/ for a choice).
 
 Not checked here: what you did not run or see working.
 

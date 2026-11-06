@@ -1,0 +1,1 @@
+2026-10-22: The Board's Controls box (#394) is drawn by the apps from the switches and buttons that follow each other under a heading, not kept on the server: each stays a tile of its own, so dragging, removing and the Chief's tools work on it as before.

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // npm start / npm run dev (#71): botdot on this machine for development. botdot is only reached through its front
 // door (ADR 028), so this starts both: the front door on http://localhost:<PORT> (default 4747) with one account
-// and a setup key, as the Mac app's local server was, and the botdot server of that account behind it, on a free
+// and a setup key, and the botdot server of that account behind it, on a free
 // port of 127.0.0.1 that only the Chief's and the bots' tools use. Until the
 // account has its passkey, it prints the sign-up link; after that, the address to sign in at.
 //

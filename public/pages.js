@@ -162,7 +162,7 @@ const Pages = (() => {
     const kept = pages.filter((p) => p.keep);
     const other = pages.filter((p) => !p.keep);
     const section = (title, list) => (list.length ? `<h3 class="page-sub">${title}</h3><div class="card pg-all">${list.map(rowHTML).join('')}</div>` : '');
-    return `${SUB_BACK}
+    return `${subBack()}
     <div class="section-head"><div><h1>${tr('Pages')}</h1></div></div>
     ${pages.length ? `${section(tr('Kept up to date'), kept)}${section(kept.length ? tr('Other pages') : tr('All pages'), other)}`
       : `<div class="card empty" style="padding:36px 20px" title="${tr('Ask a bot for a page, a report or an overview.')}">${tr('No pages yet.')}</div>`}`;
@@ -175,7 +175,7 @@ const Pages = (() => {
     const root = $('#view-pages');
     let pages;
     try { pages = (await api('/pages')).pages; } catch (e) {
-      if (state.view === 'pages') root.innerHTML = `${SUB_BACK}<div class="card empty">${tr("Couldn't load the pages.")}</div>`;
+      if (state.view === 'pages') root.innerHTML = `${subBack()}<div class="card empty">${tr("Couldn't load the pages.")}</div>`;
       return;
     }
     if (state.view !== 'pages') return;

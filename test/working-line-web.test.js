@@ -244,14 +244,13 @@ test('web: a run that is followed hands on the server\'s line and nothing of its
   assert.deepEqual(old.got.lines, ['Checking the news']);
 });
 
-test('web: the run\'s page and the computer\'s window draw a running run\'s line as the server says it', () => {
+test('web: the run\'s page draws a running run\'s line as the server says it; the computer\'s window has none', () => {
   const run = cut('function showRun(id) {', '// ---------- chief of staff ----------');
   assert.match(run, /<span class="activity muted">\$\{tr\('Working…'\)\}<\/span>/, 'until the run has a line');
   assert.match(run, /if \(OpeningLine\.says\(ev\.type, state\.features\)\) \{ line = OpeningLine\.text\(ev\.text\); setActivity\(line \|\| tr\('Working'\)\); \}/);
   assert.match(run, /if \(ev\.type === 'phase'\) \{\s*setActivity\(OpeningLine\.text\(ev\.text\) \|\| line \|\| tr\('Working'\)\);/, 'the server\'s words while its computer starts, then its line again');
   assert.doesNotMatch(run, /tool_use/);
   const screen = cut('function openScreen(botId) {', '// Plain-language explanation for a failed or stopped run');
-  assert.match(screen, /const stepsEs = run && watchRun\(run\.id, /);
-  assert.match(screen, /\$\{tr\("What it's doing:"\)\} <span id="screen-now"><\/span>/);
-  assert.doesNotMatch(screen, /class="steps"/, 'one line, no list of steps');
+  assert.doesNotMatch(screen, /watchRun|screen-steps|screen-now|What it's doing/, 'no line under the screen');
+  assert.doesNotMatch(screen, /screen-state|using it right now|Uses \{size\} of disk/, 'no state line beside the buttons');
 });

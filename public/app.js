@@ -467,6 +467,49 @@ async function whileBusy(button, words, work, spin = false) {
   }
 }
 
+// A question before a step that can't be taken back, drawn by the page and never by the browser's confirm(): the
+// desktop app's WebKit on the Mac shows no confirm() or prompt() of its own and answers no, so the step never happened
+// and nothing said why. Its first paragraph is the question, the rest what goes with it. A yes resolves true; Cancel,
+// Escape or a second question before the first is answered resolve false. With `danger` the yes is red.
+function askFirst(question, yes = tr('OK'), { danger = true } = {}) {
+  return asked(question, yes, { danger });
+}
+
+// The same for a name or a passphrase to type (prompt()): what was typed, or null for Cancel or Escape. Enter is the yes.
+function askName(question, value = '', yes = tr('Save'), { secret = false } = {}) {
+  return asked(question, yes, { field: { value, secret } });
+}
+
+function asked(question, yes, { danger = false, field = null }) {
+  let m = $('#ask-first');
+  if (!m) { m = document.createElement('dialog'); m.id = 'ask-first'; document.body.append(m); }
+  if (m.open) m.close();
+  const [head, ...rest] = String(question).split(/\n\s*\n/);
+  m.innerHTML = `<form method="dialog"><div class="modal-head"><h2></h2></div>${rest.length || field ? '<div class="modal-body"></div>' : ''}
+    <div class="modal-foot"><button type="button" class="btn" data-ask-no></button><button class="btn primary${danger ? ' danger' : ''}" data-ask-yes></button></div></form>`;
+  $('h2', m).textContent = head.trim();
+  const body = $('.modal-body', m);
+  for (const text of rest) { const p = document.createElement('p'); p.textContent = text.trim(); body.append(p); }
+  const input = field ? document.createElement('input') : null;
+  if (input) {
+    input.type = field.secret ? 'password' : 'text';
+    input.value = field.value || '';
+    input.setAttribute('aria-label', head.trim());
+    body.append(input);
+  }
+  $('[data-ask-no]', m).textContent = tr('Cancel');
+  $('[data-ask-yes]', m).textContent = yes;
+  return new Promise((resolve) => {
+    let said = false;
+    $('form', m).onsubmit = (e) => { e.preventDefault(); said = true; m.close(); };
+    $('[data-ask-no]', m).onclick = () => m.close();
+    m.addEventListener('close', () => resolve(input ? (said ? input.value : null) : said), { once: true });
+    m.showModal();
+    // Cancel first for a question, so Enter can't say yes by itself; the field for a name, its text chosen.
+    if (input) { input.focus(); input.select(); } else $('[data-ask-no]', m).focus();
+  });
+}
+
 // A small pill in the corner for work that runs on after its dialog or button is done (Bitwarden's unlock, a page's
 // schedule): `busy` while it runs, `ok` (gone by itself), or `err`, which a tap tries again with `retry`.
 function cornerPill(kind, text, retry = null) {
@@ -632,6 +675,18 @@ function hideOpenMarks(line) {
   return cut.size ? line.split('').filter((_, i) => !cut.has(i)).join('') : line;
 }
 
+// A table scrolls sideways in its box when it is wider than the chat, so its columns are never squeezed into a
+// letter each; a column of only numbers lines up on the right.
+const NUM_CELL = /^[-+−]?\d[\d\s.,:]*%?$/;
+function tableHTML(rows, inline) {
+  const cols = Math.max(...rows.map((r) => r.length));
+  const body = rows.slice(1);
+  const num = Array.from({ length: cols }, (_, c) => body.some((r) => r[c]) && body.every((r) => !r[c] || NUM_CELL.test(r[c])));
+  const cell = (tag, c, text) => `<${tag}${num[c] ? ' class="num"' : ''}>${inline(text)}</${tag}>`;
+  const row = (r, tag) => `<tr>${r.map((c, ci) => cell(tag, ci, c)).join('')}</tr>`;
+  return `<div class="md-table"><table><thead>${row(rows[0], 'th')}</thead>${body.length ? `<tbody>${body.map((r) => row(r, 'td')).join('')}</tbody>` : ''}</table></div>`;
+}
+
 // A flat list of blocks: heading (level, text), para (text), item (text, number or null, depth, and task: "done" or
 // "todo" for a task item), quote (text),
 // rule, code (text, lang: the word after its fence) and table (rows). Android's parseBlocks returns the same for the same text.
@@ -752,7 +807,7 @@ function mdParts(blocks, botId) {
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
-    else if (b.type === 'table') out.push('<table>' + b.rows.map((r, ri) => `<tr>${r.map((c) => (ri === 0 ? `<th>${inline(c)}</th>` : `<td>${inline(c)}</td>`)).join('')}</tr>`).join('') + '</table>');
+    else if (b.type === 'table') out.push(tableHTML(b.rows, inline));
     else out.push(`<p>${text(b.text)}</p>`);
   }
   return out;
@@ -1014,10 +1069,10 @@ async function refresh() {
     redrawMarks();
     showJobApprovals();
     api(MEMORY_WAITS).then((p) => { state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks?vault-switch=1&vault-remove=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
-    if (state.view === 'bot' && state.botId) loadInbox(state.botId);
+    if (state.view === 'bot' && state.botId) { loadInbox(state.botId); readOwnRuns(state.botId); }
     render();
   } catch (e) {
     // No toast from the background: while botdot is away the standing line says it (setAway), once.
@@ -1057,7 +1112,7 @@ const runningTasks = () => activityRuns().filter((r) => r.status === 'running').
 const tasksRunning = (n) => trn(n, '{n} task running', '{n} tasks running');
 // The Settings button: marked while one of its pages is open.
 function markMore() {
-  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'settings', 'setup'].includes(state.view));
+  $('#more-btn').classList.toggle('here', ['runs', 'skills', 'pages', 'connectors', 'vault', 'storage', 'settings', 'setup'].includes(state.view));
   // The logo's dot pulses while the Chief or a bot is working.
   $('#brand').classList.toggle('busy', !!state.chiefBusy || state.bots.some((b) => b.running));
   const ca = $('#chief-avatar');
@@ -1069,7 +1124,7 @@ function renderStatus() {
   if (!state.status?.claudeBin) toast(tr('Claude Code CLI not found. Bots cannot run.'), true);
 }
 
-// Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | rooms (with state.roomId, rooms.js) | runs | skills | vault | settings | setup | connectors | dashboard | needs.
+// Views: chief | bot (with state.botId) | group (with state.groupId, groups.js) | rooms (with state.roomId, rooms.js) | runs | skills | vault | storage | settings | setup | connectors | dashboard | needs.
 // A bot's settings, its jobs and the Chief's settings are no views: they are drawn in the panel beside
 // the chat (panel.js). setView still takes their names, botsettings, botjobs and chiefsettings, and the
 // address keeps them. A group's panel is groupsettings.
@@ -1107,9 +1162,15 @@ function show({ view: v, panel, via }, fresh = false) {
   state.view = v;
   state.panel = panel;
   state.via = via; // the jobs came from the settings: Back returns there
+  // A page opened from Setup goes back to Setup; any other way in, to Settings. Moving between them keeps it.
+  if (changed && SUB_PAGES.includes(v) && !SUB_PAGES.includes(from)) {
+    state.subFrom = from === 'setup' ? 'setup' : 'settings';
+    $$('.sub-back').forEach((b) => (b.innerHTML = subBackLabel())); // pages kept from an earlier visit
+  }
   const now = panelPage();
   if (changed && v === 'connectors') delete $('#view-connectors').dataset.ready; // fresh data each visit
   if (changed && v === 'vault') delete $('#view-vault').dataset.ready;
+  if (changed && v === 'storage' && typeof StoragePage !== 'undefined') queueMicrotask(() => StoragePage.open()); // fresh each visit (storage.js)
   if (changed && v === 'dashboard') loadDash();
   if (changed && v === 'setup') { delete $('#view-setup').dataset.ready; state.setup = null; }
   if (changed) { needsDone.clear(); needsOpen.clear(); delete $('#view-needs').dataset.sig; stayOnNeeds(); }
@@ -1194,8 +1255,10 @@ const ICON = {
 };
 const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="${tr('Back')}">${ICON.back}</button>`;
 const PAGE_BACK = `<button class="btn sm page-back" data-back>${ICON.back} ${tr('Back')}</button>`;
-// Activity, Skills, Connectors and Vault: back to Settings, where they open from.
-const SUB_BACK = `<button class="btn sm sub-back" data-to-settings>${ICON.back} ${tr('Settings')}</button>`;
+// Activity, Skills, Pages, Connectors, Vault and Storage: back to where they were opened from, Setup or else Settings.
+const SUB_PAGES = ['runs', 'skills', 'pages', 'connectors', 'vault', 'storage'];
+const subBackLabel = () => `${ICON.back} ${state.subFrom === 'setup' ? tr('Setup') : tr('Settings')}`;
+const subBack = () => `<button class="btn sm sub-back" data-sub-back>${subBackLabel()}</button>`;
 
 // "18:32" today, "Mon" this week, "Sep 21" otherwise.
 function shortTime(iso) {

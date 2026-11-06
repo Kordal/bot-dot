@@ -1,0 +1,1 @@
+2026-10-08: A bullet between two numbered items ends the numbered list, and so does a code block, so the next number is the one written, because a list in HTML is either numbered or not, and bots write the real number after a code block. Rejected: counting on across them (a list that starts again at 1 on purpose would be drawn 2). (plan)

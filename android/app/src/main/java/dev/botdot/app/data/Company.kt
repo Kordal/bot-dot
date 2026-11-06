@@ -69,6 +69,8 @@ data class Company(
     val layout: Map<String, List<Double>>? = null,
     /** The Vault logins its cards call the owner's own servers with (#804, [ProjectLogins]). */
     val logins: List<ProjectLogin> = emptyList(),
+    /** An ongoing project (#925, shape "ops": a home, a car): no 90 days, no delivery date, a monthly review for the check-ins. */
+    val ongoing: Boolean = false,
 ) {
     val running: Boolean get() = phase == "running"
     val site: Boolean get() = kind == "site"
@@ -309,18 +311,24 @@ object CompanySetup {
     /** `POST /api/company`: what the owner works on, and the sources that are ready (a file still on its way is left out). */
     fun startBody(start: String, sources: List<SourceDraft>): JsonObject = buildJsonObject {
         put("start", start.trim())
-        put("sources", buildJsonArray {
-            sources.forEach { s ->
-                when {
-                    s.kind == "link" && s.url != null -> add(buildJsonObject { put("kind", "link"); put("url", s.url); put("name", s.name) })
-                    s.kind == "file" && s.upload != null -> add(buildJsonObject { put("kind", "file"); put("name", s.name); put("upload", OUT.encodeToJsonElement(Attachment.serializer(), s.upload)) })
-                }
-            }
-        })
+        put("sources", sourcesJson(sources))
     }
 
-    /** `POST /api/company` for an empty project (#788): named [name], the app's "New project", until the owner names it. */
-    fun emptyBody(name: String): JsonObject = buildJsonObject { put("empty", true); put("name", name) }
+    /** `POST /api/company` for an empty project (#788): named [name], with the sources added on the start screen. */
+    fun emptyBody(name: String, sources: List<SourceDraft> = emptyList()): JsonObject = buildJsonObject {
+        put("empty", true)
+        put("name", name)
+        put("sources", sourcesJson(sources))
+    }
+
+    private fun sourcesJson(sources: List<SourceDraft>) = buildJsonArray {
+        sources.forEach { s ->
+            when {
+                s.kind == "link" && s.url != null -> add(buildJsonObject { put("kind", "link"); put("url", s.url); put("name", s.name) })
+                s.kind == "file" && s.upload != null -> add(buildJsonObject { put("kind", "file"); put("name", s.name); put("upload", OUT.encodeToJsonElement(Attachment.serializer(), s.upload)) })
+            }
+        }
+    }
 
     /** A link as the owner typed it, named without its scheme. */
     fun link(id: String, typed: String): SourceDraft? {

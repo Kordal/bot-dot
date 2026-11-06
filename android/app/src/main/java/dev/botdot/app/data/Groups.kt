@@ -58,6 +58,7 @@ data class Group(
     val order: Int = 0,
     val unread: Int = 0,
     val firstUnread: String? = null,
+    val readAt: String? = null, // how far the owner has read it: a last reply from before says Idle on its key, not Done
     @SerialName("last") val lastValue: JsonElement? = null,
     @SerialName("working") val workingValue: JsonElement? = null,
     @SerialName("asks") val asksValue: JsonElement? = null,
@@ -183,12 +184,16 @@ sealed interface GroupItem {
  * A member at work in a group (`working` on its chat): its run, what it said it is about to do, and, from a server
  * with `working-line`, what its line reads now ([TurnLines.read]).
  */
-data class GroupWorking(val botId: String, val runId: String, val messageId: String? = null, val startedAt: String? = null, val openingLine: String? = null, val workingLine: String? = null) {
+data class GroupWorking(val botId: String, val runId: String, val messageId: String? = null, val startedAt: String? = null, val openingLine: String? = null, val workingLine: String? = null, val plan: Plan? = null) {
     companion object {
         fun list(v: JsonElement?): List<GroupWorking> = (v as? JsonArray).orEmpty().mapNotNull { e ->
             val o = e as? JsonObject ?: return@mapNotNull null
-            GroupWorking(o["botId"].textOrNull() ?: return@mapNotNull null, o["runId"].textOrNull() ?: return@mapNotNull null, o["messageId"].textOrNull(), o["startedAt"].textOrNull(), o["openingLine"].textOrNull(), o["workingLine"].textOrNull())
+            GroupWorking(o["botId"].textOrNull() ?: return@mapNotNull null, o["runId"].textOrNull() ?: return@mapNotNull null, o["messageId"].textOrNull(), o["startedAt"].textOrNull(), o["openingLine"].textOrNull(), o["workingLine"].textOrNull(), Plan.of(o["plan"]))
         }
+
+        /** The plan above a group's message box (docs/api.md, "The plan"): of the member at work that started last and has one. */
+        fun planOf(working: List<GroupWorking>): Pair<GroupWorking, PlanView>? =
+            working.lastOrNull { it.plan != null }?.let { w -> w to PlanView(w.plan!!, stopped = false, id = w.runId) }
     }
 }
 
@@ -356,6 +361,8 @@ class TurnLines(private val features: () -> Collection<String>? = { null }) {
 object Groups {
     /** The feature of a botdot that gives each team of a project a chat (#697, ADR 119). */
     const val TEAM_CHATS = "team-chats"
+    /** A team's chat is renamed with its team: PUT of its `name` renames the team in its project. */
+    const val TEAM_CHAT_RENAME = "team-chat-rename"
 
     /** The chat of the team [teamId] (#697); null without one. */
     fun teamChat(groups: List<Group>, teamId: String): Group? = groups.firstOrNull { it.team == teamId }
@@ -396,11 +403,12 @@ object Groups {
     fun addable(g: Group, bots: List<Bot>): List<Bot> = if (g.members.size >= GROUP_MAX) emptyList() else bots.filter { it.id !in g.members }
 
     /** The groups with what the server now says of one group's new replies (`group_unread`); the same list when nothing changed. */
-    fun setUnread(groups: List<Group>, groupId: String, unread: Int, firstUnread: String?): List<Group> {
+    fun setUnread(groups: List<Group>, groupId: String, unread: Int, firstUnread: String?, readAt: String? = null): List<Group> {
         val n = unread.coerceAtLeast(0)
         val first = firstUnread.takeIf { n > 0 }
-        if (groups.none { it.id == groupId && (it.unread != n || it.firstUnread != first) }) return groups
-        return groups.map { if (it.id == groupId) it.copy(unread = n, firstUnread = first) else it }
+        val at = { g: Group -> readAt?.takeIf { it.isNotEmpty() } ?: g.readAt }
+        if (groups.none { it.id == groupId && (it.unread != n || it.firstUnread != first || it.readAt != at(it)) }) return groups
+        return groups.map { if (it.id == groupId) it.copy(unread = n, firstUnread = first, readAt = at(it)) else it }
     }
 
     /**
@@ -425,7 +433,7 @@ object Groups {
             }
             "group_asks" -> { g -> g.copy(asksValue = d["asks"].takeIf { it is JsonObject }) }
             "group_limit" -> { g -> g.copy(limitValue = d["limit"].takeIf { it is JsonObject }) }
-            "group_unread" -> return setUnread(groups, id, (d["unread"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0, d["firstUnread"].textOrNull())
+            "group_unread" -> return setUnread(groups, id, (d["unread"] as? JsonPrimitive)?.takeIf { !it.isString }?.intOrNull ?: 0, d["firstUnread"].textOrNull(), d["readAt"].textOrNull())
             else -> return groups
         }
         return groups.map { if (it.id == id) change(it) else it }

@@ -1,6 +1,6 @@
 # ADR-044: An account whose new server doesn't start goes back to its old version, and the others carry on
 
-- **Status:** Accepted (2026-10-20). Amended by [ADR 053](053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md): an account whose owner turned "Update automatically" off waits on the version it runs.
+- **Status:** Accepted (2026-10-20). Amended by [ADR 053](053-each-account-owner-chooses-when-their-account-switches-to-a-new-version.md): an account whose owner turned "Update automatically" off waits on the version it runs. Amended by [ADR 155](155-an-update-can-name-its-version-and-keeps-a-snapshot-of-each-accounts-data.md): the way back includes the account's data, from a snapshot kept before its switch.
 - **Owning task:** [#194](https://github.com/Kordal/bot-dot/issues/194), part of [#189](https://github.com/Kordal/bot-dot/issues/189)
 - **Supersedes:** "A failed update is still not rolled back" in [ADR 036](036-the-admin-pages-update-runs-the-installer-of-the-version-it-installs.md)
 

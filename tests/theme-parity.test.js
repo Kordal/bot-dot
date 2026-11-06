@@ -1,6 +1,5 @@
-// One look on every app (#447): the colour tokens of the web page (public/style.css), Android (Paper in Theme.kt)
-// and the Mac (Theme.swift) are the same set, with the same value. The web page and Android are dark only (#14), so
-// the value is the dark one; the stopped Mac app (ADR 031) still has both, and its dark one is compared. A token one
+// One look on every app (#447): the colour tokens of the web page (public/style.css) and Android (Paper in Theme.kt)
+// are the same set, with the same value. Both are dark only (#14), so the value is the dark one. A token one
 // app has alone is named below with its reason; any other token missing in an app, or with another value there, fails.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,14 +10,12 @@ const ROOT = path.join(__dirname, '..');
 const FILES = {
   web: 'public/style.css',
   android: 'android/app/src/main/java/dev/botdot/app/ui/Theme.kt',
-  mac: 'macos/BotDot/UI/Theme.swift',
 };
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
 
 // Tokens only some apps have. fig-ink: the web page's figures mix their deep shade towards it; the apps compute
-// that shade in their figure code (FigureDef.deep). The surfaces of depth (#723) came after the Mac app stopped (ADR 031).
-const DEPTH = ['raise', 'raise2', 'fill', 'hi'];
-const ONLY = { web: ['figInk', ...DEPTH], android: DEPTH, mac: [] };
+// that shade in their figure code (FigureDef.deep).
+const ONLY = { web: ['figInk'], android: [] };
 
 // `line-2` → `line2`, `warn-line` → `warnLine`: the apps' names for the web page's.
 const camel = (name) => name.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase());
@@ -49,20 +46,12 @@ function android(kt) {
     .map(([, k, a, v]) => [k, `#${v}${a.toLowerCase() === 'ff' ? '' : a}`.toLowerCase()]));
 }
 
-function mac(swift) {
-  const theme = block(swift, 'enum Theme {');
-  const out = {};
-  for (const [, k, , d] of theme.matchAll(/static let (\w+) = dynamic\(0x([0-9a-f]{6}), 0x([0-9a-f]{6})\)/gi)) out[k] = `#${d.toLowerCase()}`;
-  for (const [, k, v] of theme.matchAll(/static let (\w+) = Color\(hex: "#([0-9a-f]{6})"\)/gi)) out[k] = `#${v.toLowerCase()}`;
-  return out;
-}
-
 function long(hex) {
   const h = hex.toLowerCase();
   return h.length === 4 ? `#${[...h.slice(1)].map((c) => c + c).join('')}` : h;
 }
 
-const themes = () => ({ web: web(read(FILES.web)), android: android(read(FILES.android)), mac: mac(read(FILES.mac)) });
+const themes = () => ({ web: web(read(FILES.web)), android: android(read(FILES.android)) });
 
 // What differs between the apps' themes: one line per token that is missing in an app or has another value.
 function differences(t) {
@@ -83,7 +72,7 @@ function differences(t) {
   return out;
 }
 
-test('the web page, Android and the Mac have the same colour tokens with the same values', () => {
+test('the web page and Android have the same colour tokens with the same values', () => {
   assert.deepEqual(differences(themes()), []);
 });
 
@@ -99,12 +88,12 @@ test('the accents are tokens of every app: the dot, the mention blue and the war
 test('a token changed in one app alone, or missing there, is found', () => {
   const t = themes();
   const changed = structuredClone(t);
-  changed.mac.mention = '#000000';
-  assert.deepEqual(differences(changed), ['mention: web #378add, android #378add, mac #000000']);
+  changed.android.mention = '#000000';
+  assert.deepEqual(differences(changed), ['mention: web #378add, android #000000']);
   const missing = structuredClone(t);
   delete missing.android.warnLine;
   assert.deepEqual(differences(missing), [`warnLine: missing in android (${FILES.android})`]);
   const shared = structuredClone(t);
-  shared.mac.figInk = shared.web.figInk;
-  assert.deepEqual(differences(shared), ['figInk: only web should have it, but web, mac do']);
+  shared.android.figInk = shared.web.figInk;
+  assert.deepEqual(differences(shared), ['figInk: only web should have it, but web, android do']);
 });

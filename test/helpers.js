@@ -145,8 +145,18 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
   // The same, as the Chief's tools call it (with the Chief's key).
   const asChief = (p, opts = {}) => api(p, { ...opts, headers: { 'X-Chief-Key': chiefKey, ...opts.headers } });
 
+  // A backup downloaded as the owner does (ADR 158): asked for with its passphrase, then fetched at its address.
+  // → { file (a Buffer), name, disposition }; throws with the server's words when it is refused.
+  async function backup(passphrase) {
+    const asked = await api('/backups/download', { method: 'POST', body: { passphrase } });
+    if (asked.status !== 200) throw new Error(`${asked.status}: ${asked.data?.error}`);
+    const res = await fetch(`${base}${asked.data.url}`, { headers: { 'X-Bot-Dot': '1' } });
+    if (res.status !== 200) throw new Error(`${res.status}: ${await res.text()}`);
+    return { file: Buffer.from(await res.arrayBuffer()), name: asked.data.name, disposition: res.headers.get('content-disposition') };
+  }
+
   const srv = {
-    base, port, botdotPort, socket, account, dir, data, out, chiefKey, api, asChief, runs, nextRun, log, pid: child.pid,
+    base, port, botdotPort, socket, account, dir, data, out, chiefKey, api, asChief, backup, runs, nextRun, log, pid: child.pid,
     hold: () => fs.writeFileSync(path.join(out, 'hold'), ''),
     unhold: () => fs.rmSync(path.join(out, 'hold'), { force: true }),
     release: (run) => fs.writeFileSync(path.join(out, `done-${run.n}`), ''),

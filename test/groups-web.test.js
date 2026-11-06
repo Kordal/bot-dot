@@ -49,7 +49,7 @@ function page({ features = ['groups', 'unread'], bots = BOTS, groups = [DEV], re
     toast: (text, bad) => said.toasts.push([text, !!bad]), refresh: async () => { said.refreshed++; }, renderContacts: () => { said.contacts++; },
     flashSaved: () => { said.saved = (said.saved || 0) + 1; }, // "Saved" at the panel's top right (settings.js)
     setView: (v, sub) => said.views.push([v, sub]), setPanel() {}, leaveBot: () => { said.left++; }, setUnread: (chat, d) => said.unread.push([chat, d.unread]),
-    confirm: (t) => { said.confirms.push(t); return true; }, updateChatNeeds: (thread, scope) => said.needs.push(scope),
+    askFirst: async (t) => { said.confirms.push(t); return true; }, updateChatNeeds: (thread, scope) => said.needs.push(scope),
     showBoxNote: (form, text) => said.notes.push(text), openModal: (h) => { said.modals.push(h); return said.modal(h); },
     botFigure: (color, st = 'idle', size = '', outfit = null, bot = '') => `<div class="avatar head ${size}"${bot ? ` data-bot="${bot}"` : ''} data-st="${st}" data-c="${color}"></div>`,
     botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : ''),
@@ -277,18 +277,33 @@ test('web: the panel has the name, the members each with a way to take it out, "
   assert.deepEqual(p.said.toasts, [['A group has at least two bots. Add another, or delete the group.', true]]);
 });
 
-test("web: a team's chat opens the same panel: its members and notes, with nothing that renames it, changes its members or deletes it (#697)", async () => {
+test("web: a team's chat opens the same panel: its members and notes, with nothing that changes its members or deletes it (#697)", async () => {
   const p = page();
   Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });
   const { parts } = panelPage(p);
   p.ctx.renderGroupSettings();
   await new Promise((r) => setImmediate(r));
-  assert.equal(parts['#gs-name'].disabled, true, 'its name follows its team');
+  assert.equal(parts['#gs-name'].disabled, true, 'a server without `team-chat-rename` keeps its name with its team');
   assert.doesNotMatch(parts['#gs-members'].innerHTML, /data-take-out/);
   assert.match(parts['#gs-members'].innerHTML, /Coder/);
   assert.equal(parts['#gs-add'].classList.contains('hidden'), true);
   assert.equal(parts['#gs-delete'].classList.contains('hidden'), true);
   assert.deepEqual(p.said.calls, [['GET', '/group-chats/g1/notes']], 'its notes are read as any group\'s');
+});
+
+test("web: with `team-chat-rename` a team's chat is renamed in its panel as any group's, and the server renames its team", async () => {
+  const p = page({ features: ['groups', 'unread', 'team-chat-rename'] });
+  Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });
+  const { parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(parts['#gs-name'].disabled, false);
+  parts['#gs-name'].value = '  Dev   crew ';
+  parts['#gs-name'].onchange();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(p.said.calls.filter(([m]) => m === 'PUT'), [['PUT', '/group-chats/g1', { name: 'Dev crew' }]]);
+  assert.equal(parts['#gs-add'].classList.contains('hidden'), true, 'its members still follow its team');
+  assert.equal(parts['#gs-delete'].classList.contains('hidden'), true);
 });
 
 test('web: the panel shows the group\'s notes, decisions first, each changed where it stands, removed by ✕, and added by Enter (ADR 139)', async () => {

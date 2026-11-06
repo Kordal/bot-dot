@@ -1,0 +1,1 @@
+2026-10-31: The Chief moves a project's start day and delivery date through `PUT /api/company/dates`, not `PATCH /api/company`, so its tools reach only the dates and never the rest of the project's setup (#819).

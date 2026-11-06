@@ -54,11 +54,25 @@ function vaultTypeFields(type, { username = '', isNew = true } = {}) {
   const t = VAULT_TYPES[vaultType(type)];
   const keep = isNew ? '' : ` <span class="hint">${tr('leave empty to keep the current one')}</span>`;
   const secret = t.multiline
-    ? `<label class="field">${t.secret}${keep}<textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${isNew ? ' required' : ' placeholder="••••••••"'}></textarea></label><label class="field">${tr('Or pick its file')}<input type="file" name="secretFile"></label>`
-    : `<label class="field">${t.secret}${keep}<input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}></label>`;
+    ? `<label class="field">${t.secret}${keep}<span class="secret-input"><textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${isNew ? ' required' : ' placeholder="••••••••"'}></textarea>${revealButton()}</span></label><label class="field">${tr('Or pick its file')}<input type="file" name="secretFile"></label>`
+    : `<label class="field">${t.secret}${keep}<span class="secret-input"><input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}>${revealButton()}</span></label>`;
   const user = t.username ? `<label class="field">${t.username}${t.optional ? ` <span class="hint">${tr('optional')}</span>` : ''}${t.hint ? ` <span class="hint">${t.hint}</span>` : ''}<input type="text" name="username" value="${esc(username)}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>` : '';
   // A secret of several lines takes the form's width, under its username.
   return `<div class="row${!t.username || t.multiline ? ' one' : ''}" data-type-fields>${user}${secret}</div>`;
+}
+
+// Show and Hide beside a secret the owner types: they see what they typed. One listener on the form, for its field
+// also when it is drawn again for another type (wireVaultType).
+const revealButton = () => `<button type="button" class="btn sm ghost" data-reveal aria-pressed="false">${tr('Show')}</button>`;
+function revealOnClick(e) {
+  const button = e.target.closest?.('[data-reveal]');
+  if (!button) return;
+  e.preventDefault();
+  const field = button.parentElement.querySelector('input, textarea');
+  const shown = button.getAttribute('aria-pressed') !== 'true';
+  if (field.tagName === 'TEXTAREA') field.classList.toggle('masked', !shown); else field.type = shown ? 'text' : 'password';
+  button.setAttribute('aria-pressed', String(shown));
+  button.textContent = shown ? tr('Hide') : tr('Show');
 }
 
 // A secret of several lines read from its file, as it is: its line breaks too.
@@ -78,6 +92,7 @@ function wireSecretFile(form) {
 // address (a GitHub App's api.github.com) fills an empty address field.
 function wireVaultType(form, { username = '', isNew = true } = {}) {
   let kept = username;
+  form.addEventListener('click', revealOnClick);
   wireSecretFile(form);
   form.type.onchange = () => {
     if (form.username) kept = form.username.value;
@@ -107,7 +122,7 @@ async function renderVault() {
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `${b.name}` : id; };
   const locked = bw.configured && !bw.unlocked;
   root.innerHTML = `
-    ${SUB_BACK}
+    ${subBack()}
     <div class="section-head">
       <div><h1 title="${esc(bw.configured ? tr("Your Bitwarden's bot-dot folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them.") : tr('Saved logins your bots can use without ever seeing the password.'))}">${tr('Vault')}</h1></div>
       ${locked ? '' : `<div class="vault-add">${bw.unlocked ? `<button class="btn" id="add-file">＋ ${tr('File')}</button><button class="btn" id="add-ssh-key">＋ ${tr('SSH key')}</button>` : ''}<button class="btn primary" id="add-login">＋ ${tr('Add')}</button></div>`}
@@ -152,8 +167,8 @@ async function renderVault() {
     return (l.kind || 'login') === 'login' ? openLoginEditor(l) : openItemBots(l);
   }));
   // A secret kept in a file (#253): botdot deletes it where it wrote it, and the bot must ask on a card to write it again.
-  $$('[data-remove-file]').forEach((b) => (b.onclick = () => {
-    if (!confirm(tr("Remove {path}? The bot can't write it again without asking you on a card.", { path: b.dataset.where }))) return;
+  $$('[data-remove-file]').forEach((b) => (b.onclick = async () => {
+    if (!(await askFirst(tr("Remove {path}? The bot can't write it again without asking you on a card.", { path: b.dataset.where }), tr('Remove')))) return;
     whileBusy(b, tr('Removing…'), async () => {
       try { const r = await api(`/vault/secret-files/${encodeURIComponent(b.dataset.removeFile)}`, { method: 'DELETE' }); toast(r?.say || tr('Removed'), !!r?.byHand); } catch (e) { toast(e.message, true); }
       renderVault();
@@ -199,8 +214,8 @@ function openLoginEditor(login, { onSaved } = {}) {
   const form = $('#login-form', m);
   wireVaultType(form, { username: l.username, isNew });
   const del = $('#delete-login', m);
-  if (del) del.onclick = () => {
-    if (!confirm(state.bw?.configured ? tr("Delete \"{name}\"? It moves to Bitwarden's trash, where you can restore it for 30 days.", { name: l.name }) : tr('Delete "{name}" from the Vault?', { name: l.name }))) return;
+  if (del) del.onclick = async () => {
+    if (!(await askFirst(state.bw?.configured ? tr("Delete \"{name}\"? It moves to Bitwarden's trash, where you can restore it for 30 days.", { name: l.name }) : tr('Delete "{name}" from the Vault?', { name: l.name }), tr('Delete')))) return;
     whileBusy(del, tr('Deleting…'), async () => {
       try {
         await api(`/vault/${l.id}`, { method: 'DELETE' });

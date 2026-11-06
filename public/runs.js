@@ -4,7 +4,7 @@ function renderRuns() {
   const root = $('#view-runs');
   if (!root.querySelector('.runs-layout')) {
     root.innerHTML = `
-      ${SUB_BACK}
+      ${subBack()}
       <div class="section-head"><div><h1 title="${tr('Every bot run, live and past')}">${tr('Activity')}</h1></div>
         <select id="run-filter" style="width:auto"><option value="">${tr('All bots')}</option></select></div>
       <div class="runs-layout">

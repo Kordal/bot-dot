@@ -20,12 +20,6 @@ function keepScreenConnected(iframe) {
   }, 4000);
 }
 
-// The account's computer is always on, for every bot (#104): it is on, being started again, or not made yet.
-function computerLabel(botId) {
-  const st = state.computers?.[botId];
-  return st === 'running' ? tr('Computer is on.') : st === 'stopped' ? tr('Computer is starting again.') : tr('Computer is not made yet.');
-}
-
 // The screen as large as the window lets it be, at the desktop's 4:3 (a boat.dev machine's 16:9), with all of the dialog in the window and no
 // scrollbar of its own (#43): the screen is made as narrow as the height left for it asks. What is under it keeps
 // the dialog's width, so its height does not change with the screen's.
@@ -51,8 +45,12 @@ function usageRows(usage) {
 // on the account's computer, the owner watches until Take control lifts the shield that keeps clicks and keys off it.
 const BOAT_ASK_MS = 4 * 60_000;
 const boatFrameUrl = (url) => `/boat-desktop.html#u=${encodeURIComponent(url)}`;
+// boat.dev's stream draws no frame in WebKit (Safari, the Mac app) nor is known to in Firefox: there the screen is
+// botdot's own viewer, as on the account's computer (ADR 149). navigator.userAgentData is Chromium's alone.
+const boatViaVnc = () => state.features.includes('boat-desktop-vnc') && !navigator.userAgentData;
 function openBoatComputer(bot) {
   let control = false;
+  const vnc = boatViaVnc();
   const m = openModal(`
     <div class="modal-head"><h2>${tr("{name}'s computer", { name: botLabel(bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body">
@@ -71,13 +69,20 @@ function openBoatComputer(bot) {
   let shown = false, timer = null, open = true;
   const shield = () => {
     $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
+    if (vnc) {
+      // noVNC takes the mouse and keys only when opened with them, as on the account's computer.
+      $('#screen-full', m).href = screenUrl(bot.id, control);
+      const f = $('#screen-frame iframe', m);
+      if (f) f.src = screenUrl(bot.id, control);
+      return;
+    }
     $('#screen-shield', m)?.classList.toggle('hidden', control);
     $('#screen-frame iframe', m)?.setAttribute('tabindex', control ? '0' : '-1'); // no keys reach it by Tab either
   };
   const ask = async () => {
     if (!open) return;
     let d;
-    try { d = await api(`/bots/${bot.id}/computer/desktop`, { method: 'POST' }); } catch (e) {
+    try { d = await api(`/bots/${bot.id}/computer/desktop`, { method: 'POST', ...(vnc ? { body: { via: 'vnc' } } : {}) }); } catch (e) {
       shown = false;
       $('#screen-frame', m).innerHTML = `<div class="screen-off"><div class="big">🖥</div>${esc(e.message)}</div>`;
       $('#screen-control', m).disabled = true;
@@ -95,10 +100,15 @@ function openBoatComputer(bot) {
       timer = setTimeout(ask, 3000);
       return;
     }
-    $('#screen-full', m).href = d.url;
+    $('#screen-full', m).href = vnc ? screenUrl(bot.id, control) : d.url;
     $('#screen-full', m).classList.remove('hidden');
     $('#screen-control', m).disabled = false;
-    if (!shown) {
+    if (!shown && vnc) {
+      shown = true;
+      $('#screen-frame', m).innerHTML = `<iframe src="${screenUrl(bot.id, control)}" title="${esc(tr('Live screen'))}"></iframe>`;
+      keepScreenConnected($('#screen-frame iframe', m));
+      line();
+    } else if (!shown) {
       shown = true;
       $('#screen-frame', m).innerHTML = `<iframe src="${esc(boatFrameUrl(d.url))}" title="${esc(tr('Live screen'))}" allow="autoplay; fullscreen; clipboard-read; clipboard-write"></iframe><div class="screen-shield" id="screen-shield"></div>`;
       shield();
@@ -129,13 +139,11 @@ function openScreen(botId) {
     <div class="modal-body">
       <div class="screen-frame" id="screen-frame"><div class="muted">${tr('Loading…')}</div></div>
       <div class="screen-bar">
-        <span class="muted" id="screen-state" style="font-size:12.5px"></span>
         <span style="flex:1"></span>
         <button class="btn sm" id="screen-control">🖱 ${tr('Take control')}</button>
         <a class="btn sm" id="screen-full" target="_blank" rel="noopener">⤢ ${tr('Full screen')}</a>
         <button class="btn sm danger" id="screen-reset" title="${esc(tr("Erase the account's computer, for every bot that works on it."))}">${tr('Reset')}</button>
       </div>
-      <div class="screen-steps hidden" id="screen-steps"><div class="muted" style="font-size:12.5px">${tr("What it's doing:")} <span id="screen-now"></span></div></div>
       <div class="req-note hidden" id="screen-update"><span id="screen-update-text"></span> <button class="btn sm" id="screen-update-yes"></button></div>
       <div class="req-note hidden" id="screen-old"><span id="screen-old-text"></span> <button class="btn sm" id="screen-old-copy"></button> <button class="btn sm danger" id="screen-old-erase"></button></div>
       <div class="screen-usage hidden" id="screen-usage"></div>
@@ -156,7 +164,6 @@ function openScreen(botId) {
     }
     $('#screen-usage', m).innerHTML = usageRows(d.usage);
     $('#screen-usage', m).classList.toggle('hidden', !d.usage?.bots);
-    $('#screen-state', m).dataset.disk = d.diskBytes != null ? ` ${tr('Uses {size} of disk.', { size: d.diskBytes > 1e9 ? `${(d.diskBytes / 1e9).toLocaleString(I18n.locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} GB` : `${Math.max(1, Math.round(d.diskBytes / 1e6))} MB` })}` : '';
     frame();
   }).catch(() => {});
   describe();
@@ -167,7 +174,6 @@ function openScreen(botId) {
     // Its own screen off on the running computer (#134): the server's words and a button, not a viewer that can't connect.
     const off = state.computers?.[botId] === 'running' && info?.screenOff;
     const on = state.computers?.[botId] === 'running' && !off;
-    $('#screen-state', m).textContent = `${computerLabel(botId)}${bot.running ? ` ${tr('The bot is using it right now.')}` : ''}${$('#screen-state', m).dataset.disk || ''}`;
     $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
     $('#screen-full', m).href = screenUrl(botId, control);
     $('#screen-control', m).disabled = !on;
@@ -202,11 +208,11 @@ function openScreen(botId) {
       describe();
     } catch (e) { toast(e.message, true); }
   };
-  $('#screen-reset', m).onclick = () => {
+  $('#screen-reset', m).onclick = async () => {
     if (!info?.reset) return;
-    if (confirm(`${info.reset.title}\n\n${info.reset.text}`)) forAll('reset', tr('Resetting…'));
+    if (await askFirst(`${info.reset.title}\n\n${info.reset.text}`, tr('Reset'))) forAll('reset', tr('Resetting…'));
   };
-  $('#screen-update-yes', m).onclick = () => { if (info?.update && confirm(info.update.text)) forAll('update', tr('Updating…')); };
+  $('#screen-update-yes', m).onclick = async () => { if (info?.update && await askFirst(info.update.text, tr('Update'), { danger: false })) forAll('update', tr('Updating…')); };
   // A bot's old computer of its own: its files copied into its folder, then the old one erased.
   $('#screen-old-copy', m).onclick = async () => {
     try {
@@ -216,25 +222,14 @@ function openScreen(botId) {
     } catch (e) { toast(e.message, true); }
   };
   $('#screen-old-erase', m).onclick = async () => {
-    if (!info?.old || !confirm(info.old.confirm)) return;
+    if (!info?.old || !(await askFirst(info.old.confirm, tr('Erase')))) return;
     await act('reset', tr('Erasing…'));
     describe();
   };
-  // Its line as it works, in the server's words, so a quiet screen (e.g. while it waits for you) still tells you
-  // what's happening.
-  const run = state.runs.find((r) => r.botId === botId && r.status === 'running');
-  const stepsEs = run && watchRun(run.id, () => { const n = $('#screen-now', m); if (n) n.textContent = tr('finished'); }, null, (line) => {
-    const box = $('#screen-steps', m);
-    if (!box || !OpeningLine.text(line)) return;
-    box.classList.remove('hidden');
-    $('#screen-now', m).textContent = OpeningLine.text(line);
-    fit();
-  });
   m.addEventListener('close', () => {
     m.classList.remove('wide', 'screen');
     m.style.removeProperty('--screen-w');
     window.removeEventListener('resize', fit);
-    stepsEs?.close();
   }, { once: true });
   frame();
 }

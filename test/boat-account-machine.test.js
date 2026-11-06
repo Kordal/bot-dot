@@ -261,3 +261,55 @@ test("a copy whose new side takes the old one whole copies nothing; one boat.dev
   assert.equal(moveLib.dueAgain({ state: 'failed', error: 'over 2 GB', failedAt: 0 }), false, 'others wait for Try again');
   assert.equal(moveLib.dueAgain({ state: 'copying', error: moveLib.RESTARTED }), false);
 });
+
+// #982: a new machine's name carries this botdot machine's id; one made before keeps its name.
+test("a new machine's name carries the botdot machine's id, and one made before it keeps its old name", async (t) => {
+  keyed(t);
+  const b = fakeBoat();
+  const data = dir();
+  fs.writeFileSync(path.join(data, 'boat-machines.json'), JSON.stringify({ [boatLib.ACCOUNT]: { id: 'bx_old00001', type: boatLib.DEFAULT_SIZE, name: 'botdot-kordal' } }));
+  b.machines.set('bx_old00001', { id: 'bx_old00001', state: 'archived', name: 'botdot-kordal' });
+  const boat = boatLib.create(data, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, account: 'Kordal', instance: '3f9a1c2e', ownOf: (id) => id === 'coder', nameOf: () => 'Coder' });
+  await boat.runShell('writer', { command: 'ls' });
+  assert.ok(!b.calls.some((c) => c.method === 'PATCH'), 'the old machine is not renamed');
+  await boat.runShell('coder', { command: 'ls' });
+  const made = b.calls.find((c) => c.method === 'POST' && c.path === '/sandboxes');
+  assert.equal(made.body.name, 'botdot-3f9a1c2e-kordal-coder-coder');
+  assert.equal(boatLib.machineName(boatLib.ACCOUNT, { account: 'Kordal', instance: '3f9a1c2e' }), 'botdot-3f9a1c2e-kordal');
+  assert.equal(boatLib.machineName(boatLib.ACCOUNT, { account: 'Kordal', instance: 'NOT OK' }), 'botdot-kordal', 'an id that is not one is left out');
+});
+
+// #982: the admin deleted the account: every machine it has on boat.dev goes with its disk, and none is made after.
+test("erasing the account deletes every machine it has on boat.dev, says which it couldn't, and makes none after", async (t) => {
+  keyed(t);
+  const b = fakeBoat();
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: (id) => id === 'coder' });
+  await boat.runShell('writer', { command: 'ls' });
+  await boat.runShell('coder', { command: 'ls' });
+  const ids = [...b.machines.keys()];
+  assert.equal(ids.length, 2);
+  const result = await boat.erase();
+  assert.deepEqual(result, { deleted: 2, failed: [] });
+  const deletes = b.calls.filter((c) => c.method === 'DELETE').map((c) => c.path);
+  assert.deepEqual(deletes.sort(), ids.map((id) => `/sandboxes/${id}`).sort());
+  await assert.rejects(boat.runShell('writer', { command: 'ls' }), /being erased/);
+  assert.equal(b.calls.filter((c) => c.method === 'POST' && c.path === '/sandboxes').length, 2, 'no machine made after');
+  assert.deepEqual(await boat.erase(), { deleted: 0, failed: [] }, 'nothing left to delete');
+});
+
+test("a machine boat.dev won't delete is said, and the others go all the same", async (t) => {
+  keyed(t);
+  const b = fakeBoat();
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: (id) => id === 'coder' });
+  await boat.runShell('writer', { command: 'ls' });
+  await boat.runShell('coder', { command: 'ls' });
+  const [shared, own] = b.machines.keys();
+  const fetch = async (url, opts = {}) => (opts.method === 'DELETE' && url.endsWith(shared)
+    ? { ok: false, status: 500, json: async () => ({ ok: false, code: 'internal' }) } : b.fetch(url, opts));
+  const data = dir();
+  fs.writeFileSync(path.join(data, 'boat-machines.json'), JSON.stringify({ [boatLib.ACCOUNT]: { id: shared }, coder: { id: own } }));
+  const r = await boatLib.create(data, { kitOnStart: false, fetch, sleep: async () => {} }).erase();
+  assert.equal(r.deleted, 1);
+  assert.deepEqual(r.failed, [{ id: shared, error: 'boat.dev answered 500 (internal)' }]);
+  assert.deepEqual(Object.values(JSON.parse(fs.readFileSync(path.join(data, 'boat-machines.json'), 'utf8'))).map((m) => m.id), [shared], 'the one not deleted stays on the list');
+});

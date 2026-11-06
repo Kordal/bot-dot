@@ -57,6 +57,12 @@ impl Kept {
         self.local_address().is_some_and(|address| self.get(&address).is_some())
     }
 
+    /// The botdot on this computer started its setup and has had no session yet.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn setup_stopped(&self) -> bool {
+        self.local.is_some() && !self.has_local()
+    }
+
     /// The botdot shown last, or the first one when that one is gone.
     pub fn current(&self) -> Option<&Botdot> {
         self.last.as_deref().and_then(|a| self.get(a)).or_else(|| self.botdots.first())
@@ -88,6 +94,7 @@ impl Kept {
     }
 
     /// The address and its session go. When it was the one shown, the first that is left is shown.
+    #[cfg_attr(mobile, allow(dead_code))]
     pub fn remove(&mut self, address: &str) {
         self.botdots.retain(|b| b.address != address);
         if self.last.as_deref() == Some(address) {
@@ -129,12 +136,15 @@ mod tests {
         let mut kept = Kept::default();
         assert_eq!(kept.local_address(), None);
         assert!(!kept.has_local());
+        assert!(!kept.setup_stopped());
         kept.local = Some(4700);
         assert_eq!(kept.local_address().as_deref(), Some("http://localhost:4700/"));
         assert!(!kept.has_local(), "its setup stopped before the passkey");
+        assert!(kept.setup_stopped(), "and carries on");
         kept.signed_in("http://localhost:4700/", "sid=1");
         kept.session_over("http://localhost:4700/");
         assert!(kept.has_local());
+        assert!(!kept.setup_stopped());
     }
 
     const HQ: &str = "https://hq.example.com/";

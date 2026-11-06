@@ -73,6 +73,13 @@ object ProjectCards {
     /** A project has at most this many cards. */
     const val MAX = 12
 
+    /** The row of cards shows a list card's first 5 items and a table's first 6 rows; an arranged board as many as fit. */
+    const val FLOW_LIST = 5
+    const val FLOW_ROWS = 6
+
+    /** How many of a card's [n] lines are measured: all on an arranged board ([fit]), else the first [flow]. */
+    fun shownLines(n: Int, flow: Int, fit: Boolean): Int = if (fit) n else minOf(n, flow)
+
     fun shows(features: Collection<String>?, c: Company): Boolean = features != null && FEATURE in features && c.running
 
     /** One place in the cards row: a card, its questions, the ask field (a new card's, or a card's Change), or New card. */
@@ -85,11 +92,16 @@ object ProjectCards {
         data object New : Slot { override val wide get() = false }
     }
 
-    /** The row's slots in order: [open] is "new", a card's id (its Change) or null. New card goes once there are 12. */
-    fun slots(cards: List<ProjectCard>, open: String?): List<Slot> {
-        val shown = cards.take(MAX).map { k ->
+    /**
+     * The row's slots in order: [open] is "new", a card's id (its Change) or null. New card goes once there are 12.
+     * Cards the owner closed ([closing], X on the questions) or removed ([removing]) leave the row at once, before the
+     * server answers: a closed Change is the card it was again, a new card that is closed goes.
+     */
+    fun slots(cards: List<ProjectCard>, open: String?, closing: Set<String> = emptySet(), removing: Set<String> = emptySet()): List<Slot> {
+        val shown = cards.take(MAX).filter { k -> k.id !in removing && !(k.id in closing && k.asking && !k.changing) }.map { k ->
             when {
                 open == k.id -> Slot.Ask(k)
+                k.asking && k.id in closing -> Slot.Card(k.copy(state = "ready"))
                 k.asking -> Slot.Questions(k)
                 else -> Slot.Card(k)
             }

@@ -28,14 +28,14 @@ function askEverythingAllowed(name) {
 // A bot's computer moves between this machine and boat.dev (#556): its files copied along, or not. true, false, or
 // null for neither (the switch is taken back).
 const COMPUTER_PLACE = {
-  linux: [tr('Copy its files to this machine?'), tr("Copy the bots' files to this machine?")],
-  boat: [tr('Copy its files to the External Virtual PC?'), tr("Copy the bots' files to the External Virtual PC?")],
+  linux: tr('Copy its files to this machine?'),
+  boat: tr('Copy its files to the External Virtual PC?'),
 };
-// all: the bots' files, for the account's switch (settings.js); else one bot's.
-function askMoveFiles(to, all = false) {
+// One bot's files, when its computer moves.
+function askMoveFiles(to) {
   return new Promise((resolve) => {
     const m = openModal(`
-      <div class="modal-head"><h2>${COMPUTER_PLACE[to][all ? 1 : 0]}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${COMPUTER_PLACE[to]}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-foot">
         <button type="button" class="btn" id="move-empty">${tr('Start empty')}</button>
         <button type="button" class="btn primary" id="move-copy">${tr('Copy files')}</button>
@@ -494,7 +494,9 @@ function renderBotSettings(force = false) {
   if (dup) dup.onclick = () => openDuplicate(b);
   drawUndo(root, b);
 
-  $('#delete-bot', root).onclick = async () => {
+  const del = $('#delete-bot', root);
+  del.onclick = async () => {
+    if (del.disabled) return;
     // Its screen on the account's computer ends and its browser's logins go; the computer, which the other bots use,
     // stays, and so does its folder there (#109).
     const hasComputer = b.computer === 'linux';
@@ -507,9 +509,14 @@ function renderBotSettings(force = false) {
     const kept = hasComputer ? ` ${tr("Its folder {folder} on the account's computer is kept, and so is the computer, which the other bots use.", { folder: `/workspace/${b.id}` })}` : '';
     const what = gone.length > 1 ? tr('{list} and {last}', { list: gone.slice(0, -1).join(', '), last: gone[gone.length - 1] }) : gone[0];
     const warning = `${tr("Delete {name}?\n\nThis also erases {what}. This can't be undone.\n\nIts run history is kept.", { name: b.name, what })}${kept}`;
-    if (!confirm(warning)) return;
+    if (!(await askFirst(warning, tr('Delete')))) return;
+    // Erasing its screen and logins can take a while: the row says so, and can't be pressed again, until it is gone.
+    const label = $('b', del);
+    const was = label.textContent;
+    const busy = (on) => { del.disabled = on; del.classList.toggle('busy', on); del.toggleAttribute('aria-busy', on); label.textContent = on ? tr('Deleting…') : was; };
+    busy(true);
     let r;
-    try { r = await api(`/bots/${b.id}`, { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
+    try { r = await api(`/bots/${b.id}`, { method: 'DELETE' }); } catch (err) { busy(false); return toast(err.message, true); }
     // `computer` is about its old computer of its own from before the account's computer (#104), if it still had one.
     toast(r.computer === 'erased' ? tr('Bot and its old computer deleted') : r.computer === 'failed' ? tr("Bot deleted, but its old computer couldn't be erased (is Docker running?)") : tr('Bot deleted'), r.computer === 'failed');
     delete root.dataset.bot;

@@ -136,7 +136,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                         content()
                     } }
                 }
-                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
+                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, features, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
                 Card("team") { TeamRows(ui, c, bots) }
                 Card("reports") { ReportRows(ui, c, features) }
@@ -226,15 +226,15 @@ private fun LoginRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) {
 /** The pieces on its board (#780), each on or off; a project made before has them all on. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BoardRow(c: Company, patch: (JsonObject) -> Unit) {
+private fun BoardRow(c: Company, features: List<String>, patch: (JsonObject) -> Unit) {
     val p = LocalPaper.current
     Labeled(tr("Board")) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            ProjectBoard.PIECES.forEach { k ->
+            ProjectBoard.piecesOf(c, features).forEach { k ->
                 val on = ProjectBoard.shows(c, k)
                 Text(ProjectBoard.label(k), color = if (on) p.text else p.muted, fontSize = Type.s14,
                     modifier = Modifier.clip(Radius.pill).background(if (on) p.sunk else androidx.compose.ui.graphics.Color.Transparent).border(1.dp, if (on) p.text else p.line2, Radius.pill)
-                        .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k).forEach { add(it) } } }) }
+                        .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k, features).forEach { add(it) } } }) }
                         .semantics { selected = on }.padding(horizontal = Space.s12, vertical = Space.s8))
             }
         }
@@ -310,7 +310,8 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
             }
         }
     }
-    if (CompanySetup.DELIVERY in features) Row(verticalAlignment = Alignment.CenterVertically) {
+    // An ongoing project (#925) has no delivery date and no check-ins: its monthly review comes on its own.
+    if (CompanySetup.DELIVERY in features && !c.ongoing) Row(verticalAlignment = Alignment.CenterVertically) {
         Text(tr("Delivery"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
         DeliveryChips(c.deliverBy) { v -> patch(buildJsonObject { put("deliverBy", v) }) }
     }
@@ -327,7 +328,7 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
                 confirmButton = { TextButton({ state.selectedDateMillis?.let { ms -> patch(buildJsonObject { put("startDay", Instant.ofEpochMilli(ms).atZone(ZoneOffset.UTC).toLocalDate().toString()) }) }; picking = false }) { Text(tr("Save")) } },
                 dismissButton = { TextButton({ picking = false }) { Text(tr("Cancel")) } }) { DatePicker(state) }
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (!c.ongoing) Row(verticalAlignment = Alignment.CenterVertically) {
             Text(tr("Check-ins"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 CompanyFloor.DAYS.forEach { d ->

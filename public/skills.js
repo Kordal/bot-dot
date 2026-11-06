@@ -20,7 +20,7 @@ async function renderSkills() {
   if (state.view !== 'skills') return;
   const botChip = (id) => { const b = isChief({ id }) ? CHIEF_BOT : state.bots.find((x) => x.id === id); return b ? `<span class="chip" title="${esc(b.name)}">${botLabel(b)}</span>` : ''; };
   root.innerHTML = `
-    ${SUB_BACK}
+    ${subBack()}
     <div class="section-head">
       <div><h1>${tr('Skills')}</h1></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -102,7 +102,7 @@ function openSkillEditor(skill, opts = {}) {
   if (opts.onDone) m.addEventListener('close', () => opts.onDone(doneName), { once: true });
   const del = $('#delete-skill', m);
   if (del) del.onclick = async () => {
-    if (!confirm(tr('Delete the skill "{name}"? Bots that have it will stop using it.', { name: k.name }))) return;
+    if (!(await askFirst(tr('Delete the skill "{name}"? Bots that have it will stop using it.', { name: k.name }), tr('Delete')))) return;
     await api(`/skills/${encodeURIComponent(k.name)}`, { method: 'DELETE' });
     m.close();
     toast(tr('Skill deleted'));

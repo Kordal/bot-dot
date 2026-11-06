@@ -36,13 +36,29 @@ fixes. botdot updates itself from Settings → Updates.
 - **Root on the machine reaches every account**: its data, its bots and the logins they hold. The
   installer says so, and so does the sign-up page, before the passkey is made. Keep root to yourself, and don't let an account's owner be root on the machine
   unless they are its admin.
+- A managed machine (ADR 154) is one VPS per customer, holding one account or several, and has no
+  admin page: the front door serves no `/admin`. Its admin is the fleet console, outside this
+  repository, which reaches the machine only through an agent that connects out, opens no port and
+  runs a closed list of signed commands by writing root's request files and reading its status and
+  load files, as the front door does. The console never sees inside an account. gVisor stays on a
+  one-account machine too: an escape from a computer would be root on the VPS, where the agent's
+  console key and the backup keys are.
+- **A managed machine's computers can't reach its network** (#984). Each account's computers and
+  containers leave as that account's Linux user, and on a managed machine root's firewall
+  (`botdot-egress`, in place before any account's Docker starts) refuses every new connection of
+  those users to private ranges (`10/8`, `172.16/12`, `192.168/16`, `100.64/10`, `198.18/15`,
+  `fc00::/7`), to link-local addresses (`169.254/16`, `fe80::/10`, so the cloud's metadata and
+  cloud-init's user-data at `169.254.169.254`) and to TCP ports 25 and 465 anywhere, so a bot sends no
+  spam from the VPS's address. DNS to the machine's resolvers stays open, and so does the machine
+  itself (the front door, Caddy) and every answer. The front door's and Caddy's own traffic isn't
+  touched. A machine that isn't managed keeps ADR 034: its computers reach the local network.
 - A job's call (ADR 026) needs no session: the front door passes `/call/<account>/<bot>/<job>` to that
   account's botdot server, and the job's key alone lets it in, from the internet too when the front door
   is public. The front door slows down repeated wrong keys. Treat a call key like a password.
 - In the Docker image (Linux), with separate users on (the default there): the Chief and each bot run
   as their own Linux user on the botdot server, and botdot refuses owner controls to them. On the
-  account's computer they are not separate: see [The account's computer](#the-accounts-computer). On the paused Mac app's server,
-  or with `BOT_DOT_SEPARATE_USERS=0`, everything runs as you, and a bot with shell access can do what
+  account's computer they are not separate: see [The account's computer](#the-accounts-computer). With
+  `BOT_DOT_SEPARATE_USERS=0`, everything runs as you, and a bot with shell access can do what
   you can.
 - Giving a bot a connector gives it all of that app's actions, writing ones included. Instructions in
   a bot's task are guidance for the AI, not an enforced limit.
@@ -78,7 +94,7 @@ updates, when the server asks over a Unix socket that only root and the server's
 - **The helper is as powerful as its Docker.** Whoever can use the Docker socket can start a
   container that mounts what that Docker can reach. In an account (`install.sh`) that is the account's
   rootless Docker, so the account's own Linux user and its files; in a single Docker of the machine
-  (`compose.mac.yaml` of the paused Mac app, ADR 031, or a botdot started by hand) it is the machine's
+  (a botdot started by hand) it is the machine's
   whole disk. A flaw that lets someone run a Docker command of their own through the helper gives them that.
 - **Only its list of allowed operations limits it.** It accepts a fixed set of named operations on a
   bot's id or the account's computer (start or erase it, ask its state, check and apply an update, and the like),
@@ -114,7 +130,10 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   runs out of time, and at most 64 KB. A secret the owner allowed on a card to be kept in a file
   (`place_secret_file`, [ADR 051](docs/adr/051-the-owner-may-keep-a-vault-secret-in-a-file.md)) stays on
   disk where botdot wrote it, readable by every bot on the computer, until the owner removes it on the
-  Vault page; the bot never sees its value. The Vault's "Usable in its computer" card and its file dialog
+  Vault page; the bot never sees its value. A secret a bot asks to save in the Vault (`save_to_vault`,
+  [ADR 153](docs/adr/153-a-bot-saves-a-secret-in-the-vault-on-the-owners-yes.md)) is read by botdot from a
+  file on the computer, or made by botdot, never passed in the bot's call; it waits encrypted on the
+  owner's card, which alone can show it, and is saved only on their yes. The Vault's "Usable in its computer" card and its file dialog
   say that every bot on the account's computer can read it. Saved logins used through
   `api_request` never reach the computer, and a GitHub App's private key never leaves botdot: a bot
   gets only the installation tokens botdot makes from it, which expire within the hour (ADR 037).
@@ -193,8 +212,8 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   settings; no request body, the Chief or a bot can add one. A card cannot lift what code enforces: a
   secret value in a chat or in the model's context, a bot answering its own card, another account's
   data.
-- **Without separate users, a bot that can read files can read the others'.** On the paused Mac
-  app's server, or with `BOT_DOT_SEPARATE_USERS=0`, the Chief and every bot run as you. A bot with **Read** can then open
+- **Without separate users, a bot that can read files can read the others'.** With
+  `BOT_DOT_SEPARATE_USERS=0`, the Chief and every bot run as you. A bot with **Read** can then open
   any file you can, and a bot with shell access can run any command you can. That includes
   `data/memory.db` (every bot's notes, the shared notes and the index of past runs), the other bots'
   folders in `data/workspaces/`, the run records and the Chief's chats in `data/`, and for as long as
@@ -259,18 +278,6 @@ nothing is installed before you tap Install on its card in Needs you
   tool from a link it asks whatever https address it is given, addresses inside your own network
   included. Nothing of the answer reaches the Chief but its size, its checksum, what kind of file it
   is and, for an archive without the named command, the names of the programs in it.
-- **A local botdot server on a Mac** (the paused Mac app, ADR 031; not a supported way to run
-  botdot). There the data folder is a folder of the Mac shared into Docker.
-  Measured on 3 October 2026 on a Mac-hosted test server (`compose.mac.yaml`): that mount shows every
-  file as owned by whoever looks at it and enforces neither owner nor mode. A bot's user and another
-  bot's user could both list and write `data/tools/<bot>`. So on a Mac-hosted botdot "only that bot"
-  holds by `PATH` alone: another bot does not find the command by its name, but can run it by its full
-  path and can change it, and a bot can change its own tools. This is how the bots' workspaces behave
-  there already. Treat an installed tool as reachable and changeable by every bot that may run commands.
-  Installing works differently there too: the mount refuses the installer's copy, so botdot installs
-  the same checked list with hard links from a cache it keeps on the data folder (`data/tools/.cache`)
-  for the length of that install and removes when it ends; no file of a tool stays linked to another
-  bot's. On a Linux botdot server the separation holds and is tested.
 - **Without Docker** (or with `BOT_DOT_SEPARATE_USERS=0`) botdot installs no tools at all.
 
 ## Before a release

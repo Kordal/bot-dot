@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 const store = require('../lib/front-door/store');
 
 let door, requests, status;
@@ -39,7 +39,7 @@ async function signUp(name, link) {
 let annB = null, bobB = null;
 const admin = async () => (annB ||= await signUp('ann', door.firstLink));
 const bob = async () => (bobB ||= await signUp('bob', door.newLink()));
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 const said = (name, value) => fs.writeFileSync(path.join(status, name), typeof value === 'string' ? value : JSON.stringify(value));
 const asked = () => fs.readdirSync(requests);
 
@@ -238,6 +238,7 @@ test('Update asks the machine once, with a file no account can be named, and say
   assert.equal(first.status, 202, first.text);
   assert.equal(first.data.asked, true);
   assert.deepEqual(asked(), ['UPDATE']);
+  assert.equal(fs.readFileSync(path.join(requests, 'UPDATE'), 'utf8'), '', 'empty: it names no version, so root takes the newest (#979)');
   assert.ok(!store.ACCOUNT_NAME.test('UPDATE'), 'no account is named so');
   // Not hidden: systemd's DirectoryNotEmpty, which starts root's step, skips files whose name starts with a dot.
   assert.ok(!asked()[0].startsWith('.'));

@@ -21,7 +21,7 @@ test('a new project starts with an empty board; one made before has no board, so
   const r = await srv.api('/company', { method: 'POST', body: { start: 'A tool for dog walkers' } });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   const made = (await srv.api('/company/list')).data.projects.find((p) => p.id !== 'old');
-  assert.deepEqual(made.board, []);
+  assert.deepEqual(made.board, ['files']);
 });
 
 test('the owner sets the pieces in order, each once; anything else is refused and changes nothing', async () => {
@@ -38,4 +38,13 @@ test('the owner sets the pieces in order, each once; anything else is refused an
 
 test('the Chief may not change the board', async () => {
   assert.equal((await srv.asChief(at('/company', 'old'), { method: 'PATCH', body: { board: ['days'] } })).status, 403);
+});
+
+test('the Files tile is put once on a board kept from before, at the end, and stays off once taken off', async () => {
+  writeData(path.join(srv.data, 'company.json'), { id: 'kept', name: 'Kept', start: 'x', kind: 'idea', phase: 'running', startedAt: '2026-10-01T00:00:00.000Z', board: ['calendar'] });
+  assert.deepEqual((await srv.api(at('/company', 'kept'))).data.company.board, ['calendar', 'files']);
+  let r = await srv.api(at('/company', 'kept'), { method: 'PATCH', body: { board: ['calendar'] } });
+  assert.deepEqual(r.data.board, ['calendar']);
+  r = await srv.api(at('/company', 'kept'), { method: 'PATCH', body: { goal: 'Still off' } });
+  assert.deepEqual((await srv.api(at('/company', 'kept'))).data.company.board, ['calendar']);
 });

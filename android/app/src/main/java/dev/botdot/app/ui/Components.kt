@@ -233,12 +233,12 @@ fun fmtSize(n: Long): String = when {
 }
 
 @Composable
-fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onRemove: (() -> Unit)? = null) {
+fun FileChip(name: String, note: String? = null, onDark: Boolean = false, onCard: Boolean = false, onRemove: (() -> Unit)? = null) {
     val p = LocalPaper.current
     val fg = if (onDark) p.inkText else p.text
     Row(
         Modifier.clip(Radius.pill)
-            .background(if (onDark) p.inkText.copy(alpha = 0.14f) else p.raise2)
+            .background(if (onDark) p.inkText.copy(alpha = 0.14f) else if (onCard) p.fill else p.raise2)
             .padding(start = Space.s12, end = if (onRemove != null) Space.s4 else Space.s12, top = Space.s4, bottom = Space.s4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -277,15 +277,16 @@ fun FilesRow(files: List<Attachment>, onDark: Boolean) {
     }
 }
 
-/** Files a bot attached to its reply: a tap opens one in the phone's own app for it. Pictures show as themselves. */
+/** Opens a bot's file (a run's, "<runId>/<name>"): [open] it, [opening] the one on its way to the phone's own app. */
+class RunFileOpener(val open: (Attachment) -> Unit, val opening: String?)
+
+/** From a server with the viewer (#251), a tap opens the file in it; else in the phone's own app, as before. */
 @Composable
-fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.dp) {
-    if (files.isNullOrEmpty()) return
+fun rememberRunFileOpener(): RunFileOpener {
     val context = LocalContext.current
     val app = dev.botdot.app.BotDotApp.of(context)
     val scope = rememberCoroutineScope()
     var opening by remember { mutableStateOf<String?>(null) }
-    // From a server with the viewer (#251), a tap opens the file in it; else in the phone's own app, as before.
     val server by app.store.version.value.collectAsState()
     val viewer = dev.botdot.app.data.DocumentView.shows(server?.features)
     val from = LocalPathActions.current?.from.orEmpty()
@@ -301,6 +302,15 @@ fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.d
         }
         Unit
     }
+    return RunFileOpener(open, opening)
+}
+
+/** Files a bot attached to its reply: a tap opens one in the phone's own app for it. Pictures show as themselves. */
+@Composable
+fun BotFilesRow(files: List<Attachment>?, top: androidx.compose.ui.unit.Dp = 8.dp) {
+    if (files.isNullOrEmpty()) return
+    val opener = rememberRunFileOpener()
+    val (open, opening) = opener.open to opener.opening
     val (images, others) = files.partition { isImage(it.name) }
     Column(Modifier.padding(top = top), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         images.forEach { f -> BotImage(f, onClick = { if (opening == null) open(f) }) }

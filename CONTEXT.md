@@ -1,6 +1,6 @@
 # botdot
 
-A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android, Mac and desktop apps are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
+A messenger-style app for a team of AI bots, run by a Chief of Staff. Each person has an account on a machine that holds one or more; their account's botdot server holds their bots and data, and the web page and the Android and desktop apps are windows onto it. On Linux, the owner uses the web page; the botdot server and the account's computer still run on Linux.
 
 ## Language
 
@@ -271,7 +271,7 @@ Where the admin creates and revokes sign-up links, suspends or deletes accounts,
 _Avoid_: dashboard (the Board's old name), admin panel, console
 
 **Feedback**:
-A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole.
+A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole. On a managed machine the fleet console is that admin, and its operator reads it there ([ADR 164](docs/adr/164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md)).
 _Avoid_: ticket, issue, support request, bug report (for both kinds)
 
 **What's new**:
@@ -294,10 +294,6 @@ _Avoid_: recovery link, reset link, magic link
 An account the admin paused: its botdot server and the account's computer are stopped, its data is kept, and its owner sees only "Your account is paused by the admin" until the admin resumes it.
 _Avoid_: disabled, frozen, locked, banned
 
-**Local botdot server**:
-A botdot server that the Mac app set up and looks after on the same Mac, in Docker. A botdot server on a VM is just a botdot server, even if the user runs it themselves.
-_Avoid_: self-hosted botdot (every botdot is self-hosted), embedded server
-
 **Self-built botdot server**:
 A botdot server whose images were built from the source on its own machine instead of downloaded as botdot's signed images. It is updated by pulling the source and building again; on a machine of several accounts the admin page's Update then moves every account to what was built.
-_Avoid_: local build (a local botdot server is the Mac app's), dev build, unofficial build
+_Avoid_: local build, dev build, unofficial build

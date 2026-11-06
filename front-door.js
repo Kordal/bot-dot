@@ -10,6 +10,9 @@
 //   node front-door.js sign-in-link --account NAME     print a new sign-in link (1 day, works once) that makes a new
 //                                                      passkey for the account NAME (status 3 when there is none): the
 //                                                      admin's own way back in after losing every device
+//   … --by console                                   either one asked by the fleet console through root's step
+//                                                      (#985): one line of JSON, the link or why it was refused, and
+//                                                      an audit entry by the console
 //
 // FRONT_DOOR_ORIGIN   the address people open, e.g. https://botdot.example.com (a passkey belongs to its name)
 // FRONT_DOOR_SOCKETS  the folder of the accounts' botdot servers' sockets: <folder>/<account>/botdot.sock, each in a
@@ -19,7 +22,7 @@
 //                     its session alone reaches the admin page, /admin
 // FRONT_DOOR_REQUESTS the folder where the front door asks the machine to make, stop, start again or erase an account:
 //                     one empty file per account, named as it, which install.sh's root step takes, reading what the
-//                     account should be from this front door's data (docs/DECISIONS.md, 2026-10-16, #467, #470); and
+//                     account should be from this front door's data (docs/decisions/, 2026-10-16, #467, #470); and
 //                     the admin page's update, as a file named UPDATE, which no account can be named (#473); and
 //                     "Update now" for one account, as a file named SWITCH-<account> (ADR 053)
 // FRONT_DOOR_STATUS   the folder where root's step says back what it did: version.json (the version installed),
@@ -36,10 +39,23 @@
 //                     separated) besides botdot's release key, which is always named: the app's passkey sign-in is
 //                     taken from those, and /.well-known/assetlinks.json names them. Only apps from before the
 //                     sign-in in the browser use it: today the app signs in on the sign-in page, with a hand-off
-// FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (the Mac app's local botdot server, ADR 028): no
+// FRONT_DOOR_ONE_ACCOUNT  a machine of exactly this one account (npm start, ADR 028): no
 //                     sign-up link is printed or opens, and the account's passkey is made with FRONT_DOOR_SETUP_KEY
-// FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT: the secret (32 to 100 base64url characters) that only the Mac app
-//                     holds, which opens the one account's sign-up page until that account exists
+// FRONT_DOOR_SETUP_KEY  with FRONT_DOOR_ONE_ACCOUNT or FRONT_DOOR_FIRST_ACCOUNT: the secret (32 to 100 base64url
+//                     characters) that only its starter holds, which opens that account's sign-up page until it exists
+// FRONT_DOOR_MANAGED  1 on a managed machine (ADR 154), which the fleet console runs through root's step: no admin page
+//                     (/admin and /admin/… are 404), no admin and no shared rooms, its Feedback goes to the console
+//                     through FRONT_DOOR_DATA/outbox (ADR 164), and each account has a
+//                     guaranteed share (4 CPUs, 8 GB of RAM, 40 GB of disk by default) that a new account must fit
+//                     beside the others' (lib/front-door/capacity.js). One account with FRONT_DOOR_ONE_ACCOUNT; several
+//                     with FRONT_DOOR_FIRST_ACCOUNT, the first one, made with the setup key, and the others from
+//                     sign-up links root's step makes
+// FRONT_DOOR_FIRST_ACCOUNT  with FRONT_DOOR_MANAGED: the first account of a managed machine of several, whose passkey
+//                     is made with FRONT_DOOR_SETUP_KEY while the machine has no account
+// FRONT_DOOR_TERMS_URL, FRONT_DOOR_PRIVACY_URL, FRONT_DOOR_TERMS_VERSION  the terms of service and the privacy policy
+//                     an owner agrees to at sign-up, and their version (default 1), for a machine sold as hosting (#987,
+//                     lib/front-door/terms.js): with both addresses set, no passkey is made before "I agree" is ticked,
+//                     and a sign-in after the version changed asks once more. Unset: nothing is asked
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
@@ -51,14 +67,21 @@ const limits = require('./lib/front-door/limits');
 const pages = require('./lib/front-door/pages');
 const calls = require('./lib/front-door/calls');
 const loadFiles = require('./lib/front-door/load');
+const capacity = require('./lib/front-door/capacity');
+const blockRules = require('./lib/front-door/blocks');
 const whatsNew = require('./lib/whats-new');
 const roomStore = require('./lib/front-door/rooms');
 const roomTurns = require('./lib/front-door/room-turns');
 const groupRouterStore = require('./lib/front-door/group-router');
 const groupRouterLib = require('./lib/group-router');
 const boatStore = require('./lib/front-door/boat');
+const installKeys = require('./lib/front-door/install-keys');
+const storageBox = require('./lib/front-door/storage-box');
 const boatLib = require('./lib/boat');
 const usageStore = require('./lib/front-door/usage');
+const auditStore = require('./lib/front-door/audit');
+const termsLib = require('./lib/front-door/terms');
+const outboxLib = require('./lib/front-door/outbox');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -80,37 +103,76 @@ const SITES_ORIGIN = (() => {
   return u;
 })();
 const DATA = path.resolve(process.env.FRONT_DOOR_DATA || path.join(__dirname, 'front-door-data'));
-// One account (the Mac app's local botdot server): its name, and the setup key that makes its passkey.
+// One account (npm start): its name, and the setup key that makes its passkey.
 const ONE_ACCOUNT = process.env.FRONT_DOOR_ONE_ACCOUNT || null;
 if (ONE_ACCOUNT !== null && !store.ACCOUNT_NAME.test(ONE_ACCOUNT)) {
   console.error("FRONT_DOOR_ONE_ACCOUNT is an account's name: 2 to 31 lowercase letters, digits and dashes, starting with a letter.");
   process.exit(1);
 }
-const SETUP_KEY = ONE_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
+const TERMS = termsLib.fromEnv(process.env, (line) => console.error(line));
+// A managed machine (ADR 154): its first account, when it holds several.
+const MANAGED = process.env.FRONT_DOOR_MANAGED === '1';
+const FIRST_ACCOUNT = MANAGED && !ONE_ACCOUNT ? process.env.FRONT_DOOR_FIRST_ACCOUNT || null : null;
+if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
+  console.error("FRONT_DOOR_FIRST_ACCOUNT is an account's name: 2 to 24 lowercase letters, digits and dashes, starting with a letter.");
+  process.exit(1);
+}
+// A managed machine has no admin: the fleet console is (ADR 154).
+const ADMIN = MANAGED ? null : process.env.FRONT_DOOR_ADMIN || null;
+// The account the setup key makes: the one account, or a managed machine's first.
+const SETUP_ACCOUNT = ONE_ACCOUNT || FIRST_ACCOUNT;
+const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FRONT_DOOR_SETUP_KEY || '') ? process.env.FRONT_DOOR_SETUP_KEY : null;
 // The machine's RAM sizes the default share (#126): the last root's step measured, kept while its file is stale.
 let machineRam = null;
-const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; } });
+const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null });
 
+// The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
+// admin page alone. None on a machine of one account, which has no admin page, unless it asks for agreement to terms
+// (#987), whose record the operator keeps, or is managed (ADR 154), whose links the fleet console asks for (#985). Never a key, a session, a link or a passkey in an entry: each detail below
+// is written here, from what the front door knows, never from a request.
+const audit = ONE_ACCOUNT && !TERMS && !MANAGED ? null : auditStore.open(DATA);
+function audited(action, { account, detail, actor = ADMIN } = {}) {
+  if (!audit) return;
+  try { audit.record({ actor: actor || 'front-door', action, account, detail }); } catch (e) { console.error(`[front door] couldn't keep an audit entry (${action}): ${e.message}`); }
+}
+// A failed try counted against a client; the one after which it waits is kept in the audit log.
+function failedTry(limit, client, what) {
+  if (limit.failed(client) === limits.FREE) audited('slowed-down', { actor: 'front-door', detail: `${client} · after failed ${what}` });
+}
+
+// The links printed on the command line: the install's sign-up link, the admin's way back in, and those the fleet
+// console asks of root's step on a managed machine (#985), with --by console. A console's link is one line of JSON
+// for root's step to keep, { state: 'made', kind, account?, url, expires } or { state: 'refused', kind, account?, error },
+// and every one made or refused is an audit entry by the console, never with the link in it (ADR 141).
 if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
-  if (ONE_ACCOUNT) {
-    console.error(`This machine holds one account, ${ONE_ACCOUNT}, and takes no sign-up links.`);
-    process.exit(1);
-  }
+  const kind = process.argv[2] === 'sign-in-link' ? 'sign-in' : 'sign-up';
   const at = process.argv.indexOf('--account');
   const account = at > 0 ? process.argv[at + 1] ?? '' : null;
+  const by = process.argv.indexOf('--by');
+  const byConsole = by > 0 && process.argv[by + 1] === 'console';
+  const named = account && store.ACCOUNT_NAME.test(account) ? account : undefined;
+  const refused = (error, status) => {
+    if (!byConsole) { console.error(error); process.exit(status); }
+    audited('link-refused', { actor: 'console', account: named, detail: `${kind} link · ${error}` });
+    console.log(JSON.stringify({ state: 'refused', kind, ...(named ? { account: named } : {}), error }));
+    process.exit(status);
+  };
+  // One account takes no sign-up link; a new passkey for it, from a sign-in link, it does.
+  if (ONE_ACCOUNT && kind === 'sign-up') refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no sign-up links.`, 1);
   try {
-    const { url, expires } = process.argv[2] === 'sign-in-link'
+    const { url, expires } = kind === 'sign-in'
       ? doors.newSignInLink({ origin: ORIGIN.origin, account: account ?? '' })
       : doors.newSignUpLink({ origin: ORIGIN.origin, account });
-    console.log(`${url}\n(works once, until ${new Date(expires).toISOString()})`);
+    if (byConsole) {
+      audited(kind === 'sign-in' ? 'sign-in-link' : 'link-made', { actor: 'console', account: named, detail: `until ${new Date(expires).toISOString().slice(0, 16).replace('T', ' ')} UTC` });
+      console.log(JSON.stringify({ state: 'made', kind, ...(named ? { account: named } : {}), url, expires: new Date(expires).toISOString() }));
+    } else console.log(`${url}\n(works once, until ${new Date(expires).toISOString()})`);
     process.exit(0);
   } catch (e) {
     if (!e.status) throw e;
-    console.error(e.message);
-    process.exit(e.status === 409 || e.status === 404 ? 3 : 2);
+    refused(e.message, e.status === 409 || e.status === 404 ? 3 : 2);
   }
 }
-
 const SOCKETS = process.env.FRONT_DOOR_SOCKETS ? path.resolve(process.env.FRONT_DOOR_SOCKETS) : null;
 if (!SOCKETS) {
   console.error("Set FRONT_DOOR_SOCKETS to the folder of the accounts' botdot servers' sockets.");
@@ -167,15 +229,15 @@ const PAUSED = 'Your account is paused by the admin.';
 
 const tries = limits.create(); // failed sign-ins and sign-up links
 const callTries = limits.create(); // calls with a wrong key, or none, or to an account that doesn't exist
+
 // The challenges given out and not yet answered: challenge → { kind: 'create' | 'get', client, until, token?, name?,
 // userId? }. Asking for one needs no sign-in, so each client holds at most CHALLENGES_PER_CLIENT and all of them at
 // most CHALLENGES_MAX: past that, the oldest goes.
 const challenges = new Map();
 const CHALLENGES_PER_CLIENT = 20;
 const CHALLENGES_MAX = 10_000;
-// The native apps sign in on this front door's own page in a browser: the Mac app in a sheet
-// (ASWebAuthenticationSession), the Android app in a Custom Tab, the desktop app in the system browser (ADR 137), so
-// the browser's password manager answers the passkey.
+// The native apps sign in on this front door's own page in a browser: the Android app in a Custom Tab, the desktop
+// app in the system browser (ADR 137), so the browser's password manager answers the passkey.
 // The page hands the sign-in back to the app as a code at botdot://signed-in?code=…. The app sends the code with the
 // secret whose SHA-256 the page carried (`handoff`) and gets its session: a code alone, seen by anything else (on
 // Android, another app may claim botdot:// too), signs nobody in.
@@ -185,17 +247,23 @@ const HANDOFF_MS = 2 * 60_000;
 const HANDOFFS_MAX = 1000;
 const HANDOFF_CHALLENGE = /^[A-Za-z0-9_-]{43}$/; // a SHA-256 in base64url
 const APP_CALLBACK = 'botdot://signed-in';
-const HANDOFF_APPS = ['mac', 'android', 'desktop']; // the apps that sign in through the browser
+const HANDOFF_APPS = ['android', 'desktop']; // the apps that sign in through the browser
+// Sign-ins whose passkey was right, waiting for their owner to agree to terms that changed (#987):
+// code → { account, app, handoff, until }. Each works once, for 10 minutes, kept in memory only.
+const agreements = new Map();
+const AGREEMENT_MS = 10 * 60_000;
 setInterval(() => {
-  for (const map of [challenges, handoffs]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
+  for (const map of [challenges, handoffs, agreements]) for (const [c, v] of map) if (v.until < Date.now()) map.delete(c);
 }, 60_000).unref();
 const socketOf = (account) => path.join(SOCKETS, account, 'botdot.sock');
-const ADMIN = process.env.FRONT_DOOR_ADMIN || null;
 const REQUESTS = process.env.FRONT_DOOR_REQUESTS ? path.resolve(process.env.FRONT_DOOR_REQUESTS) : null;
 const STATUS = process.env.FRONT_DOOR_STATUS ? path.resolve(process.env.FRONT_DOOR_STATUS) : null;
 const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null);
-// Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin.
-const FEEDBACK = !ONE_ACCOUNT && !!ADMIN;
+// Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
+// goes to the fleet console, through an outbox beside the front door's data that the console's agent empties (ADR 164).
+const outbox = MANAGED ? outboxLib.create(path.join(DATA, 'outbox')) : null;
+const FEEDBACK = !!outbox || (!ONE_ACCOUNT && !!ADMIN);
+const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
 const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
 const roomsOn = () => !!rooms && !!ADMIN && rooms.isOn();
@@ -223,6 +291,19 @@ const asked = (account) => !!REQUESTS && store.ACCOUNT_NAME.test(account) && fs.
 // Whether the machine is still making this account (its socket's folder isn't there yet), or starting it again.
 const making = (account) => asked(account) && !fs.existsSync(path.join(SOCKETS, account));
 const starting = (account) => asked(account) && fs.existsSync(path.join(SOCKETS, account));
+// An account that should run but doesn't answer, with nothing asked: the machine is asked to start it again (root's
+// step makes it match the front door's data), once in REVIVE_MS, so that a server that can't start isn't asked forever.
+const REVIVE_MS = 5 * 60 * 1000;
+const revived = new Map();
+function revive(account) {
+  if (!REQUESTS || !doors.accountExists(account) || doors.isSuspended(account) || doors.wasDeleted(account)) return false;
+  const now = Date.now();
+  if (now - (revived.get(account) || 0) < REVIVE_MS) return false;
+  revived.set(account, now);
+  console.error(`[front door] the account ${account}'s botdot server doesn't answer: the machine is asked to start it again`);
+  askMachine(account);
+  return asked(account);
+}
 // A name the admin deleted whose account the machine hasn't erased yet: nobody takes it until the machine has.
 const stillErasing = (name) => doors.wasDeleted(name) && (asked(name) || fs.existsSync(path.join(SOCKETS, name)));
 // Whether the account's botdot server answers on its socket: a connection, opened and closed, with nothing sent.
@@ -295,9 +376,19 @@ function updateStatus() {
   const selfBuilt = installed.selfBuilt === true;
   return { version: short(installed.version), selfBuilt, asked, update, newest: !selfBuilt && newest.version && newest.at ? newest : null, days: doors.updateDays() };
 }
+// Whether the account is being updated now, so that its botdot server is stopped for its switch: the admin's update
+// at this account's switch, or the switch of this account alone. A stale one isn't.
+const UPDATING = 'Your account is being updated. It takes a few minutes; try again then.';
+function beingUpdated(account) {
+  const last = readStatus('update.json');
+  const fresh = (at) => !!when(at) && Date.now() - Date.parse(at) <= UPDATE_STALE_MS;
+  if (last && last.state === 'updating' && last.phase === 'switch' && last.account === account && fresh(last.at)) return true;
+  return accountStatus(account)?.state === 'switching';
+}
 function askForUpdate() {
   if (!REQUESTS) return false;
-  try { fs.writeFileSync(path.join(REQUESTS, UPDATE), `${new Date().toISOString()}\n`, { flag: 'wx', mode: 0o640 }); } catch (e) {
+  // Empty: a first line is the version asked for (#979), and the admin page's Update asks for the newest.
+  try { fs.writeFileSync(path.join(REQUESTS, UPDATE), '', { flag: 'wx', mode: 0o640 }); } catch (e) {
     if (e.code !== 'EEXIST') throw e;
   }
   return true;
@@ -462,7 +553,7 @@ function slowedDown(req, res, limit = tries, what = 'failed sign-ins') {
 
 // ---------- the front door's own routes ----------
 
-// What a page that signs in asks for: { challenge } when it is a native app's browser (the Mac app's sheet, the
+// What a page that signs in asks for: { challenge } when it is a native app's browser (the
 // Android app's Custom Tab, the desktop app's system browser), which hands the sign-in back, {} for any other, which gets its session's cookie. Null,
 // answered here, for a hand-off that is wrong.
 function handoffOf(body, res) {
@@ -497,17 +588,55 @@ function takeHandoff(code, verifier) {
   return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(waiting.challenge)) ? waiting : null;
 }
 
-// The sign-up this token opens: an open sign-up link, or on a machine of one account, the setup key until that
-// account exists (for that account), and nothing else.
+// The sign-up this token opens: the setup key while the machine has no account (for the account it makes: the one
+// account, or a managed machine's first), else an open sign-up link, or on a machine of one account its sign-in link.
 function signUpLink(token) {
-  if (!ONE_ACCOUNT) return doors.openLink(token);
-  const opens = !!SETUP_KEY && !doors.accountCount() && token.length === SETUP_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(SETUP_KEY));
-  return opens ? { for: ONE_ACCOUNT } : null;
+  const setup = !!SETUP_KEY && !doors.accountCount() && token.length === SETUP_KEY.length && crypto.timingSafeEqual(Buffer.from(token), Buffer.from(SETUP_KEY));
+  if (setup) return { for: SETUP_ACCOUNT, setup: true };
+  // One account opens no sign-up link, only a sign-in link for itself, which makes it a new passkey (#985).
+  const link = doors.openLink(token);
+  return ONE_ACCOUNT && !(link?.signIn && link.for === ONE_ACCOUNT) ? null : link;
+}
+
+// The name a sign-up page for the account `account` offers to sign in with: `asked` (the desktop app sends its
+// computer's user name) made into a name as the installer makes one of the user who ran it, when nobody has it, else
+// the account's own.
+function suggestedLogin(asked, account) {
+  const made = String(asked || '').toLowerCase().replace(/[_.]/g, '-').replace(/[^a-z0-9-]/g, '').replace(/^[^a-z]+/, '').slice(0, 24);
+  return store.ACCOUNT_NAME.test(made) && !doors.loginTaken(made, account) ? made : account;
+}
+
+// A passkey that is right, from an address an access block stops: no session (#913). The admin's account is never
+// stopped, so that the admin is never shut out of the admin page.
+function refusedSignIn(req, res, account) {
+  refusalAudited('blocked', clientOf(req), 'no access', account);
+  return send(res, 403, { error: BLOCKED, refused: true });
+}
+
+// ---------- the terms an owner agrees to (#987) ----------
+
+const NOT_AGREED = 'Tick the box to agree to the Terms and the Privacy policy first.';
+// Whether the account's owner must agree to the terms in force before it opens: never when this machine asks for none.
+const mustAgree = (account) => !!TERMS && doors.termsOf(account)?.version !== TERMS.version;
+function agreedLog(account, version, how) {
+  console.log(`[front door] the account ${account} agreed to the terms, version ${version}, ${how}`);
+  audited('terms-agreed', { actor: 'front-door', account, detail: `version ${version} · ${how}` });
+}
+function agreedNow(account, how) {
+  doors.agreeToTerms(account, TERMS.version);
+  agreedLog(account, TERMS.version, how);
+}
+// A right passkey for an account that hasn't agreed to these terms: no session yet, a code that waits for its "I agree".
+function askAgreement(res, account, app, handoff) {
+  if (agreements.size >= HANDOFFS_MAX) agreements.delete(agreements.keys().next().value);
+  const code = crypto.randomBytes(32).toString('base64url');
+  agreements.set(code, { account, app, handoff, until: Date.now() + AGREEMENT_MS });
+  return send(res, 200, { ok: false, agreement: code, terms: { terms: TERMS.terms, privacy: TERMS.privacy, version: TERMS.version } });
 }
 
 async function signInRoutes(req, res, p) {
   // Until the first account is made, nobody can sign in, and only the install's link makes it.
-  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn() : pages.notYet());
+  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn({ terms: TERMS }) : pages.notYet());
   if (p === '/sign-in/options' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
     return send(res, 200, { publicKey: webauthn.requestOptions({ rpId: RP_ID, challenge: newChallenge(clientOf(req), { kind: 'get' }) }) });
@@ -525,12 +654,30 @@ async function signInRoutes(req, res, p) {
       try { count = webauthn.verifyAssertion(credential, key, { rpId: RP_ID, origin: ORIGINS, challenge: waiting.challenge }); } catch { count = null; }
     }
     if (count === null) {
-      tries.failed(clientOf(req));
+      failedTry(tries, clientOf(req), 'sign-ins');
       return send(res, 401, { error: "That passkey didn't sign you in." });
     }
     tries.succeeded(clientOf(req));
     doors.counted(credential.id, count);
+    if (key.account !== ADMIN && shutOut(clientOf(req))) return refusedSignIn(req, res, key.account);
+    if (mustAgree(key.account)) return askAgreement(res, key.account, app, handoff);
     return signedIn(req, res, 200, key.account, app, handoff);
+  }
+  // The owner agreed to the terms that changed since their last agreement (#987): the sign-in it waited for goes on.
+  if (p === '/sign-in/agree' && req.method === 'POST') {
+    if (slowedDown(req, res)) return;
+    const { agreement, agree } = (await readJson(req)) || {};
+    const waiting = typeof agreement === 'string' ? agreements.get(agreement) : null;
+    if (!waiting || waiting.until < Date.now()) {
+      if (waiting) agreements.delete(agreement);
+      failedTry(tries, clientOf(req), 'sign-ins');
+      return send(res, 401, { error: 'That sign-in has ended. Sign in again.' });
+    }
+    if (agree !== true) return send(res, 400, { error: NOT_AGREED });
+    agreements.delete(agreement);
+    if (!doors.accountExists(waiting.account)) return send(res, 401, { error: 'That sign-in has ended. Sign in again.' });
+    agreedNow(waiting.account, 'at sign-in');
+    return signedIn(req, res, 200, waiting.account, waiting.app, waiting.handoff);
   }
   // A native app, back from the browser with the code and the secret it kept: its own session.
   if (p === '/sign-in/handoff' && req.method === 'POST') {
@@ -538,10 +685,11 @@ async function signInRoutes(req, res, p) {
     const { code, verifier } = await readJson(req);
     const waiting = takeHandoff(code, verifier);
     if (!waiting) {
-      tries.failed(clientOf(req));
+      failedTry(tries, clientOf(req), 'sign-ins');
       return send(res, 401, { error: "That sign-in didn't come from this app. Sign in again." });
     }
     tries.succeeded(clientOf(req));
+    if (waiting.account !== ADMIN && shutOut(clientOf(req))) return refusedSignIn(req, res, waiting.account);
     return send(res, 200, { ok: true, account: waiting.account }, { 'Set-Cookie': sessionCookie(doors.newSession(waiting.account, waiting.app)) });
   }
   if (p === '/sign-out' && req.method === 'POST') {
@@ -602,8 +750,21 @@ async function signInRoutes(req, res, p) {
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!FEEDBACK) return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
+    // A managed machine whose console has been away long enough that 100 reports wait for it (ADR 164).
+    if (outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
     const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
     const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
+    // On a managed machine a report is kept only with its file in the outbox, so the console never misses one the
+    // owner was told went (ADR 164).
+    if (outbox) {
+      try {
+        outbox.put(report, (report.screenshots || []).map((_, n) => doors.feedbackScreenshot(report.id, n)).filter(Boolean));
+      } catch (e) {
+        console.error(`[front door] couldn't put the feedback of ${account} in the outbox: ${e.message}`);
+        doors.deleteFeedback(report.id);
+        return send(res, 503, { error: FEEDBACK_WAITS });
+      }
+    }
     console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)`);
     return send(res, 201, { ok: true, id: report.id });
   }
@@ -614,13 +775,22 @@ async function signInRoutes(req, res, p) {
   if (slowedDown(req, res)) return;
   const link = signUpLink(token);
   if (!link) {
-    tries.failed(clientOf(req));
+    failedTry(tries, clientOf(req), 'sign-up links');
     if (req.method === 'GET') return html(res, 410, pages.ended());
     return send(res, 410, { error: 'This sign-up link was used or has ended.' });
   }
   // The admin's sign-in link: a new passkey for an account that exists.
   const signIn = !!link.signIn;
-  if (req.method === 'GET' && !options) return html(res, 200, signIn ? pages.newPasskey({ name: link.for }) : pages.signUp({ name: link.for }));
+  // A full machine makes no account (#912): the link stays open for later, and the admin's install link always works.
+  if (!signIn && !link.setup && !ONE_ACCOUNT && link.for !== ADMIN) {
+    if (signUpRefused(req, res, link)) return;
+    const c = capacityNow();
+    if (c.full) return refusedFull(req, res, token, link, c);
+  }
+  if (req.method === 'GET' && !options) {
+    if (signIn) return html(res, 200, pages.newPasskey({ name: link.for, login: doors.loginOf(link.for), terms: mustAgree(link.for) ? TERMS : null }));
+    return html(res, 200, pages.signUp({ name: link.for, login: link.for ? suggestedLogin(new URL(req.url, 'http://x').searchParams.get('name'), link.for) : null, terms: TERMS }));
+  }
   if (req.method !== 'POST') return false;
   const body = await readJson(req);
   // One account: its own name, whatever the page sent.
@@ -628,24 +798,31 @@ async function signInRoutes(req, res, p) {
   if (!store.ACCOUNT_NAME.test(name)) return send(res, 400, { error: store.NAME_RULE });
   if (link.for && name !== link.for) return send(res, 400, { error: `This ${signIn ? 'sign-in' : 'sign-up'} link is for the account ${link.for}.` });
   if (signIn && !doors.accountExists(name)) return send(res, 410, { error: 'This sign-in link was used or has ended.' });
-  if (!signIn && (doors.accountExists(name) || stillErasing(name))) return send(res, 409, { error: 'That name is taken.' });
+  if (!signIn && (doors.accountExists(name) || doors.loginTaken(name) || stillErasing(name))) return send(res, 409, { error: 'That name is taken.' });
+  // The name the passkey signs in with: an account the link names takes the one its owner chose, else its own.
+  const login = signIn ? doors.loginOf(name) : link.for && typeof body.login === 'string' && body.login.trim() ? body.login.trim() : name;
+  if (!store.ACCOUNT_NAME.test(login)) return send(res, 400, { error: store.NAME_RULE });
+  if (!signIn && login !== name && doors.loginTaken(login, name)) return send(res, 409, { error: 'That name is taken.' });
+  // No passkey before the box is ticked (#987): a sign-up, or a new passkey for an account that hasn't agreed to these.
+  const agreeing = signIn ? mustAgree(name) : !!TERMS;
+  if (agreeing && body.agree !== true) return send(res, 400, { error: NOT_AGREED });
   if (options) {
     const userId = signIn ? doors.userIdOf(name) : crypto.randomBytes(16).toString('base64url');
-    const challenge = newChallenge(clientOf(req), { kind: 'create', token, name, userId });
-    return send(res, 200, { publicKey: webauthn.creationOptions({ rpId: RP_ID, challenge, userId, name }) });
+    const challenge = newChallenge(clientOf(req), { kind: 'create', token, name, login, userId });
+    return send(res, 200, { publicKey: webauthn.creationOptions({ rpId: RP_ID, challenge, userId, name: login }) });
   }
   const handoff = handoffOf(body, res);
   if (!handoff) return;
   const waiting = takeChallenge(body.credential, 'create');
-  if (!waiting || waiting.token !== token || waiting.name !== name) return send(res, 400, { error: 'That passkey was not made for this sign-up. Try again.' });
+  if (!waiting || waiting.token !== token || waiting.name !== name || waiting.login !== login) return send(res, 400, { error: 'That passkey was not made for this sign-up. Try again.' });
   let key;
   try { key = webauthn.verifyRegistration(body.credential, { rpId: RP_ID, origin: ORIGIN.origin, challenge: waiting.challenge }); } catch {
     return send(res, 400, { error: 'That passkey could not be checked. Try again.' });
   }
   try {
     if (signIn) doors.addPasskey({ token, name, passkey: key });
-    else if (ONE_ACCOUNT) doors.createOnlyAccount({ name, userId: waiting.userId, passkey: key });
-    else doors.createAccount({ token, name, userId: waiting.userId, passkey: key });
+    else if (link.setup) doors.createOnlyAccount({ name, login, userId: waiting.userId, passkey: key, terms: TERMS?.version });
+    else doors.createAccount({ token, name, login, userId: waiting.userId, passkey: key, terms: TERMS?.version });
   } catch (e) {
     if (e.status) return send(res, e.status, { error: e.message });
     throw e;
@@ -653,12 +830,97 @@ async function signInRoutes(req, res, p) {
   tries.succeeded(clientOf(req));
   if (signIn) {
     console.log(`[front door] the account ${name} has a new passkey, from the admin's sign-in link; its other sessions ended`);
+    audited('passkey-added', { actor: 'front-door', account: name, detail: "from the admin's sign-in link" });
+    if (agreeing) agreedNow(name, "with the admin's sign-in link");
     return signedIn(req, res, 201, name, body.app, handoff);
   }
-  console.log(`[front door] account ${name} was made ${ONE_ACCOUNT ? 'with the setup key' : 'from a sign-up link'}`);
+  if (!link.setup && !ONE_ACCOUNT && name !== ADMIN && !blockRules.local(clientOf(req))) doors.countSignUp(blockRules.limitKey(clientOf(req)));
+  console.log(`[front door] account ${name} was made ${link.setup ? 'with the setup key' : 'from a sign-up link'}`);
+  audited('account-made', { actor: 'front-door', account: name, detail: link.setup ? 'with the setup key' : 'from a sign-up link' });
+  if (TERMS) agreedLog(name, TERMS.version, 'at sign-up');
   askForAccount(name);
   return signedIn(req, res, 201, name, body.app, handoff);
 }
+
+// How many more accounts this machine takes (#912): { room, max, accounts, full }. room: accounts that still fit its
+// measured RAM and disk (lib/front-door/capacity.js), null while nothing is measured; full: a sign-up link makes no account now.
+// On a managed machine room is counted by shares (ADR 154): what the machine has against the shares its accounts hold.
+function capacityNow() {
+  const room = MANAGED ? capacity.roomByShares(load.machine(), doors.listAccounts().map((a) => a.share), doors.defaultShare()) : capacity.room(load.machine());
+  const c = { room, max: doors.maxAccounts(), accounts: doors.accountCount() };
+  return { ...c, full: capacity.full(c) };
+}
+const FULL = 'This machine is full. Your link still works: try it again later.';
+// A sign-up a full machine refused, kept in the audit log once an hour for each link: a page opened again and again
+// writes one entry.
+const refusedAt = new Map(); // the link's token's SHA-256 → when it was last kept
+function refusedFull(req, res, token, link, c) {
+  const id = crypto.createHash('sha256').update(token).digest('hex');
+  const now = Date.now();
+  for (const [k, t] of refusedAt) if (now - t > 3600_000) refusedAt.delete(k);
+  if (!refusedAt.has(id)) {
+    refusedAt.set(id, now);
+    const why = c.room === 0 ? 'no room on the machine' : `the maximum of ${c.max} account${c.max === 1 ? '' : 's'}`;
+    console.log(`[front door] a sign-up link made no account: ${why}`);
+    audited('sign-up-refused', { actor: 'front-door', account: link.for, detail: why });
+  }
+  if (req.method === 'GET') return html(res, 409, pages.full());
+  req.resume();
+  return send(res, 409, { error: FULL, full: true });
+}
+
+// ---------- blocked addresses (#913) ----------
+
+// The admin's blocks and the daily limit of new accounts per address (lib/front-door/blocks.js). A blocked person is
+// told plainly, never the block's note or range. A refusal is an audit entry once an hour for each address and kind:
+// a page and its files asked again and again write one.
+const BLOCKED = "You can't reach this machine from here.";
+const NO_SIGN_UP = 'This machine takes no new accounts from here.';
+const LIMITED = 'Too many new accounts from here today. Try again tomorrow.';
+const refusalAt = new Map(); // `${action} ${client}` → when it was last kept
+function refusalAudited(action, client, detail, account) {
+  const key = `${action} ${client}`;
+  const now = Date.now();
+  for (const [k, t] of refusalAt) if (now - t > 3600_000) refusalAt.delete(k);
+  if (refusalAt.has(key)) return;
+  refusalAt.set(key, now);
+  console.log(`[front door] refused ${client}: ${detail}`);
+  audited(action, { actor: 'front-door', account, detail: `${client} · ${detail}` });
+}
+// The live access block that stops this client, or null. None on a machine of one account, which has no admin page.
+const shutOut = (client) => (ONE_ACCOUNT ? null : blockRules.blocking(doors.blocks(), client, 'access'));
+// What a client an access block stops may still reach: signing in, which lets the admin's account alone through.
+const OPEN_TO_BLOCKED = new Set(['/sign-in', '/sign-in/options', '/sign-in/handoff', '/front-door/passkey.js']);
+function refused(req, res, status, text, headers = {}) {
+  req.resume();
+  if (req.method === 'GET' && !new URL(req.url, ORIGIN.origin).pathname.startsWith('/api/')) {
+    res.setHeader('Cache-Control', 'no-store');
+    for (const [k, v] of Object.entries(headers)) res.setHeader(k, v);
+    return html(res, status, pages.refused(text));
+  }
+  return send(res, status, { error: text, refused: true }, headers);
+}
+// Whether a sign-up from this client is refused (answered here, and true): a block, or the daily limit reached.
+function signUpRefused(req, res, link) {
+  const client = clientOf(req);
+  const block = blockRules.blocking(doors.blocks(), client, 'sign-up');
+  if (block) {
+    refusalAudited('blocked', client, block.level === 'access' ? 'no access' : 'no sign-up', link.for);
+    refused(req, res, 403, NO_SIGN_UP);
+    return true;
+  }
+  if (blockRules.local(client)) return false;
+  const made = doors.signUpsFrom(blockRules.limitKey(client));
+  const limit = doors.signUpLimit();
+  if (made.length < limit) return false;
+  refusalAudited('sign-up-limited', client, `${made.length} account${made.length === 1 ? '' : 's'} in a day`, link.for);
+  const wait = Math.max(1, Math.ceil((Date.parse(made[made.length - limit]) + blockRules.DAY - Date.now()) / 1000));
+  refused(req, res, 429, LIMITED, { 'Retry-After': String(wait) });
+  return true;
+}
+// The blocks and the limit as the admin page reads them; address: the admin's own, as the front door sees it.
+const blocksNow = (req) => ({ blocks: doors.blocks(), limit: doors.signUpLimit(), address: clientOf(req) });
+const blockText = (b) => `${b.cidr} · ${b.level === 'access' ? 'no access' : 'no sign-up'} · ${b.until ? `until ${utc(b.until)}` : 'until removed'}${b.note ? ` · ${b.note}` : ''}`;
 
 // ---------- shared rooms ----------
 
@@ -695,8 +957,9 @@ function askAccount(account, method, to, body, timeoutMs) {
 }
 
 // The group router the admin chose (#513): handed to every account's botdot server on a change and every minute, so
-// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile.
-const groupRouter = ONE_ACCOUNT ? null : groupRouterStore.open(DATA);
+// that one that started again has it back (it keeps it in memory alone). Haiku meanwhile. A managed machine of one
+// account has it too: the fleet console sets its key (ADR 162).
+const groupRouter = ONE_ACCOUNT && !MANAGED ? null : groupRouterStore.open(DATA);
 function handRouter() {
   if (!groupRouter) return;
   const body = groupRouter.forAccounts();
@@ -716,10 +979,199 @@ function handBoat(changed = false) {
     askAccount(name, 'POST', '/api/boat', body, 5000).then((r) => { if (!body.key && (r.status || !doors.accountExists(name))) boatRemovedFrom.delete(name); });
   }
 }
+// The off-site backup (#1017): root's step says how its runs went in status/offsite.json (#1016); a machine without one
+// has none, or says state off, and nothing is said of it. It is late when its last run failed, or its last good one
+// (before any, the first run's start) is older than OFFSITE_LATE_MS. The admin's /admin shows it, and their account is
+// told once when it turns late and once when it works again (POST /api/backups/machine), the account holding what it
+// is told through quiet hours. A managed machine has no admin: the fleet console's agent reads the status file itself.
+const OFFSITE_LATE_MS = Number(process.env.FRONT_DOOR_OFFSITE_LATE_MS) || 26 * 3600_000;
+function offsiteStatus(now = Date.now()) {
+  const s = readStatus('offsite.json');
+  if (!s || !['backing-up', 'done', 'failed'].includes(s.state)) return null;
+  const lastSuccess = when(s.lastSuccess);
+  const since = lastSuccess || when(s.started) || when(s.at);
+  const failed = s.state === 'failed';
+  // The weekly check (#1018) as the last run said it, and the last restore test (`install.sh --restore-test`), whose
+  // failure is late too until one passes.
+  const check = s.check && typeof s.check === 'object' && when(s.check.at)
+    ? { at: when(s.check.at), subset: /^\d{1,2}\/\d{1,2}$/.test(s.check.subset) ? s.check.subset : null, ok: s.check.ok === true, ...(s.check.ok === true ? {} : { error: line(s.check.error, 200) }) } : null;
+  const t = readStatus('restore-test.json');
+  const restoreTest = t && ['testing', 'passed', 'failed', 'refused'].includes(t.state) && when(t.at)
+    ? { state: t.state, at: when(t.at), account: store.ACCOUNT_NAME.test(t.account) ? t.account : null,
+      ...(Number.isInteger(t.bots) ? { bots: t.bots } : {}), ...(['failed', 'refused'].includes(t.state) ? { error: line(t.error, 300) } : {}) } : null;
+  return { state: s.state, at: when(s.at), lastSuccess, ...(failed ? { error: line(s.error, 300) } : {}), check, restoreTest,
+    late: failed || restoreTest?.state === 'failed' || !since || now - Date.parse(since) > OFFSITE_LATE_MS };
+}
+// The off-site backup set up from the admin page (ADR 161): the front door makes the Storage Box's sub-account
+// (lib/front-door/storage-box.js) and asks root's step with OFFSITE-SET (its lines: the repository's address, an empty
+// line where root alone may give the repository's password, and the sub-account's password once); root puts this
+// machine's key on it and opens the repository, says setting-up in status/offsite.json, then off with setup and the
+// error when it fails, and leaves the repository's new password in OFFSITE_PASSWORD, which the admin page shows until
+// the admin says it is saved. OFFSITE asks for a run now.
+const OFFSITE_SET = 'OFFSITE-SET';
+const OFFSITE_NOW = 'OFFSITE';
+const OFFSITE_PASSWORD = path.join(DATA, 'offsite-password.json');
+// The number of latest backups the repository keeps, as the admin set it, read by root's step's forget; none: 7 days,
+// 4 weeks and 3 months (ADR 157).
+const OFFSITE_KEEP = path.join(DATA, 'offsite-keep.json');
+function offsiteKeep() {
+  try { const n = JSON.parse(fs.readFileSync(OFFSITE_KEEP, 'utf8')).last; return Number.isInteger(n) && n >= 1 && n <= 99 ? n : null; } catch { return null; }
+}
+const requested = (name) => !!REQUESTS && fs.existsSync(path.join(REQUESTS, name));
+function offsiteSetup() {
+  const s = readStatus('offsite.json');
+  let password = null;
+  try {
+    const j = JSON.parse(fs.readFileSync(OFFSITE_PASSWORD, 'utf8'));
+    if (typeof j?.password === 'string' && /^[\x21-\x7e]{8,200}$/.test(j.password)) password = j.password;
+  } catch { /* none waits */ }
+  return {
+    can: !!REQUESTS,
+    busy: requested(OFFSITE_SET) || s?.state === 'setting-up',
+    now: requested(OFFSITE_NOW),
+    error: s?.state === 'off' && s.setup === true ? line(s.error, 300) : null,
+    password,
+    keep: offsiteKeep(),
+  };
+}
+async function connectStorageBox(token, box) {
+  const boxes = await storageBox.boxes(token);
+  if (!boxes.length) throw new storageBox.HetznerError('This project has no Storage Box.', 400);
+  const chosen = boxes.length === 1 ? boxes[0] : boxes.find((b) => b.id === box);
+  if (!chosen) return { boxes };
+  const name = storageBox.subaccountName(ORIGIN.hostname);
+  const sub = await storageBox.subaccount(token, chosen.id, name, /^[0-9a-f]{8}$/.test(process.env.BOT_DOT_INSTANCE || '') ? process.env.BOT_DOT_INSTANCE : '');
+  const repo = `sftp://${sub.username}@${sub.server}:23/botdot`;
+  fs.writeFileSync(path.join(REQUESTS, OFFSITE_SET), `${repo}\n\n${sub.password}\n`, { mode: 0o640 });
+  console.log(`[front door] the admin connected the Storage Box ${chosen.name}: ${sub.username}`);
+  audited('offsite-connected', { detail: `${chosen.name} · ${sub.username}` });
+  return { repo };
+}
+const OFFSITE_TOLD = path.join(DATA, 'offsite-told.json'); // { late }: what the admin's account was last told
+function tellOffsite() {
+  const o = ADMIN && !ONE_ACCOUNT ? offsiteStatus() : null;
+  if (!o) return;
+  let told = false;
+  try { told = JSON.parse(fs.readFileSync(OFFSITE_TOLD, 'utf8')).late === true; } catch { /* never told */ }
+  if (o.late === told) return;
+  const error = o.error || (o.restoreTest?.state === 'failed' ? `the restore test of ${o.restoreTest.account} failed: ${o.restoreTest.error}` : null);
+  askAccount(ADMIN, 'POST', '/api/backups/machine', { late: o.late, lastSuccess: o.lastSuccess, error }, 10_000).then((r) => {
+    if (r.status !== 200) return; // told again at the next look
+    fs.writeFileSync(OFFSITE_TOLD, JSON.stringify({ late: o.late, at: new Date().toISOString() }), { mode: 0o600 });
+  });
+}
+// An erased account's off-site snapshots that root's step forgot after the grace period (#1019), in
+// status/offsite-forgotten.json: each kept once in the audit log, the ones kept remembered in offsite-audited.json.
+const OFFSITE_AUDITED = path.join(DATA, 'offsite-audited.json');
+function auditForgotten() {
+  const list = readStatus('offsite-forgotten.json')?.forgotten;
+  if (!audit || !Array.isArray(list)) return;
+  let done = [];
+  try { done = JSON.parse(fs.readFileSync(OFFSITE_AUDITED, 'utf8')).done || []; } catch { /* none yet */ }
+  const fresh = list.filter((f) => f && store.ACCOUNT_NAME.test(f.account) && when(f.erased) && when(f.at) && !done.includes(`${f.account} ${f.at}`));
+  if (!fresh.length) return;
+  for (const f of fresh) {
+    audited('offsite-forgotten', { actor: 'front-door', account: f.account, detail: `erased ${utc(when(f.erased))} · ${Number.isInteger(f.snapshots) ? f.snapshots : 0} snapshots` });
+    done.push(`${f.account} ${f.at}`);
+  }
+  fs.writeFileSync(OFFSITE_AUDITED, JSON.stringify({ done: done.slice(-100) }), { mode: 0o600 });
+}
+function watchOffsite() {
+  try { tellOffsite(); } catch (e) { console.error(`[front door] off-site backup: ${e.message}`); }
+  try { auditForgotten(); } catch (e) { console.error(`[front door] off-site forgets: ${e.message}`); }
+}
+if ((ADMIN && !ONE_ACCOUNT) || audit) {
+  setTimeout(watchOffsite, 5000).unref();
+  setInterval(watchOffsite, Number(process.env.FRONT_DOOR_OFFSITE_EVERY_MS) || 10 * 60_000).unref();
+}
+// Each account's own off-site backup (ADR 158): what root's step says of the machine's runs, told to every account
+// whenever it changes for it (POST /api/backups/offsite), so that its owner sees in Settings when its data last went
+// off-site. A run's account counts as backed up when its data part was (snapshots["accounts/<name>/data.tar"]); when that
+// last happened is kept in offsite-accounts.json, since status/offsite.json holds the last run alone. A machine without
+// an off-site backup tells every account it is off.
+const OFFSITE_ACCOUNTS = path.join(DATA, 'offsite-accounts.json'); // { <account>: when its data last went off-site }
+const offsiteTold = new Map(); // account → what it was last told, as JSON
+function offsiteOfAccounts(now = Date.now()) {
+  const s = readStatus('offsite.json');
+  const on = !!s && ['backing-up', 'done', 'failed'].includes(s.state);
+  let last = {};
+  try { const j = JSON.parse(fs.readFileSync(OFFSITE_ACCOUNTS, 'utf8')); if (j && typeof j === 'object') last = j; } catch { /* none yet */ }
+  const names = doors.listAccounts().map((a) => a.name);
+  const finished = on ? when(s.finished) : null;
+  const done = new Set();
+  if (finished && s.snapshots && typeof s.snapshots === 'object') {
+    for (const k of Object.keys(s.snapshots)) { const m = /^accounts\/([a-z][a-z0-9-]{1,30})\/data\.tar$/.exec(k); if (m) done.add(m[1]); }
+  }
+  let changed = false;
+  for (const n of done) if (names.includes(n) && (!last[n] || Date.parse(last[n]) < Date.parse(finished))) { last[n] = finished; changed = true; }
+  for (const n of Object.keys(last)) if (!names.includes(n)) { delete last[n]; changed = true; }
+  if (changed) fs.writeFileSync(OFFSITE_ACCOUNTS, JSON.stringify(last), { mode: 0o600 });
+  const failed = new Set(on && Array.isArray(s.failed) ? s.failed.filter((p) => typeof p === 'string') : []);
+  return Object.fromEntries(names.map((n) => {
+    if (!on) return [n, { state: 'off', lastSuccess: null, late: false }];
+    const lastSuccess = last[n] || null;
+    const state = s.state === 'backing-up' ? 'backing-up' : finished && !done.has(n) && [...failed].some((p) => p === `accounts/${n}` || p.startsWith(`accounts/${n}/`)) ? 'failed' : 'done';
+    return [n, { state, lastSuccess, late: state === 'failed' || (!!lastSuccess && now - Date.parse(lastSuccess) > OFFSITE_LATE_MS) }];
+  }));
+}
+function tellAccountsOffsite() {
+  for (const [name, o] of Object.entries(offsiteOfAccounts())) {
+    const body = JSON.stringify(o);
+    if (offsiteTold.get(name) === body) continue;
+    offsiteTold.set(name, body);
+    askAccount(name, 'POST', '/api/backups/offsite', o, 10_000).then((r) => { if (r.status !== 200) offsiteTold.delete(name); }, () => offsiteTold.delete(name));
+  }
+}
+setTimeout(() => { try { tellAccountsOffsite(); } catch (e) { console.error(`[front door] accounts' off-site backup: ${e.message}`); } }, 5000).unref();
+setInterval(() => { try { tellAccountsOffsite(); } catch (e) { console.error(`[front door] accounts' off-site backup: ${e.message}`); } }, Number(process.env.FRONT_DOOR_OFFSITE_TELL_MS) || 60_000).unref();
 if (boat) {
   setTimeout(() => handBoat(), 3000).unref();
   setInterval(() => handBoat(), Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
 }
+// The keys the installer took (install.sh, lib/front-door/install-keys.js): taken when the front door starts and, should
+// an install leave them while it runs, within a minute.
+function takeInstallKeys() {
+  const took = installKeys.take(DATA, { groupRouter, boat });
+  if (took?.openrouter) {
+    console.log('[front door] the installer chose Jev as the decision model');
+    audited('decision-model', { detail: 'Jev, a new key · from the installer' });
+    handRouter();
+  }
+  if (took?.boat) {
+    console.log('[front door] the installer set the boat.dev key');
+    audited('boat-key-set', { detail: 'from the installer' });
+    handBoat(true);
+  }
+  handComposio();
+}
+// The installer's Composio key (ADR 161): the admin's own account's (a managed machine's first), handed until that
+// account answers, which it does once it is made and running. It takes it only while it has no key of its own.
+const COMPOSIO_TO = ADMIN || SETUP_ACCOUNT;
+// A key Composio refused is kept and handed again an hour later: a project key the fleet console has just made may
+// not be accepted yet, and the account says why on its Connectors page meanwhile.
+const COMPOSIO_REFUSED_WAIT_MS = Number(process.env.FRONT_DOOR_COMPOSIO_RETRY_MS) || 3600_000;
+let handingComposio = false;
+let composioRefusedAt = 0;
+function handComposio() {
+  if (Date.now() - composioRefusedAt < COMPOSIO_REFUSED_WAIT_MS) return;
+  const key = COMPOSIO_TO && !handingComposio ? installKeys.composio(DATA) : null;
+  if (!key) return;
+  handingComposio = true;
+  askAccount(COMPOSIO_TO, 'POST', '/api/connectors/install-key', { key }, 30_000).then((r) => {
+    handingComposio = false;
+    if (!r.status || r.status >= 500) return; // not made, not running, or Composio gave no answer: next minute
+    if (r.status === 400) {
+      composioRefusedAt = Date.now();
+      console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key, tried again in an hour: ${r.data?.error || r.status}`);
+      return;
+    }
+    installKeys.handed(DATA);
+    if (r.status !== 200) console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key: ${r.data?.error || r.status}`);
+    else if (!r.data?.kept) console.log(`[front door] the installer's Composio key went to ${COMPOSIO_TO}`);
+  });
+}
+takeInstallKeys();
+setInterval(takeInstallKeys, 60_000).unref();
 if (groupRouter) {
   setTimeout(handRouter, 3000).unref();
   setInterval(handRouter, Number(process.env.BOT_DOT_ROUTER_HAND_MS) || 60_000).unref();
@@ -932,19 +1384,66 @@ async function adminRoutes(req, res, p, account) {
     await readJson(req);
     const { url, expires, link } = doors.newSignUpLink({ origin: ORIGIN.origin });
     console.log(`[front door] the admin made a sign-up link (${link.id.slice(0, 12)}, until ${new Date(expires).toISOString()})`);
+    audited('link-made', { detail: `until ${utc(expires)}` });
     return send(res, 201, { url, link });
   }
   const m = p.match(/^\/admin\/links\/([0-9a-f]{64})\/revoke$/);
   if (m && req.method === 'POST') {
     const link = doors.revokeLink(m[1]);
     console.log(`[front door] the admin revoked a sign-up link (${link.id.slice(0, 12)})`);
+    audited('link-revoked', { detail: `made ${utc(link.created)}` });
     return send(res, 200, { ok: true, link });
   }
   if (p === '/admin/update' && req.method === 'GET') return send(res, 200, updateStatus());
+  // The off-site backup (#1017): null on a machine without one.
+  if (p === '/admin/offsite' && req.method === 'GET') return send(res, 200, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  // A Storage Box connected with a Hetzner API token (ADR 161): the token is used here and kept nowhere.
+  if (p === '/admin/offsite' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const token = typeof body.token === 'string' ? body.token.trim() : '';
+    if (!/^[\x21-\x7e]{10,200}$/.test(token)) return send(res, 400, { error: 'Paste a Hetzner API token.' });
+    const setup = offsiteSetup();
+    if (!setup.can) return send(res, 409, { error: "This machine's off-site backup is set up with its installer." });
+    if (offsiteStatus() || setup.busy) return send(res, 409, { error: 'This machine has an off-site backup already.' });
+    try {
+      const done = await connectStorageBox(token, Number.isInteger(body.box) ? body.box : null);
+      if (done.boxes) return send(res, 200, { boxes: done.boxes, offsite: null, setup: offsiteSetup() });
+    } catch (e) {
+      if (e instanceof storageBox.HetznerError) return send(res, e.status, { error: e.message });
+      throw e;
+    }
+    return send(res, 202, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  }
+  if (p === '/admin/offsite/now' && req.method === 'POST') {
+    await readJson(req);
+    const o = offsiteStatus();
+    if (!o || !REQUESTS) return send(res, 409, { error: 'This machine has no off-site backup.' });
+    if (o.state !== 'backing-up') {
+      try { fs.writeFileSync(path.join(REQUESTS, OFFSITE_NOW), '', { flag: 'wx', mode: 0o640 }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
+      audited('offsite-now');
+    }
+    return send(res, 202, { offsite: o, setup: offsiteSetup() });
+  }
+  if (p === '/admin/offsite/keep' && req.method === 'POST') {
+    const last = ((await readJson(req)) || {}).last;
+    if (last !== null && !(Number.isInteger(last) && last >= 1 && last <= 99)) return send(res, 400, { error: 'Keep 1 to 99 backups.' });
+    if (last === null) fs.rmSync(OFFSITE_KEEP, { force: true });
+    else fs.writeFileSync(OFFSITE_KEEP, JSON.stringify({ last }), { mode: 0o644 });
+    console.log(`[front door] the admin set the off-site backups kept: ${last ?? '7 days, 4 weeks, 3 months'}`);
+    audited('offsite-keep', { detail: last ? `${last} latest` : '7 days · 4 weeks · 3 months' });
+    return send(res, 200, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  }
+  // The repository's password is shown until the admin says it is kept elsewhere; then it is gone from here.
+  if (p === '/admin/offsite/password-saved' && req.method === 'POST') {
+    await readJson(req);
+    fs.rmSync(OFFSITE_PASSWORD, { force: true });
+    return send(res, 200, { offsite: offsiteStatus(), setup: offsiteSetup() });
+  }
   // The deadline (ADR 053): the days an account whose owner turned "Update automatically" off waits at most.
   if (p === '/admin/update/days' && req.method === 'POST') {
     const days = doors.setUpdateDays(((await readJson(req)) || {}).days);
     console.log(`[front door] the admin set the update deadline: ${days} days`);
+    audited('update-days', { detail: `${days} days` });
     switchPastDeadline();
     return send(res, 200, updateStatus());
   }
@@ -952,6 +1451,7 @@ async function adminRoutes(req, res, p, account) {
     await readJson(req);
     if (!askForUpdate()) return send(res, 409, { error: "This machine can't be updated from here. Run its installer again." });
     console.log('[front door] the admin asked to update botdot: the front door and every account');
+    audited('update', { detail: 'the front door and every account' });
     return send(res, 202, updateStatus());
   }
   // Shared rooms (ADR 060): the admin's switch for the machine, off until turned on. Off, no room is served and no
@@ -960,6 +1460,7 @@ async function adminRoutes(req, res, p, account) {
   if (p === '/admin/rooms' && req.method === 'POST') {
     const on = rooms.setOn(((await readJson(req)) || {}).on);
     console.log(`[front door] the admin turned shared rooms ${on ? 'on' : 'off'}`);
+    audited('rooms', { detail: on ? 'on' : 'off' });
     if (!on) { for (const r of roomsAll()) turns.stop(r.id); closeRoomStreams(); }
     return send(res, 200, { on });
   }
@@ -977,6 +1478,7 @@ async function adminRoutes(req, res, p, account) {
     let shown;
     try { shown = groupRouter.set(body.router, key || undefined, typeof body.wakeGate === 'boolean' ? body.wakeGate : undefined, body.replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     console.log(`[front door] the admin chose ${shown.router === 'jev' ? 'Jev' : 'Haiku'} as the decision model; the wake gate is ${shown.wakeGate ? 'on' : 'off'}; ${shown.replaysPerHour} replays an hour`);
+    audited('decision-model', { detail: `${shown.router === 'jev' ? 'Jev' : 'Haiku'}${key && shown.router === 'jev' ? ', a new key' : ''} · wake gate ${shown.wakeGate ? 'on' : 'off'}` });
     handRouter();
     return send(res, 200, shown);
   }
@@ -987,6 +1489,7 @@ async function adminRoutes(req, res, p, account) {
     let shown;
     try { shown = groupRouter.setReplays(((await readJson(req)) || {}).replaysPerHour); } catch (e) { return send(res, e.status || 400, { error: e.message }); }
     console.log(`[front door] the admin set ${shown.replaysPerHour} replays an hour`);
+    audited('replays', { detail: `${shown.replaysPerHour} an hour` });
     handRouter();
     return send(res, 200, shown);
   }
@@ -1004,6 +1507,7 @@ async function adminRoutes(req, res, p, account) {
     }
     const shown = boat.set(key);
     console.log(`[front door] the admin ${key ? 'set' : 'removed'} the boat.dev key`);
+    audited(key ? 'boat-key-set' : 'boat-key-removed');
     handBoat(true);
     return send(res, 200, shown);
   }
@@ -1020,10 +1524,49 @@ async function adminRoutes(req, res, p, account) {
     const one = usage && usage.account(name, doors.listAccounts());
     return one ? send(res, 200, one) : send(res, 404, { error: 'No such account.' });
   }
+  // How many more accounts fit, and the admin's maximum (#912).
+  if (p === '/admin/capacity' && req.method === 'GET') return send(res, 200, capacityNow());
+  if (p === '/admin/capacity' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const max = doors.setMaxAccounts(body.max);
+    console.log(`[front door] the admin set the maximum of accounts: ${max === null ? 'none' : max}`);
+    audited('max-accounts', { detail: max === null ? 'none' : `${max} account${max === 1 ? '' : 's'}` });
+    return send(res, 200, capacityNow());
+  }
+  // Blocked addresses and the daily limit of new accounts per address (#913).
+  if (p === '/admin/blocks' && req.method === 'GET') return send(res, 200, blocksNow(req));
+  if (p === '/admin/blocks' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const own = clientOf(req);
+    // The admin is never shut out by a block of their own address: refused, and said why.
+    if (body.level === 'access' && typeof body.cidr === 'string') {
+      const cidr = blockRules.checkCidr(body.cidr);
+      if (blockRules.covers(cidr, own)) return send(res, 409, { error: `This block covers your own address, ${own}: it would shut you out.`, own: true });
+    }
+    const block = doors.addBlock(body);
+    console.log(`[front door] the admin blocked ${blockText(block)}`);
+    audited('block-added', { detail: blockText(block) });
+    return send(res, 201, { block, ...blocksNow(req) });
+  }
+  if (p === '/admin/blocks/limit' && req.method === 'POST') {
+    const limit = doors.setSignUpLimit(((await readJson(req)) || {}).limit);
+    console.log(`[front door] the admin set the limit of new accounts per address: ${limit} a day`);
+    audited('sign-up-limit', { detail: `${limit} account${limit === 1 ? '' : 's'} a day` });
+    return send(res, 200, blocksNow(req));
+  }
+  const blockMatch = p.match(/^\/admin\/blocks\/([0-9a-f]{16})\/remove$/);
+  if (blockMatch && req.method === 'POST') {
+    await readJson(req);
+    const block = doors.removeBlock(blockMatch[1]);
+    console.log(`[front door] the admin removed the block of ${block.cidr}`);
+    audited('block-removed', { detail: blockText(block) });
+    return send(res, 200, blocksNow(req));
+  }
   if (p === '/admin/share' && req.method === 'GET') return send(res, 200, { share: doors.defaultShare(), machine: load.machine() });
   if (p === '/admin/share' && req.method === 'POST') {
     const accounts = doors.setDefaultShare(await readJson(req));
     console.log(`[front door] the admin set the default share: ${JSON.stringify(doors.defaultShare())}`);
+    audited('default-share', { detail: shareText(doors.defaultShare()) });
     for (const name of accounts) askMachine(name);
     return send(res, 200, { ok: true, share: doors.defaultShare() });
   }
@@ -1043,7 +1586,12 @@ async function adminRoutes(req, res, p, account) {
     if (f[2] === 'delete') { doors.deleteFeedback(f[1]); return send(res, 200, { ok: true }); }
     return send(res, 200, { ok: true, report: doors.feedbackDone(f[1]) });
   }
-  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update)$/);
+  // The audit log (#911, ADR 141), newest first: ?account=, ?action= and ?before= (an entry's `at`) to page.
+  if (p === '/admin/audit' && req.method === 'GET') {
+    const q = new URL(req.url, 'http://x').searchParams;
+    return send(res, 200, audit.list({ account: q.get('account') || undefined, action: q.get('action') || undefined, before: q.get('before') || undefined, limit: Number(q.get('limit')) || undefined }));
+  }
+  const a = p.match(/^\/admin\/accounts\/([a-z][a-z0-9-]{1,23})\/(suspend|resume|delete|sign-in-link|share|update|sign-out|computer|boat-size)$/);
   if (a && req.method === 'POST') return accountAction(req, res, a[1], a[2]);
   return send(res, 404, { error: 'Not found' });
 }
@@ -1079,12 +1627,40 @@ if (!ONE_ACCOUNT) setInterval(() => askLong().catch((e) => console.error(`[front
 async function listAccounts() {
   return Promise.all(doors.listAccounts().map(async (a) => {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';
+    // Where its computer is (ADR 146), while boat.dev has a key: asked of the account, which keeps it.
+    const computer = state === 'running' && boat?.shown().keySet ? (await askAccount(a.name, 'GET', '/api/settings/computer', null, 2000)).data?.place : undefined;
+    // And, while it is the External Virtual PC, its size and the sizes boat.dev makes (ADR 163): the admin's too.
+    const size = computer === 'boat' ? (await askAccount(a.name, 'GET', '/api/settings/boat-size', null, 2000)).data : null;
+    const boatSize = typeof size?.size === 'string' && Array.isArray(size.sizes)
+      ? { size: size.size, sizes: size.sizes.map((s) => ({ id: String(s.id), cpus: s.cpus, memoryGB: s.memoryGB, available: s.available !== false })) } : null;
     return { name: a.name, created: a.created, lastSeen: a.lastSeen, state, share: a.share, ownShare: a.ownShare, use: load.account(a.name), ...(longOf.has(a.name) ? { long: longOf.get(a.name) } : {}),
+      ...(computer === 'linux' || computer === 'boat' ? { computer } : {}), ...(boatSize ? { boatSize } : {}),
       ...(a.name === ADMIN ? { admin: true } : {}), ...(choosesUpdates(a.name) ? { update: ownUpdate(a.name) } : {}) };
   }));
 }
 
-// The admin suspends, resumes or deletes an account, or makes a sign-in link for it. The admin's own account is
+// A time in an audit entry's words: "2026-11-10 04:00 UTC".
+const utc = (t) => `${new Date(t).toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+// A share in an audit entry's words: "2 CPUs · 5 GB RAM · 30 GB disk".
+const shareText = (s) => `${s.cpu} CPU${s.cpu === 1 ? '' : 's'} · ${s.ram} GB RAM · ${s.disk} GB disk`;
+
+// A deleted account's machines on boat.dev (#982): its botdot server deletes them before root's step stops it for good.
+// Null when there is nothing to say (no key on this machine, nothing on boat.dev), else { text, failed }: what was
+// deleted, or why not all of it was. A failure never stops the erase: it is said in the log, the audit entry and the
+// answer to the admin.
+const BOAT_ERASE_MS = Number(process.env.BOT_DOT_BOAT_ERASE_MS) || 90_000;
+async function eraseBoat(name) {
+  if (!boat?.shown().keySet || !fs.existsSync(path.join(SOCKETS, name))) return null;
+  const { status, data } = await askAccount(name, 'POST', '/api/boat/erase', {}, BOAT_ERASE_MS);
+  const machines = (n) => `${n} machine${n === 1 ? '' : 's'}`;
+  if (status === 200 && Number.isInteger(data?.deleted) && Array.isArray(data?.failed)) {
+    if (!data.failed.length) return data.deleted ? { text: `boat.dev: ${machines(data.deleted)} deleted`, failed: false } : null;
+    return { text: `boat.dev: ${machines(data.failed.length)} not deleted (${line(data.failed[0]?.error, 200) || 'no answer'})${data.deleted ? `, ${data.deleted} deleted` : ''}`, failed: true };
+  }
+  return { text: `boat.dev: its machines not deleted (${doors.isSuspended(name) ? 'the account is suspended, so its server is stopped' : 'its server gave no answer'})`, failed: true };
+}
+
+// The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
 async function accountAction(req, res, name, action) {
   const body = await readJson(req);
@@ -1096,32 +1672,72 @@ async function accountAction(req, res, name, action) {
   if (action === 'share') {
     const share = doors.setAccountShare(name, body.default === true ? null : body);
     console.log(`[front door] the admin set the share of the account ${name}: ${JSON.stringify(share)}`);
+    audited('share', { account: name, detail: body.default === true ? `the default, ${shareText(share)}` : shareText(share) });
     askMachine(name);
     return send(res, 200, { ok: true, share });
+  }
+  // Where the account's computer is (ADR 146): this machine or its External Virtual PC on boat.dev, for every bot of
+  // it with a computer, their files copied along with moveFiles. The admin alone chooses it; the account keeps it.
+  if (action === 'computer') {
+    const place = body.place;
+    if (place !== 'linux' && place !== 'boat') return send(res, 400, { error: 'place is linux or boat.' });
+    const moveFiles = body.moveFiles === true;
+    const r = await askAccount(name, 'PUT', '/api/settings/computer', { place, moveFiles }, 10_000);
+    if (!r.status) return send(res, 502, { error: `The account ${name} isn't running: its computer can be moved once it is.` });
+    if (r.status !== 200) return send(res, r.status, { error: r.data?.error || `The account ${name} didn't move its computer.` });
+    const where = place === 'boat' ? 'the External Virtual PC' : 'this machine';
+    console.log(`[front door] the admin moved the computer of the account ${name} to ${where}${moveFiles ? ', its files copied' : ''}`);
+    audited('computer', { account: name, detail: `${where}${moveFiles ? ' · files copied' : ' · started empty'}` });
+    return send(res, 200, { ok: true, computer: r.data.place });
+  }
+  // The size of the account's External Virtual PC (ADR 163): the admin alone chooses it, as where it is. Each machine
+  // takes it when it starts next.
+  if (action === 'boat-size') {
+    if (typeof body.size !== 'string' || !body.size) return send(res, 400, { error: 'size is one of the sizes boat.dev makes.' });
+    const r = await askAccount(name, 'PUT', '/api/settings/boat-size', { size: body.size }, 10_000);
+    if (!r.status) return send(res, 502, { error: `The account ${name} isn't running: its size can be changed once it is.` });
+    if (r.status !== 200) return send(res, r.status, { error: r.data?.error || `The account ${name} didn't change its size.` });
+    console.log(`[front door] the admin set the size of the External Virtual PC of the account ${name} to ${r.data.size}`);
+    audited('boat-size', { account: name, detail: r.data.size });
+    return send(res, 200, { ok: true, size: r.data.size });
   }
   // "Update now" for an account that waits (ADR 053): as its owner's, to the version the admin installed.
   if (action === 'update') {
     if (!choosesUpdates(name) || !ownUpdate(name).canUpdate) return send(res, 409, { error: `The account ${name} has no new version to switch to.` });
     askSwitch(name);
     console.log(`[front door] the admin asked to switch the account ${name} to the new version now`);
+    audited('update-now', { account: name });
     return send(res, 202, { ok: true, update: ownUpdate(name) });
   }
   if (action === 'sign-in-link') {
     const { url, link } = doors.newSignInLink({ origin: ORIGIN.origin, account: name });
     console.log(`[front door] the admin made a sign-in link for the account ${name} (${link.id.slice(0, 12)})`);
+    audited('sign-in-link', { account: name, detail: `until ${utc(link.expires)}` });
     return send(res, 201, { url, link });
+  }
+  // "Sign out everywhere" (#914): every session of the account, in every app, ends; the passkeys stay. On the admin's
+  // own account the admin is signed out too (the page asks first).
+  if (action === 'sign-out') {
+    const ended = doors.endAccountSessions(name);
+    console.log(`[front door] the admin signed the account ${name} out everywhere (${ended} session${ended === 1 ? '' : 's'})`);
+    audited('sign-out', { account: name, detail: `${ended} session${ended === 1 ? '' : 's'}` });
+    const self = name === ADMIN;
+    return send(res, 200, { ok: true, ended, ...(self ? { signIn: '/sign-in' } : {}) }, self ? { 'Set-Cookie': sessionCookie(null) } : {});
   }
   if (action === 'delete') {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
+    const boatGone = await eraseBoat(name);
     doors.deleteAccount(name);
     roomsWithout(name);
     usage?.forget(name);
-    console.log(`[front door] the admin deleted the account ${name}; the machine erases it`);
+    console.log(`[front door] the admin deleted the account ${name}; the machine erases it${boatGone ? ` (${boatGone.text})` : ''}`);
+    audited('delete', { account: name, detail: boatGone?.text });
     askMachine(name);
-    return send(res, 200, { ok: true });
+    return send(res, 200, { ok: true, ...(boatGone?.failed ? { boat: boatGone.text } : {}) });
   }
   doors.setSuspended(name, action === 'suspend');
   console.log(`[front door] the admin ${action === 'suspend' ? 'suspended' : 'resumed'} the account ${name}`);
+  audited(action, { account: name });
   askMachine(name);
   return send(res, 200, { ok: true });
 }
@@ -1154,10 +1770,18 @@ function pass(req, res, account, { path: to = req.url, headers: sent = headersFo
   });
   up.on('error', () => {
     if (res.headersSent) return res.destroy();
-    if (!asked(account)) return send(res, 502, { error: notRunning });
+    const page = to === req.url && (req.method === 'GET' || req.method === 'HEAD') && !String(req.url).startsWith('/api/');
+    if (notRunning === NOT_RUNNING && beingUpdated(account)) {
+      return page ? html(res, 503, pages.updating()) : send(res, 503, { error: UPDATING, updating: true }, { 'Retry-After': '15' });
+    }
+    // Down with nothing asked of the machine (its server or its Docker stopped): the machine is asked to start it
+    // again, at most once in a few minutes, and the owner sees it starting. A job's call only learns it isn't running.
+    if (!asked(account) && !(notRunning === NOT_RUNNING && revive(account))) {
+      return page ? html(res, 503, pages.notRunning()) : send(res, 502, { error: notRunning });
+    }
     // The machine is still making this account, or starting it again: a page says so and looks again by itself.
     const made = !making(account);
-    if (to === req.url && (req.method === 'GET' || req.method === 'HEAD') && !String(req.url).startsWith('/api/')) return html(res, 503, made ? pages.starting() : pages.making());
+    if (page) return html(res, 503, made ? pages.starting() : pages.making());
     send(res, 503, made ? { error: STARTING, starting: true } : { error: MAKING, making: true }, { 'Retry-After': made ? '10' : '30' });
   });
   res.on('close', () => { if (!res.writableFinished) up.destroy(); });
@@ -1172,13 +1796,13 @@ function takeCall(req, res, call) {
   if (slowedDown(req, res, callTries, 'calls with a wrong key')) return;
   const client = clientOf(req);
   if (!doors.accountExists(call.account)) {
-    callTries.failed(client);
+    failedTry(callTries, client, 'calls');
     req.resume();
     return send(res, 401, { error: 'Wrong key.' });
   }
   // A suspended account's botdot server isn't running: said as for any that isn't, to a sender who may be anyone.
   if (doors.isSuspended(call.account)) { req.resume(); return send(res, 502, { error: CALL_NOT_RUNNING }); }
-  const answered = (status) => { if (status === 401) callTries.failed(client); };
+  const answered = (status) => { if (status === 401) failedTry(callTries, client, 'calls'); };
   pass(req, res, call.account, { path: call.path, headers: calls.callHeaders(req, call.account, client), answered, notRunning: CALL_NOT_RUNNING });
 }
 
@@ -1196,9 +1820,16 @@ const server = http.createServer(async (req, res) => {
     try { p = new URL(req.url, ORIGIN.origin).pathname; } catch { return send(res, 400, { error: 'Bad address' }); }
     // A write from a page of another site can't send this header without a preflight, which nothing approves.
     // A machine of one account (the Mac app's) has no admin page (ADR 028): there /admin is the account's own.
+    // A managed machine has none either, and nothing answers there (ADR 154): the fleet console is its admin.
+    if (MANAGED && (p === '/admin' || p.startsWith('/admin/'))) return send(res, 404, { error: 'Not found' });
     const isAdmin = !ONE_ACCOUNT && (p === '/admin' || p.startsWith('/admin/'));
-    const own = isAdmin || p === '/sign-in' || p === '/sign-in/options' || p === '/sign-in/handoff' || p === '/sign-out' || p === '/sign-out-everywhere' || p.startsWith('/sign-up/') || p.startsWith('/front-door/');
+    const own = isAdmin || p === '/sign-in' || p === '/sign-in/options' || p === '/sign-in/handoff' || p === '/sign-in/agree' || p === '/sign-out' || p === '/sign-out-everywhere' || p.startsWith('/sign-up/') || p.startsWith('/front-door/');
     if (own && req.method !== 'GET' && req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
+    // An access block (#913): from there only signing in is reached, and only the admin's account gets through.
+    if (!OPEN_TO_BLOCKED.has(p) && !FONTS[p] && shutOut(clientOf(req)) && !(ADMIN && doors.sessionAccount(sessionOf(req)) === ADMIN)) {
+      refusalAudited('blocked', clientOf(req), 'no access', doors.sessionAccount(sessionOf(req)) || undefined);
+      return refused(req, res, 403, BLOCKED);
+    }
     if (p === '/front-door/passkey.js' && req.method === 'GET') {
       res.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
       return res.end(pages.SCRIPT);
@@ -1254,6 +1885,7 @@ server.on('upgrade', (req, socket, head) => {
   socket.on('error', () => socket.destroy());
   const account = String(req.headers.host || '').toLowerCase() === ORIGIN.host ? doors.sessionAccount(sessionOf(req)) : null;
   if (!account) { socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
+  if (account !== ADMIN && shutOut(clientOf(req))) { socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
   if (doors.isSuspended(account)) { socket.end('HTTP/1.1 503 Service Unavailable\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); return; }
   const up = net.connect(socketOf(account));
   up.on('error', () => { socket.end('HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n'); up.destroy(); });
@@ -1340,7 +1972,7 @@ server.listen(PORT, HOST, () => {
     ? `[front door] the Android app signs in as botdot's release build and with ${more} more key${more === 1 ? '' : 's'} from FRONT_DOOR_ANDROID_KEYS`
     : "[front door] FRONT_DOOR_ANDROID_KEYS is not set: the Android app signs in only as botdot's release build; a build of your own needs its signing key's SHA-256 there (docs/install-linux.md)");
   // Until the first account is made, every start prints a link that makes it: the admin's own (ADR 028).
-  if (!doors.accountCount() && !ONE_ACCOUNT) {
+  if (!doors.accountCount() && !ONE_ACCOUNT && !MANAGED) {
     const { url } = doors.newSignUpLink({ origin: ORIGIN.origin, account: ADMIN });
     console.log(`Sign-up link for the first account${ADMIN ? `, ${ADMIN},` : ''} which is the admin's: ${url}`);
   }

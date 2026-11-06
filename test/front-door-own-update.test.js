@@ -8,7 +8,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
 
 const DAY = 24 * 3600_000;
 let door, requests, status;
@@ -44,7 +44,7 @@ const said = (name, value) => fs.writeFileSync(path.join(status, name), typeof v
 const asked = () => fs.readdirSync(requests).sort();
 const clear = () => { for (const f of fs.readdirSync(requests)) fs.rmSync(path.join(requests, f)); };
 const kept = () => JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8'));
-const seen = () => Object.values(stands).map((s) => s.seen.length).join();
+const seen = () => seenOf(stands);
 
 test("every account's owner chooses, the admin's own too (#274)", async () => {
   const b = await bob();
@@ -170,6 +170,8 @@ test('the admin page lists what waits on each account, and its "Update now" asks
   const now = await a.post('/admin/accounts/bob/update', {});
   assert.equal(now.status, 202, now.text);
   assert.deepEqual(asked(), ['SWITCH-bob']);
+  const entry = (await a.get('/admin/audit?action=update-now')).data.entries[0];
+  assert.deepEqual([entry.actor, entry.action, entry.account], ['ann', 'update-now', 'bob'], 'kept in the audit log (#911)');
   assert.equal((await a.post('/admin/accounts/ann/update', {})).status, 409, "the admin's own waits for nothing");
   assert.equal((await (await bob()).post('/admin/accounts/bob/update', {})).status, 404, 'only the admin');
   const page = (await a.get('/front-door/admin.js')).text;

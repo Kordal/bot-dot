@@ -88,4 +88,16 @@ class PlanTest {
         assertTrue(again.dismissed("r1"))
         assertFalse(again.dismissed("r2"))
     }
+    @Test
+    fun aGroupShowsThePlanOfItsMemberAtWorkThatStartedLastAndHasOne() {
+        val working = GroupWorking.list(Json.parseToJsonElement("""[{"botId":"lead","runId":"r1","plan":$plan},{"botId":"helper","runId":"r2"}]"""))
+        assertEquals(3, working[0].plan?.total)
+        assertNull(working[1].plan)
+        val (w, view) = GroupWorking.planOf(working)!!
+        assertEquals("lead", w.botId)
+        assertEquals("r1", view.id)
+        assertFalse(view.stopped)
+        assertNull(GroupWorking.planOf(working.take(0)))
+        assertNull(GroupWorking.planOf(listOf(working[1])))
+    }
 }

@@ -57,7 +57,8 @@ const isImage = (f) => /\.(png|jpe?g|gif|webp)$/i.test(f.name);
 // Pictures show as themselves (a QR code to scan can't wait for a download); tap for full size.
 // data-view: the viewer opens it, where the server has one (#251, viewer.js); else the link downloads it as before.
 const viewData = (f) => (state.features.includes('document-viewer') ? ` data-view="${esc(fileHref(f).slice(4))}" data-view-name="${esc(f.name)}"` : '');
-const botFilesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => isImage(f) ? `<a class="file-image" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}"${viewData(f)}><img src="${esc(fileHref(f))}" alt="${esc(f.name)}" loading="lazy"></a>` : `<a class="file-chip link" href="${esc(fileHref(f))}" ${/\.pdf$/i.test(f.name) ? 'target="_blank" rel="noopener"' : `download="${esc(f.name)}"`}${viewData(f)} title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`).join('')}</div>` : '');
+const botFileChipHTML = (f) => `<a class="file-chip link" href="${esc(fileHref(f))}" ${/\.pdf$/i.test(f.name) ? 'target="_blank" rel="noopener"' : `download="${esc(f.name)}"`}${viewData(f)} title="${esc(f.name)}${f.size ? ` · ${fmtSize(f.size)}` : ''}">${fileIcon(f.name)} <span class="fname">${esc(f.name)}</span></a>`;
+const botFilesHTML = (list) => (list?.length ? `<div class="bubble-files">${list.map((f) => isImage(f) ? `<a class="file-image" href="${esc(fileHref(f))}" target="_blank" rel="noopener" title="${esc(f.name)}"${viewData(f)}><img src="${esc(fileHref(f))}" alt="${esc(f.name)}" loading="lazy"></a>` : botFileChipHTML(f)).join('')}</div>` : '');
 
 // Files botdot already has (those of a message taken back), as the list of a message box holds them: ready to send.
 const readyFiles = (list) => (Array.isArray(list) ? list : []).filter((f) => f && typeof f.file === 'string')
@@ -294,7 +295,7 @@ function wireComposer(form, onSend, uploadTo, chat) {
     const text = ta.value.trim();
     if (files?.busy()) return toast(tr('Wait a moment: the files are still uploading.'));
     if (!text && !files?.count()) return;
-    if (looksLikeSecret(text) && !confirm(tr('This looks like it contains a password.\n\nMessages are sent to the AI and saved on disk. Let the bot ask for it instead: it opens a secure box that goes straight into your Vault.\n\nSend anyway?'))) return;
+    if (looksLikeSecret(text) && !(await askFirst(tr('This looks like it contains a password.\n\nMessages are sent to the AI and saved on disk. Let the bot ask for it instead: it opens a secure box that goes straight into your Vault.\n\nSend anyway?'), tr('Send')))) return;
     const held = files ? files.held() : [];
     const sent = failed && failed.text === text && same(failed.files, held) ? failed : { text, files: held, key: messageKey() };
     failed = null;
@@ -416,6 +417,7 @@ function renderChief() {
       ${composerHTML(messageChief())}
       <div class="job-chips" id="chief-job-chips"></div>`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
+    holdChatEnd($('#chat-thread', root));
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
     $('#chief-settings').onclick = () => setPanel('toggle');
@@ -477,6 +479,14 @@ const MAIL_STATE = { draft: tr('In Drafts · not sent'), kept: tr('Kept in Draft
 const MAIL_ACTIONS = { 'Send now': tr('Send now'), 'Not now': tr('Not now') };
 // The run chips the card's footer takes the place of.
 const mailChip = (m, a) => !!m.draft?.botId && (a.kind === 'run' || a.kind === 'from') && a.botId === m.draft.botId;
+// The files the mail carries, as chips: the owner's upload opens as it does in their message, a bot's file as under
+// its reply, a file the chat has none of is its name alone.
+const mailFileHTML = (f) => {
+  const chat = `chief:${state.chatId}`;
+  const own = f.file ? ownFileSrc(f, chat) : null;
+  if (own) return ownFileHTML(f, own, chat);
+  return f.file && !String(f.file).startsWith('uploads/') ? botFileChipHTML(f) : fileChipHTML(f, false);
+};
 function mailCardHTML(d) {
   const sent = d.state === 'sent';
   const bot = d.botId ? state.bots.find((b) => b.id === d.botId) : null;
@@ -487,6 +497,7 @@ function mailCardHTML(d) {
       <dl class="mail-head"><dt>${tr('To')}</dt><dd>${esc(d.to)}</dd><dt>${tr('Subject')}</dt><dd class="mail-subject">${esc(d.subject)}</dd></dl>
       <div class="mail-state${sent ? ' sent' : ''}"><i></i>${sent ? tr('Sent {time}', { time: esc(msgTime(d.sentAt)) }) : d.unsaved ? MAIL_STATE.unsaved : MAIL_STATE[d.state] || MAIL_STATE.draft}</div>
       ${d.text ? `<div class="mail-text"${sent ? ' hidden' : ''}>${esc(d.text)}</div>` : ''}
+      ${d.attachments?.length ? `<div class="bubble-files mail-files"${sent && d.text ? ' hidden' : ''}>${d.attachments.map(mailFileHTML).join('')}</div>` : ''}
       ${actions.length ? `<div class="choices mail-actions">${actions.map((c, i) => `<button type="button" class="btn${i ? '' : ' primary'}" data-choice="${esc(c)}">${esc(MAIL_ACTIONS[c] || c)}</button>`).join('')}</div>` : ''}
       ${name ? `<div class="mail-foot"><button type="button" class="mail-link" data-mail-bot="${esc(d.botId)}">${esc(name)}</button>${bot?.computer === 'linux' ? ` · <button type="button" class="mail-link" data-mail-screen="${esc(d.botId)}">${tr('Screen')}</button>` : ''}</div>` : ''}
     </section>`;
@@ -495,7 +506,7 @@ function mailCardHTML(d) {
 }
 function wireMail(root) {
   $$('[data-mail-open]', root).forEach((b) => (b.onclick = () => { b.nextElementSibling.hidden = false; b.remove(); }));
-  $$('[data-mail-text]', root).forEach((b) => (b.onclick = () => { const t = $('.mail-text', b.previousElementSibling); if (t) t.hidden = false; b.remove(); }));
+  $$('[data-mail-text]', root).forEach((b) => (b.onclick = () => { $$('.mail-text, .mail-files', b.previousElementSibling).forEach((t) => (t.hidden = false)); b.remove(); }));
   $$('[data-mail-bot]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.mailBot)));
   $$('[data-mail-screen]', root).forEach((b) => (b.onclick = () => { setView('bot', b.dataset.mailScreen); openScreen(b.dataset.mailScreen); }));
 }

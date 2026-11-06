@@ -50,6 +50,33 @@ test('settle folds the earlier version, gives the card its answers and names the
   assert.equal(sent.choices, undefined, 'a sent mail asks nothing');
 });
 
+test('an Attach: line names a file the mail carries, opened as the chat has it', () => {
+  const head = 'To: Belfius <crs@belfius.example>\nSubject: CRS';
+  const withFiles = (attach, body = 'Beste,') => `[[draft]]\n${head}\n${attach}\n\n${body}\n[[/draft]]`;
+  assert.deepEqual(split(withFiles('Attach: Scan.pdf\nattachments: "/tmp/out/report.xlsx"')).draft.attachments, [{ name: 'Scan.pdf' }, { name: 'report.xlsx' }], 'one line each, without path or quotes');
+  assert.equal(split(withFiles('Attach: Scan.pdf')).draft.text, 'Beste,', 'the line is no part of the text');
+  assert.equal(split(`[[draft]]\n${head}\n\nNo files.\n[[/draft]]`).draft.attachments, undefined, 'a mail without files has none');
+
+  const owner = { role: 'user', text: 'Attach this', attachments: [{ name: 'Scan.pdf', file: 'uploads/123-ab-Scan.pdf', size: 5800000, readable: null }] };
+  const report = { role: 'report', text: 'Done', files: [{ name: 'chart.png', file: 'r9/chart.png', size: 300 }] };
+  const reply = { role: 'chief', text: '', ...split(withFiles('Attach: scan.pdf\nAttach: chart.png, notes.txt\nAttach: made-by-bot.pdf\nAttach: uploads/123-ab-Scan.pdf')), actions: [] };
+  const messages = [owner, report, reply];
+  settle(messages, reply);
+  assert.deepEqual(reply.draft.attachments, [
+    { name: 'Scan.pdf', file: 'uploads/123-ab-Scan.pdf', size: 5800000 },
+    { name: 'chart.png', file: 'r9/chart.png', size: 300 },
+    { name: 'notes.txt' },
+    { name: 'made-by-bot.pdf' },
+  ], 'the owner\'s upload and a bot\'s file open, a name the chat has no file of stays a name, and a file named twice is one');
+  assert.match(asText(reply.draft), /^To: Belfius <crs@belfius\.example>\nSubject: CRS\nAttach: Scan\.pdf\nAttach: chart\.png\n/);
+
+  const sent = { role: 'chief', text: 'Sent.', ...split(`[[draft sent]]\n${head}\n[[/draft]]`), actions: [] };
+  messages.push({ role: 'user', text: 'Send now' }, sent);
+  settle(messages, sent);
+  assert.deepEqual(sent.draft.attachments, reply.draft.attachments, 'the sent card has the files it sent');
+  assert.match(NOTE, /one Attach: line for each file the mail carries/);
+});
+
 test('answered reads Send now and Not now as the tap on the newest open draft', () => {
   const card = { role: 'chief', draft: { to: 'a@b.example', subject: 'Hi', text: 'x', state: 'draft' } };
   const messages = [card];

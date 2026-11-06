@@ -1,0 +1,1 @@
+2026-10-24: A bot's settings say in one line that this machine is free and boat.dev costs (#529, ADR 088): the one price hint in an account, asked for by the owner; it names no amount and sets no limit, so AGENTS.md rule 5 (no costs, budgets or usage limits) is kept in spirit.

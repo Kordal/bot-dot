@@ -6,7 +6,7 @@ const { startServer, makeBot, heldRun, self, waitFor, feed } = require('./helper
 const asksLib = require('../lib/asks');
 
 let srv; let bot;
-const ALL = '/asks?override=1&vault-switch=1&vault-remove=1&vault-file=1&chief-action=1';
+const ALL = '/asks?override=1&vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&chief-action=1';
 const cards = async () => (await srv.api(ALL)).data;
 const idle = () => waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.every((r) => !['running', 'queued'].includes(r.status)), { what: 'its runs to end' });
 const override = (token, action) => self(srv, token, 'ask', { kind: 'override', rule: 'Never touch the config', action, reason: 'The owner asked.' });
@@ -120,12 +120,14 @@ test('the card of several: where it was asked, its title, and which yes Allow al
     { id: 'g', kind: 'skill', botId: null, chatId: 'c1' },
     { id: 'h', kind: 'bot-change', botId: 'b2', by: 'chief', chatId: 'c1' },
     { id: 'i', kind: 'skill', botId: null },
+    { id: 'j', kind: 'vault-remove', botId: 'b2', runs: [{ id: 'r2' }] },
   ];
   const out = asksLib.batchesOf(list, { runOf, title });
-  assert.deepEqual(Object.keys(out).sort(), ['a', 'b', 'c', 'd', 'f', 'g', 'h']);
+  assert.deepEqual(Object.keys(out).sort(), ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j']);
   assert.deepEqual(out.a, { id: 'run-r1', title: 'run-r1:4', count: 4 });
   assert.equal(out.b.own, true, 'a Vault secret keeps its own yes');
   assert.equal(out.c.own, undefined);
+  assert.equal(out.j.own, undefined, "a Vault entry removed goes to Bitwarden's Trash: Allow all removes it");
   assert.equal(out.d.own, true, 'an action too long to show in full is never allowed once');
   assert.equal(out.h.id, 'chat-c1', "the Chief's change to a bot is on the card of the Chief's chat");
   assert.equal(out.f.count, 3);

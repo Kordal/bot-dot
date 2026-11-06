@@ -197,6 +197,7 @@ data class Bot(
     val undo: String? = null, // the change a card made to its main assignment or rules that one tap undoes (#596); null when none, or from an older server
     val unread: Int = 0, // its new replies, as the botdot server counts them; 0 from a server without the feature
     val firstUnread: String? = null, // the run that is the first of them in its chat: the "New" line goes there
+    val readAt: String? = null, // how far the owner has read its chat: a run that ended before says Idle on its key, not Done
     // The owner's messages that wait for it (`message-waits`), kept as they came. Read them through [queued].
     @SerialName("queued") val queuedValue: JsonElement? = null,
     // Its open question to the owner (`asks-you`), kept as it came. Read it through [asks].
@@ -353,7 +354,7 @@ data class TakenBack(val text: String, val attachments: List<Attachment>) {
 @Serializable
 data class Attachment(
     val name: String,
-    val file: String,
+    val file: String = "", // "" for a file named only: a mail draft's file the chat has none of
     val size: Long = 0,
     val readable: String? = null,
 )
@@ -539,6 +540,7 @@ data class MailDraft(
     val sentAt: String? = null, val earlier: Boolean = false,
     val botId: String? = null, val runId: String? = null, val bot: String? = null,
     val unsaved: Boolean = false, // a look's draft (#422): in no mailbox until Send now
+    val attachments: List<Attachment> = emptyList(), // the files the mail carries; a file of the chat has its `file`
 )
 
 @Serializable
@@ -703,6 +705,9 @@ data class ChatHit(
     val at: String? = null, val snippet: String = "",
 )
 
+/** The words of the row of a secret a bot asks to save (`vault-save`, ADR 153): its label, and Show and Hide. */
+data class SecretWords(val label: String, val show: String, val hide: String)
+
 /**
  * Something a bot (or the Chief) asked you for: a permission it lacks, a skill to install from a link, or a tool to
  * install on the botdot server for one bot ([bot]).
@@ -710,7 +715,7 @@ data class ChatHit(
 @Serializable
 data class Ask(
     val id: String,
-    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post" | "computer-step"
+    val kind: String = "permission", // "permission" | "skill" | "tool" | "bot-change" | "connector-action" | "vault-switch" | "vault-remove" | "vault-save" | "vault-file" | "override" | "chief-action" | "room-tool" | "room-post" | "computer-step"
     val permission: String? = null,
     val reason: String = "",
     val bot: BotRef? = null,
@@ -755,7 +760,14 @@ data class Ask(
     @SerialName("groupName") val groupNameValue: JsonElement? = null,
     // The card it shares with everything else its run waits on (docs/api.md, "One card per run"), kept as it came.
     @SerialName("batch") val batchValue: JsonElement? = null,
+    // A secret a bot asks to save in the Vault (`vault-save`, ADR 153): the words of its row, never the secret itself.
+    @SerialName("secret") val secretValue: JsonElement? = null,
 ) {
+    /** The row of the secret a yes saves (`vault-save`), hidden until Show, or null. */
+    val secret: SecretWords? get() = (secretValue as? JsonObject)?.let { o ->
+        SecretWords(o["label"].textOrNull() ?: return@let null, o["show"].textOrNull() ?: return@let null, o["hide"].textOrNull() ?: return@let null)
+    }
+
     /** The card of several it is on, or null: a card of its own. */
     val batch: AskBatch? get() = AskBatch.of(batchValue)
 
@@ -1156,6 +1168,8 @@ data class ComputerPlace(val place: String = "linux", val boat: Boolean = false)
     companion object {
         val options get() = listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))
         fun shows(features: List<String>?, boat: Boolean?) = boat == true && "account-computer" in features.orEmpty()
+        /** Only the admin moves it, on the admin page (ADR 146): the owner sees where it is, no switch. */
+        fun byAdmin(features: List<String>?) = "computer-place-admin" in features.orEmpty()
     }
 }
 
@@ -1163,16 +1177,27 @@ data class ComputerPlace(val place: String = "linux", val boat: Boolean = false)
 data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = emptyList()) {
     /** What the picker offers: the sizes boat.dev makes now, and the chosen one even when not. */
     val offered get() = sizes.filter { it.available || it.id == size }.map { it.id to it.label }
+    /** The chosen size's name: "Large". */
+    val sizeName get() = size.replaceFirstChar { it.uppercase() }
+    companion object {
+        /** Only the admin chooses it, on the admin page (ADR 163): the owner sees it, no picker. */
+        fun byAdmin(features: List<String>?) = "boat-size-admin" in features.orEmpty()
+    }
 }
 
 @Serializable
 data class SettingsInfo(val settings: AppSettings = AppSettings(), val models: List<ModelChoice> = emptyList(), val efforts: List<EffortChoice> = emptyList())
 
 @Serializable
-data class BackupInfo(val configured: Boolean = false, val running: Boolean = false, val error: String? = null, val last: BackupFile? = null, val count: Int = 0)
+data class BackupInfo(val offsite: OffsiteBackup? = null, val preparing: Boolean = false, val minPassphrase: Int = 12)
 
+/** The account's off-site backup (ADR 158): state off, backing-up, done or failed; lastSuccess when its data last went off-site. */
 @Serializable
-data class BackupFile(val name: String, val size: Long = 0, val at: String = "")
+data class OffsiteBackup(val state: String = "off", val lastSuccess: String? = null, val late: Boolean = false)
+
+/** A download asked for: fetched once at [url] (under /api) within 15 minutes, saved as [name]. */
+@Serializable
+data class BackupDownloadAsked(val url: String, val name: String)
 
 @Serializable
 data class Skill(val name: String, val description: String = "", val instructions: String = "", val source: String? = null, val createdBy: String? = null, val usedBy: List<String> = emptyList(),

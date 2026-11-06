@@ -1,6 +1,6 @@
 # ADR-034: A bot's computer reaches the local network and its own loopback
 
-- **Status:** Accepted (2026-10-19, the owner's decision). Supersedes the computer's firewall in [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) (the computer reached the internet only, and on its own loopback only botdot's ports).
+- **Status:** Accepted (2026-10-19, the owner's decision). Supersedes the computer's firewall in [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md) (the computer reached the internet only, and on its own loopback only botdot's ports). Amended by [ADR 156](156-a-managed-machines-computers-reach-no-private-address-metadata-or-smtp.md): on a managed machine a computer reaches no private or link-local address and no SMTP.
 - **Owning task:** the owner's request of 19 October 2026 ("Remove those option in the app in general. always allow local and internet for all bots")
 
 ## Context

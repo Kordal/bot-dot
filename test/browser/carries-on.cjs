@@ -2,8 +2,7 @@
 //   NODE_PATH=<directory containing playwright> node test/browser/carries-on.cjs
 // It runs in no gate: the repository does not carry Playwright. The acceptance task runs it by hand.
 // A change to a bot that the Chief asked for stands at the end of the Chief's chat under its bot's head, with the
-// server's title, what changes, and the line that says who carries on: "in this chat" in the chat that asked,
-// the chat's name on the Needs you page. Approved there, it leaves a faded line that says so, and the card is
+// server's title and what changes, and no line that says who carries on before the yes. Approved there, it leaves a faded line that says so, and the card is
 // gone from the other places. A connected-app action shows its rows and that the bot waits for the answer, and
 // nothing reaches past the card. A closed card of five rows shows three of them and hides the others whole, and
 // an action too long to show in full says so and has no "Allow once" (OK-008). A run that waits for the owner
@@ -98,14 +97,9 @@ const DESKTOP = { width: 1280, height: 800 };
     assert.match(await inChief.locator('.need-who').innerText(), /News Watcher/);
     assert.equal(await inChief.locator('.need-who').isVisible(), true);
     assert.equal(await inChief.locator('.need-title').innerText(), 'Change News Watcher: web access, new main assignment?');
-    assert.equal(await inChief.locator('.need-then').innerText(), HERE, 'in the chat that asked: "in this chat"');
+    assert.equal(await inChief.locator('.need-then').count(), 0, 'no line says who carries on');
     assert.deepEqual(await inChief.locator('.need-actions button').allInnerTexts(), ['Decline', 'Approve']);
     assert.equal(await page.locator('#chat-thread .chat-needs .need-card[data-need="ask:mail1"]').count(), 0, 'a bot\'s own ask is not the Chief\'s');
-    // Who carries on is whole on the closed card, in the text's colour, not the muted one of the lines under a title.
-    const colours = await inChief.evaluate((el) => ({ then: getComputedStyle(el.querySelector('.need-then')).color, meta: getComputedStyle(el.querySelector('.need-meta:not(.need-then)')).color, text: getComputedStyle(document.body).color, wraps: getComputedStyle(el.querySelector('.need-then')).whiteSpace }));
-    assert.equal(colours.then, colours.text);
-    assert.notEqual(colours.then, colours.meta);
-    assert.equal(colours.wraps, 'normal');
     await fits(inChief, 'the Chief\'s chat, closed, at phone width');
     await shot('carries-on-chief-phone-closed');
     // Opened: the row of what is allowed, then the old text struck above the new, and markup in a text is text.
@@ -128,16 +122,14 @@ const DESKTOP = { width: 1280, height: 800 };
     await shot('carries-on-chief-desktop');
     await page.setViewportSize(PHONE);
 
-    // Another of the Chief's chats shows the same card, and names the chat that carries on.
+    // Another of the Chief's chats shows the same card.
     await open(`chief/${other.id}`, '#chat-thread');
-    await page.locator('#chat-thread .need-card[data-need="ask:change1"] .need-then').waitFor();
-    assert.equal(await page.locator('#chat-thread .need-card[data-need="ask:change1"] .need-then').innerText(), NAMED);
+    await page.locator('#chat-thread .need-card[data-need="ask:change1"]').waitFor();
     // So does the chat of the bot it changes, without the head. Its first block there is the row, and the changed
     // text waits behind the click.
     await open(`bot/${news.id}`, '#bot-thread');
     const inBot = page.locator('#bot-thread .chat-needs .need-card[data-need="ask:change1"]');
     await inBot.waitFor();
-    assert.equal(await inBot.locator('.need-then').innerText(), NAMED);
     assert.equal(await inBot.locator('.need-who').isVisible(), false);
     assert.equal(await inBot.locator('.need-facts').isVisible(), true);
     assert.equal(await inBot.locator('.need-change').isVisible(), false);
@@ -146,7 +138,7 @@ const DESKTOP = { width: 1280, height: 800 };
     const onPage = page.locator('#view-needs .need-card[data-need="ask:change1"]');
     await onPage.waitFor();
     assert.equal(await page.locator('#view-needs .need-card').count(), 2, 'both things that wait');
-    assert.equal(await onPage.locator('.need-then').innerText(), NAMED);
+    assert.equal(await onPage.locator('.need-then').count(), 0);
     assert.match(await onPage.locator('.need-who').innerText(), /News Watcher/);
     await fits(onPage, 'Needs you, closed, at phone width');
     await shot('carries-on-needs-phone');

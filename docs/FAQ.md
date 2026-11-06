@@ -59,7 +59,7 @@ On disk, plan about **15 GB per account**: botdot's image is about 4 GB and the 
 
 ### Can I run it on my Mac, Windows PC or a laptop?
 
-No. botdot installs on Linux only. The Mac app is paused and not maintained ([ADR 031](adr/031-the-mac-app-is-stopped-again.md)). From a Mac or a Windows PC, use the web page of a botdot running on a Linux machine. A VM works, as long as it runs Ubuntu 24.04 and stays on: bots run on schedules.
+No. botdot installs on Linux only. From a Mac or a Windows PC, use the web page of a botdot running on a Linux machine. A VM works, as long as it runs Ubuntu 24.04 and stays on: bots run on schedules.
 
 ### Do I need a domain name?
 
@@ -109,7 +109,7 @@ No. Your bots, chats, memory and settings stay. The bots' computer keeps the ver
 
 ### How do I back up and restore?
 
-Set a passphrase in **Settings → Backups**. botdot then backs up every night at 03:00 and keeps the last 7. A backup is one encrypted file with all of the account's data and the Vault's key; it leaves out the Claude and Bitwarden sign-ins and the account's computer. **Download** one now and then to keep a copy off the server, and keep the passphrase safe: without it, a backup can't be opened. To restore, install botdot and choose **Restore a backup** on its setup page ([Back up and restore](install-linux.md#back-up-and-restore)).
+A machine with an off-site backup (set up by its admin) backs every account up every night, encrypted, to storage off the machine; **Settings → Backups** says when your account's data last went there. **Download** makes a backup of your account now: one file, encrypted with a passphrase you choose then, holding all of the account's data, the Vault's key and the computer's `/workspace`; it leaves out the Claude and Bitwarden sign-ins. Keep the passphrase safe: without it, the file can't be opened. To restore, install botdot and choose **Restore a backup** on its setup page ([Back up and restore](install-linux.md#back-up-and-restore)).
 
 ### How do I uninstall?
 
@@ -182,7 +182,7 @@ On a machine with several accounts, yes, once the admin turns **Shared rooms** o
 | **Web page** | Works in any modern browser, on a computer or a phone |
 | **Android** | A native app with notifications, **Reply** and **Approve** on them, sharing files to a bot, and the keypad on tablets and foldables ([botdot for Android](../android/README.md)) |
 | **iPhone and iPad** | No app: use the web page, and add it to the Home Screen |
-| **Mac** | The Mac app is paused: use the web page |
+| **Mac** | The web page |
 
 The look is dark, on the web and on Android.
 
@@ -290,7 +290,7 @@ Early. It is version 0.x, so expect breaking changes. Only the latest version on
 
 ### Who builds it?
 
-One person, with Claude: most of the code is written by Claude Code, ticket by ticket, test-first and reviewed before each commit, following [AGENTS.md](../AGENTS.md). Why things are built the way they are is in the [ADRs](adr/README.md) and [DECISIONS.md](DECISIONS.md).
+One person, with Claude: most of the code is written by Claude Code, ticket by ticket, test-first and reviewed before each commit, following [AGENTS.md](../AGENTS.md). Why things are built the way they are is in the [ADRs](adr/README.md) and [decisions](decisions/README.md).
 
 ### How do I run it from source or contribute?
 

@@ -1,0 +1,1 @@
+2026-10-19: The API's routes are split by feature into `lib/routes/`: each module's `create(ctx)` returns a handler that returns `NEXT` when none of its routes matches. `server.js` keeps startup, the gate and the order of dispatch. The code was moved, not rewritten ([#77](https://github.com/Kordal/bot-dot/issues/77)).

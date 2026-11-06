@@ -12,7 +12,13 @@ const use = (s) => { srv = s; ({ runsOf, carriedOn, startsNothing, lastRun } = k
 before(async () => use(await startServer()));
 after(async () => { srv.unhold(); await srv.stop(); });
 
-const REPORT = { name: 'Morning report', kind: 'ai', cron: '0 9 * * *', prompt: 'Write the report.' };
+// The job's hours lie half a day from the hour the tests run in: the scheduler keeps the wall clock, and a job made
+// for 09:00 in a test that runs at 09:00 would start by itself and take the place of "Run now".
+const hourAway = (by) => (new Date().getUTCHours() + by) % 24;
+const AT = hourAway(12), EARLIER = hourAway(9);
+// lib/cron-words.js: daily at 02:00 has a name of its own, which a run between 14:00 and 15:00 UTC meets.
+const daily = (h) => (h === 2 ? 'Nightly at 02:00' : `Daily at ${String(h).padStart(2, '0')}:00`);
+const REPORT = { name: 'Morning report', kind: 'ai', cron: `0 ${AT} * * *`, prompt: 'Write the report.' };
 const SCRIPT = { name: 'Disk check', kind: 'script', cron: '0 * * * *', script: 'df -h', assessment: 'A clear rule: no AI needed.' };
 const waitingOf = async (bot) => { const f = await feed(srv); const h = await f.wait('hello'); f.close(); return h.data.approvals.jobs.filter((j) => j.botId === bot.id); };
 const jobsOf = async (bot) => (await srv.api(`/bots/${bot.id}/jobs`)).data;
@@ -43,15 +49,15 @@ test('a bot changes the text and the time of its approved job: the change waits 
   const job = (await srv.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: REPORT })).data;
   const change = (fields) => (token) => self(srv, token, 'jobs', { action: 'update', id: job.id, ...fields });
 
-  const first = await inRun(bot, 'Make the report shorter and earlier', change({ prompt: 'Write a short report.', cron: '0 6 * * *' }));
+  const first = await inRun(bot, 'Make the report shorter and earlier', change({ prompt: 'Write a short report.', cron: `0 ${EARLIER} * * *` }));
   assert.equal(first.did.data.needsApproval, true, JSON.stringify(first.did.data));
   const [waiting] = await jobsOf(bot);
-  assert.deepEqual([waiting.approved, waiting.prompt, waiting.when, new Date(waiting.nextRunAt).getUTCHours()], [true, 'Write the report.', 'Daily at 09:00', 9], 'the job is as approved, and runs next at the approved time');
+  assert.deepEqual([waiting.approved, waiting.prompt, waiting.when, new Date(waiting.nextRunAt).getUTCHours()], [true, 'Write the report.', daily(AT), AT], 'the job is as approved, and runs next at the approved time');
   const { at, ...proposed } = waiting.change;
-  assert.deepEqual(proposed, { name: 'Morning report', kind: 'ai', script: '', prompt: 'Write a short report.', cron: '0 6 * * *', aiWhen: null, notify: 'report-only', timeoutSeconds: 300, assessment: '', when: 'Daily at 06:00', once: null, by: 'bot' });
+  assert.deepEqual(proposed, { name: 'Morning report', kind: 'ai', script: '', prompt: 'Write a short report.', cron: `0 ${EARLIER} * * *`, aiWhen: null, notify: 'report-only', timeoutSeconds: 300, assessment: '', when: daily(EARLIER), once: null, by: 'bot' });
   assert.ok(Date.parse(at) > Date.parse(first.run.startedAt), 'and when it was proposed');
   assert.deepEqual([waiting.no, waiting.yes, waiting.then, waiting.runId], ['Keep as it is', 'Approve the change', thenOf('Make the report shorter and earlier'), undefined]);
-  assert.deepEqual(await waitingOf(bot), [{ botId: bot.id, botName: 'Reporter', botEmoji: '📰', botColor: bot.color, jobId: job.id, jobName: 'Morning report', kind: 'ai', when: 'Daily at 06:00', text: 'Wants to change a job: Morning report, Daily at 06:00', change: true, no: 'Keep as it is', yes: 'Approve the change', then: thenOf('Make the report shorter and earlier') }]);
+  assert.deepEqual(await waitingOf(bot), [{ botId: bot.id, botName: 'Reporter', botEmoji: '📰', botColor: bot.color, jobId: job.id, jobName: 'Morning report', kind: 'ai', when: daily(EARLIER), text: `Wants to change a job: Morning report, ${daily(EARLIER)}`, change: true, no: 'Keep as it is', yes: 'Approve the change', then: thenOf('Make the report shorter and earlier') }]);
   assert.equal((await srv.api(`/bots/${bot.id}`)).data.state, 'needs_you');
   assert.equal(await runNow(bot, job), 'Write the report.', '"Run now" runs the approved one');
   assert.equal(await runNow(bot, job, srv.asChief), 'Write the report.', "and so does the Chief's run_job");
@@ -67,19 +73,19 @@ test('a bot changes the text and the time of its approved job: the change waits 
 
   // The no, also the Decline of an app from before: the job is kept as approved, and nothing starts.
   let n = (await runsOf(bot)).length;
-  assert.deepEqual((await approve(bot, job, false)).data, { ok: true, kept: true, text: 'Kept as it was: Daily at 09:00' });
+  assert.deepEqual((await approve(bot, job, false)).data, { ok: true, kept: true, text: `Kept as it was: ${daily(AT)}` });
   const [kept] = await jobsOf(bot);
-  assert.deepEqual([kept.approved, kept.name, kept.at, kept.prompt, kept.when, kept.change, kept.no, kept.then], [true, 'Morning report', null, 'Write the report.', 'Daily at 09:00', undefined, undefined, undefined]);
+  assert.deepEqual([kept.approved, kept.name, kept.at, kept.prompt, kept.when, kept.change, kept.no, kept.then], [true, 'Morning report', null, 'Write the report.', daily(AT), undefined, undefined, undefined]);
   assert.deepEqual(await waitingOf(bot), []);
   await startsNothing(bot, n);
   assert.deepEqual((await approve(bot, job, false)).data.kept, true, 'a no from a card that is out of date removes nothing');
   assert.equal(await runNow(bot, job), 'Write the report.', 'it still runs');
 
   // The yes: the job is as changed, and the bot carries on with the request it proposed the change in.
-  const asked = await inRun(bot, 'Earlier and shorter after all', change({ prompt: 'Write a short report.', cron: '0 6 * * *' }), 'I proposed the change.');
+  const asked = await inRun(bot, 'Earlier and shorter after all', change({ prompt: 'Write a short report.', cron: `0 ${EARLIER} * * *` }), 'I proposed the change.');
   srv.reply('The report is short and comes at six now.');
   const yes = await approve(bot, job, true);
-  assert.deepEqual([yes.data.approved, yes.data.prompt, yes.data.when, yes.data.change, yes.data.text, yes.data.carriesOn], [true, 'Write a short report.', 'Daily at 06:00', undefined, 'Changed: Daily at 06:00', { who: 'bot', text: 'it carries on' }]);
+  assert.deepEqual([yes.data.approved, yes.data.prompt, yes.data.when, yes.data.change, yes.data.text, yes.data.carriesOn], [true, 'Write a short report.', daily(EARLIER), undefined, `Changed: ${daily(EARLIER)}`, { who: 'bot', text: 'it carries on' }]);
   const next = await carriedOn(bot, asked.run);
   const rec = await lastRun(bot);
   assert.ok(rec.stdin.includes('<request>\nEarlier and shorter after all\n</request>'), 'the request');
@@ -144,7 +150,7 @@ test("a bot carries on after the yes on a job it added, a tile it suggested and 
   };
 
   // A job it adds in a run the owner started.
-  const added = await inRun(bot, 'Remind me of the plan every Monday', (token) => self(srv, token, 'jobs', { action: 'add', name: 'Monday plan', kind: 'ai', cron: '0 8 * * 1', prompt: 'Send the plan.', assessment: 'It writes: it needs AI.' }));
+  const added = await inRun(bot, 'Remind me of the plan every Monday', (token) => self(srv, token, 'jobs', { action: 'add', name: 'Monday plan', kind: 'ai', cron: `0 ${AT} * * 1`, prompt: 'Send the plan.', assessment: 'It writes: it needs AI.' }));
   const job = added.did.data.job;
   assert.deepEqual([job.approved, job.then, job.runId], [false, thenOf('Remind me of the plan every Monday'), undefined]);
   assert.deepEqual((await waitingOf(bot))[0].then, thenOf('Remind me of the plan every Monday'), 'on its entry of the feed');
@@ -174,7 +180,7 @@ test("a bot carries on after the yes on a job it added, a tile it suggested and 
 
 test('nothing starts after a decline, once the owner wrote to the bot after the proposal, or for a proposal made in a job\'s own run', async () => {
   const bot = await makeBot(srv, { name: 'Tidy', emoji: '🧹' });
-  const add = (name) => (token) => self(srv, token, 'jobs', { action: 'add', name, kind: 'ai', cron: '0 8 * * *', prompt: 'Tidy up.', assessment: 'It needs judgement.' });
+  const add = (name) => (token) => self(srv, token, 'jobs', { action: 'add', name, kind: 'ai', cron: `0 ${AT} * * *`, prompt: 'Tidy up.', assessment: 'It needs judgement.' });
 
   // A decline.
   const no = await inRun(bot, 'Tidy up every morning', add('Morning tidy'));
@@ -208,11 +214,11 @@ test('nothing starts after a decline, once the owner wrote to the bot after the 
 test('botdot stopped and started with a change waiting: the approved job runs and the change still waits', async () => {
   const bot = await makeBot(srv, { name: 'Keeper', emoji: '🗝' });
   const job = (await srv.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: REPORT })).data;
-  await inRun(bot, 'Report at six', (token) => self(srv, token, 'jobs', { action: 'update', id: job.id, prompt: 'Write a short report.', cron: '0 6 * * *' }));
+  await inRun(bot, 'Report at six', (token) => self(srv, token, 'jobs', { action: 'update', id: job.id, prompt: 'Write a short report.', cron: `0 ${EARLIER} * * *` }));
   use(await restartServer(srv));
   const [kept] = await jobsOf(bot);
-  assert.deepEqual([kept.approved, kept.prompt, new Date(kept.nextRunAt).getUTCHours(), kept.change.prompt, kept.change.when, kept.no], [true, 'Write the report.', 9, 'Write a short report.', 'Daily at 06:00', 'Keep as it is']);
-  assert.deepEqual((await waitingOf(bot)).map((j) => [j.change, j.text]), [[true, 'Wants to change a job: Morning report, Daily at 06:00']]);
+  assert.deepEqual([kept.approved, kept.prompt, new Date(kept.nextRunAt).getUTCHours(), kept.change.prompt, kept.change.when, kept.no], [true, 'Write the report.', AT, 'Write a short report.', daily(EARLIER), 'Keep as it is']);
+  assert.deepEqual((await waitingOf(bot)).map((j) => [j.change, j.text]), [[true, `Wants to change a job: Morning report, ${daily(EARLIER)}`]]);
   assert.equal(await runNow(bot, job), 'Write the report.');
   assert.equal((await approve(bot, job, true)).data.prompt, 'Write a short report.');
 });

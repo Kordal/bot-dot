@@ -1,0 +1,1 @@
+2026-10-08: The cards of a group are handed out as references (`cards` on its chat: kind, id, bot, run) and each card carries `groupId` and `groupName` where it already is, because an app has every card whole from the lists it already reads and draws it from there. Rejected: a second, whole copy of each card on the group's chat (two views of one card that can disagree). (GRP-003)

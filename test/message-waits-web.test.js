@@ -41,7 +41,7 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
   const state = { features, bots: [doctor], runs: [], chatId: 'c1', chatNew: false, chatStream: null, view: 'bot' };
   const doc = { '#view-bot': { dataset: { bot: 'doctor' } }, '#bot-thread': bot.thread, '#chat-thread': chief.thread, '#view-bot form': boxes.bot.form, '#view-chief form': boxes.chief.form };
   const of = (root) => (root === bot.thread ? bot : root === chief.thread ? chief : root.buttons ? bot : null);
-  const said = { calls: [], bodies: [], toasts: [], refreshed: 0, shown: [], followed: [], streams: 0 };
+  const said = { calls: [], bodies: [], toasts: [], refreshed: 0, shown: [], followed: [], streams: 0, redrawn: 0 };
   const lib = vm.createContext({ ...words });
   vm.runInContext(read('unread.js'), lib);
   vm.runInContext(read('opening-line.js'), lib);
@@ -54,9 +54,9 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
     document: { createElement: () => bot.make() },
     botById: (id) => state.bots.find((b) => b.id === id), escMentions: (t) => esc(t), mentionSig: () => 'names',
     api: async (path, opts = {}) => { said.calls.push(`${opts.method || 'GET'} ${path}`); if (opts.body) said.bodies.push(opts.body); return reply(path, opts); },
-    refresh: async () => { said.refreshed++; }, showChat: async (id) => { said.shown.push(id); },
+    refresh: async () => { said.refreshed++; }, showChat: async (id) => { said.shown.push(id); }, redrawBotChat: () => { said.redrawn++; },
     toast: (...a) => said.toasts.push(a), stopRun() {}, stopChief() {},
-    confirm: () => true, looksLikeSecret: () => false, matchMedia: () => ({ matches: false }),
+    askFirst: async () => true, looksLikeSecret: () => false, matchMedia: () => ({ matches: false }),
     fetch: () => assert.fail('nothing is uploaded here'),
     EventSource: class { constructor() { said.streams++; assert.fail('no stream is opened for a message that waits'); } },
     userBubble: (m) => `<div class="mine">${esc(m.text)}</div>`, chiefBubble: () => '<div class="pending"></div>',
@@ -131,13 +131,15 @@ test('web: in the Chief\'s chat they wait "until the Chief is free", under its w
   assert.equal(p.waiting(p.chief).innerHTML, '');
 });
 
-test('web: they are drawn from the server\'s list alone: on a page that sent none, and gone when the list says so', () => {
+test('web: they are drawn from the server\'s list alone: on a page that sent none, and gone when the list says so', async () => {
   const p = page();
   assert.equal(p.waiting(p.bot), null, 'no list: nothing is added to the chat');
   p.ctx.setQueued('bot:doctor', [queued('q1', SECOND)]); // the feed's `queued`, from a message another app sent
   assert.match(p.waiting(p.bot).innerHTML, /Also check that tonight&#39;s backup/);
   assert.deepEqual(plain(p.doctor.queued), [queued('q1', SECOND)], 'the bot\'s list is the server\'s');
-  p.ctx.setQueued('bot:doctor', []); // it started, or was taken back
+  p.ctx.setQueued('bot:doctor', []); // it started, or was taken back elsewhere: its run is asked for, and there is none
+  assert.deepEqual(p.said.calls, ['GET /runs/q1']);
+  await new Promise((r) => setImmediate(r));
   assert.equal(p.waiting(p.bot).innerHTML, '');
   assert.match(css, /\.chat-queued:empty \{ display: none; \}/);
   p.ctx.setQueued('chief:c1', [queued('q7', 'Later')]);
@@ -147,6 +149,35 @@ test('web: they are drawn from the server\'s list alone: on a page that sent non
   assert.match(app, /if \(typeof d\.chat === 'string'\) setQueued\(d\.chat, d\.queued\);/);
   assert.match(app, /chiefQueued\.set\(id, queuedList\(chat\.queued\)\);/);
   assert.match(cut('async function refresh()', 'function render()'), /api\('\/bots'\)/);
+});
+
+test('web: a waiting message whose turn came stays in the chat until its run is on the page, and is never drawn twice', async () => {
+  let run = null;
+  const p = page({ reply: async (path) => (path === '/runs/q1' ? new Promise((r) => { run = r; }) : {}) });
+  p.state.runs = [working];
+  p.ctx.setQueued('bot:doctor', [queued('q1', SECOND)]);
+  p.ctx.setQueued('bot:doctor', []); // the feed: its turn came, before the runs are read again
+  const html = p.waiting(p.bot).innerHTML;
+  assert.match(html, /<div class="bubble from-me waits">Also check that tonight&#39;s backup/, 'it stands, faded');
+  assert.doesNotMatch(html, /data-take-back|data-steer|Waits until/, 'without its buttons and its line');
+  // A list of the bots read before it started, drawn late, does not bring it back as waiting.
+  p.doctor.queued = [queued('q1', SECOND)];
+  run({ id: 'q1', botId: 'doctor', status: 'running', prompt: SECOND });
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(plain(p.state.runs.map((r) => r.id)), ['q1', 'r1'], 'its run is on the page at once');
+  assert.equal(p.said.redrawn, 1, 'and the chat draws it');
+  p.ctx.placeStatusLines();
+  assert.equal(p.waiting(p.bot).innerHTML, '', 'the run holds it now: nothing waits');
+  assert.deepEqual(plain(p.ctx.queuedIn('bot:doctor')), []);
+});
+
+test('web: one taken back here is not kept as starting', async () => {
+  const p = page({ reply: async () => ({ text: SECOND, attachments: [] }) });
+  p.ctx.setQueued('bot:doctor', [queued('q1', SECOND)]);
+  await p.ctx.takeBack('bot:doctor', 'q1');
+  p.ctx.setQueued('bot:doctor', []); // the feed's list follows
+  assert.equal(p.waiting(p.bot).innerHTML, '');
+  assert.ok(!p.said.calls.includes('GET /runs/q1'), 'nothing is asked for it');
 });
 
 test('web: the feed\'s `queued` reaches the page\'s list, and what is no list changes nothing', () => {

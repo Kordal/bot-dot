@@ -1,0 +1,112 @@
+#!/usr/bin/python3
+# How much each folder asked for holds on the account's computer, for Storage (docs/api.md, Storage): the walk of
+# lib/storage-walk.js, in Python, as the computer has no Node of botdot's. lib/storage.js runs botdot's own copy of it
+# as root from /, in Python's isolated mode, with the folders as its arguments; it answers one JSON object, each
+# folder's answer under its path: { bytes, files, kids, rest, largest, capped }, or { missing: true }.
+# A link is never followed and another disk mounted in a folder is left out.
+import json
+import os
+import stat
+import sys
+
+KEEP = 1024 * 1024
+MAX_KIDS = 40
+MAX_DEPTH = 12
+TOP = 25
+CAP = 3000000
+
+
+def size_of(st):
+    blocks = getattr(st, 'st_blocks', None)
+    return blocks * 512 if isinstance(blocks, int) and blocks >= 0 else st.st_size
+
+
+def size_tree(top_dir):
+    state = {'seen': 0, 'capped': False}
+    largest = []
+
+    try:
+        root = os.lstat(top_dir)
+    except OSError:
+        return {'bytes': 0, 'files': 0, 'kids': [], 'rest': 0, 'largest': [], 'capped': False, 'missing': True}
+    if not stat.S_ISDIR(root.st_mode):
+        return {'bytes': 0, 'files': 0, 'kids': [], 'rest': 0, 'largest': [], 'capped': False, 'missing': True}
+    device = root.st_dev
+
+    def note(rel, size):
+        largest.append((size, rel))
+        if len(largest) > TOP * 4:
+            largest.sort(key=lambda x: (-x[0], x[1]))
+            del largest[TOP:]
+
+    def prune(node, depth):
+        node['kids'].sort(key=lambda k: (-k['bytes'], k['name']))
+        kept = [k for k in node['kids'] if k['bytes'] >= KEEP][:MAX_KIDS] if depth < MAX_DEPTH else []
+        node['rest'] = node['bytes'] - sum(k['bytes'] for k in kept)
+        out = []
+        for k in kept:
+            if not k['dir']:
+                out.append({'name': k['name'], 'bytes': k['bytes'], 'dir': False})
+                continue
+            o = {'name': k['name'], 'bytes': k['bytes'], 'dir': True, 'files': k['files']}
+            if k['kids']:
+                o['kids'] = k['kids']
+            if k['rest']:
+                o['rest'] = k['rest']
+            out.append(o)
+        node['kids'] = out
+        return node
+
+    def walk(path, rel, depth):
+        node = {'bytes': 0, 'files': 0, 'kids': [], 'rest': 0}
+        try:
+            names = os.listdir(path)
+        except OSError:
+            return node
+        for name in names:
+            if state['capped']:
+                break
+            state['seen'] += 1
+            if state['seen'] > CAP:
+                state['capped'] = True
+                break
+            a = os.path.join(path, name)
+            r = rel + '/' + name if rel else name
+            try:
+                st = os.lstat(a)
+            except OSError:
+                continue
+            if stat.S_ISDIR(st.st_mode):
+                if st.st_dev != device:
+                    continue
+                sub = walk(a, r, depth + 1)
+                sub['bytes'] += size_of(st)
+                node['bytes'] += sub['bytes']
+                node['files'] += sub['files']
+                sub.update({'name': name, 'dir': True})
+                node['kids'].append(sub)
+            else:
+                size = size_of(st)
+                node['bytes'] += size
+                node['files'] += 1
+                if stat.S_ISREG(st.st_mode):
+                    note(r, size)
+                node['kids'].append({'name': name, 'dir': False, 'bytes': size})
+        return prune(node, depth)
+
+    tree = walk(top_dir, '', 0)
+    largest.sort(key=lambda x: (-x[0], x[1]))
+    return {'bytes': tree['bytes'], 'files': tree['files'], 'kids': tree['kids'], 'rest': tree['rest'],
+            'largest': [{'path': p, 'bytes': b} for b, p in largest[:TOP]], 'capped': state['capped']}
+
+
+def main():
+    sys.setrecursionlimit(10000)
+    out = {}
+    for d in sys.argv[1:]:
+        out[d] = size_tree(d)
+    json.dump(out, sys.stdout, separators=(',', ':'))
+
+
+if __name__ == '__main__':
+    main()

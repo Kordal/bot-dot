@@ -435,12 +435,11 @@ test('the hat survives a restart, a backup and a restore', async () => {
     assert.equal(after.find((x) => x.id === bare.id).outfit, null, 'never dressed');
     assert.deepEqual(after.find((x) => x.id === none.id).outfit, { hat: '' }, 'no hat, on purpose');
     assert.deepEqual(after.find((x) => x.id === drawn.id).outfit, { hat: FEZ }, 'a drawn hat, shape for shape');
-    assert.equal((await b.api('/backups/passphrase', { method: 'PUT', body: { passphrase: PASS } })).status, 200);
-    const made = (await b.api('/backups/now', { method: 'POST' })).data;
-    assert.equal(made.count, 1, JSON.stringify(made));
+    const made = await b.backup(PASS);
     assert.deepEqual((await b.api(`/bots/${bot.id}`, { method: 'PUT', body: { outfit: { hat: 'crown' } } })).data.outfit, { hat: 'crown' });
     assert.deepEqual((await b.api(`/bots/${drawn.id}`, { method: 'PUT', body: { outfit: { hat: 'chef' } } })).data.outfit, { hat: 'chef' });
-    const restore = await b.api('/backups/restore', { method: 'POST', body: { file: made.last.name, passphrase: PASS } });
+    const up = await b.api('/backups/upload', { method: 'POST', raw: made.file });
+    const restore = await b.api('/backups/restore', { method: 'POST', body: { file: up.data.file, passphrase: PASS } });
     assert.equal(restore.data.ok, true, JSON.stringify(restore.data));
     await b.exited; // a restore restarts the server
     b = await startServer({ dir: a.dir });

@@ -1,0 +1,1 @@
+2026-10-16: The tests reach a botdot server through a stand-in front door in `test/helpers.js`, which passes every request to its socket naming the account, so that `srv.base` and `srv.port` stay what the tests used; `srv.botdotPort` is botdot's own port, for the Chief's and the bots' tools and calls.

@@ -1,0 +1,1 @@
+2026-10-12: The web page's handle for the list's width is there only in a window wider than 760, because the compact list below that is a layout of its own at 200 (no previews, smaller figures). Rejected: a handle there too (a wider compact list has room for what it leaves out). ([#385](https://github.com/Kordal/bot-dot/issues/385))

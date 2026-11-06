@@ -2,8 +2,7 @@
 // A project never arranged keeps the flow, and a click on a tile still clicks. There is no Arrange button: the first
 // drag stands every tile on the canvas where it stood, moves the dragged one and saves; dragging the room onto the
 // To-do slides the To-do down, a corner makes it bigger, the arrows move the focused tile; no two tiles overlap, on
-// the page or on botdot, and a reload shows the same. A phone shows the same canvas, scaled to its width: a swipe
-// scrolls, a long press then a drag moves a tile. Scratch data only.
+// the page or on botdot, and a reload shows the same. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -94,36 +93,7 @@ const clear = (l) => { for (const a of Object.keys(l)) for (const b of Object.ke
     await page.locator('.cf-panel h2', { hasText: 'Growth' }).waitFor({ timeout: 10000 });
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-after.png') });
 
-    // A phone: the same canvas, as wide as the window.
-    const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', hasTouch: true, isMobile: true })).newPage();
-    phone.on('pageerror', (e) => errors.push(e.message));
-    await phone.goto(`${srv.base}/#company`);
-    await phone.locator('.bc-tile[data-tile="todo"]').waitFor({ timeout: 20000 });
-    const w = (await phone.locator('.bc-wrap').boundingBox()).width;
-    assert.ok(w <= 390 && w > 300, `fits the phone: ${w}`);
-    await phone.waitForTimeout(800); // the page slides in on a phone
-    assert.ok(await phone.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'no sideways scroll');
-    if (shots) await phone.screenshot({ path: path.join(shots, 'phone.png'), fullPage: true });
-
-    // A finger: a swipe moves nothing; a long press, then a drag, moves the tile.
-    const cdp = await phone.context().newCDPSession(phone);
-    const touch = (type, x, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
-    const swipe = async (from, to, hold) => {
-      await touch('touchStart', from.x, from.y);
-      if (hold) await phone.waitForTimeout(hold);
-      for (let i = 1; i <= 8; i++) await touch('touchMove', from.x + ((to.x - from.x) * i) / 8, from.y + ((to.y - from.y) * i) / 8);
-      await touch('touchEnd');
-    };
-    const tl = await layout();
-    const t = await phone.locator('.bc-tile[data-tile="chief"]').boundingBox();
-    const mid = { x: t.x + t.width / 2, y: t.y + t.height / 2 };
-    await swipe(mid, { x: mid.x, y: mid.y - 60 }, 0);
-    await phone.waitForTimeout(300);
-    assert.deepEqual((await layout()).chief, tl.chief, 'a swipe moves no tile');
-    await swipe(mid, { x: mid.x + 40, y: mid.y + 30 }, 650);
-    await waitFor(async () => JSON.stringify((await layout()).chief) !== JSON.stringify(tl.chief), { what: 'held and dragged' });
-    clear(await layout());
-
+    // A phone reads the board as one column: test/browser/project-layout-phone.cjs (ADR 147).
     assert.deepEqual(errors, []);
     console.log('project-layout: ok');
   } finally {

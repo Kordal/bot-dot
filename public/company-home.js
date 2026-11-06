@@ -45,7 +45,10 @@
   // ---------- the objectives (#690): each as its display shows it ----------
   const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
   const PACE = { ahead: () => tr('Ahead'), on: () => tr('On track'), behind: () => tr('Behind') };
-  const SHOW = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19h16M6 15l4-4 3 3 5-6"/></svg>';
+  // A goal's menu opens from "…" (MORE), as a card's does (project-cards.js): Show as, Update from an app, and Remove
+  // (feature `objective-remove`), which takes the goal off the board at once and puts it back if the server refuses.
+  const canRemove = () => (state.features || []).includes('objective-remove');
+  const removingGoals = new Set();
   const numHTML = (o) => `<div class="cf-goal-num">${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></div>`;
   const paceHTML = (p) => (p ? `<span class="cf-pace${p.state === 'behind' ? ' behind' : ''}">${PACE[p.state]()}</span>` : '');
   // Day 1: no chart yet, where it starts: the number to reach, the day, the first check-in.
@@ -85,9 +88,9 @@
     else body = `<div class="cf-goal-info">${numHTML(o)}${paceHTML(p)}</div>${chartHTML(o, c)}`;
     const count = o.steps?.length ? `<span class="cf-n">${CompanyFloor.stepsDone(o)}/${o.steps.length}</span>` : '';
     const fromApp = numeric ? `<hr><button type="button" role="menuitem" data-cf-source="${esc(o.id)}">${tr('Update from an app')}</button>` : '';
-    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}${fromApp}</div>` : '';
+    const menu = menuFor === o.id ? `<div class="cf-menu" role="menu">${DISPLAYS.map(([k, label]) => `<button type="button" role="menuitemradio" aria-checked="${show === k}" data-cf-display="${k}">${label()}</button>`).join('')}${fromApp}${canRemove() ? `<hr><button type="button" role="menuitem" class="danger" data-cf-remove="${esc(o.id)}">${tr('Remove')}</button>` : ''}</div>` : '';
     return `<section class="cf-goal ${show}" style="--c:${esc(o.color)}" data-cf-goal="${esc(o.id)}">
-      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}${canAsk() ? `<button type="button" class="icon-btn cf-goal-edit" data-cf-ask="${esc(o.id)}" aria-label="${tr('Change')}" aria-expanded="${asking?.id === o.id}">${PEN}</button>` : ''}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('Show as')}" aria-expanded="${menuFor === o.id}">${SHOW}</button>${menu}</div>
+      <div class="cf-goal-head"><i class="cf-dot"></i><h2>${esc(o.name)}</h2>${count}${sourceHTML(o)}${canAsk() ? `<button type="button" class="icon-btn cf-goal-edit" data-cf-ask="${esc(o.id)}" aria-label="${tr('Change')}" aria-expanded="${asking?.id === o.id}">${PEN}</button>` : ''}<button type="button" class="icon-btn" data-cf-show="${esc(o.id)}" aria-label="${tr('More')}" aria-expanded="${menuFor === o.id}">${MORE}</button>${menu}</div>
       ${sourceFormHTML(o)}<div class="cf-goal-body">${body}</div>
     </section>`;
   }
@@ -190,7 +193,10 @@
       <button type="submit" class="btn sm primary">${tr('Save')}</button>${stop}${close}
     </form>`;
   }
-  const goalsHTML = (c) => (c.objectives.length ? `<div class="cf-goals${c.objectives.length === 1 ? ' one' : ''}">${c.objectives.map((o) => goalHTML(o, c)).join('')}</div>` : '');
+  const goalsHTML = (c) => {
+    const shown = c.objectives.filter((o) => !removingGoals.has(o.id));
+    return shown.length ? `<div class="cf-goals${shown.length === 1 ? ' one' : ''}">${shown.map((o) => goalHTML(o, c)).join('')}</div>` : '';
+  };
   // ---------- the 90 days (#673): the timeline, the check-in, the week's plan, a new bot ----------
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   const byChief = () => `<span class="cf-by">${chiefFigure('sm')}${esc(chiefTitle())}</span>`;
@@ -203,8 +209,10 @@
     }).join('');
     return `<div class="cf-line"><i class="cf-line-fill" style="width:${((Math.min(c.day - 1, 90) / 90) * 100).toFixed(2)}%"></i>${marks}</div>`;
   }
+  // An ongoing project's check-in is its monthly review (#925).
+  const checkinTitle = (d) => (state.company?.ongoing ? tr('Monthly review') : tr('Day {n} check-in', { n: d }));
   function checkinHTML(k) {
-    return `<section class="cf-card cf-checkin"><div class="cf-card-head"><h2>${tr('Day {n} check-in', { n: k.day })}</h2>${byChief()}</div>
+    return `<section class="cf-card cf-checkin"><div class="cf-card-head"><h2>${checkinTitle(k.day)}</h2>${byChief()}</div>
       <div class="cf-rows">${k.objectives.map((o) => `<div class="cf-row" style="--c:${esc(o.color)}"><i class="cf-dot"></i><span class="cf-row-text">${esc(o.name)}</span><span class="cf-num">${esc(String(o.current))} / ${esc(String(o.target))}</span><span class="cf-pace${o.onTrack ? '' : ' behind'}">${o.onTrack ? tr('On track') : tr('Behind')}</span></div>`).join('')}</div>
       <div class="cf-actions"><button type="button" class="btn ghost" data-cf-checkin="stop">${tr('Stop')}</button><span class="grow"></span><button type="button" class="btn" data-cf-checkin="change">${tr('Change direction')}</button><button type="button" class="btn primary" data-cf-checkin="keep">${tr('Keep going')}</button></div>
     </section>`;
@@ -256,7 +264,8 @@
     const cards = window.ProjectCards ? ProjectCards.html(c) : '';
     const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
     // The teams are rows of keys under the board (#838, teamsHTML); the bot the Chief suggests stays on it.
-    return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}</div>`;
+    const files = Company.onBoard(c, 'files') && c.phase === 'running' && Company.files && (state.features || []).includes('project-files') ? Company.files.tile(c) : '';
+    return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}${files}</div>`;
   }
 
   // ---------- the teams (#838, ADR 132): a row each under the board, in place of the floor's desks ----------
@@ -300,14 +309,19 @@
   function needsHTML(c, items) {
     if (!items.length) return '';
     const shown = items.slice(0, 3);
-    const head = (x) => (x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure());
+    // A member's ask is drawn under its lead (ADR 148): the lead's face, the member's words.
+    const head = (x) => { const l = underLead(c, x); return l ? botFigure(colorOf(l), 'idle', '', outfitOf(l)) : x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure(); };
     const acts = (x, i) => (answersInline(x)
       ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
       : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
     const more = items.length - shown.length;
-    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<span class="kp-need-text"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></span>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
+    return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
   }
-  const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c]);
+  // The lead a member's ask is drawn under in this project (ADR 148), or null.
+  const underLead = (c, x) => { const id = Keypad.leadOf(c, x?.bot?.id); return id ? botById(id) : null; };
+  const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups);
+  // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
+  const projectAsking = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
 
   // ---------- the panel: the To-do (#692), or a team ----------
   // The To-do's filter (All, You, Bots, Done) and what the Add field will give the new item: who it is for (null:
@@ -354,11 +368,11 @@
   }
   function todoPanelHTML(c) {
     const asks = filter === 'all' || filter === 'you';
-    const waits = asks ? needs() : [];
-    const asking = asks ? state.bots.filter((b) => question(b)) : [];
+    const waits = asks ? projectNeeds(c) : [];
+    const asking = asks ? projectAsking(c) : [];
     const items = CompanyTodo.shown(c.todos, filter);
     const rows = [
-      ...waits.map((x, i) => `<div class="cf-row">${head(x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
+      ...waits.map((x, i) => `<div class="cf-row">${head(underLead(c, x) || x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
       ...items.map(todoHTML),
     ].join('');
@@ -376,7 +390,7 @@
   // The owner's decisions (#694): the last few, newest first, with their reason and day; Add a decision under them.
   const DECISIONS_SHOWN = 5;
   function decisionText(d) {
-    if (d.by === 'checkin' && d.day && DECIDED[d.decision]) return `${tr('Day {n} check-in', { n: d.day })}: ${DECIDED[d.decision]()}`;
+    if (d.by === 'checkin' && d.day && DECIDED[d.decision]) return `${checkinTitle(d.day)}: ${DECIDED[d.decision]()}`;
     return d.text;
   }
   function decisionsHTML(c) {
@@ -423,7 +437,7 @@
       <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
       ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
-      ${days && c.checkin ? checkinHTML(c.checkin) : ''}
+      ${(days || c.ongoing) && c.checkin ? checkinHTML(c.checkin) : ''}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
       ${teamsHTML(c)}
@@ -444,11 +458,12 @@
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
     const box = $('.sp-needs', root);
-    if (box) wireNeedRows(box, asks, openNeed);
+    if (box) wireNeedRows(box, asks, openNeed, openNeedInChat);
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
+    Company.files?.wire(root); // the Files tile (company-files-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
-    const waits = needs();
+    const waits = projectNeeds(c);
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
     // Reply to a standup's ask: the lead's chat, with what blocks the team quoted in the box.
@@ -515,6 +530,16 @@
       sourceFor = b.dataset.cfSource;
       if (!apps) loadApps();
       Company.redraw();
+    }));
+    $$('[data-cf-remove]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      const id = b.dataset.cfRemove;
+      menuFor = null;
+      if (sourceFor === id) sourceFor = null;
+      if (asking?.id === id) closeAsk();
+      removingGoals.add(id);
+      Company.redraw();
+      send(`/company/objectives/${encodeURIComponent(id)}`, 'DELETE').finally(() => { removingGoals.delete(id); Company.redraw(); });
     }));
     const sourceSent = async (id, source) => { if (await send(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', { source })) { sourceFor = null; Company.redraw(); } };
     $$('[data-cf-source-close]', root).forEach((b) => (b.onclick = () => { sourceFor = null; Company.redraw(); }));
@@ -638,5 +663,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [Company.calendar?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
+  Company.steps.sig = () => [Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
 })();

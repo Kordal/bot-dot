@@ -1,0 +1,1 @@
+2026-10-17: A login for the site of an app botdot connects (Google Calendar, Slack, GitHub…) is refused and the bot asks the Chief for the connected app (ask_chief_for_app); an API token for such a site is still a login. The list of sites is a short hand-kept map in lib/connected-apps.js, not Composio's catalogue, which has no websites.

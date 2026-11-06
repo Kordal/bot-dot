@@ -1,0 +1,1 @@
+2026-10-30: A team card's Access row shows only what a bot needs (no empty row), and Android picks a saved login or SSH key for a gap but adds a new one only in the Vault, as project Logins do (#808).

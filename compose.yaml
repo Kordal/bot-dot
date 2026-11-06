@@ -30,6 +30,8 @@ services:
       PORT: 4747
       # The account this botdot server belongs to: the front door names it on every request.
       BOT_DOT_ACCOUNT: ${BOT_DOT_ACCOUNT:-}
+      # The botdot machine's own id (install.sh makes it once): in the names of the account's machines on boat.dev.
+      BOT_DOT_INSTANCE: ${BOT_DOT_INSTANCE:-}
       BOT_DOT_FRONT_DOOR_SOCKET: /run/front-door/botdot.sock
       # Optional instead of /login: a token from `claude setup-token`
       CLAUDE_CODE_OAUTH_TOKEN: ${CLAUDE_CODE_OAUTH_TOKEN:-}
@@ -39,6 +41,10 @@ services:
       BOT_DOT_HELPER_SOCKET: /run/botdot/helper.sock
       # How long a command in Claude Code's Bash may run (ADR 131): empty is the default, 0 no limit.
       BOT_DOT_BASH_MAX_SECONDS: ${BOT_DOT_BASH_MAX_SECONDS:-}
+      # The push relay the iOS app's notifications go through (ADR 150): empty sends them nothing.
+      BOT_DOT_PUSH_RELAY: ${BOT_DOT_PUSH_RELAY:-}
+      # 1 when the account has a disk of its own (install.sh): Storage then counts what that disk uses in all.
+      BOT_DOT_OWN_DISK: ${BOT_DOT_OWN_DISK:-}
     volumes:
       - ./data:/data                                # bots, runs, memory, skills, vault (encrypted)
       - bot-dot-config:/config                      # the vault's encryption key, kept apart from the data

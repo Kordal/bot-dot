@@ -236,8 +236,33 @@ test('a reply that finishes while an app reports its chat on screen is not new',
   assert.equal(watched.event.new, undefined);
   assert.equal((await unreadNow()).Quiet, 0);
   assert.ok(positions().chats[chat] >= watched.run.endedAt, 'read up to that reply');
-  assert.equal(f.events.filter((e) => e.type === 'unread' && e.data.chat === chat).length, 0, 'nothing changed for the other apps');
+  // The other apps get no dot, and its read position past the reply: its key says Idle there too, not Done.
+  const said = f.events.filter((e) => e.type === 'unread' && e.data.chat === chat).map((e) => e.data);
+  assert.ok(said.length >= 1);
+  assert.ok(said.every((d) => d.unread === 0 && d.firstUnread === null), 'no new reply');
+  assert.ok(said.at(-1).readAt >= watched.run.endedAt, 'read past that reply');
+  const listed = (await srv.api('/bots')).data.find((b) => b.id === bot.id);
+  assert.equal(listed.readAt, positions().chats[chat], 'the list says how far its chat is read');
   await read(null); // the owner leaves the chat
+  f.close();
+});
+
+test('opening a chat with nothing new still moves its read position, and the feed says so once', async () => {
+  const bot = bots[2];
+  const chat = `bot:${bot.id}`;
+  await read(null);
+  const f = await feed(srv);
+  await f.wait('hello');
+  const before = positions().chats[chat];
+  await sleep(5);
+  const r = await read(chat);
+  assert.ok(r.data.readAt > before, 'read up to now');
+  const ev = await f.wait('unread', (d) => d.chat === chat);
+  assert.deepEqual([ev.data.unread, ev.data.firstUnread, ev.data.readAt], [0, null, r.data.readAt]);
+  await read(chat); // repeating it is not news
+  await sleep(100);
+  assert.equal(f.events.filter((e) => e.type === 'unread' && e.data.chat === chat).length, 1);
+  await read(null);
   f.close();
 });
 
@@ -390,15 +415,14 @@ test('a restart keeps the read positions; a backup and a restore carry them', as
   assert.deepEqual(positions(), stored);
 
   const PASS = 'correct horse battery';
-  await srv.api('/backups/passphrase', { method: 'PUT', body: { passphrase: PASS } });
-  const made = await srv.api('/backups/now', { method: 'POST' });
+  const made = await srv.backup(PASS);
   // After the backup the owner reads one more chat here: the restored botdot must not know that.
   await read(`bot:${bots[0].id}`);
   assert.equal((await unreadNow()).Answers, 0);
   const other = await startServer({ env: ENV });
   try {
     assert.equal((await read(`bot:${bots[0].id}`, 'web-1', other)).status, 400, 'no such bot there yet');
-    const up = await other.api('/backups/upload', { method: 'POST', raw: fs.readFileSync(path.join(srv.data, 'backups', made.data.last.name)) });
+    const up = await other.api('/backups/upload', { method: 'POST', raw: made.file });
     const r = await other.api('/backups/restore', { method: 'POST', body: { file: up.data.file, passphrase: PASS } });
     assert.equal(r.data.ok, true, JSON.stringify(r.data));
     await other.exited; // it stops itself, to start again with the restored data

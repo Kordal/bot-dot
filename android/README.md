@@ -40,7 +40,7 @@ Android shows a small permanent "Connected" notification for the open connection
 
 ## Install on your phone
 
-The app is built on GitHub once a night when it changed (or when the owner runs **Actions → Android → Run workflow** on `main`) and published on the repo's **Releases** page as **botdot for Android 0.1.x**. The server image, built after it the same night, carries the newest one too, so once botdot is updated the app updates itself: **A new version of the app is ready · Install** shows on the home screen, and **Settings → Updates** shows **This phone · Update available · Update**. Install downloads it from your botdot over Tailscale and opens Android's installer. The first time, Android asks you to allow installing apps from botdot. Your settings stay.
+The app is built on GitHub once a night when it changed (or when the owner runs **Actions → Android → Run workflow**, or **Actions → Build all → Run workflow**, on `main`) and published on the repo's **Releases** page as **botdot for Android 0.1.x**. The server image, built after it the same night, carries the newest one too, so once botdot is updated the app updates itself: **A new version of the app is ready · Install** shows on the home screen, and **Settings → Updates** shows **This phone · Update available · Update**. Install downloads it from your botdot over Tailscale and opens Android's installer. The first time, Android asks you to allow installing apps from botdot. Your settings stay.
 
 The first install (or if something goes wrong): open the Releases page on your phone (signed in to GitHub), download the `.apk` and install it.
 

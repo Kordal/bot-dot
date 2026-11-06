@@ -1,0 +1,1 @@
+2026-11-03: The Mac hand-off is refused like any unknown app (`400`) rather than kept for old builds, since no native Mac app is released and the desktop app signs in as `desktop`; sessions and feedback already stored with `app: "mac"` stay as they are and the admin page still names them "Mac app". ([#877](https://github.com/Kordal/bot-dot/issues/877))

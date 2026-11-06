@@ -172,19 +172,26 @@ internal object Keypad {
     /**
      * A key's status pill (#397), the web page's rule (keypad.js, status): [kind] is also its colour. Working while a run
      * is going ("Working ×2" while [runs], the runs going, is 2 or more: ADR 062), Needs you while it asks or a card waits for it, its unread replies, else what its newest run did
-     * ([last], its status: Done, Couldn't finish; Idle for none, or one the owner stopped).
+     * ([last], its status: Done, Couldn't finish; Idle for none, one the owner stopped, or a finished one the owner has [seen]:
+     * read its chat since it ended, [seen]).
      */
     data class Status(val kind: StatusKind, val text: String)
     enum class StatusKind { WORKING, NEEDS, UNREAD, DONE, FAILED, IDLE }
 
-    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null, runs: Int = 0): Status = when {
+    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null, runs: Int = 0, seen: Boolean = false): Status = when {
         running -> Status(StatusKind.WORKING, if (runs > 1) tr("Working ×{runs}", "runs" to runs) else tr("Working"))
         needs -> Status(StatusKind.NEEDS, tr("Needs you"))
         unread > 0 -> Status(StatusKind.UNREAD, trn(unread, "{n} unread", "{n} unread"))
-        last == "success" -> Status(StatusKind.DONE, tr("Done"))
+        last == "success" -> if (seen) Status(StatusKind.IDLE, tr("Idle")) else Status(StatusKind.DONE, tr("Done"))
         last != null && last != "stopped" && last != "running" -> Status(StatusKind.FAILED, tr("Couldn't finish"))
         else -> Status(StatusKind.IDLE, tr("Idle"))
     }
+
+    /**
+     * Whether the owner read a chat after its last run ended (the web page's keypad.js, seen): [readAt] is the chat's read
+     * position, [endedAt] when that run ended, both ISO times. A server without readAt: never, and Done stays.
+     */
+    fun seen(readAt: String?, endedAt: String?): Boolean = !readAt.isNullOrEmpty() && !endedAt.isNullOrEmpty() && readAt >= endedAt
 
     /** Whether a key's status words keep their colour and weight (#724): only Needs you, the one that asks for the owner; the rest are muted, their colour in the dot. */
     fun loud(kind: StatusKind) = kind == StatusKind.NEEDS

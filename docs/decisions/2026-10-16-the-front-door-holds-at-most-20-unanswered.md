@@ -1,0 +1,1 @@
+2026-10-16: The front door holds at most 20 unanswered challenges per client and 10,000 in all, dropping the oldest, because asking for one needs no sign-in and would otherwise let anyone fill its memory.

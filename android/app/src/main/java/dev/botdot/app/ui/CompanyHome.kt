@@ -89,6 +89,8 @@ internal class CompanyWays(
     val onTeam: ((String) -> Unit)? = null,
     /** A project's folder in Files, alone (#702, #703): its name. */
     val onFolder: ((String) -> Unit)? = null,
+    /** A folder of a project's folder in Files (the board's Files tile): the project's folder's name, the path in it. */
+    val onFolderAt: ((name: String, path: String) -> Unit)? = null,
     /** A Chief chat a goal's "Change" started (#820): its id; null where the botdot can't. */
     val onGoalChat: ((String) -> Unit)? = null,
 )
@@ -132,6 +134,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     fun offered(t: CompanyTeam): List<Bot> = CompanyFloor.addable(c, t, bots).map { (b, other) -> if (other != null) b.copy(description = tr("In {team}", "team" to other)) else b }
     // The pieces the owner put on the board (#780); a project made before has them all.
     fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
+    // The Files tile (project-files): a running project's folder, on a botdot that has it, when the app can open Files.
+    val filesAt = ways.onFolderAt.takeIf { dev.botdot.app.data.ProjectFiles.FEATURE in features && on(dev.botdot.app.data.ProjectFiles.PIECE) && c.phase == "running" && c.folder != null }
     val canvas = BoardCanvas.FEATURE in features
     val saved = remember(c.layout) { BoardCanvas.of(c.layout) }
     // A long press on the flow puts the tiles on the canvas (#821): from then on a long press and a drag moves one.
@@ -144,8 +148,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
-        val here = remember(c, waiting) { dev.botdot.app.data.Spaces.needsIn(c, waiting) }
-        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onAnswer = { id, yes ->
+        val here = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()).let { dev.botdot.app.data.Spaces.underLeads(c, it, bots) } }
+        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
             ui.scope.launch {
                 runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
                 ui.app.store.needs.refresh()
@@ -155,33 +159,40 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
-                if (on("days")) c.day?.let { day -> add(Tile("days") { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
-                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.forEach { o -> add(Tile("goal:${o.id}") { m -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }) } }) }
-                if (dev.botdot.app.data.ProjectCards.shows(features, c)) dev.botdot.app.data.ProjectCards.slots(c.cards, cards.shown).forEach { s ->
-                    add(Tile(cards.tileOf(s)) { m -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        CardSlot(cards, s, Modifier.fillMaxWidth().weight(1f, fill = false))
+                if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
+                // An ongoing project's monthly review (#925) stands where the 90-day line would.
+                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, ongoing = true) } }) }
+                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m, _ -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
+                if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
+                    add(Tile(cards.tileOf(s)) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                        // On the canvas a card fills its tile, its list as many lines as it holds; in the phone's column
+                        // it takes its own height, as in the flow. The ask keeps its picks under it.
+                        CardSlot(cards, s, if (fixed) Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card) else Modifier.fillMaxWidth(), canvas = fixed)
                         if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
                     } })
                 }
                 if (on("teams")) {
-                    c.suggestion?.let { sg -> add(Tile("suggest") { m -> Box(m) { SuggestedCard(ui, c, sg) } }) }
-                    add(Tile("new-team") { m -> Box(m) { NewTeam(ui, c) } })
+                    c.suggestion?.let { sg -> add(Tile("suggest") { m, _ -> Box(m) { SuggestedCard(ui, c, sg) } }) }
+                    add(Tile("new-team") { m, _ -> Box(m) { NewTeam(ui, c) } })
                 }
-                if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m -> Box(m) { CalendarTile(ui, c, bots) } })
-                if (on("todo")) add(Tile("todo") { m -> Column(m) { TodoPanel(ui, c, bots, waiting, ways, features) } })
+                if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
+                if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
+                if (filesAt != null) add(Tile("files") { m, _ -> Box(m) { ProjectFilesTile(ui, c, filesAt) } })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
         // The flow of a project never arranged; with the canvas, a long press here starts it.
-        Column(Modifier.fillMaxWidth().then(if (canvas) Modifier.pointerInput(Unit) {
+        // On a phone (ADR 147) the board is read as a column: the tiles are arranged on a wider screen.
+        val roomy = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= BoardCanvas.NARROW
+        Column(Modifier.fillMaxWidth().then(if (canvas && roomy) Modifier.pointerInput(Unit) {
             holdAndDrag(onHold = { started = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); true })
         } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
             c.checkin?.let { CheckinCard(ui, it, ways) }
-        }
+        } else if (c.ongoing) c.checkin?.let { CheckinCard(ui, it, ways, ongoing = true) }
         val goals = CompanyFloor.DISPLAY in features
-        if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) })
+        if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features))
         // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
         Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -193,8 +204,9 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 NewTeam(ui, c)
             }
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
+            if (filesAt != null) ProjectFilesTile(ui, c, filesAt)
         }
-        if (on("todo")) TodoPanel(ui, c, bots, waiting, ways, features)
+        if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
         }
         }
         // Its teams' keys (#841), in place of the floor's rooms and desks.
@@ -243,7 +255,7 @@ private fun DaysLine(c: Company, day: Int) {
 }
 
 @Composable
-private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
+private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays, ongoing: Boolean = false) {
     val p = LocalPaper.current
     var busy by remember(k.day) { mutableStateOf(false) }
     fun answer(decision: String) {
@@ -254,7 +266,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
             runCatching { a.answerCheckin(k.day, decision) }.onSuccess { d ->
                 ui.took(d.company)
                 if (decision == "stop") ui.tell(trn(d.paused, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."))
-                if (decision == "change") ways.onChiefSay(tr("Day {n} check-in: I want to change direction.", "n" to k.day) + " ")
+                if (decision == "change") ways.onChiefSay((if (ongoing) tr("Monthly review: I want to change direction.") else tr("Day {n} check-in: I want to change direction.", "n" to k.day)) + " ")
             }.onFailure { ui.tell(it.message) }
             busy = false
         }
@@ -262,7 +274,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays) {
     Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.warn.copy(alpha = 0.35f), Radius.card).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(tr("Day {n} check-in", "n" to k.day), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(if (ongoing) tr("Monthly review") else tr("Day {n} check-in", "n" to k.day), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             ByChief()
         }
         k.objectives.forEach { o ->

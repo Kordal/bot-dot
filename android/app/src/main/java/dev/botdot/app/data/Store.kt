@@ -278,7 +278,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
                 when {
                     chat.startsWith("bot:") -> {
                         // At once, and again from botdot: a list that was being fetched meanwhile may be from before this.
-                        bots.update { Unread.set(it, chat.removePrefix("bot:"), n, ev.data.str("firstUnread").ifEmpty { null }) }
+                        bots.update { Unread.set(it, chat.removePrefix("bot:"), n, ev.data.str("firstUnread").ifEmpty { null }, ev.data.str("readAt").ifEmpty { null }) }
                         bots.changed()
                     }
                     chat.startsWith("chief:") -> chief.changed() // the Chief's place in the list shows the server's sum
@@ -398,7 +398,7 @@ data class Needs(
  * One thing that waits for the owner, as home's Needs you rows show it. [permission]: the id of a permission a bot asks
  * for, whose row says all there is to it, so the row itself answers it with No and Allow; anything else opens Needs you.
  */
-data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null, val permission: String? = null)
+data class Waiting(val color: String?, val text: String, val outfit: JsonElement? = null, val bot: String? = null, val permission: String? = null, val group: String? = null)
 
 private const val NO_COLOR = "#888780" // the grey of a bot without a colour (FigureDef.GREY)
 
@@ -426,7 +426,7 @@ fun waitingOf(bots: List<Bot>, chief: ChiefOverview?, needs: Needs?, dash: Dashb
         needs?.asks?.forEach { a ->
             val who = a.bot?.name ?: tr("The Chief")
             if (a.kind == "permission") {
-                add(about(a.bot, tr("{who} asks to {what}", "who" to who, "what" to (a.what?.label ?: a.permission))).copy(permission = a.id))
+                add(about(a.bot, tr("{who} asks to {what}", "who" to who, "what" to (a.what?.label ?: a.permission))).copy(permission = a.id, group = a.group?.id))
                 return@forEach
             }
             add(about(a.bot, when {

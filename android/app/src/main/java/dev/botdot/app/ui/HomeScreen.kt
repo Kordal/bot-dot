@@ -4,10 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -137,12 +133,6 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val companyNow by store.company.value.collectAsState()
     val featuresNow = store.version.value.collectAsState().value?.features
     val projects = remember(featuresNow, projectList, companyNow) { dev.botdot.app.data.Spaces.projects(featuresNow, projectList, companyNow?.company) }
-    // Home's filter: All, or only the bots and chats in no project's team (remembered on this device).
-    val homeAll by app.settings.homeAll.collectAsState(initial = true)
-    val homeBots = remember(bots, projects, homeAll) { bots?.let { dev.botdot.app.data.Spaces.homeBots(it, projects, homeAll) } }
-    val homeGroups = remember(groupsNow, projects, homeAll) { dev.botdot.app.data.Spaces.homeGroups(groups, projects, homeAll) }
-    // The filter shows while a bot or a chat is in a project's team: else both would show the same.
-    val filtered = remember(bots, groupsNow, projects) { dev.botdot.app.data.Spaces.homeBots(bots.orEmpty(), projects).size != bots.orEmpty().size || dev.botdot.app.data.Spaces.homeGroups(groups, projects).size != groups.size }
     val spaceOfBot = remember(projects) { dev.botdot.app.data.Spaces.spaceOfBot(projects) }
     val turnLines by store.turnLines.value.collectAsState() // what each member at work in a group said it is doing
     var refreshing by remember { mutableStateOf(false) }
@@ -223,7 +213,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val folded by app.settings.foldedGroups.collectAsState(initial = emptySet())
     fun syncLayout() {
         if (dragging != null) return
-        val rows = ListLayout.rows(homeBots.orEmpty(), homeGroups, folded, shared)
+        val rows = ListLayout.rows(bots.orEmpty(), groups, folded, shared)
         pins.clear()
         pins.addAll(rows.pins)
         layout.clear()
@@ -234,11 +224,11 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     suspend fun load() = coroutineScope {
         listOf(store.bots, store.groups, store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } }
     }
-    LaunchedEffect(homeBots, homeGroups, folded, shared) { syncLayout() }
+    LaunchedEffect(bots, groupsNow, folded, shared) { syncLayout() }
     // Worked out once per list of bots, not again for every row that's drawn.
     val byId = remember(bots) { bots.orEmpty().associateBy { it.id } }
     val groupById = remember(groupsNow) { groups.associateBy { ListLayout.groupRow(it.id) } }
-    val categoryBots = remember(homeBots) { homeBots.orEmpty().filter { it.pinned == 0 }.groupBy { it.group } }
+    val categoryBots = remember(bots) { bots.orEmpty().filter { it.pinned == 0 }.groupBy { it.group } }
     // Each bot's last run that said something: its row shows that, and when.
     val recent by store.recent.value.collectAsState()
     val lastRun = remember(recent) { recent.orEmpty().filterNot { it.quiet }.groupBy { it.botId }.mapValues { it.value.first() } }
@@ -340,7 +330,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
         BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
-        if (needs > 0) NeedsRows(waiting, projectOf = { spaceOfBot[it] }, onReview = onNeedsYou, onAnswer = { id, yes ->
+        if (needs > 0) NeedsRows(waiting, projectOf = { spaceOfBot[it] }, onReview = onNeedsYou, onChat = { w -> w.group?.let(onGroup) ?: w.bot?.let(onBot) ?: onNeedsYou() }, onAnswer = { id, yes ->
             scope.launch {
                 runCatching { (api ?: throw ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }
                     .onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't answer"), android.widget.Toast.LENGTH_LONG).show() }
@@ -348,10 +338,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             }
         })
         RoomsRow(app) { onOpen("rooms") }
-        if (filtered) HomeFilter(homeAll) { all -> scope.launch { app.settings.setHomeAll(all) } }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
-    val pages = remember(homeBots, homeGroups, keypad, sections, shared) { if (keypad || sections) Keypad.pages(homeBots.orEmpty(), homeGroups, shared) else emptyList() }
+    val pages = remember(bots, groupsNow, keypad, sections, shared) { if (keypad || sections) Keypad.pages(bots.orEmpty(), groups, shared) else emptyList() }
     // A working key's time moves on once a minute.
     val now by produceState(System.currentTimeMillis()) { while (true) { delay(60_000); value = System.currentTimeMillis() } }
     // The bots a card in Needs you waits for: their keys say Needs you (#397).
@@ -360,7 +349,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         is Keypad.Key.OfBot -> k.bot.let { b ->
             val r = lastRun[b.id]
             val running = b.running || r?.isRunning == true
-            val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status, runs = b.runningCount)
+            val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status, runs = b.runningCount, seen = Keypad.seen(b.readAt, r?.endedAt))
             // How long it has worked, from the run that is going; a run not in the list yet: no time.
             val time = when {
                 !running -> listTime(r?.startedAt)
@@ -373,7 +362,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         is Keypad.Key.OfGroup -> {
             val line = groupLine(k.group, bots.orEmpty(), turnLines)
             KeyLook(k.group.name, line.text, line.color, if (line.working) "working" else "idle", who = line.who, unread = k.group.unread, asks = line.asks, members = Groups.members(k.group, bots.orEmpty()),
-                status = Keypad.status(line.working, needs = line.asks, unread = k.group.unread, last = k.group.last?.status?.ifEmpty { null }), time = listTime(k.group.last?.at))
+                status = Keypad.status(line.working, needs = line.asks, unread = k.group.unread, last = k.group.last?.status?.ifEmpty { null }, seen = Keypad.seen(k.group.readAt, k.group.last?.at)), time = listTime(k.group.last?.at))
         }
     }
     val openKey = { k: Keypad.Key -> when (k) { is Keypad.Key.OfBot -> onBot(k.bot.id); is Keypad.Key.OfGroup -> onGroup(k.group.id) } }
@@ -453,7 +442,8 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             onRefresh = { scope.launch { refreshing = true; load(); refreshing = false } },
             modifier = Modifier.fillMaxSize(),
         ) {
-            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage) {
+            KeypadSections(pages, ::look, onKey = openKey, onChief = onChief, modifier = Modifier.fillMaxSize().navigationBarsPadding(), chiefUnread = chief?.unread ?: 0, chiefBusy = chiefBusy, folded = folded, onFold = foldPage,
+                onMove = { k, place -> save(k.id, ListLayout.change(place, group = k is Keypad.Key.OfGroup, pinned = k.pinned)) }) {
                 AboveKeys()
                 if (bots != null && pages.isEmpty()) Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(Space.s16))
             }
@@ -562,7 +552,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                         }
                     }
                 }
-                if (bots != null && homeBots.orEmpty().isEmpty() && homeGroups.isEmpty() && !figures) item {
+                if (bots?.isEmpty() == true && groups.isEmpty() && !figures) item {
                     Text(tr("No bots yet. Ask the Chief of Staff to make one."), color = p.muted, modifier = Modifier.padding(Space.s16))
                 }
             }
@@ -620,21 +610,6 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
             Text(shortTime(h.at), color = p.faint, fontSize = Type.s12)
         }
         Text(text, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-/** Home's filter over the keys: All, or only the bots and chats in no project's team. Two words in one small pill. */
-@Composable
-private fun HomeFilter(all: Boolean, onChange: (Boolean) -> Unit) {
-    val p = LocalPaper.current
-    Row(Modifier.padding(start = Space.s16, top = Space.s4, bottom = Space.s8).clip(CircleShape).background(p.sunk).padding(Space.s4).selectableGroup()) {
-        for ((value, label) in listOf(true to tr("All"), false to tr("No project"))) {
-            val on = all == value
-            Text(label, color = if (on) p.text else p.muted, fontSize = Type.s12,
-                modifier = Modifier.clip(CircleShape).background(if (on) p.bg else Color.Transparent)
-                    .selectable(selected = on, role = Role.RadioButton) { onChange(value) }
-                    .padding(horizontal = Space.s12, vertical = Space.s4))
-        }
     }
 }
 

@@ -227,3 +227,18 @@ test("the desktop image keeps no SSH host keys from installing OpenSSH's client"
   const step = dockerfile.split(/\n(?=RUN |COPY |ADD |FROM |USER |ENV )/).find((s) => s.includes('openssh-client'));
   assert.match(step, /rm -f \/etc\/ssh\/ssh_host_\*/);
 });
+
+// Hyperframes downloads Chrome for Testing's headless shell on first use, about 120 MB, which on hq took longer than a
+// bot's command may (2026-11-04). The image carries it, pinned by its archive's sha256, and points Hyperframes at it,
+// on amd64 only: there is no arm64 build, and a path that is not there makes Hyperframes refuse to start.
+test('the desktop image carries a pinned headless Chrome on amd64 and points Hyperframes at it there only', () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'deploy', 'desktop', 'Dockerfile'), 'utf8');
+  const step = dockerfile.split(/\n(?=RUN |COPY |ADD |FROM |USER |ENV |ARG )/).find((s) => s.includes('chrome-headless-shell-linux64.zip'));
+  assert.match(step, /^RUN if \[ "\$TARGETARCH" = amd64 \]; then/);
+  assert.match(step, /echo '[0-9a-f]{64} {2}\/tmp\/chrome-headless-shell\.zip' \| sha256sum -c -/);
+  assert.match(step, /\/opt\/chrome-headless-shell\/chrome-headless-shell --version/, 'it runs once at build time');
+  assert.match(step, /rm -rf \/var\/lib\/apt\/lists\/\*/);
+  assert.match(dockerfile, /^FROM \$\{BASE\} AS desktop-amd64\nENV HYPERFRAMES_BROWSER_PATH=\/opt\/chrome-headless-shell\/chrome-headless-shell\nFROM desktop-\$\{TARGETARCH\}$/m);
+  assert.match(dockerfile, /^FROM \$\{BASE\} AS desktop-arm64$/m);
+  assert.equal((dockerfile.match(/HYPERFRAMES_BROWSER_PATH/g) || []).length, 1, 'set for amd64 alone');
+});

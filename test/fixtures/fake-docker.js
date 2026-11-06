@@ -4,12 +4,12 @@
 // $FAKE_DOCKER_OUT/inspect.json, `docker image inspect` image.json, `docker exec` exec.txt; anything else prints nothing.
 // On PATH it must be called "docker": helpers.fakeDocker() puts a small wrapper by that name in a folder.
 //
-// For the Mac app's setup (BotDotKit's LocalServer tests), files in $FAKE_DOCKER_OUT steer it:
+// Files in $FAKE_DOCKER_OUT steer Docker and the registry:
 //   down        `docker info` fails, as when Docker isn't running
 //   private     `docker pull` fails until `docker login` got the token in good-token
 //   good-token  the token `docker login --password-stdin` accepts
 //   missing     the image `docker pull` can't download now
-// and `docker run … cat /opt/bot-dot/compose.mac.yaml` prints the real compose.mac.yaml.
+//   labels.txt  what `docker inspect` of the account computer's labels prints, e.g. 2|2
 //
 // For the image cleanup (lib/image-cleanup.js), host.json in $FAKE_DOCKER_OUT is a small Docker host:
 //   images      [{ Id, RepoTags, RepoDigests, Labels }]
@@ -40,7 +40,9 @@ if (args[0] === 'login') {
 // install.sh's signature check (`docker run … node /check/lib/signed-image.js <image> <app>`, a token on
 // stdin) says what signed.json in $FAKE_DOCKER_OUT has for the image: { "<image>": "<why it was refused>" };
 // any other image is signed, as its repository at sha256:c…c. With `private`, it wants the token in good-token.
-// `--revision` after the app adds the source revision it was built from.
+// `--revision` after the app adds the source revision it was built from; `--release` that and the release's version
+// (release in $FAKE_DOCKER_OUT, else 1), which `--installed <n>` refuses when it is older. `--at <digest>` gives that
+// release, signed at its own digest.
 if (args[0] === 'run' && args.includes('/check/lib/signed-image.js')) {
   const [image] = args.slice(args.indexOf('/check/lib/signed-image.js') + 1);
   const token = fs.readFileSync(0, 'utf8').trim();
@@ -48,13 +50,15 @@ if (args[0] === 'run' && args.includes('/check/lib/signed-image.js')) {
   const refused = has('signed.json') ? JSON.parse(fs.readFileSync(path.join(OUT, 'signed.json'), 'utf8'))[image] : null;
   if (refused) { process.stdout.write(`${refused}\n`); process.exit(1); }
   const name = image.split('@')[0];
+  const option = (o) => (args.includes(o) ? args[args.indexOf(o) + 1] : null);
+  const version = has('release') ? Number(fs.readFileSync(path.join(OUT, 'release'), 'utf8').trim()) : 1;
+  if (option('--installed') !== null && version < Number(option('--installed'))) { process.stdout.write('it is older than the version this machine runs\n'); process.exit(1); }
+  const at = option('--at');
   // With --revision, the source revision after it: revision in $FAKE_DOCKER_OUT, else d…d.
-  const revision = args.includes('--revision') ? ` ${has('revision') ? fs.readFileSync(path.join(OUT, 'revision'), 'utf8').trim() : 'd'.repeat(40)}` : '';
-  process.stdout.write(`${name.lastIndexOf(':') > name.lastIndexOf('/') ? name.slice(0, name.lastIndexOf(':')) : name}@sha256:${'c'.repeat(64)}${revision}\n`);
+  const rev = has('revision') ? fs.readFileSync(path.join(OUT, 'revision'), 'utf8').trim() : 'd'.repeat(40);
+  const revision = args.includes('--revision') ? ` ${rev}` : args.includes('--release') ? ` ${rev} ${version}` : '';
+  process.stdout.write(`${name.lastIndexOf(':') > name.lastIndexOf('/') ? name.slice(0, name.lastIndexOf(':')) : name}@sha256:${at && at.length === 64 ? at : 'c'.repeat(64)}${revision}\n`);
   process.exit(0);
-}
-if (args[0] === 'run' && args.at(-1) === '/opt/bot-dot/compose.mac.yaml') {
-  process.stdout.write(fs.readFileSync(path.join(__dirname, '..', '..', 'compose.mac.yaml'), 'utf8'));
 }
 
 const hostFile = path.join(OUT, 'host.json');
@@ -106,6 +110,8 @@ if (fs.existsSync(hostFile) && (['ps'].includes(args[0]) || args[0] === 'image' 
   process.exit(0);
 }
 
+// The labels of the account's computer (lib/computers.js labels()) are in labels.txt, where a test gives them.
+if (args[0] === 'inspect' && args.some((a) => a.includes('botdot.network-version')) && has('labels.txt')) { process.stdout.write(fs.readFileSync(path.join(OUT, 'labels.txt'), 'utf8')); process.exit(0); }
 const answer = args[0] === 'inspect' ? 'inspect.json' : args[0] === 'image' && args[1] === 'inspect' ? 'image.json' : args[0] === 'exec' ? 'exec.txt' : null;
 if (answer) {
   try { process.stdout.write(fs.readFileSync(path.join(OUT, answer), 'utf8')); } catch { /* nothing to say */ }

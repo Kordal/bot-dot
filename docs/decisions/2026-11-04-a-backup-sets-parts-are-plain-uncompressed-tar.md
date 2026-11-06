@@ -1,0 +1,1 @@
+2026-11-04: A backup set's parts are plain, uncompressed tar files: restic, which takes the set off the machine, deduplicates and compresses them itself, and a gzip of each would make every set look new to it. An account's own backups (`data/backups`, encrypted copies of the same data) are left out of the set.

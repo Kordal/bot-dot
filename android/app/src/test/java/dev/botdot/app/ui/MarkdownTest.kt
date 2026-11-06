@@ -149,4 +149,11 @@ class MarkdownTest {
     @Test fun quotesAndRules() {
         assertEquals(listOf(Block.Quote("said"), Block.Rule, Block.Para("after")), parseBlocks("> said\n---\nafter"))
     }
+
+    @Test fun aColumnOfOnlyNumbersLinesUpOnTheRight() {
+        val rows = listOf(listOf("Service", "Count", "Keys"), listOf("Stripe", "9", "A, B"), listOf("AI", "1 234,5", "C"), listOf("R2", "", "D"), listOf("Time", "12:30", "5"))
+        assertEquals(listOf(false, true, false), numericColumns(rows).toList())
+        assertEquals(listOf(false), numericColumns(listOf(listOf("Only"))).toList())
+        assertEquals(listOf(false), numericColumns(listOf(listOf("A"), listOf("9 apples"))).toList())
+    }
 }

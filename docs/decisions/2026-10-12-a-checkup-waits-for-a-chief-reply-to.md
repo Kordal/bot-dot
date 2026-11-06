@@ -1,0 +1,1 @@
+2026-10-12: A checkup waits for a Chief reply to end before it starts, but the owner's message is not held back while a checkup reads: their turn starts beside it, as it does beside a look. Rejected: queueing the owner behind a checkup (up to five minutes of waiting for a turn nobody asked for). (#387)

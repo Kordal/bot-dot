@@ -122,7 +122,7 @@ Not run for this report; found by name.
 - The opening line's rules: `lib/opening-line.js` and its tests under `test/`, and Android's `OpeningLine` tests. The line "is never a new reply and never part of the chat" (`CONTEXT.md`, "Opening line").
 - The web tests that cut functions out of `public/app.js` by their first and last line (`docs/product/improvements/2026-10-08-chat-reply-readability.md`, "Tests a change must keep passing").
 - The figure fixture the renderers share ([ADR 003](../../adr/003-one-figure-definition-for-all-apps.md)).
-- A run's events are appended to its log as they happen (`lib/bots.js:1215-1220`, `docs/DECISIONS.md`, 9 Oct 2026): anything streamed in small pieces must not go through `record`, or every run's log grows by thousands of lines.
+- A run's events are appended to its log as they happen (`lib/bots.js:1215-1220`, `docs/decisions/`, 9 Oct 2026): anything streamed in small pieces must not go through `record`, or every run's log grows by thousands of lines.
 
 ## Proposals
 

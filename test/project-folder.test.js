@@ -120,6 +120,38 @@ test("the owner's Files opens the folder alone, starting nothing new for it whil
   docker.answer('exec.txt', null);
 });
 
+test("a path in a team bot's reply opens the file in its project's folder, relative or in full", async () => {
+  docker.answer('inspect.json', RUNNING);
+  const file = Buffer.from('# Quick install\n').toString('base64');
+  docker.answer('exec.txt', `ok 16 1760000000\n${file}`);
+  const open = (bot, p) => srv.api(`/bots/${bot.id}/path?path=${encodeURIComponent(p)}&view=1`);
+  const script = () => execs().at(-1).args.at(-1);
+  // Relative to the project's folder, as the bot names it: not in its workspace on botdot, so read there.
+  let r = await open(writer, 'install-docs/QUICK-INSTALL.md');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.text, '# Quick install\n');
+  assert.equal(r.data.name, 'QUICK-INSTALL.md');
+  assert.ok(execs().at(-1).args.includes('botdot.account.computer'), "from botdot's own seat");
+  assert.match(script(), /p='\/workspace\/projects\/Fernhill Shop\/install-docs\/QUICK-INSTALL\.md'/);
+  assert.match(script(), /'\/workspace\/projects\/Fernhill Shop'\/\*\)/, 'inside the project folder only');
+  // In full, for a bot without the computer too.
+  r = await open(writer, '/workspace/projects/Fernhill Shop/install-docs/QUICK-INSTALL.md');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.text, '# Quick install\n');
+  // A bot on the computer: its own folder there is looked in first.
+  r = await open(coder, 'notes.md');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.match(script(), new RegExp(`p='/workspace/${coder.id}/notes\\.md'`));
+  // Nowhere: gone, and a path of another project or out of the folder stays refused.
+  docker.answer('exec.txt', 'gone\n');
+  r = await open(writer, 'install-docs/NOPE.md');
+  assert.deepEqual([r.status, r.data.state], [404, 'gone']);
+  r = await open(writer, '/workspace/projects/Other/x.md');
+  assert.equal(r.status, 404, "another project's folder is not the bot's");
+  assert.equal((await open(writer, 'install-docs/../../x.md')).status, 403);
+  docker.answer('exec.txt', null);
+});
+
 test("a card's build reads its own project's folder, read-only, and no other project's", async (t) => {
   docker.answer('inspect.json', RUNNING);
   const other = (await srv.api('/company', { method: 'POST', body: { start: 'Elm Street' } })).data.id;
@@ -183,4 +215,27 @@ test("deleting a project keeps its folder for its bots on the computer, or delet
   assert.match(execs().at(-1).args.join(' '), /rm -rf/);
   assert.ok(!(await srv.api('/projects')).data.projects.some((p) => p.name === 'Oakwood'));
   docker.answer('exec.txt', null);
+});
+
+test("the board's Files tile lists the folder's newest files while the computer runs, and never starts it", async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('project-files'));
+  writeData(path.join(srv.data, 'company.json'), { id: 'f1', name: 'Fernhill Shop', start: 'x', kind: 'idea', phase: 'running', startedAt: new Date().toISOString() });
+  docker.answer('inspect.json', null);
+  const before = execs().length;
+  let r = await srv.api('/company/files');
+  assert.deepEqual([r.status, r.data], [200, { state: 'off', files: [] }]);
+  assert.equal(execs().length, before, 'nothing run while it is off');
+  assert.ok(!docker.calls().some((x) => x.args[0] === 'start' || x.args[0] === 'run'), 'the computer is not started');
+  docker.answer('inspect.json', RUNNING);
+  docker.answer('exec.txt', '1762412700.5/5120/hetzner-auction.md\0001762400000.0/90/infra/notes.md\0001762300000.0/1/../escape\0');
+  r = await srv.api('/company/files');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data, { state: 'on', files: [
+    { name: 'hetzner-auction.md', path: 'hetzner-auction.md', size: 5120, at: 1762412700500 },
+    { name: 'notes.md', path: 'infra/notes.md', size: 90, at: 1762400000000 },
+  ] });
+  const script = execs().at(-1).args.join(' ');
+  assert.match(script, /\/workspace\/projects\/Fernhill Shop/);
+  assert.match(script, /-name node_modules/);
+  assert.equal((await srv.asChief('/company/files')).status, 403);
 });

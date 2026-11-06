@@ -183,7 +183,7 @@ test('the Chief picks 3 to 5 questions of the catalogue for the ask; anything el
 test('the screens: a picked setup\'s questions, stories and SWOT only where they apply; one read before #805 the venture five', () => {
   const c = { kind: 'idea', phase: 'setup', about: [{ key: 'runs', question: 'What do you run?', answer: 'Proxmox' }], setup: { shape: 'ops', questions: ['runs', 'care', 'first'], stories: false, swot: false } };
   const s = chief.screens(c);
-  assert.deepEqual(s.map((x) => x.screen), ['question', 'question', 'question', 'delivery', 'review']);
+  assert.deepEqual(s.map((x) => x.screen), ['question', 'question', 'question', 'review']);
   assert.deepEqual(s.slice(0, 3).map((x) => [x.key, x.question, x.label]), [['runs', 'What do you run?', 'Runs'], ['care', 'What breaks or needs care?', 'Needs care'], ['first', 'What first?', 'First step']]);
   assert.equal(s[1].basis, chief.basis(c, 'care'));
   assert.notEqual(s[1].basis, s[0].basis, 'a question builds on the answers before it');
@@ -202,7 +202,7 @@ test('an ops ask is read into its own questions and screens; Create puts "What f
   let r = await srv.api('/company/read', { method: 'POST' });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual(r.data.setup, { shape: 'ops', questions: ['runs', 'care', 'reach', 'first'], stories: false, swot: false });
-  assert.deepEqual(r.data.screens.map((x) => x.key || x.screen), ['runs', 'care', 'reach', 'first', 'delivery', 'review']);
+  assert.deepEqual(r.data.screens.map((x) => x.key || x.screen), ['runs', 'care', 'reach', 'first', 'review']);
   assert.match(asked().at(-1), /What breaks or needs care\?/);
   r = await srv.api('/company', { method: 'PATCH', body: { about: r.data.about.map((a) => (a.key === 'first' ? { ...a, answer: 'Back up the NAS', open: false } : a)) } });
   assert.equal(r.data.screens[1].basis, chief.basis(r.data, 'care'));

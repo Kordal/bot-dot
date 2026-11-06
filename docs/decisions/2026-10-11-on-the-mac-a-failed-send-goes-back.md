@@ -1,0 +1,1 @@
+2026-10-11: On the Mac a failed send goes back into the message box with its files and one line (as on Android and the web page), not a "Not sent" bubble; the key goes out only to a botdot server with `message-key`, so one without it gets the request it always got (#368).
