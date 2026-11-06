@@ -1090,10 +1090,12 @@ async function readAll() {
     loadMentionPages(); // for mentions of pages (#473)
     loadMentionProjects(); // and of projects (#700)
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
-    const [bots, runs, activity, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
+    // The computers' state comes on its own (#1107): a slow docker never holds the list back.
+    const computersRead = api('/computers').catch(() => null);
+    const [bots, runs, activity, chief, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/settings').catch(() => null)]);
     if (!state.skillLib) await skillLib; // the first time, the chats wait for it
     if (!latest()) return; // a read that hung, and a newer one began
-    Object.assign(state, { bots, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), computers, groups: await groupsRead });
+    Object.assign(state, { bots, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), groups: await groupsRead });
     if (takeChiefName(chief.chief?.name)) drawChiefName();
     if (state.view === 'group' && state.groupId) loadGroupChat(state.groupId);
     // The lines: those of runs and replies that are still going on stay, the rest go. A run's is its working line
@@ -1117,6 +1119,11 @@ async function readAll() {
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) { loadInbox(state.botId); readOwnRuns(state.botId); }
     render();
+    computersRead.then((c) => {
+      if (!c || !latest() || JSON.stringify(c) === JSON.stringify(state.computers || {})) return;
+      state.computers = c;
+      render();
+    });
   } catch (e) {
     // No toast from the background: while botdot is away the standing line says it (setAway), once.
     console.warn(e.message);
