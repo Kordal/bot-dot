@@ -43,7 +43,8 @@ test('a second failure, and a usage limit, fail as before: no run is asked again
     const limited = await makeBot(srv, { name: 'Limited', emoji: '🧱' });
     fs.writeFileSync(path.join(srv.out, 'error-result.txt'), "Claude AI usage limit reached|1793990000");
     const l = await srv.finished((await srv.api(`/bots/${limited.id}/run`, { method: 'POST', body: { prompt: 'Do it' } })).data.id);
-    assert.match(l.problem, /^Claude's usage limit was reached, so I stopped\. Try again once it resets\./);
+    // It carries on by itself after the reset instead (#1090, usage-limit.test.js).
+    assert.match(l.problem, /^Claude's usage limit was reached, so I stopped\. I'll carry on by myself once it resets\./);
     assert.equal(srv.runs().filter(isRunOf(limited)).length, 1, 'a limit is not asked again');
   } finally {
     fs.rmSync(path.join(srv.out, 'error-result.txt'), { force: true });

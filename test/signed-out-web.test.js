@@ -75,7 +75,7 @@ test('web: the line is on the page in both places, drawn as Claude is at that mo
   assert.equal(ctx.SIGNED_OUT, LINE);
   assert.equal(ctx.signedOutHTML(), 'Claude is signed out: bots can&#39;t work. <button type="button" data-sign-in>Sign in</button>');
   const composer = cut('function composerHTML(placeholder', '// Files attached in a composer');
-  assert.match(composer, /<div class="claude-line\$\{signedOut\.on && !away\.shown \? '' : ' hidden'\}" role="status">\$\{signedOutHTML\(\)\}<\/div>/);
+  assert.match(composer, /<div class="claude-line\$\{\(signedOut\.on \|\| signedOut\.backAt\) && !away\.shown \? '' : ' hidden'\}" role="status">\$\{signedOutHTML\(\)\}<\/div>/);
   assert.ok(composer.indexOf('away-line') < composer.indexOf('claude-line') && composer.indexOf('claude-line') < composer.indexOf('composer-box'), 'above the box');
 });
 
@@ -112,4 +112,28 @@ test('web: the look: the warning colour in both places; above the box only where
   assert.match(css, /\.side-head \{ display: flex; align-items: center;/);
   assert.match(css, /\.side-head \{ flex-wrap: wrap; \}\s*\.away \{ order: 1; flex: 1 0 100%;/, 'a row of its own under the logo (#635)');
   assert.match(css, /\.away button, \.claude-line button \{[^}]*color: inherit;[^}]*font-weight: 600;[^}]*text-decoration: underline;/, '"Sign in" reads as the line\'s last words');
+});
+
+test('web: over Claude\'s usage limit the same line says when the bots carry on, until then; a sign-out wins (#1090)', () => {
+  const hidden = () => element({}, { classes: ['hidden'] });
+  const el = { away: hidden(), awayLine: hidden(), out: hidden(), outLine: hidden() };
+  const doc = element({ '#away': el.away, '.away-line': [el.awayLine], '#signed-out': el.out, '.claude-line': [el.outLine] });
+  const timers = [];
+  const ctx = vm.createContext({ ...words, ...finders(doc), esc, msgTime: (iso) => `at:${iso}`, console: { warn() {} }, setTimeout: (f, ms) => { timers.push({ f, ms }); return timers.length; }, clearTimeout() {} });
+  vm.runInContext(`${cut('const AWAY_AFTER_MS', 'function esc(s)')}
+    Object.assign(this, { setSignedOut, signedOut });`, ctx);
+  const shows = (x) => !x.classList.contains('hidden');
+  const backAt = new Date(Date.now() + 3600e3).toISOString();
+  ctx.setSignedOut({ loggedIn: true, backAt });
+  assert.deepEqual([shows(el.out), shows(el.outLine)], [true, true]);
+  assert.equal(el.out.innerHTML, esc(`Claude's usage limit is reached: bots carry on at at:${backAt}.`));
+  assert.doesNotMatch(el.out.innerHTML, /Sign in/, 'nothing to sign in to');
+  assert.ok(timers.at(-1).ms > 3600e3, 'it goes by itself a minute after that time');
+  ctx.setSignedOut({ loggedIn: false, backAt });
+  assert.match(el.out.innerHTML, /signed out.*Sign in/, 'a sign-out wins');
+  ctx.setSignedOut({ loggedIn: true });
+  assert.deepEqual([shows(el.out), shows(el.outLine)], [false, false], 'the reset: no line');
+  ctx.setSignedOut({ loggedIn: true, backAt: new Date(Date.now() - 1000).toISOString() });
+  assert.equal(shows(el.out), false, 'a time gone by is no line');
+  timers.at(-1)?.f();
 });
