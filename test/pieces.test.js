@@ -229,7 +229,7 @@ function chiefTools(t) {
 test("the Chief's tools speak of a hat only: the kit is listed to choose from, a hat is set and changed, a wrong name comes back with the right ones", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
-  for (const name of ['create_bot', 'update_bot']) {
+  for (const name of ['create_bot']) { // update_bot takes create_bot's fields without their words (#1106)
     const props = tools.find((x) => x.name === name).inputSchema.properties;
     const field = props.outfit;
     assert.match(field.description, /fits its name and task/);
@@ -261,7 +261,7 @@ test("the Chief's tools speak of a hat only: the kit is listed to choose from, a
   assert.match(text(held), /unknown field "holds" in outfit/, 'the tool itself knows no such field');
   assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.outfit, { hat: 'hard-hat' }, 'the bot keeps its hat');
   const listed = JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id);
-  assert.deepEqual(listed.outfit, { hat: 'hard-hat' }, 'the Chief sees what each bot wears');
+  assert.equal(listed.hat, 'hard-hat', 'the Chief sees what each bot wears: its hat, by its kit name (#1099)');
   // No outfit sent: the bot is made, as a bare head.
   const bare = JSON.parse(text(await chief.call('create_bot', { name: 'Bare', prompt: 'Do it.' })));
   assert.equal(bare.outfit, null);
@@ -381,7 +381,7 @@ test("the Chief's drawing guidance takes its numbers from the figure definition"
 test("the Chief's tools: told to use the kit first and how to draw, a drawn hat is stored, a bad one comes back with the reason", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
-  for (const name of ['create_bot', 'update_bot']) {
+  for (const name of ['create_bot']) { // update_bot takes create_bot's fields without their words (#1106)
     const field = tools.find((x) => x.name === name).inputSchema.properties.outfit;
     assert.match(field.description, /Use the kit first/);
     assert.match(field.description, /Only when nothing in the kit fits/);
@@ -408,7 +408,8 @@ test("the Chief's tools: told to use the kit first and how to draw, a drawn hat 
   // Another change through the tool sends the whole bot back: the drawn hat stays.
   assert.deepEqual(JSON.parse(text(await chief.call('update_bot', { id: bot.id, color: '#378add' }))).outfit, { hat: STRAW });
   assert.deepEqual(JSON.parse(text(await chief.call('update_bot', { id: bot.id, outfit: { hat: FEZ } }))).outfit, { hat: FEZ });
-  assert.deepEqual(JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id).outfit, { hat: FEZ }, 'the Chief sees what it drew');
+  assert.equal(JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id).hat, 'drawn', 'the list says a hat was drawn (#1099)');
+  assert.deepEqual(JSON.parse(text(await chief.call('get_bot', { id: bot.id }))).outfit, { hat: FEZ }, 'the Chief sees what it drew');
   // A hat outside its box: the reason comes back, and the bot keeps what it wore.
   const wide = await chief.call('update_bot', { id: bot.id, outfit: { hat: { shapes: [{ shape: 'rect', x: 1, y: 1, w: 12, h: 3, fill: 'deep' }] } } });
   assert.equal(wide.isError, true);

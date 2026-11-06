@@ -108,6 +108,20 @@ test('the page and long answers are compressed, and the page is cached until it 
   assert.equal((await srv.api('/version')).data.web, web);
   const html = await fetch(`${srv.base}/`);
   assert.match(html.headers.get('content-security-policy'), /default-src 'self'/);
+  // #1108: index.html names its scripts and stylesheet with their version, and a file asked for with its version
+  // now is kept for good: a load revalidates index.html alone. index.html itself is still checked back each time.
+  assert.equal(html.headers.get('cache-control'), 'no-cache');
+  const body = await html.text();
+  assert.ok(body.includes(`<script src="/app.js?v=${sum}"></script>`), 'app.js named with its version');
+  assert.match(body, /<link rel="stylesheet" href="\/style\.css\?v=[\w-]{16}" \/>/);
+  assert.doesNotMatch(body, /<script src="\/[\w./-]+\.js"><\/script>/, 'every script has its version');
+  assert.ok(body.includes('href="/icon.svg?v=2"'), 'what has a ?v of its own keeps it');
+  assert.equal((await fetch(`${srv.base}/app.js?v=${sum}`)).headers.get('cache-control'), 'public, max-age=31536000, immutable');
+  const old = await fetch(`${srv.base}/app.js?v=AAAAAAAAAAAAAAAA`);
+  assert.equal(old.status, 200, 'an old version is answered with the file as it is now');
+  assert.equal(old.headers.get('cache-control'), 'no-cache');
+  const again = await fetch(`${srv.base}/`, { headers: { 'If-None-Match': html.headers.get('etag') } });
+  assert.equal(again.status, 304, 'index.html is unchanged while its files are');
   assert.equal((await fetch(`${srv.base}/nope.js`)).status, 404);
   assert.equal((await fetch(`${srv.base}/..%2Fserver.js`)).status, 404);
   for (let i = 0; i < 3; i++) await makeBot(srv, { name: `Filler ${i}`, description: 'x'.repeat(400) });

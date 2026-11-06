@@ -24,7 +24,8 @@ function page() {
 
 test('web: the page opens on Setup at a first start or when Claude is signed out, not for a check that could not tell', () => {
   const { ctx } = page();
-  assert.match(app, /const setupNow = await api\('\/setup'\)\.catch\(\(\) => null\);\n {2}if \(opensSetup\(setupNow\)\) \{\n {4}setView\('setup'\);/);
+  assert.match(app, /const setupRead = api\('\/setup'\)\.catch\(\(\) => null\);/);
+  assert.match(app, /const setupNow = await setupRead;\n {2}if \(opensSetup\(setupNow\)\) \{\n {4}setView\('setup'\);/);
   assert.deepEqual([{ done: true, claude: IN }, { done: true, claude: UNKNOWN }, { done: true, claude: { ...IN, error: COULD_NOT } }, null].map(ctx.opensSetup), [false, false, false, false]);
   assert.deepEqual([{ done: true, claude: OUT }, { done: true, claude: NONE }, { done: true }, { done: false, claude: IN }, { done: false, claude: UNKNOWN }].map(ctx.opensSetup), [true, true, true, true, true]);
 });
