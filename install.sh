@@ -250,12 +250,18 @@ write_status() {
   chmod 644 "$DOOR/status/$1.new"
   mv "$DOOR/status/$1.new" "$DOOR/status/$1"
 }
-# say_newest VERSION: status/latest.json, for the admin page's "Version X is available" (#193): VERSION, a source
-# revision of 7 characters, is the newest signed release, found now. An image's id (an image without a revision) isn't one.
+# say_newest VERSION [REVISION DIGEST]: status/latest.json, for the admin page's "Version X is available" (#193):
+# VERSION, a source revision of 7 characters, is the newest signed release, found now. An image's id (an image without a
+# revision) isn't one. The release check also gives its whole REVISION and its signed DIGEST, which the fleet console
+# reads from the heartbeat to offer that release to every machine it runs.
 say_newest() {
   case "$1" in *[!0-9a-f]* | '') return 0 ;; esac
   [ "${#1}" = 7 ] || return 0
-  write_status latest.json "{\"version\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+  sn_more=''
+  if printf '%s' "${2:-}" | grep -Eqx '[0-9a-f]{40}' && printf '%s' "${3:-}" | grep -Eqx 'sha256:[0-9a-f]{64}'; then
+    sn_more=",\"revision\":\"$2\",\"digest\":\"$3\""
+  fi
+  write_status latest.json "{\"version\":\"$1\"$sn_more,\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
 }
 # account_said NAME STATE [FIELDS]: what became of the account NAME's version (ADR 053), for its owner's Settings and
 # the admin page, in status/account-NAME.json: STATE (waiting, switching, updated, kept or failed), when, and FIELDS,
@@ -476,7 +482,9 @@ look_for_newest() {
   wl_found="$(signed "$wl_image:latest" server --revision </dev/null 2>/dev/null)" || return 0
   wl_rev="${wl_found##* }"
   [ "${#wl_rev}" = 40 ] || return 0
-  say_newest "$(printf '%s' "$wl_rev" | cut -c1-7)"
+  wl_digest="${wl_found%% *}"
+  wl_digest="${wl_digest##*@}"
+  say_newest "$(printf '%s' "$wl_rev" | cut -c1-7)" "$wl_rev" "$wl_digest"
 }
 if [ "$MODE" = load ]; then
   [ "$(id -u)" = 0 ] || die "Root's step measures the accounts, so it runs as root."

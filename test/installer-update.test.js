@@ -325,6 +325,8 @@ test("root's step looks for the newest signed version at most once an hour, and 
   assert.ok(once.checks[0].includes(`${first.dir}/bin/lib:/check/lib:ro`), 'root\'s copy of it');
   const latest = status(once, 'latest.json');
   assert.equal(latest.version, 'eeeeeee');
+  assert.equal(latest.revision, 'e'.repeat(40), 'the whole revision, for the fleet console');
+  assert.match(latest.digest, /^sha256:[0-9a-f]{64}$/, 'the signed digest, for the fleet console');
   assert.ok(Date.now() - Date.parse(latest.at) < 60_000);
 
   assert.deepEqual(look().checks, [], 'not again within the hour');
