@@ -446,7 +446,7 @@ write_load() {
 # from the source this installer is in. It runs on the Node of botdot's image, pinned by its digest (the
 # Dockerfile's NODE_IMAGE), as nobody, read-only and with nothing but the network, trusting the certificates
 # this machine trusts, as Docker does. A registry token goes to it on its input.
-CHECK_NODE="node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6"
+CHECK_NODE="node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9"
 # isolated OPTION… IMAGE COMMAND…: docker run, as nobody, read-only and with nothing but the network, trusting the
 # certificates this machine trusts, with the registry token on its input.
 isolated() {

@@ -7,7 +7,7 @@ const path = require('node:path');
 const { waitFor } = require('../helpers');
 const ROOT = path.resolve(__dirname, '../..');
 const DIND = 'docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac';
-const NODE = 'node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6';
+const NODE = 'node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9';
 async function setup() {
   const name = `botdot-acceptance-${process.pid}-${Date.now()}`;
   const image = `${name}:test`;

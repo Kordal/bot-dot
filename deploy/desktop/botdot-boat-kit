@@ -62,16 +62,16 @@ step="computer-server"
 # As the image's Dockerfile: cua-computer-server and the fixes pinned beside it, FastAPI at the last release it
 # starts with (#601).
 [ -x /opt/computer-server/venv/bin/python ] || python3 -m venv /opt/computer-server/venv
-/opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.2.2'
+/opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.3'
 /opt/computer-server/venv/bin/pip install --no-cache-dir \
-  'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'authlib==1.9.1' 'pillow==13.0.0' 'certifi==2026.10.19'
+  'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.15.1' 'authlib==1.9.5' 'pillow==13.0.0' 'certifi==2026.10.23'
 # websockify carries x11vnc to botdot's own viewer (noVNC), as on the account's computer.
 /opt/computer-server/venv/bin/pip install --no-cache-dir 'websockify==0.13.0'
 /opt/computer-server/venv/bin/pip check
 
 step="Camoufox"
 [ -x /opt/camoufox/bin/python ] || python3 -m venv /opt/camoufox
-/opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.19'
+/opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.23'
 # A machine the kit set up before 0.5.9 has 152.0.4-beta.31 chosen by hand: forget that, so fetch installs the
 # browser this launcher pairs with.
 XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox set --release

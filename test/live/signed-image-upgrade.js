@@ -12,7 +12,7 @@ const root = path.resolve(__dirname, '../..');
 const legacyRevision = '3fbb9049505541bbae0c0a552554deb08cdd4d55';
 const dind = 'docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac';
 const cli = 'docker:29.7.2-cli@sha256:3f4743208d2338c934d7b8bcfbe1bb54c0b2355c510ad5e0f31c0c4a54bd704e';
-const node = 'node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6';
+const node = 'node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9';
 const expectedRevision = process.argv[2];
 const token = process.env.GH_TOKEN;
 if (!/^[a-f0-9]{40}$/.test(expectedRevision || '') || !token) throw new Error('Expected revision and GH_TOKEN are required');
