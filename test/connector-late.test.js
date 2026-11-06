@@ -462,7 +462,9 @@ test('the grant waits with the queued work, on disk in the queue file alone, and
     { id: 'swamped1', kind: 'connector-action', botId: full.id, runId: swampedRun, app: 'gmail', action: 'GMAIL_SEND_EMAIL', arguments: MAIL, fingerprint: 'f1', reason: '', at: now, stoppedAt: now },
   ]));
   const fromBot = { id: old.id, name: old.name, emoji: old.emoji, color: old.color, hop: 1, chainId: 'chain-1' };
-  setQueue(own.data, (q) => { q.queues[full.id] = Array.from({ length: 11 }, (_, i) => ({ key: `msg:seed:${i}`, kind: 'message', prompt: `Task ${i}`, fromBot, queuedAt: now })); });
+  // Ten tasks, and ten yeses that carry on: the work of a yes has ten places of its own (#1101).
+  const carries = Array.from({ length: 10 }, (_, i) => ({ key: `carry:seed-${i}`, kind: 'carry-on', runId: `seed-${i}`, allowed: [], declined: [], queuedAt: now }));
+  setQueue(own.data, (q) => { q.queues[full.id] = [...Array.from({ length: 11 }, (_, i) => ({ key: `msg:seed:${i}`, kind: 'message', prompt: `Task ${i}`, fromBot, queuedAt: now })), ...carries]; });
   own = await startServer({ dir: own.dir, env });
   assert.deepEqual(await cardsOf(own, old), [], 'a day later an OK for that run has nothing left to apply to');
 
@@ -474,7 +476,7 @@ test('the grant waits with the queued work, on disk in the queue file alone, and
     const refused = await answer(own, swamped, body);
     assert.deepEqual([refused.status, refused.data.error], [429, 'Swamped already has too much waiting to take this up. Try again once it has caught up.']);
   }
-  assert.deepEqual([(await cardsOf(own, full)).map((a) => a.id), (await own.api(`/bots/${full.id}/connector-actions`)).data, readData(own.data, 'queue.json').queues[full.id].length], [['swamped1'], [], 10]);
+  assert.deepEqual([(await cardsOf(own, full)).map((a) => a.id), (await own.api(`/bots/${full.id}/connector-actions`)).data, readData(own.data, 'queue.json').queues[full.id].length], [["swamped1"], [], 20]);
 
   // The work that waited starts by itself, and its run has the grant: the same call goes through once.
   const rec = await startedAgain(own, bot);
