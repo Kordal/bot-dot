@@ -81,8 +81,7 @@ document.addEventListener('click', (e) => {
     pollLoginRequests();
     pollBitwarden();
   });
-  followFeed();
-  if (state.feed) followGroups(state.feed); // what happens in the groups (groups.js)
+  followFeed(); // and what happens in the groups (groups.js)
   // Notifications on this device (push.js): botdot is given this browser's subscription again, and a tap on one
   // of them opens what it is about.
   if (state.features.includes('web-push') && Push.supported(window)) {

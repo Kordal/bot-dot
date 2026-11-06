@@ -173,7 +173,8 @@ test('web: the page asks for waiting memory changes with guarded=1, in the list 
   assert.match(app, /const MEMORY_WAITS = '\/memory\/pending\?guarded=1';/);
   assert.equal((app.match(/api\(MEMORY_WAITS\)/g) || []).length, 2, 'at every refresh, and after an answer');
   assert.doesNotMatch(app, /api\('\/memory\/pending'\)/);
-  assert.match(app, /new EventSource\('\/api\/events\?guarded=1'\)/);
+  assert.match(app, /new EventSource\(FeedWatch\.url\(since\)\)/);
+  assert.equal(require('../public/feed-watch').url(null), '/api/events?guarded=1', 'opened again too (#1078)');
   assert.doesNotMatch(app, /new EventSource\('\/api\/events'\)/);
 });
 

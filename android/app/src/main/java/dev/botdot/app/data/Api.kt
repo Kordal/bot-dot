@@ -53,15 +53,18 @@ private class Went { @Volatile var out = false }
  * botdot's API (docs/api.md). baseUrl is e.g. https://my-vm.my-tailnet.ts.net. [session]: the front door's session
  * (ADR 028), which every request carries; none for a check of an address before it is used.
  */
-class Api(val baseUrl: String, val session: Session? = null) {
+class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUIET_MS) {
     init { require(ReleaseManifest.secureURL(baseUrl)) { tr("Use HTTPS for a remote botdot server.") } }
     val json = JSON
 
     // One connection pool for the whole app (and pictures, see BotDotApp): a new Api doesn't mean new connections.
     private val client = session?.let { CLIENT.newBuilder().addInterceptor(it.interceptor).build() } ?: CLIENT
 
-    // Live streams stay open: no read timeout (botdot pings every 15–20 s).
+    // Downloads and exports take as long as they take: no read timeout.
     private val streamClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
+    // Live streams (the feed, a run's, the Chief's, the rooms'): botdot says something every 15–25 s, so one quiet for
+    // [quietMs] is a dead socket that only looks open (the phone changed networks, woke from Doze), and fails (#1078).
+    private val liveClient = client.newBuilder().readTimeout(quietMs, TimeUnit.MILLISECONDS).build()
 
     /** The full address of an API path ("/files/…"), e.g. for a picture. */
     fun url(path: String) = baseUrl.trimEnd('/') + "/api" + path
@@ -924,7 +927,7 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     private fun <T : Any> sse(to: Request.Builder, onOpen: () -> Unit = {}, parse: (SseMeta, String) -> T?): Flow<T> = callbackFlow {
         val req = to.header("Accept", "text/event-stream").build()
-        val source = EventSources.createFactory(streamClient).newEventSource(req, object : EventSourceListener() {
+        val source = EventSources.createFactory(liveClient).newEventSource(req, object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) = onOpen()
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
                 parse(SseMeta(id, type), data)?.let { trySend(it) }
@@ -940,6 +943,9 @@ class Api(val baseUrl: String, val session: Session? = null) {
 
     companion object {
         val JSON = Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }
+
+        /** How long a live stream may say nothing before it counts as dead: two of botdot's pings missed, and some. */
+        const val QUIET_MS = 50_000L
 
         /** Debug builds: each request in Logcat (tag botdot-http), so too many of them show. */
         private val logRequests = okhttp3.Interceptor { chain ->

@@ -8,6 +8,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import dev.botdot.app.feed.Feed
@@ -186,6 +187,71 @@ class ApiTest {
         } finally {
             scope.cancel()
         }
+    }
+
+    // #1078: a live feed that knows when it is dead.
+    private fun sse(body: String, then: mockwebserver3.SocketEffect? = null, throttle: Long = 0) = MockResponse.Builder()
+        .addHeader("Content-Type", "text/event-stream").body(body)
+        .apply { then?.let { onResponseEnd(it) }; if (throttle > 0) throttleBody(throttle, 600, java.util.concurrent.TimeUnit.MILLISECONDS) }
+        .build()
+    private val stall = mockwebserver3.SocketEffect.Stall
+
+    /** A feed, and the types of the events it passed on so far (listening before it connects). */
+    private fun withFeed(test: suspend (Feed, List<String>) -> Unit) = runBlocking {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val seen = java.util.Collections.synchronizedList(mutableListOf<String>())
+        try {
+            val feed = Feed(scope)
+            scope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) { feed.events.collect { seen += it.type } }
+            test(feed, seen)
+        } finally { scope.cancel() }
+    }
+    private suspend fun until(ms: Long, ok: () -> Boolean) = withTimeout(ms) { while (!ok()) kotlinx.coroutines.delay(20) }
+
+    @Test fun aFeedThatSaysNothingForTooLongFailsAndOpensAgainWhereItWas() = withFeed { feed, seen ->
+        // The socket stays open after the first event and nothing more comes: half-open, as after Doze or a network change.
+        val quiet = Api(server.url("/").toString().trimEnd('/'), quietMs = 1_000)
+        server.enqueue(sse("id: q.1\nevent: run_started\ndata: {}\n\n", stall))
+        server.enqueue(sse("id: q.2\nevent: run_finished\ndata: {}\n\n", stall))
+        feed.connect(quiet)
+        until(10_000) { seen.size >= 2 }
+        assertEquals(listOf("run_started", "run_finished"), seen.toList())
+        server.takeRequest()
+        assertEquals("q.1", server.takeRequest().url.queryParameter("since"))
+        assertTrue(Api.QUIET_MS in 45_000L..60_000L) // two of botdot's 20 s pings missed, and some
+    }
+
+    @Test fun botdotsPingKeepsTheFeedAliveAndIsNoEvent() = withFeed { feed, seen ->
+        server.enqueue(sse("event: ping\ndata: {}\n\nid: p.1\nevent: bots\ndata: {}\n\n", stall))
+        feed.connect(api)
+        until(5_000) { seen.isNotEmpty() }
+        assertEquals(listOf("bots"), seen.toList())
+    }
+
+    @Test fun aNudgeWhileConnectedIsKeptForWhenTheStreamEnds() = withFeed { feed, seen ->
+        // The first stream sends its event, then ends a little later; the nudge is sent while it is still open.
+        val first = "id: n.1\nevent: run_started\ndata: {}\n\n"
+        server.enqueue(sse(first + ": bye\n\n", throttle = first.length.toLong()))
+        server.enqueue(sse("id: n.2\nevent: run_finished\ndata: {}\n\n", stall))
+        feed.connect(api)
+        until(5_000) { seen.isNotEmpty() }
+        feed.retryNow() // the app came to the front while Connected
+        // Without the kept nudge the loop would wait its 2 s backoff first.
+        until(1_800) { seen.size >= 2 }
+        assertEquals(listOf("run_started", "run_finished"), seen.toList())
+    }
+
+    @Test fun anotherNetworkDropsTheOpenFeedForANewOneAtOnce() = withFeed { feed, seen ->
+        server.enqueue(sse("id: r.1\nevent: run_started\ndata: {}\n\n", stall))
+        server.enqueue(sse("id: r.2\nevent: run_finished\ndata: {}\n\n", stall))
+        feed.connect(api)
+        until(5_000) { seen.isNotEmpty() }
+        assertEquals(Feed.State.Connected, feed.state.value)
+        feed.reconnect()
+        until(1_500) { seen.size >= 2 }
+        assertEquals(listOf("run_started", "run_finished"), seen.toList())
+        server.takeRequest()
+        assertEquals("r.1", server.takeRequest().url.queryParameter("since"))
     }
 
     @Test fun whatAFailedRequestSaysOfItself() = runBlocking {

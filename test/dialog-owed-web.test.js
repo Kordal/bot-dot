@@ -4,7 +4,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, cut } = require('./web-page');
+const { app, cut, feedStandIns } = require('./web-page');
 
 test('web: a feed event under an open dialog owes a refresh, which its close reads (#1067)', () => {
   const heard = {};
@@ -15,7 +15,7 @@ test('web: a feed event under an open dialog owes a refresh, which its close rea
   class EventSource { constructor() { return feed; } }
   const state = {};
   const ctx = vm.createContext({
-    state, EventSource, window: { EventSource }, JSON, refresh: () => { refreshed++; },
+    ...feedStandIns(), state, EventSource, window: { EventSource }, JSON, refresh: () => { refreshed++; },
     $: (sel) => (sel === '#modal' ? modal : null), setTimeout: (fn) => { timers.push(fn); return timers.length; }, clearTimeout() {},
     setAway() {}, pollLoginRequests() {}, pollBitwarden() {},
   });

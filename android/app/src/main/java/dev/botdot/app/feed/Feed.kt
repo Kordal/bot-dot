@@ -6,13 +6,16 @@ import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.FeedEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -35,7 +38,10 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
     private var job: Job? = null
     private var api: Api? = null
     private var lastId: String? = null
-    private val nudge = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    // Kept until the loop reads it (#1078): a nudge sent while connected or connecting is not lost, it skips the next wait.
+    private val nudge = Channel<Unit>(Channel.CONFLATED)
+    // Drop the connection there is and open a new one now: the network changed under it.
+    private val restart = Channel<Unit>(Channel.CONFLATED)
 
     /** Connect to this botdot (or stop, with null). */
     fun connect(api: Api?) {
@@ -48,7 +54,14 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
     }
 
     /** Try again now (e.g. the network came back), instead of waiting for the next retry. */
-    fun retryNow() { nudge.tryEmit(Unit) }
+    fun retryNow() { nudge.trySend(Unit) }
+
+    /**
+     * The phone is on another network now (Wi-Fi to mobile, Tailscale reconnecting): the open connection may be
+     * half-open, still Connected and never to say anything again (#1078). It is dropped and opened again at once,
+     * after the last event it saw, so nothing is missed.
+     */
+    fun reconnect() { restart.trySend(Unit); nudge.trySend(Unit) }
 
     private fun remember(api: Api, id: String?) {
         lastId = id
@@ -59,14 +72,22 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
         var wait = 2_000L
         while (scope.isActive) {
             _state.value = if (_state.value == State.Retrying) State.Retrying else State.Connecting
+            restart.tryReceive() // asked before this attempt: this is the new connection
             try {
-                api.feed(lastId, onOpen = { _state.value = State.Connected; _error.value = null }).collect { ev ->
-                    wait = 2_000L
-                    if (ev.id != null) remember(api, ev.id)
-                    if (ev.type == "reset") remember(api, null)
-                    _events.emit(ev)
+                coroutineScope {
+                    val asked = async { restart.receive() }
+                    val stream = launch {
+                        api.feed(lastId, onOpen = { _state.value = State.Connected; _error.value = null }).collect { ev ->
+                            wait = 2_000L
+                            if (ev.type == PING) return@collect // botdot's heartbeat: it kept the connection alive, nothing else
+                            if (ev.id != null) remember(api, ev.id)
+                            if (ev.type == "reset") remember(api, null)
+                            _events.emit(ev)
+                        }
+                    }
+                    // The server closed the stream (e.g. botdot restarting for an update), or a new network asked for a new one.
+                    select { asked.onAwait { stream.cancel() }; stream.onJoin { asked.cancel() } }
                 }
-                // The server closed the stream (e.g. botdot restarting for an update).
             } catch (e: ApiException) {
                 _error.value = e.message
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -76,8 +97,13 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
             }
             _state.value = State.Retrying
             // Back off up to a minute; a nudge (network back, app opened) skips the wait.
-            withTimeoutOrNull(wait) { nudge.first() }
+            withTimeoutOrNull(wait) { nudge.receive() }
             wait = (wait * 2).coerceAtMost(60_000L)
         }
+    }
+
+    companion object {
+        /** botdot's heartbeat on the feed, every 20 s (docs/api.md, "The live feed"); not passed on to [events]. */
+        const val PING = "ping"
     }
 }

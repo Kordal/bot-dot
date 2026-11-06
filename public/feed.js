@@ -2,14 +2,31 @@
 
 // botdot's live feed (/api/events): refresh right away when something happens, instead of waiting
 // for the next periodic check (which stays, in case the feed drops).
+// The feed is opened again when it has been quiet too long, the network came back or the page is shown again and it
+// was quiet (feed-watch.js, #1078): every listener is put on each feed it opens, and each event counts as heard.
 function followFeed() {
   if (!window.EventSource) return;
+  const watch = FeedWatch.keeper((since, heard) => {
+    const es = new EventSource(FeedWatch.url(since)); // with the guarded memory changes: each has a card here
+    const add = es.addEventListener.bind(es);
+    es.addEventListener = (type, fn, opts) => add(type, (e) => { heard(e); fn(e); }, opts);
+    state.feed = es;
+    listenFeed(es);
+    if (typeof followGroups === 'function') followGroups(es); // what happens in the groups (groups.js)
+    return es;
+  });
+  watch.start();
+  setInterval(() => watch.check(), FeedWatch.EVERY_MS);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) watch.check(); });
+  addEventListener('online', () => watch.start()); // the old socket is likely dead: open a new one at once
+}
+
+function listenFeed(es) {
   let timer = null;
   // Under an open dialog nothing is drawn (it would wipe what is typed in it): the refresh is owed, and boot.js reads
   // it when the dialog closes (#1067).
   const soon = () => { clearTimeout(timer); timer = setTimeout(() => { if ($('#modal').open) state.refreshOwed = true; else refresh(); }, 300); };
-  const es = new EventSource('/api/events?guarded=1'); // with the guarded memory changes: each has a card here
-  state.feed = es;
+  es.addEventListener('ping', () => {}); // botdot's heartbeat: heard, nothing else
   es.onopen = () => { setAway(false); state.skillLibAt = 0; soon(); }; // back after a break: the line goes, and catch up (the skills too)
   // run_waits: a run began to wait for the owner's OK on an action in a connected app, or stopped waiting (its `waitingFor`).
   ['run_started', 'run_finished', 'run_waits', 'bot_message', 'waiting', 'chief_reply', 'chief_suggestion', 'approvals', 'asks', 'bots', 'reset'].forEach((t) => es.addEventListener(t, soon));
