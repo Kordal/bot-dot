@@ -39,8 +39,8 @@ assert.ok(NODE_IMAGE && CLI_IMAGE, 'the Dockerfile no longer names NODE_IMAGE an
 const DIND = 'docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac'; // as test/live/signed-image-upgrade.js
 const UBUNTU = 'ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55';
 const DOCKER_CE = '5:29.9.1-1~ubuntu.24.04~noble';
-const GVISOR = 'https://storage.googleapis.com/gvisor/releases/release/20261005.0';
-const GVISOR_SHA256 = { amd64: '0a8a9058b9f11791a2097f03190c2ddc5b963c3dbee5bb9fd8497f4801c42f92', arm64: 'f8bd7cb4e989db445255c20e6c2962498e5b5bd1ec1407bfcf187fbd5f184a2a' };
+const GVISOR = 'https://storage.googleapis.com/gvisor/releases/release/20261102.0';
+const GVISOR_SHA256 = { amd64: 'a1439ffbba7d212e0fde32ea79fa9bb51cbc4c5f6c16af1f047260290b861d42', arm64: 'f702ae92ad7a0c4134be34ca23f52966dbb696db0c0f5b8ec439210ab2cd7c6a' };
 const REGISTRY_IMAGE = 'registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373';
 const REGISTRY = 'registry.test:5000';
 // Where the official images would be, in the local registry.

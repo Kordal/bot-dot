@@ -1581,6 +1581,10 @@ fi
 
 # What every account needs beside Docker: rootless Docker (dockerd-rootless.sh, newuidmap and a user-mode network),
 # gVisor's runsc, and setfacl, which lets the front door into each account's socket folder.
+# gVisor is the sandbox of every account, so it comes at one release: its apt source names that release, not the
+# moving `release` channel, and apt upgrade never changes it behind botdot's back. A new one arrives with this file.
+GVISOR_RELEASE=20261102.0
+GVISOR_LIST="$ETC/apt/sources.list.d/gvisor.list"
 MISSING=''
 need() { command -v "$1" >/dev/null 2>&1 || MISSING="$MISSING $2"; }
 need dockerd-rootless.sh docker-ce-rootless-extras
@@ -1598,14 +1602,26 @@ if [ -n "$MISSING" ]; then
     *runsc*)
       mkdir -p "$ETC/apt/keyrings" "$ETC/apt/sources.list.d"
       [ -f "$ETC/apt/keyrings/gvisor.gpg" ] || curl -fsSL https://gvisor.dev/archive.key | gpg --dearmor -o "$ETC/apt/keyrings/gvisor.gpg"
-      printf 'deb [arch=%s signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases release main\n' "$(dpkg --print-architecture)" > "$ETC/apt/sources.list.d/gvisor.list"
+      printf 'deb [arch=%s signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases %s main\n' "$(dpkg --print-architecture)" "${GVISOR_RELEASE%.*}" > "$GVISOR_LIST"
       ;;
   esac
-  apt-get update -qq </dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $MISSING </dev/null \
+  # shellcheck disable=SC2046 # one word per package
+  apt-get update -qq </dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $(printf '%s\n' $MISSING | sed "s/^runsc\$/runsc=$GVISOR_RELEASE/") </dev/null \
     || die "apt-get couldn't install$MISSING. Install them yourself and run this again."
 fi
 ROOTLESS="$(command -v dockerd-rootless.sh)"
 RUNSC="$(command -v runsc)"
+# A machine installed before the pin follows gVisor's `release` channel: its source is moved to the pinned release,
+# and a runsc of another release is named with the command that installs the pinned one. It is not replaced here:
+# the runsc of the accounts' running sandboxes would change under them.
+if [ "$MODE" = install ] || [ "$MODE" = update ]; then
+  if [ -f "$GVISOR_LIST" ] && ! grep -q "gvisor/releases ${GVISOR_RELEASE%.*} main" "$GVISOR_LIST"; then
+    sed "s#gvisor/releases [^ ]* main#gvisor/releases ${GVISOR_RELEASE%.*} main#" "$GVISOR_LIST" > "$GVISOR_LIST.new" && mv "$GVISOR_LIST.new" "$GVISOR_LIST"
+    ok "gVisor's apt source now holds release $GVISOR_RELEASE"
+  fi
+  HAVE_RUNSC="$("$RUNSC" --version </dev/null 2>/dev/null | head -n 1 | sed 's/^runsc version //; s/^release-//')"
+  [ "$HAVE_RUNSC" = "$GVISOR_RELEASE" ] || warn "gVisor ${HAVE_RUNSC:-of an unknown release} is installed; botdot is tested with $GVISOR_RELEASE. Once no account is busy: sudo apt-get update && sudo apt-get install --allow-downgrades runsc=$GVISOR_RELEASE"
+fi
 # Ubuntu 24.04 lets a program make the user namespace rootless Docker needs only when AppArmor names it.
 KIT="$(command -v rootlesskit 2>/dev/null || true)"
 if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] \

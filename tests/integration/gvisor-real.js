@@ -24,10 +24,10 @@ const step = (text) => console.log(`gvisor-real: ${text}`);
 const run = (file, args, options = {}) => execFileSync(file, args, { encoding: 'utf8', timeout: 20 * 60_000, maxBuffer: 64 * 1024 * 1024, stdio: ['pipe', 'pipe', 'pipe'], ...options }).trim();
 const docker = (...args) => run('docker', args);
 
-// gVisor 20261005.0, each architecture's archive by its sha256 (checked against the sha512 Google publishes beside
+// gVisor 20261102.0, each architecture's archive by its sha256 (checked against the sha512 Google publishes beside
 // it when it was pinned). The machine's Docker is rootless, as an account's is (ADR 028).
-const GVISOR = 'https://storage.googleapis.com/gvisor/releases/release/20261005.0';
-const GVISOR_SHA256 = { amd64: '0a8a9058b9f11791a2097f03190c2ddc5b963c3dbee5bb9fd8497f4801c42f92', arm64: 'f8bd7cb4e989db445255c20e6c2962498e5b5bd1ec1407bfcf187fbd5f184a2a' };
+const GVISOR = 'https://storage.googleapis.com/gvisor/releases/release/20261102.0';
+const GVISOR_SHA256 = { amd64: 'a1439ffbba7d212e0fde32ea79fa9bb51cbc4c5f6c16af1f047260290b861d42', arm64: 'f702ae92ad7a0c4134be34ca23f52966dbb696db0c0f5b8ec439210ab2cd7c6a' };
 const DIND_ROOTLESS = 'docker:28-dind-rootless@sha256:7c3e797187e43738220462658f4586572cbd3bf009f728b21e34d9c5c06ce431';
 const SOCKET = '/run/user/1000/docker.sock';
 const ACCOUNT = '/home/rootless/account';

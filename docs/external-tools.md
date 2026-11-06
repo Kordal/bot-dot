@@ -10,9 +10,8 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 
 | Tool | Where | What it takes | Risk |
 | --- | --- | --- | --- |
-| gVisor `runsc` | `install.sh:1590`, `install.sh:1600` | gVisor's apt repository, `release` channel: whatever is newest on install day, then whatever `apt upgrade` brings | The sandbox of every account. A regression arrives on hq without a botdot change. Upstream newest: `release-20261019.0`. |
-| Tailscale on the server | `install.sh:2101` | `curl https://tailscale.com/install.sh \| sh` | Runs a remote script as root; version is the day's stable. Upstream newest 1.104.5. |
-| Tailscale in the computer | `deploy/desktop/botdot-tailscale:26`, `:67` | `pkgs.tailscale.com/stable` newest tarball, checked against its published sha256 | Integrity checked, version not. |
+| Tailscale on the server | `install.sh` (`Installing Tailscale`) | `curl https://tailscale.com/install.sh \| sh`, then Tailscale's signed apt repository | Kept on purpose: the machine's way in from the tailnet, so its security fixes should arrive with `apt upgrade`, as Docker's do. Upstream newest 1.104.5. |
+| Tailscale in the computer | `deploy/desktop/botdot-tailscale:26`, `:67` | `pkgs.tailscale.com/stable` newest tarball, checked against its published sha256 | Kept on purpose: integrity checked, and a computer gets the day's security fixes when it first joins the tailnet. Userspace and shields-up. |
 | Rootless Docker, uidmap, slirp4netns, acl | `install.sh:1585`-`1589` | The distribution's apt packages | Normal for host packages. |
 | Debian/Ubuntu packages in the images | `Dockerfile:34`, `deploy/desktop/Dockerfile:39`, `:65`, `deploy/desktop/botdot-boat-kit:35` | apt, no versions | Rebuild changes them; the Trivy gate in `images.yml` catches critical CVEs. |
 | Rust crates (ranges) | `desktop/src-tauri/Cargo.toml` | Semver ranges (`"2"`, `"0.22"`) | Held exactly by the committed `Cargo.lock`, so builds are reproducible. Fine as is. |
@@ -68,7 +67,7 @@ The kit installs the same pins on an External Virtual PC; `test/boat-screen.test
 | Chrome headless shell | 152.0.7977.30, sha256 | `deploy/desktop/Dockerfile:68` | not checked (endpoint blocked); version Hyperframes 0.9 asks for | held |
 | Camoufox launcher | `camoufox[geoip]==0.5.6` | `deploy/desktop/Dockerfile:105`, kit `:74` | 0.5.9 | **upgrading to 0.5.9 (other thread)** |
 | Camoufox browser | `official/152.0.4-beta.31` | `deploy/desktop/Dockerfile:106`-`107`, kit `:75`-`76` | v158.0.1-beta.41 | behind |
-| Tailscale | newest stable at run time | `deploy/desktop/botdot-tailscale:26` | 1.104.5 | unpinned |
+| Tailscale | newest stable at run time | `deploy/desktop/botdot-tailscale:26` | 1.104.5 | unpinned on purpose |
 | x11vnc, python3-venv, gcc and others (kit) | unpinned | kit `:35` | n/a | unpinned |
 
 ## Installer and hosting (`install.sh`, compose files)
@@ -76,8 +75,8 @@ The kit installs the same pins on an External Virtual PC; `test/boat-screen.test
 | Tool | Pinned | Where | Newest | Status |
 | --- | --- | --- | --- | --- |
 | restic | 0.19.1, sha256 per arch | `install.sh:525` | 0.19.1 | ok |
-| gVisor `runsc` | apt `release` channel | `install.sh:1590`, `:1600` | release-20261019.0 | unpinned |
-| Tailscale | install script | `install.sh:2101` | 1.104.5 | unpinned |
+| gVisor `runsc` | 20261102.0 (`GVISOR_RELEASE`; apt source names the release) | `install.sh` | 20261102.0 (apt `release` channel; GitHub "Latest" says 20261019.0) | ok |
+| Tailscale | install script, then apt | `install.sh` | 1.104.5 | unpinned on purpose |
 | Rootless Docker extras, uidmap, slirp4netns, acl | apt | `install.sh:1585`-`1589` | n/a | unpinned |
 | Caddy | `caddy:2.10.2` by digest | `compose.front-door.yaml:62` | 2.11.9 | behind |
 | botdot images | `ghcr.io/kordal/bot-dot:latest`, signed | `compose.yaml:11`, `compose.front-door.yaml:16` | own build | ok (checked by signature) |

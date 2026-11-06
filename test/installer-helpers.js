@@ -150,7 +150,7 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   // Cloudflare's trace says this machine's public IPv4 is 203.0.113.7, and it has no IPv6 (STAND_IN_IP6 gives it one).
   stand('curl', `${said('curl')}\ncase "$*" in *1.1.1.1/cdn-cgi/trace*) echo ip=203.0.113.7; exit 0 ;; *2606:4700:4700::1111*/cdn-cgi/trace*) [ -n "\${STAND_IN_IP6:-}" ] || exit 7; echo "ip=$STAND_IN_IP6"; exit 0 ;; esac\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*/api/backups/snapshot*) for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ] || exit 7; d="$(dirname "$(dirname "$(dirname "$s")")")/accounts/$(basename "$(dirname "$s")")/data/.snapshot"; [ -d "\${d%/.snapshot}" ] || exit 22; mkdir -p "$d"; printf 'a consistent copy' > "$d/memory.db"; exit 0 ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
   for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns']) stand(name, 'exit 0');
-  stand('runsc', 'echo "runsc version release-20261005.0"');
+  stand('runsc', 'echo "runsc version release-20261102.0"');
   for (const [name, body] of Object.entries({ tailscale: tailscale(), ...bins })) {
     if (body === null) fs.rmSync(path.join(bin, name), { force: true });
     else fs.writeFileSync(path.join(bin, name), body, { mode: 0o755 });
