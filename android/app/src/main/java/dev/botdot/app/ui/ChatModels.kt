@@ -312,7 +312,12 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
     }
 
     /** Stop one of its runs: Stop in its block (RunBlock). */
-    fun stop(runId: String) { viewModelScope.launch { runCatching { app.api.value?.stopRun(runId) }; refresh() } }
+    fun stop(runId: String) {
+        viewModelScope.launch {
+            _notes.tryEmit(stopNote(runCatching { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopRun(runId) }))
+            refresh()
+        }
+    }
 
     /** The reply of each run at work as it is written so far, by its run (ReplyDraft): drawn in its place. */
     var drafts by mutableStateOf<Map<String, String>>(emptyMap())
@@ -583,7 +588,14 @@ class ChiefChatModel(private val app: BotDotApp, start: String) : ViewModel() {
         }
     }
 
-    fun stop() { chatId?.let { id -> viewModelScope.launch { runCatching { app.api.value?.stopChief(id) }; refresh() } } }
+    fun stop() {
+        chatId?.let { id ->
+            viewModelScope.launch {
+                _notes.tryEmit(stopNote(runCatching { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopChief(id) }))
+                refresh()
+            }
+        }
+    }
     fun dismiss() { chatId?.let { id -> viewModelScope.launch { runCatching { app.api.value?.dismissSuggestion(id) }; refresh(whole = true) } } }
 
     val busy: Boolean get() = chat?.busy == true || chat?.messages?.lastOrNull()?.pending == true
@@ -890,6 +902,12 @@ suspend fun replyFromNotification(chat: String, text: String, features: Collecti
     val went = outbox.send(text, emptyList(), box = true, once = takesOnce(features), chat = chat.takeIf { it.startsWith("chief:") }?.removePrefix("chief:"), draw = false, request = request)
     return if (went) null else outbox.note ?: sendNote(ApiException(NOT_CONNECTED), takesOnce(features))
 }
+
+/**
+ * What Stop says once botdot answered (#1070), as the web page's Stop and a group's "Stop all": that it is stopping, or
+ * why it could not, so the owner never believes a run stopped that goes on.
+ */
+internal fun stopNote(r: Result<*>): String = r.fold({ tr("Stopping…") }, { it.message ?: tr("Couldn't stop") })
 
 /** A failed message back in the box, in front of what was typed since. */
 internal fun withFailed(failed: String, typedSince: String): String =

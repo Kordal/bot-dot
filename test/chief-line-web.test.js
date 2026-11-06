@@ -43,19 +43,19 @@ function chiefChat({ reply = async () => ({ ok: true }) } = {}) {
   const t = thread();
   t.thread.dataset.chat = 'c1';
   const state = { runs: [], chatId: 'c1' };
-  const calls = [];
-  const ctx = vm.createContext({ ...words, ...noDrafts,
+  const calls = [], toasts = [];
+  const ctx = vm.createContext({ ...words, ...noDrafts, toast: (...a) => toasts.push(a),
     OpeningLine, Unread: lib.Unread, openingLines: OpeningLine.keeper(), state, CHIEF_COLOR: CHIEF, 
     chiefTurns: new Map(), botById: () => null, updateChatQueued() {}, stopRun: () => assert.fail('no run is stopped from the Chief\'s line'),
     api: async (path, opts = {}) => { calls.push(`${opts.method || 'GET'} ${path}`); return reply(path); },
     $: (sel, root) => (root === undefined ? (sel === '#chat-thread' ? t.thread : null) : t.find.$(sel, root)), $$: (sel, root) => t.find.$$(sel, root),
   });
   vm.runInContext(`${cut('const chiefActivity = ', '// The Chief\'s replies that are going on')}
-    ${cut('const stopChief = ', '// Rejects when the message did not go')}
+    ${cut('// Stop on the Chief\'s reply, as a bot run\'s Stop', '// Rejects when the message did not go')}
     ${cut('function placeStatusLines() {', '// Stop a run.')}
     Object.assign(this, { placeStatusLines, chiefActivity, stopChief });`, ctx);
   const line = () => { ctx.placeStatusLines(); return t.thread.children.find((n) => n.className.startsWith('status-line'))?.html ?? null; };
-  return { ctx, state, calls, line, ...t };
+  return { ctx, state, calls, toasts, line, ...t };
 }
 
 test('web: while the Chief replies its chat has the line a bot\'s chat has: what the server says it is doing, its opening line first', () => {
@@ -113,16 +113,27 @@ test('web: Stop on the Chief\'s line stops that chat\'s reply', async () => {
   c.ctx.chiefTurns.set('c1', '');
   c.line();
   const [stop] = c.find.$$('[data-stop-chief]');
-  await stop.onclick();
+  const tapped = stop.onclick();
+  assert.equal(stop.disabled, true, 'one tap until botdot answered');
+  await tapped;
+  assert.equal(stop.disabled, false);
   assert.deepEqual(c.calls, ['POST /chief/chats/c1/stop']);
+  assert.deepEqual(c.toasts, [['Stopping…']], 'it says it is stopping, as a bot run\'s Stop does');
   assert.match(c.line(), /Thinking/, 'the line stays until the server says the reply ended');
   // From the box of a server without Send while it replies, the button's click is handed in: the open chat's reply.
   c.state.chatId = 'c 2';
   await c.ctx.stopChief({ type: 'click' });
   assert.equal(c.calls[1], 'POST /chief/chats/c%202/stop');
   // A stop that cannot be made leaves the chat as it is.
+  // It says why (#1070): the owner never believes a reply stopped that goes on.
   const down = chiefChat({ reply: async () => { throw new Error("Can't reach botdot."); } });
   await down.ctx.stopChief('c1');
+  assert.deepEqual(down.toasts, [["Can't reach botdot.", true]]);
+  down.ctx.chiefTurns.set('c1', '');
+  down.line();
+  const [again] = down.find.$$('[data-stop-chief]');
+  await again.onclick();
+  assert.equal(again.disabled, false, 'it can be tapped again');
 });
 
 test('web: the "Thinking" bubble is gone: a reply being written is a row without a bubble', () => {
