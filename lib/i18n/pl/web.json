@@ -1167,7 +1167,6 @@
   "I couldn't reach Claude's servers, so I couldn't start. This computer had no internet connection, or couldn't look up the address (a DNS problem).": "Nie mogłem połączyć się z serwerami Claude, więc nie zacząłem. Ten komputer nie miał internetu albo nie mógł znaleźć adresu (problem z DNS).",
   "I will try again at the next scheduled time.": "Spróbuję ponownie o następnej zaplanowanej porze.",
   "Check the connection and send the message again.": "Sprawdź połączenie i wyślij wiadomość ponownie.",
-  "Claude's servers were busy or my usage limit was reached, so I stopped. Try again in a little while.": "Serwery Claude były zajęte albo wyczerpałem limit użycia, więc się zatrzymałem. Spróbuj ponownie za chwilę.",
   "Something went wrong and I couldn't finish. It said: “{why}”. The details show everything that happened.": "Coś poszło nie tak i nie mogłem skończyć. Komunikat: „{why}”. Szczegóły pokazują wszystko, co się stało.",
   "Something went wrong and I couldn't finish. The details show everything that happened.": "Coś poszło nie tak i nie mogłem skończyć. Szczegóły pokazują wszystko, co się stało.",
   "{job}, scheduled {when}": "{job}, zaplanowane {when}",
@@ -1762,5 +1761,8 @@
   "Your phone can't reach botdot yet.": "Twój telefon nie ma jeszcze dostępu do botdot.",
   "New code": "Nowy kod",
   "Claude's usage limit was reached, so I stopped. I'll carry on by myself once it resets.": "Wyczerpał się limit użycia Claude, więc się zatrzymałem. Wrócę do pracy sam, gdy się odnowi.",
-  "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}."
+  "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}.",
+  "I lost the connection to Claude's servers, so I couldn't finish. This computer had no internet connection, or couldn't look up the address (a DNS problem).": "Straciłem połączenie z serwerami Claude, więc nie skończyłem. Ten komputer nie miał internetu albo nie mógł znaleźć adresu (problem z DNS).",
+  "Claude's usage limit was reached, so I stopped. Try again once it resets.": "Limit użycia Claude się wyczerpał, więc się zatrzymałem. Spróbuj ponownie, gdy się odnowi.",
+  "Claude's servers were busy, so I stopped. Try again in a little while.": "Serwery Claude były zajęte, więc się zatrzymałem. Spróbuj ponownie za chwilę."
 }

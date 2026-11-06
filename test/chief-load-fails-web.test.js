@@ -13,7 +13,7 @@ function chief(reply) {
   const said = { toasts: [], hash: [], present: [], read: 0 };
   const ctx = vm.createContext({ ...words, state,
     $: (sel) => (sel === '#chat-thread' ? t : sel === '#view-chief form' ? form : null), $$: () => [],
-    api: reply, toast: (...a) => said.toasts.push(a),
+    api: reply, newLine: { first: () => null }, toast: (...a) => said.toasts.push(a),
     writeHash: () => said.hash.push(state.chatId), sayPresent: () => said.present.push(state.chatId), syncRead: () => said.read++,
   });
   vm.runInContext(`${cut('async function showChat(id) {', '// Stop the Chief\'s reply in a chat')}\nthis.showChat = showChat;`, ctx);

@@ -603,5 +603,6 @@
   "Only the owner uploads from a phone.": "Tylko właściciel wgrywa pliki z telefonu.",
   "Say where the files go.": "Powiedz, dokąd mają trafić pliki.",
   "That code has expired.": "Ten kod wygasł.",
+  "Waiting for Claude's servers": "Czekam na serwery Claude",
   "botdot stopped what this run left running in the background.": "botdot zatrzymał to, co ten przebieg zostawił uruchomione w tle."
 }

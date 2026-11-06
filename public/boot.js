@@ -28,10 +28,16 @@ document.addEventListener('click', (e) => {
 });
 
 (async () => {
+  // What the first view needs is asked for at once and side by side (#1103), and each is awaited only where it is used:
+  // /status (which can wait on docker) and /setup after the list is drawn, /settings by the language and by the first
+  // refresh, which uses this answer instead of asking again.
   const figure = loadFigure();
-  state.status = await api('/status').catch(() => null);
+  const statusRead = api('/status').catch(() => null);
+  const setupRead = api('/setup').catch(() => null);
+  const settingsRead = api('/settings').catch(() => null);
+  state.bootSettings = settingsRead;
   await loadFeatures();
-  await I18n.sync(api, state.features); // the account's language (#645): the page loads again when it changed
+  await I18n.sync(api, state.features, settingsRead.then((s) => s || Promise.reject(new Error('no settings')))); // the account's language (#645): the page loads again when it changed
   // A document's own tab (#348): the document alone, none of the app.
   if (location.hash.startsWith('#doc/')) return DocPage.show(location.hash, docPageTools());
   // And the browser's back to a document, or its address typed in: the document alone, drawn at load.
@@ -47,10 +53,11 @@ document.addEventListener('click', (e) => {
   const [, , what, skill] = location.hash.slice(1).split('/');
   if (sub && view === 'botsettings' && what === 'skill') { let name = ''; try { name = decodeURIComponent(skill || ''); } catch {} state.openSkill = { bot: sub, name }; }
   await refresh();
+  state.status = await statusRead;
   renderStatus();
   if (typeof Company !== 'undefined') Company.init(); // the switch "Bots | Company", once the features are known (#669)
   // First start, or Claude isn't signed in: open the setup page.
-  const setupNow = await api('/setup').catch(() => null);
+  const setupNow = await setupRead;
   if (opensSetup(setupNow)) {
     setView('setup');
   } else {

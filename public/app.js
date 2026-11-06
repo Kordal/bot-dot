@@ -1090,6 +1090,13 @@ function refresh() {
   return now;
 }
 
+// The /settings boot.js asked for beside the rest (#1103): the first refresh uses it, once.
+function takeBootSettings() {
+  const read = state.bootSettings;
+  state.bootSettings = null;
+  return read;
+}
+
 async function readAll() {
   const seq = ++refreshSeq;
   const latest = () => seq === refreshSeq;
@@ -1102,8 +1109,10 @@ async function readAll() {
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
     // The computers' state comes on its own (#1107): a slow docker never holds the list back.
     const computersRead = api('/computers').catch(() => null);
-    const [bots, runs, activity, chief, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/settings').catch(() => null)]);
-    if (!state.skillLib) await skillLib; // the first time, the chats wait for it
+    const [bots, runs, activity, chief, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), takeBootSettings() || api('/settings').catch(() => null)]);
+    // The first time, the chats are drawn without waiting for it (#1103), and again when it comes: a skill named in
+    // a message is then drawn as a mention.
+    if (!state.skillLib && skillLib) skillLib.then(() => { if (latest() && state.skillLib) render(); });
     if (!latest()) return; // a read that hung, and a newer one began
     Object.assign(state, { bots, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), groups: await groupsRead });
     if (takeChiefName(chief.chief?.name)) drawChiefName();
