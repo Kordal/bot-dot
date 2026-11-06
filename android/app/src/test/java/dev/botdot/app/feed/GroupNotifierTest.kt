@@ -68,7 +68,7 @@ class GroupNotifierTest {
         assertTrue(notifier.contains("\"group_run_finished\" -> {") && notifier.contains("if (!groupNotifies(ev, chat, standing().watching)) return"))
         assertTrue(notifier.contains("\"group_unread\", \"group_asks\" -> groupSettled(ev)?.let { c -> cancelWhere { it == c } }"))
         for (need in listOf("login:", "job:", "tile:", "memory:", "ask:")) assertTrue(need, Regex("Need\\(\"$need[^\\n]*open = place\\.open\\)").containsMatchIn(notifier))
-        assertTrue(File(src, "feed/Receivers.kt").readText().contains("chat.startsWith(\"group:\") -> { a.sendToGroup(chat.removePrefix(\"group:\"), text, emptyList()) }"))
+        assertTrue(File(src, "feed/Receivers.kt").readText().contains("chat.startsWith(\"group:\") -> { a.sendToGroup(chat.removePrefix(\"group:\"), text, emptyList(), k) }"))
         assertTrue("a tapped notification opens the group", File(src, "MainActivity.kt").readText().contains("t.startsWith(\"group:\") -> nav.navigate(\"group/\${t.removePrefix(\"group:\")}\")"))
     }
 }
