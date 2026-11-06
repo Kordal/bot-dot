@@ -127,6 +127,25 @@ test("a run of a team bot carries its note; a bot in no team's does not", async 
   assert.doesNotMatch(await promptOf(alone), /team "Growth"|project "Fernhill"/, 'alone');
 });
 
+// #1089: a note reads company.json once, however many projects there are, not once more per project.
+test('a note reads the projects once', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'team-note-'));
+  const file = path.join(dir, 'company.json');
+  const projects = ['c1', 'c2', 'c3'].map((id) => company({ id, name: id }));
+  fs.writeFileSync(file, JSON.stringify({ projects }));
+  const s = companyLib.create({ file });
+  const real = fs.readFileSync;
+  let reads = 0;
+  fs.readFileSync = function (f, ...rest) { if (f === file) reads++; return real.call(this, f, ...rest); };
+  try {
+    const note = s.botNote('l1', of);
+    assert.equal(note.match(/^You lead team/gm).length, 3, 'one per project');
+    assert.equal(reads, 1, 'botNote');
+    reads = 0; s.decisionsNote('l1'); assert.equal(reads, 1, 'decisionsNote');
+    reads = 0; s.promptNote(); assert.equal(reads, 1, 'promptNote');
+  } finally { fs.readFileSync = real; fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
 // #1080: the project's "Never without asking" reaches every team bot on every run, as the owner edits it, and a bot
 // whose card at Create said it asks never is not told it.
 test('every team bot is told the never-without-asking list as it is now', () => {
