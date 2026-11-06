@@ -112,7 +112,8 @@ function wireAttachments(form, uploadTo) {
     // What take() is about to send, and those files back in the list, in front of any attached since: for a send that failed.
     held: () => form._files.filter((f) => f.status === 'ready'),
     put: (held) => { form._files = [...held, ...form._files]; draw(); },
-    take: () => { const ready = form._files.filter((f) => f.status === 'ready').map(({ name, file, size, readable }) => ({ name, file, size, readable })); form._files = []; draw(); return ready; },
+    // A file whose upload failed stays in the box after Send (#1074): the message never drops it unseen.
+    take: () => { const ready = form._files.filter((f) => f.status === 'ready').map(({ name, file, size, readable }) => ({ name, file, size, readable })); form._files = form._files.filter((f) => f.status !== 'ready'); draw(); return ready; },
     count: () => form._files.filter((f) => f.status === 'ready').length,
   };
 }

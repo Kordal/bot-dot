@@ -112,6 +112,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -743,12 +745,13 @@ class PendingFiles(private val scope: CoroutineScope, private val context: Conte
 
     fun add(uris: List<Uri>) {
         val a = api() ?: return
-        for (uri in uris.take(10 - items.size)) {
-            val (name, size) = a.describe(context.contentResolver, uri)
+        // Each file's name and size are a query of the app that has it (a cloud's, perhaps): off the main thread, in order.
+        scope.launch { for (uri in uris.take(10 - items.size)) {
+            val (name, size) = withContext(Dispatchers.IO) { a.describe(context.contentResolver, uri) }
             if ((size ?: 0) > 25L * 1024 * 1024) { onFailed(tr("{name} is over 25 MB.", "name" to name)); continue }
             val item = Item(nextKey++, name, size, "uploading")
             items += item
-            scope.launch {
+            launch {
                 val done = runCatching { a.upload(context.contentResolver, uri, target()) }
                 val idx = items.indexOfFirst { it.key == item.key } // it may have been removed meanwhile
                 if (idx >= 0) items[idx] = item.copy(
@@ -760,14 +763,24 @@ class PendingFiles(private val scope: CoroutineScope, private val context: Conte
                     onFailed(if (e is SecurityException) tr("botdot can't open {name}: the app that shared it didn't allow it.", "name" to item.name) else "${item.name}: " + (e.message ?: tr("couldn't upload")))
                 }
             }
-        }
+        } }
     }
 
     fun remove(key: Int) { items.removeAll { it.key == key } }
     val uploading get() = items.any { it.status == "uploading" }
-    fun take(): List<Attachment> = items.mapNotNull { it.attachment }.also { items.clear() }
+    /** The files the message sends. One that failed, or is still on its way, stays in the box (#1074): never dropped unseen. */
+    fun take(): List<Attachment> = sendable(items)
     /** The files of a message that could not be sent, back in front of those attached since: uploaded already, ready to send. */
     fun put(attachments: List<Attachment>) { items.addAll(0, attachments.map { Item(nextKey++, it.name, it.size, "ready", it) }) }
+
+    companion object {
+        /** Takes the uploaded files out of [items] and answers them; the others stay where they are. */
+        internal fun sendable(items: MutableList<Item>): List<Attachment> {
+            val sent = items.filter { it.attachment != null }
+            items.removeAll { it.attachment != null }
+            return sent.mapNotNull { it.attachment }
+        }
+    }
 }
 
 /**
