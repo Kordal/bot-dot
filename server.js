@@ -458,7 +458,7 @@ let helloUnchecked = false;
 function sawClaude(c) {
   const known = signedIn(c); // null: it could not tell (lib/setup.js)
   if (known === null) return c;
-  if (helloUnchecked || (claudeSeen !== null && claudeSeen !== known)) feed.emit('claude', { loggedIn: known });
+  if (helloUnchecked || (claudeSeen !== null && claudeSeen !== known)) feed.emit('claude', withBackAt({ loggedIn: known }));
   helloUnchecked = false;
   claudeSeen = known;
   B.claudeIs(known);
@@ -476,7 +476,11 @@ function saysHeld() {
 // What a "hello" says of the sign-in, from what one check said (signedIn): the check's answer; and when it could
 // not tell, "signed out" while botdot holds jobs and waiting messages as signed out (bots.js isClaudeOut, kept
 // over a restart), or the app would show no line while nothing runs. Null when botdot holds nothing.
-const helloClaude = (known) => (known !== null ? { loggedIn: known } : B.isClaudeOut() ? { loggedIn: false } : null);
+const helloClaude = (known) => (known !== null ? withBackAt({ loggedIn: known }) : B.isClaudeOut() ? { loggedIn: false } : B.limitBackAt() ? withBackAt({ loggedIn: true }) : null);
+// Over Claude's usage limit (#1090): when botdot goes on, as `backAt`. Signed in or not: the sign-out's line wins.
+function withBackAt(claude) { const at = B.limitBackAt(); return at ? { ...claude, backAt: at } : claude; }
+// The limit was reached, moved or reset: the apps are told, with the sign-in as the server last saw it.
+B.onLimit(() => feed.emit('claude', withBackAt({ loggedIn: claudeSeen ?? !B.isClaudeOut() })));
 // Checked once a minute: it costs a process.
 setInterval(() => { claudeStatus().catch(() => null); }, 60_000).unref();
 // The account's External Virtual PC that boat.dev can't save (#901): the feed's `boat_unsaved` with the whole list

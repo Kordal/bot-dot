@@ -342,6 +342,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     val server by app.store.version.value.collectAsState()
     val features = server?.features
     val signedOut by app.store.claude.signedOut.collectAsState()
+    val backAt by app.store.claude.backAt.collectAsState()
     val listState = rememberLazyListState()
     val chatKey = groupKey(groupId)
     // The plan of a member at work, above the message box (docs/api.md, "The plan"), folded as the owner left it here.
@@ -431,6 +432,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                     onStop = {},
                     onError = { scope.launch { snack.showSnackbar(it) } },
                     onSignIn = onSignIn.takeIf { signedOut },
+                    backAt = backAt,
                 )
             } },
         ) { pad ->

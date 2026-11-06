@@ -380,6 +380,9 @@ class JobThens {
 class ClaudeState {
     private val _signedOut = MutableStateFlow(false)
     val signedOut: StateFlow<Boolean> = _signedOut.asStateFlow()
+    // When the bots carry on after Claude's usage limit (#1090), or null: one line says it, as for a sign-out.
+    private val _backAt = MutableStateFlow<String?>(null)
+    val backAt: StateFlow<String?> = _backAt.asStateFlow()
     private var helloAt: String? = null
 
     private var says = false // this botdot's apps say it ([saysSignedOut]), as its "hello" named its features
@@ -390,13 +393,14 @@ class ClaudeState {
                 helloAt = ev.data.str("lastEventId").ifBlank { null }
                 says = saysSignedOut(ev.data.arr("features")?.mapNotNull { (it as? JsonPrimitive)?.content })
                 if (!says) _signedOut.value = false else claudeSignedOut(ev.data["claude"])?.let { _signedOut.value = it }
+                _backAt.value = if (says) claudeBackAt(ev.data["claude"]) else null
             }
-            "claude" -> if (says && !isReplayOf(ev.id, helloAt)) claudeSignedOut(ev.data)?.let { _signedOut.value = it }
+            "claude" -> if (says && !isReplayOf(ev.id, helloAt)) claudeSignedOut(ev.data)?.let { _signedOut.value = it; _backAt.value = claudeBackAt(ev.data) }
         }
     }
 
     /** Another botdot: forget what this one said. */
-    fun clear() { helloAt = null; says = false; _signedOut.value = false }
+    fun clear() { helloAt = null; says = false; _signedOut.value = false; _backAt.value = null }
 }
 
 /**
