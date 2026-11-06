@@ -204,7 +204,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
     // and what the yes started. The label says both. [ask]: the ask answered, whose chat then says so too.
     // Why a card's answer did not go (#1071), by its key: in the card itself, until the next Approve or Decline on it.
     var failures by remember { mutableStateOf(mapOf<String, String>()) }
-    fun decide(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, ask: Ask? = null, block: suspend () -> Answered?) = scope.launch {
+    suspend fun answer(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, ask: Ask? = null, block: suspend () -> Answered?) {
         failures = failures - key
         runCatching { block() }
             .onSuccess { said ->
@@ -213,6 +213,9 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 ask?.let { store.answeredAway.add(it, d.title, d.label) } // the chat the card stood in says what you answered
             }
             .onError { failures = failures + (key to (it.message ?: tr("That didn't work"))) }
+    }
+    fun decide(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, ask: Ask? = null, block: suspend () -> Answered?) = scope.launch {
+        answer(key, who, title, yes, label, ask, block)
         load()
         answered()
     }
@@ -248,9 +251,16 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                 actions = {
                     // AI jobs and memory changes need only a yes; a script, logins, payments and Bitwarden need you to look.
                     all.label?.let { label ->
+                        // Every answer at once, then the lists once (#1112): not a read of four lists after each.
                         Button(onClick = {
-                            all.jobs.forEach { (b, j) -> decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } }
-                            all.memory.forEach { m -> decide("m:${m.id}", memWho(m), memoryCard(m, features).title, true) { api!!.settleMemoryChange(m.id, true) } }
+                            scope.launch {
+                                coroutineScope {
+                                    all.jobs.forEach { (b, j) -> launch { answer(jobKey(b, j), jobWho(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } } }
+                                    all.memory.forEach { m -> launch { answer("m:${m.id}", memWho(m), memoryCard(m, features).title, true) { api!!.settleMemoryChange(m.id, true) } } }
+                                }
+                                load()
+                                answered()
+                            }
                         }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText), modifier = Modifier.padding(end = Space.s8)) { Text(label) }
                     }
                 })
