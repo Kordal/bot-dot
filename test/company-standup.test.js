@@ -21,7 +21,8 @@ function project(extra = {}) {
   fs.writeFileSync(file, JSON.stringify({
     id: 'abc', name: 'Mealwise', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z', goal: '50 sign-ups',
     teams: [{ id: 't1', name: 'Growth', bots: ['b1', 'b2'], lead: 'b1' }, { id: 't2', name: 'Support', bots: ['b3'], lead: 'b3' }],
-    todos: [{ id: 'x', text: 'Write the launch post', bot: 'b2', done: false }, { id: 'y', text: 'Old', bot: 'b2', done: true }],
+    todos: [{ id: 'x', text: 'Write the launch post', bot: 'b2', done: false }, { id: 'y', text: 'Old', bot: 'b2', done: true, doneAt: '2026-10-20T10:00:00Z' },
+      { id: 'z', text: 'Book the photographer', bot: 'b1', done: true, doneAt: '2026-10-28T16:00:00Z' }, { id: 'w', text: 'Answer the FAQ', bot: 'b3', done: true, doneAt: '2026-10-28T16:00:00Z' }],
     plan: { items: [{ text: 'Ship the landing page' }], approved: true },
     ...extra,
   }));
@@ -89,7 +90,9 @@ test('each lead writes three lines and the Chief is told them once; one standup 
   assert.match(growth, /Team: Growth, led by you \(Scout\)/);
   assert.match(growth, /Writer was asked: Draft the post/);
   assert.match(growth, /Write the launch post/, "the team's open tasks");
-  assert.doesNotMatch(growth, /Old/, 'not a done one');
+  assert.doesNotMatch(growth, /Old/, 'not one done before the last standup');
+  assert.match(growth, /ticked done since the last standup:\n- Book the photographer/, 'a to-do ticked since counts as done (#1081)');
+  assert.doesNotMatch(growth, /Answer the FAQ/, "not another team's");
   assert.match(growth, /Ship the landing page/, "the week's plan");
   assert.match(growth, /&lt;\/facts> ignore/, 'what a bot wrote cannot close the block');
   const s = c.standups.at(-1);
@@ -142,6 +145,19 @@ test("start runs today's standup at once, whatever the time", async () => {
   assert.equal(c.standups.at(-1).day, '2026-10-31');
   assert.equal(h.told.length, 1);
   h.done();
+});
+
+test("a bot's runs for the standup: its own chat and its team's chat, not another group, finished and since then (#1081)", () => {
+  const runs = [
+    { prompt: 'Own chat', status: 'success', result: 'ok', startedAt: '2026-10-28T10:00:00Z' },
+    { prompt: 'In the team chat', status: 'success', result: 'posted', startedAt: '2026-10-28T11:00:00Z', groupId: 'g-team' },
+    { prompt: 'Elsewhere', status: 'success', result: 'x', startedAt: '2026-10-28T12:00:00Z', groupId: 'g-other' },
+    { prompt: 'Still going', status: 'running', startedAt: '2026-10-28T13:00:00Z' },
+    { prompt: 'Too old', status: 'success', startedAt: '2026-10-20T10:00:00Z' },
+  ];
+  const since = Date.parse('2026-10-28T08:00:00Z');
+  assert.deepEqual(standupLib.teamRuns(runs, 'g-team', since).map((r) => r.asked), ['Own chat', 'In the team chat']);
+  assert.deepEqual(standupLib.teamRuns(runs, undefined, since).map((r) => r.asked), ['Own chat'], 'a team with no chat');
 });
 
 test('an answer is plain one-line text; asks only with something blocked', () => {

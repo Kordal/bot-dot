@@ -609,7 +609,7 @@
   "What shall we take on?": "Czym się zajmiemy?",
   "Goal, matter or site": "Cel, sprawa lub strona",
   "Monthly review": "Podsumowanie miesiąca",
-  "Monthly review: I want to change direction.": "Podsumowanie miesiąca: chcę zmienić kierunek.",
+  "Monthly review of {project}: I want to change direction.": "Podsumowanie miesiąca projektu {project}: chcę zmienić kierunek.",
   "New bot": "Nowy bot",
   "A new bot that ": "Nowy bot, który ",
   "Home": "Start",
@@ -1587,7 +1587,7 @@
   "Ahead": "Przed planem",
   "Check-in {date}": "Podsumowanie {date}",
   "Show as": "Pokaż jako",
-  "Day {n} check-in: I want to change direction.": "Podsumowanie dnia {n}: chcę zmienić kierunek.",
+  "Day {n} check-in of {project}: I want to change direction.": "Podsumowanie dnia {n} projektu {project}: chcę zmienić kierunek.",
   "Switched off {n} jobs of the project's bots.": {
     "one": "Wyłączono {n} zadanie botów projektu.",
     "few": "Wyłączono {n} zadania botów projektu.",

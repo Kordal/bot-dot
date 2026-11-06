@@ -159,9 +159,9 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
-                if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways) } } }) }
+                if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } }) }
                 // An ongoing project's monthly review (#925) stands where the 90-day line would.
-                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, ongoing = true) } }) }
+                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } }) }
                 if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m, _ -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
                 if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
                     add(Tile(cards.tileOf(s)) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -189,8 +189,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
-            c.checkin?.let { CheckinCard(ui, it, ways) }
-        } else if (c.ongoing) c.checkin?.let { CheckinCard(ui, it, ways, ongoing = true) }
+            c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) }
+        } else if (c.ongoing) c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }, ongoing = true) }
         val goals = CompanyFloor.DISPLAY in features
         if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features))
         // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
@@ -255,7 +255,7 @@ private fun DaysLine(c: Company, day: Int) {
 }
 
 @Composable
-private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays, ongoing: Boolean = false) {
+private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays, project: String, ongoing: Boolean = false) {
     val p = LocalPaper.current
     var busy by remember(k.day) { mutableStateOf(false) }
     fun answer(decision: String) {
@@ -266,7 +266,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays, ongoing
             runCatching { a.answerCheckin(k.day, decision) }.onSuccess { d ->
                 ui.took(d.company)
                 if (decision == "stop") ui.tell(trn(d.paused, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."))
-                if (decision == "change") ways.onChiefSay((if (ongoing) tr("Monthly review: I want to change direction.") else tr("Day {n} check-in: I want to change direction.", "n" to k.day)) + " ")
+                if (decision == "change") ways.onChiefSay((if (ongoing) tr("Monthly review of {project}: I want to change direction.", "project" to project) else tr("Day {n} check-in of {project}: I want to change direction.", "n" to k.day, "project" to project)) + " ")
             }.onFailure { ui.tell(it.message) }
             busy = false
         }

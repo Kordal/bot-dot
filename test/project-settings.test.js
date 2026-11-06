@@ -63,7 +63,7 @@ test('archive hides nothing from the API but marks it, unarchive takes the mark 
 
 test('botdot asks for no week’s plan of an archived project, and does once it is unarchived', async () => {
   writeData(path.join(srv.data, 'company.json'), { projects: [
-    { id: 'a1', name: 'Kept', start: 'kept.app', kind: 'site', phase: 'running', startedAt: new Date().toISOString(), archived: true },
+    { id: 'a1', name: 'Kept', start: 'kept.app', kind: 'site', phase: 'running', startedAt: new Date().toISOString(), archived: true, teams: [{ id: 't1', name: 'Growth', bots: ['b1'], lead: 'b1' }] }, // a team: a project with none gets no plan (#1085)
   ] });
   await new Promise((r) => setTimeout(r, 1200)); // a few of the looks, every 300 ms
   assert.equal((await one('a1')).planAsked, undefined, 'nothing asked for an archived project');

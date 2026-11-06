@@ -54,7 +54,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.locator('[data-cf-plan-change]').click();
         await page.locator('#cf-change input').fill('Fewer interviews, more sign-ups');
         await page.locator('#cf-change input').press('Enter');
-        await waitFor(async () => (await srv.api('/chief')).data.chats.some((x) => x.title === 'Project'), { what: 'the Chief told of the change' });
+        await waitFor(async () => (await srv.api('/chief')).data.chats.some((x) => x.title === 'Mealwise'), { what: 'the Chief told of the change, in the project\'s own chat' });
         await page.locator('[data-cf-plan-approve]').click();
         await page.locator('.cf-plan.approved').waitFor();
         assert.equal((await srv.api('/company')).data.company.plan.approved, true);
@@ -69,7 +69,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         await page.locator('.cf-checkin h2', { hasText: 'Day 60 check-in' }).waitFor({ timeout: 20000 });
         await page.locator('[data-cf-checkin="change"]').click();
         await page.locator('#view-chief textarea').waitFor();
-        assert.equal(await page.locator('#view-chief textarea').inputValue(), 'Day 60 check-in: I want to change direction. ');
+        assert.equal(await page.locator('#view-chief textarea').inputValue(), 'Day 60 check-in of Mealwise: I want to change direction. ');
         assert.deepEqual((await srv.api('/company')).data.company.checkins.map((k) => k.decision), ['keep', 'change']);
       } else {
         const floor = await page.locator('.cf-floor').boundingBox();
