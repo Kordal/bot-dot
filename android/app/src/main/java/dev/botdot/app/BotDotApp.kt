@@ -21,6 +21,7 @@ import dev.botdot.app.data.Store
 import dev.botdot.app.feed.Feed
 import dev.botdot.app.feed.Notifier
 import dev.botdot.app.feed.newChats
+import dev.botdot.app.feed.queued
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -229,8 +230,9 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
         val bundled = runCatching { FigureDef.parse(assets.open("figure.json").bufferedReader().use { it.readText() }) }.getOrNull()
         figure.value = bundled
         scope.launch { followFigure(bundled) }
+        val toNotify = feed.events.queued(scope) // its waits below hold up nothing else (#1079)
         scope.launch(notifying) {
-            feed.events.collect { ev ->
+            for (ev in toNotify) {
                 // "hello" brings back what waits for you, each with its bot's head: the bots' hats are wanted for that.
                 if (ev.type == "hello" && store.bots.value.value == null) withTimeoutOrNull(3_000) { store.bots.value.first { it != null } }
                 // A question asked in a group is titled with the group's name: the groups are wanted for that.

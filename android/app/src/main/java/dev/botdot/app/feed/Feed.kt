@@ -5,9 +5,11 @@ import dev.botdot.app.data.Api
 import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.FeedEvent
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -106,4 +108,12 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
         /** botdot's heartbeat on the feed, every 20 s (docs/api.md, "The live feed"); not passed on to [events]. */
         const val PING = "ping"
     }
+}
+
+/**
+ * Every value, in order, for a listener that may take its time (the notifier waits up to 3 s for the bots on hello):
+ * it never holds up the feed and its other listeners, which a SharedFlow does for its slowest one (#1079).
+ */
+fun <T> SharedFlow<T>.queued(scope: CoroutineScope): ReceiveChannel<T> = Channel<T>(Channel.UNLIMITED).also { ch ->
+    scope.launch(start = CoroutineStart.UNDISPATCHED) { collect { ch.send(it) } }
 }
