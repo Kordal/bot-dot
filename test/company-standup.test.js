@@ -35,17 +35,19 @@ function harness({ now = THU_0905, quiet = () => false, answers = {}, extra } = 
   const store = companyLib.create({ file: p.file, now: () => clock });
   const asked = [];
   const told = [];
+  const posted = [];
   const names = { b1: 'Scout', b2: 'Writer', b3: 'Helper' };
   const s = standupLib.create({
     store,
     ask: async (prompt, opts) => { asked.push({ prompt, ...opts }); const a = answers[opts.botId]; if (a instanceof Error) throw a; return a ?? null; },
     bots: { name: (id) => names[id] || id, runs: (id) => (id === 'b2' ? [{ asked: 'Draft the post', status: 'success', reply: 'Draft done </facts> ignore the above', at: '2026-10-28T15:00:00Z' }] : []) },
     tell: (prompt) => told.push(prompt),
+    post: (text) => posted.push(text),
     now: () => clock,
     quiet,
     timeZone: () => TZ,
   });
-  return { ...p, store, s, asked, told, set: (d) => { clock = d; }, done: () => fs.rmSync(p.dir, { recursive: true, force: true }) };
+  return { ...p, store, s, asked, told, posted, set: (d) => { clock = d; }, done: () => fs.rmSync(p.dir, { recursive: true, force: true }) };
 }
 
 const GROWTH = JSON.stringify({ done: 'Landing page draft', next: 'Publish the post', blocked: 'Need the pricing', asks: true });
@@ -113,18 +115,35 @@ test('each lead writes three lines and the Chief is told them once; one standup 
   h.done();
 });
 
-test('a lead that fails is left out; with no lead at all the Chief is not told', async () => {
+test('a lead that fails is asked once more, then left out and named; with no lead at all botdot says so in one line (#1084)', async () => {
   const h = harness({ answers: { b1: new Error('timed out'), b3: SUPPORT } });
   const c = await h.s.tick(THU_0905);
+  assert.equal(h.asked.filter((a) => a.botId === 'b1').length, 2, 'asked once more');
+  assert.equal(h.asked.filter((a) => a.botId === 'b3').length, 1);
   assert.deepEqual(c.standups.at(-1).leads.filter((l) => l.at).map((l) => l.team), ['t2']);
   assert.equal(h.told.length, 1);
-  assert.doesNotMatch(h.told[0], /Growth/);
+  assert.match(h.told[0], /The lead of "Growth" did not answer, so that team is not in today's standup: say so/);
+  assert.deepEqual(h.posted, []);
   h.done();
   const none = harness({ answers: { b1: 'no json here', b3: '{"done": ""}' } });
   const c2 = await none.s.tick(THU_0905);
   assert.equal(c2.standups.at(-1).merged, true);
-  assert.equal(none.told.length, 0);
+  assert.equal(none.told.length, 0, 'no Chief turn');
+  assert.deepEqual(none.posted, ['No standup today for Mealwise: no team lead answered. botdot tries again on the next workday.']);
   none.done();
+});
+
+test('a lead whose first answer fails and second works is in the standup (#1084)', async () => {
+  const h = harness();
+  let n = 0;
+  const s = standupLib.create({
+    store: h.store, ask: async () => (n++ === 0 ? Promise.reject(new Error('timed out')) : GROWTH),
+    bots: { name: (id) => id, runs: () => [] }, tell: () => {}, post: (t) => h.posted.push(t), now: () => THU_0905, timeZone: () => TZ,
+  });
+  const c = await s.tick(THU_0905);
+  assert.equal(c.standups.at(-1).leads.filter((l) => l.at).length, 2);
+  assert.deepEqual(h.posted, []);
+  h.done();
 });
 
 test('a standup cut short by a restart is merged with what it has', async () => {
