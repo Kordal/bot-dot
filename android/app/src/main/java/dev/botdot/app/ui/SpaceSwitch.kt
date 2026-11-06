@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +62,19 @@ import dev.botdot.app.data.tr
 internal class SpaceWays(val list: List<Spaces.Space>, val current: String, val pick: (String) -> Unit, val new: () -> Unit, val on: Boolean = list.isNotEmpty(), val newBot: () -> Unit = {}) {
     val shown: Boolean get() = on
     val project: Spaces.Space? get() = list.firstOrNull { it.id == current }
+}
+
+/**
+ * The same [SpaceWays] while the spaces, the one on screen and [on] are the same (#1114): a bot that starts or ends
+ * work changes the bot list, not the spaces, and a new SpaceWays then would make the window's NavHost build its
+ * graph again. The taps reach the latest [pick], [new] and [newBot].
+ */
+@Composable
+internal fun rememberSpaceWays(list: List<Spaces.Space>, current: String, on: Boolean, pick: (String) -> Unit, new: () -> Unit, newBot: () -> Unit): SpaceWays {
+    val pickNow by rememberUpdatedState(pick)
+    val newNow by rememberUpdatedState(new)
+    val newBotNow by rememberUpdatedState(newBot)
+    return remember(list, current, on) { SpaceWays(list, current, pick = { pickNow(it) }, new = { newNow() }, on = on, newBot = { newBotNow() }) }
 }
 
 internal const val SPACE_RAIL = "space-rail"

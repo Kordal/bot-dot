@@ -14,10 +14,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -31,7 +33,14 @@ import kotlinx.serialization.json.intOrNull
  * only while something looks at that part (a screen, or the background connection's notification). A part nobody
  * looks at is refreshed when someone does again.
  */
-class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>) {
+class Store(
+    private val scope: CoroutineScope,
+    private val api: StateFlow<Api?>,
+    // The app is in front (BotDotApp.resumed). Behind, only the background notification looks: a part that changed is
+    // read again once in [quietMs], or at once when the app comes to front, not after every burst of events (#1115).
+    private val front: StateFlow<Boolean> = MutableStateFlow(true),
+    private val quietMs: Long = QUIET_MS,
+) {
 
     /** One thing botdot has, as the app last heard it (null: not loaded yet). */
     inner class Part<T : Any>(private val fetch: suspend (Api) -> T) {
@@ -49,7 +58,11 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
         init {
             scope.launch {
                 for (soon in kicks) {
-                    if (soon) delay(BURST_MS)
+                    if (soon) {
+                        if (front.value) delay(BURST_MS)
+                        else withTimeoutOrNull(quietMs) { front.first { it } }
+                    }
+                    kicks.tryReceive() // a change said while it waited: this read covers it
                     refresh()
                 }
             }
@@ -329,6 +342,7 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
 
     companion object {
         private const val BURST_MS = 250L
+        private const val QUIET_MS = 30_000L
     }
 }
 
