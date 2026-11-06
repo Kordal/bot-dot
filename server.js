@@ -406,6 +406,8 @@ function watchSoon() {
 const WATCH_OWN = new Set(['login_request', 'login_request_closed', 'bitwarden', 'approvals', 'update_available']); // what it emits itself
 feed.subscribe((ev) => { if (!WATCH_OWN.has(ev.type)) watchSoon(); });
 loginRequests.onChange(watchSoon);
+// A bot's run that waits for the owner's login or card says so on the feed, as one that waits for an OK (#1095).
+loginRequests.onRunWaits((r, on) => feed.emitRun('run_waits', B.groupOfRun(r.runId), { chat: `bot:${r.botId}`, botId: r.botId, runId: r.runId, ...(on ? { waitingFor: 'ok' } : {}) }));
 watchForFeed(); // the starting point, so the first change is noticed
 setInterval(watchForFeed, 30_000).unref();
 // Claude's sign-in, wherever the server learns it: the feed's `claude` event when it changed, whether or not an
