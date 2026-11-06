@@ -159,7 +159,7 @@ function following({ row = true } = {}) {
     actionChip: (a) => `<chip:${a.text}>`, wireActions() {}, wireChoices() {}, refresh() {}, reportBubble: () => '<file>', chiefBubble: (m) => `<reply:${m.text || m.error}>`,
     sendFrom() {}, sendToChief() {},
   });
-  vm.runInContext(`${cut('const chiefActivity = ', '// The Chief\'s replies that are going on')}\n${cut('function followChief(id) {', '// ---------- a bot\'s conversation ----------')}\nthis.followChief = followChief;`, ctx);
+  vm.runInContext(`${cut('// The owner reads at the end of the Chief\'s chat', 'async function showChat(id) {')}\n${cut('const chiefActivity = ', '// The Chief\'s replies that are going on')}\n${cut('function followChief(id) {', '// ---------- a bot\'s conversation ----------')}\nthis.followChief = followChief;`, ctx);
   ctx.followChief('c1');
   const emit = (ev) => streams[streams.length - 1].onmessage({ data: JSON.stringify(ev) });
   return { ctx, state, did, streams, pending, t, emit };
@@ -184,6 +184,17 @@ test('web: what the Chief does while it replies goes to the line, and the reply 
   assert.equal(f.streams[0].closed, true);
   assert.equal(f.state.chatStream, null);
   assert.deepEqual(f.did.shown, []);
+});
+
+test('web: a finished reply scrolls only an owner who reads at the end, not one who reads back up (#1073)', () => {
+  const up = following();
+  Object.assign(up.t, { scrollHeight: 3000, scrollTop: 400, clientHeight: 600 });
+  up.emit({ type: 'done', message: { role: 'chief', text: 'Done.' } });
+  assert.equal(up.t.scrollTop, 400, 'reading back up: it stays');
+  const end = following();
+  Object.assign(end.t, { scrollHeight: 3000, scrollTop: 2350, clientHeight: 600 });
+  end.emit({ type: 'done', message: { role: 'chief', text: 'Done.' } });
+  assert.equal(end.t.scrollTop, 3000, 'at the end: it follows');
 });
 
 test('web: a reply that was stopped or failed ends the line the same way', () => {
@@ -309,7 +320,7 @@ test('web: a chat that is read takes its reply that is going on, and what waits,
     setSendBusy: (f, busy) => did.busy.push(!!busy), followChief: (id) => did.followed.push(id), stopChief() {},
     queuedList: (list) => (Array.isArray(list) ? list : []).filter((q) => q && typeof q.id === 'string' && q.id),
   });
-  vm.runInContext(`${cut('const chiefActivity = ', '// The Chief\'s replies that are going on')}\n${cut('async function showChat(id) {', '// Stop the Chief\'s reply in a chat')}\nthis.showChat = showChat;`, ctx);
+  vm.runInContext(`${cut('// The owner reads at the end of the Chief\'s chat', 'async function showChat(id) {')}\n${cut('const chiefActivity = ', '// The Chief\'s replies that are going on')}\n${cut('async function showChat(id) {', '// Stop the Chief\'s reply in a chat')}\nthis.showChat = showChat;`, ctx);
   await ctx.showChat('c1');
   assert.equal(ctx.chiefTurns.get('c1'), 'Waiting for Web Surfer');
   assert.deepEqual(plain(ctx.chiefQueued.get('c1')).map((q) => q.id), ['q7']);
@@ -320,6 +331,18 @@ test('web: a chat that is read takes its reply that is going on, and what waits,
   assert.equal(ctx.chiefTurns.has('c1'), false);
   assert.deepEqual(plain(ctx.chiefQueued.get('c1')), []);
   assert.deepEqual(did.followed, ['c1']);
+  // Drawn again while the owner reads back up (a bot's report, a /btw answer, #1073): it stays where they read.
+  Object.assign(t, { scrollHeight: 3000, scrollTop: 400, clientHeight: 600 });
+  await ctx.showChat('c1');
+  assert.equal(t.scrollTop, 400);
+  // At the end it follows; another chat opens at its end.
+  t.scrollTop = 2350;
+  await ctx.showChat('c1');
+  assert.equal(t.scrollTop, 3000);
+  t.scrollTop = 0;
+  chat = { ...chat, id: 'c2' };
+  await ctx.showChat('c2');
+  assert.equal(t.scrollTop, 3000);
 });
 
 // ---------- Stop and who ended it ----------
