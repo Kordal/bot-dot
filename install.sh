@@ -591,8 +591,9 @@ offsite_repo() {
   fi
   get_env "$ENV" BOT_DOT_OFFSITE_REPO
 }
-# offsite_said STATE [FIELDS]: status/offsite.json.
-offsite_said() { write_status offsite.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${2:+,$2}}"; }
+# offsite_said STATE [FIELDS]: status/offsite.json, with the machine's instance, the host its snapshots carry, so that
+# whoever restores the machine elsewhere (the console's OFFSITE-RESTORE line 2) knows which ones are its.
+offsite_said() { write_status offsite.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${INSTANCE:+,\"instance\":\"$INSTANCE\"}${2:+,$2}}"; }
 # offsite_last: the last success offsite.json names, as its field after a comma, or nothing.
 offsite_last() { sed -n 's/.*\("lastSuccess":"[0-9TZ:-]*"\).*/,\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true; }
 

@@ -178,6 +178,7 @@ test('the off-site backup streams every part of a set into the repository, made 
 
   const said = status(done, 'offsite.json');
   assert.equal(said.state, 'done');
+  assert.equal(said.instance, forget.match(/--host ([0-9a-f]{8})/)[1], 'the instance its snapshots carry, for a restore elsewhere');
   assert.equal(said.bytesAdded, 1000);
   assert.equal(said.lastSuccess, said.finished);
   assert.ok(said.started <= said.finished);
