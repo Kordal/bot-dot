@@ -5,7 +5,9 @@
 function followFeed() {
   if (!window.EventSource) return;
   let timer = null;
-  const soon = () => { clearTimeout(timer); timer = setTimeout(() => { if (!$('#modal').open) refresh(); }, 300); };
+  // Under an open dialog nothing is drawn (it would wipe what is typed in it): the refresh is owed, and boot.js reads
+  // it when the dialog closes (#1067).
+  const soon = () => { clearTimeout(timer); timer = setTimeout(() => { if ($('#modal').open) state.refreshOwed = true; else refresh(); }, 300); };
   const es = new EventSource('/api/events?guarded=1'); // with the guarded memory changes: each has a card here
   state.feed = es;
   es.onopen = () => { setAway(false); state.skillLibAt = 0; soon(); }; // back after a break: the line goes, and catch up (the skills too)
