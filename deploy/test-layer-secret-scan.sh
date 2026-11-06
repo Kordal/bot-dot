@@ -8,7 +8,7 @@ here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 # Keep this identical to the pinned scanner used by images.yml.
-scanner=aquasec/trivy@sha256:62b1e65e8869bc4b4c6aa4fa2b21595256c7c2f6018a9d9ad61caf87187c1969
+scanner=aquasec/trivy@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb
 mkdir -p "$work/cache"
 
 # image <name> <created_by of layer 1> [<created_by of layer 2> ...]: $work/<name>.tar from the folders
