@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { withBob, status } = require('./installer-helpers');
+const { withBob, status, rerun, installer } = require('./installer-helpers');
 
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const members = (tar) => spawnSync('tar', ['-tf', tar], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
@@ -148,6 +148,61 @@ test('a request root didn\'t make is refused', { skip: process.getuid?.() !== 0 
   assert.equal(status(done, 'backup.json').state, 'refused');
   assert.equal(status(done, 'restore.json').state, 'refused');
   assert.ok(!fs.existsSync(m.set), 'no set was made');
+});
+
+test('a request of root\'s that has a second name is refused, as a hard link the front door made to it would be', (t) => {
+  const m = machine(t);
+  const requests = path.join(m.dir, 'front-door', 'requests');
+  for (const name of ['BACKUP', 'RESTORE']) {
+    const other = path.join(m.dir, `elsewhere-${name}`);
+    fs.writeFileSync(other, '');
+    fs.linkSync(other, path.join(requests, name));
+  }
+  const done = m.step('bob');
+  assert.equal(status(done, 'backup.json').state, 'refused');
+  assert.equal(status(done, 'restore.json').state, 'refused');
+  assert.ok(!fs.existsSync(m.set), 'no set was made');
+  assert.ok(fs.existsSync(path.join(m.dir, 'elsewhere-RESTORE')), 'only the name in requests is removed');
+});
+
+// The front door runs as its own user in the group of REQUESTS. Root's requests (written by the console's agent, 600)
+// sit there beside the front door's own.
+test('the requests folder is sticky after an install and an update, so the front door can rename or remove no request of root\'s', { skip: process.getuid?.() !== 0 && 'acting as the front door\'s user needs root' }, (t) => {
+  const first = rerun(t);
+  const requests = path.join(first.dir, 'front-door', 'requests');
+  assert.equal(fs.statSync(requests).mode & 0o7777, 0o1770);
+  fs.chmodSync(requests, 0o770);
+  const again = installer(t, { again: first, dotenv: '', args: ['--update'] });
+  assert.equal(again.status, 0, `${again.said}\n${again.stderr}`);
+  assert.equal(fs.statSync(requests).mode & 0o7777, 0o1770, 'an update sets it on a machine installed before');
+
+  // As the front door's user (the stand-in chown changed nothing, so the folder is given its group here, as on a
+  // machine), with the folders above it open to pass through.
+  const [uid, gid] = again.env.FRONT_DOOR_USER.split(':').map(Number);
+  fs.chownSync(requests, 0, gid);
+  for (let d = path.dirname(requests); d.startsWith(first.top); d = path.dirname(d)) fs.chmodSync(d, fs.statSync(d).mode | 0o011);
+  const asDoor = (...args) => spawnSync(args[0], args.slice(1), { uid, gid, encoding: 'utf8' });
+  const at = (name) => path.join(requests, name);
+  fs.writeFileSync(at('BACKUP'), '', { mode: 0o600 });
+  fs.writeFileSync(at('.agent-UPDATE'), 'sha256:x\n', { mode: 0o600 });
+  assert.equal(asDoor('sh', '-c', `printf 'mine' > '${at('ann')}'`).status, 0, 'the front door still asks for accounts');
+  for (const [what, args] of [
+    ['rename root\'s BACKUP to RESTORE', ['mv', at('BACKUP'), at('RESTORE')]],
+    ['rename root\'s file before it is in place', ['mv', at('.agent-UPDATE'), at('RESTORE')]],
+    ['put its own file over root\'s', ['mv', at('ann'), at('BACKUP')]],
+    ['remove root\'s', ['rm', '-f', at('BACKUP')]],
+  ]) {
+    const r = asDoor(...args);
+    assert.notEqual(r.status, 0, `the front door could ${what}`);
+    assert.match(r.stderr, /Operation not permitted/, what);
+  }
+  assert.deepEqual(fs.readdirSync(requests).sort(), ['.agent-UPDATE', 'BACKUP', 'ann']);
+  assert.equal(fs.statSync(at('BACKUP')).uid, 0);
+  assert.equal(asDoor('rm', at('ann')).status, 0, 'its own it may remove');
+  // Without the sticky bit the same rename goes through: what an install before this one left.
+  fs.chmodSync(requests, 0o770);
+  assert.equal(asDoor('mv', at('BACKUP'), at('RESTORE')).status, 0);
+  assert.equal(fs.statSync(at('RESTORE')).uid, 0, 'still root\'s, so by owner alone it passed as root\'s');
 });
 
 // A set from this machine, then the machine as a fresh install finds it: the stand-in Docker writes into a bind folder

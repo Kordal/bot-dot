@@ -2285,9 +2285,12 @@ chmod 700 "$DOOR/data"
 # The keys the install took (above), the front door's to take.
 [ ! -f "$DOOR/data/install-keys.json" ] || { chown "$(id -u "$DOOR_USER"):$(id -g "$DOOR_USER")" "$DOOR/data/install-keys.json"; chmod 600 "$DOOR/data/install-keys.json"; }
 # Where the front door asks for new accounts: it may add and remove files there, and root's step reads their names.
+# Sticky, so the front door may rename or remove only its own files there, never a request root made (the console's
+# agent writes BACKUP, RESTORE, KEYS and others there as root): without it the front door could rename root's BACKUP to
+# RESTORE, which by_root would take as root's. On an update too, for a machine installed before.
 mkdir -p "$REQUESTS"
 chown "0:$(id -g "$DOOR_USER")" "$REQUESTS"
-chmod 770 "$REQUESTS"
+chmod 1770 "$REQUESTS"
 # What root's step says back: the version installed and the last update. Only root writes there.
 mkdir -p "$DOOR/status"
 chown 0:0 "$DOOR/status"
@@ -3005,8 +3008,9 @@ RESTORE=RESTORE
 
 # set_said backup|restore STATE [FIELDS]: status/backup.json or status/restore.json.
 set_said() { write_status "$1.json" "{\"state\":\"$2\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${3:+,$3}}"; }
-# by_root FILE: FILE was made by root, as BOT_DOT_DIR was, and not by the front door.
-by_root() { [ "$(stat -c %u -- "$1" 2>/dev/null)" = "$(stat -c %u -- "$DIR")" ]; }
+# by_root FILE: FILE was made by root, as BOT_DOT_DIR was, and not by the front door: a regular file, not a link, owned
+# as BOT_DOT_DIR is, with one name only (a hard link the front door made to a file of root's has two).
+by_root() { [ -f "$1" ] && [ ! -L "$1" ] && [ "$(stat -c '%u %h' -- "$1" 2>/dev/null)" = "$(stat -c %u -- "$DIR") 1" ]; }
 # set_tar FOLDER FILE [TAR OPTION…]: FOLDER's contents in FILE. A file that changed while it was read (a running
 # account) is no failure; anything else is.
 set_tar() {
