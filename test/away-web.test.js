@@ -161,12 +161,12 @@ test('web: the background refresh shows no toast while botdot is away; the line 
   const { ctx, shown } = page(noAnswer);
   const toasts = [];
   Object.assign(ctx, { state: {}, Date, toast: (...a) => toasts.push(a), loadSkillLib: () => Promise.resolve(), loadMentionPages: () => null, loadMentionProjects: () => null, loadGroups: () => Promise.resolve([]), fresh: { check() {} } });
-  vm.runInContext(`${cut('async function refresh()', 'function render()')}\nthis.refresh = refresh;`, ctx);
+  vm.runInContext(`${cut('// ---------- data ----------', 'function render()')}\nthis.refresh = refresh;`, ctx);
   await ctx.refresh();
   await ctx.refresh();
   assert.deepEqual(toasts, []);
   assert.deepEqual(shown(), [true, true]);
-  assert.doesNotMatch(cut('async function refresh()', 'function render()'), /toast\(/);
+  assert.doesNotMatch(cut('// ---------- data ----------', 'function render()'), /toast\(/);
 });
 
 test('web: something the owner did still says its sentence, now botdot\'s own', async () => {
