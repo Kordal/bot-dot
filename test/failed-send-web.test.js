@@ -57,6 +57,25 @@ test('web: a message that goes leaves the box empty, with no line', async () => 
   assert.deepEqual(b.said.toasts, []);
 });
 
+test('web: a file whose upload failed stays in the box after Send, and the message goes with the others (#1074)', async () => {
+  const sent = [];
+  const b = box(async (text, files) => { sent.push([text, names(files)]); });
+  b.type('Here are both');
+  b.attach('photo.jpg');
+  b.form._files.push({ key: 'scan', name: 'scan.pdf', size: 10, status: 'failed' });
+  await b.submit();
+  assert.deepEqual(sent, [['Here are both', ['photo.jpg']]]);
+  assert.deepEqual(b.files(), ['scan.pdf'], 'the failed chip is still there');
+  assert.match(b.list.innerHTML, /\[scan\.pdf\]/);
+  // A send that then fails puts the sent file back in front of it.
+  const back = box(async () => { throw unreached(); });
+  back.type('Again');
+  back.attach('photo.jpg');
+  back.form._files.push({ key: 'scan', name: 'scan.pdf', size: 10, status: 'failed' });
+  await back.submit();
+  assert.deepEqual(back.files(), ['photo.jpg', 'scan.pdf']);
+});
+
 test('web: a send that got no answer puts the text and the files back, ready to send, and says why above the box', async () => {
   const b = box(async () => { throw unreached(); });
   b.type('File the invoices');
