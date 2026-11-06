@@ -2951,6 +2951,15 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-cal-row.done .cf-row-text { color: var(--faint); text-decoration: line-through; }
 .cf-cal-when { flex: none; width: 72px; font: var(--fs-12) var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-cal-rep { flex: none; width: 15px; height: 15px; fill: none; stroke: var(--faint); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+/* The Files tile (project-files): the folder's newest files; a click opens the folder, a row its file. */
+.cf-files { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--sp-8); padding: var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--panel); cursor: pointer; min-width: 0; }
+.cf-files .cf-room-head .cf-dot { --c: #e8b44a; }
+.cf-files-rows { display: flex; flex-direction: column; min-width: 0; }
+.cf-files-row { display: flex; align-items: center; gap: var(--sp-12); min-height: 40px; padding: 0 var(--sp-4); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; color: var(--text); font: inherit; font-size: var(--fs-14); text-align: left; cursor: pointer; min-width: 0; }
+.cf-files-row:hover { background: var(--sunk); }
+.cf-files-row svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linejoin: round; }
+.cf-files-row .cf-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-files-when { flex: none; font-size: var(--fs-12); color: var(--muted); }
 .cf-cal .cf-you svg, .cf-cal-modal .cf-you svg, .cf-month-head svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .cf-month-head svg { width: 18px; height: 18px; }
 /* The month: its days on the left, the picked day's items and Add an event on the right. */

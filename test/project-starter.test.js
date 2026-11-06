@@ -61,7 +61,7 @@ test('Create makes the ticked objectives and cards, and the board shows what it 
   const r = await srv.api(at('/company/start', pid), { method: 'POST' });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual(r.data.objectives.map((o) => [o.name, o.target, o.current]), [['All VMs up', 0, 0], ['Backups every night', 7, 0]]);
-  assert.deepEqual(r.data.board, ['goals', 'teams']);
+  assert.deepEqual(r.data.board, ['files', 'goals', 'teams']);
   assert.equal(r.data.starter, undefined);
   assert.deepEqual(r.data.cards.map((c) => c.ask), ['VMs up on Proxmox', 'Free space on the NAS']);
   assert.ok(r.data.cards.every((c) => c.state !== 'asking' || (Array.isArray(c.questions) && !c.questions.length)), 'no questions: the setup answered them');
@@ -84,12 +84,12 @@ test('the To-do joins the board when Create puts a first item in the plan; nothi
   r = await srv.api(at('/company', id), { method: 'PATCH', body: { starter: { goals: r.data.starter.goals.map((g) => ({ ...g, on: false })) } } });
   r = await srv.api(at('/company/start', id), { method: 'POST' });
   assert.deepEqual(r.data.objectives, []);
-  assert.deepEqual(r.data.board, ['teams', 'todo']);
+  assert.deepEqual(r.data.board, ['files', 'teams', 'todo']);
   assert.deepEqual(r.data.cards, []);
 });
 
 test('Start from scratch still starts empty', async () => {
   const r = await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Garden' } });
-  assert.deepEqual(r.data.board, []);
+  assert.deepEqual(r.data.board, ['files']);
   assert.deepEqual(r.data.objectives, []);
 });

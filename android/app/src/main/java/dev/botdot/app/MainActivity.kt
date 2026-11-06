@@ -395,6 +395,7 @@ class MainActivity : ComponentActivity() {
                             onChiefSay = { app.chiefWords = it; open("chief/new") },
                             onTeam = { open("group/$it") },
                             onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
+                            onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
                             onGoalChat = { open("chief/$it") },
                         ), spaces = spaceWays, railed = railed, field = false)
                     }
@@ -496,6 +497,7 @@ class MainActivity : ComponentActivity() {
                                 onChiefSay = { app.chiefWords = it; open("chief/new") },
                                 onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
                                 onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
+                            onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
                                 onGoalChat = { dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
                             ), spaces = spaceWays)
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->

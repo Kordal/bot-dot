@@ -264,7 +264,8 @@
     const cards = window.ProjectCards ? ProjectCards.html(c) : '';
     const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
     // The teams are rows of keys under the board (#838, teamsHTML); the bot the Chief suggests stays on it.
-    return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}</div>`;
+    const files = Company.onBoard(c, 'files') && c.phase === 'running' && Company.files && (state.features || []).includes('project-files') ? Company.files.tile(c) : '';
+    return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}${files}</div>`;
   }
 
   // ---------- the teams (#838, ADR 132): a row each under the board, in place of the floor's desks ----------
@@ -459,6 +460,7 @@
     if (box) wireNeedRows(box, asks, openNeed, openNeedInChat);
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
+    Company.files?.wire(root); // the Files tile (company-files-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
     const waits = projectNeeds(c);
     $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
@@ -633,5 +635,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [Company.calendar?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
+  Company.steps.sig = () => [Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
 })();

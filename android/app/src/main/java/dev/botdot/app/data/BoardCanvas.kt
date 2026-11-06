@@ -26,6 +26,7 @@ object BoardCanvas {
         "new-team" to Kind(140, 56, 392, 64),
         "calendar" to Kind(420, 260, 792, 340),
         "todo" to Kind(280, 280, 392, 560),
+        "files" to Kind(280, 120, 392, 260),
         "card" to Kind(240, 140, 392, 220),
         "new-card" to Kind(200, 56, 392, 64),
     )

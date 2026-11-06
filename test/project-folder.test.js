@@ -216,3 +216,26 @@ test("deleting a project keeps its folder for its bots on the computer, or delet
   assert.ok(!(await srv.api('/projects')).data.projects.some((p) => p.name === 'Oakwood'));
   docker.answer('exec.txt', null);
 });
+
+test("the board's Files tile lists the folder's newest files while the computer runs, and never starts it", async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('project-files'));
+  writeData(path.join(srv.data, 'company.json'), { id: 'f1', name: 'Fernhill Shop', start: 'x', kind: 'idea', phase: 'running', startedAt: new Date().toISOString() });
+  docker.answer('inspect.json', null);
+  const before = execs().length;
+  let r = await srv.api('/company/files');
+  assert.deepEqual([r.status, r.data], [200, { state: 'off', files: [] }]);
+  assert.equal(execs().length, before, 'nothing run while it is off');
+  assert.ok(!docker.calls().some((x) => x.args[0] === 'start' || x.args[0] === 'run'), 'the computer is not started');
+  docker.answer('inspect.json', RUNNING);
+  docker.answer('exec.txt', '1762412700.5/5120/hetzner-auction.md\0001762400000.0/90/infra/notes.md\0001762300000.0/1/../escape\0');
+  r = await srv.api('/company/files');
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data, { state: 'on', files: [
+    { name: 'hetzner-auction.md', path: 'hetzner-auction.md', size: 5120, at: 1762412700500 },
+    { name: 'notes.md', path: 'infra/notes.md', size: 90, at: 1762400000000 },
+  ] });
+  const script = execs().at(-1).args.join(' ');
+  assert.match(script, /\/workspace\/projects\/Fernhill Shop/);
+  assert.match(script, /-name node_modules/);
+  assert.equal((await srv.asChief('/company/files')).status, 403);
+});
