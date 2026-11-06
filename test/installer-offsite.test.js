@@ -246,11 +246,23 @@ test('restic is the pinned release, checked by its sha256: a download that doesn
   const done = m.offsite({ bins: { curl, restic: null } });
   assert.notEqual(done.status, 0);
   assert.match(done.system, /curl .*https:\/\/github\.com\/restic\/restic\/releases\/download\/v0\.19\.1\/restic_0\.19\.1_linux_amd64\.bz2/);
-  assert.match(status(done, 'offsite.json').error, /Couldn't download restic 0\.19\.1 with its checksum, and this machine has no restic of 0\.17 or newer/);
+  assert.match(status(done, 'offsite.json').error, /Couldn't download restic 0\.19\.1 with its checksum \(its download did not match its sha256\), and this machine has no restic of 0\.17 or newer/);
   assert.ok(!fs.existsSync(path.join(m.dir, 'bin', 'restic')), 'nothing unchecked is kept');
   // An older restic of the machine's own isn't taken either.
   const old = m.offsite({ bins: { curl, restic: '#!/bin/sh\necho "restic 0.16.4 compiled with go1.22.2 on linux/amd64"\n' } });
   assert.match(status(old, 'offsite.json').error, /no restic of 0\.17 or newer/);
+});
+
+test('a restic download that fails is tried again over IPv4, and the error says GitHub could not be reached', (t) => {
+  const m = machine(t);
+  const curl = '#!/bin/sh\necho "curl $*" >> "$STAND_IN_LOG"\nexit 7\n';
+  const done = m.offsite({ bins: { curl, restic: null } });
+  assert.notEqual(done.status, 0);
+  const calls = done.system.split('\n').filter((l) => /^curl .*restic_0\.19\.1_linux_amd64\.bz2/.test(l));
+  assert.equal(calls.length, 2);
+  assert.doesNotMatch(calls[0], / -4 /);
+  assert.match(calls[1], /^curl -4 /);
+  assert.match(status(done, 'offsite.json').error, /\(github\.com could not be reached, over IPv6 or IPv4\)/);
 });
 
 test('root\'s OFFSITE request starts the backup in a run of its own, and the nightly timer is set between 02:00 and 04:00', (t) => {
