@@ -746,12 +746,26 @@ const ROUTES = [
   require('./lib/routes/runs').create(ctx),
 ];
 
+// The Chief's tools put a bot's id in the path, and the model at times puts the bot's name there ("Web Clicker"):
+// a name that is one bot's, and no bot's id, is that bot's id from here on, for every route of /bots/<id>. Any
+// other word stays as it is, and the route answers why no bot has it (lib/routes/bots.js).
+function chiefBotRef(parts) {
+  const ref = parts[1];
+  if (parts[0] !== 'bots' || !ref || B.bots.get(ref) || ref === chief.PAGES_OF) return ref;
+  let word = ref;
+  try { word = decodeURIComponent(ref); } catch { /* as it came */ }
+  word = word.trim().toLowerCase();
+  const named = B.bots.list().filter((b) => b.name.trim().toLowerCase() === word);
+  return named.length === 1 ? named[0].id : ref;
+}
+
 // replay: a request of the Chief's that waited for the owner's OK because its chat had read the web, done now on
 // their yes (doHeldAction): { chatId, standing }, the chat it was asked in and where its turn stood then.
 async function api(req, res, url, replay = null) {
   const parts = url.pathname.split('/').filter(Boolean).slice(1); // drop "api"
   const m = req.method;
   const by = replay ? 'chief' : actor(req); // never from the request body
+  if (by === 'chief') parts[1] = chiefBotRef(parts); // a bot the Chief's tool named by its name (#1098)
   if (by === 'chief' && !chiefMay(m, parts)) return send(res, 403, { error: "The Chief's tools can't do that; only the owner can." });
   const chiefChat = replay ? replay.chatId : chiefChatOf(req, by); // where the Chief is told of the owner's answer on what this call asks for
   // Where the Chief's turn stands (chief.js standing): a replayed request stands where its turn stood when it asked.
