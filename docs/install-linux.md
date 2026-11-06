@@ -134,6 +134,8 @@ On a managed machine root's step also takes the fleet console's keys after the i
 
 A managed machine's computers can't reach its network ([ADR 156](adr/156-a-managed-machines-computers-reach-no-private-address-metadata-or-smtp.md)): root's firewall, `botdot-egress`, refuses the accounts' Linux users every new connection to a private range, a link-local address (the cloud's metadata at `169.254.169.254`) and TCP 25 and 465, over IPv4 and IPv6, before any account's Docker starts. DNS to the machine's resolvers, the machine itself and every answer stay open; the front door and Caddy aren't touched. Its rules: `sudo iptables -S BOTDOT-GUARD`.
 
+A managed machine whose Docker is Docker's own packages (get.docker.com) gets their security updates with Ubuntu's, by unattended-upgrades: every install and update writes `/etc/apt/apt.conf.d/51botdot-docker`, which adds Docker's origin, and `/etc/apt/preferences.d/botdot-docker`, which keeps each of Docker's packages on the major version it has, so a new major comes only with botdot ([decision](decisions/2026-11-06-a-managed-machines-docker-takes-its-security-updates-within-its-major.md)). The uninstaller removes both.
+
 ## Terms and privacy policy
 
 A machine you sell as hosting can ask each owner to agree to your terms of service and privacy policy. Give the installer three settings, once; it keeps them in `/var/lib/botdot/front-door/.env`:

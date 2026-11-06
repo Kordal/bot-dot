@@ -1445,6 +1445,8 @@ if [ "$MODE" = uninstall ]; then
       if command -v apparmor_parser >/dev/null 2>&1; then apparmor_parser -R "$ETC/apparmor.d/botdot-rootlesskit" </dev/null >/dev/null 2>&1 || true; fi
       rm -f -- "$ETC/apparmor.d/botdot-rootlesskit"
     fi
+    # Docker stays, with its updates as the machine had them before (docker_upgrades).
+    rm -f -- "$ETC/apt/apt.conf.d/51botdot-docker" "$ETC/apt/preferences.d/botdot-docker"
     if [ -n "$serve" ]; then tailscale serve --https=443 off </dev/null >/dev/null 2>&1 || left "Tailscale Serve's setting for botdot: sudo tailscale serve --https=443 off"; fi
     if [ -n "$sites_serve" ]; then tailscale serve --https=$SITES_HTTPS off </dev/null >/dev/null 2>&1 || left "Tailscale Serve's setting for botdot's interactive pages: sudo tailscale serve --https=$SITES_HTTPS off"; fi
     if [ -n "$failed" ]; then left "$DIR, as an account in it wasn't removed: run the uninstaller again"
@@ -1556,6 +1558,41 @@ machine_logs() {
   done
 }
 case "$MODE" in install | update) machine_logs ;; esac
+# docker_upgrades: a managed machine (ADR 154), which no admin patches by hand, gets the security updates of Docker's
+# own packages (from download.docker.com, which get.docker.com sets up and Ubuntu's stock origins leave out) with
+# Ubuntu's: unattended-upgrades also takes Docker's origin (apt.conf.d/51botdot-docker, written only beside the pin, so
+# the fleet console's cloud-init leaves it to this), and apt keeps each of those packages on the major version it has
+# (preferences.d/botdot-docker),
+# so that a new major comes only with a botdot change and never to the whole fleet on the same morning. A machine
+# whose Docker isn't Docker's packages, or that isn't managed, keeps its own policy. Written at every install and
+# update, and only when a file changes, once the install's answers are checked (a machine that isn't managed and is
+# asked to be, or one reached on this computer only, is refused before), so that a refused run changes nothing.
+DOCKER_PACKAGES='docker-ce docker-ce-cli docker-ce-rootless-extras containerd.io docker-compose-plugin docker-buildx-plugin'
+DOCKER_ORIGIN='Unattended-Upgrade::Origins-Pattern { "origin=Docker,label=Docker CE"; };'
+docker_upgrades() {
+  [ -n "$MANAGED" ] && command -v dpkg-query >/dev/null 2>&1 || return 0
+  du_pins='' du_ce=''
+  for du_p in $DOCKER_PACKAGES; do
+    # shellcheck disable=SC2016 # dpkg-query's own fields
+    du_v="$(dpkg-query -W --showformat='${Status} ${Version}' "$du_p" </dev/null 2>/dev/null || true)"
+    case "$du_v" in 'install ok installed '?*) du_v="${du_v#install ok installed }" ;; *) continue ;; esac
+    [ "$du_p" != docker-ce ] || du_ce=1
+    du_pins="$du_pins${du_pins:+
+}Package: $du_p
+Pin: version ${du_v%%.*}.*
+Pin-Priority: 990
+"
+  done
+  [ -n "$du_ce" ] || return 0
+  mkdir -p "$ETC/apt/apt.conf.d" "$ETC/apt/preferences.d"
+  du_changed=''
+  for du_f in "apt.conf.d/51botdot-docker" "preferences.d/botdot-docker"; do
+    case "$du_f" in apt.conf.d/*) printf '%s\n' "$DOCKER_ORIGIN" ;; *) printf '%s' "$du_pins" ;; esac > "$ETC/apt/$du_f.new"
+    chmod 644 "$ETC/apt/$du_f.new"
+    if cmp -s "$ETC/apt/$du_f.new" "$ETC/apt/$du_f"; then rm -f "$ETC/apt/$du_f.new"; else mv "$ETC/apt/$du_f.new" "$ETC/apt/$du_f"; du_changed=1; fi
+  done
+  [ -z "$du_changed" ] || ok "Docker's security updates install by themselves, each package within its major version"
+}
 # Which package gives `docker compose` depends on where Docker came from. Debian 12's own docker-compose is the old
 # Compose 1 (only `docker-compose`), and Debian 12 has no Compose 2 package at all.
 $D compose version </dev/null >/dev/null 2>&1 || die "Docker Compose (docker compose) is missing. Install the package for your Docker and run this again:
@@ -2241,6 +2278,7 @@ if [ "$REACH" != local ]; then
   fi
 fi
 fi
+case "$MODE" in install | update) docker_upgrades ;; esac
 
 # running_accounts: each account whose Docker runs now, one name a line. A stopped (suspended) one gets the new version
 # when it is resumed.
