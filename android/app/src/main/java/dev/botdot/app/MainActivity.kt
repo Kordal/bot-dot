@@ -280,6 +280,12 @@ class MainActivity : ComponentActivity() {
                 val botsNow by app.store.bots.value.collectAsState()
                 val groupsNow by app.store.groups.value.collectAsState()
                 val chiefNow by app.store.chief.value.collectAsState()
+                // The chats' Android conversations follow the lists (#1116): the Chief and the pinned bots on the launcher,
+                // a deleted bot's or group's shortcut gone. On the notifier's own lane, beside what it rings.
+                LaunchedEffect(botsNow, groupsNow) {
+                    val b = botsNow ?: return@LaunchedEffect
+                    launch(app.notifying) { app.notifier.syncConversations(b, groupsNow) }
+                }
                 val projects = Spaces.projects(features, projectList, companyHeld?.company)
                 val projectIds = projects.map { it.id }
                 val spaceList = remember(projects, botsNow, waitingNow) { Spaces.list(projects, botsNow.orEmpty(), waitingNow) }

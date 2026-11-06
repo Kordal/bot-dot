@@ -355,7 +355,7 @@ test('the features and the tools say it', async (t) => {
   assert.ok((await srv.api('/version')).data.features.includes('message-waits'));
   const tools = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey });
   const wait = (await tools.request('tools/list')).tools.find((x) => x.name === 'wait_for_run');
-  assert.match(wait.description, /When the user writes to you meanwhile, it returns at once with a note: follow the note\./);
+  assert.match(wait.description, /When the user writes to you meanwhile, or the bot waits for their OK in Needs you, it returns at once with a note: follow the note\./);
   // The Chief's tools cannot take the owner's message back, nor write as the owner.
   const id = await newChat();
   assert.equal((await srv.asChief(`/chief/chats/${id}/queued/w0000000000000000`, { method: 'DELETE' })).status, 403);

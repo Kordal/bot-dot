@@ -508,7 +508,7 @@ function readerLanguage(req) {
 // else: who is asking is decided by actor() alone, and a chat that does not exist is no chat.
 function chiefChatOf(req, by) {
   const id = by === 'chief' ? req.headers['x-chief-chat'] : null;
-  return typeof id === 'string' && chief.readChat(id) ? id : null;
+  return chief.hasChat(id) ? id : null;
 }
 
 // What the Chief's tools may do (mcp-server.js), and nothing else: approving jobs, answering the
@@ -659,7 +659,7 @@ function replayAsChief(a) {
       writeHead(code) { status = code; this.headersSent = true; },
       end(text) { let body = {}; try { body = text ? JSON.parse(String(text)) : {}; } catch { /* not JSON */ } resolve({ status, body }); },
     };
-    const chatId = a.chatId && chief.readChat(a.chatId) ? a.chatId : null;
+    const chatId = chief.hasChat(a.chatId) ? a.chatId : null;
     api(req, res, new URL(`http://botdot/api/${a.path}${a.query || ''}`), { chatId, standing: { startedBy: a.startedBy || 'botdot', read: [], replyId: null, web: false } })
       .then(() => { if (!res.headersSent) resolve({ status: 404, body: { error: 'Unknown endpoint' } }); })
       .catch((e) => resolve({ status: e.status || 400, body: { error: e.message } }));
@@ -668,7 +668,7 @@ function replayAsChief(a) {
 // The Chief hears in the chat it asked in that the owner said yes and what came of it, by the rules of what follows
 // a yes (ADR 009): a turn of its own, or one line botdot writes there when no turn follows.
 function tellChiefOfHeld(a, { answer, error }) {
-  if (!a.chatId || !chief.readChat(a.chatId)) return;
+  if (!chief.hasChat(a.chatId)) return;
   const turn = chiefTurn({ chatId: a.chatId, at: a.at });
   const line = error ? `Approved, but it failed: ${a.title}. ${error}` : `Approved and done: ${a.title}.`;
   if (!turn) { chief.post(line, a.chatId); return; }

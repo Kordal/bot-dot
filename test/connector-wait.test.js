@@ -323,3 +323,24 @@ test('the bots are told that a write waits for the owner and that they wait with
   assert.match(listed.description, /waits for the owner's OK on a card: this call then takes up to ten minutes to answer, which is expected\. Wait with it/);
   await r.end();
 });
+
+test("the Chief's wait for a run ends as the run begins to wait for the owner's OK, and at once while it waits (#1091)", async (t) => {
+  const bot = await makeBot(srv, { name: 'Card Waiter', emoji: '🪪', connectors: ['gmail'] });
+  const r = await running(t, srv, bot);
+  const t0 = Date.now();
+  const waiting = srv.asChief(`/runs/${r.run.id}/wait?timeout=20&seen=chief`);
+  await new Promise((res) => setTimeout(res, 200));
+  const call = r.send();
+  const card = await r.card();
+  const first = (await waiting).data;
+  assert.equal(first.status, 'running');
+  assert.equal(first.waitingFor, 'ok');
+  assert.ok(Date.now() - t0 < 10_000, 'not after the timeout');
+  const t1 = Date.now();
+  const again = (await srv.asChief(`/runs/${r.run.id}/wait?timeout=20&seen=chief`)).data;
+  assert.equal(again.waitingFor, 'ok');
+  assert.ok(Date.now() - t1 < 2_000, 'at once while it waits');
+  await r.answer(card, { yes: true });
+  await call;
+  await r.end();
+});

@@ -85,6 +85,31 @@ test('looking at the screen of a bot that has none gives it none', async () => {
   assert.deepEqual(await computers.screenState('alice'), { state: 'running' });
 });
 
+// #1107: GET /computers is asked by every refresh of every open page. The state is kept for a few seconds, so a
+// refresh does not start a docker process of its own, and a start, update or erase reads it again at once.
+test("the computer's state for the lists is read once for a few seconds, and again after it changes", async () => {
+  let state = 'none', inspects = 0, clock = 0;
+  const raw = {
+    inspect: async () => { inspects++; return { state }; },
+    ensure: async () => { state = 'running'; return {}; },
+    resetAll: async () => { state = 'none'; return 'erased'; },
+  };
+  const computers = screensLib.facade(raw, screensLib.create(dir()), { now: () => clock });
+  assert.equal(await computers.stateNow(), 'none');
+  assert.equal(await computers.stateNow(), 'none');
+  assert.equal(inspects, 1, 'one docker inspect for both');
+  await computers.ensure();
+  assert.equal(await computers.stateNow(), 'running', 'a start is seen at once');
+  await computers.ensure();
+  assert.equal(await computers.stateNow(), 'running');
+  assert.equal(inspects, 2, 'an ensure of a running computer reads nothing again');
+  await computers.resetAll();
+  assert.equal(await computers.stateNow(), 'none', 'an erase is seen at once');
+  clock += 5_001;
+  state = 'stopped';
+  assert.equal(await computers.stateNow(), 'stopped', 'and read again after 5 s');
+});
+
 test('botdot and the computer agree on how many screens there are', () => {
   assert.equal(screensLib.MAX, require('../lib/computers').MAX_SCREENS);
 });
