@@ -765,7 +765,7 @@ async function api(req, res, url, replay = null) {
   const parts = url.pathname.split('/').filter(Boolean).slice(1); // drop "api"
   const m = req.method;
   const by = replay ? 'chief' : actor(req); // never from the request body
-  if (by === 'chief') parts[1] = chiefBotRef(parts); // a bot the Chief's tool named by its name (#1098)
+  if (by === 'chief' && parts[0] === 'bots' && parts[1]) parts[1] = chiefBotRef(parts); // a bot the Chief's tool named by its name (#1098)
   if (by === 'chief' && !chiefMay(m, parts)) return send(res, 403, { error: "The Chief's tools can't do that; only the owner can." });
   const chiefChat = replay ? replay.chatId : chiefChatOf(req, by); // where the Chief is told of the owner's answer on what this call asks for
   // Where the Chief's turn stands (chief.js standing): a replayed request stands where its turn stood when it asked.

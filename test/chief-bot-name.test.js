@@ -29,3 +29,9 @@ test('a name two bots have, or no bot has, says what to pass', async () => {
   assert.equal(r.status, 404);
   assert.match(r.data.error, /no bot has the id or name "Nobody Here".*list_bots shows each bot's id/);
 });
+
+test('the routes with no bot in their path are as they were for the Chief', async () => {
+  const r = await srv.asChief('/bots', { method: 'POST', body: { name: 'Fresh', prompt: 'x' } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal((await srv.asChief('/bots')).status, 200);
+});
