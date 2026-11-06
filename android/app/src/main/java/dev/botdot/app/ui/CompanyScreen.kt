@@ -305,8 +305,9 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
     fun scratch() {
         val n = name.trim()
         if (n.isEmpty() || ui.going) return
+        if (ui.sources.any { it.uploading }) return ui.tell(tr("Wait for the files to finish uploading."))
         ui.going = true
-        ui.call({ it.startEmptyProject(n) }) { ok -> ui.going = false; if (ok) { naming = false; name = "" }; ui.step = null }
+        ui.call({ it.startEmptyProject(n, ui.sources.toList()) }) { ok -> ui.going = false; if (ok) { naming = false; name = ""; ui.sources.clear() }; ui.step = null }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> addFiles(ui, context, uris) }
     fun go() {

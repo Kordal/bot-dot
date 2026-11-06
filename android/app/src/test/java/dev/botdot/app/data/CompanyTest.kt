@@ -100,6 +100,15 @@ class CompanyTest {
         assertEquals("project-empty", CompanySetup.EMPTY)
     }
 
+    @Test fun anEmptyProjectKeepsTheSourcesOfTheStartScreen() = runBlocking {
+        server.enqueue(json("""{"id":"c3","name":"Qwotz","kind":"idea","start":"","phase":"running","board":[],"teams":[]}""", 201))
+        api.startEmptyProject("Qwotz", listOf(SourceDraft("s1", "link", "qwotz.app", url = "https://qwotz.app"), SourceDraft("s2", "file", "brief.pdf")))
+        val body = Api.JSON.parseToJsonElement(server.takeRequest().body!!.utf8()).jsonObject
+        val sources = body["sources"]!!.jsonArray
+        assertEquals(1, sources.size)
+        assertEquals("https://qwotz.app", sources[0].jsonObject["url"]!!.jsonPrimitive.content)
+    }
+
     @Test fun theChiefsCallsGoWhereTheWebSendsThem() = runBlocking {
         repeat(8) { server.enqueue(json(idea)) }
         api.readCompany(); api.suggestForCompany("goal"); api.companySwot(); api.proposeTeam()

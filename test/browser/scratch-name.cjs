@@ -1,6 +1,6 @@
 // Optional browser check of Start from scratch (#857): node test/browser/scratch-name.cjs [shots dir]
 // It asks the project's name first, Back returns to the start screen with what was typed, and Go makes the empty
-// project under that name, its folder named after it. Scratch data only.
+// project under that name, its folder named after it, with the sources added on the start screen. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -25,6 +25,12 @@ const { startServer, writeData } = require('../helpers');
       await page.waitForFunction(() => typeof Company !== 'undefined' && Company.projects().length);
       await page.evaluate(() => Company.startNew());
       await page.locator('#co-what').fill('A half typed idea');
+      // A link added before Start from scratch stays the project's source.
+      await page.locator('#co-ask [data-attach]').click();
+      await page.locator('.ct-menu [data-add-link]').click();
+      await page.locator('#co-link input').fill(`https://garden.club/${label}`);
+      await page.locator('#co-link input').press('Enter');
+      await page.locator('.co-sources li', { hasText: `garden.club/${label}` }).waitFor();
       await page.locator('[data-start-empty]').click();
       const name = page.locator('#co-name input');
       await name.waitFor();
@@ -41,6 +47,10 @@ const { startServer, writeData } = require('../helpers');
       const made = (await srv.api('/company/list')).data.projects.find((p) => p.name === `Garden club ${label}`);
       assert.ok(made, 'made under the name');
       assert.equal(made.folder.name, `Garden club ${label}`);
+      assert.deepEqual(made.sources.map((x) => x.url), [`https://garden.club/${label}`], 'the link of the start screen kept');
+      // And the project's settings list it.
+      await page.evaluate(() => Company.openSettings());
+      await page.locator('#ps-general .ps-list .ps-item', { hasText: `garden.club/${label}` }).waitFor();
       assert.deepEqual(errors, []);
     }
     console.log('PASS scratch-name');

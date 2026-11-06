@@ -311,18 +311,24 @@ object CompanySetup {
     /** `POST /api/company`: what the owner works on, and the sources that are ready (a file still on its way is left out). */
     fun startBody(start: String, sources: List<SourceDraft>): JsonObject = buildJsonObject {
         put("start", start.trim())
-        put("sources", buildJsonArray {
-            sources.forEach { s ->
-                when {
-                    s.kind == "link" && s.url != null -> add(buildJsonObject { put("kind", "link"); put("url", s.url); put("name", s.name) })
-                    s.kind == "file" && s.upload != null -> add(buildJsonObject { put("kind", "file"); put("name", s.name); put("upload", OUT.encodeToJsonElement(Attachment.serializer(), s.upload)) })
-                }
-            }
-        })
+        put("sources", sourcesJson(sources))
     }
 
-    /** `POST /api/company` for an empty project (#788): named [name], the app's "New project", until the owner names it. */
-    fun emptyBody(name: String): JsonObject = buildJsonObject { put("empty", true); put("name", name) }
+    /** `POST /api/company` for an empty project (#788): named [name], with the sources added on the start screen. */
+    fun emptyBody(name: String, sources: List<SourceDraft> = emptyList()): JsonObject = buildJsonObject {
+        put("empty", true)
+        put("name", name)
+        put("sources", sourcesJson(sources))
+    }
+
+    private fun sourcesJson(sources: List<SourceDraft>) = buildJsonArray {
+        sources.forEach { s ->
+            when {
+                s.kind == "link" && s.url != null -> add(buildJsonObject { put("kind", "link"); put("url", s.url); put("name", s.name) })
+                s.kind == "file" && s.upload != null -> add(buildJsonObject { put("kind", "file"); put("name", s.name); put("upload", OUT.encodeToJsonElement(Attachment.serializer(), s.upload)) })
+            }
+        }
+    }
 
     /** A link as the owner typed it, named without its scheme. */
     fun link(id: String, typed: String): SourceDraft? {
