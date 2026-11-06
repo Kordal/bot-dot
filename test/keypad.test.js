@@ -134,10 +134,17 @@ test('keys: Esc opens the Chief, a text field focused or not', () => {
 test('keys: Ctrl+K goes to search, a text field focused or not; K alone is a letter', () => {
   assert.deepEqual(press('k', { ctrl: true }), { action: 'search' });
   assert.deepEqual(press('K', { ctrl: true, inField: true }), { action: 'search' });
-  assert.equal(press('k'), null);
+  assert.deepEqual(press('k'), { action: 'type', key: 'k' }, 'K alone starts a message');
   assert.equal(press('k', { ctrl: true, alt: true }), null);
-  assert.equal(press('a'), null);
   assert.equal(press('Enter'), null);
+});
+
+test('keys: a character typed with no field focused starts a message in the open chat; digits and a space do not (#1076)', () => {
+  for (const key of ['a', 'Z', 'ż', '?', '@', '/']) assert.deepEqual(press(key), { action: 'type', key }, key);
+  assert.deepEqual(press('A', { shift: true }), { action: 'type', key: 'A' });
+  for (const key of ['0', '5', ' ', 'Enter', 'ArrowDown', 'Backspace', 'F2']) assert.equal(press(key), null, key);
+  for (const mod of ['ctrl', 'alt', 'meta']) assert.equal(press('a', { [mod]: true }), null, mod);
+  assert.equal(press('a', { inField: true }), null, 'in a field the letter is the field\'s');
 });
 
 // ---------- moves (#499) ----------
