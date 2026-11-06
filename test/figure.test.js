@@ -367,7 +367,7 @@ test('the server hands the definition out, and says so in features', async () =>
 
 test('the web page loads the renderer and has no dot and no stick figure left', async () => {
   const get = async (p) => (await fetch(`${srv.base}${p}`)).text();
-  assert.match(await get('/'), /<script src="\/figure\.js"><\/script>\s*<script src="\/app\.js">/);
+  assert.match(await get("/"), /<script src="\/figure\.js(?:\?v=[\w-]+)?"><\/script>\s*<script src="\/app\.js(?:\?v=[\w-]+)?">/);
   assert.match(await get('/figure.js'), /root\.Figure = /);
   assert.ok(!/\.bd\b|bd-av|botDot\(/.test((await get('/style.css')) + webSource()));
   assert.ok(!/name-dot|needs-dots/.test((await get('/style.css')) + webSource() + (await get('/mentions.js'))));
