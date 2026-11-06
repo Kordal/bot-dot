@@ -663,7 +663,12 @@ async function showChat(id) {
     return;
   }
   let chat;
-  try { chat = await api(`/chief/chats/${id}`); } catch (e) { toast(e.message, true); return; }
+  try { chat = await api(`/chief/chats/${id}`); } catch (e) {
+    toast(e.message, true);
+    // Not read (#1075): the screen still shows the chat that was there, and the box writes to that one, not the one picked.
+    if (state.chatId === id) { state.chatId = thread.dataset.chat || null; if (state.view === 'chief') writeHash(); sayPresent(); syncRead(); }
+    return;
+  }
   if (state.chatId !== id) return;
   // The same chat drawn again (a bot's report, a /btw answer, a reply that ended with the chat read again): an owner
   // reading back up stays where they are (#1073). Another chat opens at its end.
