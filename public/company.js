@@ -572,7 +572,7 @@ const Company = (() => {
     input.value = typed;
     input.oninput = ready;
     ready();
-    form.onsubmit = (e) => { e.preventDefault(); const name = input.value.trim(); if (name) made({ empty: true, name }, go, () => { naming = false; typedWhat = ''; current = null; }); };
+    form.onsubmit = (e) => { e.preventDefault(); const name = input.value.trim(); if (!name) return; const sources = readySources(); if (sources) made({ empty: true, name, sources }, go, () => { naming = false; typedWhat = ''; draft.sources = []; current = null; }); };
     const back = () => {
       naming = false;
       drawStart(root);
@@ -633,9 +633,13 @@ const Company = (() => {
   async function begin(text, button) {
     const start = String(text || '').trim();
     if (!start) return;
-    if (draft.sources.some((s) => s.status === 'uploading')) return toast(tr('Wait for the files to finish uploading.'), true);
-    const sources = draft.sources.filter((s) => s.status === 'ready').map((s) => (s.kind === 'link' ? { kind: 'link', url: s.url, name: s.name } : { kind: 'file', name: s.name, upload: s.upload }));
-    made({ start, sources }, button, () => { draft.sources = []; current = 'about'; });
+    const sources = readySources();
+    if (sources) made({ start, sources }, button, () => { draft.sources = []; current = 'about'; });
+  }
+  // The sources picked on the start screen, for a new project of either kind; null while a file still uploads.
+  function readySources() {
+    if (draft.sources.some((s) => s.status === 'uploading')) { toast(tr('Wait for the files to finish uploading.'), true); return null; }
+    return draft.sources.filter((s) => s.status === 'ready').map((s) => (s.kind === 'link' ? { kind: 'link', url: s.url, name: s.name } : { kind: 'file', name: s.name, upload: s.upload }));
   }
   // A new project made and shown: from what the owner works on (its setup follows), or empty (#788: its blank board).
   async function made(body, button, then = () => { current = null; }) {
