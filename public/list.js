@@ -78,12 +78,12 @@ function renderContacts() {
 }
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-// Rows glide from where they were to where a redraw put them (a bot dropped, pinned or moved to a group).
+// Rows glide from where they were to where a redraw put them (a bot dropped, pinned or moved to a group). draw(before)
+// calls before() just ahead of drawing, and says whether it drew: a list that stayed as it was is not measured.
 function glideContacts(draw) {
   const was = new Map();
-  if (!reducedMotion()) $$('#contacts [data-contact]').forEach((el) => was.set(el.dataset.contact, el.getBoundingClientRect().top));
-  draw();
-  if (!was.size) return;
+  const drew = draw(() => { if (!reducedMotion()) $$('#contacts [data-contact]').forEach((el) => was.set(el.dataset.contact, el.getBoundingClientRect().top)); });
+  if (drew === false || !was.size) return;
   $$('#contacts [data-contact]').forEach((el) => {
     const dy = (was.get(el.dataset.contact) ?? NaN) - el.getBoundingClientRect().top;
     if (Math.abs(dy) > 1) el.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: 'cubic-bezier(.2, .8, .2, 1)' });
@@ -107,7 +107,7 @@ function botLine(b) {
   return contactLine(b, state.runs.find((r) => r.botId === b.id), working);
 }
 
-function drawContacts() {
+function drawContacts(before = () => {}) {
   const q = ($('#contact-search')?.value || '').trim().toLowerCase();
   const lastRun = (id) => state.runs.find((r) => r.botId === id);
   const bots = [...state.bots].sort(byPlace); // in the order you gave them (drag to change it)
@@ -166,8 +166,12 @@ function drawContacts() {
   // Messages that match, in every chat (see searchChats).
   const hits = q.length >= 2 && state.search?.q === q ? state.search.hits : [];
   if (hits.length) items.push(`<div class="contact-sep"></div><div class="hits-head">${tr('Messages')}</div>`, ...hits.map(hitHTML));
-  $('#contacts').innerHTML = items.join('') || `<div class="faint" style="padding:16px;font-size:13px">${tr('No matches')}</div>`;
+  const html = items.join('') || `<div class="faint" style="padding:16px;font-size:13px">${tr('No matches')}</div>`;
+  const drew = !drawnAs($('#contacts'), html);
   $('.sidebar')?.classList.toggle('searching', !!q); // a wide window shows the results in place of the keys
+  if (!drew) return false; // the rows as they stand, wired already
+  before();
+  drawHTML($('#contacts'), html);
   fitStrip();
   $$('[data-hit]').forEach((el) => (el.onclick = () => openHit(hits[Number(el.dataset.hit)])));
   $$('[data-fold]').forEach((el) => (el.onclick = () => { toggleGroupFold(el.dataset.fold || '\u0000'); renderContacts(); }));
@@ -180,10 +184,23 @@ function drawContacts() {
     else if (el.dataset.kind === 'group') setView('group', el.dataset.contact.slice(6));
     else setView('bot', el.dataset.contact);
   }));
+  return true;
 }
 
 
 // ---------- the keypad (keypad.js, ADR 029) ----------
+// What the list, the keypad and a phone's home draw goes in only when it is not what they show already (#1065): a
+// line that changes every second elsewhere leaves a row or a key as it is, its button keeps a press and its focus,
+// and its head keeps its animation. A head's --ph is left out of the comparison: it is the clock's, so a head drawn
+// anew moves in step with the one it replaces (figure.js), and one that stays moves on by itself. true when it was drawn.
+const drawnKey = (html) => String(html).replace(/--ph:-?[\d.]+s/g, '');
+const drawnAs = (el, html) => !!el && el._drawn === drawnKey(html);
+function drawHTML(el, html) {
+  if (!el || drawnAs(el, html)) return false;
+  el._drawn = drawnKey(html);
+  el.innerHTML = html;
+  return true;
+}
 // Where the window is wide enough the stylesheet shows the keypad in place of the list: the Board's values and Needs
 // you on top, then the Chief's key and the pinned keys in one row, then every category, side by side where they fit
 // (#508, #635). A key is a head and a name; its state is one dot on the head. The chat on the right is the one open
@@ -266,7 +283,7 @@ function boardLine() {
 }
 // The Board's line drawn in `el`: the keypad's, or a phone's.
 function drawBoardLine(el) {
-  el.innerHTML = boardLine();
+  if (!drawHTML(el, boardLine())) return; // as it stands, wired already
   $$('[data-board]', el).forEach((b) => {
     let timer = null, long = false, x0 = 0, y0 = 0;
     const cancel = () => clearTimeout(timer);
@@ -299,7 +316,8 @@ function drawKeypad() {
   drawBoardLine($('#kp-board'));
   const keysOf = (i) => all.map((k, n) => (k.page === i ? keyHTML(k.x, n, null, Keypad.digitOf(digits, k.x)) : '')).join('');
   const cats = pages.slice(1).map((p, n) => `<section class="kp-page${pageFolded(p) ? ' folded' : ''}"><h3 class="kp-page-head" data-page="${n + 1}">${pageHead(p, `data-page-fold="${n + 1}"`)}</h3><div class="kp-page-keys">${keysOf(n + 1)}</div></section>`).join('');
-  keys.innerHTML = `<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
+  drawHTML(keys, `<section class="kp-page kp-pinned" data-page="0" aria-label="${tr('Pinned')}"><div class="kp-page-keys">${chiefKeyHTML()}${keysOf(0)}</div></section>${cats ? `<div class="kp-cats">${cats}</div>` : ''}`);
+  // Wired each time, drawn or not: a key may stand for a newer record of its bot.
   $$('[data-key]', keys).forEach((el) => (el.onclick = () => openKey(all[Number(el.dataset.key)].x)));
   $$('[data-page-fold]', keys).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.pageFold)])));
   $$('[data-key-chief]', keys).forEach((el) => (el.onclick = openChief));
@@ -334,11 +352,11 @@ function drawKeypadSections(pages) {
   const section = (p, n) => `<section class="kp-section${p.kind === 'pinned' ? ' kp-sec-pinned' : ''}${pageFolded(p) ? ' folded' : ''}" data-section="${n}">${p.kind === 'pinned' ? '' : `<h3 class="kp-sec-head">${pageHead(p, `data-section-fold="${n}"`)}</h3>`}<div class="kp-sec-keys">${pageFolded(p) ? '' : p.keys.map((x, i) => keyHTML(x, i, n)).join('')}</div></section>`;
   const pinned = pages[0]?.kind === 'pinned' ? 1 : 0;
   const cats = pages.slice(pinned).map((p, n) => section(p, n + pinned)).join('');
-  sections.innerHTML = `${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`;
+  drawHTML(sections, `${pinned ? section(pages[0], 0) : ''}${cats ? `<div class="kp-cats">${cats}</div>` : ''}`);
   $$('[data-section-fold]', sections).forEach((el) => (el.onclick = () => foldPage(pages[Number(el.dataset.sectionFold)])));
   $$('[data-section-key]', sections).forEach((el) => (el.onclick = () => { const [n, i] = el.dataset.sectionKey.split('.').map(Number); openKey(pages[n].keys[i]); }));
   // The Chief's field: its head, its name where the message goes, and the send arrow. A tap opens its chat, ready to write in.
-  chief.innerHTML = `${chiefFigure()}<span>${esc(chiefTitle())}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}<i class="kp-send">${SEND_ARROW}</i>`;
+  drawHTML(chief, `${chiefFigure()}<span>${esc(chiefTitle())}</span>${Unread.dots(state.chiefUnread, CHIEF_COLOR)}<i class="kp-send">${SEND_ARROW}</i>`);
   chief.title = messageChief();
   chief.onclick = askChief;
 }

@@ -559,7 +559,7 @@ const QUESTION = { text: 'Which mailbox shall I sort first?', runId: 'r9', at: '
 function rows() {
   const ctx = vm.createContext({ ...words, Unread });
   vm.runInContext(`${cut('const plain = (t) =>', '// ---------- contacts (sidebar) ----------')}
-    ${cut('function contactLine(b, r, working) {', 'function drawContacts() {')}
+    ${cut('function contactLine(b, r, working) {', 'function drawContacts(')}
     this.contactLine = contactLine;`, ctx);
   return (b, r, working = 'Working…') => plain(ctx.contactLine(b, r, working));
 }
@@ -576,7 +576,7 @@ test('web: a bot with `asks` reads "Asks: <question>" in the list\'s stronger co
   assert.deepEqual(line({ ...MAILBOT, asks: QUESTION }, { ...reply, status: 'running' }), { prev: 'Working…', cls: '', after: DOTS });
   // The question is the server's text: the row escapes it where it draws it.
   assert.equal(line({ ...MAILBOT, asks: { ...QUESTION, text: BAD } }, reply).prev, `Asks: ${BAD}`);
-  const row = cut('function drawContacts() {', '// ---------- search in every chat');
+  const row = cut('function drawContacts(', '// ---------- search in every chat');
   assert.match(row, /const line = botLine\(b\);/);
   assert.match(app, /return contactLine\(b, state\.runs\.find\(\(r\) => r\.botId === b\.id\), working\);/, 'its newest run and its working line (botLine, also the keypad\'s)');
   assert.match(row, /<span class="time">\$\{esc\(shortTime\(r\?\.startedAt\)\)\}<\/span>\$\{line\.after\}<\/div>\s*<div class="prev \$\{line\.cls\}">\$\{esc\(line\.prev\)\}<\/div>/);

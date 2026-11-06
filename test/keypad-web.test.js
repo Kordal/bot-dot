@@ -67,7 +67,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
   vm.runInContext(`const CHIEF_BOT = { id: 'chief', name: 'Chief of Staff' };
     ${cut("// ---------- the Chief's name", "// ---------- end of the Chief's name")}
     ${cut('const plain = (t) =>', '// ---------- the list\'s width ----------')}
-    ${cut('function contactLine(b, r, working)', 'function drawContacts() {')}
+    ${cut('function contactLine(b, r, working)', 'function drawContacts(')}
     ${cut('// ---------- the keypad', '// ---------- search in every chat ----------')}
     ${cut('function foldedGroups()', '// Drag a bot or a group anywhere')}
     ${cut('// Unpinned ones get a place in their group back', '// Chips for picking')}
