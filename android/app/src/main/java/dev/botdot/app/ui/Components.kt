@@ -881,7 +881,8 @@ fun Composer(
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (files != null) RoundButton(Icons.Filled.Add, tr("Attach files"), size = 48.dp) { pick.launch("*/*") }
             Row(
-                Modifier.weight(1f).raised(Radius.pill).padding(start = Space.s16, top = Space.s4, end = Space.s4, bottom = Space.s4),
+                // 2 dp around Send's 48 dp: the box stays as tall as it was, and its circle where it was (#1113).
+                Modifier.weight(1f).raised(Radius.pill).padding(start = Space.s16, top = 2.dp, end = 2.dp, bottom = 2.dp),
                 verticalAlignment = Alignment.Bottom,
             ) {
                 BasicTextField(
@@ -897,15 +898,16 @@ fun Composer(
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6,
                     visualTransformation = remember(mentions, p.mention) { CommandChips(mentions, p.mention) },
-                    modifier = Modifier.weight(1f).padding(vertical = Space.s8).heightIn(min = 22.dp).focusRequester(focus),
+                    modifier = Modifier.weight(1f).padding(vertical = 10.dp).heightIn(min = 22.dp).focusRequester(focus),
                     decorationBox = { inner ->
                         Box { if (text.text.isEmpty()) Text(placeholder, color = p.faint, fontSize = Type.s16); inner() }
                     },
                 )
                 // One message at a time: while one is on its way, Send waits for it.
                 val canSend = !outbox.sending && (text.text.isNotBlank() || files?.items?.any { it.status == "ready" } == true)
+                // Send (or Stop) is tapped over 48 dp, Android's least, and drawn as the 36 dp circle inside it (#1113).
                 Box(
-                    Modifier.padding(Space.s4).size(36.dp).clip(CircleShape).background(if (busy) p.err else if (canSend) p.ink else p.line).clickable(role = Role.Button) {
+                    Modifier.size(48.dp).clip(CircleShape).clickable(role = Role.Button) {
                         if (busy) return@clickable onStop()
                         if (files?.uploading == true) return@clickable onError(tr("Wait a moment: the files are still uploading."))
                         if (!canSend) return@clickable
@@ -916,8 +918,10 @@ fun Composer(
                     },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(if (busy) Icons.Filled.Stop else Icons.Filled.ArrowUpward, contentDescription = if (busy) tr("Stop") else tr("Send"),
-                        tint = if (busy) Color.White else if (canSend) p.inkText else p.faint, modifier = Modifier.size(20.dp))
+                    Box(Modifier.size(36.dp).clip(CircleShape).background(if (busy) p.err else if (canSend) p.ink else p.line), contentAlignment = Alignment.Center) {
+                        Icon(if (busy) Icons.Filled.Stop else Icons.Filled.ArrowUpward, contentDescription = if (busy) tr("Stop") else tr("Send"),
+                            tint = if (busy) Color.White else if (canSend) p.inkText else p.faint, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
         }
