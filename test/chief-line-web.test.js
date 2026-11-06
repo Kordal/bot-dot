@@ -279,7 +279,7 @@ test('web: the Chief\'s own reply ends the line of a turn the page does not foll
   followed.emit('chief_reply', { chatId: 'c1', status: 'success' });
   assert.equal(followed.ctx.chiefTurns.has('c1'), true);
   // When the Chief replies nowhere, no line is left over.
-  assert.match(cut('async function refresh()', 'function render()'), /if \(!chief\.busy\) for \(const id of \[\.\.\.chiefTurns\.keys\(\)\]\) if \(!\(state\.chatStream && id === state\.chatId\)\) chiefTurns\.delete\(id\);/);
+  assert.match(cut('// ---------- data ----------', 'function render()'), /if \(!chief\.busy\) for \(const id of \[\.\.\.chiefTurns\.keys\(\)\]\) if \(!\(state\.chatStream && id === state\.chatId\)\) chiefTurns\.delete\(id\);/);
 });
 
 test('web: a chat that is read takes its reply that is going on, and what waits, from the server', async () => {

@@ -1041,7 +1041,34 @@ const replyDrafts = (() => {
 
 // ---------- data ----------
 
-async function refresh() {
+// Everything read again, once at a time (#1066): a refresh asked for while one is under way runs once more after it,
+// however many asked, and each of them is answered when that one is done, so what they changed is read. Answers can
+// no longer land out of order, and one that is older than a later read is dropped (refreshSeq). A read that hangs
+// (a connection a sleeping laptop left behind: fetch has no time limit) holds the others back for 30 s at most: then a
+// new one starts, and whatever the old one still brings is dropped.
+let refreshing = null, refreshAfter = null, refreshSeq = 0, refreshStarted = 0;
+const REFRESH_HANGS = 30_000;
+function refresh() {
+  if (refreshing && Date.now() - refreshStarted < REFRESH_HANGS) {
+    if (!refreshAfter) { let done; refreshAfter = { promise: new Promise((r) => { done = r; }), done }; }
+    return refreshAfter.promise;
+  }
+  const waited = refreshAfter;
+  refreshAfter = null;
+  refreshStarted = Date.now();
+  const now = readAll().finally(() => {
+    if (refreshing !== now) return; // it hung, and a newer one took its place
+    refreshing = null;
+    if (refreshAfter) refresh(); // the one asked for meanwhile
+  });
+  refreshing = now;
+  if (waited) now.then(waited.done);
+  return now;
+}
+
+async function readAll() {
+  const seq = ++refreshSeq;
+  const latest = () => seq === refreshSeq;
   state.refreshedAt = Date.now();
   fresh.check();
   try {
@@ -1051,6 +1078,7 @@ async function refresh() {
     const groupsRead = loadGroups(); // the groups, beside the bots (groups.js): never rejects
     const [bots, runs, activity, chief, computers, cfg] = await Promise.all([api('/bots'), api('/runs?limit=200'), api('/runs?groups&limit=200').catch(() => null), api('/chief'), api('/computers').catch(() => ({})), api('/settings').catch(() => null)]);
     if (!state.skillLib) await skillLib; // the first time, the chats wait for it
+    if (!latest()) return; // a read that hung, and a newer one began
     Object.assign(state, { bots, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), computers, groups: await groupsRead });
     if (takeChiefName(chief.chief?.name)) drawChiefName();
     if (state.view === 'group' && state.groupId) loadGroupChat(state.groupId);
@@ -1068,9 +1096,10 @@ async function refresh() {
     if (report.shown() && Unread.count(unreadKnown(report.shown()))) report.again();
     redrawMarks();
     showJobApprovals();
-    api(MEMORY_WAITS).then((p) => { state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').then((a) => { state.asks = a; showNeeds(); }).catch(() => {});
-    api('/dashboard?quiet').then((d) => { state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
+    // Read after the rest: an answer that comes after a later refresh began is older than that one's, and is dropped.
+    api(MEMORY_WAITS).then((p) => { if (!latest()) return; state.memPending = p; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').then((a) => { if (!latest()) return; state.asks = a; showNeeds(); }).catch(() => {});
+    api('/dashboard?quiet').then((d) => { if (!latest()) return; state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) { loadInbox(state.botId); readOwnRuns(state.botId); }
     render();

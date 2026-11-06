@@ -148,7 +148,7 @@ test('web: they are drawn from the server\'s list alone: on a page that sent non
   // The lists come with the bots, with a Chief chat, and with the feed.
   assert.match(app, /if \(typeof d\.chat === 'string'\) setQueued\(d\.chat, d\.queued\);/);
   assert.match(app, /chiefQueued\.set\(id, queuedList\(chat\.queued\)\);/);
-  assert.match(cut('async function refresh()', 'function render()'), /api\('\/bots'\)/);
+  assert.match(cut('// ---------- data ----------', 'function render()'), /api\('\/bots'\)/);
 });
 
 test('web: a waiting message whose turn came stays in the chat until its run is on the page, and is never drawn twice', async () => {
