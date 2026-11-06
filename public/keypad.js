@@ -52,15 +52,18 @@ function digits(pages, shown) {
 const digitOf = (map, x) => { for (const [d, k] of map) if (k === x) return d; return 0; };
 
 // What a key press does: { key, ctrl, alt, meta, shift, inField } on { digits } (the digits that open a key, as
-// digits() gives them) → { action: 'open', digit }, { action: 'chief' }, { action: 'search' }, or null: the press is
-// the browser's, or the field's. Esc and Ctrl+K work from a text field too; a digit never leaves one. Tab is the
-// browser's: every page is shown, so there is none to move to (#508).
+// digits() gives them) → { action: 'open', digit }, { action: 'chief' }, { action: 'search' }, { action: 'type', key },
+// or null: the press is the browser's, or the field's. Esc and Ctrl+K work from a text field too; a digit never leaves
+// one. Tab is the browser's: every page is shown, so there is none to move to (#508). Any other character typed with
+// no field focused starts a message in the open chat (#1076): no click into its box first. A digit never types, and a
+// space stays the page's.
 function press(e, { digits: used }) {
   const plain = !e.ctrl && !e.alt && !e.meta;
   if (e.key === 'Escape') return { action: 'chief' };
   if (e.ctrl && !e.alt && !e.meta && /^k$/i.test(e.key)) return { action: 'search' };
   if (!plain || e.inField) return null;
   if (/^[1-9]$/.test(e.key)) { const d = Number(e.key); return used.has(d) ? { action: 'open', digit: d } : null; }
+  if ([...e.key].length === 1 && /\S/.test(e.key) && !/^[0-9]$/.test(e.key)) return { action: 'type', key: e.key };
   return null;
 }
 

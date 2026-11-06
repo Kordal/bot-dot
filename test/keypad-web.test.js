@@ -85,6 +85,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     ${cutGroups('// A group\'s row in the list: the line under its name', 'function groupContactHTML(g) {')}
     ${cutGroups('// A group\'s place in a category is counted', '// What the search box finds a group by')}
     ${cutGroups('// A group dragged in the list', '// ---------- making and changing a group')}
+    ${cut('// The message box of the chat open beside the keypad', '// ---------- the search field')}
     Object.assign(this, { drawKeypad, drawKeypadNeeds, onKeypadKey, sayTurnLine, shortTime });`, ctx);
   ctx.drawKeypad();
   // A key pressed with the page's focus on `target` (the page itself unless said).
@@ -569,6 +570,34 @@ test("web: a bot's own hotkey is its key's digit and opens it, also from a folde
   assert.ok(!keysOf(folded.keys()).some((k) => k.includes('Inbox')), 'Money is folded');
   assert.ok(folded.key('9'));
   assert.deepEqual(folded.said.views.at(-1), ['bot', 'inbox'], 'its 9 still opens it');
+});
+
+test('web: a letter typed with nothing focused goes into the open chat\'s box, and the digits still open keys (#1076)', () => {
+  const p = page({ view: 'bot', botId: 'b1' });
+  const box = { value: 'Hi', disabled: false, focused: 0, inputs: 0,
+    focus() { box.focused++; }, setRangeText(t, a, b, how) { assert.equal(how, 'end'); box.value = box.value.slice(0, a) + t + box.value.slice(b); },
+    dispatchEvent(e) { assert.equal(e.type, 'input'); box.inputs++; } };
+  p.ctx.Event = class { constructor(type) { this.type = type; } };
+  p.doc['#view-bot form textarea'] = box;
+  assert.equal(p.key('!'), true);
+  assert.deepEqual([box.value, box.focused, box.inputs], ['Hi!', 1, 1]);
+  assert.deepEqual(p.said.views, []);
+  // In the Chief's chat the same; where no chat is open, or Files is over it, the key is the page's.
+  const chief = page();
+  const cbox = { ...box, value: '' };
+  cbox.setRangeText = (t) => { cbox.value += t; };
+  cbox.focus = () => {}; cbox.dispatchEvent = () => {};
+  chief.ctx.Event = p.ctx.Event;
+  chief.doc['#view-chief form textarea'] = cbox;
+  assert.equal(chief.key('W'), true);
+  assert.equal(cbox.value, 'W');
+  const none = page({ view: 'board' });
+  assert.equal(none.key('a'), false);
+  const files = page({ view: 'bot', botId: 'b1' });
+  files.doc['#view-bot form textarea'] = box;
+  files.ctx.Files = { now: () => ({}) };
+  assert.equal(files.key('a'), false);
+  assert.equal(box.value, 'Hi!');
 });
 
 test('web: the keys do nothing where the keypad is not shown, under a dialog, or for a key already taken', () => {

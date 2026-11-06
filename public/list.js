@@ -458,10 +458,21 @@ function onKeypadKey(e) {
   else { const pages = keypadPages(); digits = keypadDigits(pages, keypadKeys(pages)); }
   const act = Keypad.press({ key: e.key, ctrl: e.ctrlKey, alt: e.altKey, meta: e.metaKey, shift: e.shiftKey, inField }, { digits });
   if (!act || (act.action === 'chief' && state.view === 'chief')) return;
+  const box = act.action === 'type' && !project ? openChatBox() : null;
+  if (act.action === 'type' && !box) return; // no chat open here: the key is the page's
   e.preventDefault();
+  if (box) { box.focus(); box.setRangeText(act.key, box.value.length, box.value.length, 'end'); box.dispatchEvent(new Event('input')); return; }
   if (act.action === 'open') openKey(digits.get(act.digit));
   else if (act.action === 'chief') (project && typeof Dock !== 'undefined' ? Dock.openChief() : openChief());
   else if (act.action === 'search') { if (project) Company.enter('home'); openSearch(); }
+}
+
+// The message box of the chat open beside the keypad: a bot's, a group's or the Chief's. null: none is open.
+function openChatBox() {
+  if ((typeof Files !== 'undefined' && Files.now()) || (typeof DocViewer !== 'undefined' && DocViewer.now())) return null; // Files or a document is over the chat
+  const view = { bot: '#view-bot', group: '#view-group', chief: '#view-chief' }[state.view];
+  const box = view ? $(`${view} form textarea`) : null;
+  return box && !box.disabled ? box : null;
 }
 
 // ---------- the search field: an icon in the top bar (#635) ----------
