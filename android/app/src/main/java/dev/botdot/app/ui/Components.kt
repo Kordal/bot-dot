@@ -812,6 +812,20 @@ fun Composer(
         picked = -1
         files?.put(failed.attachments)
     }
+    // What was typed and not sent when the chat was left (#1068) comes back once, in front of what is in the box. Taken
+    // after this box is drawn, so also from a box of the same chat that was just replaced (an empty chat's first run).
+    // A box the phone turned has its own text back already: what it left is not taken again.
+    val typed by rememberUpdatedState(text.text)
+    var tookUnsent by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(outbox) {
+        val unsent = outbox.takeUnsent()
+        if (tookUnsent || unsent.isEmpty()) { tookUnsent = true; return@LaunchedEffect }
+        tookUnsent = true
+        val now = withFailed(unsent, text.text)
+        text = TextFieldValue(now, TextRange(now.length))
+        picked = -1
+    }
+    DisposableEffect(outbox) { onDispose { outbox.leave(typed) } }
     // Text quoted from a message of this chat (QuoteUi.kt): after what is typed, the cursor after it, ready to write.
     val quotes = LocalQuote.current
     val focus = remember { FocusRequester() }

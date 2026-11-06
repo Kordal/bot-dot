@@ -989,6 +989,14 @@ class Outbox {
     /** The owner edited the message: the line goes, and what is in the box is a new message. */
     fun edited() { note = null; failed = null }
 
+    /**
+     * What was typed in the box and not sent when its chat was left (#1068): Back, another chat, a notification. The
+     * box takes it back once when it is drawn again, as long as the app runs.
+     */
+    private var unsent = ""
+    fun leave(typed: String) { unsent = typed.takeIf { it.isNotBlank() }.orEmpty() }
+    fun takeUnsent(): String = unsent.also { unsent = "" }
+
     companion object {
         private val byChat = mutableMapOf<String, Outbox>()
         fun of(chat: String): Outbox = synchronized(byChat) { byChat.getOrPut(chat) { Outbox() } }

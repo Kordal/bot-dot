@@ -605,6 +605,7 @@ function renderGroupChat() {
   if (!g) { if (state.groupsKnown) leaveBot(); return; } // deleted, here or in another app
   const key = `group:${g.id}`;
   if (root.dataset.group !== g.id) {
+    if (root.dataset.group) carry(root, `group:${root.dataset.group}`); // its unsent text waits for it (bot-chat.js)
     root.dataset.group = g.id;
     delete root.dataset.sig;
     root.innerHTML = `
@@ -619,6 +620,7 @@ function renderGroupChat() {
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
       ${composerHTML(tr('Message {name}', { name: g.name }))}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
+    putCarried($('form', root), key);
     holdChatEnd($('#group-thread', root));
     // A team's chat opens its panel too: its members and its notes. Its name and members follow its team in Projects.
     $('#group-settings').onclick = () => setPanel('toggle');

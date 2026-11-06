@@ -366,8 +366,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   if (drawn.missing && !docked) reachNew(bot.id, back);
   const runs = drawn.runs.reverse();
   if (root.dataset.bot !== bot.id) {
-    const typed = $('textarea', root)?.value;
-    if (root.dataset.bot && typed && (docked || globalThis.Dock?.docked())) carried.set(root.dataset.bot, typed); // into its chat in the dock (#714)
+    if (root.dataset.bot) carry(root, `bot:${root.dataset.bot}`); // to another bot, or into its chat in the dock (#714)
     root.dataset.bot = bot.id;
     delete root.dataset.sig; // not '': a bot with no runs yet has that signature too, and would never show its intro
     root.innerHTML = `
@@ -396,7 +395,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     const form = $('form', root);
     wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyingTo.get(bot.id)?.runId), () => `bot:${bot.id}`, bot.id);
     $('.attach-list', form).insertAdjacentHTML('beforebegin', '<div class="reply-chip hidden"></div>');
-    if (carried.has(bot.id)) { form.text.value = carried.get(bot.id); carried.delete(bot.id); form.text.dispatchEvent(new Event('input')); }
+    putCarried(form, `bot:${bot.id}`);
     drawReplyChip(bot.id);
     const settings = docked ? docked.settings : () => setPanel('toggle');
     part('chat-title').onclick = settings;
@@ -477,8 +476,20 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   globalThis.drawBotPlan?.(bot, runs, root);
   placeStatusLines();
 }
-// What was typed in a bot's chat whose place changed, between the open view and the dock (#714): put back once.
+// What was typed and not sent in a chat whose box is built again for another chat (#1068): another bot or group in
+// the same view, or its place changed between the open view and the dock (#714). Kept by chat, 'bot:<id>' or
+// 'group:<id>', and put back once when that chat's box is built again, behind a failed message given back.
 const carried = new Map();
+function carry(root, chat) {
+  const typed = $('textarea', root)?.value;
+  if (typed?.trim()) carried.set(chat, typed);
+}
+function putCarried(form, chat) {
+  if (!carried.has(chat)) return;
+  form.text.value = withFailed(form.text.value, carried.get(chat));
+  carried.delete(chat);
+  form.text.dispatchEvent(new Event('input'));
+}
 // The chat of a bot drawn on the page: the open view's.
 const botChats = (botId) => [$('#view-bot')].filter((el) => el?.dataset.bot === botId);
 // A bot's chat drawn again: the open view's when it shows the bot.
