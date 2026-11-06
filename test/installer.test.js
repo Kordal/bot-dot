@@ -424,7 +424,28 @@ test('a machine without rootless Docker, gVisor or setfacl is offered them, and 
   assert.doesNotMatch(declined.system, /apt-get/);
 
   const agreed = installer(t, { bins: { ...missing, dpkg: '#!/bin/sh\necho amd64\n' }, input: 'y\n' });
-  assert.match(agreed.system, /^apt-get install -y -qq docker-ce-rootless-extras acl runsc$/m);
+  assert.match(agreed.system, /^apt-get install -y -qq docker-ce-rootless-extras acl runsc=20261102\.0$/m, 'gVisor at its pinned release');
+  assert.equal(fs.readFileSync(path.join(agreed.etc, 'apt', 'sources.list.d', 'gvisor.list'), 'utf8'),
+    'deb [arch=amd64 signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases 20261102 main\n',
+    "gVisor's source names the release, not the moving channel");
+});
+
+test("an update moves gVisor's apt source off the moving channel, and names a runsc of another release", (t) => {
+  const first = rerun(t);
+  assert.doesNotMatch(first.said + first.stderr, /botdot is tested with/, 'the pinned runsc is not named');
+  const list = path.join(first.etc, 'apt', 'sources.list.d', 'gvisor.list');
+  fs.mkdirSync(path.dirname(list), { recursive: true });
+  fs.writeFileSync(list, 'deb [arch=arm64 signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases release main\n');
+  const done = installer(t, { again: first, args: ['--update'], bins: { runsc: '#!/bin/sh\necho "runsc version release-20261005.0"\n' } });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.equal(fs.readFileSync(list, 'utf8'), 'deb [arch=arm64 signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases 20261102 main\n');
+  assert.match(done.said, /gVisor's apt source now holds release 20261102\.0/);
+  assert.match(done.said + done.stderr, /gVisor 20261005\.0 is installed; botdot is tested with 20261102\.0\. Once no account is busy: sudo apt-get update && sudo apt-get install --allow-downgrades runsc=20261102\.0/);
+  assert.doesNotMatch(done.system, /^apt-get/m, 'runsc is not replaced under running sandboxes');
+
+  const again = installer(t, { again: first, args: ['--update'] });
+  assert.equal(again.status, 0, `${again.said}\n${again.stderr}`);
+  assert.doesNotMatch(again.said + again.stderr, /gVisor's apt source now holds|botdot is tested with/, 'once pinned, nothing more is said');
 });
 
 test('a botdot from before accounts is never updated: it is stopped only if asked, and its folder is left as it is', (t) => {
