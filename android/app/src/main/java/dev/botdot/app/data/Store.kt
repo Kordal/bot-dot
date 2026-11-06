@@ -1,6 +1,7 @@
 package dev.botdot.app.data
 
 import android.os.SystemClock
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -60,14 +61,28 @@ class Store(private val scope: CoroutineScope, private val api: StateFlow<Api?>)
 
         private val watched get() = _value.subscriptionCount.value > 0
 
-        /** Get it again now, and wait for it (pull to refresh, after you changed something). */
+        // The read that has not started yet: whoever asks now shares it (#1112). Five answers in a row each ask for
+        // the list again; they get one read that starts after all of them, not five one after another.
+        private var queued: CompletableDeferred<Unit>? = null
+
+        /** Get it again now, and wait for it (pull to refresh, after you changed something). The read starts after the call. */
         suspend fun refresh() {
             val a = api.value ?: return
-            lock.withLock {
-                stale = false
-                runCatching { fetch(a) }
-                    .onSuccess { if (api.value === a) { _value.value = it; _error.value = null; loadedAt = SystemClock.elapsedRealtime() } }
-                    .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; stale = true; _error.value = it.message }
+            val (mine, leads) = synchronized(this) {
+                queued?.let { it to false } ?: CompletableDeferred<Unit>().also { queued = it }.let { it to true }
+            }
+            if (!leads) return mine.await()
+            try {
+                lock.withLock {
+                    synchronized(this) { if (queued === mine) queued = null } // started: who asks from now on gets the next read
+                    stale = false
+                    runCatching { fetch(a) }
+                        .onSuccess { if (api.value === a) { _value.value = it; _error.value = null; loadedAt = SystemClock.elapsedRealtime() } }
+                        .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; stale = true; _error.value = it.message }
+                }
+            } finally {
+                synchronized(this) { if (queued === mine) queued = null } // cancelled before it started: the next caller leads
+                mine.complete(Unit)
             }
         }
 
