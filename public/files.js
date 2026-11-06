@@ -205,7 +205,7 @@ const Files = (() => {
     const writes = writesHere(c);
     const sort = { name: tr('Name'), date: tr('Date'), size: tr('Size') }[c.sort];
     return `<div class="fx-bar">
-      ${writes ? `<button type="button" class="btn primary" data-fx="upload">${I.upload}${tr('Upload')}</button><button type="button" class="btn" data-fx="new-folder">${I.plus}${tr('New folder')}</button>` : ''}
+      ${writes ? `<button type="button" class="btn primary" data-fx="upload">${I.upload}${tr('Upload')}</button>${typeof PhoneDrop !== 'undefined' && PhoneDrop.can() ? `<button type="button" class="btn" data-fx="from-phone">${PhoneDrop.PHONE}${tr('From phone')}</button>` : ''}<button type="button" class="btn" data-fx="new-folder">${I.plus}${tr('New folder')}</button>` : ''}
       ${c.busy ? `<span class="faint fx-busy">${esc(c.busy)}</span>` : ''}
       <span class="grow"></span>
       <button type="button" class="btn" data-fx="sort" aria-label="${tr('Sort by {sort}', { sort })}">${I.sort}${sort}</button>
@@ -711,6 +711,12 @@ const Files = (() => {
         return cur === c ? load(c) : undefined;
       case 'upload': return box()?.querySelector('[data-fx-files]')?.click();
       case 'upload-folder': return box()?.querySelector('[data-fx-folder]')?.click();
+      // Upload from phone (ADR 165): into the folder shown now, which is shown again as each file arrives.
+      case 'from-phone': {
+        const shown = { place: c.place, path: c.path };
+        const again = () => { if (cur === c && sameKey(c.place, shown.place) && c.path === shown.path) load(c); };
+        return PhoneDrop.open(document.body, { to: `/api${at(c, 'upload', c.path)}`, float: true, place: (card) => document.body.append(card), alive: () => cur === c && !!box()?.getClientRects().length, onFile: again });
+      }
       case 'new-folder': { if (await newFolder(c)) return load(c); return draw(c); }
       case 'new-project': {
         const name = await askName(tr('Name of the new project'), '', tr('Create'));

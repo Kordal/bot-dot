@@ -361,6 +361,33 @@ test('repeated wrong keys are slowed down, and a sign-in is not', async () => {
   } finally { await slow.stop(); }
 });
 
+// Upload from phone (ADR 165): the phone has no session, only the address in the QR code.
+test("a phone's upload reaches its account's botdot server without a session, marked, with only what the upload needs", async () => {
+  const { b } = await signUp('tia');
+  const token = 'T'.repeat(32);
+  const stand = await standIn(door, 'tia', { answer: (req) => (req.url.startsWith(`/api/drop/${token}`) ? [201, { name: 'a.jpg' }] : [404, { error: 'This code has expired.' }]) });
+  try {
+    const others = seenOf(stands);
+    const r = await call(`/drop/tia/${token}/files`, { body: 'jpeg', headers: { 'X-Bot-Dot': '1', 'X-File-Name': 'a.jpg', Cookie: 'theme=dark', 'X-Chief-Key': 'k', 'X-Botdot-Drop': '0', 'X-Botdot-Account': 'bob', 'X-Forwarded-For': '203.0.113.9' } });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    const got = stand.seen.at(-1);
+    assert.equal(got.url, `/api/drop/${token}/files`);
+    assert.equal(got.body, 'jpeg');
+    assert.deepEqual([got.headers['x-botdot-drop'], got.headers['x-botdot-account'], got.headers['x-file-name'], got.headers['x-bot-dot']], ['1', 'tia', 'a.jpg', '1']);
+    for (const h of ['cookie', 'x-chief-key']) assert.equal(got.headers[h], undefined, h);
+    assert.equal(seenOf(stands), others, "no other account's botdot server saw it");
+    // A session's own request never carries the mark.
+    await b.get('/api/bots', { 'X-Botdot-Drop': '1' });
+    assert.equal(stand.seen.at(-1).url, '/api/bots');
+    assert.equal(stand.seen.at(-1).headers['x-botdot-drop'], undefined);
+    // An account that doesn't exist answers as a code that was never made.
+    const was = seenOf(stands);
+    const none = await call(`/drop/nobody-here/${token}/files`, { body: 'x' });
+    assert.equal(none.status, 404);
+    assert.equal(seenOf(stands), was);
+  } finally { stand.close(); }
+});
+
 test("a session's own request to a job's call is refused: a call goes to its call address, where it is counted", async () => {
   const { b } = await signUp('sam');
   const stand = await standIn(door, 'sam', KEYED);

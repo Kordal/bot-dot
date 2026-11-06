@@ -91,7 +91,15 @@ function wireAttachments(form, uploadTo) {
     }
     draw();
   };
-  $('.attach-btn', form).onclick = () => input.click();
+  // On a wide screen the paperclip also offers the phone's files (phone-drop.js): they arrive in this list, ready to send.
+  const fromPhone = (saved, f) => {
+    if (form._files.length >= 10) return toast(tr('Attach at most 10 files at a time.'), true);
+    form._files.push({ ...saved, key: Math.random().toString(36).slice(2), name: f.name, status: 'ready' });
+    draw();
+  };
+  $('.attach-btn', form).onclick = (e) => (PhoneDrop.can()
+    ? PhoneDrop.attachMenu(e.currentTarget, () => input.click(), () => PhoneDrop.open($('.composer-wrap', form), { to: `/api/uploads?to=${encodeURIComponent(uploadTo())}`, place: (card) => list.before(card), onFile: fromPhone }))
+    : input.click());
   input.onchange = () => { add([...input.files]); input.value = ''; };
   form.text.addEventListener('paste', (e) => { if (e.clipboardData?.files?.length) { e.preventDefault(); add([...e.clipboardData.files]); } });
   // Drop files anywhere on the chat.

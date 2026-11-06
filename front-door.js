@@ -66,6 +66,7 @@ const webauthn = require('./lib/front-door/webauthn');
 const limits = require('./lib/front-door/limits');
 const pages = require('./lib/front-door/pages');
 const calls = require('./lib/front-door/calls');
+const drops = require('./lib/front-door/drops');
 const loadFiles = require('./lib/front-door/load');
 const capacity = require('./lib/front-door/capacity');
 const blockRules = require('./lib/front-door/blocks');
@@ -225,10 +226,12 @@ const INSTALL_FILES = Object.fromEntries([...new Set(['manifest.webmanifest', 'a
 }));
 const NOT_RUNNING = "Your account's botdot server isn't running. Try again in a moment, or ask the admin of this machine.";
 const CALL_NOT_RUNNING = "This account's botdot server isn't running. Try the call again later.";
+const DROP_NOT_RUNNING = "botdot isn't running right now. Try again in a moment.";
 const PAUSED = 'Your account is paused by the admin.';
 
 const tries = limits.create(); // failed sign-ins and sign-up links
 const callTries = limits.create(); // calls with a wrong key, or none, or to an account that doesn't exist
+const dropTries = limits.create(); // phones' requests with a code that was never made, or to an account that doesn't exist
 
 // The challenges given out and not yet answered: challenge → { kind: 'create' | 'get', client, until, token?, name?,
 // userId? }. Asking for one needs no sign-in, so each client holds at most CHALLENGES_PER_CLIENT and all of them at
@@ -1745,9 +1748,10 @@ async function accountAction(req, res, name, action) {
 // ---------- passing a request on ----------
 
 // Never passed on: the account is the front door's to name, a room turn is the front door's alone to ask for (ADR 060),
-// and the Chief's key belongs to the Chief's tools inside the account, which never come through here.
+// and the Chief's key belongs to the Chief's tools inside the account, which never come through here. A phone's upload
+// (ADR 165) is the front door's alone to mark.
 // The sandbox's request for a file (#399) and its address are the front door's alone to say, too.
-const PASSED_OFF = new Set(['x-botdot-account', 'x-botdot-room', 'x-chief-key', 'x-botdot-sandbox', 'x-botdot-sites', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
+const PASSED_OFF = new Set(['x-botdot-account', 'x-botdot-drop', 'x-botdot-room', 'x-chief-key', 'x-botdot-sandbox', 'x-botdot-sites', 'connection', 'keep-alive', 'proxy-connection', 'upgrade']);
 function headersFor(req, account) {
   const out = {};
   for (const [k, v] of Object.entries(req.headers)) if (!PASSED_OFF.has(k)) out[k] = v;
@@ -1806,6 +1810,21 @@ function takeCall(req, res, call) {
   pass(req, res, call.account, { path: call.path, headers: calls.callHeaders(req, call.account, client), answered, notRunning: CALL_NOT_RUNNING });
 }
 
+// A phone's request of Upload from phone (ADR 165): passed to its account's botdot server without a session, which lets
+// it reach that code's page and upload alone. A code that was never made, or an account that doesn't exist (answered
+// the same), counts against the client, which is slowed down as sign-ins are.
+function takeDrop(req, res, drop) {
+  if (slowedDown(req, res, dropTries, 'wrong codes')) return;
+  const client = clientOf(req);
+  if (!doors.accountExists(drop.account) || doors.isSuspended(drop.account)) {
+    failedTry(dropTries, client, 'codes');
+    req.resume();
+    return send(res, 404, { error: 'This code has expired.' });
+  }
+  const answered = (status) => { if (status === 404) failedTry(dropTries, client, 'codes'); };
+  pass(req, res, drop.account, { path: drop.path, headers: drops.dropHeaders(req, drop.account, client, ORIGIN.protocol.slice(0, -1)), answered, notRunning: DROP_NOT_RUNNING });
+}
+
 // ---------- the server ----------
 
 const server = http.createServer(async (req, res) => {
@@ -1858,6 +1877,8 @@ const server = http.createServer(async (req, res) => {
     const call = calls.callOf(p);
     if (call) return takeCall(req, res, call);
     if (p.startsWith('/call/')) return send(res, 404, { error: 'This is no call address.' });
+    const drop = drops.dropOf(p);
+    if (drop) return takeDrop(req, res, drop);
     const account = doors.sessionAccount(sessionOf(req));
     if (account) doors.seen(account);
     if (account && isAdmin) return await adminRoutes(req, res, p, account);
