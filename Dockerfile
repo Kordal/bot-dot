@@ -5,9 +5,9 @@
 #
 # Bot computers run next to this image. Only the docker-helper service receives the host socket.
 
-# Reviewed 2026-09-29: Node 24 bookworm, llama.cpp server, Docker CLI 29.7.2.
+# Reviewed 2026-09-29: Node 24 bookworm, llama.cpp server, Docker CLI 29.7.2. Node moved to 24.22.2 on 2026-11-06.
 # Multi-platform index digests; changing a tag alone cannot change the build bases.
-ARG NODE_IMAGE=node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+ARG NODE_IMAGE=node:24-bookworm-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9
 ARG LLAMA_IMAGE=ghcr.io/ggml-org/llama.cpp:server@sha256:f9115c95639e60abc09d4ea83b26fd4d56c66aa1174594393335a514da00c283
 ARG DOCKER_CLI_IMAGE=docker:29.7.2-cli@sha256:3f4743208d2338c934d7b8bcfbe1bb54c0b2355c510ad5e0f31c0c4a54bd704e
 

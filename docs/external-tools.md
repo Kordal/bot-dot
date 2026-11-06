@@ -24,11 +24,9 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 
 | Tool | Pinned | Newest | Why it matters |
 | --- | --- | --- | --- |
-| Camoufox launcher | 0.5.6 | 0.5.9 | **Being upgraded to 0.5.9 in another thread.** 0.5.7 needed `indexed-zstd`, which has no arm64 wheel. |
-| Camoufox browser | `official/152.0.4-beta.31` | `v158.0.1-beta.41` (GitHub "Latest") | Six Firefox majors behind; fingerprint freshness drops with age. Goes with the launcher bump. |
-| FastMCP | 3.2.4 | 4.1.6 | A major behind in the computer's control server. Held by cua-computer-server's needs; check before bumping. |
+| FastMCP | 3.2.4 | 4.1.6 | **Held**: cua-computer-server 0.3.46 (its newest) asks for `fastmcp<3.3`; 3.2.4 is the newest 3.2. Moves when cua does. |
 | FastAPI | 0.144.0 | 0.162.0 | **Held**: 0.145 refuses cua's `websocket_max_size` and the server dies at start (#601). |
-| Node 24 (server image) | 24 by digest | 24.22.2; LTS is 26.13.0 | The server image's digest is older than the current `24-bookworm-slim`. Node 24 is maintenance LTS now; plan the move to 26. |
+| Node 24 (server image) | 24.22.2 by digest | 24.22.2; LTS is 26.13.0 | Node 24 is maintenance LTS now; plan the move to 26 (image, CI and `CHECK_NODE` together). |
 | Caddy | 2.10.2 | 2.11.9 | The front door's TLS edge on the internet. |
 | Claude Code | 2.1.316 | 2.1.318 | Each bump needs real `claude -p` runs with the bot flags (sleep/Monitor behaviour changed at 2.1.310). |
 
@@ -36,7 +34,7 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 
 | Tool | Pinned | Where | Newest | Status |
 | --- | --- | --- | --- | --- |
-| Node.js base image | `node:24-bookworm-slim@sha256:0e0ff4…` | `Dockerfile:10` | 24.22.2 | behind |
+| Node.js base image | `node:24-bookworm-slim@sha256:01d566…` = 24.22.2 (also `install.sh` `CHECK_NODE`) | `Dockerfile:10` | 24.22.2 | ok |
 | llama.cpp server image | `ghcr.io/ggml-org/llama.cpp:server@sha256:f9115c…` | `Dockerfile:11` | `:server` now `sha256:c0a110…` | behind |
 | Docker CLI and Compose | `docker:29.7.2-cli` by digest | `Dockerfile:12` | 29.9.3 | behind |
 | micromamba | 2.9.0, sha256 per arch | `Dockerfile:17`-`25` | 2.9.0-0 on GitHub (2.10.0 on conda-forge) | ok |
@@ -55,18 +53,18 @@ The kit installs the same pins on an External Virtual PC; `test/boat-screen.test
 | micromamba | 2.9.0 | `deploy/desktop/Dockerfile:5`-`13` | 2.9.0-0 | ok |
 | npm | 10.9.9 | `deploy/desktop/Dockerfile:51` | 12.2.2 (10.x line kept for the base's Node) | ok on its line |
 | proxy-addr (in supergateway) | 2.0.8 | `deploy/desktop/Dockerfile:52` | 2.0.8 | ok |
-| pip (computer-server venv) | 26.2.2 | `deploy/desktop/Dockerfile:55`, kit `:65` | 26.3 | behind |
+| pip (computer-server venv) | 26.3 | `deploy/desktop/Dockerfile:55`, kit `:65` | 26.3 | ok |
 | cua-computer-server | 0.3.46 | `deploy/desktop/Dockerfile:57`, kit `:67` | 0.3.46 | ok |
 | FastAPI | 0.144.0 | same line | 0.162.0 | held (#601) |
-| FastMCP | 3.2.4 | same line | 4.1.6 | behind (major) |
-| PyJWT | 2.14.0 | same line | 2.15.1 | behind |
-| Authlib | 1.9.1 | same line | 1.9.5 | behind |
+| FastMCP | 3.2.4 | same line | 4.1.6 | held (cua-computer-server asks for <3.3) |
+| PyJWT | 2.15.1 | same line | 2.15.1 | ok |
+| Authlib | 1.9.5 | same line | 1.9.5 | ok |
 | Pillow | 13.0.0 | same line | 13.0.0 | ok |
-| certifi | 2026.10.19 | same line, and `:105`, kit `:74` | 2026.10.23 | behind |
+| certifi | 2026.10.23 | same line, and `:106`, kit `:74` | 2026.10.23 | ok |
 | websockify | 0.13.0 | kit `:69` | 0.13.0 | ok |
 | Chrome headless shell | 152.0.7977.30, sha256 | `deploy/desktop/Dockerfile:68` | not checked (endpoint blocked); version Hyperframes 0.9 asks for | held |
-| Camoufox launcher | `camoufox[geoip]==0.5.6` | `deploy/desktop/Dockerfile:105`, kit `:74` | 0.5.9 | **upgrading to 0.5.9 (other thread)** |
-| Camoufox browser | `official/152.0.4-beta.31` | `deploy/desktop/Dockerfile:106`-`107`, kit `:75`-`76` | v158.0.1-beta.41 | behind |
+| Camoufox launcher | `camoufox[geoip]==0.5.9` | `deploy/desktop/Dockerfile:106`, kit `:74` | 0.5.9 | ok (#1055) |
+| Camoufox browser | 158.0.1-beta.41, the build the launcher pairs with (`camoufox fetch`) | `deploy/desktop/Dockerfile`, kit | v158.0.1-beta.41 | ok |
 | Tailscale | newest stable at run time | `deploy/desktop/botdot-tailscale:26` | 1.104.5 | unpinned on purpose |
 | x11vnc, python3-venv, gcc and others (kit) | unpinned | kit `:35` | n/a | unpinned |
 

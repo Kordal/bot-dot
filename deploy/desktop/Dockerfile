@@ -43,18 +43,19 @@ RUN apt-get update \
 # Fix inherited tar, FastMCP and PyJWT vulnerabilities through their owning applications.
 # cua-computer-server 0.3.46 supports FastMCP 3.2; older releases require vulnerable 2.x. It asks for any FastAPI
 # from 0.111, but FastAPI 0.145 refuses its websocket_max_size and it ends at its start: 0.144.0 is pinned (#601).
-# PyJWT 2.14.0 fixes CVE-2026-102268; it arrives there as a dependency, at 2.13.0.
-# Authlib 1.9.1 fixes CVE-2026-96760 (fixed from 1.9.0); FastMCP brings it at 1.7.2 (#660).
+# PyJWT 2.14.0 fixes CVE-2026-102268 (2.15.1 is pinned); it arrives there as a dependency, at 2.13.0.
+# Authlib 1.9.1 fixes CVE-2026-96760 (fixed from 1.9.0; 1.9.5 is pinned); FastMCP brings it at 1.7.2 (#660).
+# FastMCP stays on 3.2: cua-computer-server 0.3.46 asks for fastmcp<3.3, so 4.x waits for a cua release that takes it.
 # proxy-addr 2.0.8 fixes CVE-2026-90711; the base's supergateway brings 2.0.7 with its express.
-# Pillow 13.0.0 fixes CVE-2026-112403 and certifi 2026.10.19 GHSA-6q48-6c7w-9gw2; both come as dependencies.
-# pip 26.2.2 vendors certifi 2026.10.19 too: the venv's pip 26.2.1 carries its own copy at 2026.6.17.
+# Pillow 13.0.0 fixes CVE-2026-112403 and certifi 2026.10.19 GHSA-6q48-6c7w-9gw2 (2026.10.23 is pinned); both come as dependencies.
+# pip 26.3 vendors certifi 2026.10.23 too: the venv's pip 26.2.1 carries its own copy at 2026.6.17.
 RUN npm install -g npm@10.9.9 \
  && npm --prefix /usr/lib/node_modules/supergateway install --omit=dev --no-save --no-audit --no-fund 'proxy-addr@2.0.8' \
  && npm --prefix /usr/lib/node_modules/supergateway ls --omit=dev proxy-addr \
  && npm cache clean --force \
- && /opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.2.2' \
+ && /opt/computer-server/venv/bin/pip install --no-cache-dir 'pip==26.3' \
  && /opt/computer-server/venv/bin/pip install --no-cache-dir \
-      'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.14.0' 'authlib==1.9.1' 'pillow==13.0.0' 'certifi==2026.10.19' \
+      'cua-computer-server==0.3.46' 'fastapi==0.144.0' 'fastmcp==3.2.4' 'PyJWT==2.15.1' 'authlib==1.9.5' 'pillow==13.0.0' 'certifi==2026.10.23' \
  && /opt/computer-server/venv/bin/pip check
 
 # The headless shell, pinned by the sha256 of its archive (the version Hyperframes 0.9 asks for), with the libraries
@@ -103,7 +104,7 @@ RUN useradd --create-home --shell /bin/bash box \
 # indexed-zstd, which fpgen needs, has arm64 wheels since 1.7.2. certifi 2026.10.19 fixes GHSA-6q48-6c7w-9gw2
 # in what requests brings.
 RUN python3 -m venv /opt/camoufox \
- && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.19' \
+ && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.23' \
  && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch \
  # Fail here, not at the first launch, if the browser or the fingerprint model is missing.
  && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -c "from camoufox.multiversion import get_active_path; from camoufox.fpgen_model import is_pinned; import sys; sys.exit(0 if get_active_path() and is_pinned() else \"Camoufox was not installed\")" \
