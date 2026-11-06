@@ -59,7 +59,7 @@ services:
       - ${BOT_DOT_SOCKETS:?install.sh sets BOT_DOT_SOCKETS}:/sockets:ro
 
   caddy:
-    image: caddy:2.10.2@sha256:c3d7ee5d2b11f9dc54f947f68a734c84e9c9666c92c88a7f30b9cba5da182adb
+    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
     profiles: [public]
     restart: unless-stopped
     # Ports 80, 443 and 8443 of the machine: HTTPS for the domain and for bots' interactive pages on its port 8443, and

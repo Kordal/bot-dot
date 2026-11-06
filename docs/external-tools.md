@@ -27,7 +27,6 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 | FastMCP | 3.2.4 | 4.1.6 | **Held**: cua-computer-server 0.3.46 (its newest) asks for `fastmcp<3.3`; 3.2.4 is the newest 3.2. Moves when cua does. |
 | FastAPI | 0.144.0 | 0.162.0 | **Held**: 0.145 refuses cua's `websocket_max_size` and the server dies at start (#601). |
 | Node 24 (server image) | 24.22.2 by digest | 24.22.2; LTS is 26.13.0 | Node 24 is maintenance LTS now; plan the move to 26 (image, CI and `CHECK_NODE` together). |
-| Caddy | 2.10.2 | 2.11.9 | The front door's TLS edge on the internet. |
 | Claude Code | 2.1.316 | 2.1.318 | Each bump needs real `claude -p` runs with the bot flags (sleep/Monitor behaviour changed at 2.1.310). |
 
 ## Server image (`Dockerfile`)
@@ -76,7 +75,7 @@ The kit installs the same pins on an External Virtual PC; `test/boat-screen.test
 | gVisor `runsc` | 20261102.0 (`GVISOR_RELEASE`; apt source names the release) | `install.sh` | 20261102.0 (apt `release` channel; GitHub "Latest" says 20261019.0) | ok |
 | Tailscale | install script, then apt | `install.sh` | 1.104.5 | unpinned on purpose |
 | Rootless Docker extras, uidmap, slirp4netns, acl | apt | `install.sh:1585`-`1589` | n/a | unpinned |
-| Caddy | `caddy:2.10.2` by digest | `compose.front-door.yaml:62` | 2.11.9 | behind |
+| Caddy | `caddy:2.11.9` by digest | `compose.front-door.yaml:62` | 2.11.9 | ok |
 | botdot images | `ghcr.io/kordal/bot-dot:latest`, signed | `compose.yaml:11`, `compose.front-door.yaml:16` | own build | ok (checked by signature) |
 
 ## Web page (vendored, `vendor/`)
