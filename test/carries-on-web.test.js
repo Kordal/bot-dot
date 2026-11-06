@@ -26,6 +26,7 @@ const cardOf5 = (a, { open = false } = {}) => `
       <div class="need-title">Let it ${esc(a.what.label)}?</div>
       <div class="need-meta">${esc(a.reason)}</div>
       <div class="need-body"><div class="nb">${esc(a.what.hint.replace(/^./, (c) => c.toUpperCase()))}. It can't until you allow it; you can change this in its settings.</div></div>
+      <div class="req-error" role="alert" hidden></div>
       <div class="need-actions"><button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Allow</button></div>
     </div>`;
 

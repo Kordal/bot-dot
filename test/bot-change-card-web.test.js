@@ -193,6 +193,7 @@ test('web: an ask without `parts` shows `details`, as before', () => {
       <div class="need-title">Approve changes to this bot?</div>
       <div class="need-meta">To run the checks.</div>
       <div class="need-body"><pre class="nb">Tools\nNow: Read\nProposed: Read, Bash</pre></div>
+      <div class="req-error" role="alert" hidden></div>
       <div class="need-actions"><button class="btn sm" data-need-no>Decline</button><button class="btn sm primary" data-need-yes>Approve</button></div>
     </div>`;
   const p = page({ state: { asks: [OLD] } });

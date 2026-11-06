@@ -28,6 +28,7 @@ const cardOf5 = `
       <div class="need-title">Allow gmail: gmail send email?</div>
       ${/* no line under the title */''}
       <div class="need-body"><pre class="nb">${esc(DETAILS)}</pre></div>
+      <div class="req-error" role="alert" hidden></div>
       <div class="need-actions">${BUTTONS}</div>
     </div>`;
 const draw = (ask, here = null) => { const p = page({ state: { asks: [ask] } }); return p.needCardHTML(p.item(`ask:${ask.id}`), here); };
