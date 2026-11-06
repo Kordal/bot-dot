@@ -1,6 +1,6 @@
 // What carries on survives (ADR 009, bots.js carryOn and startQueued): behind a busy bot the work waits in the
-// bot's queue under a key of its own, is still there after a restart and starts once; with the queue full the yes
-// only changes the setting; and a one-time job that is gone from the bot's jobs still runs again.
+// bot's queue under a key of its own, is still there after a restart and starts once; ten tasks waiting do not
+// refuse it (#1101), and with ten yeses waiting already the yes only changes the setting and says so; and a one-time job that is gone from the bot's jobs still runs again.
 // Tests here count on work for a busy bot waiting its turn: one run of a bot at a time (ADR 062 lets three go at
 // once, and at that limit the same holds).
 process.env.BOT_DOT_RUNS_MAX = '1';
@@ -16,7 +16,8 @@ const runsOf = async (srv, bot) => (await srv.api(`/runs?botId=${bot.id}`)).data
 const asksOf = async (srv, bot) => (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
 const answer = (srv, ask) => srv.api(`/asks/${ask.id}`, { method: 'POST', body: { yes: true } });
 // An ask as botdot keeps it, for a run that asked just now.
-const askFor = (bot, runId, id) => ({ id, kind: 'permission', botId: bot.id, permission: 'commands', reason: '', at: new Date().toISOString(), runs: [{ id: runId, at: new Date().toISOString() }] });
+// It asked after the runs seeded with it had started (a millisecond apart, seedRuns).
+const askFor = (bot, runId, id) => { const at = new Date(Date.now() + 20).toISOString(); return { id, kind: 'permission', botId: bot.id, permission: 'commands', reason: '', at, runs: [{ id: runId, at }] }; };
 
 test('behind a busy bot the work waits in the queue, survives a restart and starts once; a full queue takes none; a one-time job that is gone runs again', async () => {
   let srv = await startServer();
@@ -42,15 +43,16 @@ test('behind a busy bot the work waits in the queue, survives a restart and star
     assert.equal((await runsOf(srv, bot)).length, 2, 'nothing started yet');
 
     // botdot is stopped and started. While it is down, as it would have left them:
-    //  - Swamped has ten tasks waiting behind a run, and an ask of a refused run;
+    //  - Swamped has ten tasks and nine yeses to carry on waiting behind a run, and asks of two refused runs;
     //  - Planner's one-time job ran at its time, was refused, and is gone from its jobs.
-    let swampedRun, onceRun;
+    let swampedRun, swampedRun2, onceRun;
     srv = await restartServer(srv, (data) => {
       const fromBot = { id: sender.id, name: sender.name, emoji: sender.emoji, color: sender.color, hop: 1, chainId: 'chain-1' };
-      setQueue(data, (q) => { q.queues[full.id] = Array.from({ length: 11 }, (_, i) => ({ key: `msg:seed:${i}`, kind: 'message', prompt: `Task ${i}`, fromBot, queuedAt: new Date().toISOString() })); });
-      [swampedRun] = seedRuns(srv, full, [{ prompt: 'Check the PRs' }]);
+      const carries = Array.from({ length: 9 }, (_, i) => ({ key: `carry:seed-${i}`, kind: 'carry-on', runId: `seed-${i}`, allowed: [], declined: [], queuedAt: new Date().toISOString() }));
+      setQueue(data, (q) => { q.queues[full.id] = [...Array.from({ length: 11 }, (_, i) => ({ key: `msg:seed:${i}`, kind: 'message', prompt: `Task ${i}`, fromBot, queuedAt: new Date().toISOString() })), ...carries]; });
+      [swampedRun, swampedRun2] = seedRuns(srv, full, [{ prompt: 'Check the PRs' }, { prompt: 'Check the issues', fromBot }]);
       [onceRun] = seedRuns(srv, once, [{ trigger: 'schedule', jobId: 'once-1', jobName: 'Call the plumber', oneTime: true, notify: 'always', prompt: 'Remind me to call the plumber.', reporting: 'delivered' }]);
-      fs.writeFileSync(path.join(data, 'asks.json'), JSON.stringify([askFor(full, swampedRun, 'swamped1'), askFor(once, onceRun, 'once1')]));
+      fs.writeFileSync(path.join(data, 'asks.json'), JSON.stringify([askFor(full, swampedRun, 'swamped1'), { ...askFor(full, swampedRun2, 'swamped2'), permission: 'web' }, askFor(once, onceRun, 'once1')]));
     });
 
     // The work that waited starts by itself, once; the run the restart cut off is not repeated.
@@ -66,16 +68,20 @@ test('behind a busy bot the work waits in the queue, survives a restart and star
     assert.equal((await runsOf(srv, bot)).length, 3, 'it started once');
     assert.equal(readData(srv.data, 'queue.json').queues[bot.id], undefined, 'and left the queue as it started');
 
-    // A full queue: the yes changes the setting, starts nothing, says nothing of carrying on, and the server logs why.
+    // Ten tasks wait: the yes still carries on, in a place of its own. Ten yeses wait: the next one changes the
+    // setting, starts nothing, and says so.
     await waitFor(async () => (await runsOf(srv, full)).some((r) => r.status === 'running'), { what: "Swamped's first task to start" });
-    assert.equal(readData(srv.data, 'queue.json').queues[full.id].length, 10);
-    const [swamped] = await asksOf(srv, full);
+    assert.equal(readData(srv.data, 'queue.json').queues[full.id].length, 19);
+    const cards = await asksOf(srv, full);
+    const swamped = cards.find((x) => x.id === 'swamped1');
     assert.ok(swamped.then, 'the card cannot know the queue is full');
-    const taken = await answer(srv, swamped);
-    assert.equal(taken.data.carriesOn, undefined);
-    assert.ok(taken.data.bot.allowedTools.includes('Bash'), 'the setting changed');
-    assert.equal(readData(srv.data, 'queue.json').queues[full.id].length, 10, 'nothing was added');
-    assert.match(srv.log.join(''), new RegExp(`Swamped: its OK changed the setting, and run ${swampedRun} does not carry on: too much is waiting for the bot`));
+    assert.deepEqual((await answer(srv, swamped)).data.carriesOn, { who: 'bot', text: 'it carries on when it is free' }, 'ten tasks waiting do not refuse it');
+    assert.equal(readData(srv.data, 'queue.json').queues[full.id].length, 20);
+    const taken = await answer(srv, cards.find((x) => x.id === 'swamped2'));
+    assert.deepEqual(taken.data.carriesOn, { who: 'bot', text: 'it could not carry on: too much waits for it' });
+    assert.equal((await asksOf(srv, full)).length, 0, 'the setting changed: no card is left');
+    assert.equal(readData(srv.data, 'queue.json').queues[full.id].length, 20, 'nothing was added');
+    assert.match(srv.log.join(''), new RegExp(`Swamped: its OK changed the setting, and run ${swampedRun2} does not carry on: too much is waiting for the bot`));
 
     // A one-time job that is gone from the bot's jobs: the work carries the job, and it runs once more.
     assert.deepEqual((await srv.api(`/bots/${once.id}`)).data.jobs, []);
