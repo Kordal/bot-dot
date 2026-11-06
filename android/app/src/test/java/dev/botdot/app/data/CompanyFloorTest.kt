@@ -86,6 +86,14 @@ class CompanyFloorTest {
         assertTrue(CompanyFloor.room(CompanyTeam("t", "T", bots = listOf("a")), listOf(bot("a")), idle)!!.solo)
     }
 
+    @Test fun plusOffersTheBotsNotInTheTeamThoseInNoOtherTeamFirst() {
+        val infra = CompanyTeam("i", "Infra", bots = listOf("a"))
+        val ops = CompanyTeam("o", "Ops", bots = listOf("b"))
+        val c = Company("p", teams = listOf(infra, ops))
+        val offered = CompanyFloor.addable(c, infra, listOf(bot("a"), bot("b"), bot("c")))
+        assertEquals(listOf("c" to null, "b" to "Ops"), offered.map { it.first.id to it.second })
+    }
+
     @Test fun aTeamsObjectiveIsTheOneOfItsColour() {
         val c = CompanySetup.of(running)
         assertEquals("o1", CompanyFloor.objectiveOf(c.teams[0], c.objectives)!!.id) // any case

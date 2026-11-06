@@ -1276,5 +1276,9 @@
   "Add a note": "Dodaj notatkę",
   "Decision": "Ustalenie",
   "Fact": "Fakt",
-  "No project": "Bez projektu"
+  "No project": "Bez projektu",
+  "Add bots to {team}": "Dodaj boty do zespołu {team}",
+  "Add to {team}": "Dodaj do zespołu {team}",
+  "In {team}": "W zespole {team}",
+  "A new bot for the {team} team in {project}:": "Nowy bot dla zespołu {team} w projekcie {project}:"
 }

@@ -17,10 +17,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -283,6 +287,20 @@ internal fun TeamKey(look: KeyLook, crown: Boolean, wide: Boolean, onClick: () -
         if (crown) Crown(Modifier.align(Alignment.TopCenter).offset(x = (size.head / 2).dp, y = Space.s4).testTag(LEAD_CROWN))
     }
 }
+
+/** "+" at the end of a team's row: a dashed key as wide as its keys, which adds bots to the team. */
+@Composable
+internal fun TeamAddKey(label: String, wide: Boolean, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    val size = if (wide) WIDE_KEY else PHONE_KEY
+    Box(Modifier.width(size.width).heightIn(min = (size.head + 52).dp).dashedBox(p.line2).clickable(onClickLabel = label, onClick = onClick).semantics { contentDescription = label }.testTag(TEAM_ADD),
+        contentAlignment = Alignment.Center) {
+        Icon(Icons.Filled.Add, null, tint = p.faint, modifier = Modifier.size(22.dp))
+    }
+}
+
+/** The tag of a team's "+" key. */
+internal const val TEAM_ADD = "team-add"
 
 /** The tag of the lead's crown on a team key (#841). */
 internal const val LEAD_CROWN = "lead-crown"

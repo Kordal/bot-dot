@@ -127,6 +127,9 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     }
     fun lineOf(b: Bot): String = question(b) ?: if (b.running) OpeningLine.status(lines["bot:${b.id}"], working = true) else b.description
     var teamOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    // "+" at the end of a team's row: the team it adds to, while its picker is open.
+    var adding by rememberSaveable { mutableStateOf<String?>(null) }
+    fun offered(t: CompanyTeam): List<Bot> = CompanyFloor.addable(c, t, bots).map { (b, other) -> if (other != null) b.copy(description = tr("In {team}", "team" to other)) else b }
     // The pieces the owner put on the board (#780); a project made before has them all.
     fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
     val canvas = BoardCanvas.FEATURE in features
@@ -195,13 +198,23 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         }
         }
         // Its teams' keys (#841), in place of the floor's rooms and desks.
-        TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot) { teamOpen = it }
+        TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }) { teamOpen = it }
+    }
+    adding?.let { id -> c.teams.firstOrNull { it.id == id } }?.let { t ->
+        BotPicker(tr("Add to {team}", "team" to t.name), offered(t), max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c, t)) }, onDismiss = { adding = null }) { picked, _ ->
+            val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+            ui.took(a.setTeamBots(t.id, t.bots + picked))
+        }
     }
     val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }, containerColor = p.panel) {
         TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
 }
+
+/** The words a team's "New bot" starts a Chief chat with. */
+private fun newBotWords(c: Company, t: CompanyTeam): String =
+    tr("A new bot for the {team} team in {project}:", "team" to t.name, "project" to c.name.ifBlank { c.start }) + " "
 
 /** A bot's open question, while it is not working: what its desk and its row say. */
 internal fun question(b: Bot): String? = b.asks?.text?.takeIf { !b.running }?.replace('\n', ' ')?.take(120)
@@ -501,7 +514,7 @@ internal const val TEAM_KEYS = "team-keys"
  */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, chatOf: (String) -> (() -> Unit)?, onBot: (String) -> Unit, onTeam: (String) -> Unit) {
+internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, chatOf: (String) -> (() -> Unit)?, onBot: (String) -> Unit, onAdd: ((String) -> Unit)? = null, onTeam: (String) -> Unit) {
     val p = LocalPaper.current
     for (branch in dev.botdot.app.data.ManyProjects.branches(c, bots)) {
         val t = branch.team
@@ -520,6 +533,7 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
                         status = Keypad.status(b.running, needs = asks, unread = b.unread, runs = b.runningCount))
                     TeamKey(look, crown = b.id == t.lead && branch.bots.size > 1, wide = wide) { onBot(b.id) }
                 }
+                if (onAdd != null) TeamAddKey(tr("Add bots to {team}", "team" to t.name), wide) { onAdd(t.id) }
             }
         }
     }
