@@ -577,9 +577,16 @@ test('web: the keys do nothing where the keypad is not shown, under a dialog, or
   assert.equal(narrow.key('Escape'), false);
   assert.equal(narrow.key('k', { ctrlKey: true }), false);
   assert.deepEqual([narrow.said.views, narrow.said.chief], [[], []]);
-  const dialog = page();
-  dialog.doc['#modal'].open = true;
-  assert.equal(dialog.key('Escape'), false, 'Esc closes the dialog');
+  // Any open dialog (#1072): the modal, the spaces sheet, the ask-first question (the password warning on Send), a
+  // picture. Esc closes it, and the page stays in the bot's chat.
+  for (const id of ['#modal', '#spaces-sheet', '#ask-first', 'picture']) {
+    const dialog = page();
+    const open = { id, open: true };
+    Object.defineProperty(dialog.doc, 'dialog[open]', { get: () => open, configurable: true });
+    assert.equal(dialog.key('Escape'), false, `Esc closes ${id}`);
+    assert.equal(dialog.key('1'), false);
+    assert.deepEqual([dialog.said.views, dialog.said.chief], [[], []], id);
+  }
   const taken = page();
   assert.equal(taken.key('1', { defaultPrevented: true }), false);
   const chief = page();

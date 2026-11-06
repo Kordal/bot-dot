@@ -446,7 +446,9 @@ function wireNeedRows(el, shown, open, see = open) {
 // On a project's page the digits open its keys in reading order, Esc the Chief in its chat column, and Ctrl+K the
 // search on Home.
 function onKeypadKey(e) {
-  if (e.defaultPrevented || e.isComposing || $('#modal')?.open || $('#spaces-sheet')?.open) return; // under the modal or the spaces sheet (#839)
+  // Under any open dialog: the modal, the spaces sheet (#839), an ask-first question such as the password warning on
+  // Send, a picture (#1072). Its Esc closes it and nothing else.
+  if (e.defaultPrevented || e.isComposing || $('dialog[open]')) return;
   const project = typeof Company !== 'undefined' && Company.spaceKeys ? Company.spaceKeys() : null;
   if (!project && !keypadShown()) return;
   const t = e.target;
