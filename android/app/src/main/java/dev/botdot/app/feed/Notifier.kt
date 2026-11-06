@@ -19,6 +19,9 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
+import androidx.core.content.LocusIdCompat
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import dev.botdot.app.MainActivity
 import dev.botdot.app.R
@@ -83,6 +86,7 @@ class Notifier(
     private val newChats: suspend () -> List<NewChat>? = { null },
     private val groupNameOf: (groupId: String) -> String? = { null },
     private val chiefName: () -> String = { ChiefName.role },
+    private val botNameOf: (botId: String) -> String? = { null },
 ) {
     companion object {
         const val CH_UPDATES = "updates"
@@ -92,6 +96,7 @@ class Notifier(
         private const val KEEP_MESSAGES = 8 // per chat notification
         private const val YOU_COLOR = "#9a9a9a"
         private const val HEAD_PX = 144
+        private const val SHORTCUT_CONVERSATION = "android.shortcut.conversation" // ShortcutInfo.SHORTCUT_CATEGORY_CONVERSATION
     }
 
     /** The chat on screen right now ("bot:<id>", "chief:<chatId>" or "group:<id>"). Opening it clears its notifications. */
@@ -460,7 +465,60 @@ class Notifier(
         val chief = chat.startsWith("chief:")
         // A Chief chat is named by its title, and a group by its name: who said it stands under that.
         if (chief || groupOfChat(chat) != null) style.setConversationTitle(title?.ifBlank { null } ?: old?.conversationTitle ?: if (chief) chiefName() else tr("A group")).setGroupConversation(true)
+        conversation(chat, from, title ?: old?.conversationTitle?.toString())
         notify(chat, chatBuilder(chat, style, at, quiet).setContentIntent(openApp(open)).setLargeIcon(if (chief) head(CHIEF_ID, CHIEF_COLOR) else head(from.id, from.color, from.outfit)))
+    }
+
+    // ---------- chats as Android conversations (#1116) ----------
+
+    // What each conversation's shortcut was last pushed with: pushed again only when its name changed.
+    private val pushed = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** The chat's conversation has its long-lived shortcut, named and drawn as it is now, before its notification. */
+    private fun conversation(chat: String, from: Sender, title: String?) {
+        val id = Conversations.of(chat) ?: return
+        when {
+            id == Conversations.CHIEF -> pushConversation(id, chiefName()) { head(CHIEF_ID, CHIEF_COLOR) }
+            id.startsWith("group:") -> pushConversation(id, groupNameOf(id.removePrefix("group:")) ?: title?.ifBlank { null } ?: tr("A group")) { dot(null, HEAD_PX) }
+            else -> pushConversation(id, botNameOf(from.id) ?: from.name) { head(from.id, from.color, from.outfit) }
+        }
+    }
+
+    private fun pushConversation(id: String, label: String, icon: () -> Bitmap) {
+        if (pushed[id] == label) return
+        runCatching {
+            val ic = IconCompat.createWithBitmap(icon())
+            val open = Intent(context, MainActivity::class.java).setAction(Intent.ACTION_VIEW).putExtra(EXTRA_OPEN, Conversations.opens(id))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            ShortcutManagerCompat.pushDynamicShortcut(context, ShortcutInfoCompat.Builder(context, id)
+                .setShortLabel(label.take(25).ifBlank { "botdot" })
+                .setLongLabel(label.ifBlank { "botdot" })
+                .setIcon(ic)
+                .setIntent(open)
+                .setLongLived(true)
+                .setLocusId(LocusIdCompat(id))
+                .setPerson(Person.Builder().setKey(id).setName(label).setIcon(ic).build())
+                .setCategories(setOf(SHORTCUT_CONVERSATION))
+                .build())
+            pushed[id] = label
+        }
+    }
+
+    /**
+     * The conversations as the lists are now: the Chief and the first pinned bots offered on the launcher, and the
+     * shortcut of a bot or group that was deleted removed, with its conversation. [groups] null: not read (an
+     * older botdot, or not yet), and no group's shortcut goes.
+     */
+    fun syncConversations(bots: List<dev.botdot.app.data.Bot>, groups: List<dev.botdot.app.data.Group>?) {
+        runCatching {
+            val have = ShortcutManagerCompat.getDynamicShortcuts(context).map { it.id }
+            val gone = Conversations.gone(have, bots.map { it.id }.toSet(), groups?.map { it.id }?.toSet())
+            if (gone.isNotEmpty()) { ShortcutManagerCompat.removeLongLivedShortcuts(context, gone); gone.forEach { pushed.remove(it) } }
+            for (id in Conversations.offered(bots)) {
+                if (id == Conversations.CHIEF) pushConversation(id, chiefName()) { head(CHIEF_ID, CHIEF_COLOR) }
+                else bots.firstOrNull { "bot:${it.id}" == id }?.let { b -> pushConversation(id, b.name) { head(b.id, b.color, b.outfit) } }
+            }
+        }
     }
 
     /** A shared room's messages stack in one notification under the room's name. No Reply: a room is the front door's. */
@@ -503,6 +561,7 @@ class Notifier(
             .setContentIntent(openApp(chat))
             .setPublicVersion(hidden(CH_UPDATES, tr("New message")))
             .addAction(replyAction(chat))
+            .apply { Conversations.of(chat)?.let { setShortcutId(it); setLocusId(LocusIdCompat(it)) } } // an Android conversation (#1116)
     }
 
     private fun replyAction(chat: String): NotificationCompat.Action {
