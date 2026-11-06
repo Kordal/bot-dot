@@ -607,7 +607,10 @@
     if (decision === 'change') {
       openChiefChat(null);
       const box = $('#view-chief form')?.text;
-      if (box) { box.value = `${tr('Day {n} check-in: I want to change direction.', { n: k.day })} `; box.dispatchEvent(new Event('input')); box.focus(); }
+      // The project by name (#1088): the Chief has several projects and this chat is a new one.
+      const project = state.company?.name || state.company?.start || '';
+      const words = state.company?.ongoing ? tr('Monthly review of {project}: I want to change direction.', { project }) : tr('Day {n} check-in of {project}: I want to change direction.', { n: k.day, project });
+      if (box) { box.value = `${words} `; box.dispatchEvent(new Event('input')); box.focus(); }
     }
   }
   // "New team": a name and its bots, the first picked its lead; the bots in no team are offered first.

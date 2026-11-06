@@ -21,6 +21,22 @@ test('the number in a read: digits with a dot, thousands commas and a unit aroun
   assert.deepEqual(companyLib.numberOf(''), { error: 'the answer was not a number' });
 });
 
+test('an archived project reads no goal source until it is unarchived (#1086)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'objective-sources-'));
+  const at = new Date('2026-10-01T09:00:00Z');
+  const store = companyLib.create({ file: path.join(dir, 'company.json'), now: () => at });
+  store.start({ start: 'fernhill.app' });
+  store.patch({ objectives: [{ name: 'Paying users', target: 100, current: 0 }] });
+  store.setObjective(store.read().objectives[0].id, { source: { app: 'stripe', what: 'Active subscriptions' } });
+  store.begin({});
+  assert.equal(store.sourcesDue(at).length, 1);
+  store.patch({ archived: true });
+  assert.deepEqual(store.sourcesDue(at), [], 'nothing read while archived');
+  store.patch({ archived: false });
+  assert.equal(store.sourcesDue(at).length, 1, 'read again once unarchived');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 test('a source is kept on its objective, checked, read when due, and its failure is told once until it works again', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'objective-sources-'));
   let at = new Date('2026-10-01T09:00:00Z');

@@ -119,11 +119,12 @@ test('Create makes the bots, their teams with the first bot the lead and plan it
   const byName = (name) => bots.find((b) => b.name === name);
   assert.deepEqual(c.teams.map((t) => [t.name, t.bots.length, t.lead]), [['Growth', 2, byName('Market Scout').id], ['Sales', 1, byName('Outreach').id], ['Mealwise', 1, byName('Inbox Helper (Mealwise)').id]]);
   assert.deepEqual(c.plan.items[0], { text: 'Ask 10 parents to pre-order' });
-  // Create is the owner's OK (ADR 128): the web tool is granted at once and nothing waits in Needs you; "Asks first" is
-  // in its rules; a copy has the original's settings.
+  // Create is the owner's OK (ADR 128): the web tool is granted at once and nothing waits in Needs you; "Every action"
+  // is in its rules, and the project's never list is not copied in: the team note says it on every run (#1080); a copy
+  // has the original's settings.
   assert.deepEqual(byName('Market Scout').allowedTools, ['WebSearch']);
   assert.equal(byName('Market Scout').pendingChange, undefined);
-  assert.match(byName('Market Scout').systemPrompt, /Never do these without asking the owner first: E-mail someone new/);
+  assert.doesNotMatch(byName('Market Scout').systemPrompt || '', /Never do these without asking/);
   assert.match(byName('Landing Page').systemPrompt, /before every action/);
   assert.equal(byName('Inbox Helper (Mealwise)').description, 'Sorts your Gmail');
   const jobs = (await srv.api(`/bots/${byName('Market Scout').id}/jobs`)).data;
