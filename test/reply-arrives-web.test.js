@@ -257,7 +257,7 @@ test('web: another Chief chat in the same thread opens with nothing new, and one
 
 test('web: the Chief\'s chat marks its reply where it draws one: read from the server, written on its stream, and a bot\'s file', () => {
   const show = cut('async function showChat(id) {', '// Stop the Chief\'s reply in a chat');
-  assert.match(show, /thread\._from = chat\.offset \|\| 0;/, 'the chat as it was read says where it begins');
+  assert.match(show, /const from = chat\.offset \|\| 0;[\s\S]*?thread\._from = from;/, 'the chat as it was read says where it begins');
   assert.ok(show.indexOf('thread.innerHTML = chat.messages') < show.indexOf('placeStatusLines();', show.indexOf('thread.innerHTML = chat.messages')), 'the rows are drawn, then looked at');
   const follow = cut('function followChief(id) {', '// ---------- a bot\'s conversation ----------');
   assert.match(follow, /row\.outerHTML = chiefBubble\(ev\.message, true\); placeStatusLines\(\);/, 'the reply in its row\'s place');

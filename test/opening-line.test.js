@@ -196,7 +196,7 @@ test('a failed run and a stopped run take the line away', async () => {
   player(a.rec)(say('Checking the disks.'), use('Bash', { command: 'df -h' }));
   await f.wait('opening_line', (d) => d.runId === a.run.id);
   const fail = path.join(srv.out, 'fail.txt');
-  fs.writeFileSync(fail, 'API Error: overloaded');
+  fs.writeFileSync(fail, 'Something broke');
   try {
     srv.release(a.rec);
     const done = await srv.finished(a.run.id);

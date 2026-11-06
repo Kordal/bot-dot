@@ -87,7 +87,7 @@ test('web: the thumbs on screen show and change a rating', () => {
 
 test('web: the Chief\'s chat draws the thumbs after Copy, with the message\'s place in the whole chat', () => {
   assert.match(app, /copyBtn\(m\.text \|\| m\.error\)\}\$\{Ratings\.shows\(m, state\.features, index\) \? Ratings\.html\(m\.rating, index, CHIEF_COLOR\) : ''\}<\/div>/);
-  assert.match(app, /messageHTML\(m, i, all, \(chat\.offset \|\| 0\) \+ i\)/, 'a chat read in part counts from its offset');
+  assert.match(app, /const from = chat\.offset \|\| 0;[\s\S]*?messageHTML\(m, i, all, from \+ i\)/, 'a chat read in part counts from its offset');
 });
 
 test('web: a tap is sent to the server and rolled back with a toast when it is refused or the server is away', () => {

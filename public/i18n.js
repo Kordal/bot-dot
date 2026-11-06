@@ -35,10 +35,11 @@ const I18n = (() => {
 
   // The account's language from the server, with its dictionary, kept for the next load. When either is not what this
   // page was drawn with, the page loads again, once: every word is then drawn in the new language.
-  async function sync(api, features) {
+  // settings: GET /settings's answer when it was already asked for (boot.js asks it beside the rest, #1103).
+  async function sync(api, features, settings = null) {
     if (!features.includes('language')) return;
     let lang;
-    try { lang = (await api('/settings')).settings?.language === 'pl' ? 'pl' : 'en'; } catch { return; }
+    try { lang = (await (settings || api('/settings'))).settings?.language === 'pl' ? 'pl' : 'en'; } catch { return; }
     let next = { language: lang };
     if (lang !== 'en') {
       try { next = { language: lang, strings: (await api(`/i18n/${lang}`)).strings || {} }; } catch { return; }
