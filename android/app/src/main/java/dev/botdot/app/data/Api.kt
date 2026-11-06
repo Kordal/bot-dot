@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.withContext
@@ -930,7 +931,9 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         val source = EventSources.createFactory(liveClient).newEventSource(req, object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) = onOpen()
             override fun onEvent(eventSource: EventSource, id: String?, type: String?, data: String) {
-                parse(SseMeta(id, type), data)?.let { trySend(it) }
+                // Waits for room rather than dropping the event (#1079): this is okhttp's reader thread for this stream, so
+                // a slow listener only slows the reading. A dropped event was never replayed, as later ones moved lastId on.
+                parse(SseMeta(id, type), data)?.let { trySendBlocking(it) }
             }
             override fun onClosed(eventSource: EventSource) { channel.close() }
             override fun onFailure(eventSource: EventSource, t: Throwable?, response: Response?) {
