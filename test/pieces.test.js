@@ -229,7 +229,7 @@ function chiefTools(t) {
 test("the Chief's tools speak of a hat only: the kit is listed to choose from, a hat is set and changed, a wrong name comes back with the right ones", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
-  for (const name of ['create_bot', 'update_bot']) {
+  for (const name of ['create_bot']) { // update_bot takes create_bot's fields without their words (#1106)
     const props = tools.find((x) => x.name === name).inputSchema.properties;
     const field = props.outfit;
     assert.match(field.description, /fits its name and task/);
@@ -381,7 +381,7 @@ test("the Chief's drawing guidance takes its numbers from the figure definition"
 test("the Chief's tools: told to use the kit first and how to draw, a drawn hat is stored, a bad one comes back with the reason", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
-  for (const name of ['create_bot', 'update_bot']) {
+  for (const name of ['create_bot']) { // update_bot takes create_bot's fields without their words (#1106)
     const field = tools.find((x) => x.name === name).inputSchema.properties.outfit;
     assert.match(field.description, /Use the kit first/);
     assert.match(field.description, /Only when nothing in the kit fits/);
