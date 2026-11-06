@@ -462,6 +462,9 @@ function drawStatusLine(thread, chat, color, stop, held = false, doing = '') {
   thread.dataset.statusLine = html;
   if (!html) return;
   if (next) next.insertAdjacentHTML('beforebegin', html); else thread.insertAdjacentHTML('beforeend', html);
+  // Its words are read out when they change (#1077): the line itself is drawn anew each time, so it is no live region.
+  const words = $('span', next ? next.previousElementSibling : thread.lastElementChild)?.textContent;
+  if (words && words !== thread._said && globalThis.say && onScreen(thread)) { thread._said = words; say(words); }
   const stopRunBtn = $('[data-stop-run]', thread);
   // Stop takes one tap until botdot answered: it says it is stopping, or why not, and can be tapped again then.
   const stopping = (btn, stop) => async () => { btn.disabled = true; try { await stop(); } finally { btn.disabled = false; } };
@@ -645,8 +648,11 @@ function sentArrives(keeper, thread, chat, sent) {
 }
 // The row moves. With reduced motion asked for it is not marked at all: the style switches the movement off too,
 // and no mark is left to move when the setting changes.
+// A screen reader hears it, motion or not (#1077): its words, without its buttons.
 function arrive(row) {
-  if (row && !reducedMotion()) row.classList.add('arrives');
+  if (!row) return;
+  if (!reducedMotion()) row.classList.add('arrives');
+  if (globalThis.say) say([...row.querySelectorAll('.bubble')].map((b) => b.textContent).join(' '));
 }
 // The Chief's chat as it is drawn: one row for each message, the owner's own with `.mine` and a reply that is
 // still being written with `data-pending`. A reply that is new arrives, its whole row. Called wherever a reply

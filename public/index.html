@@ -104,7 +104,9 @@
   <!-- A bot's files over the whole page (files.js, #603). -->
   <div id="files" class="fx hidden" aria-label="Files" data-t-aria-label></div>
   <dialog id="modal"></dialog>
-  <div id="toast" class="toast hidden" popover="manual"></div>
+  <div id="toast" class="toast hidden" popover="manual" role="status" aria-live="polite"></div>
+  <!-- What a screen reader hears of a chat (app.js, say): a reply that arrives, the working line's words. -->
+  <div id="say" class="sr-only" aria-live="polite"></div>
 
   <script src="/i18n.js"></script>
   <script src="/mentions.js"></script>

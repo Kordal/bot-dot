@@ -21,9 +21,9 @@ const said = (html) => html?.match(/<span>(.*?)<\/span>/)?.[1] ?? null;
 
 test('web: the status line takes a stop that is not a run: the Chief\'s reply in a chat', () => {
   assert.equal(OpeningLine.status('', CHIEF, { chief: 'c1' }),
-    `<div class="status-line" role="status" style="--c:${CHIEF}"><i></i><span>Thinking</span><button type="button" data-stop-chief="c1">Stop</button></div>`);
+    `<div class="status-line" style="--c:${CHIEF}"><i></i><span>Thinking</span><button type="button" data-stop-chief="c1">Stop</button></div>`);
   assert.equal(OpeningLine.status('Looking at your bots', CHIEF, { chief: 'c1' }),
-    `<div class="status-line" role="status" style="--c:${CHIEF}"><i></i><span>Looking at your bots</span><button type="button" data-stop-chief="c1">Stop</button></div>`);
+    `<div class="status-line" style="--c:${CHIEF}"><i></i><span>Looking at your bots</span><button type="button" data-stop-chief="c1">Stop</button></div>`);
   // A reply is never "held": that is a run waiting for the owner's OK.
   assert.doesNotMatch(OpeningLine.status('Looking', CHIEF, { chief: 'c1' }, true), /held|Waiting for your OK/);
   // No chat to stop: the line alone, or nothing, as before.
@@ -34,7 +34,7 @@ test('web: the status line takes a stop that is not a run: the Chief\'s reply in
   assert.doesNotMatch(OpeningLine.status('', CHIEF, { chief: '"><script>' }), /<script>/, 'the chat id is not markup');
   // A bot's line and its Stop are as they were.
   assert.equal(OpeningLine.status('', '#378add', 'r1'),
-    '<div class="status-line" role="status" style="--c:#378add"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
+    '<div class="status-line" style="--c:#378add"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
   assert.match(css, /\.status-line button \{[^}]*color: var\(--faint\);[^}]*font-size: var\(--fs-12\);/, 'the faint word, the same for both');
 });
 
@@ -62,7 +62,7 @@ test('web: while the Chief replies its chat has the line a bot\'s chat has: what
   const c = chiefChat();
   assert.equal(c.line(), null, 'no reply is going on: no line');
   c.ctx.chiefTurns.set('c1', '');
-  assert.equal(c.line(), `<div class="status-line" role="status" style="--c:${CHIEF}"><i></i><span>Thinking</span><button type="button" data-stop-chief="c1">Stop</button></div>`);
+  assert.equal(c.line(), `<div class="status-line" style="--c:${CHIEF}"><i></i><span>Thinking</span><button type="button" data-stop-chief="c1">Stop</button></div>`);
   c.ctx.chiefTurns.set('c1', 'Waiting for Web Surfer');
   assert.equal(said(c.line()), 'Waiting for Web Surfer');
   // The server's `activity` text is the whole line: its opening line first, then the steps that follow. The page

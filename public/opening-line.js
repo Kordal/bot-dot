@@ -35,7 +35,7 @@ function status(line, color, stop, held = false) {
   const t = waits ? WAITING : text(line) || (run ? tr('Working') : chief ? tr('Thinking') : '');
   const button = run ? `<button type="button" data-stop-run="${esc(run)}">${tr('Stop')}</button>`
     : chief ? `<button type="button" data-stop-chief="${esc(chief)}">${tr('Stop')}</button>` : '';
-  return t ? `<div class="status-line${waits ? ' held' : ''}" role="status" style="--c:${root.Unread.tint(color)}"><i></i><span>${esc(t)}</span>${button}</div>` : '';
+  return t ? `<div class="status-line${waits ? ' held' : ''}" style="--c:${root.Unread.tint(color)}"><i></i><span>${esc(t)}</span>${button}</div>` : '';
 }
 
 // Does the server offer the working line? features: its `features`, as the page read them.

@@ -19,17 +19,17 @@ const { OpeningLine } = lib;
 
 test('web: a run that waits says "Waiting for your OK" in place of its opening line, and Stop stays', () => {
   assert.equal(OpeningLine.status('Writing to Anna', '#9b59d0', 'r1', true),
-    '<div class="status-line held" role="status" style="--c:#9b59d0"><i></i><span>Waiting for your OK</span><button type="button" data-stop-run="r1">Stop</button></div>');
+    '<div class="status-line held" style="--c:#9b59d0"><i></i><span>Waiting for your OK</span><button type="button" data-stop-run="r1">Stop</button></div>');
   assert.equal(OpeningLine.status('', '#9b59d0', 'r1', true), OpeningLine.status('Writing to Anna', '#9b59d0', 'r1', true), 'also before it said a line');
   assert.equal(OpeningLine.WAITING, 'Waiting for your OK');
   // Not waiting: the line as it was, to the letter.
   for (const not of [false, undefined, null, 'ok', 1, {}]) {
     assert.equal(OpeningLine.status('Writing to Anna', '#9b59d0', 'r1', not),
-      '<div class="status-line" role="status" style="--c:#9b59d0"><i></i><span>Writing to Anna</span><button type="button" data-stop-run="r1">Stop</button></div>', String(not));
+      '<div class="status-line" style="--c:#9b59d0"><i></i><span>Writing to Anna</span><button type="button" data-stop-run="r1">Stop</button></div>', String(not));
   }
-  assert.equal(OpeningLine.status('', '#9b59d0', 'r1'), '<div class="status-line" role="status" style="--c:#9b59d0"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
+  assert.equal(OpeningLine.status('', '#9b59d0', 'r1'), '<div class="status-line" style="--c:#9b59d0"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
   // Only a run waits: without one (the Chief's line) nothing is held.
-  assert.equal(OpeningLine.status('Thinking', '#d85a30', undefined, true), '<div class="status-line" role="status" style="--c:#d85a30"><i></i><span>Thinking</span></div>');
+  assert.equal(OpeningLine.status('Thinking', '#d85a30', undefined, true), '<div class="status-line" style="--c:#d85a30"><i></i><span>Thinking</span></div>');
   assert.equal(OpeningLine.status('', '#d85a30', undefined, true), '');
 });
 
