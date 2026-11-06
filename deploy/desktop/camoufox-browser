@@ -493,7 +493,7 @@ def serve():
 def run_browser(url):
     """Camoufox at url, serving the queued requests on this thread until its window is closed."""
     # Imported here, so a broken Camoufox is told in the bridge's log instead of ending the bridge before it has one
-    from browserforge.fingerprints import Screen
+    from camoufox.fingerprints import Screen
     from camoufox.sync_api import Camoufox
 
     os.makedirs(PROFILE, mode=0o700, exist_ok=True)

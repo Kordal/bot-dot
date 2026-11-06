@@ -71,10 +71,12 @@ step="computer-server"
 
 step="Camoufox"
 [ -x /opt/camoufox/bin/python ] || python3 -m venv /opt/camoufox
-/opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.6' 'certifi==2026.10.19'
-XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch official/152.0.4-beta.31
-XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox set official/stable/152.0.4-beta.31
-XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -c "from camoufox.multiversion import get_active_path; import sys; sys.exit(0 if get_active_path() else \"Camoufox was not installed\")"
+/opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.19'
+# A machine the kit set up before 0.5.9 has 152.0.4-beta.31 chosen by hand: forget that, so fetch installs the
+# browser this launcher pairs with.
+XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox set --release
+XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch
+XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -c "from camoufox.multiversion import get_active_path; from camoufox.fpgen_model import is_pinned; import sys; sys.exit(0 if get_active_path() and is_pinned() else \"Camoufox was not installed\")"
 chmod -R a+rX,go-w /opt/camoufox-cache
 install -d -o browser -g browser -m 0700 /opt/camoufox-cache/camoufox/fontconfig
 
