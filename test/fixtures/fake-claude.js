@@ -54,6 +54,9 @@ const OUT = process.env.FAKE_OUT;
 const who = (() => { const i = args.indexOf('--name'); return i < 0 ? '' : String(args[i + 1] || '').replace(/^\S+\s+/, '').replace(/[^\p{L}\p{N}_-]/gu, ''); })();
 const own = (name, ext = '') => (who && fs.existsSync(path.join(OUT, `${name}-${who}${ext}`)) ? `${name}-${who}${ext}` : `${name}${ext}`);
 const n = `${Date.now()}-${process.pid}`;
+// The session's id: fake-<n>, or one shaped as Claude Code's own with $FAKE_OUT/uuid-sessions (ADR 166).
+const SID = require('fs').existsSync(require('path').join(process.env.FAKE_OUT || '.', 'uuid-sessions'))
+  ? `00000000-0000-4000-8000-${String(process.pid).padStart(12, '0').slice(-12)}` : `fake-${n}`;
 // What every result line reports as used (Token usage, #301).
 const USAGE = { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 300, cache_creation_input_tokens: 40 };
 const val = (flag) => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : null; };
@@ -222,7 +225,14 @@ rec.skills = skills;
 rec.keyNames = Object.keys(process.env).filter((k) => /_KEY$/i.test(k));
 rec.procKeyNames = process.platform === 'linux' ? fs.readFileSync('/proc/self/environ', 'utf8').split('\0').map((v) => v.split('=')[0]).filter((k) => /_KEY$/i.test(k)) : [];
 const save = () => fs.writeFileSync(path.join(OUT, `run-${n}.json`), JSON.stringify(rec));
-console.log(JSON.stringify({ type: 'system', subtype: 'init', session_id: `fake-${n}`, model: 'fake-model', skills }));
+// A session to go on in that Claude Code does not have (ADR 166): $FAKE_OUT/no-session.
+if (val('--resume') && fs.existsSync(path.join(OUT, 'no-session'))) {
+  rec.stdin = fs.readFileSync(0, 'utf8');
+  save();
+  process.stderr.write(`No conversation found with session ID: ${val('--resume')}\n`);
+  process.exit(1);
+}
+console.log(JSON.stringify({ type: 'system', subtype: 'init', session_id: SID, model: 'fake-model', skills }));
 
 // A run whose server is gone (killed, or its test over) has nobody to answer: it ends, rather than hold for hours.
 const parent = process.ppid;
@@ -258,13 +268,13 @@ const finish = () => {
     if (has('background') && !end.waited) {
       end.waited = true;
       console.log(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'bg1', name: 'Bash', input: { command: 'until test -e ready; do sleep 2; done', run_in_background: true } }] } }));
-      console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'I will reply once it is ready.', session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));
+      console.log(JSON.stringify({ type: 'result', subtype: 'success', is_error: false, result: 'I will reply once it is ready.', session_id: SID, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));
       setTimeout(() => { console.log(JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: 'bg1', status: 'completed' })); end(); }, Number(has('background-ms.txt') ? fs.readFileSync(path.join(OUT, 'background-ms.txt'), 'utf8') : 300));
       return;
     }
     console.log(JSON.stringify(failed === null
-      ? { type: 'result', subtype: 'success', is_error: false, result, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5, permission_denials: denials }
-      : { type: 'result', subtype: 'success', is_error: true, result: failed, session_id: `fake-${n}`, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));
+      ? { type: 'result', subtype: 'success', is_error: false, result, session_id: SID, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5, permission_denials: denials }
+      : { type: 'result', subtype: 'success', is_error: true, result: failed, session_id: SID, total_cost_usd: 0.01, usage: USAGE, num_turns: 1, duration_ms: 5 }));
     const gone = () => { if (!fs.existsSync(path.join(OUT, 'linger'))) process.exit(failed === null ? 0 : 1); };
     gone();
     setInterval(gone, 20);
@@ -329,7 +339,7 @@ async function askFor(denials) {
 // The partial lines come only when botdot asked for them.
 function streamed({ chunk = 8, everyMs = 20, before = [], partial = true, pauseAfter = -1, endMs = 250 }, reply, end) {
   const partials = partial && args.includes('--include-partial-messages');
-  const line = (ev) => console.log(JSON.stringify({ ...ev, session_id: `fake-${n}`, parent_tool_use_id: null }));
+  const line = (ev) => console.log(JSON.stringify({ ...ev, session_id: SID, parent_tool_use_id: null }));
   const say = (event) => { if (partials) line({ type: 'stream_event', event, uuid: crypto.randomUUID() }); };
   const steps = []; // what is written, in order: [what, how long to wait before it]; 'pause' waits for stream-hold
   const message = (text, tool) => {
