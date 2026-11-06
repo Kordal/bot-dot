@@ -127,14 +127,14 @@ test('web: against a server without the feature the page shows the opening line 
   // Its run's stream says the same, and its steps are not put in words.
   p.ctx.followBotRun(RUN);
   const [stream] = p.streams;
-  assert.equal(stream.url, '/api/runs/r1/stream');
+  assert.equal(stream.url, '/api/runs/r1/stream?simple');
   const say = (ev) => stream.onmessage({ data: JSON.stringify(ev) });
   say({ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'WebFetch', input: { url: 'https://nytimes.com' } }] } });
   say({ type: 'phase', text: 'Starting its computer' });
   assert.equal(p.line(), 'Checking the news', 'the line stands still, as before the working line');
   say({ type: 'opening_line', text: 'Checking the news' });
   assert.equal(p.line(), 'Checking the news');
-  say({ type: 'run_end' });
+  say({ type: 'end', run: {} });
   assert.equal(stream.closed, true);
   assert.equal(p.drawn.refreshed, 1);
 });
@@ -155,7 +155,7 @@ test('web: the open chat follows the run\'s stream: each `working_line` is drawn
   assert.equal(p.line(), 'Reading nytimes.com', 'the page waits for the server\'s line');
   say({ type: 'working_line', text: 'Starting its computer' });
   assert.equal(p.line(), 'Starting its computer');
-  say({ type: 'run_end' });
+  say({ type: 'end', run: {} });
   assert.equal(p.drawn.refreshed, 1, 'the refresh draws the reply');
 });
 
@@ -224,7 +224,7 @@ function watching(features) {
 
 test('web: a run that is followed hands on the server\'s line and nothing of its steps', () => {
   const w = watching(WITH);
-  assert.equal(w.streams[0].url, '/api/runs/r1/stream');
+  assert.equal(w.streams[0].url, '/api/runs/r1/stream?simple');
   w.emit({ type: 'assistant', message: { content: [{ type: 'text', text: 'Checking the news.' }, { type: 'tool_use', id: 't1', name: 'WebFetch', input: { url: 'https://nytimes.com/x?token=SECRET' } }] } });
   w.emit({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'x' }] } });
   w.emit({ type: 'phase', text: 'Starting its computer' });
@@ -236,6 +236,8 @@ test('web: a run that is followed hands on the server\'s line and nothing of its
   w.emit({ type: 'file', file: { name: 'a.txt' } });
   assert.equal(w.got.files.length, 1);
   w.emit({ type: 'run_end' });
+  assert.equal(w.got.ended, 0, 'the simple form ends with `end`');
+  w.emit({ type: 'end', run: {} });
   assert.deepEqual([w.got.ended, w.streams[0].closed], [1, true]);
   // Against a server without the working line: the opening line, as before.
   const old = watching(WITHOUT);

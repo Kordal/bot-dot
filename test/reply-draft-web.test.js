@@ -194,21 +194,34 @@ function watched(features) {
 
 test('web: the bot chat hands the run\'s drafts on, from a server with drafts only, and its end after them', () => {
   const on = watched(['working-line', 'reply-draft']);
-  assert.equal(on.es.url, '/api/runs/r1/stream');
+  assert.equal(on.es.url, '/api/runs/r1/stream?simple', 'the simple form: the page reads no raw Claude Code event');
   on.send({ type: 'working_line', text: 'Checking the disk' });
   on.send({ type: 'reply_draft', text: 'The disk\nhas room' });
   on.send({ type: 'reply_draft', text: '' });
-  on.send({ type: 'run_end', meta: {} });
+  on.send({ type: 'end', run: {} });
   assert.deepEqual([on.got.lines, on.got.drafts, on.got.ended, on.es.closed], [['Checking the disk'], ['The disk\nhas room', ''], 1, true]);
   const off = watched(['working-line']);
   off.send({ type: 'reply_draft', text: 'The disk\nhas room' });
   assert.deepEqual(off.got.drafts, [], 'an app whose server does not list it behaves as before');
 });
 
-test('web: the bot chat follows every run that is going, each in its own row (ADR 062), and the streams of runs drawn before close', () => {
-  const all = cut('function followBotRuns(running', '// A bot\'s running run as it happens');
+test('web: the bot chat follows every run that is going, each in its own row (ADR 062), once by its id, and the streams of runs that ended close (#1063)', () => {
+  const all = cut('function followBotRuns(running', '// The run of a bot\'s chat the owner picked Reply on');
   // The open view's streams are the state's; a chat in the Projects screen's dock (#714) keeps its own.
-  assert.match(all, /const streams = root\?\.id === 'view-bot' \? state\.botStreams : \(root\._streams \|\|= \[\]\);\n  for \(const es of streams\.splice\(0\)\) es\.close\(\);\n  running\.forEach\(\(run\) => followBotRun\(run, root, streams\)\);/);
+  assert.match(all, /const streams = root\?\.id === 'view-bot' \? state\.botStreams : \(root\._streams \|\|= \[\]\);/);
+  const opened = [];
+  const ctx = vm.createContext({ state: { botStreams: [] }, $: () => null, Set });
+  ctx.followBotRun = (run, root, streams) => { const s = { runId: run.id, closed: false, close() { this.closed = true; } }; opened.push(s); streams.push(s); };
+  vm.runInContext(`${all} this.followBotRuns = followBotRuns;`, ctx);
+  const root = { id: 'view-bot' };
+  ctx.followBotRuns([{ id: 'a' }, { id: 'b' }], root);
+  ctx.followBotRuns([{ id: 'a' }, { id: 'b' }], root);
+  assert.deepEqual(opened.map((s) => s.runId), ['a', 'b'], 'a chat drawn again opens no stream it has');
+  ctx.followBotRuns([{ id: 'b' }, { id: 'c' }], root);
+  assert.deepEqual([opened.map((s) => s.runId), opened.map((s) => s.closed), [...ctx.state.botStreams].map((s) => s.runId)], [['a', 'b', 'c'], [true, false, false], ['b', 'c']], 'the stream of a run that ended closes, one new to the chat opens');
+  const dock = { id: 'dock-x' };
+  ctx.followBotRuns([{ id: 'b' }], dock);
+  assert.deepEqual([[...dock._streams].map((s) => s.runId), ctx.state.botStreams.length], [['b'], 2], 'a chat in the dock keeps its own');
   assert.match(cut('function renderBotChat(root', '// Rejects when the task did not go'), /followBotRuns\(runs\.filter\(\(r\) => r\.status === 'running'\), root\);/);
   assert.match(cut('function followBotRun(run', '// Follow a running run'), /streams\.push\(es\);/);
 });
@@ -239,4 +252,62 @@ test('web: the Chief chat draws the draft in its pending reply, from a server wi
 test('web: the page asks for no new stream and opens no socket for drafts', () => {
   assert.doesNotMatch(app, /WebSocket\([^)]*draft|\/api\/events[^'`]*draft/);
   assert.equal((app.match(/new EventSource\(/g) || []).length >= 1, true);
+});
+
+// A run stream that drops while its run runs comes back (#1063): the browser's own retry, or the page's after 2 s and
+// longer each time when the browser gave up. One whose run ended stays closed.
+test('web: a bot chat\'s run stream that drops comes back while the run runs, and stays closed once it ended (#1063)', () => {
+  const sources = [];
+  const timers = [];
+  class EventSource { constructor(url) { this.url = url; this.closed = false; this.readyState = 0; sources.push(this); } close() { this.closed = true; this.readyState = 2; } }
+  const lib = vm.createContext({ ...words });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'opening-line.js'), 'utf8'), lib);
+  const state = { features: ['working-line', 'reply-draft'], runs: [{ id: 'r1', status: 'running' }] };
+  const ctx = vm.createContext({ ...words, EventSource, JSON, String, Math, state, OpeningLine: lib.OpeningLine, showsDrafts: () => true,
+    setTimeout: (fn, ms) => { timers.push({ fn, ms }); return timers.length; }, clearTimeout: () => {} });
+  vm.runInContext(`${cut('function watchRun(', '// ---------- live screen preview')} this.watchRun = watchRun;`, ctx);
+  const drafts = [];
+  let ended = 0;
+  const handle = ctx.watchRun('r1', () => ended++, null, null, (d) => drafts.push(d));
+  assert.equal(handle.runId, 'r1');
+  // The browser retries by itself (CONNECTING): nothing is opened twice.
+  sources[0].readyState = 0;
+  sources[0].onerror();
+  assert.deepEqual([sources.length, sources[0].closed, timers.length], [1, false, 0]);
+  // The browser gave up (CLOSED): opened again after 2 s, then 4 s, and the replay draws the draft again.
+  sources[0].readyState = 2;
+  sources[0].onerror();
+  assert.equal(timers[0].ms, 2000);
+  timers[0].fn();
+  assert.equal(sources.length, 2);
+  sources[1].readyState = 2;
+  sources[1].onerror();
+  assert.equal(timers[1].ms, 4000);
+  timers[1].fn();
+  sources[2].onopen();
+  sources[2].onmessage({ data: JSON.stringify({ type: 'reply_draft', text: 'So far' }) });
+  assert.deepEqual(drafts, ['So far']);
+  sources[2].readyState = 2;
+  sources[2].onerror();
+  assert.equal(timers[2].ms, 2000, 'a stream that opened starts again from 2 s');
+  // Its run ended (the feed said so): an error closes it for good.
+  state.runs[0].status = 'success';
+  timers[2].fn();
+  assert.equal(sources.length, 3, 'a retry for a run that ended opens nothing');
+  state.runs[0].status = 'running';
+  const h1 = ctx.watchRun('r1', () => ended++);
+  state.runs[0].status = 'success';
+  sources[3].readyState = 0;
+  sources[3].onerror();
+  assert.deepEqual([sources.length, sources[3].closed, timers.length, ended], [4, true, 3, 0], 'the browser\'s own retry is stopped too');
+  h1.close();
+  // Closed by the chat, no retry that was waiting opens anything.
+  state.runs[0].status = 'running';
+  const h2 = ctx.watchRun('r1', () => ended++);
+  sources[4].readyState = 2;
+  sources[4].onerror();
+  h2.close();
+  timers[3].fn();
+  assert.equal(sources.length, 5);
+  sources[4].onmessage({ data: 'not json' });
 });
