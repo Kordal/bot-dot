@@ -76,6 +76,9 @@ import androidx.compose.ui.autofill.ContentType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentType
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -199,14 +202,17 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
     }
     // [block] sends the answer and returns what the server says of it, if anything: its words for the answered card,
     // and what the yes started. The label says both. [ask]: the ask answered, whose chat then says so too.
+    // Why a card's answer did not go (#1071), by its key: in the card itself, until the next Approve or Decline on it.
+    var failures by remember { mutableStateOf(mapOf<String, String>()) }
     fun decide(key: String, who: Named?, title: String, yes: Boolean, label: String? = null, ask: Ask? = null, block: suspend () -> Answered?) = scope.launch {
+        failures = failures - key
         runCatching { block() }
             .onSuccess { said ->
                 val d = Decided(key, who, title, answeredLabel(answeredWord(label, said, yes), said?.carriesOn.takeIf { yes }))
                 decided = decided + d
                 ask?.let { store.answeredAway.add(it, d.title, d.label) } // the chat the card stood in says what you answered
             }
-            .onError { tell(it.message ?: tr("That didn't work")) }
+            .onError { failures = failures + (key to (it.message ?: tr("That didn't work"))) }
         load()
         answered()
     }
@@ -282,26 +288,26 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         },
                         onDecline = { act(tr("Declined")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
                 } }
-                items(jobsLeft(waitingJobs, decided.map { it.key }), key = { (b, j) -> jobKey(b, j) }) { (b, j) -> Moves {
+                items(jobsLeft(waitingJobs, decided.map { it.key }), key = { (b, j) -> jobKey(b, j) }) { (b, j) -> Moves { Failing(failures[jobKey(b, j)]) {
                     JobApproval(jobWho(b, j), j,
                         onAlways = { if (j.touchesScript) scriptWarning = b to j else alwaysJob(b, j) },
                         onApprove = { decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, true) { api!!.approveJob(b.id, j.id, true) } },
                         onDecline = { decide(jobKey(b, j), jobWho(b, j), jobCard(j).title, false) { api!!.approveJob(b.id, j.id, false) } })
-                } }
-                items(memory.filter { m -> decided.none { it.key == "m:${m.id}" } }, key = { "m:${it.id}" }) { m -> Moves {
+                } } }
+                items(memory.filter { m -> decided.none { it.key == "m:${m.id}" } }, key = { "m:${it.id}" }) { m -> Moves { Failing(failures["m:${m.id}"]) {
                     val card = memoryCard(m, features)
                     MemoryApproval(card, memWho(m),
                         onApprove = { decide("m:${m.id}", memWho(m), card.title, true) { api!!.settleMemoryChange(m.id, true) } },
                         onDecline = { decide("m:${m.id}", memWho(m), card.title, false) { api!!.settleMemoryChange(m.id, false) } })
-                } }
+                } } }
                 // A tile of the Board with a script, or a change to one: it runs on your botdot, so it waits for you.
-                items(tilesLeft(tiles, decided.map { it.key }), key = { tileKey(it) }) { t -> Moves {
+                items(tilesLeft(tiles, decided.map { it.key }), key = { tileKey(it) }) { t -> Moves { Failing(failures[tileKey(t)]) {
                     val b = bots.firstOrNull { it.id == t.bot }
                     val who = inGroup(b?.named() ?: chiefNamed(), cardGroups[CardGroups.tileKey(t.id)])
                     TileApproval(who, t,
                         onApprove = { decide(tileKey(t), who, tileCard(t).title, true) { api!!.approveTile(t.id, true) } },
                         onDecline = { decide(tileKey(t), who, tileCard(t).title, false) { api!!.approveTile(t.id, false) } })
-                } }
+                } } }
                 // A permission or a skill a bot (or the Chief) asked for, and a tool the Chief asks to install for a bot.
                 // What one run waits on is one card (#277): Allow all and Decline all above each ask's own card.
                 items(askCards(asks.filter { a -> decided.none { it.key == "a:${a.id}" } }), key = { it.key }) { card -> Moves {
@@ -309,23 +315,24 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         is AskCard.One -> {
                             val a = card.ask
                             val who = askWho(a)
-                            AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                            Failing(failures["a:${a.id}"]) { AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } } }
                         }
-                        is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()),
+                        is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()), failures[card.key],
                             onAll = { yes ->
-                                answerAll(scope, api!!, card, yes, ::tell, after = { load(); answered() }) { a, label ->
+                                failures = failures - card.key
+                                answerAll(scope, api!!, card, yes, { failures = failures + (card.key to it) }, after = { load(); answered() }) { a, label ->
                                     val done = Decided("a:${a.id}", askWho(a), askTitle(a), label)
                                     decided = decided + done
                                     store.answeredAway.add(a, done.title, done.label)
                                 }
                             }) { a ->
                             val who = askWho(a)
-                            AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } }
+                            Failing(failures["a:${a.id}"]) { AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } } }
                         }
                     }
                 } }
                 // A bot's plan for the Chief: nothing happens until you approve it, here or in its chat.
-                items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c -> Moves {
+                items(plans.filter { c -> decided.none { it.key == "p:${c.id}" } }, key = { "p:${it.id}" }) { c -> Moves { Failing(failures["p:${c.id}"]) {
                     val from = c.waiting!!.from
                     val who = whoOf(from.id, from.name)
                     val title = tr("A plan for the Chief: {title}", "title" to c.title)
@@ -335,7 +342,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         Buttons(tr("Approve"), { decide("p:${c.id}", who, title, true, tr("Approved · the Chief is on it")) { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },
                             tr("Decline"), { decide("p:${c.id}", who, title, false) { api!!.dismissSuggestion(c.id); null } })
                     }
-                } }
+                } } }
                 items(decided, key = { "d:${it.key}" }) { d -> Moves {
                     Card(d.who, d.title, done = true) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { Muted(d.label) } }
                 } }
@@ -452,7 +459,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
         askCards(myAsks).forEach { card ->
             when (card) {
                 is AskCard.One -> oneAsk(card.ask)
-                is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()),
+                is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()), failed = null,
                     onAll = { yes ->
                         answerAll(cs, api!!, card, yes, { error = it }, after = { load(); answered() }) { a, label ->
                             decided = decided + Decided("a:${a.id}", null, askTitle(a), label)
@@ -704,6 +711,13 @@ internal fun changeYes(a: Ask): String = a.yes ?: tr("Approve")
 /** Whether the card around it is open: closed, cards show a few lines of each text (like the web page). */
 private val LocalCardOpen = staticCompositionLocalOf { true }
 
+/** Why the answer on the card drawn inside did not go (#1071): the card says it under its buttons. Null: nothing. */
+private val LocalCardFailure = compositionLocalOf<String?> { null }
+
+/** [content]'s card says [failed], read out when it comes. Cards drawn inside it ask for their own. */
+@Composable
+private fun Failing(failed: String?, content: @Composable () -> Unit) = CompositionLocalProvider(LocalCardFailure provides failed, content = content)
+
 /** expandable: closed until tapped, then everything shows (not for cards you type into). */
 @Composable
 private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean = false, expandable: Boolean = false, content: @Composable () -> Unit) {
@@ -720,7 +734,9 @@ private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean
         }
         Text(title, style = MaterialTheme.typography.titleMedium, color = p.text, maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
         if (!meta.isNullOrBlank()) Text(meta, color = p.muted, fontSize = Type.s12, maxLines = if (open) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
-        CompositionLocalProvider(LocalCardOpen provides open) { content() }
+        val failed = LocalCardFailure.current
+        CompositionLocalProvider(LocalCardOpen provides open, LocalCardFailure provides null) { content() }
+        if (failed != null) Text(failed, color = p.err, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive })
     }
 }
 
@@ -1162,18 +1178,18 @@ private fun ChangedParts(parts: List<ChangedPart>) {
  * leaves to its own buttons, Allow all and Decline all, and each ask's own card under it, with its own buttons.
  */
 @Composable
-private fun AskBatchCard(card: AskCard.Several, who: Named?, onAll: (Boolean) -> kotlinx.coroutines.Job, each: @Composable (Ask) -> Unit) {
+private fun AskBatchCard(card: AskCard.Several, who: Named?, failed: String?, onAll: (Boolean) -> kotlinx.coroutines.Job, each: @Composable (Ask) -> Unit) {
     // Busy while the answer goes: a second tap sends nothing.
     var busy by remember(card.id) { mutableStateOf(false) }
     val all = { yes: Boolean -> if (!busy) { busy = true; onAll(yes).invokeOnCompletion { busy = false } } }
     Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        Card(who, card.title.ifBlank { trn(card.asks.size, "{n} thing waits for your OK", "{n} things wait for your OK") }) {
+        Failing(failed) { Card(who, card.title.ifBlank { trn(card.asks.size, "{n} thing waits for your OK", "{n} things wait for your OK") }) {
             batchOwnLine(card.asks)?.let { Muted(it) }
             if (card.asks.any { it.batch?.own != true && !it.rowsCut }) Buttons(tr("Allow all"), { all(true) }, tr("Decline all"), { all(false) }, enabled = !busy)
             else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 SecondaryButton(onClick = { all(false) }, enabled = !busy) { Text(tr("Decline all"), color = LocalPaper.current.text) }
             }
-        }
+        } }
         Column(Modifier.padding(start = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) { card.asks.forEach { each(it) } }
     }
 }

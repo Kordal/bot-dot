@@ -165,6 +165,7 @@ function needCardHTML(x, here = null) {
       <div class="need-title">${title}</div>
       ${meta ? `<div class="need-meta">${meta}</div>` : ''}
       ${body || ''}
+      <div class="req-error" role="alert" hidden></div>
       <div class="need-actions">${actions}</div>
     </div>`;
   // A job: one that waits for its first OK, or a change to an approved one (jobCard). The no and the yes read the
@@ -295,6 +296,7 @@ function batchCardHTML(x, here = null) {
       ${who ? `<div class="need-who">${who}</div>` : ''}
       <div class="need-title">${esc(x.title || trn(x.items.length, '{n} thing waits for your OK', '{n} things wait for your OK'))}</div>
       ${line ? `<div class="need-meta need-own">${esc(line)}</div>` : ''}
+      <div class="req-error" role="alert" hidden></div>
       <div class="need-actions"><button class="btn sm" data-batch-no>${tr('Decline all')}</button>${yes ? `<button class="btn sm primary" data-batch-yes>${tr('Allow all')}</button>` : ''}</div>
       <div class="need-batch-items">${x.items.map((s) => needCardHTML(s, here)).join('')}</div>
     </div>`;
@@ -637,6 +639,7 @@ const jobLine = (j) => `${j.when} · ${j.kind === 'script' ? tr('a script, no AI
 // its words follow the page's own, "Allowed · it carries on".
 async function decide(x, yes, redraw = true, always = false) {
   const chats = chatsOfAsk(x); // where its card stands, read while it still waits
+  sayOnCard(`.need-card[data-need="${CSS.escape(x.key)}"]`, '');
   let answer = null; // the server's: what a yes starts (a job, an ask, a tile, a suggested tile), and the words a card then reads
   try {
     if (x.kind === 'job') answer = await api(`/bots/${x.bot.id}/jobs/${x.job.id}/approve`, { method: 'POST', body: { approve: yes, always } });
@@ -646,7 +649,7 @@ async function decide(x, yes, redraw = true, always = false) {
     // A bot's plan: Approve answers it in its Chief chat, like the button there; the Chief works on it in the background.
     else if (x.kind === 'suggestion') await (yes ? api(`/chief/chats/${x.chat.id}/messages`, { method: 'POST', body: { text: PLAN_APPROVAL } }) : api(`/chief/chats/${x.chat.id}/dismiss`, { method: 'POST' }));
     else answer = await api(`/memory/pending/${x.p.id}`, { method: 'POST', body: { approve: yes } });
-  } catch (e) { toast(e.message, true); return; }
+  } catch (e) { sayOnCard(`.need-card[data-need="${CSS.escape(x.key)}"]`, e.message); return; }
   markAnswered(x, yes, always, answer, chats);
   if (redraw) refreshNeeds();
 }
@@ -656,8 +659,10 @@ async function decide(x, yes, redraw = true, always = false) {
 // its card and says why; one whose yes is its own (`left`) waits for it.
 async function decideBatch(b, yes) {
   const chats = new Map(b.items.map((x) => [x.a.id, chatsOfAsk(x)]));
+  const card = `.need-batch[data-batch="${CSS.escape(b.key)}"]`;
+  sayOnCard(card, '');
   let answer;
-  try { answer = await api(`/asks/batch/${encodeURIComponent(b.id)}`, { method: 'POST', body: { yes, ids: b.items.map((x) => x.a.id) } }); } catch (e) { toast(e.message, true); return; }
+  try { answer = await api(`/asks/batch/${encodeURIComponent(b.id)}`, { method: 'POST', body: { yes, ids: b.items.map((x) => x.a.id) } }); } catch (e) { sayOnCard(card, e.message); return; }
   const failed = [];
   for (const one of Array.isArray(answer?.answers) ? answer.answers : []) {
     const x = b.items.find((s) => s.a.id === one?.id);
@@ -665,8 +670,17 @@ async function decideBatch(b, yes) {
     if (one.ok === false) { failed.push(said(one.error) || tr('It could not be answered.')); continue; }
     markAnswered(x, yes, false, one, chats.get(x.a.id) || []);
   }
-  if (failed.length) toast(failed.join(' '), true);
+  if (failed.length) sayOnCard(card, failed.join(' '));
   refreshNeeds();
+}
+
+// Why an answer did not go (#1071), in its card's own line, read out, wherever the card stands (Needs you, a chat):
+// it stays until the next Approve or Decline on that card, which first clears it (''). A card that is not on the
+// page has the toast. The line is the card's own, not one of the asks it holds (a run's card holds their cards).
+function sayOnCard(sel, message) {
+  const lines = $$(sel).map((c) => $(':scope > .req-error', c)).filter(Boolean);
+  if (!lines.length) { if (message) toast(message, true); return; }
+  for (const el of lines) { el.textContent = message; el.hidden = !message; }
 }
 
 // A card answered: it fades and says so, here and in every chat it stood in. After a yes the server may say who
