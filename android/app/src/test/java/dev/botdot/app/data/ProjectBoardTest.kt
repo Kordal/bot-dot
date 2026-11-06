@@ -36,7 +36,7 @@ class ProjectBoardTest {
     @Test fun anEmptyBoardShowsNothingAndOffersEveryPiece() {
         val c = of("""{"id":"c1","phase":"running","board":[]}""")
         ProjectBoard.PIECES.forEach { assertFalse(it, ProjectBoard.shows(c, it)) }
-        assertEquals(ProjectBoard.PIECES, ProjectBoard.missing(features, c))
+        assertEquals(ProjectBoard.PIECES - "files", ProjectBoard.missing(features, c))
         assertEquals(emptyList<String>(), ProjectBoard.missing(emptyList(), c))
         assertEquals(listOf("teams"), ProjectBoard.toggled(c, "teams"))
     }
@@ -45,7 +45,24 @@ class ProjectBoardTest {
         val c = of("""{"id":"c1","phase":"running"}""")
         ProjectBoard.PIECES.forEach { assertTrue(it, ProjectBoard.shows(c, it)) }
         assertEquals(emptyList<String>(), ProjectBoard.missing(features, c))
-        assertEquals(listOf("days", "goals", "calendar", "todo"), ProjectBoard.toggled(c, "teams"))
+        assertEquals(listOf("days", "goals", "calendar", "todo", "files"), ProjectBoard.toggled(c, "teams"))
+    }
+
+    @Test fun theFilesTileIsOfferedOnlyByABotdotThatHasIt() {
+        val c = of("""{"id":"c1","phase":"running","board":["calendar"]}""")
+        assertFalse("files" in ProjectBoard.missing(features, c))
+        assertTrue("files" in ProjectBoard.missing(features + ProjectFiles.FEATURE, c))
+        assertEquals("Files", ProjectBoard.label("files"))
+    }
+
+    @Test fun theFilesTileSaysWhereAFileIsAndWhenItChanged() {
+        val zone = java.time.ZoneId.of("UTC")
+        val today = java.time.LocalDate.of(2026, 11, 6)
+        assertEquals("infra", ProjectFiles.folderOf("infra/plan.md"))
+        assertEquals("", ProjectFiles.folderOf("plan.md"))
+        assertEquals("08:45", ProjectFiles.whenOf(java.time.Instant.parse("2026-11-06T08:45:00Z").toEpochMilli(), zone, today))
+        assertEquals("Yesterday", ProjectFiles.whenOf(java.time.Instant.parse("2026-11-05T22:00:00Z").toEpochMilli(), zone, today))
+        assertEquals("", ProjectFiles.whenOf(0, zone, today))
     }
 
     @Test fun piecesKeepTheOrderTheyWereAdded() {

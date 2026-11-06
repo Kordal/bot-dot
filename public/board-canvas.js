@@ -1,7 +1,7 @@
 // A project's board as a free canvas (#783, ADR 124): the rules of where its tiles stand. This file draws nothing
 // (company-home.js does); the server keeps a layout by the same rules (lib/company.js), so the page and botdot agree.
 //   - a layout is { [tile]: [x, y, w, h] } on a canvas W wide, in its units; an app scales it to its width.
-//   - a tile is `days`, `goal:<id>`, `room:<team>`, `chief`, `bot:<id>`, `suggest`, `new-team`, `calendar`, `todo`,
+//   - a tile is `days`, `goal:<id>`, `room:<team>`, `chief`, `bot:<id>`, `suggest`, `new-team`, `calendar`, `todo`, `files`,
 //     `card:<id>` or `new-card`; its kind (the part before `:`) gives its smallest and its first size.
 //   - no two tiles overlap: one the moved or resized tile would cover slides down below it, with GAP between them,
 //     and so on for what that one covers. Nothing is pulled up.
@@ -24,6 +24,7 @@ const KINDS = {
   'new-team': { min: [140, 56], size: [392, 64] },
   calendar: { min: [420, 260], size: [792, 340] },
   todo: { min: [280, 280], size: [392, 560] },
+  files: { min: [280, 120], size: [392, 260] },
   card: { min: [240, 140], size: [392, 220] },
   'new-card': { min: [200, 56], size: [392, 64] },
 };

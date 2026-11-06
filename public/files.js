@@ -959,6 +959,11 @@ const Files = (() => {
   }
   // Opens a project's folder (#702) alone: `folder` its name in /workspace/projects, `name` and `color` the project's.
   const openFolder = ({ folder, name, color }, rel = '') => open({ id: `project:${folder}`, name, color, folder, base: `/projects/${encodeURIComponent(folder)}` }, rel ? { place: { root: 'project', project: folder }, path: rel } : null);
+  // A file of a project's folder (the board's Files tile): its folder in Files, the file opened over it.
+  function openFolderFile(project, rel) {
+    openFolder(project, parentOf(rel));
+    if (cur) openEntry(cur, { type: 'file', path: rel, name: nameOf(rel) });
+  }
   function close() {
     cur = null;
     const el = box();
@@ -966,5 +971,5 @@ const Files = (() => {
     document.body?.classList.remove('files-open');
   }
 
-  return { open, openFolder, close, html, sorted, kindOf, sizeOf, canDo, crumbs, rangeSelect, folderPlan, deleteWords, act, places, placeName, now: () => cur };
+  return { open, openFolder, openFolderFile, close, html, sorted, kindOf, sizeOf, whenOf, canDo, crumbs, rangeSelect, folderPlan, deleteWords, act, places, placeName, now: () => cur };
 })();

@@ -24,7 +24,7 @@ test('an empty project runs at once on a blank board, with no setup, answers or 
   assert.equal(c.phase, 'running');
   assert.equal(c.start, '');
   assert.ok(c.startedAt);
-  assert.deepEqual(c.board, []);
+  assert.deepEqual(c.board, ['files'], 'the Files tile alone');
   assert.deepEqual(c.teams, []);
   assert.deepEqual(c.sources, []);
   assert.equal(c.proposal, null);

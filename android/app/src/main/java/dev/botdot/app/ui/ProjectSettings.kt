@@ -136,7 +136,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                         content()
                     } }
                 }
-                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
+                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, features, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
                 Card("team") { TeamRows(ui, c, bots) }
                 Card("reports") { ReportRows(ui, c, features) }
@@ -226,15 +226,15 @@ private fun LoginRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) {
 /** The pieces on its board (#780), each on or off; a project made before has them all on. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun BoardRow(c: Company, patch: (JsonObject) -> Unit) {
+private fun BoardRow(c: Company, features: List<String>, patch: (JsonObject) -> Unit) {
     val p = LocalPaper.current
     Labeled(tr("Board")) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            ProjectBoard.piecesOf(c).forEach { k ->
+            ProjectBoard.piecesOf(c, features).forEach { k ->
                 val on = ProjectBoard.shows(c, k)
                 Text(ProjectBoard.label(k), color = if (on) p.text else p.muted, fontSize = Type.s14,
                     modifier = Modifier.clip(Radius.pill).background(if (on) p.sunk else androidx.compose.ui.graphics.Color.Transparent).border(1.dp, if (on) p.text else p.line2, Radius.pill)
-                        .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k).forEach { add(it) } } }) }
+                        .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k, features).forEach { add(it) } } }) }
                         .semantics { selected = on }.padding(horizontal = Space.s12, vertical = Space.s8))
             }
         }
