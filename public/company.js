@@ -20,6 +20,7 @@ const Company = (() => {
     crown: '<svg class="ct-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>',
     clip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>',
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
+    folder: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
     gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   };
   // The space on screen, as this device last had it (#837, ADR 132): 'home', or the id of a project. Before the rail
@@ -365,11 +366,14 @@ const Company = (() => {
   const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do') })[k];
   // The pieces the owner can add: the ones not on it, from a server that has them.
   const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? piecesOf(c).filter((k) => !c.board.includes(k)) : []);
-  const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
+  // Its folder in Files, one click from its page (it was only in its settings, #702), before the gear.
+  const folderHTML = () => (state.company?.folder && (state.features || []).includes('files-explorer') ? `<button type="button" class="icon-btn co-gear" data-project-files aria-label="${tr('Files')}" title="${tr('Files')}">${ICON.folder}</button>` : '');
+  const gearHTML = () => folderHTML() + ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
   function wirePick(root) {
     $$('[data-space-pick]', root).forEach((b) => (b.onclick = () => openSpaces(b)));
     $$('[data-sp-tool]', root).forEach((b) => (b.onclick = () => $(`#${b.dataset.spTool}`)?.click()));
     $$('[data-project-settings]', root).forEach((b) => (b.onclick = openSettings));
+    $$('[data-project-files]', root).forEach((b) => (b.onclick = () => { const c = state.company; if (c?.folder) Files.openFolder({ folder: c.folder.name, name: c.name || c.start, color: c.color }); }));
     $$('[data-project-more]', root).forEach((b) => (b.onclick = () => state.company && menuAt(b, projectItems(state.company))));
   }
   // ---------- the settings (company-settings.js) ----------

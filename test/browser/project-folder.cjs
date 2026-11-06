@@ -1,5 +1,5 @@
 // Optional browser check of a project's folder (#702): node test/browser/project-folder.cjs [shots dir]
-// Project settings show the Folder row with its path; Open shows the folder alone in Files, under the project's letter,
+// The folder beside the project's name opens it in Files; Project settings show the Folder row with its path; Open shows the folder alone in Files, under the project's letter,
 // with no other place; Delete asks whether the folder stays, and "Delete its folder too" deletes it on the computer.
 // Wide and phone. Scratch data, the computer a stand-in (test/fixtures/fake-docker.js).
 const assert = require('node:assert/strict');
@@ -33,13 +33,20 @@ const { startServer, makeBot, writeData, fakeDocker } = require('../helpers');
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor({ timeout: 20000 });
+    // The folder beside the gear opens it in one click, from the project's page.
+    await page.locator('.cf-top [data-project-files]').click();
+    const fx = page.locator('#files');
+    await fx.locator('.fx-row[data-path="plan.md"]').waitFor();
+    assert.deepEqual(await fx.locator('.fx-side .fx-place').allInnerTexts(), ['Botdot']);
+    if (shots) await page.screenshot({ path: path.join(shots, 'wide-page-files.png') });
+    await fx.locator('[data-fx="close"]').first().click();
+    await fx.waitFor({ state: 'hidden' });
     await page.locator('.cf-top [data-project-settings]').click();
     const ps = page.locator('.ps-page');
     const folderRow = ps.locator('.ps-row', { has: page.locator('[data-ps-folder]') });
     assert.equal(await folderRow.locator('.ps-path').innerText(), '/workspace/projects/Botdot');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-settings.png') });
     await folderRow.locator('[data-ps-folder]').click();
-    const fx = page.locator('#files');
     await fx.locator('.fx-row[data-path="plan.md"]').waitFor();
     assert.equal(await fx.locator('.fx-letter').innerText(), 'B');
     assert.deepEqual(await fx.locator('.fx-side .fx-place').allInnerTexts(), ['Botdot']);
