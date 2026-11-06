@@ -121,7 +121,7 @@ test('the Chief is told the owner calls it the "main assignment", and that every
 });
 
 test("the Chief's tools: the prompt is the bot's main assignment", () => {
-  for (const name of ['create_bot', 'update_bot']) {
+  for (const name of ['create_bot']) { // update_bot takes its fields without their words (#1106)
     const fields = TOOLS.find((x) => x.name === name).inputSchema.properties;
     assert.equal(fields.prompt.description, "The bot's main assignment: the task it performs when a run brings no task of its own. May use {{date}}. Messages the user sends it are handled in this role.");
   }

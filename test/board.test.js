@@ -62,7 +62,7 @@ test("the Chief's tools: get_board and arrange_board, and no name, description o
   const tool = (name) => TOOLS.find((x) => x.name === name);
   assert.equal(tool('get_board').description, "The user's Board: its headings in order, and every tile in full (sources, last value, and whether a script waits for the user's OK).");
   assert.equal(tool('add_tile').description, "Put a tile on the user's Board. Load your skill chief:board first.");
-  assert.equal(tool('update_tile').description, 'Change a tile (id from get_board). Only pass the fields to change; null removes a source.');
+  assert.equal(tool('update_tile').description, "Change a tile (id from get_board). Only pass the fields to change; null removes a source. Its fields are add_tile's, which says what each one is.");
   assert.equal(tool('remove_tile').description, 'Take a tile off the Board. A group: its tiles come out of it and stay, unless withTiles is true.');
   assert.equal(tool('add_tile').inputSchema.properties.every.description, EVERY);
   assert.match(tool('request_login').description, /^Open a secure pop-up in botdot asking the user to add a login for a website /);
