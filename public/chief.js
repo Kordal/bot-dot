@@ -417,6 +417,7 @@ function renderChief() {
       ${composerHTML(messageChief())}
       <div class="job-chips" id="chief-job-chips"></div>`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
+    holdChatEnd($('#chat-thread', root));
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
     $('#chief-settings').onclick = () => setPanel('toggle');
