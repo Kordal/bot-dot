@@ -408,7 +408,8 @@ test("the Chief's tools: told to use the kit first and how to draw, a drawn hat 
   // Another change through the tool sends the whole bot back: the drawn hat stays.
   assert.deepEqual(JSON.parse(text(await chief.call('update_bot', { id: bot.id, color: '#378add' }))).outfit, { hat: STRAW });
   assert.deepEqual(JSON.parse(text(await chief.call('update_bot', { id: bot.id, outfit: { hat: FEZ } }))).outfit, { hat: FEZ });
-  assert.deepEqual(JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id).outfit, { hat: FEZ }, 'the Chief sees what it drew');
+  assert.equal(JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id).hat, 'drawn', 'the list says a hat was drawn (#1099)');
+  assert.deepEqual(JSON.parse(text(await chief.call('get_bot', { id: bot.id }))).outfit, { hat: FEZ }, 'the Chief sees what it drew');
   // A hat outside its box: the reason comes back, and the bot keeps what it wore.
   const wide = await chief.call('update_bot', { id: bot.id, outfit: { hat: { shapes: [{ shape: 'rect', x: 1, y: 1, w: 12, h: 3, fill: 'deep' }] } } });
   assert.equal(wide.isError, true);
