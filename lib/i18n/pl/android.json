@@ -342,7 +342,6 @@
   "Someone": "Ktoś",
   "Waiting for your OK: “{title}” on your Board (a script)": "Czeka na twoją zgodę: „{title}” na twojej Tablicy (skrypt)",
   "Not connected to botdot": "Brak połączenia z botdot",
-  "Couldn't send: {why}": "Nie udało się wysłać: {why}",
   "That didn't work: {why}": "Nie udało się: {why}",
   "Allow botdot to install apps, then tap Install again.": "Zezwól botdot na instalowanie aplikacji, potem znów stuknij Zainstaluj.",
   "Couldn't download the update": "Nie udało się pobrać aktualizacji",

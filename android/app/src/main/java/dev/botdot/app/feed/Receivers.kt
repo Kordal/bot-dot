@@ -12,8 +12,10 @@ import android.widget.Toast
 import androidx.core.app.RemoteInput
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Api
+import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.tr
 import dev.botdot.app.ui.PLAN_APPROVAL
+import dev.botdot.app.ui.replyFromNotification
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -51,18 +53,19 @@ class NotificationActions : BroadcastReceiver() {
     private suspend fun reply(context: Context, app: BotDotApp, api: Api?, chat: String, text: String) {
         if (text.isEmpty()) { withContext(app.notifying) { app.notifier.replied(chat, null) }; return }
         // To a busy bot or a replying Chief the answer is the message that waits its turn (`message-waits`): it went,
-        // as one that started a run did.
-        val sent = runCatching {
-            val a = api ?: error(tr("Not connected to botdot"))
+        // as one that started a run did. It goes with a message key, as from the chat's box; one that did not go waits
+        // in that box with the line that says why (#1069).
+        val notSent = replyFromNotification(chat, text, app.store.version.value.value?.features) { k ->
+            val a = api ?: throw ApiException(tr("Not connected to botdot"))
             when {
-                chat.startsWith("chief:") -> { a.sendToChief(chat.removePrefix("chief:"), text, emptyList()) }
-                chat.startsWith("bot:") -> { a.runBot(chat.removePrefix("bot:"), text, emptyList()) }
+                chat.startsWith("chief:") -> { a.sendToChief(chat.removePrefix("chief:"), text, emptyList(), k) }
+                chat.startsWith("bot:") -> { a.runBot(chat.removePrefix("bot:"), text, emptyList(), k) }
                 // An answer to a group's question is a message to the group: the member that asked has the first turn.
-                chat.startsWith("group:") -> { a.sendToGroup(chat.removePrefix("group:"), text, emptyList()) }
+                chat.startsWith("group:") -> { a.sendToGroup(chat.removePrefix("group:"), text, emptyList(), k) }
             }
         }
-        withContext(app.notifying) { app.notifier.replied(chat, text.takeIf { sent.isSuccess }) }
-        sent.exceptionOrNull()?.let { Toast.makeText(context, tr("Couldn't send: {why}", "why" to it.message), Toast.LENGTH_LONG).show() }
+        withContext(app.notifying) { app.notifier.replied(chat, text.takeIf { notSent == null }) }
+        notSent?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
     }
 
     private suspend fun answer(context: Context, app: BotDotApp, api: Api?, key: String, yes: Boolean) {
