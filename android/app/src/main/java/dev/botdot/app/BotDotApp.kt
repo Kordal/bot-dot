@@ -143,7 +143,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     val api: StateFlow<Api?> = _api
 
     /** The bots, the Chief's chats, what waits for you, the Board: kept once, for every screen. */
-    val store by lazy { Store(scope, api) }
+    val store by lazy { Store(scope, api, front = resumed) }
 
     /** True while the activity is resumed: the app is in front, and what it shows is being looked at. */
     val resumed = MutableStateFlow(false)
