@@ -84,11 +84,32 @@ test('a stop that comes after the whole reply stops nothing: the reply succeeded
 });
 
 test('a turn that ended well with no text is an error: its own silence after actions, an unreadable reply without', async () => {
-  const acted = await turn('Start the surfer', [...started('e1'), result('')]);
-  assert.equal(acted.message.text, '');
-  assert.equal(acted.message.actions.length, 1);
-  assert.equal(acted.message.error, 'I wrote no reply. Ask me what came of it.');
-  assert.deepEqual([acted.event.status, acted.event.error], ['error', 'I wrote no reply. Ask me what came of it.']);
+  // It acted and wrote nothing: the reply fails as the Chief's own silence, and botdot asks the Chief once, in the
+  // same session, to say what it did (#1097). Once that reply is in, the silent one is no failure any more: its
+  // chips say what it did, and the next reply says it in words.
+  srv.hold();
+  noResult(true);
+  try {
+    const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+    await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Start the surfer' } });
+    const rec = await srv.nextRun((r) => !!r.botdot && r.stdin.includes('Start the surfer'), 'the Chief turn');
+    fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([...started('e1'), result('')]));
+    srv.release(rec);
+    const event = await f.wait('chief_reply', (d) => d.chatId === chat.id);
+    assert.deepEqual([event.data.status, event.data.error], ['error', 'I wrote no reply. Ask me what came of it.']);
+    noResult(false);
+    const ask = await srv.nextRun((r) => !!r.botdot && r.stdin.includes('your last turn ended after its tool calls with no reply to the user'), "botdot's turn that asks");
+    assert.ok(ask.args.includes('--resume'), 'in the same session');
+    srv.release(ask);
+    const all = await waitFor(async () => { const c = await chatOf(chat.id); const last = c.messages.at(-1); return !c.busy && last.mends && !last.pending ? c.messages : null; }, { what: 'the reply that says what it did' });
+    const silent = all.find((m) => m.role === 'chief' && m.at === all.at(-1).mends);
+    assert.equal(silent.text, '');
+    assert.equal(silent.actions.length, 1);
+    assert.ok(!('error' in silent), JSON.stringify(silent));
+    assert.ok(all.at(-1).text, 'it says what it did');
+    await sleep(300);
+    assert.equal((await chatOf(chat.id)).messages.filter((m) => m.mends).length, 1, 'once');
+  } finally { noResult(false); srv.unhold(); }
 
   const nothing = await turn('Say something', [result('')]);
   assert.equal(nothing.message.text, '');
