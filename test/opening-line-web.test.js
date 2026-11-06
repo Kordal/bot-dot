@@ -29,14 +29,14 @@ test('web: the page gets it as window.OpeningLine, before app.js', () => {
 
 test('web: the status line is a dot in the bot\'s colour and the line, as text', () => {
   assert.equal(OpeningLine.status('Checking the weather in Brussels', '#378add'),
-    '<div class="status-line" role="status" style="--c:#378add"><i></i><span>Checking the weather in Brussels</span></div>');
+    '<div class="status-line" style="--c:#378add"><i></i><span>Checking the weather in Brussels</span></div>');
   assert.equal(OpeningLine.status('', '#378add'), '');
   for (const none of [null, undefined, 5, {}, ['x'], '   ']) assert.equal(OpeningLine.status(none, '#378add'), '', String(none));
 });
 
 test('web: nothing a bot writes is markup', () => {
   const html = OpeningLine.status('<img src=x onerror=alert(1)> & "quotes" \'too\'', '#378add');
-  assert.doesNotMatch(html.replace(/^<div class="status-line" role="status" style="--c:#378add"><i><\/i><span>|<\/span><\/div>$/g, ''), /[<>"']/);
+  assert.doesNotMatch(html.replace(/^<div class="status-line" style="--c:#378add"><i><\/i><span>|<\/span><\/div>$/g, ''), /[<>"']/);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt; &amp; &quot;quotes&quot; &#39;too&#39;/);
   for (const bad of ['red;background:url(x)', '"><script>', '#12345', '', undefined]) assert.match(OpeningLine.status('Hi', bad), /style="--c:#888780"/);
   assert.equal(OpeningLine.status('Hi', '#D85A30').includes(`--c:${Unread.tint('#D85A30')}`), true, 'the colour is checked by the dots\' own check');
@@ -168,9 +168,9 @@ test('web: the look: a pulsing dot in the bot\'s colour, the line, an ellipsis',
 
 test('web: a working bot is one line with Stop: its opening line, or "Working" until it says one', () => {
   assert.equal(OpeningLine.status('', '#378add', 'r1'),
-    '<div class="status-line" role="status" style="--c:#378add"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
+    '<div class="status-line" style="--c:#378add"><i></i><span>Working</span><button type="button" data-stop-run="r1">Stop</button></div>');
   assert.equal(OpeningLine.status('Checking the Agent Mail inbox', '#378add', 'r1'),
-    '<div class="status-line" role="status" style="--c:#378add"><i></i><span>Checking the Agent Mail inbox</span><button type="button" data-stop-run="r1">Stop</button></div>');
+    '<div class="status-line" style="--c:#378add"><i></i><span>Checking the Agent Mail inbox</span><button type="button" data-stop-run="r1">Stop</button></div>');
   // No running run (and the Chief, which passes none): the line alone, or nothing.
   for (const none of [undefined, null, '', '  ', 5]) {
     assert.equal(OpeningLine.status('', '#378add', none), '', String(none));

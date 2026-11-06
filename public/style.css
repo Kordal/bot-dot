@@ -1254,6 +1254,8 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 /* A popover, so that it is drawn over an open dialog; top, right, margin, border and overflow undo the browser's popover look. */
 .toast { position: fixed; inset: auto auto calc(26px + env(safe-area-inset-bottom)) 50%; margin: 0; border: 0; overflow: visible; transform: translateX(-50%); z-index: 50; background: var(--ink); color: var(--ink-text); padding: var(--sp-12) var(--sp-16); border-radius: var(--r-pill); box-shadow: var(--shadow-lg); font-weight: 400; font-size: var(--fs-14); }
 .toast.err { background: var(--err); color: #fff; }
+/* Heard, not seen: what a screen reader is told of a chat (#say, app.js). */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
 .page-back { display: none !important; margin-bottom: var(--sp-12); }
 

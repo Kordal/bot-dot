@@ -859,7 +859,7 @@ test('web: on Send the message and one plain "Working" are in the group before t
   const tail = p.ctx.groupTailHTML(p.group(), c);
   const [, bubble, line] = tail.match(SENT);
   assert.match(bubble, /^Who can look at this\?<div class="bubble-files">.*shot\.png/, 'the owner\'s words and files, faded as a waiting message is');
-  assert.equal(line, '<div class="g-working"><div class="status-line" role="status" style="--c:#888780"><i></i><span>Working</span></div></div>', 'one plain "Working", without a name, until the server says who works');
+  assert.equal(line, '<div class="g-working"><div class="status-line" style="--c:#888780"><i></i><span>Working</span></div></div>', 'one plain "Working", without a name, until the server says who works');
   assert.doesNotMatch(tail, /data-stop-all|data-take-back|Waits until|<b>/);
   assert.deepEqual(plain(p.ctx.ids(c)), ['m1'], 'nothing is added to what the page holds of the server');
   // The feed's `group_message` brings it before the request answers: drawn once.

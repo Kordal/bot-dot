@@ -570,6 +570,7 @@ async function setAside(m, words, work, { ok = tr('Saved') } = {}) {
 
 function toast(msg, isErr = false) {
   const t = $('#toast');
+  t.setAttribute('aria-live', isErr ? 'assertive' : 'polite'); // read out (#1077): an error at once
   t.textContent = msg;
   t.className = `toast${isErr ? ' err' : ''}`;
   // Shown again each time: the newest in the top layer, so over a dialog that opened since the last toast.
@@ -578,6 +579,19 @@ function toast(msg, isErr = false) {
   // It sinks away a step faster than it rose (style.css, motion).
   const gone = () => t.classList.add('hidden');
   toast.timer = setTimeout(() => { if (!Motion.exits()) return gone(); t.classList.add('leaving'); toast.timer = setTimeout(gone, Motion.ms('--t1')); }, 3200);
+}
+
+// What a screen reader hears of a chat (#1077): a reply that arrives, the working line's words. One live region the
+// page keeps (#say): the chats' own rows are drawn again too often to be one. The last few stay in it, so two that
+// come at once are both read.
+function say(text) {
+  const box = $('#say');
+  const words = String(text ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
+  if (!box || !words) return;
+  const p = document.createElement('p');
+  p.textContent = words;
+  box.append(p);
+  while (box.childElementCount > 3) box.firstElementChild.remove();
 }
 
 // A status in the page's language; one it doesn't know stays the server's word.

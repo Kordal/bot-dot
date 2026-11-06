@@ -116,7 +116,7 @@ test('web: on Send the bubble and "Working" are in a bot\'s chat before the requ
   assert.match(p.local(p.bot), /^<div class="bubble-row from-me" data-sent><div class="stack mine"><div class="bubble from-me waits">Check the backup<div class="bubble-files">/, 'drawn as a waiting message is');
   assert.match(p.local(p.bot), /<span class="fname">backup\.log<\/span>/, 'its file shows on it');
   assert.doesNotMatch(p.local(p.bot), /data-take-back|Waits until|data-unattach|data-copy/, 'the owner\'s own words and files, and nothing else');
-  assert.match(p.lineOf(p.bot), /^<div class="status-line" role="status" style="--c:#c2473d"><i><\/i><span>Working<\/span><\/div>$/, '"Working" under it, in the bot\'s colour, with nothing to stop yet');
+  assert.match(p.lineOf(p.bot), /^<div class="status-line" style="--c:#c2473d"><i><\/i><span>Working<\/span><\/div>$/, '"Working" under it, in the bot\'s colour, with nothing to stop yet');
   assert.equal(p.boxes.bot.ta.value, '', 'the box is empty');
   assert.deepEqual(p.boxes.bot.files(), []);
   // The answer is the run: it is drawn from the answer itself, before any list is read again.
@@ -339,7 +339,7 @@ test('web: in a Chief chat the bubble and "Working" are there before the request
   const sending = p.boxes.chief.submit();
   assert.deepEqual(p.chief.names(), ['bubble-row', 'chat-sent', 'status-line']);
   assert.match(p.local(p.chief), /<div class="bubble from-me waits">Find a flight<div class="bubble-files">[\s\S]*backup\.log/);
-  assert.match(p.lineOf(p.chief), /^<div class="status-line" role="status" style="--c:#d85a30"><i><\/i><span>Working<\/span><\/div>$/, '"Working" until the server answers, with nothing to stop');
+  assert.match(p.lineOf(p.chief), /^<div class="status-line" style="--c:#d85a30"><i><\/i><span>Working<\/span><\/div>$/, '"Working" until the server answers, with nothing to stop');
   assert.equal(p.boxes.chief.ta.value, '');
   h.answer({ id: 'c1', busy: true, messages: [], queued: [] });
   await sending;
