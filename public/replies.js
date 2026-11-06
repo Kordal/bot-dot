@@ -143,6 +143,43 @@ function scrollToNew(thread, opening = false) {
   thread.scrollTop += line.getBoundingClientRect().top - thread.getBoundingClientRect().top - 28;
   return true;
 }
+// A fold opened or closed in a chat (a run's steps, a folded message, "More", a card in the chat) keeps the chat on
+// the text it showed. A chat at its end stays at its end: what opens grows upwards, never further than the line that
+// was clicked, which stays in sight. Any other chat keeps the clicked line where it was. WebKit (Safari, the Mac
+// app) has no scroll anchoring of its own.
+const FOLDS = 'summary, [data-expand], .reply-more, .need-card';
+document.addEventListener('click', (e) => {
+  const fold = e.target.closest?.(FOLDS);
+  const thread = fold?.closest('.chat-thread');
+  if (!thread || e.target.closest('a, input, textarea') || (fold.matches('.need-card') && e.target.closest('button'))) return;
+  const atEnd = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 4;
+  const top = fold.getBoundingClientRect().top;
+  requestAnimationFrame(() => keepFold(thread, fold.isConnected ? fold : null, top, atEnd));
+}, true);
+function keepFold(thread, fold, top, atEnd) {
+  if (!fold) { if (atEnd) thread.scrollTop = thread.scrollHeight; return; }
+  const now = fold.getBoundingClientRect().top;
+  if (!atEnd) { thread.scrollTop += now - top; return; }
+  const room = now - thread.getBoundingClientRect().top - 8; // how far the clicked line can go up and stay in sight
+  const toEnd = thread.scrollHeight - thread.clientHeight - thread.scrollTop;
+  if (toEnd > 0) thread.scrollTop += Math.min(toEnd, Math.max(0, room));
+}
+// A chat that gets shorter or taller (a plan above the message box, the box growing with what is typed) stays at its
+// end when it was there.
+const heldChats = new WeakMap(); // thread -> its last height
+const chatHeights = typeof ResizeObserver === 'function' ? new ResizeObserver((entries) => {
+  for (const { target: t } of entries) {
+    const was = heldChats.get(t);
+    const h = t.clientHeight;
+    heldChats.set(t, h);
+    if (was && h && h !== was && t.scrollHeight - t.scrollTop - was < 4) t.scrollTop = t.scrollHeight;
+  }
+}) : null;
+function holdChatEnd(thread) {
+  if (!thread || !chatHeights || heldChats.has(thread)) return;
+  heldChats.set(thread, thread.clientHeight);
+  chatHeights.observe(thread);
+}
 // A chat's new replies changed (the live feed's `unread`, or this page's own report).
 function setUnread(chat, now) {
   const [kind, id] = chatParts(chat);

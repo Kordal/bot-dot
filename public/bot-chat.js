@@ -407,6 +407,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   const waiting = state.inbox[bot.id] || [];
   const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${stepsSig(r)}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
   const thread = part('chat-thread');
+  holdChatEnd(thread);
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
     root.dataset.sig = sig;

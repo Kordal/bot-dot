@@ -600,6 +600,7 @@ function renderGroupChat() {
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
       ${composerHTML(tr('Message {name}', { name: g.name }))}`;
     wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
+    holdChatEnd($('#group-thread', root));
     // A team's chat opens its panel too: its members and its notes. Its name and members follow its team in Projects.
     $('#group-settings').onclick = () => setPanel('toggle');
     if (groupChat?.id !== g.id) loadGroupChat(g.id);

@@ -316,6 +316,7 @@ function renderRoomChat(root, r) {
     $('[data-rooms-back]', root).onclick = () => setView('rooms');
     $('#room-settings', root).onclick = () => openRoomSettings(r.id);
     wireComposer($('form', root), (text, files, k) => sendToRoom(r.id, text, k), null, key);
+    holdChatEnd($('#room-thread', root));
     if (!rooms.chats.get(r.id)?.loaded) loadRoomChat(r.id);
   }
   $('#room-name', root).textContent = r.name;
