@@ -39,7 +39,7 @@ test("the Chief's instructions say Board, name its skill and tools, and say the 
   assert.match(board, /^\nBoard:\n- The user has a Board: one page of tiles under headings, /);
   assert.ok(board.includes(EARLIER_NAME), 'the earlier name');
   assert.match(board, /"put a shopping list on my board"/);
-  assert.match(board, /load your skill chief:board with the Skill tool and follow it, even if you loaded it earlier in this chat/);
+  assert.match(board, /load your skill chief:board with the Skill tool and follow it\. Load it once in a chat: when botdot says your instructions have changed, or you no longer have the skill's text in this chat, load it again\./);
   assert.match(board, /Its tools are get_board, test_tile, add_tile, update_tile, remove_tile and arrange_board\./);
   assert.equal(times(system, OLD), 1, 'the earlier name is said once');
 
