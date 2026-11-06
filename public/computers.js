@@ -261,7 +261,7 @@ function friendlyProblem(meta, resultText) {
     return `${meta.steps ? tr("I lost the connection to Claude's servers, so I couldn't finish. This computer had no internet connection, or couldn't look up the address (a DNS problem).") : tr("I couldn't reach Claude's servers, so I couldn't start. This computer had no internet connection, or couldn't look up the address (a DNS problem).")} ${meta.jobName ? tr('I will try again at the next scheduled time.') : tr('Check the connection and send the message again.')}`;
   }
   if (/usage limit|hit your (usage )?limit|limit will reset/i.test(text)) return tr("Claude's usage limit was reached, so I stopped. Try again once it resets.");
-  if (/overloaded|529|rate.?limit|429|API Error: 5\d\d/i.test(text)) return tr("Claude's servers were busy, so I stopped. Try again in a little while.");
+  if (/overloaded|529|rate.?limit|429/i.test(text)) return tr("Claude's servers were busy, so I stopped. Try again in a little while.");
   // Something else: say what it was, briefly.
   const why = String(meta.error || resultText || '').replace(/\s+/g, ' ').trim().slice(0, 200);
   return why ? tr("Something went wrong and I couldn't finish. It said: “{why}”. The details show everything that happened.", { why }) : tr("Something went wrong and I couldn't finish. The details show everything that happened.");

@@ -62,15 +62,16 @@ test('a message that waited for the bot starts on the result, before the process
   assert.equal((await srv.finished(second.id)).status, 'success');
 });
 
+// Not a busy API or the network: that carries on once in its own session (#1093, api-failure-resumes.test.js).
 test('an error result fails the run on the result', async () => {
   const bot = await makeBot(srv, { name: 'Bad Luck', emoji: '🐈‍⬛' });
   linger(srv);
-  fs.writeFileSync(path.join(srv.out, 'error-result.txt'), 'API Error: 500 overloaded');
+  fs.writeFileSync(path.join(srv.out, 'error-result.txt'), 'API Error: 400 invalid request');
   try {
     const run = (await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Try it' } })).data;
     const rec = await srv.nextRun(isRunOf(bot), 'its run');
     const ended = await srv.finished(run.id);
-    assert.deepEqual([ended.status, ended.error], ['error', 'API Error: 500 overloaded']);
+    assert.deepEqual([ended.status, ended.error], ['error', 'API Error: 400 invalid request']);
     assert.ok(alive(pidOf(rec)), 'before Claude Code exited');
   } finally {
     fs.rmSync(path.join(srv.out, 'error-result.txt'), { force: true });
