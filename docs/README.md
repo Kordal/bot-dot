@@ -12,6 +12,7 @@ For working on botdot:
 
 - [Development](development.md): running it from the source, the tests and the code layout.
 - [Release signatures](release-signing.md): how updates are signed and checked.
+- [External tools](external-tools.md): every outside tool, image, package and CI action, its pinned version and how far it is from upstream.
 - [Decisions](decisions/README.md) and the [ADRs](adr/README.md): why botdot is built the way it is.
 - [Product](product/vision.md): the vision, each milestone's scope and the owner's test lists.
 
