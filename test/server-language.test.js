@@ -67,7 +67,7 @@ test('with Polski chosen, the owner gets Polish cards and errors; the Chief gets
   assert.equal(settings.efforts.find((e) => e.id === 'high')?.label, 'Wysoki');
   assert.equal((await s.api('/settings/checkup')).data.checkup.when, 'W dni robocze o 08:00');
 
-  assert.equal((await s.asChief('/bots/nope')).data.error, 'Bot not found');
+  assert.match((await s.asChief('/bots/nope')).data.error, /^Bot not found: no bot has the id or name "nope"/);
   assert.equal((await s.asChief('/settings/checkup')).data.checkup.when, 'Weekdays at 08:00');
 });
 
