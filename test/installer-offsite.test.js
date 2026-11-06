@@ -5,15 +5,17 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const { withBob, installer, status } = require('./installer-helpers');
+const { spawn, spawnSync } = require('node:child_process');
+const { withBob, installer, status, extracts, code } = require('./installer-helpers');
 
 const members = (tar) => spawnSync('tar', ['-tf', tar], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
 const volume = (home, name) => path.join(home, '.local', 'share', 'docker', 'volumes', name, '_data');
 
 // restic: `cat config` finds the repository once `init` made it, `backup --stdin-from-command` keeps the command's
 // output as the part its --stdin-filename names (with its tags beside it), and a part named in STAND_IN_RESTIC_FAIL
-// fails as a full repository would. STAND_IN_RESTIC_UNREACHABLE: the repository can't be reached.
+// fails as a full repository would. STAND_IN_RESTIC_UNREACHABLE: the repository can't be reached. Each backup is also
+// kept as a snapshot of its own (byid/ID, its name in ID.name, ID the sha256 of its name and its content), which dump,
+// stats and restore read, and a manifest's id and tags are listed in manifests, which snapshots reads.
 const restic = (repo) => `#!/bin/sh
 echo "restic $*" >> "$STAND_IN_LOG"
 echo "restic-env $RESTIC_REPOSITORY $RESTIC_PASSWORD_FILE $RESTIC_CACHE_DIR" >> "$STAND_IN_LOG"
@@ -31,10 +33,12 @@ case "$1" in
     "$@" > "${repo}/parts/$name" || { s=$?; echo "{\\"message_type\\":\\"exit_error\\",\\"code\\":1,\\"message\\":\\"Fatal: unable to save snapshot: command failed: exit status $s\\"}"; exit 1; }
     echo "$tags" > "${repo}/parts/$name.tags"
     echo "$(printf '%s %s' "$name" "$tags" | sha256sum | cut -c1-64) $tags $name" >> "${repo}/snaps"
-    echo "{\\"message_type\\":\\"summary\\",\\"data_added_packed\\":100,\\"snapshot_id\\":\\"$(printf '%s' "$name" | sha256sum | cut -c1-64)\\"}" ;;
+    sid="$(printf '%s %s' "$name" "$(sha256sum < "${repo}/parts/$name")" | sha256sum | cut -c1-64)"
+    mkdir -p "${repo}/byid"; cp "${repo}/parts/$name" "${repo}/byid/$sid"; echo "$name" > "${repo}/byid/$sid.name"
+    [ "$name" != manifest.json ] || echo "$sid $tags" >> "${repo}/manifests"
+    echo "{\\"message_type\\":\\"summary\\",\\"data_added_packed\\":100,\\"snapshot_id\\":\\"$sid\\"}" ;;
   check) echo "$2" >> "${repo}/checked"
     [ -z "\${STAND_IN_RESTIC_DAMAGED:-}" ] || { echo "Pack 3f1a: hash mismatch" >&2; exit 1; } ;;
-  # A part's snapshot is the sha256 of its name, as backup says it: snapshots, dump and stats find the part by it.
   # With --tag account=…: every snapshot kept (snaps) whose tags hold all those asked, as restic lists them.
   snapshots) want=''; prev=''; for a in "$@"; do [ "$prev" != --tag ] || want="$a"; prev="$a"; done
     case "$want" in *account=*)
@@ -45,17 +49,26 @@ case "$1" in
       done < "${repo}/snaps"
       echo "[$out]"; exit 0 ;;
     esac
-    [ -f "${repo}/parts/manifest.json" ] || { echo '[]'; exit 0; }
-    echo "[{\\"id\\":\\"$(printf '%s' manifest.json | sha256sum | cut -c1-64)\\",\\"paths\\":[\\"/manifest.json\\"]}]" ;;
+    # Otherwise the manifests of the machine --host names, oldest first, or its --latest N.
+    host=''; latest=''; prev=''; for a in "$@"; do case "$prev" in --host) host="$a" ;; --latest) latest="$a" ;; esac; prev="$a"; done
+    ids="$( [ ! -f "${repo}/manifests" ] || while read -r id tags; do case ",$tags," in *",instance=$host,"*) echo "$id" ;; esac; done < "${repo}/manifests")"
+    [ -z "$latest" ] || ids="$(printf '%s\\n' "$ids" | grep . | tail -n "$latest")"
+    out=''; for id in $ids; do out="$out\${out:+,}{\\"id\\":\\"$id\\",\\"paths\\":[\\"/manifest.json\\"]}"; done
+    echo "[$out]" ;;
   # forget with snapshot ids: those gone from snaps.
   forget) case "$*" in *--keep-daily*) ;; *) [ -z "\${STAND_IN_RESTIC_NO_FORGET:-}" ] ;; esac || { echo "Fatal: unable to create lock in backend: repository is already locked" >&2; exit 1; }
     for a in "$@"; do case "$a" in ????????????????????????????????????????????????????????????????) grep -v "^$a " "${repo}/snaps" > "${repo}/snaps.new"; mv "${repo}/snaps.new" "${repo}/snaps"; echo "$a" >> "${repo}/forgotten" ;; esac; done ;;
-  dump) for f in $(cd "${repo}/parts" && find . -type f ! -name '*.tags' | sed 's#^./##'); do
-      [ "$(printf '%s' "$f" | sha256sum | cut -c1-64)" = "$2" ] && { [ -z "\${STAND_IN_RESTIC_SHORT:-}" ] || [ "$f" != "$STAND_IN_RESTIC_SHORT" ] || { head -c 3 "${repo}/parts/$f"; exit 0; }; cat "${repo}/parts/$f"; exit 0; }
-    done; echo "Fatal: no snapshot $2" >&2; exit 1 ;;
-  stats) id="$5"; for f in $(cd "${repo}/parts" && find . -type f ! -name '*.tags' | sed 's#^./##'); do
-      [ "$(printf '%s' "$f" | sha256sum | cut -c1-64)" = "$id" ] && { echo "{\\"total_size\\":$(wc -c < "${repo}/parts/$f" | tr -d ' '),\\"total_file_count\\":1}"; exit 0; }
-    done; exit 1 ;;
+  dump) [ -f "${repo}/byid/$2" ] || { echo "Fatal: no snapshot $2" >&2; exit 1; }
+    [ -z "\${STAND_IN_RESTIC_SHORT:-}" ] || [ "$(cat "${repo}/byid/$2.name")" != "$STAND_IN_RESTIC_SHORT" ] || { head -c 3 "${repo}/byid/$2"; exit 0; }
+    cat "${repo}/byid/$2" ;;
+  stats) [ -f "${repo}/byid/$5" ] || exit 1
+    echo "{\\"total_size\\":$(wc -c < "${repo}/byid/$5" | tr -d ' '),\\"total_file_count\\":1}" ;;
+  # restore ID --target DIR [--verify]: the snapshot's one file at its name in DIR; one named in STAND_IN_RESTIC_RESTORE_FAIL
+  # fails as a pack that can't be read would.
+  restore) [ -f "${repo}/byid/$2" ] && [ "$3" = --target ] || { echo "Fatal: no snapshot $2" >&2; exit 1; }
+    name="$(cat "${repo}/byid/$2.name")"
+    [ "$name" != "\${STAND_IN_RESTIC_RESTORE_FAIL:-}" ] || { echo "Fatal: failed to load pack 3f1a: ciphertext verification failed" >&2; exit 1; }
+    mkdir -p "$4/$(dirname "$name")"; cp "${repo}/byid/$2" "$4/$name" ;;
 esac
 exit 0
 `;
@@ -543,4 +556,217 @@ test('a machine without the off-site backup writes no erase down', (t) => {
   door({ accounts: { ann: {} }, deleted: { bob: '2026-11-05T12:00:00.000Z' } });
   step('bob');
   assert.ok(!fs.existsSync(path.join(first.dir, 'offsite', 'erased')));
+});
+
+// Root's restore requests from the fleet console (ADR 159, #1018): RESTORE-TEST runs the restore test from a request,
+// and OFFSITE-RESTORE puts the machine back from its off-site repository through a scratch folder and the restore of a
+// set (#986). The stand-in Docker of a restore writes into a bind folder what its tar is given (extracts).
+const scratch = (m) => path.join(m.dir, 'offsite-restore');
+const doorData = (m) => fs.readFileSync(path.join(m.dir, 'front-door', 'data', 'front-door.json'), 'utf8');
+const instanceOf = (m) => fs.readFileSync(path.join(m.dir, 'front-door', '.env'), 'utf8').match(/^BOT_DOT_INSTANCE=(.*)$/m)[1];
+// ask(m, NAME, BODY): root's step for the request NAME holding BODY, with what the machine was asked since the last run
+// of any kind (an off-site backup's too).
+const ask = (m, name, body, { given = {}, dockerFirst = [] } = {}) => {
+  const log = path.join(m.first.top, 'system.log');
+  const before = fs.readFileSync(log, 'utf8').length;
+  const done = m.step(name, { body, given, dockerFirst, bins: { restic: restic(m.store) } });
+  return { ...done, system: fs.readFileSync(log, 'utf8').slice(before) };
+};
+// holdLock(t, m): the off-site lock held, as a nightly backup that runs holds it, until the test ends.
+function holdLock(t, m) {
+  const file = path.join(m.first.run, 'offsite.lock');
+  const child = spawn('flock', ['-n', file, 'sleep', '120'], { stdio: 'ignore', detached: true });
+  t.after(() => { try { process.kill(-child.pid); } catch { /* gone */ } });
+  for (let i = 0; i < 400 && spawnSync('flock', ['-n', file, 'true']).status === 0; i++) spawnSync('sleep', ['0.05']);
+  assert.notEqual(spawnSync('flock', ['-n', file, 'true']).status, 0, 'the lock is held');
+}
+
+test('RESTORE-TEST from root runs the restore test of its account, and says it passed or failed as the command line does', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  const passed = ask(m, 'RESTORE-TEST', 'bob\n');
+  const said = status(passed, 'restore-test.json');
+  assert.deepEqual({ state: said.state, account: said.account, bots: said.bots }, { state: 'passed', account: 'bob', bots: 2 }, passed.said);
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.ok(said.bytes > 4096);
+  assert.ok(resticCalls(passed).some((c) => / dump \S+ accounts\/bob\/data\.tar$/.test(c)), 'bob\'s data is read back');
+  assert.ok(!fs.existsSync(path.join(m.dir, 'restore-test')), 'the scratch folder is removed');
+
+  const failed = ask(m, 'RESTORE-TEST', 'bob\n', { given: { STAND_IN_RESTIC_SHORT: 'accounts/bob/workspace.tar' } });
+  const why = status(failed, 'restore-test.json');
+  assert.deepEqual({ state: why.state, account: why.account }, { state: 'failed', account: 'bob' });
+  assert.match(why.error, /^accounts\/bob\/workspace.tar came back with 3 bytes, and restic recorded \d+\.$/);
+  assert.match(failed.said + failed.stderr, /The restore test of bob didn't pass: accounts\/bob\/workspace.tar came back with 3 bytes/);
+  assert.ok(!fs.existsSync(path.join(m.dir, 'restore-test')));
+
+  const none = ask(m, 'RESTORE-TEST', 'Bob; rm -rf /\n');
+  assert.deepEqual(status(none, 'restore-test.json').state, 'refused');
+  assert.equal(status(none, 'restore-test.json').error, 'The request named no account.');
+  assert.ok(!resticCalls(none).length, 'nothing is read');
+});
+
+test('RESTORE-TEST is refused while an off-site backup holds the lock, and nothing is restored', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  holdLock(t, m);
+  const done = ask(m, 'RESTORE-TEST', 'bob\n');
+  const said = status(done, 'restore-test.json');
+  assert.deepEqual({ state: said.state, account: said.account }, { state: 'refused', account: 'bob' });
+  assert.equal(said.error, 'An off-site backup runs now: test the restore when it is done.');
+  assert.deepEqual(resticCalls(done), [], 'the repository isn\'t touched');
+});
+
+test('RESTORE-TEST and OFFSITE-RESTORE the front door made are refused, and neither touches the repository', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
+  const m = machine(t);
+  m.offsite();
+  const before = doorData(m);
+  const requests = path.join(m.dir, 'front-door', 'requests');
+  for (const [name, body] of [['RESTORE-TEST', 'bob\n'], ['OFFSITE-RESTORE', 'latest\n']]) {
+    fs.writeFileSync(path.join(requests, name), body);
+    fs.chownSync(path.join(requests, name), 990, 990);
+  }
+  const done = ask(m, 'bob', '');
+  assert.deepEqual(status(done, 'restore-test.json'), { ...status(done, 'restore-test.json'), state: 'refused', account: 'bob', error: 'Only root asks for this.' });
+  assert.deepEqual(status(done, 'restore.json'), { ...status(done, 'restore.json'), state: 'refused', from: 'offsite', error: 'Only root asks for this.' });
+  assert.deepEqual(resticCalls(done), []);
+  assert.equal(doorData(m), before);
+});
+
+// The machine as a fresh install of the same version finds it: its own front door's data, and bob's data its own.
+function fresh(m) {
+  m.door({ accounts: { ann: {} } });
+  fs.writeFileSync(path.join(m.home, 'data', 'vault.json'), 'fresh');
+}
+
+test('OFFSITE-RESTORE of the latest backup restores it into a scratch folder, puts it back as a set and removes the folder', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const backedUp = doorData(m);
+  const manifestId = status(m.first, 'offsite.json').snapshots['manifest.json'];
+  fresh(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, snapshot: said.snapshot, version: said.version }, { state: 'restored', from: 'offsite', snapshot: manifestId, version: 'abc1234' }, done.said);
+  assert.ok(!('instance' in said), 'no instance was named');
+  assert.equal(doorData(m), backedUp, 'the front door\'s data is the backup\'s');
+  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), '[]', 'bob\'s data is the backup\'s');
+  const instance = instanceOf(m);
+  const calls = resticCalls(done);
+  assert.ok(calls.some((c) => c.endsWith(` snapshots --json --host ${instance} --tag instance=${instance},part=manifest --latest 1`)), calls.join('\n'));
+  const restored = calls.filter((c) => / restore /.test(c));
+  assert.equal(restored.length, 10, 'the manifest and its nine parts');
+  for (const c of restored) assert.match(c, new RegExp(` restore [0-9a-f]{64} --target ${scratch(m)}(/\\.offsite)? --verify$`));
+  assert.ok(!fs.existsSync(scratch(m)), 'the scratch folder is removed');
+  const bob = done.docker.filter((c) => c.host.endsWith('/bob/docker.sock')).map((c) => c.call);
+  assert.ok(bob.some((c) => / -v \S+:\/v /.test(c) && c.includes('computer-workspace')), 'bob\'s computer\'s volumes are put back');
+});
+
+test('OFFSITE-RESTORE of a named snapshot restores that one, not the latest', (t) => {
+  const m = machine(t);
+  fs.writeFileSync(path.join(m.home, 'data', 'vault.json'), '["first"]');
+  m.offsite();
+  const first = status(m.first, 'offsite.json').snapshots['manifest.json'];
+  fs.writeFileSync(path.join(m.home, 'data', 'vault.json'), '["second"]');
+  m.offsite();
+  assert.notEqual(status(m.first, 'offsite.json').snapshots['manifest.json'], first);
+  fresh(m);
+  const done = ask(m, 'OFFSITE-RESTORE', `${first.slice(0, 12)}\n`, { dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, snapshot: said.snapshot }, { state: 'restored', from: 'offsite', snapshot: first }, done.said);
+  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), '["first"]');
+  assert.ok(!resticCalls(done).some((c) => /--latest/.test(c)));
+  assert.ok(!fs.existsSync(scratch(m)));
+});
+
+test('OFFSITE-RESTORE reads another instance\'s backups when its second line names it, and the machine takes its instance', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  // A new machine of its own instance, given the old one's repository.
+  const env = path.join(m.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_INSTANCE=.*$/m, 'BOT_DOT_INSTANCE=0badcafe'));
+  fresh(m);
+  const own = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  const none = status(own, 'restore.json');
+  assert.deepEqual({ state: none.state, from: none.from, snapshot: none.snapshot, phase: none.phase }, { state: 'failed', from: 'offsite', snapshot: 'latest', phase: 'download' });
+  assert.equal(none.error, 'The off-site repository holds no backup of the machine 0badcafe.');
+  assert.ok(!fs.existsSync(scratch(m)), 'the scratch folder is removed after a failure');
+
+  const done = ask(m, 'OFFSITE-RESTORE', `latest\n${old}\n`, { dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, instance: said.instance }, { state: 'restored', from: 'offsite', instance: old }, done.said);
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.ok(resticCalls(done).some((c) => c.endsWith(` snapshots --json --host ${old} --tag instance=${old},part=manifest --latest 1`)));
+  assert.equal(instanceOf(m), old, 'the backup\'s instance, as a set\'s');
+  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), '[]');
+  assert.ok(!fs.existsSync(scratch(m)));
+});
+
+test('OFFSITE-RESTORE fails without an off-site repository, or with no room for the backup, or a request that names none, and changes nothing', (t) => {
+  const m = machine(t);
+  const noRepo = ask(m, 'OFFSITE-RESTORE', 'latest\n');
+  assert.deepEqual(status(noRepo, 'restore.json'), { ...status(noRepo, 'restore.json'), state: 'failed', from: 'offsite', snapshot: 'latest', phase: 'download', error: 'This machine has no off-site repository: give it one with OFFSITE-SET.' });
+  assert.deepEqual(resticCalls(noRepo), []);
+
+  m.offsite();
+  fresh(m);
+  const before = doorData(m);
+  const full = ask(m, 'OFFSITE-RESTORE', 'latest\n', { given: { STAND_IN_ROOT_FREE: '1024' }, dockerFirst: extracts });
+  const said = status(full, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, phase: said.phase }, { state: 'failed', from: 'offsite', phase: 'download' });
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/, 'the manifest it found');
+  assert.match(said.error, /^It needs 0\.5 GB free in \S+ \(the backup, its data put back, and 512 MB to spare\), and has 0\.0 GB\.$/);
+  assert.equal(resticCalls(full).filter((c) => / restore /.test(c)).length, 1, 'only the manifest is restored');
+  assert.ok(!fs.existsSync(scratch(m)));
+  assert.equal(doorData(m), before, 'nothing is put back');
+
+  const bad = ask(m, 'OFFSITE-RESTORE', '../../etc\n');
+  assert.equal(status(bad, 'restore.json').state, 'failed');
+  assert.match(status(bad, 'restore.json').error, /named no snapshot/);
+  const badInstance = ask(m, 'OFFSITE-RESTORE', 'latest\nnot-one\n');
+  assert.match(status(badInstance, 'restore.json').error, /named no instance/);
+  assert.deepEqual([...resticCalls(bad), ...resticCalls(badInstance)], []);
+});
+
+test('an OFFSITE-RESTORE whose part can\'t be restored fails, puts nothing back and removes the scratch folder', (t) => {
+  const m = machine(t);
+  m.offsite();
+  fresh(m);
+  const before = doorData(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { given: { STAND_IN_RESTIC_RESTORE_FAIL: 'accounts/bob/workspace.tar' }, dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from, phase: said.phase }, { state: 'failed', from: 'offsite', phase: 'download' });
+  assert.equal(said.error, "Couldn't restore accounts/bob/workspace.tar: Fatal: failed to load pack 3f1a: ciphertext verification failed");
+  assert.ok(!fs.existsSync(scratch(m)), 'the scratch folder is removed');
+  assert.equal(doorData(m), before);
+  assert.ok(!done.docker.some((c) => /compose .* (stop|down)$/.test(c.call)), 'nothing was stopped');
+});
+
+test('an OFFSITE-RESTORE of a backup of another version is refused by the set\'s checks, and fails while an off-site backup runs', (t) => {
+  const m = machine(t);
+  m.offsite();
+  fresh(m);
+  const before = doorData(m);
+  fs.writeFileSync(path.join(m.dir, 'front-door', 'status', 'version.json'), '{"version":"def5678","selfBuilt":false}\n');
+  const other = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  const said = status(other, 'restore.json');
+  assert.deepEqual({ state: said.state, from: said.from }, { state: 'refused', from: 'offsite' });
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.match(said.error, /The set is of version abc1234, and this machine runs def5678/);
+  assert.ok(!fs.existsSync(scratch(m)));
+  assert.equal(doorData(m), before);
+
+  holdLock(t, m);
+  const locked = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  assert.deepEqual(status(locked, 'restore.json'), { ...status(locked, 'restore.json'), state: 'failed', from: 'offsite', snapshot: 'latest', error: 'An off-site backup runs now: restore from it when it is done.' });
+  assert.deepEqual(resticCalls(locked), []);
+});
+
+test('an account\'s Docker, which an off-site restore may start, is started without the off-site lock\'s descriptor', () => {
+  // Started with it, it would hold the lock after the restore, and every nightly backup would find one running.
+  const docker = code.split('\n').filter((line) => /nohup '\$ROOTLESS'/.test(line));
+  assert.equal(docker.length, 1);
+  assert.match(docker[0], /9>&- 8>&-/, docker[0].trim());
 });

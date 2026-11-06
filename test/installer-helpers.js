@@ -226,7 +226,14 @@ const running = (image, { account = '', old = '' } = {}) => [
   `[ "$1" = ps ] && [ "$2" = --format ] && { i='${image}'; case "\${DOCKER_HOST:-}" in *'/${account || '-'}/'*) i='${old}' ;; esac; for s in front-door bot-dot docker-helper; do echo "$s $i"; done; exit 0; }`,
 ];
 
+// What a restore's put_part does in an account's Docker, for a restore's tests (RESTORE, OFFSITE-RESTORE): the stand-in
+// Docker writes into a bind folder what the tar is given, and makes no volume until asked.
+const extracts = [
+  '[ "$1" = volume ] && [ "$2" = inspect ] && exit 1',
+  'if [ "$1" = run ] && [ "$4" = --pull ]; then v=""; p=""; for a; do [ "$p" = -v ] && v="${a%%:*}"; p="$a"; done; case "$v" in /*) find "$v" -mindepth 1 -delete; tar -x -f - -C "$v" ;; *) cat > /dev/null ;; esac; exit 0; fi',
+];
+
 // What a signature check was asked: the image, which of botdot's, and its options.
 const checked = (args) => args.slice(args.indexOf('/check/lib/signed-image.js') + 1);
 
-module.exports = { checked, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob, status, running };
+module.exports = { checked, extracts, ROOT, file, script, code, PIN, SIGNED, ANSWERED, SUB, tailscale, installer, rerun, KEPT_LAYER, roomAnswers, SELF, withBob, status, running };
