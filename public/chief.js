@@ -635,6 +635,9 @@ function openChiefChat(id) {
   if (built) showChat(id);
 }
 
+// The owner reads at the end of the Chief's chat, not back up: what arrives then scrolls it.
+const nearEnd = (thread) => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
+
 async function showChat(id) {
   if (state.chatStream) { state.chatStream.close(); state.chatStream = null; }
   state.chatReload = false; // this is the chat read again
@@ -661,6 +664,10 @@ async function showChat(id) {
   let chat;
   try { chat = await api(`/chief/chats/${id}`); } catch (e) { toast(e.message, true); return; }
   if (state.chatId !== id) return;
+  // The same chat drawn again (a bot's report, a /btw answer, a reply that ended with the chat read again): an owner
+  // reading back up stays where they are (#1073). Another chat opens at its end.
+  const stays = thread.dataset.chat === id && !nearEnd(thread);
+  const at = thread.scrollTop;
   thread.innerHTML = chat.messages.map((m, i, all) => messageHTML(m, i, all, (chat.offset || 0) + i).replace('class="bubble-row', `data-msg="${i}" class="bubble-row`)).join('');
   thread.dataset.mentions = mentionSig(); // what its mentions were matched against (see renderChief)
   thread.dataset.chat = id; // whose messages these are (see placeChiefLine)
@@ -681,7 +688,7 @@ async function showChat(id) {
   globalThis.drawChiefPlan?.(id, thread._last);
   placeStatusLines();
   updateChatNeeds(thread, 'chief');
-  thread.scrollTop = thread.scrollHeight;
+  thread.scrollTop = stays ? at : thread.scrollHeight;
   placeChiefLine(); // the "New" line, when this chat was opened with new replies
   markSearch(); // what you searched for, marked in the chat
   if (state.jump?.chatId === id) jumpTo($(`[data-msg="${state.jump.index}"]`, thread)); // from a search match
@@ -808,6 +815,7 @@ function followChief(id) {
       row?.insertAdjacentHTML('beforebegin', reportBubble(ev.message)); // a bot's file, while the Chief still waits for it
       placeStatusLines(); // it arrives (chiefArrives)
     } else if (ev.type === 'done') {
+      const near = nearEnd(thread); // read before the reply takes its place: it moves only an owner at the end (#1073)
       es.close();
       if (state.chatStream === es) state.chatStream = null;
       openingLines.end(`chief:${id}`);
@@ -827,11 +835,11 @@ function followChief(id) {
         wireActions(thread);
         wireChoices(thread, (t, key) => sendFrom($('#view-chief form'), () => sendToChief(t, [], key)));
       }
-      thread.scrollTop = thread.scrollHeight;
+      if (near) thread.scrollTop = thread.scrollHeight;
       setSendBusy($('#view-chief form'), false);
       refresh();
     }
-    if (thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160) thread.scrollTop = thread.scrollHeight;
+    if (nearEnd(thread)) thread.scrollTop = thread.scrollHeight;
   };
   // EventSource reconnects after transport errors; the server replays current activity.
   es.onerror = () => { if (state.chatId !== id) es.close(); };
