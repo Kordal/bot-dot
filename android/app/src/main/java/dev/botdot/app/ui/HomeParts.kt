@@ -292,18 +292,20 @@ internal fun needsCount(n: Int) = trn(n, "{n} needs you", "{n} need you")
 internal fun FitRow(modifier: Modifier, gap: androidx.compose.ui.unit.Dp, content: @Composable () -> Unit) {
     androidx.compose.ui.layout.Layout(content, modifier) { children, constraints ->
         val space = gap.roundToPx()
-        val loose = androidx.compose.ui.unit.Constraints()
         val shown = mutableListOf<Pair<androidx.compose.ui.layout.Placeable, Int>>()
         var x = 0
+        // Each child is measured once (Compose allows no more), against the room left plus one pixel: one that comes
+        // out wider than the room did not fit whole and is left out. The first gets the whole width, so it is cut
+        // short when even it does not fit (a narrow list, #493), rather than the row left blank.
         for (child in children) {
-            val it = child.measure(loose)
             val at = if (shown.isEmpty()) 0 else x + space
-            if (at + it.width > constraints.maxWidth) break
+            val room = constraints.maxWidth - at
+            if (shown.isNotEmpty() && room <= 0) break
+            val it = child.measure(androidx.compose.ui.unit.Constraints(maxWidth = if (shown.isEmpty()) room else room + 1))
+            if (it.width > room) break
             shown += it to at
             x = at + it.width
         }
-        // Not even the first fits whole (a narrow list, #493): it is cut short rather than the row left blank.
-        if (shown.isEmpty()) children.firstOrNull()?.let { shown += it.measure(constraints.copy(minWidth = 0)) to 0 }
         val h = shown.maxOfOrNull { it.first.height } ?: 0
         layout(constraints.maxWidth, h) { for ((it, at) in shown) it.placeRelative(at, (h - it.height) / 2) }
     }
