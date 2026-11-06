@@ -19,6 +19,15 @@ import java.time.ZoneId
  *   - how each objective is shown (#690): its display, its pace against the line to the target, its chart, day 1.
  */
 object CompanyFloor {
+    /**
+     * The bots "+" offers to add to [team]: the account's bots not in it, those in no other team of [c] first,
+     * each with the name of the other team it is in (it leaves that team when added), or null.
+     */
+    fun addable(c: Company, team: CompanyTeam, bots: List<Bot>): List<Pair<Bot, String?>> {
+        val other = c.teams.filter { it.id != team.id }.flatMap { t -> t.bots.map { it to t.name } }.toMap()
+        return bots.filter { it.id !in team.bots }.map { it to other[it.id] }.sortedBy { it.second != null }
+    }
+
     /** Days 30, 60 and 90: the check-ins on the line under the header. */
     val DAYS = listOf(30, 60, 90)
     const val DAYS_ALL = 90

@@ -105,16 +105,19 @@ internal fun SmallPlus(label: String, onClick: () -> Unit) {
 /**
  * The picker of bots: rows to tick, at most [max], and with [name] a name to give. [done] saves what was picked, in
  * the order it was ticked, and throws with the botdot server's sentence when it is refused: the sentence is then
- * shown here, with nothing lost. [hint]: the line under the rows, by how many are ticked.
+ * shown here, with nothing lost. [hint]: the line under the rows, by how many are ticked. With more than
+ * [PICK_SEARCH] bots a search field filters the rows by name. [more]: a button beside Cancel, its words and what it
+ * does once the picker is closed (a team's "New bot", which asks the Chief).
  */
 @Composable
-fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (Int) -> String, name: String? = null, onDismiss: () -> Unit, done: suspend (picked: List<String>, name: String) -> Unit) {
+fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (Int) -> String, name: String? = null, more: Pair<String, () -> Unit>? = null, onDismiss: () -> Unit, done: suspend (picked: List<String>, name: String) -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     var picked by remember { mutableStateOf(listOf<String>()) } // in the order they were ticked: the group's order
     var named by remember { mutableStateOf(name.orEmpty()) }
     var refused by remember { mutableStateOf<String?>(null) }
     var saving by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
         containerColor = p.panel,
@@ -122,8 +125,9 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 if (name != null) Field(named, { named = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (bots.size > PICK_SEARCH) Field(query, { query = it.take(60) }, label = { Text(tr("Search")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState())) {
-                    bots.forEach { b ->
+                    bots.filter { query.isBlank() || it.name.contains(query.trim(), ignoreCase = true) }.forEach { b ->
                         val on = b.id in picked
                         val can = on || picked.size < max // full: nothing more can be ticked
                         Row(Modifier.fillMaxWidth().clickable(enabled = can, role = Role.Checkbox) { picked = if (on) picked - b.id else picked + b.id }.padding(vertical = Space.s4),
@@ -152,6 +156,14 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
                 }
             }) { Text(action, color = if (picked.isNotEmpty() && !saving) p.text else p.faint) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text(tr("Cancel"), color = p.text) } },
+        dismissButton = {
+            Row {
+                more?.let { (label, run) -> TextButton(onClick = { onDismiss(); run() }, enabled = !saving) { Text(label, color = p.muted) } }
+                TextButton(onClick = onDismiss, enabled = !saving) { Text(tr("Cancel"), color = p.text) }
+            }
+        },
     )
 }
+
+/** Above this many bots the picker has a search field. */
+internal const val PICK_SEARCH = 8

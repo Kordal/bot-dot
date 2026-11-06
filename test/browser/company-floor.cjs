@@ -125,6 +125,19 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
         assert.ok(panel.y >= floor.y + floor.height - 1, 'the panel under the floor');
         assert.ok(floor.width <= viewport.width, 'no sideways scroll');
         if (shots) await page.screenshot({ path: path.join(shots, `${name}.png`), fullPage: true });
+        // "+" at the end of a team's row: the other bots, those in no team first, one in another team saying
+        // which; the ticked ones join the team.
+        assert.equal(await page.locator('.sp-keys .sp-join').count(), 3);
+        await row('t3').locator('.sp-join').click();
+        const picker = page.locator('#bot-picker');
+        await picker.locator('h2', { hasText: 'Add to Releases' }).waitFor();
+        assert.equal(await picker.locator('[data-pick]').count(), 8);
+        assert.match(await picker.locator('[data-pick]').first().innerText(), /^Weekly Report/);
+        assert.match(await picker.locator('[data-pick]', { hasText: 'Billing Helper' }).innerText(), /In Support/);
+        await picker.locator('[data-pick]', { hasText: 'Weekly Report' }).click();
+        await picker.locator('.btn.primary', { hasText: 'Add' }).click();
+        await row('t3').locator('.key .name', { hasText: 'Weekly Report' }).waitFor();
+        assert.deepEqual((await srv.api('/company')).data.company.teams.find((t) => t.id === 't3').bots, [id('Release Notes'), id('Weekly Report')]);
       }
       assert.deepEqual(errors, []);
     }

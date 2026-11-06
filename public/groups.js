@@ -137,12 +137,16 @@ const canMakeGroup = (bot) => hasGroups() && state.bots.some((b) => b.id !== bot
 // The picker of bots, in the page's dialog: rows to tick, at most `max`, and with `name` a name to give.
 // done(picked, name) saves and rejects with the server's sentence, which is then shown here, with nothing lost.
 // placeholder: what the empty name field shows.
-function openBotPicker({ title, bots, max, name = null, placeholder = tr('What the group is called'), hint, action, done }) {
+// With more than PICK_SEARCH bots a search field filters the rows by name. [more]: a ghost button left in the foot,
+// { label, run }, which closes the picker and runs (a team's "New bot", which asks the Chief).
+const PICK_SEARCH = 8;
+function openBotPicker({ title, bots, max, name = null, placeholder = tr('What the group is called'), hint, action, done, more = null }) {
   const m = openModal(`
     <form id="bot-picker" autocomplete="off">
       <div class="modal-head"><h2>${esc(title)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         ${name === null ? '' : `<label class="field">${tr('Name')}<input type="text" name="name" maxlength="60" value="${esc(name)}" placeholder="${esc(placeholder)}"></label>`}
+        ${bots.length > PICK_SEARCH ? `<input type="search" class="pick-search" name="search" autocomplete="off" placeholder="${tr('Search')}" aria-label="${tr('Search')}">` : ''}
         <div class="pick-bots">${bots.map((b) => `
           <button type="button" class="pick-bot" data-pick="${esc(b.id)}" aria-pressed="false">
             ${botFigure(b.color, 'idle', 'sm', b.outfit)}
@@ -153,6 +157,7 @@ function openBotPicker({ title, bots, max, name = null, placeholder = tr('What t
         <div class="send-note hidden" role="alert"></div>
       </div>
       <div class="modal-foot">
+        ${more ? `<button type="button" class="btn ghost left" data-pick-more>${esc(more.label)}</button>` : ''}
         <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
         <button class="btn primary" disabled>${esc(action)}</button>
       </div>
@@ -173,6 +178,20 @@ function openBotPicker({ title, bots, max, name = null, placeholder = tr('What t
     if (at >= 0) picked.splice(at, 1); else if (picked.length < max) picked.push(row.dataset.pick);
     draw();
   }));
+  const search = form.search;
+  if (search) {
+    search.oninput = () => {
+      const q = search.value.trim().toLowerCase();
+      $$('[data-pick]', form).forEach((row) => { row.hidden = !!q && !bots.find((b) => b.id === row.dataset.pick)?.name.toLowerCase().includes(q); });
+    };
+    search.onkeydown = (e) => { // Enter ticks the one row left, or does nothing: it never sends a half-picked form
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const shown = $$('[data-pick]', form).filter((row) => !row.hidden && !row.disabled);
+      if (shown.length === 1) { shown[0].click(); search.value = ''; search.oninput(); }
+    };
+  }
+  $('[data-pick-more]', form)?.addEventListener('click', () => { m.close(); more.run(); });
   form.onsubmit = async (e) => {
     e.preventDefault();
     const button = $('.btn.primary', form);

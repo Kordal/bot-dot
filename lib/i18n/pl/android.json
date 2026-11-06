@@ -1280,5 +1280,9 @@
   "Clearing…": "Czyszczenie…",
   "Couldn't check": "Nie udało się sprawdzić",
   "Couldn't clear": "Nie udało się wyczyścić",
-  "System": "System"
+  "System": "System",
+  "Add bots to {team}": "Dodaj boty do zespołu {team}",
+  "Add to {team}": "Dodaj do zespołu {team}",
+  "In {team}": "W zespole {team}",
+  "A new bot for the {team} team in {project}:": "Nowy bot dla zespołu {team} w projekcie {project}:"
 }

@@ -292,7 +292,7 @@
       const faces = ids.slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit)}</i>`; }).join('');
       return `<section class="sp-team" style="--c:${esc(t.color || '#8e7cff')}">
         <div class="sp-team-head"><button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}"><span class="sp-faces">${faces}</span><span>${esc(t.name)}</span></button><button type="button" class="icon-btn sp-more${teamOpen === t.id ? ' here' : ''}" data-cf-team="${esc(t.id)}" aria-label="${esc(t.name)}" title="${esc(t.name)}">${MORE}</button></div>
-        <div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1)).join('')}</div>
+        <div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1)).join('')}<button type="button" class="key sp-join" data-cf-add="${esc(t.id)}" aria-label="${esc(tr('Add bots to {team}', { team: t.name }))}" title="${esc(tr('Add bots to {team}', { team: t.name }))}">${Company.ICON.plus}</button></div>
       </section>`;
     }).join('');
     return `<div class="sp-teams">${rows}<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
@@ -454,6 +454,7 @@
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
     $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => openTeam(b.dataset.cfTeam)));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
+    $$('[data-cf-add]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); addToTeam(c, b.dataset.cfAdd); }));
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
     const box = $('.sp-needs', root);
@@ -621,6 +622,33 @@
       action: tr('Create'),
       hint: () => '',
       done: async (picked, name) => { Company.changed({ company: await api(Company.at('/company/teams'), { method: 'POST', body: { name, bots: picked } }) }); },
+    });
+  }
+
+  // "+" at the end of a team's row: the account's other bots to tick, those in no team of this project first;
+  // one in another team says so, as it leaves that team. "New bot" asks the Chief for one in this team, in a new
+  // Chief chat with the words ready; with no other bot to offer, "+" goes there straight away.
+  function addToTeam(c, id) {
+    const t = c.teams.find((x) => x.id === id);
+    if (!t) return;
+    const teamOf = new Map(c.teams.filter((x) => x.id !== t.id).flatMap((x) => x.bots.map((b) => [b, x.name])));
+    const bots = state.bots.filter((b) => !t.bots.includes(b.id))
+      .map((b) => (teamOf.has(b.id) ? { ...b, description: tr('In {team}', { team: teamOf.get(b.id) }) } : b))
+      .sort((a, b) => teamOf.has(a.id) - teamOf.has(b.id));
+    const askChief = () => {
+      openChiefChat(null);
+      const box = $('#view-chief form')?.text;
+      if (box) { box.value = `${tr('A new bot for the {team} team in {project}:', { team: t.name, project: c.name || c.start })} `; box.dispatchEvent(new Event('input')); box.focus(); }
+    };
+    if (!bots.length) return askChief();
+    openBotPicker({
+      title: tr('Add to {team}', { team: t.name }),
+      bots,
+      max: 40,
+      action: tr('Add'),
+      hint: () => '',
+      more: { label: tr('New bot'), run: askChief },
+      done: async (picked) => { Company.changed({ company: await api(Company.at(`/company/teams/${encodeURIComponent(t.id)}`), { method: 'PUT', body: { bots: [...t.bots, ...picked] } }) }); },
     });
   }
 
