@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread, words } = require('./web-page');
+const { app, read, cut, esc, element, thread, words, feedStandIns } = require('./web-page');
 
 const css = read('style.css');
 const at = '2026-10-06T09:00:00.000Z';
@@ -184,7 +184,7 @@ test('web: the feed\'s `queued` reaches the page\'s list, and what is no list ch
   const listeners = {};
   const got = [];
   const ctx = vm.createContext({ ...words,
-    window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setQueued: (chat, list) => got.push([chat, list]),
+    ...feedStandIns(), window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setQueued: (chat, list) => got.push([chat, list]),
     EventSource: class { addEventListener(type, fn) { (listeners[type] ||= []).push(fn); } },
   });
   vm.runInContext(`${cut('function followFeed()', '// ---------- boot ----------')}\nfollowFeed();`, ctx);

@@ -244,9 +244,15 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
             override fun onStop(owner: LifecycleOwner) { notifier.appInForeground = false }
         })
         scope.launch(Dispatchers.IO) { trimCache() }
-        // Back online (Wi-Fi, mobile, Tailscale reconnecting): reconnect right away.
+        // Back online (Wi-Fi, mobile, Tailscale reconnecting): reconnect right away. On another network than before, the
+        // open connection may be half-open and is dropped for a new one (#1078).
         getSystemService(ConnectivityManager::class.java)?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) = feed.retryNow()
+            private var was: Network? = null
+            override fun onAvailable(network: Network) {
+                val other = was != null && was != network
+                was = network
+                if (other) feed.reconnect() else feed.retryNow()
+            }
         })
     }
 

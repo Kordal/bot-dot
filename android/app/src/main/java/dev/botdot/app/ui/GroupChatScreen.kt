@@ -80,12 +80,14 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -143,7 +145,13 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
                 val at = if (ReplyDraft.shows(app.store.version.value.value?.features)) now.associateBy { it.runId } else emptyMap()
                 streams.keys.filter { it !in at }.forEach { streams.remove(it)?.cancel() }
                 for ((id, w) in at) if (id !in streams) streams[id] = launch {
-                    runCatching { app.api.value?.runStream(id)?.collect { ev -> if (ev is RunEvent.Draft) { heldDrafts.say(w, ev.text); publishDrafts() } } }
+                    // A stream that dropped while the turn still works (a dead socket fails after a quiet spell, #1078)
+                    // is followed again; one that ended is done, and the turn's end takes it away.
+                    while (isActive) {
+                        val failed = runCatching { app.api.value?.runStream(id)?.collect { ev -> if (ev is RunEvent.Draft) { heldDrafts.say(w, ev.text); publishDrafts() } } }.exceptionOrNull()
+                        if (failed == null || failed is kotlinx.coroutines.CancellationException) break
+                        delay(2_000)
+                    }
                 }
             }
         } finally {

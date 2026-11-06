@@ -7,7 +7,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, finders, words } = require('./web-page');
+const { app, read, cut, esc, element, finders, words, feedStandIns } = require('./web-page');
 
 const css = read('style.css');
 const html = read('index.html');
@@ -88,7 +88,7 @@ test('web: the feed says it: `hello.claude` at the start and the `claude` event 
   const listeners = {};
   const got = [];
   const ctx = vm.createContext({ ...words,
-    JSON, window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setSignedOut: (c) => got.push(c),
+    ...feedStandIns(), JSON, window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setSignedOut: (c) => got.push(c),
     EventSource: class { addEventListener(type, fn) { (listeners[type] ||= []).push(fn); } },
   });
   vm.runInContext(`${cut('function followFeed()', '// ---------- boot ----------')}\nfollowFeed();`, ctx);

@@ -1058,7 +1058,7 @@ test('web: the feed keeps the row and the open chat as the server says them, and
   assert.deepEqual(plain(g.working), []);
   // Nothing of a group rings here: the page has no notification for it.
   assert.doesNotMatch(src, /Notification|\.notify\b/);
-  assert.match(app, /if \(state\.feed\) followGroups\(state\.feed\);/);
+  assert.match(app, /if \(typeof followGroups === 'function'\) followGroups\(es\);/, 'on each feed the page opens (feed.js)');
 });
 
 // ---------- a turn's working line (ALV-004; docs/api.md, "The working line") ----------

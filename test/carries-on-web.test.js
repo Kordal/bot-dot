@@ -7,7 +7,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc } = require('./web-page');
+const { app, read, cut, esc, feedStandIns } = require('./web-page');
 const { page, plain, metaOf, thenOf, buttonsOf, CODER, PERMISSION, BAD } = require('./need-cards');
 
 const css = read('style.css');
@@ -59,7 +59,7 @@ test('web: the page keeps the feed\'s list of what waits, from its first message
   const state = {};
   const feeds = [];
   const ctx = vm.createContext({
-    window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {}, setAway() {},
+    ...feedStandIns(), window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {}, setAway() {},
     EventSource: class { constructor() { this.on = {}; feeds.push(this); } addEventListener(type, fn) { (this.on[type] ||= []).push(fn); } },
   });
   vm.runInContext(`${cut('function followFeed()', '// ---------- boot ----------')}\nfollowFeed();`, ctx);

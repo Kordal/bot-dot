@@ -8,7 +8,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
-const { app, read, cut, esc, element, thread, noDrafts, words } = require('./web-page');
+const { app, read, cut, esc, element, thread, noDrafts, words, feedStandIns } = require('./web-page');
 
 const css = read('style.css');
 const lib = vm.createContext({ ...words });
@@ -236,7 +236,7 @@ function feed({ view = 'chief', chatId = 'c1', stream = null, sending = false } 
   const state = { view, chatId, chatStream: stream, chatReload: false };
   const did = { shown: [], placed: 0 };
   const ctx = vm.createContext({ ...words, ...noDrafts,
-    JSON, window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {},
+    ...feedStandIns(), JSON, window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {},
     chiefTurns: new Map(), openingLines: OpeningLine.keeper(), sendingIn: new WeakSet(sending ? [form] : []),
     $: (sel) => (sel === '#view-chief form' ? form : null),
     placeStatusLines: () => did.placed++, showChat: (id) => did.shown.push(id),

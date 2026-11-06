@@ -144,7 +144,8 @@ test('web: the live feed opening again takes the line away', () => {
   assert.deepEqual(shown(), [true, true]);
   let feed;
   Object.assign(ctx, {
-    window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {},
+    window: { EventSource: true }, state: {}, setTimeout: () => 0, clearTimeout() {}, setInterval: () => 0,
+    document: { addEventListener() {} }, addEventListener() {}, FeedWatch: require('../public/feed-watch'),
     EventSource: class { constructor(url) { this.url = url; feed = this; } addEventListener() {} },
   });
   vm.runInContext(`${cut('function followFeed()', '// ---------- boot ----------')}\nfollowFeed();`, ctx);

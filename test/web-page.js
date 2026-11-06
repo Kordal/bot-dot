@@ -102,4 +102,8 @@ const words = (() => {
   return ctx.words;
 })();
 
-module.exports = { noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy, words };
+// What followFeed (public/feed.js) needs beside the feed itself: feed-watch.js, which opens it again when it goes
+// quiet (#1078), and the timer and the listeners it sets for that, here doing nothing.
+const feedStandIns = () => ({ FeedWatch: require('../public/feed-watch'), setInterval: () => 0, document: { hidden: false, addEventListener() {} }, addEventListener() {} });
+
+module.exports = { feedStandIns, noDrafts, app, read, cut, esc, element, finders, answer, thread, whileBusy, words };

@@ -483,7 +483,9 @@ async function streamEvents(req, res, url) {
   res.write(`event: hello\ndata: ${JSON.stringify(hello)}\n\n`);
   for (const ev of missed || []) write(ev);
   const unsub = feed.subscribe(write);
-  const ping = setInterval(() => res.write(': ping\n\n'), 20_000);
+  // A real event, not a comment (#1078): a browser's EventSource never shows a comment, so the page could not tell a
+  // quiet feed from a dead one. Apps ignore an event they don't know; it has no id, so it is never replayed.
+  const ping = setInterval(() => res.write('event: ping\ndata: {}\n\n'), 20_000);
   req.on('close', () => { clearInterval(ping); unsub(); });
 }
 
