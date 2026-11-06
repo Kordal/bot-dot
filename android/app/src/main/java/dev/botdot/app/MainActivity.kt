@@ -40,7 +40,7 @@ import android.view.KeyEvent
 import dev.botdot.app.ui.CompanyScreen
 import dev.botdot.app.ui.CompanyWays
 import dev.botdot.app.ui.SpaceRail
-import dev.botdot.app.ui.SpaceWays
+import dev.botdot.app.ui.rememberSpaceWays
 import dev.botdot.app.data.Spaces
 import dev.botdot.app.ui.HomePanes
 import dev.botdot.app.ui.KeyRelay
@@ -314,7 +314,8 @@ class MainActivity : ComponentActivity() {
                 // "+" New bot: Home, and a new chat with the Chief, who makes bots, its box started (#853).
                 fun startBot() { goSpace(Spaces.HOME); app.chiefWords = tr("A new bot that "); open("chief/new") }
                 // From a botdot with projects the spaces are there before the first one: it starts from them (#853).
-                val spaceWays = SpaceWays(spaceList, if (newSpace) "" else space, pick = { goSpace(it) }, new = { startProject() }, on = dev.botdot.app.data.CompanySetup.shows(features), newBot = { startBot() })
+                // Kept while the spaces are the same, so a bot's work does not rebuild the NavHost below (#1114).
+                val spaceWays = rememberSpaceWays(spaceList, if (newSpace) "" else space, on = dev.botdot.app.data.CompanySetup.shows(features), pick = { goSpace(it) }, new = { startProject() }, newBot = { startBot() })
                 val railed = keypad && spaceWays.shown
                 // A device that was in a project opens in it again, once the projects are read; one that is gone is Home.
                 var placeKept by rememberSaveable { mutableStateOf(false) }
