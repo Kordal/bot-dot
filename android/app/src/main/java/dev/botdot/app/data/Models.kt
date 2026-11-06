@@ -318,6 +318,17 @@ internal fun isTrue(v: JsonElement?): Boolean = (v as? JsonPrimitive)?.takeIf { 
 fun claudeSignedOut(v: JsonElement?): Boolean? =
     ((v as? JsonObject)?.get("loggedIn") as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull?.let { !it }
 
+/**
+ * When the bots carry on after Claude's usage limit (#1090): `backAt` of a signed-in `claude` (docs/api.md), while it is
+ * still to come. null when it does not say, or the time has passed.
+ */
+fun claudeBackAt(v: JsonElement?, now: java.time.Instant = java.time.Instant.now()): String? {
+    val o = v as? JsonObject ?: return null
+    if (claudeSignedOut(o) != false) return null
+    val at = (o["backAt"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+    return at.takeIf { runCatching { java.time.Instant.parse(it).isAfter(now) }.getOrDefault(false) }
+}
+
 /** What botdot newly announces with Milestone 7, "busy and stopped": a message waits, a run says who ended it, a job has its line. */
 private val BUSY_AND_STOPPED = setOf("message-waits", "ended-by", "job-line")
 

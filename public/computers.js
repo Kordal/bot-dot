@@ -260,6 +260,7 @@ function friendlyProblem(meta, resultText) {
   if (/ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|reach the API server|network error|fetch failed/i.test(text)) {
     return `${meta.steps ? tr("I lost the connection to Claude's servers, so I couldn't finish. This computer had no internet connection, or couldn't look up the address (a DNS problem).") : tr("I couldn't reach Claude's servers, so I couldn't start. This computer had no internet connection, or couldn't look up the address (a DNS problem).")} ${meta.jobName ? tr('I will try again at the next scheduled time.') : tr('Check the connection and send the message again.')}`;
   }
+  if (meta.carriesOnAfterLimit) return tr("Claude's usage limit was reached, so I stopped. I'll carry on by myself once it resets."); // #1090
   if (/usage limit|hit your (usage )?limit|limit will reset/i.test(text)) return tr("Claude's usage limit was reached, so I stopped. Try again once it resets.");
   if (/overloaded|529|rate.?limit|429/i.test(text)) return tr("Claude's servers were busy, so I stopped. Try again in a little while.");
   // Something else: say what it was, briefly.

@@ -798,6 +798,7 @@ fun Composer(
     onError: (String) -> Unit,
     initialText: String = "",
     onSignIn: (() -> Unit)? = null,
+    backAt: String? = null, // over Claude's usage limit (#1090): when the bots carry on
 ) {
     val p = LocalPaper.current
     // Kept when the phone turns. With the cursor: a mention is what's typed before it.
@@ -872,6 +873,13 @@ fun Composer(
             color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).clip(Radius.small).clickable(onClickLabel = tr("Sign in"), role = Role.Button, onClick = onSignIn)
                 .padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically),
+        )
+        // Over Claude's usage limit (#1090): the same line says when the bots carry on, until then. A sign-out wins.
+        else if (backAt != null) Text(
+            tr("Claude's usage limit is reached: bots carry on at {time}.", "time" to shortTime(backAt)),
+            color = p.warnText, fontSize = Type.s12, lineHeight = Type.line16,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).padding(start = Space.s8, end = Space.s8).wrapContentHeight(Alignment.CenterVertically)
+                .semantics { liveRegion = LiveRegionMode.Polite },
         )
         // Why the last send failed, until the owner sends or edits.
         outbox.note?.let { note ->
