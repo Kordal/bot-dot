@@ -67,14 +67,17 @@ document.addEventListener('click', (e) => {
   // it's connected this only checks once a minute; nothing while the page is hidden.
   const live = () => state.feed?.readyState === 1;
   const due = (at, ms) => !live() || away.on || Date.now() - (at || 0) >= ms; // away: asked again soon, also when a proxy holds the feed open
-  setInterval(() => { if (!document.hidden && !$('#modal').open && due(state.refreshedAt, 60_000)) refresh(); }, 8000);
+  const refreshUnlessDialog = () => { if ($('#modal').open) state.refreshOwed = true; else refresh(); };
+  setInterval(() => { if (!document.hidden && due(state.refreshedAt, 60_000)) refreshUnlessDialog(); }, 8000);
+  // What was put off while a dialog was open is read when it closes (#1067).
+  $('#modal').addEventListener('close', () => { if (state.refreshOwed) { state.refreshOwed = false; refresh(); } });
   pollLoginRequests();
   setInterval(() => { if (!document.hidden && due(loginReq.polledAt, 60_000)) pollLoginRequests(); }, 3000);
   pollBitwarden();
   setInterval(() => { if (!document.hidden && due(bwUi.polledAt, 60_000)) pollBitwarden(); }, 4000);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
-    if (!$('#modal').open) refresh();
+    refreshUnlessDialog();
     pollLoginRequests();
     pollBitwarden();
   });
