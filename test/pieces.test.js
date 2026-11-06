@@ -261,7 +261,7 @@ test("the Chief's tools speak of a hat only: the kit is listed to choose from, a
   assert.match(text(held), /unknown field "holds" in outfit/, 'the tool itself knows no such field');
   assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.outfit, { hat: 'hard-hat' }, 'the bot keeps its hat');
   const listed = JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id);
-  assert.deepEqual(listed.outfit, { hat: 'hard-hat' }, 'the Chief sees what each bot wears');
+  assert.equal(listed.hat, 'hard-hat', 'the Chief sees what each bot wears: its hat, by its kit name (#1099)');
   // No outfit sent: the bot is made, as a bare head.
   const bare = JSON.parse(text(await chief.call('create_bot', { name: 'Bare', prompt: 'Do it.' })));
   assert.equal(bare.outfit, null);
