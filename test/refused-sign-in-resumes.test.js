@@ -45,3 +45,43 @@ test('a sign-in refused again fails as it did', async () => {
     fs.rmSync(path.join(srv.out, 'error-result.txt'), { force: true });
   }
 });
+
+// The Chief's turn does the same (#1092): the owner's turn carries on, with its tools, in the chat's own session.
+const chiefReply = async (chatId) => {
+  for (let i = 0; i < 200; i++) {
+    const c = (await srv.api(`/chief/chats/${chatId}`)).data;
+    const last = c.messages.at(-1);
+    if (!c.busy && last.role === 'chief' && !last.pending) return last;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new Error("no Chief reply");
+};
+
+test("a Chief turn whose sign-in Claude refused midway carries on as the owner's turn, in its own session", async () => {
+  fs.writeFileSync(path.join(srv.out, 'error-result-once.txt'), REVOKED);
+  srv.reply('Both bots are set up.');
+  const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Set up my two mail bots' } });
+  const first = await srv.nextRun((r) => !!r.botdot && r.stdin.includes('Set up my two mail bots'), 'the refused turn');
+  const second = await srv.nextRun((r) => !!r.botdot && /Claude refused your sign-in midway/.test(r.stdin), 'the turn carrying on');
+  assert.equal(flag(second, '--resume'), `fake-${first.n}`, 'it resumes the session the refused turn was in');
+  assert.doesNotMatch(second.stdin, /Set up my two mail bots/, 'the request is not handed again');
+  assert.equal(second.botdot.BOT_DOT_TURN || second.mcp?.mcpServers?.botdot?.env?.BOT_DOT_TURN || 'owner', 'owner', "still the owner's turn");
+  const reply = await chiefReply(chat.id);
+  assert.deepEqual([reply.text, reply.error], ['Both bots are set up.', undefined]);
+  assert.equal((await srv.api(`/chief/chats/${chat.id}`)).data.messages.filter((m) => m.role === 'chief').length, 1, 'one reply');
+});
+
+test('a Chief turn refused again fails as it did', async () => {
+  fs.writeFileSync(path.join(srv.out, 'error-result.txt'), REVOKED);
+  try {
+    const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+    const before = srv.runs().filter((r) => !!r.botdot).length;
+    await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Do the thing' } });
+    const reply = await chiefReply(chat.id);
+    assert.match(reply.error, /^Claude refused my sign-in/);
+    assert.equal(srv.runs().filter((r) => !!r.botdot).length - before, 2, 'one start, and one carrying on');
+  } finally {
+    fs.rmSync(path.join(srv.out, 'error-result.txt'), { force: true });
+  }
+});
