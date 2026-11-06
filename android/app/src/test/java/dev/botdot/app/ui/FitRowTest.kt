@@ -13,6 +13,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.printToString
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.junit.Rule
@@ -49,7 +51,8 @@ class FitRowTest {
         }
         width = 60
         rule.waitForIdle()
-        rule.onNodeWithText("Revenue this month 12 400").assertExists() // the first, cut short
+        val tree = rule.onRoot().printToString()
+        org.junit.Assert.assertTrue(tree, tree.contains("Revenue this month 12 400")) // the first, cut short
         rule.onNodeWithText("Deploys 3").assertIsNotDisplayed()
         width = 400
         rule.waitForIdle()
