@@ -55,6 +55,22 @@ test('a lead given its rhythm by the owner does not ask for it; a new lead alone
   assert.equal(s.addTeam({ name: 'Ads', bots: ['e'] }).teams.at(-1).asked, undefined);
 });
 
+test('a team whose lead was not started on the approved plan is still to start, this week only (#1082)', () => {
+  const { s, clock } = storeAt(RUNNING, new Date(2026, 9, 27, 9));
+  s.setPlan({ items: [{ text: 'Ask 10 parents', team: 't1' }, { text: 'Answer tickets', team: 't2' }] });
+  assert.deepEqual(s.planToStart(), [], 'not before it is approved');
+  s.approvePlan();
+  assert.deepEqual(s.planToStart().map((x) => x.team.id), ['t1', 't2']);
+  s.planStarted('t1');
+  assert.deepEqual(s.planToStart().map((x) => x.team.id), ['t2'], 'one start was refused: it is tried again');
+  assert.deepEqual(s.read().plan.started, ['t1']);
+  clock.at = new Date(2026, 10, 3, 9);
+  assert.deepEqual(s.planToStart(), [], "not last week's plan");
+  clock.at = new Date(2026, 9, 27, 9);
+  s.setPlan({ items: [{ text: 'New', team: 't1' }] });
+  assert.equal(s.read().plan.started, undefined, 'a new plan starts again');
+});
+
 test('only the lead keeps its rhythm and its report; the report comes due at the rhythm', () => {
   const { s, clock } = storeAt(RUNNING, new Date(2026, 9, 27, 9)); // a Tuesday
   assert.throws(() => s.setReport('b', 'weekly'), { status: 403 }, 'a member leads no team');
@@ -151,4 +167,5 @@ test('approving the plan starts each lead on its team\'s items', async () => {
   assert.equal((await srv.api('/company/plan/approve', { method: 'POST', body: {} })).status, 200);
   const run = await runOf(a, "The owner approved this week's plan");
   assert.match(run.stdin, /1\. Ask 10 parents to pre-order 2\. Write the FAQ/);
+  assert.deepEqual((await srv.api('/company')).data.company.plan.started, [team.id], 'the start is kept, so it is not tried again (#1082)');
 });

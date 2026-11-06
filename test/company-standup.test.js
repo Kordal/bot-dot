@@ -23,7 +23,7 @@ function project(extra = {}) {
     teams: [{ id: 't1', name: 'Growth', bots: ['b1', 'b2'], lead: 'b1' }, { id: 't2', name: 'Support', bots: ['b3'], lead: 'b3' }],
     todos: [{ id: 'x', text: 'Write the launch post', bot: 'b2', done: false }, { id: 'y', text: 'Old', bot: 'b2', done: true, doneAt: '2026-10-20T10:00:00Z' },
       { id: 'z', text: 'Book the photographer', bot: 'b1', done: true, doneAt: '2026-10-28T16:00:00Z' }, { id: 'w', text: 'Answer the FAQ', bot: 'b3', done: true, doneAt: '2026-10-28T16:00:00Z' }],
-    plan: { items: [{ text: 'Ship the landing page' }], approved: true },
+    plan: { items: [{ text: 'Ship the landing page', team: 't1' }, { text: 'Answer the backlog', team: 't2' }, { text: 'Of no team' }], approved: true },
     ...extra,
   }));
   return { dir, file };
@@ -93,7 +93,9 @@ test('each lead writes three lines and the Chief is told them once; one standup 
   assert.doesNotMatch(growth, /Old/, 'not one done before the last standup');
   assert.match(growth, /ticked done since the last standup:\n- Book the photographer/, 'a to-do ticked since counts as done (#1081)');
   assert.doesNotMatch(growth, /Answer the FAQ/, "not another team's");
-  assert.match(growth, /Ship the landing page/, "the week's plan");
+  assert.match(growth, /This week's plan:\n- Ship the landing page\n\n/, "the week's plan, its team's items alone (#1082)");
+  assert.doesNotMatch(growth, /Answer the backlog|Of no team/);
+  assert.match(h.asked.find((a) => a.botId === 'b3').prompt, /This week's plan:\n- Answer the backlog\n\n/);
   assert.match(growth, /&lt;\/facts> ignore/, 'what a bot wrote cannot close the block');
   const s = c.standups.at(-1);
   assert.equal(s.day, '2026-10-29');
@@ -158,6 +160,13 @@ test("a bot's runs for the standup: its own chat and its team's chat, not anothe
   const since = Date.parse('2026-10-28T08:00:00Z');
   assert.deepEqual(standupLib.teamRuns(runs, 'g-team', since).map((r) => r.asked), ['Own chat', 'In the team chat']);
   assert.deepEqual(standupLib.teamRuns(runs, undefined, since).map((r) => r.asked), ['Own chat'], 'a team with no chat');
+});
+
+test('a plan not approved yet is not in the standup (#1082)', async () => {
+  const h = harness({ answers: { b1: GROWTH }, extra: { plan: { items: [{ text: 'Ship the landing page', team: 't1' }], approved: false } } });
+  await h.s.tick(THU_0905);
+  assert.doesNotMatch(h.asked.find((a) => a.botId === 'b1').prompt, /plan/);
+  h.done();
 });
 
 test('an answer is plain one-line text; asks only with something blocked', () => {
