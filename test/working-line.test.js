@@ -38,7 +38,8 @@ test("a bot's and the Chief's prompt ask for commands described in the account's
   const { stepsLanguageNote } = require('../lib/prompt-text');
   assert.match(stepsLanguageNote('pl'), /description of every command you run in Polish/);
   assert.equal(stepsLanguageNote('en'), '');
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8'), /REPLY_STYLE, stepsLanguageNote\(settings\.get\(\)\.language\)\]/);
+  // In a run's prompt and in a memory review's.
+  assert.equal(fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8').match(/REPLY_STYLE, stepsLanguageNote\(settings\.get\(\)\.language\),/g)?.length, 2);
   assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'chief.js'), 'utf8'), /promptText\.stepsLanguageNote\(B\.settings\.get\(\)\.language\)/);
 });
 
