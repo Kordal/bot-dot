@@ -72,3 +72,18 @@ test('work left running keeps the run going to the reply after it, not its first
     fs.rmSync(path.join(srv.out, 'result.txt'), { force: true });
   }
 });
+
+test('a run that wrote its reply and left a command running ends with that reply when the idle stop ends it (#1096)', async () => {
+  const quiet = await startServer({ env: { BOT_DOT_RUN_IDLE_MS: '1500' } });
+  try {
+    const bot = await makeBot(quiet, { name: 'Server Starter', allowedTools: ['Read', 'Bash'] });
+    fs.writeFileSync(path.join(quiet.out, 'background'), '');
+    fs.writeFileSync(path.join(quiet.out, 'background-ms.txt'), '600000'); // a dev server: it never ends
+    const r = await quiet.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Start the dev server' } });
+    const meta = await quiet.finished(r.data.id);
+    assert.equal(meta.status, 'success', meta.error);
+    assert.equal(meta.backgroundStopped, 'idle');
+    assert.equal(meta.result, 'I will reply once it is ready.\n\n_botdot stopped what this run left running in the background._');
+    assert.equal(meta.endedBy, undefined, 'nobody ended a reply that was written');
+  } finally { await quiet.stop(); }
+});

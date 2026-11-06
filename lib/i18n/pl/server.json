@@ -602,5 +602,6 @@
   "Choose files": "Wybierz pliki",
   "Only the owner uploads from a phone.": "Tylko właściciel wgrywa pliki z telefonu.",
   "Say where the files go.": "Powiedz, dokąd mają trafić pliki.",
-  "That code has expired.": "Ten kod wygasł."
+  "That code has expired.": "Ten kod wygasł.",
+  "botdot stopped what this run left running in the background.": "botdot zatrzymał to, co ten przebieg zostawił uruchomione w tle."
 }
