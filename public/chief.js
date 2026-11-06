@@ -427,6 +427,7 @@ function renderChief() {
       <div class="job-chips" id="chief-job-chips"></div>`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     holdChatEnd($('#chat-thread', root));
+    $('#chat-thread', root).addEventListener('scroll', (e) => { if (e.target.scrollTop < 400) loadOlder(e.target); }, { passive: true });
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
     $('#chief-settings').onclick = () => setPanel('toggle');
@@ -663,7 +664,7 @@ async function showChat(id) {
     return;
   }
   let chat;
-  try { chat = await api(`/chief/chats/${id}`); } catch (e) {
+  try { chat = await api(`/chief/chats/${id}${chatPart(thread, id)}`); } catch (e) {
     toast(e.message, true);
     // Not read (#1075): the screen still shows the chat that was there, and the box writes to that one, not the one picked.
     if (state.chatId === id) { state.chatId = thread.dataset.chat || null; if (state.view === 'chief') writeHash(); sayPresent(); syncRead(); }
@@ -674,18 +675,7 @@ async function showChat(id) {
   // reading back up stays where they are (#1073). Another chat opens at its end.
   const stays = thread.dataset.chat === id && !nearEnd(thread);
   const at = thread.scrollTop;
-  thread.innerHTML = chat.messages.map((m, i, all) => messageHTML(m, i, all, (chat.offset || 0) + i).replace('class="bubble-row', `data-msg="${i}" class="bubble-row`)).join('');
-  thread.dataset.mentions = mentionSig(); // what its mentions were matched against (see renderChief)
-  thread.dataset.chat = id; // whose messages these are (see placeChiefLine)
-  thread._mine = chat.messages.filter((m) => m.role === 'user'); // what the owner wrote in it, as botdot has it (see ownWords)
-  thread._from = chat.offset || 0; // the place of its first row in the whole chat (see chiefArrives)
-  wireActions(thread);
-  wireChoices(thread, (t, key) => sendFrom(form, () => sendToChief(t, [], key)));
-  $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
-  const build = $('[data-sug-build]', thread);
-  if (build) build.onclick = withKey(async (key) => { if (await sendFrom(form, () => sendToChief(PLAN_APPROVAL, [], key))) build.closest('.suggestion-actions')?.remove(); });
-  const dismiss = $('[data-sug-dismiss]', thread);
-  if (dismiss) dismiss.onclick = () => api(`/chief/chats/${id}/dismiss`, { method: 'POST' }).then(() => showChat(id)).catch((e) => toast(e.message, true));
+  drawChatRows(thread, id, chat);
   if (chat.busy) openingLines.say(`chief:${id}`, chat.openingLine); else openingLines.end(`chief:${id}`);
   // Its reply that is going on, and what waits for it: both as the server has them now.
   if (chat.busy) chiefTurns.set(id, chiefActivity(chat.messages.filter((m) => m.pending).pop()?.activity)); else chiefTurns.delete(id);
@@ -700,6 +690,67 @@ async function showChat(id) {
   if (state.jump?.chatId === id) jumpTo($(`[data-msg="${state.jump.index}"]`, thread)); // from a search match
   setSendBusy(form, chat.busy, stopChief);
   if (chat.busy) followChief(id);
+}
+
+// A long Chief chat is read in parts (#1104): its last CHAT_PAGE messages when it opens, older ones as the owner
+// scrolls up (loadOlder). Drawn again, the same chat is read from the first message on screen, or from further back
+// when the "New" line or a search match is there.
+const CHAT_PAGE = 100;
+function chatPart(thread, id) {
+  const from = [];
+  if (thread.dataset.chat === id && Number.isInteger(thread._from)) from.push(thread._from);
+  if (state.jump?.chatId === id && Number.isInteger(state.jump.index)) from.push(state.jump.index);
+  const line = newLine.first(`chief:${id}`);
+  if (Number.isInteger(line)) from.push(line);
+  return from.length ? `?offset=${Math.max(0, Math.min(...from))}` : `?limit=${CHAT_PAGE}`;
+}
+
+// The rows of a chat's messages (a part of it: chat.offset is the place of its first), each with its place in the
+// whole chat (data-msg), wired.
+function drawChatRows(thread, id, chat) {
+  const from = chat.offset || 0;
+  const form = $('#view-chief form');
+  thread.innerHTML = chat.messages.map((m, i, all) => messageHTML(m, i, all, from + i).replace('class="bubble-row', `data-msg="${from + i}" class="bubble-row`)).join('');
+  thread.dataset.mentions = mentionSig(); // what its mentions were matched against (see renderChief)
+  thread.dataset.chat = id; // whose messages these are (see placeChiefLine)
+  thread._messages = chat.messages; // the part on screen, for older ones to go before (loadOlder)
+  thread._rows = $$(':scope > .bubble-row', thread).length; // and its rows: one the page adds itself is not among them
+  thread._mine = chat.messages.filter((m) => m.role === 'user'); // what the owner wrote in it, as botdot has it (see ownWords)
+  thread._from = from; // the place of its first row in the whole chat (see chiefArrives)
+  wireActions(thread);
+  wireChoices(thread, (t, key) => sendFrom(form, () => sendToChief(t, [], key)));
+  $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
+  const build = $('[data-sug-build]', thread);
+  if (build) build.onclick = withKey(async (key) => { if (await sendFrom(form, () => sendToChief(PLAN_APPROVAL, [], key))) build.closest('.suggestion-actions')?.remove(); });
+  const dismiss = $('[data-sug-dismiss]', thread);
+  if (dismiss) dismiss.onclick = () => api(`/chief/chats/${id}/dismiss`, { method: 'POST' }).then(() => showChat(id)).catch((e) => toast(e.message, true));
+}
+
+// The owner scrolled up to the first message on screen: the CHAT_PAGE before it go above, and what was in view stays
+// where it was. One read at a time; nothing while a reply is drawn from its stream (its rows have no place yet).
+async function loadOlder(thread) {
+  const id = thread.dataset.chat;
+  const from = thread._from;
+  if (!id || !(from > 0) || thread._older || state.chatStream || !thread._messages) return;
+  // Rows this page added itself (a message sent, its reply) are not among them: the chat is read again first.
+  if ($$(':scope > .bubble-row', thread).length !== thread._rows) { showChat(id); return; }
+  thread._older = true;
+  try {
+    const off = Math.max(0, from - CHAT_PAGE);
+    const part = await api(`/chief/chats/${id}?offset=${off}&limit=${from - off}`);
+    if (thread.dataset.chat !== id || thread._from !== from || state.chatStream) return;
+    const below = thread.scrollHeight - thread.scrollTop;
+    drawChatRows(thread, id, { messages: [...part.messages, ...thread._messages], offset: part.offset });
+    updateChatNeeds(thread, 'chief');
+    placeStatusLines();
+    thread.scrollTop = thread.scrollHeight - below;
+    placeChiefLine();
+    markSearch();
+  } catch (e) {
+    console.warn(e.message);
+  } finally {
+    thread._older = false;
+  }
 }
 
 // Stop the Chief's reply in a chat: the open one, from the box of a server that has no Send while it replies.
@@ -760,6 +811,8 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
       thread.innerHTML = ''; // the empty chat's greeting is gone, now that the message went
       thread.dataset.chat = id;
       thread._mine = [];
+      thread._messages = [];
+      thread._rows = 0;
       thread._from = 0;
       syncRead(); // the new chat is on screen: its reply is read as it arrives
     }
