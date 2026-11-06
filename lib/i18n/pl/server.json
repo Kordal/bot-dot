@@ -592,5 +592,14 @@
   "Shared with": "Udostępniony",
   "Asks to replace the secret of “{entry}”": "Prosi o podmianę sekretu „{entry}”",
   "Asks to save “{entry}” in the Vault": "Prosi o zapisanie „{entry}” w Sejfie",
-  "Looking at what takes space": "Sprawdza, co zajmuje miejsce"
+  "Looking at what takes space": "Sprawdza, co zajmuje miejsce",
+  "Failed": "Nie udało się",
+  "Sending…": "Wysyłanie…",
+  "Send more": "Wyślij więcej",
+  "This code has expired": "Ten kod wygasł",
+  "This code has expired.": "Ten kod wygasł.",
+  "Choose files": "Wybierz pliki",
+  "Only the owner uploads from a phone.": "Tylko właściciel wgrywa pliki z telefonu.",
+  "Say where the files go.": "Powiedz, dokąd mają trafić pliki.",
+  "That code has expired.": "Ten kod wygasł."
 }

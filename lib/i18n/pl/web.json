@@ -1753,5 +1753,8 @@
   "What is {name} ({size}) in {whose}’s files, and can it go?": "Co to jest {name} ({size}) w plikach: {whose} i czy można to usunąć?",
   "Cleared {size}": "Wyczyszczono {size}",
   "Clearing…": "Czyszczenie…",
-  "System": "System"
+  "System": "System",
+  "From phone": "Z telefonu",
+  "Your phone can't reach botdot yet.": "Twój telefon nie ma jeszcze dostępu do botdot.",
+  "New code": "Nowy kod"
 }

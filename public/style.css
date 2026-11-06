@@ -3385,3 +3385,25 @@ dialog.co-delete .modal-foot { border-top: 0; }
   .st-mini { display: none; }
 }
 .st-bar + .set-list { margin-top: 0; }
+
+/* Upload from phone (ADR 165, phone-drop.js): the QR code beside what arrived, over the message box or in a corner of Files. */
+.pd-menu .fx-mi { justify-content: flex-start; gap: var(--sp-12); }
+.pd-menu .fx-mi svg, .fx-bar [data-fx="from-phone"] svg { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.pd-card { display: flex; gap: var(--sp-16); align-items: flex-start; padding: var(--sp-12); margin: 0 0 var(--sp-8); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); }
+.pd-float { position: fixed; z-index: 40; right: var(--sp-24); bottom: var(--sp-24); width: min(440px, calc(100vw - 48px)); margin: 0; box-shadow: var(--lift), var(--shadow-lg); }
+.pd-qr { position: relative; flex: none; width: 160px; height: 160px; border-radius: var(--r-8); background: #fff; overflow: hidden; }
+.pd-qr svg { display: block; width: 100%; height: 100%; }
+.pd-qr svg path { fill: #000; stroke: none; } .pd-qr svg rect { fill: #fff; stroke: none; }
+.pd-qr.pd-wait { background: var(--fill); }
+.pd-qr.spent svg { opacity: .08; }
+.pd-qr .btn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.pd-side { flex: 1; min-width: 0; display: grid; gap: var(--sp-8); }
+.pd-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8); font-size: var(--fs-14); }
+.pd-x { font-size: var(--fs-20); color: var(--muted); }
+.pd-line { margin: 0; color: var(--muted); font-size: var(--fs-14); }
+.pd-rows { display: grid; gap: var(--sp-4); max-height: 120px; overflow-y: auto; }
+.pd-row { display: flex; align-items: center; gap: var(--sp-8); padding: var(--sp-8) var(--sp-12); border-radius: var(--r-8); background: var(--fill); font-size: var(--fs-14); }
+.pd-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-size { color: var(--muted); font-size: var(--fs-12); white-space: nowrap; }
+.pd-ok { color: var(--ok-text); }
+.pd-err { color: var(--err); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }

@@ -9,6 +9,7 @@ const zlib = require('zlib');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const frontDoorCalls = require('../lib/front-door/calls');
+const frontDoorDrops = require('../lib/front-door/drops');
 
 const ROOT = path.join(__dirname, '..');
 const FAKE_CLAUDE = path.join(__dirname, 'fixtures', 'fake-claude.js');
@@ -192,13 +193,19 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
 
 // A stand-in front door (front-door.js, without its sign-in) on a free port: every request and WebSocket is passed
 // on to botdot's socket as it came, with the account named, as the real one does for a signed-in session. A call
-// (/call/<account>/<bot>/<job>) is passed on as the real one passes it (lib/front-door/calls.js), without its limits.
+// (/call/<account>/<bot>/<job>) and a phone's upload (/drop/<account>/<token>) are passed on as the real one passes them
+// (lib/front-door/calls.js, drops.js), without their limits.
 async function frontDoorStandIn(socketPath, account) {
-  const headersOf = (req) => ({ ...req.headers, 'x-forwarded-proto': 'http', 'x-botdot-account': account });
+  const headersOf = (req) => { const h = { ...req.headers, 'x-forwarded-proto': 'http', 'x-botdot-account': account }; delete h['x-botdot-drop']; return h; };
   const server = http.createServer((req, res) => {
-    const call = frontDoorCalls.callOf(new URL(req.url, 'http://x').pathname);
+    const pathname = new URL(req.url, 'http://x').pathname;
+    const call = frontDoorCalls.callOf(pathname);
     if (call && call.account !== account) { req.resume(); res.writeHead(401, { 'Content-Type': 'application/json' }); return res.end('{"error":"Wrong key."}'); }
-    const to = call ? { path: call.path, headers: frontDoorCalls.callHeaders(req, account, frontDoorCalls.clientOf(req)) } : { path: req.url, headers: headersOf(req) };
+    const drop = frontDoorDrops.dropOf(pathname);
+    if (drop && drop.account !== account) { req.resume(); res.writeHead(404, { 'Content-Type': 'application/json' }); return res.end('{"error":"This code has expired."}'); }
+    const to = call ? { path: call.path, headers: frontDoorCalls.callHeaders(req, account, frontDoorCalls.clientOf(req)) }
+      : drop ? { path: drop.path, headers: frontDoorDrops.dropHeaders(req, account, frontDoorCalls.clientOf(req), 'http') }
+      : { path: req.url, headers: headersOf(req) };
     const up = http.request({ socketPath, agent: false, method: req.method, ...to }, (answer) => {
       const { connection, 'keep-alive': _, ...headers } = answer.headers;
       res.writeHead(answer.statusCode, req.complete ? headers : { ...headers, connection: 'close' }); // an answer before the whole body: this connection ends with it
