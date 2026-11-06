@@ -877,6 +877,20 @@ internal fun sendNote(e: Throwable, once: Boolean = false): String {
 
 private fun notSentBecause(said: String) = tr("Not sent: {why}", "why" to said + if (said.last() in ".!?…") "" else ".") + " " + STILL_HERE
 
+/** The [Outbox] a chat's messages go through: one for all the Chief's chats ("chief:<id>"), else the chat's own. */
+internal fun outboxKey(chat: String): String = if (chat.startsWith("chief:")) "chief" else chat
+
+/**
+ * A reply typed in a notification (#1069), to a chat ("chief:<id>", "bot:<id>", "group:<id>"): sent as its message box
+ * sends, through the chat's [Outbox], with a message key [request] gets. Null once it went. When it did not, it waits
+ * in that chat's box with the line that says why ([sendNote]), and that line is the answer.
+ */
+suspend fun replyFromNotification(chat: String, text: String, features: Collection<String>?, request: suspend (key: String) -> Unit): String? {
+    val outbox = Outbox.of(outboxKey(chat))
+    val went = outbox.send(text, emptyList(), box = true, once = takesOnce(features), chat = chat.takeIf { it.startsWith("chief:") }?.removePrefix("chief:"), draw = false, request = request)
+    return if (went) null else outbox.note ?: sendNote(ApiException(NOT_CONNECTED), takesOnce(features))
+}
+
 /** A failed message back in the box, in front of what was typed since. */
 internal fun withFailed(failed: String, typedSince: String): String =
     if (failed.isNotEmpty() && typedSince.isNotBlank()) "$failed\n$typedSince" else failed.ifEmpty { typedSince }
