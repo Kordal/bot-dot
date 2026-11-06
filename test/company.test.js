@@ -241,7 +241,7 @@ test('a new week is due once a plan of it was neither drafted nor asked for', ()
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'company-'));
   const file = path.join(dir, 'company.json');
   const monday = new Date(2026, 10, 2, 9); // Monday 2 November 2026, local time
-  fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z', plan: { items: [{ text: 'x' }], week: '2026-10-26' } }));
+  fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z', teams: [{ id: 't1', name: 'Growth', bots: ['b1'], lead: 'b1' }], plan: { items: [{ text: 'x' }], week: '2026-10-26' } }));
   const s = companyLib.create({ file, now: () => monday });
   assert.equal(companyLib.weekOf(new Date(2026, 10, 8, 23)), '2026-11-02', 'a Sunday is the end of its week');
   assert.equal(s.planDue(), '2026-11-02');
@@ -253,6 +253,8 @@ test('a new week is due once a plan of it was neither drafted nor asked for', ()
   assert.match(s.promptNote(), /This week's plan \(waits for the owner\): y/);
   assert.match(s.promptNote(), /The day 30 check-in waits for the owner\./);
   assert.match(s.promptNote(), /suggest_company_bot/);
+  fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z' }));
+  assert.equal(s.planDue(), null, 'not for a project with no team (#1085)');
   fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'setup' }));
   assert.equal(s.planDue(), null, 'not while it is set up');
   fs.rmSync(dir, { recursive: true, force: true });
