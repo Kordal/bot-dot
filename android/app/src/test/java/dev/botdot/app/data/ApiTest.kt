@@ -190,11 +190,12 @@ class ApiTest {
     }
 
     // #1078: a live feed that knows when it is dead.
-    private fun sse(body: String, then: mockwebserver3.SocketEffect? = null, throttle: Long = 0) = MockResponse.Builder()
-        .addHeader("Content-Type", "text/event-stream").body(body)
-        .apply { then?.let { onResponseEnd(it) }; if (throttle > 0) throttleBody(throttle, 600, java.util.concurrent.TimeUnit.MILLISECONDS) }
+    // [body] at once, then the rest of the stream after [after] ms: until then it is open and says nothing, like a
+    // half-open socket (a stream whose body has all come is closed, whatever the socket does after).
+    private fun sse(body: String, after: Long = 60_000) = MockResponse.Builder()
+        .addHeader("Content-Type", "text/event-stream").body(body + ": bye\n\n")
+        .throttleBody(body.length.toLong(), after, java.util.concurrent.TimeUnit.MILLISECONDS)
         .build()
-    private val stall = mockwebserver3.SocketEffect.Stall
 
     /** A feed, and the types of the events it passed on so far (listening before it connects). */
     private fun withFeed(test: suspend (Feed, List<String>) -> Unit) = runBlocking {
@@ -211,8 +212,8 @@ class ApiTest {
     @Test fun aFeedThatSaysNothingForTooLongFailsAndOpensAgainWhereItWas() = withFeed { feed, seen ->
         // The socket stays open after the first event and nothing more comes: half-open, as after Doze or a network change.
         val quiet = Api(server.url("/").toString().trimEnd('/'), quietMs = 1_000)
-        server.enqueue(sse("id: q.1\nevent: run_started\ndata: {}\n\n", stall))
-        server.enqueue(sse("id: q.2\nevent: run_finished\ndata: {}\n\n", stall))
+        server.enqueue(sse("id: q.1\nevent: run_started\ndata: {}\n\n"))
+        server.enqueue(sse("id: q.2\nevent: run_finished\ndata: {}\n\n"))
         feed.connect(quiet)
         until(10_000) { seen.size >= 2 }
         assertEquals(listOf("run_started", "run_finished"), seen.toList())
@@ -222,7 +223,7 @@ class ApiTest {
     }
 
     @Test fun botdotsPingKeepsTheFeedAliveAndIsNoEvent() = withFeed { feed, seen ->
-        server.enqueue(sse("event: ping\ndata: {}\n\nid: p.1\nevent: bots\ndata: {}\n\n", stall))
+        server.enqueue(sse("event: ping\ndata: {}\n\nid: p.1\nevent: bots\ndata: {}\n\n"))
         feed.connect(api)
         until(5_000) { seen.isNotEmpty() }
         assertEquals(listOf("bots"), seen.toList())
@@ -231,8 +232,8 @@ class ApiTest {
     @Test fun aNudgeWhileConnectedIsKeptForWhenTheStreamEnds() = withFeed { feed, seen ->
         // The first stream sends its event, then ends a little later; the nudge is sent while it is still open.
         val first = "id: n.1\nevent: run_started\ndata: {}\n\n"
-        server.enqueue(sse(first + ": bye\n\n", throttle = first.length.toLong()))
-        server.enqueue(sse("id: n.2\nevent: run_finished\ndata: {}\n\n", stall))
+        server.enqueue(sse(first, after = 600))
+        server.enqueue(sse("id: n.2\nevent: run_finished\ndata: {}\n\n"))
         feed.connect(api)
         until(5_000) { seen.isNotEmpty() }
         feed.retryNow() // the app came to the front while Connected
@@ -242,8 +243,8 @@ class ApiTest {
     }
 
     @Test fun anotherNetworkDropsTheOpenFeedForANewOneAtOnce() = withFeed { feed, seen ->
-        server.enqueue(sse("id: r.1\nevent: run_started\ndata: {}\n\n", stall))
-        server.enqueue(sse("id: r.2\nevent: run_finished\ndata: {}\n\n", stall))
+        server.enqueue(sse("id: r.1\nevent: run_started\ndata: {}\n\n"))
+        server.enqueue(sse("id: r.2\nevent: run_finished\ndata: {}\n\n"))
         feed.connect(api)
         until(5_000) { seen.isNotEmpty() }
         assertEquals(Feed.State.Connected, feed.state.value)
