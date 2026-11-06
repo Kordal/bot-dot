@@ -87,6 +87,8 @@ async function startServer({ dir, env = {}, broker = false, wait = true, account
       BOT_DOT_DRESS_WAITS: 'off',
       // The broker's sweep ends a bot's user's processes it did not start, and test files run side by side.
       BOT_DOT_SWEEP_MS: '0',
+      // A run that a busy API ended carries on after a minute (bots.js TRANSIENT_RETRY_MS, #1093): at once here.
+      BOT_DOT_TRANSIENT_RETRY_MS: '20',
       // The group router (lib/group-router.js) would ask the stand-in before every turn of a group; its own tests switch it on.
       BOT_DOT_GROUP_ROUTER: 'off',
       // The group's notes (lib/group-notes.js) would ask the stand-in after every line of a group; their own tests switch them on.
