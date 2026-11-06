@@ -250,16 +250,57 @@ const BOAT_FRAME_CSP = [
 ].join('; ');
 
 // The page's own files, kept in memory with a gzip and a brotli copy (made once per version of each file).
-// The browser checks back each time (no-cache) and gets a 304 while the file hasn't changed.
+// The browser checks back each time (no-cache) and gets a 304 while the file hasn't changed. index.html is the one
+// exception (#1108): it names its scripts and its stylesheet with their version (?v=<tag>), and a file asked for with
+// its version now is kept by the browser for good (immutable), so a load asks for index.html alone again, not for
+// each of its 70 files. An old ?v= is answered with the file as it is now, checked back as before.
 // /vendor/mermaid/ is botdot's own copy of Mermaid (12.2.0, unchanged), which the diagrams' frame loads when a reply
 // has a diagram (ADR 041): its one file is 5.5 MB, 1.6 MB with gzip.
 const MERMAID = path.join(__dirname, 'vendor', 'mermaid'), MERMAID_PATH = '/vendor/mermaid';
 const staticCache = new Map(); // file -> { key, etag, raw, gz, br }
 const STATIC_MAX = 8 * 1024 * 1024; // bigger files are streamed as they are
 const BROTLI_BIG = 1024 * 1024; // above it brotli at quality 5: at its best it holds the server for seconds per MB
+const INDEX = path.join(PUBLIC, 'index.html');
+const IMMUTABLE = 'public, max-age=31536000, immutable';
+const VERSIONED = /(<script src="|<link rel="stylesheet" href=")(\/[\w./-]+\.(?:js|css))(")/g;
+const tagOf = (etag) => etag.slice(1, -1);
+function compressed(raw, type) {
+  const text = /^(text\/|application\/(json|manifest)|image\/svg)/.test(type);
+  // A font halves with gzip; brotli would hold the server most of a second per font for a tenth more.
+  const font = type === 'font/ttf';
+  return { gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw, raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null };
+}
+// A file of the page, from memory while it is unchanged: { key, etag, raw, gz, br }, or null when there is none.
+async function staticEntry(file, st, type) {
+  st ||= await fs.promises.stat(file).catch(() => null);
+  if (!st || !st.isFile()) return null;
+  const key = `${st.size}-${st.mtimeMs}`;
+  let c = staticCache.get(file);
+  if (!c || c.key !== key) {
+    const raw = await fs.promises.readFile(file);
+    // The tag is the file's content: a new version with the same size and time (an image built with fixed times) is still new.
+    c = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw, ...compressed(raw, type) };
+    staticCache.set(file, c);
+  }
+  return c;
+}
+// index.html with each script and the stylesheet named with its version, made again when one of them changed.
+async function versionedIndex(c) {
+  const refs = [...new Set([...c.raw.toString('utf8').matchAll(VERSIONED)].map((m) => m[2]))];
+  const tags = new Map();
+  for (const ref of refs) {
+    const e = await staticEntry(path.join(PUBLIC, ref), null, MIME[path.extname(ref)] || 'application/octet-stream');
+    if (e) tags.set(ref, tagOf(e.etag));
+  }
+  const key = `${c.etag}|${[...tags.values()].join(',')}`;
+  if (c.versioned?.key === key) return c.versioned;
+  const raw = Buffer.from(c.raw.toString('utf8').replace(VERSIONED, (all, open, ref, close) => (tags.has(ref) ? `${open}${ref}?v=${tags.get(ref)}${close}` : all)));
+  c.versioned = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw, ...compressed(raw, 'text/html') };
+  return c.versioned;
+}
 async function serveStatic(req, res) {
-  let rel;
-  try { rel = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { throw httpError(400, 'Bad address'); }
+  let rel, version;
+  try { const u = new URL(req.url, 'http://x'); rel = decodeURIComponent(u.pathname); version = u.searchParams.get('v'); } catch { throw httpError(400, 'Bad address'); }
   const [root, sub] = rel.startsWith(`${MERMAID_PATH}/`) ? [MERMAID, rel.slice(MERMAID_PATH.length)] : [PUBLIC, rel];
   const file = path.normalize(path.join(root, sub === '/' ? 'index.html' : sub));
   const st = file.startsWith(root + path.sep) ? await fs.promises.stat(file).catch(() => null) : null;
@@ -270,17 +311,9 @@ async function serveStatic(req, res) {
   const type = MIME[path.extname(file)] || 'application/octet-stream';
   const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ...(type === 'text/html' ? { 'Content-Security-Policy': file === FRAME ? FRAME_CSP : file === BOAT_FRAME ? BOAT_FRAME_CSP : cspFor(req) } : {}) };
   if (st.size > STATIC_MAX) return sendFile(res, file, headers);
-  const key = `${st.size}-${st.mtimeMs}`;
-  let c = staticCache.get(file);
-  if (!c || c.key !== key) {
-    const raw = await fs.promises.readFile(file);
-    const text = /^(text\/|application\/(json|manifest)|image\/svg)/.test(type);
-    // A font halves with gzip; brotli would hold the server most of a second per font for a tenth more.
-    const font = type === 'font/ttf';
-    // The tag is the file's content: a new version with the same size and time (an image built with fixed times) is still new.
-    c = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw, gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw, raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null };
-    staticCache.set(file, c);
-  }
+  let c = await staticEntry(file, st, type);
+  if (file === INDEX) c = await versionedIndex(c);
+  else if (version && version === tagOf(c.etag)) headers['Cache-Control'] = IMMUTABLE;
   headers.ETag = c.etag;
   headers.Vary = 'Accept-Encoding';
   if (req.headers['if-none-match'] === c.etag) { res.writeHead(304, headers); return res.end(); }
