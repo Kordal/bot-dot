@@ -47,20 +47,30 @@ function setAway(on) {
 function drawAway() {
   $('#away')?.classList.toggle('hidden', !away.shown);
   $$('.away-line').forEach((el) => el.classList.toggle('hidden', !away.shown));
-  const out = signedOut.on && !away.shown; // "Can't reach botdot" wins: nobody knows then what Claude is
-  $('#signed-out')?.classList.toggle('hidden', !out);
-  $$('.claude-line').forEach((el) => el.classList.toggle('hidden', !out));
+  const out = (signedOut.on || !!signedOut.backAt) && !away.shown; // "Can't reach botdot" wins: nobody knows then what Claude is
+  const line = $('#signed-out');
+  if (line) { line.classList.toggle('hidden', !out); if (out) line.innerHTML = signedOutHTML(); }
+  $$('.claude-line').forEach((el) => { el.classList.toggle('hidden', !out); if (out) el.innerHTML = signedOutHTML(); });
   $('.side-head')?.classList.toggle('noted', away.shown || out); // the top bar stays for it beside the rail (#837)
 }
 // Claude is signed out, as the feed says it (hello.claude, the `claude` event): no bot can work. One line stands
 // where "Can't reach botdot" stands, with the way to sign in, until Claude is signed in again.
-const signedOut = { on: false };
+// Over Claude's usage limit (#1090) the same line says when the bots carry on (`backAt`), until then; a sign-out wins.
+const signedOut = { on: false, backAt: null, timer: 0 };
 const SIGNED_OUT = tr("Claude is signed out: bots can't work.");
-const signedOutHTML = () => `${esc(SIGNED_OUT)} <button type="button" data-sign-in>${tr('Sign in')}</button>`;
-// claude: `{ loggedIn }`. Anything else says nothing, and the line stays as it is.
+const signedOutHTML = () => (signedOut.on || !signedOut.backAt
+  ? `${esc(SIGNED_OUT)} <button type="button" data-sign-in>${tr('Sign in')}</button>`
+  : esc(tr("Claude's usage limit is reached: bots carry on at {time}.", { time: msgTime(signedOut.backAt) })));
+// claude: `{ loggedIn, backAt? }`. Anything else says nothing, and the line stays as it is.
 function setSignedOut(claude) {
-  if (typeof claude?.loggedIn !== 'boolean' || signedOut.on === !claude.loggedIn) return;
+  if (typeof claude?.loggedIn !== 'boolean') return;
+  const backAt = claude.loggedIn && typeof claude.backAt === 'string' && Date.parse(claude.backAt) > Date.now() ? claude.backAt : null;
+  if (signedOut.on === !claude.loggedIn && signedOut.backAt === backAt) return;
   signedOut.on = !claude.loggedIn;
+  signedOut.backAt = backAt;
+  clearTimeout(signedOut.timer);
+  // The server says when the limit has reset; the line goes a minute after that time also when that event is late.
+  if (backAt) signedOut.timer = setTimeout(() => setSignedOut({ loggedIn: true }), Math.min(Date.parse(backAt) - Date.now() + 60_000, 2 ** 31 - 1));
   drawAway();
 }
 

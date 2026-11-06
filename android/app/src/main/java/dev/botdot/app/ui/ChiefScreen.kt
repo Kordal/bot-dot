@@ -82,6 +82,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val features = server?.features
     val stays = sendStays(features) // Send stays while it replies, and Stop is the word on the working line
     val signedOut by app.store.claude.signedOut.collectAsState()
+    val backAt by app.store.claude.backAt.collectAsState()
     val activity = vm.activity
     val files = vm.files
     // Its plan above the message box (docs/api.md, "The plan"): the pending reply's, or the last reply's that was
@@ -154,6 +155,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
         onError = { scope.launch { snack.showSnackbar(it) } },
         initialText = sharedText,
         onSignIn = onSignIn.takeIf { signedOut },
+        backAt = backAt,
     )
     var ownJobs by remember { mutableStateOf(emptyList<Pair<String, String>>()) }
     LaunchedEffect(empty, features) {

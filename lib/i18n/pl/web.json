@@ -1760,5 +1760,7 @@
   "System": "System",
   "From phone": "Z telefonu",
   "Your phone can't reach botdot yet.": "Twój telefon nie ma jeszcze dostępu do botdot.",
-  "New code": "Nowy kod"
+  "New code": "Nowy kod",
+  "Claude's usage limit was reached, so I stopped. I'll carry on by myself once it resets.": "Wyczerpał się limit użycia Claude, więc się zatrzymałem. Wrócę do pracy sam, gdy się odnowi.",
+  "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}."
 }

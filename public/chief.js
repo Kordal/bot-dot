@@ -7,7 +7,7 @@ function composerHTML(placeholder, ctx = '') {
       <div class="composer-wrap">
         <div class="plan-slot"></div>
         <div class="away-line${away.shown ? '' : ' hidden'}" role="status">${tr("Can't reach botdot. Trying again…")}</div>
-        <div class="claude-line${signedOut.on && !away.shown ? '' : ' hidden'}" role="status">${signedOutHTML()}</div>
+        <div class="claude-line${(signedOut.on || signedOut.backAt) && !away.shown ? '' : ' hidden'}" role="status">${signedOutHTML()}</div>
         ${ctx ? `<div class="ctx">${ctx}</div>` : ''}
         <div class="send-note hidden" role="status"></div>
         <div class="attach-list hidden"></div>
