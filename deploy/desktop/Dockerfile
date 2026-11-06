@@ -97,16 +97,16 @@ RUN useradd --create-home --shell /bin/bash box \
 # through (#311); the bridge gives the launcher that folder (lib/computers.js). The launcher writes its font
 # settings into camoufox/fontconfig there on every start, so only that folder is the browser user's. Root in the
 # computer had no right to chown when this was written (--cap-drop ALL, ADR 021), so the image makes it.
-# Both pinned to what the released images carry, so a rebuilt layer installs the same pair.
-# Launcher 0.5.7 needs indexed-zstd, which has no arm64 wheel and cannot be compiled here, as
-# the C headers went with the kernel packages above; launcher 0.5.6 does not know the patches
-# of browser 156 and skips them. certifi 2026.10.19 fixes GHSA-6q48-6c7w-9gw2 in what requests brings.
+# Launcher 0.5.9 pairs with exactly one browser build (its browser-pin.json: 158.0.1-beta.41), and a bare
+# `camoufox fetch` installs that build, the GeoIP database and fpgen's pinned fingerprint model (in the venv's
+# fpgen/data, read-only to the browser user like the rest). So bumping the launcher bumps the browser.
+# indexed-zstd, which fpgen needs, has arm64 wheels since 1.7.2. certifi 2026.10.19 fixes GHSA-6q48-6c7w-9gw2
+# in what requests brings.
 RUN python3 -m venv /opt/camoufox \
- && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.6' 'certifi==2026.10.19' \
- && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch official/152.0.4-beta.31 \
- && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox set official/stable/152.0.4-beta.31 \
- # fetch and set exit 0 even when the GitHub sync fails, so fail here if no browser was installed.
- && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -c "from camoufox.multiversion import get_active_path; import sys; sys.exit(0 if get_active_path() else \"Camoufox was not installed\")" \
+ && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.19' \
+ && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch \
+ # Fail here, not at the first launch, if the browser or the fingerprint model is missing.
+ && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -c "from camoufox.multiversion import get_active_path; from camoufox.fpgen_model import is_pinned; import sys; sys.exit(0 if get_active_path() and is_pinned() else \"Camoufox was not installed\")" \
  && chmod -R a+rX,go-w /opt/camoufox-cache \
  && install -d -o browser -g browser -m 0700 /opt/camoufox-cache/camoufox/fontconfig
 
