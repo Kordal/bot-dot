@@ -606,25 +606,42 @@ restic_ok() {
   [ "$1" -gt 0 ] || [ "$2" -ge 17 ]
 }
 # offsite_restic: the restic in RESTIC: the pinned one in BIN, downloaded from restic's releases and checked by its
-# sha256 when it isn't there yet; when that can't be, one this machine has, of 0.17 or newer.
+# sha256 when it isn't there yet; when that can't be, one this machine has, of 0.17 or newer. bunzip2 comes from apt-get
+# when a minimal image has none, and a download that fails is tried again over IPv4, as a fresh VPS's IPv6 route to
+# GitHub can be what fails. When neither restic can be had, the error says which step stopped the download.
 offsite_restic() {
   RESTIC="$BIN/restic"
   if [ -x "$RESTIC" ] && "$RESTIC" version </dev/null 2>/dev/null | grep -q "^restic $RESTIC_VERSION "; then return 0; fi
   case "$(uname -m)" in x86_64 | amd64) or_arch=linux_amd64 ;; aarch64 | arm64) or_arch=linux_arm64 ;; *) or_arch='' ;; esac
   or_sum="$(printf '%s\n' "$RESTIC_SUMS" | awk -v a="$or_arch" '$1 == a { print $2 }')"
-  if [ -n "$or_sum" ] && command -v bunzip2 >/dev/null 2>&1; then
+  or_why="there is no restic release for $(uname -m)"
+  if [ -n "$or_sum" ] && ! command -v bunzip2 >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bzip2 </dev/null >/dev/null 2>&1 \
+      || { apt-get update -qq </dev/null >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bzip2 </dev/null >/dev/null 2>&1; } || true
+  fi
+  if [ -n "$or_sum" ] && ! command -v bunzip2 >/dev/null 2>&1; then
+    or_why='bunzip2 is missing and apt-get could not install bzip2'
+  elif [ -n "$or_sum" ]; then
     mkdir -p "$BIN"
     chmod 700 "$BIN"
     or_file="$BIN/restic.bz2.new"
     rm -f "$or_file" "$BIN/restic.new"
+    or_url="https://github.com/restic/restic/releases/download/v$RESTIC_VERSION/restic_${RESTIC_VERSION}_$or_arch.bz2"
     say "Downloading restic $RESTIC_VERSION…"
-    if curl -fsSL --max-time 600 -o "$or_file" "https://github.com/restic/restic/releases/download/v$RESTIC_VERSION/restic_${RESTIC_VERSION}_$or_arch.bz2" </dev/null 2>/dev/null \
-      && [ "$(sha256sum "$or_file" 2>/dev/null | cut -d' ' -f1)" = "$or_sum" ] \
-      && bunzip2 -c "$or_file" > "$BIN/restic.new" 2>/dev/null; then
-      rm -f "$or_file"
-      chmod 700 "$BIN/restic.new"
-      mv "$BIN/restic.new" "$RESTIC"
-      return 0
+    if curl -fsSL --retry 2 --retry-delay 5 --max-time 600 -o "$or_file" "$or_url" </dev/null 2>/dev/null \
+      || curl -4 -fsSL --retry 2 --retry-delay 5 --max-time 600 -o "$or_file" "$or_url" </dev/null 2>/dev/null; then
+      if [ "$(sha256sum "$or_file" 2>/dev/null | cut -d' ' -f1)" != "$or_sum" ]; then
+        or_why="its download did not match its sha256"
+      elif bunzip2 -c "$or_file" > "$BIN/restic.new" 2>/dev/null; then
+        rm -f "$or_file"
+        chmod 700 "$BIN/restic.new"
+        mv "$BIN/restic.new" "$RESTIC"
+        return 0
+      else
+        or_why='bunzip2 could not unpack it'
+      fi
+    else
+      or_why='github.com could not be reached, over IPv6 or IPv4'
     fi
     rm -f "$or_file" "$BIN/restic.new"
   fi
@@ -633,7 +650,7 @@ offsite_restic() {
     RESTIC="$or_own"
     return 0
   fi
-  die "Couldn't download restic $RESTIC_VERSION with its checksum, and this machine has no restic of 0.17 or newer."
+  die "Couldn't download restic $RESTIC_VERSION with its checksum ($or_why), and this machine has no restic of 0.17 or newer."
 }
 # r ARG…: restic on the off-site repository, signing in with OFFSITE's key, and never asking.
 r() {
