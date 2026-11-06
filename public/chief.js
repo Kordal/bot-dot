@@ -690,7 +690,11 @@ async function showChat(id) {
 }
 
 // Stop the Chief's reply in a chat: the open one, from the box of a server that has no Send while it replies.
-const stopChief = (id = state.chatId) => api(`/chief/chats/${encodeURIComponent(typeof id === 'string' ? id : state.chatId)}/stop`, { method: 'POST' }).catch(() => {});
+// Stop on the Chief's reply, as a bot run's Stop (stopRun): it says it is stopping, or why it could not (#1070).
+async function stopChief(id = state.chatId) {
+  try { await api(`/chief/chats/${encodeURIComponent(typeof id === 'string' ? id : state.chatId)}/stop`, { method: 'POST' }); toast(tr('Stopping…')); }
+  catch (e) { toast(e.message, true); }
+}
 
 // Rejects when the message did not go, with nothing added to the chat: the caller keeps what was typed or
 // tapped and says why (wireComposer, sendFrom). key: the message's (messageKey), the same when it is sent again.

@@ -463,9 +463,11 @@ function drawStatusLine(thread, chat, color, stop, held = false, doing = '') {
   if (!html) return;
   if (next) next.insertAdjacentHTML('beforebegin', html); else thread.insertAdjacentHTML('beforeend', html);
   const stopRunBtn = $('[data-stop-run]', thread);
-  if (stopRunBtn) stopRunBtn.onclick = () => stopRun(stopRunBtn.dataset.stopRun);
+  // Stop takes one tap until botdot answered: it says it is stopping, or why not, and can be tapped again then.
+  const stopping = (btn, stop) => async () => { btn.disabled = true; try { await stop(); } finally { btn.disabled = false; } };
+  if (stopRunBtn) stopRunBtn.onclick = stopping(stopRunBtn, () => stopRun(stopRunBtn.dataset.stopRun));
   const stopChiefBtn = $('[data-stop-chief]', thread);
-  if (stopChiefBtn) stopChiefBtn.onclick = () => stopChief(stopChiefBtn.dataset.stopChief);
+  if (stopChiefBtn) stopChiefBtn.onclick = stopping(stopChiefBtn, () => stopChief(stopChiefBtn.dataset.stopChief));
   // "Waiting for your OK" in a bot's chat takes the owner to the card it waits for, else to Needs you.
   const waits = held && String(chat).startsWith('bot:') ? (next ? next.previousElementSibling : thread.lastElementChild) : null;
   if (waits) {
