@@ -40,6 +40,21 @@ test('a lead is asked once how often to report, and again when the team gets a n
   assert.deepEqual(setup.leadsToAsk(), [], 'not while the project is set up');
 });
 
+test('a lead given its rhythm by the owner does not ask for it; a new lead alone still asks (#1087)', () => {
+  const { s } = storeAt(RUNNING, new Date(2026, 9, 27, 9));
+  s.setTeam('t1', { report: 'weekly' });
+  assert.deepEqual(s.leadsToAsk().map((t) => t.id), ['t2'], 'the owner just picked Growth\'s rhythm');
+  s.setTeam('t2', { lead: 'c', report: 'daily' });
+  assert.deepEqual(s.leadsToAsk(), []);
+  s.setTeam('t1', { lead: 'b' });
+  assert.deepEqual(s.leadsToAsk().map((t) => [t.id, t.lead]), [['t1', 'b']], 'a new lead asks once, as ADR 118 says');
+  s.setTeam('t1', { report: null });
+  assert.deepEqual(s.leadsToAsk().map((t) => t.id), ['t1'], 'turning the report off answers nothing');
+  const n = s.addTeam({ name: 'Ops', bots: ['d'], report: 'twice-weekly' }).teams.at(-1);
+  assert.equal(n.asked, 'd', 'a new team with a rhythm already');
+  assert.equal(s.addTeam({ name: 'Ads', bots: ['e'] }).teams.at(-1).asked, undefined);
+});
+
 test('only the lead keeps its rhythm and its report; the report comes due at the rhythm', () => {
   const { s, clock } = storeAt(RUNNING, new Date(2026, 9, 27, 9)); // a Tuesday
   assert.throws(() => s.setReport('b', 'weekly'), { status: 403 }, 'a member leads no team');
