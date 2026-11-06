@@ -1,4 +1,4 @@
-// The owner's message to a Chief that replies is sorted like a bot's (ADR 166, ADR 106): more for the reply that goes
+// The owner's message to a Chief that replies is sorted like a bot's (ADR 167, ADR 106): more for the reply that goes
 // on is steered into it, a question about it is answered aside, and anything else waits its turn as before.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
