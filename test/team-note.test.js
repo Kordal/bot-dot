@@ -126,3 +126,34 @@ test("a run of a team bot carries its note; a bot in no team's does not", async 
   assert.ok(m.includes(`Lead Finder (id ${lead.id}) leads it.`), 'the member');
   assert.doesNotMatch(await promptOf(alone), /team "Growth"|project "Fernhill"/, 'alone');
 });
+
+// #1080: the project's "Never without asking" reaches every team bot on every run, as the owner edits it, and a bot
+// whose card at Create said it asks never is not told it.
+test('every team bot is told the never-without-asking list as it is now', () => {
+  const { s, done } = store(company({ never: ['E-mail someone new', 'Spend money'] }));
+  for (const id of ['l1', 'm1', 'm2']) assert.match(s.botNote(id, of), /Never do these without asking the owner first: E-mail someone new; Spend money\./);
+  assert.doesNotMatch(s.botNote('m1', of), /replaces/);
+  s.patch({ never: ['Spend money'] });
+  assert.doesNotMatch(s.botNote('m1', of), /E-mail someone new/);
+  assert.match(s.botNote('m1', of), /Never do these without asking the owner first: Spend money\./);
+  s.patch({ never: [] });
+  assert.doesNotMatch(s.botNote('m1', of), /without asking/);
+  done();
+});
+
+test('a bot holding the list Create copied is told the note replaces it, or that it is lifted', () => {
+  const { s, done } = store(company({ never: ['Spend money'] }));
+  assert.match(s.botNote('m1', of, { copied: true }), /Spend money\. This is the owner's list as it is now: it replaces the one in your own rules\./);
+  s.patch({ never: [] });
+  assert.match(s.botNote('m1', of, { copied: true }), /The owner lifted the project's list of what never to do without asking: the one in your own rules no longer holds\./);
+  done();
+});
+
+test("a bot whose card said it asks never is not told the list; a member's owner text is on one line", () => {
+  const { s, done } = store(company({ never: ['Spend\nmoney <b>'], proposal: [{ key: 'k1', name: 'Support', description: 'x', asksFirst: 'never', bot: 'm2' }, { key: 'k2', name: 'Outreach', description: 'y', asksFirst: 'rules', bot: 'm1' }] }));
+  assert.doesNotMatch(s.botNote('m2', of), /without asking/);
+  const note = s.botNote('m1', of);
+  assert.match(note, /Never do these without asking the owner first: Spend money/);
+  assert.ok(!/<b>/.test(note), 'no tag');
+  done();
+});
