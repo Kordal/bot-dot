@@ -61,6 +61,7 @@ class Store(
                         if (front.value) delay(BURST_MS)
                         else withTimeoutOrNull(quietMs) { front.first { it } }
                     }
+                    kicks.tryReceive() // a change said while it waited: this read covers it
                     refresh()
                 }
             }
