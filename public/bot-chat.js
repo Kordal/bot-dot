@@ -98,6 +98,7 @@ const stepsSig = (r) => { const rows = Array.isArray(r.steps?.rows) ? r.steps.ro
 // The open blocks' step lines, by run, each with whether its run was at work when it was opened: they stay open as the
 // chat is drawn again. One opened to watch a run at work folds when the run ends, so a finished run's steps are folded.
 const openSteps = new Map();
+const keepStepsOpen = (el) => el.addEventListener('toggle', () => { if (el.open) openSteps.set(el.dataset.steps, el.classList.contains('now')); else openSteps.delete(el.dataset.steps); });
 const stepsOpen = (r) => {
   if (openSteps.get(r.id) && r.status !== 'running') openSteps.delete(r.id);
   return openSteps.has(r.id);
@@ -137,6 +138,21 @@ function runLine(r) {
   if (r.waitingFor === 'ok') return OpeningLine.WAITING;
   return (typeof openingLines !== 'undefined' && openingLines.ofRun(`bot:${r.botId}`, r.id)) || OpeningLine.ofRun(r, state.features) || tr('Working');
 }
+// A running run's step line after a step (#1064): its rows and its label anew, in place. The line itself stays, open
+// or folded, with its focus, and nothing else in the chat is drawn again.
+function growSteps(el, r) {
+  const sig = stepsSig(r);
+  if (!el || el.dataset.sig === sig) return;
+  el.dataset.sig = sig;
+  const t = document.createElement('template');
+  t.innerHTML = stepLineHTML(r);
+  const fresh = t.content.firstElementChild;
+  if (!fresh) return;
+  const label = $('summary', fresh)?.getAttribute('aria-label');
+  if (label) $('summary', el)?.setAttribute('aria-label', label);
+  const rows = $('.step-rows', el), now = $('.step-rows', fresh);
+  if (now) { if (rows) rows.replaceWith(now); else el.append(now); } else rows?.remove();
+}
 // The running blocks' lines as the server says them, in place: no redraw of the chat.
 function drawBlockLines(thread) {
   if (!thread) return;
@@ -147,6 +163,7 @@ function drawBlockLines(thread) {
     if (now && now.textContent !== runLine(r)) now.textContent = runLine(r);
     block.classList.toggle('held', r.waitingFor === 'ok');
     if (now) now.onclick = r.waitingFor === 'ok' ? (e) => { e.preventDefault(); if (!toHeldCard(thread, r.botId)) setView('needs'); } : null; // to the card it waits for
+    growSteps($(`details.run-steps[data-steps="${CSS.escape(r.id)}"]`, block), r);
     const count = Number(r.steps?.count) || 0;
     const n = $('.step-n', block);
     if (count && !n) $('.run-steps summary', block)?.insertAdjacentHTML('beforeend', `<span class="step-dot">·</span><span class="step-n">${trn(count, '{n} step', '{n} steps')}</span>`);
@@ -403,9 +420,10 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   // An empty chat (#727): its jobs under the message box, which stands in the middle (style.css). A tap runs one now.
   drawJobChips(part('job-chips'), startableJobs(bot), (jobId) => runJobNow(bot.id, jobId));
 
-  // Re-render the thread only when something changed, so live bits and scroll survive refreshes.
+  // Re-render the thread only when something changed, so live bits and scroll survive refreshes. A step of a running
+  // run is no change: its step line grows in place (drawBlockLines).
   const waiting = state.inbox[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${stepsSig(r)}:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
+  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
   const thread = part('chat-thread');
   holdChatEnd(thread);
   if (root.dataset.sig !== sig) {
@@ -417,7 +435,8 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
     $$('[data-details]', thread).forEach((el) => (el.onclick = () => openRun(el.dataset.details)));
     // A block's step line opens and closes, and stays so; Stop in a running block's footer ends that run.
-    $$('details.run-steps', thread).forEach((el) => el.addEventListener('toggle', () => { if (el.open) openSteps.set(el.dataset.steps, el.classList.contains('now')); else openSteps.delete(el.dataset.steps); }));
+    $$('details.run-steps', thread).forEach(keepStepsOpen);
+    $$('details.run-steps.now', thread).forEach((el) => { const r = runs.find((x) => x.id === el.dataset.steps); if (r) el.dataset.sig = stepsSig(r); });
     $$('[data-reply-run]', thread).forEach((el) => (el.onclick = () => pickReply(bot.id, el.dataset.replyRun, root)));
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
@@ -510,13 +529,15 @@ function tookRun(botId, run, text, attachments) {
 // The thread a bot's message goes to: the open view's.
 const botThread = () => $('#bot-thread');
 
-// Every run of the bot that is going, each from its start again, as the chat is drawn again: a message to a busy
-// bot starts beside the run that is going (ADR 062), and each has its draft and files in its own row. The open
-// view's streams are the state's; a chat in the dock keeps its own.
+// Every run of the bot that is going, each followed once by its id (a message to a busy bot starts beside the run
+// that is going, ADR 062), with its draft and files in its own row: a chat drawn again keeps the streams of runs still
+// going, opens one for a run new to it and closes those of runs that ended. The open view's streams are the state's; a
+// chat in the dock keeps its own.
 function followBotRuns(running, root = $('#view-bot')) {
   const streams = root?.id === 'view-bot' ? state.botStreams : (root._streams ||= []);
-  for (const es of streams.splice(0)) es.close();
-  running.forEach((run) => followBotRun(run, root, streams));
+  const going = new Set(running.map((r) => r.id));
+  for (const s of streams.filter((x) => !going.has(x.runId))) { s.close(); streams.splice(streams.indexOf(s), 1); }
+  running.forEach((run) => { if (!streams.some((x) => x.runId === run.id)) followBotRun(run, root, streams); });
 }
 // The run of a bot's chat the owner picked Reply on (#627), by bot: { runId, text }, until it is sent or ✕.
 const replyingTo = new Map();
@@ -548,6 +569,9 @@ function followBotRun(run, root = $('#view-bot'), streams = state.botStreams) {
   if (!run) return;
   const thread = () => $('.chat-thread', root);
   const es = watchRun(run.id, () => { const at = streams.indexOf(es); if (at !== -1) streams.splice(at, 1); replyDrafts.end(run.id); refresh(); }, (file) => {
+    // On the run as the page holds it, so a chat drawn again keeps it; once (the stream replays).
+    const held = state.runs.find((r) => r.id === run.id);
+    if (held && !(held.files || []).some((f) => fileHref(f) === fileHref(file))) held.files = [...(held.files || []), file];
     const live = $(`[data-live="${CSS.escape(run.id)}"]`, root);
     if (!live || $(`a[href="${CSS.escape(fileHref(file))}"]`, live)) return; // shown already (the stream replays)
     const list = $('.bubble-files', live);
@@ -566,23 +590,39 @@ function followBotRun(run, root = $('#view-bot'), streams = state.botStreams) {
   streams.push(es);
 }
 
-// Follow a running run (the stream replays what already happened first). onEnd() when the run finishes;
-// onFile(file) for a file it attached; onLine(text) with its line, each time the server says one: its working
-// line, or its opening line from a server without the working line. Its steps are not read: the words for what
-// a run is doing are the server's. onDraft(text) with its reply draft, from a server that has drafts ('' for none).
-// onPlan(plan) with its plan each time it changes (null when it was cleared; plan.js).
+// Follow a running run, in the stream's simple form (docs/api.md, ?simple): what already happened is replayed first,
+// then the run's lines, draft and plan as they read now. onEnd() when the run finishes; onFile(file) for a file it
+// attached; onLine(text) with its line, each time the server says one: its working line, or its opening line from a
+// server without the working line. Its steps are not read: the words for what a run is doing are the server's.
+// onDraft(text) with its reply draft, from a server that has drafts ('' for none). onPlan(plan) with its plan each
+// time it changes (null when it was cleared; plan.js).
+// A stream that drops while the run still runs comes back (EventSource retries by itself; one the browser gave up on
+// is opened again, 2 s later and longer each time): the replay brings back its draft, files and plan. One whose run
+// ended is closed: the feed says the rest. The handle: { runId, close() }.
 function watchRun(runId, onEnd, onFile, onLine, onDraft, onPlan) {
-  const es = new EventSource(`/api/runs/${runId}/stream`);
-  es.onmessage = (msg) => {
-    const ev = JSON.parse(msg.data);
-    if (ev.type === 'file') onFile?.(ev.file); // a file it attached: shown at once
-    if (OpeningLine.says(ev.type, state.features)) onLine?.(ev.text);
-    if (ev.type === 'reply_draft' && showsDrafts()) onDraft?.(String(ev.text ?? ''));
-    if (ev.type === 'plan') onPlan?.(ev.plan || null);
-    if (ev.type === 'run_end') { es.close(); onEnd?.(); }
+  let es = null, timer = null, wait = 2000, over = false;
+  const going = () => (state.runs || []).some((r) => r.id === runId && r.status === 'running');
+  const close = () => { over = true; if (timer) clearTimeout(timer); es?.close(); };
+  const open = () => {
+    es = new EventSource(`/api/runs/${encodeURIComponent(runId)}/stream?simple`);
+    es.onopen = () => { wait = 2000; };
+    es.onmessage = (msg) => {
+      let ev = null;
+      try { ev = JSON.parse(msg.data); } catch { return; }
+      if (ev.type === 'file') onFile?.(ev.file); // a file it attached: shown at once
+      if (OpeningLine.says(ev.type, state.features)) onLine?.(ev.text);
+      if (ev.type === 'reply_draft' && showsDrafts()) onDraft?.(String(ev.text ?? ''));
+      if (ev.type === 'plan') onPlan?.(ev.plan || null);
+      if (ev.type === 'end') { close(); onEnd?.(); }
+    };
+    es.onerror = () => {
+      if (over) return;
+      if (!going()) { close(); return; }
+      if (es.readyState === 2) { timer = setTimeout(() => { if (over) return; if (going()) open(); else close(); }, wait); wait = Math.min(wait * 2, 30000); } // EventSource.CLOSED
+    };
   };
-  es.onerror = () => es.close();
-  return es;
+  open();
+  return { runId, close };
 }
 
 // ---------- live screen preview (top right of a bot's chat, while it uses its computer) ----------
