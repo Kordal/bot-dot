@@ -16,7 +16,8 @@ const runsOf = async (srv, bot) => (await srv.api(`/runs?botId=${bot.id}`)).data
 const asksOf = async (srv, bot) => (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
 const answer = (srv, ask) => srv.api(`/asks/${ask.id}`, { method: 'POST', body: { yes: true } });
 // An ask as botdot keeps it, for a run that asked just now.
-const askFor = (bot, runId, id) => ({ id, kind: 'permission', botId: bot.id, permission: 'commands', reason: '', at: new Date().toISOString(), runs: [{ id: runId, at: new Date().toISOString() }] });
+// It asked after the runs seeded with it had started (a millisecond apart, seedRuns).
+const askFor = (bot, runId, id) => { const at = new Date(Date.now() + 20).toISOString(); return { id, kind: 'permission', botId: bot.id, permission: 'commands', reason: '', at, runs: [{ id: runId, at }] }; };
 
 test('behind a busy bot the work waits in the queue, survives a restart and starts once; a full queue takes none; a one-time job that is gone runs again', async () => {
   let srv = await startServer();
@@ -49,7 +50,7 @@ test('behind a busy bot the work waits in the queue, survives a restart and star
       const fromBot = { id: sender.id, name: sender.name, emoji: sender.emoji, color: sender.color, hop: 1, chainId: 'chain-1' };
       const carries = Array.from({ length: 9 }, (_, i) => ({ key: `carry:seed-${i}`, kind: 'carry-on', runId: `seed-${i}`, allowed: [], declined: [], queuedAt: new Date().toISOString() }));
       setQueue(data, (q) => { q.queues[full.id] = [...Array.from({ length: 11 }, (_, i) => ({ key: `msg:seed:${i}`, kind: 'message', prompt: `Task ${i}`, fromBot, queuedAt: new Date().toISOString() })), ...carries]; });
-      [swampedRun, swampedRun2] = seedRuns(srv, full, [{ prompt: 'Check the PRs' }, { prompt: 'Check the issues' }]);
+      [swampedRun, swampedRun2] = seedRuns(srv, full, [{ prompt: 'Check the PRs' }, { prompt: 'Check the issues', fromBot }]);
       [onceRun] = seedRuns(srv, once, [{ trigger: 'schedule', jobId: 'once-1', jobName: 'Call the plumber', oneTime: true, notify: 'always', prompt: 'Remind me to call the plumber.', reporting: 'delivered' }]);
       fs.writeFileSync(path.join(data, 'asks.json'), JSON.stringify([askFor(full, swampedRun, 'swamped1'), { ...askFor(full, swampedRun2, 'swamped2'), permission: 'web' }, askFor(once, onceRun, 'once1')]));
     });
