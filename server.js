@@ -264,14 +264,19 @@ const INDEX = path.join(PUBLIC, 'index.html');
 const IMMUTABLE = 'public, max-age=31536000, immutable';
 const VERSIONED = /(<script src="|<link rel="stylesheet" href=")(\/[\w./-]+\.(?:js|css))(")/g;
 const tagOf = (etag) => etag.slice(1, -1);
-function compressed(raw, type) {
+// Its gzip and brotli copies, made the first time a browser asks for the file (index.html's versions read the
+// other files for their tags only, which a cold start must not pay brotli for).
+function compressed(c, type) {
+  if (c.gz !== undefined) return c;
   const text = /^(text\/|application\/(json|manifest)|image\/svg)/.test(type);
   // A font halves with gzip; brotli would hold the server most of a second per font for a tenth more.
   const font = type === 'font/ttf';
-  return { gz: text || font ? zlib.gzipSync(raw) : null, br: text ? zlib.brotliCompressSync(raw, raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null };
+  c.gz = text || font ? zlib.gzipSync(c.raw) : null;
+  c.br = text ? zlib.brotliCompressSync(c.raw, c.raw.length > BROTLI_BIG ? { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 5 } } : {}) : null;
+  return c;
 }
 // A file of the page, from memory while it is unchanged: { key, etag, raw, gz, br }, or null when there is none.
-async function staticEntry(file, st, type) {
+async function staticEntry(file, st) {
   st ||= await fs.promises.stat(file).catch(() => null);
   if (!st || !st.isFile()) return null;
   const key = `${st.size}-${st.mtimeMs}`;
@@ -279,7 +284,7 @@ async function staticEntry(file, st, type) {
   if (!c || c.key !== key) {
     const raw = await fs.promises.readFile(file);
     // The tag is the file's content: a new version with the same size and time (an image built with fixed times) is still new.
-    c = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw, ...compressed(raw, type) };
+    c = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw };
     staticCache.set(file, c);
   }
   return c;
@@ -287,15 +292,12 @@ async function staticEntry(file, st, type) {
 // index.html with each script and the stylesheet named with its version, made again when one of them changed.
 async function versionedIndex(c) {
   const refs = [...new Set([...c.raw.toString('utf8').matchAll(VERSIONED)].map((m) => m[2]))];
-  const tags = new Map();
-  for (const ref of refs) {
-    const e = await staticEntry(path.join(PUBLIC, ref), null, MIME[path.extname(ref)] || 'application/octet-stream');
-    if (e) tags.set(ref, tagOf(e.etag));
-  }
+  const entries = await Promise.all(refs.map((ref) => staticEntry(path.join(PUBLIC, ref))));
+  const tags = new Map(refs.flatMap((ref, i) => (entries[i] ? [[ref, tagOf(entries[i].etag)]] : [])));
   const key = `${c.etag}|${[...tags.values()].join(',')}`;
   if (c.versioned?.key === key) return c.versioned;
   const raw = Buffer.from(c.raw.toString('utf8').replace(VERSIONED, (all, open, ref, close) => (tags.has(ref) ? `${open}${ref}?v=${tags.get(ref)}${close}` : all)));
-  c.versioned = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw, ...compressed(raw, 'text/html') };
+  c.versioned = { key, etag: `"${crypto.createHash('sha1').update(raw).digest('base64url').slice(0, 16)}"`, raw };
   return c.versioned;
 }
 async function serveStatic(req, res) {
@@ -311,12 +313,13 @@ async function serveStatic(req, res) {
   const type = MIME[path.extname(file)] || 'application/octet-stream';
   const headers = { 'Content-Type': type, 'Cache-Control': 'no-cache', ...(type === 'text/html' ? { 'Content-Security-Policy': file === FRAME ? FRAME_CSP : file === BOAT_FRAME ? BOAT_FRAME_CSP : cspFor(req) } : {}) };
   if (st.size > STATIC_MAX) return sendFile(res, file, headers);
-  let c = await staticEntry(file, st, type);
+  let c = await staticEntry(file, st);
   if (file === INDEX) c = await versionedIndex(c);
   else if (version && version === tagOf(c.etag)) headers['Cache-Control'] = IMMUTABLE;
   headers.ETag = c.etag;
   headers.Vary = 'Accept-Encoding';
   if (req.headers['if-none-match'] === c.etag) { res.writeHead(304, headers); return res.end(); }
+  compressed(c, type);
   const accepts = String(req.headers['accept-encoding'] || '');
   const [body, enc] = c.br && /\bbr\b/.test(accepts) ? [c.br, 'br'] : c.gz && /\bgzip\b/.test(accepts) ? [c.gz, 'gzip'] : [c.raw, null];
   res.writeHead(200, { ...headers, ...(enc ? { 'Content-Encoding': enc } : {}), 'Content-Length': body.length });
