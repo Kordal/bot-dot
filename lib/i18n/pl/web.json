@@ -1767,5 +1767,7 @@
   "Claude's servers were busy, so I stopped. Try again in a little while.": "Serwery Claude były zajęte, więc się zatrzymałem. Spróbuj ponownie za chwilę.",
   "Turn off “{title}”?": "Wyłączyć „{title}”?",
   "Turn on “{title}”?": "Włączyć „{title}”?",
-  "Turn off": "Wyłącz"
+  "Turn off": "Wyłącz",
+  "Open Connectors": "Otwórz Konektory",
+  "Waiting for sign-in": "Czeka na logowanie"
 }

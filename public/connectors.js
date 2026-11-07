@@ -168,8 +168,11 @@ function reconnectCardHTML(x) {
     : `<button class="btn sm primary" data-reconnect="${esc(x.app)}">${s.state === 'failed' ? tr('Try again') : tr('Reconnect')}</button>`;
   return card(`<span>${s.state === 'waiting' ? tr('{app} waits for sign-in', { app: `<b>${name}</b>` }) : tr('{app} is signed out', { app: `<b>${name}</b>` })}</span>${button}${s.error ? `<div class="reconnect-error" role="alert">${esc(s.error)}</div>` : ''}`);
 }
+// An app that has a missing app's card of the bot waiting (docs/api.md "A missing connected app") is connected from
+// that card: the run draws no second one.
+const connectCardFor = (botId, slug) => (Array.isArray(state.asks) ? state.asks : []).some((a) => a?.kind === 'connect-app' && a.app === slug && (a.botId ?? null) === (botId ?? null));
 function reconnectCardsHTML(run) {
-  return (Array.isArray(run?.reconnect) ? run.reconnect : []).filter((x) => x && typeof x.app === 'string').map(reconnectCardHTML).join('');
+  return (Array.isArray(run?.reconnect) ? run.reconnect : []).filter((x) => x && typeof x.app === 'string' && !connectCardFor(run.botId, x.app)).map(reconnectCardHTML).join('');
 }
 // Every card of the app on the page, drawn again where it stands: in a chat, a group or the Chief's.
 function redrawReconnect(slug) {
@@ -190,23 +193,29 @@ document.addEventListener('click', (e) => {
 
 // Composio's sign-in page opens in a new tab; this waits for the connection to become active.
 // connected: what happens then, instead of this page's own list and its question of which bots may use it.
-// on (a Reconnect card): opened() once the sign-in page is open, failed(message) instead of a toast, ended() when the
-// sign-in tab was closed without connecting or the wait ran out, and live() false to stop waiting.
+// on (a Reconnect card, a missing app's card): opened() once the sign-in page is open, failed(message) instead of a
+// toast, ended() when the sign-in tab was closed without connecting or the wait ran out, and live() false to stop
+// waiting. start() and status(answer): the requests that open the sign-in and ask how it stands, in place of the
+// Connectors page's own (a missing app's card asks through its ask, docs/api.md "A missing connected app"). An
+// answer with `expiresAt` is waited for until then.
 async function connectApp(slug, connected = null, on = {}) {
   const live = on.live || (() => true);
   const win = window.open('about:blank', '_blank'); // opened now, so pop-up blockers allow it
   const fail = (msg) => (on.failed ? on.failed(msg) : toast(msg, true));
+  const start = on.start || (() => api('/connectors/connect', { method: 'POST', body: { app: slug } }));
+  const status = on.status || ((r) => api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`));
   let r;
-  try { r = await api('/connectors/connect', { method: 'POST', body: { app: slug } }); } catch (e) { win?.close(); return fail(e.message); }
+  try { r = await start(); } catch (e) { win?.close(); return fail(e.message); }
   if (r.noAuth) { win?.close(); return connected ? connected() : chooseAppBots(slug); }
   if (win) win.location = r.redirectUrl; else location.assign(r.redirectUrl);
   if (on.opened) on.opened(); else toast(tr("Sign in on the page that opened. botdot notices when you're done."));
-  const until = Date.now() + 10 * 60_000;
+  const expires = Date.parse(r.expiresAt);
+  const until = Number.isFinite(expires) && expires > Date.now() ? expires : Date.now() + 10 * 60_000;
   let closed = 0;
   while (Date.now() < until && live()) {
     await new Promise((res) => setTimeout(res, 3000));
     if (!live()) return;
-    const c = await api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`).catch(() => null);
+    const c = await Promise.resolve().then(() => status(r)).catch(() => null);
     if (c?.status === 'ACTIVE') {
       if (!on.opened) toast(tr('Connected'));
       if (connected) return connected();

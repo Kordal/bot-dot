@@ -43,7 +43,8 @@ test('web: a card that is not on the page has the toast', () => {
 test("web: every card and a run's card have their own line, read out, above the buttons, and both answers use it", () => {
   const slot = '<div class="req-error" role="alert" hidden></div>';
   const card = part('function needCardHTML(x', '// A job: one that waits');
-  assert.ok(card.includes(`${slot}\n      <div class="need-actions">`));
+  // A missing app's card draws Composio's refusal in that same line (connect-card-web.test.js): hidden while there is none.
+  assert.ok(card.includes('<div class="req-error" role="alert"${error ? \'\' : \' hidden\'}>${esc(error)}</div>\n      <div class="need-actions">'));
   const batch = part('function batchCardHTML(x', '\n}\n');
   assert.ok(batch.includes(`${slot}\n      <div class="need-actions"><button class="btn sm" data-batch-no>`));
   const decide = part('async function decide(x', '// "Allow all" or "Decline all"');
