@@ -105,10 +105,9 @@
       t.onkeydown = (e) => key(e, t, c);
       canvas.append(t);
     }
-    // The header, the project's Needs you and its team rows (#838) stay around the canvas.
+    // The header, the project's Needs you and its team rows (#838) stay above the canvas (#1188): the bots first.
     for (const ch of [...home.children]) if (!ch.matches('.cf-top, .sp-needs, .sp-teams')) ch.remove();
-    const teams = $('.sp-teams', home);
-    if (teams) teams.before(wrap); else home.append(wrap);
+    home.append(wrap);
     place(wrap);
     observer?.disconnect();
     observer = new ResizeObserver(() => place(wrap));

@@ -263,12 +263,12 @@
   function floorHTML(c, f) {
     const cards = window.ProjectCards ? ProjectCards.html(c) : '';
     const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
-    // The teams are rows of keys under the board (#838, teamsHTML); the bot the Chief suggests stays on it.
+    // The teams are rows of keys above the board (#838, #1188: teamsHTML); the bot the Chief suggests stays on it.
     const files = Company.onBoard(c, 'files') && c.phase === 'running' && Company.files && (state.features || []).includes('project-files') ? Company.files.tile(c) : '';
     return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}${files}</div>`;
   }
 
-  // ---------- the teams (#838, ADR 132): a row each under the board, in place of the floor's desks ----------
+  // ---------- the teams (#838, ADR 132): a row each above the objectives and the board (#1188), in place of the floor's desks ----------
   // The team's name with its stacked faces opens the team chat; its bots are keys, the lead first with a crown; ⋯ opens
   // the team beside the board (its lead, its report). The key or name whose chat is in the column is highlighted.
   const leadFirst = (t) => { const ids = t.bots.filter((id) => botById(id)); return ids.includes(t.lead) ? [t.lead, ...ids.filter((id) => id !== t.lead)] : ids; };
@@ -438,9 +438,9 @@
       ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
       ${(days || c.ongoing) && c.checkin ? checkinHTML(c.checkin) : ''}
+      ${teamsHTML(c)}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
-      ${teamsHTML(c)}
     </div>${Company.railOn() ? fieldHTML(c) : ''}`;
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
