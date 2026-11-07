@@ -212,7 +212,7 @@ test("a bot's first screen tool puts the kit on its machine, starts its screen t
   const detached = b.commands().filter((c) => c.detached).map((c) => c.command);
   assert.match(detached[0], /^exec sudo -n sh \/tmp\/botdot-kit-[0-9a-f]+\/botdot-boat-kit [0-9a-f]{16} \/tmp\/botdot-kit-/);
   assert.match(detached[1], /DISPLAY=:0 .*computer_server --host 127\.0\.0\.1 --port 47100/);
-  assert.match(detached[2], /sudo -n -u browser env .*DISPLAY=:0 .*BOTDOT_DOWNLOADS=\/home\/user\/Downloads \/usr\/local\/bin\/camoufox-browser --serve :0 'coder'$/);
+  assert.match(detached[2], /sudo -n -u browser env .*DISPLAY=:0 .*BOTDOT_DOWNLOADS=\/home\/user\/Downloads BOTDOT_LOCALE=en-US \/usr\/local\/bin\/camoufox-browser --serve :0 'coder'$/);
   const before = b.calls.length;
   await boat.request('coder', '/cmd', { command: 'left_click', params: { x: 1, y: 2 } });
   assert.deepEqual(box.sent, { command: 'left_click', params: { x: 1, y: 2 } }, 'the body reached computer-server');

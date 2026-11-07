@@ -6,7 +6,7 @@ camoufox-browser --serve <display> <bot>
     that screen's display and with that bot's own profile. It opens Camoufox when asked and types a saved password,
     two-step code, card detail or identity detail into the page for botdot, after checking the site and the
     focused field. {"op": "where"} returns the site the browser is on. The browser tools ({"op": "snapshot"}, "click",
-    "fill", "press", "goto", "wait", #170) read the page as its accessibility tree and act on it by ref. Those requests come only over
+    "fill", "select", "find", "press", "goto", "wait", #170) read the page as its accessibility tree and act on it by ref. Those requests come only over
     BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bots that does not use sudo
     can receive or answer them (#311). 127.0.0.1:OPEN_PORT (inside the container only) takes {"op": "open"} and
     {"op": "is-open"}, and nothing else.
@@ -20,6 +20,7 @@ What the bridge and Camoufox print goes to BRIDGE_LOG, at most LOG_CAP bytes of 
 run's to BRIDGE_LOG.1 (#355).
 """
 import atexit
+import contextlib
 import fcntl
 import json
 import os
@@ -205,13 +206,47 @@ def type_like_a_person(page, text):
         page.wait_for_timeout(random.randint(40, 250) if not ch.isspace() else random.randint(80, 300))
 
 
+def fill_like_a_person(page, element, text):
+    """A box's text replaced as a person does it: click into it, select what is there, and type key by key with
+    uneven pauses. A site that sees text appear with no key pressed takes the visitor for a bot. A long text goes in at
+    once, as pasted, and so does any box that can't be typed into this way (a date picker, an editor)."""
+    # Only into a box that takes text: a click on a button, box or link the bot gave by mistake would be a step taken
+    # past botdot's irreversible-step checks (ADR 107), which fill has none of; Enter or Tab in the text would be too.
+    try:
+        typeable = element.evaluate(TEXT_BOX) and element.is_editable(timeout=2000)
+    except Exception:
+        typeable = False
+    if not typeable or len(text) > TYPED_FILL or "\n" in text or "\r" in text or "\t" in text:
+        element.fill(text, timeout=10000)
+        return
+    try:
+        element.click(timeout=5000)
+        page.keyboard.press("Control+a")
+        if not text:
+            page.keyboard.press("Backspace")
+        for ch in text:
+            page.keyboard.type(ch)
+            page.wait_for_timeout(random.randint(30, 140) if not ch.isspace() else random.randint(60, 200))
+        if element.input_value(timeout=2000) == text:
+            return
+    except Exception:
+        pass
+    element.fill(text, timeout=10000)
+
+
 # The browser tools (#170): a bot reads the focused page as its accessibility tree, each control with a ref, and clicks,
 # fills, presses, goes and waits by ref, instead of by screenshot and screen position. The tree is Playwright's aria
 # snapshot; a ref is the control's role, name and place among those of that role and name (of that role, for one
 # without a name), so it is found again with get_by_role, and only in the page and at the address of the snapshot that gave it. Every tool answers with the new
 # snapshot, whose refs replace the old ones. A secret box is never filled, and no secret box's value is shown.
-BROWSER_OPS = {"snapshot", "click", "fill", "press", "goto", "wait"}
+BROWSER_OPS = {"snapshot", "click", "fill", "select", "find", "press", "goto", "wait"}
 SNAPSHOT_CAP = 12000  # characters of the tree a bot gets at most
+FULL_CAP = 60000  # characters of the tree browser_find looks through, sent whole to botdot (an External Virtual PC too)
+FIND_LINES = 40
+# Runs on an element: is it a box a person types text into?
+TEXT_BOX = """(el) => el.tagName === 'TEXTAREA' || el.tagName === 'INPUT'
+  && !['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image', 'range', 'color', 'hidden'].includes((el.getAttribute('type') || '').toLowerCase())"""
+TYPED_FILL = 80  # characters at most that browser_fill types key by key; a longer text goes in at once, as pasted
 REF_ROLES = {"button", "link", "textbox", "searchbox", "checkbox", "radio", "combobox", "listbox", "option", "menuitem",
              "menuitemcheckbox", "menuitemradio", "tab", "switch", "slider", "spinbutton", "treeitem"}
 SNAPSHOT_LINE = re.compile(r"^(\s*)- (.*)$")
@@ -270,8 +305,8 @@ def hide_secrets(value, secrets):
     return value
 
 
-def page_snapshot(page):
-    """The page's tree with a ref on every control, cut at SNAPSHOT_CAP, and the refs it gave kept in `refs`."""
+def page_snapshot(page, cap=SNAPSHOT_CAP):
+    """The page's tree with a ref on every control, cut at cap, and the refs it gave kept in `refs`."""
     refs.clear()
     try:
         secrets = [str(v) for v in page.evaluate(SECRET_VALUES) or []]
@@ -307,9 +342,9 @@ def page_snapshot(page):
     for entry in refs.values():  # how many share its role and name: when that changes, its place no longer holds
         entry[5] = counts[entry[5]]
     text = "\n".join(lines)
-    if len(text) > SNAPSHOT_CAP:
-        cut = text.rfind("\n", 0, SNAPSHOT_CAP)
-        text = text[:cut if cut > 0 else SNAPSHOT_CAP] + "\n(The page goes on: this is its start. Take a screenshot to see the rest, or go to a narrower page.)"
+    if len(text) > cap:
+        cut = text.rfind("\n", 0, cap)
+        text = text[:cut if cut > 0 else cap] + "\n(The page goes on: this is its start. Use browser_find for what you look for further down.)"
     try:
         title = page.title()
     except Exception:
@@ -357,7 +392,27 @@ def browser_tool(context, req):
             if element.evaluate(SECRET_FIELD):
                 raise BrowserError("That is a password, card or two-step code box: botdot never lets you type into it. "
                                 "Click it and use type_login, type_card or type_identity, which type the saved value for you.")
-            element.fill(str(req.get("text") or ""), timeout=10000)
+            fill_like_a_person(page, element, str(req.get("text") or ""))
+        elif op == "select":
+            page, element = locate(context, req.get("ref"))
+            choice = str(req.get("option") or "")
+            try:  # by what the list shows, else by its value
+                element.select_option(label=choice, timeout=5000)
+            except Exception:
+                element.select_option(value=choice, timeout=5000)
+            settle(page)
+        elif op == "find":
+            text = str(req.get("text") or "").strip()
+            if not text:
+                raise BrowserError("Say which text to find.")
+            full = page_snapshot(page, cap=FULL_CAP)
+            head, _, tree = full.partition("\n")
+            found = [line for line in tree.splitlines() if text.lower() in line.lower()]
+            shown = "\n".join(found[:FIND_LINES]) or f'Nothing on the page says "{text}".'
+            if len(found) > FIND_LINES:
+                shown += f"\n({len(found) - FIND_LINES} more: find something narrower.)"
+            # `page`: the whole page read, for botdot's irreversible-step checks (ADR 107), which the bot's refs are of
+            return {"ok": True, "snapshot": f"{head}\n{shown}", "page": full}
         elif op == "press":
             page.keyboard.press(str(req.get("key") or ""))
             settle(page)
@@ -545,6 +600,82 @@ def serve():
         body.clear()
 
 
+IDENTITY_FILE = "botdot-identity.json"  # in the bot's profile: deleting the bot, or its profile, gives it a new one
+SCREEN = (1024, 768)
+WINDOW = (1024, 740)
+# The owner's language, as lib/browser-locale.js gives it (en-US, pl-PL): a page's language, number and date formats.
+LOCALE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}$")
+geoip_failed_at = None
+GEOIP_SECONDS = 6  # the most a start waits for the computer's address
+
+
+def say(text):
+    print(f"camoufox-browser: {text}", file=sys.stderr, flush=True)
+
+
+def lasting_identity(Screen):
+    """The bot's own browser identity (an fpgen fingerprint), the same at every start: a site that sees the same
+    visitor come back with another screen, GPU and fonts each time takes it for a bot. Made at the first start and
+    kept in the profile. None on a Camoufox without generate_fingerprint (0.5.6) or when it can't be made: then
+    Camoufox makes one for this start, as before."""
+    path = os.path.join(PROFILE, IDENTITY_FILE)
+    try:
+        with open(path) as f:
+            kept = json.load(f)
+        if isinstance(kept, dict) and kept.get("navigator"):
+            return kept
+    except (OSError, ValueError):
+        pass
+    try:
+        from camoufox.fingerprints import generate_fingerprint
+        made = generate_fingerprint(screen=Screen(max_width=SCREEN[0], max_height=SCREEN[1]), window=WINDOW, os="linux")
+        text = json.dumps(made)
+        fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(path + ".tmp", path)
+        return json.loads(text)  # as it is read back next time, so every start has the same identity, salt and all
+    except Exception as exc:
+        say(f"no lasting identity, a new one this start: {type(exc).__name__}")
+        return None
+
+
+def where_from():
+    """This computer's public address when Camoufox can place it, for geoip: the time zone, position and WebRTC
+    address a site sees then agree with where its traffic comes from. None when it can't (no network, no database):
+    the browser then starts without it, and tries again ten minutes later, so a computer without network doesn't wait
+    for the address at every start."""
+    global geoip_failed_at
+    if geoip_failed_at is not None and time.monotonic() - geoip_failed_at < 600:
+        return None
+    try:
+        from camoufox import geolocation
+        from camoufox.ip import public_ip
+        # The database comes with the desktop (deploy/desktop/Dockerfile) in a folder this user can't write: an older
+        # one is used as it is, instead of downloading a new one at every start that can't be saved.
+        geolocation.needs_update = lambda *args, **kwargs: False
+        geolocation.geoip_allowed()
+        ip = public_ip()
+        geolocation.get_geolocation(ip)
+        return ip
+    except Exception as exc:
+        geoip_failed_at = time.monotonic()
+        say(f"started without geoip: {type(exc).__name__}")
+        return None
+
+
+def where_from_quickly(seconds=GEOIP_SECONDS):
+    """where_from, waited on for `seconds` at most: a slow network doesn't hold the browser's start. One that answers
+    later is kept by Camoufox (public_ip is cached), so the next start has it."""
+    found = []
+    asking = threading.Thread(target=lambda: found.append(where_from()), daemon=True)
+    asking.start()
+    asking.join(seconds)
+    if not found:
+        say("started without geoip: the address took too long")
+    return found[0] if found else None
+
+
 def run_browser(url):
     """Camoufox at url, serving the queued requests on this thread until its window is closed."""
     # Imported here, so a broken Camoufox is told in the bridge's log instead of ending the bridge before it has one
@@ -555,13 +686,13 @@ def run_browser(url):
     from camoufox.sync_api import Camoufox
 
     os.makedirs(PROFILE, mode=0o700, exist_ok=True)
-    with Camoufox(
+    options = dict(
         headless=False,
         persistent_context=True,
         user_data_dir=PROFILE,
         os="linux",                      # match the real machine so fonts and platform agree
-        screen=Screen(max_width=1024, max_height=768),
-        window=(1024, 740),
+        screen=Screen(max_width=SCREEN[0], max_height=SCREEN[1]),
+        window=WINDOW,
         humanize=0.5,                    # human-like cursor movement, up to 0.5 s a move instead of 1.5 s
         firefox_user_prefs={
             "signon.rememberSignons": False,  # never store typed passwords in the profile
@@ -580,7 +711,34 @@ def run_browser(url):
             "browser.cache.memory.capacity": 16384,  # KB, instead of sized from the machine's RAM
             "browser.sessionhistory.max_total_viewers": 0,  # Back loads the page again instead of keeping it
         },
-    ) as context:
+    )
+    who = {}
+    identity = lasting_identity(Screen)
+    if identity:
+        who["fingerprint"] = identity
+    ip = where_from_quickly()
+    if ip:
+        who["geoip"] = ip
+    locale = os.environ.get("BOTDOT_LOCALE", "")
+    if LOCALE.match(locale):  # after geoip, which would otherwise give the language of the server's country
+        who["locale"] = locale
+    with contextlib.ExitStack() as stack:
+        try:
+            context = stack.enter_context(Camoufox(**options, **who))
+        except Exception as exc:
+            if not who:
+                raise
+            # The bot's browser opens all the same, as before: without them. A kept identity that this Camoufox no
+            # longer takes is put aside, so the next start makes a new one instead of failing first every time.
+            say(f"Camoufox did not start with the bot's identity, place and language ({type(exc).__name__}), so it starts without them")
+            context = stack.enter_context(Camoufox(**options))
+            # Only an error in what Camoufox was given (raised before Firefox starts) is the identity's: a crash or a
+            # timeout of the start is not, and the identity stays.
+            if identity and (isinstance(exc, (ValueError, TypeError, KeyError)) or type(exc).__name__ == "NonFirefoxFingerprint"):
+                try:
+                    os.replace(os.path.join(PROFILE, IDENTITY_FILE), os.path.join(PROFILE, IDENTITY_FILE + ".unused"))
+                except OSError:
+                    pass
         try:
             closed = threading.Event()
             context.on("close", lambda *_: closed.set())
@@ -589,7 +747,7 @@ def run_browser(url):
                 try:
                     page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 except Exception as exc:  # a slow or failing site leaves the browser open on what it reached (#875)
-                    print(f"camoufox-browser: the first page did not load: {type(exc).__name__}", file=sys.stderr, flush=True)
+                    say(f"the first page did not load: {type(exc).__name__}")
             # Open only while Camoufox runs (#875): whatever ends it, the next is-open says no, so open_browser starts
             # it again instead of answering "already open" for a window that is gone. Said once its first page is
             # there, so open_browser reads that page, not a blank one; from then on an open is a tab of its own.
