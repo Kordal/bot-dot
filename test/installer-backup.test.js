@@ -7,7 +7,7 @@ const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { withBob, status, rerun, installer } = require('./installer-helpers');
+const { withBob, status, rerun, installer, extracts } = require('./installer-helpers');
 
 const sha256 = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 const members = (tar) => spawnSync('tar', ['-tf', tar], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
@@ -205,12 +205,7 @@ test('the requests folder is sticky after an install and an update, so the front
   assert.equal(fs.statSync(at('RESTORE')).uid, 0, 'still root\'s, so by owner alone it passed as root\'s');
 });
 
-// A set from this machine, then the machine as a fresh install finds it: the stand-in Docker writes into a bind folder
-// what a restore's tar is given.
-const extracts = [
-  '[ "$1" = volume ] && [ "$2" = inspect ] && exit 1',
-  'if [ "$1" = run ] && [ "$4" = --pull ]; then v=""; p=""; for a; do [ "$p" = -v ] && v="${a%%:*}"; p="$a"; done; case "$v" in /*) find "$v" -mindepth 1 -delete; tar -x -f - -C "$v" ;; *) cat > /dev/null ;; esac; exit 0; fi',
-];
+// A set from this machine, then the machine as a fresh install finds it (extracts: test/installer-helpers.js).
 
 test('a restore puts the front door\'s data back first, then each account with its volumes, and starts them again', (t) => {
   const m = machine(t);
