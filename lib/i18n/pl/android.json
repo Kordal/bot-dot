@@ -1284,5 +1284,9 @@
   "Add to {team}": "Dodaj do zespołu {team}",
   "In {team}": "W zespole {team}",
   "A new bot for the {team} team in {project}:": "Nowy bot dla zespołu {team} w projekcie {project}:",
-  "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}."
+  "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}.",
+  "Turn off “{title}”?": "Wyłączyć „{title}”?",
+  "Turn on “{title}”?": "Włączyć „{title}”?",
+  "Turn off": "Wyłącz",
+  "Turn on": "Włącz"
 }

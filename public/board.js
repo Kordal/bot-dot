@@ -827,6 +827,13 @@ function removeGroup(t, n) {
 
 // What a tile says when its bot was busy: the request waits among the owner's messages (docs/api.md, "A message that waits").
 const tileWaits = (t) => tr('{name} will do it when it is free', { name: botById(t.bot)?.name || tr('Its bot') });
+// A tile that asks first (its confirm: "off", "on" or "always"): the question and its yes, or null when this tap runs at once.
+function tileAsksFirst(t, tap, on) {
+  const c = t.confirm;
+  if (tap === 'toggle' && c && (c === 'always' || c === (on ? 'on' : 'off'))) return on ? { question: tr('Turn on “{title}”?', { title: t.title }), yes: tr('Turn on'), danger: false } : { question: tr('Turn off “{title}”?', { title: t.title }), yes: tr('Turn off'), danger: true };
+  if (tap === 'act' && c === 'always') return { question: `${t.title}?`, yes: tr('OK'), danger: false };
+  return null;
+}
 async function tapTile(t) {
   if (t.kind === 'page') { if (t.page) Pages.openPage({ botId: t.page.bot, slug: t.page.slug, title: t.title, bot: t.page.bot === Pages.CHIEF ? chiefTitle() : botById(t.page.bot)?.name || '' }); return; }
   const tap = t.look?.tap || 'none';
@@ -835,6 +842,8 @@ async function tapTile(t) {
   const flash = (text) => { tapped.set(t.id, text); renderDashboard(); setTimeout(() => { tapped.delete(t.id); renderDashboard(); }, 2500); };
   const pop = () => { popped.add(t.id); renderDashboard(); setTimeout(() => { popped.delete(t.id); renderDashboard(); }, 500); };
   const on = t.look.dot?.filled !== true;
+  const sure = tileAsksFirst(t, tap, on);
+  if (sure && !(await askFirst(sure.question, sure.yes, { danger: sure.danger }))) return;
   if (tap === 'toggle') { state.dash.tiles = state.dash.tiles.map((x) => (x.id === t.id ? { ...x, value: on, look: { ...x.look, dot: { ...x.look.dot, filled: on } } } : x)); renderDashboard(); }
   const who = botById(t.bot)?.name;
   if (t.asks) flash(who ? tr('Asked {name}', { name: who }) : tr('Asked its bot'));

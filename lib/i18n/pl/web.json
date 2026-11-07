@@ -1764,5 +1764,8 @@
   "Claude's usage limit is reached: bots carry on at {time}.": "Limit użycia Claude wyczerpany: boty wrócą do pracy o {time}.",
   "I lost the connection to Claude's servers, so I couldn't finish. This computer had no internet connection, or couldn't look up the address (a DNS problem).": "Straciłem połączenie z serwerami Claude, więc nie skończyłem. Ten komputer nie miał internetu albo nie mógł znaleźć adresu (problem z DNS).",
   "Claude's usage limit was reached, so I stopped. Try again once it resets.": "Limit użycia Claude się wyczerpał, więc się zatrzymałem. Spróbuj ponownie, gdy się odnowi.",
-  "Claude's servers were busy, so I stopped. Try again in a little while.": "Serwery Claude były zajęte, więc się zatrzymałem. Spróbuj ponownie za chwilę."
+  "Claude's servers were busy, so I stopped. Try again in a little while.": "Serwery Claude były zajęte, więc się zatrzymałem. Spróbuj ponownie za chwilę.",
+  "Turn off “{title}”?": "Wyłączyć „{title}”?",
+  "Turn on “{title}”?": "Włączyć „{title}”?",
+  "Turn off": "Wyłącz"
 }
