@@ -38,7 +38,7 @@ const DISTROS = {
 const SYSTEMCTL = `#!/bin/sh
 case "$1 $2" in
   "start docker"|"restart docker")
-    (dockerd --bridge=none --iptables=false --ip6tables=false >/var/log/dockerd.log 2>&1 &)
+    (dockerd --bridge=none --iptables=false --ip6tables=false >/var/log/dockerd.log 2>&1 9>&- &)
     i=0; until docker info >/dev/null 2>&1; do i=$((i + 1)); [ "$i" -lt 60 ] || exit 1; sleep 1; done; exit 0 ;;
 esac
 exit 1

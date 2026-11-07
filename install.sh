@@ -1646,7 +1646,7 @@ esac
 # The machine's own Docker: the front door, and Caddy for a public domain.
 D="docker"
 if ! docker info >/dev/null 2>&1; then
-  systemctl start docker 2>/dev/null || true
+  systemctl start docker 2>/dev/null 9>&- || true
   docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start it (sudo systemctl start docker) and run this again."
 fi
 # machine_logs: the machine's Docker keeps its containers' logs to LOG_OPTS, written once into its daemon.json beside
