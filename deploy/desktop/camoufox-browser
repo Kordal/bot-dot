@@ -23,11 +23,13 @@ import atexit
 import json
 import os
 import queue
+import random
 import re
 import socket
 import socketserver
 import sys
 import threading
+import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -49,8 +51,14 @@ OPEN_PORT_BASE = 47200
 DISPLAY_FORM = re.compile(r"^:([0-9]{1,3})(\.[0-9]+)?$")
 BOT_FORM = re.compile(r"^[a-z0-9][a-z0-9_-]{0,79}$")
 NOT_OPEN = {"ok": False, "error": "Camoufox isn't open. Open the site with open_browser first."}
+# How long botdot's helper waits for an answer, and the least time a request must have left to be started: one that
+# waited in the queue longer is not done at all, so a step the bot was told failed never happens later on its own.
+REPLY_SECONDS = 30
+START_SECONDS = 20
+BUSY = {"ok": False, "error": "The browser was still busy with an earlier step, so this was not done. Take a new browser_snapshot, then try again."}
 requests = queue.Queue()  # (body, reply queue or None), served on the browser's thread
 browser_open = threading.Event()  # Camoufox is open on this screen
+browser_starting = threading.Event()  # Camoufox is being started on this screen: another open adds no tab
 
 
 def for_screen(display, bot):
@@ -84,11 +92,12 @@ class BridgeHandler(socketserver.StreamRequestHandler):
             result = {"ok": False, "error": "The bridge takes one JSON request."}
         else:
             reply = queue.Queue()
+            body["_until"] = time.monotonic() + REPLY_SECONDS
             requests.put((body, reply))
             try:
-                result = reply.get(timeout=30)
+                result = reply.get(timeout=REPLY_SECONDS)
             except queue.Empty:
-                result = {"ok": False, "error": "The browser did not respond."}
+                result = {"ok": False, "error": f"The browser did not respond within {REPLY_SECONDS} s. The step may still finish: take a new browser_snapshot before you try it again."}
         try:
             self.wfile.write(json.dumps(result).encode())
         except (BrokenPipeError, ConnectionResetError):  # the client has gone (#360): nothing to tell anyone
@@ -105,7 +114,8 @@ class OpenHandler(BaseHTTPRequestHandler):
         except ValueError:
             body = {}
         if isinstance(body, dict) and body.get("op") == "open":
-            requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
+            if not (browser_starting.is_set() and not browser_open.is_set()):  # one that starts opens its own page
+                requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
             result = {"ok": True}
         elif isinstance(body, dict) and body.get("op") == "is-open":
             result = {"ok": True, "open": browser_open.is_set()}
@@ -181,10 +191,17 @@ def type_secret(context, req):
             pass
     if target is None:
         return {"ok": False, "error": f"Click the {FIELD_NAMES[field]} box first, then try again."}
-    page.keyboard.type(req.get("value", ""), delay=35)
+    type_like_a_person(page, req.get("value", ""))
     if req.get("submit"):
         page.keyboard.press("Enter")
     return {"ok": True}
+
+
+def type_like_a_person(page, text):
+    """Each key with an uneven pause, as a person types: a steady 35 ms beat is a robot's (bot checks time keys)."""
+    for ch in text:
+        page.keyboard.type(ch)
+        page.wait_for_timeout(random.randint(40, 250) if not ch.isspace() else random.randint(80, 300))
 
 
 # The browser tools (#170): a bot reads the focused page as its accessibility tree, each control with a ref, and clicks,
@@ -328,6 +345,7 @@ def browser_tool(context, req):
     page = focused_page(context)
     if page is None:
         return {"ok": False, "error": "Camoufox has no open page."}
+    note = ""
     try:
         if op == "click":
             page, element = locate(context, req.get("ref"))
@@ -346,7 +364,12 @@ def browser_tool(context, req):
             url = str(req.get("url") or "")
             if urlparse(url).scheme not in ("http", "https"):
                 raise BrowserError("browser_goto takes an http or https address.")
-            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            except Exception as exc:  # a slow site: what it shows so far, instead of nothing (#875)
+                if type(exc).__name__ != "TimeoutError":
+                    raise
+                note = "The page did not finish loading in 15 s: this is what it shows so far.\n"
         elif op == "wait":
             if req.get("ref"):
                 page, element = locate(context, req.get("ref"))
@@ -359,12 +382,19 @@ def browser_tool(context, req):
                 element.wait_for(state="visible", timeout=seconds * 1000)
             except Exception:
                 raise BrowserError(f"It did not show within {seconds:g} seconds.")
-        return {"ok": True, "snapshot": page_snapshot(focused_page(context) or page)}
+        try:
+            return {"ok": True, "snapshot": note + page_snapshot(focused_page(context) or page)}
+        except BrowserError:
+            if op == "snapshot":
+                raise
+            # The step was done: said as done, so the bot does not do it a second time (an order, a message).
+            return {"ok": True, "snapshot": f"{note}Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment."}
     except BrowserError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:  # Playwright's own words, first line only: it may hold the page's text, never a secret
         said = str(exc).strip().splitlines()[0][:300] if str(exc).strip() else ""
-        return {"ok": False, "error": f"{op} failed: {type(exc).__name__}{': ' + said if said else ''}"}
+        covered = " Something covers it (a pop-up, a cookie banner?): close that first." if "intercepts pointer events" in str(exc) else ""
+        return {"ok": False, "error": f"{op} failed: {type(exc).__name__}{': ' + said if said else ''}{covered}"}
 
 
 def ask_bridge(body, port):
@@ -480,11 +510,15 @@ def serve():
         print(f"camoufox-browser: 127.0.0.1:{OPEN_PORT} is taken, so the desktop cannot open pages", file=sys.stderr, flush=True)
     while True:
         body, reply = requests.get()
+        body.pop("_until", None)
         if body.get("op") == "open":
+            browser_starting.set()
             try:
                 run_browser(body.get("url") or "about:blank")
             except Exception as exc:  # e.g. the desktop is not up yet: the next open tries again
                 print(f"camoufox-browser: Camoufox did not start: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            finally:
+                browser_starting.clear()
         elif reply is not None:
             reply.put(NOT_OPEN)
         body.clear()
@@ -493,7 +527,10 @@ def serve():
 def run_browser(url):
     """Camoufox at url, serving the queued requests on this thread until its window is closed."""
     # Imported here, so a broken Camoufox is told in the bridge's log instead of ending the bridge before it has one
-    from camoufox.fingerprints import Screen
+    try:
+        from camoufox.fingerprints import Screen  # Camoufox 0.5.9 and later
+    except ImportError:  # 0.5.6: botdot copies this file into computers still on an older desktop until their Update
+        from browserforge.fingerprints import Screen
     from camoufox.sync_api import Camoufox
 
     os.makedirs(PROFILE, mode=0o700, exist_ok=True)
@@ -504,7 +541,7 @@ def run_browser(url):
         os="linux",                      # match the real machine so fonts and platform agree
         screen=Screen(max_width=1024, max_height=768),
         window=(1024, 740),
-        humanize=True,                   # human-like cursor movement
+        humanize=0.5,                    # human-like cursor movement, up to 0.5 s a move instead of 1.5 s
         firefox_user_prefs={
             "signon.rememberSignons": False,  # never store typed passwords in the profile
             "signon.autofillForms": False,
@@ -532,22 +569,28 @@ def run_browser(url):
             page = context.pages[0] if context.pages else context.new_page()
             if url != "about:blank":  # the first page is already blank; going there again races and crashes
                 try:
-                    page.goto(url)
+                    page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 except Exception as exc:  # a slow or failing site leaves the browser open on what it reached (#875)
                     print(f"camoufox-browser: the first page did not load: {type(exc).__name__}", file=sys.stderr, flush=True)
             # Serve secret-typing requests on this thread (Playwright's sync API isn't thread-safe)
             # until the window is closed.
             while not closed.is_set():
-                try:
-                    body, reply = requests.get_nowait()
+                try:  # a request is taken the moment it comes, not at the next 200 ms tick
+                    body, reply = requests.get(timeout=0.2)
                 except queue.Empty:
                     try:
                         pages = context.pages
                         if not pages:
                             break
-                        pages[0].wait_for_timeout(200)  # also lets Playwright process events
+                        pages[0].wait_for_timeout(1)  # lets Playwright process events
                     except Exception:
                         break
+                    continue
+                until = body.pop("_until", None)
+                if until is not None and time.monotonic() > until - START_SECONDS:
+                    body.clear()
+                    if reply is not None:
+                        reply.put(BUSY)
                     continue
                 try:
                     result = browser_tool(context, body) if body.get("op") in BROWSER_OPS else type_secret(context, body)

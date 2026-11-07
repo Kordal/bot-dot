@@ -140,6 +140,37 @@ test("a browser tool (#170) takes typeSecret's way: botdot's helper, as the brow
   assert.match((await computers.browserTool(seat('pagebot'), { op: 'snapshot' })).error, /older than botdot's browser tools/);
 });
 
+// A bridge that no longer listens on its socket (it ended) is started again once it stays down for a moment, and the
+// bot is sent to open_browser: never a browser that stays gone for the rest of the screen's life. At most three times
+// in ten minutes a screen, so a bridge that can't stay up is not started on every tool.
+test('a bridge that stays down is started again, three times in ten minutes a screen at most', async (t) => {
+  const running = docker({ state: 'running' });
+  let down = true;
+  answer = (args, call) => (args.includes(HELPER) && down ? JSON.stringify({ ok: false, down: true, error: "Camoufox isn't open. Open the site with open_browser first." }) : running(args, call));
+  t.mock.method(global, 'setTimeout', (fn) => { fn(); return 0; }); // the moment it is given to come up
+  const restartSeat = { bot: 'downbot', screen: 7 };
+  const starts = () => execs().filter((c) => c.args.includes('--serve') && c.args.includes('downbot')).length;
+  for (let i = 1; i <= 3; i++) {
+    const r = await computers.browserTool(restartSeat, { op: 'snapshot' });
+    assert.deepEqual(r, { ok: false, error: 'The browser had stopped, and botdot started it again. Open the site with open_browser.' });
+    assert.equal(starts(), i, 'its bridge was started again, on its own screen');
+  }
+  assert.match((await computers.typeSecret(restartSeat, { op: 'where' })).error, /open_browser first/, 'a fourth is not started');
+  assert.equal(starts(), 3);
+  down = false;
+  assert.deepEqual(await computers.browserTool(restartSeat, { op: 'snapshot' }), { ok: true }, 'one that answers is asked once');
+});
+
+test('a bridge that answers on the second ask is not started again', async (t) => {
+  const running = docker({ state: 'running' });
+  let asks = 0;
+  answer = (args, call) => (args.includes(HELPER) ? (++asks === 1 ? '{"ok": false, "down": true, "error": "x"}' : '{"ok": true}') : running(args, call));
+  t.mock.method(global, 'setTimeout', (fn) => { fn(); return 0; });
+  assert.deepEqual(await computers.browserTool({ bot: 'slowbot', screen: 8 }, { op: 'snapshot' }), { ok: true });
+  assert.equal(asks, 2);
+  assert.ok(!execs().some((c) => c.args.includes('--serve')), 'a bridge just starting is left to start');
+});
+
 test('typeSecret types nothing into a computer older than the account computer (#311)', async () => {
   answer = docker({ state: 'running', users: '' });
   const result = await computers.typeSecret(seat('oldbot'), { site: 'example.com', field: 'password', value: 'synthetic-secret' });
@@ -235,6 +266,7 @@ test('the helper sends nothing and asks for the browser when no bridge answers (
   const answer = await runHelper(path.join(require('node:os').tmpdir(), `no-bridge-${process.pid}.sock`), { field: 'password', value: 'synthetic-secret' });
   assert.equal(answer.ok, false);
   assert.match(answer.error, /open_browser/);
+  assert.equal(answer.down, true, 'no bridge listens: botdot may start it again');
 });
 
 function hasPython() {

@@ -44,8 +44,8 @@ def port_post(payload):
         return json.loads(res.read())
 
 
-for _ in range(100):
-    if os.path.exists(launcher.BRIDGE_SOCKET):
+for _ in range(100):  # listening, not only bound: the socket's file comes a moment before the bridge listens
+    if launcher.bridge_running():
         break
     time.sleep(0.05)
 out = {}
@@ -62,7 +62,7 @@ time.sleep(0.5)
 out["where_open"] = bridge({"op": "where"})
 out["is_open"] = port_post({"op": "is-open"})
 out["secret"] = bridge({"site": "example.com", "field": "password", "value": "synthetic-secret"})
-out["typed"] = sync_api.TYPED
+out["typed"] = ["".join(sync_api.TYPED)] if sync_api.TYPED else []  # typed a key at a time
 out["launches"] = len(sync_api.LAUNCHES)
 out["prefs"] = sync_api.LAUNCHES[0].get("firefox_user_prefs") if sync_api.LAUNCHES else None
 print(json.dumps(out))
