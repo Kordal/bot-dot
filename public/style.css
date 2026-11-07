@@ -2174,7 +2174,7 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 /* Cards made by Claude on a project's board (#775): a row of their own at the top of the floor, two to a row on a
    phone and three on a wide floor; a table, the ask and the questions over two. */
 .pc-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-12); align-items: start; }
-.pc-card, .pc-new, .pc-ask, .pc-questions { position: relative; min-width: 0; border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); padding: var(--sp-16); }
+.pc-card, .pc-new, .pc-ask, .pc-questions { position: relative; min-width: 0; border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); padding: var(--sp-16); }
 .pc-row .wide, .pc-row .tall { grid-column: 1 / -1; }
 .pc-card { display: flex; flex-direction: column; gap: var(--sp-8); min-height: 150px; transition: box-shadow var(--t2) var(--out), border-color var(--t2) var(--out); }
 .pc-card.fresh { border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
@@ -2227,8 +2227,9 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pc-step span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pc-progress { height: 3px; border-radius: var(--r-pill); background: var(--fill); overflow: hidden; }
 .pc-progress i { display: block; height: 100%; background: var(--ok); transition: width var(--t3) var(--out); }
-.pc-new { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 150px; border-style: dashed; background: transparent; box-shadow: none; color: var(--muted); font-size: var(--fs-14); cursor: pointer; }
-.pc-new:hover { color: var(--text); border-color: var(--muted); }
+/* New card (#1188): a quiet filled button at the row's end, not a dashed tile as big as a card. */
+.pc-new { display: inline-flex; align-items: center; justify-content: center; justify-self: start; align-self: start; gap: var(--sp-8); min-height: 44px; padding: 0 var(--sp-16) 0 var(--sp-12); border-radius: var(--r-pill); background: var(--fill); box-shadow: none; color: var(--text); font-size: var(--fs-14); cursor: pointer; }
+.pc-new:hover { background: #2c2c2c; }
 /* The board's pieces the owner can add (#780), under the ask of a new card. */
 .pc-picks { display: flex; flex-wrap: wrap; gap: var(--sp-8); margin-top: calc(var(--sp-12) * -1); }
 .pc-picks .co-chip { display: inline-flex; align-items: center; gap: var(--sp-4); }
@@ -2629,6 +2630,8 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 /* The Chief at work while it proposes the team: its head full size (.co-start svg is the icons' 16 px). */
 .co-wait .avatar.lg { width: 96px; height: 96px; }
 .co-start .avatar.head svg { width: 100%; height: 100%; }
+/* The Team step's own icons are 16px; a bot's head there is drawn at its avatar's size (#1189). */
+.co-team .avatar svg { width: 100%; height: 100%; }
 .co-wait-line { margin: 0; font-size: var(--fs-16); color: var(--text); text-wrap: balance; }
 .co-wait[data-state="failed"] .co-wait-line { color: var(--muted); }
 .co-made-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-8); }
@@ -2712,17 +2715,19 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-home { max-width: 1240px; margin: 0 auto; padding-top: var(--sp-24); }
 .cf-top { display: flex; align-items: center; gap: var(--sp-16); margin-bottom: var(--sp-16); }
 .cf-top h1 { margin: 0; font-size: var(--fs-32); line-height: 1.15; letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cf-day { flex: none; padding: var(--sp-4) var(--sp-12); border: 1px solid var(--line-2); border-radius: var(--r-pill); font: var(--fs-12) var(--mono); color: var(--muted); }
+.cf-day { flex: none; padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); background: var(--fill); font: var(--fs-12) var(--mono); color: var(--muted); }
 .cf-main { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-24); align-items: start; }
-.cf-floor { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-16); padding: var(--sp-16); border: 1px solid var(--line); border-radius: var(--r-14); background-color: #070707; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 24px 24px; }
+/* The board (#1188): no frame and no graph paper; each tile is a raised surface on the page's black. */
+.cf-floor { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-16); }
 .cf-home svg.cf-crown { width: 12px; height: 12px; fill: #f5c542; stroke: none; }
 .cf-dot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 /* The whiteboard: one number per objective over a bar in its colour. */
 /* The objectives above the floor (#690): a card each, its display under its name. */
-.cf-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: var(--sp-16); margin-bottom: var(--sp-24); }
-.cf-goal { position: relative; container-type: inline-size; min-width: 0; padding: var(--sp-16) var(--sp-24) var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--panel); }
+/* Compact cards (#1188): the number, its pace and a sparkline; the teams above them are what the page is for. */
+.cf-goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: var(--sp-12); margin-bottom: var(--sp-24); }
+.cf-goal { position: relative; container-type: inline-size; min-width: 0; padding: var(--sp-12) var(--sp-16) var(--sp-16); border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); }
 .cf-goal-head { position: relative; display: flex; align-items: center; gap: var(--sp-12); min-height: 32px; }
-.cf-goal-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-16); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cf-goal-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-14); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-goal-head .icon-btn { color: var(--faint); }
 .cf-goal-head .icon-btn:hover, .cf-goal-head .icon-btn[aria-expanded="true"] { color: var(--text); }
 .cf-goal-edit { opacity: 0; }
@@ -2744,30 +2749,32 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-source select { width: auto; flex: none; }
 .cf-source input { flex: 1 1 160px; width: auto; }
 .cf-source .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.cf-goal-body { display: flex; flex-direction: column; gap: var(--sp-16); margin-top: var(--sp-12); }
-.cf-goal-info { display: flex; align-items: center; gap: var(--sp-16); flex-wrap: wrap; }
-.cf-goal-num { font-size: var(--fs-32); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
-.cf-goal-num span, .cf-team-kpi b span { font-size: var(--fs-16); font-weight: 400; color: var(--faint); }
+.cf-goal-body { display: flex; flex-direction: column; gap: var(--sp-8); margin-top: var(--sp-4); }
+.cf-goal-info { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-12); flex-wrap: wrap; }
+.cf-goal-num { font-size: var(--fs-24); font-weight: 600; line-height: 1.1; letter-spacing: -.02em; }
+.cf-goal-num span, .cf-team-kpi b span { font-size: var(--fs-14); font-weight: 400; color: var(--faint); }
 .cf-team-kpi b span { font-size: var(--fs-14); }
 .cf-bar { height: 3px; border-radius: var(--r-8); background: var(--line-2); overflow: hidden; }
 .cf-bar.big { height: 8px; border-radius: var(--r-8); }
 .cf-bar i { display: block; height: 100%; border-radius: inherit; background: var(--c); }
 .cf-chart { min-width: 0; }
-.cf-plot { position: relative; height: 96px; }
+.cf-plot { position: relative; height: 40px; }
 .cf-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
 .cf-plot line, .cf-plot polyline { fill: none; vector-effect: non-scaling-stroke; }
-.cf-tick { stroke: var(--line); stroke-width: 1; }
+.cf-tick { display: none; }
 .cf-base { stroke: var(--line-2); stroke-width: 1; }
-.cf-to { stroke: var(--faint); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.cf-to { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 4 4; }
 .cf-actual { stroke: var(--c); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
-.cf-now { position: absolute; width: 12px; height: 12px; border: 3px solid var(--panel); border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 30%, transparent); transform: translate(-50%, -50%); }
+.cf-now { position: absolute; width: 12px; height: 12px; border: 3px solid var(--raise-2); border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 35%, transparent); transform: translate(-50%, -50%); }
+/* The day axis under a chart: the day line under the header says the same once for all. */
+.cf-chart > .cf-days { display: none; }
 .cf-days { position: relative; height: 18px; margin-top: var(--sp-8); font: var(--fs-12) var(--mono); color: var(--faint); }
 .cf-days > * { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
 .cf-days b { font-weight: 400; color: var(--text); transform: none; }
 .cf-days span:last-child { transform: translateX(-100%); }
 .cf-goal-start { display: flex; flex-direction: column; gap: var(--sp-12); }
 .cf-goal-facts { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
-.cf-goal-facts span { padding: var(--sp-4) var(--sp-12); border: 1px solid var(--line-2); border-radius: var(--r-pill); font: var(--fs-12) var(--mono); color: var(--muted); }
+.cf-goal-facts span { padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); background: var(--fill); font: var(--fs-12) var(--mono); color: var(--muted); }
 .cf-goal-status { display: flex; align-items: center; gap: var(--sp-12); }
 .cf-goal-status .cf-pace { padding: var(--sp-8) var(--sp-16); font-size: var(--fs-14); }
 .cf-steps { display: flex; flex-direction: column; }
@@ -2777,7 +2784,7 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-step.done span { color: var(--faint); text-decoration: line-through; }
 /* A wide card: the number on the left, the chart beside it. */
 @container (min-width: 620px) {
-  .cf-goal.pace .cf-goal-body:has(.cf-chart) { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: end; gap: var(--sp-32); }
+  .cf-goal.pace .cf-goal-body:has(.cf-chart) { display: grid; grid-template-columns: 200px minmax(0, 1fr); align-items: center; gap: var(--sp-32); }
   .cf-goal.pace .cf-goal-info { flex-direction: column; align-items: flex-start; gap: var(--sp-12); }
 }
 /* A desk: a bubble over it, the table with its monitor (lit in the bot's colour while it works or asks), the head, the name. */
@@ -2805,9 +2812,9 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-chief .cf-table i { background: var(--c); box-shadow: 0 0 12px var(--c); }
 .cf-chief .cf-name { color: var(--text); }
 /* A team's room: its name, the lead at the head, the desks, the bench. */
-.cf-room { display: flex; flex-direction: column; align-items: center; gap: var(--sp-16); min-width: 0; min-height: 220px; padding: var(--sp-12) var(--sp-12) var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: #0a0a0a; cursor: pointer; }
-.cf-room:hover { border-color: #3a3a3a; }
-.cf-room.here { border-color: var(--c); box-shadow: 0 0 40px color-mix(in srgb, var(--c) 18%, transparent); }
+.cf-room { display: flex; flex-direction: column; align-items: center; gap: var(--sp-16); min-width: 0; min-height: 220px; padding: var(--sp-12) var(--sp-12) var(--sp-16); border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); cursor: pointer; }
+.cf-room:hover { background: var(--fill); }
+.cf-room.here { box-shadow: var(--lift), inset 0 0 0 1px var(--c), 0 0 40px color-mix(in srgb, var(--c) 18%, transparent); }
 .cf-room-head { align-self: flex-start; display: flex; align-items: center; gap: var(--sp-8); max-width: 100%; font-size: var(--fs-14); }
 .cf-team-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: var(--sp-4) var(--sp-4); margin: calc(var(--sp-4) * -1) calc(var(--sp-4) * -1); border: 0; border-radius: var(--r-8); background: none; color: inherit; font: inherit; cursor: pointer; }
 .cf-team-name:hover { background: var(--sunk); }
@@ -2815,11 +2822,11 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-desks { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-16) var(--sp-16); }
 .cf-bench { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-4); margin-top: auto; padding: var(--sp-4) var(--sp-8); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--sunk); }
 .cf-sit { padding: 0; border: 0; background: none; cursor: pointer; }
-.cf-new { display: flex; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 160px; border: 1px dashed var(--line-2); border-radius: var(--r-14); background: transparent; color: var(--muted); font-size: var(--fs-14); cursor: pointer; }
-.cf-new:hover { color: var(--text); border-color: var(--muted); }
+.cf-new { display: flex; align-items: center; justify-content: center; gap: var(--sp-8); min-height: 44px; padding: 0 var(--sp-16); border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font-size: var(--fs-14); cursor: pointer; }
+.cf-new:hover { background: #2c2c2c; }
 .cf-new svg, .cf-you svg, .cf-panel-head .icon-btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* The panel: You, or the team that was clicked. */
-.cf-panel { display: flex; flex-direction: column; gap: var(--sp-16); padding: var(--sp-16); border: 1px solid var(--line); border-radius: var(--r-14); background: var(--panel); }
+.cf-panel { display: flex; flex-direction: column; gap: var(--sp-16); padding: var(--sp-16); border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); }
 .cf-panel-head { display: flex; align-items: center; gap: var(--sp-12); }
 .cf-panel-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-20); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-panel-head .cf-dot { width: 10px; height: 10px; }
@@ -2935,12 +2942,12 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-rooms > .cf-room:only-child { grid-column: 1 / -1; }
 .cf-side { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16); align-content: start; }
 .cf-side .cf-new, .cf-side .cf-suggest { grid-column: 1 / -1; }
-.cf-side .cf-new { min-height: 56px; }
 /* The Calendar tile (#695): this week's days, today lit, a dot under a day with something on it; the next items. */
-.cf-cal { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--sp-16); padding: var(--sp-16) var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--panel); cursor: pointer; }
+.cf-cal { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--sp-16); padding: var(--sp-16) var(--sp-16); border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); cursor: pointer; }
 .cf-cal .cf-room-head .cf-dot { --c: #8e7cff; }
 .cf-cal-week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-8); }
-.cf-cal-day { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding: var(--sp-8) 0 var(--sp-8); border: 0; border-radius: var(--r-14); background: var(--sunk); color: var(--text); font: inherit; cursor: pointer; }
+.cf-cal-day { display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); padding: var(--sp-8) 0 var(--sp-8); border: 0; border-radius: var(--r-14); background: transparent; color: var(--text); font: inherit; cursor: pointer; }
+.cf-cal-day:hover { background: var(--fill); }
 .cf-cal-day span { font: var(--fs-12) var(--mono); color: var(--faint); }
 .cf-cal-day b { font-size: var(--fs-20); font-weight: 600; }
 .cf-cal-day i { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
@@ -2955,11 +2962,11 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-cal-when { flex: none; width: 72px; font: var(--fs-12) var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-cal-rep { flex: none; width: 15px; height: 15px; fill: none; stroke: var(--faint); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 /* The Files tile (project-files): the folder's newest files; a click opens the folder, a row its file. */
-.cf-files { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--sp-8); padding: var(--sp-16); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--panel); cursor: pointer; min-width: 0; }
+.cf-files { grid-column: 1 / -1; display: flex; flex-direction: column; gap: var(--sp-8); padding: var(--sp-16); border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); cursor: pointer; min-width: 0; }
 .cf-files .cf-room-head .cf-dot { --c: #e8b44a; }
 .cf-files-rows { display: flex; flex-direction: column; min-width: 0; }
 .cf-files-row { display: flex; align-items: center; gap: var(--sp-12); min-height: 40px; padding: 0 var(--sp-4); border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; color: var(--text); font: inherit; font-size: var(--fs-14); text-align: left; cursor: pointer; min-width: 0; }
-.cf-files-row:hover { background: var(--sunk); }
+.cf-files-row:hover { background: var(--fill); }
 .cf-files-row svg { flex: none; width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linejoin: round; }
 .cf-files-row .cf-row-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cf-files-when { flex: none; font-size: var(--fs-12); color: var(--muted); }
@@ -3258,7 +3265,8 @@ dialog.co-delete .modal-foot { border-top: 0; }
    project's bot carries the project's small square. */
 .kp-proj { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: var(--r-8); background: var(--c); color: #fff; font-size: var(--fs-12); font-weight: 600; }
 .sp-needs { margin-bottom: var(--sp-16); }
-.sp-teams { display: flex; flex-direction: column; gap: var(--sp-16); margin-top: var(--sp-24); }
+.sp-teams { display: flex; flex-direction: column; gap: var(--sp-24); margin: var(--sp-24) 0 var(--sp-32); }
+.cf-line + .sp-teams { margin-top: var(--sp-48); } /* the day line's labels hang under it */
 .sp-team-head { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-8); }
 .sp-chip { display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 40px; padding: var(--sp-4) var(--sp-12) var(--sp-4) var(--sp-8); border: 0; border-radius: var(--r-14); background: var(--raise-2); color: var(--text); font: inherit; font-size: var(--fs-14); font-weight: 600; cursor: pointer; }
 .sp-chip:hover { background: var(--fill); }
@@ -3272,12 +3280,13 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .sp-more svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .sp-keys { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
 .sp-keys .key .cf-crown { position: absolute; top: -10px; left: 50%; width: 14px; height: 14px; transform: translateX(-50%); fill: #f5c542; stroke: none; }
-.sp-join { border: 1px dashed var(--line-2); background: transparent; color: var(--faint); }
-.sp-join:hover, .sp-join:focus-visible { color: var(--text); background: var(--sunk); border-color: var(--muted); }
-.sp-join svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+/* "+" at a row's end (#1188): a 44px round button level with the heads, quieter than the bots. */
+.sp-keys .sp-join { --key-bg: var(--fill); align-self: flex-start; width: 44px; min-height: 44px; height: 44px; margin: var(--sp-16) 0 0 var(--sp-8); padding: 0; border-radius: 50%; color: var(--muted); }
+.sp-keys .sp-join:hover, .sp-keys .sp-join:focus-visible { --key-bg: #2c2c2c; color: var(--text); }
+.sp-join svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .pick-search { width: 100%; margin-bottom: var(--sp-8); }
-.sp-new { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 36px; padding: 0 var(--sp-12); border: 1px dashed var(--line-2); border-radius: var(--r-14); background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-14); cursor: pointer; }
-.sp-new:hover { color: var(--text); background: var(--sunk); }
+.sp-new { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 44px; padding: 0 var(--sp-16) 0 var(--sp-12); border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.sp-new:hover { background: #2c2c2c; }
 .sp-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 
 /* ---------- spaces below a wide window (#839, company.js openSpaces; ADR 132) ----------
