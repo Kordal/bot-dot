@@ -26,7 +26,6 @@ import androidx.compose.material.icons.outlined.ThumbUp as ThumbUpOutline
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -152,7 +151,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
         outbox = vm.outbox,
         onSend = { t, a -> send(t, a) },
         onStop = { vm.stop() },
-        onError = { scope.launch { snack.showSnackbar(it) } },
+        onError = { scope.launch { snack.showError(it) } },
         initialText = sharedText,
         onSignIn = onSignIn.takeIf { signedOut },
         backAt = backAt,
@@ -176,7 +175,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     CompositionLocalProvider(LocalMentions provides rememberMentions(app, Mentions.CHIEF), LocalQuote provides remember { QuoteBox() }, LocalChatOnWeb provides onWeb, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features)) {
         Scaffold(
             containerColor = p.bg,
-            snackbarHost = { SnackbarHost(snack) },
+            snackbarHost = { BotSnackbarHost(snack) },
             topBar = {
                 ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", LocalChiefName.current, onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
                     // Its files (#603), as a bot's.
@@ -244,7 +243,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                             if (target == null) snack.showSnackbar(tr("This bot is no longer available"))
                                             else if (a.kind == "run" && target.computer == "linux") onScreen(target.id)
                                             else onBot(target.id)
-                                        }.onError { snack.showSnackbar(it.message ?: tr("Couldn't open bot")) }
+                                        }.onError { snack.showError(it.message ?: tr("Couldn't open bot")) }
                                     }
                                     Unit
                                 })

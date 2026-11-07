@@ -3,7 +3,6 @@ package dev.botdot.app.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -166,7 +165,7 @@ private fun StarterRow(icon: ImageVector, text: String, on: Boolean, onChange: (
 private fun CoPanel(title: String? = null, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        if (title != null) Text(title, color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Medium)
+        if (title != null) Text(title, color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Normal)
         content()
     }
 }
@@ -181,7 +180,7 @@ private fun Existing(ui: CompanyUi, proposed: List<Proposed>) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
             BotFigure(b.color, "idle", 28, b.outfit)
             Column(Modifier.weight(1f)) {
-                Text(b.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium)
+                Text(b.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
                 if (b.description.isNotEmpty()) Text(b.description, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (added) Text(tr("Added"), color = p.muted, fontSize = Type.s12)
@@ -202,7 +201,7 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
     val server by ui.app.store.version.value.collectAsState()
     val reaches = TeamReaches.FEATURE in server?.features.orEmpty()
     val gaps = if (reaches) TeamReaches.gaps(b) else emptyList()
-    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+    Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             BotFigure(b.color, "idle", 40)
             Column(Modifier.weight(1f).padding(horizontal = Space.s12)) {
@@ -267,7 +266,7 @@ private fun GapButton(ui: CompanyUi, kind: String, need: String, onPick: (String
                 menu = vault != null
             }
         }
-        DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
+        DropdownMenu(menu, { menu = false }) {
             TeamReaches.pickable(vault.orEmpty(), kind).forEach { e ->
                 DropdownMenuItem(text = { Text(e.name, color = p.text, fontSize = Type.s14) }, onClick = { menu = false; onPick(e.id) })
             }

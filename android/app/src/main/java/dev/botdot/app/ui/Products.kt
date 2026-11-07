@@ -171,7 +171,7 @@ fun ProductCards(list: List<Product>, modifier: Modifier = Modifier) {
                 Button(onClick = { open(pick.url) }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText), modifier = Modifier.heightIn(min = 36.dp)) {
                     Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(Space.s8))
-                    Text(tr("Open"), fontSize = Type.s14, fontWeight = FontWeight.Medium)
+                    Text(tr("Open"), fontSize = Type.s14, fontWeight = FontWeight.Normal)
                 }
                 if (saver != null) SaveButton(saver, pick)
             }
@@ -185,7 +185,7 @@ fun ProductCards(list: List<Product>, modifier: Modifier = Modifier) {
                 ) {
                     ProductPhoto(r.image, Modifier.size(48.dp), Radius.small)
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                        Text(r.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(r.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         ProductFacts(r, arrives = true)
                     }
                     if (r.price.isNotEmpty()) Column(horizontalAlignment = Alignment.End) {
@@ -265,6 +265,6 @@ private fun SaveButton(botId: String, x: Product) {
     ) {
         Icon(if (on) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(Modifier.width(Space.s8))
-        Text(if (on) tr("Saved") else tr("Save"), fontSize = Type.s14, fontWeight = FontWeight.Medium)
+        Text(if (on) tr("Saved") else tr("Save"), fontSize = Type.s14, fontWeight = FontWeight.Normal)
     }
 }

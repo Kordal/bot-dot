@@ -134,7 +134,7 @@ private fun LinkOut(url: String, onDone: () -> Unit) {
     val p = LocalPaper.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val host = runCatching { java.net.URI(url).host }.getOrNull().orEmpty()
-    AlertDialog(onDismissRequest = onDone, containerColor = p.panel,
+    AlertDialog(onDismissRequest = onDone,
         title = { Text(tr("Open a link?"), color = p.text) },
         text = { Column { Text(tr("The page wants to open {host}:", "host" to host), color = p.text); Text(url, color = p.muted, fontFamily = GeistMono, fontSize = Type.s12) } },
         confirmButton = {
@@ -151,7 +151,7 @@ private fun LinkOut(url: String, onDone: () -> Unit) {
 @Composable
 fun VersionsSheet(title: String, site: InteractiveView, onShow: (Int) -> Unit, onCurrent: (Int) -> Unit, onDismiss: () -> Unit) {
     val p = LocalPaper.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Space.s16, end = Space.s16, bottom = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Text(tr("Versions of “{title}”", "title" to title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16)
             Text(tr("Each time the bot publishes it, a new version. The last ten are kept."), color = p.muted, fontSize = Type.s14)

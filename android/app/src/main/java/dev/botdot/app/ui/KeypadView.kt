@@ -285,7 +285,7 @@ private fun QuietKey(look: KeyLook, size: KeySize, modifier: Modifier = Modifier
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             KeyHead(look, size.head)
             Spacer(Modifier.height(Space.s8))
-            Text(look.name, color = p.text, fontSize = size.name, fontWeight = FontWeight.Medium, lineHeight = size.name * 1.25f, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            Text(look.name, color = p.text, fontSize = size.name, fontWeight = FontWeight.Normal, lineHeight = size.name * 1.25f, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
             KeyState(look)
         }
     }

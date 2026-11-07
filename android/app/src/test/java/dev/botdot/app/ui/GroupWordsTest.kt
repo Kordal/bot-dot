@@ -122,7 +122,7 @@ class GroupWordsTest {
         assertTrue(File(sources(), "ui/GroupParts.kt").readText().contains("semantics { contentDescription = label }"))
         // The top of a chat draws it after the name's own row, outside what a tap on the name takes, and cuts a long name before it.
         val bar = File(sources(), "ui/Components.kt").readText().substringAfter("fun ChatBar(").substringBefore("private val TIME")
-        assertTrue(bar.contains("Modifier.weight(1f, fill = false).height(40.dp)"))
+        assertTrue(bar.contains("Modifier.weight(1f, fill = false).heightIn(min = 48.dp)"))
         assertTrue(bar.substringAfter("overflow = TextOverflow.Ellipsis)").replace(Regex("\\s+"), " ").startsWith(" } beside?.invoke() } actions()"))
         // Only a bot's chat has it: not its settings, a group's chat or the Chief's.
         for (f in listOf("ui/BotSettingsScreen.kt", "ui/GroupChatScreen.kt", "ui/ChiefScreen.kt")) {
