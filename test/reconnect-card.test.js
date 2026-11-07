@@ -1,6 +1,7 @@
 // A job's scheduled run that finds a connected app signed out (#431): the owner gets a Reconnect card under that run's reply
 // (`reconnect` on the run), at most once a day per app, again at once after the app was connected and signed out
-// again, and never for a run the owner started. A run with the card reaches the owner as a report does.
+// again, and never for a run the owner started. A run with the card reaches the owner as a report does. Every bot's
+// run also gets the one Connect card of ADR 168 (test/connect-detect.test.js); this card is what an older app draws.
 process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
@@ -14,7 +15,7 @@ const { quietRun } = require('../lib/problems');
 
 const said = (result) => result.content.map((c) => c.text).join('\n');
 const fetchMail = (tools) => tools.call('connector_run', { app: 'gmail', action: 'GMAIL_FETCH_EMAILS', arguments: {} });
-const CARD = /^Error: Gmail is signed out, so nothing was done\. The owner now has a Reconnect card for it under your reply/;
+const CARD = /^Error: Gmail isn't connected, so nothing was done\. The owner now has a card to connect it; botdot starts you again on this work once it is connected\./;
 
 let app, srv;
 before(async () => {
@@ -51,7 +52,7 @@ test('a scheduled run on a signed-out app gets one Reconnect card a day, and one
 
   // The next scheduled run the same day: no new card, and the run is private as any report-only run.
   const second = await scheduled(t, bot);
-  assert.match(said(await fetchMail(second.tools)), /isn't connected \(or its connection expired\)/);
+  assert.match(said(await fetchMail(second.tools)), CARD, 'the card of ADR 168 is one card for both');
   const quiet = await second.end();
   assert.equal(quiet.reconnect, undefined);
   assert.equal(quiet.quiet, true);
@@ -65,14 +66,14 @@ test('a scheduled run on a signed-out app gets one Reconnect card a day, and one
   assert.deepEqual((await third.end()).reconnect, [{ app: 'gmail', name: 'Gmail' }]);
 });
 
-test("a run the owner started gets no card, and leaves the day's card to a job's run", { timeout: 60_000 }, async (t) => {
+test("a run the owner started gets no Reconnect card under its reply, and leaves the day's card to a job's run", { timeout: 60_000 }, async (t) => {
   const other = await startServer({ env: app.env });
   t.after(() => other.stop());
   await app.connect(other);
   const bot = await makeBot(other, { name: 'Asked Reader', emoji: '📨', connectors: ['gmail'] });
   const { rec, run, token } = await heldRun(other, bot, 'Read my mail');
   const tools = rpcClient(t, 'connectors-mcp.js', connectorEnv(other, token));
-  assert.match(said(await fetchMail(tools)), /isn't connected \(or its connection expired\)\. Ask the owner to connect it on the Connectors page\.$/);
+  assert.match(said(await fetchMail(tools)), CARD);
   other.release(rec);
   assert.equal((await other.finished(run.id)).reconnect, undefined);
   const kept = JSON.parse(fs.readFileSync(path.join(other.data, 'connectors.json'), 'utf8'));

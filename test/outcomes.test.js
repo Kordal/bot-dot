@@ -37,6 +37,8 @@ test('the outcome and the error kind are botdot words, never the error text', ()
   assert.equal(outcomeOf({ status: 'success' }), 'done');
   assert.equal(outcomeOf({ status: 'success' }, true), 'needs_you');
   assert.equal(outcomeOf({ status: 'success', askedChief: true }), 'needs_you');
+  assert.equal(outcomeOf({ status: 'success', askedOwner: true }), 'needs_you', 'a card for a connected app it needs (ADR 168)');
+  assert.equal(outcomeOf({ status: 'error', askedOwner: true }), 'failed');
   assert.equal(outcomeOf({ status: 'success', passed: true }), 'passed');
   assert.equal(outcomeOf({ status: 'stopped', endedBy: 'owner' }), 'stopped');
   assert.equal(outcomeOf({ status: 'error' }), 'failed');
