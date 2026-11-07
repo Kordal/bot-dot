@@ -25,8 +25,8 @@ const SUB = 165536;
 // The machine's own tools, without those a test stands in for or leaves out: a Linux machine may have the real
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
-  'apt-get', 'dpkg', 'dpkg-query', 'dnf', 'rpm', 'restorecon', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
-  'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent']);
+  'apt-get', 'dpkg', 'dpkg-query', 'dnf', 'rpm', 'restorecon', 'getcap', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
+  'sysctl', 'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent']);
 let systemTools = null;
 function machineTools() {
   if (systemTools) return systemTools;
@@ -151,7 +151,7 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   stand('getent', 'case "$1" in ahostsv4) a="${STAND_IN_A:-}" ;; ahostsv6) a="${STAND_IN_AAAA:-}" ;; *) exit 2 ;; esac\n[ -n "$a" ] || exit 2\nfor x in $a; do echo "$x STREAM $2"; done');
   // Cloudflare's trace says this machine's public IPv4 is 203.0.113.7, and it has no IPv6 (STAND_IN_IP6 gives it one).
   stand('curl', `${said('curl')}\ncase "$*" in *1.1.1.1/cdn-cgi/trace*) echo ip=203.0.113.7; exit 0 ;; *2606:4700:4700::1111*/cdn-cgi/trace*) [ -n "\${STAND_IN_IP6:-}" ] || exit 7; echo "ip=$STAND_IN_IP6"; exit 0 ;; esac\ncase "$*" in *gvisor.tar.zstd*) for a; do [ "$p" = -o ] && o="$a"; p="$a"; done; [ -n "\${STAND_IN_GVISOR:-}" ] || exit 22; cp "$STAND_IN_GVISOR" "$o"; exit 0 ;; esac\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*/api/backups/snapshot*) for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ] || exit 7; d="$(dirname "$(dirname "$(dirname "$s")")")/accounts/$(basename "$(dirname "$s")")/data/.snapshot"; [ -d "\${d%/.snapshot}" ] || exit 22; mkdir -p "$d"; printf 'a consistent copy' > "$d/memory.db"; exit 0 ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
-  for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns']) stand(name, 'exit 0');
+  for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns', 'sysctl']) stand(name, 'exit 0');
   stand('runsc', 'echo "runsc version release-20261102.0"');
   for (const [name, body] of Object.entries({ tailscale: tailscale(), ...bins })) {
     // Left out: kept beside as NAME.removed, which a stand-in package manager may put back.

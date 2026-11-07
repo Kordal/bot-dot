@@ -43,7 +43,7 @@ const DOCKER_VERSION = '29.9.1';
 // Debian and Ubuntu: Docker's apt repository for `codename`, its packages named `version`.
 const aptMachine = (from, distro, codename, version) => ({
   from,
-  install: 'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gnupg openssl iproute2 iptables uidmap slirp4netns acl zstd'
+  install: 'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gnupg openssl iproute2 iptables uidmap slirp4netns acl zstd procps'
     + ` && install -m 0755 -d /etc/apt/keyrings && curl -fsSL https://download.docker.com/linux/${distro}/gpg -o /etc/apt/keyrings/docker.asc`
     + ` && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${distro} ${codename} stable" > /etc/apt/sources.list.d/docker.list`
     + ` && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-ce=${version} docker-ce-cli=${version} docker-ce-rootless-extras=${version} containerd.io docker-compose-plugin`
@@ -53,9 +53,11 @@ const aptMachine = (from, distro, codename, version) => ({
 // is Debian's file, which update-ca-trust keeps as a copy of the system's own.
 const dnfMachine = (from, repo) => ({
   from,
-  install: `RUN dnf install -y --setopt=install_weak_deps=False ca-certificates curl gnupg2 openssl iproute iptables-nft shadow-utils slirp4netns acl zstd tar hostname procps-ng util-linux e2fsprogs`
+  install: `RUN dnf install -y --setopt=install_weak_deps=False ca-certificates curl gnupg2 openssl iproute iptables-nft shadow-utils slirp4netns acl zstd tar hostname procps-ng util-linux e2fsprogs libcap`
     + ` && curl -fsSL https://download.docker.com/linux/${repo}/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo`
     + ` && dnf install -y --setopt=install_weak_deps=False docker-ce-${DOCKER_VERSION} docker-ce-cli-${DOCKER_VERSION} docker-ce-rootless-extras-${DOCKER_VERSION} containerd.io docker-compose-plugin`
+    // A distribution's container image drops the file capabilities its newuidmap and newgidmap have on a machine.
+    + ' && setcap cap_setuid=ep /usr/bin/newuidmap && setcap cap_setgid=ep /usr/bin/newgidmap'
     + ' && dnf clean all && mkdir -p /etc/ssl/certs && ln -sf /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt',
 });
 const MACHINES = {

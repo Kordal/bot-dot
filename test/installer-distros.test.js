@@ -165,3 +165,30 @@ test("the uninstaller offers gVisor's files and Docker's rootless package on dnf
   assert.ok(fs.existsSync('/etc/passwd'), 'a path the mark names that is not gVisor is never removed');
   assert.match(removed.said, /Removed gVisor's runsc from/);
 });
+
+test("a kernel that restricts user namespaces gets AppArmor's profile, or, under an AppArmor too old for one, how to lift it", (t) => {
+  const restricted = (done) => { const d = path.join(done.top, 'proc', 'sys', 'kernel'); fs.mkdirSync(d, { recursive: true }); fs.writeFileSync(path.join(d, 'apparmor_restrict_unprivileged_userns'), '1\n'); };
+  const bins = { rootlesskit: '#!/bin/sh\n', apparmor_parser: '#!/bin/sh\necho "apparmor_parser $*" >> "$STAND_IN_LOG"\n' };
+  const first = installer(t, { bins });
+  assert.equal(first.status, 0, first.stderr);
+  restricted(first);
+  const old = installer(t, { again: first, args: ['--update'], bins });
+  assert.equal(old.status, 1);
+  assert.match(old.stderr, /this system's AppArmor is too old to name rootless Docker\. Lift the restriction \(echo kernel\.apparmor_restrict_unprivileged_userns=0 \| sudo tee \/etc\/sysctl\.d\/60-botdot-userns\.conf && sudo sysctl --system\)/);
+
+  fs.mkdirSync(path.join(first.etc, 'apparmor.d', 'abi'), { recursive: true });
+  fs.writeFileSync(path.join(first.etc, 'apparmor.d', 'abi', '4.0'), '');
+  const ok = installer(t, { again: first, args: ['--update'], bins });
+  assert.equal(ok.status, 0, `${ok.said}\n${ok.stderr}`);
+  assert.match(fs.readFileSync(path.join(first.etc, 'apparmor.d', 'botdot-rootlesskit'), 'utf8'), /^profile botdot-rootlesskit \S+\/rootlesskit flags=\(unconfined\) \{\n {2}userns,\n\}$/m);
+  assert.match(ok.system, /^apparmor_parser -r \S+\/botdot-rootlesskit$/m);
+});
+
+test('a newuidmap without its file capability, as a system made from a container image may have, is refused with how to fix it', (t) => {
+  const lost = installer(t, { osRelease: FEDORA, bins: { ...RPM_MACHINE, getcap: '#!/bin/sh\nexit 0\n' } });
+  assert.equal(lost.status, 1);
+  assert.match(lost.stderr, /\/newuidmap can't map each account's IDs: it is neither setuid nor has its file capability\. Reinstall it \(sudo dnf reinstall shadow-utils\) and run this again\./);
+
+  const kept = installer(t, { osRelease: FEDORA, bins: { ...RPM_MACHINE, getcap: '#!/bin/sh\ncase "$1" in *newuidmap) echo "$1 cap_setuid=ep" ;; *) echo "$1 cap_setgid=ep" ;; esac\n', newgidmap: '#!/bin/sh\n' } });
+  assert.equal(kept.status, 0, `${kept.said}\n${kept.stderr}`);
+});

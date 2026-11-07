@@ -7,7 +7,7 @@
 //
 // A machine is the distribution's own image (privileged, without systemd), with curl as a server has it, and a
 // stand-in systemctl that starts Docker's daemon when the installer asks. The installer runs as a person runs it,
-// answering yes, until it reaches the images: the image it is given doesn't exist, so it stops there. A second run
+// answering yes, until it is past its first step: the images are not its concern. A second run
 // finds everything and asks for nothing.
 //
 //   INSTALL_PREREQS_DISTRO=fedora-43 node tests/integration/install-prereqs.js   (one of DISTROS; all without it)
@@ -62,15 +62,18 @@ function check(distro) {
     };
     step('installing what botdot needs');
     const first = install();
-    assert.match(first.said, new RegExp(`Rootless Docker and gVisor \\(release-${GVISOR_RELEASE.replace('.', '\\.')}\\)`), `the first step is done:\n${first.said}`);
-    assert.match(first.said, /registry\.invalid/, `it stops at the image, which doesn't exist:\n${first.said}`);
+    // The machine runs GitHub's Ubuntu kernel, which restricts user namespaces: a distribution whose AppArmor is older
+    // than 4 (Ubuntu 22.04, Debian 12) is told to lift that, which its own kernel doesn't need.
+    const hostRestricts = (() => { try { return fs.readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1'; } catch { return false; } })();
+    const lift = /AppArmor is too old to name rootless Docker/.test(first.said);
+    assert.ok(lift ? hostRestricts : new RegExp(`Rootless Docker and gVisor \\(release-${GVISOR_RELEASE.replace('.', '\\.')}\\)`).test(first.said), `the first step is done:\n${first.said}`);
     const have = docker('exec', name, 'sh', '-c', 'for t in docker dockerd-rootless.sh newuidmap setfacl; do command -v "$t" >/dev/null || echo "$t is missing"; done; command -v slirp4netns >/dev/null || command -v pasta >/dev/null || echo "slirp4netns is missing"; docker compose version >/dev/null || echo "docker compose is missing"; "$(command -v runsc || echo /usr/local/bin/runsc)" --version | head -n 1');
     assert.equal(have, `runsc version release-${GVISOR_RELEASE}`, have);
 
     step('running it again');
     const again = install();
-    assert.doesNotMatch(again.said, /Install (them|Docker) now/, `a second run installs nothing:\n${again.said}`);
-    assert.match(again.said, /Rootless Docker and gVisor/, again.said);
+    assert.doesNotMatch(again.said, /Install (them|Docker) now|needs:/, `a second run installs nothing:\n${again.said}`);
+    if (!lift) assert.match(again.said, /Rootless Docker and gVisor/, again.said);
     step('passed');
   } finally {
     try { docker('rm', '-fv', name); } catch { /* not started */ }

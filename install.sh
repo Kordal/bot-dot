@@ -1773,6 +1773,8 @@ need dockerd-rootless.sh docker-ce-rootless-extras
 need newuidmap uidmap
 command -v slirp4netns >/dev/null 2>&1 || command -v pasta >/dev/null 2>&1 || command -v vpnkit >/dev/null 2>&1 || MISSING="$MISSING slirp4netns"
 need setfacl acl
+# dockerd-rootless.sh sets the namespace's sysctls with it; a minimal Debian has none.
+need sysctl procps
 command -v runsc >/dev/null 2>&1 || [ -x "$LOCAL_BIN/runsc" ] || MISSING="$MISSING runsc"
 [ "$MODE" = install ] || [ -z "$MISSING" ] || die "Missing:$MISSING. Run the installer again."
 if [ -n "$MISSING" ]; then
@@ -1809,8 +1811,8 @@ if [ -n "$MISSING" ]; then
     apt-get update -qq </dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $(printf '%s\n' $MISSING | sed "s/^runsc\$/runsc=$GVISOR_RELEASE/") </dev/null \
       || die "apt-get couldn't install$MISSING. Install them yourself and run this again."
   else
-    # dnf's names: newuidmap is shadow-utils'; runsc isn't a package, but its download needs zstd and tar.
-    DNF_PKGS="$(printf '%s\n' $MISSING | sed 's/^uidmap$/shadow-utils/; /^runsc$/d' | tr '\n' ' ')"
+    # dnf's names: newuidmap is shadow-utils', sysctl procps-ng's; runsc isn't a package, but its download needs zstd and tar.
+    DNF_PKGS="$(printf '%s\n' $MISSING | sed 's/^uidmap$/shadow-utils/; s/^procps$/procps-ng/; /^runsc$/d' | tr '\n' ' ')"
     case "$MISSING" in *runsc*)
       command -v zstd >/dev/null 2>&1 || DNF_PKGS="$DNF_PKGS zstd"
       command -v tar >/dev/null 2>&1 || DNF_PKGS="$DNF_PKGS tar" ;;
@@ -1822,6 +1824,14 @@ if [ -n "$MISSING" ]; then
   fi
 fi
 ROOTLESS="$(command -v dockerd-rootless.sh)"
+# newuidmap maps each account's sub-IDs only as root: setuid (Debian, Ubuntu) or by its file capability (Fedora, RHEL),
+# which a system made from a container image may have lost. Without either every account's Docker would fail to start.
+for nm in newuidmap newgidmap; do
+  nm_path="$(command -v "$nm" 2>/dev/null || true)"
+  [ -n "$nm_path" ] && [ ! -u "$nm_path" ] && command -v getcap >/dev/null 2>&1 || continue
+  getcap "$nm_path" 2>/dev/null | grep -q 'cap_set[ug]id' \
+    || die "$nm_path can't map each account's IDs: it is neither setuid nor has its file capability. Reinstall it ($( [ "$(pkg_manager)" = dnf ] && echo 'sudo dnf reinstall shadow-utils' || echo 'sudo apt-get install --reinstall uidmap')) and run this again."
+done
 # sudo's PATH on RHEL leaves out /usr/local/bin, where install_runsc puts it.
 RUNSC="$(command -v runsc || printf '%s' "$LOCAL_BIN/runsc")"
 # A machine installed before the pin follows gVisor's `release` channel: its source is moved to the pinned release,
@@ -1839,10 +1849,13 @@ if [ "$MODE" = install ] || [ "$MODE" = update ]; then
     warn "gVisor ${HAVE_RUNSC:-of an unknown release} is installed; botdot is tested with $GVISOR_RELEASE. Once no account is busy: $rs_fix"
   fi
 fi
-# Ubuntu 24.04 lets a program make the user namespace rootless Docker needs only when AppArmor names it.
+# Ubuntu 24.04 lets a program make the user namespace rootless Docker needs only when AppArmor names it, which takes
+# AppArmor 4 (abi/4.0). A kernel that restricts them under an older AppArmor (Ubuntu 22.04 or Debian 12 on a newer
+# kernel) has no profile that can name it: the restriction itself has to be lifted.
 KIT="$(command -v rootlesskit 2>/dev/null || true)"
-if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] \
+if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat "$PROC/sys/kernel/apparmor_restrict_unprivileged_userns" 2>/dev/null || echo 0)" = 1 ] \
   && ! grep -rqs "$KIT" "$ETC/apparmor.d/" 2>/dev/null; then
+  [ -f "$ETC/apparmor.d/abi/4.0" ] || die "This kernel lets only programs AppArmor names make user namespaces, and this system's AppArmor is too old to name rootless Docker. Lift the restriction (echo kernel.apparmor_restrict_unprivileged_userns=0 | sudo tee /etc/sysctl.d/60-botdot-userns.conf && sudo sysctl --system) and run this again."
   printf '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit %s flags=(unconfined) {\n  userns,\n}\n' "$KIT" > "$ETC/apparmor.d/botdot-rootlesskit"
   apparmor_parser -r "$ETC/apparmor.d/botdot-rootlesskit" </dev/null || die "AppArmor didn't take the profile that lets rootless Docker run ($KIT)."
 fi
