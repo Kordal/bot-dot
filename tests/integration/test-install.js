@@ -34,11 +34,38 @@ const dockerfile = fs.readFileSync(path.join(root, 'Dockerfile'), 'utf8');
 const arg = (name) => dockerfile.match(new RegExp(`^ARG ${name}=(.+)$`, 'm'))?.[1];
 const NODE_IMAGE = arg('NODE_IMAGE'), CLI_IMAGE = arg('DOCKER_CLI_IMAGE');
 assert.ok(NODE_IMAGE && CLI_IMAGE, 'the Dockerfile no longer names NODE_IMAGE and DOCKER_CLI_IMAGE');
-// The test machine: Ubuntu 24.04, Docker's own packages at one version, gVisor at one release (as gvisor-real), and
-// docker:dind's start script, which readies a container for a Docker daemon.
+// The test machine: Ubuntu 24.04, or the distribution INSTALL_REAL_DISTRO names (MACHINES), with Docker's own packages
+// at one version, gVisor at one release (as gvisor-real), and docker:dind's start script, which readies a container
+// for a Docker daemon. What install.sh installs on a fresh machine of each is install-prereqs.js's.
 const DIND = 'docker:28-dind@sha256:2a232a42256f70d78e3cc5d2b5d6b3276710a0de0596c145f627ecfae90282ac'; // as test/live/signed-image-upgrade.js
 const UBUNTU = 'ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55';
-const DOCKER_CE = '5:29.9.1-1~ubuntu.24.04~noble';
+const DOCKER_VERSION = '29.9.1';
+// Debian and Ubuntu: Docker's apt repository for `codename`, its packages named `version`.
+const aptMachine = (from, distro, codename, version) => ({
+  from,
+  install: 'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gnupg openssl iproute2 iptables uidmap slirp4netns acl zstd'
+    + ` && install -m 0755 -d /etc/apt/keyrings && curl -fsSL https://download.docker.com/linux/${distro}/gpg -o /etc/apt/keyrings/docker.asc`
+    + ` && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${distro} ${codename} stable" > /etc/apt/sources.list.d/docker.list`
+    + ` && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-ce=${version} docker-ce-cli=${version} docker-ce-rootless-extras=${version} containerd.io docker-compose-plugin`
+    + ' && rm -rf /var/lib/apt/lists/*',
+});
+// Fedora and the RHEL family: Docker's dnf repository `repo`. The CA bundle a case adds the registry's certificate to
+// is Debian's file, which update-ca-trust keeps as a copy of the system's own.
+const dnfMachine = (from, repo) => ({
+  from,
+  install: `RUN dnf install -y --setopt=install_weak_deps=False ca-certificates curl gnupg2 openssl iproute iptables-nft shadow-utils slirp4netns acl zstd tar hostname procps-ng util-linux e2fsprogs`
+    + ` && curl -fsSL https://download.docker.com/linux/${repo}/docker-ce.repo -o /etc/yum.repos.d/docker-ce.repo`
+    + ` && dnf install -y --setopt=install_weak_deps=False docker-ce-${DOCKER_VERSION} docker-ce-cli-${DOCKER_VERSION} docker-ce-rootless-extras-${DOCKER_VERSION} containerd.io docker-compose-plugin`
+    + ' && dnf clean all && mkdir -p /etc/ssl/certs && ln -sf /etc/pki/tls/certs/ca-bundle.crt /etc/ssl/certs/ca-certificates.crt',
+});
+const MACHINES = {
+  'ubuntu-24.04': aptMachine(UBUNTU, 'ubuntu', 'noble', `5:${DOCKER_VERSION}-1~ubuntu.24.04~noble`),
+  'debian-12': aptMachine('debian:12@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8', 'debian', 'bookworm', `5:${DOCKER_VERSION}-1~debian.12~bookworm`),
+  'fedora-43': dnfMachine('fedora:43@sha256:f01112b9a1f1d0504ad962d9adfa401425033f8ab067e0a821904ebdde5b8ca5', 'fedora'),
+  'rocky-10': dnfMachine('rockylinux/rockylinux:10@sha256:827d37bc128288ccf160ee318bb3cb92d591164cb217e92f8bc61e3982ae1834', 'centos'),
+};
+const DISTRO = process.env.INSTALL_REAL_DISTRO || 'ubuntu-24.04';
+assert.ok(MACHINES[DISTRO], `INSTALL_REAL_DISTRO is one of ${Object.keys(MACHINES).join(', ')}, not "${DISTRO}"`);
 const GVISOR = 'https://storage.googleapis.com/gvisor/releases/release/20261102.0';
 const GVISOR_SHA256 = { amd64: 'a1439ffbba7d212e0fde32ea79fa9bb51cbc4c5f6c16af1f047260290b861d42', arm64: 'f702ae92ad7a0c4134be34ca23f52966dbb696db0c0f5b8ec439210ab2cd7c6a' };
 const REGISTRY_IMAGE = 'registry:2@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373';
@@ -142,12 +169,8 @@ function buildMachine(tag, temp) {
     ...Object.entries(GVISOR_SHA256).flatMap(([arch, sha]) => [`FROM scratch AS gvisor-${arch}`, `ADD --checksum=sha256:${sha} ${GVISOR}/${arch === 'amd64' ? 'x86_64' : 'aarch64'}/gvisor.tar.zstd /gvisor.tar.zstd`]),
     'FROM gvisor-${TARGETARCH} AS gvisor',
     `FROM ${DIND} AS dind`,
-    `FROM ${UBUNTU}`,
-    'RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates curl gnupg openssl iproute2 iptables uidmap slirp4netns acl zstd'
-      + ' && install -m 0755 -d /etc/apt/keyrings && curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc'
-      + ' && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu noble stable" > /etc/apt/sources.list.d/docker.list'
-      + ` && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends docker-ce=${DOCKER_CE} docker-ce-cli=${DOCKER_CE} docker-ce-rootless-extras=${DOCKER_CE} containerd.io docker-compose-plugin`
-      + ' && rm -rf /var/lib/apt/lists/*',
+    `FROM ${MACHINES[DISTRO].from}`,
+    MACHINES[DISTRO].install,
     'RUN --mount=from=gvisor,source=/gvisor.tar.zstd,target=/tmp/gvisor.tar.zstd zstd -dc /tmp/gvisor.tar.zstd | tar -x -C /usr/local/bin runsc gvisor-bin && runsc --version',
     'COPY --from=dind /usr/local/bin/dind /usr/local/bin/dind',
     // On the container's own filesystem neither Docker could lay its images over another overlay.

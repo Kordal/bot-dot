@@ -12,7 +12,7 @@ Status: **ok** = newest stable, **behind** = a newer stable exists, **held** = b
 | --- | --- | --- | --- |
 | Tailscale on the server | `install.sh` (`Installing Tailscale`) | `curl https://tailscale.com/install.sh \| sh`, then Tailscale's signed apt repository | Kept on purpose: the machine's way in from the tailnet, so its security fixes should arrive with `apt upgrade`, as Docker's do. Upstream newest 1.104.5. |
 | Tailscale in the computer | `deploy/desktop/botdot-tailscale:26`, `:67` | `pkgs.tailscale.com/stable` newest tarball, checked against its published sha256 | Kept on purpose: integrity checked, and a computer gets the day's security fixes when it first joins the tailnet. Userspace and shields-up. |
-| Rootless Docker, uidmap, slirp4netns, acl | `install.sh:1585`-`1589` | The distribution's apt packages | Normal for host packages. |
+| Rootless Docker, uidmap, slirp4netns, acl | `install.sh` (`MISSING`) | The distribution's apt or dnf packages | Normal for host packages. |
 | Debian/Ubuntu packages in the images | `Dockerfile:34`, `deploy/desktop/Dockerfile:39`, `:65`, `deploy/desktop/botdot-boat-kit:35` | apt, no versions | Rebuild changes them; the Trivy gate in `images.yml` catches critical CVEs. |
 | Rust crates (ranges) | `desktop/src-tauri/Cargo.toml` | Semver ranges (`"2"`, `"0.22"`) | Held exactly by the committed `Cargo.lock`, so builds are reproducible. Fine as is. |
 | Lima VM image | `desktop/src-tauri/src/local/lima.rs:117` | `template:ubuntu-24.04`, the cloud image of the day | The local Mac server's OS. |
@@ -72,9 +72,9 @@ The kit installs the same pins on an External Virtual PC; `test/boat-screen.test
 | Tool | Pinned | Where | Newest | Status |
 | --- | --- | --- | --- | --- |
 | restic | 0.19.1, sha256 per arch | `install.sh:525` | 0.19.1 | ok |
-| gVisor `runsc` | 20261102.0 (`GVISOR_RELEASE`; apt source names the release) | `install.sh` | 20261102.0 (apt `release` channel; GitHub "Latest" says 20261019.0) | ok |
+| gVisor `runsc` | 20261102.0 (`GVISOR_RELEASE`; apt source names the release; elsewhere its release files, sha256 per arch) | `install.sh` | 20261102.0 (apt `release` channel; GitHub "Latest" says 20261019.0) | ok |
 | Tailscale | install script, then apt | `install.sh` | 1.104.5 | unpinned on purpose |
-| Rootless Docker extras, uidmap, slirp4netns, acl | apt | `install.sh:1585`-`1589` | n/a | unpinned |
+| Rootless Docker extras, uidmap, slirp4netns, acl | apt or dnf | `install.sh` (`MISSING`) | n/a | unpinned |
 | Caddy | `caddy:2.11.9` by digest | `compose.front-door.yaml:62` | 2.11.9 | ok |
 | botdot images | `ghcr.io/kordal/bot-dot:latest`, signed | `compose.yaml:11`, `compose.front-door.yaml:16` | own build | ok (checked by signature) |
 

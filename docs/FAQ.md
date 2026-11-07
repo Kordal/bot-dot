@@ -43,13 +43,13 @@ Yes. One machine holds several **accounts**, each with its own passkey, Claude s
 
 | | |
 | --- | --- |
-| **System** | Ubuntu 24.04 on Intel/AMD (x86_64), which is what botdot is tested on, or ARM (aarch64), which the images are built for but which is not yet tested on real hardware |
+| **System** | Ubuntu 22.04 or newer, Debian 12 or 13, Fedora, or RHEL 9 or 10 and its rebuilds (Rocky Linux, AlmaLinux), on Intel/AMD (x86_64) or ARM (aarch64), which the images are built for but which is not yet tested on real hardware ([Platforms](install-linux.md#platforms)) |
 | **Access** | `sudo`: the installer runs as root, because it makes a Linux user for each account |
 | **Software** | Docker with Docker Compose, git and curl. The installer offers to install Docker, rootless Docker, gVisor and Tailscale when they are missing |
 | **A way in** | A public domain whose DNS points at the server, with ports 80, 443 and 8443 free (8443 carries interactive pages), or a [Tailscale](https://tailscale.com) tailnet, where nothing is on the internet |
 | **Claude** | A Claude subscription (Pro or Max) or an Anthropic API key, for each account |
 
-SELinux in enforcing mode (Fedora, RHEL) is not supported for now ([Platforms](install-linux.md#platforms)).
+SELinux in enforcing mode (Fedora, RHEL) is not tested yet ([Platforms](install-linux.md#platforms)).
 
 ### How much RAM, CPU and disk?
 
@@ -288,9 +288,17 @@ Point the domain's DNS at the server and keep ports 80, 443 and 8443 open: Caddy
 
 On the server, make a new one for your account: `cd /var/lib/botdot/front-door && sudo docker compose exec front-door node front-door.js sign-up-link --account <your account's name>`. It works once, for 7 days.
 
-### apt can't install `docker-ce-rootless-extras`.
+### The installer says this machine's Docker isn't Docker's own.
 
-The machine's Docker is Ubuntu's or Debian's own `docker.io`, which has no rootless Docker. Install Docker from [docs.docker.com](https://docs.docker.com/engine/install/ubuntu/), then run the installer again.
+The machine's Docker is the distribution's own (`docker.io` on Ubuntu and Debian, `moby-engine` on Fedora), which has no rootless Docker. Remove it (`sudo apt-get remove docker.io` or `sudo dnf remove moby-engine`) and run the installer again: it installs Docker from docker.com.
+
+### The installer says this machine's docker command is Podman's.
+
+`podman-docker` answers as `docker`, but botdot needs Docker Engine. `sudo dnf remove podman-docker`, then run the installer again.
+
+### The installer says it needs Linux 5.11 or newer.
+
+Each account's rootless Docker needs a newer kernel than Debian 11 or RHEL 8 have. Install a newer release of the system ([Platforms](install-linux.md#platforms)).
 
 ### On a tailnet, the installer stops at Tailscale Serve.
 

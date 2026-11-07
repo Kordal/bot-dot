@@ -26,13 +26,15 @@ It runs on your own Linux server, with each account walled off under rootless Do
 
 ## Quickstart
 
-On a fresh Ubuntu 24.04 server or VM (not a container), as a user with `sudo`:
+On a fresh Linux server or VM (not a container), as a user with `sudo`. On Ubuntu or Debian:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y git curl
 git clone https://github.com/Kordal/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh
 ```
+
+On Fedora, RHEL, Rocky Linux or AlmaLinux, the first line is `sudo dnf install -y git curl`.
 
 1. The installer checks the machine and asks before it installs Docker, rootless Docker and gVisor. It downloads botdot's signed images (about 11 GB) and checks their signature first.
 2. It asks how you reach botdot: a **public domain** (Caddy gets the HTTPS certificate) or a **Tailscale tailnet** (nothing on the internet). Then your account's name.
@@ -46,11 +48,11 @@ Lost the link, or the install stopped? See [Troubleshooting](#troubleshooting).
 
 | | |
 | --- | --- |
-| **A server** | A Linux VM or VPS of its own, on Intel/AMD or ARM, where you can use `sudo`. Ubuntu 24.04 is what botdot is tested on. It needs a full VM (KVM, Proxmox VM, cloud VPS): an LXC or OpenVZ container won't run rootless Docker and gVisor |
+| **A server** | A Linux VM or VPS of its own, on Intel/AMD or ARM, where you can use `sudo`: Ubuntu 22.04 or newer, Debian 12 or 13, Fedora, or RHEL 9 or 10 and its rebuilds (Rocky Linux, AlmaLinux). Other distributions work when you install Docker, rootless Docker and gVisor yourself ([Platforms](docs/install-linux.md#platforms)). It needs a full VM (KVM, Proxmox VM, cloud VPS): an LXC or OpenVZ container won't run rootless Docker and gVisor |
 | **Size, one account** | At least 4 CPUs, 8 GB of RAM and 40 GB of free disk. Each account takes a share of the machine (by default 2 CPUs and half the RAM, at least 5 GB) and about 15 GB of disk, plus room for one more copy of the images while it updates |
 | **Claude** | A Claude Pro or Max subscription, or an Anthropic API key, for each account. Bots' runs count against that subscription's usage limits, or are paid as you go on the key |
 | **A way in** | A domain whose DNS points at the server, with ports 80, 443 and 8443 open (8443 serves bots' interactive pages), or a free [Tailscale](https://tailscale.com) account |
-| **Docker** | The installer installs Docker from docker.com when it's missing. If Docker is already there, it must be docker.com's `docker-ce`: Ubuntu's own `docker.io` has no rootless Docker |
+| **Docker** | The installer installs Docker from docker.com when it's missing. If Docker is already there, it must be docker.com's `docker-ce`: the distributions' own `docker.io` and `moby-engine`, and Podman, have no rootless Docker |
 
 botdot runs bots unattended. Read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts) has the full list, and [what the installer changes on the machine](docs/install-linux.md#what-the-installer-changes-on-the-machine).
 
@@ -163,7 +165,7 @@ The desktop app for [Windows](https://github.com/Kordal/bot-dot/releases/downloa
 | --- | --- |
 | **The sign-up link is lost or used** | Make a new one on the server: `cd /var/lib/botdot/front-door && sudo docker compose exec front-door node front-door.js sign-up-link --account <your account's name>` |
 | **Caddy has no certificate yet** | Check that the DNS points at the server and ports 80, 443 and 8443 are open, then `cd /var/lib/botdot/front-door && sudo docker compose logs caddy` |
-| **apt can't install `docker-ce-rootless-extras`** | Docker came from Ubuntu (`docker.io`). Install Docker from [docs.docker.com](https://docs.docker.com/engine/install/ubuntu/) and run the installer again |
+| **"This machine's Docker isn't Docker's own"** | Docker came from the distribution (`docker.io`, `moby-engine`), which has no rootless Docker. Remove it and run the installer again, which installs Docker from docker.com |
 | **A bot says it isn't signed in to Claude** | The setup page opens by itself: choose **Sign in to Claude** there, or use an API key |
 
 More answers in the [FAQ](docs/FAQ.md#troubleshooting).

@@ -80,6 +80,10 @@ tools-real: ## The real micromamba installs jq from conda-forge for one bot both
 install-real: ## A first install with today's installer and images from a local registry, in a nested Docker daemon: botdot answers, a bot's computer starts and stops (needs Docker and the network)
 	@./tests/integration/install-real.sh
 
+.PHONY: install-prereqs
+install-prereqs: ## install.sh's first step on a fresh Ubuntu, Debian, Fedora, Rocky and AlmaLinux machine, with the real packages: Docker, rootless Docker and gVisor at its pinned release (INSTALL_PREREQS_DISTRO picks one; needs Docker and the network)
+	@./tests/integration/install-prereqs.sh
+
 .PHONY: accounts-real
 accounts-real: ## Two accounts on one machine, in a nested Docker daemon: a sign-up link from the admin page makes the second, and neither account's bot, user or Docker reaches the other's containers, data or socket, nor its session the other; then the admin suspends, resumes and deletes the second, which leaves nothing of it on the machine, and a sign-in link gives it a new passkey; each account's share applies: its own disk, its one computer sized by its CPU and RAM, a full disk is marked (needs Docker and the network)
 	@./tests/integration/accounts-real.sh

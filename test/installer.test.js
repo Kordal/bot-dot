@@ -416,14 +416,14 @@ test('the install prints the admin\'s sign-up link, after it says that root reac
 
 test('a machine without rootless Docker, gVisor or setfacl is offered them, and told what they are', (t) => {
   const missing = { 'dockerd-rootless.sh': null, runsc: null, setfacl: null };
-  const declined = installer(t, { bins: missing, input: 'n\n' });
+  const declined = installer(t, { bins: missing, input: 'n\n', given: { STAND_IN_PACKAGES: 'docker-ce' } });
   assert.equal(declined.status, 1);
   assert.match(declined.said, /Each account runs in a rootless Docker under gVisor, which needs: docker-ce-rootless-extras acl runsc/);
   assert.match(declined.said, /Install them now with apt-get \(gVisor's runsc from gVisor's own repository\)\?/);
   assert.match(declined.stderr, /botdot needs them\. Install them and run this again\./);
   assert.doesNotMatch(declined.system, /apt-get/);
 
-  const agreed = installer(t, { bins: { ...missing, dpkg: '#!/bin/sh\necho amd64\n' }, input: 'y\n' });
+  const agreed = installer(t, { bins: { ...missing, dpkg: '#!/bin/sh\necho amd64\n' }, input: 'y\n', given: { STAND_IN_PACKAGES: 'docker-ce' } });
   assert.match(agreed.system, /^apt-get install -y -qq docker-ce-rootless-extras acl runsc=20261102\.0$/m, 'gVisor at its pinned release');
   assert.equal(fs.readFileSync(path.join(agreed.etc, 'apt', 'sources.list.d', 'gvisor.list'), 'utf8'),
     'deb [arch=amd64 signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases 20261102 main\n',
@@ -454,7 +454,7 @@ test('a botdot from before accounts is never updated: it is stopped only if aske
   assert.equal(no.status, 1);
   assert.match(no.said, /botdot from before accounts is installed in \/home\/ann\/bot-dot\. This version can't update it: it is installed again, and you sign in with a passkey\. Its data folder stays as it is; delete it yourself once you're sure you don't need it\./);
   assert.match(no.stderr, /Nothing was changed\./);
-  assert.deepEqual(no.calls.filter((c) => !c.startsWith('compose version') && !c.startsWith('version') && !c.startsWith('ps ') && !c.startsWith('info')), [], 'nothing else was done');
+  assert.deepEqual(no.calls.filter((c) => !c.startsWith('compose version') && !c.startsWith('version') && c !== '--version' && !c.startsWith('ps ') && !c.startsWith('info')), [], 'nothing else was done');
 
   const yes = installer(t, { dotenv: '', old, input: 'y\n1\nbotdot.example.com\nann\n' });
   assert.equal(yes.status, 0, yes.stderr);
