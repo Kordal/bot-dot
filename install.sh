@@ -540,6 +540,11 @@ OFFSITE_SUBSETS=20
 # An erased account's off-site snapshots stay this many days (#1019): an erase made by mistake can still be restored.
 OFFSITE_GRACE_DAYS=14
 BORN="$DIR/born"
+# The scratch folders of an off-site restore (ADR 159) and of a restore test (#1018), on the machine's disk, each in use
+# only under the off-site lock. One a run that was cut off left (the machine restarted, root's step was stopped) holds
+# accounts' data, so the next off-site backup removes it once it holds that lock.
+OFFSITE_SCRATCH="$DIR/offsite-restore"
+RESTORE_TEST_SCRATCH="$DIR/restore-test"
 # What of an account's data stays out: its own backups, what a project installs again and what a backup cut off left.
 # Its memory database is the consistent copy its server makes (#1015) when it can, as in a set (offsite_run).
 OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --exclude=*.part --anchored'
@@ -592,8 +597,13 @@ offsite_repo() {
   get_env "$ENV" BOT_DOT_OFFSITE_REPO
 }
 # offsite_said STATE [FIELDS]: status/offsite.json, with the machine's instance, the host its snapshots carry, so that
-# whoever restores the machine elsewhere (the console's OFFSITE-RESTORE line 2) knows which ones are its.
-offsite_said() { write_status offsite.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${INSTANCE:+,\"instance\":\"$INSTANCE\"}${2:+,$2}}"; }
+# whoever restores the machine elsewhere (the console's OFFSITE-RESTORE line 2) knows which ones are its. Read from .env
+# each time: a run that stops before offsite_prepare has none in INSTANCE yet, and a restore changes it.
+offsite_said() {
+  osd_instance="$(get_env "$ENV" BOT_DOT_INSTANCE)"
+  case "$osd_instance" in *[!a-z0-9]*) osd_instance='' ;; esac
+  write_status offsite.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${osd_instance:+,\"instance\":\"$osd_instance\"}${2:+,$2}}"
+}
 # offsite_last: the last success offsite.json names, as its field after a comma, or nothing.
 offsite_last() { sed -n 's/.*\("lastSuccess":"[0-9TZ:-]*"\).*/,\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true; }
 
@@ -950,6 +960,7 @@ offsite_backup() {
     if command -v flock >/dev/null 2>&1; then
       exec 8>"$RUN/offsite.lock"
       flock -n 8 || { say "An off-site backup runs already."; exit 0; }
+      rm -rf -- "$OFFSITE_SCRATCH" "$RESTORE_TEST_SCRATCH"
     fi
     offsite_run
   )
@@ -1153,8 +1164,9 @@ json_count_top() {
 }
 offsite_restore_test() {
   restore_test_said testing
-  offsite_prepare
-  rt_dir="$DIR/restore-test"
+  # open: a test reads the repository, and never makes it or a password nobody is shown (root's step has no one).
+  offsite_prepare open
+  rt_dir="$RESTORE_TEST_SCRATCH"
   rm -rf -- "$rt_dir"
   mkdir -p "$rt_dir"
   chmod 700 "$rt_dir"
@@ -1172,9 +1184,11 @@ offsite_restore_test() {
   rt_need=0
   for rt_p in $rt_parts; do
     r stats --json --mode restore-size "${rt_p#*:}" > "$rt_dir/stats" 2> "$rt_dir/err" || die "Couldn't read the size of ${rt_p%%:*}: $(offsite_why "$rt_dir/err")"
-    rt_size="$(sed -n 's/.*"total_size":\([0-9]*\).*/\1/p' "$rt_dir/stats")"
-    rt_need=$((rt_need + ${rt_size:-0}))
-    printf '%s %s\n' "${rt_p%%:*}" "${rt_size:-0}" >> "$rt_dir/sizes"
+    rt_size="$(sed -n 's/.*"total_size":\([0-9][0-9]*\).*/\1/p' "$rt_dir/stats")"
+    # A size it can't read is no size: counted as none, the room would be checked for less than is restored.
+    [ -n "$rt_size" ] || die "Couldn't read the size of ${rt_p%%:*}: restic said no total_size."
+    rt_need=$((rt_need + rt_size))
+    printf '%s %s\n' "${rt_p%%:*}" "$rt_size" >> "$rt_dir/sizes"
   done
   rt_free=$(($(df -Pk "$DIR" | awk 'NR == 2 { print $4 }') * 1024))
   if [ $((rt_need + OFFSITE_TEST_ROOM)) -gt "$rt_free" ]; then
@@ -1205,7 +1219,8 @@ offsite_restore_test() {
 
 # restore_test: the restore test of the account RESTORE_TEST, run once at a time with the off-site backup, from the
 # command line or from root's RESTORE-TEST request. One that fails, or is refused, says why in restore-test.json and
-# in RT_TEXT, and returns 1.
+# in RT_TEXT, which is empty after one that passed. It returns 0 either way and is called on its own, never with || or
+# in an if: there set -e would be off in its subshell too, and the test would go on past a step that failed.
 restore_test() {
   rt_why="$RUN/restore-test-why"
   mkdir -p "$RUN"
@@ -1236,14 +1251,14 @@ restore_test() {
   if ! grep -q '"state":"refused"' "$DOOR/status/restore-test.json" 2>/dev/null; then
     restore_test_said failed "\"error\":\"$(printf '%s' "$RT_TEXT" | plain_line 300)\""
   fi
-  return 1
 }
 
 if [ "$MODE" = restore-test ]; then
   [ "$(id -u)" = 0 ] || die "The restore test reads the off-site repository with root's key, so it runs as root. Run it with: sudo sh $BIN/install.sh --restore-test <account>"
   [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
   valid_account "$RESTORE_TEST" || die "Name the account to test the restore of: sudo sh $BIN/install.sh --restore-test <account>"
-  restore_test || die "$RT_TEXT"
+  restore_test
+  [ -z "$RT_TEXT" ] || die "$RT_TEXT"
   exit 0
 fi
 
@@ -1251,7 +1266,8 @@ if [ "$MODE" = offsite ]; then
   [ "$(id -u)" = 0 ] || die "The off-site backup reads every account's files, so it runs as root. Run it with: sudo sh $BIN/install.sh --offsite"
   [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
   offsite_units
-  offsite_backup || exit 1
+  # On its own, not with ||, which would turn set -e off in the backup's subshell too: one that fails exits 1 here.
+  offsite_backup
   exit 0
 fi
 
@@ -3228,6 +3244,8 @@ restore_set() {
   ( set -e; ACCOUNT_WHY="$rs_why"; ACCOUNT_RESULT=refused; check_set; ACCOUNT_RESULT=failed; put_set )
   rs_done=$?
   set -e
+  # The set's instance, which put_set gave .env in its subshell, for what this run does next (an account it makes).
+  INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
   if [ "$rs_done" = 0 ]; then
     set_said restore restored "\"version\":\"$(version_now)\""
     ok "The backup set is back on this machine"
@@ -3289,6 +3307,8 @@ put_set() {
   done
   for n in $SET_ACCOUNTS; do
     set_said restore restoring "\"phase\":\"account\",\"account\":\"$n\""
+    # A set restored from the off-site backup has each account's born stamp (offsite_fetch): the account is that one.
+    if [ -s "$SET/born/$n" ]; then mkdir -p "$BORN"; chmod 700 "$BORN"; cp -- "$SET/born/$n" "$BORN/$n"; fi
     restore_account "$n"
   done
   for home in "$ACCOUNTS"/*/; do
@@ -3311,7 +3331,6 @@ put_set() {
 # before the set is whole (no repository, no room, no such backup, one with failed parts, a part restic can't restore,
 # an off-site backup running) is failed in the phase download; the set's own checks refuse as for RESTORE.
 OFFSITE_RESTORE=OFFSITE-RESTORE
-OFFSITE_SCRATCH="$DIR/offsite-restore"
 # offsite_fetch SNAPSHOT [INSTANCE]: the backup SNAPSHOT (latest or an id) of the machine INSTANCE (this one's when none)
 # in OFFSITE_SCRATCH, as a set.
 offsite_fetch() {
@@ -3351,11 +3370,30 @@ offsite_fetch() {
     case "$fr_p" in *..* | */*/*/*/*) die "The backup has a part that can't be one: $fr_p." ;; esac
     case "$fr_s" in *[!0-9a-f]* | '') die "The backup's snapshot of $fr_p can't be one." ;; esac
     r stats --json --mode restore-size "$fr_s" > "$fr_meta/stats" 2> "$fr_meta/err" || die "Couldn't read the size of $fr_p: $(offsite_why "$fr_meta/err")"
-    fr_size="$(sed -n 's/.*"total_size":\([0-9]*\).*/\1/p' "$fr_meta/stats")"
-    fr_need=$((fr_need + ${fr_size:-0}))
-    printf '%s %s %s\n' "$fr_p" "$fr_s" "${fr_size:-0}" >> "$fr_meta/sizes"
+    fr_size="$(sed -n 's/.*"total_size":\([0-9][0-9]*\).*/\1/p' "$fr_meta/stats")"
+    [ -n "$fr_size" ] || die "Couldn't read the size of $fr_p: restic said no total_size."
+    fr_need=$((fr_need + fr_size))
+    printf '%s %s %s\n' "$fr_p" "$fr_s" "$fr_size" >> "$fr_meta/sizes"
   done < "$fr_meta/parts"
   grep -q '^front-door/data.tar ' "$fr_meta/sizes" || die "The backup $fr_id holds no front door's data."
+  # Each account's born stamp (#1019), from the tags of its data's snapshot, for put_set: the account put back is that
+  # one, so that its erase here forgets the snapshots made of it before too (they carry that stamp, and this machine's
+  # own would be new).
+  mkdir -p "$OFFSITE_SCRATCH/born"
+  fr_data="$(sed -n 's#^accounts/[^/]*/data\.tar \([0-9a-f]*\) .*#\1#p' "$fr_meta/sizes")"
+  if [ -n "$fr_data" ]; then
+    # shellcheck disable=SC2086 # one id per word
+    r snapshots --json $fr_data > "$fr_meta/tags" 2> "$fr_meta/err" || die "Couldn't read the tags of the backup's snapshots: $(offsite_why "$fr_meta/err")"
+    json 'j.map((s) => s.id + " " + ((s.tags || []).find((t) => t.startsWith("born=")) || "").slice(5)).join("\n")' < "$fr_meta/tags" > "$fr_meta/born"
+    while read -r fr_p fr_s fr_size; do
+      case "$fr_p" in accounts/*/data.tar) ;; *) continue ;; esac
+      fr_n="${fr_p#accounts/}"
+      fr_n="${fr_n%/data.tar}"
+      valid_account "$fr_n" || continue
+      fr_born="$(awk -v id="$fr_s" '$1 == id { print $2; exit }' "$fr_meta/born")"
+      if printf '%s' "$fr_born" | grep -Eqx '[0-9]{8}T[0-9]{6}Z'; then printf '%s\n' "$fr_born" > "$OFFSITE_SCRATCH/born/$fr_n"; fi
+    done < "$fr_meta/sizes"
+  fi
   fr_free=$(($(df -Pk "$DIR" | awk 'NR == 2 { print $4 }') * 1024))
   [ $((2 * fr_need + OFFSITE_TEST_ROOM)) -le "$fr_free" ] \
     || die "It needs $(rt_gb $((2 * fr_need + OFFSITE_TEST_ROOM))) free in $DIR (the backup, its data put back, and 512 MB to spare), and has $(rt_gb "$fr_free")."
@@ -3432,6 +3470,7 @@ offsite_restore() {
   fr_done=$?
   set -e
   rm -rf -- "$OFFSITE_SCRATCH"
+  INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
   if [ "$fr_done" != 0 ]; then
     fr_text="$(cut -f2- "$fr_why" 2>/dev/null || true)"
     fr_text="${fr_text:-The off-site restore stopped without saying why}"
@@ -3451,21 +3490,24 @@ offsite_restore() {
 RESTORE_TEST_REQUEST=RESTORE-TEST
 # restore_test_request REQUEST: the test the request REQUEST asks, which is removed as it is read.
 restore_test_request() {
-  RESTORE_TEST="$(head -c 100 "$1" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)"
-  valid_account "$RESTORE_TEST" || RESTORE_TEST=''
+  # Read only once it is root's: the front door may swap a file of its own for a pipe, which a read would wait on.
+  RESTORE_TEST=''
   if ! by_root "$1"; then
     rm -f -- "$1"
     restore_test_said refused '"error":"Only root asks for this."'
     warn "A restore test request that root didn't make was refused."
     return 0
   fi
+  RESTORE_TEST="$(head -c 100 "$1" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)"
+  valid_account "$RESTORE_TEST" || RESTORE_TEST=''
   rm -f -- "$1"
   if [ -z "$RESTORE_TEST" ]; then
     restore_test_said refused '"error":"The request named no account."'
     warn "A restore test request named no account."
     return 0
   fi
-  restore_test </dev/null || warn "The restore test of $RESTORE_TEST didn't pass: $RT_TEXT"
+  restore_test </dev/null
+  [ -z "$RT_TEXT" ] || warn "The restore test of $RESTORE_TEST didn't pass: $RT_TEXT"
 }
 
 # revision_of IMAGE [DOCKER]: the source revision IMAGE was built from, 7 characters, or nothing.

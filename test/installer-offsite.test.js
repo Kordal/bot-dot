@@ -15,7 +15,8 @@ const volume = (home, name) => path.join(home, '.local', 'share', 'docker', 'vol
 // output as the part its --stdin-filename names (with its tags beside it), and a part named in STAND_IN_RESTIC_FAIL
 // fails as a full repository would. STAND_IN_RESTIC_UNREACHABLE: the repository can't be reached. Each backup is also
 // kept as a snapshot of its own (byid/ID, its name in ID.name, ID the sha256 of its name and its content), which dump,
-// stats and restore read, and a manifest's id and tags are listed in manifests, which snapshots reads.
+// stats and restore read, and a manifest's id and tags are listed in manifests, which snapshots reads; snapshots given
+// ids lists those, with their tags. STAND_IN_RESTIC_NO_SIZE: stats says no total_size.
 const restic = (repo) => `#!/bin/sh
 echo "restic $*" >> "$STAND_IN_LOG"
 echo "restic-env $RESTIC_REPOSITORY $RESTIC_PASSWORD_FILE $RESTIC_CACHE_DIR" >> "$STAND_IN_LOG"
@@ -34,13 +35,19 @@ case "$1" in
     echo "$tags" > "${repo}/parts/$name.tags"
     echo "$(printf '%s %s' "$name" "$tags" | sha256sum | cut -c1-64) $tags $name" >> "${repo}/snaps"
     sid="$(printf '%s %s' "$name" "$(sha256sum < "${repo}/parts/$name")" | sha256sum | cut -c1-64)"
-    mkdir -p "${repo}/byid"; cp "${repo}/parts/$name" "${repo}/byid/$sid"; echo "$name" > "${repo}/byid/$sid.name"
+    mkdir -p "${repo}/byid"; cp "${repo}/parts/$name" "${repo}/byid/$sid"; echo "$name" > "${repo}/byid/$sid.name"; echo "$tags" > "${repo}/byid/$sid.tags"
     [ "$name" != manifest.json ] || echo "$sid $tags" >> "${repo}/manifests"
     echo "{\\"message_type\\":\\"summary\\",\\"data_added_packed\\":100,\\"snapshot_id\\":\\"$sid\\"}" ;;
   check) echo "$2" >> "${repo}/checked"
     [ -z "\${STAND_IN_RESTIC_DAMAGED:-}" ] || { echo "Pack 3f1a: hash mismatch" >&2; exit 1; } ;;
   # With --tag account=…: every snapshot kept (snaps) whose tags hold all those asked, as restic lists them.
   snapshots) want=''; prev=''; for a in "$@"; do [ "$prev" != --tag ] || want="$a"; prev="$a"; done
+    ids="$(for a in "$@"; do echo "$a"; done | grep -Ex '[0-9a-f]{64}' || true)"
+    if [ -n "$ids" ]; then out=''
+      for id in $ids; do [ -f "${repo}/byid/$id" ] || { echo "Fatal: no snapshot $id" >&2; exit 1; }
+        out="$out\${out:+,}{\\"time\\":\\"2026-11-01T03:00:00Z\\",\\"tags\\":[\\"$(sed 's/,/","/g' "${repo}/byid/$id.tags")\\"],\\"id\\":\\"$id\\"}"; done
+      echo "[$out]"; exit 0
+    fi
     case "$want" in *account=*)
       out=''
       [ ! -f "${repo}/snaps" ] || while read -r id tags name; do
@@ -62,6 +69,7 @@ case "$1" in
     [ -z "\${STAND_IN_RESTIC_SHORT:-}" ] || [ "$(cat "${repo}/byid/$2.name")" != "$STAND_IN_RESTIC_SHORT" ] || { head -c 3 "${repo}/byid/$2"; exit 0; }
     cat "${repo}/byid/$2" ;;
   stats) [ -f "${repo}/byid/$5" ] || exit 1
+    [ -z "\${STAND_IN_RESTIC_NO_SIZE:-}" ] || { echo '{"total_file_count":1}'; exit 0; }
     echo "{\\"total_size\\":$(wc -c < "${repo}/byid/$5" | tr -d ' '),\\"total_file_count\\":1}" ;;
   # restore ID --target DIR [--verify]: the snapshot's one file at its name in DIR; one named in STAND_IN_RESTIC_RESTORE_FAIL
   # fails as a pack that can't be read would.
@@ -236,6 +244,8 @@ test('a repository that can\'t be reached fails the run at its check, and says w
   assert.equal(said.part, 'check');
   assert.match(said.error, /Couldn't open the off-site repository .*: Fatal: unable to open repository: ssh: Permission denied \(publickey\)/);
   assert.ok(!resticCalls(done).some((c) => / (init|backup) /.test(c)), 'nothing is made or written');
+  const instance = fs.readFileSync(path.join(m.dir, 'front-door', '.env'), 'utf8').match(/^BOT_DOT_INSTANCE=(.*)$/m)[1];
+  assert.equal(said.instance, instance, 'a run that never opened the repository names the instance too');
 });
 
 test('a Storage Box over SFTP gets a key of this machine\'s own, which restic signs in with, never asking', (t) => {
@@ -573,13 +583,19 @@ const ask = (m, name, body, { given = {}, dockerFirst = [] } = {}) => {
   const done = m.step(name, { body, given, dockerFirst, bins: { restic: restic(m.store) } });
   return { ...done, system: fs.readFileSync(log, 'utf8').slice(before) };
 };
-// holdLock(t, m): the off-site lock held, as a nightly backup that runs holds it, until the test ends.
+// holdLock(t, m): the off-site lock held, as a nightly backup that runs holds it, until the test ends or the function
+// it returns lets it go.
 function holdLock(t, m) {
   const file = path.join(m.first.run, 'offsite.lock');
   const child = spawn('flock', ['-n', file, 'sleep', '120'], { stdio: 'ignore', detached: true });
-  t.after(() => { try { process.kill(-child.pid); } catch { /* gone */ } });
+  const release = () => { try { process.kill(-child.pid); } catch { /* gone */ } };
+  t.after(release);
   for (let i = 0; i < 400 && spawnSync('flock', ['-n', file, 'true']).status === 0; i++) spawnSync('sleep', ['0.05']);
   assert.notEqual(spawnSync('flock', ['-n', file, 'true']).status, 0, 'the lock is held');
+  return () => {
+    release();
+    for (let i = 0; i < 400 && spawnSync('flock', ['-n', file, 'true']).status !== 0; i++) spawnSync('sleep', ['0.05']);
+  };
 }
 
 test('RESTORE-TEST from root runs the restore test of its account, and says it passed or failed as the command line does', (t) => {
@@ -629,7 +645,9 @@ test('RESTORE-TEST and OFFSITE-RESTORE the front door made are refused, and neit
     fs.chownSync(path.join(requests, name), 990, 990);
   }
   const done = ask(m, 'bob', '');
-  assert.deepEqual(status(done, 'restore-test.json'), { ...status(done, 'restore-test.json'), state: 'refused', account: 'bob', error: 'Only root asks for this.' });
+  assert.deepEqual(status(done, 'restore-test.json'), { ...status(done, 'restore-test.json'), state: 'refused', error: 'Only root asks for this.' });
+  // What the front door wrote is never read: it could be a pipe by then, which a read would wait on for ever.
+  assert.ok(!('account' in status(done, 'restore-test.json')), 'the front door\'s file is not read');
   assert.deepEqual(status(done, 'restore.json'), { ...status(done, 'restore.json'), state: 'refused', from: 'offsite', error: 'Only root asks for this.' });
   assert.deepEqual(resticCalls(done), []);
   assert.equal(doorData(m), before);
@@ -770,4 +788,107 @@ test('an account\'s Docker, which an off-site restore may start, is started with
   const docker = code.split('\n').filter((line) => /nohup '\$ROOTLESS'/.test(line));
   assert.equal(docker.length, 1);
   assert.match(docker[0], /9>&- 8>&-/, docker[0].trim());
+});
+
+test('RESTORE-TEST on a machine whose repository was never opened makes no repository and no password', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  const done = ask(m, 'RESTORE-TEST', 'bob\n', { given: { BOT_DOT_OFFSITE_REPO: m.store } });
+  const said = status(done, 'restore-test.json');
+  assert.deepEqual({ state: said.state, account: said.account }, { state: 'failed', account: 'bob' });
+  assert.match(said.error, /^This machine has no password of the off-site repository \S+: give it with OFFSITE-SET\.$/);
+  assert.ok(!fs.existsSync(path.join(m.secrets, 'password')), 'no password that nobody is shown');
+  assert.ok(!resticCalls(done).some((c) => / init /.test(c)), 'no repository is made');
+});
+
+test('a part whose size restic doesn\'t say stops an off-site restore and a restore test before anything is restored', (t) => {
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  fresh(m);
+  const before = doorData(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { given: { STAND_IN_RESTIC_NO_SIZE: '1' }, dockerFirst: extracts });
+  const said = status(done, 'restore.json');
+  assert.deepEqual({ state: said.state, phase: said.phase }, { state: 'failed', phase: 'download' });
+  assert.equal(said.error, 'Couldn\'t read the size of front-door/data.tar: restic said no total_size.');
+  assert.equal(resticCalls(done).filter((c) => / restore /.test(c)).length, 1, 'only the manifest is restored');
+  assert.equal(doorData(m), before);
+  assert.ok(!fs.existsSync(scratch(m)));
+
+  const test = m.restoreTest('bob', { given: { STAND_IN_RESTIC_NO_SIZE: '1' } });
+  assert.notEqual(test.status, 0);
+  assert.match(status(test, 'restore-test.json').error, /^Couldn't read the size of accounts\/bob\/\S+: restic said no total_size\.$/);
+  assert.ok(!resticCalls(test).some((c) => / dump \S+ accounts\//.test(c)), 'nothing of the account is restored');
+});
+
+test('an OFFSITE-RESTORE gives each account the born stamp its snapshots carry, so that its erase forgets them', (t) => {
+  const m = machine(t);
+  const born = path.join(m.dir, 'born');
+  fs.mkdirSync(born, { recursive: true });
+  fs.writeFileSync(path.join(born, 'bob'), '20260101T000000Z\n');
+  m.offsite();
+  const annBorn = fs.readFileSync(path.join(born, 'ann'), 'utf8');
+  // The new machine: stamps of its own, made by its first backup.
+  fs.writeFileSync(path.join(born, 'ann'), '20261106T000000Z\n');
+  fs.writeFileSync(path.join(born, 'bob'), '20261106T000000Z\n');
+  fresh(m);
+  const done = ask(m, 'OFFSITE-RESTORE', 'latest\n', { dockerFirst: extracts });
+  assert.equal(status(done, 'restore.json').state, 'restored', done.said);
+  assert.equal(fs.readFileSync(path.join(born, 'bob'), 'utf8'), '20260101T000000Z\n', 'bob\'s, as his snapshots are tagged');
+  assert.equal(fs.readFileSync(path.join(born, 'ann'), 'utf8'), annBorn);
+  assert.ok(!fs.existsSync(scratch(m)));
+});
+
+test('an account made in the same run as an off-site restore gets the restored instance', (t) => {
+  const m = machine(t);
+  // carol signed up at the front door, and wasn't made yet when it was backed up.
+  m.door({ accounts: { ann: {}, bob: {}, carol: {} } });
+  m.offsite();
+  const old = instanceOf(m);
+  const env = path.join(m.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_INSTANCE=.*$/m, 'BOT_DOT_INSTANCE=0badcafe'));
+  fresh(m);
+  // The restored front door asks for her in the same run.
+  fs.writeFileSync(path.join(m.dir, 'front-door', 'requests', 'carol'), '');
+  const done = ask(m, 'OFFSITE-RESTORE', `latest\n${old}\n`, { dockerFirst: extracts });
+  assert.equal(status(done, 'restore.json').state, 'restored', done.said);
+  assert.equal(instanceOf(m), old);
+  const carol = fs.readFileSync(path.join(m.dir, 'accounts', 'carol', '.env'), 'utf8');
+  assert.equal(carol.match(/^BOT_DOT_INSTANCE=(.*)$/m)[1], old, 'not the instance the run started with');
+});
+
+test('the scratch folders a cut-off restore or restore test left are removed by the next off-site backup, under its lock', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const left = [scratch(m), path.join(m.dir, 'restore-test')];
+  for (const dir of left) {
+    fs.mkdirSync(path.join(dir, 'accounts', 'bob'), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'accounts', 'bob', 'env'), 'SECRET=1\n');
+  }
+  const release = holdLock(t, m);
+  m.offsite();
+  for (const dir of left) assert.ok(fs.existsSync(dir), 'kept while a restore may be using it');
+  release();
+  const done = m.offsite();
+  assert.equal(done.status, 0, done.stderr);
+  for (const dir of left) assert.ok(!fs.existsSync(dir), `${dir} is removed`);
+});
+
+test('a restore test and an off-site backup stop at a step that fails, from a request and from the command line', (t) => {
+  // Called with || (or in an if), a function's subshell runs with set -e off, and goes on past the failure.
+  const m = machine(t);
+  withBobsData(m);
+  m.offsite();
+  const cache = path.join(m.secrets, 'cache');
+  fs.rmSync(cache, { recursive: true });
+  fs.writeFileSync(cache, 'not a folder');
+  const asked = ask(m, 'RESTORE-TEST', 'bob\n');
+  assert.equal(status(asked, 'restore-test.json').state, 'failed', asked.said);
+  const run = m.restoreTest('bob');
+  assert.notEqual(run.status, 0);
+  assert.equal(status(run, 'restore-test.json').state, 'failed');
+  const backup = m.offsite();
+  assert.notEqual(backup.status, 0);
+  assert.equal(status(backup, 'offsite.json').state, 'failed');
+  assert.ok(!resticCalls(backup).some((c) => / backup /.test(c)), 'nothing is backed up past it');
 });
