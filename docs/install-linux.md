@@ -12,9 +12,9 @@ One machine serves several **accounts**, each walled off from the others ([ADR 0
 
 - **Accounts, with passkeys.** Everyone signs in at botdot's front door with a passkey; there are no passwords. Your own account, the admin's, is made with the link the installer prints, and a new account needs a sign-up link from you. Each account has its own Linux user, its own rootless Docker whose containers run under gVisor, and its own botdot server: its bots, data and logins are its own, and no other account can reach them.
 - **Root is trusted.** **Whoever is root on the machine can reach every account on it**: its data, its bots and the logins they hold (the Vault, Bitwarden, connected apps). Keep root to yourself.
-- **A Linux server or VM**, Ubuntu 24.04, on Intel/AMD (x86_64) or ARM (aarch64), where you can use `sudo`. The installer runs as root, because it makes a Linux user for each account. It must be a full VM (KVM, a Proxmox VM, a cloud VPS): rootless Docker and gVisor don't run in an LXC or OpenVZ container.
+- **A Linux server or VM**, on Intel/AMD (x86_64) or ARM (aarch64), where you can use `sudo`: Ubuntu 22.04 or newer, Debian 12 or 13, Fedora, or RHEL 9 or 10 and its rebuilds (Rocky Linux, AlmaLinux), with Linux 5.11 or newer ([Platforms](#platforms)). The installer runs as root, because it makes a Linux user for each account. It must be a full VM (KVM, a Proxmox VM, a cloud VPS): rootless Docker and gVisor don't run in an LXC or OpenVZ container.
 - **Its size:** at least 4 CPUs, 8 GB of RAM and 40 GB of free disk for one account. The installer doesn't check this on its own.
-- **Docker** from docker.com (`docker-ce`), with Docker Compose (`docker compose`): Ubuntu's and Debian's own `docker.io` has no rootless Docker. The installer offers to install Docker when it's missing, and rootless Docker, gVisor's `runsc` and `setfacl` with `apt-get`.
+- **Docker** from docker.com (`docker-ce`), with Docker Compose (`docker compose`): the distributions' own `docker.io` and `moby-engine`, and Podman's `podman-docker`, have no rootless Docker. The installer offers to install Docker when it's missing, and rootless Docker, gVisor's `runsc` and `setfacl` with `apt-get` or `dnf`.
 - **git** and **curl**, and **make** for a self-built botdot server.
 - **A way in**, one of the two, chosen when you install:
   - **a public domain** whose DNS points at the machine, with ports 80, 443 and 8443 free (8443 is the sandbox's address for interactive pages): Caddy answers there over HTTPS and fetches its own certificate;
@@ -55,7 +55,8 @@ A run that fails prints no such line.
 
 ### What the installer changes on the machine
 
-- **Packages,** with `apt-get` and after asking: Docker (from docker.com), `docker-ce-rootless-extras`, gVisor's `runsc` and its apt source, `uidmap`, `acl`, and Tailscale on a tailnet.
+- **Packages,** with `apt-get` or `dnf` and after asking: Docker (from docker.com; on Fedora and the RHEL family its repository in `/etc/yum.repos.d/docker-ce.repo`), `docker-ce-rootless-extras`, `uidmap` (`shadow-utils` on dnf), `slirp4netns`, `acl`, and Tailscale on a tailnet.
+- **gVisor's `runsc`** at the release botdot pins: on Debian and Ubuntu from gVisor's apt source (`/etc/apt/sources.list.d/gvisor.list`); elsewhere from gVisor's release files, checked by their sha256, in `/usr/local/bin` (`runsc` and `gvisor-bin`, listed in `/etc/botdot-gvisor`).
 - **Docker's settings:** it writes log limits into `/etc/docker/daemon.json` and restarts the machine's Docker.
 - **Linux users:** `botdot-door` for the front door, and `botdot-<name>` for each account, with its lines in `/etc/subuid` and `/etc/subgid`.
 - **systemd units** named `botdot-*`, among them each account's rootless Docker and a firewall chain for the bots' computers, and on Ubuntu 24.04 the AppArmor profile `botdot-rootlesskit`.
@@ -351,8 +352,16 @@ That keeps your data. To remove it too (every account's bots, chats, memory, vau
 
 ## Platforms
 
-- **Intel/AMD (x86_64)** on Ubuntu 24.04 is what botdot is tested on.
-- **ARM (aarch64):** the images are built for it, but botdot is not yet tested on real ARM hardware.
-- **Debian 12:** the installer knows it, but it is not tested.
+| | Docker, rootless Docker and gVisor | Tested |
+| --- | --- | --- |
+| **Ubuntu 22.04, 24.04 and newer** | installed with `apt-get` | 24.04 runs botdot's own servers; every change installs on 22.04 and 24.04 in CI, and botdot end to end on 24.04 |
+| **Debian 12 and 13** | installed with `apt-get` | every change installs on both in CI, and botdot end to end on 12 |
+| **Fedora** | installed with `dnf` | every change installs on Fedora 43 in CI, and botdot end to end |
+| **RHEL 9 and 10, Rocky Linux, AlmaLinux, CentOS Stream, Oracle Linux** | installed with `dnf` | every change installs on Rocky 10 and AlmaLinux 9 in CI, and botdot end to end on Rocky 10 |
+| **Any other Linux** (Arch, openSUSE…) | install them yourself, then run the installer | not tested |
+
+- **Linux 5.11 or newer.** An older kernel (Debian 11, RHEL 8) is refused: each account's rootless Docker keeps its images on overlayfs, which a user without root may mount from 5.11 on.
+- **Intel/AMD (x86_64) and ARM (aarch64):** the images are built for both; CI runs on Intel/AMD, and botdot is not yet tested on real ARM hardware.
+- **SELinux** (enforcing, as on Fedora and RHEL): not tested yet, as CI's machines run Ubuntu's kernel without it. The installer says so when it finds it. If an account doesn't start, `sudo journalctl -u botdot-account@<name>` and `sudo ausearch -m avc -ts recent` show why; please report it.
+- **Installing the prerequisites yourself** on another distribution: Docker Engine from docker.com with `dockerd-rootless.sh` ([rootless Docker](https://docs.docker.com/engine/security/rootless/)), `newuidmap` (uidmap or shadow), `slirp4netns`, `setfacl` (acl), and gVisor's `runsc` ([gVisor's install](https://gvisor.dev/docs/user_guide/install/)) at the release `GVISOR_RELEASE` in `install.sh` names.
 - **Not supported:** LXC and OpenVZ containers, and Docker in Docker. Use a full VM.
-- **Not supported for now:** SELinux (enforcing, as on Fedora or RHEL).

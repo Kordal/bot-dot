@@ -1,7 +1,7 @@
 // The installer's test helpers (install.sh, #466, ADR 028): install.sh on a stand-in machine, with stand-ins for
 // docker, the machine's tools (useradd, chown, setfacl, systemctl, su, tailscale, curl…) and the account's rootless
 // Docker. Nothing is installed and nothing runs: each stand-in writes down what it was asked, and the tests read what
-// the installer did and said. The installer tests are in five files, so that they run side by side (installer*.test.js).
+// the installer did and said. The installer tests are in several files, so that they run side by side (installer*.test.js).
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -25,8 +25,8 @@ const SUB = 165536;
 // The machine's own tools, without those a test stands in for or leaves out: a Linux machine may have the real
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
-  'apt-get', 'dpkg', 'dpkg-query', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
-  'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent']);
+  'apt-get', 'dpkg', 'dpkg-query', 'dnf', 'rpm', 'restorecon', 'getcap', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
+  'sysctl', 'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent']);
 let systemTools = null;
 function machineTools() {
   if (systemTools) return systemTools;
@@ -57,10 +57,10 @@ const tailscale = ({ status = { Self: { DNSName: 'vm.example.ts.net.' } }, serve
 //   given: the installer's environment; bins: more stand-ins, { name: script } (null leaves one out);
 //   systemd: whether systemd runs the machine; old: the folders of a botdot from before accounts in its Docker;
 //   exists: the admin's account exists already (the front door makes no link); failPull: a pull that fails;
-//   noCompose: Docker has no Compose; signed / answers: steer the stand-in docker (fake-docker.js); script: another
+//   noCompose: Docker has no Compose; osRelease: the machine's /etc/os-release; signed / answers: steer the stand-in docker (fake-docker.js); script: another
 //   copy of the installer, args: its arguments; dockerFirst: lines the stand-in docker runs first; runtimes: the
 //   runtimes an account's Docker has besides runc and runsc.
-function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', systemd = true, old = '', exists = false, failPull = '', noCompose = false, caddy = true, signed = null, answers = {}, script = file, args = [], again = null, onlyStandIns = false, dockerFirst = [], runtimes = 'runsc-uds' } = {}) {
+function installer(t, { osRelease = null, dotenv = ANSWERED, given = {}, bins = {}, input = '', systemd = true, old = '', exists = false, failPull = '', noCompose = false, caddy = true, signed = null, answers = {}, script = file, args = [], again = null, onlyStandIns = false, dockerFirst = [], runtimes = 'runsc-uds' } = {}) {
   const real = fakeDocker();
   t.after(() => real.remove());
   // `again`: a run before this one on the same machine, whose folders this one finds.
@@ -79,6 +79,8 @@ function installer(t, { dotenv = ANSWERED, given = {}, bins = {}, input = '', sy
     fs.writeFileSync(users, '');
     fs.writeFileSync(path.join(etc, 'passwd'), 'root:x:0:0:root:/root:/bin/bash\n');
   }
+  // osRelease: the machine's /etc/os-release.
+  if (osRelease !== null) fs.writeFileSync(path.join(etc, 'os-release'), osRelease);
   // The account's Docker answers once systemd or su has started it.
   const started = path.join(top, 'started');
   if (signed) real.answer('signed.json', JSON.stringify(signed));
@@ -148,17 +150,18 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   // getent: the domain resolves to STAND_IN_A and STAND_IN_AAAA (nothing unless given).
   stand('getent', 'case "$1" in ahostsv4) a="${STAND_IN_A:-}" ;; ahostsv6) a="${STAND_IN_AAAA:-}" ;; *) exit 2 ;; esac\n[ -n "$a" ] || exit 2\nfor x in $a; do echo "$x STREAM $2"; done');
   // Cloudflare's trace says this machine's public IPv4 is 203.0.113.7, and it has no IPv6 (STAND_IN_IP6 gives it one).
-  stand('curl', `${said('curl')}\ncase "$*" in *1.1.1.1/cdn-cgi/trace*) echo ip=203.0.113.7; exit 0 ;; *2606:4700:4700::1111*/cdn-cgi/trace*) [ -n "\${STAND_IN_IP6:-}" ] || exit 7; echo "ip=$STAND_IN_IP6"; exit 0 ;; esac\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*/api/backups/snapshot*) for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ] || exit 7; d="$(dirname "$(dirname "$(dirname "$s")")")/accounts/$(basename "$(dirname "$s")")/data/.snapshot"; [ -d "\${d%/.snapshot}" ] || exit 22; mkdir -p "$d"; printf 'a consistent copy' > "$d/memory.db"; exit 0 ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
-  for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns']) stand(name, 'exit 0');
+  stand('curl', `${said('curl')}\ncase "$*" in *1.1.1.1/cdn-cgi/trace*) echo ip=203.0.113.7; exit 0 ;; *2606:4700:4700::1111*/cdn-cgi/trace*) [ -n "\${STAND_IN_IP6:-}" ] || exit 7; echo "ip=$STAND_IN_IP6"; exit 0 ;; esac\ncase "$*" in *gvisor.tar.zstd*) for a; do [ "$p" = -o ] && o="$a"; p="$a"; done; [ -n "\${STAND_IN_GVISOR:-}" ] || exit 22; cp "$STAND_IN_GVISOR" "$o"; exit 0 ;; esac\ncase "$*" in *https://*) exit ${caddy ? 0 : 7} ;; esac\ncase "$*" in *--unix-socket*/api/backups/snapshot*) for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ] || exit 7; d="$(dirname "$(dirname "$(dirname "$s")")")/accounts/$(basename "$(dirname "$s")")/data/.snapshot"; [ -d "\${d%/.snapshot}" ] || exit 22; mkdir -p "$d"; printf 'a consistent copy' > "$d/memory.db"; exit 0 ;; esac\ncase "$*" in *--unix-socket*) case "$*" in *"X-Botdot-Account: "[a-z]*) ;; *) exit 22 ;; esac; for a; do [ "$p" = --unix-socket ] && s="$a"; p="$a"; done; [ -S "$s" ]; exit $? ;; esac\nexit 0`);
+  for (const name of ['dockerd-rootless.sh', 'newuidmap', 'slirp4netns', 'sysctl']) stand(name, 'exit 0');
   stand('runsc', 'echo "runsc version release-20261102.0"');
   for (const [name, body] of Object.entries({ tailscale: tailscale(), ...bins })) {
-    if (body === null) fs.rmSync(path.join(bin, name), { force: true });
+    // Left out: kept beside as NAME.removed, which a stand-in package manager may put back.
+    if (body === null) { if (fs.existsSync(path.join(bin, name))) fs.renameSync(path.join(bin, name), path.join(bin, `${name}.removed`)); }
     else fs.writeFileSync(path.join(bin, name), body, { mode: 0o755 });
   }
   // Detached, so without a terminal: the answers come from `input`, never from the terminal the tests run in.
   const result = spawnSync('/bin/sh', [script, ...args], {
     encoding: 'utf8', input, detached: true, timeout: 60_000,
-    env: { PATH: onlyStandIns ? bin : [bin, machineTools()].join(':'), HOME: top, STAND_IN_LOG: log, BOT_DOT_DIR: dir, BOT_DOT_ETC: etc, BOT_DOT_RUN: run, BOT_DOT_PROC: path.join(top, 'proc'), BOT_DOT_CGROUP: path.join(top, 'cgroup'), ...given },
+    env: { PATH: onlyStandIns ? bin : [bin, machineTools()].join(':'), HOME: top, STAND_IN_LOG: log, BOT_DOT_DIR: dir, BOT_DOT_ETC: etc, BOT_DOT_RUN: run, BOT_DOT_LOCAL_BIN: path.join(top, 'local-bin'), BOT_DOT_PROC: path.join(top, 'proc'), BOT_DOT_CGROUP: path.join(top, 'cgroup'), ...given },
   });
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '');
   const envOf = (f) => Object.fromEntries(read(f).split('\n').filter(Boolean).map((line) => [line.split('=')[0], line.slice(line.indexOf('=') + 1)]));
