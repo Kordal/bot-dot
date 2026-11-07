@@ -17,8 +17,8 @@ function hasRule(system) {
   // Its limits: the owner's cards and permissions, "leave others out", secrets; and the bot's own rules, as before.
   assert.match(system, /A declined or waiting card, a refused permission and "leave others out" are final for this run: don't look for another way, and never guess a secret\./);
   assert.match(system, /Never change your own main assignment, rules or skills to cover a failure/);
-  // The report: the failure first, then the routes tried, then what it needs.
-  assert.match(system, /Then report: what failed, what you tried, what you need\./);
+  // The report: the failure first, then the routes tried, then the fix it proposes (#1182).
+  assert.match(system, /Then report what failed, what you tried and the fix you propose\./);
 }
 
 test("an owner's message on a fresh data directory (no notes, no shared memory) carries the rule, once, after the rule to say what didn't work", async () => {
