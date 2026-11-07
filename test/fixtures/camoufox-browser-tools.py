@@ -38,7 +38,23 @@ out["click_unnamed"] = tool(op="click", ref="e7")
 out["fill_email"] = tool(op="fill", ref="e1", text="you@example.com")
 out["fill_password"] = tool(op="fill", ref="e2", text="guess")
 out["fill_cvc"] = tool(op="fill", ref="e3", text="123")
-out["done"] = sync_api.DONE
+out["done"] = list(sync_api.DONE)
+out["typed"] = list(sync_api.TYPED)
+sync_api.TYPED.clear()
+# A long text goes in at once, as pasted, and so does a box that keys don't reach (a date picker, an editor).
+page.elements += [{"role": "textbox", "name": "Notes", "value": ""}, {"role": "textbox", "name": "Date", "value": "", "typeless": True},
+                  {"role": "combobox", "name": "Country", "value": "Poland", "options": [["Poland", "pl"], ["Germany", "de"]]}]
+tool(op="snapshot")
+done = len(sync_api.DONE)
+out["fill_long"] = tool(op="fill", ref="e8", text="x" * 81)
+out["fill_typeless"] = tool(op="fill", ref="e9", text="2026-11-07")
+out["fill_button"] = tool(op="fill", ref="e4", text="x")
+out["fill_lines"] = tool(op="fill", ref="e8", text="one\ntwo")
+out["select"] = tool(op="select", ref="e10", option="Germany")
+out["select_value"] = tool(op="select", ref="e10", option="pl")
+out["select_missing"] = tool(op="select", ref="e10", option="Atlantis")
+out["select_button"] = tool(op="select", ref="e4", option="Germany")
+out["done_more"] = sync_api.DONE[done:]
 out["unknown"] = tool(op="click", ref="e99")
 page.elements = page.elements[:4] + page.elements[5:]  # one "Log in" is gone
 out["gone"] = tool(op="click", ref="e5")
@@ -56,4 +72,8 @@ out["shifted"] = tool(op="click", ref="e2")
 page.elements = [{"role": "button", "name": f"Button number {i}"} for i in range(2000)]
 out["long"] = tool(op="snapshot")
 out["refs_long"] = len(launcher.refs)
+out["find"] = tool(op="find", text="number 1234")
+out["find_many"] = tool(op="find", text="Button")
+out["find_none"] = tool(op="find", text="Checkout")
+out["find_empty"] = tool(op="find", text=" ")
 print(json.dumps(out))

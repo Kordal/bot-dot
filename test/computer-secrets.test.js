@@ -81,6 +81,7 @@ test("the browser's bridge is started as the browser user when the computer star
   assert.ok(bridge.args.includes('HOME=/home/browser'));
   assert.ok(bridge.args.includes(`TZ=${computers.timeZone()}`), "the browser it opens shows botdot's time zone");
   assert.ok(bridge.args.includes('XDG_CACHE_HOME=/opt/camoufox-cache'), "it runs root's copy of the browser");
+  assert.ok(bridge.args.includes('BOTDOT_LOCALE=en-US'), "its browser shows sites in the owner's language");
   assert.deepEqual(bridge.args.slice(-4), ['/usr/local/bin/camoufox-browser', '--serve', ':11', 'bridgebot'],
     "the bot's own screen and profile (#105); the launcher keeps its own log, bounded (#355), and nothing else appends to it");
   assert.ok(bridge.args.includes('DISPLAY=:11'), "Camoufox shows on the bot's own screen");
