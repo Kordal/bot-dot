@@ -18,7 +18,7 @@
   <a href="docs/FAQ.md">FAQ</a>
 </p>
 
-botdot is a messenger for a team of **bots**. Each bot is a Claude Code agent with one job, its own tools, permissions, workspace and schedule. You don't configure them by hand: you tell the **Chief of Staff** what you need in a chat, and it makes the bots, runs them and reports back. Anything risky waits for your OK.
+A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with one job, its own tools, permissions, workspace and schedule. You don't configure them by hand: you tell the **Chief of Staff** what you need in a chat, and it makes the bots, runs them and reports back. Anything risky waits for your OK.
 
 It runs on your own Linux server, with each account walled off under rootless Docker and gVisor, and you use it from the web page, the Android app or the desktop app. It uses the official Claude Code CLI, signed in with your own Claude subscription or API key. MIT licensed, no telemetry.
 
