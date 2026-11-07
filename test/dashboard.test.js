@@ -29,6 +29,10 @@ test('a value is shaped for its tile', () => {
   assert.deepEqual(shape({ kind: 'value', levels: { warn: 80, bad: 95 } }, 90), { text: '90', level: 'warn' });
   assert.deepEqual(shape({ kind: 'value', levels: { warn: 20, bad: 10 } }, '8'), { text: '8', level: 'bad' });
   assert.deepEqual(shape({ kind: 'value' }, 'Sunny'), { text: 'Sunny', level: null });
+  const story = 'EU agrees on AI Act code of practice for general-purpose models, Brussels says';
+  assert.equal(shape({ kind: 'value' }, story).text, 'EU agrees on AI Act code of practice for general-purpose…', 'a long value ends at a whole word (#1187)');
+  assert.equal(shape({ kind: 'value' }, 'x'.repeat(80)).text, `${'x'.repeat(59)}…`, 'one long word is cut, with an ellipsis');
+  assert.equal(shape({ kind: 'value' }, 'y'.repeat(60)).text, 'y'.repeat(60), 'sixty characters fit');
   assert.deepEqual(shape({ kind: 'list' }, 'a\n\nb'), ['a', 'b']);
   assert.equal(shape({ kind: 'list' }, Array.from({ length: 20 }, (_, i) => `x${i}`)).length, 8);
 });

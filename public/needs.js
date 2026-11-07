@@ -498,7 +498,7 @@ function renderNeeds() {
   const drawn = batched(open);
   // An answered card moves to its place among the answered ones and the rest close up; a new one arrives (motion.js).
   Motion.flip(root, '.need-grid > .need-card', 'data-need', () => (root.innerHTML = `
-    <div class="section-head"><div>${needsBack()}<h1>${tr('Needs you')}</h1>${open.length ? '' : `<p>${tr('All done.')}</p>`}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
+    <div class="section-head"><div class="title-back">${needsBack()}<h1>${tr('Needs you')}</h1>${open.length ? '' : `<p>${tr('All done.')}</p>`}${all.line ? `<p class="needs-left">${esc(all.line)}</p>` : ''}</div>
       ${all.label ? `<button class="btn primary" id="needs-all">${esc(all.label)}</button>` : ''}</div>
     <div class="need-grid">${drawn.map((x) => needCardHTML(x)).join('')}${[...needsDone.values()].join('')}</div>`));
   wireNeedCards(root, items);
