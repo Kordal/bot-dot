@@ -75,9 +75,13 @@ test('web: the address and the username of an item are escaped', () => {
   assert.match(page.vaultItemLine({ type: 'api-token', username: '<b>' }), /^🆔 &lt;b&gt; · /);
 });
 
-test('web: the list draws a login-kind item with these two lines, and a card and an identity as before', () => {
+test('web: the list draws a login-kind item as one row with these two lines on its tooltip, and a card and an identity as before', () => {
   assert.match(list, /: vaultItemLine\(l\);/);
-  assert.match(list, /<div class="addr">\$\{kind === 'login' \? vaultItemAddr\(l\) : kind === 'card' \? tr\('Payment card'\) : kind === 'ssh-key' \? tr\('SSH key'\) : kind === 'file' \? tr\('File'\) : tr\('Identity'\)\}<\/div>/);
+  assert.match(list, /const about = `\$\{kind === 'login' \? vaultItemAddr\(l\) : kindLabel\(kind\)\} · \$\{line\}/);
+  assert.match(list, /const kindLabel = \(kind\) => \(kind === 'card' \? tr\('Payment card'\) : kind === 'ssh-key' \? tr\('SSH key'\) : kind === 'file' \? tr\('File'\) : tr\('Identity'\)\);/);
+  assert.match(list, /<button type="button" class="bs-row bs-link vault-item" data-edit-login="\$\{esc\(l\.id\)\}" title="\$\{about/, 'a row that opens the item, its lines on its tooltip');
+  assert.match(list, /<b>\$\{esc\(l\.name\)\}<\/b>\$\{value\}\$\{CHEV\}<\/button>/);
+  assert.match(list, /!l\.allowedBots\.length \? `<span class="bs-val bs-warn">\$\{tr\('No bot yet'\)\}<\/span>`/, 'an item no bot may use says so as its value');
   assert.match(list, /const line = kind === 'card' \? `💳 /, 'a card keeps its line');
   assert.match(list, /: kind === 'identity' \? `🪪 /, 'an identity keeps its line');
   assert.match(list, /<button class="btn primary" id="add-login">＋ \$\{tr\('Add'\)\}<\/button>/, 'the button is "＋ Add"');
@@ -100,15 +104,15 @@ test('web: the Type control has Login, API token, Other and GitHub App, the type
 test('web: the fields of each type: Login a username and a password, API token an optional token ID and a token, Other the secret alone, GitHub App its App ID and key', () => {
   assert.deepEqual(fields(page.vaultTypeFields('login')), [['Username or email', 'username'], ['Password', 'password']]);
   assert.deepEqual(fields(page.vaultTypeFields(undefined)), [['Username or email', 'username'], ['Password', 'password']], 'no type: a login');
-  assert.deepEqual(fields(page.vaultTypeFields('api-token')), [['Token ID optional', 'username'], ['Token', 'password']]);
-  assert.match(page.vaultTypeFields('api-token'), /Token ID <span class="hint">optional<\/span><input type="text" name="username"/);
+  assert.deepEqual(fields(page.vaultTypeFields('api-token')), [['Token ID', 'username'], ['Token', 'password']]);
+  assert.match(page.vaultTypeFields('api-token'), /Token ID<input type="text" name="username" value="" title="optional"/);
   const other = page.vaultTypeFields('other', { username: 'kept-from-before' });
   assert.deepEqual(fields(other), [['Secret', 'password'], ['Or pick its file', 'secretFile']]);
   assert.doesNotMatch(other, /name="username"|kept-from-before/, 'no username field, and the stored one is not drawn');
   assert.match(other, /^<div class="row one" data-type-fields>/, 'one field, across the form');
   assert.match(css, /\.row\.one \{ grid-template-columns: 1fr; \}/);
   const app = page.vaultTypeFields('github-app');
-  assert.deepEqual(fields(app), [['App ID add /installation ID if it is installed on several accounts', 'username'], ['Private key (.pem)', 'password'], ['Or pick its file', 'secretFile']]);
+  assert.deepEqual(fields(app), [['App ID', 'username'], ['Private key (.pem)', 'password'], ['Or pick its file', 'secretFile']]);
   assert.match(app, /^<div class="row one" data-type-fields>/, 'the key under its App ID, across the form');
   for (const type of ['login', 'api-token']) {
     const html = page.vaultTypeFields(type);
@@ -146,7 +150,7 @@ test('web: Other and GitHub App take a secret of several lines, masked, pasted o
 test('web: a saved item keeps its secret when the field is left empty; the username field starts with the stored one, escaped', () => {
   const saved = page.vaultTypeFields('login', { username: 'alice@example.com', isNew: false });
   assert.match(saved, /name="username" value="alice@example\.com"/);
-  assert.match(saved, /Password <span class="hint">leave empty to keep the current one<\/span><span class="secret-input"><input type="password" name="password" autocomplete="new-password" placeholder="••••••••"><button type="button" class="btn sm ghost" data-reveal aria-pressed="false">Show<\/button><\/span>/);
+  assert.match(saved, /Password<span class="secret-input"><input type="password" name="password" autocomplete="new-password" placeholder="••••••••" title="leave empty to keep the current one"><button type="button" class="btn sm ghost" data-reveal aria-pressed="false">Show<\/button><\/span>/);
   assert.doesNotMatch(saved, /required/);
   const evil = page.vaultTypeFields('api-token', { username: '"><img src=x onerror=1>' });
   assert.doesNotMatch(evil, /<img/);
@@ -174,7 +178,7 @@ test('web: the fields follow the choice at once, and what was typed stays', () =
   const { form, choose } = standIn('login', { username: '' });
   form.username.value = 'root@pam!botdot';
   form.password.value = 'typed-secret';
-  assert.deepEqual(choose('api-token'), [['Token ID optional', 'username'], ['Token', 'password']]);
+  assert.deepEqual(choose('api-token'), [['Token ID', 'username'], ['Token', 'password']]);
   assert.equal(form.username.value, 'root@pam!botdot', 'the username is the token ID now');
   assert.equal(form.password.value, 'typed-secret', 'the secret stays in its field');
   assert.doesNotMatch(form.html, /typed-secret/, 'and is never written into the markup');
@@ -199,7 +203,7 @@ test('web: GitHub App fills an empty address with api.github.com, and leaves one
 test('web: a login changed to Other and back shows its stored username again', () => {
   const { form, choose } = standIn('other', { username: 'alice', isNew: false });
   assert.equal(form.username, undefined, 'Other: not shown');
-  assert.deepEqual(choose('login'), [['Username or email', 'username'], ['Password leave empty to keep the current one', 'password']]);
+  assert.deepEqual(choose('login'), [['Username or email', 'username'], ['Password', 'password']]);
   assert.equal(form.username.value, 'alice');
   assert.doesNotMatch(form.html, /required/, 'still a saved item');
 });
