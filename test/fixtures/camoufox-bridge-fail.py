@@ -51,7 +51,7 @@ def until(check):
         time.sleep(0.05)
 
 
-until(lambda: os.path.exists(launcher.BRIDGE_SOCKET))
+until(launcher.bridge_running)  # listening, not only bound
 out = {}
 sync_api.FAIL["goto"] = True
 port_post({"op": "open", "url": "https://slow.example/"})

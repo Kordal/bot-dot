@@ -154,3 +154,140 @@ test('the bot\'s browser_ tools ask botdot\'s browser route and answer with the 
   assert.equal(stale.content[0].text, 'Error: e9 is stale');
   assert.ok(!asked.some((a) => a.path === '/session/computer/cmd'), 'no screenshot was taken');
 });
+
+// What keeps a bot's browser steady (test/fixtures/camoufox-bridge-steady.py, on the stand-in Camoufox).
+let steady;
+async function steadyOut() {
+  steady ||= JSON.parse((await util.promisify(childProcess.execFile)('python3', [path.join(__dirname, 'fixtures', 'camoufox-bridge-steady.py'), LAUNCHER], { timeout: 30_000 })).stdout);
+  return steady;
+}
+
+test('a slow page answers with what it shows so far, and a step done on a page not readable yet is said as done', { skip: !hasPython() }, async () => {
+  const out = await steadyOut();
+  assert.equal(out.goto_slow.ok, true, 'a slow site is no failed goto');
+  assert.match(out.goto_slow.snapshot, /^Page: Stand-in \(https:\/\/example\.com\/\)\nThe page did not finish loading in 15 s: this is what it shows so far\.\n- button/,
+    'the page line stays first: it tells botdot the site');
+  assert.deepEqual(out.click_unread, { ok: true, unread: true, snapshot: 'Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment.' },
+    'never "failed" for a click that happened: the bot would do it twice');
+  assert.equal(out.snapshot_unread.ok, false, 'a snapshot alone still says it could not read the page');
+  assert.match(out.click_covered.error, /Something covers it \(a pop-up, a cookie banner\?\): close that first\.$/);
+  assert.ok(!out.click_covered.error.includes('cookie"'), "the page's markup is not passed on");
+});
+
+test('a request that waited too long in the queue is not done at all, and one in time is', { skip: !hasPython() }, async () => {
+  const out = await steadyOut();
+  assert.deepEqual(out.late, { ok: false, error: 'The browser was still busy with an earlier step, so this was not done. Take a new browser_snapshot, then try again.' });
+  assert.deepEqual(out.in_time, { ok: true, host: '' });
+});
+
+test('an open while Camoufox starts adds no tab, and Camoufox 0.5.6 still opens with the newer bridge', { skip: !hasPython() }, async () => {
+  const out = await steadyOut();
+  assert.deepEqual(out.open_while_starting, { ok: true });
+  assert.equal(out.queued_while_starting, 0, 'the browser that starts opens its own page');
+  assert.equal(out.queued_after, 1);
+  assert.equal(out.opened_on_056, true, 'a computer not yet updated to the newer desktop keeps its browser');
+  assert.equal(out.screen_from, 'browserforge');
+  assert.equal(out.humanize, 0.5, 'curved cursor moves of at most half a second');
+});
+
+test('a saved secret is typed a key at a time with uneven pauses, as a person types', { skip: !hasPython() }, async () => {
+  const { typed_keys: keys, waits } = await steadyOut();
+  assert.equal(keys.join(''), 'synthetic secret');
+  assert.equal(keys.length, 16);
+  assert.equal(waits.length, 16);
+  assert.ok(waits.every((ms) => ms >= 40 && ms <= 300), String(waits));
+  assert.ok(new Set(waits).size > 4, 'not one steady beat');
+});
+
+// open_browser waits until its Camoufox is open, however long that takes up to its limit, and answers with the page,
+// not a screenshot after a fixed 7 s. When it is open already, it goes to the address in its tab.
+function openBrowserStub(t, { openAfter = 1, page = 'Page: Example (https://example.com/)' } = {}) {
+  const asked = [];
+  let checks = 0;
+  const stub = http.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      const b = body ? JSON.parse(body) : null;
+      asked.push({ path: req.url, body: b });
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url === '/session/computer/cmd' && b.command === 'run_command') {
+        const open = ++checks > openAfter;
+        return res.end(JSON.stringify({ ok: true, text: `data: ${JSON.stringify({ success: true, stdout: open ? 'yes\n' : 'no\n' })}` }));
+      }
+      if (req.url === '/session/computer/cmd') return res.end('{"ok": true, "text": "data: {\\"success\\": true, \\"image_data\\": \\"aGk=\\"}"}');
+      if (req.url === '/session/computer/browser') return res.end(JSON.stringify(checks > openAfter ? { ok: true, snapshot: `${page}${b.op === 'goto' ? ` after goto ${b.url}` : ''}` } : { ok: false, error: "Camoufox isn't open." }));
+      res.end('{"ok":true}');
+    });
+  });
+  return new Promise((r) => stub.listen(0, '127.0.0.1', r)).then(() => {
+    t.after(() => stub.close());
+    return { asked, url: `http://127.0.0.1:${stub.address().port}` };
+  });
+}
+
+test('open_browser answers with the page as soon as Camoufox is open, without a fixed wait', async (t) => {
+  const { asked, url } = await openBrowserStub(t, { openAfter: 2 });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const began = Date.now();
+  const out = await mcp.request('tools/call', { name: 'open_browser', arguments: { url: 'example.com' } });
+  assert.ok(Date.now() - began < 5000, `${Date.now() - began} ms`);
+  assert.equal(out.content.length, 1, 'the page as text, no screenshot');
+  assert.equal(out.content[0].text, 'Opened Camoufox at https://example.com.\nPage: Example (https://example.com/)');
+  const launches = asked.filter((a) => a.path === '/session/computer/launch');
+  assert.deepEqual(launches.map((a) => a.body.command), ["camoufox-browser 'https://example.com' >/tmp/camoufox.log 2>&1"]);
+  const probe = asked.findIndex((a) => a.path === '/session/computer/browser');
+  assert.ok(probe >= 0 && probe < asked.indexOf(launches[0]), 'the bridge is asked first, which starts one that ended');
+});
+
+test('open_browser on an open Camoufox goes to the address in its tab and answers with that page', async (t) => {
+  const { asked, url } = await openBrowserStub(t, { openAfter: 0 });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const out = await mcp.request('tools/call', { name: 'open_browser', arguments: { url: 'https://example.org/a' } });
+  assert.equal(out.content[0].text, 'Camoufox is already open, so it went to https://example.org/a in its tab.\nPage: Example (https://example.com/) after goto https://example.org/a');
+  assert.ok(!asked.some((a) => a.path === '/session/computer/launch'), 'nothing more was started');
+});
+
+test('open_browser says so when Camoufox does not open in time', async (t) => {
+  const { asked, url } = await openBrowserStub(t, { openAfter: 1e9 });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer', BOT_DOT_OPEN_BROWSER_WAIT_MS: '3000' });
+  await mcp.request('initialize', {});
+  const out = await mcp.request('tools/call', { name: 'open_browser', arguments: {} });
+  assert.match(out.content[0].text, /^Camoufox did not open within 3 seconds\. Call open_browser once more; if it fails again, tell the owner/);
+  assert.equal(asked.filter((a) => a.path === '/session/computer/launch').length, 1, 'one open: a second would be a second tab');
+});
+
+test('open_browser takes an address as a person types it, and says when it stays where it is', async (t) => {
+  const { asked, url } = await openBrowserStub(t, { openAfter: 0 });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const open = async (u) => (await mcp.request('tools/call', { name: 'open_browser', arguments: u === undefined ? {} : { url: u } })).content[0].text;
+  assert.match(await open('localhost:3000/app'), /went to http:\/\/localhost:3000\/app in its tab/);
+  assert.match(await open('example.com:8443/x'), /went to https:\/\/example\.com:8443\/x in its tab/);
+  assert.match(await open(''), /^Camoufox is already open\.\n/, 'nothing is a blank page, never https://');
+  assert.match(await open('file:///etc/hosts'), /^Camoufox is already open\. It goes only to http and https addresses, so it stayed where it is, not file:\/\/\/etc\/hosts\./);
+  assert.deepEqual(asked.filter((a) => a.body?.op === 'goto').map((a) => a.body.url), ['http://localhost:3000/app', 'https://example.com:8443/x']);
+});
+
+test('open_browser says at once when the browser keeps stopping, instead of waiting for it', async (t) => {
+  const http2 = require('node:http');
+  const stub = http2.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url === '/session/computer/cmd') return res.end(JSON.stringify({ ok: true, text: `data: ${JSON.stringify({ success: true, stdout: 'no\n' })}` }));
+      if (req.url === '/session/computer/browser') return res.end(JSON.stringify({ ok: false, error: "The browser keeps stopping, so botdot didn't start it again now. Tell the owner, and try again in ten minutes." }));
+      if (req.url === '/session/computer/launch') throw new Error('not launched');
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise((r) => stub.listen(0, '127.0.0.1', r));
+  t.after(() => stub.close());
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: `http://127.0.0.1:${stub.address().port}`, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const out = await mcp.request('tools/call', { name: 'open_browser', arguments: { url: 'https://example.com' } });
+  assert.match(out.content[0].text, /^The browser keeps stopping/);
+});
