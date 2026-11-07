@@ -20,6 +20,7 @@ body:
       label: How botdot was installed
       options:
         - install.sh on a Linux server or VM
+        - The desktop app's botdot on this computer (Mac or PC)
         - Self-built images (make images, then install.sh)
         - From the source (npm start)
         - Other (say how below)
@@ -33,6 +34,7 @@ body:
       options:
         - The web page
         - The Android app
+        - The desktop app (Windows or Mac)
         - The admin page
         - The installer
         - Somewhere else

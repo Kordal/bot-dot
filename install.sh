@@ -2299,6 +2299,15 @@ take_key() {
   done
 }
 if [ "$REACH" != local ]; then
+  # Said once before the three optional keys' questions, on a first install that asks them.
+  if [ -n "$FIRST" ] && [ -z "$UNATTENDED" ] && [ -z "$MANAGED" ] \
+    && [ -z "${BOT_DOT_OPENROUTER_KEY+1}${BOT_DOT_BOAT_KEY+1}${BOT_DOT_COMPOSIO_KEY+1}" ]; then
+    say ""
+    say "Three optional services follow. botdot works without them: answer n to skip, and set each later."
+    say "  Jev: a small model on OpenRouter that picks which bot answers in a group chat, in place of Claude Haiku."
+    say "  boat.dev: a paid cloud computer for the bots, in place of the one on this machine."
+    say "  Composio: bots use your apps, such as Gmail, Slack or GitHub."
+  fi
   take_key group-router OpenRouter BOT_DOT_OPENROUTER_KEY "Use Jev as the decision model?" "OpenRouter key:" \
     https://openrouter.ai/settings/keys "admin page"
   OPENROUTER_KEY="$KEY_TAKEN"
@@ -4120,9 +4129,9 @@ if [ "$REACH" = public ]; then
     # The DNS was set while the installer ran: Caddy waits longer after each failed try, so a restart tries now.
     $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || true
     if caddy_answers; then ok "Caddy answers on https://$NAME"
-    else warn "Caddy has no certificate for $NAME yet. Keep ports 80, 443 and 8443 open to this machine. See: cd $DOOR && docker compose logs caddy"; fi
+    else warn "Caddy has no certificate for $NAME yet. Keep ports 80, 443 and 8443 open to this machine. See: cd $DOOR && sudo docker compose logs caddy"; fi
   else
-    warn "Caddy doesn't answer on https://$NAME yet. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open. See: cd $DOOR && docker compose logs caddy"
+    warn "Caddy doesn't answer on https://$NAME yet. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open. See: cd $DOOR && sudo docker compose logs caddy"
     [ "$TLS" = internal ] || say "$DNS_SAID"
   fi
 elif [ "$REACH" = local ]; then
@@ -4178,6 +4187,8 @@ if [ -n "$LINK" ]; then
   say ""
   say "Until it is used, botdot shows only \"Open the link from your server's install\"."
   say "Then sign in to Claude on your account's setup page (it takes a minute)."
+elif [ -z "$(door_state "$ADMIN")" ]; then
+  warn "The sign-up link couldn't be made. Make it with: cd $DOOR && sudo docker compose exec front-door node front-door.js sign-up-link --account $ADMIN"
 fi
 say "Make sign-up links for other people on the admin page: https://$NAME/admin"
 say "Update every account later on the admin page, or by running this installer again. Each account's data is in $ACCOUNTS/<account>/data."
