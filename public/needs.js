@@ -159,13 +159,13 @@ function needCardHTML(x, here = null) {
   if (x.kind === 'batch') return batchCardHTML(x, here);
   // Whose it is, and for a card asked in a group, in which: the group's own chat says only the bot.
   const who = x.bot ? `${botLabel(x.bot)}${x.group && here !== `group:${x.group.id}` ? ` <span class="need-in">${tr('in {group}', { group: esc(x.group.name) })}</span>` : ''}` : '';
-  const card = (title, meta, body, actions, cls = '') => `
+  const card = (title, meta, body, actions, cls = '', error = '') => `
     <div class="${['card', 'need-card', cls, needsOpen.has(x.key) ? 'open' : ''].filter(Boolean).join(' ')}" data-need="${esc(x.key)}" title="${tr('Click to see it all')}">
       ${who ? `<div class="need-who">${who}</div>` : ''}
       <div class="need-title">${title}</div>
       ${meta ? `<div class="need-meta">${meta}</div>` : ''}
       ${body || ''}
-      <div class="req-error" role="alert" hidden></div>
+      <div class="req-error" role="alert"${error ? '' : ' hidden'}>${esc(error)}</div>
       <div class="need-actions">${actions}</div>
     </div>`;
   // A job: one that waits for its first OK, or a change to an approved one (jobCard). The no and the yes read the
@@ -245,6 +245,19 @@ function needCardHTML(x, here = null) {
     const always = shut ? '' : said(x.a.always);
     return card(esc(x.a.title), esc(said(x.a.meta)), `${rows}${tooLong(x.a) ? `<div class="need-meta">${tr('Too long to show in full.')}</div>` : ''}`,
       `<button class="btn sm" data-need-no>${tr('Decline')}</button>${always ? `<button class="btn sm" data-need-always>${esc(always)}</button>` : ''}${shut ? '' : `<button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`}`, rows ? 'need-rows' : '');
+  }
+  // A card whose main button the server names by a verb (`act`, docs/api.md "A missing connected app"): its title,
+  // Not now and that button, no more. connect: the app's sign-in page through its ask, saying where that is (opening,
+  // waiting for the sign-in, what went wrong); open: a screen of the page's own. A verb the page does not know draws no card.
+  if (x.kind === 'ask' && x.a.act && typeof x.a.act === 'object') {
+    const label = actLabel(x);
+    if (!label) return '';
+    const s = x.a.act.verb === 'connect' ? connecting.get(x.a.id) || {} : {};
+    const main = s.state === 'opening' ? `<button class="btn sm primary" disabled>${tr('Opening…')}</button>`
+      : `<button class="btn sm primary" data-need-act>${s.state === 'failed' ? tr('Try again') : esc(label)}</button>`;
+    const body = said(x.a.body) ? `<div class="need-body"><div class="nb">${esc(said(x.a.body))}</div></div>` : '';
+    return card(esc(said(x.a.title)), s.state === 'waiting' ? tr('Waiting for sign-in') : '', body,
+      `<button class="btn sm" data-need-no>${esc(said(x.a.no) || tr('Not now'))}</button>${main}`, 'need-connect', s.state === 'failed' ? s.error || '' : '');
   }
   // A tool the Chief asks to install for a bot: the server's own fields (tool-card.js), no wording from here.
   if (x.kind === 'ask' && ToolCard.is(x.a)) {
@@ -463,7 +476,50 @@ const rowsCut = (a) => Array.isArray(a?.rows) && a.rows.some((r) => r?.more === 
 const tooLong = (a) => a?.more === true;
 
 // What a card draws beyond its key that can change while it waits: the page draws it again when this does.
-const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.batch?.title, x.a?.batch?.own, x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
+// Where a missing app's Connect is (needCardHTML), per ask: kept, so a card drawn again says the same.
+const connecting = new Map(); // ask id -> { state: 'opening' | 'waiting' | 'failed' | 'idle', error?, turn }
+// Its Connect (docs/api.md "A missing connected app"): the sign-in page opens in a tab at once, on the press, then
+// POST /asks/:id/connect gives its address; GET /asks/:id/connect every few seconds says when it is connected, and
+// the card goes with the next list of what waits. A second press starts a new sign-in, and the first one's wait ends.
+// A server without `connect-cards` would take that POST for a no: the press opens Connectors there.
+function pressConnect(x) {
+  if (!(state.features || []).includes('connect-cards')) return setView('connectors');
+  const id = x.a.id;
+  const turn = (connecting.get(id)?.turn || 0) + 1;
+  const live = () => connecting.get(id)?.turn === turn;
+  const redraw = () => (typeof showNeeds === 'function' ? showNeeds() : null);
+  const set = (now, error) => { if (!live()) return; connecting.set(id, { state: now, turn, ...(error ? { error } : {}) }); redraw(); };
+  connecting.set(id, { state: 'opening', turn });
+  const at = `/asks/${encodeURIComponent(id)}/connect`;
+  const done = connectApp(x.a.app, () => { if (live()) connecting.delete(id); refreshNeeds(); }, {
+    live,
+    start: () => api(at, { method: 'POST' }),
+    // Answered elsewhere meanwhile (connected, or Not now): the card is gone either way.
+    status: () => api(at).catch((e) => (e.status === 404 ? { status: 'ACTIVE' } : null)),
+    opened: () => set('waiting'),
+    // A card that is not on the page (its row on a project's page) says it in a toast. Composio's refusal turns the
+    // card to setup: the next list draws it so.
+    failed: (msg) => { if (!$$(`.need-card[data-need="${CSS.escape(x.key)}"]`).length) toast(msg, true); set('failed', msg); refreshNeeds(); },
+    ended: () => set('idle'),
+  });
+  redraw();
+  return done;
+}
+// The main button of a card the server names by a verb (`act`), from its card or its row.
+function actNeed(x) {
+  const act = x.a?.act;
+  if (act?.verb === 'connect') return pressConnect(x);
+  if (act?.verb === 'open' && act.screen === 'connectors') return setView('connectors');
+  return openNeed(x);
+}
+// That button's word ("Connect", "Reconnect", "Open Connectors"): the server's, else the page's own by the verb; ''
+// for a verb the page does not know. A row of Needs you draws it in place of Review (company-home.js).
+function actLabel(x) {
+  const act = x.kind === 'ask' && x.a.act && typeof x.a.act === 'object' ? x.a.act : null;
+  if (!act || !(act.verb === 'connect' || (act.verb === 'open' && act.screen === 'connectors'))) return '';
+  return said(act.label) || (act.verb === 'connect' ? (x.a.mode === 'reconnect' ? tr('Reconnect') : tr('Connect')) : tr('Open Connectors'));
+}
+const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.act?.verb, x.a?.act?.label, x.a?.body, x.a?.kind === 'connect-app' ? connecting.get(x.a.id) || null : null, x.a?.batch?.title, x.a?.batch?.own, x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
 
 // Back to where Needs you was opened from (state.cameFrom, needs-return.js): false when there is nowhere.
 function leaveNeeds() {
@@ -515,7 +571,8 @@ function wireNeedCards(root, items) {
   $$('.need-card[data-need]', root).forEach((el) => {
     const x = byKey.get(el.dataset.need);
     if (!x) return;
-    const yes = $('[data-need-yes]', el), no = $('[data-need-no]', el), op = $('[data-need-open]', el), always = $('[data-need-always]', el);
+    const yes = $('[data-need-yes]', el), no = $('[data-need-no]', el), op = $('[data-need-open]', el), always = $('[data-need-always]', el), act = $('[data-need-act]', el);
+    if (act) act.onclick = () => actNeed(x); // the sign-in tab opens on this click, so pop-up blockers allow it
     // Each says it works until the answer comes (Bitwarden, for a job's call key, can take several seconds); a yes that turns on a call or
     // a notify address says "Creating connection…" with a spinner.
     if (yes) yes.onclick = () => answerNeed(x, true, yes);
@@ -561,9 +618,10 @@ const chatDecided = new Map(); // chat and key -> { scope, title, label }: decid
 const answeredAway = new Map(); // chat and key -> { scope, title, label }
 const fromChief = (x) => (x.kind === 'job' ? (changeOf(x.job) ? changeOf(x.job).by : x.job.changedBy) === 'chief'
   : x.kind === 'tile' ? (changeOf(x.t) ? changeOf(x.t).by : x.t.changedBy) !== 'bot'
-  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || x.a.kind === 'chief-action' || x.a.chief === true
+  : x.kind === 'ask' ? (['skill', 'vault-remove'].includes(x.a.kind) && !x.a.botId) || (x.a.kind === 'connect-app' && !x.a.botId) || x.a.kind === 'chief-action' || x.a.chief === true
   : x.kind === 'login' || x.kind === 'pay' ? x.r.from === 'chief' : false);
-const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind === 'bot-change' && x.a.by === 'chief'));
+// A missing app's card the Chief offered for a bot in a chat (`chatId`) stands in that chat and in the bot's.
+const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind === 'bot-change' && x.a.by === 'chief') || (x.a.kind === 'connect-app' && !!x.a.botId && !!x.a.chatId));
 function chatNeeds(scope) {
   const suggested = scope === 'chief' ? [] : tileSuggestions().filter((x) => x.s.bot === scope); // a group's id is no bot's: none there
   return [...suggested, ...needsItems().filter((x) => {
@@ -719,6 +777,6 @@ function answeredWord(x, yes, always, answer) {
 
 async function refreshNeeds() {
   state.memPending = await api(MEMORY_WAITS).catch(() => state.memPending);
-  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').catch(() => state.asks);
+  state.asks = await api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1').catch(() => state.asks);
   await refresh();
 }
