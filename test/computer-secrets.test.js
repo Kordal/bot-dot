@@ -155,7 +155,7 @@ test('a bridge that stays down is started again, three times in ten minutes a sc
     assert.deepEqual(r, { ok: false, error: 'The browser had stopped, and botdot started it again. Open the site with open_browser.' });
     assert.equal(starts(), i, 'its bridge was started again, on its own screen');
   }
-  assert.match((await computers.typeSecret(restartSeat, { op: 'where' })).error, /open_browser first/, 'a fourth is not started');
+  assert.match((await computers.typeSecret(restartSeat, { op: 'where' })).error, /^The browser keeps stopping, so botdot didn't start it again now\. Tell the owner/, 'a fourth is not started');
   assert.equal(starts(), 3);
   down = false;
   assert.deepEqual(await computers.browserTool(restartSeat, { op: 'snapshot' }), { ok: true }, 'one that answers is asked once');
@@ -167,7 +167,7 @@ test('a bridge that answers on the second ask is not started again', async (t) =
   answer = (args, call) => (args.includes(HELPER) ? (++asks === 1 ? '{"ok": false, "down": true, "error": "x"}' : '{"ok": true}') : running(args, call));
   t.mock.method(global, 'setTimeout', (fn) => { fn(); return 0; });
   assert.deepEqual(await computers.browserTool({ bot: 'slowbot', screen: 8 }, { op: 'snapshot' }), { ok: true });
-  assert.equal(asks, 2);
+  assert.equal(asks, 3, 'asked, asked again after a moment, then the request itself');
   assert.ok(!execs().some((c) => c.args.includes('--serve')), 'a bridge just starting is left to start');
 });
 
@@ -345,4 +345,36 @@ print(json.dumps(out))`;
   assert.equal(ports.display, ':21');
   assert.equal(ports.browser, 47221, 'botdot and the launcher agree on the port');
   assert.equal(ports.socket, '/run/botdot-browser/bridge-21.sock', 'and on the socket');
+});
+
+test('calls that find the bridge down together share one restart', async (t) => {
+  const running = docker({ state: 'running' });
+  answer = (args, call) => (args.includes(HELPER) ? '{"ok": false, "down": true, "error": "x"}' : running(args, call));
+  const together = { bot: 'twinbot', screen: 9 };
+  const [a, b] = await Promise.all([computers.browserTool(together, { op: 'snapshot' }), computers.typeSecret(together, { op: 'where' })]);
+  assert.deepEqual(a, b);
+  assert.equal(execs().filter((c) => c.args.includes('--serve') && c.args.includes('twinbot')).length, 1, 'one bridge started, not two');
+});
+
+// A second bridge on a screen ends at once, also when the first has no socket yet or any more: it would take the
+// socket and leave the browser on the other, so every browser tool would say the browser isn't open.
+test('a second bridge on the same screen ends at once, holding nothing', { skip: !hasPython() }, async (t) => {
+  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'bridge-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const script = `
+import importlib.machinery, importlib.util, os, sys, fcntl
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("camoufox_browser", sys.argv[1])
+spec = importlib.util.spec_from_loader("camoufox_browser", loader)
+m = importlib.util.module_from_spec(spec)
+loader.exec_module(m)
+m.BRIDGE_SOCKET = os.path.join(sys.argv[2], "bridge.sock")
+m.BRIDGE_LOG = os.path.join(sys.argv[2], "bridge.log")
+held = open(m.BRIDGE_SOCKET + ".lock", "a")
+fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+m.serve()
+print("ended", os.path.exists(m.BRIDGE_SOCKET), os.path.exists(m.BRIDGE_LOG))
+`;
+  const { stdout } = await util.promisify(realExecFile)('python3', ['-c', script, path.join(__dirname, '..', 'deploy', 'desktop', 'camoufox-browser'), dir], { timeout: 20_000 });
+  assert.equal(stdout.trim(), 'ended False False', 'no socket taken, no log replaced');
 });

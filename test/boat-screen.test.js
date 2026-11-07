@@ -390,7 +390,7 @@ test('a bridge that ended on the machine is started again by the next browser to
     assert.equal(bridges(), before + i, 'started again');
   }
   box.bridge = false;
-  assert.deepEqual(await boat.typeSecret('coder', { op: 'where' }), { ok: false, error: "Camoufox isn't open." }, 'a fourth is left down');
+  assert.match((await boat.typeSecret('coder', { op: 'where' })).error, /^The browser keeps stopping/, 'a fourth is left down');
   assert.equal(bridges(), before + 3);
   now += 10 * 60_000 + 1;
   await boat.browserTool('coder', { op: 'snapshot' });

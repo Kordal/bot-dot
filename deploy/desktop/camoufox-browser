@@ -20,6 +20,7 @@ What the bridge and Camoufox print goes to BRIDGE_LOG, at most LOG_CAP bytes of 
 run's to BRIDGE_LOG.1 (#355).
 """
 import atexit
+import fcntl
 import json
 import os
 import queue
@@ -383,12 +384,17 @@ def browser_tool(context, req):
             except Exception:
                 raise BrowserError(f"It did not show within {seconds:g} seconds.")
         try:
-            return {"ok": True, "snapshot": note + page_snapshot(focused_page(context) or page)}
+            snapshot = page_snapshot(focused_page(context) or page)
         except BrowserError:
             if op == "snapshot":
                 raise
-            # The step was done: said as done, so the bot does not do it a second time (an order, a message).
-            return {"ok": True, "snapshot": f"{note}Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment."}
+            # The step was done: said as done, so the bot does not do it a second time (an order, a message). `unread`:
+            # no page was read, so botdot keeps the last one it read for its irreversible-step checks (ADR 107).
+            return {"ok": True, "unread": True, "snapshot": f"{note}Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment."}
+        if note:  # after its first line, "Page: <title> (<url>)", which tells botdot the site (lib/irreversible-steps.js)
+            first, _, rest = snapshot.partition("\n")
+            snapshot = f"{first}\n{note.rstrip()}" + (f"\n{rest}" if rest else "")
+        return {"ok": True, "snapshot": snapshot}
     except BrowserError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:  # Playwright's own words, first line only: it may hold the page's text, never a secret
@@ -491,8 +497,23 @@ def bound_log():
     atexit.register(drain)
 
 
+serve_lock = None  # held for the bridge's whole life: a second start beside it ends at once
+
+
 def serve():
     """Serve botdot and the desktop until the computer stops, with Camoufox open whenever a page was asked for."""
+    global serve_lock
+    # One bridge a screen, also when botdot starts it again while one starts or runs without its socket: a second
+    # would take the socket from the first and leave the browser on the other, so every browser tool says "not open".
+    try:
+        serve_lock = open(BRIDGE_SOCKET + ".lock", "a")
+    except OSError:  # no folder for it: the socket fails below, and its traceback reaches the log
+        serve_lock = None
+    if serve_lock is not None:
+        try:
+            fcntl.flock(serve_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:  # another bridge of this screen holds it
+            return
     if bridge_running():  # botdot started it again while it runs
         return
     bound_log()
@@ -560,9 +581,6 @@ def run_browser(url):
             "browser.sessionhistory.max_total_viewers": 0,  # Back loads the page again instead of keeping it
         },
     ) as context:
-        # Open only while Camoufox runs (#875): whatever ends it, the next is-open says no, so open_browser starts
-        # it again instead of answering "already open" for a window that is gone.
-        browser_open.set()
         try:
             closed = threading.Event()
             context.on("close", lambda *_: closed.set())
@@ -572,6 +590,11 @@ def run_browser(url):
                     page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 except Exception as exc:  # a slow or failing site leaves the browser open on what it reached (#875)
                     print(f"camoufox-browser: the first page did not load: {type(exc).__name__}", file=sys.stderr, flush=True)
+            # Open only while Camoufox runs (#875): whatever ends it, the next is-open says no, so open_browser starts
+            # it again instead of answering "already open" for a window that is gone. Said once its first page is
+            # there, so open_browser reads that page, not a blank one; from then on an open is a tab of its own.
+            browser_open.set()
+            browser_starting.clear()
             # Serve secret-typing requests on this thread (Playwright's sync API isn't thread-safe)
             # until the window is closed.
             while not closed.is_set():

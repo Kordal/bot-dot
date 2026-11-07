@@ -165,8 +165,9 @@ async function steadyOut() {
 test('a slow page answers with what it shows so far, and a step done on a page not readable yet is said as done', { skip: !hasPython() }, async () => {
   const out = await steadyOut();
   assert.equal(out.goto_slow.ok, true, 'a slow site is no failed goto');
-  assert.match(out.goto_slow.snapshot, /^The page did not finish loading in 15 s: this is what it shows so far\.\nPage: /);
-  assert.deepEqual(out.click_unread, { ok: true, snapshot: 'Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment.' },
+  assert.match(out.goto_slow.snapshot, /^Page: Stand-in \(https:\/\/example\.com\/\)\nThe page did not finish loading in 15 s: this is what it shows so far\.\n- button/,
+    'the page line stays first: it tells botdot the site');
+  assert.deepEqual(out.click_unread, { ok: true, unread: true, snapshot: 'Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment.' },
     'never "failed" for a click that happened: the bot would do it twice');
   assert.equal(out.snapshot_unread.ok, false, 'a snapshot alone still says it could not read the page');
   assert.match(out.click_covered.error, /Something covers it \(a pop-up, a cookie banner\?\): close that first\.$/);
@@ -249,11 +250,44 @@ test('open_browser on an open Camoufox goes to the address in its tab and answer
   assert.ok(!asked.some((a) => a.path === '/session/computer/launch'), 'nothing more was started');
 });
 
-test('open_browser says so when Camoufox does not open in time, and asks it once more on the way', async (t) => {
+test('open_browser says so when Camoufox does not open in time', async (t) => {
   const { asked, url } = await openBrowserStub(t, { openAfter: 1e9 });
-  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer', BOT_DOT_OPEN_BROWSER_WAIT_MS: '9000' });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer', BOT_DOT_OPEN_BROWSER_WAIT_MS: '3000' });
   await mcp.request('initialize', {});
   const out = await mcp.request('tools/call', { name: 'open_browser', arguments: {} });
-  assert.match(out.content[0].text, /^Camoufox did not open within 9 seconds\. Call open_browser once more; if it fails again, tell the owner/);
-  assert.equal(asked.filter((a) => a.path === '/session/computer/launch').length, 2, 'asked once more after 8 s');
+  assert.match(out.content[0].text, /^Camoufox did not open within 3 seconds\. Call open_browser once more; if it fails again, tell the owner/);
+  assert.equal(asked.filter((a) => a.path === '/session/computer/launch').length, 1, 'one open: a second would be a second tab');
+});
+
+test('open_browser takes an address as a person types it, and says when it stays where it is', async (t) => {
+  const { asked, url } = await openBrowserStub(t, { openAfter: 0 });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const open = async (u) => (await mcp.request('tools/call', { name: 'open_browser', arguments: u === undefined ? {} : { url: u } })).content[0].text;
+  assert.match(await open('localhost:3000/app'), /went to http:\/\/localhost:3000\/app in its tab/);
+  assert.match(await open('example.com:8443/x'), /went to https:\/\/example\.com:8443\/x in its tab/);
+  assert.match(await open(''), /^Camoufox is already open\.\n/, 'nothing is a blank page, never https://');
+  assert.match(await open('file:///etc/hosts'), /^Camoufox is already open\. It goes only to http and https addresses, so it stayed where it is, not file:\/\/\/etc\/hosts\./);
+  assert.deepEqual(asked.filter((a) => a.body?.op === 'goto').map((a) => a.body.url), ['http://localhost:3000/app', 'https://example.com:8443/x']);
+});
+
+test('open_browser says at once when the browser keeps stopping, instead of waiting for it', async (t) => {
+  const http2 = require('node:http');
+  const stub = http2.createServer((req, res) => {
+    let body = '';
+    req.on('data', (d) => { body += d; });
+    req.on('end', () => {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url === '/session/computer/cmd') return res.end(JSON.stringify({ ok: true, text: `data: ${JSON.stringify({ success: true, stdout: 'no\n' })}` }));
+      if (req.url === '/session/computer/browser') return res.end(JSON.stringify({ ok: false, error: "The browser keeps stopping, so botdot didn't start it again now. Tell the owner, and try again in ten minutes." }));
+      if (req.url === '/session/computer/launch') throw new Error('not launched');
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise((r) => stub.listen(0, '127.0.0.1', r));
+  t.after(() => stub.close());
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: `http://127.0.0.1:${stub.address().port}`, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const out = await mcp.request('tools/call', { name: 'open_browser', arguments: { url: 'https://example.com' } });
+  assert.match(out.content[0].text, /^The browser keeps stopping/);
 });
