@@ -4,7 +4,7 @@ How botdot works, from the app to every feature. To install it, see [Install on 
 
 A messenger-style app for a team of **bots**. Each bot is a headless Claude Code agent with its own instructions, tools, permissions, workspace and scheduled jobs, and a Chief of Staff creates and runs them for you.
 
-**Apps:** besides the web page, there's botdot for Android ([android/](../android/README.md)). On a computer, use the web page. The Android app is built by GitHub Actions, and botdot's image carries the newest one, so phones update themselves from your botdot. The Mac app is paused and not maintained ([ADR 031](adr/031-the-mac-app-is-stopped-again.md)): it was never released, and the image carries none.
+**Apps:** besides the web page, there's botdot for Android ([android/](../android/README.md)). On a computer, use the web page or the [desktop app](desktop.md) for Windows and Mac, a window onto your botdot that can also run one on the computer itself. The Android app is built by GitHub Actions, and botdot's image carries the newest one, so phones update themselves from your botdot.
 
 ## The app
 

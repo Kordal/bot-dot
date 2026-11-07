@@ -3,167 +3,174 @@
 <p align="center"><b>A self-hosted team of Claude Code bots you run by chat.</b></p>
 
 <p align="center">
-  <a href="https://github.com/Kordal/bot-dot/actions/workflows/tests.yml"><img alt="Tests" src="https://github.com/Kordal/bot-dot/actions/workflows/tests.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Licence: MIT" src="https://img.shields.io/badge/licence-MIT-blue.svg"></a>
-  <img alt="Node 22.13 or newer" src="https://img.shields.io/badge/node-%E2%89%A522.13-339933?logo=node.js&logoColor=white">
-  <img alt="Self-hosted with Docker" src="https://img.shields.io/badge/self--hosted-Docker-2496ED?logo=docker&logoColor=white">
-  <img alt="Web and Android" src="https://img.shields.io/badge/apps-web%20%C2%B7%20Android-3DDC84?logo=android&logoColor=white">
+  <img alt="Self-hosted with Docker and gVisor" src="https://img.shields.io/badge/self--hosted-Docker%20%C2%B7%20gVisor-2496ED?logo=docker&logoColor=white">
+  <img alt="Web, Android and desktop" src="https://img.shields.io/badge/apps-web%20%C2%B7%20Android%20%C2%B7%20desktop-3DDC84">
   <img alt="Built on Claude Code" src="https://img.shields.io/badge/built%20on-Claude%20Code-D97757">
 </p>
 
 <p align="center">
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#what-you-need">Requirements</a> ·
   <a href="#features">Features</a> ·
-  <a href="#the-board">The Board</a> ·
-  <a href="#on-your-phone">Android</a> ·
-  <a href="#install">Install</a> ·
+  <a href="docs/install-linux.md">Install guide</a> ·
   <a href="docs/user-guide.md">User guide</a> ·
   <a href="docs/FAQ.md">FAQ</a>
 </p>
 
-A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with its own job, and a **Chief of Staff** creates and runs them when you ask it in a chat. botdot runs on your own server, and you use it on the web and on Android.
+botdot is a messenger for a team of **bots**. Each bot is a Claude Code agent with one job, its own tools, permissions, workspace and schedule. You don't configure them by hand: you tell the **Chief of Staff** what you need in a chat, and it makes the bots, runs them and reports back. Anything risky waits for your OK.
 
-![botdot on the web in a wide window: on the left the keypad, with the Board's values as live cards, one card for what needs you, and the team as keys (the Chief of Staff and pinned bots, then the Daily and Home categories), each bot a coloured head with a hat and its status: Working, Done, unread or Idle; on the right News Monitor's chat with its morning headlines](docs/screenshots/web-home.png)
+It runs on your own Linux server, with each account walled off under rootless Docker and gVisor, and you use it from the web page, the Android app or the desktop app. It uses the official Claude Code CLI, signed in with your own Claude subscription or API key. MIT licensed, no telemetry.
+
+![botdot in a wide window: two things waiting in Needs you, the Board's live values (unread mail, next meeting, living room temperature, heating, disk), the Chief of Staff and the bots as keys with their status, a project's team, and on the right News Monitor's chat with its morning headlines](docs/screenshots/web-home.png)
+
+## Quickstart
+
+On a fresh Ubuntu 24.04 server or VM (not a container), as a user with `sudo`:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git curl
+git clone https://github.com/Kordal/bot-dot.git bot-dot-source
+sudo sh bot-dot-source/install.sh
+```
+
+1. The installer checks the machine and asks before it installs Docker, rootless Docker and gVisor. It downloads botdot's signed images (about 11 GB) and checks their signature first.
+2. It asks how you reach botdot: a **public domain** (Caddy gets the HTTPS certificate) or a **Tailscale tailnet** (nothing on the internet). Then your account's name.
+3. It asks about three optional services. Answer `n` to each if you don't use them; you can add them later.
+4. It ends with your address and a **sign-up link**. Open it, make your passkey, and sign in to Claude on the setup page.
+5. Ask the Chief of Staff for your first bot: "Make a bot that sends me the three biggest tech stories every morning at 8."
+
+Lost the link, or the install stopped? See [Troubleshooting](#troubleshooting).
+
+## What you need
+
+| | |
+| --- | --- |
+| **A server** | A Linux VM or VPS of its own, on Intel/AMD or ARM, where you can use `sudo`. Ubuntu 24.04 is what botdot is tested on. It needs a full VM (KVM, Proxmox VM, cloud VPS): an LXC or OpenVZ container won't run rootless Docker and gVisor |
+| **Size, one account** | At least 4 CPUs, 8 GB of RAM and 40 GB of free disk. Each account takes a share of the machine (by default 2 CPUs and half the RAM, at least 5 GB) and about 15 GB of disk, plus room for one more copy of the images while it updates |
+| **Claude** | A Claude Pro or Max subscription, or an Anthropic API key, for each account. Bots' runs count against that subscription's usage limits, or are paid as you go on the key |
+| **A way in** | A domain whose DNS points at the server, with ports 80, 443 and 8443 open (8443 serves bots' interactive pages), or a free [Tailscale](https://tailscale.com) account |
+| **Docker** | The installer installs Docker from docker.com when it's missing. If Docker is already there, it must be docker.com's `docker-ce`: Ubuntu's own `docker.io` has no rootless Docker |
+
+botdot runs bots unattended. Read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts) has the full list, and [what the installer changes on the machine](docs/install-linux.md#what-the-installer-changes-on-the-machine).
+
+**Optional services.** botdot works without any of them.
+
+| | What it adds | Who pays |
+| --- | --- | --- |
+| [Composio](https://composio.dev) | Bots use your apps (Gmail, Calendar, Slack, GitHub and more) | Your own Composio key |
+| [Bitwarden](https://bitwarden.com) | Bots log in to websites with logins from your vault, without seeing the passwords | Your own Bitwarden account |
+| [OpenRouter](https://openrouter.ai) ("Jev") | A small, cheap model that picks which bot answers in a group chat, in place of Claude Haiku | Your own OpenRouter key |
+| [boat.dev](https://boat.dev) | A cloud computer for the bots, in place of the one on your server | Your own boat.dev key |
 
 ## Features
 
 | | |
 | --- | --- |
 | 🎩 **Chief of Staff** | Tell it what you need. It makes the bots, changes them, runs them and reports back. It writes to you first when it finds something worth saying, briefs you at the times you name, and drafts the replies you owe from your mail. |
-| 🤖 **Bots with one job each** | Every bot has its own instructions, tools, permissions, workspace and scheduled jobs. Its face shows what it is doing. A busy bot answers a new message at once, and `/btw` asks it a quick side question without stopping its work. |
-| 📋 **The Board** | One page of live tiles for the things you use most: switches, values, lists and notes. [More below](#the-board). |
-| 📄 **Pages** | Reports and overviews a bot keeps for you, up to date on a schedule, with the Board's live numbers and charts. A bot with a computer can publish a small interactive site, sandboxed on an address of its own. Any long reply exports to Word, PDF, Markdown or Google Docs. [More below](#pages). |
+| 🤖 **Bots with one job each** | Each bot has its own instructions, tools, permissions, workspace and scheduled jobs. Its face shows what it is doing. A busy bot answers a new message at once, and `/btw` asks it a quick side question without stopping its work. |
+| 🏗 **Projects** | A space for one goal, such as a renovation or a launch: a team of bots with a lead, a team chat, goals you can count, a calendar of to-dos and check-ins, and the project's own files. |
+| 📋 **The Board** | One page of live tiles for what you use most: switches, values, lists, notes and charts. [More below](#the-board). |
+| 📄 **Pages** | Reports a bot keeps up to date on a schedule, with the Board's live numbers and charts. Any long reply exports to Word, PDF, Markdown or Google Docs. |
 | ⏰ **Scheduled jobs** | A job runs on a schedule. When no AI is needed, a small script runs instead. |
-| 👥 **Groups and shared rooms** | Put two to six bots in one chat, and they hand the work on to each other. On a machine of several accounts, shared rooms bring other people and their bots into one chat. |
+| 👥 **Groups** | Two to six bots in one chat, handing the work on to each other. On a machine of several accounts, shared rooms bring other people and their bots into one chat. |
 | 🧠 **Memory** | Bots remember what you tell them, and you correct or erase it by chat. |
-| 🖥 **The bots' computer** | One always-on computer for the account, where bots work, each on a screen of its own with its own browser, which you can watch live. They share it as one user with sudo, so every bot there sees what the others do. |
-| 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps (Gmail, Slack, GitHub and more) through Composio, with your own Composio key. |
-| ✋ **Your OK first** | Anything risky waits for you in **Needs you**. |
-| 📱 **Web and Android** | The web page works everywhere, and Android has its own app with notifications and no push service. |
+| 🖥 **The bots' computer** | One always-on Ubuntu desktop for the account, where each bot has a screen and a browser of its own. You can watch it live and take over. |
+| 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps through Composio. |
+| ✋ **Your OK first** | A script, a login, a write in a connected app or anything risky waits for you in **Needs you**. |
+| 📱 **Web, Android and desktop** | The web page works everywhere. Android has its own app with notifications and no push service. The desktop app for Windows and Mac shows botdot in a window of its own. |
+
+## Projects
+
+![The project Kitchen renovation: its team of three bots with the lead's crown, two goals (quotes in, 2 of 3; choices made, 5 of 8), the calendar with dated to-dos and visits, and on the right the team chat, where the lead hands on to Quote Chaser, who answers with a table of contractors](docs/screenshots/web-project.png)
+
+A project is a space of its own on the left rail. Its team works together in one chat: the lead hands work on to the others by name, and you write once. Goals show how far along it is, and the calendar holds what is due and when. Start one with **+** on the rail, then ask the Chief to put a team on it.
 
 ## The Board
 
-The Board is your page of tiles: the temperature, a light switch, a shopping list, your next meeting, a server's disk, a morning summary. It reads like a status page: numbers with how they changed and a line of recent values, charts, statuses and tables. Its values sit on top of the keypad and the list as small live cards, so the numbers you check every day are the first thing you see.
+![The Board on the web: value tiles with their change and a line of recent values, a note written by a bot, a Controls box with two switches and a button, and a list](docs/screenshots/web-board.png)
 
-![The Board on the web, beside the keypad: headings Today and Home with the bots they come from, unread mail with its change since the morning, the next meeting, the living room temperature, and the heating, hall light and all-lights-off button in one Controls box](docs/screenshots/web-board.png)
+The Board is your page of tiles: the temperature, a light switch, a shopping list, your next meeting, a server's disk, a morning summary. Its values also sit on top of the home screen, so the numbers you check every day are the first thing you see.
 
-**You build it by chat.** There are no edit buttons: ask the Chief to "add a switch for the living room light", "move Server to the top" or "make the summary wide", and it does. You drag tiles to rearrange them.
+**You build it by chat.** There are no edit buttons: ask the Chief to "add a switch for the living room light" or "move Server to the top", and it does. You drag tiles to rearrange them.
 
-| Tile | What it shows | A tap |
-| --- | --- | --- |
-| **Switch** | On or off | switches it |
-| **Button** | One action | does it |
-| **Value** | A number or a few words, with a green, amber or red dot when it has limits | refreshes it |
-| **List** | Up to 8 lines | opens all of it |
-| **Note** | A few short lines, in Markdown | opens all of it |
-| **Group** | Related tiles, one dot each | folds them open |
-| **Blocks** | A number with its change, a chart, a status, a callout or a table you sort and filter | says the values |
-
-**Where the values come from:**
-
-- **An API call with a saved login.** botdot makes it itself, with no AI, so a tap is instant. Home Assistant works this way.
-- **A small script** in the bot's workspace. It waits for your OK in **Needs you** first, and again whenever it changes.
-- **The bot itself**, for example from its morning job.
-
-Every tile belongs to a bot, uses that bot's saved logins and wears its colour. Bots also **suggest** tiles when they notice you keep asking for the same thing: one tap adds it. Values refresh only while the Board is open.
-
-The [user guide](docs/user-guide.md#board) has the details.
+A tile's value comes from an API call with a saved login (made by botdot itself, with no AI, so a tap is instant; Home Assistant works this way), from a small script that waits for your OK first, or from the bot itself. Bots also suggest tiles when they notice you keep asking for the same thing. The [user guide](docs/user-guide.md#board) has the details.
 
 ## Pages
 
-Ask a bot for a report or an overview and it saves it as a page: a title, the numbers that matter with how they changed, charts, statuses and what waits for you. Tap **Keep up to date** and it rewrites the page every hour, morning or Monday, while numbers tied to the Board stay live.
+![A page by Server Watch about the home server: uptime, disk, backups and updates as numbers, a chart of CPU over the week, disk use by folder, status pills and a callout that a kernel update waits for a restart](docs/screenshots/web-page.png)
 
-![A page by Server Watch, Home server: a weekly report with uptime, disk, backups and updates as numbers, a chart of CPU over the last seven days, disk use by folder, status pills and a callout that a kernel update waits for a restart](docs/screenshots/web-page.png)
-
-A bot that uses the computer can also publish an interactive page, a small site with views, filters or a kanban, sandboxed on an address of its own. The [user guide](docs/user-guide.md#pages-reports-and-overviews-your-bots-keep) has the details.
+Ask a bot for a report and it saves it as a page. Tap **Keep up to date** and it rewrites the page every hour, morning or Monday, while numbers tied to the Board stay live. A bot that uses the computer can also publish a small interactive site, sandboxed on an address of its own.
 
 ## Your team, run by chat
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/web-chief.png" alt="The Chief of Staff's empty chat on the right of the keypad: 'What should the team work on?' with four example requests"></td>
-<td width="50%"><img src="docs/screenshots/web-needs-you.png" alt="Needs you on the right of the keypad: Server Watch asks to put 'Router uptime' on the Board, with its script and the buttons Decline and remove, and Approve"></td>
+<td width="50%"><img src="docs/screenshots/web-chief.png" alt="The Chief of Staff's chat: it made Recipe Finder, then set up a tile and a job, which wait for the owner's OK as cards in the chat"></td>
+<td width="50%"><img src="docs/screenshots/web-needs-you.png" alt="Needs you: a job named Night mode and a Router uptime tile, each with the script it would run and its buttons"></td>
 </tr>
 <tr>
 <td><b>Ask the Chief.</b> It hands the task to the right bot, or builds a new one with the tools, permissions and jobs it needs.</td>
-<td><b>Your OK first.</b> A script, a login or anything risky waits in <b>Needs you</b>, with what it would run.</td>
+<td><b>Your OK first.</b> A script, a login or anything risky waits in <b>Needs you</b>, with exactly what it would run.</td>
 </tr>
 </table>
-
-botdot has one look, dark, on the web and on Android. A bot's head shows its state: it blinks when idle, looks around while it works, bobs when it needs you and closes its eyes when paused. Dots after its name count new replies. A wide window shows the keypad, with each bot's status and when it last did something: <kbd>1</kbd>–<kbd>9</kbd> open a bot (give one its own digit in its settings), <kbd>Esc</kbd> brings back the Chief, <kbd>Ctrl</kbd>+<kbd>K</kbd> searches every chat.
 
 ## On your phone
 
 <table>
 <tr>
-<td width="25%"><img src="docs/screenshots/phone-list.png" alt="The list on a phone: the Board's values on top as cards that scroll sideways, one card for what needs you, then the pinned bots with their status and the Daily category"></td>
-<td width="25%"><img src="docs/screenshots/phone-chat.png" alt="News Monitor's chat on a phone, with a 'Waiting for your OK' banner on top"></td>
+<td width="25%"><img src="docs/screenshots/phone-list.png" alt="Home on a phone: what needs you, the Board's values, and the bots with their status"></td>
+<td width="25%"><img src="docs/screenshots/phone-chat.png" alt="News Monitor's chat on a phone"></td>
 <td width="25%"><img src="docs/screenshots/phone-board.png" alt="The Board on a phone"></td>
-<td width="25%"><img src="docs/screenshots/phone-needs-you.png" alt="Needs you on a phone: Server Watch asks to put 'Router uptime' on the Board, with its script and the buttons Decline and remove, and Approve"></td>
+<td width="25%"><img src="docs/screenshots/phone-needs-you.png" alt="Needs you on a phone, with two cards waiting for the owner's OK"></td>
 </tr>
 <tr>
-<td align="center">Your team</td>
+<td align="center">Home</td>
 <td align="center">A chat</td>
 <td align="center">The Board</td>
 <td align="center">Needs you</td>
 </tr>
 </table>
 
-The web page works on any phone. The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, sharing files to a bot from any app, and the keypad on tablets and foldables. For the first install, download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/Kordal/bot-dot/releases); after that, botdot carries the newest app and phones update themselves from your server. There is no iOS app: on an iPhone, use the web page.
+The web page works on any phone and installs as an app. The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, without Google's push service, and sharing files to a bot from any app. Download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/Kordal/bot-dot/releases) once; after that, phones update themselves from your server. There is no iOS app yet: on an iPhone, add the web page to the Home Screen.
 
-**Install it as an app.** The web page installs in its own window, with its own icon: in Chrome or Edge (computer or Android), choose **Install app** in botdot's Settings or the install icon in the address bar; in Safari on a Mac, **File → Add to Dock**; on an iPhone or iPad, **Share → Add to Home Screen** (which is also where notifications work on iOS).
+## Desktop app
 
-## How it works
+The desktop app for [Windows](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [Windows on ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) · [Mac with Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Mac with Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) shows your botdot in a window of its own and keeps itself up to date. It is built from `main` and is not signed yet: on Windows, choose **More info → Run anyway**; on a Mac, open it once, then **System Settings → Privacy & Security → Open Anyway**.
 
-- **One server holds the truth.** The botdot server (Node.js, no dependencies) keeps the bots, their jobs, the Board and the chats. The web page and the Android app are windows onto its [API](docs/api.md).
-- **Each bot is Claude Code.** A run is `claude -p` in the bot's own workspace, with only the tools and permissions you gave it.
-- **Accounts are walled off.** One machine can hold several people's botdot, and nothing in one account can be seen or reached from another.
-- **Nothing a bot writes is trusted as markup.** Text and drawings from Claude are checked on the server and drawn by the apps' own code.
+**Preview: botdot on your own computer.** On a Mac or PC with no server, the app can also run botdot itself, in a Linux VM of its own (Lima on macOS, WSL2 on Windows): one account at `http://localhost:4700`, with bots that run only while the computer is on. [The desktop app](docs/desktop.md) has the requirements and what differs from a server.
 
-## Security
+## Updating, backups and removal
 
-- **Each account is walled off under gVisor:** its own Linux user and rootless Docker, whose every container runs under gVisor.
-- **The installer runs as root, and root sees everything:** whoever is root on the machine can reach every account, its data and the logins its bots hold. Keep root to yourself.
-- **The bots share one computer, without walls between them:** every bot works on the account's computer as the same user, with sudo. Each can see, change and end what the others do there, and read any password, card or SSH key botdot types or hands to a command there. Other accounts, the botdot server and the machine stay out of its reach.
-- **Anything risky waits in Needs you:** a script, a login, a connected app's write (unless you always allow it), or a change the Chief makes on its own after reading the web, until you say OK.
-- **What a bot builds can't reach your account:** a page is drawn by the apps' own code, and an interactive page runs on an address of its own, sandboxed, with no way to the internet.
-- **Shared rooms are off until the admin turns them on:** a bot mentioned in one by someone else only talks, with no tools and nothing of yours.
+- **Update:** the admin presses **Update every account** on the admin page (`https://<your address>/admin`), or runs the installer again from a newer source (`git -C bot-dot-source pull && sudo sh bot-dot-source/install.sh`). Each account checks the signature first, and one whose new version doesn't start goes back to its old one. Bots, chats and memory stay. [Updates](docs/install-linux.md#updates).
+- **Back up:** **Settings → Backups → Download** gives one encrypted file of your account. The admin can also back the whole machine up every night, off-site, with restic. [Back up and restore](docs/install-linux.md#back-up-and-restore).
+- **Remove:** `sudo sh bot-dot-source/install.sh --uninstall` lists what it removes and asks you to type `yes`. [Uninstall](docs/install-linux.md#uninstall).
 
-[What bots can reach](docs/what-bots-can-reach.md) and [Security](SECURITY.md) have the full picture.
+## Security and privacy
 
-## What you need
+- **Each account is walled off:** its own Linux user, rootless Docker whose every container runs under gVisor, and its own botdot server.
+- **Root sees everything:** whoever is root on the machine can reach every account, its data and the logins its bots hold. Keep root to yourself.
+- **The bots of one account share one computer, without walls between them:** every bot there works as the same user, with sudo. Give the computer only to bots you trust with what the others do there.
+- **Anything risky waits in Needs you,** until you say OK.
+- **Nothing a bot writes is trusted as markup:** text and drawings from Claude are checked on the server and drawn by the apps' own code. An interactive page runs sandboxed on an address of its own, with no way to the internet.
+- **No telemetry.** botdot sends nothing to its author. The connections it makes on its own are Claude runs to Anthropic, the update check and image downloads from GitHub's registry, and the one-time download of its search model from Hugging Face. Claude Code's own non-essential traffic is turned off. [What leaves your server](docs/FAQ.md#does-botdot-send-anything-off-my-server).
+
+[What bots can reach](docs/what-bots-can-reach.md) and [SECURITY.md](SECURITY.md) have the full picture. Report a vulnerability privately through **Security → Report a vulnerability** on this repository.
+
+## Troubleshooting
 
 | | |
 | --- | --- |
-| **A server** | A Linux server or VM of its own (Ubuntu 24.04, Intel/AMD or ARM) where you can use `sudo` |
-| **Docker** | The installer offers to install it when it's missing |
-| **Claude** | A Claude subscription (Pro or Max), or an Anthropic API key, for each account. Bots' runs count against that subscription's usage limits, or are paid as you go on the key |
-| **Room** | Per account, its share of the machine (by default 2 CPUs and half the machine's RAM, at least 5 GB), and 15 GB of disk: its server holds about 2 GB (mostly the memory search model), and the account's computer, an Ubuntu desktop in a container that stays on, 0.5–1 GB idle plus what each bot's screen and programs use. The share's RAM and CPUs are the computer's limits. Measured on an 8-CPU, 16 GB server, where the front door and Caddy take 65 MB |
-| **A way in** | [Tailscale](https://tailscale.com) (a private tailnet) or a public domain that points at the server, with ports 80, 443 and 8443 open (8443 carries interactive pages) |
+| **The sign-up link is lost or used** | Make a new one on the server: `cd /var/lib/botdot/front-door && sudo docker compose exec front-door node front-door.js sign-up-link --account <your account's name>` |
+| **Caddy has no certificate yet** | Check that the DNS points at the server and ports 80, 443 and 8443 are open, then `cd /var/lib/botdot/front-door && sudo docker compose logs caddy` |
+| **apt can't install `docker-ce-rootless-extras`** | Docker came from Ubuntu (`docker.io`). Install Docker from [docs.docker.com](https://docs.docker.com/engine/install/ubuntu/) and run the installer again |
+| **A bot says it isn't signed in to Claude** | The setup page opens by itself: choose **Sign in to Claude** there, or use an API key |
 
-botdot runs the official Claude Code CLI, signed in by you on your account's setup page. Bots run unattended, so read what Anthropic's terms say about that first: [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms). The full list, and whom botdot trusts, is in [Install on Linux](docs/install-linux.md#what-botdot-needs-and-whom-it-trusts).
+More answers in the [FAQ](docs/FAQ.md#troubleshooting).
 
 ## Status
 
-botdot is early: version 0.x, built by one person with Claude, so expect breaking changes ([Releases](https://github.com/Kordal/bot-dot/releases)). It is not a hosted service, it runs Claude only (no other models), and it is not a laptop app: it installs on a Linux server of its own, and you use it from the web page or the Android app.
-
-## Install
-
-On the Linux server:
-
-```bash
-git clone https://github.com/Kordal/bot-dot.git bot-dot-source
-sudo sh bot-dot-source/install.sh
-```
-
-The installer asks a few questions and ends with your address and a sign-up link. Open the link, make your passkey, and sign in to Claude on the setup page. Then ask the Chief of Staff for your first bot. On a public domain, open the link right away: until the first account is made, the front door also prints a fresh sign-up link in its log each time it starts.
-
-| Where | Guide |
-| --- | --- |
-| A Linux server or VM, one or more accounts | [Install on Linux](docs/install-linux.md): accounts, updates, backups, uninstalling |
-
-**The desktop app** for Windows and Mac shows your botdot in a window of its own and keeps itself up to date: [Windows](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [Windows on ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) · [Mac with Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Mac with Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg). It is not signed yet: on Windows, choose **More info → Run anyway**; on a Mac, open it once, then **System Settings → Privacy & Security → Open Anyway**.
-
-To remove botdot, follow [Uninstall](docs/install-linux.md#uninstall).
+botdot is early: version 0.x, built by one person with Claude, so expect breaking changes. What changed lately is in [whats-new/](whats-new/). It is not a hosted service, and it runs Claude only.
 
 ## Development
 
@@ -175,19 +182,20 @@ npm test             # the tests, with a stand-in for Claude
 make lint            # the documentation links, that the code parses, and the type checks
 ```
 
-`npm start` runs the server behind its front door, with one account; [Development](docs/development.md) has how to sign in, the setup notes, the tests and the code layout. [AGENTS.md](AGENTS.md) is how work is done in this repository.
+[Development](docs/development.md) has how to sign in, the tests and the code layout. [AGENTS.md](AGENTS.md) is how work is done in this repository, and [CONTRIBUTING.md](CONTRIBUTING.md) how to send a change.
 
 ## Documentation
 
 | | |
 | --- | --- |
+| [Install on Linux](docs/install-linux.md) | Requirements, accounts, shares, updates, backups, uninstall, platforms |
+| [The desktop app](docs/desktop.md) | The app for Windows and Mac, and botdot on your own computer |
 | [User guide](docs/user-guide.md) | The app and every feature |
-| [FAQ](docs/FAQ.md) | Short answers: requirements, costs, updates, security and troubleshooting |
-| [Install on Linux](docs/install-linux.md) | Accounts, shares, updates, backups, uninstall, platforms |
-| [What bots can reach](docs/what-bots-can-reach.md) | What each bot, the Chief and botdot may see on a Docker install |
-| [Development](docs/development.md) | Running from source, tests, code layout |
-| [The API](docs/api.md) | The contract the apps use |
+| [FAQ](docs/FAQ.md) | Short answers: requirements, costs, updates, privacy and troubleshooting |
+| [What bots can reach](docs/what-bots-can-reach.md) | What each bot, the Chief and botdot may see |
 | [botdot for Android](android/README.md) | The Android app |
+| [The API](docs/api.md) | The contract the apps use |
+| [Development](docs/development.md) | Running from source, tests, code layout |
 | [Security](SECURITY.md) | What botdot protects, and how to report a problem |
 
 ## Licence

@@ -59,7 +59,15 @@ On disk, plan about **15 GB per account**: botdot's image is about 4 GB and the 
 
 ### Can I run it on my Mac, Windows PC or a laptop?
 
-No. botdot installs on Linux only. From a Mac or a Windows PC, use the web page of a botdot running on a Linux machine. A VM works, as long as it runs Ubuntu 24.04 and stays on: bots run on schedules.
+Yes, as a preview: the [desktop app](desktop.md) can run botdot on a Mac or a Windows PC, in a Linux VM of its own (Lima or WSL2), as one account on `http://localhost:4700`. Its bots run only while the computer is on and awake, and a phone can't reach it. For bots that run around the clock, use a server: a Linux VM works, as long as it stays on.
+
+### Does it run in an LXC container, on Unraid or on a NAS?
+
+Not in a container: botdot needs a full Linux VM, because each account gets its own Linux user, rootless Docker and gVisor, which an LXC or OpenVZ container (a Proxmox LXC included) doesn't allow. A Proxmox, Unraid or NAS **VM** with Ubuntu 24.04 works.
+
+### Can I just `docker compose up`, or use my own reverse proxy?
+
+No plain compose install: the compose files in the repository are what the installer runs inside each account's own rootless Docker, behind the front door, and they don't work on their own. The installer sets up the Linux users, gVisor and the front door that walls the accounts off. On a tailnet nothing is on the internet and you need no proxy. On a public domain botdot's own Caddy answers on ports 80, 443 and 8443; to put it behind another proxy, pass those ports through to it as TCP, so Caddy keeps getting its certificate.
 
 ### Do I need a domain name?
 
@@ -182,7 +190,7 @@ On a machine with several accounts, yes, once the admin turns **Shared rooms** o
 | **Web page** | Works in any modern browser, on a computer or a phone |
 | **Android** | A native app with notifications, **Reply** and **Approve** on them, sharing files to a bot, and the keypad on tablets and foldables ([botdot for Android](../android/README.md)) |
 | **iPhone and iPad** | No app: use the web page, and add it to the Home Screen |
-| **Mac** | The web page |
+| **Windows and Mac** | The [desktop app](desktop.md), a window onto your botdot that can also run one on the computer itself, or the web page |
 
 The look is dark, on the web and on Android.
 
@@ -207,6 +215,16 @@ No. The model only sees a login's name, website and username. botdot types the p
 ### How are accounts kept apart?
 
 Each account has its own Linux user, its own rootless Docker whose containers all run under [gVisor](https://gvisor.dev), and its own botdot server, on a network of its own. The front door is the only program people reach; it signs them in with a passkey and passes each session to its account's server over a socket only it may open ([SECURITY.md](../SECURITY.md#how-botdot-is-meant-to-be-run)).
+
+### Does botdot send anything off my server?
+
+No telemetry and no analytics: botdot sends nothing to its author. On its own it connects only to:
+
+- **Anthropic,** for every Claude run, with your sign-in or key. Claude Code's non-essential traffic (feature flags, telemetry, its update check) is turned off.
+- **GitHub's registry** (`ghcr.io`), to check for an update every 6 hours and to download signed images. The desktop app checks GitHub Releases for its own update.
+- **Hugging Face,** once, for the memory search model, when it isn't in the image.
+
+Everything else is what you turn on or ask for: the web pages and services your bots use, Composio, Bitwarden, OpenRouter, boat.dev, Tailscale, and the off-site backup.
 
 ### Who can see my data?
 
@@ -264,7 +282,15 @@ The setup page opens by itself whenever Claude isn't signed in. Choose **Sign in
 
 ### On a public domain, the installer says Caddy doesn't answer yet.
 
-Point the domain's DNS at the server and keep ports 80 and 443 open: Caddy fetches its certificate by itself once it can. `cd /var/lib/botdot/front-door && docker compose logs caddy` shows what it is waiting on.
+Point the domain's DNS at the server and keep ports 80, 443 and 8443 open: Caddy fetches its certificate by itself once it can. `cd /var/lib/botdot/front-door && sudo docker compose logs caddy` shows what it is waiting on.
+
+### I lost the sign-up link, or it says it was used or ended.
+
+On the server, make a new one for your account: `cd /var/lib/botdot/front-door && sudo docker compose exec front-door node front-door.js sign-up-link --account <your account's name>`. It works once, for 7 days.
+
+### apt can't install `docker-ce-rootless-extras`.
+
+The machine's Docker is Ubuntu's or Debian's own `docker.io`, which has no rootless Docker. Install Docker from [docs.docker.com](https://docs.docker.com/engine/install/ubuntu/), then run the installer again.
 
 ### On a tailnet, the installer stops at Tailscale Serve.
 
