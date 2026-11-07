@@ -29,6 +29,7 @@
   --warn-text: #e2a846;
   --warn-soft: #2c2413;
   --fig-ink: #ffffff;      /* the figures' deep shade mixes towards it */
+  --focus-ring: var(--muted); /* every keyboard ring: 3:1 or more on every surface (#1187) */
   --shadow: none;
   --shadow-lg: 0 24px 70px rgba(0, 0, 0, .55);
   /* Depth (#723): on black a shadow does not read, so higher is lighter. A raised thing takes --raise (a pane) or
@@ -242,8 +243,9 @@ a.more-btn { text-decoration: none; }
 .back-btn { display: none; }
 .chat-thread { flex: 1; overflow-y: auto; padding: var(--sp-8) var(--sp-32) var(--sp-24); display: flex; flex-direction: column; gap: var(--sp-16); }
 .chat-thread > * { max-width: 820px; width: 100%; margin-left: auto; margin-right: auto; }
-.new-line { display: flex; align-items: center; gap: var(--sp-12); margin: var(--sp-12) auto var(--sp-8); color: var(--c); font-size: var(--fs-12); font-weight: 600; } /* above the first new reply */
-.new-line::before, .new-line::after { content: ''; height: 1px; background: currentColor; opacity: .45; flex: 1; }
+/* Above the first new reply: the chat's whole width, a rule in the bot's colour either side of a muted word (#1187). */
+.new-line { display: flex; align-items: center; align-self: stretch; gap: var(--sp-12); margin: var(--sp-12) 0 var(--sp-8); color: var(--muted); font-size: var(--fs-12); font-weight: 600; }
+.new-line::before, .new-line::after { content: ''; height: 1px; background: var(--c, var(--line-2)); opacity: .45; flex: 1; }
 .status-line { display: flex; align-items: center; gap: var(--sp-8); margin-top: var(--sp-8); margin-bottom: var(--sp-4); padding-left: var(--sp-4); color: var(--muted); font-size: var(--fs-12); } /* a working bot's opening line, under its chat (opening-line.js) */
 .status-line i { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--c); animation: status-pulse 1.2s ease-in-out infinite; }
 .status-line span { min-width: 0; overflow-wrap: anywhere; }
@@ -283,7 +285,7 @@ a.more-btn { text-decoration: none; }
 .run-steps > summary::-webkit-details-marker { display: none; }
 .run-steps > summary:hover { color: var(--text); }
 .run-steps.now > summary { color: var(--text); }
-.run-steps > summary:focus-visible { outline: 2px solid var(--line-2); outline-offset: 2px; }
+.run-steps > summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* A run at work: its step line, and Stop at the right end. */
 .steps-row { display: flex; align-items: flex-start; gap: var(--sp-8); }
 .steps-row > .run-steps { flex: 1; }
@@ -344,6 +346,9 @@ a.more-btn { text-decoration: none; }
 [data-expand] { cursor: pointer; }
 .bubble.from-bot { max-width: 76%; background: var(--raise-2); border-radius: var(--r-14) var(--r-14) var(--r-14) var(--r-8); box-shadow: var(--lift); }
 .bubble.from-bot.problem { background: var(--warn-soft); box-shadow: none; }
+/* A failed run in a chat: no frame, a red rule at its left, as Home shows it, and its Details always in sight (#1187). */
+.chat-thread .bubble.from-bot.problem { max-width: 100%; padding: 0 0 0 var(--sp-12); background: none; border: 0; border-left: 2px solid var(--err); border-radius: 0; box-shadow: none; }
+.chat-thread .bubble-row:has(.bubble.problem) .on-hover, .run-block:has(.bubble.problem) .on-hover { opacity: 1; }
 /* In a chat a reply has no bubble (#635): plain text, as wide as the chat, its links underlined. A problem keeps its tint. */
 /* An answer's lines stop at about 62 characters, so they read on a wide screen; tables, code and cards keep the width. */
 .bubble.from-bot .md > p, .bubble.from-bot .md > ul, .bubble.from-bot .md > ol, .bubble.from-bot .md > blockquote, .bubble.from-bot .md > h1, .bubble.from-bot .md > h2, .bubble.from-bot .md > h3, .bubble.from-bot .md > h4 { max-width: 62ch; }
@@ -444,6 +449,7 @@ button.chip:hover { color: var(--text); }
 .composer-box { flex: 1; max-width: 820px; margin: 0 auto; display: flex; align-items: flex-end; gap: var(--sp-8); background: var(--raise-2); box-shadow: var(--lift); border-radius: var(--r-pill); padding: var(--sp-8) var(--sp-8) var(--sp-8) var(--sp-16); }
 .composer textarea { flex: 1; border: 0; background: transparent; box-shadow: none; resize: none; outline: none; padding: var(--sp-8) 0; min-height: 22px; max-height: 200px; font-size: var(--fs-14); line-height: 1.45; }
 .composer textarea::placeholder { color: var(--faint); }
+.composer-box:has(textarea:focus-visible) { box-shadow: var(--lift), 0 0 0 1px var(--line-2); } /* the box, not the field, says where the keys go */
 /* What a message invokes, a skill or "/btw": a chip in your bubble and, drawn behind the text, in the box. */
 .cmd { font-weight: 600; color: var(--mention); background: color-mix(in srgb, var(--mention) 14%, transparent); border-radius: var(--r-8); padding: 1px var(--sp-8); }
 .cmd.opens { cursor: pointer; }
@@ -453,7 +459,7 @@ button.chip:hover { color: var(--text); }
 .ta-mark .cmd { color: transparent; font-weight: inherit; padding: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--mention) 26%, transparent); background: color-mix(in srgb, var(--mention) 26%, transparent); border-radius: var(--r-8); }
 .send-btn { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 0; background: var(--ink); color: var(--ink-text); display: grid; place-items: center; cursor: pointer; }
 .send-btn:disabled { opacity: .3; cursor: default; }
-.send-btn.stop { background: var(--err); color: #fff; } /* only against a server without `message-waits`: there the Chief's box has Stop while it replies */
+.send-btn.stop { background: var(--err); color: #000; } /* only against a server without `message-waits`: there the Chief's box has Stop while it replies */
 .composer .ctx { display: flex; gap: var(--sp-8); flex-wrap: wrap; padding: 0 0 var(--sp-8) var(--sp-4); }
 .composer-wrap { max-width: 820px; margin: 0 auto; width: 100%; position: relative; }
 /* A bot's or the Chief's plan, above the message box (plan.js; docs/api.md, "The plan"). */
@@ -568,10 +574,11 @@ a.file-mention:hover { background: color-mix(in srgb, currentColor 16%, transpar
 .pulse::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 1.4s ease-in-out infinite; }
 .btn { display: inline-flex; align-items: center; gap: var(--sp-8); justify-content: center; border: 0; background: var(--fill); padding: var(--sp-8) var(--sp-16); border-radius: var(--r-pill); cursor: pointer; font-weight: 400; font-size: var(--fs-14); white-space: nowrap; text-decoration: none; }
 .btn:hover { background: var(--line-2); }
+.btn:focus-visible, .icon-btn:focus-visible, .more-btn:focus-visible, .kp-no:focus-visible, .kp-allow:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; } /* not the browser's own ring (#1187) */
 .btn.primary { background: var(--ink); color: var(--ink-text); }
 .btn.primary:hover { opacity: .88; }
 .btn.danger { color: var(--err); }
-.btn.primary.danger { background: var(--err); color: #fff; }
+.btn.primary.danger { background: var(--err); color: #000; } /* black on red: 6.9:1, white was 3:1 (#1187) */
 #ask-first { width: min(440px, calc(100% - 24px)); }
 #ask-first .modal-body p { margin: 0; color: var(--muted); }
 #ask-first .modal-foot { border-top: 0; }
@@ -870,7 +877,7 @@ textarea { resize: vertical; min-height: 70px; line-height: 1.5; }
 textarea.mono { font-family: var(--mono); font-size: var(--fs-12); }
 textarea.masked { -webkit-text-security: disc; } /* a Vault secret of several lines, e.g. a private key: hidden as a password field is */
 input[type=color] { width: 100%; height: 38px; border: 0; border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--sink); padding: var(--sp-4); }
-input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 25%, transparent); outline-offset: 1px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 1px; }
 .search input:focus-visible, .composer textarea:focus-visible { outline: none; }
 fieldset { border: 1px solid var(--line); border-radius: var(--r-14); padding: var(--sp-12) var(--sp-16); margin: 0; display: grid; gap: var(--sp-12); }
 legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding: 0 var(--sp-8); }
@@ -983,7 +990,9 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .need-actions { display: flex; flex-wrap: wrap; gap: var(--sp-8); justify-content: flex-end; margin-top: auto; padding-top: var(--sp-4); }
 .need-actions .btn { white-space: nowrap; }
 .need-actions .need-link { margin-right: auto; align-self: center; color: var(--muted); font-size: var(--fs-12); }
-.section-head .back-btn { margin-bottom: var(--sp-8); }
+/* Back on the title's line, not a row of its own (#1187); what the title says goes under them. */
+.title-back { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--sp-8); }
+.title-back > p { flex-basis: 100%; }
 .login-banner { display: flex; align-items: center; gap: var(--sp-12); justify-content: center; flex-wrap: wrap; padding: var(--sp-8) var(--sp-16); background: var(--warn-soft); font-size: var(--fs-14); }
 .req-site { text-align: center; padding: var(--sp-16); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); }
 .req-site .site { font-family: var(--mono); font-size: var(--fs-20); font-weight: 600; margin: var(--sp-4) 0 var(--sp-4); overflow-wrap: anywhere; }
@@ -1020,7 +1029,7 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 .tile.size-wide { grid-column: span 2; }
 .tile.size-big { grid-column: span 2; grid-row: span 2; align-self: stretch; min-height: 220px; }
 .tile.size-row { grid-column: 1 / -1; }
-.tile:focus-visible { outline: 2px solid color-mix(in srgb, var(--text) 30%, transparent); outline-offset: 2px; }
+.tile:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .tile.waiting { opacity: .55; outline: 1px dashed var(--line-2); outline-offset: -1px; }
 .tile.pop { animation: tile-pop var(--t3) var(--out); }
 @keyframes tile-pop { 40% { transform: scale(1.03); background: var(--fill); } }
@@ -1252,8 +1261,8 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 
 /* ---------- toast ---------- */
 /* A popover, so that it is drawn over an open dialog; top, right, margin, border and overflow undo the browser's popover look. */
-.toast { position: fixed; inset: auto auto calc(26px + env(safe-area-inset-bottom)) 50%; margin: 0; border: 0; overflow: visible; transform: translateX(-50%); z-index: 50; background: var(--ink); color: var(--ink-text); padding: var(--sp-12) var(--sp-16); border-radius: var(--r-pill); box-shadow: var(--shadow-lg); font-weight: 400; font-size: var(--fs-14); }
-.toast.err { background: var(--err); color: #fff; }
+.toast { position: fixed; inset: auto 0 calc(26px + env(safe-area-inset-bottom)) 0; width: max-content; max-width: min(480px, calc(100vw - 2 * var(--sp-16))); margin: 0 auto; border: 0; overflow: visible; text-wrap: balance; z-index: 50; background: var(--ink); color: var(--ink-text); padding: var(--sp-12) var(--sp-16); border-radius: var(--r-pill); box-shadow: var(--shadow-lg); font-weight: 400; font-size: var(--fs-14); }
+.toast.err { background: var(--err-soft); color: var(--err); box-shadow: var(--lift), var(--shadow-lg); }
 /* Heard, not seen: what a screen reader is told of a chat (#say, app.js). */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
 
@@ -1363,6 +1372,17 @@ legend { font-size: var(--fs-12); font-weight: 400; color: var(--muted); padding
 /* Touch screens: 16px inputs stop iOS from zooming in. */
 @media (pointer: coarse) {
   .composer textarea, .ta-mark, input[type=text], input[type=password], input[type=search], select, textarea { font-size: var(--fs-16); }
+  /* A finger's targets, 44px (#1187): bigger where the layout has room, an invisible hit area where it has not. */
+  .chat-head .icon-btn, .side-tools .more-btn { width: 44px; height: 44px; }
+  .chat-head .actions-right { gap: 0; }
+  .kp-no, .kp-allow { height: 44px; min-width: 64px; }
+  .btn.sm { min-height: 36px; padding: var(--sp-8) var(--sp-16); }
+  .run-steps > summary, .chat-menu button, .doc-menu button, .pc-menu button, .kp-fold { min-height: 44px; }
+  .sub-back, .page-back { min-height: 44px; }
+  .back-btn { width: 44px; height: 44px; }
+  .bubble-meta, .block-foot { gap: var(--sp-12); }
+  .send-btn, .attach-btn, .bubble-meta button, .reply-btn, .btn.sm, .tile-edit, .cf-del, .icon-btn.sm { position: relative; }
+  .send-btn::after, .attach-btn::after, .bubble-meta button::after, .reply-btn::after, .btn.sm::after, .tile-edit::after, .cf-del::after, .icon-btn.sm::after { content: ''; position: absolute; top: 50%; left: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%); }
 }
 
 /* scheduled jobs */
@@ -1492,7 +1512,7 @@ div.field .hint { font-weight: 400; color: var(--faint); }
 .switch input:checked + span { background: var(--ok); }
 .switch input:checked + span::after { transform: translateX(14px); }
 .switch:has(input:disabled) { opacity: .45; cursor: default; }
-.switch input:focus-visible + span { outline: 2px solid color-mix(in srgb, var(--text) 25%, transparent); outline-offset: 2px; }
+.switch input:focus-visible + span { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 /* Attaching files */
 .composer-box { padding-left: var(--sp-8); }
@@ -1630,6 +1650,7 @@ details.bs-row { display: block; }
 #chief-chats { gap: 0; max-height: 320px; overflow-y: auto; }
 #chief-chats .grow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #chief-chats .active .grow { font-weight: 600; }
+.sub-back, .page-back { align-self: flex-start; } /* a pill at the left, not the page's width */
 .sub-back { margin-bottom: var(--sp-16); }
 
 /* ---------- groups: one chat with two to six bots (groups.js) ---------- */
@@ -1724,6 +1745,9 @@ details.bs-row { display: block; }
 /* Over the keys: the Board's numbers, then Needs you, a row per thing that waits, and Rooms beside it. */
 .kp-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-24) var(--sp-12); min-height: 0; }
 .kp-head > .hidden + .kp-rooms { margin-left: auto; }
+/* Needs you comes first, above the numbers: it is the one thing that waits for the owner (#1187). Rooms stays beside it. */
+.kp-head > .kp-needs:not(.hidden) { order: -1; flex-basis: 100%; max-width: 720px; }
+.kp-head > .kp-needs:not(.hidden) ~ .kp-rooms { order: -1; margin-left: auto; }
 .kp-board { flex: 1 1 100%; min-width: 0; display: flex; align-items: flex-start; gap: var(--sp-8); }
 .kp-board:empty { display: none; }
 /* The Board's strip (#635): a label over a plain number, its sparkline or bar beside it; no box. They take as many
@@ -1735,6 +1759,9 @@ details.bs-row { display: block; }
 .kp-card .kit-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kp-card .kit-num { font-size: var(--fs-32); letter-spacing: -.02em; overflow-wrap: anywhere; } /* a long value wraps: never cut */
 .kp-card .kit-num.words { font-size: var(--fs-20); letter-spacing: -.01em; } /* words on one line, as on the Board (#726) */
+.kp-card .kit-num.words.long { overflow-wrap: break-word; line-height: 1.25; } /* a line of words breaks between words */
+.kp-card:has(.kit-num.words.long) { grid-column: 1 / -1; } /* a narrow keypad and a phone: the whole row */
+@container side (width >= 520px) { .kp-card:has(.kit-num.words.long) { grid-column: span 2; } } /* wide: two columns */
 .kp-card .kit-num small { font-size: var(--fs-12); color: var(--muted); font-weight: 400; }
 .kp-card .kit-spark { flex: none; width: 56px; min-width: 0; height: 22px; margin: 0 0 var(--sp-8) auto; }
 .kp-card .kit-spark polygon { display: none; }
@@ -1756,6 +1783,7 @@ details.bs-row { display: block; }
 .home-pop.ask-sheet { max-height: 75vh; }
 .home-row { display: flex; align-items: center; gap: var(--sp-12); padding: var(--sp-8) var(--sp-12); border-radius: var(--r-8); cursor: pointer; user-select: none; outline: none; }
 .home-row:hover, .home-row:focus-visible { background: var(--sunk); }
+.home-row:focus-visible { box-shadow: inset 0 0 0 2px var(--focus-ring); }
 .home-row.dragging { background: var(--sunk); box-shadow: var(--shadow-lg); }
 .ask-sheet .home-row { padding: var(--sp-12) var(--sp-12); }
 .home-grip { flex: none; width: 16px; height: 16px; color: var(--faint); cursor: grab; touch-action: none; }
@@ -1788,23 +1816,24 @@ details.bs-row { display: block; }
    small plain name over its keys (#635). More than fit scroll. */
 .kp-keys { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-24); }
 .kp-page-keys { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
-.kp-cats { display: flex; flex-wrap: wrap; gap: var(--sp-8) var(--sp-32); margin-top: var(--sp-16); }
-.kp-page-head { margin: 0 0 var(--sp-8) var(--sp-8); font: inherit; font-size: var(--fs-12); color: var(--muted); }
+.kp-cats { display: flex; flex-wrap: wrap; gap: var(--sp-16) var(--sp-32); margin-top: var(--sp-32); }
+.kp-page-head { margin: 0 0 var(--sp-4) var(--sp-12); font: inherit; font-size: var(--fs-12); line-height: 18px; color: var(--muted); } /* close to its own keys, at their inset (#1187) */
+.kp-cats .key { justify-content: flex-start; padding-top: var(--sp-4); }
 /* A key: its head with the dot of its state, its name, and while it works what it says it does. The open one sits in a
    soft box; the rest have none. */
 .key { --key-bg: var(--bg); position: relative; flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-8); width: 132px; min-height: 112px; padding: var(--sp-12) var(--sp-8); border: 0; border-radius: var(--r-14); background: var(--key-bg); text-align: center; font: inherit; color: inherit; cursor: pointer; }
 .key:hover { --key-bg: var(--panel); }
 .key.active { --key-bg: var(--raise-2); box-shadow: var(--lift); }
-.key:focus-visible { outline: 2px solid var(--muted); outline-offset: -2px; }
+.key:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .key-head { position: relative; display: block; flex: none; }
 .key .avatar, .key .group-pic { width: 52px; height: 52px; }
 .key .group-pic > i { width: 33px; height: 33px; }
 .key .group-pic > i:nth-child(3) { left: 10px; }
 .key .name { max-width: 100%; font-size: var(--fs-14); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* A key's status line (list.js, keyState, #664): a dot and the status's words, in the state's colour. */
-.key-st { display: inline-flex; align-items: center; gap: var(--sp-8); max-width: 100%; margin-top: calc(var(--sp-4) * -1); font-size: var(--fs-12); color: var(--muted); white-space: nowrap; } /* muted words, the state's colour in its dot only (#724) */
-.key-st::before { content: ""; flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--line-2); }
-.key-st > span { overflow: hidden; text-overflow: ellipsis; }
+.key-st { display: inline-flex; align-items: flex-start; gap: var(--sp-8); max-width: 100%; margin-top: calc(var(--sp-4) * -1); font-size: var(--fs-12); line-height: 1.35; color: var(--muted); text-align: center; } /* muted words, the state's colour in its dot only (#724) */
+.key-st::before { content: ""; flex: none; width: 6px; height: 6px; margin-top: var(--sp-4); border-radius: 50%; background: var(--line-2); }
+.key-st > span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: break-word; } /* two lines: "Needs you" and "Couldn't finish" read in full (#1187) */
 .key-st.working::before, .key-st.done::before { background: var(--ok); }
 .key-st.needs { color: var(--warn-text); font-weight: 600; } /* the one state that asks for the owner keeps its colour in the words */
 .key-st.needs::before { background: var(--warn); }
@@ -1849,11 +1878,15 @@ details.bs-row { display: block; }
 .kp-phone .kp-needs { flex-basis: 100%; }
 .kp-phone .kp-need-text { white-space: normal; line-height: 1.35; }
 .kp-phone .kp-need-text b { display: block; }
-.kp-sections { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-12) var(--sp-12); }
-.kp-sec-keys { display: flex; flex-wrap: wrap; gap: var(--sp-4); }
-.kp-phone .kp-cats { gap: var(--sp-4) var(--sp-12); margin-top: var(--sp-16); }
-.kp-sec-head { margin: 0 0 var(--sp-4) var(--sp-8); font: inherit; font-size: var(--fs-12); color: var(--muted); }
-.kp-sec-keys .key { width: 80px; min-height: 100px; padding: var(--sp-8) var(--sp-4); gap: var(--sp-8); }
+/* The keys: a third of the row each, the same 8px between all of them, so the categories sit side by side where they
+   fit and every key lines up with the row above it (#1187). */
+.kp-sections { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-12) var(--sp-12); container-type: inline-size; }
+.kp-sec-keys { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8); }
+.kp-phone .kp-cats { gap: var(--sp-16) var(--sp-8); margin-top: var(--sp-24); }
+.kp-phone .kp-cats:first-child { margin-top: 0; } /* nothing pinned: the categories start under the numbers */
+.kp-sec-head { margin: 0 0 0 var(--sp-8); font: inherit; font-size: var(--fs-12); line-height: 18px; color: var(--muted); }
+.kp-sec-head .kp-fold { min-height: 44px; }
+.kp-sec-keys .key { width: calc((100cqw - 2 * var(--sp-8) - 1px) / 3); min-height: 100px; padding: var(--sp-8) var(--sp-4); gap: var(--sp-8); }
 .kp-sec-keys .key .avatar, .kp-sec-keys .key .group-pic { width: 44px; height: 44px; }
 .kp-sec-keys .key .group-pic > i { width: 28px; height: 28px; }
 .kp-sec-keys .key .group-pic > i:nth-child(3) { left: 8px; }

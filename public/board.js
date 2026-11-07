@@ -295,7 +295,7 @@ function renderDashboard() {
   const runHTML = (r, sourced) => (r.tile ? withInside(r.tile, sourced) : `<div class="ctl-box"><div class="tile-head"><span class="tile-title">${tr('Controls')}</span></div>${r.rows.map((t) => controlRowHTML(t, waiting.has(t.id))).join('')}</div>`);
   const newest = newestAt(d.tiles);
   root.innerHTML = `
-    <div class="section-head board-head"><div>${BACK_BTN}<h1>${tr('Board')}</h1></div>
+    <div class="section-head board-head"><div class="title-back">${BACK_BTN}<h1>${tr('Board')}</h1></div>
       <div class="board-tools">${d.tiles.some((t) => t.source) ? `<button type="button" class="board-live ${boardRefreshing ? 'spin' : ''}" data-board-refresh aria-label="${tr('Refresh')}" title="${tr('Refresh')}">${REFRESH}${newest ? `<span data-live>${esc(ageWords((Date.now() - newest) / 1000))}</span>` : ''}</button>` : ''}${named.length > 1 ? `<div class="seg board-filter">${['', ...named].map((n) => `<button class="${n === boardFilter ? 'on' : ''}" data-filter="${esc(n)}">${esc(n || tr('All'))}</button>`).join('')}</div>` : ''}</div></div>
     ${d.tiles.length ? '' : `<div class="dash-empty">
       <p>${tr('Tiles for the things you use most: a light switch, the temperature, a shopping list, a morning summary.')}</p>
