@@ -250,7 +250,7 @@ const cases = [
       assert.match(said, /The front door is running/);
       assert.match(said, new RegExp(`The account ${ADMIN} is running`));
       assert.match(said, new RegExp(`Caddy answers on https://${DOMAIN.replace('.', '\\.')}`));
-      assert.match(said, /Time zone UTC/, 'a machine without a time zone gets UTC');
+      assert.match(said, /Time zone (Etc\/)?UTC\b/, 'a machine without a time zone gets UTC (Debian\'s image names it Etc/UTC)');
       assert.ok(said.includes(ROOT_REACHES), `the installer says that root reaches every account:\n${said}`);
       assert.ok(said.indexOf(ROOT_REACHES) < said.indexOf('/sign-up/'), 'before the link');
       assert.ok(said.includes(`Until it is used, botdot shows only "${NOT_YET}".`));
