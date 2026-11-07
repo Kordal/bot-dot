@@ -1430,6 +1430,7 @@ data class Tile(
     val actions: JsonElement? = null,
     /** A page's tile (#451, kind "page"): the page it opens. */
     val page: TilePage? = null,
+    val confirm: String? = null, // a tap asks first: "off" (a switch before it turns off), "on" or "always"
     @SerialName("scripts") val scriptList: JsonElement? = null,
     @SerialName("then") val thenValue: JsonElement? = null, // a waiting tile: what a yes would start, kept as it came
     // A change that waits beside the approved tile, and what its buttons read, kept as they came (as on a [Job]).

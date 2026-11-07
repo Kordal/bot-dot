@@ -20,6 +20,8 @@ A tile can be one of six ready-made kinds (below), or built from blocks (further
 | `note` | 1 to 3 short lines, the key facts first (3 lines show until tapped) | shows all of it in a pop-up, with a link to its bot's chat |
 | `group` | its title and one dot per tile inside (filled when a switch is on) | opens its tiles below it |
 
+**Asking first:** `confirm: "off"` makes a switch ask "are you sure" before it turns off (no accidental off), `"on"` before it turns on, `"always"` before any tap that switches it or runs something (a button). `confirm: null` stops it. When the user asks a tile to ask first, `update_tile` it with `confirm`; never add a second tile.
+
 **Groups:** a `group` tile holds related tiles, like four lights under "Lights". It has no sources and needs no bot. Put a tile in it with `parent` (the group's id); the tile then sits under the group's heading. Only one level: no groups inside groups. When the user wants related tiles together ("put my light tiles into one Lights card"), add the group in their heading, then `update_tile` each tile with `parent`. Take one out with `parent: ""`. `remove_tile` on a group leaves its tiles loose, unless `withTiles` is true; ask the user which they want if they didn't say.
 
 **How the Board looks:** each heading names the bots its tiles come from, and where their values come from ("script · 30 s"); the switches and buttons that follow each other under a heading are rows of one Controls box; a note a bot or you wrote says "written by AI". The user can show one heading at a time. Put related tiles under one heading, the switches and buttons next to each other.

@@ -145,7 +145,8 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     fun blink(t: Tile, text: String) = scope.launch { flash[t.id] = text; delay(2500); if (flash[t.id] == text) flash.remove(t.id) } // a later word stays its own time
     fun pop(t: Tile) = scope.launch { popped[t.id] = true; delay(180); popped.remove(t.id) }
     // What a tap does comes with the tile (look.tap): its pop-up, switch it, run it, read it again, or its bot's chat.
-    fun tap(t: Tile, waiting: Boolean) {
+    var sure by remember { mutableStateOf<Pair<Tile, Boolean?>?>(null) } // a tile that asks first (its confirm), and the state the tap would set
+    fun tap(t: Tile, waiting: Boolean, asked: Boolean = false) {
         // A page on the Board (#451) opens in the viewer.
         if (t.kind == "page") { t.page?.let { pg -> DocViewer.open = DocViewer.page(pg.bot, dev.botdot.app.data.PageRef(pg.slug, t.title), if (pg.bot == dev.botdot.app.data.Pages.CHIEF) chiefName else bots.firstOrNull { it.id == pg.bot }?.name.orEmpty()) }; return }
         val how = t.look?.tap ?: if (t.kind == "group") "group" else "none"
@@ -157,6 +158,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             "none" -> return
         }
         val on = if (how == "toggle") t.look?.dot?.filled != true else null
+        if (!asked && tileAsksFirst(t.confirm, how, on)) { sure = t to on; return }
         if (on != null) replace(t.copy(value = JsonPrimitive(on), look = t.look?.copy(dot = t.look.dot?.copy(filled = on)))) // at once; the read after it says whether it took
         val asked = bots.firstOrNull { it.id == t.bot }?.name
         if (t.asks) blink(t, tileAsked(asked, queued = false))
@@ -166,6 +168,14 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 .onSuccess { a -> a.tile?.let { replace(it) }; if (a.queued) blink(t, tileAsked(asked, queued = true)); if (how == "act" && !t.asks) pop(t) }
                 .onError { tell(it.message ?: tr("That didn't work")); load(quiet = true) }
         }
+    }
+    sure?.let { (t, on) ->
+        AlertDialog(
+            onDismissRequest = { sure = null },
+            title = { Text(when (on) { true -> tr("Turn on “{title}”?", "title" to t.title); false -> tr("Turn off “{title}”?", "title" to t.title); null -> "${t.title}?" }) },
+            confirmButton = { TextButton(onClick = { sure = null; tap(t, waiting = false, asked = true) }) { Text(when (on) { true -> tr("Turn on"); false -> tr("Turn off"); null -> "OK" }, color = if (on == false) p.err else p.text) } },
+            dismissButton = { TextButton(onClick = { sure = null }) { Text(tr("Cancel"), color = p.text) } },
+        )
     }
     // One of a tile's controls: a switch, button, slider, the colour wheel or a choice. While the wheel is still
     // being dragged (done: false) the page isn't updated, so the mark stays under your finger.
@@ -590,4 +600,12 @@ private fun Title(text: String, lines: Int = 1) =
 internal fun tileColor(t: Tile, tiles: List<Tile>, bots: List<Bot>): String {
     val owner = t.bot ?: tiles.filter { it.parent == t.id }.mapNotNull { it.bot }.toSet().singleOrNull().takeIf { t.kind == "group" }
     return t.color ?: bots.firstOrNull { it.id == owner }?.color ?: CHIEF_COLOR
+}
+
+/** Whether a tap on a tile asks "are you sure" first (its confirm, docs/api.md "A tile that asks first"). */
+internal fun tileAsksFirst(confirm: String?, tap: String, on: Boolean?): Boolean = when {
+    confirm.isNullOrEmpty() -> false
+    tap == "toggle" -> confirm == "always" || confirm == (if (on == true) "on" else "off")
+    tap == "act" -> confirm == "always"
+    else -> false
 }
