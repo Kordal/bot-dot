@@ -175,7 +175,7 @@ private fun Stopped(plan: Plan, onDismiss: () -> Unit) {
     Box(
         Modifier.padding(start = Space.s12, bottom = Space.s8).heightIn(min = 48.dp).clip(CircleShape).clickable(onClickLabel = tr("Dismiss the plan"), role = Role.Button, onClick = onDismiss).padding(horizontal = Space.s12),
         contentAlignment = Alignment.Center,
-    ) { Text(tr("Dismiss"), color = p.text, fontWeight = FontWeight.Medium, fontSize = Type.s14) }
+    ) { Text(tr("Dismiss"), color = p.text, fontWeight = FontWeight.Normal, fontSize = Type.s14) }
 }
 
 @Composable

@@ -23,7 +23,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -89,7 +88,7 @@ internal fun RoomsRow(app: BotDotApp, onClick: () -> Unit) {
         // One line however narrow the list (#493): the name and what waits in one text that ends in "…".
         val line = RoomWords.rowLine(invites)
         Text(buildAnnotatedString {
-            withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(ROOMS) }
+            withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.SemiBold)) { append(ROOMS) }
             if (line != null) withStyle(SpanStyle(color = p.warnText)) { append(" · $line") }
         }, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Spacer(Modifier.size(8.dp))
@@ -126,7 +125,7 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
     var making by rememberSaveable { mutableStateOf(false) }
     var joining by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { app.rooms.refresh() }
-    fun act(block: suspend () -> Unit) = scope.launch { runCatching { block() }.onError { snack.showSnackbar(RoomWords.failed(it)) } }
+    fun act(block: suspend () -> Unit) = scope.launch { runCatching { block() }.onError { snack.showError(RoomWords.failed(it)) } }
 
     if (making) NameDialog(tr("New room"), tr("Name"), "", tr("Make"), onDone = { name ->
         val api = app.api.value ?: throw ApiException(NOT_CONNECTED)
@@ -141,7 +140,7 @@ fun RoomsScreen(app: BotDotApp, onRoom: (String) -> Unit, onMade: (String) -> Un
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(ROOMS, style = MaterialTheme.typography.titleMedium) },
@@ -348,7 +347,7 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
     CompositionLocalProvider(LocalMentions provides mentions, LocalSiteIcons provides sitesShown(server?.features), LocalProductCards provides productCardsShown(server?.features)) {
         Scaffold(
             containerColor = p.bg,
-            snackbarHost = { SnackbarHost(snack) },
+            snackbarHost = { BotSnackbarHost(snack) },
             topBar = { ChatBar(null, "idle", room?.name.orEmpty(), onName = onSettings, onBack = onBack, nameLabel = tr("Its people and bots"), picture = { RoomMark() }) },
             bottomBar = {
                 Composer(
@@ -358,7 +357,7 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
                     outbox = vm.outbox,
                     onSend = { text, _ -> vm.send(text, mine) },
                     onStop = {},
-                    onError = { scope.launch { snack.showSnackbar(it) } },
+                    onError = { scope.launch { snack.showError(it) } },
                 )
             },
         ) { pad ->
@@ -455,7 +454,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
     LaunchedEffect(Unit) { runCatching { app.api.value?.room(roomId) }.onSuccess { it?.let(app.rooms::took) } }
     fun act(done: String? = null, block: suspend () -> Unit) = scope.launch {
         busy = true
-        runCatching { block() }.onSuccess { done?.let { snack.showSnackbar(it) } }.onError { snack.showSnackbar(RoomWords.failed(it)) }
+        runCatching { block() }.onSuccess { done?.let { snack.showSnackbar(it) } }.onError { snack.showError(RoomWords.failed(it)) }
         busy = false
     }
     val api = { app.api.value ?: throw ApiException(NOT_CONNECTED) }
@@ -477,7 +476,7 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(room?.name.orEmpty(), style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() })

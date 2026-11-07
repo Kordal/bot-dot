@@ -9,7 +9,8 @@ import dev.botdot.app.R
 
 // Geist and Geist Mono, the web page's fonts, ship in res/font (licence: assets/fonts/OFL.txt).
 // Each file is a variable font: a Font of a weight sets the file's weight axis to it, so no weight is faked.
-private val weights = listOf(FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold)
+// Two weights, as on the web page: 400 for words and 600 for names and titles (FontWeightTest keeps it so).
+internal val weights = listOf(FontWeight.Normal, FontWeight.SemiBold)
 
 /** Geist, for all text. */
 val Geist = FontFamily(

@@ -16,7 +16,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -73,7 +72,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         scope.launch {
             runCatching { if (all) a.resetAccountComputer() else a.resetComputer(botId) }
                 .onSuccess { state = "reset"; describe() }
-                .onError { state = before; snack.showSnackbar(it.message ?: tr("Couldn't reset")) }
+                .onError { state = before; snack.showError(it.message ?: tr("Couldn't reset")) }
         }
     }
 
@@ -85,10 +84,10 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                 .onSuccess { r ->
                     state = if (r.state == "running") "running" else "error"
                     if (!r.updated) error = r.error
-                    r.error?.let { snack.showSnackbar(it) }
+                    r.error?.let { snack.showError(it) }
                     describe()
                 }
-                .onError { state = "running"; snack.showSnackbar(it.message ?: tr("Couldn't update")) }
+                .onError { state = "running"; snack.showError(it.message ?: tr("Couldn't update")) }
         }
     }
 
@@ -97,7 +96,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         scope.launch {
             runCatching { a.copyOldComputer(botId) }
                 .onSuccess { snack.showSnackbar(tr("Copied into {place}", "place" to it.copied)) }
-                .onError { snack.showSnackbar(it.message ?: tr("Couldn't copy its files")) }
+                .onError { snack.showError(it.message ?: tr("Couldn't copy its files")) }
         }
     }
 
@@ -106,7 +105,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
         scope.launch {
             runCatching { a.resetComputer(botId) }
                 .onSuccess { describe() }
-                .onError { snack.showSnackbar(it.message ?: tr("Couldn't erase it")) }
+                .onError { snack.showError(it.message ?: tr("Couldn't erase it")) }
         }
     }
 
@@ -145,7 +144,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     if (state == "running" || state == "error") TextButton(onClick = { askReset = true }) { Text(tr("Reset"), color = p.err) }
                 })
         },
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize()) {
             // The bot's old computer of its own, kept and stopped until its files are copied and it is erased (#107).

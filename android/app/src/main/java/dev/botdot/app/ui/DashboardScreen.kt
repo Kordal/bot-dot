@@ -49,7 +49,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -247,7 +246,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     asking?.let { t ->
         var text by remember(t.id) { mutableStateOf("") }
         var sending by remember(t.id) { mutableStateOf(false) }
-        ModalBottomSheet(onDismissRequest = { asking = null }, containerColor = p.panel) {
+        ModalBottomSheet(onDismissRequest = { asking = null }) {
             Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s24).imePadding()) {
                 Text(t.title, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 BasicTextField(
@@ -279,7 +278,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = {
                 Column {
@@ -546,7 +545,7 @@ private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifie
         else Box(Modifier.fillMaxWidth().size(1.dp).background(p.line))
         Row(Modifier.fillMaxWidth().then(click).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(t.title, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(t.title, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 note?.let { Text(it, color = p.muted, fontSize = Type.s12) }
             }
             if (t.kind == "switch") {

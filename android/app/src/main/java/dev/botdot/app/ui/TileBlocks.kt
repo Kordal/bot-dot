@@ -28,7 +28,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -158,7 +157,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             if (t.isEmpty()) Faint()
             else Text(buildAnnotatedString {
                 append(t)
-                b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.muted)) { append(" $it") } }
+                b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Normal, color = p.muted)) { append(" $it") } }
             }, color = tint(b.color, p.text, words = true), fontSize = if (BoardKit.isWords(t)) Type.s20 else Type.s24, fontWeight = FontWeight.SemiBold,
                 lineHeight = if (BoardKit.isWords(t)) Type.line28 else Type.line32)
         }
@@ -206,7 +205,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             var on by remember(b.on) { mutableStateOf(b.on == true) }
             Text(b.label.orEmpty(), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
             Switch(checked = on, onCheckedChange = { on = it; ctl.act(b.key!!, JsonPrimitive(it), true) },
-                colors = SwitchDefaults.colors(checkedTrackColor = p.ok, checkedThumbColor = Color.White))
+                colors = switchColors())
         }
         "button" -> SecondaryButton(onClick = { ctl.act(b.key!!, null, true) }) { Text(b.label.orEmpty(), color = p.text) }
         "slider" -> Column {

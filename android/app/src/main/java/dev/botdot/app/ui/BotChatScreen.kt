@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -165,7 +164,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         outbox = vm.outbox,
         onSend = { text, attachments -> sendText(text, attachments) },
         onStop = { vm.stop() },
-        onError = { scope.launch { snack.showSnackbar(it) } },
+        onError = { scope.launch { snack.showError(it) } },
         initialText = sharedText,
         onSignIn = onSignIn.takeIf { signedOut },
         backAt = backAt,
@@ -190,7 +189,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         LocalProductCards provides productCardsShown(features), LocalProductSaver provides botId) {
         Scaffold(
             containerColor = p.bg,
-            snackbarHost = { SnackbarHost(snack) },
+            snackbarHost = { BotSnackbarHost(snack) },
             topBar = {
                 ChatBar(bot?.color, bot?.state ?: "idle", bot?.name ?: "", onName = onSettings, onBack = onBack, outfit = bot?.outfit,
                     // The owner at the test of Milestone 10: the plus stands right of the bot's name, with no words beside it.
@@ -460,7 +459,7 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
         if (foot.isNotEmpty() || onRunNow != null) Row(Modifier.padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (foot.isNotEmpty()) Text(foot, color = p.faint, fontSize = Type.s12)
             if (notes.any { it.later }) LaterPill()
-            if (onRunNow != null) Text(tr("Run now"), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Medium,
+            if (onRunNow != null) Text(tr("Run now"), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Normal,
                 modifier = Modifier.clip(Radius.small).clickable(onClick = onRunNow).padding(horizontal = Space.s4, vertical = Space.s4))
         }
     }

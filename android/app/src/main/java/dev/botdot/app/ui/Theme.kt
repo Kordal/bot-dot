@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -74,29 +75,50 @@ val DarkPaper = Paper(
 
 val LocalPaper = staticCompositionLocalOf { DarkPaper }
 
+/**
+ * Material's colours, every role set from [p] (#1191): nothing is left at Material's purple, so a snackbar, a dialog,
+ * a sheet, a menu or a switch Material draws by itself looks like the rest. Containers are the web page's raised greys;
+ * no tint is laid over a surface by its elevation.
+ */
+internal fun botDotColors(p: Paper) = darkColorScheme().copy(
+    primary = p.ink, onPrimary = p.inkText, primaryContainer = p.fill, onPrimaryContainer = p.text, inversePrimary = p.inkText,
+    secondary = p.muted, onSecondary = p.inkText, secondaryContainer = p.sunk, onSecondaryContainer = p.text,
+    tertiary = p.mention, onTertiary = p.inkText, tertiaryContainer = p.fill, onTertiaryContainer = p.text,
+    background = p.bg, onBackground = p.text,
+    surface = p.bg, onSurface = p.text, surfaceVariant = p.sunk, onSurfaceVariant = p.muted, surfaceTint = Color.Transparent,
+    inverseSurface = p.ink, inverseOnSurface = p.inkText,
+    surfaceBright = p.fill, surfaceDim = p.bg,
+    surfaceContainerLowest = p.bg, surfaceContainerLow = p.raise2, surfaceContainer = p.raise2,
+    surfaceContainerHigh = p.raise2, surfaceContainerHighest = p.fill,
+    outline = p.line2, outlineVariant = p.line,
+    error = p.err, onError = p.inkText, errorContainer = p.errSoft, onErrorContainer = p.err,
+)
+
+/** Material's corners, botdot's three (#1191): 8 for a menu or a chip, 14 for a dialog, a sheet or a card. */
+internal val BotDotShapes = Shapes(
+    extraSmall = Radius.small, small = Radius.small, medium = Radius.card, large = Radius.card, extraLarge = Radius.card,
+)
+
+/** Two weights (#1192): 400 for words, buttons and labels, 600 for names and titles. */
+internal val BotDotType = Typography(
+    headlineSmall = TextStyle(fontSize = Type.s16, lineHeight = Type.line24, fontWeight = FontWeight.SemiBold),
+    titleLarge = TextStyle(fontSize = Type.s20, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
+    titleMedium = TextStyle(fontSize = Type.s16, fontWeight = FontWeight.SemiBold),
+    titleSmall = TextStyle(fontSize = Type.s14, lineHeight = Type.line20, fontWeight = FontWeight.SemiBold),
+    bodyLarge = TextStyle(fontSize = Type.s16, lineHeight = Type.line24),
+    bodyMedium = TextStyle(fontSize = Type.s14, lineHeight = Type.line20),
+    bodySmall = TextStyle(fontSize = Type.s12, lineHeight = Type.line16),
+    labelLarge = TextStyle(fontSize = Type.s14, lineHeight = Type.line20, fontWeight = FontWeight.Normal),
+    labelMedium = TextStyle(fontSize = Type.s12, lineHeight = Type.line16, fontWeight = FontWeight.Normal),
+    labelSmall = TextStyle(fontSize = Type.s12, lineHeight = Type.line16, fontWeight = FontWeight.Normal),
+).inGeist()
+
 @Composable
 fun BotDotTheme(content: @Composable () -> Unit) {
     val p = DarkPaper
-    val scheme = darkColorScheme().copy(
-        primary = p.ink, onPrimary = p.inkText,
-        background = p.bg, onBackground = p.text,
-        surface = p.bg, onSurface = p.text, surfaceVariant = p.sunk, onSurfaceVariant = p.muted,
-        surfaceContainer = p.panel, surfaceContainerHigh = p.panel, surfaceContainerLow = p.bg,
-        outline = p.line2, outlineVariant = p.line,
-        error = p.err, onError = Color.White,
-        secondaryContainer = p.sunk, onSecondaryContainer = p.text,
-    )
-    val type = Typography(
-        titleLarge = TextStyle(fontSize = Type.s20, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.2).sp),
-        titleMedium = TextStyle(fontSize = Type.s16, fontWeight = FontWeight.SemiBold),
-        bodyLarge = TextStyle(fontSize = Type.s16, lineHeight = Type.line24),
-        bodyMedium = TextStyle(fontSize = Type.s14, lineHeight = Type.line20),
-        bodySmall = TextStyle(fontSize = Type.s12, lineHeight = Type.line16),
-        labelMedium = TextStyle(fontSize = Type.s12, fontWeight = FontWeight.Medium),
-    ).inGeist()
     val figure = (LocalContext.current.applicationContext as? BotDotApp)?.figure?.collectAsState()?.value
     CompositionLocalProvider(LocalPaper provides p, LocalFigure provides figure) {
-        ProvideFigureClock { MaterialTheme(colorScheme = scheme, typography = type, content = content) }
+        ProvideFigureClock { MaterialTheme(colorScheme = botDotColors(p), shapes = BotDotShapes, typography = BotDotType, content = content) }
     }
 }
 
