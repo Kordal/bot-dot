@@ -2,7 +2,6 @@ package dev.botdot.app.ui
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -145,7 +144,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         // Its name picks another project and its gear opens its settings (#703).
         ProjectTitle(ui, c, ways) {
             c.day?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
-                modifier = Modifier.padding(start = Space.s12).border(1.dp, p.line2, Radius.pill).padding(horizontal = Space.s12, vertical = Space.s4)) }
+                modifier = Modifier.padding(start = Space.s12).clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
         val here = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()).let { dev.botdot.app.data.Spaces.underLeads(c, it, bots) } }
@@ -194,7 +193,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         val goals = CompanyFloor.DISPLAY in features
         if (goals && on("goals")) Goals(ui, c, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features))
         // The teams first; then the Chief, a suggested bot and New team (#690's side column, under them on a phone).
-        Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s12),
+        Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12),
             verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             if (!goals) Board(c)
             // The cards made by Claude, at the top of the floor (#776).
@@ -219,7 +218,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         }
     }
     val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
-    if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }, containerColor = p.panel) {
+    if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }) {
         TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
 }
@@ -271,7 +270,7 @@ private fun CheckinCard(ui: CompanyUi, k: CheckinDue, ways: CompanyWays, project
             busy = false
         }
     }
-    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.warn.copy(alpha = 0.35f), Radius.card).padding(Space.s16),
+    Column(Modifier.fillMaxWidth().raised(Radius.card, p.warnSoft).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (ongoing) tr("Monthly review") else tr("Day {n} check-in", "n" to k.day), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -357,7 +356,7 @@ private fun TeamChip(t: CompanyTeam) {
 private fun Board(c: Company) {
     val p = LocalPaper.current
     val shape = Radius.card
-    Row(Modifier.fillMaxWidth().clip(shape).background(p.sunk).border(1.dp, p.line2, shape).padding(Space.s12), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+    Row(Modifier.fillMaxWidth().raised(shape).padding(Space.s12), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
         if (c.objectives.isEmpty()) Text(c.goal, color = p.muted, fontSize = Type.s14)
         c.objectives.forEach { o -> Kpi(o, Modifier.weight(1f)) }
     }
@@ -456,8 +455,8 @@ internal fun YouRow(head: @Composable () -> Unit, text: String, action: @Composa
 @Composable
 internal fun SmallButton(label: String, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Text(label, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium,
-        modifier = Modifier.clip(Radius.pill).border(1.dp, p.line2, Radius.pill).clickable(onClick = onClick).padding(horizontal = Space.s12, vertical = Space.s8))
+    Text(label, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Normal,
+        modifier = Modifier.clip(Radius.pill).background(p.fill).clickable(onClick = onClick).padding(horizontal = Space.s12, vertical = Space.s8))
 }
 
 /** A team, opened from its room: its objective, its bots with what each does, the lead's chip, Make lead on the others, its reports. */
@@ -485,7 +484,7 @@ private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<B
                         if (lead && members.size > 1) Crown(Modifier.align(Alignment.TopEnd).offset(x = 8.dp, y = (-4).dp))
                     }
                     Column(Modifier.padding(start = Space.s12)) {
-                        Text(b.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.Medium)
+                        Text(b.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                         Text(line(b), color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }

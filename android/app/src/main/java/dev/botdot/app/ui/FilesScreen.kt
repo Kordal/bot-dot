@@ -71,7 +71,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -310,7 +309,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             Column(Modifier.background(p.bg)) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
@@ -397,7 +396,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
     // ---------- sheets ----------
 
     sheet?.let { s ->
-        ModalBottomSheet(onDismissRequest = { sheet = null }, containerColor = p.panel) {
+        ModalBottomSheet(onDismissRequest = { sheet = null }) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = Space.s16)) {
                 when (s) {
                     FxSheet.Places -> {
@@ -472,7 +471,6 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
         val danger = a.kind == "delete" || a.kind == "delete-project"
         AlertDialog(
             onDismissRequest = { ask = null },
-            containerColor = p.panel,
             title = { Text(when (a.kind) { "folder" -> tr("New folder"); "project" -> tr("New project"); "members" -> tr("Bots in {name}", "name" to a.project); "rename" -> tr("Rename"); else -> tr("Delete?") }) },
             text = {
                 when {
@@ -564,7 +562,6 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
     val what = if (c.entries.size == 1) c.entries[0].name else trn(c.entries.size, "{n} item", "{n} items")
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = p.panel,
         title = { Text(if (c.move) tr("Move {what}", "what" to what) else tr("Copy {what}", "what" to what), maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column {

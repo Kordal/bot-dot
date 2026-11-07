@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -97,7 +96,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(group?.name.orEmpty(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }, actions = { PanelClose() })
@@ -256,7 +255,7 @@ private fun NoteKind(kind: String, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         TextButton(onClick = { open = true }) { Text(GroupNotes.kindWord(kind), color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1) }
-        DropdownMenu(open, { open = false }, containerColor = p.panel) {
+        DropdownMenu(open, { open = false }) {
             GroupNotes.KINDS.forEach { k -> DropdownMenuItem({ Text(GroupNotes.kindWord(k), color = p.text) }, { open = false; onPick(k) }) }
         }
     }

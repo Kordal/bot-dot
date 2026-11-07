@@ -302,7 +302,7 @@ private fun Stories(ui: CompanyUi, c: Company) {
         }
         c.stories.forEachIndexed { gi, g ->
             Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                Text(whoWord(g.who), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Medium)
+                Text(whoWord(g.who), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Normal)
                 g.items.forEachIndexed { si, s ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${si + 1}", color = p.faint, fontSize = Type.s12, modifier = Modifier.width(22.dp))

@@ -47,6 +47,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -82,11 +83,11 @@ internal fun dueLabel(due: String): String = when (ProjectTodo.dueKind(due)) {
     else -> runCatching { LocalDate.parse(due).format(java.time.format.DateTimeFormatter.ofPattern("d MMM", I18n.locale)) }.getOrDefault(due)
 }
 
-/** The owner's own head: a person in a ring. */
+/** The owner's own head: a person on a filled circle. */
 @Composable
 internal fun YouHead(size: Int = 24) {
     val p = LocalPaper.current
-    Box(Modifier.size(size.dp).clip(CircleShape).border(1.dp, p.line2, CircleShape), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size.dp).clip(CircleShape).background(p.fill), contentAlignment = Alignment.Center) {
         Icon(Icons.Outlined.Person, null, tint = p.text, modifier = Modifier.size((size * 0.6f).dp))
     }
 }
@@ -112,7 +113,7 @@ internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List
     val n = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks
     val chief = chiefNamed()
     @Composable fun head(color: String?, outfit: kotlinx.serialization.json.JsonElement?) = BotFigure(color ?: chief.color, "idle", 28, if (color == null) chief.outfit else outfit)
-    Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).border(1.dp, p.line, Radius.card).padding(Space.s16),
+    Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(if (full) tr("To-do") else tr("You"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
@@ -142,11 +143,11 @@ internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List
 private fun Filters(on: String, onPick: (String) -> Unit) {
     val p = LocalPaper.current
     val words = mapOf("all" to tr("All"), "you" to tr("You"), "bots" to tr("Bots"), "done" to tr("Done"))
-    Row(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s4)) {
+    Row(Modifier.fillMaxWidth().clip(Radius.card).background(p.raise2).padding(Space.s4)) {
         ProjectTodo.FILTERS.forEach { k ->
-            Box(Modifier.weight(1f).clip(Radius.small).background(if (k == on) p.sunk else p.panel).clickable(onClickLabel = words[k]) { onPick(k) }
+            Box(Modifier.weight(1f).clip(Radius.small).background(if (k == on) p.fill else Color.Transparent).clickable(onClickLabel = words[k]) { onPick(k) }
                 .heightIn(min = 36.dp).semantics { contentDescription = words[k].orEmpty() }, contentAlignment = Alignment.Center) {
-                Text(words[k].orEmpty(), color = if (k == on) p.text else p.muted, fontSize = Type.s12, fontWeight = if (k == on) FontWeight.Medium else FontWeight.Normal)
+                Text(words[k].orEmpty(), color = if (k == on) p.text else p.muted, fontSize = Type.s12, fontWeight = if (k == on) FontWeight.SemiBold else FontWeight.Normal)
             }
         }
     }
@@ -205,7 +206,7 @@ private fun AddTodo(ui: CompanyUi, c: Company, bots: List<Bot>) {
             Box(Modifier.size(40.dp).clip(CircleShape).clickable(onClickLabel = bot?.name ?: tr("You")) { whoOpen = true }, contentAlignment = Alignment.Center) {
                 if (bot != null) BotFigure(bot.color, "idle", 28, bot.outfit) else YouHead(28)
             }
-            DropdownMenu(whoOpen, { whoOpen = false }, containerColor = p.panel) {
+            DropdownMenu(whoOpen, { whoOpen = false }) {
                 DropdownMenuItem({ Text(tr("You"), color = p.text) }, { who = null; whoOpen = false }, leadingIcon = { YouHead() })
                 ProjectTodo.projectBots(c, bots).forEach { b ->
                     DropdownMenuItem({ Text(b.name, color = p.text) }, { who = b.id; whoOpen = false }, leadingIcon = { BotFigure(b.color, "idle", 24, b.outfit) })
@@ -222,7 +223,7 @@ private fun AddTodo(ui: CompanyUi, c: Company, bots: List<Bot>) {
         else RoundButton(Icons.Outlined.CalendarMonth, tr("Due"), size = 40.dp) { whenOpen = true }
         GoButton(tr("Add"), enabled = typed.isNotBlank(), busy = adding) { go() }
     }
-    if (whenOpen) ModalBottomSheet(onDismissRequest = { whenOpen = false }, containerColor = p.panel) {
+    if (whenOpen) ModalBottomSheet(onDismissRequest = { whenOpen = false }) {
         WhenSheet(due, repeat) { d, rr -> due = d; repeat = rr }
     }
 }
@@ -237,7 +238,7 @@ private fun WhenSheet(due: String?, repeat: Repeat?, onChange: (String?, Repeat?
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s16).padding(bottom = Space.s24).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(due?.let(::dueLabel) ?: tr("Due"), color = if (due != null) p.text else p.muted, fontSize = Type.s16,
-                modifier = Modifier.weight(1f).clip(Radius.card).border(1.dp, p.line2, Radius.card).clickable { picking = true }.padding(horizontal = Space.s16, vertical = Space.s12))
+                modifier = Modifier.weight(1f).clip(Radius.card).background(p.raise2).clickable { picking = true }.padding(horizontal = Space.s16, vertical = Space.s12))
             if (due != null) RoundButton(Icons.Filled.Close, tr("Remove"), size = 40.dp, modifier = Modifier.padding(start = Space.s8)) { onChange(null, repeat) }
         }
         Chips(ProjectTodo.RHYTHMS.map { it to words[it].orEmpty() }, repeat?.every ?: "") { onChange(due, ProjectTodo.rhythm(it, due)) }
@@ -294,7 +295,7 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Dot(team.color)
-                    Text(team.name, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s8))
+                    Text(team.name, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
                 }
                 @Composable fun line(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String?, tint: androidx.compose.ui.graphics.Color, action: (@Composable () -> Unit)? = null) {
                     if (text.isNullOrBlank()) return

@@ -10,14 +10,22 @@ class DepthTest {
     private val sources = generateSequence(File("").absoluteFile) { it.parentFile }
         .map { File(it, "src/main/java") }.first { it.exists() }
 
-    /** Theme.kt draws them; the Projects screens move over after their own tickets (#720). */
-    private val allowed = setOf("Theme.kt", "CompanyAbout.kt", "CompanyHome.kt", "CompanyScreen.kt", "CompanyTeam.kt")
+    /** Theme.kt draws them; the Projects screens moved over too (#1192). */
+    private val allowed = setOf("Theme.kt")
 
     private val ringed = Regex("""\b(OutlinedButton|OutlinedTextField)\(""")
 
     @Test fun noScreenDrawsARingedButtonOrField() {
         val found = sources.walkTopDown().filter { it.extension == "kt" && it.name !in allowed }
             .flatMap { f -> f.readLines().withIndex().filter { ringed.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" } }.toList()
+        assertEquals(emptyList<String>(), found)
+    }
+
+    /** A Projects card is raised, not framed (#1192): no 1 dp line around a box. A state's own outline (a card that asks) is another colour. */
+    @Test fun noProjectsScreenFramesABox() {
+        val frame = Regex("""\.border\(1\.dp, p\.line2?,""")
+        val found = sources.walkTopDown().filter { it.extension == "kt" && (it.name.startsWith("Company") || it.name.startsWith("Project")) }
+            .flatMap { f -> f.readLines().withIndex().filter { frame.containsMatchIn(it.value) }.map { "${f.name}:${it.index + 1}" } }.toList()
         assertEquals(emptyList<String>(), found)
     }
 

@@ -124,7 +124,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             SECTIONS.forEach { k ->
-                Text(sectionName(k), color = p.text, fontSize = Type.s14, modifier = Modifier.clip(Radius.pill).border(1.dp, p.line2, Radius.pill)
+                Text(sectionName(k), color = p.text, fontSize = Type.s14, modifier = Modifier.clip(Radius.pill).background(p.fill)
                     .clickable { at[k]?.let { y -> scope.launch { scroll.animateScrollTo(y) } } }.padding(horizontal = Space.s12, vertical = Space.s8))
             }
         }
@@ -214,7 +214,7 @@ private fun LoginRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) {
                     menu = vault != null
                 }
             }
-            DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
+            DropdownMenu(menu, { menu = false }) {
                 ProjectLogins.addable(vault.orEmpty(), c).forEach { l ->
                     DropdownMenuItem(text = { Text(l.name, color = p.text, fontSize = Type.s14) }, onClick = { menu = false; patch(ProjectLogins.added(c, l.id)) })
                 }
@@ -232,8 +232,8 @@ private fun BoardRow(c: Company, features: List<String>, patch: (JsonObject) -> 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             ProjectBoard.piecesOf(c, features).forEach { k ->
                 val on = ProjectBoard.shows(c, k)
-                Text(ProjectBoard.label(k), color = if (on) p.text else p.muted, fontSize = Type.s14,
-                    modifier = Modifier.clip(Radius.pill).background(if (on) p.sunk else androidx.compose.ui.graphics.Color.Transparent).border(1.dp, if (on) p.text else p.line2, Radius.pill)
+                Text(ProjectBoard.label(k), color = if (on) p.inkText else p.text, fontSize = Type.s14,
+                    modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.fill)
                         .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k, features).forEach { add(it) } } }) }
                         .semantics { selected = on }.padding(horizontal = Space.s12, vertical = Space.s8))
             }
@@ -335,7 +335,7 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
                     val k = c.checkins.firstOrNull { it.day == d }
                     val color = when { k?.decision == "keep" -> p.ok; k?.decision == "stop" -> p.err; k != null -> p.warn; c.checkin?.day == d -> p.warn; else -> p.line2 }
                     Text(tr("Day {n}", "n" to d), color = if (k != null || c.checkin?.day == d) color else p.muted, fontSize = Type.s12, fontFamily = GeistMono,
-                        modifier = Modifier.border(1.dp, color, Radius.pill).padding(horizontal = Space.s8, vertical = Space.s4))
+                        modifier = Modifier.clip(Radius.pill).background(p.fill).padding(horizontal = Space.s8, vertical = Space.s4))
                 }
             }
         }
@@ -372,7 +372,7 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
     if (d != null && d.id == null) TeamEditor(d, bots, onDelete = null, onCancel = { draft = null }) { body -> draft = null; ui.call({ it.addTeam(body) }) }
     else if (d == null) Row { CoChip(tr("New team"), dashed = false, icon = Icons.Filled.Add) { draft = TeamDraft(null, "", emptyList(), null) } }
     askDelete?.let { t ->
-        AlertDialog(onDismissRequest = { askDelete = null }, containerColor = p.panel,
+        AlertDialog(onDismissRequest = { askDelete = null },
             title = { Text(tr("Delete the team {name}? Its bots stay.", "name" to t.name)) },
             confirmButton = { TextButton({ askDelete = null; draft = null; ui.call({ it.deleteTeam(t.id) }) }) { Text(tr("Delete team"), color = p.err) } },
             dismissButton = { TextButton({ askDelete = null }) { Text(tr("Cancel")) } })
@@ -383,16 +383,16 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
 @Composable
 private fun TeamEditor(d: TeamDraft, bots: List<Bot>, onDelete: (() -> Unit)?, onCancel: () -> Unit, onSave: (JsonObject) -> Unit) {
     val p = LocalPaper.current
-    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+    Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Labeled(tr("Name")) { Field(d.name, { d.name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth().semantics { contentDescription = tr("Name") }) }
         Labeled(tr("Bots")) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 bots.forEach { b ->
                     val on = b.id in d.bots
-                    Row(Modifier.clip(Radius.pill).background(if (on) p.sunk else androidx.compose.ui.graphics.Color.Transparent).border(1.dp, if (on) p.text else p.line2, Radius.pill)
+                    Row(Modifier.clip(Radius.pill).background(if (on) p.ink else p.fill)
                         .clickable { d.bots = ManyProjects.toggle(d.bots, b.id) }.padding(start = Space.s4, end = Space.s12, top = Space.s4, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                         BotFigure(b.color, b.state, 22, b.outfit)
-                        Text(b.name, color = if (on) p.text else p.muted, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
+                        Text(b.name, color = if (on) p.inkText else p.text, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
                     }
                 }
             }
@@ -482,7 +482,7 @@ internal fun deleteProject(ui: CompanyUi, c: Company, dropFolder: Boolean, onDel
 internal fun DeleteProjectDialog(ui: CompanyUi, c: Company, onDismiss: () -> Unit, onDeleted: () -> Unit = {}) {
     val p = LocalPaper.current
     fun delete(dropFolder: Boolean) { onDismiss(); deleteProject(ui, c, dropFolder, onDeleted) }
-    AlertDialog(onDismissRequest = onDismiss, containerColor = p.panel,
+    AlertDialog(onDismissRequest = onDismiss,
         title = { Text(tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))) },
         confirmButton = {
             if (c.folder != null) TextButton({ delete(true) }) { Text(tr("Delete its folder too"), color = p.err) }
@@ -515,12 +515,12 @@ private fun Dotted(text: String, color: String?, modifier: Modifier = Modifier) 
     }
 }
 
-/** A small outlined button of words. */
+/** A small filled button of words. */
 @Composable
 private fun SmallButton(label: String, danger: Boolean = false, onClick: () -> Unit) {
     val p = LocalPaper.current
     Text(label, color = if (danger) p.err else p.text, fontSize = Type.s14,
-        modifier = Modifier.clip(Radius.pill).border(1.dp, if (danger) p.err else p.line2, Radius.pill).clickable(onClick = onClick)
+        modifier = Modifier.clip(Radius.pill).background(if (danger) p.errSoft else p.fill).clickable(onClick = onClick)
             .heightIn(min = 36.dp).padding(horizontal = Space.s12, vertical = Space.s8))
 }
 

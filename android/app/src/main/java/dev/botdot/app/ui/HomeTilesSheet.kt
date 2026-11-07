@@ -76,7 +76,7 @@ internal fun HomeTilesSheet(dash: Dashboard, save: suspend (List<String>) -> Uni
         on = HomeTiles.move(on, a, b)
         haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
     }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
         LazyColumn(Modifier.fillMaxWidth().testTag(HOME_TILES), state = listState, contentPadding = PaddingValues(start = Space.s12, end = Space.s12, bottom = Space.s24)) {
             items(on, key = { it }) { id ->
                 ReorderableItem(reorder, key = id) { lifted ->

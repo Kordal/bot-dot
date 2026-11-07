@@ -121,7 +121,7 @@ fun DocumentViewerHost() {
 private fun PathSheet(req: DocViewer.Request) {
     val p = LocalPaper.current
     val context = LocalContext.current
-    ModalBottomSheet(onDismissRequest = { DocViewer.held = null }, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = { DocViewer.held = null }) {
         Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
             Text(req.path.orEmpty(), color = p.text, fontFamily = GeistMono, fontSize = Type.s14)
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -238,7 +238,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             }
             Box {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, contentDescription = tr("More"), tint = p.text) }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = p.panel) {
+                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                     // A page with blocks copies what it shows, its blocks as text and tables; its Source, the Markdown.
                     (if (mode == "rendered") view?.plain ?: view?.text else view?.text)?.let { text ->
                         DropdownMenuItem(text = { Text(tr("Copy text"), color = p.text) }, onClick = {
@@ -381,7 +381,7 @@ private fun ExportSheet(title: String, text: String, onDone: () -> Unit) {
             runCatching { act(a.exportDocument(title, text, format, java.io.File(context.cacheDir, "botfiles/exports"))) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to what)) }
         }
     }
-    ModalBottomSheet(onDismissRequest = onDone, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = onDone) {
         Column(Modifier.fillMaxWidth().padding(start = Space.s12, end = Space.s12, bottom = Space.s24)) {
             Text("DOWNLOAD", color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(horizontal = Space.s12, vertical = Space.s8))
             dev.botdot.app.data.DocumentExport.FORMATS.forEach { (format, label, ext) ->
@@ -556,7 +556,7 @@ private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss
     var time by remember { mutableStateOf(draft?.time ?: page.keep?.time ?: "07:00") }
     var notify by remember { mutableStateOf(draft?.notify ?: page.keep?.notify ?: "report-only") }
     var check by remember { mutableStateOf(draft?.check ?: page.keep?.check ?: page.sources) }
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Space.s16, end = Space.s16, bottom = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Text(tr("Keep “{title}” up to date", "title" to page.title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16)
             Text(tr("{name} rewrites the page on this schedule, from the same sources.", "name" to from.ifBlank { tr("The bot") }), color = p.muted, fontSize = Type.s14)

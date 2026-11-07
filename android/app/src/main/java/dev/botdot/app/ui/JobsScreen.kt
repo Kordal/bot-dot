@@ -12,10 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -58,7 +56,7 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(tr("Scheduled jobs"), style = MaterialTheme.typography.titleMedium) }, actions = { PanelClose() })
@@ -116,7 +114,7 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             }
             Switch(
                 checked = j.enabled, onCheckedChange = onToggle,
-                colors = SwitchDefaults.colors(checkedTrackColor = p.ok, checkedThumbColor = androidx.compose.ui.graphics.Color.White, uncheckedTrackColor = p.line2, uncheckedBorderColor = p.line2, uncheckedThumbColor = p.faint),
+                colors = switchColors(),
             )
         }
         if (changeWaits(j)) Text(CHANGE_WAITS, color = p.warnText, style = MaterialTheme.typography.bodyMedium)

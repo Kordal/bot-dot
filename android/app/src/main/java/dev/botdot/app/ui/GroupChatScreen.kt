@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -405,7 +404,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     CompositionLocalProvider(LocalMentions provides mentions, LocalQuote provides remember(chatKey) { QuoteBox() }, LocalChatOnWeb provides api?.let { chatOnWeb(it.baseUrl, "group", groupId) }, LocalOwnFiles provides ownFiles, LocalSiteIcons provides sitesShown(features), LocalProductCards provides productCardsShown(features)) {
         Scaffold(
             containerColor = p.bg,
-            snackbarHost = { SnackbarHost(snack) },
+            snackbarHost = { BotSnackbarHost(snack) },
             topBar = {
                 // A team's chat (#697, #705) follows its team in Projects: its faces in a row, the lead first, how many
                 // work, its colour on top. Its name opens its panel, as a group's does: its members and its notes.
@@ -430,7 +429,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                     outbox = vm.outbox,
                     onSend = { text, attachments -> vm.send(text, attachments) },
                     onStop = {},
-                    onError = { scope.launch { snack.showSnackbar(it) } },
+                    onError = { scope.launch { snack.showError(it) } },
                     onSignIn = onSignIn.takeIf { signedOut },
                     backAt = backAt,
                 )

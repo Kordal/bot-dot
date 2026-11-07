@@ -278,7 +278,7 @@ private fun EntryRow(e: WorkspaceEntry, detail: String, onOpen: () -> Unit, onSa
         }
         if (onSave != null || onRename != null || onMove != null || onDelete != null) Box {
             TextButton(onClick = { menu = true }) { Text("⋯", color = p.muted) }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = p.panel) {
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 onSave?.let { f -> DropdownMenuItem(text = { Text(tr("Save to Downloads"), color = p.text) }, onClick = { menu = false; f() }) }
                 onRename?.let { f -> DropdownMenuItem(text = { Text(tr("Rename"), color = p.text) }, onClick = { menu = false; f() }) }
                 onMove?.let { f -> DropdownMenuItem(text = { Text(tr("Move"), color = p.text) }, onClick = { menu = false; f() }) }

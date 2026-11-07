@@ -120,7 +120,6 @@ fun BotPicker(title: String, bots: List<Bot>, max: Int, action: String, hint: (I
     var query by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = { if (!saving) onDismiss() },
-        containerColor = p.panel,
         title = { Text(title, style = MaterialTheme.typography.titleMedium, color = p.text) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {

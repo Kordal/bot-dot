@@ -98,7 +98,7 @@ fun FileMentionList(view: FileMentions.View, mentions: List<Mentions.Row>, w: Me
                 Text(buildAnnotatedString {
                     trail.forEachIndexed { i, t ->
                         if (i < trail.size - 1) { append(t); withStyle(SpanStyle(color = p.faint)) { append("  /  ") } }
-                        else withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.Medium)) { append(t) }
+                        else withStyle(SpanStyle(color = p.text, fontWeight = FontWeight.SemiBold)) { append(t) }
                     }
                 }, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f).heightIn(min = 44.dp).clip(Radius.small).clickable(enabled = d.path.isNotEmpty(), onClickLabel = tr("Mention this folder"), onClick = onSelf).padding(horizontal = Space.s8, vertical = Space.s12))
@@ -140,7 +140,7 @@ private fun FileRowItem(r: FileMentions.Row, onPick: (FileMentions.Row) -> Unit)
 fun AnnotatedString.Builder.fileChip(f: Mentions.FileRef, botId: String?, wash: Color) {
     val file = f.path.isNotEmpty() && Regex("\\.[^./]+$").containsMatchIn(f.name)
     val kind = if (file) FileMentions.kindOf(f.name, "file") else "folder"
-    val chip = SpanStyle(background = wash, fontWeight = FontWeight.Medium)
+    val chip = SpanStyle(background = wash, fontWeight = FontWeight.Normal)
     val body: AnnotatedString.Builder.() -> Unit = {
         withStyle(chip) {
             append("\u00A0")

@@ -106,7 +106,7 @@ internal fun GoalCard(ui: CompanyUi, c: Company, o: Objective, onChat: ((String)
                 modifier = Modifier.padding(end = Space.s8))
             Box {
                 RoundButton(Icons.Filled.MoreHoriz, tr("More"), size = 36.dp) { menu = true }
-                DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
+                DropdownMenu(menu, { menu = false }) {
                     CompanyFloor.DISPLAYS.forEach { k ->
                         DropdownMenuItem({ Text(displayName(k), color = p.text) }, {
                             menu = false
@@ -153,7 +153,7 @@ private fun GoalAskSheet(ui: CompanyUi, o: Objective, onClose: () -> Unit, onSen
     val p = LocalPaper.current
     var text by remember(o.id) { mutableStateOf("") }
     var sending by remember(o.id) { mutableStateOf(false) }
-    ModalBottomSheet(onDismissRequest = onClose, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = onClose) {
         Column(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s16, bottom = Space.s24).imePadding()) {
             Text(o.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
@@ -198,7 +198,7 @@ private fun PaceChip(pace: CompanyFloor.Pace) {
     val p = LocalPaper.current
     val behind = pace == CompanyFloor.Pace.BEHIND
     val words = when (pace) { CompanyFloor.Pace.AHEAD -> tr("Ahead"); CompanyFloor.Pace.ON -> tr("On track"); CompanyFloor.Pace.BEHIND -> tr("Behind") }
-    Text(words, color = if (behind) p.warnText else p.okText, fontSize = Type.s12, fontWeight = FontWeight.Medium,
+    Text(words, color = if (behind) p.warnText else p.okText, fontSize = Type.s12, fontWeight = FontWeight.Normal,
         modifier = Modifier.clip(Radius.pill).background(if (behind) p.warnSoft else p.okSoft).padding(horizontal = Space.s12, vertical = Space.s4))
 }
 
