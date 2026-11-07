@@ -41,7 +41,7 @@ before(async () => {
     if (operation === 'screenState') value = { state: on.has(seat.screen) ? 'running' : 'off' };
     if (operation === 'browserTool') {
       if (payload.op === 'click') clicks.push(`${seat.bot}:${payload.ref}`);
-      value = { ok: true, snapshot: DIALOG };
+      value = payload.op === 'find' ? { ok: true, snapshot: DIALOG.split('\n').filter((l, i) => !i || l.includes(payload.text)).join('\n'), page: DIALOG } : { ok: true, snapshot: DIALOG };
     }
     if (operation === 'request') { screenInput.push(payload.command); value = { ok: true, text: 'data: {"success": true}' }; }
     if (operation === 'listAll') value = {};
@@ -120,4 +120,17 @@ test('a yes lets the step through once; taking control of the screen while it wa
   assert.match(told.text, /took control/);
   assert.match((await browser(held, { op: 'click', ref: 'e3' })).data.error, /took control/);
   assert.deepEqual(clicks, [`${bot.id}:e3`]);
+});
+
+test('browser_find shows the bot only what it looked for, and the step it finds still waits on a card', async (t) => {
+  const bot = await makeBot(srv, { name: 'Finder', computer: 'linux' });
+  const held = await heldRun(srv, bot);
+  t.after(() => { srv.unhold(); srv.release(held.rec); });
+  clicks = [];
+  const found = (await browser(held, { op: 'find', text: 'Close account' })).data;
+  assert.deepEqual(found, { ok: true, snapshot: 'Page: Settings (https://pay.example.com/settings)\n- dialog "Close account":\n  - button "Close account" [ref=e3]' }, 'the whole page stays with botdot');
+  const asked = (await browser(held, { op: 'click', ref: 'e3' })).data;
+  assert.ok(asked.waits, 'botdot read the dialog the button stands in, which the bot did not see');
+  assert.deepEqual(clicks, []);
+  for (const card of await cards()) await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: false } });
 });
