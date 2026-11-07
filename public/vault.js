@@ -52,11 +52,13 @@ const vaultFileLine = (l) => `${esc(l.fileName || '')} · ${vaultFileSize(Number
 const vaultTypeControl = (type) => `<label class="field">${tr('Type')}<select name="type">${Object.entries(VAULT_TYPES).map(([value, t]) => `<option value="${value}"${value === vaultType(type) ? ' selected' : ''}>${t.label}</option>`).join('')}</select></label>`;
 function vaultTypeFields(type, { username = '', isNew = true } = {}) {
   const t = VAULT_TYPES[vaultType(type)];
-  const keep = isNew ? '' : ` <span class="hint">${tr('leave empty to keep the current one')}</span>`;
+  // What a field means beyond its label is its tooltip, not a line beside it (#1190).
+  const keep = isNew ? ' required' : ` placeholder="••••••••" title="${esc(tr('leave empty to keep the current one'))}"`;
   const secret = t.multiline
-    ? `<label class="field">${t.secret}${keep}<span class="secret-input"><textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${isNew ? ' required' : ' placeholder="••••••••"'}></textarea>${revealButton()}</span></label><label class="field">${tr('Or pick its file')}<input type="file" name="secretFile"></label>`
-    : `<label class="field">${t.secret}${keep}<span class="secret-input"><input type="password" name="password" autocomplete="new-password"${isNew ? ' required' : ' placeholder="••••••••"'}>${revealButton()}</span></label>`;
-  const user = t.username ? `<label class="field">${t.username}${t.optional ? ` <span class="hint">${tr('optional')}</span>` : ''}${t.hint ? ` <span class="hint">${t.hint}</span>` : ''}<input type="text" name="username" value="${esc(username)}" autocomplete="off" autocapitalize="off" spellcheck="false"></label>` : '';
+    ? `<label class="field">${t.secret}<span class="secret-input"><textarea name="password" class="mono masked" rows="4" autocomplete="off" autocapitalize="off" spellcheck="false"${keep}></textarea>${revealButton()}</span></label><label class="field">${tr('Or pick its file')}<input type="file" name="secretFile"></label>`
+    : `<label class="field">${t.secret}<span class="secret-input"><input type="password" name="password" autocomplete="new-password"${keep}>${revealButton()}</span></label>`;
+  const about = [t.optional ? tr('optional') : '', t.hint || ''].filter(Boolean).join(', ');
+  const user = t.username ? `<label class="field">${t.username}<input type="text" name="username" value="${esc(username)}"${about ? ` title="${esc(about)}"` : ''} autocomplete="off" autocapitalize="off" spellcheck="false"></label>` : '';
   // A secret of several lines takes the form's width, under its username.
   return `<div class="row${!t.username || t.multiline ? ' one' : ''}" data-type-fields>${user}${secret}</div>`;
 }
@@ -121,6 +123,10 @@ async function renderVault() {
   const bw = state.bw || {};
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `${b.name}` : id; };
   const locked = bw.configured && !bw.unlocked;
+  // One list like Settings (#1190): Bitwarden is a row, every item a row that opens it, a file a bot placed a row
+  // with its Remove. What an item holds is on its row's tooltip and in its editor, not under its name.
+  const kindLabel = (kind) => (kind === 'card' ? tr('Payment card') : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? tr('File') : tr('Identity'));
+  const placed = logins.flatMap((l) => (l.placedIn || []).map((f) => ({ ...f, item: l.name })));
   root.innerHTML = `
     ${subBack()}
     <div class="section-head">
@@ -128,34 +134,26 @@ async function renderVault() {
       ${locked ? '' : `<div class="vault-add">${bw.unlocked ? `<button class="btn" id="add-file">＋ ${tr('File')}</button><button class="btn" id="add-ssh-key">＋ ${tr('SSH key')}</button>` : ''}<button class="btn primary" id="add-login">＋ ${tr('Add')}</button></div>`}
     </div>
     ${!bw.configured ? (bw.installed === false ? `<div class="req-note">${tr('To use Bitwarden, install its command-line tool first: {command}, then reload.', { command: '<span class="mono">brew install bitwarden-cli</span>' })}</div>` : bitwardenSetupHTML()) : `
-    <div class="card bw-bar">
-      <span>🛡 Bitwarden · ${esc(bw.email || bw.server || '')} · ${bw.unlocked ? `${tr('unlocked')} · ${trn(bw.items, '{n} item in bot-dot', '{n} items in bot-dot')}${bw.lastSync ? ` · ${tr('synced {ago}', { ago: esc(ago(bw.lastSync)) })}` : ''}` : `<b>${tr('locked')}</b>`}</span>
-      <span class="grow"></span>
+    <div class="set-list"><div class="bs-row bw-bar">
+      <b>Bitwarden</b>
+      <span class="bs-val${bw.unlocked ? '' : ' bs-warn'}" title="${esc(bw.unlocked && bw.lastSync ? tr('synced {ago}', { ago: ago(bw.lastSync) }) : '')}">${bw.unlocked ? `${esc(bw.email || bw.server || '')} · ${trn(bw.items, '{n} item in bot-dot', '{n} items in bot-dot')}` : tr('locked')}</span>
       ${bw.unlocked ? `<button class="btn sm" id="bw-sync">${tr('Sync')}</button><button class="btn sm" id="bw-lock">${tr('Lock')}</button>` : `<button class="btn sm primary" id="bw-unlock-btn">${tr('Unlock')}</button>`}
-    </div>
+    </div></div>
     ${bw.error ? `<div class="req-note">${esc(bw.error)}</div>` : ''}`}
-    ${locked ? `<div class="card empty"><div class="big">🔐</div>${tr('Unlock Bitwarden to see what bots can use.')}</div>` : `
-    ${logins.length ? `<div class="grid">${logins.map((l) => {
+    ${locked ? '' : logins.length ? `<div class="set-list vault-list">${logins.map((l) => {
       const kind = l.kind || 'login';
       const line = kind === 'card' ? `💳 ${esc(l.brand || tr('Card'))} •••• ${esc(l.last4)}${l.expiry ? ` · ${tr('expires {date}', { date: esc(l.expiry) })}` : ''} · ${tr('you approve each payment')}`
         : kind === 'identity' ? `🪪 ${esc(l.holder || '')}${l.email ? ` · ${esc(l.email)}` : ''}`
         : kind === 'ssh-key' ? vaultSshKeyLine(l)
         : kind === 'file' ? vaultFileLine(l)
         : vaultItemLine(l);
-      return `
-      <article class="card vault-item">
-        <div class="bot-head"><div class="avatar" style="--bot-color:#6c7cff">${KIND_ICON[kind] || '🔑'}</div>
-          <div style="flex:1;min-width:0"><div class="bot-name">${esc(l.name)}</div><div class="addr">${kind === 'login' ? vaultItemAddr(l) : kind === 'card' ? tr('Payment card') : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? tr('File') : tr('Identity')}</div></div></div>
-        <div class="bot-meta">
-          <div>${line}</div>
-          ${l.reprompt ? `<div class="faint">${tr("Asks for the master password again in Bitwarden, so bots can't use it.")}</div>` : ''}
-          <div>${l.allowedBots.length ? tr('Can be used by: {bots}', { bots: l.allowedBots.map((id) => esc(botName(id))).join(', ') }) : `<span class="faint">${tr('No bot may use it yet')}</span>`}</div>
-          ${(l.placedIn || []).map((f) => `<div class="vault-placed">📍 ${f.written === false ? tr('Allowed, not written yet: {path}', { path: `<span class="mono">${esc(f.where)}</span>` }) : tr('Placed in {path}', { path: `<span class="mono">${esc(f.where)}</span>` })} (${esc(botName(f.botId))}${f.at ? `, ${esc(ago(f.at))}` : ''}) <button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}
-        </div>
-        <div class="bot-actions"><button class="btn" data-edit-login="${esc(l.id)}">${kind === 'login' ? tr('Edit') : tr('Bots…')}</button></div>
-      </article>`;
-    }).join('')}</div>`
-      : `<div class="card empty"><div class="big">🔐</div>${bw.configured ? tr('Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here.') : tr('No saved logins yet. Add one so a bot can sign in to a site for you.')}</div>`}`}`;
+      const about = `${kind === 'login' ? vaultItemAddr(l) : kindLabel(kind)} · ${line}${l.allowedBots.length ? ` · ${tr('Can be used by: {bots}', { bots: l.allowedBots.map((id) => esc(botName(id))).join(', ') })}` : ''}`;
+      const value = l.reprompt ? `<span class="bs-val bs-warn">${tr("Bots can't use it")}</span>`
+        : !l.allowedBots.length ? `<span class="bs-val bs-warn">${tr('No bot yet')}</span>`
+        : `<span class="bs-val">${esc(kind === 'card' ? `•••• ${l.last4 || ''}` : kind === 'identity' ? l.holder || '' : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? l.fileName || '' : l.site || '')}</span>`;
+      return `<button type="button" class="bs-row bs-link vault-item" data-edit-login="${esc(l.id)}" title="${about.replace(/\p{Extended_Pictographic}\uFE0F?\s?/gu, '').replace(/"/g, '&quot;')}" aria-label="${esc(kind === 'login' ? tr('Edit {name}', { name: l.name }) : `${l.name}: ${tr('Bots…')}`)}"><b>${esc(l.name)}</b>${value}${CHEV}</button>`;
+    }).join('')}</div>${placed.length ? `<div class="set-list vault-placed">${placed.map((f) => `<div class="bs-row"><b class="mono" title="${esc(f.item)}">${esc(f.where)}</b><span class="bs-val">${f.written === false ? tr('not written yet') : `${esc(botName(f.botId))}${f.at ? ` · ${esc(ago(f.at))}` : ''}`}</span><button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}</div>` : ''}`
+      : `<div class="set-empty">${bw.configured ? tr('The bot-dot folder is empty') : tr('No saved logins yet')}</div>`}`;
   const add = $('#add-login');
   if (add) add.onclick = () => openLoginEditor();
   const addKey = $('#add-ssh-key');
@@ -195,13 +193,17 @@ function openLoginEditor(login, { onSaved } = {}) {
           <label class="field" title="${esc(tr('The secret is only used with this address'))}">${tr('Website or server')}<input type="text" name="site" value="${esc(l.site)}" placeholder="recipes.example.com or pve.example.ts.net" required></label>
         </div>
         ${vaultTypeFields(l.type, { username: l.username, isNew })}
-        <label class="field" title="${esc(tr('Only these hosts may receive this login. Subdomains are not included automatically.'))}">${tr('Additional exact hosts')}<input name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
+        <label class="field" title="${esc(tr('Only these hosts may receive this login. Subdomains are not included automatically.'))}">${tr('Additional exact hosts')}<input type="text" name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
         <label class="toggle" title="${esc(tr('For your own servers, e.g. Proxmox or a NAS'))}"><input type="checkbox" name="insecureTls" ${l.insecureTls ? 'checked' : ''}> ${tr('Accept a self-signed certificate')}</label>
         <label class="toggle"><input type="checkbox" name="inComputer" ${l.inComputer ? 'checked' : ''}> ${tr('Usable in its computer')} <span class="hint muted" style="font-weight:400">${tr("bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it")}</span></label>
         <div class="req-note">${tr('Bots can use this login to sign in on the website, or to call its API: they write {username} and {password} in the request and botdot fills them in, so they never see the secret.', { username: '<span class="mono">{{username}}</span>', password: '<span class="mono">{{password}}</span>' })}</div>
         <fieldset>
           <legend>${tr('Bots that may use it')}</legend>
-          <div class="tool-toggles">${state.bots.map((b) => `<label title="${b.computer === 'linux' ? '' : esc(tr('This bot has no computer, so it can’t sign in to websites'))}"><input type="checkbox" name="bot" value="${esc(b.id)}" ${l.allowedBots.includes(b.id) ? 'checked' : ''}>${botLabel(b)}${b.computer === 'linux' ? '' : ` <span class="faint">${tr('(no computer)')}</span>`}</label>`).join('')}</div>
+          <div class="tool-toggles">${state.bots.map((b) => {
+            // A bot without a computer can't sign in (#1190): its chip is greyed, and stays choosable while it has the login.
+            const off = b.computer !== 'linux' && !l.allowedBots.includes(b.id);
+            return `<label title="${b.computer === 'linux' ? '' : esc(tr('This bot has no computer, so it can’t sign in to websites'))}"${b.computer === 'linux' ? '' : ' class="off"'}><input type="checkbox" name="bot" value="${esc(b.id)}" ${l.allowedBots.includes(b.id) ? 'checked' : ''}${off ? ' disabled' : ''}>${botLabel(b)}</label>`;
+          }).join('')}</div>
         </fieldset>
         <div class="req-error" role="alert" hidden></div>
       </div>
@@ -262,34 +264,37 @@ const ITEM_BOTS_HINT = {
   file: FILE_SHARE_NOTE,
 };
 
+// Bitwarden not connected yet (#1190): one row of the Vault's list, which opens its form and a link to where the
+// API key is, in the web vault of the server picked.
+const BW_KEYS = { us: 'https://vault.bitwarden.com/#/settings/security/security-keys', eu: 'https://vault.bitwarden.eu/#/settings/security/security-keys' };
 function bitwardenSetupHTML() {
   return `
-    <div class="card setup-card">
-      <h3>${tr('Use your Bitwarden')}</h3>
-      <p class="muted" style="margin:0">${tr('Bots will use the logins, payment cards and identities in a folder called {folder} in your Bitwarden, and nothing else in it.', { folder: '<b>bot-dot</b>' })}
-      ${tr('You approve every card payment in a pop-up. Your master password is only used to unlock (after each restart of botdot) and is never saved.')}</p>
-      <ol>
-        <li>${tr('In the Bitwarden web vault, open {path}.', { path: '<b>Settings → Security → Keys → View API key</b>' })}</li>
-        <li>${tr('Copy the {id} and {secret} here.', { id: '<b>client_id</b>', secret: '<b>client_secret</b>' })}</li>
-      </ol>
-      <form id="bw-setup" autocomplete="off" style="display:grid;gap:10px">
+    <div class="set-list"><details class="bs-row bs-more" id="bw-connect">
+      <summary title="${esc(tr('Bots will use the logins, payment cards and identities in a folder called {folder} in your Bitwarden, and nothing else in it.', { folder: 'bot-dot' }))}"><b>Bitwarden</b><span class="bs-val">${tr('Not connected')}</span>${CHEV}</summary>
+      <form id="bw-setup" class="bs-body" autocomplete="off">
         <div class="row">
           <label class="field">${tr('Server')}<select name="server"><option value="us">bitwarden.com (US)</option><option value="eu">bitwarden.eu (EU)</option><option value="custom">${tr('Self-hosted…')}</option></select></label>
           <label class="field hidden" id="bw-url-field">${tr('Address')}<input type="text" name="serverUrl" placeholder="https://vault.example.com"></label>
         </div>
+        <a class="bs-row bs-link" id="bw-key-link" href="${BW_KEYS.us}" target="_blank" rel="noopener"><b>${tr('Get the API key')}</b><span class="bs-val">${tr('Settings → Security → Keys')}</span>${CHEV}</a>
         <div class="row">
           <label class="field">client_id<input type="text" name="clientId" placeholder="user.xxxxxxxx-…" autocomplete="off" spellcheck="false"></label>
           <label class="field">client_secret<input type="password" name="clientSecret" autocomplete="new-password"></label>
         </div>
         <div><button class="btn primary">${tr('Connect Bitwarden')}</button></div>
       </form>
-    </div>`;
+    </details></div>`;
 }
 
 function wireBitwardenSetup(root) {
   const f = $('#bw-setup', root);
   if (!f) return;
-  f.server.onchange = () => $('#bw-url-field', root).classList.toggle('hidden', f.server.value !== 'custom');
+  f.server.onchange = () => {
+    $('#bw-url-field', root).classList.toggle('hidden', f.server.value !== 'custom');
+    const link = $('#bw-key-link', root);
+    link.hidden = !BW_KEYS[f.server.value];
+    if (BW_KEYS[f.server.value]) link.href = BW_KEYS[f.server.value];
+  };
   f.onsubmit = async (e) => {
     e.preventDefault();
     const btn = $('button.primary', f);

@@ -46,7 +46,7 @@ test('web: Setup shows the sentence of a check that could not tell, not the step
   const draw = cut('function drawSetup()', "onClick('#restore-open'");
   assert.match(draw, /const unknown = !!claudeUnknown\(c\);\n {2}const keyOpen = !!state\.setupKey && !signingIn;\n {2}const claude = claudeSetupItem\(c, signingIn, keyOpen\)/);
   assert.match(draw, /id="setup-done" \$\{c\.loggedIn \|\| unknown \? '' : 'disabled'\}/, 'the way back to the bots is open');
-  assert.match(draw, /<h1>\$\{tr\('Setup'\)\}<\/h1>\$\{unknown \? '' : `<p>\$\{c\.loggedIn \? tr\('botdot is ready\. The rest is up to you\.'\) : tr\('One step and botdot is ready\.'\)\}<\/p>`\}/, 'and no "one step" is asked for');
+  assert.match(draw, /<h1>\$\{tr\('Setup'\)\}<\/h1>\$\{unknown \|\| c\.loggedIn \? '' : `<p>\$\{tr\('One step and botdot is ready\.'\)\}<\/p>`\}/, 'and no "one step" is asked for');
 });
 
 test('web: Settings → Claude shows the sentence, never "Not signed in", for a check that could not tell', async () => {

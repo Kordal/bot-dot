@@ -346,7 +346,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                     val from = c.waiting!!.from
                     val who = whoOf(from.id, from.name)
                     val title = tr("A plan for the Chief: {title}", "title" to c.title)
-                    Card(who, title, tr("Nothing happens until you approve it"), expandable = true) {
+                    Card(who, title, expandable = true) {
                         Body(c.waiting.text.replace("**", "").replace(Regex("""(?m)^\s*[-*#]+\s+"""), ""))
                         Text(tr("Open chat"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { onChat(c.id) }.padding(Space.s8))
                         Buttons(tr("Approve"), { decide("p:${c.id}", who, title, true, tr("Approved · the Chief is on it")) { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },

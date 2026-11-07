@@ -28,7 +28,7 @@ async function renderSkills() {
         <button class="btn primary" id="new-skill">＋ ${tr('New skill')}</button>
       </div>
     </div>
-    <h3 class="page-sub">${tr('Your library')} <span class="faint">· ${tr('give each skill to the bots that need it')}</span></h3>
+    <h3 class="page-sub">${tr('Your library')}</h3>
     ${data.library.length ? `<div class="grid">${data.library.map((k) => `
       <article class="card skill-card" data-skill="${esc(k.name)}">
         <div class="skill-top"><span class="skill-name">${esc(k.name)}</span><span class="pill">${esc(skillOrigin(k))}</span></div>
@@ -37,11 +37,10 @@ async function renderSkills() {
         ${k.allowedTools.length ? `<div class="skill-warn">${tr('Can use without asking: {tools}', { tools: esc(k.allowedTools.join(', ')) })}</div>` : ''}
         <div class="chips">${k.usedBy.map(botChip).join('') || `<span class="faint" style="font-size:12.5px">${tr('No bot has it yet')}</span>`}</div>
       </article>`).join('')}</div>`
-      : `<div class="card empty" style="padding:36px 20px"><div class="big">✦</div>${tr('No skills yet. Write one, import one from skills.sh or GitHub, or ask the Chief ("make a skill for how I like my weekly reports"). Bots also write their own as they learn.')}</div>`}
-    <h3 class="page-sub">${tr('On this computer')}</h3>
-    <div class="card machine-skills">${data.machine.length ? data.machine.map((k) => `
-      <div class="machine-skill"><span class="skill-name">${esc(k.name)}</span><span class="muted">${esc(k.description.slice(0, 160))}${k.description.length > 160 ? '…' : ''}</span><span class="faint">${esc(k.origin)}</span></div>`).join('')
-      : `<div class="faint" style="padding:14px 16px">${tr('None found in {folder}.', { folder: '~/.claude/skills' })}</div>`}</div>
+      : `<div class="set-empty">${tr('No skills yet')}</div>`}
+    ${data.machine.length ? `<h3 class="page-sub">${tr('On this computer')}</h3>
+    <div class="card machine-skills">${data.machine.map((k) => `
+      <div class="machine-skill"><span class="skill-name">${esc(k.name)}</span><span class="muted">${esc(k.description.slice(0, 160))}${k.description.length > 160 ? '…' : ''}</span><span class="faint">${esc(k.origin)}</span></div>`).join('')}</div>` : ''}
     ${data.builtin?.length ? `<h3 class="page-sub">${tr('Built into Claude Code')}</h3>
     <div class="card builtin-skills">${data.builtin.map((k) => `<span class="chip mono">${esc(k.name)}</span>`).join('')}</div>` : ''}`;
   $('#new-skill').onclick = () => openSkillEditor();
