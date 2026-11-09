@@ -9,7 +9,7 @@ function botThreadHTML(bot, runs, newFirst = null) {
   if (!runs.length) {
     return `
       <div class="chat-empty">
-        ${botFigure(bot.color, bot.state, 'lg', bot.outfit)}
+        ${botFigure(bot.color, bot.state, 'lg', bot.outfit, bot.id)}
         <h3>${esc(bot.name)}</h3>
       </div>`;
   }
@@ -410,7 +410,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   }
   const av = part('bot-avatar');
   const look = bot.color + bot.state + JSON.stringify(bot.outfit || '');
-  if (av.dataset.sig !== look) { av.dataset.sig = look; av.innerHTML = botFigure(bot.color, bot.state, 'sm', bot.outfit); }
+  if (av.dataset.sig !== look) { av.dataset.sig = look; av.innerHTML = botFigure(bot.color, bot.state, 'sm', bot.outfit, bot.id); }
   part('bot-name').textContent = bot.name;
   part('bot-screen').classList.toggle('hidden', bot.computer !== 'linux' && bot.computer !== 'boat');
   part('bot-files').classList.toggle('hidden', !state.features.includes('files-explorer'));
@@ -468,7 +468,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   for (const id of repliesArrive(docked ? (root._arrivals ||= arrivalsKeeper()) : arrivals.bot, thread, `bot:${bot.id}`, botReplyIds(runs))) arrive($(`[data-details="${CSS.escape(id)}"]`, thread)?.closest('.bubble-row'));
   // The large head of an empty chat follows the bot's state, colour and hat, like the one in the header.
   const big = $('.chat-empty .avatar', thread);
-  if (big && thread.dataset.look !== look) big.outerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit);
+  if (big && thread.dataset.look !== look) big.outerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit, bot.id);
   thread.dataset.look = look;
   updateChatNeeds(thread, bot.id);
   if (!docked) updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no live screen beside its runs

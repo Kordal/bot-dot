@@ -36,7 +36,7 @@
   const seg = (attr, list, on, extra = '') => `<div class="ps-seg" role="group">${list.map(([v, label]) => `<button type="button"${extra} ${attr}="${esc(v)}" aria-pressed="${v === on}" class="${v === on ? 'on' : ''}">${label()}</button>`).join('')}</div>`;
   // A field of the page has the focus: drawing it again would take what is being typed.
   const typing = (root) => { const el = document.activeElement; return !!el && root.contains(el) && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) && !['checkbox', 'radio'].includes(el.type); };
-  const face = (b) => `<span class="ps-face">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b))}</span>`;
+  const face = (b) => `<span class="ps-face">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b), b.id)}</span>`;
 
   function generalHTML(c) {
     const swatches = `<div class="ps-swatches">${COLORS.map((col) => `<button type="button" class="ps-swatch${col === c.color ? ' on' : ''}" style="--c:${col}" data-ps-color="${col}" aria-pressed="${col === c.color}" aria-label="${col}">${col === c.color ? esc(nameOf(c).charAt(0).toUpperCase()) : ''}</button>`).join('')}</div>`;

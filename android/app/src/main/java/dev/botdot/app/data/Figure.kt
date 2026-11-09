@@ -87,6 +87,7 @@ class FigureTile internal constructor(
     internal val fallback: String,
     internal val signals: Map<String, Signal>,
     internal val small: FloatArray?,
+    val motion: TileMotion? = null,
 ) {
     /** A bot's colour (0xRRGGBB) as the tile shows it: mixed [by] of the way towards [toward], channel by channel, as on the web page. */
     fun muted(rgb: Int): Int {
@@ -94,6 +95,87 @@ class FigureTile internal constructor(
         fun mix(shift: Int) = Math.round(ch(rgb, shift) + (ch(toward, shift) - ch(rgb, shift)) * by.toDouble()).toInt().coerceIn(0, 255) shl shift
         return mix(16) or mix(8) or mix(0)
     }
+}
+
+/**
+ * How a tile moves once when its bot's state changes (ADR 169, the definition's tile.motion), times in seconds. The
+ * easings are cubic-bezier points ([x1, y1, x2, y2]); the done fractions are of [doneSeconds].
+ */
+class TileMotion internal constructor(
+    internal val out: FloatArray,
+    internal val inn: FloatArray,
+    internal val settle: FloatArray,
+    internal val ringIn: Double,
+    internal val ringOut: Double,
+    internal val dotIn: Double,
+    internal val dotOut: Double,
+    internal val pulseStates: Set<String>,
+    internal val pulseAfter: Double,
+    internal val pulseSeconds: Double,
+    val pulseGrow: Float,
+    val pulseWidth: Float,
+    internal val doneFrom: String,
+    internal val doneTo: String,
+    internal val doneSeconds: Double,
+    internal val doneIcon: FloatArray,
+    internal val doneDraw: FloatArray,
+    internal val doneHold: FloatArray,
+    val doneWidth: Float,
+    /** The check of a run that ended well: points in the box's units, joined by straight lines. */
+    val check: List<Pair<Float, Float>>,
+    internal val fade: Double,
+    internal val still: Double,
+    val press: Float,
+) {
+    /** The longest any move lasts: after it a change shows nothing more. */
+    internal val longest: Double = maxOf(ringIn, ringOut, dotIn, dotOut, pulseAfter + pulseSeconds, doneSeconds, fade)
+}
+
+/**
+ * What a tile shows part of the way through a move, as the web page's CSS does: [ring] and [ringWas] the strength of
+ * the new and the old state's ring, [dot] and [dotWas] the size of the new and the old dot (or their strength when
+ * [dotFades], under reduced motion), [pulse] how far the pulse has gone (null: none), [icon] the icon's strength,
+ * [check] how much of the check is drawn and [checkAlpha] its strength, [opacity] the tile's while it changes. The old
+ * state's colours are [ringWasColor] and [dotWasColor] (0xRRGGBB).
+ */
+data class Moment(
+    val ring: Float = 1f,
+    val ringWas: Float = 0f,
+    val ringWasColor: Int? = null,
+    val dot: Float = 1f,
+    val dotWas: Float = 0f,
+    val dotWasColor: Int? = null,
+    val dotFades: Boolean = false,
+    val pulse: Float? = null,
+    val icon: Float = 1f,
+    val check: Float = 0f,
+    val checkAlpha: Float = 0f,
+    val opacity: Float? = null,
+)
+
+/** A cubic-bezier easing ([p]: x1, y1, x2, y2) at [x] from 0 to 1, as CSS draws it. */
+internal fun eased(p: FloatArray, x: Double): Float {
+    val t0 = x.coerceIn(0.0, 1.0)
+    fun bez(a: Float, b: Float, t: Double) = 3 * (1 - t) * (1 - t) * t * a + 3 * (1 - t) * t * t * b + t * t * t
+    var lo = 0.0
+    var hi = 1.0
+    var t = t0
+    repeat(40) { // the t whose x is x, found by halves: x grows with t for every easing a definition may give
+        if (bez(p[0], p[2], t) < t0) lo = t else hi = t
+        t = (lo + hi) / 2
+    }
+    return bez(p[1], p[3], t).toFloat()
+}
+
+/** A value along straight lines through [stops] (fraction, value), held before the first and after the last. */
+private fun along(f: Double, vararg stops: Pair<Double, Float>): Float {
+    if (f <= stops.first().first) return stops.first().second
+    for (i in 1 until stops.size) {
+        val (a, va) = stops[i - 1]
+        val (b, vb) = stops[i]
+        if (f <= b) return if (b <= a) vb else va + (vb - va) * ((f - a) / (b - a)).toFloat()
+    }
+    return stops.last().second
 }
 
 class FigureDef private constructor(
@@ -125,6 +207,46 @@ class FigureDef private constructor(
 
     /** What the state adds to the tile (null: nothing, or no tile). */
     fun signal(state: String?): Signal? = tile?.signals?.get(stateName(state))
+
+    /**
+     * What the tile shows [ago] seconds after the bot's state changed from [from] to [to] ([still]: animations off,
+     * so what appears or goes only fades), or null when nothing moves any more (or the definition has no motion).
+     */
+    fun moment(from: String, to: String, ago: Double, still: Boolean): Moment? {
+        val m = tile?.motion ?: return null
+        val a = stateName(from)
+        val b = stateName(to)
+        if (a == b || ago < 0 || ago >= m.longest) return null
+        val was = signal(a)
+        val now = signal(b)
+        var out = Moment()
+        var moves = false
+        fun part(seconds: Double) = ago / (if (still) m.still else seconds)
+        if (now?.ring != null && was?.ring == null && part(m.ringIn) < 1) { out = out.copy(ring = eased(m.out, part(m.ringIn))); moves = true }
+        if (was?.ring != null && now?.ring == null && part(m.ringOut) < 1) { out = out.copy(ringWas = 1 - eased(m.inn, part(m.ringOut)), ringWasColor = was.ring); moves = true }
+        if (now?.dot != null && was?.dot == null && part(m.dotIn) < 1) { out = out.copy(dot = if (still) eased(m.out, part(m.dotIn)) else eased(m.settle, part(m.dotIn)), dotFades = still); moves = true }
+        if (was?.dot != null && now?.dot == null && part(m.dotOut) < 1) { out = out.copy(dotWas = 1 - eased(m.inn, part(m.dotOut)), dotWasColor = was.dot, dotFades = still); moves = true }
+        if (!still && now?.dot != null && b in m.pulseStates && ago < m.pulseAfter + m.pulseSeconds) {
+            out = out.copy(pulse = if (ago < m.pulseAfter) 0f else eased(m.out, (ago - m.pulseAfter) / m.pulseSeconds))
+            moves = true
+        }
+        if (a == m.doneFrom && b == m.doneTo && ago < m.doneSeconds) {
+            val f = ago / m.doneSeconds
+            val (d0, d1) = m.doneDraw[0].toDouble() to m.doneDraw[1].toDouble()
+            val (h0, h1) = m.doneHold[0].toDouble() to m.doneHold[1].toDouble()
+            val lit = if (still) minOf(d0 + m.still / m.doneSeconds, h0) else d0
+            out = out.copy(
+                icon = along(f, 0.0 to 1f, m.doneIcon[0].toDouble() to 0f, m.doneIcon[1].toDouble() to 0f, 1.0 to 1f),
+                check = if (still) 1f else if (f < d0) 0f else eased(m.out, (f - d0) / (d1 - d0)),
+                checkAlpha = if (still) along(f, d0 to 0f, lit to 1f, h0 to 1f, h1 to 0f) else along(f, 0.0 to 0f, d0 to 1f, h0 to 1f, h1 to 0f),
+            )
+            moves = true
+        }
+        val oa = opacity(a)
+        val ob = opacity(b)
+        if (oa != ob && ago < m.fade) { out = out.copy(opacity = oa + (ob - oa) * eased(m.out, ago / m.fade)); moves = true }
+        return out.takeIf { moves }
+    }
 
     /**
      * The icon on the tile for an outfit ({ icon, hat }, or [CHIEF]): the one it names, or the one its hat stands for, or
@@ -367,13 +489,13 @@ class FigureDef private constructor(
                     ?.takeIf { it[2] > 0 && it[3] > 0 } ?: fail("small: view must be [x, y, width, height]")
             }
             val iconKit = (d["kit"] as? JsonObject)?.get("icon") as? JsonObject
-            val tile = d["tile"]?.let { tileOf(it) }
+            val tile = d["tile"]?.let { tileOf(it, states.keys) }
             return FigureDef(box.first.toFloat() to box.second.toFloat(), head, white, ink, pivotHead, pivotEyes, states, default, hats, chief, FloatArray(4) { small[it].toFloat() },
                 tile, (iconKit?.get("pieces") as? JsonObject).orEmpty(), iconKit?.pair("origin") ?: (0.0 to 0.0))
         }
 
         /** The tile, checked whole as the web page checks it: one this app can't draw is refused, and the definition with it. */
-        private fun tileOf(el: JsonElement): FigureTile {
+        private fun tileOf(el: JsonElement, states: Set<String>): FigureTile {
             val t = el as? JsonObject ?: fail("tile: rect must be { x, y, w, h, r }")
             fun hex(v: String?) = v?.takeIf { HEX.matches(it) }?.drop(1)?.toInt(16)
             val r = t["rect"] as? JsonObject
@@ -404,8 +526,51 @@ class FigureDef private constructor(
                     ?.takeIf { it[2] > 0 && it[3] > 0 }?.let { v -> FloatArray(4) { v[it].toFloat() } } ?: fail("tile: small.view must be [x, y, width, height]")
             }
             val byHat = (t["byHat"] as? JsonObject).orEmpty().mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.let { k to it.content } }.toMap()
+            val motion = t["motion"]?.let { motionOf(it, states) }
             return FigureTile(FloatArray(5) { rect[it]!!.toFloat() }, toward, by.toFloat(), ink, ringV[0]!!.toFloat(), ringV[1]!!.toFloat(), ringV[2]!!.toFloat(), ringV[3]!!,
-                FloatArray(4) { dot[it]!!.toFloat() }, at.first, at.second, scale, byHat, t.text("default").orEmpty(), signals, small)
+                FloatArray(4) { dot[it]!!.toFloat() }, at.first, at.second, scale, byHat, t.text("default").orEmpty(), signals, small, motion)
+        }
+
+        /** The tile's motion, checked as the web page checks it ([states]: the definition's state names). */
+        private fun motionOf(el: JsonElement, states: Set<String>): TileMotion {
+            val m = el as? JsonObject ?: fail("tile: motion.easing must be { out, in, settle }, each [x1, y1, x2, y2]")
+            fun nums(o: JsonObject?, key: String, n: Int) = ((o?.get(key)) as? JsonArray)?.takeIf { it.size == n }?.map { (it as? JsonPrimitive)?.number() }?.takeIf { l -> l.all { it != null } }?.map { it!! }
+            val easing = m["easing"] as? JsonObject
+            val curves = listOf("out", "in", "settle").map { k -> nums(easing, k, 4)?.takeIf { it[0] in 0.0..1.0 && it[2] in 0.0..1.0 } ?: fail("tile: motion.easing must be { out, in, settle }, each [x1, y1, x2, y2]") }
+            fun secs(v: Double?) = v?.takeIf { it > 0 && it <= 5 }
+            val ring = m["ring"] as? JsonObject
+            val dotM = m["dot"] as? JsonObject
+            val times = listOf(ring?.num("in"), ring?.num("out"), dotM?.num("in"), dotM?.num("out"), m.num("fade"), m.num("still")).map { secs(it) ?: fail("tile: motion must give ring { in, out }, dot { in, out }, fade and still in seconds") }
+            val p = m["pulse"] as? JsonObject
+            val pulseStates = (p?.get("states") as? JsonArray)?.map { (it as? JsonPrimitive)?.takeIf { s -> s.isString }?.content ?: fail("tile: motion.pulse must be { states, after, seconds, grow, width }") }
+            val after = p?.num("after")?.takeIf { it >= 0 }
+            val pSecs = secs(p?.num("seconds"))
+            val grow = p?.num("grow")?.takeIf { it > 1 }
+            val pWidth = p?.num("width")?.takeIf { it > 0 }
+            if (pulseStates == null || after == null || pSecs == null || grow == null || pWidth == null) fail("tile: motion.pulse must be { states, after, seconds, grow, width }")
+            val d = m["done"] as? JsonObject
+            fun part(key: String) = nums(d, key, 2)?.takeIf { it[0] >= 0 && it[0] <= it[1] && it[1] <= 1 }
+            val from = d?.text("from")?.takeIf { it in states }
+            val to = d?.text("to")?.takeIf { it in states }
+            val dSecs = secs(d?.num("seconds"))
+            val icon = part("icon")
+            val draw = part("draw")
+            val hold = part("hold")
+            val dWidth = d?.num("width")?.takeIf { it > 0 }
+            if (from == null || to == null || dSecs == null || icon == null || draw == null || hold == null || dWidth == null) fail("tile: motion.done must be { from, to (two states), seconds, icon, draw, hold, width, check }")
+            val check = (d?.get("check") as? JsonArray)?.map { c ->
+                val a = c as? JsonArray
+                val op = (a?.getOrNull(0) as? JsonPrimitive)?.takeIf { it.isString }?.content
+                val x = (a?.getOrNull(1) as? JsonPrimitive)?.number()
+                val y = (a?.getOrNull(2) as? JsonPrimitive)?.number()
+                if (a == null || a.size != 3 || (op != "M" && op != "L") || x == null || y == null) fail("tile: motion.done.check is a path of M and L")
+                op to (x.toFloat() to y.toFloat())
+            }
+            if (check == null || check.size < 2 || check[0].first != "M") fail("tile: motion.done.check is a path of M and L")
+            val press = m.num("press")?.takeIf { it > 0.5 && it <= 1 } ?: fail("tile: motion.press is how large a pressed tile is drawn, 0.5 to 1")
+            fun floats(l: List<Double>) = FloatArray(l.size) { l[it].toFloat() }
+            return TileMotion(floats(curves[0]), floats(curves[1]), floats(curves[2]), times[0], times[1], times[2], times[3], pulseStates.toSet(), after, pSecs, grow.toFloat(), pWidth.toFloat(),
+                from, to, dSecs, floats(icon), floats(draw), floats(hold), dWidth.toFloat(), check.map { it.second }, times[4], times[5], press.toFloat())
         }
 
         private fun fail(why: String): Nothing = throw IllegalArgumentException("Figure definition: $why")

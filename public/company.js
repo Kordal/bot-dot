@@ -333,7 +333,7 @@ const Company = (() => {
     return `<div class="ct-branch">${head}<div class="ct-kids" role="group">${teams.map((t) => {
       const key = `${p.id}:${t.id}`;
       const tOpen = isOpen(key, true);
-      const bots = tOpen ? `<div class="ct-kids" role="group">${t.members.map((b) => `<button type="button" class="co-row ct-bot${hereAttr(onScreen('bot', b.id))}" role="treeitem" data-tree-bot="${esc(b.id)}"><span class="ct-head">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b))}${b.id === t.lead && t.members.length > 1 ? ICON.crown : ''}</span><span class="ct-name">${esc(b.name)}</span>${waits(b.id) ? badge(waits(b.id)) : `<i class="ct-state${b.running ? ' on' : ''}"></i>`}</button>`).join('')}</div>` : '';
+      const bots = tOpen ? `<div class="ct-kids" role="group">${t.members.map((b) => `<button type="button" class="co-row ct-bot${hereAttr(onScreen('bot', b.id))}" role="treeitem" data-tree-bot="${esc(b.id)}"><span class="ct-head">${botFigure(colorOf(b), b.state, 'sm', outfitOf(b), b.id)}${b.id === t.lead && t.members.length > 1 ? ICON.crown : ''}</span><span class="ct-name">${esc(b.name)}</span>${waits(b.id) ? badge(waits(b.id)) : `<i class="ct-state${b.running ? ' on' : ''}"></i>`}</button>`).join('')}</div>` : '';
       return `<div class="ct-node">${caret(key, tOpen, t.name)}<button type="button" class="ct-team${hereAttr(onScreen('team', t.id))}" data-tree-team="${esc(t.id)}" style="--c:${esc(t.color)}"><i class="ct-dot"></i><span class="ct-name">${esc(t.name)}</span><span class="ct-n">${t.members.length}</span></button></div>${bots}`;
     }).join('')}</div></div>`;
   }

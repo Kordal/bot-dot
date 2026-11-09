@@ -608,7 +608,7 @@ function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
   const fig = $('#bs-figure', root);
   const look = JSON.stringify([bot.color, bot.state, bot.outfit || null]);
-  if (fig && fig.dataset.look !== look) { fig.dataset.look = look; fig.innerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit); }
+  if (fig && fig.dataset.look !== look) { fig.dataset.look = look; fig.innerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit, bot.id); }
   drawOverrides(root, bot);
   drawUndo(root, bot);
   const mv = $('#bs-move', root);

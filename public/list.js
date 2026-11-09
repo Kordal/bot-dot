@@ -128,7 +128,7 @@ function drawContacts(before = () => {}) {
     const line = botLine(b);
     return `
       <button class="contact ${state.view === 'bot' && state.botId === b.id ? 'active' : ''}" data-contact="${esc(b.id)}" ${b.pinned > 0 ? `data-pin="${b.pinned}"` : `data-group="${esc(b.group || '')}" data-place="${placeOf(b)}"`} draggable="true" title="${esc(b.name)}">
-        ${botFigure(b.color, b.state, '', b.outfit)}
+        ${botFigure(b.color, b.state, '', b.outfit, b.id)}
         <div class="grow"><div class="top"><span class="name">${esc(b.name)}</span><span class="time">${esc(shortTime(r?.startedAt))}</span>${line.after}</div>
         <div class="prev ${line.cls}">${esc(line.prev)}</div></div>
       </button>`;
@@ -257,7 +257,7 @@ function keyHTML(x, i, section = null, digit = 0) {
   const on = group ? state.view === 'group' && state.groupId === x.id : state.view === 'bot' && state.botId === x.id;
   const where = section === null ? `data-key="${i}"` : `data-section-key="${section}.${i}"`;
   const s = keyStatus(x);
-  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(digit ? `${x.name} · ${digit}` : x.name)}"${digit ? ` aria-keyshortcuts="${digit}"` : ''}><span class="key-head">${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit)}</span><span class="name">${esc(x.name)}</span>${keyState(s, s.kind === 'working' ? liveLine(x) : '')}</button>`;
+  return `<button class="key${group ? ' is-group' : ''}${on ? ' active' : ''}${Motion.justDone(x.id, s.kind) ? ' just-done' : ''}" ${where}${section === null ? ' draggable="true"' : ''} title="${esc(digit ? `${x.name} · ${digit}` : x.name)}"${digit ? ` aria-keyshortcuts="${digit}"` : ''}><span class="key-head">${group ? groupPicture(x) : botFigure(x.color, x.state, '', x.outfit, x.id)}</span><span class="name">${esc(x.name)}</span>${keyState(s, s.kind === 'working' ? liveLine(x) : '')}</button>`;
 }
 // A tile in the strip over the keys (#397): the block kit's kpi with the tile's title over its first number (a value, a
 // kpi, a bar or a gauge on its face) and that block's sparkline or bar beside it (#635); a switch says On or Off, any

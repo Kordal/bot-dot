@@ -156,6 +156,22 @@ function checkTile(d) {
   }
   const v = t.small?.view;
   if (t.small !== undefined && (!Array.isArray(v) || v.length !== 4 || !v.every(num) || !(v[2] > 0 && v[3] > 0))) fail('tile: small.view must be [x, y, width, height]');
+  if (t.motion !== undefined) checkMotion(t.motion, d.states);
+}
+
+// How a tile moves when its bot's state changes (ADR 169): times in seconds, fractions of the run that ended well.
+function checkMotion(m, states) {
+  const secs = (x) => num(x) && x > 0 && x <= 5;
+  const part = (x) => Array.isArray(x) && x.length === 2 && x.every(num) && x[0] >= 0 && x[0] <= x[1] && x[1] <= 1;
+  const curve = (x) => Array.isArray(x) && x.length === 4 && x.every(num) && x[0] >= 0 && x[0] <= 1 && x[2] >= 0 && x[2] <= 1;
+  if (!m || !['out', 'in', 'settle'].every((k) => curve(m.easing?.[k]))) fail('tile: motion.easing must be { out, in, settle }, each [x1, y1, x2, y2]');
+  if (![m.ring?.in, m.ring?.out, m.dot?.in, m.dot?.out, m.fade, m.still].every(secs)) fail('tile: motion must give ring { in, out }, dot { in, out }, fade and still in seconds');
+  const p = m.pulse;
+  if (!p || !Array.isArray(p.states) || !p.states.every((x) => typeof x === 'string') || !(num(p.after) && p.after >= 0) || !secs(p.seconds) || !(num(p.grow) && p.grow > 1) || !(num(p.width) && p.width > 0)) fail('tile: motion.pulse must be { states, after, seconds, grow, width }');
+  const d = m.done;
+  if (!d || ![d.from, d.to].every((x) => Object.hasOwn(states, x)) || !secs(d.seconds) || !part(d.icon) || !part(d.draw) || !part(d.hold) || !(num(d.width) && d.width > 0)) fail('tile: motion.done must be { from, to (two states), seconds, icon, draw, hold, width, check }');
+  if (!Array.isArray(d.check) || d.check.length < 2 || d.check[0]?.[0] !== 'M' || !d.check.every((c) => Array.isArray(c) && ['M', 'L'].includes(c[0]) && c.length === 3 && num(c[1]) && num(c[2]))) fail('tile: motion.done.check is a path of M and L');
+  if (!(num(m.press) && m.press > 0.5 && m.press <= 1)) fail('tile: motion.press is how large a pressed tile is drawn, 0.5 to 1');
 }
 
 // Every layer's place in a state: its pose, or one key of its movement over it.
@@ -182,6 +198,7 @@ function movesCss() {
   if (t) { // the ring turns about the middle of the box; still under reduced motion, as every .fig g
     out.push('@keyframes fig-tile-turn { to { transform: rotate(360deg); } }');
     out.push(`.fig .t-ring { transform-origin: ${n(def.box[0] / 2)}px ${n(def.box[1] / 2)}px; animation: fig-tile-turn ${n(t.ring.seconds)}s linear var(--ph, 0s) infinite; }`);
+    if (t.motion) out.push(...motionCss(t.motion));
   }
   for (const [name, s] of Object.entries(def.states)) {
     if (!s.move) continue;
@@ -194,6 +211,50 @@ function movesCss() {
     }
   }
   return out.join('\n');
+}
+
+// A tile's moves when its state changes: each starts --ago before now (zero or less), so a tile drawn again in
+// the middle of one carries on where it was. Under reduced motion what appears or goes only fades.
+function motionCss(m) {
+  const cb = (k) => `cubic-bezier(${m.easing[k].map(n).join(', ')})`;
+  const at = 'var(--ago, 0s)';
+  const pc = (x) => `${n(x * 100)}%`;
+  const d = m.done;
+  const still = `${n(m.still)}s`;
+  const lit = Math.min(d.draw[0] + m.still / d.seconds, d.hold[0]);
+  return [
+    '.fig-tile .m-dot, .fig-tile .m-pulse { transform-box: fill-box; transform-origin: center; }',
+    '.fig-tile .m-pulse, .fig-tile .t-check { fill: none; stroke-linecap: round; stroke-linejoin: round; }',
+    '@keyframes fig-m-in { from { opacity: 0; } }',
+    '@keyframes fig-m-out { to { opacity: 0; } }',
+    '@keyframes fig-m-grow { from { transform: scale(0); } }',
+    '@keyframes fig-m-shrink { to { transform: scale(0); } }',
+    '@keyframes fig-m-fade { from { opacity: var(--was, 1); } }',
+    `@keyframes fig-m-pulse { from { opacity: 0.8; transform: scale(1); } to { opacity: 0; transform: scale(${n(m.pulse.grow)}); } }`,
+    `@keyframes fig-m-icon { 0% { opacity: 1; } ${pc(d.icon[0])} { opacity: 0; } ${pc(d.icon[1])} { opacity: 0; } 100% { opacity: 1; } }`,
+    `@keyframes fig-m-check { 0% { opacity: 0; stroke-dashoffset: 1; } ${pc(d.draw[0])} { opacity: 1; stroke-dashoffset: 1; animation-timing-function: ${cb('out')}; } ${pc(d.draw[1])} { opacity: 1; stroke-dashoffset: 0; } ${pc(d.hold[0])} { opacity: 1; stroke-dashoffset: 0; } ${pc(d.hold[1])}, 100% { opacity: 0; stroke-dashoffset: 0; } }`,
+    `@keyframes fig-m-check-still { 0%, ${pc(d.draw[0])} { opacity: 0; } ${pc(lit)}, ${pc(d.hold[0])} { opacity: 1; } ${pc(d.hold[1])}, 100% { opacity: 0; } }`,
+    `.fig-tile .m-ring.in { animation: fig-m-in ${n(m.ring.in)}s ${cb('out')} ${at} both; }`,
+    `.fig-tile .m-ring.out { animation: fig-m-out ${n(m.ring.out)}s ${cb('in')} ${at} both; }`,
+    `.fig-tile .m-dot.in { animation: fig-m-grow ${n(m.dot.in)}s ${cb('settle')} ${at} both; }`,
+    `.fig-tile .m-dot.out { animation: fig-m-shrink ${n(m.dot.out)}s ${cb('in')} ${at} both; }`,
+    `.fig-tile .m-pulse { animation: fig-m-pulse ${n(m.pulse.seconds)}s ${cb('out')} calc(${at} + ${n(m.pulse.after)}s) both; }`,
+    `.fig-tile.m-done .t-icon { animation: fig-m-icon ${n(d.seconds)}s linear ${at} both; }`,
+    `.fig-tile .t-check { stroke-dasharray: 1; animation: fig-m-check ${n(d.seconds)}s linear ${at} both; }`,
+    `.fig-tile.m-fade { animation: fig-m-fade ${n(m.fade)}s ${cb('out')} ${at} both; }`,
+    // Pressed: a tile in something that is pressed is drawn a little smaller, and comes back.
+    `.fig-tile { transition: transform ${still} ${cb('out')}; }`,
+    `:is(a, button, [role="button"], .contact):active .fig-tile { transform: scale(${n(m.press)}); }`,
+    '@media (prefers-reduced-motion: reduce) {',
+    `  .fig-tile .m-ring.in, .fig-tile .m-dot.in { animation: fig-m-in ${still} ${cb('out')} ${at} both !important; transform: none; }`,
+    `  .fig-tile .m-ring.out, .fig-tile .m-dot.out { animation: fig-m-out ${still} ${cb('in')} ${at} both !important; }`,
+    `  .fig-tile.m-done .t-icon { animation: fig-m-icon ${n(d.seconds)}s linear ${at} both !important; }`,
+    '  .fig-tile .t-check { stroke-dasharray: none; animation-name: fig-m-check-still; }',
+    '  .fig-tile .m-pulse { display: none; }',
+    '  .fig-tile { transition: none; }',
+    '  :is(a, button, [role="button"], .contact):active .fig-tile { transform: none; }',
+    '}',
+  ];
 }
 
 function use(d) {
@@ -268,12 +329,61 @@ function signalOf(name) {
   return '';
 }
 
-function svg(state, color, outfit) {
+// The state each bot was last seen in, and the one before it with when it changed (performance.now(), ms).
+// A tile only moves for a change the page saw happen: the first state it sees of a bot is just drawn.
+const changes = new Map();
+const clock = () => root.performance?.now() || 0;
+function saw(bot, state) {
+  if (!bot || !def?.states) return;
+  const name = Object.hasOwn(def.states, state) ? state : def.default;
+  const c = changes.get(bot);
+  if (!c) changes.set(bot, { state: name, from: null, at: 0 });
+  else if (c.state !== name) changes.set(bot, { state: name, from: c.state, at: clock() });
+}
+// The change a bot's tile is still moving for, drawn in the state it was seen in: { from, ago } (ms), or null.
+function moving(bot, name) {
+  const m = def.tile.motion;
+  const c = bot ? changes.get(bot) : null;
+  if (!m || !c || c.from === null || c.state !== name) return null;
+  const ago = clock() - c.at;
+  const longest = 1000 * Math.max(m.ring.in, m.ring.out, m.dot.in, m.dot.out, m.pulse.after + m.pulse.seconds, m.done.seconds, m.fade);
+  return ago < longest ? { from: c.from, ago } : null;
+}
+// The tile's state with what moves for the change: the old ring or dot going, the new one coming, the pulse,
+// the check of a run that ended well. Returns [the svg's classes, its style, what goes under, what goes over],
+// or null when it has all moved.
+function motionOf(mv, name) {
+  const t = def.tile, m = t.motion, S = t.states || {};
+  const a = mv.ago / 1000;
+  const now = S[name] || {}, was = S[mv.from] || {};
+  const cls = [];
+  let style = `;--ago:${-Math.round(mv.ago)}ms`;
+  let under = '', over = '', signal = signalOf(name);
+  if (now.ring && !was.ring && a < m.ring.in) signal = `<g class="m-ring in">${signal}</g>`;
+  if (now.dot && !was.dot && a < m.dot.in) signal = `<g class="m-dot in">${signal}</g>`;
+  if (was.ring && !now.ring && a < m.ring.out) over += `<g class="m-ring out">${signalOf(mv.from)}</g>`;
+  if (was.dot && !now.dot && a < m.dot.out) over += `<g class="m-dot out">${signalOf(mv.from)}</g>`;
+  if (now.dot && m.pulse.states.includes(name) && a < m.pulse.after + m.pulse.seconds) over += `<circle class="m-pulse" cx="${n(t.dot.cx)}" cy="${n(t.dot.cy)}" r="${n(t.dot.r)}" stroke="${now.dot}" stroke-width="${n(m.pulse.width)}"/>`;
+  if (mv.from === m.done.from && name === m.done.to && a < m.done.seconds) {
+    cls.push('m-done');
+    under = `<path class="t-check" d="${m.done.check.map((c) => `${c[0]} ${n(c[1])} ${n(c[2])}`).join(' ')}" stroke="${t.ink}" stroke-width="${n(m.done.width)}" pathLength="1"/>`;
+  }
+  const o = def.states[name].opacity ?? 1, oWas = def.states[mv.from]?.opacity ?? 1;
+  if (o !== oWas && a < m.fade) { cls.push('m-fade'); style += `;--was:${n(oWas)}`; }
+  if (!cls.length && !under && !over && signal === signalOf(name)) return null; // it has all moved
+  return [cls.map((c) => ` ${c}`).join(''), style, under, signal + over];
+}
+
+// bot: its id, when the tile shows the bot's state now (not a run's from before): the tile then moves when that
+// state changes (saw).
+function svg(state, color, outfit, bot) {
   if (def?.tile) {
     const name = Object.hasOwn(def.states, state) ? state : def.default;
     const s = def.states[name];
     const ph = -((root.performance?.now() || 0) / 1000).toFixed(2);
-    return `<svg class="fig fig-${name} fig-tile" viewBox="0 0 ${n(def.box[0])} ${n(def.box[1])}"${(s.opacity ?? 1) < 1 ? ` opacity="${n(s.opacity)}"` : ''} style="--ph:${ph}s" aria-hidden="true">${tileRect(def.tile, color)}${iconOf(outfit)}${signalOf(name)}</svg>`;
+    const mv = moving(bot, name);
+    const [cls, style, under, signal] = (mv && motionOf(mv, name)) || ['', '', '', signalOf(name)];
+    return `<svg class="fig fig-${name} fig-tile${cls}" viewBox="0 0 ${n(def.box[0])} ${n(def.box[1])}"${(s.opacity ?? 1) < 1 ? ` opacity="${n(s.opacity)}"` : ''} style="--ph:${ph}s${style}" aria-hidden="true">${tileRect(def.tile, color)}${iconOf(outfit)}${under}${signal}</svg>`;
   }
   // Start the movement where the clock says it is, not from its beginning.
   const ph = -((root.performance?.now() || 0) / 1000).toFixed(2);
@@ -301,6 +411,6 @@ function small(color, outfit, bot) {
   return `${open}${headSvg(d)}${def ? hatOf(outfit) : ''}</svg>`;
 }
 
-root.Figure = { use, svg, small, css: () => moves, chief: () => def?.chief?.outfit || null, CHIEF, VERSION };
+root.Figure = { use, svg, small, saw, css: () => moves, chief: () => def?.chief?.outfit || null, CHIEF, VERSION };
 
 })(typeof window !== 'undefined' ? window : globalThis);
