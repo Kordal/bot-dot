@@ -201,7 +201,7 @@ test('web: the banner has a head for a tool ask, in its bot\'s colour and hat', 
   assert.match(figs, /<svg data-chief="#d85a30"><\/svg>/, "a tool for a bot that is gone: the Chief's head");
   assert.deepEqual(marks, ['coder']);
   // Review opens the page with the cards: a tool is answered on its card.
-  assert.match(cut('function openNeed(x) {', '// Decided cards stay'), /return setView\('needs'\); \/\/ anything else/);
+  assert.match(cut('function openNeed(x, card = null) {', '// Decided cards stay'), /return setView\('needs'\); \/\/ anything else/);
 });
 
 // The page's decide(), against a card that stands in for the one on screen.
@@ -290,5 +290,5 @@ test('web: long values wrap inside the card, the warning is amber, and a closed 
   for (const rule of closed) assert.doesNotMatch(rule, /[{;\s](?:max-)?height:/, `no height limit on a closed card: ${rule}`);
   assert.match(css, /\.need-card:not\(\.open\) \.need-facts > :nth-child\(n\+7\) \{ display: none; \}/, 'a card of facts alone: its first three rows, whole');
   // The click that opens a card is the page's, for every card: open, the blocks all show.
-  assert.match(cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat ----------'), /el\.onclick = \(e\) => \{ if \(e\.target\.closest\('button'\)\) return; el\.classList\.toggle\('open'\);/);
+  assert.match(cut('function wireNeedCards(root, items) {', '// ---------- approvals in the chat ----------'), /el\.onclick = \(e\) => \{ if \(e\.target\.closest\('button, \.need-inline'\)\) return; el\.classList\.toggle\('open'\);/);
 });

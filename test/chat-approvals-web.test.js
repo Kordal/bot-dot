@@ -36,7 +36,7 @@ test('web: the asks read after the chat was drawn put the card at the end of the
   assert.equal(html, p.needCardHTML(p.item('ask:k1')));
   assert.match(html, /Mail Writer waits for your answer/);
   // showNeeds, which every read of what waits ends in, draws the open chat's cards.
-  assert.match(cut('function showNeeds() {', 'function openNeed(x) {'), /\n {2}drawChatCards\(\); \/\//);
+  assert.match(cut('function showNeeds() {', 'function openNeed(x, card = null) {'), /\n {2}drawChatCards\(\); \/\//);
 });
 
 test('web: the open Chief chat follows the same way; another view, another bot\'s chat and a group are left alone', () => {
