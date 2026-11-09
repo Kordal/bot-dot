@@ -1,6 +1,6 @@
 # ADR-173: botdot.app is a prerendered SvelteKit site on GitHub Pages
 
-- **Status:** Accepted (2026-11-09, the owner asked for the homepage on SvelteKit)
+- **Status:** Accepted (2026-11-09, the owner asked for the homepage on SvelteKit); revised the same day: the site lives in its own private repository, `Kordal/botdot-site`, not in `site/` (see Revision)
 - **Owning task:** the owner's request for the botdot.app homepage
 - **Builds on:** [ADR 137](137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md) (the desktop app, whose downloads the page links)
 
@@ -28,3 +28,11 @@ botdot.app, the apex domain, needs a homepage: what botdot is, how to install it
 - `site/` has npm dependencies (SvelteKit, Svelte, Vite, the static adapter), pinned exactly in `site/package-lock.json`; they run only at build time, never on a botdot server or in a visitor's browser.
 - Publishing needs the owner once: Settings → Pages → Source "GitHub Actions", the custom domain `botdot.app` with its DNS records, and `SITE_PAGES` set to `true`.
 - A change to `whats-new/` republishes the changelog.
+
+## Revision (2026-11-09)
+
+The owner moved the site to a private repository of its own, `Kordal/botdot-site`, the same day. Everything above holds there, with three changes:
+
+- **This repository has no `site/`, no `site.yml` and no `site-publish.yml`,** and stays free of npm dependencies. The site's SvelteKit, its lock file, its tests and its publishing workflows are in `Kordal/botdot-site`.
+- **The site reads this repository from outside.** Each build fetches a shallow, sparse clone of `github.com/Kordal/bot-dot` (`whats-new/`, `lib/whats-new.js` with `lib/jsonfile.js`, the README, `docs/` and the Android README) for the changelog and for the tests that compare the page with the README's install commands and `docs/desktop.md`'s downloads. A change here that renames those files, or the shape of a whats-new note, breaks the site's build, not this repository's.
+- **The changelog follows a nightly publish** of the site (03:00 UTC), not each change to `whats-new/` here.
