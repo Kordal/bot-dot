@@ -35,12 +35,12 @@ test("in a Polish account every step is said in Polish, names and the bot's own 
 });
 
 test("a bot's and the Chief's prompt ask for commands described in the account's language", () => {
-  const { stepsLanguageNote } = require('../lib/prompt-text');
-  assert.match(stepsLanguageNote('pl'), /description of every command you run in Polish/);
-  assert.equal(stepsLanguageNote('en'), '');
+  const { languageNote } = require('../lib/prompt-text');
+  assert.match(languageNote('pl'), /the description of every command you run/);
+  assert.equal(languageNote('en'), '');
   // In a run's prompt and in a memory review's.
-  assert.equal(fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8').match(/REPLY_STYLE, stepsLanguageNote\(settings\.get\(\)\.language\),/g)?.length, 2);
-  assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'chief.js'), 'utf8'), /promptText\.stepsLanguageNote\(B\.settings\.get\(\)\.language\)/);
+  assert.equal(fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8').match(/REPLY_STYLE, languageNote\(settings\.get\(\)\.language\),/g)?.length, 2);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'lib', 'chief.js'), 'utf8'), /promptText\.languageNote\(B\.settings\.get\(\)\.language\)/);
 });
 
 test('a step in, one short plain line out', () => {
