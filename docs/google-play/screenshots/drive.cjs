@@ -10,7 +10,7 @@ const [dir, apk, outDir] = process.argv.slice(2);
 const OUT = path.resolve(outDir || 'play-screenshots');
 fs.mkdirSync(OUT, { recursive: true });
 const scene = JSON.parse(fs.readFileSync(path.join(dir, 'scene.json'), 'utf8'));
-const PKG = 'dev.botdot.app'; // the debug build: it may reach a botdot on the computer over plain HTTP (10.0.2.2)
+const PKG = 'dev.botdot.app'; // the debug build: it may reach a botdot over plain HTTP on localhost
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const adb = (...args) => execFileSync('adb', args, { encoding: 'utf8', maxBuffer: 64 << 20 });
 const sh = (cmd) => adb('shell', cmd);
@@ -48,6 +48,8 @@ const open = (target) => sh(`am start -n ${PKG}/.MainActivity --es open '${targe
 
 (async () => {
   adb('install', '-r', '-g', apk);
+  // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
+  adb('reverse', `tcp:${scene.port}`, `tcp:${scene.port}`);
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
@@ -63,7 +65,7 @@ const open = (target) => sh(`am start -n ${PKG}/.MainActivity --es open '${targe
   const field = await find((n) => n.cls === 'android.widget.EditText', 'the address field');
   tap(field);
   await sleep(500);
-  sh(`input text '${`http://10.0.2.2:${scene.port}`}'`);
+  sh(`input text 'http://localhost:${scene.port}'`);
   sh('input keyevent 111'); // the keyboard away
   tap(await find(byText('Connect'), 'Connect'));
   await find(byText('Search'), 'the list');
