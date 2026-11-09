@@ -1,6 +1,6 @@
 # Install on Linux
 
-The full install reference: what botdot needs, the installer, accounts, shares of the machine, updates, backups, uninstalling and the platforms it runs on. The short version is in the [README](../README.md#quickstart).
+The full install reference: what botdot needs, the installer, accounts, shares of the machine, updates, backups, uninstalling and the platforms it runs on. The short version is in the [README](../README.md#install).
 
 **On a Linux server,** one machine serves several accounts, each signing in with a passkey and walled off from the others. Below is what it needs and the two commands that install it.
 
