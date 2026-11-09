@@ -70,7 +70,7 @@ data class Signal(val ring: Int?, val dot: Int?)
  * ring of radius [ringR] with an arc of [ringArc] of it turning once every [ringSeconds], and a dot at [dot] (x, y,
  * radius, the gap cut out around it).
  */
-class Tile internal constructor(
+class FigureTile internal constructor(
     val rect: FloatArray,
     val toward: Int,
     val by: Float,
@@ -113,7 +113,7 @@ class FigureDef private constructor(
     /** The part of the box (x, y, width, height) that fills the small mark: the definition's, or the whole box. */
     private val headSmall: FloatArray,
     /** The tile, when the definition has one: then a bot is drawn as it, not as the head. */
-    val tile: Tile? = null,
+    val tile: FigureTile? = null,
     private val icons: Map<String, JsonElement> = emptyMap(),
     private val iconOrigin: Pair<Double, Double> = 0.0 to 0.0,
 ) {
@@ -370,7 +370,7 @@ class FigureDef private constructor(
         }
 
         /** The tile, checked whole as the web page checks it: one this app can't draw is refused, and the definition with it. */
-        private fun tileOf(el: JsonElement): Tile {
+        private fun tileOf(el: JsonElement): FigureTile {
             val t = el as? JsonObject ?: fail("tile: rect must be { x, y, w, h, r }")
             fun hex(v: String?) = v?.takeIf { HEX.matches(it) }?.drop(1)?.toInt(16)
             val r = t["rect"] as? JsonObject
@@ -401,7 +401,7 @@ class FigureDef private constructor(
                     ?.takeIf { it[2] > 0 && it[3] > 0 }?.let { v -> FloatArray(4) { v[it].toFloat() } } ?: fail("tile: small.view must be [x, y, width, height]")
             }
             val byHat = (t["byHat"] as? JsonObject).orEmpty().mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.let { k to it.content } }.toMap()
-            return Tile(FloatArray(5) { rect[it]!!.toFloat() }, toward, by.toFloat(), ink, ringV[0]!!.toFloat(), ringV[1]!!.toFloat(), ringV[2]!!.toFloat(), ringV[3]!!,
+            return FigureTile(FloatArray(5) { rect[it]!!.toFloat() }, toward, by.toFloat(), ink, ringV[0]!!.toFloat(), ringV[1]!!.toFloat(), ringV[2]!!.toFloat(), ringV[3]!!,
                 FloatArray(4) { dot[it]!!.toFloat() }, at.first, at.second, scale, byHat, t.text("default").orEmpty(), signals, small)
         }
 

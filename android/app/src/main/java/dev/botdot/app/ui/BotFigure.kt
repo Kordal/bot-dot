@@ -50,7 +50,7 @@ import dev.botdot.app.data.Face
 import dev.botdot.app.data.Layers
 import dev.botdot.app.data.Place
 import dev.botdot.app.data.Signal
-import dev.botdot.app.data.Tile
+import dev.botdot.app.data.FigureTile
 import dev.botdot.app.data.Tone
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -235,7 +235,7 @@ internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, 
  * [signal] of its state: a ring with an arc that turns once every ring.seconds ([seconds] null: still), or a dot cut out
  * of what is behind it.
  */
-private fun DrawScope.drawTile(t: Tile, icon: List<Mark>, tones: Tones, signal: Signal?, seconds: Double?, box: Pair<Float, Float>) {
+private fun DrawScope.drawTile(t: FigureTile, icon: List<Mark>, tones: Tones, signal: Signal?, seconds: Double?, box: Pair<Float, Float>) {
     val r = t.rect
     val dot = signal?.dot
     fun body() {
