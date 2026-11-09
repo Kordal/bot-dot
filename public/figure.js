@@ -12,6 +12,7 @@
 //                            bot (its id, when given) is kept on the mark as data-bot, so the page can find it
 //   Figure.css()             the movements as CSS keyframes (use() puts them on the page)
 //   Figure.chief()           the Chief of Staff's fixed outfit, from the definition
+//   Figure.icons()           the icons a bot can be given, [{ name, label }] (none without a tile)
 //   Figure.CHIEF             given as the outfit: the Chief's, whichever definition is in use when it is drawn
 //
 // Three <g>, one inside the other: l-head (everything), l-eyes (the face) and l-pupils (what looks
@@ -411,6 +412,14 @@ function small(color, outfit, bot) {
   return `${open}${headSvg(d)}${def ? hatOf(outfit) : ''}</svg>`;
 }
 
-root.Figure = { use, svg, small, saw, css: () => moves, chief: () => def?.chief?.outfit || null, CHIEF, VERSION };
+// The icons a bot can be given, in the kit's order: { name, label }, label what the icon shows ("A newspaper").
+// None without a tile; the Chief's own is not one of them (ADR 169).
+function icons() {
+  const pieces = def?.tile ? def.kit?.icon?.pieces || {} : {};
+  const chief = def?.chief?.outfit?.icon;
+  return Object.entries(pieces).filter(([name]) => name !== chief).map(([name, p]) => ({ name, label: String(p?.means || name).split(':')[0] }));
+}
+
+root.Figure = { use, svg, small, icons, saw, css: () => moves, chief: () => def?.chief?.outfit || null, CHIEF, VERSION };
 
 })(typeof window !== 'undefined' ? window : globalThis);
