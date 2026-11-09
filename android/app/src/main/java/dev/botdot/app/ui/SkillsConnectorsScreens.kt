@@ -168,8 +168,8 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
     fun search() = scope.launch { runCatching { api!!.catalog(query) }.onSuccess { found = it.items.take(30) }.onError { tell(it.message ?: tr("Couldn't search")) } }
-    fun connect(slug: String) = scope.launch {
-        runCatching { api!!.connectApp(slug) }.onSuccess { link ->
+    fun connect(slug: String, another: Boolean = false) = scope.launch {
+        runCatching { api!!.connectApp(slug, another) }.onSuccess { link ->
             if (link.noAuth) { tell(tr("Connected")); load() }
             else link.redirectUrl?.let { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(it))) }
         }.onError { tell(it.message ?: tr("Couldn't connect")) }
@@ -215,9 +215,15 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(c.app?.name ?: c.toolkit, color = p.text, style = MaterialTheme.typography.titleMedium)
+                        // Which account it is (ADR 174).
+                        c.label?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
                         val n = c.usedBy.size
                         Text("${c.status.lowercase().replaceFirstChar { it.uppercase() }} · " + if (n == 0) tr("no bot uses it yet") else trn(n, "used by {n} bot", "used by {n} bots"),
                             color = if (c.status == "ACTIVE") p.muted else p.warnText, fontSize = Type.s12)
+                    }
+                    // The app's newest working account adds another.
+                    if (c.status == "ACTIVE" && i.connections.none { x -> x.toolkit == c.toolkit && x.status == "ACTIVE" && (x.createdAt ?: "") > (c.createdAt ?: "") }) {
+                        TextButton(onClick = { connect(c.toolkit, another = true) }) { Text(tr("Add account"), color = p.okText) }
                     }
                     TextButton(onClick = { askRemove = c.id }) { Text(tr("Remove"), color = p.err) }
                 }

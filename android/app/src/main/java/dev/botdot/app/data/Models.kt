@@ -189,6 +189,8 @@ data class Bot(
     val skills: List<String> = emptyList(),
     val disabledSkills: List<String> = emptyList(), // skills from your Claude account or Claude Code switched off for it
     val connectors: List<String> = emptyList(),
+    /** Which account of an app it uses (ADR 174): app slug to connection id. An app without one uses the newest. */
+    val accounts: Map<String, String> = emptyMap(),
     val mayMessageAll: Boolean = false, // it may message every other bot, bots made later too
     val mayMessage: List<String> = emptyList(),
     val othersMayAsk: Boolean? = null, // "Other bots may ask it" (#136); null from a server without it, which shows no switch
@@ -1248,7 +1250,9 @@ data class SkillsInfo(val library: List<Skill> = emptyList(), val machine: List<
 data class AppInfo(val slug: String = "", val name: String = "", val description: String? = null, val logo: String? = null)
 
 @Serializable
-data class Connection(val id: String, val toolkit: String = "", val status: String = "", val app: AppInfo? = null, val usedBy: List<String> = emptyList())
+data class Connection(val id: String, val toolkit: String = "", val status: String = "", val app: AppInfo? = null, val usedBy: List<String> = emptyList(),
+    /** Which account it is (ADR 174), and how many accounts its app has. */
+    val label: String? = null, val accounts: Int = 1, val createdAt: String? = null)
 
 @Serializable
 data class ConnectorsInfo(val configured: Boolean = false, val account: String? = null, val keyHint: String? = null, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList(), val reconnect: List<ReconnectApp> = emptyList())

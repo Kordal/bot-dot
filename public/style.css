@@ -1437,6 +1437,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .conn-setup + .page-sub { margin-top: var(--sp-24); }
 .app-card { padding: var(--sp-16) var(--sp-16); display: flex; flex-direction: column; gap: var(--sp-12); }
 .app-top { display: flex; align-items: center; gap: var(--sp-12); }
+.conn-label { font-size: var(--fs-14); color: var(--muted); overflow-wrap: anywhere; }
 .app-logo { width: 36px; height: 36px; border-radius: var(--r-8); object-fit: contain; background: #fff; padding: var(--sp-4); flex: none; }
 .skill-pick .app-logo { width: 26px; height: 26px; border-radius: var(--r-8); padding: var(--sp-4); }
 .app-logo.ph { display: grid; place-items: center; background: var(--sunk); color: var(--muted); font-weight: 600; padding: 0; }
