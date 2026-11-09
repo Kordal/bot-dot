@@ -153,8 +153,8 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     val done: (String?) -> Unit = { msg -> editing = null; adding = false; msg?.let(::tell); scope.launch { load() } }
     val allBots = bots.orEmpty()
     when {
-        adding -> LoginEditor(null, allBots, bw?.configured == true, features, api, work, done) { adding = false }
-        editing?.kind == "login" -> LoginEditor(editing, allBots, bw?.configured == true, features, api, work, done) { editing = null }
+        adding -> LoginEditor(null, bw?.configured == true, features, api, work, done) { adding = false }
+        editing?.kind == "login" -> LoginEditor(editing, bw?.configured == true, features, api, work, done) { editing = null }
         editing != null -> ItemBots(editing!!, allBots, api, work, done) { editing = null }
         addingKey -> SshKeyEditor(allBots, api, work, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
         addedKey != null -> SshPublicKey(addedKey!!) { addedKey = null }
@@ -400,7 +400,7 @@ private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, client
  * follow it at once (VaultTypes). The secret is write-only: empty keeps the saved one.
  */
 @Composable
-private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, features: Collection<String>?, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
+private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collection<String>?, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
@@ -411,10 +411,6 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
     var pw by remember { mutableStateOf("") }
     val fields = VaultTypes.editorFields(type, features, isNew = item == null)
     var hosts by remember { mutableStateOf(item?.allowedHosts.orEmpty().joinToString(", ")) }
-    var insecure by remember { mutableStateOf(item?.insecureTls ?: false) }
-    var inComputer by remember { mutableStateOf(item?.inComputer ?: false) }
-    val showsInComputer = VaultTypes.showsInComputer(features)
-    var chosen by remember { mutableStateOf(item?.allowedBots.orEmpty().toSet()) }
     var error by remember { mutableStateOf<String?>(null) }
     // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
     var aside by remember { mutableStateOf(false) }
@@ -440,12 +436,6 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
             Field(hosts, { hosts = it }, label = { Text(tr("Additional exact hosts")) }, placeholder = { Text("api.example.com, auth.example.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             Hint(tr("Only these hosts may also receive it. Subdomains are not included automatically."))
-            SwitchRow(tr("Accept a self-signed certificate"), tr("For your own servers, e.g. Proxmox or a NAS"), insecure) { insecure = it }
-            if (showsInComputer) SwitchRow(VaultTypes.IN_COMPUTER, VaultTypes.IN_COMPUTER_HINT, inComputer) { inComputer = it }
-            Text(tr("Bots that may use it"), color = p.text, style = MaterialTheme.typography.titleSmall)
-            bots.forEach { b ->
-                CheckRow("${b.emoji} ${b.name}", if (b.computer == "linux") null else tr("No computer, so it can't sign in to websites"), b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id }
-            }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
             if (item != null) TextButton(onClick = { askDelete = true }, enabled = !work.busy) { Text(tr("Delete"), color = p.err) }
         }
@@ -455,8 +445,8 @@ private fun LoginEditor(item: VaultItem?, bots: List<Bot>, bitwarden: Boolean, f
             // A refused save: the server's sentence, the form as it was typed, the secret cleared (docs/api.md).
             work.run(tr("Saving…"), { if (bitwarden) tr("Saved in Bitwarden") else tr("Saved") }, refused = { pw = ""; error = it; aside = false }) {
                 val sent = VaultTypes.sent(type, user, features, saved = item?.type)
-                api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, insecure, chosen.toList(),
-                    hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (showsInComputer) inComputer else null)
+                api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, null,
+                    hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type)
                 pw = ""; done(null)
             }
         }) { Text(tr("Save"), color = p.text) }

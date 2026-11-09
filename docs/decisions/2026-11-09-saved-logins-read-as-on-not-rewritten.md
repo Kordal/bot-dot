@@ -1,0 +1,1 @@
+2026-11-09: Every saved login reads as accepting a self-signed certificate and usable in its computer by the server's code, without rewriting the stored logins (ADR 174), because a migration would touch every Bitwarden access entry and keep no record of what the owner had chosen; the old fields stay where they are, unread.

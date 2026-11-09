@@ -116,36 +116,30 @@ class ApiTest {
         server.takeRequest()
         // An empty password keeps the saved one: it isn't sent at all.
         server.enqueue(json("{}"))
-        api.saveVaultLogin("login1", "Example", "example.com", "me", "", false, listOf("b1"), listOf("api.example.com", "internal.lan"))
+        api.saveVaultLogin("login1", "Example", "example.com", "me", "", listOf("b1"), listOf("api.example.com", "internal.lan"))
         val saved = server.takeRequest()
         assertEquals("PUT" to "/api/vault/login1", saved.method to saved.target)
-        assertEquals("""{"name":"Example","site":"example.com","username":"me","insecureTls":false,"allowedBots":["b1"],"allowedHosts":["api.example.com","internal.lan"]}""", saved.body!!.utf8())
+        assertEquals("""{"name":"Example","site":"example.com","username":"me","allowedBots":["b1"],"allowedHosts":["api.example.com","internal.lan"]}""", saved.body!!.utf8())
         server.enqueue(json("{}"))
-        api.saveVaultLogin(null, "New", "new.example", "me", "secret", true, emptyList(), emptyList())
+        api.saveVaultLogin(null, "New", "new.example", "me", "secret", emptyList(), emptyList())
         val added = server.takeRequest()
         assertEquals("POST" to "/api/vault", added.method to added.target)
         assertTrue(added.body!!.utf8().endsWith(""","password":"secret"}"""))
         // The type and the username go as VaultTypes.sent says: a type for a server that keeps types, and no
         // username for Other, so that the saved one stays.
         server.enqueue(json("{}"))
-        VaultTypes.sent("api-token", "root@pam!botdot", listOf("vault-types")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", false, emptyList(), emptyList(), it.type) }
-        assertEquals("""{"type":"api-token","name":"Example","site":"example.com","username":"root@pam!botdot","insecureTls":false,"allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
+        VaultTypes.sent("api-token", "root@pam!botdot", listOf("vault-types")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", emptyList(), emptyList(), it.type) }
+        assertEquals("""{"type":"api-token","name":"Example","site":"example.com","username":"root@pam!botdot","allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
         server.enqueue(json("{}"))
-        VaultTypes.sent("other", "kept", listOf("vault-types")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", false, emptyList(), emptyList(), it.type) }
-        assertEquals("""{"type":"other","name":"Example","site":"example.com","insecureTls":false,"allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
+        VaultTypes.sent("other", "kept", listOf("vault-types")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", emptyList(), emptyList(), it.type) }
+        assertEquals("""{"type":"other","name":"Example","site":"example.com","allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
         server.enqueue(json("{}"))
-        VaultTypes.sent("api-token", "me", listOf("unread")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", false, emptyList(), emptyList(), it.type) }
-        assertEquals("a server from before the types gets none", """{"name":"Example","site":"example.com","username":"me","insecureTls":false,"allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
-        // "Usable in its computer": sent when the app has it to send (a server with vault-in-computer), read on an item.
+        VaultTypes.sent("api-token", "me", listOf("unread")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", emptyList(), emptyList(), it.type) }
+        assertEquals("a server from before the types gets none", """{"name":"Example","site":"example.com","username":"me","allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
+        // The login editor shows no bots (ADR 174): it sends none, and the login keeps those it has.
         server.enqueue(json("{}"))
-        api.saveVaultLogin("login1", "Bridge", "127.0.0.1", "owner@example.com", "", false, listOf("b1"), emptyList(), inComputer = true)
-        assertEquals("""{"name":"Bridge","site":"127.0.0.1","username":"owner@example.com","insecureTls":false,"inComputer":true,"allowedBots":["b1"],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
-        server.enqueue(json("{}"))
-        api.saveVaultLogin("login1", "Bridge", "127.0.0.1", "owner@example.com", "", false, listOf("b1"), emptyList(), inComputer = false)
-        assertTrue(server.takeRequest().body!!.utf8().contains(""""inComputer":false"""))
-        server.enqueue(json("""[{"id":"l1","name":"Bridge","site":"127.0.0.1","inComputer":true},{"id":"l2","name":"Old","site":"old.example.org"}]"""))
-        assertEquals(listOf(true, false), api.vault().map { it.inComputer })
-        server.takeRequest()
+        api.saveVaultLogin("login1", "Example", "example.com", "me", "", null, emptyList())
+        assertEquals("""{"name":"Example","site":"example.com","username":"me","allowedHosts":[]}""", server.takeRequest().body!!.utf8())
         server.enqueue(json("{}"))
         api.setVaultBots("c1", listOf("b1"))
         assertEquals("""{"allowedBots":["b1"]}""", server.takeRequest().body!!.utf8())

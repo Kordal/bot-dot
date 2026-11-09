@@ -155,21 +155,22 @@ test('the Docker helper accepts run_with_login only in its fixed shape', async (
   assert.deepEqual(got[1], [MAIL, several]);
 });
 
-// ---------- the built-in vault keeps the opt-in ----------
+// ---------- the built-in vault: every login is usable in its computer (ADR 174) ----------
 
-test('the built-in vault: "Usable in its computer" is off by default, saved, returned, and seen by the bot', () => {
-  const store = vaultLib.create(fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-in-computer-')));
-  const plain = store.add({ name: 'Bridge', site: '127.0.0.1', username: USER, password: SECRET, allowedBots: ['bot1'] });
-  assert.equal(plain.inComputer, false, 'off by default');
-  assert.equal(store.credentials('bot1', 'Bridge').inComputer, false);
-  assert.equal(store.update(plain.id, { inComputer: true }).inComputer, true);
-  assert.equal(store.list()[0].inComputer, true);
-  assert.equal(store.credentials('bot1', 'Bridge').inComputer, true);
-  assert.deepEqual(store.forBot('bot1'), [{ name: 'Bridge', site: '127.0.0.1', username: USER, type: 'login', allowedHosts: [], inComputer: true }]);
-  assert.equal(store.update(plain.id, { name: 'Bridge' }).inComputer, true, 'a change that leaves it out keeps it');
-  assert.equal(store.update(plain.id, { inComputer: false }).inComputer, false);
-  assert.deepEqual(Object.keys(store.forBot('bot1')[0]).includes('inComputer'), false, 'a bot sees it only where it is on');
-  assert.equal(store.add({ site: 'nas.example.net', password: 'p', inComputer: true }).inComputer, true);
+test('the built-in vault: every login reads as "Usable in its computer" and accepting a self-signed certificate, one saved off too', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-in-computer-'));
+  const store = vaultLib.create(dir);
+  const plain = store.add({ name: 'Bridge', site: '127.0.0.1', username: USER, password: SECRET, allowedBots: ['bot1'], inComputer: false, insecureTls: false });
+  assert.equal(plain.inComputer, true);
+  assert.equal(plain.insecureTls, true);
+  assert.equal(store.update(plain.id, { inComputer: false, insecureTls: false }).inComputer, true, 'a change asking for off changes nothing');
+  assert.deepEqual(store.forBot('bot1'), [{ name: 'Bridge', site: '127.0.0.1', username: USER, type: 'login', allowedHosts: [] }], 'nothing for a bot to tell apart');
+  // A login saved before, with both switches off in its file, reads as on.
+  const file = path.join(dir, 'vault.json');
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const e of saved.entries) Object.assign(e, { inComputer: false, insecureTls: false });
+  fs.writeFileSync(file, JSON.stringify(saved));
+  assert.deepEqual([store.list()[0].inComputer, store.list()[0].insecureTls], [true, true]);
 });
 
 // ---------- the route: who may run what ----------
@@ -182,7 +183,7 @@ function noDocker(t) {
   return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 }
 
-test('run_with_login: refused without a computer, for a login not shared with the bot, and without "Usable in its computer"', async (t) => {
+test('run_with_login: refused without a computer and for a login not shared with the bot; any login shared with it is usable', async (t) => {
   const srv = await startServer({ env: noDocker(t) });
   t.after(() => srv.stop());
   const run = (token, body) => srv.api('/vault/session/computer/run-with-login', { method: 'POST', headers: { 'X-Vault-Token': token }, body });
@@ -190,26 +191,21 @@ test('run_with_login: refused without a computer, for a login not shared with th
 
   const mail = await makeBot(srv, { name: 'Mail Triage', computer: 'linux', computerAlwaysOn: true });
   const other = await makeBot(srv, { name: 'Other' });
-  const shared = (await srv.api('/vault', { method: 'POST', body: { name: 'Bridge', site: '127.0.0.1', username: USER, password: SECRET, allowedBots: [mail.id] } })).data;
+  await srv.api('/vault', { method: 'POST', body: { name: 'Bridge', site: '127.0.0.1', username: USER, password: SECRET, allowedBots: [mail.id] } });
   await srv.api('/vault', { method: 'POST', body: { name: 'Bank', site: 'bank.example.com', password: 'bank-secret', allowedBots: [other.id], inComputer: true } });
 
   const held = await heldRun(srv, mail);
-  // Not usable in its computer yet: the owner is asked to turn it on.
-  let r = await run(held.token, { login: 'Bridge', command: 'echo "$BOTDOT_PASSWORD" | wc -c' });
-  assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /"Bridge".*Ask the owner for it with ask_vault_switch \(switch "inComputer"\); don't tell them to change it in the Vault themselves/);
-  assert.doesNotMatch(JSON.stringify(r.data), new RegExp(SECRET.replace(/[/+]/g, '\\$&')));
   // Shared with another bot only: refused as any other use of it is.
-  r = await run(held.token, { login: 'Bank', command: 'true' });
+  let r = await run(held.token, { login: 'Bank', command: 'true' });
   assert.equal(r.data.ok, false);
   assert.match(r.data.error, /isn't allowed to use the "Bank" login/);
   // No command: refused before anything else.
   assert.equal((await run(held.token, { login: 'Bridge' })).status, 400);
-  // The owner turns it on: the route goes on to the computer (here a stand-in that never starts).
-  assert.equal((await srv.api(`/vault/${shared.id}`, { method: 'PUT', body: { inComputer: true } })).data.inComputer, true);
+  // Shared with it, saved with no switch: the route goes on to the computer (here a stand-in that never starts).
   r = await run(held.token, { login: 'Bridge', command: 'true' });
   assert.equal(r.data.ok, false);
-  assert.doesNotMatch(r.data.error, /Usable in its computer|isn't allowed/);
+  assert.doesNotMatch(r.data.error, /usable in your computer|isn't allowed/);
+  assert.doesNotMatch(JSON.stringify(r.data), new RegExp(SECRET.replace(/[/+]/g, '\\$&')));
   srv.release(held.rec);
   await srv.finished(held.run.id);
   srv.unhold();
@@ -257,7 +253,8 @@ test('the run_with_login tool says how to use the values, and shows what the com
   assert.match(tool.description, /BOTDOT_USERNAME/);
   assert.match(tool.description, /"\$BOTDOT_PASSWORD"/);
   assert.match(tool.description, /[Nn]ever print, store or encode/);
-  assert.match(tool.description, /Usable in its computer/);
+  assert.match(tool.description, /Works with any login the owner shared with you/);
+  assert.doesNotMatch(tool.description, /ask_vault_switch/);
   const out = await mcp.request('tools/call', { name: 'run_with_login', arguments: { login: 'Bridge', command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX' } });
   assert.equal(out.content[0].text, 'stdout:\n* OK [hidden]\n\nexit code: 0');
   assert.deepEqual(asked.at(-1), { path: '/session/computer/run-with-login', body: { login: 'Bridge', command: 'curl --user "$BOTDOT_USERNAME:$BOTDOT_PASSWORD" imap://127.0.0.1:1143/INBOX', timeoutSeconds: 120 } });

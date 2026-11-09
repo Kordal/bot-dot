@@ -56,13 +56,13 @@ test("the owner's copy has the settings, a new id, name and colour, and none of 
   assert.equal((await srv.api(`/runs?botId=${copy.id}`)).data.length, 0, 'no chat');
   assert.equal((await srv.api('/bots')).data.length, 3, 'Coder, Helper and the copy');
 
-  // The copy may use what the original may, with the entry's own switches, and nothing else.
+  // The copy may use what the original may, and nothing else.
   const vault = (await srv.api('/vault')).data;
   assert.deepEqual(vault.find((e) => e.id === portal.id).allowedBots, [coder.id, copy.id]);
   assert.deepEqual(vault.find((e) => e.id === other.id).allowedBots, [other.allowedBots[0]]);
   const { rec, token } = await heldRun(srv, copy);
   const seen = (await srv.api('/vault/session/logins', { headers: { 'X-Vault-Token': token } })).data;
-  assert.deepEqual(seen.logins.map((l) => [l.name, !!l.inComputer]), [['Portal', true]]);
+  assert.deepEqual(seen.logins.map((l) => l.name), ['Portal']);
   srv.unhold();
   srv.release(rec);
 

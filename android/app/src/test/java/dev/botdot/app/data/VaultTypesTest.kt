@@ -89,30 +89,18 @@ class VaultTypesTest {
         val login = VaultItem(id = "1", name = "Food", site = "food.example.org", username = "alice@example.com")
         assertEquals(listOf("Login · food.example.org", "👤 alice@example.com · 🔒 secret saved"), VaultTypes.rows(login, types))
         assertEquals(listOf("Login · food.example.org", "👤 (no username) · 🔒 secret saved"), VaultTypes.rows(login.copy(username = ""), types))
-        val token = VaultItem(id = "2", name = "Proxmox", type = "api-token", site = "pve.example.ts.net", username = "root@pam!botdot", insecureTls = true)
-        assertEquals(listOf("API token · pve.example.ts.net", "🆔 root@pam!botdot · 🔒 token saved · self-signed certificate OK"), VaultTypes.rows(token, types))
-        assertEquals("🆔 (no token ID) · 🔒 token saved", VaultTypes.rows(token.copy(username = "", insecureTls = false), types)[1])
+        val token = VaultItem(id = "2", name = "Proxmox", type = "api-token", site = "pve.example.ts.net", username = "root@pam!botdot")
+        assertEquals(listOf("API token · pve.example.ts.net", "🆔 root@pam!botdot · 🔒 token saved"), VaultTypes.rows(token, types))
+        assertEquals("🆔 (no token ID) · 🔒 token saved", VaultTypes.rows(token.copy(username = ""), types)[1])
         // Other shows no username, also one it still keeps from its time as a login.
         val other = VaultItem(id = "3", name = "NAS key", type = "other", site = "nas.example.net", username = "kept", hasTotp = true)
         assertEquals(listOf("Other · nas.example.net", "🔒 secret saved · two-step code"), VaultTypes.rows(other, types))
         assertEquals("an unknown type reads as a login", "Login · odd.example.org", VaultTypes.rows(VaultItem(id = "4", name = "Odd", type = "ssh-key", site = "odd.example.org"), types)[0])
     }
 
-    @Test fun usableInItsComputerShowsOnItsLineAndItsSwitchOnlyForAServerThatKeepsIt() {
-        val bridge = VaultItem(id = "8", name = "Proton Bridge", site = "127.0.0.1", username = "alice@example.com", inComputer = true)
-        assertEquals("👤 alice@example.com · 🔒 secret saved · usable in its computer", VaultTypes.rows(bridge, types)[1])
-        assertEquals("👤 alice@example.com · 🔒 secret saved", VaultTypes.rows(bridge.copy(inComputer = false), types)[1])
-        assertTrue(VaultTypes.showsInComputer(listOf(VaultTypes.IN_COMPUTER_FEATURE)))
-        assertFalse(VaultTypes.showsInComputer(types))
-        assertFalse(VaultTypes.showsInComputer(null))
-        assertEquals("Usable in its computer", VaultTypes.IN_COMPUTER)
-        assertEquals("vault-in-computer", VaultTypes.IN_COMPUTER_FEATURE)
-        assertEquals("off for an item that does not say", false, items("""[{"id":"1","name":"Old","site":"old.example.org"}]""")[0].inComputer)
-    }
-
     @Test fun onAServerBeforeTheTypesAnItemIsTheOneLineItAlwaysWas() {
-        val token = VaultItem(id = "2", name = "Proxmox", type = "api-token", site = "pve.example.ts.net", username = "root@pam!botdot", insecureTls = true)
-        assertEquals(listOf("pve.example.ts.net · root@pam!botdot · self-signed certificate OK"), VaultTypes.rows(token, before))
+        val token = VaultItem(id = "2", name = "Proxmox", type = "api-token", site = "pve.example.ts.net", username = "root@pam!botdot")
+        assertEquals(listOf("pve.example.ts.net · root@pam!botdot"), VaultTypes.rows(token, before))
         assertEquals(listOf("x.example.org · (no username)"), VaultTypes.rows(VaultItem(id = "5", name = "X", site = "x.example.org"), null))
     }
 

@@ -38,7 +38,7 @@ const vaultType = (type) => (Object.hasOwn(VAULT_TYPES, type) ? type : 'login');
 const vaultItemAddr = (l) => `${VAULT_TYPES[vaultType(l.type)].label} · ${esc(l.site)}`;
 function vaultItemLine(l) {
   const t = VAULT_TYPES[vaultType(l.type)];
-  return `${t.username ? `${t.icon} ${esc(l.username || t.none)} · ` : ''}🔒 ${t.saved}${l.hasTotp ? ` · ${tr('two-step code')}` : ''}${l.insecureTls ? ` · ${tr('self-signed certificate OK')}` : ''}${l.inComputer ? ` · ${tr('usable in its computer')}` : ''}`;
+  return `${t.username ? `${t.icon} ${esc(l.username || t.none)} · ` : ''}🔒 ${t.saved}${l.hasTotp ? ` · ${tr('two-step code')}` : ''}`;
 }
 // An SSH key of Bitwarden (kind `ssh-key`, docs/api.md): its fingerprint, and that bots use it without seeing it.
 const vaultSshKeyLine = (l) => `${l.fingerprint ? `${esc(l.fingerprint)} · ` : ''}🔒 ${tr("for SSH on a bot's computer, never shown to it")}`;
@@ -194,17 +194,7 @@ function openLoginEditor(login, { onSaved } = {}) {
         </div>
         ${vaultTypeFields(l.type, { username: l.username, isNew })}
         <label class="field" title="${esc(tr('Only these hosts may receive this login. Subdomains are not included automatically.'))}">${tr('Additional exact hosts')}<input type="text" name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
-        <label class="toggle" title="${esc(tr('For your own servers, e.g. Proxmox or a NAS'))}"><input type="checkbox" name="insecureTls" ${l.insecureTls ? 'checked' : ''}> ${tr('Accept a self-signed certificate')}</label>
-        <label class="toggle"><input type="checkbox" name="inComputer" ${l.inComputer ? 'checked' : ''}> ${tr('Usable in its computer')} <span class="hint muted" style="font-weight:400">${tr("bots may use it in a command on the account's computer, e.g. for Proton Bridge there. Every bot on that computer could then read it: only for secrets that guard something on it")}</span></label>
         <div class="req-note">${tr('Bots can use this login to sign in on the website, or to call its API: they write {username} and {password} in the request and botdot fills them in, so they never see the secret.', { username: '<span class="mono">{{username}}</span>', password: '<span class="mono">{{password}}</span>' })}</div>
-        <fieldset>
-          <legend>${tr('Bots that may use it')}</legend>
-          <div class="tool-toggles">${state.bots.map((b) => {
-            // A bot without a computer can't sign in (#1190): its chip is greyed, and stays choosable while it has the login.
-            const off = b.computer !== 'linux' && !l.allowedBots.includes(b.id);
-            return `<label title="${b.computer === 'linux' ? '' : esc(tr('This bot has no computer, so it can’t sign in to websites'))}"${b.computer === 'linux' ? '' : ' class="off"'}><input type="checkbox" name="bot" value="${esc(b.id)}" ${l.allowedBots.includes(b.id) ? 'checked' : ''}${off ? ' disabled' : ''}>${botLabel(b)}</label>`;
-          }).join('')}</div>
-        </fieldset>
         <div class="req-error" role="alert" hidden></div>
       </div>
       <div class="modal-foot">
@@ -236,9 +226,6 @@ function openLoginEditor(login, { onSaved } = {}) {
       site: form.site.value.trim(),
       ...vaultTypeBody(form),
       allowedHosts: form.allowedHosts.value.split(',').map((s) => s.trim()).filter(Boolean),
-      insecureTls: form.insecureTls.checked,
-      inComputer: form.inComputer.checked,
-      allowedBots: $$('input[name=bot]:checked', form).map((c) => c.value),
     };
     if (form.password.value) body.password = form.password.value;
     form.password.value = '';

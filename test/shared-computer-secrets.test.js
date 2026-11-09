@@ -1,7 +1,7 @@
 // What the owner, the bots and the Chief read about saved secrets used on the account's computer (#106, ADR 035):
 // every bot there works as box with sudo, so each can read what botdot types or hands to a command there. Said
-// plainly in the Vault's hint (web and Android), the approval card (vault-switch-ask.test.js), the bots' vault and
-// computer tools, the Chief's Vault tool and the bot's prompt.
+// plainly in the bots' vault and computer tools, the Chief's Vault tool and the bot's prompt. Every login may be used
+// there (ADR 174), so the Vault's editor has no switch or hint for it.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -38,10 +38,10 @@ test("a machine of the bot's own on boat.dev has the Vault tools for one command
   assert.equal(tools.place_secret_file, undefined, 'no secret kept on disk at boat.dev');
 });
 
-test('the vault tools say it of "Usable in its computer"', async (t) => {
+test('the vault tools say every login may be used on the account\'s computer, where every bot can read it', async (t) => {
   const tools = await listed(t, 'vault-mcp.js');
-  assert.match(tools.ask_vault_switch, /"inComputer" \("Usable in its computer": [^)]*every other bot on the account's computer can read it/);
-  assert.match(tools.list_logins, /inComputer: true when you may use it with run_with_login on the account's computer, where every bot on the account's computer can read it/);
+  assert.equal(tools.ask_vault_switch, undefined, 'no switch is left to ask for');
+  assert.match(tools.list_logins, /each login may also be used with run_with_login on the account's computer, where every bot on the account's computer can read it/);
 });
 
 test('the Chief\'s Vault tool says it, so the Chief can tell the owner', () => {
@@ -56,7 +56,8 @@ test('the bot\'s prompt says it, and that botdot puts no secret on a command lin
   assert.match(bots, /What botdot types into your browser or hands to a command on this computer \([^)]*\) every other bot on the computer can read too, as they all have sudo\. botdot puts no secret on a command line, and in a file only for one command or by place_secret_file/);
 });
 
-test('the Vault\'s hint says it, on the web and in the Android app', () => {
-  assert.match(read('public', 'vault.js'), /\$\{tr\('Usable in its computer'\)\} <span class="hint muted"[^>]*>\$\{tr\("[^"]*Every bot on that computer could then read it/);
-  assert.match(read('android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'VaultTypes.kt'), /IN_COMPUTER_HINT: String get\(\) = tr\("[^"]*Every bot on that computer could then read it/);
+test('the Vault\'s editor has no switch for a self-signed certificate or for the computer (ADR 174)', () => {
+  for (const f of [read('public', 'vault.js'), read('public', 'login-requests.js'), read('android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui', 'VaultScreen.kt')]) {
+    assert.doesNotMatch(f, /name="insecureTls"|name="inComputer"|Usable in its computer|Accept a self-signed certificate/);
+  }
 });
