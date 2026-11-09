@@ -116,6 +116,16 @@ test("a seat may carry its bot's name, which its commits on the computer carry (
   assert.equal(validate('backupWorkspace', [{ op: 'write', data: 'not base64!' }]), false);
   assert.equal(validate('backupWorkspace', [{ bot: 'ops', screen: 2 }, { op: 'pack' }]), false);
   assert.equal(validate('runShell', [{ bot: 'ops', screen: 2, name: 'Ops' }, { command: 'git log' }]), true);
+  // A bot's commands through its proxy, and the proxy to its bridge (ADR 171): a plain host, a port, a login, nothing else.
+  assert.equal(validate('runShell', [{ bot: 'ops', screen: 2 }, { command: 'curl x', proxied: true }]), true);
+  assert.equal(validate('runShell', [{ bot: 'ops', screen: 2 }, { command: 'curl x', proxied: 'yes' }]), false);
+  const proxy = { type: 'socks5', host: 'pl.example.com', port: 1080, username: 'u', password: 'p', name: 'PL' };
+  assert.equal(validate('setProxy', [{ bot: 'ops', screen: 2 }, proxy]), true);
+  assert.equal(validate('setProxy', [{ bot: 'ops', screen: 2 }, null]), true);
+  assert.equal(validate('setProxy', [{ bot: 'ops', screen: 2 }, { ...proxy, host: 'a b; rm -rf /' }]), false);
+  assert.equal(validate('setProxy', [{ bot: 'ops', screen: 2 }, { ...proxy, type: 'ftp' }]), false);
+  assert.equal(validate('setProxy', [{ bot: 'ops', screen: 2 }, { ...proxy, port: 70000 }]), false);
+  assert.equal(validate('setProxy', [{ bot: 'ops', screen: 2 }, { ...proxy, env: 'LD_PRELOAD=x' }]), false);
   for (const name of [42, 'x'.repeat(201), null]) assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, name }]), false, String(name));
   assert.equal(validate('screenState', [{ bot: 'ops', screen: 2, image: 'evil' }]), false);
 });

@@ -14,14 +14,23 @@ camoufox-browser [url]
     Opens the url in the Camoufox of the screen it is run on (DISPLAY), starting it if it is closed: the dock's
     browser icon, xdg-open, open_browser.
 camoufox-browser --is-open
-    Exits 0 when the Camoufox of the screen it is run on is open, 1 when not (open_browser).
+    Exits 0 when the Camoufox of the screen it is run on is open, 1 when not (open_browser), then printing why its
+    last start failed, when it did (a proxy that did not answer).
+
+The bot's proxy (ADR 171): botdot sends {"op": "proxy", "proxy": {...} or null} over BRIDGE_SOCKET, and the bridge
+keeps it in PROXY_FILE for its next start. With one, Camoufox goes through a SOCKS5 forwarder of the bridge's own on
+127.0.0.1:PROXY_PORT, which reaches every site through the bot's proxy with its login, the site's name resolved there;
+the bot's commands may use that forwarder too. A proxy that doesn't answer keeps the browser closed: nothing goes out
+directly.
 
 What the bridge and Camoufox print goes to BRIDGE_LOG, at most LOG_CAP bytes of the latest, and the previous
 run's to BRIDGE_LOG.1 (#355).
 """
 import atexit
+import base64
 import contextlib
 import fcntl
+import ipaddress
 import json
 import os
 import queue
@@ -29,6 +38,8 @@ import random
 import re
 import socket
 import socketserver
+import ssl
+import struct
 import sys
 import threading
 import time
@@ -46,6 +57,10 @@ BRIDGE_LOG = "/home/browser/bridge.log"  # as told in lib/computers.js, above st
 LOG_CAP = 1024 * 1024
 OPEN_PORT = 47111
 PROFILE = os.path.expanduser("~/.camoufox-profile")
+PROXY_FILE = "/home/browser/proxy.json"  # the bot's proxy, with its login: the browser user's alone
+PROXY_PORT = 47300  # the forwarder into the bot's proxy, on the loopback: PROXY_PORT_BASE + the screen's number
+PROXY_PORT_BASE = 47300
+BOT = ""
 # Where the browser saves downloads: box's on the account's computer, the bot's own home on a boat.dev machine (#563).
 DOWNLOADS = os.environ.get("BOTDOT_DOWNLOADS") or "/home/box/Downloads"
 # Screen :N's bridge port is OPEN_PORT_BASE + N, as lib/computers.js (screenPorts) has it.
@@ -65,11 +80,14 @@ browser_starting = threading.Event()  # Camoufox is being started on this screen
 
 def for_screen(display, bot):
     """Point this bridge at screen `display` (":21") and the profile of `bot`: its own socket, log and port."""
-    global BRIDGE_SOCKET, BRIDGE_LOG, OPEN_PORT, PROFILE
+    global BRIDGE_SOCKET, BRIDGE_LOG, OPEN_PORT, PROFILE, PROXY_FILE, PROXY_PORT, BOT
     m = DISPLAY_FORM.match(display or "")
     if not m or not BOT_FORM.match(bot or ""):
         raise SystemExit("camoufox-browser --serve takes a display and a bot")
     n = int(m.group(1))
+    BOT = bot
+    PROXY_FILE = f"/home/browser/proxy-{n}.json"
+    PROXY_PORT = PROXY_PORT_BASE + n
     BRIDGE_SOCKET = f"/run/botdot-browser/bridge-{n}.sock"
     BRIDGE_LOG = f"/home/browser/bridge-{n}.log"
     OPEN_PORT = OPEN_PORT_BASE + n
@@ -92,6 +110,9 @@ class BridgeHandler(socketserver.StreamRequestHandler):
             body = None
         if not isinstance(body, dict) or not body:  # e.g. bridge_running(), which sends nothing: not the browser's
             result = {"ok": False, "error": "The bridge takes one JSON request."}
+        elif body.get("op") == "proxy":  # not the browser's thread: it may be starting, or held by a page
+            result = take_proxy(body.get("proxy"))
+            body.clear()
         else:
             reply = queue.Queue()
             body["_until"] = time.monotonic() + REPLY_SECONDS
@@ -116,11 +137,15 @@ class OpenHandler(BaseHTTPRequestHandler):
         except ValueError:
             body = {}
         if isinstance(body, dict) and body.get("op") == "open":
+            global start_error
+            start_error = None  # this open's start says its own
             if not (browser_starting.is_set() and not browser_open.is_set()):  # one that starts opens its own page
                 requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
             result = {"ok": True}
         elif isinstance(body, dict) and body.get("op") == "is-open":
             result = {"ok": True, "open": browser_open.is_set()}
+            if not browser_open.is_set() and start_error:
+                result["error"] = start_error
         else:
             result = {"ok": False, "error": "This only opens pages in Camoufox."}
         data = json.dumps(result).encode()
@@ -572,6 +597,10 @@ def serve():
     if bridge_running():  # botdot started it again while it runs
         return
     bound_log()
+    global proxy
+    proxy = load_proxy()  # the one botdot gave last, until it gives another
+    if proxy:
+        serve_forwarder()
     try:
         os.unlink(BRIDGE_SOCKET)
     except FileNotFoundError:
@@ -591,6 +620,12 @@ def serve():
             browser_starting.set()
             try:
                 run_browser(body.get("url") or "about:blank")
+            except ProxyDown as exc:
+                global start_error
+                with proxy_lock:
+                    name = proxy["name"] if proxy else "The proxy"
+                start_error = f"The proxy {name} {exc}, so the browser stayed closed. Nothing went out directly."
+                say(start_error)
             except Exception as exc:  # e.g. the desktop is not up yet: the next open tries again
                 print(f"camoufox-browser: Camoufox did not start: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
             finally:
@@ -598,6 +633,339 @@ def serve():
         elif reply is not None:
             reply.put(NOT_OPEN)
         body.clear()
+
+
+# ---------- the bot's proxy (ADR 171) ----------
+
+PROXY_TYPES = ("socks5", "http")
+PROXY_HOST = re.compile(r"^[A-Za-z0-9._:\-]{1,253}$")
+PROXY_SECONDS = 15  # the most one connection waits for the proxy
+EXIT_SECONDS = 8  # the most a start waits to learn the proxy's address
+IP_SITE = "api.ipify.org"
+SOCKS_SAID = {1: "a failure", 2: "its rules", 3: "no network", 4: "no such host", 5: "a refusal", 6: "a timeout", 7: "no CONNECT", 8: "no such address type"}
+proxy = None  # the bot's proxy: {"type", "host", "port", "username", "password", "name"}, or None
+proxy_lock = threading.Lock()
+forwarder = None
+start_error = None  # why the last start did not open the browser, for --is-open
+
+
+class ProxyDown(Exception):
+    """The proxy did not take a connection: what it said, in a few words, never its login."""
+
+
+def clean_proxy(value):
+    """A proxy as botdot sends it, or None. Raises ValueError for one that isn't."""
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("a proxy is an object")
+    kind, host, port = value.get("type"), str(value.get("host") or "").strip("[]"), value.get("port")
+    if kind not in PROXY_TYPES or not PROXY_HOST.match(host) or not isinstance(port, int) or isinstance(port, bool) or not 0 < port < 65536:
+        raise ValueError("a proxy has a type (socks5 or http), a host and a port")
+    username, password = str(value.get("username") or ""), str(value.get("password") or "")
+    if len(username) > 255 or len(password) > 255:
+        raise ValueError("a proxy's login has at most 255 characters")
+    return {"type": kind, "host": host, "port": port, "username": username, "password": password, "name": str(value.get("name") or host)[:60]}
+
+
+def load_proxy():
+    """The proxy kept for this screen's bot, or None (no file, another bot's, or not one)."""
+    try:
+        with open(PROXY_FILE) as f:
+            kept = json.load(f)
+        return clean_proxy(kept.get("proxy")) if isinstance(kept, dict) and kept.get("bot") == BOT else None
+    except (OSError, ValueError):
+        return None
+
+
+def take_proxy(value):
+    """botdot's {"op": "proxy"}: keep it for the next start, and close a browser that runs on another one, so the bot's
+    next open_browser starts it on this one. The answer says it was taken (an older bridge answers otherwise)."""
+    global proxy
+    try:
+        new = clean_proxy(value)
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+    try:
+        if new is None:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(PROXY_FILE)
+        else:
+            fd = os.open(PROXY_FILE + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                json.dump({"bot": BOT, "proxy": new}, f)
+            os.replace(PROXY_FILE + ".tmp", PROXY_FILE)
+    except OSError as exc:
+        return {"ok": False, "error": f"The bridge couldn't keep the proxy: {type(exc).__name__}"}
+    with proxy_lock:
+        changed, proxy = new != proxy, new
+    if new is not None:
+        serve_forwarder()
+    if changed and (browser_open.is_set() or browser_starting.is_set()):
+        requests.put(({"op": "close"}, None))
+    return {"ok": True, "proxyTaken": True, "proxy": "set" if new else "none"}
+
+
+def recv_exact(sock, n):
+    data = b""
+    while len(data) < n:
+        chunk = sock.recv(n - len(data))
+        if not chunk:
+            raise ProxyDown("closed the connection")
+        data += chunk
+    return data
+
+
+def socks_address(host):
+    try:
+        ip = ipaddress.ip_address(host)
+        return (b"\x01" if ip.version == 4 else b"\x04") + ip.packed
+    except ValueError:
+        name = host.encode("idna")
+        if not 0 < len(name) < 256:
+            raise ProxyDown("can't take so long a name")
+        return b"\x03" + bytes([len(name)]) + name
+
+
+def socks_connect(sock, p, host, port):
+    signs_in = bool(p["username"])
+    sock.sendall(b"\x05\x02\x00\x02" if signs_in else b"\x05\x01\x00")
+    version, method = recv_exact(sock, 2)
+    if version != 5:
+        raise ProxyDown("is not a SOCKS5 proxy")
+    if method == 2 and signs_in:
+        user, word = p["username"].encode(), p["password"].encode()
+        sock.sendall(bytes([1, len(user)]) + user + bytes([len(word)]) + word)
+        if recv_exact(sock, 2)[1] != 0:
+            raise ProxyDown("refused the login")
+    elif method != 0:
+        raise ProxyDown("refused the login" if signs_in else "wants a login")
+    sock.sendall(b"\x05\x01\x00" + socks_address(host) + struct.pack(">H", port))
+    _, reply, _, kind = recv_exact(sock, 4)
+    if reply != 0:
+        raise ProxyDown(f"didn't reach {host}: {SOCKS_SAID.get(reply, reply)}")
+    size = {1: 4, 4: 16}.get(kind)
+    recv_exact(sock, (recv_exact(sock, 1)[0] if size is None else size) + 2)
+
+
+def http_connect(sock, p, host, port):
+    target = f"[{host}]:{port}" if ":" in host else f"{host}:{port}"
+    head = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n"
+    if p["username"]:
+        head += "Proxy-Authorization: Basic " + base64.b64encode(f'{p["username"]}:{p["password"]}'.encode()).decode() + "\r\n"
+    sock.sendall((head + "\r\n").encode())
+    answer = b""
+    while b"\r\n\r\n" not in answer:  # it says nothing more before the client speaks in the tunnel
+        chunk = sock.recv(4096)
+        if not chunk:
+            raise ProxyDown("closed the connection")
+        answer += chunk
+        if len(answer) > 65536:
+            raise ProxyDown("gave an answer too long")
+    words = answer.split(b"\r\n", 1)[0].split()
+    code = words[1].decode("ascii", "replace") if len(words) > 1 else "?"
+    if code == "407":
+        raise ProxyDown("refused the login")
+    if code != "200":
+        raise ProxyDown(f"answered {code} for {host}")
+
+
+def through(p, host, port, seconds=PROXY_SECONDS):
+    """A connection to host:port through proxy p, the host's name resolved by the proxy, never here."""
+    try:
+        sock = socket.create_connection((p["host"], p["port"]), timeout=seconds)
+    except OSError as exc:
+        raise ProxyDown(f"didn't answer ({type(exc).__name__})")
+    try:
+        (socks_connect if p["type"] == "socks5" else http_connect)(sock, p, host, port)
+    except ProxyDown:
+        sock.close()
+        raise
+    except OSError as exc:
+        sock.close()
+        raise ProxyDown(f"didn't answer ({type(exc).__name__})")
+    sock.settimeout(None)
+    return sock
+
+
+def exit_ip(p, seconds=EXIT_SECONDS):
+    """The address sites see through proxy p (Camoufox's geoip then matches it), or ProxyDown."""
+    sock = through(p, IP_SITE, 443, seconds)
+    sock.settimeout(seconds)
+    try:
+        import certifi
+        context = ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        context = ssl.create_default_context()
+    try:
+        with context.wrap_socket(sock, server_hostname=IP_SITE) as tls:
+            tls.sendall(f"GET / HTTP/1.0\r\nHost: {IP_SITE}\r\nUser-Agent: Mozilla/5.0\r\n\r\n".encode())
+            data = b""
+            while len(data) < 65536:
+                chunk = tls.recv(4096)
+                if not chunk:
+                    break
+                data += chunk
+    except (OSError, ssl.SSLError) as exc:
+        raise ProxyDown(f"didn't carry the connection ({type(exc).__name__})")
+    finally:
+        sock.close()
+    try:
+        return str(ipaddress.ip_address(data.split(b"\r\n\r\n", 1)[-1].strip().decode("ascii")))
+    except (ValueError, UnicodeDecodeError):
+        raise ProxyDown("gave no address")
+
+
+def pipe(a, b):
+    """Copy a to b until either side ends, then end both."""
+    try:
+        while True:
+            chunk = a.recv(65536)
+            if not chunk:
+                break
+            b.sendall(chunk)
+    except OSError:
+        pass
+    for s in (a, b):
+        with contextlib.suppress(OSError):
+            s.shutdown(socket.SHUT_RDWR)
+
+
+class ForwardHandler(socketserver.BaseRequestHandler):
+    """The way into the bot's proxy on the loopback, which the bridge signs into: SOCKS5 without a login (CONNECT
+    only) for Camoufox, and an HTTP proxy (CONNECT, and plain http:// requests) for the bot's commands, which more
+    programs take than SOCKS. The site's name goes to the proxy as it came. Without a proxy nothing goes out."""
+
+    def handle(self):
+        client = self.request
+        client.settimeout(PROXY_SECONDS)
+        try:
+            first = recv_exact(client, 1)
+            upstream = self.socks(client) if first == b"\x05" else self.http(client, first)
+        except (OSError, ProxyDown, ValueError, UnicodeError):
+            return
+        if upstream is None:
+            return
+        client.settimeout(None)
+        back = threading.Thread(target=pipe, args=(upstream, client), daemon=True)
+        back.start()
+        pipe(client, upstream)
+        back.join()
+        upstream.close()
+
+    @staticmethod
+    def current():
+        with proxy_lock:
+            return proxy
+
+    def socks(self, client):
+        methods = recv_exact(client, recv_exact(client, 1)[0])
+        if 0 not in methods:
+            client.sendall(b"\x05\xff")
+            return None
+        client.sendall(b"\x05\x00")
+        version, command, _, kind = recv_exact(client, 4)
+        if kind == 1:
+            host = str(ipaddress.IPv4Address(recv_exact(client, 4)))
+        elif kind == 4:
+            host = str(ipaddress.IPv6Address(recv_exact(client, 16)))
+        elif kind == 3:
+            host = recv_exact(client, recv_exact(client, 1)[0]).decode("idna")
+        else:
+            client.sendall(b"\x05\x08\x00\x01" + bytes(6))
+            return None
+        port = struct.unpack(">H", recv_exact(client, 2))[0]
+        p = self.current()
+        if version != 5 or command != 1:
+            client.sendall(b"\x05\x07\x00\x01" + bytes(6))
+            return None
+        if p is None:  # no proxy now: nothing goes out directly
+            client.sendall(b"\x05\x02\x00\x01" + bytes(6))
+            return None
+        try:
+            upstream = through(p, host, port)
+        except ProxyDown:
+            client.sendall(b"\x05\x05\x00\x01" + bytes(6))
+            return None
+        client.sendall(b"\x05\x00\x00\x01" + bytes(6))
+        return upstream
+
+    def http(self, client, first):
+        head = first
+        while b"\r\n\r\n" not in head:
+            chunk = client.recv(4096)
+            if not chunk or len(head) > 65536:
+                return None
+            head += chunk
+        head, body = head.split(b"\r\n\r\n", 1)
+        line, _, rest = head.partition(b"\r\n")
+        words = line.decode("latin-1").split()
+        if len(words) != 3:
+            return None
+        method, target, version = words
+        p = self.current()
+        if p is None:
+            client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            return None
+        if method == "CONNECT":
+            host, _, port = target.rpartition(":")
+            host, port = host.strip("[]"), int(port)
+        else:
+            url = urlparse(target)
+            if url.scheme != "http" or not url.hostname:
+                client.sendall(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                return None
+            host, port = url.hostname, url.port or 80
+        try:
+            upstream = through(p, host, port)
+        except ProxyDown:
+            client.sendall(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            return None
+        if method == "CONNECT":
+            client.sendall(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            return upstream
+        path = (url.path or "/") + (f"?{url.query}" if url.query else "")
+        kept = [h for h in rest.split(b"\r\n") if h and not h.lower().startswith((b"proxy-connection:", b"proxy-authorization:"))]
+        upstream.sendall(f"{method} {path} {version}\r\n".encode("latin-1") + b"".join(h + b"\r\n" for h in kept) + b"\r\n" + body)
+        return upstream
+
+
+class Forwarder(socketserver.ThreadingTCPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
+
+def serve_forwarder():
+    """The forwarder, started once: True when it listens."""
+    global forwarder
+    with proxy_lock:
+        if forwarder is not None:
+            return True
+        try:
+            forwarder = Forwarder(("127.0.0.1", PROXY_PORT), ForwardHandler)
+        except OSError:  # taken by a program of a bot: the browser then doesn't start with the proxy
+            say(f"127.0.0.1:{PROXY_PORT} is taken, so the browser can't use the bot's proxy")
+            return False
+    threading.Thread(target=forwarder.serve_forever, daemon=True).start()
+    return True
+
+
+def proxied_options(options, p):
+    """Camoufox's options for proxy p: through the forwarder, with DNS at the proxy and WebRTC only through it, and
+    the address sites see for geoip. Raises ProxyDown when the proxy doesn't carry a connection."""
+    if not serve_forwarder():
+        raise ProxyDown(f"can't be used: 127.0.0.1:{PROXY_PORT} is taken on this computer")
+    ip = exit_ip(p)
+    options["proxy"] = {"server": f"socks5://127.0.0.1:{PROXY_PORT}"}
+    options["firefox_user_prefs"].update({
+        "network.proxy.socks_remote_dns": True,  # a site's name is resolved by the proxy, not here
+        "network.trr.mode": 5,  # no DNS over HTTPS beside it
+        "network.dns.disablePrefetch": True,
+        "media.peerconnection.ice.proxy_only": True,  # WebRTC only through the proxy, never this computer's address
+        "media.peerconnection.ice.default_address_only": True,
+        "media.peerconnection.ice.no_host": True,
+    })
+    return ip
 
 
 IDENTITY_FILE = "botdot-identity.json"  # in the bot's profile: deleting the bot, or its profile, gives it a new one
@@ -649,19 +1017,23 @@ def where_from():
     if geoip_failed_at is not None and time.monotonic() - geoip_failed_at < 600:
         return None
     try:
-        from camoufox import geolocation
         from camoufox.ip import public_ip
-        # The database comes with the desktop (deploy/desktop/Dockerfile) in a folder this user can't write: an older
-        # one is used as it is, instead of downloading a new one at every start that can't be saved.
-        geolocation.needs_update = lambda *args, **kwargs: False
-        geolocation.geoip_allowed()
-        ip = public_ip()
-        geolocation.get_geolocation(ip)
-        return ip
+        return placed(public_ip())
     except Exception as exc:
         geoip_failed_at = time.monotonic()
         say(f"started without geoip: {type(exc).__name__}")
         return None
+
+
+def placed(ip):
+    """ip, once Camoufox's database places it (it raises when it can't)."""
+    from camoufox import geolocation
+    # The database comes with the desktop (deploy/desktop/Dockerfile) in a folder this user can't write: an older
+    # one is used as it is, instead of downloading a new one at every start that can't be saved.
+    geolocation.needs_update = lambda *args, **kwargs: False
+    geolocation.geoip_allowed()
+    geolocation.get_geolocation(ip)
+    return ip
 
 
 def where_from_quickly(seconds=GEOIP_SECONDS):
@@ -716,9 +1088,18 @@ def run_browser(url):
     identity = lasting_identity(Screen)
     if identity:
         who["fingerprint"] = identity
-    ip = where_from_quickly()
-    if ip:
-        who["geoip"] = ip
+    with proxy_lock:
+        through_proxy = proxy
+    if through_proxy:  # its place is the proxy's: raises when the proxy doesn't answer, and nothing starts
+        ip = proxied_options(options, through_proxy)
+        try:
+            who["geoip"] = placed(ip)
+        except Exception as exc:
+            say(f"started without geoip: {type(exc).__name__}")
+    else:
+        ip = where_from_quickly()
+        if ip:
+            who["geoip"] = ip
     locale = os.environ.get("BOTDOT_LOCALE", "")
     if LOCALE.match(locale):  # after geoip, which would otherwise give the language of the server's country
         who["locale"] = locale
@@ -767,6 +1148,9 @@ def run_browser(url):
                     except Exception:
                         break
                     continue
+                if body.get("op") == "close":  # its proxy changed: the next open starts it on the new one
+                    body.clear()
+                    break
                 until = body.pop("_until", None)
                 if until is not None and time.monotonic() > until - START_SECONDS:
                     body.clear()
@@ -793,7 +1177,12 @@ def main():
         return
     port = port_of_display(os.environ.get("DISPLAY"))
     if sys.argv[1:2] == ["--is-open"]:
-        sys.exit(0 if ask_bridge({"op": "is-open"}, port).get("open") else 1)
+        said = ask_bridge({"op": "is-open"}, port)
+        if said.get("open"):
+            sys.exit(0)
+        if said.get("error"):
+            print(said["error"])
+        sys.exit(1)
     url = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else "about:blank"
     if not ask_bridge({"op": "open", "url": url}, port).get("ok", False):
         print("botdot's browser is not running on this screen.", file=sys.stderr)

@@ -601,6 +601,22 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun computerPlace(): ComputerPlace = json.decodeFromString(get("/settings/computer"))
     suspend fun setComputerPlace(place: String, moveFiles: Boolean): ComputerPlace = json.decodeFromString(send("PUT", "/settings/computer", buildJsonObject { put("place", place); put("moveFiles", moveFiles) }))
     suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
+
+    // ---------- the account's proxies (ADR 171) ----------
+
+    suspend fun proxies(): ProxyList = json.decodeFromString(get("/proxies"))
+    suspend fun setDefaultProxy(id: String): ProxyList = json.decodeFromString(send("PUT", "/proxies/default", buildJsonObject { put("proxy", id) }))
+    suspend fun testProxy(id: String): ProxyTest = json.decodeFromString(send("POST", "/proxies/${enc(id)}/test"))
+    private fun proxyBody(f: ProxyForm, id: String? = null) = buildJsonObject {
+        put("name", f.name.trim()); put("type", f.type); put("host", f.host.trim()); put("port", f.port.trim().toIntOrNull() ?: 0)
+        put("username", f.username.trim()); put("password", f.password)
+        if (id != null) put("id", id)
+    }
+    /** A form's test before it is saved: an empty password is the saved one's, when [id] names it. */
+    suspend fun testProxyForm(f: ProxyForm, id: String?): ProxyTest = json.decodeFromString(send("POST", "/proxies/test", proxyBody(f, id)))
+    suspend fun addProxy(f: ProxyForm): Proxy = json.decodeFromString<ProxySaved>(send("POST", "/proxies", proxyBody(f))).proxy
+    suspend fun saveProxy(id: String, f: ProxyForm): Proxy = json.decodeFromString<ProxySaved>(send("PUT", "/proxies/${enc(id)}", proxyBody(f))).proxy
+    suspend fun removeProxy(id: String): ProxyList = json.decodeFromString(send("DELETE", "/proxies/${enc(id)}"))
     suspend fun setBoatSize(size: String): BoatSizes = json.decodeFromString(send("PUT", "/settings/boat-size", buildJsonObject { put("size", size) }))
     /** A backup of the account made now (ADR 158), encrypted with [passphrase]: where to fetch it, once. Only with `backup-download` in its features. */
     suspend fun backupDownload(passphrase: String): BackupDownloadAsked = json.decodeFromString(send("POST", "/backups/download", buildJsonObject { put("passphrase", passphrase) }))

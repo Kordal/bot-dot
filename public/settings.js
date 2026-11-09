@@ -357,6 +357,7 @@ function renderSettings() {
           <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(catalogTip())}>${tr('Check for new models')}</button></div>
         </form>
       </details>
+      ${typeof Proxies !== 'undefined' ? Proxies.rowHTML() : ''}
       ${custom.length ? `<details class="bs-row bs-more">
         <summary><b>${tr('Bots with their own model')}</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
         <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
@@ -380,6 +381,7 @@ function renderSettings() {
   drawSettingsLinks(root);
   loadBackupsCard();
   loadComputerPlace(root);
+  if (typeof Proxies !== 'undefined') Proxies.wireSettings(root); // public/proxies.js (ADR 171)
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   wireLanguage(root);
   const form = $('#settings-form', root);

@@ -184,6 +184,7 @@ data class Bot(
     val effort: String? = null,
     val computerAlwaysOn: Boolean = false,
     val computerMove: ComputerMove? = null, // its files on their way to its new computer (#556)
+    val proxy: String = "", // its proxy (ADR 171): "" the account's, "none", or one of the account's by id
     val useSkills: Boolean = true,
     val skills: List<String> = emptyList(),
     val disabledSkills: List<String> = emptyList(), // skills from your Claude account or Claude Code switched off for it

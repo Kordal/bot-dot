@@ -26,7 +26,7 @@ dns.promises.Resolver = class {
 
 // The stand-in Docker: containers by name, { state, labels, mounts }, and the named volumes. With refuseLimits, it has no
 // CPU cgroup. With missing, `docker cp` finds no such folder there.
-let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false;
+let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false, bridgeSays = null;
 function docker(args) {
   calls.push(args);
   const [cmd] = args;
@@ -59,6 +59,7 @@ function docker(args) {
   // A screen's computer-server answers once its supervisord was started (#105).
   if (cmd === 'exec' && args.includes('/usr/bin/supervisord')) screensUp.add(args.find((a) => a.startsWith('API_PORT=')).slice(9));
   if (cmd === 'exec' && args.includes('python3') && !args.includes('-I') && !screensUp.has(args.at(-1))) throw new Error('Connection refused');
+  if (cmd === 'exec' && args.includes('-I') && bridgeSays && !args.includes('botdot-run')) return bridgeSays(args);
   if (cmd === 'exec' && args.includes('python3')) return '{"ok": true}';
   return '';
 }
@@ -100,6 +101,7 @@ beforeEach(() => {
   missing = new Set();
   volumes = new Set();
   screensUp = new Set();
+  bridgeSays = null;
   // Two bots' old computers of their own, made before (#104): one still running.
   containers = new Map([['botdot-a1', { state: 'running', versions: '2|1' }], ['botdot-b1', { state: 'exited', versions: '2|1' }]]);
 });
@@ -186,7 +188,7 @@ test("two bots working at once each reach only their own screen, browser and fol
   const login = execs.find((a) => a.includes('BOTDOT_PASSWORD'));
   assert.ok(login.includes('DISPLAY=:12') && login.includes('/workspace/b1'));
   assert.deepEqual(computers.screenPorts(seat('a1')), {
-    bot: 'a1', n: 11, display: ':11', vnc: 5911, novnc: 6111, api: 8111, browser: 47211, socket: '/run/botdot-browser/bridge-11.sock', workdir: '/workspace/a1',
+    bot: 'a1', n: 11, display: ':11', vnc: 5911, novnc: 6111, api: 8111, browser: 47211, proxy: 47311, socket: '/run/botdot-browser/bridge-11.sock', workdir: '/workspace/a1',
   });
 });
 
@@ -365,4 +367,41 @@ test("a bot's old computer of its own: its home is copied into /workspace/<bot>/
   assert.equal(to.at(-1), '/workspace/b1/old-computer');
   assert.equal(containers.get('botdot-b1').state, 'exited', 'the old one stays stopped and kept, until it is erased');
   assert.equal(await computers.copyOld('c1'), null, 'a bot without one has nothing to copy');
+});
+
+// The bot's proxy (ADR 171): handed to the bridge of its own screen as the browser user, a bridge from before it ended
+// and started again from the synced launcher, and its commands pointed at the bridge's forwarder, with no login.
+test("a bot's proxy goes to its own bridge, which an older one is started again for, and its commands use the forwarder", async () => {
+  await computers.ensure(seat('a1'));
+  const proxy = { type: 'socks5', host: 'pl.example.com', port: 1080, username: 'kordal', password: 's3cret', name: 'PL' };
+  calls = [];
+  bridgeSays = () => '{"ok": true, "proxyTaken": true, "proxy": "set"}';
+  assert.deepEqual(await computers.setProxy(seat('a1'), proxy), { ok: true });
+  const asked = calls.filter((a) => a[0] === 'exec' && a.includes('-I'));
+  assert.equal(asked.length, 1);
+  assert.equal(asked[0][asked[0].indexOf('-u') + 1], 'browser');
+  assert.equal(asked[0].at(-1), '/run/botdot-browser/bridge-11.sock');
+  assert.ok(!calls.flat().some((a) => String(a).includes('s3cret')), 'the login is on no command line');
+
+  // A bridge from before the proxy answers without taking it: ended with its browser, started again, asked again.
+  calls = [];
+  let answers = 0;
+  bridgeSays = () => (++answers === 1 ? '{"ok": false, "error": "Camoufox isn\'t open."}' : '{"ok": true, "proxyTaken": true}');
+  assert.deepEqual(await computers.setProxy(seat('a1'), proxy), { ok: true });
+  assert.ok(calls.some((a) => a.includes('sh') && a.some((x) => String(x).includes('camoufox-[b]rowser --serve :$1 $2'))), 'the old bridge of this screen ended');
+  assert.ok(calls.some((a) => a.includes('/usr/local/bin/camoufox-browser') && a.includes(':11')), 'and started again');
+
+  // No proxy any more, and no bridge running: its kept file goes all the same.
+  calls = [];
+  bridgeSays = () => '{"ok": false, "down": true}';
+  assert.deepEqual(await computers.setProxy(seat('a1'), null), { ok: true });
+  assert.ok(calls.some((a) => a.join(' ').endsWith('rm -f /home/browser/proxy-11.json')));
+
+  calls = [];
+  await computers.runShell(seat('a1'), { command: 'curl -s https://example.com', proxied: true });
+  const shell = calls.find((a) => a.includes('curl -s https://example.com'));
+  assert.ok(shell.includes('HTTPS_PROXY=http://127.0.0.1:47311') && shell.includes('https_proxy=http://127.0.0.1:47311') && shell.includes('NO_PROXY=localhost,127.0.0.1,::1'));
+  calls = [];
+  await computers.runShell(seat('a1'), { command: 'curl -s https://example.com' });
+  assert.ok(!calls.find((a) => a.includes('curl -s https://example.com')).some((a) => /PROXY/.test(a)), 'without one, nothing');
 });

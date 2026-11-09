@@ -1288,5 +1288,19 @@
   "Turn off “{title}”?": "Wyłączyć „{title}”?",
   "Turn on “{title}”?": "Włączyć „{title}”?",
   "Turn off": "Wyłącz",
-  "Turn on": "Włącz"
+  "Turn on": "Włącz",
+  "Proxy": "Proxy",
+  "Bots use": "Boty używają",
+  "No proxy": "Bez proxy",
+  "Add proxy": "Dodaj proxy",
+  "Edit proxy": "Edytuj proxy",
+  "Host": "Host",
+  "Port": "Port",
+  "Test": "Testuj",
+  "Not working": "Nie działa",
+  "Remove {name}?": "Usunąć {name}?",
+  "Account's ({name})": "Konta ({name})",
+  "Couldn't test": "Nie udało się przetestować",
+  "Edit": "Edytuj",
+  "None": "Brak"
 }
