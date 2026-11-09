@@ -350,13 +350,20 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
     }
 }
 
-/** The Reconnect cards under the reply of a job's run (#431): an app it found signed out, and a button that connects it as the Connectors screen does. */
+/**
+ * The Reconnect cards under the reply of a job's run (#431): an app it found signed out, and a button that connects it
+ * as the Connectors screen does. An app that has a missing app's card of the bot ([botId]) waiting is connected from
+ * that card, so the run draws no second one.
+ */
 @Composable
-fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
-    if (cards.isEmpty()) return
+fun ReconnectCards(all: List<dev.botdot.app.data.ReconnectCard>, botId: String? = null) {
+    if (all.isEmpty()) return
     val p = LocalPaper.current
     val context = LocalContext.current
     val app = BotDotApp.of(context)
+    val needs by app.store.needs.value.collectAsState()
+    val cards = all.filter { !dev.botdot.app.data.hasConnectCard(needs?.asks.orEmpty(), botId, it.app) }
+    if (cards.isEmpty()) return
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
     Column(Modifier.padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {

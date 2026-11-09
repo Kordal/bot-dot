@@ -112,6 +112,7 @@ import dev.botdot.app.data.CardGroups
 import dev.botdot.app.data.GroupRef
 import dev.botdot.app.data.groupOfChat
 import dev.botdot.app.data.ToolCard
+import dev.botdot.app.data.actLabel
 import dev.botdot.app.data.VaultTypes
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
@@ -1242,10 +1243,32 @@ internal fun askTitle(a: Ask): String = when {
  * A permission or a skill a bot (or the Chief) asked for, a tool the Chief asks to install for a bot, a changed bot,
  * an action in a connected app, or a switch of a saved login. answer(title, yes, label, always).
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { "" }, answer: (String, Boolean, String?, Boolean) -> Unit) {
     val decide: (String, Boolean, String?) -> Unit = { title, yes, label -> answer(title, yes, label, false) }
-    if (a.kind == "connector-action") {
+    if (a.act != null) {
+        // A card whose main button the server names by a verb (`act`, docs/api.md "A missing connected app"): its
+        // title, in setup what is wrong, Not now and that button, no more. Connect opens the app's sign-in page and
+        // says where that is (ConnectAsks); Open Connectors opens that screen. A verb this app does not know draws no card.
+        val label = a.actLabel ?: return
+        val context = LocalContext.current
+        val app = BotDotApp.of(context)
+        val openConnectors = LocalOpenConnectors.current
+        val scope = rememberCoroutineScope()
+        val step = ConnectAsks.at[a.id]?.step
+        val no = a.no ?: tr("Not now")
+        Failing(ConnectAsks.error(a)) {
+            Card(who, a.title, ConnectAsks.line(a)) {
+                ToolCard.text(a.body).takeIf { it.isNotEmpty() }?.let { Body(it) }
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8, Alignment.End)) {
+                    SecondaryButton(onClick = { decide(a.title, false, no) }, enabled = step != ConnectAsks.Step.Opening) { Text(no, color = LocalPaper.current.text) }
+                    Button(onClick = { ConnectAsks.press(scope, app, context, a, openConnectors) }, enabled = step != ConnectAsks.Step.Opening,
+                        colors = ButtonDefaults.buttonColors(containerColor = LocalPaper.current.ink, contentColor = LocalPaper.current.inkText)) { Text(ConnectAsks.button(a, label)) }
+                }
+            }
+        }
+    } else if (a.kind == "connector-action") {
         // The server's title and the action's fields as rows, drawn as a tool's facts are: every row, and every value
         // in full on an opened card; under the title, whether its run still waits. From a server that sends neither:
         // the line and the text the card has today. Rows that were cut short (the feed's entry) are not all a yes
