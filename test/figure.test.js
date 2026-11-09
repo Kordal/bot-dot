@@ -407,10 +407,66 @@ test('renderer: a bot is a tile in its muted colour with its icon; the state is 
   assert.ok(!/t-ring|t-dot/.test(small));
 });
 
+test('renderer: a tile moves once, for a change of state the page saw, and carries on where it was when drawn again', () => {
+  let now = 1000;
+  const ctx = vm.createContext({ performance: { now: () => now } });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'figure.js'), 'utf8'), ctx);
+  const { Figure } = ctx;
+  Figure.use(copy(def));
+  const m = def.tile.motion;
+  const tile = (st, bot = 'b1') => Figure.svg(st, '#1d9e75', { icon: 'news' }, bot);
+  Figure.saw('b1', 'idle');
+  assert.equal(tile('idle'), Figure.svg('idle', '#1d9e75', { icon: 'news' }), 'the first state seen is just drawn');
+  Figure.saw('b1', 'working');
+  now += 50;
+  let svg = tile('working');
+  assert.match(svg, /style="--ph:-?[\d.]+s;--ago:-50ms"/, 'the move started 50 ms ago');
+  assert.match(svg, /<g class="m-ring in"><g class="t-ring">/, 'the ring fades in');
+  assert.equal(Figure.svg('working', '#1d9e75', { icon: 'news' }), Figure.svg('working', '#1d9e75', { icon: 'news' }, ''), 'a tile without its bot never moves');
+  assert.ok(!tile('working', 'b2').includes('m-ring'), 'nor one of a bot whose change it did not see');
+  assert.ok(!tile('idle').includes('--ago'), 'nor one drawn in a state the bot is no longer in (a run from before)');
+  now += 1000 * m.ring.in;
+  assert.ok(!tile('working').includes('--ago'), 'once it has moved, the tile is drawn still');
+  // A run that ended well: the ring goes, the check is drawn over the icon.
+  Figure.saw('b1', 'idle');
+  now += 300;
+  svg = tile('idle');
+  assert.match(svg, /^<svg class="fig fig-idle fig-tile m-done"/);
+  assert.match(svg, /<path class="t-check" d="M 8\.3 12\.3 L 10\.9 14\.9 L 15\.9 9\.7" stroke="#ffffff" stroke-width="1\.25" pathLength="1"\/>/);
+  assert.ok(!svg.includes('m-ring out'), 'the ring has gone by now');
+  now = now - 300 + 100;
+  assert.match(tile('idle'), /<g class="m-ring out"><g class="t-ring">/, 'and was fading out just after');
+  // A dot grows, and the states that need the owner pulse once; waiting does not pulse.
+  Figure.saw('b1', 'needs_you');
+  now += 100;
+  svg = tile('needs_you');
+  assert.match(svg, /<g class="m-dot in"><circle class="t-cut"[^>]*\/><circle class="t-dot"[^>]*fill="#e0a23a"\/><\/g>/);
+  assert.match(svg, /<circle class="m-pulse" cx="20\.5" cy="20\.5" r="3" stroke="#e0a23a" stroke-width="0\.8"\/>/);
+  Figure.saw('b1', 'waiting');
+  now += 50;
+  svg = tile('waiting');
+  assert.ok(!svg.includes('m-dot in') && !svg.includes('m-pulse'), 'a dot that only changes colour neither grows nor pulses');
+  // Paused fades from where it was; the dot shrinks away.
+  Figure.saw('b1', 'paused');
+  now += 60;
+  svg = tile('paused');
+  assert.match(svg, /^<svg class="fig fig-paused fig-tile m-fade"[^>]*style="[^"]*;--was:1"/);
+  assert.match(svg, /<g class="m-dot out"><circle class="t-cut"/);
+  // The moves are CSS from the definition, and only fade under reduced motion.
+  const css = Figure.css();
+  assert.match(css, /\.fig-tile \.m-dot\.in \{ animation: fig-m-grow 0\.26s cubic-bezier\(0\.3, 1\.4, 0\.55, 1\) var\(--ago, 0s\) both; \}/);
+  assert.match(css, /\.fig-tile \.m-pulse \{ animation: fig-m-pulse 0\.9s cubic-bezier\(0\.2, 0\.8, 0\.2, 1\) calc\(var\(--ago, 0s\) \+ 0\.14s\) both; \}/);
+  assert.match(css, /:is\(a, button, \[role="button"\], \.contact\):active \.fig-tile \{ transform: scale\(0\.94\); \}/);
+  const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
+  assert.match(reduced, /\.fig-tile \.m-ring\.in, \.fig-tile \.m-dot\.in \{ animation: fig-m-in 0\.12s/);
+  assert.match(reduced, /\.fig-tile \.m-pulse \{ display: none; \}/);
+});
+
 test('renderer: a tile it cannot draw is refused whole, and the definition is not used', () => {
   const Figure = page();
   for (const tile of [{}, { ...def.tile, rect: { x: 2, y: 2, w: 0, h: 20, r: 6 } }, { ...def.tile, mute: { toward: 'grey', by: 0.2 } }, { ...def.tile, ink: 'white' }, { ...def.tile, ring: { ...def.tile.ring, seconds: 0 } },
-    { ...def.tile, states: { working: { ring: 'url(#x)' } } }, { ...def.tile, states: { working: { glow: '#ffffff' } } }, { ...def.tile, small: { view: [0, 0] } }]) {
+    { ...def.tile, states: { working: { ring: 'url(#x)' } } }, { ...def.tile, states: { working: { glow: '#ffffff' } } }, { ...def.tile, small: { view: [0, 0] } },
+    { ...def.tile, motion: { ...def.tile.motion, ring: { in: 0 } } }, { ...def.tile, motion: { ...def.tile.motion, done: { ...def.tile.motion.done, from: 'dancing' } } }, { ...def.tile, motion: { ...def.tile.motion, done: { ...def.tile.motion.done, check: [['C', 1, 2]] } } }, { ...def.tile, motion: { ...def.tile.motion, press: 2 } }]) {
     assert.throws(() => Figure.use({ ...copy(def), tile }), /Figure definition: tile/, JSON.stringify(tile).slice(0, 80));
   }
 });

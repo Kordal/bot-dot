@@ -407,4 +407,50 @@ class FigureTest {
             assertThrows("$key $bad", IllegalArgumentException::class.java) { FigureDef.parse(with(key, bad)) }
         }
     }
+
+    @Test fun `a tile moves once for a change of state, as the web page does, and then holds still`() {
+        val m = tiled.tile!!.motion!!
+        // The ring comes in eased from nothing, and the old one goes when the run ends.
+        assertNull("the first state is just drawn", tiled.moment("idle", "idle", 0.0, false))
+        same(tiled.moment("idle", "working", 0.0, false)!!.ring, 0.0)
+        assertTrue(tiled.moment("idle", "working", 0.13, false)!!.ring in 0.5f..1f)
+        assertNull("after the move, drawn still", tiled.moment("idle", "working", m.longest, false))
+        val gone = tiled.moment("working", "paused", 0.05, false)!!
+        assertEquals(0x5fb98f, gone.ringWasColor)
+        assertTrue(gone.ringWas in 0f..1f)
+        assertTrue("paused fades in", gone.opacity!! < 1f && gone.opacity!! > 0.4f)
+        // A run that ended well: the icon gives way to a check drawn once, then comes back.
+        val f = { t: Double -> tiled.moment("working", "idle", t * 1.14, false)!! }
+        same(f(0.0).icon, 1.0)
+        same(f(0.5).icon, 0.0)
+        assertTrue(f(0.2).check > 0f && f(0.2).check < 1f)
+        same(f(0.6).check, 1.0)
+        same(f(0.6).checkAlpha, 1.0)
+        assertTrue(f(0.99).icon > 0.9f)
+        assertNull("a run that stopped otherwise draws no check", tiled.moment("working", "waiting", 0.5, false)?.takeIf { it.check > 0f })
+        // A dot grows in, past its size and back; needs you sends one pulse after it.
+        val dot = tiled.moment("idle", "needs_you", 0.2, false)!!
+        assertTrue(dot.dot > 1f)
+        assertEquals("the pulse waits for the dot", 0f, tiled.moment("idle", "needs_you", 0.1, false)!!.pulse)
+        assertTrue(tiled.moment("idle", "needs_you", 0.5, false)!!.pulse!! in 0f..1f)
+        assertNull("waiting sends none", tiled.moment("idle", "waiting", 0.5, false)?.pulse)
+        // Animations off: what comes or goes only fades, quickly, and nothing pulses.
+        val calm = tiled.moment("idle", "needs_you", 0.06, true)!!
+        assertTrue(calm.dotFades)
+        assertNull(calm.pulse)
+        assertNull(tiled.moment("idle", "needs_you", 0.13, true))
+        same(tiled.moment("working", "idle", 0.5, true)!!.check, 1.0)
+        // The easing is CSS's cubic-bezier: its ends are its ends, and a settle goes past 1 on its way.
+        same(eased(floatArrayOf(0.2f, 0.8f, 0.2f, 1f), 0.0), 0.0)
+        same(eased(floatArrayOf(0.2f, 0.8f, 0.2f, 1f), 1.0), 1.0)
+        same(eased(floatArrayOf(0f, 0f, 1f, 1f), 0.3), 0.3)
+        // A head has no motion, and a motion this app can't draw is refused with its tile.
+        assertNull(def.moment("idle", "working", 0.1, false))
+        val tile = full["tile"]!!.jsonObject
+        val motion = tile["motion"]!!.jsonObject
+        fun with(key: String, v: String) = JsonObject(full + ("tile" to JsonObject(tile + ("motion" to JsonObject(motion + (key to json(v))))))).toString()
+        for ((key, bad) in listOf("easing" to """{"out":[0,0,1]}""", "done" to """{"from":"working","to":"dancing"}""", "press" to "2", "ring" to """{"in":0}""")) {
+            assertThrows("$key $bad", IllegalArgumentException::class.java) { FigureDef.parse(with(key, bad)) }
+        }
+    }
 }

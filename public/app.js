@@ -144,8 +144,9 @@ const chiefMatches = (q) => CHIEF_ROLE.toLowerCase().includes(q) || chiefName().
 // ---------- end of the Chief's name
 const BOT_COLORS = [['#1d9e75', tr('Teal')], ['#378add', tr('Blue')], ['#7f77dd', tr('Purple')], ['#d4537e', tr('Pink')], ['#e24b4a', tr('Red')], ['#ef9f27', tr('Amber')], ['#639922', tr('Green')], ['#888780', tr('Grey')]];
 // outfit: its hat ({ hat }: the name of one in the server's kit, or one the Chief drew), when it has one.
-// bot: its id, for a head that stays on the page while nothing draws it again (a run's): redrawMarks then finds it.
-const botFigure = (color, st = 'idle', size = '', outfit = null, bot = '') => `<div class="avatar head ${size}"${bot ? ` data-bot="${esc(bot)}" data-st="${esc(st)}" data-size="${esc(size)}"` : ''}>${Figure.svg(st, color, outfit)}</div>`;
+// bot: its id, for a head that stays on the page while nothing draws it again (a run's): redrawMarks then finds it;
+// a tile with it moves once when that bot's state changes (Figure.saw).
+const botFigure = (color, st = 'idle', size = '', outfit = null, bot = '') => `<div class="avatar head ${size}"${bot ? ` data-bot="${esc(bot)}" data-st="${esc(st)}" data-size="${esc(size)}"` : ''}>${Figure.svg(st, color, outfit, bot)}</div>`;
 // The definition every bot is drawn from. Without it (an older server, a broken file) bots are bare
 // heads; it's asked for again a few times, in case the server was only away for a moment. When it
 // arrives late, Figure.use draws the bare heads on the page again from it.
@@ -1129,6 +1130,7 @@ async function readAll() {
     if (!state.features.length) loadFeatures().then(syncRead); // it could not be asked at the start
     // Counts that were fetched before this page said it shows the chat: ask the server again, now.
     if (report.shown() && Unread.count(unreadKnown(report.shown()))) report.again();
+    for (const b of state.bots) Figure.saw(b.id, b.state); // a tile moves once when its bot's state changes
     redrawMarks();
     showJobApprovals();
     // Read after the rest: an answer that comes after a later refresh began is older than that one's, and is dropped.

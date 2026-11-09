@@ -282,14 +282,14 @@
       const st = keyStatus(b);
       const on = docked && state.view === 'bot' && state.botId === b.id;
       const d = keys.indexOf(b) + 1;
-      return `<button type="button" class="key${on ? ' active' : ''}" data-cf-bot="${esc(b.id)}" title="${esc(d <= 9 ? `${b.name} · ${d}` : b.name)}"${d <= 9 ? ` aria-keyshortcuts="${d}"` : ''}><span class="key-head">${botFigure(b.color, b.state, '', b.outfit)}${lead ? CROWN : ''}</span><span class="name">${esc(b.name)}</span>${keyState(st, st.kind === 'working' ? liveLine(b) : '')}</button>`;
+      return `<button type="button" class="key${on ? ' active' : ''}" data-cf-bot="${esc(b.id)}" title="${esc(d <= 9 ? `${b.name} · ${d}` : b.name)}"${d <= 9 ? ` aria-keyshortcuts="${d}"` : ''}><span class="key-head">${botFigure(b.color, b.state, '', b.outfit, b.id)}${lead ? CROWN : ''}</span><span class="name">${esc(b.name)}</span>${keyState(st, st.kind === 'working' ? liveLine(b) : '')}</button>`;
     };
     const rows = (c.teams || []).map((t) => {
       const ids = leadFirst(t);
       if (!ids.length) return '';
       const g = (state.groups || []).find((x) => x.team === t.id);
       const on = docked && state.view === 'group' && g && state.groupId === g.id;
-      const faces = ids.slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit)}</i>`; }).join('');
+      const faces = ids.slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}</i>`; }).join('');
       return `<section class="sp-team" style="--c:${esc(t.color || '#8e7cff')}">
         <div class="sp-team-head"><button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}"><span class="sp-faces">${faces}</span><span>${esc(t.name)}</span></button><button type="button" class="icon-btn sp-more${teamOpen === t.id ? ' here' : ''}" data-cf-team="${esc(t.id)}" aria-label="${esc(t.name)}" title="${esc(t.name)}">${MORE}</button></div>
         <div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1)).join('')}<button type="button" class="key sp-join" data-cf-add="${esc(t.id)}" aria-label="${esc(tr('Add bots to {team}', { team: t.name }))}" title="${esc(tr('Add bots to {team}', { team: t.name }))}">${Company.ICON.plus}</button></div>
@@ -301,7 +301,7 @@
   // team's faces, else the Chief's. A tap opens that chat full screen, ready to write in, as Home's Chief field does.
   function fieldHTML(c) {
     const t = (c.teams || []).find((x) => leadFirst(x).length && (state.groups || []).some((g) => g.team === x.id));
-    const head = t ? `<span class="sp-faces">${leadFirst(t).slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit)}</i>`; }).join('')}</span>` : chiefFigure();
+    const head = t ? `<span class="sp-faces">${leadFirst(t).slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}</i>`; }).join('')}</span>` : chiefFigure();
     const text = t ? tr('Message the team…') : chiefTitle();
     return `<button type="button" class="kp-chief sp-field" data-sp-field title="${esc(text)}">${head}<span>${esc(text)}</span><i class="kp-send">${SEND_ARROW}</i></button>`;
   }
@@ -418,7 +418,7 @@
     return `<div class="cf-panel-head" style="--c:${esc(team.color)}"><i class="cf-dot"></i><h2>${esc(team.name)}</h2><button type="button" class="icon-btn" data-cf-close aria-label="${tr('Close')}">${X}</button></div>
       ${o ? `<div class="cf-team-kpi"><span>${esc(o.name)}</span><b>${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></b></div>` : ''}
       <div class="cf-rows">${members.map((b) => `<div class="cf-row">
-        <button type="button" class="cf-member" data-cf-bot="${esc(b.id)}">${botFigure(b.color, b.state, 'sm', b.outfit)}${b.id === team.lead && members.length > 1 ? CROWN : ''}<span class="cf-row-text"><b>${esc(b.name)}</b><span>${esc(lineOf(b))}</span></span></button>
+        <button type="button" class="cf-member" data-cf-bot="${esc(b.id)}">${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}${b.id === team.lead && members.length > 1 ? CROWN : ''}<span class="cf-row-text"><b>${esc(b.name)}</b><span>${esc(lineOf(b))}</span></span></button>
         ${b.id === team.lead ? `<span class="cf-lead-chip">${CROWN}${tr('Lead')}</span>` : `<button type="button" class="btn sm ghost" data-cf-lead="${esc(b.id)}">${tr('Make lead')}</button>`}
       </div>`).join('')}</div>
       ${reportHTML(team)}`;
