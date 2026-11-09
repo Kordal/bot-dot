@@ -119,11 +119,20 @@ jobs:
           echo "{\"version\":\"$VERSION\"}" > "$RUNNER_TEMP/version.json"
           echo "Building botdot $VERSION for ${{ matrix.name }}"
 
-      # The cache keeps target/, and with it the bundles of an earlier version: only this build's are collected.
+      # The cache keeps target/, and with it the bundles of an earlier version: only this build's are collected. The
+      # bundler downloads its tools (NSIS, linuxdeploy) from GitHub's releases, which at times answer 5xx: a build that
+      # failed on such a download tries again, up to three times, and any other failure ends it at once.
       - name: Build
         run: |
-          rm -rf target/${{ matrix.target }}/release/bundle
-          npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json"
+          for TRY in 1 2 3; do
+            rm -rf target/${{ matrix.target }}/release/bundle
+            # pipefail, as GitHub's bash runs: the build's own status, not tee's.
+            if npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json" 2>&1 | tee "$RUNNER_TEMP/build.log"; then exit 0; fi
+            grep -qE 'http status: 5[0-9][0-9]|returned error: 5[0-9][0-9]' "$RUNNER_TEMP/build.log" || exit 1
+            echo "A download failed (try $TRY of 3); trying again in 30 s"
+            sleep 30
+          done
+          exit 1
 
       # Named for the people who download them. The Mac's .app goes as a .tar.gz made here, which keeps its
       # permissions: the updater installs it, and the release workflow signs it.
