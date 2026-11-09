@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** FIG-002; amended by FIG-012 (the figure is a head with a face and a hat)
+- **Amended by:** [ADR 169](169-a-bot-is-an-icon-on-a-tile-in-its-colour.md) (apps that know the definition's `tile` draw a bot as an icon on a tile in its colour; the head stays for apps from before)
 
 ## Context
 

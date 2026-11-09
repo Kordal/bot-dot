@@ -23,7 +23,10 @@ import java.io.File
  * only counts what is drawn (a unit test has no Android bitmap; the bitmap itself is looked at on the emulator).
  */
 class FigurePictureTest {
-    private val def = FigureDef.parse(File(System.getProperty("figureDefinition") ?: "../../lib/figure.json").readText())
+    private val text = File(System.getProperty("figureDefinition") ?: "../../lib/figure.json").readText()
+    private val tiled = FigureDef.parse(text)
+    // The head, as apps from before the tile (ADR 169) read the definition.
+    private val def = FigureDef.parse(kotlinx.serialization.json.JsonObject(Json.parseToJsonElement(text).let { it as kotlinx.serialization.json.JsonObject } - "tile").toString())
 
     private class Counting : Canvas {
         var circles = 0
@@ -70,5 +73,10 @@ class FigurePictureTest {
         assertTrue("the Chief's hat", chief.circles + chief.paths > bare.circles + bare.paths)
         // The built-in bare head, for a definition this app can't use.
         assertTrue(drawn("""{"hat":"cap"}""", FigureDef.BARE).let { it.circles + it.paths } >= 3)
+    }
+
+    @Test fun `with a tile the picture is the tile and its icon`() {
+        val news = Counting().also { drawPortrait(it, tiled, "#3b82f6", Json.parseToJsonElement("""{"icon":"news"}"""), 144, dark = true) }
+        assertEquals("every shape of the icon (the tile itself is a rounded rect)", tiled.icon(Json.parseToJsonElement("""{"icon":"news"}""")).size, news.circles + news.paths)
     }
 }

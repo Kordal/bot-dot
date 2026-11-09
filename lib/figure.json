@@ -1,5 +1,5 @@
 {
-  "about": "The one head every app draws bots from (docs/adr/003-one-figure-definition-for-all-apps.md). The botdot server hands it out at GET /api/figure; the web page and Android each have a renderer and no face data of their own beyond one built-in bare head. Units are those of 'box'. A bot is 'head' (a circle in the bot's colour), the face of its state and its hat. There are three layers, one inside the other: 'head' (everything), 'eyes' (the face) and 'pupils' (the part of the face that looks around). A state has 'eyes' and 'pupils', each a list of shapes in the box's units (the shapes of docs/adr/004-pieces-as-restricted-shape-lists.md, in the tones main, deep, white and ink; 'tones' gives white and ink), a 'pose' (the still face, shown with reduced motion) and maybe a 'move'. A pose places layers: head { move, turn }, eyes { move, scale }, pupils { move }; move is [x, y], turn is degrees clockwise about pivot.head, scale is [x, y] about pivot.eyes; what a pose leaves out is move [0, 0], turn 0, scale [1, 1]. 'move' loops for ever: each key overrides the pose, with the one easing between each pair of keys. 'attach.hat' puts the origin of the hat's box at 'at' and draws the box 'scale' times as large. 'kit' holds the hats a bot's outfit names: each a list of shapes in the hat's 'box', filled and/or stroked in 'main' (the bot's colour) or 'deep' (the colour mixed 45% towards black on a light background, towards white on a dark one). 'chief' is the Chief of Staff's fixed outfit. 'small' is the mark beside a bot's name in text and for each thing that waits in Needs you: the head with its hat, without eyes, still, with the part 'view' ([x, y, width, height] of the box) filling the mark.",
+  "about": "The one head every app draws bots from (docs/adr/003-one-figure-definition-for-all-apps.md). The botdot server hands it out at GET /api/figure; the web page and Android each have a renderer and no face data of their own beyond one built-in bare head. Units are those of 'box'. A bot is 'head' (a circle in the bot's colour), the face of its state and its hat. There are three layers, one inside the other: 'head' (everything), 'eyes' (the face) and 'pupils' (the part of the face that looks around). A state has 'eyes' and 'pupils', each a list of shapes in the box's units (the shapes of docs/adr/004-pieces-as-restricted-shape-lists.md, in the tones main, deep, white and ink; 'tones' gives white and ink), a 'pose' (the still face, shown with reduced motion) and maybe a 'move'. A pose places layers: head { move, turn }, eyes { move, scale }, pupils { move }; move is [x, y], turn is degrees clockwise about pivot.head, scale is [x, y] about pivot.eyes; what a pose leaves out is move [0, 0], turn 0, scale [1, 1]. 'move' loops for ever: each key overrides the pose, with the one easing between each pair of keys. 'attach.hat' puts the origin of the hat's box at 'at' and draws the box 'scale' times as large. 'kit' holds the hats a bot's outfit names: each a list of shapes in the hat's 'box', filled and/or stroked in 'main' (the bot's colour) or 'deep' (the colour mixed 45% towards black on a light background, towards white on a dark one). 'chief' is the Chief of Staff's fixed outfit. 'small' is the mark beside a bot's name in text and for each thing that waits in Needs you: the head with its hat, without eyes, still, with the part 'view' ([x, y, width, height] of the box) filling the mark. 'tile' (docs/adr/169-a-bot-is-an-icon-on-a-tile-in-its-colour.md) is how apps that know it draw a bot instead of the head: 'rect' (a rounded square, in the box's units) filled with the bot's colour mixed 'mute.by' of the way towards 'mute.toward', and on it the icon the outfit names (kit 'icon': a 24 by 24 box placed at 'icon.at', 'icon.scale' times as large, every shape drawn in 'ink' whatever tone it names). An outfit without an icon shows the icon 'byHat' gives its hat, or 'default'. The state shows as 'tile.states' says: 'ring', a circle of radius 'ring.r' around the tile with an arc of 'ring.arc' of it in that colour, turning once every 'ring.seconds' (still under reduced motion); 'dot', a dot at 'dot' in that colour, cut out from what is behind by 'dot.gap'; a state's 'opacity' fades the whole tile. 'tile.small' is the view of the small mark: the tile alone. Apps that don't know 'tile' ignore it and draw the head.",
   "version": 2,
   "box": [24, 24],
   "head": {"cx": 12, "cy": 16.5, "r": 7.5},
@@ -118,9 +118,202 @@
           {"shape": "circle", "cx": 5, "cy": 1.05, "r": 0.9, "fill": "deep"}
         ]}
       }
+    },
+    "icon": {
+      "box": [24,24], "origin": [0,0],
+      "pieces": {
+        "compass": {"means": "A compass: the one who steers the team (the Chief of Staff)", "shapes": [
+          {"shape": "circle", "cx": 12, "cy": 12, "r": 9.5, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 15.5, 8.5], ["L", 13.4, 13.4], ["L", 8.5, 15.5], ["L", 10.6, 10.6], ["Z"]], "stroke": "main", "width": 2}
+        ]},
+        "spark": {"means": "A spark: a general helper, ideas, anything without a clearer sign", "shapes": [
+          {"shape": "path", "d": [["M", 12, 3], ["Q", 12.8, 10.2, 21, 12], ["Q", 12.8, 13.8, 12, 21], ["Q", 11.2, 13.8, 3, 12], ["Q", 11.2, 10.2, 12, 3], ["Z"]], "stroke": "main", "width": 2}
+        ]},
+        "news": {"means": "A newspaper: news, the press, digests", "shapes": [
+          {"shape": "rect", "x": 3, "y": 4, "w": 18, "h": 16, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 7, "y1": 8.5, "x2": 17, "y2": 8.5, "stroke": "main", "width": 2},
+          {"shape": "rect", "x": 7, "y": 12, "w": 4, "h": 4, "r": 0.5, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 14, "y1": 12.5, "x2": 17, "y2": 12.5, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 14, "y1": 16, "x2": 17, "y2": 16, "stroke": "main", "width": 2}
+        ]},
+        "mail": {"means": "An envelope: email, letters, newsletters", "shapes": [
+          {"shape": "rect", "x": 3, "y": 5, "w": 18, "h": 14, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 3.5, 6.5], ["L", 12, 13], ["L", 20.5, 6.5]], "stroke": "main", "width": 2}
+        ]},
+        "inbox": {"means": "An inbox tray: sorting what comes in, triage", "shapes": [
+          {"shape": "rect", "x": 3, "y": 5, "w": 18, "h": 14, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 3, 13], ["L", 8, 13], ["L", 9.5, 15.5], ["L", 14.5, 15.5], ["L", 16, 13], ["L", 21, 13]], "stroke": "main", "width": 2}
+        ]},
+        "chat": {"means": "A speech bubble: conversations, support, social replies", "shapes": [
+          {"shape": "path", "d": [["M", 5, 4], ["L", 19, 4], ["Q", 21, 4, 21, 6], ["L", 21, 14], ["Q", 21, 16, 19, 16], ["L", 10, 16], ["L", 5.5, 20], ["L", 5.5, 16], ["L", 5, 16], ["Q", 3, 16, 3, 14], ["L", 3, 6], ["Q", 3, 4, 5, 4], ["Z"]], "stroke": "main", "width": 2}
+        ]},
+        "calendar": {"means": "A calendar: plans, schedules, meetings", "shapes": [
+          {"shape": "rect", "x": 3, "y": 5, "w": 18, "h": 16, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 3, "y1": 10, "x2": 21, "y2": 10, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 8, "y1": 3, "x2": 8, "y2": 7, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 16, "y1": 3, "x2": 16, "y2": 7, "stroke": "main", "width": 2}
+        ]},
+        "clock": {"means": "A clock: reminders, deadlines, routines", "shapes": [
+          {"shape": "circle", "cx": 12, "cy": 12, "r": 9, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 12, 7], ["L", 12, 12], ["L", 15.5, 14]], "stroke": "main", "width": 2}
+        ]},
+        "tasks": {"means": "A checklist: to-dos, tasks, follow-ups", "shapes": [
+          {"shape": "path", "d": [["M", 4, 7], ["L", 5.5, 8.5], ["L", 8, 6]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 11, "y1": 7.2, "x2": 20, "y2": 7.2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 4, 13], ["L", 5.5, 14.5], ["L", 8, 12]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 11, "y1": 13.2, "x2": 20, "y2": 13.2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 4, 19], ["L", 5.5, 20.5], ["L", 8, 18]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 11, "y1": 19.2, "x2": 20, "y2": 19.2, "stroke": "main", "width": 2}
+        ]},
+        "home": {"means": "A house: the home, smart devices, household", "shapes": [
+          {"shape": "path", "d": [["M", 3, 11], ["L", 12, 3.5], ["L", 21, 11]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 5.5, 9], ["L", 5.5, 20], ["L", 18.5, 20], ["L", 18.5, 9]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 10, 20], ["L", 10, 14], ["L", 14, 14], ["L", 14, 20]], "stroke": "main", "width": 2}
+        ]},
+        "food": {"means": "A fork and knife: cooking, recipes, meals", "shapes": [
+          {"shape": "line", "x1": 7, "y1": 3, "x2": 7, "y2": 21, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 4.5, 3], ["L", 4.5, 8], ["Q", 4.5, 10.5, 7, 10.5], ["Q", 9.5, 10.5, 9.5, 8], ["L", 9.5, 3]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 17, 21], ["L", 17, 3], ["Q", 13.5, 5, 13.5, 11], ["L", 13.5, 13], ["L", 17, 13]], "stroke": "main", "width": 2}
+        ]},
+        "cart": {"means": "A shopping cart: shopping, orders, prices", "shapes": [
+          {"shape": "path", "d": [["M", 3, 4], ["L", 5.5, 4], ["L", 8, 16], ["L", 18, 16], ["L", 20.5, 7], ["L", 6.5, 7]], "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 9, "cy": 20, "r": 1.4, "fill": "main"},
+          {"shape": "circle", "cx": 17, "cy": 20, "r": 1.4, "fill": "main"}
+        ]},
+        "wallet": {"means": "A wallet: money, budgets, bills, finance", "shapes": [
+          {"shape": "rect", "x": 3, "y": 6, "w": 18, "h": 14, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 5, 6], ["L", 15, 3], ["L", 16.5, 6]], "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 16.5, "cy": 13, "r": 1.3, "fill": "main"}
+        ]},
+        "chart": {"means": "A rising chart: numbers, analytics, markets, reports", "shapes": [
+          {"shape": "path", "d": [["M", 3, 17], ["L", 9, 11], ["L", 13, 15], ["L", 21, 7]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 15.5, 7], ["L", 21, 7], ["L", 21, 12.5]], "stroke": "main", "width": 2}
+        ]},
+        "briefcase": {"means": "A briefcase: work, business, clients, jobs", "shapes": [
+          {"shape": "rect", "x": 3, "y": 7, "w": 18, "h": 13, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 9, 7], ["L", 9, 5], ["Q", 9, 4, 10, 4], ["L", 14, 4], ["Q", 15, 4, 15, 5], ["L", 15, 7]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 3, "y1": 13, "x2": 21, "y2": 13, "stroke": "main", "width": 2}
+        ]},
+        "people": {"means": "Two people: a team, contacts, people, hiring", "shapes": [
+          {"shape": "circle", "cx": 9, "cy": 8, "r": 3.5, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 3, 20], ["C", 3, 15.5, 5.7, 13.5, 9, 13.5], ["C", 12.3, 13.5, 15, 15.5, 15, 20]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 16, 4.8], ["C", 18, 5.3, 19, 6.8, 19, 8.3], ["C", 19, 9.8, 18, 11.2, 16, 11.7]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 17.5, 14], ["C", 19.8, 14.8, 21, 16.8, 21, 20]], "stroke": "main", "width": 2}
+        ]},
+        "code": {"means": "Angle brackets: code, programming, repositories", "shapes": [
+          {"shape": "path", "d": [["M", 8, 7], ["L", 3, 12], ["L", 8, 17]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 16, 7], ["L", 21, 12], ["L", 16, 17]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 13.5, "y1": 5, "x2": 10.5, "y2": 19, "stroke": "main", "width": 2}
+        ]},
+        "terminal": {"means": "A terminal: commands, scripts, automation", "shapes": [
+          {"shape": "rect", "x": 3, "y": 4, "w": 18, "h": 16, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 7, 9], ["L", 10, 12], ["L", 7, 15]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 12.5, "y1": 15, "x2": 17, "y2": 15, "stroke": "main", "width": 2}
+        ]},
+        "server": {"means": "A server rack: servers, infrastructure, uptime", "shapes": [
+          {"shape": "rect", "x": 3, "y": 3, "w": 18, "h": 7, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "rect", "x": 3, "y": 14, "w": 18, "h": 7, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 7, "cy": 6.5, "r": 1.1, "fill": "main"},
+          {"shape": "circle", "cx": 7, "cy": 17.5, "r": 1.1, "fill": "main"}
+        ]},
+        "shield": {"means": "A shield: security, privacy, backups", "shapes": [
+          {"shape": "path", "d": [["M", 12, 3], ["L", 19.5, 6], ["L", 19.5, 11.5], ["C", 19.5, 16, 16.5, 19.5, 12, 21], ["C", 7.5, 19.5, 4.5, 16, 4.5, 11.5], ["L", 4.5, 6], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 8.8, 12], ["L", 11, 14.2], ["L", 15.5, 9.7]], "stroke": "main", "width": 2}
+        ]},
+        "bell": {"means": "A bell: alerts, monitoring, watching for changes", "shapes": [
+          {"shape": "path", "d": [["M", 6, 16], ["L", 6, 10.5], ["C", 6, 7, 8.7, 4.5, 12, 4.5], ["C", 15.3, 4.5, 18, 7, 18, 10.5], ["L", 18, 16], ["L", 20, 18], ["L", 4, 18], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 10, 21], ["Q", 12, 22.5, 14, 21]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 12, "y1": 2.5, "x2": 12, "y2": 4.5, "stroke": "main", "width": 2}
+        ]},
+        "search": {"means": "A magnifier: research, finding things, deals", "shapes": [
+          {"shape": "circle", "cx": 10.5, "cy": 10.5, "r": 6.5, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 15.5, "y1": 15.5, "x2": 21, "y2": 21, "stroke": "main", "width": 2}
+        ]},
+        "book": {"means": "An open book: learning, reading, studies", "shapes": [
+          {"shape": "path", "d": [["M", 12, 6.5], ["C", 9.5, 4.5, 6, 4.2, 3, 5], ["L", 3, 19], ["C", 6, 18.2, 9.5, 18.5, 12, 20.5], ["C", 14.5, 18.5, 18, 18.2, 21, 19], ["L", 21, 5], ["C", 18, 4.2, 14.5, 4.5, 12, 6.5], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 12, "y1": 6.5, "x2": 12, "y2": 20.5, "stroke": "main", "width": 2}
+        ]},
+        "pen": {"means": "A pen: writing, drafts, editing, blogging", "shapes": [
+          {"shape": "path", "d": [["M", 4, 20], ["L", 4.6, 16.4], ["L", 15.5, 5.5], ["Q", 17, 4, 18.5, 5.5], ["Q", 20, 7, 18.5, 8.5], ["L", 7.6, 19.4], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 13.5, "y1": 7.5, "x2": 16.5, "y2": 10.5, "stroke": "main", "width": 2}
+        ]},
+        "document": {"means": "A document: files, contracts, paperwork", "shapes": [
+          {"shape": "path", "d": [["M", 6, 3], ["L", 14, 3], ["L", 19, 8], ["L", 19, 21], ["L", 6, 21], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 14, 3], ["L", 14, 8], ["L", 19, 8]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 9, "y1": 13, "x2": 16, "y2": 13, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 9, "y1": 17, "x2": 16, "y2": 17, "stroke": "main", "width": 2}
+        ]},
+        "idea": {"means": "A light bulb: ideas, brainstorming, tips", "shapes": [
+          {"shape": "path", "d": [["M", 9, 17], ["L", 15, 17], ["L", 15, 15.5], ["C", 17.5, 14, 18.5, 12, 18.5, 9.5], ["C", 18.5, 6, 15.6, 3, 12, 3], ["C", 8.4, 3, 5.5, 6, 5.5, 9.5], ["C", 5.5, 12, 6.5, 14, 9, 15.5], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 9.5, "y1": 20.5, "x2": 14.5, "y2": 20.5, "stroke": "main", "width": 2}
+        ]},
+        "megaphone": {"means": "A megaphone: marketing, posts, announcements", "shapes": [
+          {"shape": "path", "d": [["M", 3, 10], ["L", 3, 14], ["L", 7, 14], ["L", 17, 19], ["L", 17, 5], ["L", 7, 10], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 20, 9.5], ["Q", 21.5, 12, 20, 14.5]], "stroke": "main", "width": 2}
+        ]},
+        "globe": {"means": "A globe: the web, languages, the world", "shapes": [
+          {"shape": "circle", "cx": 12, "cy": 12, "r": 9, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 3, "y1": 12, "x2": 21, "y2": 12, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 12, 3], ["C", 8, 7.5, 8, 16.5, 12, 21]], "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 12, 3], ["C", 16, 7.5, 16, 16.5, 12, 21]], "stroke": "main", "width": 2}
+        ]},
+        "pin": {"means": "A map pin: places, travel, local things", "shapes": [
+          {"shape": "path", "d": [["M", 12, 21], ["C", 12, 21, 5, 14.5, 5, 9.5], ["C", 5, 5.6, 8.1, 3, 12, 3], ["C", 15.9, 3, 19, 5.6, 19, 9.5], ["C", 19, 14.5, 12, 21, 12, 21], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 12, "cy": 9.5, "r": 2.5, "stroke": "main", "width": 2}
+        ]},
+        "car": {"means": "A car: driving, cars, commuting", "shapes": [
+          {"shape": "path", "d": [["M", 4, 16], ["L", 4, 11.5], ["L", 6.5, 6.5], ["Q", 7, 5.5, 8, 5.5], ["L", 16, 5.5], ["Q", 17, 5.5, 17.5, 6.5], ["L", 20, 11.5], ["L", 20, 16], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 4, "y1": 11.5, "x2": 20, "y2": 11.5, "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 8, "cy": 19, "r": 1.6, "fill": "main"},
+          {"shape": "circle", "cx": 16, "cy": 19, "r": 1.6, "fill": "main"}
+        ]},
+        "heart": {"means": "A heart: health, care, wellbeing, family", "shapes": [
+          {"shape": "path", "d": [["M", 12, 20], ["C", 4, 14.5, 2.5, 10.5, 4.5, 7.2], ["C", 6.5, 4, 10.5, 4.5, 12, 7.5], ["C", 13.5, 4.5, 17.5, 4, 19.5, 7.2], ["C", 21.5, 10.5, 20, 14.5, 12, 20], ["Z"]], "stroke": "main", "width": 2}
+        ]},
+        "fitness": {"means": "A dumbbell: fitness, training, sport", "shapes": [
+          {"shape": "line", "x1": 8, "y1": 12, "x2": 16, "y2": 12, "stroke": "main", "width": 2},
+          {"shape": "rect", "x": 4, "y": 7, "w": 4, "h": 10, "r": 1, "stroke": "main", "width": 2},
+          {"shape": "rect", "x": 16, "y": 7, "w": 4, "h": 10, "r": 1, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 2.5, "y1": 10, "x2": 2.5, "y2": 14, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 21.5, "y1": 10, "x2": 21.5, "y2": 14, "stroke": "main", "width": 2}
+        ]},
+        "leaf": {"means": "A leaf: the garden, plants, nature", "shapes": [
+          {"shape": "path", "d": [["M", 5, 19], ["C", 5, 10, 10, 5, 20, 4], ["C", 19, 14, 14, 19, 5, 19], ["Z"]], "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 5, "y1": 19, "x2": 13, "y2": 11, "stroke": "main", "width": 2}
+        ]},
+        "weather": {"means": "A cloud: the weather, forecasts", "shapes": [
+          {"shape": "path", "d": [["M", 7, 18], ["L", 17, 18], ["C", 19.8, 18, 21.5, 16.2, 21.5, 13.8], ["C", 21.5, 11.4, 19.6, 9.6, 17.3, 9.7], ["C", 16.4, 6.9, 14, 5, 11, 5], ["C", 7.4, 5, 4.8, 7.8, 5, 11.3], ["C", 3.2, 11.9, 2.5, 13.4, 2.5, 14.7], ["C", 2.5, 16.6, 4.4, 18, 7, 18], ["Z"]], "stroke": "main", "width": 2}
+        ]},
+        "music": {"means": "A note: music, playlists, podcasts", "shapes": [
+          {"shape": "path", "d": [["M", 9, 18], ["L", 9, 5], ["L", 20, 3], ["L", 20, 16]], "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 6.5, "cy": 18, "r": 2.5, "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 17.5, "cy": 16, "r": 2.5, "stroke": "main", "width": 2}
+        ]},
+        "camera": {"means": "A camera: photos, images, video", "shapes": [
+          {"shape": "rect", "x": 3, "y": 7, "w": 18, "h": 13, "r": 2, "stroke": "main", "width": 2},
+          {"shape": "path", "d": [["M", 8, 7], ["L", 9.5, 4.5], ["L", 14.5, 4.5], ["L", 16, 7]], "stroke": "main", "width": 2},
+          {"shape": "circle", "cx": 12, "cy": 13.5, "r": 3.5, "stroke": "main", "width": 2}
+        ]},
+        "phone": {"means": "A phone: calls, messages, mobile", "shapes": [
+          {"shape": "rect", "x": 6.5, "y": 2.5, "w": 11, "h": 19, "r": 2.5, "stroke": "main", "width": 2},
+          {"shape": "line", "x1": 10.5, "y1": 18.5, "x2": 13.5, "y2": 18.5, "stroke": "main", "width": 2}
+        ]}
+      }
     }
   },
-  "chief": {"outfit": {"hat": "top-hat"}},
+  "chief": {"outfit": {"hat": "top-hat", "icon": "compass"}},
+  "tile": {
+    "rect": {"x": 2, "y": 2, "w": 20, "h": 20, "r": 6},
+    "mute": {"toward": "#3d3c38", "by": 0.25},
+    "icon": {"at": [6, 6], "scale": 0.5},
+    "ink": "#ffffff",
+    "default": "spark",
+    "byHat": {"cap": "mail", "top-hat": "briefcase", "chef": "food", "party": "calendar", "crown": "chart", "hard-hat": "server", "wizard": "terminal", "cowboy": "pin", "beanie": "home", "headphones": "music", "graduate": "book", "nurse": "heart", "bow": "cart", "sun-hat": "leaf", "viking": "shield", "cat-ears": "spark", "nightcap": "clock", "beret": "pen", "antenna": "bell", "propeller": "idea"},
+    "ring": {"r": 12.6, "width": 1.5, "arc": 0.22, "seconds": 1.4},
+    "dot": {"cx": 20.5, "cy": 20.5, "r": 3, "gap": 1.5},
+    "states": {"working": {"ring": "#5fb98f"}, "needs_you": {"dot": "#e0a23a"}, "failed": {"dot": "#d9534f"}, "waiting": {"dot": "#9a9890"}},
+    "small": {"view": [-1, -1, 26, 26]}
+  },
   "small": {"view": [0, 0, 24, 24]},
   "default": "idle",
   "states": {
