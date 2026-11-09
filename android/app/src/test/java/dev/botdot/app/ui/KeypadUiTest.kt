@@ -326,4 +326,31 @@ class KeypadUiTest {
         rule.onNodeWithTag(CHIEF_FIELD).performClick()
         rule.onNodeWithText("The Chief's chat").assertIsDisplayed()
     }
+
+    @Test @Config(qualifiers = "w411dp-h900dp")
+    fun onAPhoneTheKeysAreColumnsOfOneGridAcrossTheWidthAndTheirStatusLinesStandLevel() {
+        val names = listOf("Infra Admin", "bot-dot Manager", "Relationship Agent", "QA Tester", "Venice Coder")
+        val infra = names.mapIndexed { n, name -> Bot(id = "b$n", name = name, color = "#378add", group = "Infra", order = n + 1) }
+        val lone = Bot(id = "lone", name = "Cook", color = "#e24b4a", group = "Home")
+        val grid = Keypad.pages(infra + lone, emptyList())
+        rule.setContent { KeypadSections(grid, ::look, onKey = {}, onChief = {}, modifier = Modifier.fillMaxSize()) }
+        val keys = names.map { rule.onNodeWithText(it).getUnclippedBoundsInRoot() }
+        val width = 411.dp
+        // Four to a row, all as wide, the row as far from the right edge as from the left.
+        val (first, second, third, fourth) = keys
+        assertEquals(first.top, fourth.top)
+        listOf(second, third, fourth).forEach { assertEquals((first.right - first.left).value, (it.right - it.left).value, 0.5f) }
+        assertEquals((first.left).value, (width - fourth.right).value, 4f)
+        // The fifth starts the next row, under the first.
+        assertTrue(keys[4].top >= first.bottom)
+        assertEquals(first.left.value, keys[4].left.value, 0.5f)
+        // A name on one line and a name on two: the status lines of a row stand level, and every name is two lines tall.
+        val states = rule.onAllNodesWithTag(KEY_STATE, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot }
+        val firstRow = rule.onNodeWithText("Infra Admin").fetchSemanticsNode().boundsInRoot
+        val row = states.filter { it.top > firstRow.top && it.bottom <= firstRow.bottom }
+        assertEquals("Infra's first row: four status lines", 4, row.size)
+        assertEquals("level", 1, row.map { it.top }.distinct().size)
+        val nameHeights = rule.onAllNodesWithTag(KEY_NAME, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot.height }
+        assertEquals(1, nameHeights.distinct().size)
+    }
 }
