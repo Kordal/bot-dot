@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -25,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -54,10 +56,14 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import kotlin.math.floor
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -164,6 +170,18 @@ private data class KeySize(val width: Dp, val head: Int, val name: TextUnit)
 private val WIDE_KEY = KeySize(132.dp, 52, Type.s14)
 private val PHONE_KEY = KeySize(80.dp, 40, Type.s12)
 
+/** The gap between a phone's keys, across a row and between the pages that sit side by side in it. */
+private val PHONE_GAP = Space.s4
+
+/**
+ * How many keys a phone's row holds in [width] dp: as many [PHONE_KEY]s as fit, never fewer than three. Every key of
+ * every page is a column of that grid ([phoneKeyWidth]), so the keys line up row under row and fill the whole width.
+ */
+internal fun phoneColumns(width: Float): Int = ((width + PHONE_GAP.value) / (PHONE_KEY.width.value + PHONE_GAP.value)).toInt().coerceAtLeast(3)
+
+/** How wide each of a phone's keys is in a row [widthPx] px wide with [gapPx] between keys: a column of [phoneColumns], whole pixels, so a full row never wraps. */
+internal fun phoneKeyWidth(widthPx: Float, gapPx: Float, columns: Int): Float = floor((widthPx - gapPx * (columns - 1)) / columns)
+
 /**
  * The keypad: every page, the pinned keys first and the categories after them side by side, and all of it scrolls.
  * [active]: the key whose chat is open beside it, which stays lit. [digitsShown]: a hardware keyboard is attached, and
@@ -209,16 +227,17 @@ internal fun KeypadView(
 private fun KeyPages(
     pages: List<Keypad.Page>, folded: Set<String>, onFold: ((Keypad.Page) -> Unit)?,
     heading: (Int) -> Modifier = { Modifier }, headingLit: (Int) -> Boolean = { false }, onHeadingGone: (Int) -> Unit = {},
+    keyGap: Dp = Space.s4, pageGap: Dp = Space.s16,
     key: @Composable (i: Int, n: Int, k: Keypad.Key) -> Unit,
 ) {
     val p = LocalPaper.current
     @Composable
-    fun Keys(i: Int, page: Keypad.Page) = FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+    fun Keys(i: Int, page: Keypad.Page) = FlowRow(horizontalArrangement = Arrangement.spacedBy(keyGap), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         page.keys.forEachIndexed { n, k -> androidx.compose.runtime.key(k.id) { key(i, n, k) } }
     }
     Column(verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         pages.forEachIndexed { i, page -> if (page.kind == Keypad.Kind.PINNED) Keys(i, page) }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(pageGap), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
             pages.forEachIndexed { i, page ->
                 if (page.kind == Keypad.Kind.PINNED) return@forEachIndexed
                 val isFolded = Keypad.isFolded(page, folded)
@@ -285,7 +304,9 @@ private fun QuietKey(look: KeyLook, size: KeySize, modifier: Modifier = Modifier
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             KeyHead(look, size.head)
             Spacer(Modifier.height(Space.s8))
-            Text(look.name, color = p.text, fontSize = size.name, fontWeight = FontWeight.Normal, lineHeight = size.name * 1.25f, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+            // Always two lines tall, so the status lines of a row stand level; a long word breaks with a hyphen, never mid-word bare.
+            Text(look.name, color = p.text, fontSize = size.name, fontWeight = FontWeight.Normal, lineHeight = size.name * 1.25f, minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+                style = LocalTextStyle.current.copy(lineBreak = LineBreak.Heading, hyphens = Hyphens.Auto), modifier = Modifier.testTag(KEY_NAME))
             KeyState(look)
         }
     }
@@ -320,6 +341,9 @@ internal const val TEAM_ADD = "team-add"
 
 /** The tag of the lead's crown on a team key (#841). */
 internal const val LEAD_CROWN = "lead-crown"
+
+/** The tag of a key's name (KeypadUiTest). */
+internal const val KEY_NAME = "key-name"
 
 /** The tag of a key's status line (KeypadUiTest). */
 internal const val KEY_STATE = "key-state"
@@ -413,14 +437,21 @@ internal fun KeypadSections(
         // While a key is dragged the sections stand still, so the finger moves the key and not the page.
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState(), enabled = drag.key == null)) {
             header()
-            Box(Modifier.padding(start = Space.s12, end = Space.s12, top = Space.s12, bottom = Space.s12)) {
+            // The keys are columns of one grid across the whole width: a page beside another keeps to it.
+            BoxWithConstraints(Modifier.fillMaxWidth().padding(Space.s12)) {
+                val density = LocalDensity.current
+                val keySize = with(density) {
+                    val columns = phoneColumns(maxWidth.value)
+                    PHONE_KEY.copy(width = phoneKeyWidth(maxWidth.toPx(), PHONE_GAP.toPx(), columns).toDp())
+                }
                 KeyPages(pages, folded, onFold,
                     heading = { i -> drag.heading(i) },
                     headingLit = { i -> aim == Aim(i, null) },
                     onHeadingGone = { i -> drag.heads.remove(i) },
+                    keyGap = PHONE_GAP, pageGap = PHONE_GAP,
                 ) { i, n, k ->
                     DisposableEffect(k.id) { onDispose { drag.keys.remove(k.id) } }
-                    QuietKey(look(k), PHONE_KEY, aimed = aim == Aim(i, n), modifier = drag.of(k)) { onKey(k) }
+                    QuietKey(look(k), keySize, aimed = aim == Aim(i, n), modifier = drag.of(k)) { onKey(k) }
                 }
             }
         }
