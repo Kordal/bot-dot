@@ -479,7 +479,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                     }
                     items(groups.filter { groupSearchText(it, list).contains(q) }, key = { ListLayout.groupRow(it.id) }) { g -> GroupContact(g) }
                     if (hits.isNotEmpty()) item(key = "hits") {
-                        Text(tr("Messages"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s16, top = Space.s12, bottom = Space.s4))
+                        Text(tr("Messages"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Normal, modifier = Modifier.padding(start = Space.s16, top = Space.s12, bottom = Space.s4))
                     }
                     items(hits.withIndex().toList(), key = { "hit:${it.index}" }) { (_, h) -> Hit(h, list) { onHit(h) } }
                     return@LazyColumn
@@ -541,7 +541,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                             if (figures) Box(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8).height(1.dp).background(p.line))
                             else Row(Modifier.fillMaxWidth().clickable(onClickLabel = if (isFolded) tr("Show this category") else tr("Hide this category")) { scope.launch { app.settings.toggleFolded(category) } }
                                 .padding(start = Space.s16, end = Space.s16, top = Space.s12, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-                                Text(category.ifEmpty { tr("Other") }, color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium)
+                                Text(category.ifEmpty { tr("Other") }, color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Normal)
                                 Spacer(Modifier.size(6.dp))
                                 Text("▾", color = p.faint, fontSize = Type.s12, modifier = Modifier.graphicsLayer { rotationZ = turn })
                                 if (isFolded && members.any { it.running }) {

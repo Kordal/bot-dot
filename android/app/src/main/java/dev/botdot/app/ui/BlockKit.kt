@@ -192,8 +192,8 @@ fun KitKpi(b: Block, color: Color, compact: Boolean, small: Boolean = false) {
                 b.label?.let { Text(it, color = p.muted, fontSize = Type.s12) }
                 Text(buildAnnotatedString {
                     append(b.text?.ifEmpty { "·" } ?: "·")
-                    b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append(" $it") } }
-                    b.of?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Medium, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
+                    b.unit?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Normal, color = p.faint)) { append(" $it") } }
+                    b.of?.let { withStyle(SpanStyle(fontSize = Type.s16, fontWeight = FontWeight.Normal, color = p.faint)) { append("  " + tr("of {total}", "total" to it)) } }
                 }, color = if (b.type == "value" && b.color != null) tint(b.color, p.text, words = true) else p.text, fontSize = if (small || BoardKit.isWords(b.text)) Type.s20 else Type.s32, fontWeight = FontWeight.SemiBold, lineHeight = if (small || BoardKit.isWords(b.text)) Type.s24 else Type.s32, maxLines = if (small) 1 else 2, overflow = TextOverflow.Ellipsis)
                 b.delta?.let { d ->
                     Text(BoardKit.deltaLine(b), fontSize = Type.s12, color = when (d.good) { true -> p.okText; false -> p.err; null -> p.faint })

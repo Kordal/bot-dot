@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,7 +46,6 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -405,7 +403,7 @@ private fun addFiles(ui: CompanyUi, context: Context, uris: List<Uri>) {
 internal fun SourceList(list: List<CompanySource>, failed: Set<String> = emptySet(), busy: Set<String> = emptySet(), onRemove: ((String) -> Unit)? = null) {
     val p = LocalPaper.current
     if (list.isEmpty()) return
-    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line, Radius.card)) {
+    Column(Modifier.fillMaxWidth().raised(Radius.card)) {
         list.forEachIndexed { i, s ->
             if (i > 0) Rule()
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).padding(start = Space.s12, end = Space.s4), verticalAlignment = Alignment.CenterVertically) {
@@ -461,8 +459,8 @@ internal fun CoTitle(text: String) = Text(text, color = LocalPaper.current.text,
 internal fun CoChip(text: String, on: Boolean = false, dashed: Boolean = true, icon: ImageVector? = null, onClick: () -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.pill
-    Row(Modifier.clip(shape).background(if (on) p.ink else Color.Transparent)
-        .then(if (on) Modifier else if (dashed) Modifier.dashedBorder(p.line2) else Modifier.border(1.dp, p.line2, shape))
+    Row(Modifier.clip(shape).background(if (on) p.ink else if (dashed) Color.Transparent else p.fill)
+        .then(if (!on && dashed) Modifier.dashedBorder(p.line2) else Modifier)
         .clickable(onClick = onClick).padding(horizontal = Space.s12, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
         val shown = if (on) Icons.Filled.Check else icon
         if (shown != null) { Icon(shown, null, tint = if (on) p.inkText else p.muted, modifier = Modifier.size(15.dp)); Spacer(Modifier.size(6.dp)) }
@@ -505,7 +503,7 @@ internal fun AskField(value: String, onValue: (String) -> Unit, label: String, p
     val requester = remember { FocusRequester() }
     if (focus) LaunchedEffect(Unit) { runCatching { requester.requestFocus() } }
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-        OutlinedTextField(value, onValue, singleLine = true, enabled = enabled && !busy, placeholder = placeholder?.let { { Text(it) } },
+        Field(value, onValue, singleLine = true, enabled = enabled && !busy, placeholder = placeholder?.let { { Text(it) } },
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done), keyboardActions = KeyboardActions(onDone = { if (value.isNotBlank()) onGo() }),
             modifier = Modifier.weight(1f).focusRequester(requester).semanticsLabel(label))
         GoButton(button, enabled = enabled && value.isNotBlank(), busy = busy, onClick = onGo)
@@ -522,7 +520,7 @@ internal fun GoButton(label: String, enabled: Boolean = true, busy: Boolean = fa
         .heightIn(min = 44.dp).padding(horizontal = Space.s16), verticalAlignment = Alignment.CenterVertically) {
         if (busy) CircularProgressIndicator(color = p.inkText, strokeWidth = 2.dp, modifier = Modifier.size(16.dp).padding(end = 0.dp))
         else {
-            Text(label, color = if (enabled) p.inkText else p.faint, fontSize = Type.s16, fontWeight = FontWeight.Medium)
+            Text(label, color = if (enabled) p.inkText else p.faint, fontSize = Type.s16, fontWeight = FontWeight.Normal)
             if (arrow) Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = if (enabled) p.inkText else p.faint, modifier = Modifier.padding(start = Space.s8).size(16.dp))
         }
     }

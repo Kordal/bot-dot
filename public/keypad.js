@@ -137,6 +137,12 @@ function asksOf(items, project, projects, groups) {
   return items.filter((x) => mine(x) || (x.kind === 'batch' && (x.items || []).some(mine)));
 }
 
+// What stops a bot's work until the owner answers comes first, in the order it was asked, then the rest as they were:
+// a missing connected app (`connect-app`) and a connected app a bot asks to be given (`bot-change` with `asked: "app"`),
+// ADR 168. A batch counts when one of its asks does.
+const blocks = (x) => (x?.kind === 'batch' ? (x.items || []).some(blocks) : x?.kind === 'ask' && (x.a?.kind === 'connect-app' || (x.a?.kind === 'bot-change' && x.a?.asked === 'app')));
+const blockersFirst = (items) => [...items.filter(blocks), ...items.filter((x) => !blocks(x))];
+
 // The lead a member's ask is drawn under in a project's views (ADR 148): the owner talks to a team through its lead.
 // null for a lead, a bot in none of the project's teams, or a team without another lead.
 function leadOf(project, botId) {
@@ -144,7 +150,7 @@ function leadOf(project, botId) {
   return t && t.lead && t.lead !== botId ? t.lead : null;
 }
 
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, leadOf };
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

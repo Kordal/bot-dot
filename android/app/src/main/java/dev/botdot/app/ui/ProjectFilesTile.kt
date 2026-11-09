@@ -1,7 +1,6 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,12 +52,12 @@ internal fun ProjectFilesTile(ui: CompanyUi, c: Company, onFolder: (name: String
         }
     }
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().testTag(PROJECT_FILES_TILE).clip(shape).background(p.bg).border(1.dp, p.line2, shape)
+    Column(Modifier.fillMaxWidth().testTag(PROJECT_FILES_TILE).raised(shape)
         .clickable(onClickLabel = tr("Files")) { onFolder(folder.name, "") }.padding(Space.s12),
         verticalArrangement = Arrangement.spacedBy(Space.s4)) {
         Row(Modifier.padding(bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
             Dot(FILES_COLOR)
-            Text(tr("Files"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s8))
+            Text(tr("Files"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
         }
         files.forEach { f ->
             Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(Radius.small).clickable(onClickLabel = f.name) { onFolder(folder.name, ProjectFiles.folderOf(f.path)) },

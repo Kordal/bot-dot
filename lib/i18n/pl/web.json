@@ -1766,5 +1766,7 @@
   "The bot-dot folder is empty": "Folder bot-dot jest pusty",
   "No saved logins yet": "Brak zapisanych loginów",
   "Get the API key": "Weź klucz API",
-  "Settings → Security → Keys": "Ustawienia → Zabezpieczenia → Klucze"
+  "Settings → Security → Keys": "Ustawienia → Zabezpieczenia → Klucze",
+  "Open Connectors": "Otwórz Konektory",
+  "Waiting for sign-in": "Czeka na logowanie"
 }

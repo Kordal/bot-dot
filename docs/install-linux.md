@@ -1,10 +1,10 @@
 # Install on Linux
 
-The full install reference: what botdot needs, the installer, accounts, shares of the machine, updates, backups, uninstalling and the platforms it runs on. The short version is in the [README](../README.md#install).
+The full install reference: what botdot needs, the installer, accounts, shares of the machine, updates, backups, uninstalling and the platforms it runs on. The short version is in the [README](../README.md#quickstart).
 
 **On a Linux server,** one machine serves several accounts, each signing in with a passkey and walled off from the others. Below is what it needs and the two commands that install it.
 
-botdot installs on Linux only. From a Mac, use the web page of a botdot on a Linux machine.
+botdot installs on Linux. To run it on a Mac or a Windows PC instead, the [desktop app](desktop.md) runs this same installer in a Linux VM of its own.
 
 ## What botdot needs, and whom it trusts
 
@@ -12,8 +12,9 @@ One machine serves several **accounts**, each walled off from the others ([ADR 0
 
 - **Accounts, with passkeys.** Everyone signs in at botdot's front door with a passkey; there are no passwords. Your own account, the admin's, is made with the link the installer prints, and a new account needs a sign-up link from you. Each account has its own Linux user, its own rootless Docker whose containers run under gVisor, and its own botdot server: its bots, data and logins are its own, and no other account can reach them.
 - **Root is trusted.** **Whoever is root on the machine can reach every account on it**: its data, its bots and the logins they hold (the Vault, Bitwarden, connected apps). Keep root to yourself.
-- **A Linux server or VM**, Ubuntu 24.04, on Intel/AMD (x86_64) or ARM (aarch64), where you can use `sudo`. The installer runs as root, because it makes a Linux user for each account.
-- **Docker**, with Docker Compose (`docker compose`). The installer offers to install Docker when it's missing, and rootless Docker, gVisor's `runsc` and `setfacl` with `apt-get`.
+- **A Linux server or VM**, on Intel/AMD (x86_64) or ARM (aarch64), where you can use `sudo`: Ubuntu 22.04 or newer, Debian 12 or 13, Fedora, or RHEL 9 or 10 and its rebuilds (Rocky Linux, AlmaLinux), with Linux 5.11 or newer ([Platforms](#platforms)). The installer runs as root, because it makes a Linux user for each account. It must be a full VM (KVM, a Proxmox VM, a cloud VPS): rootless Docker and gVisor don't run in an LXC or OpenVZ container.
+- **Its size:** at least 4 CPUs, 8 GB of RAM and 40 GB of free disk for one account. The installer doesn't check this on its own.
+- **Docker** from docker.com (`docker-ce`), with Docker Compose (`docker compose`): the distributions' own `docker.io` and `moby-engine`, and Podman's `podman-docker`, have no rootless Docker. The installer offers to install Docker when it's missing, and rootless Docker, gVisor's `runsc` and `setfacl` with `apt-get` or `dnf`.
 - **git** and **curl**, and **make** for a self-built botdot server.
 - **A way in**, one of the two, chosen when you install:
   - **a public domain** whose DNS points at the machine, with ports 80, 443 and 8443 free (8443 is the sandbox's address for interactive pages): Caddy answers there over HTTPS and fetches its own certificate;
@@ -30,9 +31,9 @@ git clone https://github.com/Kordal/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh
 ```
 
-The installer asks before it installs anything. It asks how people reach botdot (a public domain or a tailnet) and your own account's name, then:
+The installer asks before it installs anything. It:
 
-1. installs what is missing (Docker, rootless Docker, gVisor, Tailscale for a tailnet) and gets botdot's images;
+1. installs what is missing (Docker, rootless Docker, gVisor), checks the signature of botdot's images and downloads them, then asks how people reach botdot (a public domain or a tailnet, with Tailscale), your own account's name and the [optional services](#optional-services);
 2. starts the **front door** in `/var/lib/botdot/front-door`, with Caddy in front of it on a public domain, or Tailscale Serve on a tailnet;
 3. makes your account: the Linux user `botdot-<name>`, its rootless Docker, and its botdot server in `/var/lib/botdot/accounts/<name>`;
 4. ends with the address and **your sign-up link**. Open it and make your passkey: that account is the admin's. Until the link is used, botdot shows only "Open the link from your server's install".
@@ -51,6 +52,25 @@ BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":
 - `signUp`: the admin's sign-up link, while that account doesn't exist yet; absent afterwards. An update makes no link, so its line has none; a botdot on one computer keeps its setup key in its own `BOTDOT_LOCAL` line, the one before, which the desktop app reads ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)). On a managed machine it is the setup key's link to the first account, printed nowhere else.
 
 A run that fails prints no such line.
+
+### What the installer changes on the machine
+
+- **Packages,** with `apt-get` or `dnf` and after asking: Docker (from docker.com; on Fedora and the RHEL family its repository in `/etc/yum.repos.d/docker-ce.repo`), `docker-ce-rootless-extras`, `uidmap` (`shadow-utils` on dnf), `slirp4netns`, `acl`, and Tailscale on a tailnet.
+- **gVisor's `runsc`** at the release botdot pins: on Debian and Ubuntu from gVisor's apt source (`/etc/apt/sources.list.d/gvisor.list`); elsewhere from gVisor's release files, checked by their sha256, in `/usr/local/bin` (`runsc` and `gvisor-bin`, listed in `/etc/botdot-gvisor`).
+- **Docker's settings:** it writes log limits into `/etc/docker/daemon.json` and restarts the machine's Docker.
+- **Linux users:** `botdot-door` for the front door, and `botdot-<name>` for each account, with its lines in `/etc/subuid` and `/etc/subgid`.
+- **systemd units** named `botdot-*`, among them each account's rootless Docker and a firewall chain for the bots' computers, and on Ubuntu 24.04 the AppArmor profile `botdot-rootlesskit`.
+- **Its own folder,** `/var/lib/botdot`, with every account's data, each on a disk image of its own.
+
+[Uninstall](#uninstall) removes all of it, and asks before it removes the packages.
+
+### Optional services
+
+A first install asks about three services, each with its own key. Answer `n` to skip one: botdot works without them, and each can be set later.
+
+- **Jev, through OpenRouter:** a small model that picks which bot answers in a group chat, in place of Claude Haiku. Key from https://openrouter.ai/settings/keys; set later on the admin page.
+- **boat.dev:** a cloud computer for the bots (the External Virtual PC), in place of the one on this machine. Paid on boat.dev. Key from https://boat.dev/dashboard?tab=api-keys; set later on the admin page.
+- **Composio:** bots use your apps, such as Gmail, Slack or GitHub. Key from https://platform.composio.dev; set later on your account's Connectors page.
 
 ## More accounts
 
@@ -332,6 +352,16 @@ That keeps your data. To remove it too (every account's bots, chats, memory, vau
 
 ## Platforms
 
-- **Intel/AMD (x86_64)** on Ubuntu 24.04 is what botdot is tested on.
-- **ARM (aarch64):** the images are built for it, but botdot is not yet tested on real ARM hardware.
-- **Not supported for now:** SELinux (enforcing, as on Fedora or RHEL).
+| | Docker, rootless Docker and gVisor | Tested |
+| --- | --- | --- |
+| **Ubuntu 22.04, 24.04 and newer** | installed with `apt-get` | 24.04 runs botdot's own servers; every change installs on 22.04 and 24.04 in CI, and botdot end to end on 24.04 |
+| **Debian 12 and 13** | installed with `apt-get` | every change installs on both in CI, and botdot end to end on 12 |
+| **Fedora** | installed with `dnf` | every change installs on Fedora 43 in CI, and botdot end to end |
+| **RHEL 9 and 10, Rocky Linux, AlmaLinux, CentOS Stream, Oracle Linux** | installed with `dnf` | every change installs on Rocky 10 and AlmaLinux 9 in CI, and botdot end to end on Rocky 10 |
+| **Any other Linux** (Arch, openSUSE…) | install them yourself, then run the installer | not tested |
+
+- **Linux 5.11 or newer.** An older kernel (Debian 11, RHEL 8) is refused: each account's rootless Docker keeps its images on overlayfs, which a user without root may mount from 5.11 on.
+- **Intel/AMD (x86_64) and ARM (aarch64):** the images are built for both; CI runs on Intel/AMD, and botdot is not yet tested on real ARM hardware.
+- **SELinux** (enforcing, as on Fedora and RHEL): not tested yet, as CI's machines run Ubuntu's kernel without it. The installer says so when it finds it. If an account doesn't start, `sudo journalctl -u botdot-account@<name>` and `sudo ausearch -m avc -ts recent` show why; please report it.
+- **Installing the prerequisites yourself** on another distribution: Docker Engine from docker.com with `dockerd-rootless.sh` ([rootless Docker](https://docs.docker.com/engine/security/rootless/)), `newuidmap` (uidmap or shadow), `slirp4netns`, `setfacl` (acl), and gVisor's `runsc` ([gVisor's install](https://gvisor.dev/docs/user_guide/install/)) at the release `GVISOR_RELEASE` in `install.sh` names.
+- **Not supported:** LXC and OpenVZ containers, and Docker in Docker. Use a full VM.

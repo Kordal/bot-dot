@@ -116,7 +116,7 @@ fun NeedsFigures(who: List<Named>, max: Int = 8) {
     val shown = who.take(max)
     val marks = remember(def, shown) {
         shown.map { b ->
-            tonesOf(b.color, dark = true, def) to def.hat(b.outfit)
+            tonesOf(b.color, dark = true, def) to def.wears(b.outfit)
         }
     }
     val tall = 20.dp

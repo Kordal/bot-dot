@@ -6,7 +6,7 @@ camoufox-browser --serve <display> <bot>
     that screen's display and with that bot's own profile. It opens Camoufox when asked and types a saved password,
     two-step code, card detail or identity detail into the page for botdot, after checking the site and the
     focused field. {"op": "where"} returns the site the browser is on. The browser tools ({"op": "snapshot"}, "click",
-    "fill", "press", "goto", "wait", #170) read the page as its accessibility tree and act on it by ref. Those requests come only over
+    "fill", "select", "find", "press", "goto", "wait", #170) read the page as its accessibility tree and act on it by ref. Those requests come only over
     BRIDGE_SOCKET, in a folder only the browser user can open, so no program of the bots that does not use sudo
     can receive or answer them (#311). 127.0.0.1:OPEN_PORT (inside the container only) takes {"op": "open"} and
     {"op": "is-open"}, and nothing else.
@@ -20,14 +20,18 @@ What the bridge and Camoufox print goes to BRIDGE_LOG, at most LOG_CAP bytes of 
 run's to BRIDGE_LOG.1 (#355).
 """
 import atexit
+import contextlib
+import fcntl
 import json
 import os
 import queue
+import random
 import re
 import socket
 import socketserver
 import sys
 import threading
+import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
@@ -49,8 +53,14 @@ OPEN_PORT_BASE = 47200
 DISPLAY_FORM = re.compile(r"^:([0-9]{1,3})(\.[0-9]+)?$")
 BOT_FORM = re.compile(r"^[a-z0-9][a-z0-9_-]{0,79}$")
 NOT_OPEN = {"ok": False, "error": "Camoufox isn't open. Open the site with open_browser first."}
+# How long botdot's helper waits for an answer, and the least time a request must have left to be started: one that
+# waited in the queue longer is not done at all, so a step the bot was told failed never happens later on its own.
+REPLY_SECONDS = 30
+START_SECONDS = 20
+BUSY = {"ok": False, "error": "The browser was still busy with an earlier step, so this was not done. Take a new browser_snapshot, then try again."}
 requests = queue.Queue()  # (body, reply queue or None), served on the browser's thread
 browser_open = threading.Event()  # Camoufox is open on this screen
+browser_starting = threading.Event()  # Camoufox is being started on this screen: another open adds no tab
 
 
 def for_screen(display, bot):
@@ -84,11 +94,12 @@ class BridgeHandler(socketserver.StreamRequestHandler):
             result = {"ok": False, "error": "The bridge takes one JSON request."}
         else:
             reply = queue.Queue()
+            body["_until"] = time.monotonic() + REPLY_SECONDS
             requests.put((body, reply))
             try:
-                result = reply.get(timeout=30)
+                result = reply.get(timeout=REPLY_SECONDS)
             except queue.Empty:
-                result = {"ok": False, "error": "The browser did not respond."}
+                result = {"ok": False, "error": f"The browser did not respond within {REPLY_SECONDS} s. The step may still finish: take a new browser_snapshot before you try it again."}
         try:
             self.wfile.write(json.dumps(result).encode())
         except (BrokenPipeError, ConnectionResetError):  # the client has gone (#360): nothing to tell anyone
@@ -105,7 +116,8 @@ class OpenHandler(BaseHTTPRequestHandler):
         except ValueError:
             body = {}
         if isinstance(body, dict) and body.get("op") == "open":
-            requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
+            if not (browser_starting.is_set() and not browser_open.is_set()):  # one that starts opens its own page
+                requests.put(({"op": "open", "url": str(body.get("url") or "about:blank")}, None))
             result = {"ok": True}
         elif isinstance(body, dict) and body.get("op") == "is-open":
             result = {"ok": True, "open": browser_open.is_set()}
@@ -181,10 +193,45 @@ def type_secret(context, req):
             pass
     if target is None:
         return {"ok": False, "error": f"Click the {FIELD_NAMES[field]} box first, then try again."}
-    page.keyboard.type(req.get("value", ""), delay=35)
+    type_like_a_person(page, req.get("value", ""))
     if req.get("submit"):
         page.keyboard.press("Enter")
     return {"ok": True}
+
+
+def type_like_a_person(page, text):
+    """Each key with an uneven pause, as a person types: a steady 35 ms beat is a robot's (bot checks time keys)."""
+    for ch in text:
+        page.keyboard.type(ch)
+        page.wait_for_timeout(random.randint(40, 250) if not ch.isspace() else random.randint(80, 300))
+
+
+def fill_like_a_person(page, element, text):
+    """A box's text replaced as a person does it: click into it, select what is there, and type key by key with
+    uneven pauses. A site that sees text appear with no key pressed takes the visitor for a bot. A long text goes in at
+    once, as pasted, and so does any box that can't be typed into this way (a date picker, an editor)."""
+    # Only into a box that takes text: a click on a button, box or link the bot gave by mistake would be a step taken
+    # past botdot's irreversible-step checks (ADR 107), which fill has none of; Enter or Tab in the text would be too.
+    try:
+        typeable = element.evaluate(TEXT_BOX) and element.is_editable(timeout=2000)
+    except Exception:
+        typeable = False
+    if not typeable or len(text) > TYPED_FILL or "\n" in text or "\r" in text or "\t" in text:
+        element.fill(text, timeout=10000)
+        return
+    try:
+        element.click(timeout=5000)
+        page.keyboard.press("Control+a")
+        if not text:
+            page.keyboard.press("Backspace")
+        for ch in text:
+            page.keyboard.type(ch)
+            page.wait_for_timeout(random.randint(30, 140) if not ch.isspace() else random.randint(60, 200))
+        if element.input_value(timeout=2000) == text:
+            return
+    except Exception:
+        pass
+    element.fill(text, timeout=10000)
 
 
 # The browser tools (#170): a bot reads the focused page as its accessibility tree, each control with a ref, and clicks,
@@ -192,8 +239,14 @@ def type_secret(context, req):
 # snapshot; a ref is the control's role, name and place among those of that role and name (of that role, for one
 # without a name), so it is found again with get_by_role, and only in the page and at the address of the snapshot that gave it. Every tool answers with the new
 # snapshot, whose refs replace the old ones. A secret box is never filled, and no secret box's value is shown.
-BROWSER_OPS = {"snapshot", "click", "fill", "press", "goto", "wait"}
+BROWSER_OPS = {"snapshot", "click", "fill", "select", "find", "press", "goto", "wait"}
 SNAPSHOT_CAP = 12000  # characters of the tree a bot gets at most
+FULL_CAP = 60000  # characters of the tree browser_find looks through, sent whole to botdot (an External Virtual PC too)
+FIND_LINES = 40
+# Runs on an element: is it a box a person types text into?
+TEXT_BOX = """(el) => el.tagName === 'TEXTAREA' || el.tagName === 'INPUT'
+  && !['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'image', 'range', 'color', 'hidden'].includes((el.getAttribute('type') || '').toLowerCase())"""
+TYPED_FILL = 80  # characters at most that browser_fill types key by key; a longer text goes in at once, as pasted
 REF_ROLES = {"button", "link", "textbox", "searchbox", "checkbox", "radio", "combobox", "listbox", "option", "menuitem",
              "menuitemcheckbox", "menuitemradio", "tab", "switch", "slider", "spinbutton", "treeitem"}
 SNAPSHOT_LINE = re.compile(r"^(\s*)- (.*)$")
@@ -252,8 +305,8 @@ def hide_secrets(value, secrets):
     return value
 
 
-def page_snapshot(page):
-    """The page's tree with a ref on every control, cut at SNAPSHOT_CAP, and the refs it gave kept in `refs`."""
+def page_snapshot(page, cap=SNAPSHOT_CAP):
+    """The page's tree with a ref on every control, cut at cap, and the refs it gave kept in `refs`."""
     refs.clear()
     try:
         secrets = [str(v) for v in page.evaluate(SECRET_VALUES) or []]
@@ -289,9 +342,9 @@ def page_snapshot(page):
     for entry in refs.values():  # how many share its role and name: when that changes, its place no longer holds
         entry[5] = counts[entry[5]]
     text = "\n".join(lines)
-    if len(text) > SNAPSHOT_CAP:
-        cut = text.rfind("\n", 0, SNAPSHOT_CAP)
-        text = text[:cut if cut > 0 else SNAPSHOT_CAP] + "\n(The page goes on: this is its start. Take a screenshot to see the rest, or go to a narrower page.)"
+    if len(text) > cap:
+        cut = text.rfind("\n", 0, cap)
+        text = text[:cut if cut > 0 else cap] + "\n(The page goes on: this is its start. Use browser_find for what you look for further down.)"
     try:
         title = page.title()
     except Exception:
@@ -328,6 +381,7 @@ def browser_tool(context, req):
     page = focused_page(context)
     if page is None:
         return {"ok": False, "error": "Camoufox has no open page."}
+    note = ""
     try:
         if op == "click":
             page, element = locate(context, req.get("ref"))
@@ -338,7 +392,27 @@ def browser_tool(context, req):
             if element.evaluate(SECRET_FIELD):
                 raise BrowserError("That is a password, card or two-step code box: botdot never lets you type into it. "
                                 "Click it and use type_login, type_card or type_identity, which type the saved value for you.")
-            element.fill(str(req.get("text") or ""), timeout=10000)
+            fill_like_a_person(page, element, str(req.get("text") or ""))
+        elif op == "select":
+            page, element = locate(context, req.get("ref"))
+            choice = str(req.get("option") or "")
+            try:  # by what the list shows, else by its value
+                element.select_option(label=choice, timeout=5000)
+            except Exception:
+                element.select_option(value=choice, timeout=5000)
+            settle(page)
+        elif op == "find":
+            text = str(req.get("text") or "").strip()
+            if not text:
+                raise BrowserError("Say which text to find.")
+            full = page_snapshot(page, cap=FULL_CAP)
+            head, _, tree = full.partition("\n")
+            found = [line for line in tree.splitlines() if text.lower() in line.lower()]
+            shown = "\n".join(found[:FIND_LINES]) or f'Nothing on the page says "{text}".'
+            if len(found) > FIND_LINES:
+                shown += f"\n({len(found) - FIND_LINES} more: find something narrower.)"
+            # `page`: the whole page read, for botdot's irreversible-step checks (ADR 107), which the bot's refs are of
+            return {"ok": True, "snapshot": f"{head}\n{shown}", "page": full}
         elif op == "press":
             page.keyboard.press(str(req.get("key") or ""))
             settle(page)
@@ -346,7 +420,12 @@ def browser_tool(context, req):
             url = str(req.get("url") or "")
             if urlparse(url).scheme not in ("http", "https"):
                 raise BrowserError("browser_goto takes an http or https address.")
-            page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=15000)
+            except Exception as exc:  # a slow site: what it shows so far, instead of nothing (#875)
+                if type(exc).__name__ != "TimeoutError":
+                    raise
+                note = "The page did not finish loading in 15 s: this is what it shows so far.\n"
         elif op == "wait":
             if req.get("ref"):
                 page, element = locate(context, req.get("ref"))
@@ -359,12 +438,24 @@ def browser_tool(context, req):
                 element.wait_for(state="visible", timeout=seconds * 1000)
             except Exception:
                 raise BrowserError(f"It did not show within {seconds:g} seconds.")
-        return {"ok": True, "snapshot": page_snapshot(focused_page(context) or page)}
+        try:
+            snapshot = page_snapshot(focused_page(context) or page)
+        except BrowserError:
+            if op == "snapshot":
+                raise
+            # The step was done: said as done, so the bot does not do it a second time (an order, a message). `unread`:
+            # no page was read, so botdot keeps the last one it read for its irreversible-step checks (ADR 107).
+            return {"ok": True, "unread": True, "snapshot": f"{note}Done, but the page is still changing, so it could not be read yet. Take a browser_snapshot in a moment."}
+        if note:  # after its first line, "Page: <title> (<url>)", which tells botdot the site (lib/irreversible-steps.js)
+            first, _, rest = snapshot.partition("\n")
+            snapshot = f"{first}\n{note.rstrip()}" + (f"\n{rest}" if rest else "")
+        return {"ok": True, "snapshot": snapshot}
     except BrowserError as exc:
         return {"ok": False, "error": str(exc)}
     except Exception as exc:  # Playwright's own words, first line only: it may hold the page's text, never a secret
         said = str(exc).strip().splitlines()[0][:300] if str(exc).strip() else ""
-        return {"ok": False, "error": f"{op} failed: {type(exc).__name__}{': ' + said if said else ''}"}
+        covered = " Something covers it (a pop-up, a cookie banner?): close that first." if "intercepts pointer events" in str(exc) else ""
+        return {"ok": False, "error": f"{op} failed: {type(exc).__name__}{': ' + said if said else ''}{covered}"}
 
 
 def ask_bridge(body, port):
@@ -461,8 +552,23 @@ def bound_log():
     atexit.register(drain)
 
 
+serve_lock = None  # held for the bridge's whole life: a second start beside it ends at once
+
+
 def serve():
     """Serve botdot and the desktop until the computer stops, with Camoufox open whenever a page was asked for."""
+    global serve_lock
+    # One bridge a screen, also when botdot starts it again while one starts or runs without its socket: a second
+    # would take the socket from the first and leave the browser on the other, so every browser tool says "not open".
+    try:
+        serve_lock = open(BRIDGE_SOCKET + ".lock", "a")
+    except OSError:  # no folder for it: the socket fails below, and its traceback reaches the log
+        serve_lock = None
+    if serve_lock is not None:
+        try:
+            fcntl.flock(serve_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:  # another bridge of this screen holds it
+            return
     if bridge_running():  # botdot started it again while it runs
         return
     bound_log()
@@ -480,31 +586,114 @@ def serve():
         print(f"camoufox-browser: 127.0.0.1:{OPEN_PORT} is taken, so the desktop cannot open pages", file=sys.stderr, flush=True)
     while True:
         body, reply = requests.get()
+        body.pop("_until", None)
         if body.get("op") == "open":
+            browser_starting.set()
             try:
                 run_browser(body.get("url") or "about:blank")
             except Exception as exc:  # e.g. the desktop is not up yet: the next open tries again
                 print(f"camoufox-browser: Camoufox did not start: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+            finally:
+                browser_starting.clear()
         elif reply is not None:
             reply.put(NOT_OPEN)
         body.clear()
 
 
+IDENTITY_FILE = "botdot-identity.json"  # in the bot's profile: deleting the bot, or its profile, gives it a new one
+SCREEN = (1024, 768)
+WINDOW = (1024, 740)
+# The owner's language, as lib/browser-locale.js gives it (en-US, pl-PL): a page's language, number and date formats.
+LOCALE = re.compile(r"^[a-z]{2,3}-[A-Z]{2}$")
+geoip_failed_at = None
+GEOIP_SECONDS = 6  # the most a start waits for the computer's address
+
+
+def say(text):
+    print(f"camoufox-browser: {text}", file=sys.stderr, flush=True)
+
+
+def lasting_identity(Screen):
+    """The bot's own browser identity (an fpgen fingerprint), the same at every start: a site that sees the same
+    visitor come back with another screen, GPU and fonts each time takes it for a bot. Made at the first start and
+    kept in the profile. None on a Camoufox without generate_fingerprint (0.5.6) or when it can't be made: then
+    Camoufox makes one for this start, as before."""
+    path = os.path.join(PROFILE, IDENTITY_FILE)
+    try:
+        with open(path) as f:
+            kept = json.load(f)
+        if isinstance(kept, dict) and kept.get("navigator"):
+            return kept
+    except (OSError, ValueError):
+        pass
+    try:
+        from camoufox.fingerprints import generate_fingerprint
+        made = generate_fingerprint(screen=Screen(max_width=SCREEN[0], max_height=SCREEN[1]), window=WINDOW, os="linux")
+        text = json.dumps(made)
+        fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+        os.replace(path + ".tmp", path)
+        return json.loads(text)  # as it is read back next time, so every start has the same identity, salt and all
+    except Exception as exc:
+        say(f"no lasting identity, a new one this start: {type(exc).__name__}")
+        return None
+
+
+def where_from():
+    """This computer's public address when Camoufox can place it, for geoip: the time zone, position and WebRTC
+    address a site sees then agree with where its traffic comes from. None when it can't (no network, no database):
+    the browser then starts without it, and tries again ten minutes later, so a computer without network doesn't wait
+    for the address at every start."""
+    global geoip_failed_at
+    if geoip_failed_at is not None and time.monotonic() - geoip_failed_at < 600:
+        return None
+    try:
+        from camoufox import geolocation
+        from camoufox.ip import public_ip
+        # The database comes with the desktop (deploy/desktop/Dockerfile) in a folder this user can't write: an older
+        # one is used as it is, instead of downloading a new one at every start that can't be saved.
+        geolocation.needs_update = lambda *args, **kwargs: False
+        geolocation.geoip_allowed()
+        ip = public_ip()
+        geolocation.get_geolocation(ip)
+        return ip
+    except Exception as exc:
+        geoip_failed_at = time.monotonic()
+        say(f"started without geoip: {type(exc).__name__}")
+        return None
+
+
+def where_from_quickly(seconds=GEOIP_SECONDS):
+    """where_from, waited on for `seconds` at most: a slow network doesn't hold the browser's start. One that answers
+    later is kept by Camoufox (public_ip is cached), so the next start has it."""
+    found = []
+    asking = threading.Thread(target=lambda: found.append(where_from()), daemon=True)
+    asking.start()
+    asking.join(seconds)
+    if not found:
+        say("started without geoip: the address took too long")
+    return found[0] if found else None
+
+
 def run_browser(url):
     """Camoufox at url, serving the queued requests on this thread until its window is closed."""
     # Imported here, so a broken Camoufox is told in the bridge's log instead of ending the bridge before it has one
-    from camoufox.fingerprints import Screen
+    try:
+        from camoufox.fingerprints import Screen  # Camoufox 0.5.9 and later
+    except ImportError:  # 0.5.6: botdot copies this file into computers still on an older desktop until their Update
+        from browserforge.fingerprints import Screen
     from camoufox.sync_api import Camoufox
 
     os.makedirs(PROFILE, mode=0o700, exist_ok=True)
-    with Camoufox(
+    options = dict(
         headless=False,
         persistent_context=True,
         user_data_dir=PROFILE,
         os="linux",                      # match the real machine so fonts and platform agree
-        screen=Screen(max_width=1024, max_height=768),
-        window=(1024, 740),
-        humanize=True,                   # human-like cursor movement
+        screen=Screen(max_width=SCREEN[0], max_height=SCREEN[1]),
+        window=WINDOW,
+        humanize=0.5,                    # human-like cursor movement, up to 0.5 s a move instead of 1.5 s
         firefox_user_prefs={
             "signon.rememberSignons": False,  # never store typed passwords in the profile
             "signon.autofillForms": False,
@@ -522,32 +711,67 @@ def run_browser(url):
             "browser.cache.memory.capacity": 16384,  # KB, instead of sized from the machine's RAM
             "browser.sessionhistory.max_total_viewers": 0,  # Back loads the page again instead of keeping it
         },
-    ) as context:
-        # Open only while Camoufox runs (#875): whatever ends it, the next is-open says no, so open_browser starts
-        # it again instead of answering "already open" for a window that is gone.
-        browser_open.set()
+    )
+    who = {}
+    identity = lasting_identity(Screen)
+    if identity:
+        who["fingerprint"] = identity
+    ip = where_from_quickly()
+    if ip:
+        who["geoip"] = ip
+    locale = os.environ.get("BOTDOT_LOCALE", "")
+    if LOCALE.match(locale):  # after geoip, which would otherwise give the language of the server's country
+        who["locale"] = locale
+    with contextlib.ExitStack() as stack:
+        try:
+            context = stack.enter_context(Camoufox(**options, **who))
+        except Exception as exc:
+            if not who:
+                raise
+            # The bot's browser opens all the same, as before: without them. A kept identity that this Camoufox no
+            # longer takes is put aside, so the next start makes a new one instead of failing first every time.
+            say(f"Camoufox did not start with the bot's identity, place and language ({type(exc).__name__}), so it starts without them")
+            context = stack.enter_context(Camoufox(**options))
+            # Only an error in what Camoufox was given (raised before Firefox starts) is the identity's: a crash or a
+            # timeout of the start is not, and the identity stays.
+            if identity and (isinstance(exc, (ValueError, TypeError, KeyError)) or type(exc).__name__ == "NonFirefoxFingerprint"):
+                try:
+                    os.replace(os.path.join(PROFILE, IDENTITY_FILE), os.path.join(PROFILE, IDENTITY_FILE + ".unused"))
+                except OSError:
+                    pass
         try:
             closed = threading.Event()
             context.on("close", lambda *_: closed.set())
             page = context.pages[0] if context.pages else context.new_page()
             if url != "about:blank":  # the first page is already blank; going there again races and crashes
                 try:
-                    page.goto(url)
+                    page.goto(url, wait_until="domcontentloaded", timeout=15000)
                 except Exception as exc:  # a slow or failing site leaves the browser open on what it reached (#875)
-                    print(f"camoufox-browser: the first page did not load: {type(exc).__name__}", file=sys.stderr, flush=True)
+                    say(f"the first page did not load: {type(exc).__name__}")
+            # Open only while Camoufox runs (#875): whatever ends it, the next is-open says no, so open_browser starts
+            # it again instead of answering "already open" for a window that is gone. Said once its first page is
+            # there, so open_browser reads that page, not a blank one; from then on an open is a tab of its own.
+            browser_open.set()
+            browser_starting.clear()
             # Serve secret-typing requests on this thread (Playwright's sync API isn't thread-safe)
             # until the window is closed.
             while not closed.is_set():
-                try:
-                    body, reply = requests.get_nowait()
+                try:  # a request is taken the moment it comes, not at the next 200 ms tick
+                    body, reply = requests.get(timeout=0.2)
                 except queue.Empty:
                     try:
                         pages = context.pages
                         if not pages:
                             break
-                        pages[0].wait_for_timeout(200)  # also lets Playwright process events
+                        pages[0].wait_for_timeout(1)  # lets Playwright process events
                     except Exception:
                         break
+                    continue
+                until = body.pop("_until", None)
+                if until is not None and time.monotonic() > until - START_SECONDS:
+                    body.clear()
+                    if reply is not None:
+                        reply.put(BUSY)
                     continue
                 try:
                     result = browser_tool(context, body) if body.get("op") in BROWSER_OPS else type_secret(context, body)

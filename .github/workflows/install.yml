@@ -26,6 +26,7 @@ on:
       - .github/workflows/install.yml
       - tests/integration/install-real.*
       - tests/integration/test-install.js
+      - tests/integration/install-prereqs.*
   workflow_dispatch:
 
 permissions:
@@ -55,10 +56,50 @@ jobs:
         env:
           INSTALL_REAL_SHARD: ${{ matrix.shard }}/4
 
-  # One check named as before, green when every share passed.
+  # The public install, end to end, on machines of other distributions (INSTALL_REAL_DISTRO): Debian's, Fedora's and
+  # the RHEL family's tools under the installer, with Docker and gVisor already on them.
+  install-real-distro:
+    name: install-real (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [debian-12, fedora-43, rocky-10]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: make install-real
+        env:
+          INSTALL_REAL_DISTRO: ${{ matrix.distro }}
+          INSTALL_REAL_CASE: a public install from the registry
+
+  # What the installer itself installs on a fresh machine of each distribution: Docker, rootless Docker and gVisor.
+  install-prereqs:
+    name: install-prereqs (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [ubuntu-22.04, ubuntu-24.04, debian-12, debian-13, fedora-43, rocky-10, alma-9]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: make install-prereqs
+        env:
+          INSTALL_PREREQS_DISTRO: ${{ matrix.distro }}
+
+  # One check named as before, green when every share and every distribution passed.
   install-real:
-    needs: install-real-shard
+    needs: [install-real-shard, install-real-distro, install-prereqs]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - run: test "${{ needs.install-real-shard.result }}" = success
+      - run: test "${{ needs.install-real-distro.result }}" = success
+      - run: test "${{ needs.install-prereqs.result }}" = success

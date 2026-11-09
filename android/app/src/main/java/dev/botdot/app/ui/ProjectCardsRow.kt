@@ -188,7 +188,7 @@ internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = e
 }
 
 private fun Modifier.cardBox(p: Paper, outline: Color? = null): Modifier =
-    clip(Radius.card).background(p.raise2).then(if (outline != null) Modifier.border(1.dp, outline, Radius.card) else Modifier.border(1.dp, p.line, Radius.card))
+    raised(Radius.card).then(if (outline != null) Modifier.border(1.dp, outline, Radius.card) else Modifier)
 
 @Composable
 private fun NewCardTile(modifier: Modifier, onClick: () -> Unit) {
@@ -207,7 +207,7 @@ private fun PiecePicks(pieces: List<String>, onPick: (String) -> Unit) {
     val p = LocalPaper.current
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         pieces.forEach { k ->
-            Row(Modifier.clip(Radius.pill).border(1.dp, p.line2, Radius.pill).clickable(onClickLabel = ProjectBoard.label(k)) { onPick(k) }.heightIn(min = 40.dp).padding(horizontal = Space.s12),
+            Row(Modifier.clip(Radius.pill).background(p.fill).clickable(onClickLabel = ProjectBoard.label(k)) { onPick(k) }.heightIn(min = 40.dp).padding(horizontal = Space.s12),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(16.dp))
                 Text(ProjectBoard.label(k), color = p.text, fontSize = Type.s14)
@@ -286,7 +286,7 @@ private fun QuestionsCard(modifier: Modifier, k: ProjectCard, onAnswer: (String)
             if (q.choices.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 q.choices.forEach { x ->
                     Text(x, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.clip(Radius.pill).border(1.dp, p.line2, Radius.pill).clickable(enabled = !sent) { answer(x) }.heightIn(min = 40.dp).padding(horizontal = Space.s16, vertical = Space.s8))
+                        modifier = Modifier.clip(Radius.pill).background(p.fill).clickable(enabled = !sent) { answer(x) }.heightIn(min = 40.dp).padding(horizontal = Space.s16, vertical = Space.s8))
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
@@ -338,7 +338,7 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas
             Box(Modifier.rotate(if (k.building) spin else 0f)) { CardIcon(Icons.Filled.Refresh, tr("Refresh")) { if (!k.building) onRefresh() } }
             Box {
                 CardIcon(Icons.Filled.MoreHoriz, tr("More")) { menu = true }
-                DropdownMenu(menu, { menu = false }, containerColor = p.panel) {
+                DropdownMenu(menu, { menu = false }) {
                     MenuRow(Icons.Outlined.Edit, tr("Change"), p.text) { menu = false; onChange() }
                     MenuRow(Icons.Filled.Refresh, tr("Refresh"), p.text) { menu = false; if (!k.building) onRefresh() }
                     MenuRow(Icons.Outlined.Delete, tr("Remove"), p.err) { menu = false; onRemove() }
@@ -404,7 +404,7 @@ private fun Body(b: CardBody, canvas: Boolean = false) {
             Box(Modifier.fillMaxWidth().height(1.dp).background(p.line))
             Row(Modifier.fillMaxWidth().padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 Text(r.label, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Text(r.value, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, fontFamily = GeistMono, modifier = Modifier.padding(start = Space.s12))
+                Text(r.value, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Normal, fontFamily = GeistMono, modifier = Modifier.padding(start = Space.s12))
                 Text(r.change.orEmpty(), color = toneColor(r.tone ?: "muted"), fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.End, modifier = Modifier.width(56.dp))
             }
         } } }

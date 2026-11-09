@@ -481,7 +481,7 @@
   "Asking for your OK": "Proszę o twoją zgodę",
   "Asking for a skill": "Proszę o umiejętność",
   "Asking the Chief of Staff for a tool": "Proszę Szefa sztabu o narzędzie",
-  "Asking the Chief of Staff for an app": "Proszę Szefa sztabu o aplikację",
+  "Asking for an app": "Proszę o aplikację",
   "Saving a note": "Zapisuję notatkę",
   "Correcting a note": "Poprawiam notatkę",
   "Removing a note": "Usuwam notatkę",
@@ -604,5 +604,13 @@
   "Say where the files go.": "Powiedz, dokąd mają trafić pliki.",
   "That code has expired.": "Ten kod wygasł.",
   "Waiting for Claude's servers": "Czekam na serwery Claude",
-  "botdot stopped what this run left running in the background.": "botdot zatrzymał to, co ten przebieg zostawił uruchomione w tle."
+  "botdot stopped what this run left running in the background.": "botdot zatrzymał to, co ten przebieg zostawił uruchomione w tle.",
+  "use {app}": "używać {app}",
+  "Set up {app} in Composio": "Skonfiguruj {app} w Composio",
+  "Open Connectors": "Otwórz Konektory",
+  "Reconnect {app}": "Połącz ponownie {app}",
+  "Connect {app} for {bot}": "Połącz {app} dla {bot}",
+  "Needs {app} reconnected": "Potrzebuje ponownego połączenia {app}",
+  "Needs your Composio key for {app}": "Potrzebuje twojego klucza Composio do {app}",
+  "Needs {app} connected": "Potrzebuje połączenia {app}"
 }

@@ -80,7 +80,7 @@ fun RunBlock(onReply: (() -> Unit)? = null, onDetails: (() -> Unit)? = null, cop
             .padding(vertical = Space.s4),
         verticalArrangement = Arrangement.spacedBy(Space.s12), content = content,
     )
-    if (sheet) ModalBottomSheet(onDismissRequest = { sheet = false }, containerColor = p.panel) {
+    if (sheet) ModalBottomSheet(onDismissRequest = { sheet = false }) {
         Column(Modifier.padding(bottom = Space.s8)) {
             onReply?.let { SheetRow(Icons.AutoMirrored.Outlined.Reply, REPLY_TO_TASK) { sheet = false; it() } }
             onDetails?.let { SheetRow(Icons.Outlined.ExpandMore, DETAILS) { sheet = false; it() } }
@@ -206,7 +206,7 @@ private fun Timeline(r: Run) {
                 Column {
                     val (head, rest) = row.text.split("\n", limit = 2).let { it[0] to it.getOrNull(1) }
                     val strong = row.kind == RunSteps.CHANGED || (row.kind == RunSteps.MESSAGE && rest != null) // what it sent and what it changed
-                    Text(if (row.n > 1) "$head ×${row.n}" else head, color = if (strong) p.text else p.muted, fontSize = Type.s14, fontWeight = if (strong) FontWeight.Medium else FontWeight.Normal)
+                    Text(if (row.n > 1) "$head ×${row.n}" else head, color = if (strong) p.text else p.muted, fontSize = Type.s14, fontWeight = if (strong) FontWeight.SemiBold else FontWeight.Normal)
                     if (!rest.isNullOrBlank()) Text(rest, color = p.faint, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }

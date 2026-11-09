@@ -126,7 +126,7 @@ internal fun SpaceTitle(ways: SpaceWays?, busy: Boolean, onOpen: () -> Unit, mod
 @Composable
 internal fun SpaceSheet(ways: SpaceWays, onDismiss: () -> Unit) {
     val p = LocalPaper.current
-    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = p.panel) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).navigationBarsPadding().padding(horizontal = Space.s12, vertical = Space.s8).testTag(SPACE_SHEET)) {
             SheetRow(here = ways.current == Spaces.HOME, label = tr("Home"), onClick = { onDismiss(); ways.pick(Spaces.HOME) }) {
                 Box(Modifier.size(36.dp).clip(Radius.small).background(p.sunk), contentAlignment = Alignment.Center) { Logo(size = Type.s12) }

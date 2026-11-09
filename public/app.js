@@ -1133,7 +1133,7 @@ async function readAll() {
     showJobApprovals();
     // Read after the rest: an answer that comes after a later refresh began is older than that one's, and is dropped.
     api(MEMORY_WAITS).then((p) => { if (!latest()) return; state.memPending = p; showNeeds(); }).catch(() => {});
-    api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1').then((a) => { if (!latest()) return; state.asks = a; showNeeds(); }).catch(() => {});
+    api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1').then((a) => { if (!latest()) return; state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { if (!latest()) return; state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
     if (state.view === 'bot' && state.botId) { loadInbox(state.botId); readOwnRuns(state.botId); }

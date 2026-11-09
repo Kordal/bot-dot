@@ -250,7 +250,7 @@ const cases = [
       assert.match(said, /The front door is running/);
       assert.match(said, new RegExp(`The account ${ADMIN} is running`));
       assert.match(said, new RegExp(`Caddy answers on https://${DOMAIN.replace('.', '\\.')}`));
-      assert.match(said, /Time zone UTC/, 'a machine without a time zone gets UTC');
+      assert.match(said, /Time zone (Etc\/)?UTC\b/, 'a machine without a time zone gets UTC (Debian\'s image names it Etc/UTC)');
       assert.ok(said.includes(ROOT_REACHES), `the installer says that root reaches every account:\n${said}`);
       assert.ok(said.indexOf(ROOT_REACHES) < said.indexOf('/sign-up/'), 'before the link');
       assert.ok(said.includes(`Until it is used, botdot shows only "${NOT_YET}".`));
@@ -264,7 +264,7 @@ const cases = [
       // What was checked is what runs: both images pinned by their signed digests, in the account's Docker.
       const env = machine.exec('cat', `${HOME}/.env`);
       assert.ok(env.includes(`BOT_DOT_IMAGE=${server}\n`) && env.includes(`BOT_DOT_COMPUTER_IMAGE=${computer}\n`), `the signed images are pinned:\n${env}`);
-      assert.match(env, /^TZ=UTC$/m);
+      assert.match(env, /^TZ=(Etc\/)?UTC$/m);
       const running = machine.account(ADMIN, 'compose', '--project-directory', HOME, 'ps', '-q', 'bot-dot');
       assert.equal(JSON.parse(machine.account(ADMIN, 'inspect', running))[0].Config.Image, server);
       assert.ok(machine.downloads().some((request) => request.includes('/blobs/')), 'the registry\'s log shows what was downloaded, which the refused installs are checked by');

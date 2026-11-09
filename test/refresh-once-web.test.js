@@ -25,7 +25,7 @@ function page() {
   const answerAll = async (tag, rounds = 5) => {
     for (let i = 0; i < rounds; i++) {
       for (const p of pending.splice(0)) {
-        p.answer(p.path === '/bots' ? [{ id: tag }] : p.path === '/chief' ? { chats: [], busy: false } : p.path === '/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1' ? [tag] : p.path.startsWith('/runs') ? [] : {});
+        p.answer(p.path === '/bots' ? [{ id: tag }] : p.path === '/chief' ? { chats: [], busy: false } : p.path === '/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1' ? [tag] : p.path.startsWith('/runs') ? [] : {});
       }
       await new Promise((r) => setImmediate(r));
     }
@@ -65,7 +65,7 @@ test('web: a refresh asked for while one is under way runs once after it, and ev
 
 test('web: an answer read after the lists that comes after a later refresh began is dropped (#1066)', async () => {
   const p = page();
-  const asks = '/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1';
+  const asks = '/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1';
   const first = p.ctx.refresh();
   await new Promise((r) => setImmediate(r));
   // The lists answer; its asks are asked and wait.

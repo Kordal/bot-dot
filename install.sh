@@ -130,6 +130,11 @@ RUN="${BOT_DOT_RUN:-/run/botdot-accounts}"
 # The machine's settings the installer changes: subordinate IDs, the systemd unit and the AppArmor profile (the
 # installer's tests point it elsewhere).
 ETC="${BOT_DOT_ETC:-/etc}"
+# Where gVisor's runsc goes on a machine whose packages don't have it (install_runsc; the installer's tests point it
+# elsewhere).
+LOCAL_BIN="${BOT_DOT_LOCAL_BIN:-/usr/local/bin}"
+# What install_runsc put there, for the uninstaller.
+GVISOR_MARK="$ETC/botdot-gvisor"
 # Where the machine's processes and mounts are read (the installer's tests point it elsewhere).
 PROC="${BOT_DOT_PROC:-/proc}"
 # Where the accounts' cgroups are read (the installer's tests point it elsewhere).
@@ -232,6 +237,34 @@ set_env() {
   chmod 600 "$1"
 }
 get_env() { sed -n "s/^$2=//p" "$1" 2>/dev/null | tail -n 1; }
+
+# The machine's packages: apt-get on Debian and Ubuntu, dnf on Fedora and the RHEL family (RHEL, Rocky, AlmaLinux,
+# CentOS Stream, Oracle Linux). A machine with neither installs what botdot needs itself, and is told what.
+pkg_manager() { if command -v apt-get >/dev/null 2>&1; then echo apt; elif command -v dnf >/dev/null 2>&1; then echo dnf; fi; }
+# os_field NAME: a field of /etc/os-release (ID, ID_LIKE, VERSION_ID, PRETTY_NAME), read, not run.
+os_field() { sed -n "s/^$1=//p" "$ETC/os-release" 2>/dev/null | head -n 1 | sed 's/^["'\'']//; s/["'\'']$//'; }
+# install_hint APT_PACKAGE DNF_PACKAGE: the command that installs it on this machine.
+install_hint() {
+  case "$(pkg_manager)" in
+    apt) printf 'sudo apt-get install %s' "$1" ;;
+    dnf) printf 'sudo dnf install %s' "$2" ;;
+    *) printf "your system's package for %s" "$1" ;;
+  esac
+}
+# pkg_add APT_PACKAGES -- DNF_PACKAGES: installs them quietly with the machine's packages; fails without them.
+pkg_add() {
+  pa_apt='' pa_dnf='' pa_in=apt
+  for pa_p; do
+    if [ "$pa_p" = -- ]; then pa_in=dnf; elif [ "$pa_in" = apt ]; then pa_apt="$pa_apt $pa_p"; else pa_dnf="$pa_dnf $pa_p"; fi
+  done
+  # shellcheck disable=SC2086 # one package per word
+  case "$(pkg_manager)" in
+    apt) DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pa_apt </dev/null >/dev/null 2>&1 \
+      || { apt-get update -qq </dev/null >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pa_apt </dev/null >/dev/null 2>&1; } ;;
+    dnf) dnf install -y -q $pa_dnf </dev/null >/dev/null 2>&1 ;;
+    *) return 1 ;;
+  esac
+}
 # A managed machine (ADR 154), as its install chose: 1 or nothing. Its accounts' default share is 4 CPUs, 8 GB of RAM and
 # 40 GB of disk (MANAGED_SHARE in lib/front-door/capacity.js), guaranteed, so not half the machine's RAM.
 MANAGED="$(get_env "$ENV" BOT_DOT_MANAGED 2>/dev/null || true)"
@@ -619,7 +652,7 @@ restic_ok() {
   [ "$1" -gt 0 ] || [ "$2" -ge 17 ]
 }
 # offsite_restic: the restic in RESTIC: the pinned one in BIN, downloaded from restic's releases and checked by its
-# sha256 when it isn't there yet; when that can't be, one this machine has, of 0.17 or newer. bunzip2 comes from apt-get
+# sha256 when it isn't there yet; when that can't be, one this machine has, of 0.17 or newer. bunzip2 comes from the system's packages
 # when a minimal image has none, and a download that fails is tried again over IPv4, as a fresh VPS's IPv6 route to
 # GitHub can be what fails. When neither restic can be had, the error says which step stopped the download.
 offsite_restic() {
@@ -628,12 +661,9 @@ offsite_restic() {
   case "$(uname -m)" in x86_64 | amd64) or_arch=linux_amd64 ;; aarch64 | arm64) or_arch=linux_arm64 ;; *) or_arch='' ;; esac
   or_sum="$(printf '%s\n' "$RESTIC_SUMS" | awk -v a="$or_arch" '$1 == a { print $2 }')"
   or_why="there is no restic release for $(uname -m)"
-  if [ -n "$or_sum" ] && ! command -v bunzip2 >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bzip2 </dev/null >/dev/null 2>&1 \
-      || { apt-get update -qq </dev/null >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq bzip2 </dev/null >/dev/null 2>&1; } || true
-  fi
+  if [ -n "$or_sum" ] && ! command -v bunzip2 >/dev/null 2>&1; then pkg_add bzip2 -- bzip2 || true; fi
   if [ -n "$or_sum" ] && ! command -v bunzip2 >/dev/null 2>&1; then
-    or_why='bunzip2 is missing and apt-get could not install bzip2'
+    or_why="bunzip2 is missing and the system's packages could not install bzip2 ($(install_hint bzip2 bzip2))"
   elif [ -n "$or_sum" ]; then
     mkdir -p "$BIN"
     chmod 700 "$BIN"
@@ -725,9 +755,9 @@ offsite_prepare() {
 # offsite_key: for an SFTP repository, the SSH key this machine signs in with, made once, its public half said.
 offsite_key() {
   case "$OFFSITE_REPO" in sftp:*)
-    command -v ssh >/dev/null 2>&1 || die "The off-site backup signs in with SSH, which this machine lacks: sudo apt install openssh-client"
+    command -v ssh >/dev/null 2>&1 || die "The off-site backup signs in with SSH, which this machine lacks: $(install_hint openssh-client openssh-clients)"
     if [ ! -s "$OFFSITE/ssh_key" ]; then
-      command -v ssh-keygen >/dev/null 2>&1 || die "The off-site backup needs ssh-keygen to make its key: sudo apt install openssh-client"
+      command -v ssh-keygen >/dev/null 2>&1 || die "The off-site backup needs ssh-keygen to make its key: $(install_hint openssh-client openssh-clients)"
       rm -f "$OFFSITE/ssh_key" "$OFFSITE/ssh_key.pub"
       ssh-keygen -q -t ed25519 -N '' -C "botdot-$INSTANCE" -f "$OFFSITE/ssh_key" </dev/null >/dev/null || die "Couldn't make the off-site backup's SSH key."
       op_at="$(printf '%s' "$OFFSITE_REPO" | sed -n 's#^sftp:\(//\)\{0,1\}\([^@/:]*@[^/:]*\).*#\2#p')"
@@ -1388,7 +1418,9 @@ if [ "$MODE" = uninstall ]; then
   here=''
   for f in $OWN; do [ ! -e "$DIR/$f" ] || here=1; done
   pkgs=''
-  if command -v dpkg-query >/dev/null 2>&1; then
+  if [ "$(pkg_manager)" = dnf ]; then
+    for p in $PACKAGES; do if rpm -q "$p" </dev/null >/dev/null 2>&1; then pkgs="$pkgs $p"; fi; done
+  elif command -v dpkg-query >/dev/null 2>&1; then
     for p in $PACKAGES; do
       # shellcheck disable=SC2016 # dpkg-query's own field
       case "$(dpkg-query -W --showformat='${Status}' "$p" </dev/null 2>/dev/null || true)" in 'install ok installed') pkgs="$pkgs $p" ;; esac
@@ -1396,6 +1428,9 @@ if [ "$MODE" = uninstall ]; then
   fi
   gvisor=''
   [ ! -f "$ETC/apt/sources.list.d/gvisor.list" ] || gvisor=1
+  # gVisor's files, when install_runsc put them there.
+  gvisor_files=''
+  [ ! -f "$GVISOR_MARK" ] || gvisor_files="$(grep -E '^/.*/(runsc|gvisor-bin)$' "$GVISOR_MARK" | tr '\n' ' ' | sed 's/ *$//')"
   found="$NAMES$door$units$profile$serve$here"
 
   # What goes, and a typed yes.
@@ -1418,15 +1453,17 @@ if [ "$MODE" = uninstall ]; then
   fi
   # The packages, asked apart: they may have been on the machine before botdot.
   remove_packages=''
-  if [ -n "$pkgs$gvisor" ]; then
+  if [ -n "$pkgs$gvisor$gvisor_files" ]; then
     list=''
     for p in $pkgs; do list="$list${list:+, }$p"; done
     [ -z "$gvisor" ] || list="$list${list:+ and }gVisor's apt source"
+    [ -z "$gvisor_files" ] || list="$list${list:+ and }gVisor's runsc in $LOCAL_BIN"
     say ""
     say "botdot's installer may have installed these: $list."
     if [ "${BOT_DOT_YES:-}" = 1 ]; then
-      how="${pkgs:+sudo apt-get remove$pkgs}"
+      if [ "$(pkg_manager)" = dnf ]; then how="${pkgs:+sudo rpm -e$pkgs}"; else how="${pkgs:+sudo apt-get remove$pkgs}"; fi
       [ -z "$gvisor" ] || how="$how${how:+ && }sudo rm $ETC/apt/sources.list.d/gvisor.list $ETC/apt/keyrings/gvisor.gpg"
+      [ -z "$gvisor_files" ] || how="$how${how:+ && }sudo rm -r $gvisor_files $GVISOR_MARK"
       say "The packages stay. Remove them yourself with: $how"
     elif ask "Remove them too? Docker itself and Tailscale stay." n; then remove_packages=1
     fi
@@ -1500,7 +1537,11 @@ if [ "$MODE" = uninstall ]; then
     fi
     [ -n "$failed" ] || rm -rf -- "${RUN:?}"
   fi
-  if [ -n "$remove_packages" ]; then
+  if [ -n "$remove_packages" ] && [ "$(pkg_manager)" = dnf ]; then
+    # rpm -e removes only what was named, and refuses while another package needs it.
+    # shellcheck disable=SC2086 # one package per word
+    if [ -n "$pkgs" ]; then if rpm -e $pkgs </dev/null; then ok "Removed the packages$pkgs"; else left "the packages$pkgs: other packages need them"; fi; fi
+  elif [ -n "$remove_packages" ]; then
     # Only what was named: apt-get would also take what depends on it, and Docker itself never goes.
     # shellcheck disable=SC2086 # one package per word
     more="$( [ -z "$pkgs" ] || apt-get -s remove $pkgs </dev/null 2>/dev/null | sed -n 's/^Remv \([^ ]*\).*/\1/p' | while IFS= read -r p; do case " $pkgs " in *" $p "*) ;; *) printf ' %s' "$p" ;; esac; done)"
@@ -1510,6 +1551,11 @@ if [ "$MODE" = uninstall ]; then
       if DEBIAN_FRONTEND=noninteractive apt-get remove -y -qq $pkgs </dev/null; then ok "Removed the packages$pkgs"; else left "the packages$pkgs"; fi
     fi
     if [ -n "$gvisor" ]; then rm -f -- "$ETC/apt/sources.list.d/gvisor.list" "$ETC/apt/keyrings/gvisor.gpg"; ok "Removed gVisor's apt source"; fi
+  fi
+  if [ -n "$remove_packages" ] && [ -n "$gvisor_files" ]; then
+    # shellcheck disable=SC2086 # one path per word
+    rm -rf -- $gvisor_files "$GVISOR_MARK"
+    ok "Removed gVisor's runsc from $LOCAL_BIN"
   fi
 
   if [ -n "$LEFT" ]; then
@@ -1527,13 +1573,21 @@ fi
 if [ "$MODE" = install ]; then bold "botdot installer"; say ""; fi
 
 [ "$(uname -s)" = Linux ] || die "This installer is for Linux. On a Mac, run botdot directly (see the README)."
+OS_NAME="$(os_field PRETTY_NAME 2>/dev/null || true)"
 case "$(uname -m)" in
-  x86_64 | amd64) [ "$MODE" != install ] || ok "Linux on Intel/AMD" ;;
-  aarch64 | arm64) [ "$MODE" != install ] || ok "Linux on ARM" ;;
+  x86_64 | amd64) [ "$MODE" != install ] || ok "${OS_NAME:-Linux} on Intel/AMD" ;;
+  aarch64 | arm64) [ "$MODE" != install ] || ok "${OS_NAME:-Linux} on ARM" ;;
   *) die "botdot's images are for Intel/AMD (x86_64) and ARM (aarch64), not $(uname -m)." ;;
 esac
+# Each account's rootless Docker keeps its images on overlayfs, which a user without root may mount from Linux 5.11 on.
+# An older kernel (Debian 11, RHEL 8) would keep a full copy of every layer for each container.
+KERNEL="$(uname -r 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\1 \2/p' 2>/dev/null || true)"
+if [ "$MODE" = install ] && [ -n "$KERNEL" ]; then
+  [ "${KERNEL% *}" -gt 5 ] || { [ "${KERNEL% *}" -eq 5 ] && [ "${KERNEL#* }" -ge 11 ]; } \
+    || die "botdot needs Linux 5.11 or newer for each account's rootless Docker, and this machine runs $(uname -r). Install a newer release (Ubuntu 22.04, Debian 12, Fedora, RHEL 9 or newer) and run this again."
+fi
 # Everything below needs it, also to see that botdot has started.
-command -v curl >/dev/null 2>&1 || die "The installer needs curl. Install it (sudo apt install curl) and run this again."
+command -v curl >/dev/null 2>&1 || die "The installer needs curl. Install it ($(install_hint curl curl)) and run this again."
 # Each account gets a Linux user of its own, so the installer makes users and their folders.
 [ "$(id -u)" = 0 ] || die "The installer makes a Linux user for each account, so it runs as root. Run it with: sudo sh install.sh"
 # One installer at a time: a person's run, root's step and the admin page's update all change the same accounts, and
@@ -1553,18 +1607,46 @@ if [ -z "${BOT_DOT_LOCKED:-}" ] && command -v flock >/dev/null 2>&1; then
   BOT_DOT_LOCKED=1
 fi
 
+# install_docker: Docker Engine from Docker's own packages, with rootless Docker. On Debian and Ubuntu through Docker's
+# install script (get.docker.com); on Fedora and the RHEL family from Docker's dnf repository, which that script
+# doesn't set up on Rocky, AlmaLinux or Oracle Linux. Started now and at every boot.
+install_docker() {
+  case "$(pkg_manager)" in
+    apt)
+      ask "Install Docker now, with Docker's official install script (get.docker.com)?" y \
+        || die "botdot needs Docker. Install it (https://docs.docker.com/engine/install/) and run this again."
+      say "Installing Docker…"
+      curl -fsSL https://get.docker.com | sh ;;
+    dnf)
+      case "$(os_field ID)" in fedora) id_repo=fedora ;; rhel) id_repo=rhel ;; *) id_repo=centos ;; esac
+      ask "Install Docker now, from Docker's repository (download.docker.com/linux/$id_repo)?" y \
+        || die "botdot needs Docker. Install it (https://docs.docker.com/engine/install/) and run this again."
+      say "Installing Docker…"
+      mkdir -p "$ETC/yum.repos.d"
+      curl -fsSL "https://download.docker.com/linux/$id_repo/docker-ce.repo" -o "$ETC/yum.repos.d/docker-ce.repo" </dev/null \
+        || die "Couldn't reach download.docker.com. Install Docker (https://docs.docker.com/engine/install/) and run this again."
+      dnf install -y -q docker-ce docker-ce-cli containerd.io docker-compose-plugin docker-buildx-plugin docker-ce-rootless-extras </dev/null || {
+        rm -f "$ETC/yum.repos.d/docker-ce.repo"
+        die "dnf couldn't install Docker from download.docker.com/linux/$id_repo. Install Docker Engine yourself (https://docs.docker.com/engine/install/) and run this again."
+      } ;;
+    *) die "Docker isn't installed, and this installer installs it only with apt-get or dnf. Install Docker Engine with rootless Docker (https://docs.docker.com/engine/install/) and run this again." ;;
+  esac
+  [ -z "$SYSTEMD" ] || systemctl enable --now docker </dev/null >/dev/null 2>&1 || true
+}
 [ "$MODE" = install ] || command -v docker >/dev/null 2>&1 || die "Docker isn't installed: run the installer again."
 if ! command -v docker >/dev/null 2>&1; then
   warn "Docker isn't installed."
-  ask "Install Docker now, with Docker's official install script (get.docker.com)?" y \
-    || die "botdot needs Docker. Install it (https://docs.docker.com/engine/install/) and run this again."
-  say "Installing Docker…"
-  curl -fsSL https://get.docker.com | sh
+  install_docker
 fi
+# Podman's docker command (podman-docker, on Fedora and RHEL) answers as Docker, but has no rootless Docker to give
+# each account.
+case "$(docker --version </dev/null 2>/dev/null)" in
+  *[Pp]odman*) die "This machine's docker command is Podman's. botdot needs Docker Engine: remove podman-docker ($( [ "$(pkg_manager)" = dnf ] && echo 'sudo dnf remove podman-docker' || echo "with your system's packages")) and run this again." ;;
+esac
 # The machine's own Docker: the front door, and Caddy for a public domain.
 D="docker"
 if ! docker info >/dev/null 2>&1; then
-  systemctl start docker 2>/dev/null || true
+  systemctl start docker 2>/dev/null 9>&- || true
   docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start it (sudo systemctl start docker) and run this again."
 fi
 # machine_logs: the machine's Docker keeps its containers' logs to LOG_OPTS, written once into its daemon.json beside
@@ -1657,35 +1739,101 @@ fi
 # What every account needs beside Docker: rootless Docker (dockerd-rootless.sh, newuidmap and a user-mode network),
 # gVisor's runsc, and setfacl, which lets the front door into each account's socket folder.
 # gVisor is the sandbox of every account, so it comes at one release: its apt source names that release, not the
-# moving `release` channel, and apt upgrade never changes it behind botdot's back. A new one arrives with this file.
+# moving `release` channel, and apt upgrade never changes it behind botdot's back. A machine without apt-get gets that
+# release's own files from gVisor (install_runsc). A new one arrives with this file.
 GVISOR_RELEASE=20261102.0
 GVISOR_LIST="$ETC/apt/sources.list.d/gvisor.list"
+# The sha256 of that release's files (gvisor.tar.zstd), for x86_64 and aarch64.
+GVISOR_SHA256_X86_64=a1439ffbba7d212e0fde32ea79fa9bb51cbc4c5f6c16af1f047260290b861d42
+GVISOR_SHA256_AARCH64=f702ae92ad7a0c4134be34ca23f52966dbb696db0c0f5b8ec439210ab2cd7c6a
+# install_runsc: gVisor's runsc and its helpers (gvisor-bin) of GVISOR_RELEASE in LOCAL_BIN, from gVisor's own
+# release files, checked by their sha256.
+install_runsc() {
+  case "$(uname -m)" in x86_64 | amd64) ir_arch=x86_64 ir_sum="$GVISOR_SHA256_X86_64" ;; *) ir_arch=aarch64 ir_sum="$GVISOR_SHA256_AARCH64" ;; esac
+  ir_tmp="$(mktemp -d)"
+  curl -fsSL --retry 2 -o "$ir_tmp/gvisor.tar.zstd" "https://storage.googleapis.com/gvisor/releases/release/$GVISOR_RELEASE/$ir_arch/gvisor.tar.zstd" </dev/null \
+    || { rm -rf "$ir_tmp"; die "Couldn't download gVisor $GVISOR_RELEASE from storage.googleapis.com. Run this again, or install gVisor yourself (https://gvisor.dev/docs/user_guide/install/)."; }
+  [ "$(sha256sum "$ir_tmp/gvisor.tar.zstd" | cut -d' ' -f1)" = "$ir_sum" ] \
+    || { rm -rf "$ir_tmp"; die "gVisor's download doesn't match the sha256 botdot pins for $GVISOR_RELEASE. Nothing was installed from it."; }
+  zstd -dcq "$ir_tmp/gvisor.tar.zstd" | tar -x -C "$ir_tmp" runsc gvisor-bin \
+    || { rm -rf "$ir_tmp"; die "Couldn't unpack gVisor's download (zstd and tar)."; }
+  mkdir -p "$LOCAL_BIN"
+  install -m 755 "$ir_tmp/runsc" "$LOCAL_BIN/runsc"
+  rm -rf "$LOCAL_BIN/gvisor-bin"
+  cp -R "$ir_tmp/gvisor-bin" "$LOCAL_BIN/gvisor-bin"
+  chmod -R go-w "$LOCAL_BIN/gvisor-bin"
+  rm -rf "$ir_tmp"
+  # SELinux (Fedora, RHEL) labels them as the programs they are, not as files made in a temporary folder.
+  if command -v restorecon >/dev/null 2>&1; then restorecon -R "$LOCAL_BIN/runsc" "$LOCAL_BIN/gvisor-bin" </dev/null >/dev/null 2>&1 || true; fi
+  printf '# botdot (install.sh): gVisor %s, installed from its release files.\n%s\n%s\n' "$GVISOR_RELEASE" "$LOCAL_BIN/runsc" "$LOCAL_BIN/gvisor-bin" > "$GVISOR_MARK"
+}
 MISSING=''
 need() { command -v "$1" >/dev/null 2>&1 || MISSING="$MISSING $2"; }
 need dockerd-rootless.sh docker-ce-rootless-extras
 need newuidmap uidmap
 command -v slirp4netns >/dev/null 2>&1 || command -v pasta >/dev/null 2>&1 || command -v vpnkit >/dev/null 2>&1 || MISSING="$MISSING slirp4netns"
 need setfacl acl
-need runsc runsc
+# dockerd-rootless.sh sets the namespace's sysctls with it; a minimal Debian has none.
+need sysctl procps
+command -v runsc >/dev/null 2>&1 || [ -x "$LOCAL_BIN/runsc" ] || MISSING="$MISSING runsc"
 [ "$MODE" = install ] || [ -z "$MISSING" ] || die "Missing:$MISSING. Run the installer again."
 if [ -n "$MISSING" ]; then
   warn "Each account runs in a rootless Docker under gVisor, which needs:$MISSING"
-  command -v apt-get >/dev/null 2>&1 || die "Install them with your system's packages (gVisor: https://gvisor.dev/docs/user_guide/install/) and run this again."
-  ask "Install them now with apt-get (gVisor's runsc from gVisor's own repository)?" y || die "botdot needs them. Install them and run this again."
-  say "Installing$MISSING…"
+  PKG="$(pkg_manager)"
+  [ -n "$PKG" ] || die "Install them with your system's packages (rootless Docker: https://docs.docker.com/engine/security/rootless/, gVisor: https://gvisor.dev/docs/user_guide/install/) and run this again."
+  # Rootless Docker comes only with Docker's own packages: a distribution's Docker (docker.io, moby-engine) has none.
   case "$MISSING" in
-    *runsc*)
-      mkdir -p "$ETC/apt/keyrings" "$ETC/apt/sources.list.d"
-      [ -f "$ETC/apt/keyrings/gvisor.gpg" ] || curl -fsSL https://gvisor.dev/archive.key | gpg --dearmor -o "$ETC/apt/keyrings/gvisor.gpg"
-      printf 'deb [arch=%s signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases %s main\n' "$(dpkg --print-architecture)" "${GVISOR_RELEASE%.*}" > "$GVISOR_LIST"
+    *docker-ce-rootless-extras*)
+      if [ "$PKG" = apt ]; then
+        # shellcheck disable=SC2016 # dpkg-query's own field
+        dpkg-query -W --showformat='${Status}' docker-ce </dev/null 2>/dev/null | grep -q 'install ok installed' && dc=1 || dc=''
+      else rpm -q docker-ce </dev/null >/dev/null 2>&1 && dc=1 || dc=''; fi
+      [ -n "$dc" ] || die "This machine's Docker isn't Docker's own (docker-ce), so it has no rootless Docker. Remove it and install Docker Engine from Docker's repository (https://docs.docker.com/engine/install/), or remove it and run this again to have it installed."
       ;;
   esac
-  # shellcheck disable=SC2046 # one word per package
-  apt-get update -qq </dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $(printf '%s\n' $MISSING | sed "s/^runsc\$/runsc=$GVISOR_RELEASE/") </dev/null \
-    || die "apt-get couldn't install$MISSING. Install them yourself and run this again."
+  if [ "$PKG" = apt ]; then
+    ask "Install them now with apt-get (gVisor's runsc from gVisor's own repository)?" y || die "botdot needs them. Install them and run this again."
+  else
+    ask "Install them now with dnf (gVisor's runsc from gVisor's release $GVISOR_RELEASE)?" y || die "botdot needs them. Install them and run this again."
+  fi
+  say "Installing$MISSING…"
+  if [ "$PKG" = apt ]; then
+    case "$MISSING" in
+      *runsc*)
+        mkdir -p "$ETC/apt/keyrings" "$ETC/apt/sources.list.d"
+        # A minimal Debian has no gpg to read gVisor's key with.
+        [ -f "$ETC/apt/keyrings/gvisor.gpg" ] || command -v gpg >/dev/null 2>&1 || pkg_add gnupg -- gnupg2 || die "apt-get couldn't install gnupg, which reads gVisor's key. Install it (sudo apt-get install gnupg) and run this again."
+        [ -f "$ETC/apt/keyrings/gvisor.gpg" ] || curl -fsSL https://gvisor.dev/archive.key | gpg --dearmor -o "$ETC/apt/keyrings/gvisor.gpg"
+        printf 'deb [arch=%s signed-by=/etc/apt/keyrings/gvisor.gpg] https://storage.googleapis.com/gvisor/releases %s main\n' "$(dpkg --print-architecture)" "${GVISOR_RELEASE%.*}" > "$GVISOR_LIST"
+        ;;
+    esac
+    # shellcheck disable=SC2046 # one word per package
+    apt-get update -qq </dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $(printf '%s\n' $MISSING | sed "s/^runsc\$/runsc=$GVISOR_RELEASE/") </dev/null \
+      || die "apt-get couldn't install$MISSING. Install them yourself and run this again."
+  else
+    # dnf's names: newuidmap is shadow-utils', sysctl procps-ng's; runsc isn't a package, but its download needs zstd and tar.
+    DNF_PKGS="$(printf '%s\n' $MISSING | sed 's/^uidmap$/shadow-utils/; s/^procps$/procps-ng/; /^runsc$/d' | tr '\n' ' ')"
+    case "$MISSING" in *runsc*)
+      command -v zstd >/dev/null 2>&1 || DNF_PKGS="$DNF_PKGS zstd"
+      command -v tar >/dev/null 2>&1 || DNF_PKGS="$DNF_PKGS tar" ;;
+    esac
+    # shellcheck disable=SC2086 # one word per package
+    [ -z "$(printf '%s' "$DNF_PKGS" | tr -d ' ')" ] || dnf install -y -q $DNF_PKGS </dev/null \
+      || die "dnf couldn't install $(printf '%s' "$DNF_PKGS" | sed 's/^ *//; s/ *$//'). Install them yourself and run this again."
+    case "$MISSING" in *runsc*) install_runsc ;; esac
+  fi
 fi
 ROOTLESS="$(command -v dockerd-rootless.sh)"
-RUNSC="$(command -v runsc)"
+# newuidmap maps each account's sub-IDs only as root: setuid (Debian, Ubuntu) or by its file capability (Fedora, RHEL),
+# which a system made from a container image may have lost. Without either every account's Docker would fail to start.
+for nm in newuidmap newgidmap; do
+  nm_path="$(command -v "$nm" 2>/dev/null || true)"
+  [ -n "$nm_path" ] && [ ! -u "$nm_path" ] && command -v getcap >/dev/null 2>&1 || continue
+  getcap "$nm_path" 2>/dev/null | grep -q 'cap_set[ug]id' \
+    || die "$nm_path can't map each account's IDs: it is neither setuid nor has its file capability. Reinstall it ($( [ "$(pkg_manager)" = dnf ] && echo 'sudo dnf reinstall shadow-utils' || echo 'sudo apt-get install --reinstall uidmap')) and run this again."
+done
+# sudo's PATH on RHEL leaves out /usr/local/bin, where install_runsc puts it.
+RUNSC="$(command -v runsc || printf '%s' "$LOCAL_BIN/runsc")"
 # A machine installed before the pin follows gVisor's `release` channel: its source is moved to the pinned release,
 # and a runsc of another release is named with the command that installs the pinned one. It is not replaced here:
 # the runsc of the accounts' running sandboxes would change under them.
@@ -1695,16 +1843,26 @@ if [ "$MODE" = install ] || [ "$MODE" = update ]; then
     ok "gVisor's apt source now holds release $GVISOR_RELEASE"
   fi
   HAVE_RUNSC="$("$RUNSC" --version </dev/null 2>/dev/null | head -n 1 | sed 's/^runsc version //; s/^release-//')"
-  [ "$HAVE_RUNSC" = "$GVISOR_RELEASE" ] || warn "gVisor ${HAVE_RUNSC:-of an unknown release} is installed; botdot is tested with $GVISOR_RELEASE. Once no account is busy: sudo apt-get update && sudo apt-get install --allow-downgrades runsc=$GVISOR_RELEASE"
+  if [ "$HAVE_RUNSC" != "$GVISOR_RELEASE" ]; then
+    if [ "$(pkg_manager)" = apt ]; then rs_fix="sudo apt-get update && sudo apt-get install --allow-downgrades runsc=$GVISOR_RELEASE"
+    else rs_fix="sudo rm $RUNSC && sudo sh install.sh"; fi
+    warn "gVisor ${HAVE_RUNSC:-of an unknown release} is installed; botdot is tested with $GVISOR_RELEASE. Once no account is busy: $rs_fix"
+  fi
 fi
-# Ubuntu 24.04 lets a program make the user namespace rootless Docker needs only when AppArmor names it.
+# Ubuntu 24.04 lets a program make the user namespace rootless Docker needs only when AppArmor names it, which takes
+# AppArmor 4 (abi/4.0). A kernel that restricts them under an older AppArmor (Ubuntu 22.04 or Debian 12 on a newer
+# kernel) has no profile that can name it: the restriction itself has to be lifted.
 KIT="$(command -v rootlesskit 2>/dev/null || true)"
-if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo 0)" = 1 ] \
+if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && command -v apparmor_parser >/dev/null 2>&1 && [ "$(cat "$PROC/sys/kernel/apparmor_restrict_unprivileged_userns" 2>/dev/null || echo 0)" = 1 ] \
   && ! grep -rqs "$KIT" "$ETC/apparmor.d/" 2>/dev/null; then
+  [ -f "$ETC/apparmor.d/abi/4.0" ] || die "This kernel lets only programs AppArmor names make user namespaces, and this system's AppArmor is too old to name rootless Docker. Lift the restriction (echo kernel.apparmor_restrict_unprivileged_userns=0 | sudo tee /etc/sysctl.d/60-botdot-userns.conf && sudo sysctl --system) and run this again."
   printf '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit %s flags=(unconfined) {\n  userns,\n}\n' "$KIT" > "$ETC/apparmor.d/botdot-rootlesskit"
   apparmor_parser -r "$ETC/apparmor.d/botdot-rootlesskit" </dev/null || die "AppArmor didn't take the profile that lets rootless Docker run ($KIT)."
 fi
 [ "$MODE" != install ] || ok "Rootless Docker and gVisor ($("$RUNSC" --version </dev/null 2>/dev/null | head -n 1 | sed 's/^runsc version //'))"
+if [ "$MODE" = install ] && [ "$(getenforce 2>/dev/null || true)" = Enforcing ]; then
+  warn "SELinux is enforcing, which botdot isn't tested with yet. If an account doesn't start, see https://github.com/Kordal/bot-dot/blob/main/docs/install-linux.md#platforms"
+fi
 
 # ---------------------------------------------------------------------------------------------
 # 2. The images: botdot's signed images from a registry, or ones built on this machine
@@ -2299,6 +2457,15 @@ take_key() {
   done
 }
 if [ "$REACH" != local ]; then
+  # Said once before the three optional keys' questions, on a first install that asks them.
+  if [ -n "$FIRST" ] && [ -z "$UNATTENDED" ] && [ -z "$MANAGED" ] \
+    && [ -z "${BOT_DOT_OPENROUTER_KEY+1}${BOT_DOT_BOAT_KEY+1}${BOT_DOT_COMPOSIO_KEY+1}" ]; then
+    say ""
+    say "Three optional services follow. botdot works without them: answer n to skip, and set each later."
+    say "  Jev: a small model on OpenRouter that picks which bot answers in a group chat, in place of Claude Haiku."
+    say "  boat.dev: a paid cloud computer for the bots, in place of the one on this machine."
+    say "  Composio: bots use your apps, such as Gmail, Slack or GitHub."
+  fi
   take_key group-router OpenRouter BOT_DOT_OPENROUTER_KEY "Use Jev as the decision model?" "OpenRouter key:" \
     https://openrouter.ai/settings/keys "admin page"
   OPENROUTER_KEY="$KEY_TAKEN"
@@ -4120,9 +4287,9 @@ if [ "$REACH" = public ]; then
     # The DNS was set while the installer ran: Caddy waits longer after each failed try, so a restart tries now.
     $DOOR_COMPOSE restart caddy </dev/null >/dev/null 2>&1 || true
     if caddy_answers; then ok "Caddy answers on https://$NAME"
-    else warn "Caddy has no certificate for $NAME yet. Keep ports 80, 443 and 8443 open to this machine. See: cd $DOOR && docker compose logs caddy"; fi
+    else warn "Caddy has no certificate for $NAME yet. Keep ports 80, 443 and 8443 open to this machine. See: cd $DOOR && sudo docker compose logs caddy"; fi
   else
-    warn "Caddy doesn't answer on https://$NAME yet. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open. See: cd $DOOR && docker compose logs caddy"
+    warn "Caddy doesn't answer on https://$NAME yet. It fetches the certificate by itself once the DNS points at this machine and ports 80, 443 and 8443 are open. See: cd $DOOR && sudo docker compose logs caddy"
     [ "$TLS" = internal ] || say "$DNS_SAID"
   fi
 elif [ "$REACH" = local ]; then
@@ -4178,6 +4345,8 @@ if [ -n "$LINK" ]; then
   say ""
   say "Until it is used, botdot shows only \"Open the link from your server's install\"."
   say "Then sign in to Claude on your account's setup page (it takes a minute)."
+elif [ -z "$(door_state "$ADMIN")" ]; then
+  warn "The sign-up link couldn't be made. Make it with: cd $DOOR && sudo docker compose exec front-door node front-door.js sign-up-link --account $ADMIN"
 fi
 say "Make sign-up links for other people on the admin page: https://$NAME/admin"
 say "Update every account later on the admin page, or by running this installer again. Each account's data is in $ACCOUNTS/<account>/data."

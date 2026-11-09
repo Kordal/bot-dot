@@ -90,7 +90,7 @@ private fun WhoHead(x: CalendarItem, bots: List<Bot>) {
     val bot = bots.firstOrNull { it.id == who }
     val chief = chiefNamed()
     when {
-        who == null -> Box(Modifier.size(24.dp).clip(CircleShape).border(1.dp, p.line2, CircleShape), contentAlignment = Alignment.Center) {
+        who == null -> Box(Modifier.size(24.dp).clip(CircleShape).background(p.fill), contentAlignment = Alignment.Center) {
             Icon(Icons.Outlined.Flag, null, tint = parseColor(CHECKIN_COLOR, p.muted), modifier = Modifier.size(14.dp))
         }
         who == "chief" -> BotFigure(chief.color, "idle", 24, chief.outfit)
@@ -130,11 +130,11 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
     }
     val days = ProjectCalendar.byDay(items)
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().clip(shape).background(p.bg).border(1.dp, p.line2, shape).clickable(onClickLabel = tr("Calendar")) { open = today.toString() }.padding(Space.s12),
+    Column(Modifier.fillMaxWidth().raised(shape).clickable(onClickLabel = tr("Calendar")) { open = today.toString() }.padding(Space.s12),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(PROJECT_COLOR)
-            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = Space.s8))
+            Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
             ProjectCalendar.week(today).forEach { d ->
@@ -255,7 +255,7 @@ private fun EventForm(ui: CompanyUi, day: LocalDate, event: CalendarItem?, onSav
             if (ok) { title = ""; time = ""; onSaved() }
         }
     }
-    Column(Modifier.fillMaxWidth().clip(Radius.card).border(1.dp, p.line2, Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+    Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             YouHead(28)
             Field(title, { title = it.take(200) }, singleLine = true, enabled = !busy, placeholder = { Text(tr("Add an event")) },

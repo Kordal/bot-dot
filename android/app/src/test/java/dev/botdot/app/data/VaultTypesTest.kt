@@ -99,9 +99,9 @@ class VaultTypesTest {
     }
 
     @Test fun usableInItsComputerShowsOnItsLineAndItsSwitchOnlyForAServerThatKeepsIt() {
-        val bridge = VaultItem(id = "8", name = "Proton Bridge", site = "127.0.0.1", username = "alice@proton.me", inComputer = true)
-        assertEquals("👤 alice@proton.me · 🔒 secret saved · usable in its computer", VaultTypes.rows(bridge, types)[1])
-        assertEquals("👤 alice@proton.me · 🔒 secret saved", VaultTypes.rows(bridge.copy(inComputer = false), types)[1])
+        val bridge = VaultItem(id = "8", name = "Proton Bridge", site = "127.0.0.1", username = "alice@example.com", inComputer = true)
+        assertEquals("👤 alice@example.com · 🔒 secret saved · usable in its computer", VaultTypes.rows(bridge, types)[1])
+        assertEquals("👤 alice@example.com · 🔒 secret saved", VaultTypes.rows(bridge.copy(inComputer = false), types)[1])
         assertTrue(VaultTypes.showsInComputer(listOf(VaultTypes.IN_COMPUTER_FEATURE)))
         assertFalse(VaultTypes.showsInComputer(types))
         assertFalse(VaultTypes.showsInComputer(null))

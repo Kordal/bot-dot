@@ -28,9 +28,9 @@ const STRAW = { shapes: [
 // Too tall for a hat's box.
 const TALL = { shapes: [{ shape: 'rect', x: 2, y: 1, w: 5, h: 7, fill: 'deep' }] };
 
-test('kit: hats only; every hat passes the check a drawn hat will, and has a name and a meaning', () => {
-  assert.deepEqual(SLOTS, ['hat']);
-  assert.deepEqual(Object.keys(KIT), ['limits', 'hat']);
+test('kit: hats and icons; every hat passes the check a drawn hat will, and has a name and a meaning', () => {
+  assert.deepEqual(SLOTS, ['hat', 'icon']);
+  assert.deepEqual(Object.keys(KIT), ['limits', 'hat', 'icon']);
   assert.deepEqual(KIT.limits, { shapes: 6, commands: 16, stroke: [0.8, 2] });
   assert.deepEqual([KIT.hat.box, KIT.hat.origin], [[10, 6], [5, 3.5]]);
   assert.equal(names('hat').length, 20, 'the hats that could be recognised on a head in the list on a phone (docs/archive/evidence/FIG-012)');
@@ -43,7 +43,39 @@ test('kit: hats only; every hat passes the check a drawn hat will, and has a nam
     assert.ok(piece.shapes.filter((x) => x.shape === 'line').every((x) => x.width >= 0.8), name);
   }
   assert.ok(Object.hasOwn(KIT.hat.pieces, def.chief.outfit.hat), "the Chief's hat is in the kit");
-  assert.deepEqual(Object.keys(def.chief.outfit), ['hat']);
+  assert.deepEqual(Object.keys(def.chief.outfit), ['hat', 'icon']);
+  // The icons (ADR 169): line drawings in a 24 by 24 box, each a kit name with what it stands for.
+  assert.deepEqual([KIT.icon.box, KIT.icon.origin], [[24, 24], [0, 0]]);
+  assert.ok(names('icon').length >= 30, 'enough icons that bots can each have their own');
+  for (const [name, piece] of Object.entries(KIT.icon.pieces)) {
+    assert.match(name, NAME);
+    assert.equal(pieceProblem('icon', piece), null, name);
+    assert.match(piece.means, /^[A-Z][^:]{3,40}: .{5,70}$/, `${name} says what it is and what it stands for`);
+    assert.ok(piece.shapes.every((x) => (x.stroke === 'main' && x.width === 2 && !x.fill) || (x.fill === 'main' && !x.stroke)), `${name} is drawn in one ink, with one line width`);
+  }
+  assert.ok(Object.hasOwn(KIT.icon.pieces, def.chief.outfit.icon), "the Chief's icon is in the kit");
+  assert.ok(Object.hasOwn(KIT.icon.pieces, def.tile.default), 'the default icon is in the kit');
+  for (const [hat, icon] of Object.entries(def.tile.byHat)) {
+    assert.ok(Object.hasOwn(KIT.hat.pieces, hat), `${hat} is a hat`);
+    assert.ok(Object.hasOwn(KIT.icon.pieces, icon), `${icon} is an icon`);
+  }
+  assert.deepEqual(Object.keys(def.tile.byHat).sort(), names('hat').sort(), 'every hat stands for an icon');
+});
+
+test('an outfit\'s icon: a kit name only; it is kept beside the hat; a wrong name or a drawing is refused', () => {
+  assert.deepEqual(outfitAfter({ icon: 'news' }, null), { hat: '', icon: 'news' });
+  assert.deepEqual(outfitAfter({ icon: 'news' }, { hat: 'cap' }), { hat: 'cap', icon: 'news' }, 'the hat stays');
+  assert.deepEqual(outfitAfter({ hat: 'beret' }, { hat: 'cap', icon: 'news' }), { hat: 'beret', icon: 'news' }, 'and the icon stays when the hat changes');
+  assert.deepEqual(outfitAfter({ icon: 'pen', hat: 'beret' }, null), { hat: 'beret', icon: 'pen' });
+  assert.deepEqual(outfitAfter({ icon: '' }, { hat: 'cap', icon: 'news' }), { hat: 'cap' }, '"" takes the icon off');
+  assert.deepEqual(outfitAfter({ icon: null }, { hat: 'cap', icon: 'news' }), { hat: 'cap', icon: 'news' }, 'null says nothing');
+  assert.equal(outfitAfter({ icon: null }, null), null);
+  assert.throws(() => outfitAfter({ icon: 'unicorn' }, null), /^Error: There is no icon called "unicorn" in the kit\. outfit\.icon is one of: compass, spark, /);
+  for (const odd of [{ shapes: [{ shape: 'circle', cx: 12, cy: 12, r: 5, stroke: 'main', width: 2 }] }, 7, ['news'], '__proto__', 'constructor']) assert.throws(() => outfitAfter({ icon: odd }, null), /no icon called .* in the kit/, String(odd));
+  assert.deepEqual(stored({ hat: 'cap', icon: 'news', holds: 'x' }), { hat: 'cap', icon: 'news' });
+  assert.deepEqual(stored({ icon: 'news' }), { hat: '', icon: 'news' });
+  assert.equal(stored({ holds: 'x' }), null);
+  assert.equal(pieceProblem('body', { shapes: [] }), 'a piece is a hat or an icon');
 });
 
 test('a piece: each limit is checked, with the reason', () => {
@@ -93,7 +125,7 @@ test('a piece: each limit is checked, with the reason', () => {
   assert.match(pieceProblem('hat', { shapes: [ok], means: ['<b>'] }), /a line of text/);
 });
 
-test('an outfit is { hat }: a kit name or a drawn hat; what is worn stays; anything else is refused', () => {
+test('an outfit\'s hat: a kit name or a drawn hat; what is worn stays; anything else is refused', () => {
   assert.equal(outfitAfter(undefined, null), null, 'never given one');
   assert.equal(outfitAfter(null, null), null);
   assert.equal(outfitAfter({}, null), null, 'an empty outfit says nothing: still never dressed');
@@ -109,18 +141,18 @@ test('an outfit is { hat }: a kit name or a drawn hat; what is worn stays; anyth
   assert.equal(outfitAfter({ hat: null }, null), null, 'a never-dressed bot stays never dressed, so the dresser still dresses it');
   assert.deepEqual(outfitAfter({ hat: null }, worn), worn);
   // Bots hold nothing any more: "holds" is refused like any key that is not "hat", with the reason.
-  assert.throws(() => outfitAfter({ holds: 'envelope' }, worn), /^Error: An outfit has no "holds"\. Its only key is "hat", for what the bot wears on its head: a bot is a head with a hat and holds nothing\.$/);
+  assert.throws(() => outfitAfter({ holds: 'envelope' }, worn), /^Error: An outfit has no "holds"\. Its keys are "icon", the sign on the bot\'s tile, and "hat", for apps from before the tile: a bot holds nothing\.$/);
   assert.throws(() => outfitAfter({ hat: 'crown', holds: '' }, worn), /An outfit has no "holds"/, 'also beside a valid hat, also empty');
   assert.throws(() => outfitAfter({ holds: null }, null), /An outfit has no "holds"/, 'also as null on a never-dressed bot');
   // A key that is no slot is refused, not ignored: a misspelt one would otherwise change nothing, silently.
-  for (const key of ['HAT', 'held', 'body']) assert.throws(() => outfitAfter({ [key]: 'cap' }, worn), new RegExp(`^Error: An outfit has no "${key}"\\. Its only key is "hat"`), key);
-  assert.throws(() => outfitAfter({ '<img src=x>': 'cap' }, worn), /^Error: An outfit has no such key\. Its only key is "hat"/, 'a key that is not a short plain word is not repeated');
+  for (const key of ['HAT', 'held', 'body']) assert.throws(() => outfitAfter({ [key]: 'cap' }, worn), new RegExp(`^Error: An outfit has no "${key}"\\. Its keys are "icon"`), key);
+  assert.throws(() => outfitAfter({ '<img src=x>': 'cap' }, worn), /^Error: An outfit has no such key\. Its keys are "icon"/, 'a key that is not a short plain word is not repeated');
   assert.throws(() => outfitAfter({ ['x'.repeat(5000)]: 'cap' }, worn), (e) => e.message.length < 300);
   assert.throws(() => outfitAfter({ hat: 'sombrero' }, worn), /no hat called "sombrero" in the kit\. outfit\.hat is one of: cap, top-hat, .*propeller; or "" for none; or a hat you draw/);
   assert.throws(() => outfitAfter({ hat: 'envelope' }, worn), /no hat called "envelope"/, 'what bots used to hold is no hat');
   for (const odd of ['constructor', 'toString', '__proto__', 7, true, ['cap'], [{ shapes: [FEZ.shapes[0]] }], () => 'cap', Symbol('cap'), 7n]) assert.throws(() => outfitAfter({ hat: odd }, worn), /no hat called .* in the kit\. outfit\.hat is one of: cap, .*; or "" for none; or a hat you draw, \{ "shapes": \[\.\.\.\] \}\./, String(odd));
   assert.throws(() => outfitAfter({ hat: 'x'.repeat(5000) }, worn), (e) => e.message.length < 600, 'a long wrong name is not echoed in full');
-  assert.throws(() => outfitAfter('cap', worn), /outfit is \{ hat \}/);
+  assert.throws(() => outfitAfter('cap', worn), /outfit is \{ icon, hat \}/);
   // A drawn hat takes the place of a kit name.
   const dressed = outfitAfter({ hat: FEZ }, worn);
   assert.deepEqual(dressed, { hat: FEZ });
@@ -194,12 +226,12 @@ test('the API: a change reaches open apps; an unknown hat and a held object are 
     await waitFor(() => live.events.slice(seen).some((e) => e.type === 'bots'), { what: 'a bots event after the change' }); // the feed says the bots changed: apps fetch them again
     for (const [outfit, reason] of [
       [{ hat: 'sombrero' }, /no hat called "sombrero" in the kit\. outfit\.hat is one of: cap, top-hat, .*; or "" for none; or a hat you draw/],
-      [{ holds: 'envelope' }, /An outfit has no "holds"\. Its only key is "hat", for what the bot wears on its head: a bot is a head with a hat and holds nothing\./],
+      [{ holds: 'envelope' }, /An outfit has no "holds"\. Its keys are "icon", the sign on the bot\'s tile, and "hat", for apps from before the tile: a bot holds nothing\./],
       [{ hat: 'cap', holds: 'envelope' }, /An outfit has no "holds"/],
       [{ hat: 'cap', holds: '' }, /An outfit has no "holds"/],
       [{ hat: ['cap'] }, /no hat called/],
-      ['cap', /outfit is \{ hat \}/],
-      [{ HAT: 'cap' }, /An outfit has no "HAT"\. Its only key is "hat"/],
+      ['cap', /outfit is \{ icon, hat \}/],
+      [{ HAT: 'cap' }, /An outfit has no "HAT"\. Its keys are "icon"/],
     ]) {
       const bad = await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { name: 'Renamed', outfit } });
       assert.equal(bad.status, 400);
@@ -226,14 +258,16 @@ function chiefTools(t) {
   return { list: async () => (await client.request('tools/list')).tools, call: (name, args) => client.request('tools/call', { name, arguments: args }) };
 }
 
-test("the Chief's tools speak of a hat only: the kit is listed to choose from, a hat is set and changed, a wrong name comes back with the right ones", async (t) => {
+test("the Chief's tools speak of an icon and a hat: the kit is listed to choose from, a hat is set and changed, a wrong name comes back with the right ones", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
   for (const name of ['create_bot']) { // update_bot takes create_bot's fields without their words (#1106)
     const props = tools.find((x) => x.name === name).inputSchema.properties;
     const field = props.outfit;
     assert.match(field.description, /fits its name and task/);
-    assert.deepEqual(Object.keys(field.properties), ['hat'], 'an outfit has one key');
+    assert.deepEqual(Object.keys(field.properties), ['icon', 'hat'], 'an outfit has an icon and a hat');
+    assert.deepEqual(field.properties.icon.enum, names('icon').filter((i) => i !== 'compass'), "the icons, without the Chief's own");
+    assert.match(field.description, /Always give a new bot an icon/);
     // A hat is a kit name or a drawn hat: the tool lets both through and the server checks them.
     assert.deepEqual(field.properties.hat.anyOf[0], { type: 'string', enum: [...names('hat'), ''] });
     assert.equal(field.properties.hat.anyOf[1].type, 'object');
@@ -241,25 +275,25 @@ test("the Chief's tools speak of a hat only: the kit is listed to choose from, a
     // Nothing tells the Chief of a body, a hand or something to hold.
     const said = JSON.stringify(props);
     assert.doesNotMatch(said, /holds|held object|to hold|in its hand|stick figure|the hand\b/i, name);
-    assert.match(props.color.description, /a head in its colour, wearing a hat/);
+    assert.match(props.color.description, /a tile in its colour with an icon on it/);
   }
   const text = (r) => r.content[0].text;
-  const made = await chief.call('create_bot', { name: 'Fleet Doctor', prompt: 'Check the servers.', outfit: { hat: 'nurse' } });
+  const made = await chief.call('create_bot', { name: 'Fleet Doctor', prompt: 'Check the servers.', outfit: { hat: 'nurse', icon: 'heart' } });
   assert.ok(!made.isError, text(made));
   const bot = JSON.parse(text(made));
-  assert.deepEqual(bot.outfit, { hat: 'nurse' });
+  assert.deepEqual(bot.outfit, { hat: 'nurse', icon: 'heart' });
   // "Give it a hard hat instead."
   const changed = await chief.call('update_bot', { id: bot.id, outfit: { hat: 'hard-hat' } });
-  assert.deepEqual(JSON.parse(text(changed)).outfit, { hat: 'hard-hat' });
+  assert.deepEqual(JSON.parse(text(changed)).outfit, { hat: 'hard-hat', icon: 'heart' });
   const renamed = await chief.call('update_bot', { id: bot.id, description: 'Checks the servers every morning' });
-  assert.deepEqual(JSON.parse(text(renamed)).outfit, { hat: 'hard-hat' }, 'another change keeps the hat');
+  assert.deepEqual(JSON.parse(text(renamed)).outfit, { hat: 'hard-hat', icon: 'heart' }, 'another change keeps the hat');
   const wrong = await chief.call('update_bot', { id: bot.id, outfit: { hat: 'stethoscope' } });
   assert.equal(wrong.isError, true);
   assert.match(text(wrong), /no hat called "stethoscope" in the kit\. outfit\.hat is one of: cap, top-hat, /);
   const held = await chief.call('update_bot', { id: bot.id, outfit: { holds: 'doctor-bag' } });
   assert.equal(held.isError, true);
   assert.match(text(held), /unknown field "holds" in outfit/, 'the tool itself knows no such field');
-  assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.outfit, { hat: 'hard-hat' }, 'the bot keeps its hat');
+  assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.outfit, { hat: 'hard-hat', icon: 'heart' }, 'the bot keeps its hat');
   const listed = JSON.parse(text(await chief.call('list_bots', {}))).find((b) => b.id === bot.id);
   assert.equal(listed.hat, 'hard-hat', 'the Chief sees what each bot wears: its hat, by its kit name (#1099)');
   // No outfit sent: the bot is made, as a bare head.

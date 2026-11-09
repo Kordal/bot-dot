@@ -10,7 +10,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -129,12 +128,12 @@ fun BackButton(onClick: () -> Unit) {
     IconButton(onClick = onClick) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("Back")) }
 }
 
-/** A round button that floats over what's behind it (a chat's messages); [dot]: something there waits for you. */
+/** A round icon button: the icon alone, no fill and no ring, as on the web page (#1192); [dot]: something there waits for you. */
 @Composable
 fun RoundButton(label: String, modifier: Modifier = Modifier, size: Dp = 40.dp, dot: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     Box(
-        modifier.size(size).clip(CircleShape).background(p.sunk).border(1.dp, p.line2, CircleShape)
+        modifier.size(size).clip(CircleShape)
             .clickable(onClickLabel = label, role = Role.Button, onClick = onClick).semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
@@ -178,13 +177,13 @@ fun ChatBar(color: String?, state: String, name: String, onName: () -> Unit, onB
         }
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             Row(
-                Modifier.weight(1f, fill = false).height(40.dp).raised(CircleShape)
-                    .clickable(onClick = onName).semantics { contentDescription = nameLabel }.padding(start = Space.s4, end = Space.s16),
+                Modifier.weight(1f, fill = false).heightIn(min = 48.dp).clip(Radius.pill)
+                    .clickable(onClick = onName).semantics { contentDescription = nameLabel }.padding(start = Space.s4, end = Space.s12),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (picture != null) picture() else BotFigure(color, state, 32, outfit)
                 Spacer(Modifier.size(6.dp))
-                Text(name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             beside?.invoke()
         }
@@ -343,7 +342,7 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
                 verticalAlignment = Alignment.CenterVertically) {
                 Text("📄", fontSize = Type.s16)
                 Column(Modifier.padding(start = Space.s12)) {
-                    Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(page.title, color = p.text, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(tr("Page"), color = p.faint, fontSize = Type.s12)
                 }
             }
@@ -368,7 +367,7 @@ fun ReconnectCards(cards: List<dev.botdot.app.data.ReconnectCard>) {
                 .padding(start = Space.s12, end = Space.s4, top = Space.s4, bottom = Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(androidx.compose.ui.text.buildAnnotatedString {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Medium)) { append(card.label) }
+                        withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(card.label) }
                         append(" " + tr("is signed out"))
                     }, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     androidx.compose.material3.TextButton(enabled = step != dev.botdot.app.data.ReconnectStep.Opening, onClick = {

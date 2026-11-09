@@ -14,13 +14,37 @@ class Element:
 
     def click(self, timeout=0):
         DONE.append(["click", self.el["role"], self.el["name"], next(i for i, el in enumerate(self.page.elements) if el is self.el)])
+        self.page.focused = self.el
+
+    def input_value(self, timeout=0):
+        return self.el.get("value", "")
+
+    def select_option(self, label=None, value=None, timeout=0):
+        options = self.el.get("options")
+        if options is None:
+            raise RuntimeError("Element is not a <select> element")
+        for shown, val in options:
+            if label is not None and shown == label or value is not None and val == value:
+                self.el["value"] = shown
+                DONE.append(["select", self.el["name"], shown])
+                return [val]
+        raise TimeoutError("Timeout 5000ms exceeded.")
 
     def fill(self, text, timeout=0):
+        if self.el["role"] not in ("textbox", "searchbox", "combobox"):
+            raise RuntimeError("Error: Element is not an <input>, <textarea> or [contenteditable] element")
         self.el["value"] = text
         DONE.append(["fill", self.el["name"], text])
 
     def evaluate(self, script):
+        if "TEXTAREA" in script:  # a box that takes text
+            return self.el["role"] in ("textbox", "searchbox")
         return bool(self.el.get("secret"))
+
+    def is_editable(self, timeout=0):
+        if self.el["role"] not in ("textbox", "searchbox", "combobox"):
+            raise RuntimeError("Error: Element is not an <input>, <textarea>, <select> or [contenteditable]")
+        return not self.el.get("readonly")
 
     def wait_for(self, state="visible", timeout=0):
         pass
@@ -62,21 +86,40 @@ class Body:
 TYPED = []
 LAUNCHES = []
 CONTEXTS = []  # each browser's context: closing its pages closes the window
-FAIL = {"goto": False, "exit": False}  # a page that does not load, and a browser that raises as it closes (#875)
+# A page that does not load, a browser that raises as it closes (#875), no network to find the computer's address, and
+# a Camoufox that no longer takes a kept identity.
+FAIL = {"goto": False, "exit": False, "ip": False, "identity": False}
 
 
 class Keyboard:
+    """Keys go to TYPED and, like a browser's, into the box clicked last: Control+a selects all it holds."""
+    def __init__(self, page=None):
+        self.page, self.selected = page, False
+
+    def box(self):
+        return getattr(self.page, "focused", None) if self.page is not None else None
+
     def type(self, text, delay=0):
         TYPED.append(text)
+        el = self.box()
+        if el is not None and not el.get("typeless"):
+            el["value"] = text if self.selected else el.get("value", "") + text
+            self.selected = False
 
     def press(self, key):
         TYPED.append(key)
+        el = self.box()
+        if el is not None and key == "Control+a":
+            self.selected = True
+        elif el is not None and key == "Backspace" and self.selected:
+            el["value"], self.selected = "", False
 
 
 class Page:
     def __init__(self):
         self.url = "about:blank"
-        self.keyboard = Keyboard()
+        self.keyboard = Keyboard(self)
+        self.focused = None
         self.frames = [self]
         self.elements = []
 
@@ -131,6 +174,8 @@ class Context:
 class Camoufox:
     def __init__(self, **kwargs):
         LAUNCHES.append(kwargs)
+        if FAIL["identity"] and "fingerprint" in kwargs:  # True: Camoufox refuses it; an exception class: the start fails so
+            raise (ValueError("Unknown fingerprint field") if FAIL["identity"] is True else FAIL["identity"]("Firefox crashed"))
 
     def __enter__(self):
         CONTEXTS.append(Context())

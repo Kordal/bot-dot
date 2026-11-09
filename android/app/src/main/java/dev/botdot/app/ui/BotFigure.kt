@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -26,6 +27,8 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material3.LocalTextStyle
@@ -46,6 +49,8 @@ import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Face
 import dev.botdot.app.data.Layers
 import dev.botdot.app.data.Place
+import dev.botdot.app.data.Signal
+import dev.botdot.app.data.FigureTile
 import dev.botdot.app.data.Tone
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -79,8 +84,9 @@ private fun opaque(rgb: Int) = Color(0xFF000000 or rgb.toLong())
 private fun Color.rgb(): Int = ((red * 255 + 0.5f).toInt() shl 16) or ((green * 255 + 0.5f).toInt() shl 8) or (blue * 255 + 0.5f).toInt()
 
 /**
- * A bot: a head in its colour with the face of its [state] and its hat (its [outfit]: { hat }, or [FigureDef.CHIEF]
- * for the Chief of Staff's), like .fig on the web page. The head, the faces, their movements and the hats come from
+ * A bot: a tile in its colour with its icon and the ring or dot of its [state] (its [outfit]: { icon, hat }, or
+ * [FigureDef.CHIEF] for the Chief of Staff's), like .fig on the web page (ADR 169). A definition without a tile draws
+ * ADR 003's head instead: its face and its hat. The head, the faces, their movements and the hats come from
  * the definition (data/Figure.kt); a state it doesn't know is drawn as its default, and a hat it can't draw is left
  * out. Without a definition every bot is one bare head. Nothing is behind the head and nothing is clipped: a hat
  * reaches a little past the mark's own square.
@@ -90,14 +96,15 @@ fun BotFigure(color: String?, state: String = "idle", size: Int = 44, outfit: Js
     val def = figure()
     val tones = tones(color, def)
     val face = remember(def, state) { def.face(state) }
-    val hat = remember(def, outfit) { def.hat(outfit) }
+    val hat = remember(def, outfit) { def.wears(outfit) }
     val still = LocalFigureClock.current.still
-    val clock = movingClock(def, state)
+    // A tile moves only while its ring turns; a head while its face moves.
+    val clock = if (def.tile != null) movingClock(def.signal(state)?.ring != null) else movingClock(def, state)
     Canvas(Modifier.size(size.dp)) {
         // Reading the clock here draws a moving head again each frame, and nothing else. Between two movements (an
         // idle head between blinks) nothing is read: it is drawn once, where the clock says it holds.
         val seconds = if (still) null else (clock?.ms?.longValue ?: FigureClock.now()) / 1000.0
-        drawFigure(def, face, def.layers(state, seconds), hat, def.opacity(state), tones, floatArrayOf(0f, 0f, def.box.first, def.box.second))
+        drawFigure(def, face, def.layers(state, seconds), hat, def.opacity(state), tones, floatArrayOf(0f, 0f, def.box.first, def.box.second), state = state, seconds = seconds)
     }
 }
 
@@ -109,7 +116,7 @@ fun BotFigure(color: String?, state: String = "idle", size: Int = 44, outfit: Js
 fun SmallFigure(color: String?, outfit: JsonElement?, modifier: Modifier = Modifier) {
     val def = figure()
     val tones = tones(color, def)
-    val hat = remember(def, outfit) { def.hat(outfit) }
+    val hat = remember(def, outfit) { def.wears(outfit) }
     Canvas(modifier) { drawFigure(def, null, null, hat, 1f, tones, def.small) }
 }
 
@@ -131,7 +138,7 @@ fun figureBitmap(def: FigureDef, color: String?, outfit: JsonElement?, px: Int, 
 
 /** Draws that picture on [canvas], [px] wide and high. */
 internal fun drawPortrait(canvas: androidx.compose.ui.graphics.Canvas, def: FigureDef, color: String?, outfit: JsonElement?, px: Int, dark: Boolean) {
-    val hat = def.hat(outfit)
+    val hat = def.wears(outfit)
     CanvasDrawScope().draw(Density(1f), LayoutDirection.Ltr, canvas, Size(px.toFloat(), px.toFloat())) {
         drawFigure(def, def.face(null), def.layers(null), hat, 1f, tonesOf(color, dark, def), def.portrait(hat))
     }
@@ -197,11 +204,14 @@ fun FigureText(text: AnnotatedString, color: Color, fontSize: TextUnit = TextUni
  * canvas, or a part of it at the origin): the head's circle, the [face] (none for the small mark) and the [hat] over
  * it, each layer in its place ([layers]; none: nothing is moved). A faded mark fades as one, not shape by shape.
  */
-internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, hat: List<Mark>, opacity: Float, tones: Tones, view: FloatArray, size: Size = this.size) {
+internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, hat: List<Mark>, opacity: Float, tones: Tones, view: FloatArray, size: Size = this.size, state: String? = null, seconds: Double? = null) {
     val k = min(size.width / view[2], size.height / view[3])
     val dx = (size.width - view[2] * k) / 2 - view[0] * k
     val dy = (size.height - view[3] * k) / 2 - view[1] * k
+    val tile = def.tile
     fun draw() = withTransform({ translate(dx, dy); scale(k, k, Offset.Zero) }) {
+        // The tile: [hat] holds its icon. The small mark (no face) shows no state.
+        if (tile != null) return@withTransform drawTile(tile, hat, tones, if (face == null) null else def.signal(state), seconds, def.box)
         layer(layers?.head, def.pivotHead) {
             drawMarks(listOf(def.head), tones)
             if (face != null) layer(layers?.eyes, def.pivotEyes) {
@@ -217,6 +227,39 @@ internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, 
         canvas.saveLayer(Rect(-pad, -pad, size.width + pad, size.height + pad), Paint().apply { alpha = opacity })
         draw()
         canvas.restore()
+    }
+}
+
+/**
+ * The tile in its own units: the rounded square in the bot's muted colour, the [icon] over it in the tile's ink, and the
+ * [signal] of its state: a ring with an arc that turns once every ring.seconds ([seconds] null: still), or a dot cut out
+ * of what is behind it.
+ */
+private fun DrawScope.drawTile(t: FigureTile, icon: List<Mark>, tones: Tones, signal: Signal?, seconds: Double?, box: Pair<Float, Float>) {
+    val r = t.rect
+    val dot = signal?.dot
+    fun body() {
+        drawRoundRect(opaque(t.muted(tones.main.rgb())), Offset(r[0], r[1]), Size(r[2], r[3]), CornerRadius(r[4], r[4]))
+        val ink = opaque(t.ink)
+        drawMarks(icon, Tones(ink, ink, ink, ink))
+        if (dot != null) {
+            val d = t.dot
+            drawCircle(Color.Black, d[2] + d[3], Offset(d[0], d[1]), blendMode = BlendMode.Clear) // the gap: what is behind shows through
+            drawCircle(opaque(dot), d[2], Offset(d[0], d[1]))
+        }
+    }
+    if (dot == null) body() else drawIntoCanvas { canvas ->
+        // The gap clears only the tile: drawn in a layer of its own, so the page behind it is left as it is.
+        val pad = t.dot[2] + t.dot[3]
+        canvas.saveLayer(Rect(-pad, -pad, box.first + pad, box.second + pad), Paint())
+        body()
+        canvas.restore()
+    }
+    val ring = signal?.ring ?: return
+    val (cx, cy) = box.first / 2 to box.second / 2
+    val turn = if (seconds == null) 0.0 else (seconds % t.ringSeconds) / t.ringSeconds * 360.0
+    rotate(turn.toFloat(), Offset(cx, cy)) {
+        drawArc(opaque(ring), -90f, t.ringArc * 360f, false, Offset(cx - t.ringR, cy - t.ringR), Size(2 * t.ringR, 2 * t.ringR), style = Stroke(t.ringWidth, cap = StrokeCap.Round))
     }
 }
 

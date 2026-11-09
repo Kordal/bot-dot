@@ -52,7 +52,7 @@ import kotlinx.coroutines.delay
 fun Section(title: String?, hint: String? = null, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     val p = LocalPaper.current
     Column(modifier.fillMaxWidth().padding(top = Space.s8, bottom = Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-        if (title != null) Text(title, color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Medium)
+        if (title != null) Text(title, color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Normal)
         if (hint != null) Text(hint, color = p.muted, style = MaterialTheme.typography.bodyMedium)
         content()
     }
@@ -141,7 +141,7 @@ fun Choice(label: String, value: String, options: List<Pair<String, String>>, on
             Text(shown, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
             Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.background(p.panel)) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { (id, text) -> DropdownMenuItem(text = { Text(text, color = if (id == value) p.text else p.muted) }, onClick = { onChange(id); open = false }) }
         }
     }

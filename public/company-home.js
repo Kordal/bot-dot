@@ -263,12 +263,12 @@
   function floorHTML(c, f) {
     const cards = window.ProjectCards ? ProjectCards.html(c) : '';
     const calendar = Company.onBoard(c, 'calendar') && c.phase === 'running' && Company.calendar && (state.features || []).includes('project-calendar') ? Company.calendar.tile(c) : '';
-    // The teams are rows of keys under the board (#838, teamsHTML); the bot the Chief suggests stays on it.
+    // The teams are rows of keys above the board (#838, #1188: teamsHTML); the bot the Chief suggests stays on it.
     const files = Company.onBoard(c, 'files') && c.phase === 'running' && Company.files && (state.features || []).includes('project-files') ? Company.files.tile(c) : '';
     return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}${files}</div>`;
   }
 
-  // ---------- the teams (#838, ADR 132): a row each under the board, in place of the floor's desks ----------
+  // ---------- the teams (#838, ADR 132): a row each above the objectives and the board (#1188), in place of the floor's desks ----------
   // The team's name with its stacked faces opens the team chat; its bots are keys, the lead first with a crown; ⋯ opens
   // the team beside the board (its lead, its report). The key or name whose chat is in the column is highlighted.
   const leadFirst = (t) => { const ids = t.bots.filter((id) => botById(id)); return ids.includes(t.lead) ? [t.lead, ...ids.filter((id) => id !== t.lead)] : ids; };
@@ -311,15 +311,18 @@
     const shown = items.slice(0, 3);
     // A member's ask is drawn under its lead (ADR 148): the lead's face, the member's words.
     const head = (x) => { const l = underLead(c, x); return l ? botFigure(colorOf(l), 'idle', '', outfitOf(l)) : x.bot ? botFigure(x.color, 'idle', '', outfitOf(x.bot)) : chiefFigure(); };
+    // A card whose main button the server names (`act`: Connect, Open Connectors) has that button here.
     const acts = (x, i) => (answersInline(x)
       ? `<button type="button" class="kp-no" data-kp-no="${i}">${tr('No')}</button><button type="button" class="kp-allow" data-kp-yes="${i}">${tr('Allow')}</button>`
-      : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
+      : actLabel(x) ? `<button type="button" class="kp-allow" data-kp-act="${i}">${esc(actLabel(x))}</button>`
+        : `<button type="button" class="kp-allow" data-kp-open="${i}">${tr('Review')}</button>`);
     const more = items.length - shown.length;
     return `<div class="kp-needs sp-needs" role="group" aria-label="${tr('Needs you')}">${shown.map((x, i) => `<div class="kp-need">${head(x)}<button type="button" class="kp-need-text" data-kp-see="${i}"><b>${esc(x.bot?.name || chiefTitle())}</b> <span>${esc(needLine(x))}</span></button>${acts(x, i)}</div>`).join('')}${more ? `<button type="button" class="kp-needs-more" data-kp-more>${tr('+{n} more', { n: more })}</button>` : ''}</div>`;
   }
   // The lead a member's ask is drawn under in this project (ADR 148), or null.
   const underLead = (c, x) => { const id = Keypad.leadOf(c, x?.bot?.id); return id ? botById(id) : null; };
-  const projectNeeds = (c) => Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups);
+  // What stops its bots' work comes first (Keypad.blockersFirst): a missing app shows within the three rows.
+  const projectNeeds = (c) => Keypad.blockersFirst(Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups));
   // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
   const projectAsking = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
 
@@ -372,7 +375,7 @@
     const asking = asks ? projectAsking(c) : [];
     const items = CompanyTodo.shown(c.todos, filter);
     const rows = [
-      ...waits.map((x, i) => `<div class="cf-row">${head(underLead(c, x) || x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : tr('Review')}</button></div>`),
+      ...waits.map((x, i) => `<div class="cf-row">${head(underLead(c, x) || x.bot)}<span class="cf-row-text">${esc(needLine(x))}</span><button type="button" class="btn sm" data-cf-need="${i}">${answersInline(x) ? tr('Approve') : esc(actLabel(x)) || tr('Review')}</button></div>`),
       ...asking.map((b) => `<div class="cf-row">${head(b)}<span class="cf-row-text">${esc(question(b))}</span><button type="button" class="btn sm" data-cf-reply="${esc(b.id)}">${tr('Reply')}</button></div>`),
       ...items.map(todoHTML),
     ].join('');
@@ -438,9 +441,9 @@
       ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
       ${(days || c.ongoing) && c.checkin ? checkinHTML(c.checkin) : ''}
+      ${teamsHTML(c)}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
-      ${teamsHTML(c)}
     </div>${Company.railOn() ? fieldHTML(c) : ''}`;
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
@@ -458,13 +461,16 @@
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
     const box = $('.sp-needs', root);
-    if (box) wireNeedRows(box, asks, openNeed, openNeedInChat);
+    if (box) {
+      wireNeedRows(box, asks, openNeed, openNeedInChat);
+      $$('[data-kp-act]', box).forEach((b) => (b.onclick = () => actNeed(asks[Number(b.dataset.kpAct)])));
+    }
     window.ProjectCards?.wire(root); // the cards made by Claude (#775)
     Company.calendar?.wire(root); // the Calendar tile (#695, company-calendar-view.js)
     Company.files?.wire(root); // the Files tile (company-files-view.js)
     $('[data-cf-close]', root)?.addEventListener('click', () => openTeam(null));
     const waits = projectNeeds(c);
-    $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else openNeed(x); }));
+    $$('[data-cf-need]', root).forEach((b) => (b.onclick = () => { const x = waits[Number(b.dataset.cfNeed)]; if (answersInline(x)) answerNeed(x, true, b); else if (actLabel(x)) actNeed(x); else openNeed(x); }));
     $$('[data-cf-reply]', root).forEach((b) => (b.onclick = () => setView('bot', b.dataset.cfReply)));
     // Reply to a standup's ask: the lead's chat, with what blocks the team quoted in the box.
     $$('[data-cf-standup-reply]', root).forEach((b) => (b.onclick = () => {

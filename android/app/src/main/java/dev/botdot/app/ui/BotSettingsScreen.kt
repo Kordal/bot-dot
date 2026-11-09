@@ -29,7 +29,6 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -195,7 +194,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     Scaffold(
         containerColor = p.bg,
-        snackbarHost = { SnackbarHost(snack) },
+        snackbarHost = { BotSnackbarHost(snack) },
         bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(Space.s12), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
         topBar = {
             // Beside the chat the panel has its close button; covering the chat, Back.

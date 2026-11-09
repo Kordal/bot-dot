@@ -87,7 +87,7 @@ function fakeBoat({ failed = false, kit = null, bridgeSha = kit ? boatLib.BRIDGE
       return ran(pathname === '/status' ? '{"status": "ok"}' : `data: ${JSON.stringify({ success: true, image_data: 'iVBOR', command: sent?.command })}\n`);
     }
     if (c.includes('sudo -n -u browser /usr/bin/python3')) {
-      if (!box.bridge) return ran(JSON.stringify({ ok: false, error: "Camoufox isn't open." }));
+      if (!box.bridge) return ran(JSON.stringify({ ok: false, down: true, error: "Camoufox isn't open." })); // no bridge on the socket
       return ran(JSON.stringify({ ok: true, snapshot: 'button "Log in" [ref=e1]' }));
     }
     return ran('');
@@ -212,7 +212,7 @@ test("a bot's first screen tool puts the kit on its machine, starts its screen t
   const detached = b.commands().filter((c) => c.detached).map((c) => c.command);
   assert.match(detached[0], /^exec sudo -n sh \/tmp\/botdot-kit-[0-9a-f]+\/botdot-boat-kit [0-9a-f]{16} \/tmp\/botdot-kit-/);
   assert.match(detached[1], /DISPLAY=:0 .*computer_server --host 127\.0\.0\.1 --port 47100/);
-  assert.match(detached[2], /sudo -n -u browser env .*DISPLAY=:0 .*BOTDOT_DOWNLOADS=\/home\/user\/Downloads \/usr\/local\/bin\/camoufox-browser --serve :0 'coder'$/);
+  assert.match(detached[2], /sudo -n -u browser env .*DISPLAY=:0 .*BOTDOT_DOWNLOADS=\/home\/user\/Downloads BOTDOT_LOCALE=en-US \/usr\/local\/bin\/camoufox-browser --serve :0 'coder'$/);
   const before = b.calls.length;
   await boat.request('coder', '/cmd', { command: 'left_click', params: { x: 1, y: 2 } });
   assert.deepEqual(box.sent, { command: 'left_click', params: { x: 1, y: 2 } }, 'the body reached computer-server');
@@ -370,6 +370,31 @@ test("a browser tool answers the bridge's words, and an unreachable boat.dev is 
   const down = boatLib.create(dir(), { fetch: async () => { throw new Error('down'); }, sleep: async () => {} });
   assert.match((await down.browserTool('coder', { op: 'snapshot' })).error, /Couldn't reach the browser: boat.dev can't be reached/);
   assert.match((await down.typeSecret('coder', { op: 'where' })).error, /boat.dev can't be reached/);
+});
+
+// A bridge that ended on the machine (its Camoufox crashed it, an OOM) is started again by the next browser tool, which
+// sends the bot to open_browser, instead of every tool saying the browser isn't open: at most three times in ten minutes.
+test('a bridge that ended on the machine is started again by the next browser tool, three times in ten minutes at most', async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  let now = 1e6;
+  const { b, boat } = machine({ kit: boatLib.KIT_VERSION }, { now: () => now });
+  await boat.ensureScreen('coder');
+  const [box] = b.machines.values();
+  const bridges = () => b.commands().filter((c) => c.detached && c.command.includes('camoufox-browser --serve')).length;
+  const before = bridges();
+  for (let i = 1; i <= 3; i++) {
+    box.bridge = false;
+    const r = await boat.browserTool('coder', { op: 'snapshot' });
+    assert.deepEqual(r, { ok: false, error: 'The browser had stopped, and botdot started it again. Open the site with open_browser.' });
+    assert.equal(bridges(), before + i, 'started again');
+  }
+  box.bridge = false;
+  assert.match((await boat.typeSecret('coder', { op: 'where' })).error, /^The browser keeps stopping/, 'a fourth is left down');
+  assert.equal(bridges(), before + 3);
+  now += 10 * 60_000 + 1;
+  await boat.browserTool('coder', { op: 'snapshot' });
+  assert.equal(bridges(), before + 4, 'ten minutes on, again');
 });
 
 test("a program started on the screen runs detached on the machine's display", async (t) => {
