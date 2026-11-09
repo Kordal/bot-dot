@@ -342,7 +342,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
             Column {
                 MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
                 if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { more = true }.padding(top = Space.s8, bottom = Space.s4))
-                OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect); PlanFold(plan)
+                OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect, r.botId); PlanFold(plan)
             }
         }
     }
@@ -363,7 +363,7 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
             // A stopped run the server says nothing of, and every stopped run of a botdot from before `ended-by`.
             is Ended.Stopped -> TheirBubble(footer, chips = learned, wholeChips = whole, plain = true) { Column { Text(ended.text, color = p.muted); PlanFold(plan) } }
             is Ended.Problem -> TheirBubble(footer, error = true, copyText = r.error?.ifBlank { null } ?: ended.text, chips = learned, wholeChips = whole) {
-                Column { Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge); ReconnectCards(r.reconnect); PlanFold(plan) }
+                Column { Text(ended.text, color = p.text, style = MaterialTheme.typography.bodyLarge); ReconnectCards(r.reconnect, r.botId); PlanFold(plan) }
             }
         }
     }

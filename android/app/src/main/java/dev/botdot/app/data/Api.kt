@@ -238,10 +238,14 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /**
      * What waits for the owner's yes, a switch of a saved login a bot asks for (`vault-switch=1`), a Vault entry a bot
      * asks to remove (`vault-remove=1`), secrets a bot asks to keep in a file (`vault-file=1`) and what the Chief asked to do after it read the web (`chief-action=1`)
-     * and an irreversible step on a bot's computer (`computer-step=1`, ADR 107) too:
-     * this app draws those cards.
+     * and an irreversible step on a bot's computer (`computer-step=1`, ADR 107) and a missing connected app
+     * (`connect-app=1`, ADR 168) too: this app draws those cards.
      */
-    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1"))
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1"))
+    /** A missing app's sign-in page, through its card (docs/api.md "A missing connected app"); only with `connect-cards` in the features. */
+    suspend fun connectAsk(id: String): AskConnect = json.decodeFromString(send("POST", "/asks/${enc(id)}/connect"))
+    /** How the connection its Connect made stands, as the owner comes back from the sign-in page. */
+    suspend fun askConnectStatus(id: String): AskConnect = json.decodeFromString(get("/asks/${enc(id)}/connect"))
     /** The secret a bot asks to save in the Vault (`vault-save`, ADR 153), read on the owner's Show only. */
     suspend fun askSecret(id: String): String =
         json.parseToJsonElement(get("/asks/${enc(id)}/secret")).jsonObject["value"]?.jsonPrimitive?.contentOrNull.orEmpty()

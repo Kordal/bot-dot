@@ -29,8 +29,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -248,17 +250,23 @@ internal val HOME_TILES: String get() = tr("Tiles on home")
  * Needs you over the keys (#636): one warm card, a row per thing that waits, its bot's head and what it wants. A
  * permission a bot asks for is all its row says, so the row answers it with No and Allow ([onAnswer]: its id and the
  * answer); a tap on its words opens the chat its card stands in ([onChat]: the group it was asked in, else its bot's), where
- * the card says what it is about. A tap on any other row opens Needs you ([onReview]), where its card shows the rest.
- * The first [NEEDS_ROWS] rows, then how many more.
+ * the card says what it is about. A missing app's row has its card's main button (Connect, Open Connectors) in place
+ * of Review, and its words open that chat too. A tap on any other row opens Needs you ([onReview]), where its card
+ * shows the rest. The first [NEEDS_ROWS] rows, then how many more.
  */
 @Composable
 internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (String) -> dev.botdot.app.data.Spaces.Space? = { null }, onReview: () -> Unit, onChat: (dev.botdot.app.data.Waiting) -> Unit = { onReview() }, onAnswer: (String, Boolean) -> Unit) {
     val p = LocalPaper.current
     val shape = Radius.card
     val chief = chiefNamed()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val app = dev.botdot.app.BotDotApp.of(context)
+    val needs by app.store.needs.value.collectAsState()
+    val openConnectors = LocalOpenConnectors.current
+    val scope = rememberCoroutineScope()
     Column(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s8).raised(shape)) {
         for (w in waiting.take(NEEDS_ROWS)) Row(
-            Modifier.fillMaxWidth().then(if (w.permission == null) Modifier.clickable(onClickLabel = tr("Needs you"), onClick = onReview) else Modifier)
+            Modifier.fillMaxWidth().then(if (w.permission == null && w.act == null) Modifier.clickable(onClickLabel = tr("Needs you"), onClick = onReview) else Modifier)
                 .heightIn(min = 52.dp).padding(start = Space.s12, end = Space.s8, top = Space.s8, bottom = Space.s8),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -266,7 +274,7 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (S
             Spacer(Modifier.size(10.dp))
             Box(Modifier.size(6.dp).clip(CircleShape).background(p.warn)) // what was the tinted frame (#723)
             Spacer(Modifier.size(Space.s8))
-            val words = if (w.permission == null) Modifier else Modifier.clip(Radius.small).clickable(onClickLabel = w.text) { onChat(w) }
+            val words = if (w.permission == null && w.act == null) Modifier else Modifier.clip(Radius.small).clickable(onClickLabel = w.text) { onChat(w) }
             Text(w.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).then(words))
             // An ask from a project's bot, on Home (#841): that project's small square.
             w.bot?.let(projectOf)?.let { s -> Box(Modifier.padding(start = Space.s8).semantics { contentDescription = s.name }) { SpaceSquare(s.name, s.color, 18.dp) } }
@@ -274,6 +282,14 @@ internal fun NeedsRows(waiting: List<dev.botdot.app.data.Waiting>, projectOf: (S
                 Spacer(Modifier.size(6.dp))
                 Text(tr("No"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Normal, modifier = Modifier.clip(Radius.card).clickable { onAnswer(id, false) }.padding(horizontal = Space.s12, vertical = Space.s8))
                 Text(tr("Allow"), color = p.inkText, fontSize = Type.s14, fontWeight = FontWeight.Normal, modifier = Modifier.clip(Radius.card).background(p.ink).clickable { onAnswer(id, true) }.padding(horizontal = Space.s16, vertical = Space.s8))
+            }
+            w.act?.let { id ->
+                val a = needs?.asks?.firstOrNull { it.id == id }
+                val opening = ConnectAsks.at[id]?.step == ConnectAsks.Step.Opening
+                Spacer(Modifier.size(6.dp))
+                Text(a?.let { ConnectAsks.button(it, w.actLabel.orEmpty()) } ?: w.actLabel.orEmpty(), color = p.inkText, fontSize = Type.s14, fontWeight = FontWeight.Normal,
+                    modifier = Modifier.clip(Radius.card).background(p.ink).clickable(enabled = a != null && !opening) { a?.let { ConnectAsks.press(scope, app, context, it, openConnectors) } }
+                        .padding(horizontal = Space.s16, vertical = Space.s8))
             }
         }
         if (waiting.size > NEEDS_ROWS) Text(tr("{n} more", "n" to waiting.size - NEEDS_ROWS), color = p.warnText, fontSize = Type.s14,

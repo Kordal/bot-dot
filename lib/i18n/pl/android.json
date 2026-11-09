@@ -1301,5 +1301,7 @@
   "Account's ({name})": "Konta ({name})",
   "Couldn't test": "Nie udało się przetestować",
   "Edit": "Edytuj",
-  "None": "Brak"
+  "None": "Brak",
+  "Open Connectors": "Otwórz Konektory",
+  "Waiting for sign-in": "Czeka na logowanie"
 }
