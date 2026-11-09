@@ -1,7 +1,8 @@
-# The desktop app (ADR 137, #883): its checks and its four builds, on GitHub's own machines and without Docker.
+# The desktop app (ADR 137, #883): its checks and its six builds, on GitHub's own machines and without Docker.
 # Windows x64 and arm64 (NSIS installers) build on windows-latest, Apple silicon and Intel (a .dmg, and the .app the
-# updater installs) on macos-latest. The Rust checks (clippy, unit tests) run on the two builds that run where they
-# are built.
+# updater installs) on macos-latest, Linux x64 and arm64 (an AppImage, a .deb and an .rpm, ADR 170) on Ubuntu 22.04,
+# whose older glibc the builds then run on and after. The Rust checks (clippy, unit tests) run on the three builds
+# that run where they are built.
 #
 # When: on a pull request that changes the app or its workflows, and called by desktop-release.yml with the version
 # it releases. Nothing here is signed and no job holds a secret: the release workflow signs what these builds hand
@@ -57,6 +58,16 @@ jobs:
             target: x86_64-apple-darwin
             bundles: app,dmg
             check: false
+          - name: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+            check: true
+          - name: linux-arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+            check: false
     defaults:
       run:
         shell: bash
@@ -66,6 +77,15 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+
+      # WebKitGTK and the tray's library, which the app links and its packages name; rpm builds the .rpm. The AppImage's
+      # tools run without FUSE, which GitHub's machines lack.
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
 
       - name: Rust
         run: |
@@ -119,6 +139,11 @@ jobs:
             mac-*)
               cp "$BUNDLE"/dmg/botdot_"$VERSION"_*.dmg "$OUT/botdot-$VERSION-${{ matrix.name }}.dmg"
               tar -czf "$OUT/botdot-$VERSION-${{ matrix.name }}.app.tar.gz" -C "$BUNDLE/macos" botdot.app
+              ;;
+            linux-*)
+              cp "$BUNDLE"/appimage/botdot_"$VERSION"_*.AppImage "$OUT/botdot-$VERSION-${{ matrix.name }}.AppImage"
+              cp "$BUNDLE"/deb/botdot_"$VERSION"_*.deb "$OUT/botdot-$VERSION-${{ matrix.name }}.deb"
+              cp "$BUNDLE"/rpm/botdot-"$VERSION"-*.rpm "$OUT/botdot-$VERSION-${{ matrix.name }}.rpm"
               ;;
           esac
           ls -l "$OUT"

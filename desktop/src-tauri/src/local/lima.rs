@@ -126,7 +126,7 @@ impl Lima {
         self.start(size, port, &mut said)?;
         self.keep_agent().map_err(|e| vec![e.to_string()])?;
         let mut command = self.limactl();
-        command.args(["shell", "--workdir", "/", VM, "sudo", "sh", "-c"]).arg(install_script(port));
+        command.args(["shell", "--workdir", "/", VM, "sudo", "sh", "-c"]).arg(install_script(port, ""));
         run(command, &mut said)?.ok_or_else(|| vec!["The installer ended without its last line.".to_string()])
     }
 

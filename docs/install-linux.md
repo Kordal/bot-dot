@@ -4,7 +4,7 @@ The full install reference: what botdot needs, the installer, accounts, shares o
 
 **On a Linux server,** one machine serves several accounts, each signing in with a passkey and walled off from the others. Below is what it needs and the two commands that install it.
 
-botdot installs on Linux. To run it on a Mac or a Windows PC instead, the [desktop app](desktop.md) runs this same installer in a Linux VM of its own.
+botdot installs on Linux. To run it on a Mac or a Windows PC instead, the [desktop app](desktop.md) runs this same installer in a Linux VM of its own; on a Linux desktop, the app runs it on the computer itself.
 
 ## What botdot needs, and whom it trusts
 
@@ -125,7 +125,7 @@ To answer the questions beforehand, set `BOT_DOT_REACH` (`public` or `tailnet`),
 
 A first install also asks whether to use Jev as the decision model (with an OpenRouter key, made at https://openrouter.ai/settings/keys), boat.dev for the External Virtual PC (with a boat.dev API key, made at https://boat.dev/dashboard?tab=api-keys) and Composio for the admin's own account's connectors (with a Composio API key, made at https://platform.composio.dev). Each key is checked before it is kept; one that is refused is asked again, and one that can't be checked is set later: the OpenRouter and boat.dev keys on the admin page, where both can be changed, the Composio key on the admin's Connectors page. The Composio key goes to the admin's account only, once it is made, and only while it has no key of its own: every other account pastes its own ([ADR 160](adr/160-the-installer-gives-the-admins-account-its-composio-key.md)). Set `BOT_DOT_OPENROUTER_KEY`, `BOT_DOT_BOAT_KEY` and `BOT_DOT_COMPOSIO_KEY` to answer beforehand, or set any to nothing to skip it without a question.
 
-`BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)).
+`BOT_DOT_REACH=local` is for the desktop app alone, which installs botdot in a VM on your own computer: one account on `http://localhost:4700` ([ADR 136](adr/136-a-local-botdot-runs-the-linux-installer-in-a-vm-of-its-own.md)). On Linux the app adds `BOT_DOT_LOCAL_HOST=1`, for an install on the computer itself: the accounts' Linux users are kept from private addresses and SMTP in place of the VM's firewall ([ADR 170](adr/170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md)).
 
 `BOT_DOT_MANAGED=1` makes a managed machine, which the fleet console runs ([ADR 154](adr/154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md)). It is chosen at the first install, never asked, and kept: a machine installed without it stays as it is. It needs `BOT_DOT_REACH` `public` or `tailnet`, and asks nothing: the first account is `BOT_DOT_ADMIN` (default `owner`), the Jev, boat.dev and Composio keys come only from `BOT_DOT_OPENROUTER_KEY`, `BOT_DOT_BOAT_KEY` and `BOT_DOT_COMPOSIO_KEY` (the Composio key for the first account). A managed machine has no admin page and no admin. `BOT_DOT_VARIANT` says how many accounts it holds, and is kept:
 

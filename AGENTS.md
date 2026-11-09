@@ -4,7 +4,7 @@ Canonical instructions for every agent working in this repository. Nested `AGENT
 
 ## Purpose
 
-botdot gives each person a team of AI bots they run by chat: a Chief of Staff creates, changes and runs the bots, and the web page and the Android app are windows onto that person's account on a self-hosted botdot machine, which holds one or more accounts walled off from each other ([vision](docs/product/vision.md), [ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). The desktop app, on Windows and Mac, and the iOS app show that same web page in a window ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md), [ADR 151](docs/adr/151-the-ios-app-is-the-desktop-apps-window-on-the-iphone.md)). The native Mac app is removed ([ADR 142](docs/adr/142-the-mac-apps-code-is-removed.md)).
+botdot gives each person a team of AI bots they run by chat: a Chief of Staff creates, changes and runs the bots, and the web page and the Android app are windows onto that person's account on a self-hosted botdot machine, which holds one or more accounts walled off from each other ([vision](docs/product/vision.md), [ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). The desktop app, on Windows, Mac and Linux, and the iOS app show that same web page in a window ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md), [ADR 170](docs/adr/170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md), [ADR 151](docs/adr/151-the-ios-app-is-the-desktop-apps-window-on-the-iphone.md)). The native Mac app is removed ([ADR 142](docs/adr/142-the-mac-apps-code-is-removed.md)).
 
 ## Product scope
 
@@ -117,7 +117,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `server.js`, `lib/` | The botdot server: API, bots, jobs, memory, the Chief's MCP server; `server.js` starts it and tries the routes of `lib/routes/` (one module per feature) in order |
 | `public/` | The web page |
 | `android/` | The Android app |
-| `desktop/` | The desktop app for Windows and Mac (ADR 137) and the iOS app (ADR 151): the Tauri project in `src-tauri/`, and its one screen in `ui/` |
+| `desktop/` | The desktop app for Windows, Mac and Linux (ADR 137, ADR 170) and the iOS app (ADR 151): the Tauri project in `src-tauri/`, and its one screen in `ui/` |
 | `test/` | The server's and the web page's tests (`npm test`) |
 | `deploy/`, `install.sh`, `compose*.yaml`, `Dockerfile` | Hosting, images and the installer |
 | `chief-skills/` | Skills the Chief of Staff ships with |

@@ -25,18 +25,28 @@ test('the manifest names each system’s build in its versioned release, with it
   const got = manifest({ version: '0.1.7', repository: 'Kordal/bot-dot', dir: builds('0.1.7'), date });
   assert.equal(got.version, '0.1.7');
   assert.equal(got.pub_date, '2026-11-02T18:00:00.000Z');
-  assert.deepEqual(Object.keys(got.platforms).sort(), ['darwin-aarch64', 'darwin-x86_64', 'windows-aarch64', 'windows-x86_64']);
+  assert.deepEqual(Object.keys(got.platforms).sort(), [
+    'darwin-aarch64', 'darwin-x86_64',
+    'linux-aarch64-appimage', 'linux-aarch64-deb', 'linux-aarch64-rpm', 'linux-x86_64-appimage', 'linux-x86_64-deb', 'linux-x86_64-rpm',
+    'windows-aarch64', 'windows-x86_64',
+  ]);
   assert.deepEqual(got.platforms['darwin-aarch64'], {
     signature: 'sig of mac-apple-silicon.app.tar.gz',
     url: 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-mac-apple-silicon.app.tar.gz',
   });
   assert.equal(got.platforms['windows-aarch64'].url, 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-windows-arm64-setup.exe');
+  // Linux: the updater asks for the kind installed, and never another (ADR 170).
+  assert.equal(got.platforms['linux-x86_64-appimage'].url, 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-linux-x64.AppImage');
+  assert.equal(got.platforms['linux-aarch64-deb'].url, 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-linux-arm64.deb');
+  assert.equal(got.platforms['linux-x86_64-rpm'].signature, 'sig of linux-x64.rpm');
+  assert.ok(!('linux-x86_64' in got.platforms), 'no build for a kind it does not know');
 });
 
 test('no manifest without every build, its signature and a plain version', () => {
   const all = Object.values(PLATFORMS);
   assert.throws(() => manifest({ version: '0.1.7', repository: 'a/b', dir: builds('0.1.7', all.slice(1)) }), /Missing botdot-0\.1\.7-mac-apple-silicon/);
   assert.throws(() => manifest({ version: '0.1.7', repository: 'a/b', dir: builds('0.1.7', all, all.slice(0, 3)) }), /Missing the signature of botdot-0\.1\.7-windows-arm64-setup\.exe/);
+  assert.throws(() => manifest({ version: '0.1.7', repository: 'a/b', dir: builds('0.1.7', all, all.slice(0, -1)) }), /Missing the signature of botdot-0\.1\.7-linux-arm64\.rpm/);
   for (const version of ['0.1', 'v0.1.7', '0.1.07', '0.1.7-beta', '0.1.7\n']) {
     assert.throws(() => manifest({ version, repository: 'a/b', dir: builds('0.1.7') }), /Not a version/, JSON.stringify(version));
   }
@@ -57,7 +67,7 @@ test('the app reads the manifest the release workflow publishes, checked by a re
   assert.match(release, /node \.\.\/desktop\/manifest\.js /);
 });
 
-test('desktop.yml builds Windows x64 and arm64 and the Mac for Apple silicon and Intel, as the manifest names them', () => {
+test('desktop.yml builds Windows x64 and arm64, the Mac for Apple silicon and Intel, and Linux x64 and arm64, as the manifest names them', () => {
   const build = workflow('desktop.yml').jobs.build;
   const rows = build.strategy.matrix.include;
   assert.deepEqual(rows.map((r) => [r.name, r.runner, r.target]), [
@@ -65,10 +75,13 @@ test('desktop.yml builds Windows x64 and arm64 and the Mac for Apple silicon and
     ['windows-arm64', 'windows-latest', 'aarch64-pc-windows-msvc'],
     ['mac-apple-silicon', 'macos-latest', 'aarch64-apple-darwin'],
     ['mac-intel', 'macos-latest', 'x86_64-apple-darwin'],
+    ['linux-x64', 'ubuntu-22.04', 'x86_64-unknown-linux-gnu'],
+    ['linux-arm64', 'ubuntu-22.04-arm', 'aarch64-unknown-linux-gnu'],
   ]);
   for (const suffix of Object.values(PLATFORMS)) assert.ok(rows.some((r) => suffix.startsWith(`${r.name}.`) || suffix.startsWith(`${r.name}-`)), suffix);
   // Lint and the unit tests, once per system, where the build runs on the machine it is built for; no Docker.
-  assert.deepEqual(rows.filter((r) => r.check).map((r) => r.name), ['windows-x64', 'mac-apple-silicon']);
+  assert.deepEqual(rows.filter((r) => r.check).map((r) => r.name), ['windows-x64', 'mac-apple-silicon', 'linux-x64']);
+  for (const row of rows.filter((r) => r.name.startsWith('linux-'))) assert.equal(row.bundles, 'appimage,deb,rpm', row.name);
   const runs = build.steps.map((st) => st.run || '').join('\n');
   assert.match(runs, /cargo clippy --locked --all-targets -- -D warnings/);
   assert.match(runs, /cargo test --locked/);
@@ -77,6 +90,11 @@ test('desktop.yml builds Windows x64 and arm64 and the Mac for Apple silicon and
   assert.match(runs, /rm -rf target\/\$\{\{ matrix\.target \}\}\/release\/bundle\n/);
   assert.match(runs, /nsis\/botdot_"\$VERSION"_\*-setup\.exe/);
   assert.match(runs, /dmg\/botdot_"\$VERSION"_\*\.dmg/);
+  assert.match(runs, /appimage\/botdot_"\$VERSION"_\*\.AppImage/);
+  assert.match(runs, /libwebkit2gtk-4\.1-dev libayatana-appindicator3-dev/, 'what the Linux builds link');
+  for (const kind of ['appimage', 'deb', 'rpm']) assert.ok(config.bundle.targets.includes(kind), kind);
+  const release = fs.readFileSync(path.join(WORKFLOWS, 'desktop-release.yml'), 'utf8');
+  assert.match(release, /for FILE in \*\.app\.tar\.gz \*-setup\.exe \*\.AppImage \*\.deb \*\.rpm; do/, 'every build the updater installs is signed');
 });
 
 test('a pull request that changes the app builds it; a release is nightly, by hand or by tag, and only its publish job holds the key', () => {

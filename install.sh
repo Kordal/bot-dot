@@ -93,6 +93,9 @@
 # installer makes and keeps in .env, which only root reads; the install's last line, for the app, is the one line
 #   BOTDOT_LOCAL {"origin":"http://localhost:4700","signUp":"http://localhost:4700/sign-up/<setup key>"}
 # without signUp once the account exists.
+# BOT_DOT_LOCAL_HOST=1, beside local, is the desktop app's botdot on a Linux computer itself, with no VM (ADR 170):
+# chosen at the first install and kept. The VM's chain that keeps all of it from the computer's network isn't written,
+# as that would cut the owner's own computer off; the accounts' Linux users get a managed machine's guard instead.
 # BOT_DOT_MANAGED=1 makes a managed machine (ADR 154), which the fleet console runs through root's step: on a public or
 # tailnet reach, chosen at the first install and, like local, never offered in a question. Its front door has no admin
 # page and no admin; each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, and the machine
@@ -271,6 +274,12 @@ MANAGED="$(get_env "$ENV" BOT_DOT_MANAGED 2>/dev/null || true)"
 [ "$MANAGED" = 1 ] || MANAGED=''
 MANAGED_SHARE="4 8 40"
 [ -z "$MANAGED" ] || DEFAULT_SHARE="$MANAGED_SHARE"
+# A local botdot on the owner's Linux computer itself, with no VM (ADR 170), as its install chose: 1 or nothing.
+LOCAL_HOST="$(get_env "$ENV" BOT_DOT_LOCAL_HOST 2>/dev/null || true)"
+[ "$LOCAL_HOST" = 1 ] || LOCAL_HOST=''
+# The accounts' Linux users are kept from private addresses and SMTP (#984): on a managed machine, and on the owner's
+# own computer, where no VM does it.
+GUARD="$MANAGED$LOCAL_HOST"
 # registry_of IMAGE: the registry an image is named on, none for one built on this machine. owner_of IMAGE: its owner there.
 registry_of() { case "$1" in */*) h="${1%%/*}"; case "$h" in *.*) printf '%s' "$h" ;; esac ;; esac; }
 owner_of() { r="${1#*/}"; printf '%s' "${r%%/*}"; }
@@ -1367,7 +1376,7 @@ erase_account() {
   offsite_erase "$1"
   set_drop "$1"
   # Its user's UID leaves a managed machine's guard of its computers (#984), so that no later user inherits its rules.
-  [ -z "$MANAGED" ] || [ ! -f "$BIN/egress.sh" ] || sh "$BIN/egress.sh" </dev/null || warn "Couldn't rebuild the firewall of the accounts' computers; the next account made rebuilds it."
+  [ -z "$GUARD" ] || [ ! -f "$BIN/egress.sh" ] || sh "$BIN/egress.sh" </dev/null || warn "Couldn't rebuild the firewall of the accounts' computers; the next account made rebuilds it."
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -2259,6 +2268,7 @@ if [ -z "$MANAGED" ] && [ "${BOT_DOT_MANAGED:-}" = 1 ]; then
   [ -z "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] \
     || die "This machine isn't managed, and that is chosen at its first install, so nothing was changed."
   MANAGED=1
+  GUARD=1
   DEFAULT_SHARE="$MANAGED_SHARE"
 fi
 case "${BOT_DOT_MANAGED:-}" in '' | 0 | 1) ;; *) die "BOT_DOT_MANAGED is 1, or nothing for a machine that isn't managed." ;; esac
@@ -2362,6 +2372,16 @@ fi
 ORIGIN="https://$NAME"
 [ "$REACH" != local ] || ORIGIN="http://$NAME"
 [ -z "$MANAGED" ] || [ "$REACH" != local ] || die "A managed machine is reached on a public domain or a tailnet, not on this computer only."
+# On the owner's Linux computer itself (ADR 170): chosen with local at the first install, never later, and kept.
+case "${BOT_DOT_LOCAL_HOST:-}" in '' | 0 | 1) ;; *) die "BOT_DOT_LOCAL_HOST is 1, or nothing for a botdot in a VM of its own." ;; esac
+if [ -z "$LOCAL_HOST" ] && [ "${BOT_DOT_LOCAL_HOST:-}" = 1 ]; then
+  [ "$REACH" = local ] || die "BOT_DOT_LOCAL_HOST goes with BOT_DOT_REACH=local alone."
+  [ -z "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] \
+    || die "This botdot runs in a VM of its own, and that is chosen at its first install, so nothing was changed."
+  LOCAL_HOST=1
+  GUARD=1
+fi
+[ -z "$LOCAL_HOST" ] || set_env "$ENV" BOT_DOT_LOCAL_HOST 1
 set_env "$ENV" BOT_DOT_REACH "$REACH"
 [ "$REACH" != public ] || set_env "$ENV" BOT_DOT_DOMAIN "$DOMAIN"
 set_env "$ENV" FRONT_DOOR_ORIGIN "$ORIGIN"
@@ -2613,9 +2633,9 @@ fi
 # account's disk as its home first (as root, `+`), and doesn't start without it: rootless Docker would fill the bare
 # folder beneath. Its CPU and RAM share are set on it (systemctl set-property, kept in /etc/systemd/system.control).
 if [ -n "$SYSTEMD" ] && { [ "$MODE" = install ] || [ "$MODE" = update ]; }; then
-  # On a managed machine it starts only behind the guard of its computers (#984).
+  # On a managed machine, and on the owner's own computer, it starts only behind the guard of its computers (#984).
   EGRESS_UNIT=''
-  [ -z "$MANAGED" ] || EGRESS_UNIT='
+  [ -z "$GUARD" ] || EGRESS_UNIT='
 Requires=botdot-egress.service
 After=botdot-egress.service'
   cat > "$ETC/systemd/system/botdot-account@.service.new" <<UNIT
@@ -2946,8 +2966,8 @@ account() {
       printf '%s:%s:65536\n' "$user" "$start" >> "$ETC/$map"
     fi
   done
-  # On a managed machine its user's way out is guarded before its Docker starts (#984).
-  [ -z "$MANAGED" ] || egress_guard
+  # On a managed machine, and on the owner's own computer, its user's way out is guarded before its Docker starts (#984).
+  [ -z "$GUARD" ] || egress_guard
   sub_uid="$(awk -F: -v u="$user" '$1 == u { print $2; exit }' "$ETC/subuid")"
   sub_gid="$(awk -F: -v u="$user" '$1 == u { print $2; exit }' "$ETC/subgid")"
 
@@ -4175,7 +4195,9 @@ fi
 # past that lies the home network (ADR 136, #880). Nothing here may open a new connection to either, a bot's computer
 # least of all, whose traffic leaves as the account's slirp4netns does: through this machine's OUTPUT. Only the VM's
 # DNS, which is on the gateway, stays open. What leaves for the front door's Docker or lands on loopback stays inside.
-if [ "$REACH" = local ]; then
+if [ "$REACH" = local ] && [ -n "$LOCAL_HOST" ]; then
+  ok "botdot's computers can't reach this computer's network"
+elif [ "$REACH" = local ]; then
   RESOLVERS="$(awk '$1 == "nameserver" && $2 !~ /^127\./ && $2 !~ /:/ { print $2 }' /run/systemd/resolve/resolv.conf 2>/dev/null || true)"
   [ -n "$RESOLVERS" ] || RESOLVERS="$(awk '$1 == "nameserver" && $2 !~ /^127\./ && $2 !~ /:/ { print $2 }' "$ETC/resolv.conf" 2>/dev/null || true)"
   cat > "$BIN/local-firewall.sh.new" <<SCRIPT

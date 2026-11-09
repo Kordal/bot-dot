@@ -1,4 +1,4 @@
-# Releases the desktop app (ADR 137, #883): builds it for Windows and Mac (desktop.yml), signs what the updater
+# Releases the desktop app (ADR 137, #883): builds it for Windows, Mac and Linux (desktop.yml, ADR 170), signs what the updater
 # installs with the update key (secrets TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD), and
 # publishes a GitHub Release "botdot for desktop <version>" with the installers and the updater's manifest. The
 # release `desktop-latest` keeps the newest installers under fixed names, for the README's download links, and the
@@ -68,7 +68,7 @@ jobs:
           if [ -n "$CHANGED" ]; then newer; release "Changed since $TAG: $(printf '%s ' $CHANGED)" true; fi
           release "Nothing in desktop/ changed since $TAG: no release tonight." false
 
-  # The checks and the four builds; nothing is published when one fails.
+  # The checks and the six builds; nothing is published when one fails.
   build:
     needs: plan
     if: needs.plan.outputs.release == 'true'
@@ -99,7 +99,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then echo "The TAURI_SIGNING_PRIVATE_KEY secret is missing" >&2; exit 1; fi
-          for FILE in *.app.tar.gz *-setup.exe; do
+          for FILE in *.app.tar.gz *-setup.exe *.AppImage *.deb *.rpm; do
             npx --yes @tauri-apps/cli@2.12.4 signer sign "$FILE"
           done
           node ../desktop/manifest.js "${{ needs.plan.outputs.version }}" "$GITHUB_REPOSITORY" > latest.json
@@ -112,17 +112,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.plan.outputs.version }}
         run: |
-          NOTES="Built from ${GITHUB_SHA::7}. The builds are not signed yet. Windows: in the SmartScreen warning, choose More info, then Run anyway. Mac: open the app once, then System Settings → Privacy & Security → Open Anyway."
+          NOTES="Built from ${GITHUB_SHA::7}. The builds are not signed yet. Windows: in the SmartScreen warning, choose More info, then Run anyway. Mac: open the app once, then System Settings → Privacy & Security → Open Anyway. Linux: install the .deb or the .rpm, or make the AppImage executable (chmod +x) and open it."
           TAG="desktop-v$VERSION"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" --clobber *.dmg *.app.tar.gz *.sig *-setup.exe latest.json
+            gh release upload "$TAG" --clobber *.dmg *.app.tar.gz *.sig *-setup.exe *.AppImage *.deb *.rpm latest.json
           else
-            gh release create "$TAG" *.dmg *.app.tar.gz *.sig *-setup.exe latest.json \
+            gh release create "$TAG" *.dmg *.app.tar.gz *.sig *-setup.exe *.AppImage *.deb *.rpm latest.json \
               --title "botdot for desktop $VERSION" --notes "$NOTES" --target "$GITHUB_SHA" --latest=false
           fi
           # The fixed names, and last the manifest, so it never names a build that is not there yet.
           mkdir latest
-          for FILE in *.dmg *-setup.exe; do cp "$FILE" "latest/${FILE/botdot-$VERSION-/botdot-}"; done
+          for FILE in *.dmg *-setup.exe *.AppImage *.deb *.rpm; do cp "$FILE" "latest/${FILE/botdot-$VERSION-/botdot-}"; done
           gh release view desktop-latest >/dev/null 2>&1 ||
             gh release create desktop-latest --title "botdot for desktop" --notes "$NOTES" --prerelease --latest=false --target "$GITHUB_SHA"
           gh release upload desktop-latest --clobber latest/*

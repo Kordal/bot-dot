@@ -1,6 +1,6 @@
-// The app: a window onto a front door's web page (ADR 137), on Windows, the Mac and the iPhone (ADR 151). The one
-// screen of its own, ui/, asks for an address; on a desktop the tray icon's menu (the menu bar's on the Mac) holds the
-// rest. On iOS there is no tray, menu, start at login, updater or botdot on the device: only the window.
+// The app: a window onto a front door's web page (ADR 137), on Windows, the Mac, Linux (ADR 170) and the iPhone
+// (ADR 151). The one screen of its own, ui/, asks for an address; on a desktop the tray icon's menu (the menu bar's on
+// the Mac) holds the rest. On iOS there is no tray, menu, start at login, updater or botdot on the device: only the window.
 
 mod address;
 #[cfg(target_os = "macos")]
@@ -8,7 +8,7 @@ mod dialogs;
 mod feed;
 mod handoff;
 mod keep;
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 mod local;
 #[cfg(desktop)]
 mod menu;
@@ -35,7 +35,7 @@ use tauri::WindowEvent;
 #[cfg(desktop)]
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_deep_link::DeepLinkExt;
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
 #[cfg(desktop)]
@@ -45,7 +45,7 @@ use tauri_plugin_window_state::StateFlags;
 #[cfg(desktop)]
 const HIDDEN: &str = "--hidden";
 /// The seconds a VM's front door has to answer once the VM is up.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 const WAKE_TRIES: u32 = 60;
 
 struct App {
@@ -259,11 +259,11 @@ fn on_menu(app: &AppHandle, id: &str) {
                 }
             }
         }
-        #[cfg(any(target_os = "macos", windows))]
+        #[cfg(local)]
         Asked::UpdateLocal => update_local(app),
-        #[cfg(any(target_os = "macos", windows))]
+        #[cfg(local)]
         Asked::RemoveLocal => remove_local(app),
-        #[cfg(not(any(target_os = "macos", windows)))]
+        #[cfg(not(local))]
         Asked::UpdateLocal | Asked::RemoveLocal => {}
         Asked::Login => {
             let autolaunch = app.autolaunch();
@@ -340,7 +340,7 @@ async fn reachable(app: &AppHandle, address: &Url) -> bool {
     if answers(address).await {
         return true;
     }
-    #[cfg(any(target_os = "macos", windows))]
+    #[cfg(local)]
     if wake_local(app, address).await {
         return true;
     }
@@ -349,7 +349,7 @@ async fn reachable(app: &AppHandle, address: &Url) -> bool {
 }
 
 // The botdot on this computer doesn't answer: its VM is started, and given the time its front door takes to come back.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 async fn wake_local(app: &AppHandle, address: &Url) -> bool {
     let ours = app.state::<App>().kept.lock().unwrap().local_address().as_deref() == Some(address.as_str());
     let Some(vm) = local::Vm::of(app).filter(|_| ours) else { return false };
@@ -366,7 +366,7 @@ async fn wake_local(app: &AppHandle, address: &Url) -> bool {
 }
 
 // The sign-up in the browser, which ends as a sign-in does, or the sign-in when the account exists already.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 fn local_ready(app: &AppHandle, installed: local::Installed) {
     let (Some(address), state) = (address::parse(&installed.origin), app.state::<App>()) else {
         let _ = app.emit("local-failed", Vec::<String>::new());
@@ -398,7 +398,7 @@ fn local_ready(app: &AppHandle, installed: local::Installed) {
     }
 }
 
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 fn update_local(app: &AppHandle) {
     let Some(vm) = local::Vm::of(app) else { return };
     let app = app.clone();
@@ -411,7 +411,7 @@ fn update_local(app: &AppHandle) {
 // Asked once, with what is lost. The window leaves the botdot's page first, for the app's screen, which says it is
 // being removed: on Windows a window still on the page of a botdot whose VM went stayed black, even through a new start
 // of the app. The VM and the launch agent go next: a botdot that didn't go stays in the app.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 fn remove_local(app: &AppHandle) {
     let (words, asking) = (menu::words(), app.clone());
     let buttons = MessageDialogButtons::OkCancelCustom(words.remove.to_string(), words.cancel.to_string());
@@ -450,7 +450,7 @@ fn remove_local(app: &AppHandle) {
 }
 
 // The app's screen and the menus, from a thread of the app's own, which waits until the window is on the screen.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 fn screen_shown(app: &AppHandle) {
     let main = app.clone();
     let _ = app.run_on_main_thread(move || {
@@ -470,7 +470,7 @@ fn screen_shown(app: &AppHandle) {
 /// The button "Run botdot on this Mac" (or PC): the VM and botdot in it, from nothing or from where a setup stopped. What
 /// it does comes to the screen as events, and it ends in the browser, for the passkey. A PC without WSL gets it first,
 /// and carries on after the restart that follows.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 #[tauri::command]
 fn run_here(app: AppHandle) -> Result<(), &'static str> {
     let state = app.state::<App>();
@@ -502,7 +502,7 @@ fn run_here(app: AppHandle) -> Result<(), &'static str> {
 }
 
 // Said once: Windows restarts to finish WSL's install, and the app, which starts at sign-in, carries on after it.
-#[cfg(any(target_os = "macos", windows))]
+#[cfg(local)]
 fn restart(app: &AppHandle) {
     let words = menu::words();
     let _ = app.emit("local-restart", ());
@@ -514,10 +514,29 @@ fn restart(app: &AppHandle) {
     });
 }
 
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(not(local))]
 #[tauri::command]
 fn run_here() -> Result<(), &'static str> {
     Err("failed")
+}
+
+/// This computer can run botdot: on Linux only with polkit and systemd (ADR 170).
+#[cfg(local)]
+fn can_run_here(app: &AppHandle) -> bool {
+    local::Vm::of(app).is_some()
+}
+
+#[cfg(not(local))]
+fn can_run_here(_: &AppHandle) -> bool {
+    false
+}
+
+// WebKitGTK draws a blank window with NVIDIA's own driver unless its DMA-BUF renderer is off. Before GTK starts.
+#[cfg(target_os = "linux")]
+fn webkit_on_nvidia() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && std::path::Path::new("/proc/driver/nvidia").exists() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
 }
 
 #[derive(Serialize, Default)]
@@ -541,7 +560,7 @@ async fn start(app: AppHandle, adding: bool) -> Start {
     if state.removing.load(Ordering::SeqCst) {
         return Start { removing: true, ..Start::default() };
     }
-    let here = cfg!(any(target_os = "macos", windows)) && !state.kept.lock().unwrap().has_local();
+    let here = can_run_here(&app) && !state.kept.lock().unwrap().has_local();
     let plain = Start { here, running: state.setting_up.load(Ordering::SeqCst), ..Start::default() };
     let current = if adding { None } else { state.kept.lock().unwrap().current().cloned() };
     let address = current.as_ref().and_then(|b| address::parse(&b.address));
@@ -614,6 +633,8 @@ fn desktop_plugins(builder: tauri::Builder<Wry>) -> tauri::Builder<Wry> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    webkit_on_nvidia();
     #[cfg(desktop)]
     let hidden = std::env::args().any(|arg| arg == HIDDEN);
     #[cfg(mobile)]
@@ -655,7 +676,7 @@ pub fn run() {
                 }
             });
             follow_feeds(&handle);
-            #[cfg(any(target_os = "macos", windows))]
+            #[cfg(local)]
             if app.state::<App>().kept.lock().unwrap().local.is_some() {
                 if let Some(vm) = local::Vm::of(&handle) {
                     std::thread::spawn(move || vm.keep_agent());
@@ -683,6 +704,11 @@ pub fn run() {
             *app.state::<App>().screen.lock().unwrap() = Some(window.url()?);
             #[cfg(desktop)]
             update::start(handle.clone());
+            // An AppImage has no package that tells the desktop it opens botdot:// links: it says so itself.
+            #[cfg(target_os = "linux")]
+            if std::env::var_os("APPIMAGE").is_some() {
+                let _ = app.deep_link().register_all();
+            }
             let links = handle.clone();
             app.deep_link().on_open_url(move |event| {
                 for link in event.urls() {

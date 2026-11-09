@@ -15,6 +15,14 @@ const PLATFORMS = {
   'darwin-x86_64': 'mac-intel.app.tar.gz',
   'windows-x86_64': 'windows-x64-setup.exe',
   'windows-aarch64': 'windows-arm64-setup.exe',
+  // On Linux the updater takes the build of the kind installed, as `<os>-<arch>-<kind>` (ADR 170): an AppImage
+  // replaces itself, a .deb or an .rpm installs through polkit's password prompt.
+  'linux-x86_64-appimage': 'linux-x64.AppImage',
+  'linux-x86_64-deb': 'linux-x64.deb',
+  'linux-x86_64-rpm': 'linux-x64.rpm',
+  'linux-aarch64-appimage': 'linux-arm64.AppImage',
+  'linux-aarch64-deb': 'linux-arm64.deb',
+  'linux-aarch64-rpm': 'linux-arm64.rpm',
 };
 
 const SEMVER = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;

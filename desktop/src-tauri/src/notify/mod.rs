@@ -1,6 +1,6 @@
 //! The system's own notifications (ADR 138): shown under their tag, so a newer one of the same tag takes the older one's
 //! place, removed by tag, and a click hands back the target. On the Mac the User Notifications framework, on Windows
-//! the toasts of the Action Center.
+//! the toasts of the Action Center, on Linux the desktop's notification server.
 
 use crate::feed::Notice;
 use std::collections::{HashMap, HashSet};
@@ -17,7 +17,12 @@ mod windows;
 #[cfg(windows)]
 use self::windows as system;
 
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as system;
+
+#[cfg(not(any(target_os = "macos", windows, target_os = "linux")))]
 mod system {
     pub fn start(_: &str) {}
     #[cfg_attr(mobile, allow(dead_code))]
@@ -51,7 +56,7 @@ fn joined(address: &str, what: &str) -> String {
     format!("{address}\n{what}")
 }
 
-#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+#[cfg_attr(not(any(target_os = "macos", windows, target_os = "linux")), allow(dead_code))]
 fn clicked(joined: String) {
     let Some((address, target)) = joined.split_once('\n') else { return };
     if let Some(on) = CLICKED.get() {
