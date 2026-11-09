@@ -7,8 +7,9 @@ const appLogo = (a) => (a?.logo ? `<img class="app-logo" src="${esc(a.logo)}" al
 
 // Where the owner makes a Composio API key: botdot makes no Composio account of its own.
 const COMPOSIO_KEYS = 'https://platform.composio.dev';
-const keyForm = (placeholder, label) => `<form id="conn-key" class="memory-add" autocomplete="off"><input type="password" name="key" placeholder="${esc(placeholder)}" required><button class="btn primary">${label}</button></form>`;
-const getKey = `<a class="btn sm" href="${COMPOSIO_KEYS}" target="_blank" rel="noopener">${tr('Get a key at composio.dev')}</a>`;
+// The key's field as a row of the page's list (#1190).
+const keyForm = (placeholder, label) => `<form id="conn-key" class="bs-row key-row" autocomplete="off"><input type="password" name="key" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}" required><button class="btn primary">${label}</button></form>`;
+const getKey = `<a class="bs-row bs-link" href="${COMPOSIO_KEYS}" target="_blank" rel="noopener"><b>${tr('Get a key')}</b><span class="bs-val">composio.dev</span><span class="bs-chev" aria-hidden="true">›</span></a>`; // settings.js, which has CHEV, loads after this file
 
 // Only fetch when the page is opened or something changed, not on every regular refresh of the web page.
 async function renderConnectors(force = false) {
@@ -46,15 +47,14 @@ function drawConnectors() {
   const head = connHead();
   if (!d.configured || d.keyRejected) {
     // No key yet, or Composio refuses it (#409): nothing on the page works until one is pasted.
-    const title = !d.configured ? tr('Add your Composio key')
-      : d.account === 'own' ? tr('Composio no longer accepts your key {key}', { key: `<span class="nowrap">${esc(d.keyHint || '')}</span>` }) : tr("Composio no longer accepts botdot's Composio account");
+    const keyState = !d.configured ? tr('Not connected') : d.account === 'own' ? tr('Key {key} refused', { key: esc(d.keyHint || '') }) : tr('Key refused');
     root.innerHTML = `${head}
-      <div class="card setup-card">
-        <h3>${title}</h3>
-        ${d.error && !d.keyRejected ? `<div class="faint">${esc(d.error)}</div>` : ''}
+      <div class="set-list conn-setup">
+        <div class="bs-row"><b>Composio</b><span class="bs-val bs-warn">${keyState}</span></div>
         ${keyForm(d.configured ? tr('New Composio API key') : tr('Composio API key'), tr('Save'))}
-        <div>${getKey}</div>
-      </div>`;
+        ${getKey}
+      </div>
+      ${d.error && !d.keyRejected ? `<div class="req-note">${esc(d.error)}</div>` : ''}`;
     $('#conn-key').onsubmit = async (e) => {
       e.preventDefault();
       const input = e.target.key;
@@ -66,8 +66,8 @@ function drawConnectors() {
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
   root.innerHTML = `${head}
-    ${conn.replacing ? `<div class="key-line">${keyForm(tr('New Composio API key'), tr('Save'))}<button class="btn sm" id="conn-cancel">${tr('Cancel')}</button></div>`
-      : `<div class="key-line"><span>${tr('Composio key {key}', { key: esc(d.keyHint || '') })}</span><button class="btn sm" id="conn-replace">${tr('Replace')}</button><button class="btn sm danger" id="conn-forget">${tr('Remove')}</button></div>`}
+    <div class="set-list conn-setup">${conn.replacing ? `${keyForm(tr('New Composio API key'), tr('Save'))}<button type="button" class="bs-row bs-link" id="conn-cancel"><b>${tr('Cancel')}</b></button>`
+      : `<div class="bs-row key-row"><b>Composio</b><span class="bs-val">${esc(d.keyHint || '')}</span><button class="btn sm" id="conn-replace">${tr('Replace')}</button><button class="btn sm danger" id="conn-forget">${tr('Remove')}</button></div>`}</div>
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
     <h3 class="page-sub">${tr('Your apps')}</h3>
     ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `

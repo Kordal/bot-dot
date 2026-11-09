@@ -290,7 +290,7 @@ function needCardHTML(x, here = null) {
       changeBlocks(Array.from({ length: rows }, (_, i) => [m.scriptsWas[i] ?? null, m.scripts[i] ?? null, 'pre'])) + untilHTML(m.line),
       `<button class="btn sm" data-need-no>${esc(m.no)}</button><button class="btn sm primary" data-need-yes>${esc(m.yes)}</button>`, m.change ? 'need-changed' : '');
   }
-  if (x.kind === 'suggestion') return card(tr('A plan for the Chief: {title}', { title: esc(x.chat.title) }), tr('Nothing happens until you approve it'), `<div class="need-body"><div class="nb">${esc(plain(x.chat.waiting.text))}</div></div>`,
+  if (x.kind === 'suggestion') return card(tr('A plan for the Chief: {title}', { title: esc(x.chat.title) }), '', `<div class="need-body"><div class="nb">${esc(plain(x.chat.waiting.text))}</div></div>`,
     `<button class="link-btn need-link" data-need-open>${tr('Open chat')}</button><button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`);
   if (x.kind === 'bitwarden') return card(tr('Bitwarden is locked'), tr("Bots can't use your saved logins until you unlock it."), '', `<button class="btn sm primary" data-need-open>${tr('Unlock')}</button>`);
   if (x.kind === 'pay') return card(tr('Pay on {site}', { site: esc(x.r.site) }), x.r.amount ? esc(x.r.amount) : '', '', `<button class="btn sm primary" data-need-open>${tr('Review')}</button>`);
