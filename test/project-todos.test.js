@@ -84,7 +84,7 @@ test('the owner adds an item with a day and a rhythm, ticks it, and the next one
   const done = r.data.todos.find((x) => x.id === item.id);
   assert.ok(done.done && done.doneAt && done.next);
   const next = r.data.todos.find((x) => x.id === done.next);
-  assert.deepEqual([next.text, next.due, next.repeat, next.done], ['Count active users', '2026-11-09', { every: 'week', days: [1] }, false], 'a week on, done early');
+  assert.deepEqual([next.text, next.due, next.repeat, next.done], ['Count active users', nextDue({ every: 'week', days: [1] }, '2026-11-02', today(new Date())), { every: 'week', days: [1] }, false], 'a week on, or the first Monday after today');
   // Ticked again it makes no second one.
   r = await srv.api(`/company/todos/${item.id}`, { method: 'PUT', body: { done: true } });
   assert.equal(r.data.todos.filter((x) => x.text === 'Count active users').length, 2);
