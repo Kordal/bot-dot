@@ -34,7 +34,7 @@ Implement only the scope of the selected ticket; proposals outside that scope re
 
 ## Stack
 
-Node.js 22.13 or newer with no dependencies (the botdot server and the web page, plain HTML, CSS and JavaScript); Kotlin with Jetpack Compose (Android); Rust with Tauri 2 (the desktop app, ADR 137, and the iOS app, ADR 151); Docker (hosting and the bots' computers); micromamba (in the image, to install the bots' tools from conda-forge, [ADR 007](docs/adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)).
+Node.js 22.13 or newer with no dependencies (the botdot server and the web page, plain HTML, CSS and JavaScript); Kotlin with Jetpack Compose (Android); Rust with Tauri 2 (the desktop app, ADR 137, and the iOS app, ADR 151); Docker (hosting and the bots' computers); SvelteKit, at build time only, for the homepage in `site/` ([ADR 172](docs/adr/172-botdot-app-is-a-prerendered-sveltekit-site-on-github-pages.md)); micromamba (in the image, to install the bots' tools from conda-forge, [ADR 007](docs/adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)).
 
 Introduce another technology only when the active task requires it, with an ADR.
 
@@ -117,6 +117,7 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `server.js`, `lib/` | The botdot server: API, bots, jobs, memory, the Chief's MCP server; `server.js` starts it and tries the routes of `lib/routes/` (one module per feature) in order |
 | `public/` | The web page |
 | `android/` | The Android app |
+| `site/` | botdot.app, the project's homepage: SvelteKit prerendered to static files, published on GitHub Pages (ADR 172) |
 | `desktop/` | The desktop app for Windows, Mac and Linux (ADR 137, ADR 170) and the iOS app (ADR 151): the Tauri project in `src-tauri/`, and its one screen in `ui/` |
 | `test/` | The server's and the web page's tests (`npm test`) |
 | `deploy/`, `install.sh`, `compose*.yaml`, `Dockerfile` | Hosting, images and the installer |
