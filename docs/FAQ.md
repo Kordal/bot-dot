@@ -252,6 +252,22 @@ Privately, through GitHub: **Security → Report a vulnerability** on this repos
 
 ## Troubleshooting
 
+### The sign-up link is lost or used.
+
+Make a new one on the server: `cd /var/lib/botdot/front-door && sudo docker compose exec front-door node front-door.js sign-up-link --account <your account's name>`.
+
+### Caddy has no certificate yet.
+
+Check that the DNS points at the server and ports 80, 443 and 8443 are open, then read `cd /var/lib/botdot/front-door && sudo docker compose logs caddy`.
+
+### The installer says "This machine's Docker isn't Docker's own."
+
+Docker came from the distribution (`docker.io`, `moby-engine`), which has no rootless Docker. Remove it and run the installer again: it installs Docker from docker.com.
+
+### A bot says it isn't signed in to Claude.
+
+The setup page opens by itself: choose **Sign in to Claude** there, or use an API key.
+
 ### A run says "No space left on the server."
 
 The account's disk is full. The admin page marks the account **Disk full** when less than 200 MB of it is free. Ask the admin to give the account a bigger disk under **Change share** on the admin page: a bigger disk applies at once ([Shares of the machine](install-linux.md#shares-of-the-machine)).
