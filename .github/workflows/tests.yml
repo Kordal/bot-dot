@@ -148,6 +148,12 @@ jobs:
       # No assembleDebug: the unit tests and lint compile the app, and android.yml's release build packages it.
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --console=plain
+      # TEMPORARY (removed before merge): the Play bundle builds, unsigned, without the restricted permissions.
+      - name: Play bundle
+        run: |
+          ./gradlew bundlePlay --console=plain
+          unzip -p app/build/outputs/bundle/play/app-play.aab base/manifest/AndroidManifest.xml > /tmp/m.pb
+          ! grep -q REQUEST_INSTALL_PACKAGES /tmp/m.pb && ! grep -q REQUEST_IGNORE_BATTERY_OPTIMIZATIONS /tmp/m.pb && grep -q POST_NOTIFICATIONS /tmp/m.pb
 
   # Lint on a machine of its own, beside the unit tests: one after the other they took twice as long.
   android-lint:

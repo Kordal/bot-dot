@@ -132,7 +132,7 @@ test('no job a pull request starts holds a secret or the release environment', (
   }
   assert.deepEqual(found, []);
   // Signing and publishing are in jobs that only a nightly run or a run by hand starts.
-  for (const [name, job] of [['images.yml', 'publish'], ['android.yml', 'build'], ['android.yml', 'publish']]) {
+  for (const [name, job] of [['images.yml', 'publish'], ['android.yml', 'build'], ['android.yml', 'publish'], ['android.yml', 'play']]) {
     assert.equal(workflows[name].jobs[job].environment, 'release', `${name} ${job}`);
     assert.deepEqual(triggersOf(workflows, name).map((t) => t.event).sort(), ['schedule', 'workflow_dispatch'], name);
   }
@@ -192,6 +192,20 @@ test('the Android release tests the commit it builds; a failure publishes nothin
   assert.deepEqual([].concat(jobs.publish.needs).sort(), ['build', 'test']);
   assert.equal(jobs.publish.if, undefined, 'a failed test stops the release');
   assert.ok(!jobs.build.steps.some((st) => /gh release/.test(st.run || '')), 'only the publish job releases');
+});
+
+// Google Play (ADR 172): the same run builds the Play bundle and checks it; it goes to Play only after the tests.
+test('the Android release builds the Play bundle and sends it to Play only after the tests', () => {
+  const jobs = workflow('android.yml').jobs;
+  const build = jobs.build.steps.map((st) => st.run || '').join('\n');
+  assert.match(build, /\.\/gradlew assembleRelease bundlePlay /);
+  assert.match(build, /REQUEST_INSTALL_PACKAGES REQUEST_IGNORE_BATTERY_OPTIMIZATIONS/, 'the bundle asks for no permission Play restricts');
+  assert.match(build, /keytool -printcert -jarfile "\$AAB"[^\n]*cc05ce8b/, 'signed with the release key, which Play knows as the upload key');
+  assert.deepEqual([].concat(jobs.play.needs).sort(), ['build', 'test']);
+  assert.equal(jobs.play.if, undefined, 'a failed test sends nothing to Play');
+  const upload = jobs.play.steps.find((st) => /play-upload\.js/.test(st.run || ''));
+  assert.match(upload.run, /\[ -z "\$PLAY_SERVICE_ACCOUNT_JSON" \]/, 'without the secret the bundle stays an artifact');
+  assert.match(upload.run, / internal$/m, 'only the internal track: promoting stays a step in Play Console');
 });
 
 test('a nightly Android release starts no image build of its own; a run by hand starts one', () => {

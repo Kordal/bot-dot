@@ -16,8 +16,9 @@ import java.security.MessageDigest
  * only installs it over this app when it's signed with the same key.
  */
 object AppUpdate {
-    /** The newer version botdot has, or null. */
-    fun newer(v: VersionInfo?): AndroidRelease? = v?.android?.takeIf { it.versionCode > BuildConfig.VERSION_CODE }
+    /** The newer version botdot has, or null. Never in the Google Play build, which Play updates (ADR 172). */
+    fun newer(v: VersionInfo?, selfUpdate: Boolean = BuildConfig.SELF_UPDATE): AndroidRelease? =
+        v?.android?.takeIf { selfUpdate && it.versionCode > BuildConfig.VERSION_CODE }
 
     /** Android asks once whether botdot may install apps; until then, this opens that setting. */
     fun mayInstall(context: Context): Boolean =
