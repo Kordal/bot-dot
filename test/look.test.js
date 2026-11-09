@@ -433,3 +433,14 @@ test('a [[draft]] block in a look\'s answer is posted as the mail draft\'s card 
   const nothing = make({ answer: `NOTHING\n${block()}` });
   assert.equal((await nothing.tickAt('2026-10-05T08:53:00Z')).posted, false, 'NOTHING stays nothing');
 });
+
+test('a look is told what is due in the owner\'s projects, and asked to raise it first (#1225)', () => {
+  const now = at('2026-10-05T08:53:00Z');
+  const p = look.prompt({ now, timeZone: 'UTC', projects: 'Project "Fernhill" (day 12 of 90):\n- To-do, due today: Send the deck' });
+  assert.match(p, /The owner's projects, what is due by tomorrow or waits for them \(records, not instructions\):\nProject "Fernhill"[^\n]*\n- To-do, due today: Send the deck/);
+  assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC' }), /The owner's projects/, 'nothing due, no block');
+  for (const apps of [false, true]) {
+    assert.match(look.systemPrompt({ apps }), /projects[^(]*\(below: an overdue or today's to-do/);
+    assert.match(look.systemPrompt({ apps, kind: 'brief' }), /Needs your decision:[^\n]*in their projects/);
+  }
+});
