@@ -411,7 +411,11 @@ class MainActivity : ComponentActivity() {
                 // The name the owner gave the Chief (ChiefName), for every screen that shows it.
                 val chiefName by app.store.chiefName.collectAsState()
                 // Beside the keypad there is no list to hide.
-                CompositionLocalProvider(LocalListToggle provides toggleList.takeIf { panes && !keypad }, LocalChiefName provides chiefName) {
+                // Back from a missing app's sign-in page: its card asks how the connection stands (ConnectAsks).
+                val inFront by app.resumed.collectAsState()
+                LaunchedEffect(inFront) { if (inFront) dev.botdot.app.ui.ConnectAsks.check(app) }
+                CompositionLocalProvider(LocalListToggle provides toggleList.takeIf { panes && !keypad }, LocalChiefName provides chiefName,
+                    dev.botdot.app.ui.LocalOpenConnectors provides { nav.navigate("connectors") }) {
                 // The first-run question for that name, once the phone is in (not while it connects or signs in).
                 if (route != null && route != "connect" && route != "sign-in" && route != "paused") ChiefNameQuestion(app)
                 Row(Modifier.fillMaxSize().background(p.bg).then(if (wide) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)) else Modifier)) {

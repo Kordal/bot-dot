@@ -1287,5 +1287,7 @@
   "Turn off “{title}”?": "Wyłączyć „{title}”?",
   "Turn on “{title}”?": "Włączyć „{title}”?",
   "Turn off": "Wyłącz",
-  "Turn on": "Włącz"
+  "Turn on": "Włącz",
+  "Open Connectors": "Otwórz Konektory",
+  "Waiting for sign-in": "Czeka na logowanie"
 }

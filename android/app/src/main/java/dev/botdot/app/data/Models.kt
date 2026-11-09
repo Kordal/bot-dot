@@ -773,7 +773,28 @@ data class Ask(
     @SerialName("batch") val batchValue: JsonElement? = null,
     // A secret a bot asks to save in the Vault (`vault-save`, ADR 153): the words of its row, never the secret itself.
     @SerialName("secret") val secretValue: JsonElement? = null,
+    // A missing connected app (`connect-app`, ADR 168): the app's slug and name, connect, reconnect or setup, its main
+    // button by a verb (`act`, see AskAct), its no word, and the Chief chat it was offered in. Kept as they came.
+    @SerialName("app") val appValue: JsonElement? = null,
+    @SerialName("name") val nameValue: JsonElement? = null,
+    @SerialName("mode") val modeValue: JsonElement? = null,
+    @SerialName("act") val actValue: JsonElement? = null,
+    @SerialName("no") val noValue: JsonElement? = null,
+    @SerialName("chatId") val chatIdValue: JsonElement? = null,
 ) {
+    /** Its main button as the server names it by a verb, or null: the buttons of its kind. */
+    val act: AskAct? get() = AskAct.of(actValue)
+    /** A missing app's slug ("gmail"), or "". */
+    val app: String get() = appValue.textOrNull().orEmpty()
+    /** A missing app's name ("Gmail"), else its slug. */
+    val appName: String get() = nameValue.textOrNull() ?: app
+    /** A missing app's card: "connect", "reconnect" or "setup"; "" for any other card. */
+    val mode: String get() = modeValue.textOrNull().orEmpty()
+    /** The no button's word the server gives ("Not now"), or null. */
+    val no: String? get() = noValue.textOrNull()
+    /** The Chief chat a card was offered in, or null. */
+    val chatId: String? get() = chatIdValue.textOrNull()
+
     /** The row of the secret a yes saves (`vault-save`), hidden until Show, or null. */
     val secret: SecretWords? get() = (secretValue as? JsonObject)?.let { o ->
         SecretWords(o["label"].textOrNull() ?: return@let null, o["show"].textOrNull() ?: return@let null, o["hide"].textOrNull() ?: return@let null)
@@ -874,10 +895,10 @@ data class Ask(
 
         /**
          * The asks of `GET /api/asks`, each read by itself: one this app cannot read is left out, and the others
-         * are still there to answer.
+         * are still there to answer. So is one whose main button has a verb this app does not know (`act`).
          */
         fun list(answer: String): List<Ask> = (Api.JSON.parseToJsonElement(answer) as JsonArray)
-            .mapNotNull { runCatching { Api.JSON.decodeFromJsonElement(serializer(), it) }.getOrNull() }
+            .mapNotNull { runCatching { Api.JSON.decodeFromJsonElement(serializer(), it) }.getOrNull()?.takeIf { a -> !a.unknownAct } }
     }
 }
 
@@ -893,7 +914,9 @@ fun Ask.standsInChat(scope: String): Boolean = when {
     group != null -> groupOfChat(scope) == group?.id // asked in a group: at the end of that group's chat, and in no other
     groupOfChat(scope) != null -> false
     ToolCard.isTool(this) || (kind == "bot-change" && byChief) -> scope == "chief" || bot?.id == scope
-    scope == "chief" -> ((kind == "skill" || kind == "vault-remove") && bot == null) || kind == "chief-action"
+    // A missing app's card: the Chief's own in its chat, and one the Chief offered for a bot in both chats.
+    kind == "connect-app" && bot != null && chatId != null -> scope == "chief" || bot?.id == scope
+    scope == "chief" -> ((kind == "skill" || kind == "vault-remove") && bot == null) || (kind == "connect-app" && bot == null) || kind == "chief-action"
     else -> bot?.id == scope
 }
 
