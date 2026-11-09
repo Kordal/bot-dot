@@ -28,7 +28,11 @@ function nodes() {
 async function find(test, what, timeout = 30000) {
   const end = Date.now() + timeout;
   for (;;) {
-    const hit = nodes().find(test);
+    const all = nodes();
+    // A slow emulator's "… isn't responding" over the app: wait, it isn't the app's.
+    const wait = all.some((n) => /isn't responding/.test(n.text)) && all.find(byText('Wait'));
+    if (wait) { tap(wait); await sleep(1000); continue; }
+    const hit = all.find(test);
     if (hit) return hit;
     if (Date.now() > end) {
       fs.writeFileSync(path.join(OUT, `failed-${what.replace(/\W+/g, '-')}.png`), execFileSync('adb', ['exec-out', 'screencap', '-p']));

@@ -53,6 +53,10 @@ jobs:
           name: play-screenshots
           path: play-screenshots
           retention-days: 30
+      # The pictures in the log as well (base64), for a reader that can read logs but not download artifacts.
+      - name: Pictures in the log
+        if: always()
+        run: for f in play-screenshots/*.png; do echo "BEGIN $f"; base64 -w0 "$f"; echo; echo "END $f"; done
       - name: Stop the scene
         if: always()
         run: touch "$RUNNER_TEMP/scene/stop"
