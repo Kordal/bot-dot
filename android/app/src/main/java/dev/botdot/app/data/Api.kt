@@ -846,7 +846,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun skills(): SkillsInfo = json.decodeFromString(get("/skills"))
     suspend fun connectors(): ConnectorsInfo = json.decodeFromString(get("/connectors"))
     suspend fun catalog(search: String): Catalog = json.decodeFromString(get("/connectors/catalog?search=${enc(search)}"))
-    suspend fun connectApp(slug: String): ConnectLink = json.decodeFromString(send("POST", "/connectors/connect", buildJsonObject { put("app", slug) }))
+    /** another: one more account of an app that is connected (ADR 174). */
+    suspend fun connectApp(slug: String, another: Boolean = false): ConnectLink = json.decodeFromString(send("POST", "/connectors/connect", buildJsonObject { put("app", slug); if (another) put("another", true) }))
     /** What was left behind, in a sentence, or null (docs/api.md). */
     suspend fun disconnect(connectionId: String): String? = json.decodeFromString<Disconnected>(send("DELETE", "/connectors/connections/${enc(connectionId)}")).note
     suspend fun setComposioKey(key: String) { send("PUT", "/connectors/key", buildJsonObject { put("key", key) }) }

@@ -116,6 +116,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var sysSkills by remember { mutableStateOf(listOf<Pair<dev.botdot.app.data.BuiltinSkill, String>>()) } // every bot has these unless switched off
     var disabled by remember { mutableStateOf(setOf<String>()) }
     var connectors by remember { mutableStateOf(setOf<String>()) }
+    var accounts by remember { mutableStateOf(mapOf<String, String>()) } // its account of an app with two or more (ADR 174)
     var mayMessage by remember { mutableStateOf(setOf<String>()) }
     var othersMayAsk by remember { mutableStateOf(true) }
     var rooms by remember { mutableStateOf(dev.botdot.app.data.BotRooms()) } // shared rooms (#316), when the server keeps them
@@ -125,7 +126,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     fun fill(b: Bot) {
         bot = b; color = b.color.orEmpty(); icon = iconOf(b.outfit); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
         model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux" || b.computer == "boat"; computerOn = if (b.computer == "boat") "boat" else "linux"; proxy = b.proxy
-        useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
+        useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); accounts = b.accounts; mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
         rooms = b.rooms ?: dev.botdot.app.data.BotRooms()
         hotkey = b.hotkey ?: 0
@@ -138,7 +139,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             launch { runCatching { app.store.bots.value.value ?: a.bots() }.onSuccess { all -> others = all.filter { it.id != botId }; all.firstOrNull { it.id == botId }?.let(::fill) }.onError { tell(it.message ?: tr("Couldn't load")) } }
             launch { runCatching { a.settings() }.onSuccess { choices = it } }
             launch { runCatching { a.skills() }.onSuccess { library = it.library; sysSkills = it.machine.map { k -> k to "machine" } + it.builtin.map { k -> k to "builtin" } } }
-            launch { runCatching { a.connectors() }.onSuccess { apps = it.connections.distinctBy { c -> c.toolkit } } }
+            launch { runCatching { a.connectors() }.onSuccess { apps = it.connections.filter { c -> c.status == "ACTIVE" || it.connections.none { x -> x.toolkit == c.toolkit && x.status == "ACTIVE" } }.distinctBy { c -> if (c.accounts > 1) c.id else c.toolkit } } }
         }
     }
 
@@ -170,6 +171,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
             if (connectors != b.connectors.toSet()) put("connectors", JsonArray(connectors.map { JsonPrimitive(it) }))
+            if (accounts != b.accounts) put("accounts", JsonObject(accounts.mapValues { JsonPrimitive(it.value) }))
             val everyone = others.all { it.id in mayMessage }
             if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
             if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
@@ -333,9 +335,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         }
                     }
                 }
-                if (apps.isNotEmpty() || connectors.isNotEmpty()) FoldSection(tr("Apps"), apps.filter { it.toolkit in connectors }.joinToString(", ") { it.app?.name ?: it.toolkit }.ifBlank { tr("None") }) {
+                // An app with two or more accounts is a row per account, one of them at most (ADR 174).
+                val mine = bot?.id
+                fun picked(c: dev.botdot.app.data.Connection) = c.toolkit in connectors && (c.accounts < 2 || accounts[c.toolkit]?.let { it == c.id } ?: (mine in c.usedBy))
+                fun named(c: dev.botdot.app.data.Connection) = (c.app?.name ?: c.toolkit) + if (c.accounts > 1) " · " + (c.label ?: c.id) else ""
+                if (apps.isNotEmpty() || connectors.isNotEmpty()) FoldSection(tr("Apps"), apps.filter(::picked).joinToString(", ", transform = ::named).ifBlank { tr("None") }) {
                     apps.forEach { c ->
-                        CheckRow(c.app?.name ?: c.toolkit, null, c.toolkit in connectors) { on -> connectors = if (on) connectors + c.toolkit else connectors - c.toolkit }
+                        CheckRow(named(c), null, picked(c)) { on ->
+                            connectors = if (on) connectors + c.toolkit else connectors - c.toolkit
+                            accounts = if (on && c.accounts > 1) accounts + (c.toolkit to c.id) else accounts - c.toolkit
+                        }
                     }
                 }
                 // Its pages (#346): what it made for you. Tap one to open it, and keep it up to date from there.

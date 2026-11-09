@@ -141,6 +141,7 @@ function readBotForm(form, sel) {
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
+    accounts: sel.accounts, // its account of an app with two or more (ADR 174)
     mayMessageAll: sel.others.every((id) => sel.mayMessage.has(id)),
     mayMessage: [...sel.mayMessage],
     othersMayAsk: form.othersMayAsk.checked,
@@ -222,7 +223,8 @@ function drawAlwaysApproved(b, root) {
   });
 }
 
-function foldPicker(box, items, selected, onChange, { none = tr('None'), empty = tr('Nothing to choose yet.'), action = null, sum = null } = {}) {
+// exclusive(id): items of one key are picked one at a time (an app's accounts).
+function foldPicker(box, items, selected, onChange, { none = tr('None'), empty = tr('Nothing to choose yet.'), action = null, sum = null, exclusive = null } = {}) {
   const row = box.closest('.bs-row');
   const label = (id) => items.find((x) => x.id === id)?.label || id;
   const summary = () => (sum ? sum() : [...selected].map(label).join(', ')) || none;
@@ -239,7 +241,12 @@ function foldPicker(box, items, selected, onChange, { none = tr('None'), empty =
         ? `<div class="skill-pick has-more"><input type="checkbox" value="${esc(x.id)}" ${selected.has(x.id) ? 'checked' : ''} aria-label="${esc(x.label)}">${text(x)}</div>`
         : `<label class="skill-pick"><input type="checkbox" value="${esc(x.id)}" ${selected.has(x.id) ? 'checked' : ''}>${text(x)}</label>`)).join('') : `<div class="faint">${esc(empty)}</div>`}</div>` : ''}`;
     $$('.has-more > .grow', box).forEach((t) => (t.onclick = () => t.parentElement.classList.toggle('open')));
-    $$('input', box).forEach((c) => (c.onchange = () => { c.checked ? selected.add(c.value) : selected.delete(c.value); onChange(); $('.bs-sum', box).textContent = summary(); }));
+    $$('input', box).forEach((c) => (c.onchange = () => {
+      if (c.checked && exclusive) for (const o of $$('input', box)) if (o !== c && exclusive(o.value) === exclusive(c.value)) { o.checked = false; selected.delete(o.value); }
+      c.checked ? selected.add(c.value) : selected.delete(c.value);
+      onChange();
+      $('.bs-sum', box).textContent = summary();
+    }));
     $$('[data-pick-action]', box).forEach((btn) => (btn.onclick = async () => {
       btn.disabled = true;
       if (await action.run(btn.dataset.pickAction)) { items = items.filter((x) => x.id !== btn.dataset.pickAction); selected.delete(btn.dataset.pickAction); draw(); } else btn.disabled = false;
@@ -390,7 +397,7 @@ function renderBotSettings(force = false) {
   }
   form.dataset.disabled = JSON.stringify(b.disabledSkills || []);
   const others = state.bots.filter((x) => x.id !== b.id).map((x) => x.id);
-  const sel = { skills: new Set(b.skills || []), connectors: new Set(b.connectors || []), mayMessage: new Set(b.mayMessageAll ? others : b.mayMessage || []), others };
+  const sel = { skills: new Set(b.skills || []), connectors: new Set(b.connectors || []), accounts: { ...(b.accounts || {}) }, mayMessage: new Set(b.mayMessageAll ? others : b.mayMessage || []), others };
   let saved = readBotForm(form, sel);
   let chain = Promise.resolve();
   let timer = null;
@@ -527,11 +534,28 @@ function renderBotSettings(force = false) {
 
   // Connected apps (Composio): shown once any are connected, or this bot already has some.
   api('/connectors').then((d) => {
-    const apps = [...new Map(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => [c.toolkit, c.app || { slug: c.toolkit, name: c.toolkit }])).values()];
+    const active = d.connections.filter((c) => c.status === 'ACTIVE');
+    const apps = [...new Map(active.map((c) => [c.toolkit, c.app || { slug: c.toolkit, name: c.toolkit }])).values()];
     for (const s of sel.connectors) if (!apps.some((a) => a.slug === s)) apps.push({ slug: s, name: s }); // e.g. apps without sign-in
     if (!d.configured || !apps.length) return;
     $('#bs-apps', root).classList.remove('hidden');
-    foldPicker($('#app-picks', root), apps.map((a) => ({ id: a.slug, label: a.name })), sel.connectors, saveSoon);
+    // An app with two or more accounts is a row per account, one of them at most (ADR 174): `slug@id`.
+    const items = apps.flatMap((a) => {
+      const accounts = active.filter((c) => c.toolkit === a.slug);
+      return accounts.length > 1 ? accounts.map((c) => ({ id: `${a.slug}@${c.id}`, label: `${a.name} · ${c.label || c.id}` })) : [{ id: a.slug, label: a.name }];
+    });
+    const picks = new Set();
+    for (const slug of sel.connectors) {
+      const rows = items.filter((x) => x.id.startsWith(`${slug}@`));
+      if (!rows.length) { picks.add(slug); continue; }
+      const via = active.find((c) => c.toolkit === slug && c.usedBy.includes(b.id));
+      picks.add(via ? `${slug}@${via.id}` : rows.at(-1).id);
+    }
+    foldPicker($('#app-picks', root), items, picks, () => {
+      sel.connectors = new Set([...picks].map((x) => x.split('@')[0]));
+      sel.accounts = Object.fromEntries([...picks].filter((x) => x.includes('@')).map((x) => x.split('@')));
+      saveSoon();
+    }, { exclusive: (id) => id.split('@')[0] });
   }).catch(() => {});
 
   foldPicker($('#bot-picks', root), state.bots.filter((x) => x.id !== b.id).map((x) => ({ id: x.id, label: x.name, desc: x.description.slice(0, 120) })), sel.mayMessage, saveSoon,

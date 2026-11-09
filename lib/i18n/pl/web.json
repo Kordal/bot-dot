@@ -1244,6 +1244,7 @@
   "Connecting didn't work: {why}": "Połączenie się nie udało: {why}",
   "Connecting didn't work": "Połączenie się nie udało",
   "Bots that may use {app}": "Boty, które mogą używać {app}",
+  "Add account": "Dodaj konto",
   "They'll read freely, but only send, post, change or delete things when you (or their task) ask for it.": "Czytają swobodnie, ale wysyłają, publikują, zmieniają lub usuwają tylko wtedy, gdy ty (albo ich zlecenie) o to prosisz.",
   "They act on your real account.": "Działają na twoim prawdziwym koncie.",
   "Another model…": "Inny model…",
