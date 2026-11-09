@@ -1,6 +1,6 @@
-// The head: the one definition every app draws bots from (lib/figure.json, ADR 003), the web page's
-// renderer (public/figure.js, loaded the way the browser loads it) and the route that hands the
-// definition out.
+// The one definition every app draws bots from (lib/figure.json, ADR 003): the tile (ADR 169) and the head
+// apps from before the tile draw, the web page's renderer (public/figure.js, loaded the way the browser
+// loads it) and the route that hands the definition out.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -14,6 +14,7 @@ const def = JSON.parse(fs.readFileSync(FILE, 'utf8'));
 const STATES = ['idle', 'working', 'waiting', 'needs_you', 'failed', 'paused']; // botStates() in server.js
 const LAYERS = { head: ['move', 'turn'], eyes: ['move', 'scale'], pupils: ['move'] }; // ADR 003: what a pose may say of each layer
 const copy = (x) => JSON.parse(JSON.stringify(x));
+const headDef = (({ tile, ...d }) => d)(def); // the definition as apps from before the tile read it: the head
 
 // A fresh page with the renderer in it.
 function page() {
@@ -44,9 +45,9 @@ test('definition: a head, its tones, its pivots and where the hat sits; no body,
   assert.ok(bottom < def.pivot.eyes[1], 'a hat ends above the middle of the eyes');
   for (const gone of ['bones', 'hip', 'stroke']) assert.equal(def[gone], undefined, `no ${gone}`);
   assert.deepEqual(Object.keys(def.attach), ['hat']);
-  assert.deepEqual(Object.keys(def.kit), ['limits', 'hat']);
+  assert.deepEqual(Object.keys(def.kit), ['limits', 'hat', 'icon']);
   assert.deepEqual(Object.keys(def.kit.hat), ['box', 'origin', 'pieces'], 'the hat is placed by attach.hat, and by nothing in the kit');
-  assert.deepEqual(def.chief, { outfit: { hat: 'top-hat' } });
+  assert.deepEqual(def.chief, { outfit: { hat: 'top-hat', icon: 'compass' } });
   assert.ok(!JSON.stringify(def).includes('"holds"') && !JSON.stringify(def).includes('"held"'));
 });
 
@@ -117,7 +118,7 @@ test('definition: a movement loops without a jump; only paused is still', () => 
 
 test('renderer: each state is drawn differently, in the colour, a head with two eyes', () => {
   const Figure = page();
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const drawn = STATES.map((s) => Figure.svg(s, '#378add'));
   assert.equal(new Set(drawn.map(body)).size, STATES.length, 'the still faces differ');
   for (const [i, svg] of drawn.entries()) {
@@ -137,7 +138,7 @@ test('renderer: each state is drawn differently, in the colour, a head with two 
 
 test('renderer: the small mark is the head with its hat, without eyes, and never moves', () => {
   const Figure = page();
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const bare = Figure.small('#378add');
   assert.equal(bare, `<svg class="fig fig-small" viewBox="0 0 24 24" style="--c:#378add;--w:${def.tones.white};--k:${def.tones.ink};aspect-ratio:24/24" aria-hidden="true"><circle class="f-main s-none" cx="12" cy="16.5" r="7.5"/></svg>`);
   const capped = Figure.small('#378add', { hat: 'cap' });
@@ -154,29 +155,29 @@ test('renderer: the small mark is the head with its hat, without eyes, and never
   assert.ok(Figure.small().includes('--c:#888780'), 'no colour is grey');
   assert.equal(Figure.small('#fff;"><img src=x onerror=alert(1)>').split('<').length, bare.split('<').length, 'a colour cannot carry markup');
   // The view is the definition's.
-  Figure.use({ ...copy(def), small: { view: [2, 1, 20, 23] } });
+  Figure.use({ ...copy(headDef), small: { view: [2, 1, 20, 23] } });
   assert.match(Figure.small('#378add'), /viewBox="2 1 20 23" style="[^"]*;aspect-ratio:20\/23"/);
-  const old = copy(def);
+  const old = copy(headDef);
   delete old.small;
   Figure.use(old);
   assert.match(Figure.small('#378add'), /viewBox="0 0 24 24"/, 'a definition that does not say: the whole box');
   Figure.use({ ...old, box: [48, 30] });
   assert.match(Figure.small('#378add'), /viewBox="0 0 48 30" style="[^"]*;aspect-ratio:48\/30"/, 'whatever the box is');
   for (const small of [null, {}, { view: [0, 0, 0, 1] }, { view: [0, 0, 1] }, { view: '0 0 1 1' }]) {
-    assert.throws(() => Figure.use({ ...copy(def), small }), /Figure definition: small/, JSON.stringify(small));
+    assert.throws(() => Figure.use({ ...copy(headDef), small }), /Figure definition: small/, JSON.stringify(small));
   }
 });
 
 test('renderer: a state the page does not know is drawn as idle', () => {
   const Figure = page();
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   for (const odd of ['sleeping', '', undefined, 'constructor', '"><script>']) assert.equal(Figure.svg(odd, '#378add'), Figure.svg('idle', '#378add'), String(odd));
 });
 
 test('renderer: only the layers that move get keyframes', () => {
   const Figure = page();
   assert.equal(Figure.css(), '');
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const css = Figure.css();
   assert.match(css, /@keyframes fig-working-pupils \{ 0% \{ transform: translate\(-1\.1px, 0px\) rotate\(0deg\) scale\(1, 1\) translate\(0px, 0px\); \} 50% \{ transform: translate\(1\.1px, 0px\) rotate\(0deg\) scale\(1, 1\) translate\(0px, 0px\); \} 100% /);
   assert.match(css, /\.fig-working \.l-pupils \{ animation: fig-working-pupils 1\.4s cubic-bezier\(\.42, 0, \.58, 1\) var\(--ph, 0s\) infinite; \}/);
@@ -191,7 +192,7 @@ test('renderer: only the layers that move get keyframes', () => {
 
 test('renderer: a colour cannot carry markup', () => {
   const Figure = page();
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const svg = Figure.svg('idle', '#fff;"><img src=x onerror=alert(1)>');
   assert.ok(svg.includes('style="--c:#fffimg srcx onerroralert(1);--w:'), 'only what a colour is written with stays');
   assert.equal(svg.split('<').length, Figure.svg('idle', '#fff').split('<').length);
@@ -200,7 +201,7 @@ test('renderer: a colour cannot carry markup', () => {
 
 test('renderer: a hat on the head, from the kit or drawn inline; one it cannot draw is left out', () => {
   const Figure = page();
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const bare = Figure.svg('idle', '#378add');
   const capped = Figure.svg('idle', '#378add', { hat: 'cap' });
   assert.ok(capped.includes('<g class="hat" transform="translate(12 9) scale(2.6) translate(-5 -3.5)"><path class="f-deep s-none" d="M2.7 4.4Q2.7 1.4 5 1.4Q7.3 1.4 7.3 4.4Z"/>'), 'the hat\'s origin on the top of the head, drawn larger');
@@ -215,7 +216,7 @@ test('renderer: a hat on the head, from the kit or drawn inline; one it cannot d
   assert.equal(body(Figure.svg('idle', '#d85a30', Figure.CHIEF)), body(Figure.svg('idle', '#d85a30', { hat: 'top-hat' })));
   // A definition without a kit, or without a place for the hat: bare heads, whatever the outfit.
   for (const gone of ['kit', 'attach', 'chief']) {
-    const d = copy(def);
+    const d = copy(headDef);
     delete d[gone];
     Figure.use(d);
     assert.equal(Figure.svg('idle', '#378add', gone === 'chief' ? Figure.CHIEF : { hat: 'cap' }), bare, gone);
@@ -256,7 +257,7 @@ test('renderer: heads drawn bare before the definition arrived are drawn again f
   ]);
   for (const el of els) assert.match(el.outerHTML, / data-asked="[^"<>]*">/, 'a bare head says what it stands for, as text');
   assert.match(els[0].outerHTML, /^<svg class="fig fig-plain" /);
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const fresh = (svg) => svg.replace(/--ph:-?[\d.]+s/, '--ph:0s');
   assert.equal(fresh(els[0].outerHTML), fresh(Figure.svg('working', '#378add', outfit)), 'in its state, colour and hat, a drawn one too');
   assert.ok(els[0].outerHTML.includes('class="fig fig-working"') && els[0].outerHTML.includes('<circle class="f-deep s-none" cx="5" cy="3" r="2"/>'));
@@ -268,7 +269,7 @@ test('renderer: heads drawn bare before the definition arrived are drawn again f
   for (const el of els) assert.ok(!el.outerHTML.includes('data-asked'), 'a head drawn from the definition carries nothing');
   // A second definition leaves them alone: only bare heads are redrawn.
   const before = els.map((e) => e.outerHTML);
-  Figure.use({ ...copy(def), head: { cx: 12, cy: 16, r: 7 } });
+  Figure.use({ ...copy(headDef), head: { cx: 12, cy: 16, r: 7 } });
   assert.deepEqual(els.map((e) => e.outerHTML), before);
 });
 
@@ -281,21 +282,21 @@ test('renderer: without a definition, or with one it cannot use, the one bare he
   assert.ok(plain.includes('<circle class="f-main s-none" cx="12" cy="16.5" r="7.5"/>') && plain.split('<circle').length === 6, 'a head with two eyes');
   // The built-in head is the definition's own idle one, so a bot looks the same once the definition is here.
   const known = page();
-  known.use(copy(def));
+  known.use(copy(headDef));
   const shapes = (svg) => body(look(svg)).replace(/ transform="[^"]*"/g, '');
   assert.equal(shapes(Figure.svg('idle', '#378add')), shapes(known.svg('idle', '#378add')));
   assert.match(Figure.small('#378add', { hat: 'cap' }), /^<svg class="fig fig-small" viewBox="0 0 24 24" [^>]*data-asked="[^"]*"><circle class="f-main s-none" cx="12" cy="16.5" r="7.5"\/><\/svg>$/);
-  const state = (over) => ({ ...copy(def), states: { idle: { ...copy(def.states.idle), ...over } } });
+  const state = (over) => ({ ...copy(headDef), states: { idle: { ...copy(def.states.idle), ...over } } });
   const bad = [
     null,
-    { ...copy(def), version: 1 },
-    { ...copy(def), version: 3 },
-    { ...copy(def), head: { cx: 12, cy: 16 } },
-    { ...copy(def), tones: { white: 'url(x)', ink: '#000000' } },
-    { ...copy(def), pivot: { head: [12, 16] } },
-    { ...copy(def), attach: { hat: { at: [12, 9], scale: 0 } } },
-    { ...copy(def), default: 'nobody' },
-    { ...copy(def), default: 'constructor' },
+    { ...copy(headDef), version: 1 },
+    { ...copy(headDef), version: 3 },
+    { ...copy(headDef), head: { cx: 12, cy: 16 } },
+    { ...copy(headDef), tones: { white: 'url(x)', ink: '#000000' } },
+    { ...copy(headDef), pivot: { head: [12, 16] } },
+    { ...copy(headDef), attach: { hat: { at: [12, 9], scale: 0 } } },
+    { ...copy(headDef), default: 'nobody' },
+    { ...copy(headDef), default: 'constructor' },
     state({ eyes: undefined }),
     state({ eyes: [{ shape: 'spiral', fill: 'white' }] }),
     state({ eyes: [{ shape: 'circle', cx: 9, cy: 17, r: 2, fill: 'gold', stroke: 'ink', width: 1 }] }), // a tone it doesn't know, beside one it does
@@ -312,7 +313,7 @@ test('renderer: without a definition, or with one it cannot use, the one bare he
     assert.equal(Figure.svg('working', '#378add', { hat: 'cap' }), plain);
   }
   // A definition with more in it than this page knows (a new key, a new state) is still used.
-  Figure.use({ ...copy(def), mouth: {}, states: { ...copy(def.states), dancing: { ...copy(def.states.idle), pose: { head: { turn: 20 } } } } });
+  Figure.use({ ...copy(headDef), mouth: {}, states: { ...copy(headDef.states), dancing: { ...copy(def.states.idle), pose: { head: { turn: 20 } } } } });
   assert.match(Figure.svg('dancing', '#378add'), /fig-dancing/);
 });
 
@@ -323,7 +324,7 @@ test('renderer: the definitions every app must take alike are taken so here', ()
   assert.ok(cases.length >= 15);
   for (const c of cases) {
     const Figure = page();
-    const d = { ...copy(def), states: { ...copy(def.states), extra: c.state } };
+    const d = { ...copy(headDef), states: { ...copy(headDef.states), extra: c.state } };
     if (!c.accepted) { assert.throws(() => Figure.use(d), /Figure definition/, c.what); continue; }
     assert.doesNotThrow(() => Figure.use(d), c.what);
     assert.match(Figure.svg('extra', '#378add'), /fig-extra/, c.what);
@@ -333,7 +334,7 @@ test('renderer: the definitions every app must take alike are taken so here', ()
 
 test('renderer: a small mark says whose it is when told, and keeps that when it is drawn again', () => {
   const Figure = page();
-  Figure.use(copy(def));
+  Figure.use(copy(headDef));
   const plain = Figure.small('#378add', { hat: 'cap' });
   assert.ok(!plain.includes('data-bot'));
   assert.equal(Figure.small('#378add', { hat: 'cap' }, 'mail-keeper'), plain.replace(' aria-hidden="true"', ' aria-hidden="true" data-bot="mail-keeper"'));
@@ -341,9 +342,77 @@ test('renderer: a small mark says whose it is when told, and keeps that when it 
   // Drawn bare before the definition arrived, then drawn again from it: still its bot's.
   const { Figure: late, els } = pageWithDocument([(F) => F.small('#378add', { hat: 'cap' }, 'mail-keeper')]);
   assert.match(els[0].outerHTML, / data-bot="mail-keeper" data-asked=/);
-  late.use(copy(def));
+  late.use(copy(headDef));
   assert.equal(els[0].outerHTML, late.small('#378add', { hat: 'cap' }, 'mail-keeper'));
   assert.ok(els[0].outerHTML.includes('class="hat"') && els[0].outerHTML.includes('data-bot="mail-keeper"'));
+});
+
+test('definition: the tile, its icon inside it, a ring around it and a dot on its corner (ADR 169)', () => {
+  const t = def.tile;
+  const { x, y, w, h } = t.rect;
+  assert.ok(x >= 0 && y >= 0 && x + w <= def.box[0] && y + h <= def.box[1], 'the tile is inside the box');
+  assert.ok(w / def.box[0] >= 0.8, 'and fills most of it');
+  const [ix, iy] = t.icon.at;
+  const [iw, ih] = def.kit.icon.box.map((v) => v * t.icon.scale);
+  assert.ok(ix > x && iy > y && ix + iw < x + w && iy + ih < y + h, 'the icon sits inside the tile with room around it');
+  assert.ok(Math.abs(ix + iw / 2 - (x + w / 2)) < 0.01 && Math.abs(iy + ih / 2 - (y + h / 2)) < 0.01, 'in its middle');
+  const corner = Math.hypot(w / 2 - t.rect.r, h / 2 - t.rect.r) + t.rect.r;
+  assert.ok(t.ring.r - t.ring.width / 2 > corner, 'the ring clears the corners of the tile');
+  for (const name of Object.keys(t.states)) assert.ok(STATES.includes(name), `${name} is a state`);
+  assert.deepEqual(Object.keys(t.states).sort(), ['failed', 'needs_you', 'waiting', 'working']);
+  assert.ok(t.states.working.ring && !t.states.working.dot, 'a working bot has the turning ring');
+  assert.ok(def.states.paused.opacity < 1, 'a paused bot is faded');
+  // The ink of the icon reads on every colour a bot can have, muted as the tile mutes it: 3 to 1 at least.
+  const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
+  const mute = (hex) => '#' + [1, 3, 5].map((i) => { const a = parseInt(hex.slice(i, i + 2), 16); const b = parseInt(t.mute.toward.slice(i, i + 2), 16); return Math.round(a + (b - a) * t.mute.by).toString(16).padStart(2, '0'); }).join('');
+  const { COLORS } = require('../lib/bots');
+  for (const c of [...COLORS, '#d85a30']) {
+    const ratio = (lum(t.ink) + 0.05) / (lum(mute(c)) + 0.05);
+    assert.ok(ratio >= 3, `white on ${c} (${mute(c)}): ${ratio.toFixed(2)}`);
+  }
+});
+
+test('renderer: a bot is a tile in its muted colour with its icon; the state is a ring, a dot or a fade', () => {
+  const Figure = page();
+  Figure.use(copy(def));
+  const fill = (svg) => svg.match(/class="t-tile"[^>]*fill="(#[0-9a-f]{6})"/)[1];
+  const idle = Figure.svg('idle', '#1d9e75', { hat: 'cap', icon: 'news' });
+  assert.match(idle, /^<svg class="fig fig-idle fig-tile" viewBox="0 0 24 24"/);
+  assert.equal(fill(idle), '#258666', 'the colour mixed a part of the way towards the definition\'s grey');
+  assert.ok(!/l-head|l-eyes|class="hat"/.test(idle), 'no head, no face, no hat');
+  const icon = (svg) => body(svg).match(/<g class="t-icon"[^>]*>(.*?)<\/g>/)[1];
+  const drawn = (name) => icon(Figure.svg('idle', '#378add', { icon: name }));
+  assert.notEqual(drawn('news'), drawn('mail'), 'each icon is drawn from its own shapes');
+  assert.equal(icon(Figure.svg('idle', '#378add', { hat: 'chef' })), drawn('food'), 'a bot without an icon shows the one its hat stands for');
+  for (const none of [null, undefined, { hat: '' }, { hat: { shapes: [] } }, { icon: 'unicorn' }, { icon: '<b>' }]) assert.equal(icon(Figure.svg('idle', '#378add', none)), drawn('spark'), `the default icon for ${JSON.stringify(none)}`);
+  assert.equal(icon(Figure.svg('idle', '#d85a30', Figure.CHIEF)), drawn('compass'), "the Chief's own icon");
+  assert.match(idle, /<g class="t-icon" style="--c:#ffffff;--deep:#ffffff" transform="translate\(6 6\) scale\(0\.5\) translate\(0 0\)">/, 'in the tile\'s ink, in its middle');
+  assert.ok(!/t-ring|t-dot/.test(idle), 'an idle bot shows nothing more');
+  const working = Figure.svg('working', '#1d9e75', { icon: 'news' });
+  assert.match(working, /<g class="t-ring"><circle cx="12" cy="12" r="12\.6" pathLength="1" stroke-dasharray="0\.22 0\.78" stroke="#5fb98f" stroke-width="1\.5"\/><\/g>/);
+  for (const [st, c] of [['needs_you', '#e0a23a'], ['failed', '#d9534f'], ['waiting', '#9a9890']]) {
+    const svg = Figure.svg(st, '#1d9e75', { icon: 'news' });
+    assert.match(svg, new RegExp(`<circle class="t-cut" cx="20.5" cy="20.5" r="4.5"/><circle class="t-dot" cx="20.5" cy="20.5" r="3" fill="${c}"/></svg>$`), st);
+  }
+  assert.match(Figure.svg('paused', '#1d9e75', { icon: 'news' }), /^<svg class="fig fig-paused fig-tile"[^>]* opacity="0\.\d+"/);
+  assert.match(Figure.svg('dancing', '#1d9e75', null), /^<svg class="fig fig-idle fig-tile"/, 'a state it does not know is idle');
+  assert.match(Figure.css(), /@keyframes fig-tile-turn \{ to \{ transform: rotate\(360deg\); \} \}/);
+  assert.match(Figure.css(), /\.fig \.t-ring \{ transform-origin: 12px 12px; animation: fig-tile-turn 1\.4s linear var\(--ph, 0s\) infinite; \}/);
+  // A colour that is no #rrggbb is not mixed, and carries no markup.
+  assert.ok(!Figure.svg('idle', '"><script>x</script>', null).includes('<script'));
+  // The small mark: the tile and its icon, no state.
+  const small = Figure.small('#1d9e75', { icon: 'news' }, 'b1');
+  assert.match(small, /^<svg class="fig fig-small fig-tile" viewBox="-1 -1 26 26" style="aspect-ratio:26\/26" aria-hidden="true" data-bot="b1">/);
+  assert.equal(icon(small), drawn('news'));
+  assert.ok(!/t-ring|t-dot/.test(small));
+});
+
+test('renderer: a tile it cannot draw is refused whole, and the definition is not used', () => {
+  const Figure = page();
+  for (const tile of [{}, { ...def.tile, rect: { x: 2, y: 2, w: 0, h: 20, r: 6 } }, { ...def.tile, mute: { toward: 'grey', by: 0.2 } }, { ...def.tile, ink: 'white' }, { ...def.tile, ring: { ...def.tile.ring, seconds: 0 } },
+    { ...def.tile, states: { working: { ring: 'url(#x)' } } }, { ...def.tile, states: { working: { glow: '#ffffff' } } }, { ...def.tile, small: { view: [0, 0] } }]) {
+    assert.throws(() => Figure.use({ ...copy(def), tile }), /Figure definition: tile/, JSON.stringify(tile).slice(0, 80));
+  }
 });
 
 test('the page keeps no face of its own beyond the one bare head', () => {

@@ -1,7 +1,9 @@
 // A bot's mark, drawn as SVG from the one definition the botdot server hands out (GET /api/figure,
-// lib/figure.json; docs/adr/003-one-figure-definition-for-all-apps.md): a head in the bot's colour, the
-// face of its state and its hat. This file is only a renderer: the head, the faces, their movements and
-// the hats all come from the definition.
+// lib/figure.json; docs/adr/003-one-figure-definition-for-all-apps.md): a tile in the bot's colour with
+// its icon, a ring or a dot for its state (the definition's `tile`, docs/adr/169-a-bot-is-an-icon-on-a-
+// tile-in-its-colour.md). A definition without `tile` is drawn as ADR 003's head: the face of its state
+// and its hat. This file is only a renderer: the tile, the icons, the head, the faces, their movements
+// and the hats all come from the definition.
 //
 //   Figure.use(definition)   check it and draw from it from now on (throws when it's not one this page knows);
 //                            the bare heads already on the page are drawn again from it
@@ -130,11 +132,30 @@ function check(d) {
     const same = (k) => JSON.stringify(Object.keys(LAYERS).map((layer) => Object.entries(k[layer] || {}).sort()));
     if (same(keys[0]) !== same(keys.at(-1))) fail(`${name}: the last key must equal the first, or the loop jumps`);
   }
+  if (d.tile !== undefined) checkTile(d);
   if (d.small !== undefined) {
     const v = d.small?.view;
     if (!Array.isArray(v) || v.length !== 4 || !v.every(num) || !(v[2] > 0 && v[3] > 0)) fail('small: view must be [x, y, width, height]');
   }
   return d;
+}
+
+// The tile (ADR 169): checked whole, so a page never draws half of one. An icon the page can't draw is
+// left out when it is drawn, as a hat is.
+function checkTile(d) {
+  const t = d.tile;
+  const r = t?.rect;
+  if (!r || ![r.x, r.y, r.w, r.h, r.r].every(num) || !(r.w > 0 && r.h > 0 && r.r >= 0)) fail('tile: rect must be { x, y, w, h, r }');
+  if (!HEX.test(t.mute?.toward) || !(num(t.mute.by) && t.mute.by >= 0 && t.mute.by <= 1)) fail('tile: mute must be { toward, by }');
+  if (!pair(t.icon?.at) || !(num(t.icon.scale) && t.icon.scale > 0)) fail('tile: icon must be { at, scale }');
+  if (!HEX.test(t.ink)) fail('tile: ink must be #rrggbb');
+  if (!t.ring || ![t.ring.r, t.ring.width, t.ring.arc, t.ring.seconds].every(num) || !(t.ring.r > 0 && t.ring.seconds > 0 && t.ring.arc > 0 && t.ring.arc <= 1)) fail('tile: ring must be { r, width, arc, seconds }');
+  if (!t.dot || ![t.dot.cx, t.dot.cy, t.dot.r, t.dot.gap].every(num) || !(t.dot.r > 0)) fail('tile: dot must be { cx, cy, r, gap }');
+  for (const [name, v] of Object.entries(t.states || {})) {
+    if (!v || typeof v !== 'object' || Object.keys(v).some((k) => !['ring', 'dot'].includes(k) || !HEX.test(v[k]))) fail(`tile: the state ${name} is { ring } or { dot }, a #rrggbb`);
+  }
+  const v = t.small?.view;
+  if (t.small !== undefined && (!Array.isArray(v) || v.length !== 4 || !v.every(num) || !(v[2] > 0 && v[3] > 0))) fail('tile: small.view must be [x, y, width, height]');
 }
 
 // Every layer's place in a state: its pose, or one key of its movement over it.
@@ -157,6 +178,11 @@ function layerAt(d, layer, p, css = false) {
 // Keyframes for the layers that move in each state, and nothing for what stays still.
 function movesCss() {
   const out = [];
+  const t = def.tile;
+  if (t) { // the ring turns about the middle of the box; still under reduced motion, as every .fig g
+    out.push('@keyframes fig-tile-turn { to { transform: rotate(360deg); } }');
+    out.push(`.fig .t-ring { transform-origin: ${n(def.box[0] / 2)}px ${n(def.box[1] / 2)}px; animation: fig-tile-turn ${n(t.ring.seconds)}s linear var(--ph, 0s) infinite; }`);
+  }
   for (const [name, s] of Object.entries(def.states)) {
     if (!s.move) continue;
     const timing = `${n(s.move.seconds)}s ${EASINGS[s.move.easing]} var(--ph, 0s) infinite`;
@@ -211,7 +237,44 @@ const headSvg = (d) => `<circle class="f-main s-none" cx="${n(d.head.cx)}" cy="$
 // The colours are in the style: the bot's, and the definition's white and ink.
 const tonesOf = (d, color) => `--c:${paint(color)};--w:${d.tones.white};--k:${d.tones.ink}`;
 
+// A colour mixed part of the way towards another, both #rrggbb; anything else is left as it is.
+function mixed(color, toward, by) {
+  const c = paint(color);
+  if (!HEX.test(c)) return c;
+  const ch = (h, i) => parseInt(h.slice(i, i + 2), 16);
+  return '#' + [1, 3, 5].map((i) => Math.round(ch(c, i) + (ch(toward, i) - ch(c, i)) * by).toString(16).padStart(2, '0')).join('');
+}
+// The icon of an outfit on the tile: the one it names, or the one its hat stands for, or the default; one
+// the page can't draw is left out and the tile is drawn without it. Every shape is in the tile's ink.
+function iconOf(outfit) {
+  const t = def.tile;
+  const o = outfit === CHIEF ? def.chief?.outfit : outfit;
+  const pieces = def.kit?.icon?.pieces || {};
+  const origin = def.kit?.icon?.origin || [0, 0];
+  const name = [o?.icon, typeof o?.hat === 'string' ? t.byHat?.[o.hat] : null, t.default].find((v) => typeof v === 'string' && Object.hasOwn(pieces, v));
+  if (!name || !Array.isArray(pieces[name]?.shapes) || !pair(origin)) return '';
+  try {
+    return `<g class="t-icon" style="--c:${t.ink};--deep:${t.ink}" transform="translate(${n(t.icon.at[0])} ${n(t.icon.at[1])}) scale(${n(t.icon.scale)}) translate(${n(-origin[0])} ${n(-origin[1])})">${shapesSvg(pieces[name].shapes, HAT_TONES)}</g>`;
+  } catch { return ''; }
+}
+const tileRect = (t, color) => `<rect class="t-tile" x="${n(t.rect.x)}" y="${n(t.rect.y)}" width="${n(t.rect.w)}" height="${n(t.rect.h)}" rx="${n(t.rect.r)}" fill="${mixed(color, t.mute.toward, t.mute.by)}"/>`;
+// What the state adds to the tile: a turning ring, or a dot cut out of what is behind it.
+function signalOf(name) {
+  const t = def.tile;
+  const sig = t.states?.[name];
+  const [cx, cy] = [def.box[0] / 2, def.box[1] / 2];
+  if (sig?.ring) return `<g class="t-ring"><circle cx="${n(cx)}" cy="${n(cy)}" r="${n(t.ring.r)}" pathLength="1" stroke-dasharray="${n(t.ring.arc)} ${n(1 - t.ring.arc)}" stroke="${sig.ring}" stroke-width="${n(t.ring.width)}"/></g>`;
+  if (sig?.dot) return `<circle class="t-cut" cx="${n(t.dot.cx)}" cy="${n(t.dot.cy)}" r="${n(t.dot.r + t.dot.gap)}"/><circle class="t-dot" cx="${n(t.dot.cx)}" cy="${n(t.dot.cy)}" r="${n(t.dot.r)}" fill="${sig.dot}"/>`;
+  return '';
+}
+
 function svg(state, color, outfit) {
+  if (def?.tile) {
+    const name = Object.hasOwn(def.states, state) ? state : def.default;
+    const s = def.states[name];
+    const ph = -((root.performance?.now() || 0) / 1000).toFixed(2);
+    return `<svg class="fig fig-${name} fig-tile" viewBox="0 0 ${n(def.box[0])} ${n(def.box[1])}"${(s.opacity ?? 1) < 1 ? ` opacity="${n(s.opacity)}"` : ''} style="--ph:${ph}s" aria-hidden="true">${tileRect(def.tile, color)}${iconOf(outfit)}${signalOf(name)}</svg>`;
+  }
   // Start the movement where the clock says it is, not from its beginning.
   const ph = -((root.performance?.now() || 0) / 1000).toFixed(2);
   const d = def || BARE;
@@ -227,6 +290,10 @@ function svg(state, color, outfit) {
 // The mark beside a bot's name in text, and for each thing that waits in "Needs you": the head and its
 // hat, without eyes. It never moves. Only the part small.view of the box is shown.
 function small(color, outfit, bot) {
+  if (def?.tile) {
+    const view = def.tile.small?.view || [0, 0, ...def.box];
+    return `<svg class="fig fig-small fig-tile" viewBox="${view.map(n).join(' ')}" style="aspect-ratio:${n(view[2])}/${n(view[3])}" aria-hidden="true"${bot ? ` data-bot="${attr(bot)}"` : ''}>${tileRect(def.tile, color)}${iconOf(outfit)}</svg>`;
+  }
   const d = def || BARE;
   const view = d.small?.view || [0, 0, ...d.box]; // a definition that doesn't say: the whole box
   // The mark's own shape is in the style, so the page only says how tall it is.

@@ -13,7 +13,9 @@ import kotlin.math.min
 import kotlin.math.sin
 
 // A bot's mark, from the one definition the botdot server hands out (GET /api/figure, lib/figure.json;
-// docs/adr/003-one-figure-definition-for-all-apps.md): a head in the bot's colour, the face of its state and its hat.
+// docs/adr/003-one-figure-definition-for-all-apps.md): a tile in the bot's colour with its icon, and a ring or a dot
+// for its state (the definition's `tile`, docs/adr/169-a-bot-is-an-icon-on-a-tile-in-its-colour.md). A definition
+// without `tile` is drawn as ADR 003's head: the face of its state and its hat.
 // The app bundles that file and prefers the server's copy. This file holds no face or kit data of its own beyond one
 // built-in bare head: it reads the definition and says what to draw, as plain marks in the definition's own units,
 // and where the three layers (head, eyes, pupils) are at a moment. ui/BotFigure.kt puts them on a canvas.
@@ -59,6 +61,41 @@ class Layers(val head: Place, val eyes: Place, val pupils: Place)
 /** The face of a state: what doesn't look around (whites, brows, crosses, closed lids) and what does. */
 class Face(val eyes: List<Mark>, val pupils: List<Mark>)
 
+/** What a state adds to the tile: a turning ring or a dot, each in its colour (0xRRGGBB). */
+data class Signal(val ring: Int?, val dot: Int?)
+
+/**
+ * The tile (ADR 169), in the definition's units: [rect] (x, y, width, height, corner radius) filled with the bot's colour
+ * muted towards [toward] by [by], the icon placed at [iconX], [iconY] and drawn [iconScale] times as large in [ink], a
+ * ring of radius [ringR] with an arc of [ringArc] of it turning once every [ringSeconds], and a dot at [dot] (x, y,
+ * radius, the gap cut out around it).
+ */
+class Tile internal constructor(
+    val rect: FloatArray,
+    val toward: Int,
+    val by: Float,
+    val ink: Int,
+    val ringR: Float,
+    val ringWidth: Float,
+    val ringArc: Float,
+    val ringSeconds: Double,
+    val dot: FloatArray,
+    internal val iconX: Double,
+    internal val iconY: Double,
+    internal val iconScale: Double,
+    internal val byHat: Map<String, String>,
+    internal val fallback: String,
+    internal val signals: Map<String, Signal>,
+    internal val small: FloatArray?,
+) {
+    /** A bot's colour (0xRRGGBB) as the tile shows it: mixed [by] of the way towards [toward], channel by channel, as on the web page. */
+    fun muted(rgb: Int): Int {
+        fun ch(v: Int, shift: Int) = (v shr shift) and 0xff
+        fun mix(shift: Int) = Math.round(ch(rgb, shift) + (ch(toward, shift) - ch(rgb, shift)) * by.toDouble()).toInt().coerceIn(0, 255) shl shift
+        return mix(16) or mix(8) or mix(0)
+    }
+}
+
 class FigureDef private constructor(
     val box: Pair<Float, Float>,
     /** The head's circle, in the bot's colour. */
@@ -74,8 +111,32 @@ class FigureDef private constructor(
     private val hats: Hats?,
     private val chief: JsonElement?,
     /** The part of the box (x, y, width, height) that fills the small mark: the definition's, or the whole box. */
-    val small: FloatArray,
+    private val headSmall: FloatArray,
+    /** The tile, when the definition has one: then a bot is drawn as it, not as the head. */
+    val tile: Tile? = null,
+    private val icons: Map<String, JsonElement> = emptyMap(),
+    private val iconOrigin: Pair<Double, Double> = 0.0 to 0.0,
 ) {
+    /** The part of the box (x, y, width, height) that fills the small mark: the tile's, the head's, or the whole box. */
+    val small: FloatArray get() = tile?.small ?: headSmall
+
+    /** What the state adds to the tile (null: nothing, or no tile). */
+    fun signal(state: String?): Signal? = tile?.signals?.get(stateName(state))
+
+    /**
+     * The icon on the tile for an outfit ({ icon, hat }, or [CHIEF]): the one it names, or the one its hat stands for, or
+     * the default; placed on the tile. One this app can't draw gives no marks, and the tile is drawn without it.
+     */
+    fun icon(outfit: JsonElement?): List<Mark> {
+        val t = tile ?: return emptyList()
+        val o = (if (outfit == CHIEF) chief else outfit) as? JsonObject
+        fun named(key: String) = (o?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val name = listOf(named("icon"), named("hat")?.let { t.byHat[it] }, t.fallback).firstOrNull { it != null && icons.containsKey(it) } ?: return emptyList()
+        val shapes = ((icons[name] as? JsonObject)?.get("shapes") as? JsonArray) ?: return emptyList()
+        val put = Put(t.iconX - t.iconScale * iconOrigin.first, t.iconY - t.iconScale * iconOrigin.second, t.iconScale)
+        return runCatching { shapes.map { markOf(it, HAT_TONES, put) } }.getOrDefault(emptyList())
+    }
+
     private class Key(val at: Double, val values: DoubleArray)
     private class Move(val seconds: Double, val eased: Boolean, val keys: List<Key>)
     private class State(val face: Face, val pose: DoubleArray, val opacity: Float, val move: Move?)
@@ -159,6 +220,7 @@ class FigureDef private constructor(
      * never cut.
      */
     fun portrait(hat: List<Mark>): FloatArray {
+        if (tile != null) return floatArrayOf(0f, 0f, box.first, box.second) // the tile's corners lie inside the circle the box holds
         val marks = listOf<Mark>(head) + hat
         // Each mark as points with the room its stroke takes around them (a disc: its middle, with its radius as room).
         val points = marks.flatMap { m ->
@@ -301,7 +363,46 @@ class FigureDef private constructor(
                 ((d["small"] as? JsonObject)?.get("view") as? JsonArray)?.takeIf { it.size == 4 }?.map { (it as? JsonPrimitive)?.number() ?: fail("small: view must be [x, y, width, height]") }
                     ?.takeIf { it[2] > 0 && it[3] > 0 } ?: fail("small: view must be [x, y, width, height]")
             }
-            return FigureDef(box.first.toFloat() to box.second.toFloat(), head, white, ink, pivotHead, pivotEyes, states, default, hats, chief, FloatArray(4) { small[it].toFloat() })
+            val iconKit = (d["kit"] as? JsonObject)?.get("icon") as? JsonObject
+            val tile = d["tile"]?.let { tileOf(it) }
+            return FigureDef(box.first.toFloat() to box.second.toFloat(), head, white, ink, pivotHead, pivotEyes, states, default, hats, chief, FloatArray(4) { small[it].toFloat() },
+                tile, (iconKit?.get("pieces") as? JsonObject).orEmpty(), iconKit?.pair("origin") ?: (0.0 to 0.0))
+        }
+
+        /** The tile, checked whole as the web page checks it: one this app can't draw is refused, and the definition with it. */
+        private fun tileOf(el: JsonElement): Tile {
+            val t = el as? JsonObject ?: fail("tile: rect must be { x, y, w, h, r }")
+            fun hex(v: String?) = v?.takeIf { HEX.matches(it) }?.drop(1)?.toInt(16)
+            val r = t["rect"] as? JsonObject
+            val rect = listOf("x", "y", "w", "h", "r").map { r?.num(it) }
+            if (rect.any { it == null } || rect[2]!! <= 0 || rect[3]!! <= 0 || rect[4]!! < 0) fail("tile: rect must be { x, y, w, h, r }")
+            val mute = t["mute"] as? JsonObject
+            val toward = hex(mute?.text("toward")) ?: fail("tile: mute must be { toward, by }")
+            val by = mute?.num("by")?.takeIf { it in 0.0..1.0 } ?: fail("tile: mute must be { toward, by }")
+            val icon = t["icon"] as? JsonObject
+            val at = icon?.pair("at") ?: fail("tile: icon must be { at, scale }")
+            val scale = icon.num("scale")?.takeIf { it > 0 } ?: fail("tile: icon must be { at, scale }")
+            val ink = hex(t.text("ink")) ?: fail("tile: ink must be #rrggbb")
+            val ring = t["ring"] as? JsonObject
+            val ringV = listOf("r", "width", "arc", "seconds").map { ring?.num(it) }
+            if (ringV.any { it == null } || ringV[0]!! <= 0 || ringV[3]!! <= 0 || ringV[2]!! <= 0 || ringV[2]!! > 1) fail("tile: ring must be { r, width, arc, seconds }")
+            val dotO = t["dot"] as? JsonObject
+            val dot = listOf("cx", "cy", "r", "gap").map { dotO?.num(it) }
+            if (dot.any { it == null } || dot[2]!! <= 0) fail("tile: dot must be { cx, cy, r, gap }")
+            val signals = (t["states"] as? JsonObject).orEmpty().mapValues { (name, v) ->
+                val o = v as? JsonObject
+                if (o == null || o.keys.any { it != "ring" && it != "dot" }) fail("tile: the state $name is { ring } or { dot }, a #rrggbb")
+                val ringC = o["ring"]?.let { hex((it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content) ?: fail("tile: the state $name is { ring } or { dot }, a #rrggbb") }
+                val dotC = o["dot"]?.let { hex((it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content) ?: fail("tile: the state $name is { ring } or { dot }, a #rrggbb") }
+                Signal(ringC, dotC)
+            }
+            val small = t["small"]?.let { s ->
+                ((s as? JsonObject)?.get("view") as? JsonArray)?.takeIf { it.size == 4 }?.map { (it as? JsonPrimitive)?.number() ?: fail("tile: small.view must be [x, y, width, height]") }
+                    ?.takeIf { it[2] > 0 && it[3] > 0 }?.let { v -> FloatArray(4) { v[it].toFloat() } } ?: fail("tile: small.view must be [x, y, width, height]")
+            }
+            val byHat = (t["byHat"] as? JsonObject).orEmpty().mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { it.isString }?.let { k to it.content } }.toMap()
+            return Tile(FloatArray(5) { rect[it]!!.toFloat() }, toward, by.toFloat(), ink, ringV[0]!!.toFloat(), ringV[1]!!.toFloat(), ringV[2]!!.toFloat(), ringV[3]!!,
+                FloatArray(4) { dot[it]!!.toFloat() }, at.first, at.second, scale, byHat, t.text("default").orEmpty(), signals, small)
         }
 
         private fun fail(why: String): Nothing = throw IllegalArgumentException("Figure definition: $why")

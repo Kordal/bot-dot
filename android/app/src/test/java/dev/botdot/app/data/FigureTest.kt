@@ -17,11 +17,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 
-/** A bot's head, drawn from the definition the app bundles: the server's own lib/figure.json (ADR 003, ADR 004). */
+/**
+ * A bot drawn from the definition the app bundles, the server's own lib/figure.json (ADR 003, ADR 004, ADR 169): the
+ * head, as apps from before the tile read it (the definition without `tile`), and the tile.
+ */
 class FigureTest {
     private val text = File(System.getProperty("figureDefinition") ?: "../../lib/figure.json").readText()
-    private val raw = Json.parseToJsonElement(text).jsonObject
-    private val def = FigureDef.parse(text)
+    private val full = Json.parseToJsonElement(text).jsonObject
+    private val raw = JsonObject(full - "tile")
+    private val def = FigureDef.parse(raw.toString())
+    private val tiled = FigureDef.parse(text)
     private val six = listOf("idle", "working", "waiting", "needs_you", "failed", "paused")
 
     private fun json(s: String): JsonElement = Json.parseToJsonElement(s)
@@ -367,5 +372,39 @@ class FigureTest {
         val cap = hats()["cap"]!!.jsonObject["shapes"]!!.jsonArray.size
         assertEquals(listOf(0, 0, cap, 1, cap, 0, 0), bots.map { def.hat(it.outfit).size })
         assertNotNull(bots[2].outfit)
+    }
+
+    @Test fun `with a tile a bot is its icon on a tile in its muted colour, and its state a ring or a dot`() {
+        val t = tiled.tile!!
+        assertArrayEquals(floatArrayOf(2f, 2f, 20f, 20f, 6f), t.rect, 0.001f)
+        assertEquals(0x258666, t.muted(0x1d9e75))
+        assertEquals(0xffffff, t.ink)
+        fun icons() = full["kit"]!!.jsonObject["icon"]!!.jsonObject["pieces"]!!.jsonObject
+        fun size(name: String) = icons()[name]!!.jsonObject["shapes"]!!.jsonArray.size
+        assertEquals(size("news"), tiled.icon(json("""{"icon":"news","hat":"cap"}""")).size)
+        assertEquals(size("food"), tiled.icon(json("""{"hat":"chef"}""")).size)
+        for (none in listOf("""{"hat":""}""", """{"icon":"unicorn"}""", "null")) assertEquals(none, size("spark"), tiled.icon(json(none)).size)
+        assertEquals(size("spark"), tiled.icon(null).size)
+        assertEquals(size("compass"), tiled.icon(FigureDef.CHIEF).size)
+        assertEquals(size("news"), tiled.wears(json("""{"icon":"news"}""")).size)
+        assertEquals(def.hat(json("""{"hat":"cap"}""")).size, def.wears(json("""{"hat":"cap"}""")).size, "without a tile a bot wears its hat")
+        // The icon is placed in the middle of the tile, half as large as its own box.
+        val xs = tiled.icon(json("""{"icon":"server"}""")).flatMap { m -> if (m is Mark.Outline) m.steps.flatMap { s -> s.at.filterIndexed { i, _ -> i % 2 == 0 }.toList() } else listOf((m as Mark.Disc).x) }
+        assertTrue(xs.all { it in 6f..18f })
+        assertEquals(Signal(0x5fb98f, null), tiled.signal("working"))
+        assertEquals(Signal(null, 0xe0a23a), tiled.signal("needs_you"))
+        assertEquals(Signal(null, 0xd9534f), tiled.signal("failed"))
+        assertNull(tiled.signal("idle"))
+        assertNull(tiled.signal("dancing"))
+        assertNull(def.signal("working"))
+        assertEquals(listOf(-1f, -1f, 26f, 26f), tiled.small.toList())
+        assertArrayEquals(floatArrayOf(0f, 0f, 24f, 24f), tiled.portrait(tiled.icon(null)), 0.001f)
+        // A tile this app can't draw is refused whole, as on the web page.
+        val tile = full["tile"]!!.jsonObject
+        fun with(key: String, v: String) = JsonObject(full + ("tile" to JsonObject(tile + (key to json(v))))).toString()
+        for ((key, bad) in listOf("rect" to """{"x":2,"y":2,"w":0,"h":20,"r":6}""", "mute" to """{"toward":"grey","by":0.2}""", "ink" to "\"white\"",
+                "ring" to """{"r":12,"width":1,"arc":0.2,"seconds":0}""", "states" to """{"working":{"ring":"url(#x)"}}""", "states" to """{"working":{"glow":"#ffffff"}}""", "small" to """{"view":[0,0]}""")) {
+            assertThrows("$key $bad", IllegalArgumentException::class.java) { FigureDef.parse(with(key, bad)) }
+        }
     }
 }

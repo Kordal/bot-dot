@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** FIG-003; amended by FIG-012 (one slot, the hat)
+- **Amended by:** [ADR 169](169-a-bot-is-an-icon-on-a-tile-in-its-colour.md) (an outfit also has an icon, always a kit name; the dresser gives icons, not hats)
 
 ## Context
 

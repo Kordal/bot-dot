@@ -209,6 +209,9 @@ a.more-btn { text-decoration: none; }
 .fig .s-white { stroke: var(--w); }
 .fig .s-ink { stroke: var(--k); }
 .fig .s-none { stroke: none; }
+/* The tile (ADR 169): the dot of a state is cut out of what is behind the tile. */
+.fig .t-cut { fill: var(--bg); }
+.fig .t-ring circle { fill: none; stroke-linecap: round; }
 /* Standing still, each state keeps its own face. */
 @media (prefers-reduced-motion: reduce) {
   .fig g { animation: none !important; }
