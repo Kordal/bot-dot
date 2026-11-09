@@ -916,7 +916,7 @@ fun Ask.standsInChat(scope: String): Boolean = when {
     ToolCard.isTool(this) || (kind == "bot-change" && byChief) -> scope == "chief" || bot?.id == scope
     // A missing app's card: the Chief's own in its chat, and one the Chief offered for a bot in both chats.
     kind == "connect-app" && bot != null && chatId != null -> scope == "chief" || bot?.id == scope
-    scope == "chief" -> ((kind == "skill" || kind == "vault-remove" || kind == "connect-app") && bot == null) || kind == "chief-action"
+    scope == "chief" -> ((kind == "skill" || kind == "vault-remove") && bot == null) || (kind == "connect-app" && bot == null) || kind == "chief-action"
     else -> bot?.id == scope
 }
 
