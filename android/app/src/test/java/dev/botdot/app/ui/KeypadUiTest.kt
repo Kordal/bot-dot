@@ -346,8 +346,10 @@ class KeypadUiTest {
         assertEquals(first.left.value, keys[4].left.value, 0.5f)
         // A name on one line and a name on two: the status lines of a row stand level, and every name is two lines tall.
         val states = rule.onAllNodesWithTag(KEY_STATE, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot }
-        val row = states.filter { kotlin.math.abs(it.top - states[0].top) < 1f }
-        assertTrue("the first row's four status lines", row.size >= 4)
+        val firstRow = rule.onNodeWithText("Infra Admin").fetchSemanticsNode().boundsInRoot
+        val row = states.filter { it.top > firstRow.top && it.bottom <= firstRow.bottom }
+        assertEquals("Infra's first row: four status lines", 4, row.size)
+        assertEquals("level", 1, row.map { it.top }.distinct().size)
         val nameHeights = rule.onAllNodesWithTag(KEY_NAME, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot.height }
         assertEquals(1, nameHeights.distinct().size)
     }
