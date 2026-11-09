@@ -70,7 +70,7 @@ android {
             signingConfig = signingConfigs.findByName("release")
             buildConfigField("boolean", "SELF_UPDATE", "true")
         }
-        // The Google Play build (docs/adr/172-the-android-app-on-google-play-is-a-play-build-of-the-same-app.md):
+        // The Google Play build (docs/adr/173-the-android-app-on-google-play-is-a-play-build-of-the-same-app.md):
         // the release build without updating itself (Play updates it) and without the permissions Play restricts
         // (src/play/AndroidManifest.xml). ./gradlew bundlePlay makes the .aab Play takes.
         create("play") {

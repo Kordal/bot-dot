@@ -1,6 +1,6 @@
 # Play Console: App content answers
 
-The answers for Play Console → Policy → App content, matching the app as built by `bundlePlay` (ADR 172). A change to the app's permissions or to where it sends data changes these answers in the same pull request.
+The answers for Play Console → Policy → App content, matching the app as built by `bundlePlay` (ADR 173). A change to the app's permissions or to where it sends data changes these answers in the same pull request.
 
 ## Privacy policy
 

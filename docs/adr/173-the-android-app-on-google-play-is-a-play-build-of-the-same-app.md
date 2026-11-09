@@ -1,4 +1,4 @@
-# ADR-172: The Android app on Google Play is a play build of the same app
+# ADR-173: The Android app on Google Play is a play build of the same app
 
 - **Status:** Accepted (2026-11-09, the owner asked to release the app on Google Play)
 - **Owning task:** the owner's request to publish the Android app on Google Play

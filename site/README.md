@@ -1,6 +1,6 @@
 # botdot.app
 
-The project's homepage ([ADR 172](../docs/adr/172-botdot-app-is-a-prerendered-sveltekit-site-on-github-pages.md)): SvelteKit, prerendered to plain HTML with no framework code in the browser, published on GitHub Pages by [site-publish.yml](../.github/workflows/site-publish.yml).
+The project's homepage ([ADR 173](../docs/adr/172-botdot-app-is-a-prerendered-sveltekit-site-on-github-pages.md)): SvelteKit, prerendered to plain HTML with no framework code in the browser, published on GitHub Pages by [site-publish.yml](../.github/workflows/site-publish.yml).
 
 ```bash
 cd site

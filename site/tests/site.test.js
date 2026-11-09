@@ -1,4 +1,4 @@
-// botdot.app (ADR 172), as `npm run build` left it in build/: it links only to what it has, says what the README and
+// botdot.app (ADR 173), as `npm run build` left it in build/: it links only to what it has, says what the README and
 // the desktop docs say, keeps every picture described and sized, loads nothing from another site and no JavaScript of
 // SvelteKit's, and its changelog is whats-new/. Run: npm test (in site/), which builds first.
 import test from 'node:test';

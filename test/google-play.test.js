@@ -1,4 +1,4 @@
-// The Play listing and its App content answers (docs/google-play, ADR 172): within Play's limits, and in step with
+// The Play listing and its App content answers (docs/google-play, ADR 173): within Play's limits, and in step with
 // what the Play build asks for.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

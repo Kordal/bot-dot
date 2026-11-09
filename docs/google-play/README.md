@@ -1,6 +1,6 @@
 # Publishing the Android app on Google Play
 
-How the app gets from this repository to Google Play ([ADR 172](../adr/172-the-android-app-on-google-play-is-a-play-build-of-the-same-app.md)), in the order the steps are done. What is here:
+How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-android-app-on-google-play-is-a-play-build-of-the-same-app.md)), in the order the steps are done. What is here:
 
 | File | What |
 | --- | --- |

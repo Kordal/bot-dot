@@ -194,7 +194,7 @@ test('the Android release tests the commit it builds; a failure publishes nothin
   assert.ok(!jobs.build.steps.some((st) => /gh release/.test(st.run || '')), 'only the publish job releases');
 });
 
-// Google Play (ADR 172): the same run builds the Play bundle and checks it; it goes to Play only after the tests.
+// Google Play (ADR 173): the same run builds the Play bundle and checks it; it goes to Play only after the tests.
 test('the Android release builds the Play bundle and sends it to Play only after the tests', () => {
   const jobs = workflow('android.yml').jobs;
   const build = jobs.build.steps.map((st) => st.run || '').join('\n');

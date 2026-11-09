@@ -1,4 +1,4 @@
-# Publishes botdot.app (ADR 172) on GitHub Pages: site/ built by SvelteKit, with the changelog from whats-new/.
+# Publishes botdot.app (ADR 173) on GitHub Pages: site/ built by SvelteKit, with the changelog from whats-new/.
 # Nothing is published until the owner turns Pages on (Settings → Pages → Source "GitHub Actions"). Then a run by
 # hand publishes, and the repository variable SITE_PAGES set to true publishes each change to main.
 name: Site publish

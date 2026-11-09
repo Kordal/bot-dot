@@ -1,5 +1,5 @@
 // The changelog of botdot.app: the notes of the repository's whats-new/ (English), read by the server's own reader
-// (lib/whats-new.js) when the site is built: the pages are prerendered and run no code in the browser (ADR 172).
+// (lib/whats-new.js) when the site is built: the pages are prerendered and run no code in the browser (ADR 173).
 import path from 'node:path';
 import { createRequire } from 'node:module';
 

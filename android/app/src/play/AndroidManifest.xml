@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The Google Play build (ADR 172): Play updates the app, so it never installs apps itself, and it opens the
+<!-- The Google Play build (ADR 173): Play updates the app, so it never installs apps itself, and it opens the
      battery setting instead of asking Android to exempt it (permissions Play restricts). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">

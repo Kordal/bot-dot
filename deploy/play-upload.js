@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // @ts-check
-// Puts a signed Android bundle on a Google Play track through the Play Developer API (ADR 172).
+// Puts a signed Android bundle on a Google Play track through the Play Developer API (ADR 173).
 // CI's release environment holds PLAY_SERVICE_ACCOUNT_JSON: the JSON key of a Google Cloud service account that
 // has release rights on the app in Play Console. Without it android.yml skips this step.
 // Usage: node deploy/play-upload.js <bundle.aab> [track] (track defaults to internal)

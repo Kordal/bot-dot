@@ -1,4 +1,4 @@
-# ADR-172: botdot.app is a prerendered SvelteKit site on GitHub Pages
+# ADR-173: botdot.app is a prerendered SvelteKit site on GitHub Pages
 
 - **Status:** Accepted (2026-11-09, the owner asked for the homepage on SvelteKit)
 - **Owning task:** the owner's request for the botdot.app homepage

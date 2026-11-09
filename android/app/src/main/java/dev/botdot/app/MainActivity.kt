@@ -678,7 +678,7 @@ class MainActivity : ComponentActivity() {
         if (pm.isIgnoringBatteryOptimizations(packageName)) {
             startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
         } else if (!BuildConfig.SELF_UPDATE) {
-            // The Google Play build has no REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (ADR 172): Android's list, botdot set there.
+            // The Google Play build has no REQUEST_IGNORE_BATTERY_OPTIMIZATIONS (ADR 173): Android's list, botdot set there.
             startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
         } else {
             startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
