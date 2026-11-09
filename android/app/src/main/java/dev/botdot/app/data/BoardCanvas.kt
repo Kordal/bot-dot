@@ -15,7 +15,8 @@ object BoardCanvas {
     const val NARROW = 600
     private const val MAX_H = 4000
 
-    class Kind(val minW: Int, val minH: Int, val w: Int, val h: Int)
+    /** A kind's smallest, its first size and, for a button (New team, New card), its tallest: as tall as a button. */
+    class Kind(val minW: Int, val minH: Int, val w: Int, val h: Int, val maxH: Int = MAX_H)
     val KINDS = mapOf(
         "days" to Kind(480, 96, 1200, 140),
         "goal" to Kind(320, 160, 592, 260),
@@ -23,12 +24,12 @@ object BoardCanvas {
         "chief" to Kind(140, 160, 188, 200),
         "bot" to Kind(140, 160, 188, 200),
         "suggest" to Kind(280, 140, 392, 180),
-        "new-team" to Kind(140, 56, 392, 64),
+        "new-team" to Kind(140, 56, 392, 64, maxH = 64),
         "calendar" to Kind(420, 260, 792, 340),
         "todo" to Kind(280, 280, 392, 560),
         "files" to Kind(280, 120, 392, 260),
         "card" to Kind(240, 140, 392, 220),
-        "new-card" to Kind(200, 56, 392, 64),
+        "new-card" to Kind(200, 56, 392, 64, maxH = 64),
     )
     private val ID = Regex("^([a-z-]+)(?::([A-Za-z0-9_-]{1,64}))?$")
     private val NAMED = setOf("goal", "room", "bot", "card")
@@ -49,11 +50,11 @@ object BoardCanvas {
 
     private fun round(v: Double) = Math.round(v).toInt()
 
-    /** On the canvas, whole units, no smaller than its kind allows. */
+    /** On the canvas, whole units, no smaller and no taller than its kind allows. */
     fun fit(id: String, x: Double, y: Double, w: Double, h: Double): R {
         val k = KINDS.getValue(kindOf(id)!!)
         val fw = round(w).coerceIn(k.minW, W)
-        val fh = round(h).coerceIn(k.minH, MAX_H)
+        val fh = round(h).coerceIn(k.minH, k.maxH)
         return R(round(x).coerceIn(0, W - fw), round(y).coerceAtLeast(0), fw, fh)
     }
 
@@ -113,6 +114,17 @@ object BoardCanvas {
             if ('n' in edge) { h = o.h - dy; y = (o.bottom - fit(id, x, y, w, h).h).toDouble() }
         }
         return settle(layout + (id to fit(id, x, y, w, h)), id)
+    }
+
+    /**
+     * The layout drawn while tile [id] needs at least [w] by [h] (New card opened into its ask field): the tile that
+     * big, kept on the canvas, what it would cover slid down below it. Only drawn, never saved: [fit] takes it back.
+     */
+    fun grown(layout: Map<String, R>, id: String, w: Int, h: Int): Map<String, R> {
+        val r = layout[id] ?: return layout
+        if (r.w >= w && r.h >= h) return layout
+        val gw = maxOf(r.w, w).coerceAtMost(W)
+        return settle(layout + (id to R(minOf(r.x, W - gw), r.y, gw, maxOf(r.h, h))), id)
     }
 
     /** The tiles in the order a column reads them: from the top, left to right where two start level. */

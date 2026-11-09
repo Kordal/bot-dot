@@ -82,6 +82,23 @@ class BoardCanvasTest {
         assertEquals(R(0, 316, 392, 560), BoardCanvas.complete(mapOf("calendar" to R(0, 0, 1000, 300)), listOf("calendar", "todo"))["todo"])
     }
 
+    @Test fun newCardAndNewTeamAreAsTallAsAButton() {
+        assertEquals(R(0, 700, 200, 64), BoardCanvas.fit("new-card", 0.0, 700.0, 200.0, 340.0))
+        assertEquals(R(0, 0, 1200, 64), BoardCanvas.fit("new-team", 0.0, 0.0, 1500.0, 900.0))
+        assertEquals(R(0, 0, 492, 64), BoardCanvas.drag(mapOf("new-card" to R(0, 0, 392, 64)), "new-card", "se", 100.0, 300.0)["new-card"])
+        assertEquals(R(0, 700, 200, 64), BoardCanvas.complete(mapOf("new-card" to R(0, 700, 200, 340)), listOf("new-card"))["new-card"])
+    }
+
+    @Test fun grownDrawsATileThatNeedsMoreRoomAndSlidesWhatItCovers() {
+        val layout = mapOf("new-card" to R(1000, 0, 200, 64), "todo" to R(800, 80, 392, 560))
+        val out = BoardCanvas.grown(layout, "new-card", 392, 200)
+        assertEquals(R(808, 0, 392, 200), out["new-card"])
+        assertEquals(216, out.getValue("todo").y)
+        clear(out)
+        assertEquals(layout, BoardCanvas.grown(layout, "new-card", 100, 40))
+        assertEquals(layout, BoardCanvas.grown(layout, "gone", 392, 200))
+    }
+
     @Test fun heightIsTheLowestBottom() {
         assertEquals(0, BoardCanvas.height(emptyMap()))
         assertEquals(30, BoardCanvas.height(mapOf("a" to R(0, 10, 5, 20), "b" to R(0, 0, 5, 5))))

@@ -40,8 +40,9 @@ import kotlin.math.roundToInt
 /**
  * A tile of the board: its id ([BoardCanvas]) and how it is drawn in the modifier it is given; `fixed` when the tile has
  * the height the owner gave it on the canvas, not when it stands in the phone's column at its own height (ADR 147).
+ * [open]: the height it needs now, taller than its place (New card opened into its ask field), drawn but not saved.
  */
-internal class Tile(val id: String, val draw: @Composable (Modifier, Boolean) -> Unit)
+internal class Tile(val id: String, val open: Int = 0, val draw: @Composable (Modifier, Boolean) -> Unit)
 
 /**
  * A long press anywhere inside, even on a tile's own buttons: seen before them (the Initial pass), so once [onHold]
@@ -106,7 +107,10 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
     val haptic = LocalHapticFeedback.current
     val ids = tiles.map { it.id }
     var places by remember(saved, ids) { mutableStateOf(BoardCanvas.complete(saved, ids)) }
+    // What is drawn: the places, with a tile that needs more room now (New card's ask) grown and what is under it moved down.
+    val drawn = tiles.filter { it.open > 0 }.fold(places) { l, t -> BoardCanvas.grown(l, t.id, BoardCanvas.KINDS.getValue("card").w, t.open) }
     val now by rememberUpdatedState(places)
+    val shown by rememberUpdatedState(drawn)
     LaunchedEffect(saved == null) { if (saved == null) save(now) }
     var zoom by remember { mutableFloatStateOf(1f) }
     var pan by remember { mutableStateOf(Offset.Zero) }
@@ -132,13 +136,13 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
             }
         },
         content = {
-            Box(Modifier.size(unit * BoardCanvas.W, unit * BoardCanvas.height(places)).pointerInput(ids) {
+            Box(Modifier.size(unit * BoardCanvas.W, unit * BoardCanvas.height(drawn)).pointerInput(ids) {
                 var edge: String? = null
                 var from = places
                 holdAndDrag(
                     onHold = hold@{ at ->
                         val x = at.x / density; val y = at.y / density
-                        val hit = now.entries.lastOrNull { (_, r) -> x >= r.x && x <= r.right && y >= r.y && y <= r.bottom } ?: return@hold false
+                        val hit = shown.entries.lastOrNull { (_, r) -> x >= r.x && x <= r.right && y >= r.y && y <= r.bottom } ?: return@hold false
                         val (id, r) = hit
                         val near = 28f
                         edge = buildString {
@@ -155,7 +159,7 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
                 )
             }) {
                 for (t in tiles) {
-                    val r = places[t.id] ?: continue
+                    val r = drawn[t.id] ?: continue
                     Box(Modifier.offset(unit * r.x, unit * r.y).size(unit * r.w, unit * r.h)) {
                         t.draw(Modifier.matchParentSize(), true)
                         // The held tile is outlined while the finger has it.
@@ -168,7 +172,7 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
         val w = constraints.maxWidth
         val canvas = (BoardCanvas.W * density).roundToInt()
         val s = w.toFloat() / canvas
-        val tall = (BoardCanvas.height(places) * density).roundToInt()
+        val tall = (BoardCanvas.height(drawn) * density).roundToInt()
         val child = measurables.first().measure(Constraints.fixed(canvas, tall.coerceAtLeast(0)))
         layout(w, (tall * s).roundToInt()) {
             child.placeWithLayer(0, 0) {

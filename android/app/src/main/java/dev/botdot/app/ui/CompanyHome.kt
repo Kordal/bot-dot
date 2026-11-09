@@ -163,7 +163,9 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } }) }
                 if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m, _ -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
                 if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
-                    add(Tile(cards.tileOf(s)) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                    // New card opened: its ask and the picks under it get a card's height, not the button's.
+                    val asks = s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null
+                    add(Tile(cards.tileOf(s), open = if (asks) BoardCanvas.KINDS.getValue("card").h else 0) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                         // On the canvas a card fills its tile, its list as many lines as it holds; in the phone's column
                         // it takes its own height, as in the flow. The ask keeps its picks under it.
                         CardSlot(cards, s, if (fixed) Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card) else Modifier.fillMaxWidth(), canvas = fixed)

@@ -2,7 +2,8 @@
 // (company-home.js does); the server keeps a layout by the same rules (lib/company.js), so the page and botdot agree.
 //   - a layout is { [tile]: [x, y, w, h] } on a canvas W wide, in its units; an app scales it to its width.
 //   - a tile is `days`, `goal:<id>`, `room:<team>`, `chief`, `bot:<id>`, `suggest`, `new-team`, `calendar`, `todo`, `files`,
-//     `card:<id>` or `new-card`; its kind (the part before `:`) gives its smallest and its first size.
+//     `card:<id>` or `new-card`; its kind (the part before `:`) gives its smallest and its first size, and for a
+//     button (New team, New card) its tallest: a button is as tall as a button, however long the owner drags it.
 //   - no two tiles overlap: one the moved or resized tile would cover slides down below it, with GAP between them,
 //     and so on for what that one covers. Nothing is pulled up.
 //   - a tile with no place yet goes to the first free spot: the highest, then the leftmost.
@@ -21,12 +22,12 @@ const KINDS = {
   chief: { min: [140, 160], size: [188, 200] },
   bot: { min: [140, 160], size: [188, 200] },
   suggest: { min: [280, 140], size: [392, 180] },
-  'new-team': { min: [140, 56], size: [392, 64] },
+  'new-team': { min: [140, 56], max: [W, 64], size: [392, 64] },
   calendar: { min: [420, 260], size: [792, 340] },
   todo: { min: [280, 280], size: [392, 560] },
   files: { min: [280, 120], size: [392, 260] },
   card: { min: [240, 140], size: [392, 220] },
-  'new-card': { min: [200, 56], size: [392, 64] },
+  'new-card': { min: [200, 56], max: [W, 64], size: [392, 64] },
 };
 const ID = /^([a-z-]+)(?::([A-Za-z0-9_-]{1,64}))?$/;
 
@@ -38,11 +39,14 @@ function kindOf(id) {
   return named === !!m[2] ? m[1] : null;
 }
 
-// A rectangle kept on the canvas and no smaller than its kind allows: whole units, inside 0..W, at most MAX_H high.
+// A rectangle kept on the canvas, no smaller and no larger than its kind allows: whole units, inside 0..W, at most
+// MAX_H high.
 function fit(id, r) {
-  const [mw, mh] = KINDS[kindOf(id)].min;
-  const w = Math.min(W, Math.max(mw, Math.round(r[2])));
-  const h = Math.min(MAX_H, Math.max(mh, Math.round(r[3])));
+  const k = KINDS[kindOf(id)];
+  const [mw, mh] = k.min;
+  const [xw, xh] = k.max || [W, MAX_H];
+  const w = Math.min(xw, Math.max(mw, Math.round(r[2])));
+  const h = Math.min(xh, Math.max(mh, Math.round(r[3])));
   return [Math.min(W - w, Math.max(0, Math.round(r[0]))), Math.max(0, Math.round(r[1])), w, h];
 }
 
@@ -113,6 +117,15 @@ function drag(layout, id, edge, dx, dy) {
   return settle({ ...layout, [id]: fit(id, r) }, id);
 }
 
+// The layout drawn while tile `id` needs at least w x h (New card opened into its ask field): the tile that big, kept
+// on the canvas, and what it would cover slid down below it. Only drawn, never saved: `fit` would take it back.
+function grown(layout, id, w, h) {
+  const r = layout[id];
+  if (!r || (r[2] >= w && r[3] >= h)) return layout;
+  const gw = Math.min(W, Math.max(r[2], Math.round(w)));
+  return settle({ ...layout, [id]: [Math.min(r[0], W - gw), r[1], gw, Math.max(r[3], Math.round(h))] }, id);
+}
+
 // The bottom of the lowest tile: how high the canvas is.
 const height = (layout) => Math.max(0, ...Object.values(layout).map((r) => r[1] + r[3]));
 
@@ -140,7 +153,7 @@ function check(v) {
   return out;
 }
 
-const api = { W, GAP, NARROW, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, height, order, check };
+const api = { W, GAP, NARROW, KINDS, kindOf, fit, hits, settle, spot, complete, measured, drag, grown, height, order, check };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.BoardCanvas = api;
 

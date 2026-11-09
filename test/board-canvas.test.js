@@ -64,6 +64,25 @@ test('complete: placed tiles keep their place, a new one goes to the first free 
   clear(out);
 });
 
+test('New card and New team are buttons: as tall as a button however they are dragged or kept (#1188)', () => {
+  assert.deepEqual(B.fit('new-card', [0, 700, 200, 340]), [0, 700, 200, 64]);
+  assert.deepEqual(B.fit('new-team', [0, 0, 1500, 900]), [0, 0, 1200, 64]);
+  assert.deepEqual(B.drag({ 'new-card': [0, 0, 392, 64] }, 'new-card', 'se', 100, 300)['new-card'], [0, 0, 492, 64]);
+  assert.deepEqual(B.complete({ 'new-card': [0, 700, 200, 340] }, ['new-card'])['new-card'], [0, 700, 200, 64]);
+  assert.deepEqual(B.check({ 'new-card': [0, 0, 392, 220] })['new-card'], [0, 0, 392, 64]);
+});
+
+test('grown: a tile that needs more room now is drawn that big, on the canvas, what it covers slid below', () => {
+  const layout = { 'new-card': [1000, 0, 200, 64], todo: [800, 80, 392, 560] };
+  const out = B.grown(layout, 'new-card', 392, 200);
+  assert.deepEqual(out['new-card'], [808, 0, 392, 200]);
+  assert.equal(out.todo[1], 216);
+  clear(out);
+  assert.equal(B.grown(layout, 'new-card', 100, 40), layout, 'big enough: the same layout');
+  assert.equal(B.grown(layout, 'gone', 392, 200), layout);
+  assert.deepEqual(layout['new-card'], [1000, 0, 200, 64], 'the layout given is not changed');
+});
+
 test('complete: a tile too wide for the row beside goes under the others', () => {
   const out = B.complete({ calendar: [0, 0, 1000, 300] }, ['calendar', 'todo']);
   assert.deepEqual(out.todo, [0, 316, 392, 560]);
