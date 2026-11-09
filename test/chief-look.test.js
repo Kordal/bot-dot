@@ -257,3 +257,17 @@ test('the chat the owner last used was deleted: the message starts a new chat, n
   assert.deepEqual(await lookNow(), { looked: false, reason: 'limit' });
   assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 3, times: [] });
 });
+
+test('a look reads what is due today in the owner\'s projects (#1225)', async (t) => {
+  const own = await startServer({ env: ENV });
+  t.after(() => own.stop());
+  await own.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } });
+  const now = new Date();
+  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  require('./helpers').writeData(path.join(own.data, 'company.json'), { id: 'p1', name: 'Fernhill', start: 'fernhill.app', phase: 'running', startedAt: now.toISOString(), todos: [{ id: 't1', text: 'Send the deck to Anna', due: day }] });
+  own.reply('NOTHING');
+  const r = (await own.api('/chief/look', { method: 'POST' })).data;
+  assert.equal(r.looked, true, JSON.stringify(r));
+  const run = own.runs().filter((x) => x.args.includes('🧭 Chief of Staff · look')).at(-1);
+  assert.match(run.stdin, /The owner's projects, what is due by tomorrow or waits for them[^\n]*\nProject "Fernhill"[^\n]*\n- To-do, due today: Send the deck to Anna/);
+});
