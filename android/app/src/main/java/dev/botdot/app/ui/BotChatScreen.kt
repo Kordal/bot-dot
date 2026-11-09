@@ -212,7 +212,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         ) { pad ->
             if (empty) EmptyChat(pad, bot?.name.orEmpty(), EmptyChatJobs.botJobs(bot?.jobs.orEmpty()), onJob = { runJob(it) },
                 figure = { BotFigure(bot?.color, bot?.state ?: "idle", size = 56, outfit = bot?.outfit) },
-                top = { ChatNeeds(app, botId, onNeeds) }) { box() }
+                top = { ChatNeeds(app, botId) }) { box() }
             else LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,
@@ -240,7 +240,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                         vm.started.forEach { q -> androidx.compose.runtime.key(q.id) { SentBubble(SentMessage(q.id, q.text, q.attachments), above = false) } } // its turn came: until its run is here
                         WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                         if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
-                        ChatNeeds(app, botId, onNeeds)
+                        ChatNeeds(app, botId)
                     }
                 }
                 if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }

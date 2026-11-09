@@ -166,11 +166,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
     var refreshing by remember { mutableStateOf(false) }
 
     // Passwords are typed here: keep this screen out of screenshots and the app switcher's preview.
-    val activity = androidx.activity.compose.LocalActivity.current
-    DisposableEffect(Unit) {
-        activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
-    }
+    Secure()
 
     // After you answered something, or pulled to refresh: all of it again, at once.
     suspend fun load() = coroutineScope { listOf(store.needs, store.bots, store.chief, store.dashboard).forEach { launch { it.refresh() } } }
@@ -367,13 +363,14 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
  * What waits for your OK, at the bottom of the chat it belongs to: in a bot's chat, the jobs it set up,
  * the permissions and skills it asked for, its memory changes and its logins; in the Chief's
  * (scope "chief"), the jobs the Chief set up, the skills and logins it asked for. A tool to install is in both:
- * the Chief asked for it, and it is installed for that bot; so is a bot change the Chief asked for. Logins and
- * payments open Needs you, where passwords are typed.
+ * the Chief asked for it, and it is installed for that bot; so is a bot change the Chief asked for. A login and a
+ * payment are answered in their card here, as on Needs you, and a locked Bitwarden in the chat of the bot that
+ * waits for it (#1186).
  * In a group's chat (scope "group:<id>"): the cards asked in that group, each with its bot's name. Such a card
  * stands in no bot's own chat and not in the Chief's ([chatCards]).
  */
 @Composable
-fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
+fun ChatNeeds(app: BotDotApp, scope: String) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val cs = rememberCoroutineScope()
@@ -391,6 +388,13 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
     val asks = needsNow?.asks.orEmpty()
     val tiles = dashNow?.waiting.orEmpty()
     val suggestions = dashNow?.suggestions.orEmpty()
+    val bw = needsNow?.bitwarden
+    val unlocking by app.bwUnlocking.collectAsState()
+    val unlockError by app.bwUnlockError.collectAsState()
+    val saving by app.savingLogins.collectAsState()
+    // What the owner chose and typed on a login's card, by request, so that a save that failed brings it back.
+    val chosenType = remember { mutableStateMapOf<String, String>() }
+    val typedUser = remember { mutableStateMapOf<String, String>() }
     var error by remember { mutableStateOf<String?>(null) }
     // Decided here: a faded line each, until you leave the chat.
     var decided by remember(scope) { mutableStateOf(listOf<Decided>()) }
@@ -422,7 +426,18 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
         .filter { (b, j) -> here(cardGroups[CardGroups.jobKey(b.id, j.id)]) && (group != null || if (chief) j.askedBy == "chief" else b.id == scope && j.askedBy != "chief") }, decided.map { it.key })
     val mems = if (chief) emptyList() else memory.filter { here(it.group) && (group != null || it.botId == scope) && decided.none { d -> d.key == "m:${it.id}" } }
     val myAsks = asks.filter { a -> a.standsInChat(scope) && decided.none { it.key == "a:${a.id}" } }
-    val reqs = requests.filter { r -> here(r.group) && (group != null || if (chief) r.from == "chief" else r.bot?.id == scope && r.from != "chief") }
+    val reqs = requests.filter { r -> here(r.group) && (group != null || if (chief) r.from == "chief" else r.bot?.id == scope && r.from != "chief") && decided.none { it.key == "r:${r.id}" } }
+    // A locked Bitwarden stands in the chat of the bot that waits for it, where it is unlocked.
+    val locked = bw?.configured == true && bw.unlocked == false
+    val bwHere = locked && !chief && group == null && bw?.wantedBy?.id == scope
+    // A login's or a payment's answer, said in a faded line as the other cards' are.
+    fun answerRequest(r: LoginRequest, done: String, block: suspend () -> Unit) = cs.launch {
+        runCatching { block() }
+            .onSuccess { decided = decided + Decided("r:${r.id}", null, if (r.kind == "card") tr("Pay on {site}", "site" to r.site) else tr("A login for {site}", "site" to r.site), done); error = null }
+            .onError { error = it.message ?: tr("That didn't work") }
+        load()
+        answered()
+    }
     val mySuggestions = if (chief || group != null) emptyList() else suggestions.filter { x -> x.bot == scope && decided.none { it.key == "s:${x.id}" } }
     val myTiles = tilesLeft(tiles.filter { t -> here(cardGroups[CardGroups.tileKey(t.id)]) && (group != null || if (chief) t.askedBy != "bot" else t.bot == scope && t.askedBy == "bot") }, decided.map { it.key })
     var scriptWarning by remember { mutableStateOf<Pair<Bot, Job>?>(null) }
@@ -436,17 +451,32 @@ fun ChatNeeds(app: BotDotApp, scope: String, onNeeds: () -> Unit) {
             dismissButton = { TextButton(onClick = { scriptWarning = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
-    if (decided.isEmpty() && jobs.isEmpty() && mems.isEmpty() && myAsks.isEmpty() && reqs.isEmpty() && myTiles.isEmpty() && mySuggestions.isEmpty()) return
+    if (decided.isEmpty() && jobs.isEmpty() && mems.isEmpty() && myAsks.isEmpty() && reqs.isEmpty() && !bwHere && myTiles.isEmpty() && mySuggestions.isEmpty()) return
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         decided.forEach { Text("${it.title} · ${it.label}", color = p.muted, fontSize = Type.s12) }
         if (error != null) Text(error!!, color = p.err, fontSize = Type.s12)
+        // A login, a payment and a locked Bitwarden are answered in their card here, as on Needs you: the password
+        // is typed in the chat, which is kept out of screenshots while one of them stands in it.
+        if (bwHere || reqs.any { it.kind != "card" }) Secure()
+        if (bwHere && bw != null) {
+            if (unlocking) Busy(tr("Unlocking Password Manager…"))
+            else BitwardenCard(bw, null, unlockError) { pw -> api?.let { app.unlockBitwarden(it, pw) } }
+        }
         reqs.forEach { r ->
-            val who = if (chief || group != null) r.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, null) } else null
-            Card(who, if (r.kind == "card") tr("Pay on {site}", "site" to r.site) else tr("A login for {site}", "site" to r.site), if (r.kind == "card") r.amount else r.reason) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = onNeeds, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(if (r.kind == "card") tr("Review") else tr("Add it")) }
-                }
-            }
+            val shown = chief || group != null
+            val who = if (r.bot == null && r.from == "chief") chiefNamed() else named(bots.firstOrNull { it.id == r.bot?.id }, r.bot?.name ?: tr("A bot"), null)
+            val botName = r.bot?.name ?: tr("The bot")
+            if (r.kind == "card") CardRequest(r, who.takeIf { shown },
+                onAllow = { answerRequest(r, tr("Allowed for this task")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "approve") }) } },
+                onDecline = { answerRequest(r, tr("Declined")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
+            else if (r.id in saving) Busy(tr("Saving login…"))
+            else LoginRequestCard(r, who, named = shown, bitwardenLocked = locked, features = features,
+                type = chosenType[r.id] ?: VaultTypes.of(r.type).id, onType = { chosenType[r.id] = it },
+                user = typedUser[r.id] ?: r.username, onUser = { typedUser[r.id] = it },
+                onUse = { loginId -> answerRequest(r, tr("{name} can use it now", "name" to botName)) { api!!.answerRequest(r.id, buildJsonObject { put("action", "allow"); put("loginId", loginId) }) } },
+                onUseOther = { loginId, answeredIt -> answerRequest(r, tr("{name} can use it on {site} now", "name" to botName, "site" to r.site)) { api!!.answerRequest(r.id, buildJsonObject { put("action", "allow"); put("loginId", loginId) }) }.invokeOnCompletion { answeredIt() } },
+                onSave = { sent, pw, master -> api?.let { a -> app.saveLogin(a, r.id, VaultTypes.requestSave(sent, pw, master), botName) } },
+                onDecline = { answerRequest(r, tr("Declined")) { api!!.answerRequest(r.id, buildJsonObject { put("action", "decline") }) } })
         }
         jobs.forEach { (b, j) ->
             JobApproval(whoOf(b), j,
@@ -728,6 +758,20 @@ private val LocalCardFailure = compositionLocalOf<String?> { null }
 @Composable
 private fun Failing(failed: String?, content: @Composable () -> Unit) = CompositionLocalProvider(LocalCardFailure provides failed, content = content)
 
+// How many places on screen take a password now (Needs you, a login's card in a chat): the window stays out of
+// screenshots and the app switcher's preview until the last of them goes.
+private var secureHolds = 0
+
+/** While it is on screen, the window is kept out of screenshots and the app switcher's preview. */
+@Composable
+private fun Secure() {
+    val window = androidx.activity.compose.LocalActivity.current?.window
+    DisposableEffect(window) {
+        if (secureHolds++ == 0) window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { if (--secureHolds == 0) window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+    }
+}
+
 /** expandable: closed until tapped, then everything shows (not for cards you type into). */
 @Composable
 private fun Card(who: Named?, title: String, meta: String? = null, done: Boolean = false, expandable: Boolean = false, content: @Composable () -> Unit) {
@@ -900,7 +944,7 @@ private fun Busy(text: String) {
 }
 
 @Composable
-private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boolean, features: Collection<String>?, type: String, onType: (String) -> Unit, user: String, onUser: (String) -> Unit, onUse: (String) -> Unit, onUseOther: (String, () -> Unit) -> Unit, onSave: (VaultTypes.Sent, String, String) -> Unit, onDecline: () -> Unit) {
+private fun LoginRequestCard(r: LoginRequest, who: Named, named: Boolean = true, bitwardenLocked: Boolean, features: Collection<String>?, type: String, onType: (String) -> Unit, user: String, onUser: (String) -> Unit, onUse: (String) -> Unit, onUseOther: (String, () -> Unit) -> Unit, onSave: (VaultTypes.Sent, String, String) -> Unit, onDecline: () -> Unit) {
     val p = LocalPaper.current
     // type: the one that was asked for, until the owner changes it; the new-login fields follow it (VaultTypes).
     // It and the typed username are kept by the screen, so that they outlive a save that failed.
@@ -917,7 +961,7 @@ private fun LoginRequestCard(r: LoginRequest, who: Named, bitwardenLocked: Boole
     var sending by remember(r.id) { mutableStateOf(false) }
     var fileError by remember(r.id) { mutableStateOf<String?>(null) }
     val pick = rememberSecretFilePick({ pw = it; fileError = null }) { fileError = it }
-    Card(who, tr("A login for {site}", "site" to r.site)) {
+    Card(who.takeIf { named }, tr("A login for {site}", "site" to r.site)) {
         if (confirming != null) OtherLoginConfirm(OtherLogins.confirm(r, confirming, who.name), onBack = { picked = null }, onYes = { picked = null; sending = true; onUseOther(confirming.id) { sending = false } })
         else {
             if (r.reason.isNotBlank()) Muted("“${r.reason}”")
@@ -1000,7 +1044,7 @@ private fun OtherLoginConfirm(c: OtherLogins.Confirm, onBack: () -> Unit, onYes:
 }
 
 @Composable
-private fun CardRequest(r: LoginRequest, who: Named, onAllow: () -> Unit, onDecline: () -> Unit) {
+private fun CardRequest(r: LoginRequest, who: Named?, onAllow: () -> Unit, onDecline: () -> Unit) {
     val card = r.card?.let { "${it.name}${it.last4?.let { l -> " ••$l" } ?: ""}" } ?: tr("a saved card")
     Card(who, tr("Pay on {site}", "site" to r.site)) {
         Muted(tr("With {card}{amount}.", "card" to card, "amount" to if (r.amount.isNotBlank()) ", ${r.amount}" else ""))
