@@ -40,3 +40,21 @@ test('the language is read from the /settings answer it is given, without asking
   await ctx.I18n.sync(api, ['language'], Promise.resolve({ settings: { language: 'pl' } }));
   assert.deepEqual(asked, ['/i18n/pl', 'reload']);
 });
+
+// The Linux app's first entry after its sign-in showed no projects until the page loaded again: features that are
+// learned after the start (none at the start, or only the front door's) load the projects and draw the rail then.
+test("the front door's own /version is no answer for the account, and features learned late draw the projects", async () => {
+  const replies = read('replies.js');
+  const line = replies.split('\n').find((l) => l.startsWith('const loadFeatures'));
+  const ctx = vm.createContext({ state: { features: [] }, fresh: { seen() {} }, answer: null });
+  vm.runInContext(`const api = async () => answer;\n${line}\nthis.loadFeatures = loadFeatures;`, ctx);
+  ctx.answer = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passkeys'] };
+  await ctx.loadFeatures();
+  assert.deepEqual([...ctx.state.features], [], 'still unknown: asked again');
+  ctx.answer = { features: ['company', 'projects-many'] };
+  await ctx.loadFeatures();
+  assert.deepEqual([...ctx.state.features], ['company', 'projects-many']);
+
+  const readAll = app.slice(app.indexOf('async function readAll()'), app.indexOf('function render()'));
+  assert.match(readAll, /if \(!state\.features\.length\) loadFeatures\(\)\.then\(\(\) => \{ if \(state\.features\.length && typeof Company !== 'undefined'\) Company\.init\(\); syncRead\(\); \}\);/);
+});
