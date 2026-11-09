@@ -330,7 +330,7 @@ class KeypadUiTest {
     @Test @Config(qualifiers = "w411dp-h900dp")
     fun onAPhoneTheKeysAreColumnsOfOneGridAcrossTheWidthAndTheirStatusLinesStandLevel() {
         val names = listOf("Infra Admin", "bot-dot Manager", "Relationship Agent", "QA Tester", "Venice Coder")
-        val infra = names.mapIndexed { n, name -> Bot(id = "b$n", name = name, color = "#378add", group = "Infra", order = n) }
+        val infra = names.mapIndexed { n, name -> Bot(id = "b$n", name = name, color = "#378add", group = "Infra", order = n + 1) }
         val lone = Bot(id = "lone", name = "Cook", color = "#e24b4a", group = "Home")
         val grid = Keypad.pages(infra + lone, emptyList())
         rule.setContent { KeypadSections(grid, ::look, onKey = {}, onChief = {}, modifier = Modifier.fillMaxSize()) }
