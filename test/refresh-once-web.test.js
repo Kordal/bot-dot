@@ -17,7 +17,7 @@ function page() {
     state, api, Date, Promise, Array, Object, console: { warn() {} },
     fresh: { check() {} }, loadSkillLib: () => Promise.resolve(), loadMentionPages() {}, loadMentionProjects() {}, loadGroups: () => Promise.resolve([]),
     Unread: { count: () => 0 }, takeChiefName: () => false, openingLines: { sync() {} }, OpeningLine: { ofRun: () => '' }, chiefTurns: new Map(),
-    report: { shown: () => null }, redrawMarks() {}, showJobApprovals() {}, MEMORY_WAITS: '/memory/waits',
+    report: { shown: () => null }, Figure: { saw() {} }, redrawMarks() {}, showJobApprovals() {}, MEMORY_WAITS: '/memory/waits',
     showNeeds: () => { drawn.needs++; }, renderContacts() {}, render: () => { drawn.renders++; },
   });
   vm.runInContext(`${cut('// ---------- data ----------', 'function render()')} this.refresh = refresh;`, ctx);
