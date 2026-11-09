@@ -1929,7 +1929,7 @@ details.bs-row { display: block; }
 }
 
 /* ---------- the keypad on a phone: its home below the list's phone width (list.js, drawKeypadSections; #498) ----------
-   The Board's numbers two a row, Needs you, the pinned keys, then the categories side by side where they fit, and the
+   Needs you, the Board's numbers three a row, the pinned keys, then the categories side by side where they fit, and the
    Chief's field at the bottom. A key opens its chat full screen (.in-main), as a row of the list does. The wide keypad
    is not shown, so no digits and no keys. The heads are the list's, still under reduced motion as there. */
 .kp-phone { display: none; }
@@ -1940,16 +1940,23 @@ details.bs-row { display: block; }
   .sidebar.searching .kp-phone { display: none; } /* the search's results, as the list's */
 }
 .kp-phone .kp-head { gap: var(--sp-16); padding: var(--sp-4) var(--sp-16) var(--sp-12); }
-.kp-phone .kp-board-line { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-16) var(--sp-24); }
+/* The numbers three a row, as on Android: a value in words two columns wide, a long one the whole row (#1187). */
+.kp-phone .kp-board-line { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-12) var(--sp-16); }
+.kp-phone .kp-card .kit-num { font-size: var(--fs-24); }
+.kp-phone .kp-card .kit-num.words { font-size: var(--fs-20); }
+.kp-phone .kp-card:has(.kit-num.words) { grid-column: span 2; }
+.kp-phone .kp-card:has(.kit-num.words.long) { grid-column: 1 / -1; }
+.kp-phone .kp-card-dot { font-size: var(--fs-20); }
 .kp-phone .kp-card .kit-spark, .kp-phone .kp-card .kit-kpi > .kit-bar { display: none; }
 .kp-phone .kp-needs { flex-basis: 100%; }
 .kp-phone .kp-need-text { white-space: normal; line-height: 1.35; }
 .kp-phone .kp-need-text b { display: block; }
 /* The keys: a third of the row each, the same 8px between all of them, so the categories sit side by side where they
    fit and every key lines up with the row above it (#1187). */
-.kp-sections { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-12) var(--sp-12); container-type: inline-size; }
+.kp-sections { flex: 1; min-height: 0; overflow-y: auto; padding: var(--sp-8) var(--sp-12) var(--sp-24); container-type: inline-size;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sp-24)), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - var(--sp-24)), transparent); } /* what scrolls under the Chief's field fades out there, never cut by it */
 .kp-sec-keys { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-8); }
-.kp-phone .kp-cats { gap: var(--sp-16) var(--sp-8); margin-top: var(--sp-24); }
+.kp-phone .kp-cats { gap: var(--sp-16) var(--sp-8); margin-top: var(--sp-16); }
 .kp-phone .kp-cats:first-child { margin-top: 0; } /* nothing pinned: the categories start under the numbers */
 .kp-sec-head { margin: 0 0 0 var(--sp-8); font: inherit; font-size: var(--fs-12); line-height: 18px; color: var(--muted); }
 .kp-sec-head .kp-fold { min-height: 44px; }

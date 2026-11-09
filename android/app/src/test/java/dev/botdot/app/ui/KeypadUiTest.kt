@@ -353,4 +353,18 @@ class KeypadUiTest {
         val nameHeights = rule.onAllNodesWithTag(KEY_NAME, useUnmergedTree = true).fetchSemanticsNodes().map { it.boundsInRoot.height }
         assertEquals(1, nameHeights.distinct().size)
     }
+
+    @Test @Config(qualifiers = "w411dp-h900dp")
+    fun onAPhoneWhatAWorkingBotDoesIsOnItsKeyAndTheKeysFadeOverTheChiefsField() {
+        fun status(k: Keypad.Key) = (k as Keypad.Key.OfBot).bot.let {
+            if (it.id == "coder") KeyLook(it.name, "Checking the thermostats in every room", it.color, "working", status = Keypad.status(running = true), time = "2 min")
+            else KeyLook(it.name, "", it.color, status = Keypad.status())
+        }
+        rule.setContent { KeypadSections(pages, ::status, onKey = {}, onChief = {}, modifier = Modifier.fillMaxSize()) }
+        // Its words whole on the key (how many lines they wrap to is the Play screenshots' to show: this runner measures no fonts).
+        rule.onNodeWithText("Checking the thermostats in every room", useUnmergedTree = true).assertIsDisplayed()
+        val fade = rule.onNodeWithTag(SECTIONS_FADE).getUnclippedBoundsInRoot()
+        val chief = rule.onNodeWithTag(CHIEF_FIELD).getUnclippedBoundsInRoot()
+        assertTrue("the fade sits right over the Chief's field", fade.bottom <= chief.top)
+    }
 }

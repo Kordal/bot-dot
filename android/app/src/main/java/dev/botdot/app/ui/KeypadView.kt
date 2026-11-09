@@ -44,6 +44,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -355,7 +356,7 @@ private fun KeyHead(look: KeyLook, size: Int) {
 }
 
 /**
- * A key's status line under its name (#664): a dot in the state's colour and the status's muted words (#724): green
+ * A key's status line under its name (#664), two lines at most: a dot in the state's colour and the status's muted words (#724): green
  * while it works, where the words are what it does now (and which member, for a group), blue with its unread replies,
  * red when its last run did not finish, green when done, grey when idle. Needs you, the one state that asks for the
  * owner, keeps its amber in the words and their weight 600. TalkBack reads the status's words and its time.
@@ -375,11 +376,13 @@ private fun KeyState(look: KeyLook) {
     val live = kind == Keypad.StatusKind.WORKING && look.line.isNotBlank()
     val text = if (!live) look.status.text else if (look.who.isNotEmpty()) "${look.who}: ${look.line}" else look.line
     val said = listOf(look.status.text, look.time).filter { it.isNotEmpty() }.joinToString(", ")
+    // Two lines at most, as the web page's (#1187): what a working bot does reads past its first word.
     Row(Modifier.padding(top = Space.s4).testTag(KEY_STATE).semantics(mergeDescendants = true) { contentDescription = if (live) "$said: $text" else said },
-        verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(6.dp).clip(CircleShape).background(dot))
+        verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = 5.dp).size(6.dp).clip(CircleShape).background(dot))
         Spacer(Modifier.width(Space.s8))
-        Text(text, color = if (loud) p.warnText else p.muted, fontSize = Type.s12, fontWeight = if (loud) FontWeight.SemiBold else FontWeight.Normal, lineHeight = Type.line16, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, color = if (loud) p.warnText else p.muted, fontSize = Type.s12, fontWeight = if (loud) FontWeight.SemiBold else FontWeight.Normal, lineHeight = Type.line16, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center, style = LocalTextStyle.current.copy(lineBreak = LineBreak.Paragraph))
     }
 }
 
@@ -413,6 +416,12 @@ private fun AskKey(onAsk: () -> Unit, modifier: Modifier = Modifier, aimed: Bool
     }
 }
 
+/** How tall the fade over the Chief's field is, and the room under a phone's last keys that it covers. */
+private val FADE = Space.s24
+
+/** The tag of that fade (KeypadUiTest). */
+internal const val SECTIONS_FADE = "sections-fade"
+
 /** The tag of the Chief's field at the foot of a phone's home. */
 internal const val CHIEF_FIELD = "chief-field"
 
@@ -434,8 +443,10 @@ internal fun KeypadSections(
     val drag = rememberKeyDrag(pages, onMove)
     val aim = drag.key?.let { drag.aim(it, pages) }
     Column(modifier) {
-        // While a key is dragged the sections stand still, so the finger moves the key and not the page.
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState(), enabled = drag.key == null)) {
+        // While a key is dragged the sections stand still, so the finger moves the key and not the page. What scrolls
+        // under the Chief's field fades out there rather than being cut by it.
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState(), enabled = drag.key == null).padding(bottom = FADE)) {
             header()
             // The keys are columns of one grid across the whole width: a page beside another keeps to it.
             BoxWithConstraints(Modifier.fillMaxWidth().padding(Space.s12)) {
@@ -454,6 +465,8 @@ internal fun KeypadSections(
                     QuietKey(look(k), keySize, aimed = aim == Aim(i, n), modifier = drag.of(k)) { onKey(k) }
                 }
             }
+        }
+        Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(FADE).background(Brush.verticalGradient(listOf(Color.Transparent, p.bg))).testTag(SECTIONS_FADE))
         }
         val shape = Radius.pill
         val name = LocalChiefName.current
