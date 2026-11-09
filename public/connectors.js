@@ -80,11 +80,14 @@ function drawConnectors() {
         </div>
       </article>`).join('')}${d.connections.map((c) => {
       const [tone, label] = CONN_STATUS[c.status] || ['', String(c.status || tr('unknown')).toLowerCase()];
+      // Each account of an app is a card of its own, named by its label (ADR 174); the app's newest one adds another.
+      const newest = !d.connections.some((x) => x.toolkit === c.toolkit && x.status === 'ACTIVE' && String(x.createdAt || '') > String(c.createdAt || ''));
+      const many = (c.accounts || 1) > 1;
       return `<article class="card app-card" data-conn="${esc(c.id)}">
-        <div class="app-top">${appLogo(c.app)}<div class="grow"><b>${esc(c.app?.name || c.toolkit)}</b><div><span class="pill ${tone}">${esc(label)}</span></div></div></div>
+        <div class="app-top">${appLogo(c.app)}<div class="grow"><b>${esc(c.app?.name || c.toolkit)}</b>${c.label ? `<div class="conn-label">${esc(c.label)}</div>` : ''}<div><span class="pill ${tone}">${esc(label)}</span></div></div></div>
         <div class="chips">${c.usedBy.map(botName).join('') || `<span class="faint" style="font-size:12.5px">${tr('No bot uses it yet')}</span>`}</div>
         <div class="app-actions">
-          ${c.status === 'ACTIVE' ? `<button class="btn sm" data-app-bots="${esc(c.toolkit)}">${tr('Bots…')}</button>` : `<button class="btn sm primary" data-connect="${esc(c.toolkit)}">${tr('Connect again')}</button>`}
+          ${c.status === 'ACTIVE' ? `<button class="btn sm" data-app-bots="${esc(c.toolkit)}"${many ? ` data-account="${esc(c.id)}"` : ''}>${tr('Bots…')}</button>${newest ? `<button class="btn sm" data-another="${esc(c.toolkit)}">${tr('Add account')}</button>` : ''}` : `<button class="btn sm primary" data-connect="${esc(c.toolkit)}">${tr('Connect again')}</button>`}
           <button class="btn sm danger" data-disconnect="${esc(c.id)}">${tr('Disconnect')}</button>
         </div>
       </article>`;
@@ -127,7 +130,8 @@ function drawConnectors() {
   $$('[data-forget-app]', root).forEach((b) => (b.onclick = async () => {
     try { await api(`/connectors/reconnect/${encodeURIComponent(b.dataset.forgetApp)}`, { method: 'DELETE' }); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
   }));
-  $$('[data-app-bots]', root).forEach((b) => (b.onclick = () => chooseAppBots(b.dataset.appBots)));
+  $$('[data-app-bots]', root).forEach((b) => (b.onclick = () => chooseAppBots(b.dataset.appBots, false, b.dataset.account || null)));
+  $$('[data-another]', root).forEach((b) => (b.onclick = () => connectApp(b.dataset.another, null, { another: true })));
   $$('[data-disconnect]', root).forEach((b) => (b.onclick = async () => {
     const c = d.connections.find((x) => x.id === b.dataset.disconnect);
     if (!(await askFirst(tr('Disconnect {app}? Bots lose access, and Composio revokes its access to your account.', { app: c?.app?.name || c?.toolkit }), tr('Disconnect')))) return;
@@ -202,7 +206,8 @@ async function connectApp(slug, connected = null, on = {}) {
   const live = on.live || (() => true);
   const win = window.open('about:blank', '_blank'); // opened now, so pop-up blockers allow it
   const fail = (msg) => (on.failed ? on.failed(msg) : toast(msg, true));
-  const start = on.start || (() => api('/connectors/connect', { method: 'POST', body: { app: slug } }));
+  // another: one more account of an app that is connected (ADR 174); its bots are picked once it works.
+  const start = on.start || (() => api('/connectors/connect', { method: 'POST', body: { app: slug, ...(on.another ? { another: true } : {}) } }));
   const status = on.status || ((r) => api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`));
   let r;
   try { r = await start(); } catch (e) { win?.close(); return fail(e.message); }
@@ -220,7 +225,7 @@ async function connectApp(slug, connected = null, on = {}) {
       if (!on.opened) toast(tr('Connected'));
       if (connected) return connected();
       await renderConnectors(true);
-      return chooseAppBots(slug, true);
+      return chooseAppBots(slug, true, on.another ? r.connectionId : null);
     }
     if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { fail(c.statusReason ? tr("Connecting didn't work: {why}", { why: c.statusReason }) : tr("Connecting didn't work")); return connected ? null : renderConnectors(true); }
     // The sign-in tab was closed without connecting: one more look (it may have just finished), then no more waiting.
@@ -229,9 +234,12 @@ async function connectApp(slug, connected = null, on = {}) {
   on.ended?.();
 }
 
-function chooseAppBots(slug, justConnected = false) {
-  const used = state.bots.filter((b) => (b.connectors || []).includes(slug)).map((b) => b.id);
-  const app = conn.catalog.find((t) => t.slug === slug) || conn.data?.connections.find((c) => c.toolkit === slug)?.app || { name: slug };
+// account: the bots of one account of the app (ADR 174), named by its label; a bot picked moves to it.
+function chooseAppBots(slug, justConnected = false, account = null) {
+  const c = account && conn.data?.connections.find((x) => x.id === account);
+  const used = c ? c.usedBy : state.bots.filter((b) => (b.connectors || []).includes(slug)).map((b) => b.id);
+  const found = conn.catalog.find((t) => t.slug === slug) || conn.data?.connections.find((x) => x.toolkit === slug)?.app || { name: slug };
+  const app = c?.label ? { ...found, name: c.label } : found;
   const m = openModal(`
     <form id="app-bots">
       <div class="modal-head"><h2>${justConnected ? tr('{app} is connected', { app: esc(app.name) }) : tr('Bots that may use {app}', { app: esc(app.name) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
@@ -245,7 +253,7 @@ function chooseAppBots(slug, justConnected = false) {
     e.preventDefault();
     const bots = $$('input[name=bot]:checked', m).map((c) => c.value);
     try {
-      await api(`/connectors/apps/${encodeURIComponent(slug)}/bots`, { method: 'PUT', body: { bots } });
+      await api(`/connectors/apps/${encodeURIComponent(slug)}/bots`, { method: 'PUT', body: { bots, ...(account ? { account } : {}) } });
       m.close();
       toast(tr('Saved'));
       await refresh();
