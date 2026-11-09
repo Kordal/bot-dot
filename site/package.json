@@ -1,0 +1,26 @@
+{
+  "name": "botdot-site",
+  "private": true,
+  "description": "botdot.app, the project's homepage: SvelteKit, prerendered to static files (ADR 172)",
+  "license": "MIT",
+  "type": "module",
+  "imports": {
+    "#lib/*": "./src/lib/*"
+  },
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vite build && node --test 'tests/*.test.js'"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@sveltejs/adapter-static": "4.0.1",
+    "@sveltejs/kit": "3.1.1",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "svelte": "5.57.3",
+    "vite": "8.3.7"
+  }
+}
