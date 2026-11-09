@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -147,7 +148,7 @@ internal fun rememberCards(ui: CompanyUi, c: Company): CardsState {
 @Composable
 internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier, canvas: Boolean = false) {
     when (s) {
-        is ProjectCards.Slot.New -> NewCardTile(m) { st.refused = null; st.open = ProjectCards.NEW }
+        is ProjectCards.Slot.New -> NewCardTile(m, fill = canvas) { st.refused = null; st.open = ProjectCards.NEW }
         is ProjectCards.Slot.Ask -> AskCard(m, s.card, st.refused ?: s.card?.name.orEmpty(), onClose = { st.open = null }) { text ->
             val k = s.card
             st.open = null
@@ -190,13 +191,20 @@ internal fun ProjectCardsRow(ui: CompanyUi, c: Company, pieces: List<String> = e
 private fun Modifier.cardBox(p: Paper, outline: Color? = null): Modifier =
     raised(Radius.card).then(if (outline != null) Modifier.border(1.dp, outline, Radius.card) else Modifier)
 
+/**
+ * New card (#1188; web: .pc-new): a quiet filled pill, not a dashed tile as big as a card. In the flow it keeps its own
+ * width at the row's start; on an arranged board ([fill]) it is its tile, which is as tall as a button (BoardCanvas).
+ */
 @Composable
-private fun NewCardTile(modifier: Modifier, onClick: () -> Unit) {
+private fun NewCardTile(modifier: Modifier, fill: Boolean, onClick: () -> Unit) {
     val p = LocalPaper.current
-    Column(modifier.heightIn(min = 148.dp).dashedBox(p.line2).clickable(onClickLabel = tr("New card"), onClick = onClick).padding(Space.s12),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(20.dp))
-        Text(tr("New card"), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(top = Space.s8))
+    Box(modifier, contentAlignment = Alignment.TopStart) {
+        Row(Modifier.then(if (fill) Modifier.fillMaxSize() else Modifier).heightIn(min = 44.dp).clip(Radius.pill).background(p.fill)
+            .clickable(onClickLabel = tr("New card"), onClick = onClick).padding(start = Space.s12, end = Space.s16),
+            horizontalArrangement = Arrangement.spacedBy(Space.s8, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Add, null, tint = p.text, modifier = Modifier.size(16.dp))
+            Text(tr("New card"), color = p.text, fontSize = Type.s14)
+        }
     }
 }
 

@@ -134,6 +134,7 @@
     const s = scaleOf(wrap);
     canvas.style.width = `${B.W}px`;
     canvas.style.transform = `scale(${s})`;
+    layout = opened(canvas, layout);
     wrap.style.height = `${B.height(layout) * s}px`;
     for (const t of $$('.bc-tile', canvas)) {
       const r = layout[t.dataset.tile];
@@ -141,6 +142,17 @@
       Object.assign(t.style, { left: `${r[0]}px`, top: `${r[1]}px`, width: `${r[2]}px`, height: `${r[3]}px`, order: '' });
     }
     window.ProjectCards?.fit(canvas);
+  }
+
+  // New card opened into its ask field: its tile at least a card's width and the ask's own height, what is under it
+  // moved down while it is open. Drawn only: the layout kept is the one with the button (BoardCanvas.grown).
+  function opened(canvas, layout) {
+    const t = $('.bc-tile[data-tile="new-card"]', canvas);
+    const r = layout['new-card'];
+    if (!t || !r || !$('form.pc-ask', t)) return layout;
+    const w = Math.max(r[2], B.KINDS.card.size[0]);
+    Object.assign(t.style, { width: `${w}px`, height: 'auto' });
+    return B.grown(layout, 'new-card', w, t.offsetHeight);
   }
 
   // The tile a press at `target` picks up, and its element on the canvas or in the flow; none in a field or the title.

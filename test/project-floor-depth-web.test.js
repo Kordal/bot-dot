@@ -69,3 +69,22 @@ test('a bot\'s head in the Team step is its avatar\'s size, not a 16px icon', ()
   const d = rule('.co-team .avatar svg');
   assert.deepEqual([d.width, d.height], ['100%', '100%']);
 });
+
+test('on an arranged board New card is its tile, a button as tall as a button; in the phone\'s column its own width', () => {
+  // `.bc-tile > *` gives a tile's pieces min-height 0: the button keeps its 44px target over it.
+  const t = rule('.bc-tile > .pc-new');
+  assert.equal(t['align-self'], 'stretch');
+  assert.equal(t['min-height'], '44px');
+  assert.equal(rule('.bc-column .bc-tile > .pc-new')['align-self'], 'flex-start');
+  // Opened into its ask, its tile is drawn at the ask's height for as long as it is open, and not saved so.
+  const view = read('board-canvas-view.js');
+  assert.match(view, /function opened\(canvas, layout\)/);
+  assert.match(view, /B\.grown\(layout, 'new-card'/);
+});
+
+test('the cards are wired on an arranged board too: their row is gone, their pieces stand in the tiles', () => {
+  const src = read('project-cards.js');
+  const guard = src.slice(src.indexOf('function wire('), src.indexOf('function wire(') + 300);
+  assert.match(guard, /\[data-pc-new\]/);
+  assert.match(guard, /\[data-pc-card\]/);
+});

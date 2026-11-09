@@ -3245,6 +3245,10 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .bc-tile { position: absolute; display: flex; flex-direction: column; gap: var(--sp-16); min-width: 0; overflow: auto; border-radius: var(--r-14); }
 .bc-tile > * { flex: 1 1 auto; min-height: 0; margin: 0; }
 .bc-tile > .cf-line { flex: none; }
+/* New card on the canvas is its tile: a button as tall as a button (BoardCanvas.KINDS caps it), as wide as the owner
+   made it. In the phone's column it keeps its own width, as in the flow; a 44px target either way. */
+.bc-tile > .pc-new { align-self: stretch; min-height: 44px; }
+.bc-column .bc-tile > .pc-new { align-self: flex-start; }
 .bc-tile[data-tile="days"] { padding: var(--sp-16) var(--sp-8) 0; overflow: hidden; }
 .bc-tile:focus-visible { outline: 2px solid var(--text); outline-offset: -2px; }
 .bc-tile.moving, .bc-held { z-index: 3; outline: 2px solid var(--text); outline-offset: -2px; border-radius: var(--r-14); }

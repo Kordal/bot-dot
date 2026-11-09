@@ -143,7 +143,8 @@
   }
 
   function wire(root) {
-    if (!$('.pc-row', root)) return;
+    // On an arranged board the cards stand in the canvas's tiles, out of their row (board-canvas-view.js).
+    if (!$('.pc-row, [data-pc-new], [data-pc-card], [data-pc-asking], #pc-ask', root)) return;
     $('[data-pc-new]', root)?.addEventListener('click', () => { open = 'new'; menu = null; Company.redraw(); $('#pc-ask input')?.focus(); });
     $('[data-pc-close]', root)?.addEventListener('click', close);
     const ask = $('#pc-ask', root);
