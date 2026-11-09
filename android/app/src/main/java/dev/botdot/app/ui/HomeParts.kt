@@ -199,7 +199,8 @@ internal fun DashboardStrip(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot
 /**
  * The Board's numbers over the keys, on the keypad and a phone (#397, #636): each tile's title over its first number
  * ([stripKpi]) with its sparkline or bar where there is room, or its dot (a switch On or Off), with no box around
- * them. Two to four a row, as many rows as it takes: none is cut off. A tap opens the Board; with no tile it says
+ * them. Columns of one grid ([boardColumns]), a value in words two of them wide and a long one the whole row
+ * ([boardSpan], [boardRows]), as many rows as it takes: none is cut off. A tap opens the Board; with no tile it says
  * so. Not there before the Board has loaded. A long press chooses its tiles ([onEdit], #447), where the server can.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -215,13 +216,15 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
         return
     }
     androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth().padding(horizontal = Space.s12, vertical = Space.s4).testTag(BOARD_CARDS)) {
-        val cols = (maxWidth / 160.dp).toInt().coerceIn(2, 4)
-        val narrow = cols == 2 // a phone: the numbers alone
+        val cols = boardColumns(maxWidth.value)
+        val narrow = maxWidth < PHONE_BOARD // a phone: the numbers alone
+        val spans = tiles.map { boardSpan(stripKpi(it)?.text, cols) }
         Column {
-            for (row in tiles.chunked(cols)) Row(Modifier.fillMaxWidth()) {
-                for (t in row) {
+            for (row in boardRows(spans, cols)) Row(Modifier.fillMaxWidth()) {
+                for (n in row) {
+                    val t = tiles[n]
                     val c = parseColor(tileColor(t, dash?.tiles.orEmpty(), bots), p.faint)
-                    Box(Modifier.weight(1f).clip(Radius.card).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = Space.s8, vertical = Space.s8)) {
+                    Box(Modifier.weight(spans[n].toFloat()).clip(Radius.card).combinedClickable(onClickLabel = BoardWords.NAME, onClick = onClick, onLongClickLabel = if (onEdit != null) HOME_TILES else null, onLongClick = onEdit).padding(horizontal = Space.s8, vertical = Space.s8)) {
                         val kpi = stripKpi(t)
                         if (kpi != null) KitKpi(if (narrow) kpi.copy(points = emptyList(), ratio = null) else kpi, tint(kpi.color, c), compact = true, small = true)
                         else Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
@@ -235,10 +238,37 @@ internal fun BoardCards(dash: dev.botdot.app.data.Dashboard?, bots: List<Bot>, o
                         }
                     }
                 }
-                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
+                val left = cols - row.sumOf { spans[it] }
+                if (left > 0) Spacer(Modifier.weight(left.toFloat()))
             }
         }
     }
+}
+
+/** Below this width the Board's numbers stand without their sparklines, three a row. */
+private val PHONE_BOARD = 480.dp
+
+/** How many columns the Board's numbers over the keys have in [width] dp: three on a phone, else one per 160 dp, two to four. */
+internal fun boardColumns(width: Float): Int = if (width < PHONE_BOARD.value) 3 else (width / 160f).toInt().coerceIn(2, 4)
+
+/** How many of [cols] columns a number takes: one; a value in words two (three columns or more), and a long one, over 18 characters, the whole row, as the web page's. */
+internal fun boardSpan(text: String?, cols: Int): Int = when {
+    !BoardKit.isWords(text) || cols < 3 -> 1
+    text.orEmpty().trim().length > 18 -> cols
+    else -> 2
+}
+
+/** The rows of a grid of [cols] columns, the tiles in their order taking [spans] columns each: a tile that no longer fits starts the next row. */
+internal fun boardRows(spans: List<Int>, cols: Int): List<List<Int>> {
+    val rows = mutableListOf<MutableList<Int>>()
+    var used = cols
+    spans.forEachIndexed { i, span ->
+        val s = span.coerceIn(1, cols)
+        if (used + s > cols) { rows += mutableListOf<Int>(); used = 0 }
+        rows.last() += i
+        used += s
+    }
+    return rows
 }
 
 /** The tag of the Board's numbers over the keys (KeypadUiTest). */

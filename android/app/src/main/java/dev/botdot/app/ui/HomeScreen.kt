@@ -321,15 +321,15 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
             NeedsFigures(needsWho)
         }
     }
-    // Above the keys, on the keypad and on a phone: what went wrong, a newer app, the Board's strip of kpi cards,
-    // Needs you as one card (#397) and Rooms.
+    // Above the keys, on the keypad and on a phone: what went wrong, a newer app, Needs you as one card (#397), the
+    // Board's numbers and Rooms.
     @Composable
     fun AboveKeys() {
         error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(Space.s16)) }
         if (dev.botdot.app.data.AppUpdate.newer(server) != null) Column(Modifier.padding(horizontal = Space.s12, vertical = Space.s8)) {
             AppUpdateBanner(api, server) { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() }
         }
-        BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
+        // Needs you first: it is the one thing that waits for the owner (#1187); the Board's numbers under it.
         if (needs > 0) NeedsRows(waiting, projectOf = { spaceOfBot[it] }, onReview = onNeedsYou, onChat = { w -> w.group?.let(onGroup) ?: w.bot?.let(onBot) ?: onNeedsYou() }, onAnswer = { id, yes ->
             scope.launch {
                 runCatching { (api ?: throw ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }
@@ -337,6 +337,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 store.needs.refresh()
             }
         })
+        BoardCards(dash, bots.orEmpty(), onClick = onDashboard, onEdit = if (dev.botdot.app.data.HomeTiles.shows(server?.features)) ({ choosingHome = true }) else null)
         RoomsRow(app) { onOpen("rooms") }
     }
     // The keypad, and a phone's sections: the list's own order cut into pages, each bot and group a key that says what its row says.
