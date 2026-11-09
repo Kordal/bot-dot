@@ -641,9 +641,8 @@ let feedbackShots = false; // whether the front door takes screenshots (its sess
 function openFeedback() {
   const m = openModal(`
     <form id="feedback-form" autocomplete="off">
-      <div class="modal-head"><h2>${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2 title="${esc(feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.'))}">${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p class="muted" style="margin:0">${feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.')}</p>
         <div class="feedback-kinds">${FEEDBACK_KINDS.map(([v, label], i) => `<label><input type="radio" name="kind" value="${v}"${i ? '' : ' checked'}> ${label}</label>`).join('')}</div>
         <label class="field">${tr('What happened, or what you would like')}<textarea name="text" rows="6" required></textarea></label>
         ${feedbackShots ? `<div class="feedback-shots hidden" id="feedback-shots"></div>

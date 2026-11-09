@@ -37,7 +37,7 @@ function renderRunList() {
         ${runFigure(r)}
         <div class="grow">
           <div class="title">${esc(r.botName)}${r.groupId ? ` <span class="faint">${groupById(r.groupId)?.name ? tr('in {group}', { group: esc(groupById(r.groupId).name) }) : tr('in a group')}</span>` : ''}</div>
-          <div class="sub">${ago(r.startedAt)} · ${r.jobName ? `⏰ ${esc(r.jobName)} · ` : r.trigger === 'schedule' ? '⏰ ' : ''}${[r.kind === 'script' ? tr('no AI') : null, r.durationMs ? dur(r.durationMs) : null].filter(Boolean).join(' · ')}</div>
+          <div class="sub">${[ago(r.startedAt), r.jobName ? esc(r.jobName) : r.trigger === 'schedule' ? tr('scheduled') : null, r.kind === 'script' ? tr('no AI') : null, r.durationMs ? dur(r.durationMs) : null].filter(Boolean).join(' · ')}</div>
         </div>
         ${statusPill(r.reporting === 'held' ? 'held' : r.quiet ? 'quiet' : r.status)}
       </button>`).join('')
@@ -50,6 +50,9 @@ function openRun(id) {
   const view = $('#run-view');
   if (view) view.dataset.id = '';
   setView('runs'); // renderRuns() opens the selected run
+  // In one column the run opens under the list (#1190): bring it into view.
+  const layout = $('.runs-layout');
+  if (layout && getComputedStyle(layout).gridTemplateColumns.trim().split(/\s+/).length === 1) requestAnimationFrame(() => $('#run-view')?.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }));
 }
 
 function toolArg(input) {

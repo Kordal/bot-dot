@@ -51,10 +51,10 @@ const groupSearchText = (g) => `${g.name} ${g.category || ''} ${groupMembers(g).
 const TEAM_CROWN = '<svg class="team-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
 function groupPicture(g, size = '') {
   if (g?.team) {
-    const faces = groupMembers(g).slice(0, 3).map((b, i) => `<i>${Figure.svg(b.state || 'idle', b.color, b.outfit)}${i === 0 && b.id === g.lead && g.members.length > 1 ? TEAM_CROWN : ''}</i>`);
+    const faces = groupMembers(g).slice(0, 3).map((b, i) => `<i>${Figure.svg(b.state || 'idle', b.color, b.outfit, b.id)}${i === 0 && b.id === g.lead && g.members.length > 1 ? TEAM_CROWN : ''}</i>`);
     return `<div class="group-pic team-pic ${size} n${Math.max(1, faces.length)}">${faces.join('') || `<i>${Figure.svg('idle', '#888780', null)}</i>`}</div>`;
   }
-  const heads = groupMembers(g).slice(0, 3).map((b) => `<i>${Figure.svg(b.state || 'idle', b.color, b.outfit)}</i>`);
+  const heads = groupMembers(g).slice(0, 3).map((b) => `<i>${Figure.svg(b.state || 'idle', b.color, b.outfit, b.id)}</i>`);
   if (!heads.length) heads.push(`<i>${Figure.svg('idle', '#888780', null)}</i>`); // its bots are all gone
   return `<div class="group-pic ${size} n${heads.length}">${heads.join('')}</div>`;
 }
@@ -301,7 +301,7 @@ function renderGroupSettings() {
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
   $('#gs-members', root).innerHTML = members.map((b) => `
-    <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit)}<span class="grow">${esc(b.name)}</span>
+    <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}<span class="grow">${esc(b.name)}</span>
       ${g.team ? '' : `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button>`}</div>`).join('')
     || `<p class="faint">${tr('Its bots are all gone. Add one, or delete the group.')}</p>`;
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {

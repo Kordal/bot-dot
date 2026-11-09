@@ -156,12 +156,12 @@ function drawSetup() {
 
   const bw = s.bitwarden || {};
   const extras = [
-    setupItem({ state: bw.configured ? 'ok' : 'off', icon: '🛡', title: `Bitwarden <span class="setup-opt">${tr('optional')}</span>`, body: bw.configured ? (bw.unlocked ? tr('Connected. Bots use its logins and cards without seeing them.') : tr('Connected, locked: unlock it when botdot asks. Bots use its logins and cards without seeing them.')) : tr('Let bots use your logins, cards and identities without ever seeing them.'), action: `<button class="btn sm" data-setup-go="vault">${bw.configured ? tr('Open') : tr('Set up')}</button>` }),
+    setupItem({ state: bw.configured ? 'ok' : 'off', icon: '🛡', title: 'Bitwarden', body: bw.configured ? (bw.unlocked ? tr('Connected. Bots use its logins and cards without seeing them.') : tr('Connected, locked: unlock it when botdot asks. Bots use its logins and cards without seeing them.')) : tr('Let bots use your logins, cards and identities without ever seeing them.'), action: `<button class="btn sm" data-setup-go="vault">${bw.configured ? tr('Open') : tr('Set up')}</button>` }),
   ];
 
   root.innerHTML = `
     ${PAGE_BACK}
-    <div class="section-head"><div><h1>${tr('Setup')}</h1>${unknown ? '' : `<p>${c.loggedIn ? tr('botdot is ready. The rest is up to you.') : tr('One step and botdot is ready.')}</p>`}</div></div>
+    <div class="section-head"><div><h1>${tr('Setup')}</h1>${unknown || c.loggedIn ? '' : `<p>${tr('One step and botdot is ready.')}</p>`}</div></div>
     ${claude}${loginBox}
     ${chiefNameSetupItem(s)}
     ${computers}${phone}${tz}

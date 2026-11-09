@@ -7,6 +7,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -21,6 +27,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -51,6 +59,7 @@ import dev.botdot.app.data.Layers
 import dev.botdot.app.data.Place
 import dev.botdot.app.data.Signal
 import dev.botdot.app.data.FigureTile
+import dev.botdot.app.data.Moment
 import dev.botdot.app.data.Tone
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -100,12 +109,41 @@ fun BotFigure(color: String?, state: String = "idle", size: Int = 44, outfit: Js
     val still = LocalFigureClock.current.still
     // A tile moves only while its ring turns; a head while its face moves.
     val clock = if (def.tile != null) movingClock(def.signal(state)?.ring != null) else movingClock(def, state)
+    val change = tileChange(def, state)
     Canvas(Modifier.size(size.dp)) {
         // Reading the clock here draws a moving head again each frame, and nothing else. Between two movements (an
         // idle head between blinks) nothing is read: it is drawn once, where the clock says it holds.
         val seconds = if (still) null else (clock?.ms?.longValue ?: FigureClock.now()) / 1000.0
-        drawFigure(def, face, def.layers(state, seconds), hat, def.opacity(state), tones, floatArrayOf(0f, 0f, def.box.first, def.box.second), state = state, seconds = seconds)
+        val moment = change?.let { def.moment(it.from, state, it.ago.longValue / 1000.0, still) }
+        drawFigure(def, face, def.layers(state, seconds), hat, def.opacity(state), tones, floatArrayOf(0f, 0f, def.box.first, def.box.second), state = state, seconds = seconds, moment = moment)
     }
+}
+
+/** A change of a tile's state this figure saw happen: the state before, and how long ago it changed (ms), each frame. */
+internal class TileChange(val from: String, val at: Long) { val ago = mutableLongStateOf(0L) }
+
+/**
+ * The change the tile is moving for, while it moves (ADR 169's tile.motion): the first state a figure is drawn in is
+ * just drawn, and each change after it moves once. Its time is read only where it is drawn, so only drawing repeats.
+ */
+@Composable
+internal fun tileChange(def: FigureDef, state: String): TileChange? {
+    val last = remember { arrayOf(state) }
+    val change = remember(state) {
+        val from = last[0]
+        last[0] = state
+        if (from != state && def.tile?.motion != null) TileChange(from, FigureClock.now()) else null
+    }
+    val still = LocalFigureClock.current.still
+    var moving by remember(change) { mutableStateOf(change != null) }
+    if (change != null && moving) LaunchedEffect(change) {
+        while (true) {
+            val ago = withFrameMillis { FigureClock.now() - change.at }
+            change.ago.longValue = ago
+            if (def.moment(change.from, state, ago / 1000.0, still) == null) { moving = false; break }
+        }
+    }
+    return change.takeIf { moving }
 }
 
 /**
@@ -204,14 +242,14 @@ fun FigureText(text: AnnotatedString, color: Color, fontSize: TextUnit = TextUni
  * canvas, or a part of it at the origin): the head's circle, the [face] (none for the small mark) and the [hat] over
  * it, each layer in its place ([layers]; none: nothing is moved). A faded mark fades as one, not shape by shape.
  */
-internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, hat: List<Mark>, opacity: Float, tones: Tones, view: FloatArray, size: Size = this.size, state: String? = null, seconds: Double? = null) {
+internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, hat: List<Mark>, opacity: Float, tones: Tones, view: FloatArray, size: Size = this.size, state: String? = null, seconds: Double? = null, moment: Moment? = null) {
     val k = min(size.width / view[2], size.height / view[3])
     val dx = (size.width - view[2] * k) / 2 - view[0] * k
     val dy = (size.height - view[3] * k) / 2 - view[1] * k
     val tile = def.tile
     fun draw() = withTransform({ translate(dx, dy); scale(k, k, Offset.Zero) }) {
         // The tile: [hat] holds its icon. The small mark (no face) shows no state.
-        if (tile != null) return@withTransform drawTile(tile, hat, tones, if (face == null) null else def.signal(state), seconds, def.box)
+        if (tile != null) return@withTransform drawTile(tile, hat, tones, if (face == null) null else def.signal(state), seconds, def.box, if (face == null) null else moment)
         layer(layers?.head, def.pivotHead) {
             drawMarks(listOf(def.head), tones)
             if (face != null) layer(layers?.eyes, def.pivotEyes) {
@@ -221,10 +259,11 @@ internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, 
             drawMarks(hat, tones) // last: over the head and the face
         }
     }
-    if (opacity >= 1f) return draw()
+    val alpha = moment?.opacity ?: opacity // a tile whose opacity is changing: where it is now
+    if (alpha >= 1f) return draw()
     drawIntoCanvas { canvas ->
         val pad = size.minDimension / 2 // room for a hat that reaches past the mark
-        canvas.saveLayer(Rect(-pad, -pad, size.width + pad, size.height + pad), Paint().apply { alpha = opacity })
+        canvas.saveLayer(Rect(-pad, -pad, size.width + pad, size.height + pad), Paint().apply { this.alpha = alpha })
         draw()
         canvas.restore()
     }
@@ -233,34 +272,62 @@ internal fun DrawScope.drawFigure(def: FigureDef, face: Face?, layers: Layers?, 
 /**
  * The tile in its own units: the rounded square in the bot's muted colour, the [icon] over it in the tile's ink, and the
  * [signal] of its state: a ring with an arc that turns once every ring.seconds ([seconds] null: still), or a dot cut out
- * of what is behind it.
+ * of what is behind it. [moment]: part of the way through the move of a change of state (the old ring or dot going,
+ * the new one coming, the pulse, the check of a run that ended well), as the web page draws it.
  */
-private fun DrawScope.drawTile(t: FigureTile, icon: List<Mark>, tones: Tones, signal: Signal?, seconds: Double?, box: Pair<Float, Float>) {
+private fun DrawScope.drawTile(t: FigureTile, icon: List<Mark>, tones: Tones, signal: Signal?, seconds: Double?, box: Pair<Float, Float>, moment: Moment? = null) {
     val r = t.rect
+    val m = moment ?: Moment()
+    val d = t.dot
     val dot = signal?.dot
-    fun body() {
-        drawRoundRect(opaque(t.muted(tones.main.rgb())), Offset(r[0], r[1]), Size(r[2], r[3]), CornerRadius(r[4], r[4]))
-        val ink = opaque(t.ink)
-        drawMarks(icon, Tones(ink, ink, ink, ink))
-        if (dot != null) {
-            val d = t.dot
-            drawCircle(Color.Black, d[2] + d[3], Offset(d[0], d[1]), blendMode = BlendMode.Clear) // the gap: what is behind shows through
-            drawCircle(opaque(dot), d[2], Offset(d[0], d[1]))
+    val dotWas = m.dotWasColor?.takeIf { m.dotWas > 0f }
+    // A dot, cut out of what is behind the tile: as large as [grow], or as strong as [grow] when it only fades.
+    fun dotAt(color: Int, grow: Float) {
+        val k = if (m.dotFades) 1f else grow
+        val a = if (m.dotFades) grow else 1f
+        if (k <= 0f || a <= 0f) return
+        scale(k, k, Offset(d[0], d[1])) {
+            drawCircle(Color.Black.copy(alpha = a), d[2] + d[3], Offset(d[0], d[1]), blendMode = BlendMode.DstOut) // the gap: what is behind shows through
+            drawCircle(opaque(color).copy(alpha = a), d[2], Offset(d[0], d[1]))
         }
     }
-    if (dot == null) body() else drawIntoCanvas { canvas ->
+    fun body() {
+        drawRoundRect(opaque(t.muted(tones.main.rgb())), Offset(r[0], r[1]), Size(r[2], r[3]), CornerRadius(r[4], r[4]))
+        val ink = opaque(t.ink).copy(alpha = m.icon)
+        if (m.icon > 0f) drawMarks(icon, Tones(ink, ink, ink, ink))
+        val motion = t.motion
+        if (m.checkAlpha > 0f && motion != null && m.check > 0f) {
+            val path = Path().apply { motion.check.forEachIndexed { i, (x, y) -> if (i == 0) moveTo(x, y) else lineTo(x, y) } }
+            val drawn = Path()
+            PathMeasure().apply { setPath(path, false); getSegment(0f, length * m.check, drawn, true) }
+            drawPath(drawn, opaque(t.ink).copy(alpha = m.checkAlpha), style = Stroke(motion.doneWidth, cap = StrokeCap.Round, join = StrokeJoin.Round))
+        }
+        if (dot != null) dotAt(dot, m.dot)
+        if (dotWas != null) dotAt(dotWas, m.dotWas)
+    }
+    if (dot == null && dotWas == null) body() else drawIntoCanvas { canvas ->
         // The gap clears only the tile: drawn in a layer of its own, so the page behind it is left as it is.
-        val pad = t.dot[2] + t.dot[3]
+        val pad = d[2] + d[3]
         canvas.saveLayer(Rect(-pad, -pad, box.first + pad, box.second + pad), Paint())
         body()
         canvas.restore()
     }
-    val ring = signal?.ring ?: return
+    val pulse = m.pulse
+    val motion = t.motion
+    if (dot != null && pulse != null && motion != null && pulse > 0f) {
+        // One thin circle in the dot's colour, from the dot outwards, fading as it goes.
+        drawCircle(opaque(dot).copy(alpha = 0.8f * (1 - pulse)), d[2] * (1 + (motion.pulseGrow - 1) * pulse), Offset(d[0], d[1]), style = Stroke(motion.pulseWidth))
+    }
     val (cx, cy) = box.first / 2 to box.second / 2
     val turn = if (seconds == null) 0.0 else (seconds % t.ringSeconds) / t.ringSeconds * 360.0
-    rotate(turn.toFloat(), Offset(cx, cy)) {
-        drawArc(opaque(ring), -90f, t.ringArc * 360f, false, Offset(cx - t.ringR, cy - t.ringR), Size(2 * t.ringR, 2 * t.ringR), style = Stroke(t.ringWidth, cap = StrokeCap.Round))
+    fun ringOf(color: Int, alpha: Float) {
+        if (alpha <= 0f) return
+        rotate(turn.toFloat(), Offset(cx, cy)) {
+            drawArc(opaque(color).copy(alpha = alpha), -90f, t.ringArc * 360f, false, Offset(cx - t.ringR, cy - t.ringR), Size(2 * t.ringR, 2 * t.ringR), style = Stroke(t.ringWidth, cap = StrokeCap.Round))
+        }
     }
+    signal?.ring?.let { ringOf(it, m.ring) }
+    m.ringWasColor?.let { ringOf(it, m.ringWas) }
 }
 
 private val NO_PIVOT = 0.0 to 0.0

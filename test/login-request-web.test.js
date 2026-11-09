@@ -21,8 +21,8 @@ const cut = (from, to) => {
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const page = vm.createContext({ ...words, esc });
-vm.runInContext(`${cut('const LOGIN_SEARCH_ABOVE', 'function openLoginRequest(r)')}\nthis.loginRequestOthers = loginRequestOthers; this.loginRequestConfirm = loginRequestConfirm; this.loginRequestMatches = loginRequestMatches;`, page);
-const dialog = cut('function openLoginRequest(r)', 'async function saveLoginInBackground');
+vm.runInContext(`${cut('const LOGIN_SEARCH_ABOVE', 'function openLoginRequest(r, host = null)')}\nthis.loginRequestOthers = loginRequestOthers; this.loginRequestConfirm = loginRequestConfirm; this.loginRequestMatches = loginRequestMatches;`, page);
+const dialog = cut('function openLoginRequest(r, host = null)', 'async function saveLoginInBackground');
 
 // As GET /api/vault/requests hands it out (docs/api.md "Login requests").
 const REQUEST = {

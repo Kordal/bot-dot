@@ -106,7 +106,7 @@ function showNeeds() {
   const banner = $('#needs-banner');
   if (!banner) return;
   const items = batched(needsItems());
-  const review = () => (items.length === 1 ? openNeed(items[0]) : setView('needs'));
+  const review = () => (items.length === 1 ? openNeedInChat(items[0]) : setView('needs'));
   banner.classList.toggle('hidden', !items.length || state.view === 'needs');
   if (items.length) {
     banner.innerHTML = `${needsFigures(items)}<span>${tr('Waiting for your OK')}</span><button class="btn sm primary" id="needs-open">${tr('Review')}</button>`;
@@ -121,11 +121,16 @@ function showNeeds() {
 // A row of Needs you that answers in place (answersInline) says only a line: its words open the card where it stands, at
 // the end of its bot's chat (or the group's, or the Chief's, chatNeeds), unfolded and scrolled to. Any other row opens
 // as its Review does, and so does a card that stands in no chat.
+// A login, a payment and a locked Bitwarden open their form in that card, in place of a dialog.
 let seenNeed = null; // the card to scroll to once its chat is drawn (updateChatNeeds)
+let formNeed = null; // and the one whose form opens in it then
+const opensInCard = (x) => x.kind === 'login' || x.kind === 'pay' || x.kind === 'bitwarden';
 function openNeedInChat(x) {
-  const scope = answersInline(x) ? [x.group && `group:${x.group.id}`, x.a.botId, 'chief'].find((s) => s && chatNeeds(s).some((c) => c.key === x.key)) : null;
+  const own = x.kind === 'ask' ? x.a.botId : x.kind === 'bitwarden' ? x.bot?.id : opensInCard(x) ? x.r.botId : null;
+  const scope = answersInline(x) || opensInCard(x) ? [x.group && `group:${x.group.id}`, own, 'chief'].find((s) => s && chatNeeds(s).some((c) => c.key === x.key)) : null;
   if (!scope) return openNeed(x);
   seenNeed = x.key;
+  formNeed = opensInCard(x) ? x.key : null;
   needsOpen.add(x.key);
   if (scope === 'chief') openChief();
   else if (scope.startsWith('group:')) setView('group', scope.slice(6));
@@ -138,15 +143,19 @@ function toSeenNeed(thread) {
   if (!card) return;
   seenNeed = null;
   card.classList.add('open');
+  const form = formNeed === card.dataset.need && needsItems().find((x) => x.key === formNeed);
+  formNeed = null;
+  if (form) openNeed(form, card);
   card.scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 
-function openNeed(x) {
+// card: the card it was opened from, where a login's, a payment's and Bitwarden's form opens in place of a dialog.
+function openNeed(x, card = null) {
   if (x.kind === 'job') return openJobApproval(x.bot, x.job);
-  if (x.kind === 'bitwarden') return bwUi.unlocking ? null : openUnlock();
+  if (x.kind === 'bitwarden') return bwUi.unlocking ? null : openUnlock('', card);
   if (x.kind === 'suggestion') return openChiefChat(x.chat.id);
   if (x.kind === 'tile') return setView('needs'); // the script is on its card
-  if (x.kind === 'login' || x.kind === 'pay') return openLoginRequest(x.r);
+  if (x.kind === 'login' || x.kind === 'pay') return openLoginRequest(x.r, card);
   return setView('needs'); // anything else (a permission or skill a bot asked for, a memory change) is answered on its card
 }
 
@@ -290,7 +299,7 @@ function needCardHTML(x, here = null) {
       changeBlocks(Array.from({ length: rows }, (_, i) => [m.scriptsWas[i] ?? null, m.scripts[i] ?? null, 'pre'])) + untilHTML(m.line),
       `<button class="btn sm" data-need-no>${esc(m.no)}</button><button class="btn sm primary" data-need-yes>${esc(m.yes)}</button>`, m.change ? 'need-changed' : '');
   }
-  if (x.kind === 'suggestion') return card(tr('A plan for the Chief: {title}', { title: esc(x.chat.title) }), tr('Nothing happens until you approve it'), `<div class="need-body"><div class="nb">${esc(plain(x.chat.waiting.text))}</div></div>`,
+  if (x.kind === 'suggestion') return card(tr('A plan for the Chief: {title}', { title: esc(x.chat.title) }), '', `<div class="need-body"><div class="nb">${esc(plain(x.chat.waiting.text))}</div></div>`,
     `<button class="link-btn need-link" data-need-open>${tr('Open chat')}</button><button class="btn sm" data-need-no>${tr('Decline')}</button><button class="btn sm primary" data-need-yes>${tr('Approve')}</button>`);
   if (x.kind === 'bitwarden') return card(tr('Bitwarden is locked'), tr("Bots can't use your saved logins until you unlock it."), '', `<button class="btn sm primary" data-need-open>${tr('Unlock')}</button>`);
   if (x.kind === 'pay') return card(tr('Pay on {site}', { site: esc(x.r.site) }), x.r.amount ? esc(x.r.amount) : '', '', `<button class="btn sm primary" data-need-open>${tr('Review')}</button>`);
@@ -549,7 +558,7 @@ function renderNeeds() {
   const all = approveAll(open);
   // Draw again only when the cards change: the regular refresh would otherwise swallow clicks.
   const sig = JSON.stringify([open.map((x) => [x.key, x.job?.cron, x.job?.prompt, x.job?.script, x.chat?.waiting?.text, needLive(x)]), [...needsDone.keys()], all.label, all.line]);
-  if (root.dataset.sig === sig) return;
+  if (root.dataset.sig === sig || filling(root, open)) return;
   root.dataset.sig = sig;
   const drawn = batched(open);
   // An answered card moves to its place among the answered ones and the rest close up; a new one arrives (motion.js).
@@ -564,6 +573,10 @@ function renderNeeds() {
   const button = $('#needs-all', root);
   if (button) button.onclick = async () => { for (const x of all.takes) await decide(x, true, false); refreshNeeds(); };
 }
+
+// A form open in a card that still waits (openInline) is not drawn away while it is filled in: the cards follow
+// once it closes.
+const filling = (root, items) => { const p = $('.need-inline', root); return !!p?.open && items.some((x) => x.key === p.dataset.need); };
 
 // The buttons on need cards (the Needs you page, and the cards in a chat).
 function wireNeedCards(root, items) {
@@ -580,10 +593,10 @@ function wireNeedCards(root, items) {
     const sure = (q) => askFirst(q, always.textContent, { danger: false });
     if (always) always.onclick = async () => { if (x.a?.kind === 'chief-action') { if (await sure(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (await sure(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || await sure(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => answerNeed(x, false, no);
-    if (op) op.onclick = () => openNeed(x);
+    if (op) op.onclick = () => openNeed(x, el);
     const show = $('[data-need-show]', el);
     if (show) show.onclick = () => toggleSecret(x, show, el);
-    el.onclick = (e) => { if (e.target.closest('button')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
+    el.onclick = (e) => { if (e.target.closest('button, .need-inline')) return; el.classList.toggle('open'); el.classList.contains('open') ? needsOpen.add(x.key) : needsOpen.delete(x.key); };
   });
 }
 
@@ -625,7 +638,8 @@ const inBothChats = (x) => x.kind === 'ask' && (ToolCard.is(x.a) || (x.a.kind ==
 function chatNeeds(scope) {
   const suggested = scope === 'chief' ? [] : tileSuggestions().filter((x) => x.s.bot === scope); // a group's id is no bot's: none there
   return [...suggested, ...needsItems().filter((x) => {
-    if (x.kind === 'bitwarden' || x.kind === 'suggestion') return false; // Bitwarden isn't a bot's; a plan already has its buttons in the chat
+    if (x.kind === 'bitwarden') return !!x.bot && x.bot.id === scope; // in the chat of the bot that waits for it (wantedBy), if one does
+    if (x.kind === 'suggestion') return false; // a plan already has its buttons in the chat
     if (x.group || String(scope).startsWith('group:')) return !!x.group && scope === `group:${x.group.id}`; // asked in a group: at the end of that group, and in no bot's own chat
     if (inBothChats(x)) return scope === 'chief' || x.a.botId === scope;
     if (scope === 'chief') return fromChief(x);
@@ -673,6 +687,7 @@ function updateChatNeeds(thread, scope) {
   let box = $('.chat-needs', thread);
   if (!box) { box = document.createElement('div'); box.className = 'chat-needs'; }
   if (box !== thread.lastElementChild) thread.append(box); // new messages go above it
+  if (filling(box, items)) return;
   const sig = JSON.stringify([scope, items.map((x) => [x.key, x.job?.cron, x.job?.script, x.job?.prompt, needLive(x, here)]), done]);
   if (box.dataset.sig === sig) return toSeenNeed(thread);
   const atBottom = thread.scrollHeight - thread.scrollTop - thread.clientHeight < 160;
