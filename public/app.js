@@ -1127,7 +1127,8 @@ async function readAll() {
     // The Chief replies nowhere: no working line is left over. A reply this page follows ends with its stream:
     // this answer may be older than its start.
     if (!chief.busy) for (const id of [...chiefTurns.keys()]) if (!(state.chatStream && id === state.chatId)) chiefTurns.delete(id);
-    if (!state.features.length) loadFeatures().then(syncRead); // it could not be asked at the start
+    // They could not be asked at the start: once known, the projects are loaded and the rail drawn as at the start.
+    if (!state.features.length) loadFeatures().then(() => { if (state.features.length && typeof Company !== 'undefined') Company.init(); syncRead(); });
     // Counts that were fetched before this page said it shows the chat: ask the server again, now.
     if (report.shown() && Unread.count(unreadKnown(report.shown()))) report.again();
     for (const b of state.bots) Figure.saw(b.id, b.state); // a tile moves once when its bot's state changes
