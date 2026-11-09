@@ -1,7 +1,7 @@
 {
   "name": "botdot-site",
   "private": true,
-  "description": "botdot.app, the project's homepage: SvelteKit, prerendered to static files (ADR 172)",
+  "description": "botdot.app, the project's homepage: SvelteKit, prerendered to static files (ADR 173)",
   "license": "MIT",
   "type": "module",
   "imports": {

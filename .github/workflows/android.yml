@@ -3,6 +3,11 @@
 # 0.1.<build>"). Download it from the repo's Releases page on the phone, and it installs as an update over the previous one. The server image
 # carries the app (android-app/), so the phone app can update itself from botdot (Settings → Updates).
 #
+# Google Play (ADR 173, docs/google-play.md): the same run builds the Play bundle (bundlePlay: no self-updater, no
+# restricted permissions), signed with the same key, which Play knows as the upload key. It is kept 30 days as the
+# run's "play-bundle" artifact; with the PLAY_SERVICE_ACCOUNT_JSON secret in the release environment it also goes to
+# Play's internal testing track.
+#
 # When (#512): once a night when android/ changed since the last android-v* release, and when the owner runs it by
 # hand (Actions → Android → Run workflow, on main). A merge to main releases nothing. The nightly image build
 # (images.yml, two hours later) sees the new release and carries it; a run by hand starts the image build itself.
@@ -88,7 +93,7 @@ jobs:
       - name: Build
         env:
           BOTDOT_KEYSTORE_PASSWORD: ${{ secrets.BOTDOT_KEYSTORE_PASSWORD }}
-        run: ./gradlew assembleRelease --console=plain
+        run: ./gradlew assembleRelease bundlePlay --console=plain
 
       - name: Check the signature
         run: |
@@ -100,12 +105,32 @@ jobs:
           # The release keystore's certificate (CN=bot-dot Android, made for the public repository, #530), by its SHA-256 digest.
           echo "$OUT" | grep -qE "certificate SHA-256 digest: cc05ce8b44373033bf3493347321fd0cc84be36b0ee5f15d23c6888fc7be6be3$" || { echo "Not signed with botdot's release key" >&2; exit 1; }
 
+      # The Play bundle: signed with the same key (Play's upload key), and without what Play restricts.
+      - name: Check the Play bundle
+        run: |
+          AAB=app/build/outputs/bundle/play/app-play.aab
+          jarsigner -verify "$AAB" >/dev/null || { echo "The Play bundle is not signed" >&2; exit 1; }
+          keytool -printcert -jarfile "$AAB" | tr -d ':' | grep -qi "SHA256 cc05ce8b44373033bf3493347321fd0cc84be36b0ee5f15d23c6888fc7be6be3" || { echo "The Play bundle is not signed with botdot's release key" >&2; exit 1; }
+          unzip -p "$AAB" base/manifest/AndroidManifest.xml > "$RUNNER_TEMP/play-manifest.pb"
+          for p in REQUEST_INSTALL_PACKAGES REQUEST_IGNORE_BATTERY_OPTIMIZATIONS; do
+            if grep -q "$p" "$RUNNER_TEMP/play-manifest.pb"; then echo "The Play bundle asks for $p" >&2; exit 1; fi
+          done
+          echo "Play bundle: $(du -h "$AAB" | cut -f1), signed, no restricted permissions"
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: android-release-${{ github.sha }}-${{ github.run_attempt }}
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 1
+
+      # For the first upload by hand in Play Console (Actions → this run → Artifacts), and for the play job.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: play-bundle
+          path: android/app/build/outputs/bundle/play/app-play.aab
+          if-no-files-found: error
+          retention-days: 30
 
       - name: Clean up
         if: always()
@@ -152,3 +177,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run images.yml --ref "${GITHUB_REF_NAME}"
+
+  # Google Play's internal testing track, when the release environment has PLAY_SERVICE_ACCOUNT_JSON (docs/google-play.md).
+  # After the tests, like the GitHub release; promoting to closed testing or production stays a step in Play Console.
+  play:
+    environment: release
+    needs: [test, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: play-bundle
+          path: android
+      - name: Upload to the internal track
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then echo "No PLAY_SERVICE_ACCOUNT_JSON secret: the bundle is only kept as this run's artifact."; exit 0; fi
+          node deploy/play-upload.js android/app-play.aab internal

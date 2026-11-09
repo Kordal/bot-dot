@@ -60,13 +60,28 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.findByName("release")
+            buildConfigField("boolean", "SELF_UPDATE", "true")
+        }
+        // The Google Play build (docs/adr/173-the-android-app-on-google-play-is-a-play-build-of-the-same-app.md):
+        // the release build without updating itself (Play updates it) and without the permissions Play restricts
+        // (src/play/AndroidManifest.xml). ./gradlew bundlePlay makes the .aab Play takes.
+        create("play") {
+            initWith(getByName("release"))
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "SELF_UPDATE", "false")
         }
     }
+
+    // The play build starts as fast as the release build: the same baseline profile.
+    sourceSets.getByName("play").baselineProfiles.srcDir("src/release/generated/baselineProfiles")
 
     buildFeatures {
         compose = true

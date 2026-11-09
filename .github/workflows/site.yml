@@ -1,4 +1,4 @@
-# botdot.app (ADR 172): a pull request that touches the site builds it and runs site/tests/. Publishing is
+# botdot.app (ADR 173): a pull request that touches the site builds it and runs site/tests/. Publishing is
 # site-publish.yml, which a pull request never starts.
 name: Site
 
