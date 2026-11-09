@@ -144,6 +144,7 @@ function readBotForm(form, sel) {
     mayMessageAll: sel.others.every((id) => sel.mayMessage.has(id)),
     mayMessage: [...sel.mayMessage],
     othersMayAsk: form.othersMayAsk.checked,
+    ...(form.proxy ? { proxy: form.proxy.value } : {}), // its proxy (ADR 171), where the row is drawn
     ...(form.allowRooms ? { rooms: { allowRooms: form.allowRooms.checked, whoMayMention: form.roomsWho.value } } : {}),
     ...(hotkeyChanged(form) ? { hotkey: Number(form.hotkey.value) } : {}),
     allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
@@ -316,6 +317,7 @@ function renderBotSettings(force = false) {
           <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="none">${tr('None')}</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
         </label>` : `<label class="bs-row ${mayHave ? '' : 'hidden'}"${accountComputer ? '' : tipAttrs(tr("Its own screen and browser on the account's computer, with sudo there, like every bot that uses it."))}><b>${tr('Uses the computer')}</b>
           <span class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${mayHave ? '' : 'disabled'} aria-label="${esc(tr('Uses the computer'))}"><span></span></span></label>`}
+        ${b.computer === 'linux' && typeof Proxies !== 'undefined' ? `<div class="bs-slot" id="bs-proxy">${Proxies.botRowHTML(b)}</div>` : ''}
         <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
         ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>${tr('Its screen')}</b>${CHEV}</button>` : ''}
       </div>
@@ -417,6 +419,7 @@ function renderBotSettings(force = false) {
     saveSoon();
   });
   wireMoveRetry(root, b.id);
+  if (typeof Proxies !== 'undefined') Proxies.fillBotRow($('#bs-proxy', root), b);
 
   $('[data-bs-jobs]', root).onclick = () => setView('botjobs', b.id);
   const scr = $('[data-bs-screen]', root);

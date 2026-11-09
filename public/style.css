@@ -1618,6 +1618,28 @@ a.file-chip.link:hover { background: var(--fill); }
 .bs-chev { flex: none; color: var(--faint); transition: transform .15s; }
 .bs-fold.open .bs-chev, .bs-more[open] > summary > .bs-chev { transform: rotate(90deg); }
 .bs-row .faint { font-size: var(--fs-12); line-height: 1.45; }
+/* Settings → Proxy and a bot's Proxy row (public/proxies.js, ADR 171) */
+.bs-slot { display: contents; }
+.px-list { display: flex; flex-direction: column; }
+.px-item { display: flex; align-items: center; gap: var(--sp-12); min-height: 48px; border-top: 1px solid var(--line); font-size: var(--fs-14); }
+.px-item > b { font-weight: 400; flex: 1; min-width: 0; display: flex; gap: var(--sp-8); align-items: baseline; overflow: hidden; white-space: nowrap; }
+.px-item .mono, .px-test .mono { font-family: var(--mono); font-size: var(--fs-12); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.px-where { color: var(--muted); white-space: nowrap; }
+.px-where.bad { color: var(--err); }
+.px-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--line-2); }
+.px-dot.ok { background: var(--ok); }
+.px-dot.bad { background: var(--err); }
+.px-add { display: flex; width: fit-content; margin: var(--sp-8) 0; }
+.px-seg { display: inline-flex; align-self: flex-start; padding: var(--sp-4); background: var(--sunk); border-radius: var(--r-pill); }
+.px-seg input { position: absolute; opacity: 0; pointer-events: none; }
+.px-seg span { display: block; padding: var(--sp-4) var(--sp-16); border-radius: var(--r-pill); font-size: var(--fs-14); color: var(--muted); cursor: pointer; }
+.px-seg input:checked + span { background: var(--ink); color: var(--ink-text); }
+.px-seg input:focus-visible + span { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.px-two { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: var(--sp-12); }
+.px-two.even { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.px-test { display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); padding: var(--sp-12) var(--sp-16); background: var(--sunk); border-radius: var(--r-14); }
+.px-test .ms { margin-left: auto; color: var(--muted); font-size: var(--fs-12); }
+@media (max-width: 520px) { .px-item .mono { display: none; } }
 .bs-row .switch { margin-top: var(--sp-4); }
 label.bs-row { cursor: pointer; }
 /* A choice right of its label, as its value: the select shows only what is chosen (#366's key). */

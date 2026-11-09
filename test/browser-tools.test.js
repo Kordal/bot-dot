@@ -236,7 +236,7 @@ test('a saved secret is typed a key at a time with uneven pauses, as a person ty
 
 // open_browser waits until its Camoufox is open, however long that takes up to its limit, and answers with the page,
 // not a screenshot after a fixed 7 s. When it is open already, it goes to the address in its tab.
-function openBrowserStub(t, { openAfter = 1, page = 'Page: Example (https://example.com/)' } = {}) {
+function openBrowserStub(t, { openAfter = 1, page = 'Page: Example (https://example.com/)', downSays = '' } = {}) {
   const asked = [];
   let checks = 0;
   const stub = http.createServer((req, res) => {
@@ -248,7 +248,8 @@ function openBrowserStub(t, { openAfter = 1, page = 'Page: Example (https://exam
       res.setHeader('Content-Type', 'application/json');
       if (req.url === '/session/computer/cmd' && b.command === 'run_command') {
         const open = ++checks > openAfter;
-        return res.end(JSON.stringify({ ok: true, text: `data: ${JSON.stringify({ success: true, stdout: open ? 'yes\n' : 'no\n' })}` }));
+        const said = downSays && asked.some((a) => a.path === '/session/computer/launch') ? `${downSays}\n` : '';
+        return res.end(JSON.stringify({ ok: true, text: `data: ${JSON.stringify({ success: true, stdout: open ? 'yes\n' : `${said}no\n` })}` }));
       }
       if (req.url === '/session/computer/cmd') return res.end('{"ok": true, "text": "data: {\\"success\\": true, \\"image_data\\": \\"aGk=\\"}"}');
       if (req.url === '/session/computer/browser') return res.end(JSON.stringify(checks > openAfter ? { ok: true, snapshot: `${page}${b.op === 'goto' ? ` after goto ${b.url}` : ''}` } : { ok: false, error: "Camoufox isn't open." }));
@@ -292,6 +293,16 @@ test('open_browser says so when Camoufox does not open in time', async (t) => {
   const out = await mcp.request('tools/call', { name: 'open_browser', arguments: {} });
   assert.match(out.content[0].text, /^Camoufox did not open within 3 seconds\. Call open_browser once more; if it fails again, tell the owner/);
   assert.equal(asked.filter((a) => a.path === '/session/computer/launch').length, 1, 'one open: a second would be a second tab');
+});
+
+test('open_browser says at once that the bot\'s proxy is down, and opens nothing (ADR 171)', async (t) => {
+  const { url } = await openBrowserStub(t, { openAfter: 1e9, downSays: "The proxy PL didn't answer (ConnectionRefusedError), so the browser stayed closed. Nothing went out directly." });
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: url, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer', BOT_DOT_OPEN_BROWSER_WAIT_MS: '20000' });
+  await mcp.request('initialize', {});
+  const began = Date.now();
+  const out = await mcp.request('tools/call', { name: 'open_browser', arguments: { url: 'allegro.pl' } });
+  assert.ok(Date.now() - began < 5000, 'without waiting out its time');
+  assert.equal(out.content[0].text, "The proxy PL didn't answer (ConnectionRefusedError), so the browser stayed closed. Nothing went out directly. Tell the owner: they can test it in Settings → Proxy.");
 });
 
 test('open_browser takes an address as a person types it, and says when it stays where it is', async (t) => {
@@ -350,6 +361,42 @@ test('a bot\'s browser keeps one identity, takes its place from the address and 
     assert.equal(out.crashed, null, 'a start that crashed opens again without it');
     assert.equal(out.kept_after_crash, true, 'and the identity is kept');
     assert.equal(out.same_after_crash, true);
+  } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
+});
+
+// The bot's proxy in its bridge (ADR 171), against stand-in proxies (test/fixtures/camoufox-bridge-proxy.py).
+test('a bot\'s browser goes through its proxy with its login, names resolved there, and stays closed when the proxy is down', { skip: !hasPython() }, async () => {
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-proxy-'));
+  try {
+    const out = JSON.parse((await util.promisify(childProcess.execFile)('python3', [path.join(__dirname, 'fixtures', 'camoufox-bridge-proxy.py'), LAUNCHER, scratch], { timeout: 30_000 })).stdout);
+    assert.equal(out.socks, 'echo:hi');
+    assert.deepEqual(out.socks_name, ['socks', 3, 'shop.example', 443], 'the site\'s name goes to the SOCKS5 proxy, not an address resolved here');
+    assert.equal(out.socks_wrong, 'down: refused the login');
+    assert.equal(out.http, 'echo:hi');
+    assert.deepEqual(out.http_target, ['http', 'shop.example:443']);
+    assert.equal(out.http_wrong, 'down: refused the login');
+    assert.match(out.dead, /^down: didn't answer/);
+    assert.equal(out.bad_type, 'refused');
+    assert.deepEqual(out.taken, { ok: true, proxyTaken: true, proxy: 'set' });
+    assert.equal(out.file_mode, '0o600', 'the login is the browser user\'s alone');
+    assert.equal(out.reloaded, true, 'a bridge started again keeps it');
+    assert.equal(out.other_bot, null, 'a screen\'s next bot doesn\'t get it');
+    assert.equal(out.forwarded, 'echo:hello');
+    assert.deepEqual(out.forwarded_name, ['socks', 3, 'news.example', 443]);
+    assert.equal(out.http_connect, 'HTTP/1.1 200 Connection established\r\n\r\necho:ping', 'commands may use it as an HTTP proxy');
+    assert.equal(out.http_get, 'echo:GET /a?b=1 HTTP/1.1\r\nHost: shop.example\r\n\r\n', 'a plain http:// request goes to the site in its own form');
+    assert.deepEqual(out.http_get_name, ['socks', 3, 'shop.example', 80]);
+    assert.match(out.launch_proxy.server, /^socks5:\/\/127\.0\.0\.1:\d+$/);
+    assert.equal(out.launch_geoip, '198.51.100.9', 'its place is the proxy\'s');
+    assert.deepEqual(out.prefs, { 'network.proxy.socks_remote_dns': true, 'network.trr.mode': 5, 'media.peerconnection.ice.proxy_only': true });
+    assert.equal(out.changed, true);
+    assert.equal(out.closed_on_change, true, 'another proxy closes the open browser');
+    assert.match(out.down, /didn't answer/);
+    assert.equal(out.down_launches, 0, 'a proxy that is down starts no browser');
+    assert.deepEqual(out.cleared, { ok: true, proxyTaken: true, proxy: 'none' });
+    assert.equal(out.file_gone, true);
+    assert.equal(out.forward_without, 'refused 2', 'without a proxy the forwarder lets nothing out');
+    assert.equal(out.plain_proxy, null);
   } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
 });
 

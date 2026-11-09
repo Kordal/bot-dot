@@ -102,6 +102,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var model by remember { mutableStateOf("") }
     var effort by remember { mutableStateOf("") }
     var computer by remember { mutableStateOf(false) }
+    var proxy by remember { mutableStateOf("") } // its proxy (ADR 171): "" the account's, "none", or one by id
     var computerOn by remember { mutableStateOf("linux") } // where its computer is: this machine, or boat.dev (ADR 088)
     var moveFiles by remember { mutableStateOf(false) } // "Copy files" for its new computer (#556)
     var askMove by remember { mutableStateOf<String?>(null) } // the computer a switch asks about first
@@ -119,7 +120,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     fun fill(b: Bot) {
         bot = b; color = b.color.orEmpty(); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
-        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux" || b.computer == "boat"; computerOn = if (b.computer == "boat") "boat" else "linux"
+        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux" || b.computer == "boat"; computerOn = if (b.computer == "boat") "boat" else "linux"; proxy = b.proxy
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
         rooms = b.rooms ?: dev.botdot.app.data.BotRooms()
@@ -159,6 +160,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             val nextComputer = if (computer) computerOn else "none"
             if (nextComputer != b.computer) put("computer", nextComputer)
             if (nextComputer != b.computer && moveFiles) put("moveFiles", true)
+            if (proxy != b.proxy) put("proxy", proxy)
             if (useSkills != b.useSkills) put("useSkills", useSkills)
             if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
@@ -184,7 +186,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         runCatching { api!!.updateBot(botId, sent) }.onSuccess { if (changes(b) == sent) fill(it) else bot = it; moveFiles = false; savedAt++ }.onError { refused = sent; tell(it.message ?: tr("Couldn't save")) }
         saving = false
     }
-    LaunchedEffect(color, name, description, group, pinned, task, model, effort, computer, computerOn, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
+    LaunchedEffect(color, name, description, group, pinned, task, model, effort, computer, computerOn, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
         val b = bot ?: return@LaunchedEffect
         val now = changes(b)
         if (name.isBlank() || now.isEmpty() || now == refused) return@LaunchedEffect
@@ -249,6 +251,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         moveFiles = false
                     }
                 } else SwitchRow(tr("Uses the computer"), checked = computer) { computer = it }
+                // Its proxy (ADR 171): on the account's computer only; boat.dev's browser uses the account's.
+                val proxyApi = api
+                if (proxyApi != null && b.computer == "linux" && dev.botdot.app.data.Proxies.shows(server?.features)) BotProxyRow(proxyApi, b, proxy) { proxy = it }
                 val move = botsNow?.firstOrNull { it.id == botId }?.computerMove ?: b.computerMove
                 if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     if (move.state == "copying") Text(tr("Copying files") + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)

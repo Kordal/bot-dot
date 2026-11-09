@@ -1768,5 +1768,16 @@
   "Get the API key": "Weź klucz API",
   "Settings → Security → Keys": "Ustawienia → Zabezpieczenia → Klucze",
   "Open Connectors": "Otwórz Konektory",
-  "Waiting for sign-in": "Czeka na logowanie"
+  "Waiting for sign-in": "Czeka na logowanie",
+  "Proxy": "Proxy",
+  "Bots use": "Boty używają",
+  "No proxy": "Bez proxy",
+  "Add proxy": "Dodaj proxy",
+  "Edit proxy": "Edytuj proxy",
+  "Host": "Host",
+  "Port": "Port",
+  "Test": "Testuj",
+  "Not working": "Nie działa",
+  "Remove {name}?": "Usunąć {name}?",
+  "Account's ({name})": "Konta ({name})"
 }

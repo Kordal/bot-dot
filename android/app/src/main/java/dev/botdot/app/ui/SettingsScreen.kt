@@ -166,6 +166,10 @@ fun SettingsScreen(
             if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
             Rule()
 
+            // The account's proxies (ADR 171): the one the bots use, each with its test.
+            val proxyApi = api
+            if (proxyApi != null && dev.botdot.app.data.Proxies.shows(server?.features)) ProxySection(proxyApi, ::tell, ::saved)
+
             // The interface's language (#645): saved by itself, and every screen draws again in it at once.
             if (server?.features?.contains(I18n.FEATURE) == true) {
                 Choice(tr("Language"), I18n.language, I18n.LANGUAGES) { to ->
