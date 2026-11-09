@@ -387,7 +387,7 @@ class FigureTest {
         assertEquals(size("spark"), tiled.icon(null).size)
         assertEquals(size("compass"), tiled.icon(FigureDef.CHIEF).size)
         assertEquals(size("news"), tiled.wears(json("""{"icon":"news"}""")).size)
-        assertEquals(def.hat(json("""{"hat":"cap"}""")).size, def.wears(json("""{"hat":"cap"}""")).size, "without a tile a bot wears its hat")
+        assertEquals("without a tile a bot wears its hat", def.hat(json("""{"hat":"cap"}""")).size, def.wears(json("""{"hat":"cap"}""")).size)
         // The icon is placed in the middle of the tile, half as large as its own box.
         val xs = tiled.icon(json("""{"icon":"server"}""")).flatMap { m -> if (m is Mark.Outline) m.steps.flatMap { s -> s.at.filterIndexed { i, _ -> i % 2 == 0 }.toList() } else listOf((m as Mark.Disc).x) }
         assertTrue(xs.all { it in 6f..18f })
