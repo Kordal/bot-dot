@@ -12,7 +12,7 @@ How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-a
 
 ## The build
 
-- `./gradlew bundlePlay` (in `android/`) makes `app/build/outputs/bundle/play/app-play.aab`: the release build without the self-updater and without `REQUEST_INSTALL_PACKAGES` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`.
+- `./gradlew bundlePlay` (in `android/`) makes `app/build/outputs/bundle/play/app-play.aab`: the release build without the self-updater and without `REQUEST_INSTALL_PACKAGES` and `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`, under the package name `app.botdot`.
 - `android.yml` (nightly when `android/` changed, or Actions → Android → Run workflow on `main`) builds it beside the GitHub `.apk`, signs it with the release key, and keeps it 30 days as the run's **play-bundle** artifact.
 - **Version:** `versionCode` is the workflow's run number and `versionName` is `0.1.<run number>`, the same as the GitHub release of that run. Each run is higher than the last, as Play requires.
 - **Signing:** Play App Signing with a key Google generates. The release key CI already holds (`BOTDOT_KEYSTORE_B64`, `BOTDOT_KEYSTORE_PASSWORD` in the `release` environment) signs the bundle and becomes Play's **upload key** on the first upload. No key is ever committed.
@@ -21,11 +21,11 @@ How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-a
 
 ## Steps in Play Console, in order
 
-1. **Create the app.** Play Console → Create app. Name `botdot`, default language English (United States), App, Free. Tick the two declarations. The package name is fixed by the first upload: `dev.botdot.app`.
+1. **Create the app.** Play Console → Create app. Name `botdot`, default language English (United States), App, Free. Tick the two declarations. The package name is fixed by the first upload: `app.botdot` (the GitHub app is `dev.botdot.app`).
 2. **Get the first bundle.** GitHub → Actions → Android → Run workflow, branch `main`. When it is green, open the run, download **play-bundle** under Artifacts and unzip it: `app-play.aab`.
 3. **First upload, by hand** (the API can't make an app's first release). Test and release → Testing → Internal testing → Create new release. When asked about app signing, keep **Use Google-generated key** (the default). Upload `app-play.aab`, Next, Save and publish.
 4. **Testers.** Internal testing → Testers → Create email list with your own Google account (and anyone else's), Save. Copy the **Join on the web** link, open it on the phone, accept, install from Play.
-   - The app from GitHub on the phone must be uninstalled first: the two are signed differently and don't update each other. Sign in again after installing.
+   - The app from GitHub may stay: the Play app is a separate app (`app.botdot`) beside it. Sign in to it once.
 5. **Store listing.** Grow users → Store presence → Main store listing: paste [listing-en.md](listing-en.md); Manage translations → add Polish → [listing-pl.md](listing-pl.md). App icon and feature graphic from [graphics/](graphics/). Phone screenshots: 2 to 8, from the app on a real phone (Play takes at most 2:1, so a tall phone screenshot is fitted onto 9:16 first). Category: Productivity. Contact email: a public address.
 6. **App content.** Policy → App content: each section as [console-answers.md](console-answers.md) says (privacy policy URL, ads, app access, content rating, target audience, Data safety, foreground service with its video).
 7. **Automatic uploads** (once, optional). In Google Cloud Console: a project → APIs & Services → enable **Google Play Android Developer API** → IAM → Service accounts → Create (no roles) → Keys → Add key → JSON. In Play Console → Users and permissions → Invite new users: the service account's email, App permissions → botdot → **Release to testing tracks**, Invite. In GitHub → Settings → Environments → `release` → Add secret `PLAY_SERVICE_ACCOUNT_JSON` with the whole JSON file. From then on every Android release run puts its bundle on internal testing.

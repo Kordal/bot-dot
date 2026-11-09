@@ -8,7 +8,7 @@
 const fs = require('node:fs');
 const crypto = require('node:crypto');
 
-const PACKAGE = 'dev.botdot.app';
+const PACKAGE = 'app.botdot'; // the play build's applicationId (android/app/build.gradle.kts)
 const API = 'https://androidpublisher.googleapis.com';
 const SCOPE = 'https://www.googleapis.com/auth/androidpublisher';
 

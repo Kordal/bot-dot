@@ -112,6 +112,7 @@ jobs:
           jarsigner -verify "$AAB" >/dev/null || { echo "The Play bundle is not signed" >&2; exit 1; }
           keytool -printcert -jarfile "$AAB" | tr -d ':' | grep -qi "SHA256 cc05ce8b44373033bf3493347321fd0cc84be36b0ee5f15d23c6888fc7be6be3" || { echo "The Play bundle is not signed with botdot's release key" >&2; exit 1; }
           unzip -p "$AAB" base/manifest/AndroidManifest.xml > "$RUNNER_TEMP/play-manifest.pb"
+          grep -q 'app\.botdot\.files' "$RUNNER_TEMP/play-manifest.pb" || { echo "The Play bundle is not app.botdot" >&2; exit 1; }
           for p in REQUEST_INSTALL_PACKAGES REQUEST_IGNORE_BATTERY_OPTIMIZATIONS; do
             if grep -q "$p" "$RUNNER_TEMP/play-manifest.pb"; then echo "The Play bundle asks for $p" >&2; exit 1; fi
           done

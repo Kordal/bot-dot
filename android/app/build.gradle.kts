@@ -34,7 +34,13 @@ abstract class CopyFigure : DefaultTask() {
 }
 val figureDefinition = rootProject.file("../lib/figure.json")
 val copyFigure = tasks.register<CopyFigure>("copyFigure") { source.set(figureDefinition) }
-androidComponents { onVariants { it.sources.assets?.addGeneratedSourceDirectory(copyFigure, CopyFigure::out) } }
+androidComponents {
+    onVariants {
+        it.sources.assets?.addGeneratedSourceDirectory(copyFigure, CopyFigure::out)
+        // On Google Play the app is app.botdot, botdot.app's name reversed (ADR 173); the GitHub app stays dev.botdot.app.
+        if (it.buildType == "play") it.applicationId.set("app.botdot")
+    }
+}
 
 android {
     namespace = "dev.botdot.app"
