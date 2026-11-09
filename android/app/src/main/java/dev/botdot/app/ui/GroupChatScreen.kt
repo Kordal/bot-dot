@@ -464,7 +464,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                             waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
                         }
                         if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
-                        ChatNeeds(app, chatKey, onNeeds)
+                        ChatNeeds(app, chatKey)
                     }
                 }
                 if (vm.loaded && vm.rows.isEmpty() && vm.sent == null) item {
