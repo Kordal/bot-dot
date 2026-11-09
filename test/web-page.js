@@ -26,8 +26,8 @@ function element(parts = {}, props = {}) {
   const classes = new Set(props.classes || []);
   const el = {
     classList: {
-      add: (c) => classes.add(c),
-      remove: (c) => classes.delete(c),
+      add: (...cs) => cs.forEach((c) => classes.add(c)),
+      remove: (...cs) => cs.forEach((c) => classes.delete(c)),
       contains: (c) => classes.has(c),
       toggle: (c, on = !classes.has(c)) => { if (on) classes.add(c); else classes.delete(c); return on; },
     },

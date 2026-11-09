@@ -1026,6 +1026,11 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .req-error { font-size: var(--fs-14); color: var(--err); }
 .req-confirm-actions { display: flex; justify-content: flex-end; gap: var(--sp-8); flex-wrap: wrap; }
 #login-request.confirming .modal-body > :not(.req-confirm), #login-request.confirming .modal-foot { display: none; }
+/* The same forms inside their card in a chat (openInline): the card's title says what the dialog's head did. */
+.need-card.inline-open > .need-actions, .need-inline .modal-head { display: none; }
+.need-inline { margin-top: var(--sp-12); cursor: auto; }
+.need-inline .modal-body { padding: 0; }
+.need-inline .modal-foot { position: static; padding: var(--sp-12) 0 0; background: none; flex-wrap: wrap; }
 
 /* ---------- the Board ---------- */
 /* The sidebar's avatar: four small dots, the tiles' colours (faint rings while it's empty). */
