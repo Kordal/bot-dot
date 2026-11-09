@@ -120,6 +120,9 @@ class FigureDef private constructor(
     /** The part of the box (x, y, width, height) that fills the small mark: the tile's, the head's, or the whole box. */
     val small: FloatArray get() = tile?.small ?: headSmall
 
+    /** What an outfit puts on the figure: its icon when the definition has a tile, else its hat. */
+    fun wears(outfit: JsonElement?): List<Mark> = if (tile != null) icon(outfit) else hat(outfit)
+
     /** What the state adds to the tile (null: nothing, or no tile). */
     fun signal(state: String?): Signal? = tile?.signals?.get(stateName(state))
 
