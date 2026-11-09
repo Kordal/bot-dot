@@ -44,6 +44,8 @@ The app is built on GitHub once a night when it changed (or when the owner runs 
 
 The first install (or if something goes wrong): open the Releases page on your phone (signed in to GitHub), download the `.apk` and install it.
 
+**Google Play** gets the same app as a bundle without the self-updater (`./gradlew bundlePlay`, [ADR 172](../docs/adr/172-the-android-app-on-google-play-is-a-play-build-of-the-same-app.md)); how it is published: [docs/google-play](../docs/google-play/README.md). A Play install and a GitHub install don't update each other.
+
 All builds are signed with the same release key, so they update each other. The key lives in the repo's secrets and in `~/.config/bot-dot/` on the computer that made it. Keep that folder backed up: without the key, the next version can only be installed after removing the app.
 
 ## Build and install
