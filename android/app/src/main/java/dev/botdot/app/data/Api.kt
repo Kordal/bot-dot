@@ -400,7 +400,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * Adds a login-kind item (id null) or changes one. An empty password keeps the saved one. [type] and
      * [username] are sent when given (VaultTypes.sent): without a type a new item is a login and a saved one
      * keeps its type; without a username a saved item keeps its own. A self-signed certificate and use in the account's
-     * computer are on for every login (ADR 174), so neither is sent. [bots] null keeps the bots it has: the login editor
+     * computer are on for every login (ADR 175), so neither is sent. [bots] null keeps the bots it has: the login editor
      * shows none, and a bot gets a login by asking for it (request_login) or through the Chief.
      */
     suspend fun saveVaultLogin(id: String?, name: String, site: String, username: String?, password: String, bots: List<String>?, allowedHosts: List<String>, type: String? = null) {

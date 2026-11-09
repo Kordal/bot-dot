@@ -136,7 +136,7 @@ class ApiTest {
         server.enqueue(json("{}"))
         VaultTypes.sent("api-token", "me", listOf("unread")).let { api.saveVaultLogin("login1", "Example", "example.com", it.username, "", emptyList(), emptyList(), it.type) }
         assertEquals("a server from before the types gets none", """{"name":"Example","site":"example.com","username":"me","allowedBots":[],"allowedHosts":[]}""", server.takeRequest().body!!.utf8())
-        // The login editor shows no bots (ADR 174): it sends none, and the login keeps those it has.
+        // The login editor shows no bots (ADR 175): it sends none, and the login keeps those it has.
         server.enqueue(json("{}"))
         api.saveVaultLogin("login1", "Example", "example.com", "me", "", null, emptyList())
         assertEquals("""{"name":"Example","site":"example.com","username":"me","allowedHosts":[]}""", server.takeRequest().body!!.utf8())

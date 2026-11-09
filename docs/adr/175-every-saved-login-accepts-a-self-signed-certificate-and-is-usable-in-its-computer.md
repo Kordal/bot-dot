@@ -1,4 +1,4 @@
-# ADR-174: Every saved login accepts a self-signed certificate and is usable in its computer
+# ADR-175: Every saved login accepts a self-signed certificate and is usable in its computer
 
 - **Status:** Proposed (2026-11-09, waits for the owner's yes to the trade-off below)
 - **Owning task:** the owner's request to remove the Vault's two switches and keep both on

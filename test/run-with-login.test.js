@@ -155,7 +155,7 @@ test('the Docker helper accepts run_with_login only in its fixed shape', async (
   assert.deepEqual(got[1], [MAIL, several]);
 });
 
-// ---------- the built-in vault: every login is usable in its computer (ADR 174) ----------
+// ---------- the built-in vault: every login is usable in its computer (ADR 175) ----------
 
 test('the built-in vault: every login reads as "Usable in its computer" and accepting a self-signed certificate, one saved off too', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-in-computer-'));
