@@ -8,6 +8,29 @@ function openModal(html) {
   return m;
 }
 
+// The same form inside a card that stands in a chat (or on the Needs you page) in place of a dialog: what a dialog
+// is asked for (close, open, dataset, its "close" event) the panel answers too, so a form is written once for both.
+// One panel per card; it goes when it closes, and the card shows its own buttons again.
+function openInline(host, html) {
+  $('.need-inline', host)?.close();
+  const p = document.createElement('div');
+  p.className = 'need-inline';
+  p.dataset.need = host.dataset.need || '';
+  p.innerHTML = html;
+  p.open = true;
+  p.close = () => {
+    if (!p.open) return;
+    p.open = false;
+    p.remove();
+    host.classList.remove('inline-open');
+    p.dispatchEvent(new Event('close'));
+  };
+  host.append(p);
+  host.classList.add('inline-open', 'open');
+  $$('[data-dismiss]', p).forEach((b) => (b.onclick = () => p.close()));
+  return p;
+}
+
 // The question before a bot gets the permission mode "Everything allowed" (bypassPermissions): whether the
 // owner said yes. Closing it any other way is a no.
 function askEverythingAllowed(name) {

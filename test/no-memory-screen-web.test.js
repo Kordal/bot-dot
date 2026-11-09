@@ -161,7 +161,7 @@ test('web: an answer the server refuses leaves the card as it is and says why', 
 });
 
 test('web: one memory change that waits opens the Needs you page, where its card is: there is no dialog', () => {
-  const openNeed = cut('function openNeed(x) {', '// Decided cards stay on the page');
+  const openNeed = cut('function openNeed(x, card = null) {', '// Decided cards stay on the page');
   assert.doesNotMatch(openNeed, /x\.kind === 'memory'/);
   assert.match(openNeed, /return setView\('needs'\);/);
   for (const gone of [/openMemoryApprovals/, /showMemoryApprovals/, /settlePending/, /pendingItemHTML/]) assert.doesNotMatch(app, gone);

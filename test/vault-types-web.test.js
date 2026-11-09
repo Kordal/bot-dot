@@ -24,7 +24,7 @@ const NAMES = ['VAULT_TYPES', 'vaultType', 'vaultItemAddr', 'vaultItemLine', 'va
 vm.runInContext(`${cut('const VAULT_TYPES = {', 'async function renderVault()')}\n${NAMES.map((n) => `this.${n} = ${n};`).join(' ')}`, page);
 const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
 const editor = cut('function openLoginEditor(login, ', '// ---------- Bitwarden ----------');
-const dialog = cut('function openLoginRequest(r)', 'async function saveLoginInBackground');
+const dialog = cut('function openLoginRequest(r, host = null)', 'async function saveLoginInBackground');
 
 const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 // The fields of a piece of markup: [[label, name]], in order.
@@ -291,6 +291,6 @@ test('web: Save in the dialog sends the chosen type, and for Other no username',
 
 test('web: a save that failed opens the dialog again with the chosen type and the typed username', () => {
   const saving = cut('async function saveLoginInBackground(r, body)', '// ---------- presence ----------');
-  assert.match(saving, /openLoginRequest\(\{ \.\.\.x, type: body\.type, username: body\.username \?\? x\.username \}\)/, 'Other sent no username: the one of the request stays');
+  assert.match(saving, /openLoginRequest\(\{ \.\.\.x, type: body\.type, username: body\.username \?\? x\.username \}, shownCardOf\(x\)\)/, 'Other sent no username: the one of the request stays');
   assert.match(saving, /body\.password = body\.unlockPassword = null;/, 'never the secret');
 });

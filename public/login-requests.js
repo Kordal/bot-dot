@@ -1,4 +1,4 @@
-// ---------- login requests (secure pop-up) ----------
+// ---------- login requests (in the asking bot's chat, a dialog only where no chat shows them) ----------
 
 const loginReq = { pending: [], shown: null, snoozed: new Set(), saving: new Set() };
 
@@ -9,13 +9,17 @@ async function pollLoginRequests() {
   // Ones being saved in the background are as good as answered.
   loginReq.pending = list.filter((r) => !loginReq.saving.has(r.id));
   showNeeds();
-  // Pop it up straight away unless the user is busy in another dialog or put it aside.
-  const next = loginReq.pending.find((r) => !loginReq.snoozed.has(r.id));
-  if (next && !loginReq.shown && !$('#modal').open) openLoginRequest(next);
-  if (loginReq.shown && !list.some((r) => r.id === loginReq.shown) && $('#modal').open && $('#modal').dataset.request === loginReq.shown) {
-    $('#modal').close(); // answered elsewhere (e.g. on the phone) or expired
-  }
+  // It opens by itself in its card at the end of the chat that is on screen, never as a dialog over the page: a
+  // request elsewhere waits in Needs you, the banner and its notification, unless the owner put it aside.
+  const next = loginReq.pending.find((r) => !loginReq.snoozed.has(r.id) && shownCardOf(r));
+  if (next && !loginReq.shown && !$('#modal').open) openLoginRequest(next, shownCardOf(next));
+  const gone = loginReq.shown && !list.some((r) => r.id === loginReq.shown);
+  if (gone && $('#modal').open && $('#modal').dataset.request === loginReq.shown) $('#modal').close(); // answered elsewhere (e.g. on the phone) or expired
+  if (gone) $$(`.need-inline[data-request="${CSS.escape(loginReq.shown)}"]`).forEach((p) => p.close());
 }
+
+// The card of a login or payment request in the chat that is on screen, where its form opens in place of a dialog.
+const shownCardOf = (r) => $$(`.chat-needs .need-card[data-need="${CSS.escape(`req:${r.id}`)}"]`).find((el) => el.offsetParent) || null;
 
 // A list of other logins longer than this gets a search field and scrolls inside the dialog.
 const LOGIN_SEARCH_ABOVE = 6;
@@ -65,11 +69,12 @@ function loginRequestConfirm(r, e) {
         </div>`;
 }
 
-function openLoginRequest(r) {
-  if (r.kind === 'card') return openCardApproval(r);
+// host: the request's card, where the form opens in place of a dialog (openInline).
+function openLoginRequest(r, host = null) {
+  if (r.kind === 'card') return openCardApproval(r, host);
   loginReq.shown = r.id;
   const reusable = r.existing.filter((e) => !e.allowed);
-  const m = openModal(`
+  const m = (host ? (html) => openInline(host, html) : openModal)(`
     <form id="login-request" autocomplete="off">
       <div class="modal-head"><h2>🔐 ${tr('{bot} needs a login', { bot: botLabel(r.bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
@@ -195,7 +200,7 @@ async function saveLoginInBackground(r, body) {
     if (body.unlockPassword) pollBitwarden();
   } catch (err) {
     // Opened again with the type the owner chose and the username they typed, so the next try saves what they meant.
-    const again = () => { const x = loginReq.pending.find((y) => y.id === r.id); if (x && !$('#modal').open) openLoginRequest({ ...x, type: body.type, username: body.username ?? x.username }); };
+    const again = () => { const x = loginReq.pending.find((y) => y.id === r.id); if (x && !$('#modal').open) openLoginRequest({ ...x, type: body.type, username: body.username ?? x.username }, shownCardOf(x)); };
     unlockPill('err', /not right/i.test(err.message) ? tr('Wrong master password, login not saved') : tr('Login not saved: {error}', { error: err.message }), again);
     loginReq.snoozed.add(r.id); // reopened from the pill, not popped up again by itself
   } finally {

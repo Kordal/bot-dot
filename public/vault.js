@@ -310,9 +310,10 @@ function wireBitwardenSetup(root) {
   };
 }
 
-function openUnlock(reason = '') {
+// host: the card of a locked Bitwarden in the chat of the bot that wants it, where it opens in place of a dialog.
+function openUnlock(reason = '', host = null) {
   const s = state.bw || {};
-  const m = openModal(`
+  const m = (host ? (html) => openInline(host, html) : openModal)(`
     <form id="bw-unlock" autocomplete="off">
       <div class="modal-head"><h2>🔐 ${tr('Unlock Bitwarden')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
@@ -361,16 +362,21 @@ async function pollBitwarden() {
   const s = state.bw;
   if (!s.configured || s.unlocked || bwUi.unlocking || $('#modal').open) return;
   // Right after a restart, and whenever a bot is waiting for a login.
-  if (s.wantedBy && !bwUi.snoozed.has(s.wantedBy.id)) { bwUi.snoozed.add(s.wantedBy.id); return openUnlock(tr('{name} needs a saved login.', { name: s.wantedBy.name })); }
+  // A bot that waits for it: in its card, when its chat is on screen; elsewhere Needs you and the banner say it.
+  if (s.wantedBy) {
+    const card = $$('.chat-needs .need-card[data-need="bitwarden"]').find((el) => el.offsetParent);
+    if (card && !bwUi.snoozed.has(s.wantedBy.id)) { bwUi.snoozed.add(s.wantedBy.id); openUnlock(tr('{name} needs a saved login.', { name: s.wantedBy.name }), card); }
+    return;
+  }
   if (!bwUi.prompted) { bwUi.prompted = true; openUnlock(); }
 }
 
 function showBitwardenBanner() { showNeeds(); }
 
 // A bot wants to pay: the owner approves this card on this site (for this run, 15 minutes).
-function openCardApproval(r) {
+function openCardApproval(r, host = null) {
   loginReq.shown = r.id;
-  const m = openModal(`
+  const m = (host ? (html) => openInline(host, html) : openModal)(`
     <div class="modal-head"><h2>💳 ${tr('{name} wants to pay', { name: botLabel(r.bot) })}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
     <div class="modal-body">
       <div class="req-site">

@@ -18,7 +18,7 @@ const CODE = [
   cut('// A change that waits beside an approved job or tile', 'function showJobApprovals()'),
   cut('const tileScripts = ', '// A group has no bot of its own'),
   cut('function needsItems() {', '// The banner:'),
-  cut('let seenNeed = null;', 'function openNeed(x) {'),
+  cut('let seenNeed = null;', '// card: the card it was opened from'),
   cut('const needsDone = new Map();', '// The buttons on need cards'),
   cut('const chatDecided = new Map();', '// "Always approve" a script job'),
   cut('async function decide(x, yes', 'async function refreshNeeds() {'),
