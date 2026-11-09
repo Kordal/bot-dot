@@ -671,7 +671,7 @@ test('web: at phone width the home is the sections: the Board line on top, then 
     assert.equal(shows(rules, PAD), false, `${wide}: not the wide keypad, so no digits`);
     assert.equal(shows(rules, MAIN), false, `${wide}: no chat beside them`);
     const line = [...IN_PHONE('kp-head', 1), { tag: 'div', classes: ['kp-board'], index: 1 }, { tag: 'div', classes: ['kp-board-line'], index: 1 }];
-    assert.equal(winner(rules, line, 'grid-template-columns')?.value, 'repeat(2, minmax(0, 1fr))', `${wide}: the Board's numbers two a row (#635)`);
+    assert.equal(winner(rules, line, 'grid-template-columns')?.value, 'repeat(3, minmax(0, 1fr))', `${wide}: the Board's numbers three a row (#1187)`);
     const keys = [...IN_PHONE('kp-sections', 2), { tag: 'section', classes: ['kp-section'], index: 1 }, { tag: 'div', classes: ['kp-sec-keys'], index: 1 }];
     assert.equal(winner(rules, keys, 'flex-wrap')?.value, 'wrap', `${wide}: the keys wrap`);
   }
