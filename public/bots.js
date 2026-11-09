@@ -147,10 +147,28 @@ function readBotForm(form, sel) {
     ...(form.proxy ? { proxy: form.proxy.value } : {}), // its proxy (ADR 171), where the row is drawn
     ...(form.allowRooms ? { rooms: { allowRooms: form.allowRooms.checked, whoMayMention: form.roomsWho.value } } : {}),
     ...(hotkeyChanged(form) ? { hotkey: Number(form.hotkey.value) } : {}),
+    ...(form.icon && form.icon.value ? { outfit: { icon: form.icon.value } } : {}), // its icon, once one is picked; its hat stays
     allowedTools: form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean),
     permissionMode: form.permissionMode.value,
     ...readLlmFields(form, 'bot'),
   };
+}
+
+// Its icon (ADR 169): every icon of the kit on a tile in its colour, under the colours, opened by a tap on its
+// figure. A server whose figure has no tile draws none.
+function iconPicks(b) {
+  const icons = typeof Figure !== 'undefined' && Figure.icons ? Figure.icons() : [];
+  if (!icons.length) return '';
+  const now = b.outfit?.icon || '';
+  return `<div class="icon-picks hidden" id="bs-icons" role="radiogroup" aria-label="${esc(tr('Icon'))}">${icons.map(({ name, label }) => `<label class="icon-pick" title="${esc(label)}" data-color="${esc(b.color)}"><input type="radio" name="icon" value="${esc(name)}" ${now === name ? 'checked' : ''} aria-label="${esc(label)}">${Figure.small(b.color, { icon: name })}</label>`).join('')}</div>`;
+}
+// The icons drawn again in the colour picked, and the one the bot has now ticked (the Chief may change it meanwhile).
+function drawIconPicks(root, color, icon) {
+  for (const pick of $$('.icon-pick', root)) {
+    const input = $('input', pick);
+    if (icon && input.value === icon) input.checked = true;
+    if (pick.dataset.color !== color) { pick.dataset.color = color; $('svg', pick).outerHTML = Figure.small(color, { icon: input.value }); }
+  }
 }
 
 // The key was chosen on this page (#366): only then is it sent, so a page drawn earlier never takes back a digit the
@@ -270,13 +288,14 @@ function renderBotSettings(force = false) {
   root.innerHTML = `
     <form id="bot-form" class="bot-settings" autocomplete="off">
       <div class="set-head">
-        <span id="bs-figure"></span>
+        ${iconPicks(b) ? `<button type="button" id="bs-figure" class="bs-figure" aria-expanded="false" aria-controls="bs-icons" aria-label="${esc(tr('Icon'))}"></button>` : '<span id="bs-figure"></span>'}
         <div class="set-name">
           <input type="text" name="name" value="${esc(b.name)}" required maxlength="60" aria-label="${esc(tr('Name'))}">
           <input type="text" name="description" value="${esc(b.description)}" placeholder="${esc(tr('What it does'))}" aria-label="${esc(tr('What it does'))}"${tipAttrs(tr('One line, shown in the list'))}>
         </div>
       </div>
       <div class="swatches" role="radiogroup" aria-label="${esc(tr('Colour'))}">${BOT_COLORS.map(([c, n]) => `<label class="swatch" title="${n}"><input type="radio" name="color" value="${c}" ${b.color === c ? 'checked' : ''} aria-label="${n}"><i style="--c:${c}"></i></label>`).join('')}</div>
+      ${iconPicks(b)}
       <div class="field">
         <div class="group-picker" id="group-picker" role="group" aria-label="${esc(tr('Category'))}"></div>
         <input type="hidden" name="group" value="${esc(b.group || '')}">
@@ -359,6 +378,16 @@ function renderBotSettings(force = false) {
     </form>`;
 
   const form = $('#bot-form', root);
+  const iconBox = $('#bs-icons', root);
+  if (iconBox) {
+    const fig = $('#bs-figure', root);
+    fig.onclick = () => {
+      const open = !iconBox.classList.toggle('hidden');
+      fig.setAttribute('aria-expanded', String(open));
+      if (open) ($('input:checked', iconBox) || $('input', iconBox)).focus({ preventScroll: true });
+    };
+    form.addEventListener('change', (e) => { if (e.target.name === 'color') drawIconPicks(root, e.target.value); });
+  }
   form.dataset.disabled = JSON.stringify(b.disabledSkills || []);
   const others = state.bots.filter((x) => x.id !== b.id).map((x) => x.id);
   const sel = { skills: new Set(b.skills || []), connectors: new Set(b.connectors || []), mayMessage: new Set(b.mayMessageAll ? others : b.mayMessage || []), others };
@@ -634,7 +663,11 @@ function drawBotSettingsLive(bot) {
   const root = $('#view-botsettings');
   const fig = $('#bs-figure', root);
   const look = JSON.stringify([bot.color, bot.state, bot.outfit || null]);
-  if (fig && fig.dataset.look !== look) { fig.dataset.look = look; fig.innerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit, bot.id); }
+  if (fig && fig.dataset.look !== look) {
+    fig.dataset.look = look;
+    fig.innerHTML = botFigure(bot.color, bot.state, 'lg', bot.outfit, bot.id);
+    drawIconPicks(root, $('#bot-form', root)?.color?.value || bot.color, bot.outfit?.icon);
+  }
   drawOverrides(root, bot);
   drawUndo(root, bot);
   const mv = $('#bs-move', root);

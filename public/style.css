@@ -1683,6 +1683,16 @@ details.bs-row { display: block; }
    with "Saved" right of it, and "Saved" in the panel's head, left of its close. */
 .set-head { display: flex; align-items: center; gap: var(--sp-16); margin: var(--sp-4) 0 var(--sp-24); }
 .set-head .avatar { width: 56px; height: 62px; }
+/* A bot's figure opens its icons (ADR 169): a tap on it, a ring on hover and focus. */
+.bs-figure { padding: 0; border: 0; background: none; border-radius: var(--r-14); cursor: pointer; }
+.bs-figure:hover .avatar, .bs-figure[aria-expanded=true] .avatar { filter: brightness(1.12); }
+.bs-figure:focus-visible { outline: 2px solid var(--muted); outline-offset: 2px; }
+.icon-picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); gap: var(--sp-4); }
+.icon-pick { position: relative; display: grid; place-items: center; cursor: pointer; }
+.icon-pick input { position: absolute; opacity: 0; }
+.icon-pick .fig.fig-small { width: 44px; height: 44px; margin: 0; vertical-align: 0; border-radius: var(--r-14); }
+.icon-pick input:checked + svg { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+.icon-pick input:focus-visible + svg { outline: 2px solid var(--muted); outline-offset: 2px; }
 .set-name { flex: 1; min-width: 0; display: grid; gap: var(--sp-4); }
 .set-name > b { font-size: var(--fs-24); font-weight: 600; letter-spacing: -.02em; }
 .set-name input[type=text] { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: var(--sp-4) 0; }

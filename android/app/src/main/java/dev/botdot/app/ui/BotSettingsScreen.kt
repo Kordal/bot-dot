@@ -61,6 +61,8 @@ import dev.botdot.app.data.trn
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -94,6 +96,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     // What you're editing (starts as the bot's current settings).
     var color by remember { mutableStateOf("") }
+    var icon by remember { mutableStateOf("") } // its icon (ADR 169): "" until it has one
+    var picking by remember { mutableStateOf(false) } // the icons are open
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var group by remember { mutableStateOf("") }
@@ -119,7 +123,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var others by remember { mutableStateOf<List<Bot>>(emptyList()) }
 
     fun fill(b: Bot) {
-        bot = b; color = b.color.orEmpty(); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
+        bot = b; color = b.color.orEmpty(); icon = iconOf(b.outfit); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
         model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux" || b.computer == "boat"; computerOn = if (b.computer == "boat") "boat" else "linux"; proxy = b.proxy
         useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
         othersMayAsk = b.othersMayAsk != false
@@ -150,6 +154,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     // What differs from the bot as botdot has it: what a save sends.
     fun changes(b: Bot) = buildJsonObject {
             if (color != b.color.orEmpty()) put("color", color)
+            if (icon.isNotEmpty() && icon != iconOf(b.outfit)) put("outfit", buildJsonObject { put("icon", icon) }) // its hat stays
             if (name != b.name) put("name", name)
             if (description != b.description) put("description", description)
             if (group != b.group) put("group", group)
@@ -186,7 +191,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         runCatching { api!!.updateBot(botId, sent) }.onSuccess { if (changes(b) == sent) fill(it) else bot = it; moveFiles = false; savedAt++ }.onError { refused = sent; tell(it.message ?: tr("Couldn't save")) }
         saving = false
     }
-    LaunchedEffect(color, name, description, group, pinned, task, model, effort, computer, computerOn, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
+    LaunchedEffect(color, icon, name, description, group, pinned, task, model, effort, computer, computerOn, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
         val b = bot ?: return@LaunchedEffect
         val now = changes(b)
         if (name.isBlank() || now.isEmpty() || now == refused) return@LaunchedEffect
@@ -208,8 +213,17 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         val b = bot ?: return@Scaffold
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Section(tr("Who it is")) {
-                Field(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                val icons = figure().iconChoices
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                    // Its figure as it will look; a tap opens its icons.
+                    Box(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                        .then(if (icons.isEmpty()) Modifier else Modifier.clickable(onClickLabel = tr("Icon")) { picking = !picking }.semantics { contentDescription = tr("Icon"); this.selected = picking })) {
+                        BotFigure(color, b.state, 56, withIcon(b.outfit, icon))
+                    }
+                    Field(name, { name = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.weight(1f))
+                }
                 ColorPicker(color) { color = it }
+                if (picking && icons.isNotEmpty()) IconPicker(icons, icon, color) { icon = it }
                 Field(description, { description = it }, label = { Text(tr("What it does")) }, modifier = Modifier.fillMaxWidth())
                 Field(group, { group = it.take(40) }, label = { Text(tr("Category")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             }
@@ -488,6 +502,33 @@ internal fun CheckRow(label: String, sub: String?, checked: Boolean, onChange: (
         Column(Modifier.weight(1f)) {
             Text(label, color = p.text, style = MaterialTheme.typography.bodyLarge)
             if (!sub.isNullOrBlank()) Text(sub, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+        }
+    }
+}
+
+/** The name of an outfit's icon, or "" when it has none. */
+internal fun iconOf(outfit: JsonElement?): String = (((outfit as? JsonObject)?.get("icon") as? JsonPrimitive)?.takeIf { it.isString }?.content).orEmpty()
+
+/** The outfit with [icon] on it (none: as it is), for drawing what a pick will look like. */
+private fun withIcon(outfit: JsonElement?, icon: String): JsonElement? =
+    if (icon.isEmpty()) outfit else JsonObject(((outfit as? JsonObject) ?: JsonObject(emptyMap())) + ("icon" to JsonPrimitive(icon)))
+
+/** A bot's icon (ADR 169): every icon of the kit on a tile in its [color], the picked one ringed. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun IconPicker(icons: List<Pair<String, String>>, selected: String, color: String, onPick: (String) -> Unit) {
+    val p = LocalPaper.current
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+        for ((name, label) in icons) {
+            val on = name == selected
+            Box(
+                Modifier.size(48.dp)
+                    .border(2.dp, if (on) p.text else Color.Transparent, androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+                    .clickable(onClickLabel = label) { onPick(name) }
+                    .semantics { contentDescription = label; this.selected = on },
+                contentAlignment = Alignment.Center,
+            ) { BotFigure(color, "idle", 40, JsonObject(mapOf("icon" to JsonPrimitive(name)))) }
         }
     }
 }

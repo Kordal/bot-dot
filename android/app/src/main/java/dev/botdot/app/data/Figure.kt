@@ -202,6 +202,16 @@ class FigureDef private constructor(
     /** The part of the box (x, y, width, height) that fills the small mark: the tile's, the head's, or the whole box. */
     val small: FloatArray get() = tile?.small ?: headSmall
 
+    /**
+     * The icons a bot can be given, in the kit's order: its name and what it shows ("A newspaper"). None without a
+     * tile; the Chief's own is not one of them (ADR 169).
+     */
+    val iconChoices: List<Pair<String, String>> by lazy {
+        if (tile == null) return@lazy emptyList()
+        val chiefs = ((chief as? JsonObject)?.get("icon") as? JsonPrimitive)?.content
+        icons.filterKeys { it != chiefs }.map { (name, piece) -> name to (((piece as? JsonObject)?.get("means") as? JsonPrimitive)?.content ?: name).substringBefore(':') }
+    }
+
     /** What an outfit puts on the figure: its icon when the definition has a tile, else its hat. */
     fun wears(outfit: JsonElement?): List<Mark> = if (tile != null) icon(outfit) else hat(outfit)
 
