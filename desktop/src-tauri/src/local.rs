@@ -1,6 +1,6 @@
-//! botdot on this computer (ADR 136): a Linux VM of its own, which runs the real installer with `BOT_DOT_REACH=local`.
-//! On the Mac a Lima VM, made with the Lima in the app's bundle; on Windows a WSL2 distribution. Neither touches the
-//! owner's other VMs.
+//! botdot on this computer (ADR 136): the real installer with `BOT_DOT_REACH=local`. On the Mac in a Lima VM of its own,
+//! made with the Lima in the app's bundle; on Windows in a WSL2 distribution of its own, and neither touches the owner's
+//! other VMs. On Linux on the computer itself, with no VM (ADR 170).
 
 use serde::Deserialize;
 use std::collections::VecDeque;
@@ -11,14 +11,19 @@ use std::sync::mpsc;
 
 #[cfg(target_os = "macos")]
 mod lima;
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(windows)]
 mod wsl;
 #[cfg(target_os = "macos")]
 pub use lima::Lima as Vm;
+#[cfg(target_os = "linux")]
+pub use linux::Host as Vm;
 #[cfg(windows)]
 pub use wsl::Wsl as Vm;
 
 /// The VM's name: the Lima instance, or the WSL distribution.
+#[cfg(any(target_os = "macos", windows))]
 const VM: &str = "botdot";
 const FIRST_PORT: u16 = 4700;
 /// The lines a failure shows.
@@ -56,13 +61,14 @@ fn plain(line: &str) -> String {
     message.unwrap_or(text).trim().to_string()
 }
 
-// The script run as root in the VM. The installer's questions are answered yes, as a person would: it has no terminal.
-fn install_script(port: u16) -> String {
+// The script run as root, in the VM or on Linux on the computer. The installer's questions are answered yes, as a
+// person would: it has no terminal. `answers`: the installer's answers besides the port, each followed by a space.
+fn install_script(port: u16, answers: &str) -> String {
     format!(
         "set -e\n\
          rm -rf /var/tmp/botdot-source\n\
          git clone --quiet --depth 1 --branch {SOURCE} https://github.com/Kordal/bot-dot.git /var/tmp/botdot-source\n\
-         yes y | NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive BOT_DOT_REACH=local BOT_DOT_PORT={port} sh /var/tmp/botdot-source/install.sh\n\
+         yes y | NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive BOT_DOT_REACH=local {answers}BOT_DOT_PORT={port} sh /var/tmp/botdot-source/install.sh\n\
          rm -rf /var/tmp/botdot-source\n"
     )
 }
@@ -141,7 +147,7 @@ mod tests {
 
     #[test]
     fn the_installer_runs_with_the_local_answer_and_no_questions() {
-        let script = install_script(4710);
+        let script = install_script(4710, "");
         assert!(script.contains("yes y | "));
         assert!(script.contains("BOT_DOT_REACH=local BOT_DOT_PORT=4710 sh /var/tmp/botdot-source/install.sh"));
     }

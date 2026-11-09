@@ -1,7 +1,8 @@
-# The desktop app (ADR 137, #883): its checks and its four builds, on GitHub's own machines and without Docker.
+# The desktop app (ADR 137, #883): its checks and its six builds, on GitHub's own machines and without Docker.
 # Windows x64 and arm64 (NSIS installers) build on windows-latest, Apple silicon and Intel (a .dmg, and the .app the
-# updater installs) on macos-latest. The Rust checks (clippy, unit tests) run on the two builds that run where they
-# are built.
+# updater installs) on macos-latest, Linux x64 and arm64 (an AppImage, a .deb and an .rpm, ADR 170) on Ubuntu 22.04,
+# whose older glibc the builds then run on and after. The Rust checks (clippy, unit tests) run on the three builds
+# that run where they are built.
 #
 # When: on a pull request that changes the app or its workflows, and called by desktop-release.yml with the version
 # it releases. Nothing here is signed and no job holds a secret: the release workflow signs what these builds hand
@@ -57,6 +58,16 @@ jobs:
             target: x86_64-apple-darwin
             bundles: app,dmg
             check: false
+          - name: linux-x64
+            runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+            check: true
+          - name: linux-arm64
+            runner: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            bundles: appimage,deb,rpm
+            check: false
     defaults:
       run:
         shell: bash
@@ -66,6 +77,15 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+
+      # WebKitGTK and the tray's library, which the app links and its packages name; rpm builds the .rpm. The AppImage's
+      # tools run without FUSE, which GitHub's machines lack.
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm
+          echo "APPIMAGE_EXTRACT_AND_RUN=1" >> "$GITHUB_ENV"
 
       - name: Rust
         run: |
@@ -99,11 +119,20 @@ jobs:
           echo "{\"version\":\"$VERSION\"}" > "$RUNNER_TEMP/version.json"
           echo "Building botdot $VERSION for ${{ matrix.name }}"
 
-      # The cache keeps target/, and with it the bundles of an earlier version: only this build's are collected.
+      # The cache keeps target/, and with it the bundles of an earlier version: only this build's are collected. The
+      # bundler downloads its tools (NSIS, linuxdeploy) from GitHub's releases, which at times answer 5xx: a build that
+      # failed on such a download tries again, up to three times, and any other failure ends it at once.
       - name: Build
         run: |
-          rm -rf target/${{ matrix.target }}/release/bundle
-          npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json"
+          for TRY in 1 2 3; do
+            rm -rf target/${{ matrix.target }}/release/bundle
+            # pipefail, as GitHub's bash runs: the build's own status, not tee's.
+            if npx --yes "$TAURI_CLI" build --ci --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config "$RUNNER_TEMP/version.json" 2>&1 | tee "$RUNNER_TEMP/build.log"; then exit 0; fi
+            grep -qE 'http status: 5[0-9][0-9]|returned error: 5[0-9][0-9]' "$RUNNER_TEMP/build.log" || exit 1
+            echo "A download failed (try $TRY of 3); trying again in 30 s"
+            sleep 30
+          done
+          exit 1
 
       # Named for the people who download them. The Mac's .app goes as a .tar.gz made here, which keeps its
       # permissions: the updater installs it, and the release workflow signs it.
@@ -119,6 +148,11 @@ jobs:
             mac-*)
               cp "$BUNDLE"/dmg/botdot_"$VERSION"_*.dmg "$OUT/botdot-$VERSION-${{ matrix.name }}.dmg"
               tar -czf "$OUT/botdot-$VERSION-${{ matrix.name }}.app.tar.gz" -C "$BUNDLE/macos" botdot.app
+              ;;
+            linux-*)
+              cp "$BUNDLE"/appimage/botdot_"$VERSION"_*.AppImage "$OUT/botdot-$VERSION-${{ matrix.name }}.AppImage"
+              cp "$BUNDLE"/deb/botdot_"$VERSION"_*.deb "$OUT/botdot-$VERSION-${{ matrix.name }}.deb"
+              cp "$BUNDLE"/rpm/botdot-"$VERSION"-*.rpm "$OUT/botdot-$VERSION-${{ matrix.name }}.rpm"
               ;;
           esac
           ls -l "$OUT"

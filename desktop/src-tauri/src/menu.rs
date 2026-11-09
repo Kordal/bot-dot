@@ -1,4 +1,4 @@
-//! The app's controls: the tray icon's menu on Windows, the menu bar icon's and the app menu on the Mac. They list the
+//! The app's controls: the tray icon's menu on Windows and Linux, the menu bar icon's and the app menu on the Mac. They list the
 //! botdots, add and remove one, and turn "Open at login" on and off.
 
 use crate::keep::Kept;
@@ -52,8 +52,8 @@ pub fn label(address: &str) -> String {
         .unwrap_or_else(|| address.to_string())
 }
 
-// What only the local botdot says is read on the Mac and on Windows alone, and its restart on Windows alone.
-#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+// What only the local botdot says is read on the Mac, Windows and Linux alone, and its restart on Windows alone.
+#[cfg_attr(not(local), allow(dead_code))]
 pub struct Words {
     pub add: &'static str,
     pub remove: &'static str,
@@ -72,13 +72,15 @@ pub struct Words {
 }
 
 // The botdot on this computer, named as the computer is.
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 const LOCAL_EN: [&str; 3] = ["Update botdot on this Mac", "Remove botdot on this Mac…", "This deletes the botdot on this Mac for good: its bots, chats, memory, Vault and logins."];
 #[cfg(windows)]
 const LOCAL_EN: [&str; 3] = ["Update botdot on this PC", "Remove botdot on this PC…", "This deletes the botdot on this PC for good: its bots, chats, memory, Vault and logins."];
-#[cfg(not(windows))]
+#[cfg(not(any(target_os = "macos", windows)))]
+const LOCAL_EN: [&str; 3] = ["Update botdot on this computer", "Remove botdot on this computer…", "This deletes the botdot on this computer for good: its bots, chats, memory, Vault and logins."];
+#[cfg(target_os = "macos")]
 const LOCAL_PL: [&str; 3] = ["Zaktualizuj botdota na tym Macu", "Usuń botdota z tego Maca…", "To na zawsze usuwa botdota z tego Maca: jego boty, czaty, pamięć, Sejf i logowania."];
-#[cfg(windows)]
+#[cfg(not(target_os = "macos"))]
 const LOCAL_PL: [&str; 3] = ["Zaktualizuj botdota na tym komputerze", "Usuń botdota z tego komputera…", "To na zawsze usuwa botdota z tego komputera: jego boty, czaty, pamięć, Sejf i logowania."];
 
 const EN: Words = Words {

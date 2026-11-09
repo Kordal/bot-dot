@@ -119,7 +119,7 @@ impl Wsl {
         self.keep_agent().map_err(|e| vec![e.to_string()])?;
         // WSL gives every command a terminal, even with no window, and the installer would wait there for answers: in a
         // session of its own it has none, and takes them from `yes`.
-        let script = install_script(port);
+        let script = install_script(port, "");
         let installed = run(as_root(&["setsid", "--wait", "sh", "-c", &script]), &mut said)?;
         self.wake();
         installed.ok_or_else(|| vec!["The installer ended without its last line.".to_string()])

@@ -16,7 +16,7 @@ cd "$(dirname "$0")/src-tauri"
 FILE="lima-$VERSION-Darwin-$ARCH.tar.gz"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
-curl -fsSL -o "$WORK/$FILE" "https://github.com/lima-vm/lima/releases/download/v$VERSION/$FILE"
+curl -fsSL --retry 5 --retry-all-errors --retry-delay 10 -o "$WORK/$FILE" "https://github.com/lima-vm/lima/releases/download/v$VERSION/$FILE"
 echo "$SHA  $WORK/$FILE" | shasum -a 256 -c -
 tar -xzf "$WORK/$FILE" -C "$WORK" ./bin/limactl "./share/lima/lima-guestagent.Linux-$GUEST.gz" ./share/lima/templates ./share/doc/lima/LICENSE
 rm -rf lima

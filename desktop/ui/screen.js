@@ -1,6 +1,6 @@
 'use strict';
-// The app's one screen: a botdot address and a button, and on a Mac or a PC a second button that runs botdot on it
-// (ADR 136). The rest happens in the browser and on the front door's page.
+// The app's one screen: a botdot address and a button, and on a Mac, a PC or a Linux computer a second button that runs
+// botdot on it (ADR 136, ADR 170). The rest happens in the browser and on the front door's page.
 const { invoke } = window.__TAURI__.core;
 const { listen } = window.__TAURI__.event;
 
@@ -13,10 +13,16 @@ const PC = {
   en: { here: 'Run botdot on this PC', small: 'This PC needs at least 16 GB of memory and 40 GB of free disk.', stopped: "botdot didn't start on this PC. Try again.", restart: 'Restart Windows to carry on.' },
   pl: { here: 'Uruchom botdota na tym komputerze', small: 'Ten komputer potrzebuje co najmniej 16 GB pamięci i 40 GB wolnego miejsca.', stopped: 'Botdot nie uruchomił się na tym komputerze. Spróbuj jeszcze raz.', restart: 'Uruchom Windows ponownie, żeby kontynuować.' },
 };
+// On Linux the computer is a computer, and botdot runs on it beside the owner's own work (ADR 170).
+const LINUX = {
+  en: { here: 'Run botdot on this computer', small: 'This computer needs at least 12 GB of memory and 40 GB of free disk.', stopped: "botdot didn't start on this computer. Try again." },
+  pl: { here: 'Uruchom botdota na tym komputerze', small: 'Ten komputer potrzebuje co najmniej 12 GB pamięci i 40 GB wolnego miejsca.', stopped: 'Botdot nie uruchomił się na tym komputerze. Spróbuj jeszcze raz.' },
+};
 // While the botdot on this computer is being removed.
 const REMOVING = { en: 'Removing botdot…', pl: 'Usuwam botdota…' };
 const language = navigator.language.toLowerCase().startsWith('pl') ? 'pl' : 'en';
-const words = navigator.userAgent.includes('Windows') ? { ...WORDS[language], ...PC[language] } : WORDS[language];
+const system = navigator.userAgent.includes('Windows') ? PC : /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent) ? LINUX : null;
+const words = system ? { ...WORDS[language], ...system[language] } : WORDS[language];
 
 const form = document.getElementById('connect');
 const address = document.getElementById('address');

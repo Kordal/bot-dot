@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Owning task:** [#882](https://github.com/Kordal/bot-dot/issues/882) (parent [#878](https://github.com/Kordal/bot-dot/issues/878))
 - **Amends:** [ADR 0002](0002-mac-hosting-in-docker.md), [ADR 028](028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)
+- **Amended by:** [ADR 170](170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md) (on Linux, the installer runs on the computer itself, with the accounts' users guarded and no VM)
 
 ## Context
 

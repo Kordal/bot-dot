@@ -80,7 +80,7 @@ botdot runs bots unattended. Read what Anthropic's terms say about that first: [
 | 🖥 **The bots' computer** | One always-on Ubuntu desktop for the account, where each bot has a screen and a browser of its own. You can watch it live and take over. |
 | 🔐 **Vault and connectors** | Bots use your logins without seeing them, and your apps through Composio. |
 | ✋ **Your OK first** | A script, a login, a write in a connected app or anything risky waits for you in **Needs you**. |
-| 📱 **Web, Android and desktop** | The web page works everywhere. Android has its own app with notifications and no push service. The desktop app for Windows and Mac shows botdot in a window of its own. |
+| 📱 **Web, Android and desktop** | The web page works everywhere. Android has its own app with notifications and no push service. The desktop app for Windows, Mac and Linux shows botdot in a window of its own. |
 
 ## Projects
 
@@ -138,9 +138,9 @@ The web page works on any phone and installs as an app. The [Android app](androi
 
 ## Desktop app
 
-The desktop app for [Windows](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [Windows on ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) · [Mac with Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Mac with Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) shows your botdot in a window of its own and keeps itself up to date. It is built from `main` and is not signed yet: on Windows, choose **More info → Run anyway**; on a Mac, open it once, then **System Settings → Privacy & Security → Open Anyway**.
+The desktop app for [Windows](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [Windows on ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) · [Mac with Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Mac with Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) · Linux [AppImage](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage), [.deb](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb), [.rpm](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) ([ARM](docs/desktop.md#download)) shows your botdot in a window of its own and keeps itself up to date. It is built from `main` and is not signed yet: on Windows, choose **More info → Run anyway**; on a Mac, open it once, then **System Settings → Privacy & Security → Open Anyway**.
 
-**Preview: botdot on your own computer.** On a Mac or PC with no server, the app can also run botdot itself, in a Linux VM of its own (Lima on macOS, WSL2 on Windows): one account at `http://localhost:4700`, with bots that run only while the computer is on. [The desktop app](docs/desktop.md) has the requirements and what differs from a server.
+**Preview: botdot on your own computer.** On a Mac, PC or Linux computer with no server, the app can also run botdot itself, in a Linux VM of its own (Lima on macOS, WSL2 on Windows) or, on Linux, on the computer itself: one account at `http://localhost:4700`, with bots that run only while the computer is on. [The desktop app](docs/desktop.md) has the requirements and what differs from a server.
 
 ## Updating, backups and removal
 
@@ -191,7 +191,7 @@ make lint            # the documentation links, that the code parses, and the ty
 | | |
 | --- | --- |
 | [Install on Linux](docs/install-linux.md) | Requirements, accounts, shares, updates, backups, uninstall, platforms |
-| [The desktop app](docs/desktop.md) | The app for Windows and Mac, and botdot on your own computer |
+| [The desktop app](docs/desktop.md) | The app for Windows, Mac and Linux, and botdot on your own computer |
 | [User guide](docs/user-guide.md) | The app and every feature |
 | [FAQ](docs/FAQ.md) | Short answers: requirements, costs, updates, privacy and troubleshooting |
 | [What bots can reach](docs/what-bots-can-reach.md) | What each bot, the Chief and botdot may see |

@@ -197,6 +197,41 @@ test('a local install keeps the VM from the computer it runs on and its network,
   assert.doesNotMatch(server.system, /local-firewall|^iptables/m);
 });
 
+test("a local install on the Linux computer itself guards the account's user, never the computer's own traffic (ADR 170)", (t) => {
+  const done = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_LOCAL_HOST: '1' }, systemd: true });
+  assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+  assert.equal(done.env.BOT_DOT_LOCAL_HOST, '1', 'kept for the updates');
+  assert.equal(done.env.FRONT_DOOR_ORIGIN, 'http://localhost:4700');
+  assert.ok(!fs.existsSync(path.join(done.dir, 'bin', 'local-firewall.sh')), "no chain on all of OUTPUT: it would cut the owner's computer off its network");
+  assert.doesNotMatch(done.system, /BOTDOT-LOCAL|local-firewall/);
+  assert.doesNotMatch(done.said, /This VM can't reach/);
+  assert.match(done.said, /botdot's computers can't reach this computer's network/);
+  const uid = fs.readFileSync(path.join(done.top, 'users'), 'utf8').split('\n').find((l) => l.startsWith('botdot-owner:')).split(':')[1];
+  assert.match(done.system, new RegExp(`^-A BOTDOT-EGRESS -m owner --uid-owner ${uid} -j BOTDOT-GUARD$`, 'm'), "the account's Linux user alone");
+  assert.match(done.system, /^-A BOTDOT-GUARD -d 192\.168\.0\.0\/16 -j REJECT$/m, 'no home network');
+  assert.ok(done.system.indexOf('iptables-restore -n') < done.system.search(/^systemctl (re)?start botdot-account@owner$/m), "before the account's Docker starts");
+  assert.match(fs.readFileSync(path.join(done.etc, 'systemd', 'system', 'botdot-account@.service'), 'utf8'), /^Requires=botdot-egress\.service$/m);
+
+  // An update keeps it, with no answer given.
+  const dotenv = fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8');
+  const again = installer(t, { dotenv, again: done });
+  assert.equal(again.status, 0, `${again.said}\n${again.stderr}`);
+  assert.equal(again.env.BOT_DOT_LOCAL_HOST, '1');
+  assert.doesNotMatch(again.system, /BOTDOT-LOCAL/);
+
+  // Chosen with local at the first install alone.
+  const server = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'public', BOT_DOT_DOMAIN: 'botdot.example.com', BOT_DOT_ADMIN: 'ann', BOT_DOT_LOCAL_HOST: '1' } });
+  assert.equal(server.status, 1);
+  assert.match(server.stderr, /BOT_DOT_LOCAL_HOST goes with BOT_DOT_REACH=local alone\./);
+  const vm = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local' } });
+  const later = installer(t, { dotenv: fs.readFileSync(path.join(vm.dir, 'front-door', '.env'), 'utf8'), again: vm, given: { BOT_DOT_LOCAL_HOST: '1' } });
+  assert.equal(later.status, 1);
+  assert.match(later.stderr, /This botdot runs in a VM of its own, and that is chosen at its first install/);
+  const odd = installer(t, { dotenv: '', given: { BOT_DOT_REACH: 'local', BOT_DOT_LOCAL_HOST: 'yes' } });
+  assert.equal(odd.status, 1);
+  assert.match(odd.stderr, /BOT_DOT_LOCAL_HOST is 1, or nothing/);
+});
+
 test('the question offers a public domain and a tailnet only: local is never an answer to it (#882)', (t) => {
   const done = installer(t, { dotenv: '', input: 'local\n3\n' });
   assert.equal(done.status, 1);
