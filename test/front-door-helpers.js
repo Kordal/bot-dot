@@ -146,6 +146,7 @@ function standIn(door, account, { answer = null } = {}) {
 // by `seenOf`, so a test that checks no request of a page reached a botdot server doesn't fail when a timer fires.
 const ON_ITS_OWN = /^\/api\/(group-router|boat|usage-summary|backups\/machine|backups\/offsite)(\?|$)/;
 // How many requests each stand-in saw, other than those the front door sends on its own.
-const seenOf = (stands) => Object.values(stands).map((s) => s.seen.filter((r) => !ON_ITS_OWN.test(r.url)).length).join();
+const ownSeen = (stand) => stand.seen.filter((r) => !ON_ITS_OWN.test(r.url));
+const seenOf = (stands) => Object.values(stands).map((s) => ownSeen(s).length).join();
 
-module.exports = { startFrontDoor, standIn, seenOf };
+module.exports = { startFrontDoor, standIn, seenOf, ownSeen };

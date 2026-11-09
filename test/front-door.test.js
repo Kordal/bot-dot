@@ -8,7 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const passkey = require('./fixtures/soft-passkey');
-const { startFrontDoor, standIn, seenOf } = require('./front-door-helpers');
+const { startFrontDoor, standIn, seenOf, ownSeen } = require('./front-door-helpers');
 
 let door;
 const stands = {};
@@ -394,9 +394,10 @@ test("a session's own request to a job's call is refused: a call goes to its cal
   try {
     const r = await b.post('/api/bots/b1/jobs/j1/call', {}, { Authorization: 'Bearer right' });
     assert.equal(r.status, 404);
-    assert.equal(stand.seen.length, 0);
+    // A timer of the front door's own (/api/backups/offsite and the like) may reach it meanwhile: left out.
+    assert.equal(ownSeen(stand).length, 0);
     await b.get('/api/bots/b1/jobs/j1/call/setup');
-    assert.equal(stand.seen.at(-1).url, '/api/bots/b1/jobs/j1/call/setup', 'other routes pass on as before');
+    assert.equal(ownSeen(stand).at(-1).url, '/api/bots/b1/jobs/j1/call/setup', 'other routes pass on as before');
   } finally { stand.close(); }
 });
 
