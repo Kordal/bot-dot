@@ -613,7 +613,5 @@
   "Needs {app} reconnected": "Potrzebuje ponownego połączenia {app}",
   "Needs your Composio key for {app}": "Potrzebuje twojego klucza Composio do {app}",
   "Needs {app} connected": "Potrzebuje połączenia {app}",
-  "Checking the proxies": "Sprawdzam proxy",
-  "Testing a proxy": "Testuję proxy",
-  "Changing the proxy": "Zmieniam proxy"
+  "Checking the proxies": "Sprawdzam proxy"
 }
