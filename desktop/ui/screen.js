@@ -76,11 +76,8 @@ here.addEventListener('click', async () => {
 });
 
 listen('local-line', () => setting(words.setting));
-listen('local-passkey', () => {
-  setting(words.passkey, false);
-  form.hidden = false;
-  address.hidden = go.hidden = true;
-});
+// The passkey is made in the browser: the window says so and offers nothing else.
+listen('local-passkey', () => setting(words.passkey, false));
 listen('local-failed', ({ payload }) => {
   ended();
   said.textContent = words.stopped;
