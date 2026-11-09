@@ -78,7 +78,8 @@ const open = (target) => sh(`am start -n ${PKG}/.MainActivity --es open '${targe
   open('needs');
   await find((n) => /Needs you/.test(n.text), 'Needs you');
   await shot('3-needs-you.png');
-  sh('input keyevent 4');
+  // Back to Home (the chat and Needs you are on the way), then its Board.
+  for (let i = 0; i < 4 && !nodes().some(byText('Unread mail')); i++) { sh('input keyevent 4'); await sleep(1200); }
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
   await shot('4-board.png');
