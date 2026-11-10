@@ -173,18 +173,26 @@ internal object Keypad {
      * A key's status pill (#397), the web page's rule (keypad.js, status): [kind] is also its colour. Working while a run
      * is going ("Working ×2" while [runs], the runs going, is 2 or more: ADR 062), Needs you while it asks or a card waits for it, its unread replies, else what its newest run did
      * ([last], its status: Done, Couldn't finish; Idle for none, one the owner stopped, or a finished one the owner has [seen]:
-     * read its chat since it ended, [seen]).
+     * read its chat since it ended, [seen]). Idle says Watching for a bot with a job that will run ([watching], its
+     * nextRunAt), with [lastTime], when its last run was, where there is one: "Watching, last 07:12" (ADR 187).
      */
     data class Status(val kind: StatusKind, val text: String)
     enum class StatusKind { WORKING, NEEDS, UNREAD, DONE, FAILED, IDLE }
 
-    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null, runs: Int = 0, seen: Boolean = false): Status = when {
+    fun status(running: Boolean = false, needs: Boolean = false, unread: Int = 0, last: String? = null, runs: Int = 0, seen: Boolean = false, watching: Boolean = false, lastTime: String = ""): Status {
+        val idle = when {
+            !watching -> Status(StatusKind.IDLE, tr("Idle"))
+            lastTime.isNotEmpty() -> Status(StatusKind.IDLE, tr("Watching, last {time}", "time" to lastTime))
+            else -> Status(StatusKind.IDLE, tr("Watching"))
+        }
+        return when {
         running -> Status(StatusKind.WORKING, if (runs > 1) tr("Working ×{runs}", "runs" to runs) else tr("Working"))
         needs -> Status(StatusKind.NEEDS, tr("Needs you"))
         unread > 0 -> Status(StatusKind.UNREAD, trn(unread, "{n} unread", "{n} unread"))
-        last == "success" -> if (seen) Status(StatusKind.IDLE, tr("Idle")) else Status(StatusKind.DONE, tr("Done"))
+        last == "success" -> if (seen) idle else Status(StatusKind.DONE, tr("Done"))
         last != null && last != "stopped" && last != "running" -> Status(StatusKind.FAILED, tr("Couldn't finish"))
-        else -> Status(StatusKind.IDLE, tr("Idle"))
+        else -> idle
+        }
     }
 
     /**
