@@ -235,7 +235,7 @@ test("a turn botdot started gets no connectors, and the Chief's key alone opens 
   // An answered card: the owner's yes on a change the Chief asked for in a chat starts a turn of botdot's.
   srv.hold();
   const asking = (await srv.api('/chief/chats', { method: 'POST' })).data;
-  // A new bot gets its tools at once (ADR 176): the web given later, outside a turn of the owner's, waits on a card.
+  // A new bot gets its tools at once (ADR 177): the web given later, outside a turn of the owner's, waits on a card.
   const watcher = (await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Read the news.', allowedTools: ['Read'] }, headers: { 'X-Chief-Chat': asking.id } })).data;
   await srv.asChief(`/bots/${watcher.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch'] }, headers: { 'X-Chief-Chat': asking.id } });
   const ask = (await srv.api('/asks')).data.find((a) => a.botId === watcher.id);

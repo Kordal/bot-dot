@@ -3,7 +3,7 @@
 // carries on), and it must never say a card waits when none does.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { startServer, makeBot, heldRun, self } = require('./helpers');
+const { startServer, makeBot, heldRun, self, waitFor } = require('./helpers');
 
 let srv;
 before(async () => { srv = await startServer(); });
@@ -29,6 +29,9 @@ test('a run is told that nothing of its bot waits in Needs you, then what waits,
   const [card] = (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
   const yes = (await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).data;
   assert.equal(yes.ok, true, JSON.stringify(yes));
+  // The video carries on after the yes, told of the message written since (ADR 177): let it end first.
+  await srv.nextRun((x) => x.args.includes(`${bot.emoji} ${bot.name}`) && /Make the video/.test(x.stdin), 'the video carrying on');
+  await waitFor(async () => { const runs = (await srv.api(`/runs?botId=${bot.id}`)).data; return runs.some((r) => r.continues === first.run.id && r.status !== 'running' && r.status !== 'queued'); }, { what: 'the video carrying on' });
   const third = await run(bot, 'How is the video going?');
   assert.match(third.rec.system, /Nothing of yours waits in Needs you right now/);
   assert.doesNotMatch(third.rec.system, /your OK to run commands/);

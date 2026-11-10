@@ -255,7 +255,7 @@ test('after a web page, a job in a turn botdot started still waits on a card', a
   srv.unhold();
 });
 
-// ADR 176: what the owner asked the Chief for in their own turn is their OK, and the yes on a card after the web is
+// ADR 177: what the owner asked the Chief for in their own turn is their OK, and the yes on a card after the web is
 // the one OK of that change: no second card.
 test("a bot's change in the owner's turn is saved at once, and after the web it waits on one card only", async (t) => {
   const bot = await makeBot(srv, { name: 'Owner Asked', prompt: 'Sort the mail.', allowedTools: ['Read'] });

@@ -241,22 +241,22 @@ test('a turn that carries on is told that it has a reply to give, in the group',
   assert.doesNotMatch(note, /PASS/);
 });
 
-test("the owner's later message stands for what they want in the chat it was sent in, and in no other", () => {
+test("the owner's later message is told to the work that carries on in the chat it was sent in, and in no other (ADR 177)", () => {
   const bot = { id: 'b1', jobs: [] };
   const now = Date.parse('2026-10-08T12:00:00Z');
   const at = '2026-10-08T11:00:00.000Z';
   const later = '2026-10-08T11:30:00.000Z';
   const inGroup = { id: 'r1', botId: 'b1', trigger: 'manual', status: 'success', groupId: 'g1', groupMessageId: 'm1', startedAt: at, prompt: 'Check the PRs' };
   const own = { id: 'r2', botId: 'b1', trigger: 'manual', status: 'success', startedAt: at, prompt: 'Check the PRs' };
-  const carries = (run, message) => asksLib.whatCarriesOn({ ask: { botId: 'b1', at, runs: [{ id: run.id, at }] }, bot, stopped: { [run.id]: run }, later: message ? [{ id: 'x', botId: 'b1', trigger: 'manual', sentAt: later, startedAt: later, ...message }] : [], now }).map((f) => f.run.id);
+  const carries = (run, message) => asksLib.whatCarriesOn({ ask: { botId: 'b1', at, runs: [{ id: run.id, at }] }, bot, stopped: { [run.id]: run }, later: message ? [{ id: 'x', botId: 'b1', trigger: 'manual', sentAt: later, startedAt: later, ...message }] : [], now }).map((f) => (f.since ? `${f.run.id} told ${f.since}` : f.run.id));
   assert.deepEqual(carries(inGroup), ['r1']);
   assert.deepEqual(carries(inGroup, {}), ['r1'], "a message in the bot's own chat takes up nothing in the group");
   assert.deepEqual(carries(inGroup, { groupId: 'g2' }), ['r1'], 'nor does one in another group');
-  assert.deepEqual(carries(inGroup, { groupId: 'g1' }), [], 'a later turn of its own in that group does');
+  assert.deepEqual(carries(inGroup, { groupId: 'g1' }), ['r1 told x'], 'a later turn of its own in that group is told to it');
   assert.deepEqual(carries(inGroup, { groupId: 'g1', handedBy: { id: 'b2', name: 'Reviewer' } }), ['r1'], 'unless a member handed that turn on: the owner wrote nothing');
   assert.deepEqual(carries(own), ['r2']);
   assert.deepEqual(carries(own, { groupId: 'g1' }), ['r2'], "a turn in a group takes up nothing in the bot's own chat");
-  assert.deepEqual(carries(own, {}), []);
+  assert.deepEqual(carries(own, {}), ['r2 told x']);
 });
 
 // ---------- against a server ----------

@@ -142,7 +142,7 @@ test('a second run that asks for the same thing joins the card, and each waiting
   await startsNothing(bot, 4);
 });
 
-test('the owner asked again and was refused the same: Allow carries on with the later request only; a later message that was not refused leaves the yes to change the setting', async () => {
+test('the owner asked again and was refused the same: Allow carries on with the later request only; a later message that was not refused is told to the work that carries on (ADR 177)', async () => {
   const bot = await makeBot(srv, { name: 'Moved on', emoji: '🚶', allowedTools: ['Read'] });
   const first = await refused(bot, [BASH], { prompt: 'Check the PRs' });
   assert.ok((await asksOf(bot))[0].then);
@@ -162,17 +162,20 @@ test('the owner asked again and was refused the same: Allow carries on with the 
   await startsNothing(bot, 3);
   assert.deepEqual((await runsOf(bot)).filter((r) => r.continues).map((r) => r.continues), [second.id], 'one run, and none for the request the owner has since replaced');
 
-  // The later message was not refused, so it is on no card: then goes, and Allow starts nothing (scenario A10).
+  // The later message was not refused, so it is on no card: the first request still carries on, told of it
+  // (scenario A10, ADR 177).
   const done = await makeBot(srv, { name: 'Answered', emoji: '✅', allowedTools: ['Read'] });
-  await refused(done, [BASH], { prompt: 'Check the PRs' });
+  const asked = await refused(done, [BASH], { prompt: 'Check the PRs' });
   assert.ok((await asksOf(done))[0].then);
   await refused(done, [], { prompt: 'Never mind: what time is it?' });
   const [card] = await asksOf(done);
-  assert.equal(card.then, undefined, 'then goes when the owner sent the bot a message after its run asked');
+  assert.deepEqual(card.then, { who: 'bot', text: 'It carries on with “Check the PRs” when you allow it.' }, 'a message on no card drops nothing');
   const only = await answer(card, true);
-  assert.equal(only.data.carriesOn, undefined);
-  assert.ok(only.data.bot.allowedTools.includes('Bash'), 'the setting still changes');
-  await startsNothing(done, 2);
+  assert.deepEqual(only.data.carriesOn, { who: 'bot', text: 'it carries on' });
+  assert.ok(only.data.bot.allowedTools.includes('Bash'), 'the setting changes');
+  assert.equal((await carriedOn(done, asked)).prompt, 'Check the PRs');
+  assert.match((await lastRun(done)).stdin, /<later-message>\nNever mind: what time is it\?\n<\/later-message>/, 'it is told what the owner wrote since');
+  await startsNothing(done, 3);
 });
 
 test("a job's run asked first and the owner's request was refused the same: Allow starts one run, for the request, and the job is not repeated", async () => {
@@ -215,10 +218,10 @@ test("a job's run asked first and the owner's request was refused the same: Allo
   assert.deepEqual((await runsOf(two)).filter((r) => r.continues).map((r) => r.continues), [later.id]);
 });
 
-test("behind a busy bot the later request waits its turn though its card is older, and goes when the owner sends the bot a message meanwhile", async () => {
+test("behind a busy bot the later request waits its turn though its card is older, and is told of a message the owner sends meanwhile", async () => {
   // As above, a job's run made the card and the owner's request joined it; the bot is busy when the yes comes.
-  // The owner's message meanwhile starts no run beside the one that is going (ADR 011): it waits, starts before
-  // the work that carries on, and counts as sent from when it was sent, so that work then starts nothing.
+  // The owner's message meanwhile starts no run beside the one that is going (ADR 011): it waits and starts before
+  // the work that carries on, which then still starts, told of that message (ADR 177).
   for (const meanwhile of [false, true]) {
     const bot = await makeBot(srv, meanwhile ? { name: 'Interrupted', emoji: '✋', allowedTools: ['Read'] } : { name: 'Patient', emoji: '⏳', allowedTools: ['Read'] });
     const job = (await srv.asChief(`/bots/${bot.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Morning news', cron: '0 7 * * *', prompt: 'Read the news.', assessment: 'Needs AI' } })).data;
@@ -241,10 +244,13 @@ test("behind a busy bot the later request waits its turn though its card is olde
     srv.unhold();
     for (const rec of recs) srv.release(rec);
     for (const run of held) await srv.finished(run.id);
-    if (meanwhile) assert.deepEqual((await runsOf(bot)).map((r) => [r.prompt, r.status]), [['Never mind: what time is it?', 'success'], ['Something long', 'success'], ['What is new today?', 'success'], ['Read the news.', 'success']], "the owner's message ran next; the work that waited was dropped, and the request it would have carried on is as it was");
-    if (!meanwhile) assert.equal((await carriedOn(bot, request)).prompt, 'What is new today?');
-    await startsNothing(bot, 4);
-    assert.deepEqual((await runsOf(bot)).filter((r) => r.continues).map((r) => r.continues), meanwhile ? [] : [request.id], meanwhile ? 'the owner has since sent the bot a message' : 'one run, for the request');
+    assert.equal((await carriedOn(bot, request)).prompt, 'What is new today?');
+    if (meanwhile) {
+      assert.deepEqual((await runsOf(bot)).map((r) => r.prompt).slice(1, 3), ['Never mind: what time is it?', 'Something long'], "the owner's message ran first");
+      assert.match((await lastRun(bot)).stdin, /<later-message>\nNever mind: what time is it\?\n<\/later-message>/);
+    }
+    await startsNothing(bot, meanwhile ? 5 : 4);
+    assert.deepEqual((await runsOf(bot)).filter((r) => r.continues).map((r) => r.continues), [request.id], 'one run, for the request');
   }
 });
 

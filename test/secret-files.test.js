@@ -10,7 +10,7 @@ const http = require('node:http');
 const util = require('node:util');
 const childProcess = require('node:child_process');
 const secretFiles = require('../lib/secret-files');
-const { startServer, makeBot, heldRun } = require('./helpers');
+const { startServer, makeBot, heldRun, waitFor } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 // ---------- what the bot may ask for, and the file's text (lib/secret-files.js) ----------
@@ -179,7 +179,10 @@ test('only the owner answers the card; after the yes botdot writes the file, aga
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   assert.equal(yes.status, 200, JSON.stringify(yes.data));
   assert.ok(audit().some((l) => l.action === 'secret-file.allowed' && l.bot === ops.id && l.where === "the account's computer:/home/box/traefik/ovh.env"));
-  await new Promise((r) => setTimeout(r, 200));
+  // The run that asked carries on after the yes, told of the run the owner started since (ADR 177): let it end first.
+  const carried = await srv.nextRun((x) => x.args.includes(`${ops.emoji} ${ops.name}`) && /stopped because it lacked/.test(x.stdin), 'the run that carries on');
+  srv.release(carried);
+  await waitFor(async () => (await srv.api(`/runs?botId=${ops.id}`)).data.every((x) => !['running', 'queued'].includes(x.status)), { what: 'no run of Infra Admin going' });
   srv.unhold();
 
   const held = await heldRun(srv, ops);

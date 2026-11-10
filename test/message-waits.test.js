@@ -281,9 +281,10 @@ test('after botdot is stopped and started, the run that was cut off says so and 
   } finally { own.unhold(); await own.stop(); }
 });
 
-test("a waiting message counts as sent from when it was sent: a card older than it starts nothing for an earlier request", async () => {
+test("a waiting message counts as sent from when it was sent: the earlier request still carries on, told of it (ADR 177)", async () => {
   // The owner's request is refused the web and its card waits. The bot is busy with other work when the owner
-  // sends it a new message, which waits. A yes on the card now starts nothing for the earlier request.
+  // sends it a new message, which waits. A yes on the card still carries the earlier request on, after that
+  // message, and tells it what the owner wrote since.
   const BASH = { tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list' } };
   const bot = await makeBot(srv, { name: 'Moved On', emoji: '🧭', allowedTools: ['Read'] });
   fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([BASH]));
@@ -297,17 +298,22 @@ test("a waiting message counts as sent from when it was sent: a card older than 
   const w = (await send(srv, bot, { prompt: 'Never mind: what time is it?' })).data;
   assert.equal(w.status, 'queued');
   assert.ok(Date.parse(w.queuedAt) >= Date.parse(request.endedAt));
-  // The card says nothing of carrying on any more, and its yes only changes the setting.
+  // The card still says the request carries on, and its yes queues it behind the message that waits.
   const card = await cardOf();
-  assert.equal(card.then, undefined);
+  assert.equal(card.then.text, 'It carries on with “Check the PRs” when you allow it.');
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
-  assert.deepEqual([yes.status, yes.data.carriesOn], [200, undefined]);
-  assert.deepEqual(waitingIn(srv, bot).map((x) => x.kind), ['owner'], 'no work that carries on was added');
+  assert.equal(yes.status, 200);
+  assert.ok(yes.data.carriesOn, 'it carries on');
+  assert.deepEqual(waitingIn(srv, bot).map((x) => x.kind), ['owner', 'carry-on']);
   srv.unhold();
   srv.release(rec);
   await srv.finished(long.id);
-  await ranAll(srv, bot, 3);
-  assert.deepEqual((await runsOf(srv, bot)).filter((r) => r.continues), []);
+  const runs = await ranAll(srv, bot, 4);
+  const carried = runs.filter((r) => r.continues);
+  assert.deepEqual(carried.map((r) => r.continues), [request.id]);
+  const stdin = srv.runs().filter(isRunOf(bot)).map((x) => x.stdin).find((t) => /Your run .* stopped because it lacked/.test(t));
+  assert.match(stdin, /The owner wrote to you since that run stopped, word for word:\n<later-message>\nNever mind: what time is it\?\n<\/later-message>/);
+  assert.match(stdin, /If what they wrote since replaces this request, or it is already done, don't do it again/);
 });
 
 test('the rule reads when a message was sent, before when its run started', () => {
@@ -317,10 +323,12 @@ test('the rule reads when a message was sent, before when its run started', () =
   const stopped = { id: 'r1', botId: 'b', trigger: 'manual', status: 'success', prompt: 'Check the PRs', startedAt: '2026-10-06T09:58:00.000Z' };
   const facts = (later) => ({ ask: { botId: 'b', at, runs: [{ id: 'r1', at }] }, bot: { id: 'b', jobs: [] }, stopped: { r1: stopped }, later, now: Date.parse(at) + 60e3 });
   const message = (sentAt, startedAt) => ({ id: 'r2', botId: 'b', trigger: 'manual', sentAt, startedAt });
-  assert.equal(asksLib.whatCarriesOn(facts([message('2026-10-06T09:59:00.000Z', '2026-10-06T10:05:00.000Z')])).length, 1);
-  assert.equal(asksLib.whatCarriesOn(facts([message('2026-10-06T10:01:00.000Z', '2026-10-06T10:05:00.000Z')])).length, 0);
-  assert.equal(asksLib.whatCarriesOn(facts([message('2026-10-06T10:01:00.000Z', '2026-10-06T10:01:00.000Z')])).length, 0, 'one that still waits: it has no start but when it was sent');
-  assert.equal(asksLib.whatCarriesOn(facts([{ id: 'r2', botId: 'b', trigger: 'manual', startedAt: '2026-10-06T10:01:00.000Z' }])).length, 0, 'a run from before, without sentAt, counts by its start');
+  // Either way it carries on (ADR 177): what counts as written since is what it is told of (`since`).
+  const since = (later) => asksLib.whatCarriesOn(facts(later))[0].since;
+  assert.equal(since([message('2026-10-06T09:59:00.000Z', '2026-10-06T10:05:00.000Z')]), undefined);
+  assert.deepEqual(since([message('2026-10-06T10:01:00.000Z', '2026-10-06T10:05:00.000Z')]), ['r2']);
+  assert.deepEqual(since([message('2026-10-06T10:01:00.000Z', '2026-10-06T10:01:00.000Z')]), ['r2'], 'one that still waits: it has no start but when it was sent');
+  assert.deepEqual(since([{ id: 'r2', botId: 'b', trigger: 'manual', startedAt: '2026-10-06T10:01:00.000Z' }]), ['r2'], 'a run from before, without sentAt, counts by its start');
 });
 
 test("the Chief's wait_for_run on a run that has not started when the time is up says so", async (t) => {

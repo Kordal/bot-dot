@@ -131,7 +131,7 @@ test("the owner's messages start before the turns botdot starts, in the order se
   const turn = await chiefTurn(srv, 'the first turn', (x) => /Give Alpha the web/.test(x.stdin));
   // botdot has something to tell the Chief here first: the owner's yes on what the Chief asked for.
   const bot = await makeBot(srv, { name: 'Alpha', allowedTools: ['Read'] });
-  // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 176).
+  // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 177).
   await srv.asChief('/chief/checkup', { headers: { 'X-Chief-Chat': id } });
   const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] }, headers: { 'X-Chief-Chat': id } });
   assert.equal((await srv.api(`/asks/${change.data.pendingChange}`, { method: 'POST', body: { yes: true } })).status, 200);
@@ -205,7 +205,7 @@ test("while Claude is signed out the owner's waiting messages stay waiting, with
   assert.equal((await say(id, 'Second', own)).data.queued.length, 1);
   // botdot has something to tell the Chief there too: the owner's yes on what the Chief asked for.
   const bot = await makeBot(own, { name: 'Alpha', allowedTools: ['Read'] });
-  // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 176).
+  // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 177).
   await own.asChief('/chief/checkup', { headers: { 'X-Chief-Chat': id } });
   const change = await own.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] }, headers: { 'X-Chief-Chat': id } });
   assert.equal((await own.api(`/asks/${change.data.pendingChange}`, { method: 'POST', body: { yes: true } })).status, 200);

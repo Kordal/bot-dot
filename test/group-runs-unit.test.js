@@ -241,15 +241,15 @@ test('a waiting turn is dated by when the owner wrote its message, as its run is
   const started = await ended('20261008120000-clock2');
   assert.equal(started.sentAt, wroteM2);
   assert.deepEqual(B.whatCarriesOn(ask).map((f) => f.run.id), [stopped.id], 'and once it has started');
-  // A message the owner wrote after the card stands for what they want now, waiting or started.
+  // A message the owner wrote after the card is told to the work that carries on (ADR 177), waiting or started.
   hold();
   const busy = B.askBot(bot, { prompt: 'Something long again' }).run;
   B.askBot(bot, { prompt: 'Never mind the pull requests.', groupId: clock.id, groupMessageId: 'c3', id: '20261008120000-clock3', sentAt: new Date().toISOString() });
-  assert.deepEqual(B.whatCarriesOn(ask), [], 'while it waits');
+  assert.deepEqual(B.whatCarriesOn(ask).map((f) => [f.run.id, f.since]), [[stopped.id, ['20261008120000-clock3']]], 'while it waits');
   letGo();
   await ended(busy.id);
   await ended('20261008120000-clock3');
-  assert.deepEqual(B.whatCarriesOn(ask), [], 'and once it has started');
+  assert.deepEqual(B.whatCarriesOn(ask).map((f) => [f.run.id, f.since]), [[stopped.id, ['20261008120000-clock3']]], 'and once it has started');
 });
 
 // A turn has one of the ten places of the owner's messages, also one a member handed on (GRP-010): when they are

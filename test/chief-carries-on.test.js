@@ -95,7 +95,7 @@ const TILE = { kind: 'value', title: 'Door', read: { type: 'script', script: 'ca
 test("a changed bot: the Chief's tools say which chat asks, the card says who carries on, and a yes gives the Chief its turn there", async (t) => {
   const chat = await chatAbout('Make a bot that reads the tech news, and start it');
   const tools = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey, CHIEF_CHAT_ID: chat.id });
-  // A new bot gets its tools at once (ADR 176): the web given later, outside a turn of the owner's, waits on its card.
+  // A new bot gets its tools at once (ADR 177): the web given later, outside a turn of the owner's, waits on its card.
   const made = await tools.json('create_bot', { name: 'News Watcher', prompt: 'Read the tech news.', allowedTools: ['Read'] });
   const asked = await tools.json('update_bot', { id: made.id, allowedTools: ['Read', 'WebSearch', 'WebFetch'] });
   assert.deepEqual(asked.waiting, ['web access']);
