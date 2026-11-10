@@ -116,9 +116,8 @@ function openRunDialog(botId) {
 // ---------- a bot's settings (its own page; every change saves by itself) ----------
 
 // What a bot may do, as plain switches. Each adds or removes Claude Code tools; the exact list is under Advanced.
+// The web and changing files are every bot's (ADR 186): no switch for them.
 const PERMS = [
-  { key: 'files', label: tr('Can change files'), hint: tr('create and edit files in its folder'), tools: ['Edit', 'Write'] },
-  { key: 'web', label: tr('Can browse the web'), hint: tr('search, and read web pages'), tools: ['WebSearch', 'WebFetch'] },
   { key: 'bash', label: tr('Can run commands'), hint: tr('any shell command in its folder'), tools: ['Bash'] },
   { key: 'helpers', label: tr('Can use helpers'), hint: tr('start helpers that work in parallel within one run'), tools: ['Agent', 'Task'] },
 ];
@@ -137,14 +136,11 @@ function readBotForm(form, sel) {
     group: form.group.value.trim(),
     prompt: form.prompt.value,
     systemPrompt: form.systemPrompt.value,
-    computer: form.computer.type === 'select-one' ? form.computer.value : form.computer.checked ? 'linux' : 'none', // one choice once boat.dev is set up (#541)
+    ...(form.computer ? { computer: form.computer.value } : {}), // which one, where a server still has a choice (#541); every bot has one (ADR 186)
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
     accounts: sel.accounts, // its account of an app with two or more (ADR 174)
-    mayMessageAll: sel.others.every((id) => sel.mayMessage.has(id)),
-    mayMessage: [...sel.mayMessage],
-    othersMayAsk: form.othersMayAsk.checked,
     ...(form.proxy ? { proxy: form.proxy.value } : {}), // its proxy (ADR 171), where the row is drawn
     ...(form.allowRooms ? { rooms: { allowRooms: form.allowRooms.checked, whoMayMention: form.roomsWho.value } } : {}),
     ...(hotkeyChanged(form) ? { hotkey: Number(form.hotkey.value) } : {}),
@@ -288,7 +284,6 @@ function renderBotSettings(force = false) {
   // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here only whether.
   const accountComputer = state.features.includes('account-computer');
   const boatChoice = !accountComputer && state.features.includes('boat-computer') && (state.status?.boat || b.computer === 'boat');
-  const mayHave = docker || hasComputer || (accountComputer && !!state.status?.boat);
   const knownTools = new Set(PERMS.flatMap((p) => p.tools));
   const has = (p) => p.tools.every((t) => b.allowedTools.includes(t));
   // Its head (figure, name, what it does), colour, category and main assignment, then its rows in three lists: how it runs, what it uses, who and what it may (#728).
@@ -340,20 +335,14 @@ function renderBotSettings(force = false) {
           <div class="bs-body pg-list" id="page-list"><span class="faint">${tr('Loading…')}</span></div>
         </details>` : ''}
         ${boatChoice ? `<label class="bs-row"><b>${tr('Computer')}</b>
-          <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="none">${tr('None')}</option><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
-        </label>` : `<label class="bs-row ${mayHave ? '' : 'hidden'}"${accountComputer ? '' : tipAttrs(tr("Its own screen and browser on the account's computer, with sudo there, like every bot that uses it."))}><b>${tr('Uses the computer')}</b>
-          <span class="switch"><input type="checkbox" name="computer" ${hasComputer ? 'checked' : ''} ${mayHave ? '' : 'disabled'} aria-label="${esc(tr('Uses the computer'))}"><span></span></span></label>`}
+          <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
+        </label>` : ''}
         ${b.computer === 'linux' && typeof Proxies !== 'undefined' ? `<div class="bs-slot" id="bs-proxy">${Proxies.botRowHTML(b)}</div>` : ''}
         <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
         ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>${tr('Its screen')}</b>${CHEV}</button>` : ''}
       </div>
 
       <div class="set-list">
-        <div class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}">
-          <div class="grow"><b>${tr('May message')}</b><div id="bot-picks"></div></div>${CHEV}
-        </div>
-        <label class="bs-row ${state.bots.length > 1 ? '' : 'hidden'}"${tipAttrs(tr("Off keeps it to you: other bots don't see it among their teammates and can't message it."))}><b>${tr('Other bots may ask it')}</b>
-          <span class="switch"><input type="checkbox" name="othersMayAsk" ${b.othersMayAsk !== false ? 'checked' : ''} aria-label="${esc(tr('Other bots may ask it'))}"><span></span></span></label>
         ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"${tipAttrs(tr('It may join rooms with other accounts on this machine. There it only talks: no tools, no notes, nothing of yours.'))}><b>${tr('Shared rooms')}</b>
           <span class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="${esc(tr('Shared rooms'))}"><span></span></span></label>
         <label class="bs-row bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}"><b>${tr('Who may mention it')}</b>
@@ -396,8 +385,7 @@ function renderBotSettings(force = false) {
     form.addEventListener('change', (e) => { if (e.target.name === 'color') drawIconPicks(root, e.target.value); });
   }
   form.dataset.disabled = JSON.stringify(b.disabledSkills || []);
-  const others = state.bots.filter((x) => x.id !== b.id).map((x) => x.id);
-  const sel = { skills: new Set(b.skills || []), connectors: new Set(b.connectors || []), accounts: { ...(b.accounts || {}) }, mayMessage: new Set(b.mayMessageAll ? others : b.mayMessage || []), others };
+  const sel = { skills: new Set(b.skills || []), connectors: new Set(b.connectors || []), accounts: { ...(b.accounts || {}) } };
   let saved = readBotForm(form, sel);
   let chain = Promise.resolve();
   let timer = null;
@@ -442,7 +430,7 @@ function renderBotSettings(force = false) {
   form.onsubmit = (e) => { e.preventDefault(); save(); };
   // A switch between this machine and boat.dev asks first whether its files go along (#556). Until the answer the
   // select is back at the saved computer, so no other field's save carries the new one; ✕ leaves it there.
-  if (form.computer.type === 'select-one') form.computer.addEventListener('change', async (e) => {
+  if (form.computer) form.computer.addEventListener('change', async (e) => {
     const select = e.target;
     const to = select.value;
     if (!isComputerMove(saved.computer, to)) return;
@@ -478,11 +466,6 @@ function renderBotSettings(force = false) {
     const tools = form.tools.value.split('\n').map((s) => s.trim()).filter(Boolean).filter((t) => !p.tools.includes(t));
     if (c.checked) tools.push(...p.tools);
     form.tools.value = tools.join('\n');
-    if (p.key === 'files') {
-      if (c.checked && form.permissionMode.value === 'dontAsk') form.permissionMode.value = 'acceptEdits';
-      if (!c.checked && form.permissionMode.value === 'acceptEdits') form.permissionMode.value = 'dontAsk';
-      mode = form.permissionMode.value;
-    }
     saveSoon();
   }));
   form.tools.addEventListener('input', syncPerms);
@@ -558,8 +541,6 @@ function renderBotSettings(force = false) {
     }, { exclusive: (id) => id.split('@')[0] });
   }).catch(() => {});
 
-  foldPicker($('#bot-picks', root), state.bots.filter((x) => x.id !== b.id).map((x) => ({ id: x.id, label: x.name, desc: x.description.slice(0, 120) })), sel.mayMessage, saveSoon,
-    { none: tr('Nobody'), sum: () => (others.length > 1 && others.every((id) => sel.mayMessage.has(id)) ? tr('Everyone') : [...sel.mayMessage].map((id) => botById(id)?.name || id).join(', ')) });
   drawAlwaysApproved(b, root);
 
   drawBotSettingsLive(b); // and the rules you lifted

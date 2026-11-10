@@ -4,7 +4,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot } = require('./helpers');
+const { startServer, makeBot, withAlways } = require('./helpers');
 const teamLib = require('../lib/company-team');
 
 let srv; let helper;
@@ -122,7 +122,7 @@ test('Create makes the bots, their teams with the first bot the lead and plan it
   // Create is the owner's OK (ADR 128): the web tool is granted at once and nothing waits in Needs you; "Every action"
   // is in its rules, and the project's never list is not copied in: the team note says it on every run (#1080); a copy
   // has the original's settings.
-  assert.deepEqual(byName('Market Scout').allowedTools, ['WebSearch']);
+  assert.deepEqual(byName('Market Scout').allowedTools, withAlways('WebSearch'));
   assert.equal(byName('Market Scout').pendingChange, undefined);
   assert.doesNotMatch(byName('Market Scout').systemPrompt || '', /Never do these without asking/);
   assert.match(byName('Landing Page').systemPrompt, /before every action/);

@@ -117,6 +117,3 @@ test('web: the question says what it means and how to take it back; closing it a
   assert.equal(await yes, true);
 });
 
-test('web: the switch for files that moves the mode by itself keeps the earlier value in step', () => {
-  assert.match(app, /if \(!c\.checked && form\.permissionMode\.value === 'acceptEdits'\) form\.permissionMode\.value = 'dontAsk';\n\s*mode = form\.permissionMode\.value;/);
-});

@@ -46,7 +46,7 @@ test('a later run is told the files it was given and may read them without the R
   assert.ok(rec.system.includes(`readable copy: ${sheet.readable}`));
   assert.doesNotMatch(rec.system, /Alex Example/, 'not kept in mind: only named');
   assert.match(rec.system, /suggest in one line that you keep it in mind/);
-  const tools = rec.args[rec.args.indexOf('--allowedTools') + 1];
+  const tools = rec.args.join(' ');
   assert.ok(tools.includes(`Read(/${path.join(ws(), 'uploads')}/**)`), tools);
 
   const listed = await files();

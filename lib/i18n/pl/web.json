@@ -1030,10 +1030,6 @@
   "Permission mode: {mode} ({info}) · Tools: {tools}": "Tryb uprawnień: {mode} ({info}) · Narzędzia: {tools}",
   "default": "domyślne",
   "{name} started": "{name} wystartował",
-  "Can change files": "Może zmieniać pliki",
-  "create and edit files in its folder": "tworzyć i edytować pliki w swoim folderze",
-  "Can browse the web": "Może przeglądać internet",
-  "search, and read web pages": "wyszukiwać i czytać treści w sieci",
   "Can run commands": "Może uruchamiać polecenia",
   "any shell command in its folder": "dowolne polecenie powłoki w swoim folderze",
   "Can use helpers": "Może używać pomocników",
@@ -1070,10 +1066,8 @@
   "Pinned below the Chief": "Przypięty pod Szefem",
   "Apps": "Aplikacje",
   "May message": "Może pisać do",
-  "Off keeps it to you: other bots don't see it among their teammates and can't message it.": "Wyłączone: tylko dla ciebie. Inne boty nie widzą go wśród kolegów z zespołu i nie mogą do niego pisać.",
   "Other bots may ask it": "Inne boty mogą go prosić",
   "Jobs": "Zadania",
-  "Its own screen and browser on the account's computer, with sudo there, like every bot that uses it.": "Własny ekran i przeglądarka na komputerze konta, z sudo, jak każdy bot, który go używa.",
   "Uses the computer": "Używa komputera",
   "Its screen": "Jego ekran",
   "Default ({model})": "Domyślny ({model})",
@@ -1773,5 +1767,6 @@
   "Test": "Testuj",
   "Not working": "Nie działa",
   "Remove {name}?": "Usunąć {name}?",
-  "Account's ({name})": "Konta ({name})"
+  "Account's ({name})": "Konta ({name})",
+  "Advanced": "Zaawansowane"
 }
