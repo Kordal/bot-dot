@@ -27,49 +27,17 @@ before(async () => {
 });
 after(async () => { srv.unhold(); await srv.stop(); docker.remove(); });
 
-test('a secret botdot makes waits on a card the owner can read, and their yes saves it for that bot', async (t) => {
+test('a new secret botdot makes is saved at once for that bot, with no card (ADR 178)', async (t) => {
+  srv.hold();
   const { token, rec } = await heldRun(srv, bot);
-  const tools = vaultTools(t, token);
-  const said = await tools.text('save_to_vault', { name: 'Qwotz prod secrets', site: '57.129.155.118', generate: true, reason: 'The app secret of Qwotz prod, for the launch on OVH.' });
-  assert.match(said, /Asked to save "Qwotz prod secrets" in the Vault/);
+  t.after(() => srv.release(rec));
+  const said = await vaultTools(t, token).text('save_to_vault', { name: 'Qwotz prod secrets', site: '57.129.155.118', generate: true, reason: 'The app secret of Qwotz prod, for the launch on OVH.' });
+  assert.match(said, /^Saved "Qwotz prod secrets" in the Vault, shared with you/);
   assert.match(said, /Never write the secret in your reply/);
-
-  const [card] = await saveCards();
-  assert.equal(card.title, 'Let Infra Admin save “Qwotz prod secrets” in the Vault?');
-  assert.deepEqual(card.parts, [
-    { label: 'Entry', now: 'Qwotz prod secrets (57.129.155.118)' },
-    { label: 'Source', now: 'made by botdot' },
-    { label: 'Shared with', now: 'Infra Admin' },
-  ]);
-  assert.deepEqual(card.secret, { label: 'Secret', show: 'Show', hide: 'Hide' }, 'the words of its row, not the secret');
-  assert.equal(card.yes, 'Save');
-  assert.equal(card.yesOn, 'card');
-  assert.equal(card.text, 'Asks to save “Qwotz prod secrets” in the Vault');
-  assert.ok((await srv.api('/version')).data.features.includes('vault-save'));
-  assert.ok(!(await srv.api('/asks')).data.some((a) => a.kind === 'vault-save'), 'an app from before is not handed one');
-  assert.equal(await login('Qwotz prod secrets'), undefined, 'nothing is saved before the yes');
-
-  // The owner reads it; the Chief does not, and the list never carries it.
-  const shown = await srv.api(`/asks/${card.id}/secret`);
-  assert.equal(shown.status, 200);
-  assert.match(shown.data.value, /^[A-Za-z0-9_-]{43}$/);
-  assert.equal((await srv.asChief(`/asks/${card.id}/secret`)).status, 403);
-  const listed = JSON.stringify((await srv.api('/asks?vault-save=1')).data);
-  assert.ok(!listed.includes(shown.data.value) && !listed.includes('"ct"'), 'no secret in the list, plain or encrypted');
-  assert.ok(!said.includes(shown.data.value), 'nor in what the bot is told');
-
-  srv.release(rec);
-  await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.every((r) => r.status !== 'running'), { what: 'the run to end' });
-  srv.unhold();
-  const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
-  assert.equal(yes.status, 200, JSON.stringify(yes.data));
-  assert.ok(yes.data.carriesOn, 'the bot carries on');
+  assert.deepEqual(await saveCards(), [], 'no card');
   const saved = await login('Qwotz prod secrets');
   assert.deepEqual([saved.site, saved.allowedBots, saved.hasPassword], ['57.129.155.118', [bot.id], true]);
-  const next = await srv.nextRun((x) => x.args.includes('🛠 Infra Admin') && /The owner allowed you to/.test(x.stdin), 'the run that carries on');
-  assert.ok(next.stdin.includes('save “Qwotz prod secrets” in the Vault'), next.stdin);
-  assert.deepEqual(await saveCards(), []);
-  await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.every((r) => !['running', 'queued'].includes(r.status)), { what: 'the run that carried on to end' });
+  assert.ok((await srv.api('/version')).data.features.includes('vault-save'));
 });
 
 test('a secret in a file on its computer replaces the one of a login shared with it, after the yes', async (t) => {
@@ -114,30 +82,34 @@ test("refused: another bot's entry, no source or two, an empty file; a no is not
   docker.answer('exec.txt', null);
   assert.deepEqual(await saveCards(), []);
 
-  await tools.text('save_to_vault', { name: 'Grafana admin', site: 'grafana.example', generate: true, reason: 'r' });
+  const before = await login('Qwotz prod DB');
+  await tools.text('save_to_vault', { name: 'Qwotz prod DB', generate: true, reason: 'r' });
   const [card] = await saveCards();
+  assert.ok(card, 'a replacement waits on a card');
   assert.equal((await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: false } })).status, 200);
-  assert.equal(await login('Grafana admin'), undefined, 'a no saves nothing');
-  await refused({ name: 'grafana ADMIN', site: 'grafana.example', generate: true }, /said no to this recently/);
+  assert.equal((await login('Qwotz prod DB')).updatedAt, before.updatedAt, 'a no changes nothing');
+  await refused({ name: 'qwotz PROD db', generate: true }, /said no to this recently/);
   // The Show of an answered card finds nothing.
   assert.equal((await srv.api(`/asks/${card.id}/secret`)).status, 404);
 });
 
-test("nobody but the owner answers it, and a name taken meanwhile saves nothing", async (t) => {
+test("nobody but the owner answers it, and a login taken from the bot meanwhile saves nothing", async (t) => {
   srv.hold();
   const { token, rec } = await heldRun(srv, other);
   t.after(() => srv.release(rec));
-  await vaultTools(t, token).text('save_to_vault', { name: 'Mail relay', site: 'smtp.example', generate: true, reason: 'r' });
+  const relay = (await srv.api('/vault', { method: 'POST', body: { name: 'Mail relay', site: 'smtp.example', password: 'old', allowedBots: [other.id] } })).data;
+  await vaultTools(t, token).text('save_to_vault', { name: 'Mail relay', generate: true, reason: 'r' });
   const [card] = await saveCards(other.id);
   for (const headers of [{ 'X-Run-Token': token }, { 'X-Vault-Token': token }]) {
     const r = await fetch(`http://127.0.0.1:${srv.botdotPort}/api/asks/${card.id}/secret`, { headers: { 'X-Bot-Dot': '1', ...headers } });
     assert.equal(r.status, 403);
   }
   assert.equal((await srv.asChief(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).status, 403);
-  await srv.api('/vault', { method: 'POST', body: { name: 'Mail relay', site: 'smtp.example', password: 'the owner\'s', allowedBots: [] } });
+  // The owner takes the login from the bot meanwhile: the yes saves nothing.
+  await srv.api(`/vault/${relay.id ?? (await login('Mail relay')).id}`, { method: 'PUT', body: { allowedBots: [] } });
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   assert.equal(yes.status, 409);
-  assert.match(yes.data.error, /in the Vault already/);
+  assert.match(yes.data.error, /no longer a login of/);
   assert.deepEqual(await saveCards(other.id), [], 'the card goes');
   assert.deepEqual((await login('Mail relay')).allowedBots, [], "the owner's entry is as it was");
 });

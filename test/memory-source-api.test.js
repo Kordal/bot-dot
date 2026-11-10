@@ -204,7 +204,7 @@ test('a follow-up after teammates answered answers as the run it follows', async
   assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.noteId === said.id), [], 'no card');
 });
 
-test('D15: a note of the owner\'s is changed at once in the owner\'s clean run and any other (ADR 059), refused in a job\'s run and the review; its removal waits as a guarded change', async (t) => {
+test('D15: a note of the owner\'s is changed at once in the owner\'s clean run and any other (ADR 059), refused in a job\'s run and the review; removed at once anywhere else, and a forget of it waits as a guarded change (ADR 178)', async (t) => {
   const b = await bot();
   const said = await typed(b.id, 'Use pnpm');
   const own = await typed(b.id, 'Reports go out on Mondays');
@@ -272,35 +272,38 @@ test('D15: a note of the owner\'s is changed at once in the owner\'s clean run a
   const newApp = listen('?guarded=1');
   await waitFor(() => oldApp.some((e) => e.type === 'hello') && newApp.some((e) => e.type === 'hello'), { what: 'both apps to be connected' });
   const chiefs = await held(t, b, asChief(b));
-  const waits = await mem(chiefs, { action: 'remove', id: said.id, reason: 'The Chief said so' });
+  // A removal is done at once, also of what the owner said, since the owner can bring it back for 30 days (ADR 178).
+  const removed = await mem(chiefs, { action: 'remove', id: said.id, reason: 'The Chief said so' });
+  assert.equal(removed.result, 'saved');
+  assert.match(removed.say, /^Removed note/);
+  // A forget, which erases for good, waits as a guarded change.
+  const waits = await mem(chiefs, { action: 'forget', notes: [own.id] });
   assert.equal(waits.result, 'waits');
-  assert.match(waits.say, /is what the owner said, and the owner did not start this run\. The change waits for the owner's OK on a card/);
-  const removal = await mem(chiefs, { action: 'remove', id: own.id });
-  assert.equal(removal.result, 'waits');
+  assert.match(waits.say, /the owner did not start this run\. It waits for the owner on a card/);
+  assert.equal((await mem(chiefs, { action: 'forget', notes: [spoken.id] })).result, 'waits');
   assert.equal((await mem(chiefs, { action: 'pin', id: spoken.id, pin: false })).result, 'refused', 'what the owner said stays pinned');
   assert.equal((await noteNow(spoken.id)).pinned, true);
-  assert.equal((await noteNow(said.id)).text, 'Use pnpm', 'unchanged while it waits');
-  assert.deepEqual((await learnedOf(chiefs)).map((x) => [x.kind, x.chip]), [
-    ['memory-pending', 'Asked to remove what you said: Use pnpm (waiting for your OK)'],
-    ['memory-pending', 'Asked to remove what you said: Reports go out on Tuesdays (waiting for your OK)'],
+  assert.equal((await noteNow(own.id)).text, 'Reports go out on Tuesdays', 'unchanged while it waits');
+  assert.deepEqual((await learnedOf(chiefs)).filter((x) => x.kind === 'memory-pending').map((x) => x.chip), [
+    'Asked to forget for good: 1 note (waiting for your OK)',
+    'Asked to forget for good: 1 note (waiting for your OK)',
   ]);
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === b.id), []);
   assert.deepEqual((await srv.api('/memory/pending?guarded=0')).data.filter((p) => p.botId === b.id), []);
   const cards = (await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.botId === b.id);
-  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.title, p.meta, p.yes, p.no, p.source]), [
-    ['remove', true, 'Remove what you said', 'in a run you did not start', 'Remove it', 'Keep it', 'bot'],
-    ['remove', true, 'Remove what you said', 'in a run you did not start', 'Remove it', 'Keep it', 'bot'],
+  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.title, p.meta, p.yes, p.no, p.text]), [
+    ['erase', true, 'Forget for good', 'in a run you did not start', 'Forget for good', 'Keep', 'Reports go out on Tuesdays'],
+    ['erase', true, 'Forget for good', 'in a run you did not start', 'Forget for good', 'Keep', 'Answers are short'],
   ]);
-  assert.equal(cards[0].current.text, 'Use pnpm');
   assert.equal((await srv.api('/memory')).data.pending, (await srv.api('/memory/pending')).data.length, 'the count follows the list');
   assert.equal((await srv.api('/memory?guarded=1')).data.pending, (await srv.api('/memory/pending?guarded=1')).data.length);
 
   // The feed, as it reports the change: the app that asked gets the guarded changes, the other none of them.
   const mineOf = (approvals) => approvals.memoryChanges.filter((c) => c.botId === b.id);
   const reported = await waitFor(() => newApp.findLast((e) => e.type === 'approvals' && mineOf(e.data).length === 2), { what: 'the feed to report both changes' });
-  assert.deepEqual(mineOf(reported.data).map((c) => [c.action, c.guarded, c.title, c.yes, c.no, c.text]), [
-    ['remove', true, 'Remove what you said', 'Remove it', 'Keep it', 'Use pnpm'],
-    ['remove', true, 'Remove what you said', 'Remove it', 'Keep it', 'Reports go out on Tuesdays'],
+  assert.deepEqual(mineOf(reported.data).map((c) => [c.action, c.guarded, c.title, c.yes, c.no]), [
+    ['erase', true, 'Forget for good', 'Forget for good', 'Keep'],
+    ['erase', true, 'Forget for good', 'Forget for good', 'Keep'],
   ]);
   assert.equal(reported.data.memory, reported.data.memoryChanges.length);
   for (const e of oldApp.filter((x) => x.type === 'approvals')) {
@@ -317,18 +320,18 @@ test('D15: a note of the owner\'s is changed at once in the owner\'s clean run a
   assert.equal(fresh.approvals.memory, fresh.approvals.memoryChanges.length);
 
   // The owner's answer has the card's words.
-  const no = (await srv.api(`/memory/pending/${cards[1].id}`, { method: 'POST', body: { approve: false } })).data;
+  const no = (await srv.api(`/memory/pending/${cards[0].id}`, { method: 'POST', body: { approve: false } })).data;
   assert.deepEqual(no, { declined: true, text: 'Kept' });
   assert.equal((await noteNow(own.id)).text, 'Reports go out on Tuesdays');
-  const yes = (await srv.api(`/memory/pending/${cards[0].id}`, { method: 'POST', body: { approve: true } })).data;
-  assert.equal(yes.text, 'Removed');
+  const yes = (await srv.api(`/memory/pending/${cards[1].id}`, { method: 'POST', body: { approve: true } })).data;
+  assert.ok(yes.text, JSON.stringify(yes));
   // A change in such a run is saved at once (ADR 059), and the note is the bot's from then on, told under the reply.
   const changed2 = await mem(chiefs, { action: 'edit', id: own.id, text: 'Reports go out on Fridays' });
   assert.deepEqual([changed2.result, changed2.note.source], ['saved', 'bot']);
   assert.deepEqual((await learnedOf(chiefs)).at(-1).chip, 'Changed what you said, its own conclusion: Reports go out on Fridays');
 });
 
-test('a shared addition or change after outside content is saved at once and told under the reply; a removal waits (ADR 059)', async (t) => {
+test('a shared addition or change after outside content is saved at once and told under the reply, and a removal is done at once (ADR 059, ADR 178)', async (t) => {
   const b = await bot();
   const h = await held(t, b);
   const direct = await remember(h, 'The owner lives in Łódź', { scope: 'shared' });
@@ -350,15 +353,11 @@ test('a shared addition or change after outside content is saved at once and tol
   // In the words of a done change (ADR 059).
   const rows = (await learnedOf(h)).map((x) => x.chip);
   assert.deepEqual(rows.slice(-2), ['Remembered for all bots, after outside content: Read on a page, for all', 'Updated for all bots, after outside content: A shared note of a bot, changed']);
-  // A removal still waits, with the card's words from the server.
+  // A removal is done at once too, since the owner can bring it back for 30 days (ADR 178).
   const removal = await mem(h, { action: 'remove', id: page.note.id });
-  assert.equal(removal.result, 'waits');
-  assert.match(removal.say, /this run read outside content.*so a change to the shared memory waits for the owner's OK/);
-  const cards = (await srv.api('/memory/pending')).data.filter((p) => p.botId === b.id);
-  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.title, p.meta, p.yes, p.no, p.source]), [
-    ['remove', undefined, 'Remove from the shared memory', 'after reading outside content', 'Approve', 'Decline', 'outside'],
-  ]);
-  assert.equal((await srv.api(`/memory/pending/${cards[0].id}`, { method: 'POST', body: { approve: false } })).data.text, 'Declined');
+  assert.equal(removal.result, 'saved');
+  assert.match(removal.say, /^Removed note/);
+  assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.botId === b.id), [], 'no card');
   // The bot's own notes never wait.
   assert.equal((await remember(h, 'Read on a page, for me')).result, 'saved');
 });

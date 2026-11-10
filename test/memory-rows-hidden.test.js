@@ -56,12 +56,12 @@ test('a run that saved, shared, removed, restored and forgot notes and wrote a s
   const gone = await mem({ action: 'add', text: 'The old phone number' });
   assert.equal((await mem({ action: 'forget', notes: [gone.note.id] })).result, 'forgotten');
   assert.equal((await self(srv, rec.self.env.RUN_TOKEN, 'skill', { action: 'create', name: 'wash-the-car', description: 'When the car is dirty', instructions: '# Wash\nStep by step.', reason: 'It worked' })).data.result, 'saved');
-  // After outside content a shared note is saved at once and told under the reply (ADR 059); a removal waits.
+  // After outside content a shared note is saved at once and told under the reply (ADR 059); a forget waits.
   fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 't1', name: 'WebFetch', input: {} }] } }]));
   await waitFor(async () => ((await srv.api(`/runs/${run.id}`)).data.events || []).some((e) => e.type === 'assistant'), { what: 'the run to have read a page' });
   const page = await mem({ action: 'add', text: 'A page says the shop opens at nine', scope: 'shared' });
   assert.equal(page.result, 'saved');
-  assert.equal((await mem({ action: 'remove', id: page.note.id })).result, 'waits');
+  assert.equal((await mem({ action: 'forget', notes: [page.note.id] })).result, 'waits');
 
   // The note is still there, and still found by the bot's memory search.
   assert.match(await rpcClient(t, 'self-mcp.js', rec.self.env).text('recall', { query: 'car', in: 'notes' }), /The car is blue/);
@@ -80,7 +80,7 @@ test('a run that saved, shared, removed, restored and forgot notes and wrote a s
   assert.deepEqual([again.again, kindsOf(again.learned)], [true, ['skill', 'memory-shared', 'memory-pending']], 'the same request sent again');
   assert.equal(done.items[0].chip, 'Saved the skill wash-the-car');
   assert.equal(done.items[1].chip, 'Remembered for all bots, after outside content: A page says the shop opens at nine');
-  assert.equal(done.items[2].chip, 'Asked to remove from the shared memory: A page says the shop opens at nine (waiting for your OK)');
+  assert.equal(done.items[2].chip, 'Asked to forget for good: 1 note (waiting for your OK)');
 
   // Stored: every item, in the run's record and in the memory index.
   const meta = JSON.parse(fs.readFileSync(path.join(srv.data, 'runs', `${run.id}.json`), 'utf8'));

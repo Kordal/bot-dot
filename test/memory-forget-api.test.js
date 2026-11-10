@@ -267,21 +267,23 @@ test('an approved and a declined memory change each write one line of the audit 
   const b = await bot();
   const h = await held(t, b, ownerAsks(srv, b, 'Read the page and remember what it says about me.'));
   await uses(h, 'WebFetch');
-  // Saved at once (ADR 059); their removals wait.
+  // Saved at once (ADR 059), and removed at once (ADR 178); a forget of them waits.
   const notes = [];
   for (const text of ['The owner plays the cello', 'The owner plays the oboe']) notes.push((await mem(h, { action: 'add', text, scope: 'shared' })).note);
-  const one = await mem(h, { action: 'remove', id: notes[0].id });
-  const two = await mem(h, { action: 'remove', id: notes[1].id });
+  const one = await mem(h, { action: 'forget', notes: [notes[0].id], about: 'cello' });
+  const two = await mem(h, { action: 'forget', notes: [notes[1].id], about: 'oboe' });
   assert.deepEqual([one.result, two.result], ['waits', 'waits']);
   await srv.api(`/memory/pending/${one.id}`, { method: 'POST', body: { approve: true } });
   await srv.api(`/memory/pending/${two.id}`, { method: 'POST', body: { approve: false } });
-  assert.deepEqual(auditLog(srv).filter((l) => l.bot === b.id).map(({ time, ...l }) => l), [
-    { actor: 'owner', action: 'memory.approved', change: 'remove', bot: b.id, notes: [notes[0].id] },
-    { actor: 'owner', action: 'memory.declined', change: 'remove', bot: b.id, notes: [notes[1].id] },
+  assert.deepEqual(auditLog(srv).filter((l) => l.bot === b.id && l.action !== 'memory.forgotten').map(({ time, ...l }) => l), [
+    { actor: 'owner', action: 'memory.approved', change: 'erase', bot: b.id, notes: [notes[0].id] },
+    { actor: 'owner', action: 'memory.declined', change: 'erase', bot: b.id, notes: [notes[1].id] },
   ]);
   assert.ok(!/cello|oboe/.test(fs.readFileSync(path.join(srv.data, 'audit.log'), 'utf8')));
   // The chip of the run that asked no longer holds the text once the change is answered.
-  assert.deepEqual((await learnedOf(h.run)).filter((x) => x.kind === 'memory-pending').map((x) => x.chip), ['Asked to remove from the shared memory (since answered)', 'Asked to remove from the shared memory (since answered)']);
+  const chips = (await learnedOf(h.run)).filter((x) => x.kind === 'memory-pending').map((x) => x.chip);
+  assert.equal(chips.length, 2);
+  assert.ok(chips.every((c) => !/cello|oboe/.test(c)), JSON.stringify(chips));
   await srv.api(`/memory/notes/${notes[1].id}`, { method: 'DELETE' });
 });
 
@@ -407,7 +409,7 @@ test('after a bot is deleted, no note, version, waiting change or indexed run of
   await h.tools.text('update_memory', { id, note: 'The OKAPI lives in the Ituri rainforest' });
   await uses(h, 'WebFetch', own);
   const shared = (await mem(h, { action: 'add', text: 'The owner likes the zoo', scope: 'shared' }, own)).note; // shared: it outlives the bot
-  assert.equal((await mem(h, { action: 'remove', id: shared.id }, own)).result, 'waits'); // a removal after the web waits (ADR 059)
+  assert.equal((await mem(h, { action: 'forget', notes: [shared.id], about: 'zoo' }, own)).result, 'waits'); // a forget after the web waits
   await h.end('The OKAPI is noted.');
   const kept = await ended(t, stays, 'A question about the TAPIR', 'The TAPIR is fine.', own);
   assert.equal((await own.api('/search?q=okapi')).data.length, 1);

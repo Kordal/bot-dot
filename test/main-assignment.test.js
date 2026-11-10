@@ -46,27 +46,29 @@ test('a bot from before jobs gets a job named "Main assignment"; a job that has 
   assert.equal(jobs.normalizeJobs([old], [old], 'you')[0].name, OLD_NAME);
 });
 
-test("a bot's proposal is noted as a change to its main assignment, and the tool says it waits for approval", async (t) => {
+test("a bot's change to its main assignment in the owner's clean run is saved at once and noted under the reply (ADR 178)", async (t) => {
   const bot = await makeBot(srv, { name: 'Proposer', prompt: 'Owner task' });
   const { run, rec } = await heldRun(srv, bot);
   t.after(() => { srv.unhold(); srv.release(rec); });
   const self = rpcClient(t, 'self-mcp.js', rec.self.env);
   const tool = (await self.request('tools/list')).tools.find((x) => x.name === 'update_instructions');
   assert.match(tool.description, /^Propose a rewrite of your own main assignment and\/or personality \/ rules /);
-  assert.match(tool.description, /waits for the owner's approval in Needs you/);
-  assert.doesNotMatch(tool.description, /undo/i);
+  assert.match(tool.description, /saved at once and the owner can undo it; else it waits for the owner's approval in Needs you/);
   assert.equal(tool.inputSchema.properties.task.description, 'Your complete new main assignment (omit to keep it)');
   assert.doesNotMatch(JSON.stringify((await self.request('tools/list')).tools), OLD);
+  // In a run the owner started that has read nothing outside, it is saved at once, with no card (ADR 178).
   const answer = await self.text('update_instructions', { task: 'A new task', reason: 'The owner asked' });
-  assert.equal(answer, 'Proposed the change. It waits in Needs you and will apply only if the owner approves it.');
-  assert.equal((await srv.api(`/bots/${bot.id}`)).data.prompt, 'Owner task');
+  assert.equal(answer, 'Changed your main assignment. It applies from your next run; the owner can undo it. Tell the owner in one line.');
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.prompt, 'A new task');
+  assert.deepEqual((await srv.api('/asks')).data.filter((a) => a.botId === bot.id), [], 'no card');
+  const history = (await srv.api(`/bots/${bot.id}/learning`)).data.history.filter((c) => c.field === 'prompt');
+  assert.equal(history[0]?.before, 'Owner task', 'the old text is kept to undo');
   // The line under the run in the chat, kept with the run once it ends.
   srv.unhold(); srv.release(rec);
-  const learned = (await srv.finished(run.id)).learned.find((x) => x.kind === 'instructions');
-  assert.equal(learned.text, 'Proposed changing its main assignment; waiting for your approval');
-  // What the bot is told about learning: the change waits for the owner, it is not undone afterwards.
-  assert.match(rec.system, /propose the rewrite with update_instructions: send the complete new text, keeping everything that still applies\. It applies only once the owner approves it in Needs you\./);
-  assert.doesNotMatch(rec.system, /The owner can undo it/);
+  const fin = await srv.finished(run.id);
+  const learned = fin.learned.find((x) => x.kind === 'instructions');
+  assert.equal(learned.text, 'Changed its main assignment');
+  assert.match(rec.system, /rewrite it with update_instructions: send the complete new text, keeping all that still applies\. In a run the owner started, before you read anything outside, it saves at once; else it waits for the owner in Needs you\./);
   assert.match(rec.system, /Never change your own main assignment, rules or skills to cover a failure/);
 });
 

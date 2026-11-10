@@ -128,7 +128,7 @@ const pending = async () => (await srv.api('/memory/pending')).data;
 // The rows under its reply so far, as the apps get them while the run goes.
 const rowsOf = async (h) => ((await srv.api(`/runs/${h.run.id}`)).data.events || []).filter((e) => e.type === 'learned').map((e) => e.item);
 
-test('after the web a shared note is added and changed at once, told under the reply; a removal still waits (ADR 059)', async (t) => {
+test('after the web a shared note is added and changed at once, told under the reply, and removed at once (ADR 059, ADR 178)', async (t) => {
   const b = await makeBot(srv, { name: `Notes bot ${++serial}`, emoji: '🗒️', mayMessage: [] });
   const h = await held(t, b);
   const added = await mem(h, { action: 'add', scope: 'shared', text: 'Parking is on level 2' });
@@ -138,11 +138,8 @@ test('after the web a shared note is added and changed at once, told under the r
   assert.equal(changed.result, 'saved', JSON.stringify(changed));
   assert.equal(changed.note.text, 'Parking is on level 3');
   const removal = await mem(h, { action: 'remove', id: added.note.id });
-  assert.equal(removal.result, 'waits');
-  const cards = (await pending()).filter((p) => p.botId === b.id);
-  assert.deepEqual(cards.map((p) => p.action), ['remove'], 'only the removal is a card');
-  assert.equal(cards[0].always, undefined, 'no card offers "always"');
-  assert.equal((await srv.api(`/memory/pending/${removal.id}`, { method: 'POST', body: { approve: true, always: true } })).status, 409);
+  assert.equal(removal.result, 'saved', 'a removal is done at once too (ADR 178)');
+  assert.deepEqual((await pending()).filter((p) => p.botId === b.id), [], 'no card');
   // The rows under the reply: what once waited on a card.
   const rows = await rowsOf(h);
   assert.ok(rows.some((x) => x.kind === 'memory-shared' && /Remembered for all bots, after outside content/.test(x.chip)), JSON.stringify(rows));
@@ -151,7 +148,7 @@ test('after the web a shared note is added and changed at once, told under the r
   assert.equal((await srv.api(`/bots/${b.id}/shared-notes-always`, { method: 'DELETE' })).status, 404);
 });
 
-test('a change to what the owner said is saved at once and is no longer the owner\'s; its removal still waits (ADR 059)', async (t) => {
+test('a change to what the owner said is saved at once and is no longer the owner\'s, and its removal is done at once (ADR 059, ADR 178)', async (t) => {
   const b = await makeBot(srv, { name: `Notes bot ${++serial}`, emoji: '🗒️', mayMessage: [] });
   const h = await held(t, b);
   const own = (await srv.api('/memory/notes', { method: 'POST', body: { owner: '_shared', text: 'My bank is ING' } })).data.note;
@@ -164,6 +161,6 @@ test('a change to what the owner said is saved at once and is no longer the owne
   assert.ok(rows.some((x) => x.kind === 'memory-shared' && x.chip === 'Changed what you said for all bots, after outside content: My bank is Revolut'), JSON.stringify(rows));
   const mine = (await srv.api('/memory/notes', { method: 'POST', body: { owner: '_shared', text: 'My car is blue' } })).data.note;
   const removal = await mem(h, { action: 'remove', id: mine.id });
-  assert.equal(removal.result, 'waits');
-  assert.equal((await srv.api('/memory/pending?guarded=1')).data.find((p) => p.id === removal.id).guarded, true);
+  assert.equal(removal.result, 'saved', 'a removal is done at once too (ADR 178)');
+  assert.equal((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.botId === b.id).length, 0, 'no card');
 });

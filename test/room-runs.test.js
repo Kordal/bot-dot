@@ -112,7 +112,10 @@ test("each tool of a room run waits for the owner's answer on a card of its own:
   assert.equal(no.status, 'declined');
   assert.equal(no.text, roomRuns.DECLINED);
   // No answer in time: the card goes, and the call is not done.
-  const late = await r.tool(session, { tool: 'Read', input: { file_path: 'a' } }, 20);
+  // A read of its own folder goes on with no card (ADR 178).
+  assert.deepEqual(await r.tool(session, { tool: 'Read', input: { file_path: 'a' } }, 20), { status: 'allowed' });
+  assert.ok(!asks.list().some((a) => a.tool === 'Read'));
+  const late = await r.tool(session, { tool: 'WebFetch', input: { url: 'https://example.com' } }, 20);
   const gone = await r.tool(session, { id: late.id }, 2000);
   assert.deepEqual(gone, { status: 'stopped', id: late.id, text: roomRuns.UNANSWERED });
   assert.ok(!asks.list().some((a) => a.id === late.id));
