@@ -563,7 +563,7 @@
     "byHat": {"cap": "mail", "top-hat": "briefcase", "chef": "food", "party": "calendar", "crown": "chart", "hard-hat": "server", "wizard": "terminal", "cowboy": "pin", "beanie": "home", "headphones": "music", "graduate": "book", "nurse": "heart", "bow": "cart", "sun-hat": "leaf", "viking": "shield", "cat-ears": "spark", "nightcap": "clock", "beret": "pen", "antenna": "bell", "propeller": "idea"},
     "ring": {"r": 12.6, "width": 1.5, "arc": 0.22, "seconds": 1.4},
     "dot": {"cx": 20.5, "cy": 20.5, "r": 3, "gap": 1.5},
-    "states": {"working": {"ring": "#5fb98f"}, "needs_you": {"dot": "#e0a23a"}, "failed": {"dot": "#d9534f"}, "waiting": {"dot": "#9a9890"}},
+    "states": {"needs_you": {"dot": "#e0a23a"}, "failed": {"dot": "#d9534f"}, "waiting": {"dot": "#9a9890"}},
     "small": {"view": [-1, -1, 26, 26]},
     "motion": {
       "easing": {"out": [0.2, 0.8, 0.2, 1], "in": [0.4, 0, 1, 1], "settle": [0.3, 1.4, 0.55, 1]},
