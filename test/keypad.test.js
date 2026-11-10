@@ -259,6 +259,16 @@ test('status: a finished run the owner has seen says Idle; Couldn\'t finish and 
   assert.deepEqual(S({ running: true, last: 'success', seen: true }), { kind: 'working', text: 'Working' });
 });
 
+test('status: a bot with a job that will run says Watching where it would say Idle, with when it last ran (ADR 187)', () => {
+  const S = (o) => Keypad.status(o);
+  assert.deepEqual(S({ watching: true, last: 'success', seen: true, lastTime: '07:12' }), { kind: 'idle', text: 'Watching, last 07:12' });
+  assert.deepEqual(S({ watching: true }), { kind: 'idle', text: 'Watching' }, 'no run yet');
+  assert.deepEqual(S({ watching: true, last: 'stopped', lastTime: '07:12' }), { kind: 'idle', text: 'Watching, last 07:12' });
+  assert.deepEqual(S({ watching: true, last: 'success', lastTime: '07:12' }), { kind: 'done', text: 'Done' }, 'an unseen result comes first');
+  assert.deepEqual(S({ watching: true, last: 'error', lastTime: '07:12' }), { kind: 'failed', text: "Couldn't finish" });
+  assert.deepEqual(S({ watching: true, needs: true }), { kind: 'needs', text: 'Needs you' });
+});
+
 test('seen: the chat was read at or after the run ended; a server without readAt: never', () => {
   assert.equal(Keypad.seen('2026-11-03T08:00:01.000Z', '2026-11-03T08:00:00.000Z'), true);
   assert.equal(Keypad.seen('2026-11-03T08:00:00.000Z', '2026-11-03T08:00:00.000Z'), true);

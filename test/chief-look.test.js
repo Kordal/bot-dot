@@ -56,11 +56,11 @@ test('with no Chief chat, the message of a look starts a new chat, as a new repl
   assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [] });
 });
 
-test("a look is its own session with web search and botdot's reading tools only", async () => {
+test("a look is its own session with web search, botdot's reading tools and running a failed job again", async () => {
   const run = lookRuns().at(-1);
   assert.deepEqual(flagged(run.args, '--allowedTools'), look.TOOLS);
   assert.deepEqual(flagged(run.args, '--tools'), ['WebSearch'], 'no other built-in tool exists for it: none fetches a URL');
-  for (const t of flagged(run.args, '--allowedTools')) assert.match(t, /^(WebSearch|mcp__botdot__(recall|list_bots|get_bot|list_runs|get_run))$/);
+  for (const t of flagged(run.args, '--allowedTools')) assert.match(t, /^(WebSearch|mcp__botdot__(recall|list_bots|get_bot|list_runs|get_run|run_failed_job_again))$/);
   assert.equal(run.botdot.env.BOT_DOT_LOOK, '1', "the tools server is told it's a look");
   assert.ok(!run.args.includes('--resume') && run.args.includes('--no-session-persistence') && !run.args.includes('--plugin-dir'));
   assert.deepEqual(flagged(run.args, '--permission-mode'), ['dontAsk']);

@@ -74,7 +74,7 @@ Two readings of the first decision by the session that delivered OK-010, not the
 - A shared voice and progress words written on the server.
 - Carrying on after a bot's own proposal that interrupted nothing: a job, a tile or a change to its instructions that a bot suggests.
 - Taking back an ask, and the week a declined permission is remembered.
-- A tool install, a login, a payment and a bot's plan for the Chief: they carry on today and stay as they are.
+- A tool install, a payment and a bot's plan for the Chief: they carry on today and stay as they are. A login a bot asked for carries its run on since [ADR 189](../adr/189-a-login-added-later-carries-the-run-on.md).
 - New controls, pages or settings; anything that shows costs; the Mac app.
 
 ## Acceptance scenarios

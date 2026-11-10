@@ -194,6 +194,8 @@
   },
   "Done": "Gotowe",
   "Idle": "Bezczynny",
+  "Watching": "Pilnuje",
+  "Watching, last {time}": "Pilnuje, ostatnio {time}",
   "updated {ago}": "zaktualizowano {ago}",
   "Open {name}": "Otwórz {name}",
   "Page": "Strona",
