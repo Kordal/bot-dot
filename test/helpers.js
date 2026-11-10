@@ -482,4 +482,17 @@ function boatShown(command) {
 // A bot's tools as the server saves them: every bot has the web and changing files (ADR 186), after the ones given.
 const ALWAYS_TOOLS = ['WebSearch', 'WebFetch', 'Edit', 'Write'];
 const withAlways = (...tools) => [...tools, ...ALWAYS_TOOLS.filter((t) => !tools.includes(t))];
-module.exports = { withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+// A project's teams are folded (ADR 196): unfolds every team on the page until `until` (a selector) is there, or
+// every team is unfolded when it is left out. A browser check calls it before it reads a team's keys.
+async function unfoldTeams(page, until = null) {
+  for (let i = 0; i < 100; i++) {
+    if (until && (await page.locator(until).count())) return;
+    const f = page.locator('[data-cf-fold][aria-expanded="false"]').first();
+    if (await f.count()) await f.click().catch(() => {});
+    else if (!until) return;
+    await sleep(100);
+  }
+  if (until) throw new Error(`Timed out unfolding the teams for ${until}`);
+}
+
+module.exports = { unfoldTeams, withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };

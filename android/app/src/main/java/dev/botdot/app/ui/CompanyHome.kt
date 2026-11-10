@@ -519,34 +519,62 @@ private fun Reports(ui: CompanyUi, team: CompanyTeam, bots: List<Bot>) {
 
 /** The tag of a team's row of keys (#841). */
 internal const val TEAM_KEYS = "team-keys"
+/** The tag of a team's chevron, which shows or hides its keys (ADR 196). */
+internal const val TEAM_FOLD = "team-fold"
 
 /**
- * One row per team (#841, C-2, C-5): the team's name with its faces as a chip, which opens the team chat ([chatOf];
- * held, or with no chat, the team's sheet: [onTeam]), then its bots as keys, the lead first with the crown. A key
- * opens that bot's chat. A team with none of its bots left is not shown.
+ * One row per team (#841, ADR 196), folded by default: the team's faces (the lead first, with the crown), its name and
+ * what it is at ("Needs you", "2 working"). The row opens the team chat ([chatOf]; held, or with no chat, the team's
+ * sheet: [onTeam]). The chevron before it shows the team's bots as keys, the lead first with the crown, and "+"; a
+ * key opens that bot's own chat. Which teams are unfolded is kept per project on this device. A team with none of its
+ * bots left is not shown.
  */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, chatOf: (String) -> (() -> Unit)?, onBot: (String) -> Unit, onAdd: ((String) -> Unit)? = null, onTeam: (String) -> Unit) {
     val p = LocalPaper.current
-    for (branch in dev.botdot.app.data.ManyProjects.branches(c, bots)) {
-        val t = branch.team
-        val chat = chatOf(t.id)
-        Column(Modifier.fillMaxWidth().testTag(TEAM_KEYS), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Row(Modifier.clip(Radius.pill).background(p.sunk)
-                .combinedClickable(onClickLabel = if (chat != null) tr("Team chat") else t.name, onLongClickLabel = t.name, onLongClick = { onTeam(t.id) }, onClick = { chat?.invoke() ?: onTeam(t.id) })
-                .padding(start = Space.s8, end = Space.s12, top = Space.s4, bottom = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-                TeamPicture(branch.bots.take(3), null, 22)
-                Text(t.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8))
-            }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                branch.bots.forEach { b ->
-                    val asks = info.asks(b.id) > 0
-                    val look = KeyLook(b.name, line(b), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = asks,
-                        status = Keypad.status(b.running, needs = asks, unread = b.unread, runs = b.runningCount))
-                    TeamKey(look, crown = b.id == t.lead && branch.bots.size > 1, wide = wide) { onBot(b.id) }
+    val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("teams-open", android.content.Context.MODE_PRIVATE)
+    var open by remember(c.id) { mutableStateOf(prefs.getStringSet(c.id, emptySet()).orEmpty().toSet()) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        for (branch in dev.botdot.app.data.ManyProjects.branches(c, bots)) {
+            val t = branch.team
+            val chat = chatOf(t.id)
+            val unfold = t.id in open
+            val asks = branch.bots.count { info.asks(it.id) > 0 }
+            val working = branch.bots.count { info.asks(it.id) == 0 && (info.working(it.id) || it.running) }
+            Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).testTag(TEAM_KEYS)) {
+                Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = Space.s4, end = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(44.dp).clip(Radius.small).clickable(onClickLabel = tr("Members")) {
+                        open = if (unfold) open - t.id else open + t.id
+                        prefs.edit().putStringSet(c.id, open).apply()
+                    }.testTag(TEAM_FOLD), contentAlignment = Alignment.Center) {
+                        Icon(if (unfold) androidx.compose.material.icons.Icons.Outlined.ExpandMore else androidx.compose.material.icons.Icons.Outlined.ChevronRight, contentDescription = tr("Members"), tint = p.muted, modifier = Modifier.size(20.dp))
+                    }
+                    Row(Modifier.weight(1f).heightIn(min = 48.dp).clip(Radius.small)
+                        .combinedClickable(onClickLabel = if (chat != null) tr("Team chat") else t.name, onLongClickLabel = t.name, onLongClick = { onTeam(t.id) }, onClick = { chat?.invoke() ?: onTeam(t.id) })
+                        .padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                        TeamPicture(branch.bots.take(3), if (branch.bots.size > 1) t.lead else null, 26)
+                        Text(t.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = Space.s12))
+                        val (word, dot, ink) = when {
+                            asks > 0 -> Triple(tr("Needs you"), p.warn, p.warnText)
+                            working > 0 -> Triple(trn(working, "{n} working", "{n} working"), p.ok, p.muted)
+                            else -> Triple("", p.ok, p.muted)
+                        }
+                        if (word.isNotEmpty()) {
+                            Box(Modifier.padding(start = Space.s8).size(7.dp).clip(CircleShape).background(dot))
+                            Text(word, color = ink, fontSize = Type.s14, fontWeight = if (asks > 0) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
+                        }
+                    }
                 }
-                if (onAdd != null) TeamAddKey(tr("Add bots to {team}", "team" to t.name), wide) { onAdd(t.id) }
+                if (unfold) FlowRow(Modifier.fillMaxWidth().padding(start = Space.s8, end = Space.s8, bottom = Space.s12), horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    branch.bots.forEach { b ->
+                        val ask = info.asks(b.id) > 0
+                        val look = KeyLook(b.name, line(b), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = ask,
+                            status = Keypad.status(b.running, needs = ask, unread = b.unread, runs = b.runningCount))
+                        TeamKey(look, crown = b.id == t.lead && branch.bots.size > 1, wide = wide) { onBot(b.id) }
+                    }
+                    if (onAdd != null) TeamAddKey(tr("Add bots to {team}", "team" to t.name), wide) { onAdd(t.id) }
+                }
             }
         }
     }
