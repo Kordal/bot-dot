@@ -885,7 +885,7 @@ label.field .hint { font-weight: 400; color: var(--faint); }
 .feedback-shot { position: relative; display: block; border: 1px solid var(--line); border-radius: var(--r-8); overflow: hidden; line-height: 0; }
 .feedback-shot img { width: 88px; height: 66px; object-fit: cover; }
 .feedback-shot button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .65); color: #fff; font-size: var(--fs-14); line-height: 22px; cursor: pointer; padding: 0; }
-input[type=text], input[type=number], input[type=password], .conn-filters input[type=search], .req-others input[type=search], input.pick-search, select, textarea { width: 100%; background: var(--raise-2); border: 0; box-shadow: var(--sink); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-12); color: var(--text); }
+input[type=text], input[type=number], input[type=password], .conn-filters input[type=search], .req-others input[type=search], input.pick-search, input.vault-search, select, textarea { width: 100%; background: var(--raise-2); border: 0; box-shadow: var(--sink); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-12); color: var(--text); }
 /* A field on a raised surface sinks below it, into the page's black. The Projects screens keep their fields until their own tickets (#720). */
 :is(#view-company, .company-side, .dock) :is(input, select, textarea) { box-shadow: none; }
 :is(.card, dialog, .tile, .fx-dialog, .ask-pop) :is(input[type=text], input[type=number], input[type=password], input[type=search], input[type=color], input[type=date], select, textarea) { background: var(--bg); }
@@ -1458,7 +1458,10 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 
 /* Bitwarden */
 .bw-bar { align-items: center; gap: var(--sp-8); }
-.bw-bar > .bs-val { flex: 1 1 auto; }
+.bs-row.bw-bar > b { flex: none; }
+.bs-row.bw-bar > .bs-val { flex: 1 1 auto; max-width: none; }
+.vault-search { margin-top: var(--sp-12); }
+.vault-search + .vault-list { margin-top: var(--sp-12); }
 #bw-connect .bs-body .bs-row { padding: 0; }
 /* a field on the raised list sinks into the page's black, as in a dialog */
 :is(#bw-connect, .key-row) :is(input[type=text], input[type=password], select) { background: var(--bg); }

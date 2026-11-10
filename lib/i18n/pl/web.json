@@ -1388,11 +1388,6 @@
   "Saved logins your bots can use without ever seeing the password.": "Zapisane loginy, których boty mogą używać, nigdy nie widząc hasła.",
   "SSH key": "Klucz SSH",
   "To use Bitwarden, install its command-line tool first: {command}, then reload.": "By używać Bitwardena, najpierw zainstaluj jego narzędzie wiersza poleceń: {command}, potem odśwież.",
-  "{n} items in bot-dot": {
-    "one": "{n} element w bot-dot",
-    "few": "{n} elementy w bot-dot",
-    "many": "{n} elementów w bot-dot"
-  },
   "synced {ago}": "zsynchronizowano {ago}",
   "locked": "zablokowany",
   "Sync": "Synchronizuj",

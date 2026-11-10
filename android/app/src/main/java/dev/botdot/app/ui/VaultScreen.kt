@@ -3,6 +3,9 @@ package dev.botdot.app.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
@@ -80,6 +83,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     var addingFile by remember { mutableStateOf(false) }
     var master by remember { mutableStateOf("") }
     var removingFile by remember { mutableStateOf<SecretFilePlace?>(null) }
+    var query by remember { mutableStateOf("") }
     // Saves, Sync and Lock run on after the tap, with a line that says how they go (#478).
     val work = rememberWork()
 
@@ -132,7 +136,11 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
             }
             if (!b.error.isNullOrBlank() && b.configured) item { Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall) }
             if (!locked) {
-                items(items, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
+                val searches = items.size > VaultTypes.SEARCH_AFTER
+                if (searches) item(key = "search") { VaultSearch(query) { query = it } }
+                val shown = if (searches) items.filter { VaultTypes.matches(it, query) } else items
+                items(shown, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
+                if (searches && shown.isEmpty()) item { Text(tr("No matches"), color = p.muted, modifier = Modifier.fillMaxWidth().padding(Space.s16), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 if (items.isEmpty()) item {
                     Hint(if (b.configured) tr("Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here.")
                         else tr("No saved logins yet. Add one so a bot can sign in to a site for you."))
@@ -376,6 +384,24 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
 }
 
 private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪", VaultTypes.SSH_KEY to "🗝️", VaultTypes.FILE to "📄")
+
+/** The search field above a long list: the rows filter as you type (VaultTypes.matches). */
+@Composable
+private fun VaultSearch(value: String, onChange: (String) -> Unit) {
+    val p = LocalPaper.current
+    androidx.compose.foundation.text.BasicTextField(
+        value, onChange, singleLine = true,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = p.text),
+        cursorBrush = androidx.compose.ui.graphics.SolidColor(p.text),
+        modifier = Modifier.fillMaxWidth(),
+        decorationBox = { field ->
+            Row(Modifier.clip(CircleShape).background(p.sunk).padding(horizontal = Space.s16, vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) { if (value.isEmpty()) Text(tr("Search"), color = p.faint, style = MaterialTheme.typography.bodyLarge); field() }
+                if (value.isNotEmpty()) Text("✕", color = p.muted, modifier = Modifier.clickable { onChange("") }.padding(start = Space.s8))
+            }
+        },
+    )
+}
 
 @Composable
 private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, clientId: String, clientSecret: String) -> Unit) {

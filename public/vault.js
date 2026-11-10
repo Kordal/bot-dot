@@ -114,6 +114,17 @@ function vaultTypeBody(form) {
   return { type, ...(VAULT_TYPES[type].username ? { username: form.username.value } : {}) };
 }
 
+// Passwords gets a search field once its list is longer than this, like the bot picker (groups.js).
+const VAULT_SEARCH = 8;
+const vaultUi = { query: '' };
+// Whether an item is one the words searched for name: every word in its name, address, username, the hosts it
+// may be used on, a card's brand and last digits, an identity's holder and e-mail, or a file's name.
+function vaultItemMatches(l, q) {
+  if (!l) return false;
+  const hay = [l.name, l.site, l.username, ...(l.allowedHosts || []), l.brand, l.last4, l.holder, l.email, l.fileName].map((v) => String(v ?? '').toLowerCase());
+  return String(q ?? '').toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.some((h) => h.includes(w)));
+}
+
 async function renderVault() {
   const root = $('#view-vault');
   root.dataset.ready = '1';
@@ -136,10 +147,11 @@ async function renderVault() {
     ${!bw.configured ? (bw.installed === false ? `<div class="req-note">${tr('To use Bitwarden, install its command-line tool first: {command}, then reload.', { command: '<span class="mono">brew install bitwarden-cli</span>' })}</div>` : bitwardenSetupHTML()) : `
     <div class="set-list"><div class="bs-row bw-bar">
       <b>Bitwarden</b>
-      <span class="bs-val${bw.unlocked ? '' : ' bs-warn'}" title="${esc(bw.unlocked && bw.lastSync ? tr('synced {ago}', { ago: ago(bw.lastSync) }) : '')}">${bw.unlocked ? `${esc(bw.email || bw.server || '')} · ${trn(bw.items, '{n} item in bot-dot', '{n} items in bot-dot')}` : tr('locked')}</span>
+      <span class="bs-val${bw.unlocked ? '' : ' bs-warn'}" title="${esc(bw.unlocked && bw.lastSync ? tr('synced {ago}', { ago: ago(bw.lastSync) }) : '')}">${bw.unlocked ? `${esc(bw.email || bw.server || '')} · ${trn(bw.items, '{n} item', '{n} items')}` : tr('locked')}</span>
       ${bw.unlocked ? `<button class="btn sm" id="bw-sync">${tr('Sync')}</button><button class="btn sm" id="bw-lock">${tr('Lock')}</button>` : `<button class="btn sm primary" id="bw-unlock-btn">${tr('Unlock')}</button>`}
     </div></div>
     ${bw.error ? `<div class="req-note">${esc(bw.error)}</div>` : ''}`}
+    ${!locked && logins.length > VAULT_SEARCH ? `<input type="search" id="vault-search" class="vault-search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${tr('Search')}" aria-label="${tr('Search')}" value="${esc(vaultUi.query)}">` : ''}
     ${locked ? '' : logins.length ? `<div class="set-list vault-list">${logins.map((l) => {
       const kind = l.kind || 'login';
       const line = kind === 'card' ? `💳 ${esc(l.brand || tr('Card'))} •••• ${esc(l.last4)}${l.expiry ? ` · ${tr('expires {date}', { date: esc(l.expiry) })}` : ''} · ${tr('you approve each payment')}`
@@ -152,8 +164,26 @@ async function renderVault() {
         : kind !== 'login' && !l.allowedBots.length ? `<span class="bs-val bs-warn">${tr('No bot yet')}</span>`
         : `<span class="bs-val">${esc(kind === 'card' ? `•••• ${l.last4 || ''}` : kind === 'identity' ? l.holder || '' : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? l.fileName || '' : l.site || '')}</span>`;
       return `<button type="button" class="bs-row bs-link vault-item" data-edit-login="${esc(l.id)}" title="${about.replace(/\p{Extended_Pictographic}\uFE0F?\s?/gu, '').replace(/"/g, '&quot;')}" aria-label="${esc(kind === 'login' ? tr('Edit {name}', { name: l.name }) : `${l.name}: ${tr('Bots…')}`)}"><b>${esc(l.name)}</b>${value}${CHEV}</button>`;
-    }).join('')}</div>${placed.length ? `<div class="set-list vault-placed">${placed.map((f) => `<div class="bs-row"><b class="mono" title="${esc(f.item)}">${esc(f.where)}</b><span class="bs-val">${f.written === false ? tr('not written yet') : `${esc(botName(f.botId))}${f.at ? ` · ${esc(ago(f.at))}` : ''}`}</span><button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}</div>` : ''}`
+    }).join('')}</div><div class="set-empty" id="vault-none" hidden>${tr('No matches')}</div>${placed.length ? `<div class="set-list vault-placed">${placed.map((f) => `<div class="bs-row"><b class="mono" title="${esc(f.item)}">${esc(f.where)}</b><span class="bs-val">${f.written === false ? tr('not written yet') : `${esc(botName(f.botId))}${f.at ? ` · ${esc(ago(f.at))}` : ''}`}</span><button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}</div>` : ''}`
       : `<div class="set-empty">${bw.configured ? tr('The bot-dot folder is empty') : tr('No saved logins yet')}</div>`}`;
+  // The search of a long list: the rows filter as you type, by name, address, username and the rest a row
+  // stands for; what you typed stays when the page draws again after a save.
+  const search = $('#vault-search');
+  const filter = () => {
+    if (!search) return;
+    vaultUi.query = search.value;
+    let left = 0;
+    $$('.vault-list [data-edit-login]').forEach((row) => {
+      row.hidden = !vaultItemMatches(logins.find((x) => x.id === row.dataset.editLogin), search.value);
+      if (!row.hidden) left++;
+    });
+    $('#vault-none').hidden = left > 0;
+  };
+  if (search) {
+    search.oninput = filter;
+    search.onkeydown = (e) => { if (e.key === 'Escape' && search.value) { e.stopPropagation(); search.value = ''; filter(); } };
+    filter();
+  }
   const add = $('#add-login');
   if (add) add.onclick = () => openLoginEditor();
   const addKey = $('#add-ssh-key');

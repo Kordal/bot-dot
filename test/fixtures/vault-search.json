@@ -1,0 +1,24 @@
+{
+  "items": [
+    { "id": "a", "name": "Albert Heijn", "site": "ah.be", "username": "bart@example.com" },
+    { "id": "b", "name": "Beszel STG", "site": "100.69.196.6", "username": "admin" },
+    { "id": "c", "name": "Main card", "kind": "card", "brand": "Visa", "last4": "4242" },
+    { "id": "d", "name": "Me", "kind": "identity", "holder": "Alex Example", "email": "alex@example.org" },
+    { "id": "e", "name": "Deploy key", "kind": "file", "fileName": "deploy.pem" },
+    { "id": "f", "name": "Call key: VPS Admin", "site": "hq.botdot.app", "allowedHosts": ["api.botdot.app"] }
+  ],
+  "cases": [
+    { "query": "", "found": ["a", "b", "c", "d", "e", "f"] },
+    { "query": "   ", "found": ["a", "b", "c", "d", "e", "f"] },
+    { "query": "albert", "found": ["a"] },
+    { "query": "AH.BE", "found": ["a"] },
+    { "query": "admin", "found": ["b", "f"] },
+    { "query": "100.69", "found": ["b"] },
+    { "query": "visa 4242", "found": ["c"] },
+    { "query": "alex@", "found": ["d"] },
+    { "query": "pem", "found": ["e"] },
+    { "query": "api.botdot", "found": ["f"] },
+    { "query": "botdot vps", "found": ["f"] },
+    { "query": "nothing-like-this", "found": [] }
+  ]
+}
