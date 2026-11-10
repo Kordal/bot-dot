@@ -27,6 +27,10 @@ class FigureTest {
     private val raw = JsonObject(full - "tile")
     private val def = FigureDef.parse(raw.toString())
     private val tiled = FigureDef.parse(text)
+    // The definition with a ring for working, as a definition may give one (ADR 169); lib/figure.json gives none.
+    private val ringed = full["tile"]!!.jsonObject.let { t ->
+        FigureDef.parse(JsonObject(full + ("tile" to JsonObject(t + ("states" to JsonObject(t["states"]!!.jsonObject + ("working" to Json.parseToJsonElement("""{"ring":"#5fb98f"}"""))))))).toString())
+    }
     private val six = listOf("idle", "working", "waiting", "needs_you", "failed", "paused")
 
     private fun json(s: String): JsonElement = Json.parseToJsonElement(s)
@@ -391,7 +395,8 @@ class FigureTest {
         // The icon is placed in the middle of the tile, half as large as its own box.
         val xs = tiled.icon(json("""{"icon":"server"}""")).flatMap { m -> if (m is Mark.Outline) m.steps.flatMap { s -> s.at.filterIndexed { i, _ -> i % 2 == 0 }.toList() } else listOf((m as Mark.Disc).x) }
         assertTrue(xs.all { it in 6f..18f })
-        assertEquals(Signal(0x5fb98f, null), tiled.signal("working"))
+        assertNull("a working bot says so in words, not with a ring", tiled.signal("working"))
+        assertEquals(Signal(0x5fb98f, null), ringed.signal("working"))
         assertEquals(Signal(null, 0xe0a23a), tiled.signal("needs_you"))
         assertEquals(Signal(null, 0xd9534f), tiled.signal("failed"))
         assertNull(tiled.signal("idle"))
@@ -412,10 +417,11 @@ class FigureTest {
         val m = tiled.tile!!.motion!!
         // The ring comes in eased from nothing, and the old one goes when the run ends.
         assertNull("the first state is just drawn", tiled.moment("idle", "idle", 0.0, false))
-        same(tiled.moment("idle", "working", 0.0, false)!!.ring, 0.0)
-        assertTrue(tiled.moment("idle", "working", 0.13, false)!!.ring in 0.5f..1f)
-        assertNull("after the move, drawn still", tiled.moment("idle", "working", m.longest, false))
-        val gone = tiled.moment("working", "paused", 0.05, false)!!
+        same(ringed.moment("idle", "working", 0.0, false)!!.ring, 0.0)
+        assertTrue(ringed.moment("idle", "working", 0.13, false)!!.ring in 0.5f..1f)
+        assertNull("after the move, drawn still", ringed.moment("idle", "working", m.longest, false))
+        assertNull("with no ring for working, starting work moves nothing", tiled.moment("idle", "working", 0.13, false))
+        val gone = ringed.moment("working", "paused", 0.05, false)!!
         assertEquals(0x5fb98f, gone.ringWasColor)
         assertTrue(gone.ringWas in 0f..1f)
         assertTrue("paused fades in", gone.opacity!! < 1f && gone.opacity!! > 0.4f)

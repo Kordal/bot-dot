@@ -14,6 +14,8 @@ const def = JSON.parse(fs.readFileSync(FILE, 'utf8'));
 const STATES = ['idle', 'working', 'waiting', 'needs_you', 'failed', 'paused']; // botStates() in server.js
 const LAYERS = { head: ['move', 'turn'], eyes: ['move', 'scale'], pupils: ['move'] }; // ADR 003: what a pose may say of each layer
 const copy = (x) => JSON.parse(JSON.stringify(x));
+// The definition with a ring for working, as a definition may give one (ADR 169); lib/figure.json gives none.
+const ringed = () => { const d = copy(def); d.tile.states = { working: { ring: '#5fb98f' }, ...d.tile.states }; return d; };
 const headDef = (({ tile, ...d }) => d)(def); // the definition as apps from before the tile read it: the head
 
 // A fresh page with the renderer in it.
@@ -359,8 +361,8 @@ test('definition: the tile, its icon inside it, a ring around it and a dot on it
   const corner = Math.hypot(w / 2 - t.rect.r, h / 2 - t.rect.r) + t.rect.r;
   assert.ok(t.ring.r - t.ring.width / 2 > corner, 'the ring clears the corners of the tile');
   for (const name of Object.keys(t.states)) assert.ok(STATES.includes(name), `${name} is a state`);
-  assert.deepEqual(Object.keys(t.states).sort(), ['failed', 'needs_you', 'waiting', 'working']);
-  assert.ok(t.states.working.ring && !t.states.working.dot, 'a working bot has the turning ring');
+  assert.deepEqual(Object.keys(t.states).sort(), ['failed', 'needs_you', 'waiting']);
+  assert.ok(!Object.values(t.states).some((v) => v.ring), 'no state turns a ring: a working bot says so in words under its name');
   assert.ok(def.states.paused.opacity < 1, 'a paused bot is faded');
   // The ink of the icon reads on every colour a bot can have, muted as the tile mutes it: 3 to 1 at least.
   const lum = (hex) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2]; };
@@ -388,6 +390,8 @@ test('renderer: a bot is a tile in its muted colour with its icon; the state is 
   assert.equal(icon(Figure.svg('idle', '#d85a30', Figure.CHIEF)), drawn('compass'), "the Chief's own icon");
   assert.match(idle, /<g class="t-icon" style="--c:#ffffff;--deep:#ffffff" transform="translate\(6 6\) scale\(0\.5\) translate\(0 0\)">/, 'in the tile\'s ink, in its middle');
   assert.ok(!/t-ring|t-dot/.test(idle), 'an idle bot shows nothing more');
+  assert.ok(!/t-ring|t-dot/.test(Figure.svg('working', '#1d9e75', { icon: 'news' })), 'a working bot shows nothing more either');
+  Figure.use(ringed());
   const working = Figure.svg('working', '#1d9e75', { icon: 'news' });
   assert.match(working, /<g class="t-ring"><circle cx="12" cy="12" r="12\.6" pathLength="1" stroke-dasharray="0\.22 0\.78" stroke="#5fb98f" stroke-width="1\.5"\/><\/g>/);
   for (const [st, c] of [['needs_you', '#e0a23a'], ['failed', '#d9534f'], ['waiting', '#9a9890']]) {
@@ -398,6 +402,7 @@ test('renderer: a bot is a tile in its muted colour with its icon; the state is 
   assert.match(Figure.svg('dancing', '#1d9e75', null), /^<svg class="fig fig-idle fig-tile"/, 'a state it does not know is idle');
   assert.match(Figure.css(), /@keyframes fig-tile-turn \{ to \{ transform: rotate\(360deg\); \} \}/);
   assert.match(Figure.css(), /\.fig \.t-ring \{ transform-origin: 12px 12px; animation: fig-tile-turn 1\.4s linear var\(--ph, 0s\) infinite; \}/);
+  Figure.use(copy(def));
   // A colour that is no #rrggbb is not mixed, and carries no markup.
   assert.ok(!Figure.svg('idle', '"><script>x</script>', null).includes('<script'));
   // The small mark: the tile and its icon, no state.
@@ -412,7 +417,7 @@ test('renderer: a tile moves once, for a change of state the page saw, and carri
   const ctx = vm.createContext({ performance: { now: () => now } });
   vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'public', 'figure.js'), 'utf8'), ctx);
   const { Figure } = ctx;
-  Figure.use(copy(def));
+  Figure.use(ringed()); // a definition that still turns a ring for working, so the ring's moves stay covered
   const m = def.tile.motion;
   const tile = (st, bot = 'b1') => Figure.svg(st, '#1d9e75', { icon: 'news' }, bot);
   Figure.saw('b1', 'idle');
