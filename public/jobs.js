@@ -78,6 +78,14 @@ const jobPromptEmpty = (script) => (script ? tr('When it is asked') : tr("Empty:
 function jobCardHTML(j, open = false) {
   const script = j.kind === 'script';
   const preset = CRON_PRESETS.some((p) => p.cron === j.cron);
+  // Without Advanced (ADR 200): a schedule of its own is one more choice, in its words, and no cron; a script sits
+  // behind "Show code"; what kind of job it is stays as it is.
+  const adv = advanced();
+  const scriptPart = `<div class="job-script ${script ? '' : 'hidden'}">
+          <label class="field" title="${tr("bash, runs in the bot's folder on this computer. Print nothing when there's nothing to report. $JOB_STATE_DIR keeps files between runs.")}">${tr('Script')}
+            <textarea class="mono" name="jobScript" rows="6" placeholder="curl -fsS https://example.com > /dev/null || echo &quot;example.com is down&quot;">${esc(j.script || '')}</textarea></label>
+          <label class="field">${tr('Then ask the AI')}<select name="jobAiWhen">${Object.entries(AI_WHEN_TEXT).map(([k, v]) => `<option value="${k}" ${(j.aiWhen || 'output') === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+        </div>`;
   return `
     <details class="job-card" data-job="${esc(j.id)}" data-line="${esc(jobLineSig(j))}" ${open || jobWaits(j) ? 'open' : ''}>
       <summary>
@@ -94,21 +102,18 @@ function jobCardHTML(j, open = false) {
           <label class="field">${tr('Name')}<input type="text" name="jobName" value="${esc(j.name)}" placeholder="${tr('e.g. Morning news')}" maxlength="60"></label>
           <label class="field">${tr('When')}<select name="jobWhen">
             ${CRON_PRESETS.map((p) => `<option value="${p.cron}" ${p.cron === j.cron ? 'selected' : ''}>${esc(p.label)}</option>`).join('')}
-            <option value="" ${preset ? '' : 'selected'}>${tr('Another time…')}</option>
+            ${!adv && !preset && j.cron ? `<option value="${esc(j.cron)}" selected>${esc(j.when || j.cron)}</option>` : ''}
+            ${adv || (!preset && !j.cron) ? `<option value="" ${preset ? '' : 'selected'}>${tr('Another time…')}</option>` : ''}
           </select></label>
         </div>
-        <div class="job-cron ${preset ? 'hidden' : ''}">
+        <div class="job-cron ${preset || (!adv && j.cron) ? 'hidden' : ''}">
           <label class="field" title="${tr('cron: min hour day month weekday')}">${tr('Schedule')}<input type="text" class="mono" name="jobCron" value="${esc(j.cron)}" placeholder="30 7 * * 1-5"></label>
           <div class="cron-preview"></div>
         </div>
-        <div class="job-script ${script ? '' : 'hidden'}">
-          <label class="field" title="${tr("bash, runs in the bot's folder on this computer. Print nothing when there's nothing to report. $JOB_STATE_DIR keeps files between runs.")}">${tr('Script')}
-            <textarea class="mono" name="jobScript" rows="6" placeholder="curl -fsS https://example.com > /dev/null || echo &quot;example.com is down&quot;">${esc(j.script || '')}</textarea></label>
-          <label class="field">${tr('Then ask the AI')}<select name="jobAiWhen">${Object.entries(AI_WHEN_TEXT).map(([k, v]) => `<option value="${k}" ${(j.aiWhen || 'output') === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
-        </div>
+        ${adv ? scriptPart : script ? `<details class="job-code"><summary class="faint">${tr('Show code')}</summary>${scriptPart}</details>` : scriptPart}
         <label class="field"><span class="job-prompt-label">${script ? tr('What the AI should do with the output') : tr('Task')}</span>
           <textarea name="jobPrompt" rows="3" placeholder="${jobPromptEmpty(script)}">${esc(j.prompt || '')}</textarea></label>
-        <details class="job-more"><summary class="faint">${tr('More options')}</summary>
+        <details class="job-more"${adv ? '' : ' hidden'}><summary class="faint">${tr('More options')}</summary>
           <div class="row">
             <label class="field">${tr('Kind')}<select name="jobKind">
               <option value="ai" ${script ? '' : 'selected'}>🧠 ${tr('AI: a run of the bot')}</option>

@@ -216,7 +216,7 @@ test('web: the page has no describer of its own, and never draws a job\'s cron a
 
 // The jobs' part of the page, with stand-ins for what it calls.
 function jobsPage(extra = {}) {
-  const page = vm.createContext({ ...words, esc, ago: () => 'a while ago', toast: () => {}, refresh: () => {}, confirm: () => true, setTimeout, clearTimeout, whileBusy, ...extra });
+  const page = vm.createContext({ ...words, esc, ago: () => 'a while ago', toast: () => {}, refresh: () => {}, confirm: () => true, setTimeout, clearTimeout, whileBusy, advanced: () => true, ...extra });
   vm.runInContext(`${cut('const CRON_PRESETS = [', 'const MODE_INFO')}
     ${cut('// "18:32" today', '// When a message in a chat was sent')}
     ${cut('const AI_WHEN_TEXT = {', '// A script job\'s run in the chat')}
@@ -236,6 +236,22 @@ test('web: the job card\'s header, the always-approved list and the "When" list 
   assert.match(page.jobCardHTML({ ...JOB, when: '<b>x</b>' }), /job-when">&lt;b&gt;x&lt;\/b&gt;</, 'escaped');
   // Every preset's label is what the server says for its cron.
   for (const p of page.CRON_PRESETS) assert.equal(describe(p.cron), p.label, p.cron);
+});
+
+test('web: without Advanced (ADR 200) a job card has no cron, its own schedule is a choice in its words, and a script sits behind "Show code"', () => {
+  const page = jobsPage({ advanced: () => false });
+  const own = page.jobCardHTML({ ...JOB, cron: '0 */6 * * *', when: 'Every 6 hours', kind: 'script', script: 'echo hi' });
+  assert.match(own, /<option value="0 \*\/6 \* \* \*" selected>Every 6 hours<\/option>/);
+  assert.doesNotMatch(own, /Another time/);
+  assert.match(own, /<div class="job-cron hidden">/);
+  assert.match(own, /<details class="job-code"><summary class="faint">Show code<\/summary><div class="job-script /);
+  assert.match(own, /<details class="job-more" hidden>/);
+  const ai = page.jobCardHTML(JOB);
+  assert.doesNotMatch(ai, /job-code/);
+  assert.match(page.jobCardHTML({ ...JOB, cron: '0 */6 * * *', when: 'Every 6 hours' }, true), /name="jobCron" value="0 \*\/6 \* \* \*"/, 'the cron is still sent as it is');
+  const adv = jobsPage().jobCardHTML({ ...JOB, cron: '0 */6 * * *', when: 'Every 6 hours' });
+  assert.match(adv, /Another time…<\/option>/);
+  assert.doesNotMatch(adv, /job-more" hidden/);
 });
 
 test('web: the approval dialog and its toast show the words, and the toast keeps their capitals', async () => {

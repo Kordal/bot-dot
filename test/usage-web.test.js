@@ -22,7 +22,7 @@ const answerFor = (from, to) => {
   };
 };
 
-function page({ fail = null } = {}) {
+function page({ fail = null, adv = true } = {}) {
   const calls = [];
   const ctx = vm.createContext({ ...words,
     api: async (url) => {
@@ -31,7 +31,7 @@ function page({ fail = null } = {}) {
       const q = new URL(url, 'http://x').searchParams;
       return answerFor(q.get('from') || '2026-10-22', q.get('to') || '2026-10-22');
     },
-    esc, encodeURIComponent, Date, Math, Number, URL,
+    esc, encodeURIComponent, Date, Math, Number, URL, advanced: () => adv,
   });
   vm.runInContext(`${read('usage.js')}\nthis.Usage = Usage;`, ctx);
   return { U: ctx.Usage, calls };
@@ -41,9 +41,7 @@ test('web: index.html loads usage.js after boot.js, and Settings draws the card 
   const scripts = [...read('index.html').matchAll(/<script src="\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(scripts.indexOf('usage.js') > scripts.indexOf('boot.js'));
   const settings = read('settings.js');
-  assert.match(settings, /state\.features\.includes\('token-usage'\) && \(s\.advanced \|\| !state\.features\.includes\('advanced'\)\) \? '<details class="bs-row bs-more" id="usage-card"><\/details>'/, 'a row of Settings that opens under itself, only under Advanced (ADR 192)');
-  assert.match(settings, /id="settings-advanced"/, 'the Advanced switch');
-  assert.match(settings, /api\('\/settings', \{ method: 'PUT', body: \{ advanced: adv\.checked \} \}\)/);
+  assert.match(settings, /state\.features\.includes\('token-usage'\) \? '<details class="bs-row bs-more" id="usage-card"><\/details>'/, 'a row of Settings that opens under itself; without Advanced it shows no tokens (ADR 200)');
   assert.match(settings, /typeof Usage !== 'undefined'\) Usage\.open\(\$\('#usage-card', root\)\)/);
 });
 
@@ -67,6 +65,17 @@ test('web: it opens on the last 7 days of the account, with totals, a bar a day 
   assert.doesNotMatch(h, /<b>Watcher/);
   assert.match(h, /Chief of Staff/);
   assert.match(h, /Gone Bot <span class="faint">\(deleted\)<\/span>/);
+});
+
+test('web: without Advanced (ADR 200) it shows no tokens: no totals, a bar a day says its day, a bot its share', async () => {
+  const p = page({ adv: false });
+  const box = element();
+  await p.U.open(box);
+  const h = box.innerHTML;
+  assert.doesNotMatch(h, /tokens|Cache|usage-totals/i);
+  assert.equal((h.match(/class="usage-bar"/g) || []).length, 7);
+  assert.match(h, /News &lt;b&gt;Watcher&lt;\/b&gt;<\/span><span class="muted">66%<\/span>/);
+  assert.match(h, /Chief of Staff<\/span><span class="muted">33%<\/span>/);
 });
 
 test('web: Today, 30 days and custom days ask for those days; custom days never run backwards', async () => {
