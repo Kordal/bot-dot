@@ -70,7 +70,7 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();
-  // A bot made without one has it too (ADR 186), and is told the same.
+  // A bot made without one has it too (ADR 192), and is told the same.
   const plain = await heldRun(srv, await makeBot(srv, { name: 'No Desk', computer: 'none' }));
   assert.match(plain.rec.system, /You have a computer/);
   srv.release(plain.rec);

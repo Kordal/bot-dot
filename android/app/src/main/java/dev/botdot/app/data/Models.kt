@@ -1205,7 +1205,7 @@ private fun guardedWords(action: String): CardWords = when (action) {
 data class AppSettings(val defaultModel: String = "", val defaultEffort: String = "", val chiefModel: String = "", val chiefEffort: String = "", val chiefRules: String = "",
                        /** The library skills the owner gave the Chief (ChiefSkills); null from a server without them, and not sent. */
                        val chiefSkills: List<String>? = null,
-                       /** "Advanced" (ADR 186): shows the token usage; null from a server without it, which shows it always. */
+                       /** "Advanced" (ADR 192): shows the token usage; null from a server without it, which shows it always. */
                        val advanced: Boolean? = null)
 
 @Serializable

@@ -116,7 +116,7 @@ function openRunDialog(botId) {
 // ---------- a bot's settings (its own page; every change saves by itself) ----------
 
 // What a bot may do, as plain switches. Each adds or removes Claude Code tools; the exact list is under Advanced.
-// The web and changing files are every bot's (ADR 186): no switch for them.
+// The web and changing files are every bot's (ADR 192): no switch for them.
 const PERMS = [
   { key: 'bash', label: tr('Can run commands'), hint: tr('any shell command in its folder'), tools: ['Bash'] },
   { key: 'helpers', label: tr('Can use helpers'), hint: tr('start helpers that work in parallel within one run'), tools: ['Agent', 'Task'] },
@@ -136,7 +136,7 @@ function readBotForm(form, sel) {
     group: form.group.value.trim(),
     prompt: form.prompt.value,
     systemPrompt: form.systemPrompt.value,
-    ...(form.computer ? { computer: form.computer.value } : {}), // which one, where a server still has a choice (#541); every bot has one (ADR 186)
+    ...(form.computer ? { computer: form.computer.value } : {}), // which one, where a server still has a choice (#541); every bot has one (ADR 192)
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],

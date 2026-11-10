@@ -32,7 +32,7 @@ test('Chief proposals cannot grant tools, a computer or connectors, and stale pr
   const srv = await startServer();
   t.after(() => srv.stop());
   const bot = await makeBot(srv, { allowedTools: ['Read'], prompt: 'Owner task' });
-  // The web, files and a computer are every bot's (ADR 186): nothing of them waits.
+  // The web, files and a computer are every bot's (ADR 192): nothing of them waits.
   const change = { prompt: 'New task', allowedTools: withAlways('Read', 'Bash'), connectors: ['gmail'] };
   const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { ...change, _by: 'you' } });
   assert.ok(proposed.data.pendingChange);

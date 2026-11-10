@@ -43,7 +43,7 @@ test('POST and PUT /api/bots answer `waiting` when the Chief\'s change was held 
   assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === created.data.id), 'no card for a new bot');
   // A change to it outside a turn of the owner's waits, and its card says what and who proposed it.
   const grown = await srv.asChief(`/bots/${created.data.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'Bash', 'Agent'], connectors: ['gmail', 'notion'] } });
-  assert.deepEqual(grown.data.waiting, ['Notion'], 'helpers are given at once, and the web is every bot\'s (ADR 186)');
+  assert.deepEqual(grown.data.waiting, ['Notion'], 'helpers are given at once, and the web is every bot\'s (ADR 192)');
   const card = (await srv.api('/asks')).data.find((a) => a.id === grown.data.pendingChange);
   assert.equal(card.by, 'chief');
   assert.ok(!('chatId' in card), 'made from no chat');
