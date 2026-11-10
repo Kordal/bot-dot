@@ -12,6 +12,7 @@ import kotlinx.coroutines.withTimeout
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -49,10 +50,14 @@ class StoreBackgroundTest {
     }
 
     @Test fun behindAChangeIsReadOnceTheQuietTimeHasPassed() = withStore(quietMs = 400) { server, store, _ ->
+        // Timed from before the change, so a busy machine can only make the read look later, never earlier: no
+        // "not yet" check after a sleep, which failed when this thread was held up past the quiet time.
+        val start = System.nanoTime()
         store.bots.changed()
-        delay(150)
-        assertEquals(1, server.requestCount)
         server.reaches(2)
+        val waited = (System.nanoTime() - start) / 1_000_000
+        assertTrue("read after the quiet time, not at once (waited $waited ms)", waited >= 400)
+        assertEquals(2, server.requestCount)
     }
 
     @Test fun inFrontAChangeIsReadAfterTheBurst() = withStore(quietMs = 60_000) { server, store, front ->
