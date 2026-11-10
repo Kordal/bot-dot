@@ -109,7 +109,10 @@ test('the card waits for the replays, its yes is kept with its score, one tap un
 
   fs.writeFileSync(path.join(srv.out, 'result-if-told.json'), JSON.stringify({ 'ALWAYS-SOUP': 'Soup on Friday.' }));
   fs.writeFileSync(path.join(srv.out, 'judge-picks.txt'), 'Soup');
-  const { token } = await heldRun(srv, cook, 'From now on, always soup');
+  const { token, rec, run } = await heldRun(srv, cook, 'From now on, always soup');
+  // After a web page, a change waits on a card (ADR 177): in a clean run of the owner's it is saved at once.
+  fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'WebFetch', input: {} }] } }]));
+  await waitFor(async () => ((await srv.api(`/runs/${run.id}`)).data.events || []).some((e) => e.type === 'assistant'), { what: 'the run to have read a page' });
   const proposed = await self(srv, token, 'instructions', { task: 'Plan the meals. ALWAYS-SOUP', reason: 'You asked for soup.' });
   assert.equal(proposed.data.trying, true, JSON.stringify(proposed.data));
   assert.deepEqual(await changeCards(), [], 'no card while its replays are held');
