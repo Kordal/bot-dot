@@ -157,7 +157,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     var askRemoveKey by remember { mutableStateOf(false) }
     var replacing by remember { mutableStateOf(false) }
 
-    // What every bot may do without asking ("Always allow" for all bots on a card, ADR 184), each with Revoke.
+    // What every bot may do without asking ("Always allow" for all bots on a card, ADR 201), each with Revoke.
     var everyBot by remember { mutableStateOf<List<AlwaysAllowed>>(emptyList()) }
     suspend fun load() {
         runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: tr("Couldn't load")) }

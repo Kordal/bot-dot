@@ -1,4 +1,4 @@
-// "Always allow" for all bots on a connected app's action (ADR 184): an action that reaches no one may be granted to
+// "Always allow" for all bots on a connected app's action (ADR 201): an action that reaches no one may be granted to
 // every bot at once, from its card; one that sends, posts, removes or pays only to the bot that asked. The owner lists
 // the grants for every bot in Settings and revokes one. Against a real botdot server and the stand-in connected app.
 process.env.BOT_DOT_RUNS_MAX = '1';

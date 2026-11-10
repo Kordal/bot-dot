@@ -1761,6 +1761,14 @@ details.bs-row { display: block; }
 .g-row .stack { min-width: 0; max-width: calc(100% - 40px); }
 .g-row .bubble.from-bot { max-width: 100%; }
 .g-name { font-size: var(--fs-12); font-weight: 600; margin: 0 var(--sp-8) var(--sp-4); color: var(--c); }
+/* The members' replies a team's answer folds (ADR 201): their heads and names, one row that opens them. */
+.g-fold { display: flex; align-items: center; gap: var(--sp-4); align-self: flex-start; margin-left: calc(var(--sp-32) + var(--sp-8)); padding: var(--sp-4) var(--sp-8); border: 0; border-radius: var(--r-8); background: none; color: var(--muted); font: inherit; font-size: var(--fs-12); cursor: pointer; }
+.g-fold:hover { color: var(--text); }
+.g-fold::before { content: '\25B8'; margin-right: var(--sp-4); transition: transform .15s; }
+.g-fold[aria-expanded="true"]::before { transform: rotate(90deg); }
+.g-fold i { display: flex; }
+.g-fold .fig.fig-small { margin: 0; }
+.g-fold span { margin-left: var(--sp-4); }
 /* One line per member at work, with its name; "Stop all" ends them together. */
 .g-working { display: flex; flex-direction: column; }
 .g-working .status-line { margin: var(--sp-4) 0; }

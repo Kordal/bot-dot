@@ -63,6 +63,13 @@ test('a team gets its chat: its name, the lead first, its colour; renaming it re
 });
 
 const setRoute = (answer) => fs.writeFileSync(path.join(srv.out, 'route.txt'), answer);
+// What the lead answers on its last word (ADR 201): a run told it has the last word answers this.
+const LAST_WORD = 'the last word as its lead';
+const lastWord = (text) => fs.writeFileSync(path.join(srv.out, 'result-if-told.json'), JSON.stringify(text ? { [LAST_WORD]: text } : {}));
+// The line ends with the lead's last word: settled only once the team's answer is there (between the members' last
+// turn and the lead's, nobody is at work and nobody is next for a moment).
+const answered = async (g, id) => { await waitFor(async () => (await chatOf(g)).items.find((x) => x.id === id)?.answer, { timeout: 20_000, what: `the team's answer to ${id}` }); return settled(g, id); };
+const keptOf = (g, id) => JSON.parse(fs.readFileSync(path.join(srv.data, 'group-messages', `${g.id}.json`), 'utf8')).find((m) => m.id === id);
 
 test('a message that names nobody goes to the router as in any group; the member it picks answers, and the lead has no turn (#759)', async () => {
   const g = await teamChat(team.id);
@@ -85,15 +92,20 @@ test('a message the router cannot place goes to the lead alone; the lead hands o
   reply(srv, lead, '@Writer please draft 3 launch posts.');
   reply(srv, writer, 'Here are the 3 posts.');
   reply(srv, poster, 'PASS');
+  lastWord('Writer has the 3 posts ready, above.');
   const posterBefore = ranOf(srv, poster).length;
   const sent = await srv.api(`/group-chats/${g.id}/messages`, { method: 'POST', body: { text: 'Get the launch posts ready.' } });
   assert.equal(sent.status, 201, JSON.stringify(sent.data));
-  const c = await settled(g, sent.data.id);
-  const replies = c.items.filter((x) => x.type === 'reply').map((x) => x.run.botId);
-  assert.deepEqual(replies.slice(-2), [lead.id, writer.id], 'the lead, then the member it named');
+  const c = await answered(g, sent.data.id);
+  const mine = c.items.filter((x) => x.type === 'reply' && x.run.groupMessageId === sent.data.id).map((x) => x.run);
+  assert.deepEqual(mine.map((r) => r.botId), [lead.id, writer.id, lead.id], 'the lead, the member it named, then the lead\'s last word (ADR 201)');
+  assert.equal(c.items.find((x) => x.id === sent.data.id).answer, mine[2].id, 'its last word is the team\'s answer');
+  assert.match(ranOf(srv, lead).at(-1).system, /you have the last word as its lead: this turn is yours\. Never pass on it/);
+  lastWord(null);
   assert.equal(ranOf(srv, poster).length, posterBefore, 'nobody else had a turn');
-  const ran = ranOf(srv, lead).at(-1);
+  const ran = ranOf(srv, lead).at(-2); // the turn the message came to it with, before its last word
   assert.match(ran.system, /it came to you as the lead: this turn is yours\. Never pass on it/);
+  assert.match(ran.system, /botdot gives you the last word, to write the team's one answer/);
   assert.match(ran.system, /· the team's lead: you\] 📅 Scheduler/);
   assert.doesNotMatch(ran.system, /reply with the single word PASS/);
   // It hands on by naming members, with no message_bot and no list of bots outside the team (#759).
@@ -107,6 +119,43 @@ test('a message the router cannot place goes to the lead alone; the lead hands o
   assert.equal(kept.lead, lead.id);
   assert.equal(kept.routed.fell, 'unsure');
   assert.deepEqual(kept.to, [lead.id]);
+});
+
+test('two members the router picks answer to the lead, and the lead writes the team\'s one answer last (ADR 201)', async () => {
+  const g = await teamChat(team.id);
+  setRoute('{"members":[2,3]}'); // Writer and Poster: not the lead
+  reply(srv, writer, 'A forum post needs a short title.');
+  reply(srv, poster, '@Writer the forum allows 60 characters in a title.');
+  lastWord('We post on Thursday with a 60-character title. Writer drafts it today.');
+  const sent = await srv.api(`/group-chats/${g.id}/messages`, { method: 'POST', body: { text: 'What does a forum launch post need?' } });
+  const c = await answered(g, sent.data.id);
+  const mine = c.items.filter((x) => x.type === 'reply' && x.run.groupMessageId === sent.data.id).map((x) => x.run);
+  // Writer, Poster (which tells Writer a fact: Writer corrects its part), Writer again, then the lead's last word.
+  assert.deepEqual(mine.map((r) => r.botId), [writer.id, poster.id, writer.id, lead.id]);
+  const m = c.items.find((x) => x.id === sent.data.id);
+  assert.equal(m.answer, mine.at(-1).id);
+  assert.ok(keptOf(g, sent.data.id).turns.find((t) => t.runId === m.answer).closing);
+  const first = ranOf(srv, writer).at(-2).system;
+  assert.match(first, /You speak to the team's lead, not to the owner/);
+  assert.doesNotMatch(first, /The owner reads every member's reply/);
+  assert.match(ranOf(srv, poster).at(-1).system, /name that member with the fact, so that it corrects its own part: never correct it for the owner/);
+  const closing = ranOf(srv, lead).at(-1).system;
+  assert.match(closing, /Write the team's one answer to the owner/);
+  assert.match(closing, /never hand the owner options the team can choose between/);
+  assert.match(closing, /Decide as a team what is technical, can be undone and costs nothing/);
+  assert.doesNotMatch(closing, /reply with the single word PASS/);
+  lastWord(null);
+});
+
+test('one member alone answers for the team: the lead has no last word and nothing is folded', async () => {
+  const g = await teamChat(team.id);
+  setRoute('{"members":[3]}');
+  reply(srv, poster, 'Posted.');
+  const before = ranOf(srv, lead).length;
+  const sent = await srv.api(`/group-chats/${g.id}/messages`, { method: 'POST', body: { text: 'Post it on the forum.' } });
+  const c = await settled(g, sent.data.id);
+  assert.equal(ranOf(srv, lead).length, before);
+  assert.equal(c.items.find((x) => x.id === sent.data.id).answer, undefined);
 });
 
 test('the lead in its own chat still splits the work with message_bot among its teammates', async () => {
