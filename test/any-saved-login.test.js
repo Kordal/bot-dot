@@ -287,6 +287,22 @@ test('type_login: a login without additional hosts is typed as before, without a
   assert.equal(await siteToType(async () => ({ ok: true, host: '' }), SECRET), 'portal.example.com');
 });
 
+test('type_login: a login saved for www.<name> types on the sign-in page of another subdomain of <name>', async () => {
+  const AH = { site: 'www.ah.be', name: 'Albert Hein', value: 'ah-secret' };
+  const signIn = await typeOn('login.ah.be', AH);
+  assert.equal(signIn.site, 'ah.be');
+  assert.equal(signIn.result.ok, true);
+  assert.equal((await typeOn('ah.be', AH)).site, 'ah.be');
+  assert.equal((await typeOn('www.ah.be', AH)).site, 'ah.be');
+  // Anywhere else: the website, and the browser refuses as before.
+  const other = await typeOn('login.notah.be', AH);
+  assert.equal(other.site, 'www.ah.be');
+  assert.equal(other.result.ok, false);
+  assert.equal((await typeOn('ah.be.attacker.net', AH)).site, 'www.ah.be');
+  // www. with one label after it is no name of its own: nothing wider than the website is handed.
+  assert.equal((await typeOn('x.com', { site: 'www.com', name: 'W', value: 'x' })).site, 'www.com');
+});
+
 test('the server asks the browser where it is and hands it the chosen site (the type route)', () => {
   const server = fs.readFileSync(path.join(__dirname, '..', 'lib', 'routes', 'vault.js'), 'utf8');
   const a = server.indexOf("if (parts[2] === 'type' && m === 'POST')");
