@@ -1,6 +1,6 @@
 // Optional browser check of site icons before links (#530): NODE_PATH=<directory containing playwright> node test/browser/site-icons.cjs [shot.png]
 // A bot's reply in a real page: a Markdown link and a bare address each get the icon botdot keeps for their site, or
-// a globe where it keeps none; an address in `code` and a file path get none, and the link's text stays as written.
+// a globe where it keeps none; an address in `code` and a file path get none, and a bare address shows its site.
 // Scratch data and the stand-in Claude only; /api/favicon is answered by the test, so no site is asked.
 const assert = require('node:assert/strict');
 const zlib = require('node:zlib');
@@ -43,7 +43,7 @@ const REPLY = 'Read [the news](https://news.example.com/a?b=1) and news.ycombina
 
     const links = await reply.locator('a').evaluateAll((as) => as.map((a) => ({ text: a.textContent, icon: !!a.querySelector('.site-icon img'), globe: !!a.querySelector('.site-icon.globe'), loaded: a.querySelector('img')?.naturalWidth || 0 })));
     assert.deepEqual(links.map((l) => [l.text, l.icon, l.globe]), [
-      ['the news', true, false], ['news.ycombinator.com/item?id=1', true, false], ['https://quiet.example.org', false, true],
+      ['the news', true, false], ['news.ycombinator.com', true, false], ['quiet.example.org', false, true],
     ]);
     assert.ok(links.slice(0, 2).every((l) => l.loaded === 16), 'the icons are drawn');
     assert.deepEqual([...new Set(asked)].sort(), ['news.example.com', 'news.ycombinator.com', 'quiet.example.org']);

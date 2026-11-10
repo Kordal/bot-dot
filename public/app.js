@@ -803,6 +803,15 @@ function mdBlocks(src) {
   return out;
 }
 
+// What a web address shows in a chat: its site, without www., and the address is the link's title
+// (test/fixtures/chat-links.json, shared with the Android app). Read from the address as written, so a site in
+// another script keeps its letters.
+function linkLabel(url) {
+  const host = url.replace(/^https?:\/\//i, '').split(/[/?#]/)[0];
+  return host.slice(host.lastIndexOf('@') + 1).replace(/^www\./i, '').toLowerCase() || url;
+}
+// A Markdown link's words that are only its address, like [https://x.com/a](https://x.com/a).
+const isWebAddress = (t) => /^https?:\/\/\S+$/i.test(t);
 // The Copy button in a code block's corner (#285). The page's copy handler (copyText) copies the text of the block's
 // <pre>, which is the text as written (the HTML holds it escaped), and shows a check for 1.5 s.
 const COPY_ICON = '<svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M15 9V6.5A2.5 2.5 0 0 0 12.5 4h-6A2.5 2.5 0 0 0 4 6.5v6A2.5 2.5 0 0 0 6.5 15H9"/></svg>';
@@ -818,7 +827,9 @@ function mdParts(blocks, botId) {
       .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
-      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (all, words, href) => isWebAddress(words)
+        ? `<a class="web-link" href="${href}" title="${href}" target="_blank" rel="noopener">${linkLabel(words)}</a>`
+        : `<a href="${href}" target="_blank" rel="noopener">${words}</a>`);
   const text = (t) => t.split('\n').map(inline).join('<br>');
   const isItem = (i) => i < blocks.length && blocks[i].type === 'item';
   // The list that starts at blocks[i], its sub-lists inside their items: its HTML and the block after it.
@@ -943,7 +954,7 @@ function linkifyChat(root) {
   while (walker.nextNode()) {
     const node = walker.currentNode;
     const parent = node.parentElement;
-    if (parent?.closest('#chat-thread .bubble, #bot-thread .bubble') &&
+    if (parent?.closest('.chat-thread .bubble') &&
         !parent.closest('a, code, pre, button, .mention, .diagram')) nodes.push(node);
   }
   for (const node of nodes) {
@@ -954,7 +965,9 @@ function linkifyChat(root) {
       fragment.append(document.createTextNode(text.slice(at, index)));
       const link = document.createElement('a');
       link.href = href;
-      link.textContent = url;
+      link.className = 'web-link';
+      link.textContent = linkLabel(url);
+      link.title = href;
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
       fragment.append(link);

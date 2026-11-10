@@ -570,8 +570,18 @@ internal fun chatLinks(text: String): List<ChatLink> {
     }.toList()
 }
 
-/** Link plain chat text without changing its characters, mentions or search marks; with [sites], each link has its
- *  site's icon before it ([siteIcon]). */
+/** What a web address shows in a chat: its site, without www. (the web page's linkLabel, test/fixtures/chat-links.json).
+ *  Read from the address as written, so a site in another script keeps its letters. */
+internal fun linkLabel(url: String): String {
+    val host = url.replace(SCHEME, "").split('/', '?', '#').first()
+    return host.substring(host.lastIndexOf('@') + 1).replace(WWW, "").lowercase(java.util.Locale.ROOT).ifEmpty { url }
+}
+private val SCHEME = Regex("^https?://", RegexOption.IGNORE_CASE)
+private val WWW = Regex("^www\\.", RegexOption.IGNORE_CASE)
+private val WEB_ADDRESS = Regex("^https?://\\S+$", RegexOption.IGNORE_CASE)
+
+/** Link plain chat text, each address shown as its site ([linkLabel]), keeping the rest of its characters, mentions
+ *  and search marks; with [sites], each link has its site's icon before it ([siteIcon]). */
 internal fun linkedChatText(source: AnnotatedString, color: Color, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
     val styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
     var at = 0
@@ -581,7 +591,7 @@ internal fun linkedChatText(source: AnnotatedString, color: Color, sites: Boolea
         append(source.subSequence(at, link.start))
         if (sites) siteIcon(link.url)
         val start = length
-        append(source.subSequence(link.start, end))
+        append(linkLabel(link.text))
         addLink(LinkAnnotation.Url(link.url, styles), start, length)
         at = end
     }
@@ -665,7 +675,7 @@ internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? =
                 val target = runCatching { java.net.URI(g[6]) }.getOrNull()
                 if (target?.scheme?.lowercase() in listOf("http", "https") && !target?.host.isNullOrEmpty()) {
                     if (sites) siteIcon(g[6])
-                    withLink(LinkAnnotation.Url(g[6], links)) { append(g[5]) }
+                    withLink(LinkAnnotation.Url(g[6], links)) { append(if (WEB_ADDRESS.matches(g[5])) linkLabel(g[5]) else g[5]) }
                 } else append(g[5])
             }
             g[7].isNotEmpty() -> append(linkedChatText(AnnotatedString(g[7]), color, sites))

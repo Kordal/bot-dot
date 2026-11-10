@@ -1,0 +1,1 @@
+2026-11-10: A bare web address in a chat shows only its site (x.com, without www.), not its site and path: the site's icon and the words before it say what it is, the full address is the link's title, and the bots are told to write `[a few words](address)` when the words matter.

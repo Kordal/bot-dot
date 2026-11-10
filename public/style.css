@@ -832,6 +832,7 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md-table tbody tr:last-child td { border-bottom: 0; }
 .md-table .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .md a { text-underline-offset: 2px; }
+.md a.web-link, .bubble a.web-link { white-space: nowrap; }
 /* A site's icon before a link (#530): on a light rounded backing, so a dark icon shows on the dark page; a globe where
    botdot keeps none. */
 .md a .site-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-right: var(--sp-4); vertical-align: -3px; border-radius: var(--r-8); background: #e6e6e6; overflow: hidden; }
