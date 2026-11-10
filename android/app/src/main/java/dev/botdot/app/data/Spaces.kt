@@ -83,7 +83,7 @@ object Spaces {
         return waiting.filter { (it.bot != null && it.bot in bots) || (it.group != null && it.group in chats) }
     }
 
-    /** The lead a member's ask is drawn under in [project] (ADR 148); null for a lead of any of its teams (ADR 184), a bot of none of them, or a team without another lead. */
+    /** The lead a member's ask is drawn under in [project] (ADR 148); null for a lead of any of its teams (ADR 191), a bot of none of them, or a team without another lead. */
     fun leadOf(project: Company, bot: String?): String? {
         if (bot == null) return null
         val ts = project.teams.filter { bot in it.bots }

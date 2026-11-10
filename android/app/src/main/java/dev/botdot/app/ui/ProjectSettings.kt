@@ -344,7 +344,7 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
 
 // ---------- Team ----------
 
-/** A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 184), its lead. */
+/** A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 191), its lead. */
 private class TeamDraft(val id: String?, name: String, bots: List<String>, lead: String?) {
     var name by mutableStateOf(name)
     var bots by mutableStateOf(bots)

@@ -145,7 +145,7 @@ const blockersFirst = (items) => [...items.filter(blocks), ...items.filter((x) =
 
 // The lead a member's ask is drawn under in a project's views (ADR 148): the owner talks to a team through its lead.
 // null for a lead, a bot in none of the project's teams, or a team without another lead. A bot on several teams
-// (ADR 184) that leads one of them is drawn as itself; else under the lead of its first team.
+// (ADR 191) that leads one of them is drawn as itself; else under the lead of its first team.
 function leadOf(project, botId) {
   const ts = botId ? (project?.teams || []).filter((x) => (x.bots || []).includes(botId)) : [];
   if (!ts.length || ts.some((t) => t.lead === botId)) return null;

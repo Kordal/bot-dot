@@ -635,7 +635,7 @@
   }
 
   // "+" at the end of a team's row: the account's other bots to tick, those in no team of this project first;
-  // one in another team says which; it stays there too (ADR 184). "New bot" asks the Chief for one in this team, in a new
+  // one in another team says which; it stays there too (ADR 191). "New bot" asks the Chief for one in this team, in a new
   // Chief chat with the words ready; with no other bot to offer, "+" goes there straight away.
   function addToTeam(c, id) {
     const t = c.teams.find((x) => x.id === id);

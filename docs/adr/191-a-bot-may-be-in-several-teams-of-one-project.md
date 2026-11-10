@@ -1,4 +1,4 @@
-# ADR-184: A bot may be in several teams of one project
+# ADR-191: A bot may be in several teams of one project
 
 - **Status:** Accepted (2026-11-10, the owner: "One bot should be able to join many teams in the Project")
 - **Changes:** ADR 110 and ADR 120: "a bot is in at most one team (of each project)" is dropped
