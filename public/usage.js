@@ -55,19 +55,22 @@ const Usage = (() => {
     const top = Math.max(0, ...days.map((d) => d.totalTokens));
     const bars = days.map((d) => {
       const h = top ? Math.max(d.totalTokens ? 3 : 0, Math.round((d.totalTokens / top) * 100)) : 0;
-      const tip = tr('{day}: {count} tokens', { day: dayLabel(d.day), count: tokens(d.totalTokens) });
+      const tip = advanced() ? tr('{day}: {count} tokens', { day: dayLabel(d.day), count: tokens(d.totalTokens) }) : dayLabel(d.day);
       return `<div class="usage-bar" title="${esc(tip)}" aria-label="${esc(tip)}"><i style="height:${h}%"></i></div>`;
     }).join('');
     const ends = days.length > 1 ? `<div class="usage-axis faint"><span>${esc(dayLabel(days[0].day))}</span><span>${esc(dayLabel(days[days.length - 1].day))}</span></div>` : '';
-    return `<div class="usage-chart" role="img" aria-label="${tr('Tokens per day')}">${bars}</div>${ends}`;
+    return `<div class="usage-chart" role="img" aria-label="${advanced() ? tr('Tokens per day') : tr('Usage')}">${bars}</div>${ends}`;
   }
 
   function botsHTML(bots) {
-    if (!bots.length) return `<p class="muted" style="margin:0">${tr('No tokens used in this timeframe.')}</p>`;
+    if (!bots.length) return `<p class="muted" style="margin:0">${advanced() ? tr('No tokens used in this timeframe.') : tr('Nothing in this timeframe.')}</p>`;
     const top = Math.max(...bots.map((b) => b.totalTokens), 1);
+    // Without Advanced (ADR 186) a bot's share of the whole, not its tokens.
+    const all = bots.reduce((n, b) => n + b.totalTokens, 0) || 1;
+    const amount = (b) => (advanced() ? tokens(b.totalTokens) : `${Math.round((b.totalTokens / all) * 100)}%`);
     return `<div class="usage-bots">${bots.map((b) => `
       <div class="usage-bot">
-        <div class="usage-bot-head"><span class="grow">${esc(b.name)}${b.gone ? ` <span class="faint">${tr('(deleted)')}</span>` : ''}</span><span class="muted">${tokens(b.totalTokens)}</span></div>
+        <div class="usage-bot-head"><span class="grow">${esc(b.name)}${b.gone ? ` <span class="faint">${tr('(deleted)')}</span>` : ''}</span><span class="muted">${amount(b)}</span></div>
         <div class="usage-bot-bar"><i style="width:${Math.round((b.totalTokens / top) * 100)}%"></i></div>
       </div>`).join('')}</div>`;
   }
@@ -79,11 +82,11 @@ const Usage = (() => {
     // A row of Settings (#635): what the counts are is its tooltip, not a line under it.
     const tip = tr('Tokens as Claude Code reports them, for your bots and the Chief of Staff, counted from this update on.');
     c.box.innerHTML = `
-      <summary title="${tip}" aria-description="${tip}"><b>${tr('Usage')}</b><span class="bs-chev" aria-hidden="true">›</span></summary>
+      <summary${advanced() ? ` title="${tip}" aria-description="${tip}"` : ''}><b>${tr('Usage')}</b><span class="bs-chev" aria-hidden="true">›</span></summary>
       <div class="bs-body">
       ${pickerHTML(c)}
       ${c.error ? `<div class="req-note">${esc(c.error)}</div>` : !d ? `<p class="muted" style="margin:0">${tr('Loading…')}</p>` : `
-        ${totalsHTML(d.totals)}
+        ${advanced() ? totalsHTML(d.totals) : ''}
         ${d.days.length > 1 ? chartHTML(d.days) : ''}
         <h4 class="usage-sub">${tr('By bot')}</h4>
         ${botsHTML(d.bots)}`}

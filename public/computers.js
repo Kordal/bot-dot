@@ -286,7 +286,9 @@ function runHeader(meta) {
     </div>`;
 }
 
+// A run's folder, model, steps and how to go on in Claude Code: only with Advanced on (ADR 186).
 function detailsInfo(meta) {
+  if (!advanced()) return '';
   return `
     <div class="run-facts">
       <span>${tr('Folder')} <code class="mono">${esc(meta.project)}</code></span>

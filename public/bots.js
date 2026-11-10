@@ -119,8 +119,8 @@ function openRunDialog(botId) {
 const PERMS = [
   { key: 'files', label: tr('Can change files'), hint: tr('create and edit files in its folder'), tools: ['Edit', 'Write'] },
   { key: 'web', label: tr('Can browse the web'), hint: tr('search, and read web pages'), tools: ['WebSearch', 'WebFetch'] },
-  { key: 'bash', label: tr('Can run commands'), hint: tr('any shell command in its folder'), tools: ['Bash'] },
-  { key: 'helpers', label: tr('Can use helpers'), hint: tr('start helpers that work in parallel within one run'), tools: ['Agent', 'Task'] },
+  { key: 'bash', label: tr('Can run commands'), hint: tr('any shell command in its folder'), tools: ['Bash'], advanced: true },
+  { key: 'helpers', label: tr('Can use helpers'), hint: tr('start helpers that work in parallel within one run'), tools: ['Agent', 'Task'], advanced: true },
 ];
 
 // A bot's Shared rooms row (#316, ADR 060): on a botdot with `room-settings` that sends the bot's `rooms`, while the
@@ -315,7 +315,7 @@ function renderBotSettings(force = false) {
         <label class="bs-row" title="${esc(tr('Pinned below the Chief'))}"><b>${tr('Pinned')}</b>
           <span class="switch"><input type="checkbox" id="bs-pinned" ${b.pinned > 0 ? 'checked' : ''} aria-label="${esc(tr('Pinned below the Chief'))}"><span></span></span></label>
         ${state.features.includes('bot-hotkeys') ? hotkeyRow(b) : ''}
-        <details class="bs-row bs-more" id="bs-model">
+        <details class="bs-row bs-more" id="bs-model"${advanced() ? '' : ' hidden'}>
           <summary><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(b.model, b.effort))}</span>${CHEV}</summary>
           <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, tr('Default ({model})', { model: llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort) }))}</div>
         </details>
@@ -367,8 +367,8 @@ function renderBotSettings(force = false) {
         <details class="bs-row bs-more" id="bs-advanced">
           <summary><b>${tr('What it may do')}</b>${CHEV}</summary>
           <div class="bs-body">
-            ${PERMS.map((p) => `<label class="toggle"${tipAttrs(p.hint)}><input type="checkbox" data-perm="${p.key}" ${has(p) ? 'checked' : ''}> ${p.label}</label>`).join('')}
-            <details class="bs-exact" ${b.allowedTools.some((t) => !knownTools.has(t) && !['Read', 'Grep', 'Glob'].includes(t)) || !['dontAsk', 'acceptEdits'].includes(b.permissionMode) ? 'open' : ''}>
+            ${PERMS.map((p) => `<label class="toggle"${tipAttrs(p.hint)}${p.advanced && !advanced() ? ' hidden' : ''}><input type="checkbox" data-perm="${p.key}" ${has(p) ? 'checked' : ''}> ${p.label}</label>`).join('')}
+            <details class="bs-exact"${advanced() ? '' : ' hidden'} ${b.allowedTools.some((t) => !knownTools.has(t) && !['Read', 'Grep', 'Glob'].includes(t)) || !['dontAsk', 'acceptEdits'].includes(b.permissionMode) ? 'open' : ''}>
               <summary class="faint">${tr('Exact tools and permission mode')}</summary>
               <label class="field">${tr('Allowed tools')}
                 <textarea class="mono" name="tools" rows="4" placeholder="${esc(tr('One per line, e.g. Bash(pytest:*) or mcp__github'))}">${esc(b.allowedTools.join('\n'))}</textarea></label>

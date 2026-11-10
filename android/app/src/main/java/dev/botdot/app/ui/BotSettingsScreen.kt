@@ -68,7 +68,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * A bot's settings: who it is and its main assignment, then its computer, jobs, skills, apps and teammates. Model and the finer points are under Advanced.
+ * A bot's settings: who it is and its main assignment, then its computer, jobs, skills, apps and teammates. Its model shows only with Advanced on (ADR 186).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -250,9 +250,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     CheckRow(tr("By its place"), null, hotkey == 0) { hotkey = 0 }
                     for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { tr("Now {name}'s", "name" to it.name) }, hotkey == d) { on -> hotkey = if (on) d else 0 }
                 }
-                Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
+                // Advanced (ADR 186): without it, its model is left as it is and not shown.
+                val adv by dev.botdot.app.data.Advanced.on.collectAsState()
+                if (adv) Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
-                if (canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
+                if (adv && canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
             }
             SettingsGroup {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here

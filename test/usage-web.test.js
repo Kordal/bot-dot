@@ -22,7 +22,7 @@ const answerFor = (from, to) => {
   };
 };
 
-function page({ fail = null } = {}) {
+function page({ fail = null, adv = true } = {}) {
   const calls = [];
   const ctx = vm.createContext({ ...words,
     api: async (url) => {
@@ -31,7 +31,7 @@ function page({ fail = null } = {}) {
       const q = new URL(url, 'http://x').searchParams;
       return answerFor(q.get('from') || '2026-10-22', q.get('to') || '2026-10-22');
     },
-    esc, encodeURIComponent, Date, Math, Number, URL,
+    esc, encodeURIComponent, Date, Math, Number, URL, advanced: () => adv,
   });
   vm.runInContext(`${read('usage.js')}\nthis.Usage = Usage;`, ctx);
   return { U: ctx.Usage, calls };
@@ -65,6 +65,17 @@ test('web: it opens on the last 7 days of the account, with totals, a bar a day 
   assert.doesNotMatch(h, /<b>Watcher/);
   assert.match(h, /Chief of Staff/);
   assert.match(h, /Gone Bot <span class="faint">\(deleted\)<\/span>/);
+});
+
+test('web: without Advanced (ADR 186) it shows no tokens: no totals, a bar a day says its day, a bot its share', async () => {
+  const p = page({ adv: false });
+  const box = element();
+  await p.U.open(box);
+  const h = box.innerHTML;
+  assert.doesNotMatch(h, /tokens|Cache|usage-totals/i);
+  assert.equal((h.match(/class="usage-bar"/g) || []).length, 7);
+  assert.match(h, /News &lt;b&gt;Watcher&lt;\/b&gt;<\/span><span class="muted">66%<\/span>/);
+  assert.match(h, /Chief of Staff<\/span><span class="muted">33%<\/span>/);
 });
 
 test('web: Today, 30 days and custom days ask for those days; custom days never run backwards', async () => {

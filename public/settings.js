@@ -182,7 +182,7 @@ function renderChiefSettings() {
       </div>
       <label class="field">${tr('Your rules for it')}<textarea name="chiefRules" rows="4" maxlength="4000" placeholder="${esc(tr('e.g. Always ask me before creating a bot. Talk to me like a colleague: short and direct.'))}">${esc(s.chiefRules || '')}</textarea></label>
       <div class="set-list">
-        <details class="bs-row bs-more" id="chief-model">
+        <details class="bs-row bs-more" id="chief-model"${advanced() ? '' : ' hidden'}>
           <summary${tipAttrs(tr('What the Chief uses to plan, create and manage your bots.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmValue(s.chiefModel, s.chiefEffort))}</span>${CHEV}</summary>
           <div class="bs-body">${llmFieldsHTML('chief', { model: s.chiefModel, effort: s.chiefEffort }, tr('Same as the default'))}</div>
         </details>
@@ -350,7 +350,7 @@ function renderSettings() {
     <div class="section-head set-title">${BACK_BTN}<h1>${tr('Settings')}</h1><span class="saved-note" role="status"></span></div>
     <div class="set-list" id="settings-links"></div>
     <div class="set-list">
-      <details class="bs-row bs-more" id="settings-model">
+      ${advanced() ? `<details class="bs-row bs-more" id="settings-model">
         <summary${tipAttrs(tr('The model and reasoning level of every bot without a choice of its own.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
         <form class="bs-body" id="settings-form" autocomplete="off">
           ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
@@ -361,7 +361,7 @@ function renderSettings() {
       ${custom.length ? `<details class="bs-row bs-more">
         <summary><b>${tr('Bots with their own model')}</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
         <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
-      </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}
+      </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}` : ''}
       ${state.features.includes('boat-size') && state.status?.boat ? `<div class="bs-row" id="boat-size-card" hidden><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span></div>` : ''}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
       <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
@@ -372,7 +372,9 @@ function renderSettings() {
       </details>
       <details class="bs-row bs-more" id="update-card" hidden></details>
       ${signOutCardHTML()}
+      ${state.features.includes('advanced') ? `<label class="bs-row"><b>${tr('Advanced')}</b><span class="switch"><input type="checkbox" id="settings-advanced"${advanced() ? ' checked' : ''} aria-label="${esc(tr('Advanced'))}"><span></span></span></label>` : ''}
     </div>`;
+  wireAdvanced(root);
   drawInstallCard();
   loadUpdateCard();
   wirePushCard(root);
@@ -385,6 +387,7 @@ function renderSettings() {
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   wireLanguage(root);
   const form = $('#settings-form', root);
+  if (!form) return;
   wireLlmFields(form, 'default');
   $('#refresh-models', root).onclick = async (e) => {
     e.target.textContent = tr('Checking…');
@@ -408,6 +411,22 @@ function renderSettings() {
       $('[data-llm-val]', root).textContent = llmSummary(r.settings.defaultModel, r.settings.defaultEffort);
       flashSaved(root);
     } catch (err) { toast(err.message, true); }
+  };
+}
+
+// Advanced (ADR 186): saved by itself; every screen draws again with the technical rows shown or hidden.
+function wireAdvanced(root) {
+  const box = $('#settings-advanced', root);
+  if (!box) return;
+  box.onchange = async () => {
+    box.disabled = true;
+    try {
+      state.settings = (await api('/settings', { method: 'PUT', body: { advanced: box.checked } })).settings;
+      root.innerHTML = '';
+      renderSettings();
+      flashSaved(root);
+      render();
+    } catch (err) { toast(err.message, true); box.checked = advanced(); box.disabled = false; }
   };
 }
 

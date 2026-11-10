@@ -18,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,12 +95,15 @@ fun UsageSection(api: Api) {
             a == null -> Hint(tr("Loading…"))
             else -> {
                 if (a.from == a.to) Hint(Usage.dayLabel(a.from)) else Hint(tr("{from} to {to}", "from" to Usage.dayLabel(a.from), "to" to Usage.dayLabel(a.to)))
-                Totals(a.totals)
-                if (a.days.size > 1) DayBars(a.days)
+                // Advanced (ADR 186): without it no tokens are shown, only the bars and each bot's share of the whole.
+                val adv by dev.botdot.app.data.Advanced.on.collectAsState()
+                if (adv) Totals(a.totals)
+                if (a.days.size > 1) DayBars(a.days, adv)
                 Text(tr("By bot"), color = p.text, style = MaterialTheme.typography.titleSmall)
-                if (a.bots.isEmpty()) Hint(tr("No tokens used in this timeframe."))
+                if (a.bots.isEmpty()) Hint(if (adv) tr("No tokens used in this timeframe.") else tr("Nothing in this timeframe."))
                 val top = a.bots.maxOfOrNull { it.totalTokens }?.coerceAtLeast(1L) ?: 1L
-                a.bots.forEach { b -> BotRow(b, b.totalTokens.toFloat() / top) }
+                val all = a.bots.sumOf { it.totalTokens }.coerceAtLeast(1L)
+                a.bots.forEach { b -> BotRow(b, b.totalTokens.toFloat() / top, if (adv) Usage.tokens(b.totalTokens) else "${b.totalTokens * 100 / all}%") }
             }
         }
     }
@@ -128,11 +132,11 @@ private fun Stat(label: String, value: String) {
 
 /** One bar a day, its height the day's tokens against the busiest day of the range. */
 @Composable
-private fun DayBars(days: List<Usage.Day>) {
+private fun DayBars(days: List<Usage.Day>, adv: Boolean = true) {
     val p = LocalPaper.current
     val shares = Usage.bars(days)
     Column {
-        Row(Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = tr("Tokens per day") }, horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.fillMaxWidth().height(96.dp).semantics { contentDescription = if (adv) tr("Tokens per day") else tr("Usage") }, horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Bottom) {
             shares.forEach { share ->
                 Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.BottomCenter) {
                     if (share > 0f) Box(Modifier.fillMaxWidth().fillMaxHeight(share).background(p.muted, RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp)))
@@ -148,12 +152,12 @@ private fun DayBars(days: List<Usage.Day>) {
 }
 
 @Composable
-private fun BotRow(b: Usage.Bot, share: Float) {
+private fun BotRow(b: Usage.Bot, share: Float, amount: String) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(if (b.gone) tr("{name} (deleted)", "name" to b.name) else b.name, color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(Usage.tokens(b.totalTokens), color = p.muted, style = MaterialTheme.typography.bodySmall)
+            Text(amount, color = p.muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.fillMaxWidth().padding(top = Space.s4).height(4.dp).background(p.sunk, RoundedCornerShape(2.dp))) {
             Box(Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).fillMaxHeight().background(p.muted, RoundedCornerShape(2.dp)))
