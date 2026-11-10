@@ -12,6 +12,7 @@ A folded team (ADR 196) said "Needs you" without saying what waited: a member's 
 - **The row names who waits:** "Needs you: Claude Coder", "Needs you: Team chat", or two names and "+N" for more, in the order they asked.
 - **An ask in a team's chat** (a Needs you entry of that chat, or a question a member put there) counts for that team's chat.
 - **A bot's own ask** counts on its home team only: the team it leads, else its first team of the project, the team the server reports it under (ADR 199).
+- **A team's ⋯ opens its chat's settings in the panel on the right** (the owner: "This should open as normal setting on the right side of the screen"), as a bot's settings do: its members with Lead and Make lead, its goal and its reports. The card over the board stays only for a botdot without team chats. Android keeps its team sheet.
 - **The same rule on both apps,** from data they already have: `Keypad.teamWaits` on the web, `Spaces.teamWaits` on Android. Nothing changes on the server.
 
 ## Consequences
