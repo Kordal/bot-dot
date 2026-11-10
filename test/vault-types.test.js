@@ -112,7 +112,7 @@ test('the built-in vault: a type change alone changes nothing else of the item',
   assert.equal(changed.type, 'other');
   assert.deepEqual(rest, before, 'address, username, bots, additional hosts, the certificate: as they were');
   // A login changed to Other keeps its username, and its secret.
-  assert.deepEqual(store.credentials('bot1', 'Portal'), { name: 'Portal', type: 'other', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
+  assert.deepEqual(store.credentials('bot1', 'Portal'), { name: 'Portal', type: 'other', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret' });
 });
 
 test('the built-in vault: a bot sees the type of each login, and a save from a pop-up carries it', () => {
@@ -207,7 +207,7 @@ test('Bitwarden: add keeps the type beside the bots in bitwarden-access.json, an
   const token = await bw.add({ name: 'Proxmox', site: 'pve.example.ts.net', username: 'root@pam!botdot', password: 'token-secret', type: 'api-token', allowedBots: ['bot1'] });
   assert.equal(token.type, 'api-token');
   assert.equal(token.kind, 'login');
-  assert.deepEqual(access()[token.id], { bots: ['bot1'], insecureTls: false, allowedHosts: [], type: 'api-token' });
+  assert.deepEqual(access()[token.id], { bots: ['bot1'], allowedHosts: [], type: 'api-token' });
   const other = await bw.add({ name: 'NAS', site: 'nas.example.net', password: 'nas-secret', type: 'other' });
   assert.equal(other.type, 'other');
   assert.equal(other.username, '');
@@ -219,27 +219,17 @@ test('Bitwarden: add keeps the type beside the bots in bitwarden-access.json, an
   assert.ok(kept().every((it) => it.type === 1), 'each a Bitwarden login');
 });
 
-test('Bitwarden: "Usable in its computer" (inComputer) is kept beside the bots, off by default, and never edits the item', async (t) => {
-  const { bw, access, kept, writes } = await bitwarden(t, [PORTAL], { 'i-portal': { bots: ['bot1'], insecureTls: false } });
-  assert.equal(bw.list()[0].inComputer, false, 'off for an item from before');
-  assert.equal(bw.credentials('bot1', 'Portal').inComputer, false);
-  assert.equal(Object.hasOwn(bw.forBot('bot1')[0], 'inComputer'), false, 'a bot sees it only where it is on');
-  assert.equal((await bw.update('i-portal', { inComputer: true })).inComputer, true);
-  assert.deepEqual(access()['i-portal'], { bots: ['bot1'], insecureTls: false, inComputer: true });
+test('Bitwarden: every login reads as usable in its computer and accepting a self-signed certificate, and neither edits the item (ADR 177)', async (t) => {
+  const { bw, access, kept, writes } = await bitwarden(t, [PORTAL], { 'i-portal': { bots: ['bot1'], insecureTls: false, inComputer: false } });
+  assert.deepEqual([bw.list()[0].inComputer, bw.list()[0].insecureTls], [true, true], 'on for an item saved with both off');
+  assert.equal(Object.hasOwn(bw.forBot('bot1')[0], 'inComputer'), false, 'nothing for a bot to tell apart');
+  assert.equal((await bw.update('i-portal', { inComputer: false, insecureTls: false })).inComputer, true, 'off asked for changes nothing');
+  assert.deepEqual(access()['i-portal'], { bots: ['bot1'], insecureTls: false, inComputer: false }, 'what was kept stays as it was');
   assert.deepEqual(writes(), [], 'Bitwarden was not asked to edit anything');
   assert.deepEqual(kept(), [PORTAL]);
-  assert.equal(bw.credentials('bot1', 'Portal').inComputer, true);
-  assert.equal(bw.forBot('bot1')[0].inComputer, true);
-  assert.equal((await bw.update('i-portal', { name: 'Portal', allowedBots: ['bot1'] })).inComputer, true, 'a change that leaves it out keeps it');
-  assert.equal((await bw.update('i-portal', { inComputer: false })).inComputer, false);
-  // A new item: off unless asked, and kept beside its bots when on.
-  const off = await bw.add({ name: 'NAS', site: 'nas.example.net', password: 'p', allowedBots: ['bot1'] });
-  assert.equal(off.inComputer, false);
-  assert.equal(Object.hasOwn(access()[off.id], 'inComputer'), false);
-  const on = await bw.add({ name: 'Bridge', site: '127.0.0.1', username: 'bart@proton.me', password: 'bridge-secret', allowedBots: ['bot1'], inComputer: true });
-  assert.equal(on.inComputer, true);
-  assert.equal(access()[on.id].inComputer, true);
-  assert.doesNotMatch(JSON.stringify(kept()), /inComputer/, 'botdot\'s own, not in Bitwarden');
+  const added = await bw.add({ name: 'Bridge', site: '127.0.0.1', username: 'bart@proton.me', password: 'bridge-secret', allowedBots: ['bot1'], inComputer: false });
+  assert.equal(added.inComputer, true);
+  assert.deepEqual(Object.keys(access()[added.id]).filter((k) => ['inComputer', 'insecureTls'].includes(k)), [], 'neither kept for a new item');
 });
 
 test('Bitwarden: an unknown type is refused, and nothing is created, edited or kept', async (t) => {
@@ -264,7 +254,7 @@ test('Bitwarden: a type change alone leaves the item unedited, with its address,
   assert.deepEqual(access(), { 'i-portal': { bots: ['bot1', 'bot2'], insecureTls: true, allowedHosts: ['app.example.org'], type: 'api-token' } }, 'the type beside the bots');
   assert.deepEqual(writes(), [], 'Bitwarden was not asked to edit anything');
   assert.deepEqual(kept(), [PORTAL], 'the item as it was, with every address of it');
-  assert.deepEqual(bw.credentials('bot1', 'Portal'), { name: 'Portal', type: 'api-token', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret', insecureTls: true, inComputer: false });
+  assert.deepEqual(bw.credentials('bot1', 'Portal'), { name: 'Portal', type: 'api-token', site: 'portal.example.com', allowedHosts: ['app.example.org'], username: 'bart', password: 'portal-secret' });
 
   // The editor sends the whole form. With the name, the address and the username as they are, the item is
   // still not edited: to Other (no username sent, the stored one stays) and back.
@@ -329,7 +319,7 @@ test('Bitwarden: a save from a pop-up carries the type, and a card takes none', 
   const card = await bw.update('i-card', { allowedBots: ['bot1'], type: 'other' });
   assert.equal(card.kind, 'card');
   assert.equal('type' in card, false);
-  assert.deepEqual(access()['i-card'], { bots: ['bot1'], insecureTls: false });
+  assert.deepEqual(access()['i-card'], { bots: ['bot1'] });
   assert.ok(!writes().some((c) => c[2] === 'i-card'));
 });
 
@@ -568,7 +558,7 @@ test('the move of the built-in vault into Bitwarden carries each type, kept besi
   assert.deepEqual(moved.map((e) => [e.name, e.type, e.kind]), [['Proxmox', 'api-token', 'login'], ['NAS', 'other', 'login'], ['Food', 'login', 'login']]);
   const proxmox = moved.find((e) => e.name === 'Proxmox');
   const access = () => readJson(path.join(bw.data, 'bitwarden-access.json'));
-  assert.deepEqual(access()[proxmox.id], { bots: [b.id], insecureTls: false, allowedHosts: ['pve2.example.ts.net'], type: 'api-token' });
+  assert.deepEqual(access()[proxmox.id], { bots: [b.id], allowedHosts: ['pve2.example.ts.net'], type: 'api-token' });
   assert.doesNotMatch(fs.readFileSync(path.join(bw.data, 'bitwarden-cli', 'items.json'), 'utf8'), /api-token/, 'not in the Bitwarden items');
 
   // With Bitwarden connected: a new item with a type, a refused one, and a type change that edits no item.

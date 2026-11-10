@@ -93,7 +93,6 @@ function openLoginRequest(r, host = null) {
         ${state.bw?.configured && state.bw.unlocked ? `<div class="req-note bw-hint">${tr('Already in your Bitwarden? Move it into the <b>bot-dot</b> folder there (edit the item → Folder), then {check}.', { check: `<button type="button" class="link-btn" id="req-recheck">${tr('check Bitwarden again')}</button>` })}</div>` : ''}
         ${vaultTypeControl(r.type)}
         ${vaultTypeFields(r.type, { username: r.username })}
-        <label class="toggle"><input type="checkbox" name="insecureTls"> ${tr('Accept a self-signed certificate')} <span class="hint muted" style="font-weight:400">${tr('for your own servers')}</span></label>
         <label class="field">${tr('Save as')}<input type="text" name="name" value="${esc(r.name)}"></label>
         ${state.bw?.configured && !state.bw.unlocked ? `<label class="field">${tr('Bitwarden master password')} <span class="hint">${tr('Bitwarden is locked; this unlocks it so the login is saved there')}</span><input type="password" name="unlockPassword" autocomplete="current-password" required></label>` : ''}
         <div class="req-note">🛡 ${state.bw?.configured ? tr("Goes straight into your Bitwarden (bot-dot folder). The AI never sees it, and it isn't written to the chat or logs.") : tr("Goes straight into your encrypted Vault. The AI never sees it, and it isn't written to the chat or logs.")}
@@ -181,7 +180,7 @@ function openLoginRequest(r, host = null) {
   $('[data-dismiss]', m).onclick = () => { loginReq.snoozed.add(r.id); m.close(); };
   form.onsubmit = (e) => {
     e.preventDefault();
-    const body = { action: 'save', name: form.name.value.trim(), ...vaultTypeBody(form), password: form.password.value, insecureTls: form.insecureTls.checked };
+    const body = { action: 'save', name: form.name.value.trim(), ...vaultTypeBody(form), password: form.password.value };
     if (form.unlockPassword) { body.unlockPassword = form.unlockPassword.value; form.unlockPassword.value = ''; }
     loginReq.saving.add(r.id);
     m.close();
