@@ -27,5 +27,5 @@ test('android: the switches for messaging and the computer show only for a serve
   assert.match(screen, /val limits = "everything-allowed" !in server\?\.features\.orEmpty\(\)/);
   assert.match(screen, /if \(limits && others\.isNotEmpty\(\)\) FoldSection\(tr\("May message"\)/);
   assert.match(screen, /if \(limits && others\.isNotEmpty\(\) && b\.othersMayAsk != null\) SwitchRow\(tr\("Other bots may ask it"\)/);
-  assert.match(screen, /else if \("everything-allowed" !in server\?\.features\.orEmpty\(\)\) SwitchRow\(tr\("Uses the computer"\)/);
+  assert.match(screen, /else if \("everything-allowed" !in server\?\.features\.orEmpty\(\)\) SwitchRow\(tr\("Browser"\)/);
 });

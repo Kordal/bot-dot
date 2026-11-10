@@ -152,7 +152,7 @@ test('an app that needs no sign-in settles at once; a refused sign-in turns the 
   assert.equal(refused.data.mode, 'setup');
   assert.equal(refused.data.error, 'GitHub is already connected once; remove the old connection in Connectors and try again.');
   const setup = await listed(g.id);
-  assert.deepEqual([setup.mode, setup.title, setup.act, setup.body], ['setup', 'Set up GitHub in Composio', { verb: 'open', screen: 'connectors', label: 'Open Connectors' }, refused.data.error]);
+  assert.deepEqual([setup.mode, setup.title, setup.act, setup.body], ['setup', 'Set up GitHub in Composio', { verb: 'open', screen: 'connectors', label: 'Open Apps' }, refused.data.error]);
   const closed = await srv.api(`/asks/${g.id}`, { method: 'POST', body: { yes: true } });
   assert.deepEqual(closed.data, { ok: true, closed: true });
   assert.ok(!(await listed(g.id)));
@@ -194,7 +194,7 @@ test("connect-ask's cards in lib: modes, words, giveApp and its holds", () => {
   assert.equal(view(C.offer({ app: 'gmail' }).ask).title, 'Connect Gmail');
   status.configured = false;
   const key = C.offer({ botId: 'b1', app: 'linear' }).ask;
-  assert.deepEqual([key.mode, key.key, view(key).title, view(key).act], ['setup', true, 'Add your Composio key', { verb: 'open', screen: 'connectors', label: 'Open Connectors' }]);
+  assert.deepEqual([key.mode, key.key, view(key).title, view(key).act], ['setup', true, 'Add your Composio key', { verb: 'open', screen: 'connectors', label: 'Open Apps' }]);
   assert.equal(view(key, 'pl').title, 'Dodaj swój klucz Composio');
   assert.equal(asksLib.askText(key), 'Needs your Composio key for Linear');
   // Asked again once the key is there: the same card, as it is now.

@@ -94,7 +94,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     Scaffold(
         containerColor = p.bg,
         snackbarHost = { BotSnackbarHost(snack) },
-        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔐 " + tr("Vault"), style = MaterialTheme.typography.titleMedium) }) },
+        topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text("🔐 " + tr("Passwords"), style = MaterialTheme.typography.titleMedium) }) },
         bottomBar = { work.now?.let { w -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(Space.s12), contentAlignment = Alignment.Center) { WorkLine(w) { work.now = null } } } },
     ) { pad ->
         val b = bw ?: return@Scaffold
@@ -199,7 +199,7 @@ private fun FileEditor(bots: List<Bot>, api: dev.botdot.app.data.Api?, work: Wor
             val bytes = read?.second
             when {
                 read == null || bytes == null -> error = tr("Couldn't read that file.")
-                bytes.size > VaultTypes.FILE_MAX_BYTES -> { picked = null; error = tr("That file is bigger than 64 KB, the most a file in the Vault can be.") }
+                bytes.size > VaultTypes.FILE_MAX_BYTES -> { picked = null; error = tr("That file is bigger than 64 KB, the most a file in Passwords can be.") }
                 else -> { picked = read.first to bytes; error = null }
             }
         }
@@ -323,7 +323,7 @@ internal fun rememberSecretFilePick(onText: (String) -> Unit, onError: (String) 
             }
             when {
                 bytes == null -> onError(tr("Couldn't read that file."))
-                bytes.size > VaultTypes.SECRET_FILE_MAX -> onError(tr("That file is too big for the Vault (64 KB at most)."))
+                bytes.size > VaultTypes.SECRET_FILE_MAX -> onError(tr("That file is too big for Passwords (64 KB at most)."))
                 else -> onText(String(bytes, Charsets.UTF_8))
             }
         }
@@ -418,7 +418,7 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
     var askDelete by remember { mutableStateOf(false) }
     val pick = rememberSecretFilePick({ pw = it; error = null }) { error = it }
 
-    if (!aside) AlertDialog(onDismissRequest = close, title = { Text(item?.let { tr("Edit {name}", "name" to it.name) } ?: tr("Add to the Vault")) }, text = {
+    if (!aside) AlertDialog(onDismissRequest = close, title = { Text(item?.let { tr("Edit {name}", "name" to it.name) } ?: tr("Add to Passwords")) }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             // A type with its own address (a GitHub App's api.github.com) fills an empty address field.
             if (VaultTypes.shows(features)) Choice(VaultTypes.CONTROL, type, VaultTypes.options(features, item?.type)) { type = it; VaultTypes.of(it).site?.let { s -> if (site.isBlank()) site = s } }

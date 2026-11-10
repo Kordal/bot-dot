@@ -104,7 +104,7 @@ test('a key of an account botdot made before keeps working, and refused it is re
   const refused = await srv.api('/connectors');
   assert.equal(refused.data.keyRejected, true);
   assert.equal(refused.data.account, 'botdot');
-  assert.match(refused.data.error, /no longer accepts the key of the Composio account botdot made earlier\. Paste your own Composio key on the Connectors page/);
+  assert.match(refused.data.error, /no longer accepts the key of the Composio account botdot made earlier\. Paste your own Composio key on the Apps page/);
   assert.deepEqual(refused.data.connections, []);
   assert.ok(!seen.requests.some((p) => p.startsWith('/api/')), 'nothing asked of Composio\'s agent sign-up');
 
@@ -138,7 +138,7 @@ test('your own key refused shows its end, and a new key fixes it', async () => {
   assert.equal((await srv.api('/connectors/catalog')).status, 200);
 });
 
-test('a sign-in Composio refuses is answered in one plain sentence, for the Reconnect card and the Connectors page (#464)', async () => {
+test('a sign-in Composio refuses is answered in one plain sentence, for the Reconnect card and the Apps page (#464)', async () => {
   await srv.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY } });
   srv.reply('GitHub is already connected once; remove the old connection in Connectors and try again.');
   const r = await srv.api('/connectors/connect', { method: 'POST', body: { app: 'github' } });
@@ -174,7 +174,7 @@ test("the installer's key, from the front door alone, is taken only while there 
   assert.equal(refused.status, 400, 'refused by Composio: the front door hands it again later');
   const shown = (await srv.api('/connectors')).data;
   assert.equal(shown.configured, false);
-  assert.match(shown.error, /^The key botdot was given was refused: Composio doesn't accept that key/, 'the Connectors page says why');
+  assert.match(shown.error, /^The key botdot was given was refused: Composio doesn't accept that key/, 'the Apps page says why');
   assert.equal((await hand('')).status, 400);
 
   const taken = await hand(OWN_KEY);

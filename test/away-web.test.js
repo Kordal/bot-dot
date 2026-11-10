@@ -48,7 +48,7 @@ test('web: a response that is not OK and has no sentence throws the status, not 
   for (const [status, body, unsure] of [[504, undefined, true], [500, {}, true], [500, undefined, true], [501, {}, true], [404, {}, false], [413, { error: '   ' }, false], [400, { error: { code: 1 } }, false]]) {
     const { ctx } = page(answer(status, body));
     const e = await thrown(ctx.api('/x'));
-    assert.equal(e.message, `botdot couldn't do that (${status}).`);
+    assert.equal(e.message, status >= 500 ? "botdot didn't finish that. Try again in a moment." : status === 413 ? 'That is too big for botdot.' : "botdot couldn't do that. Try again.", 'in words, never the number');
     assert.equal(e.refused, false);
     assert.equal(e.unsure, unsure, `${status}: nobody knows whether botdot did it only when its side failed`);
     assert.ok(!e.unreached);
@@ -113,7 +113,7 @@ test('web: a gateway answering in botdot\'s place, with botdot down behind it, s
   for (const status of [502, 503, 504]) {
     let reply = answer(status, undefined);
     const { ctx, shown } = page((...a) => reply(...a));
-    assert.equal((await thrown(ctx.api('/bots'))).message, status === 504 ? "botdot couldn't do that (504)." : "Can't reach botdot.");
+    assert.equal((await thrown(ctx.api('/bots'))).message, status === 504 ? "botdot didn't finish that. Try again in a moment." : "Can't reach botdot.");
     assert.deepEqual(shown(), [true, true], String(status));
     reply = answer(503, { error: 'botdot is updating.' });
     await thrown(ctx.api('/bots'));

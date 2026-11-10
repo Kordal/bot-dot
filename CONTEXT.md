@@ -139,7 +139,7 @@ A command-line program (`gh`, `make`, `ffmpeg`) put on the botdot server for one
 _Avoid_: package, dependency, plugin, app
 
 **Vault**:
-Where the user keeps the secrets their bots may use without ever seeing them: botdot's own encrypted store or, once connected, the **bot-dot** folder of the user's Bitwarden. A saved item has one of three types: a **login** (a username or email, and a password), an **API token** (a token, with its token ID where the service has one) or **other** (any other secret, alone). The type is a label and the fields its form asks for; it limits nothing, and every type is typed in a browser and used in an API call alike. Bitwarden's payment cards and identities are in the Vault too and have no type.
+Where the user keeps the secrets their bots may use without ever seeing them: botdot's own encrypted store or, once connected, the **bot-dot** folder of the user's Bitwarden. A saved item has one of three types: a **login** (a username or email, and a password), an **API token** (a token, with its token ID where the service has one) or **other** (any other secret, alone). The type is a label and the fields its form asks for; it limits nothing, and every type is typed in a browser and used in an API call alike. Bitwarden's payment cards and identities are in the Vault too and have no type. The apps call it **Passwords** (Hasła); without Advanced its form is a login alone (a website, a username and a password), and SSH keys and files are added only with Advanced on. The code, the API and the bots' tools keep the name Vault.
 _Avoid_: password manager, keychain, secrets store, credentials
 
 **Mention**:

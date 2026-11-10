@@ -264,7 +264,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     if (askRemoveKey) AlertDialog(
         onDismissRequest = { askRemoveKey = false },
         title = { Text(tr("Remove your Composio key?")) },
-        text = { Text(tr("Connectors stop working until you add another.")) },
+        text = { Text(tr("Apps stop working until you add another.")) },
         confirmButton = { TextButton(onClick = { askRemoveKey = false; scope.launch { runCatching { api!!.removeComposioKey() }.onSuccess { found = emptyList(); tell(tr("Removed")) }.onError { tell(it.message ?: tr("Couldn't remove")) }; load() } }) { Text(tr("Remove"), color = p.err) } },
         dismissButton = { TextButton(onClick = { askRemoveKey = false }) { Text(tr("Keep"), color = p.text) } },
     )

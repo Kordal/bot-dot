@@ -36,7 +36,7 @@ const val CONNECT_CARDS = "connect-cards"
  */
 val Ask.actLabel: String? get() {
     val act = act?.takeIf { it.known } ?: return null
-    return act.label ?: if (act.verb == AskAct.CONNECT) (if (mode == "reconnect") tr("Reconnect") else tr("Connect")) else tr("Open Connectors")
+    return act.label ?: if (act.verb == AskAct.CONNECT) (if (mode == "reconnect") tr("Reconnect") else tr("Connect")) else tr("Open Apps")
 }
 
 /** Whether a card has an `act` this app cannot draw: it is left out, as the web page leaves it out. */

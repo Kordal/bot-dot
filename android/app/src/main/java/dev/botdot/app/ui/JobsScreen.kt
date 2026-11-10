@@ -135,10 +135,10 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
 
 /** Under a job that takes signed calls (`callMode`, docs/api.md "A signed call"): how a sender gets in; null for any other. */
 internal fun callModeLine(j: Job): String? =
-    if (j.call && j.callMode == "signed") tr("Takes signed calls: each one is signed with the secret in the Vault, and runs once.") else null
+    if (j.call && j.callMode == "signed") tr("Takes signed calls: each one is signed with the secret in Passwords, and runs once.") else null
 
 /** Under a job with a notify address (`notifyUrl`, docs/api.md): where the end of each run goes. */
-internal fun notifyLine(url: String): String = tr("Tells {url} when a run ends, signed with the secret in the Vault.", "url" to url)
+internal fun notifyLine(url: String): String = tr("Tells {url} when a run ends, signed with the secret in Passwords.", "url" to url)
 
 /** Under an approved job that has a change beside it (`change`, docs/api.md): it runs as approved meanwhile. */
 internal val CHANGE_WAITS: String get() = tr("A change waits for your OK")

@@ -1677,7 +1677,7 @@ What the owner saved for the bots to use without ever seeing it: in botdot's own
   - `vault-file`: "Asks to keep “<entry>” in a file at <where>".
   - `override`: "Asks to lift a rule: <what it would do>".
 - A waiting job (`approvals.jobs`) also has `kind` (`"script"` or `"ai"`) and `when`, its schedule in the words a job's `when` has: "Wants to add a script: <name>, <when>", or "Wants to add a job: <name>, <when>" for an AI job. A job that waits after a change reads the same.
-- A waiting tile (`approvals.tiles`): "Wants to put “<title>” on your Board (a script)".
+- A waiting tile (`approvals.tiles`): "Wants to put “<title>” on your Board".
 - `yesOn: "card"` (see A tool to install) is sent for a tool from a link, a changed bot, a connected-app action, a switch of a saved login, a Vault entry a bot asks to remove, a rule a bot asks to lift, a skill a bot wrote (`written: true`), a script job and a tile: what they would do shows on their card and not in one line, so their notification offers Decline alone and a tap opens the card. A permission, a skill from a link, a tool from the registry and an AI job have none and are answered from the notification as before.
 - A server without `needs-text` sends `text` for a `tool` ask only, and `yesOn` for a tool from a link only.
 

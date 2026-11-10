@@ -171,7 +171,7 @@ test('a skill, a script job and a Board tile the Chief asked for: Install and Ap
   assert.deepEqual((await hello()).approvals.tiles.find((x) => x.tileId === tile.data.id).then, thenIn(chat));
   const put = await srv.api(`/dashboard/tiles/${tile.data.id}/approve`, { method: 'POST', body: { approve: true } });
   assert.deepEqual(put.data, { ok: true, carriesOn: CARRIES });
-  assert.ok((await turnAbout(/Door/)).stdin.includes('“Wants to put “Door” on your Board (a script)”. “Door” is on your Board now.'));
+  assert.ok((await turnAbout(/Door/)).stdin.includes('“Wants to put “Door” on your Board”. “Door” is on your Board now.'));
   const done = await quiet(chat);
   assert.deepEqual(done.messages.slice(chat.messages.length).map((m) => [m.role, !!m.notice, !!m.error]), [['chief', false, false], ['chief', false, false], ['chief', false, false]], 'three turns, each with its reply, and no line of botdot');
   assert.equal(told(/Disk check/).length, 1, 'one turn for the job');
@@ -452,11 +452,11 @@ test('a change to an approved script job and tile that the Chief asked for in a 
   const waits = (await srv.api('/dashboard')).data.pending.find((x) => x.id === tile.id);
   assert.deepEqual([waits.approved, waits.then], [true, thenIn(chat)]);
   const said = (await hello()).approvals.tiles.find((x) => x.tileId === tile.id);
-  assert.deepEqual([said.change, said.text, said.by, said.no, said.yes, said.then], [true, 'Wants to change “Hatch” on your Board (a script)', 'chief', 'Keep as it is', 'Approve the change', thenIn(chat)]);
+  assert.deepEqual([said.change, said.text, said.by, said.no, said.yes, said.then], [true, 'Wants to change “Hatch” on your Board', 'chief', 'Keep as it is', 'Approve the change', thenIn(chat)]);
   await srv.api(`/dashboard/tiles/${tile.id}/approve`, { method: 'POST', body: { approve: false } });
   assert.deepEqual(await since(before), [['chief', 'Declined: the change to the tile “Hatch” on your Board.']]);
   await srv.asChief(`/dashboard/tiles/${tile.id}`, from(chat, { method: 'PUT', body: { read: { type: 'script', script: 'cat /tmp/hatch' } } }));
   assert.deepEqual((await srv.api(`/dashboard/tiles/${tile.id}/approve`, { method: 'POST', body: { approve: true } })).data, { ok: true, text: 'Changed: Hatch', carriesOn: CARRIES });
-  assert.ok((await turnAbout(/Hatch/)).stdin.includes('“Wants to change “Hatch” on your Board (a script)”. “Hatch” on your Board is changed now.'));
+  assert.ok((await turnAbout(/Hatch/)).stdin.includes('“Wants to change “Hatch” on your Board”. “Hatch” on your Board is changed now.'));
   await quiet(chat);
 });

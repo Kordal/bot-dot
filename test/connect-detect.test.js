@@ -61,7 +61,7 @@ const runsOf = async (bot) => (await srv.api(`/runs?botId=${bot.id}`)).data;
 const stored = () => JSON.parse(fs.readFileSync(path.join(srv.data, 'asks.json'), 'utf8'));
 const CONNECT = (name, verb = 'connect') => `${name} isn't connected, so nothing was done. The owner now has a card to ${verb} it; botdot starts you again on this work once it is connected. Say so in one line, stop the work that needs it and don't try it another way.`;
 
-test("an owner's run on an app that isn't connected gets one Connect card, and once the Connectors page lists it the bot goes on in its session", { timeout: 60_000 }, async () => {
+test("an owner's run on an app that isn't connected gets one Connect card, and once the Apps page lists it the bot goes on in its session", { timeout: 60_000 }, async () => {
   const bot = await makeBot(srv, { name: 'Mail Reader', emoji: '📬', connectors: ['gmail'] });
   srv.reply('Gmail is not connected yet.');
   const held = await heldRun(srv, bot, 'Summarise my inbox');

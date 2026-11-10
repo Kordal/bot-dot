@@ -41,7 +41,7 @@ test("all bots: one yes lets every bot's same action through, the card says whom
   const card = await r.card();
   assert.deepEqual(card.everyBot, {
     question: 'Who may add label to email with Gmail from now on, whatever the details?',
-    note: 'Only Sorter, or every bot you have and make. You can revoke it on the Connectors page.',
+    note: 'Only Sorter, or every bot you have and make. You can revoke it on the Apps page.',
     only: 'Only Sorter', all: 'All bots',
   });
   assert.deepEqual((await answer(card, { yes: true, always: 'all' })).data, { ok: true });

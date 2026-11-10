@@ -32,9 +32,9 @@ class FailedSendTest {
         // botdot's own sentence counts with a 502 or a 503 too: it was reached.
         assertEquals("Not sent: The Chief is restarting. $kept", sendNote(ApiException("The Chief is restarting.", 503, said = true)))
         // An answer without a sentence that is no gateway's: what the app can say of it.
-        assertEquals("Not sent: botdot couldn't do that (404). $kept", sendNote(ApiException("botdot answered 404", 404)))
+        assertEquals("Not sent: botdot couldn't do that. Try again. $kept", sendNote(ApiException("botdot answered 404", 404)))
         // Also when that answer broke off: no "can't reach" inside a refusal.
-        assertEquals("Not sent: botdot couldn't do that (403). $kept", sendNote(ApiException("Can't reach botdot. Is Tailscale on? (reset)", 403, sent = true)))
+        assertEquals("Not sent: botdot doesn't allow that here. $kept", sendNote(ApiException("Can't reach botdot. Is Tailscale on? (reset)", 403, sent = true)))
     }
 
     @Test fun whereNobodyCanTellItSaysItMayHaveBeenSent() {
@@ -94,7 +94,7 @@ class FailedSendTest {
         assertEquals("Not sent: can't reach botdot. $kept", sendNote(notSent(SerializationException("odd answer"))))
         assertEquals("Not sent: No more chats. $kept", sendNote(notSent(ApiException("No more chats.", 400, said = true))))
         // botdot answered that it could not, without a sentence: its status, as the web page says it.
-        assertEquals("Not sent: botdot couldn't do that (404). $kept", sendNote(notSent(ApiException("botdot answered 404", 404))))
+        assertEquals("Not sent: botdot couldn't do that. Try again. $kept", sendNote(notSent(ApiException("botdot answered 404", 404))))
     }
 
     @Test fun theFailedTextGoesInFrontOfWhatWasTypedSince() {

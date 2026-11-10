@@ -74,7 +74,7 @@ test('web: names, usernames and hosts are escaped', () => {
 
 test('web: the line stands under the logins of this site and above the new-login fields', () => {
   const at = (s) => { const i = dialog.indexOf(s); assert.ok(i >= 0, `the dialog has ${s}`); return i; };
-  assert.ok(at("<legend>${tr('Already in your Vault')}</legend>") < at('${loginRequestOthers(r)}'));
+  assert.ok(at("<legend>${tr('Already in your Passwords')}</legend>") < at('${loginRequestOthers(r)}'));
   assert.ok(at('${loginRequestOthers(r)}') < at('or save a new one:'));
   assert.ok(at('or save a new one:') < at('${vaultTypeFields(r.type'), 'the new-login fields, which follow the type (VAULT-005)');
   assert.match(dialog, /\$\{reusable\.length \|\| \(r\.others \|\| \[\]\)\.length \? `<div class="faint"[^`]*>\$\{tr\('or save a new one:'\)\}<\/div>` : ''\}/, 'and "or save a new one" only when there is a login to choose');

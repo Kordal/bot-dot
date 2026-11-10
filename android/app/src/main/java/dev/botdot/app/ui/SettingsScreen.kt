@@ -161,7 +161,7 @@ fun SettingsScreen(
             Link(tr("Skills"), onClick = onSkills)
             if (dev.botdot.app.data.Pages.showsAll(server?.features)) Link(tr("Pages"), onClick = onPages) // every bot's pages (#361)
             Link(tr("Connectors"), onClick = onConnectors)
-            Link(tr("Vault"), onClick = onVault)
+            Link(tr("Passwords"), onClick = onVault)
             if (dev.botdot.app.data.Storage.shows(server?.features)) Link(tr("Storage"), onClick = onStorage) // what the account's files take on the disk
             Spacer(Modifier.height(Space.s16))
 

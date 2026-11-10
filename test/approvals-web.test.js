@@ -503,7 +503,7 @@ test('web: the no on a card asks nothing when the button says what it does; "Alw
   assert.deepEqual(await wired(item(CHANGED)).tap('always'), { asked: [], decided: [[true, true, true]] });
   for (const job of [SCRIPT, { ...CHANGED, change: { ...CHANGE, kind: 'script', script: 'uptime' } }]) {
     const yes = await wired(item(job)).tap('always');
-    assert.match(yes.asked[0], /^Always approve "(Disk check|Morning news)" from Coder\?\n\nIt's a script:/);
+    assert.match(yes.asked[0], /^Always approve "(Disk check|Morning news)" from Coder\?\n\nIt's a quick check without AI\./);
     assert.deepEqual(yes.decided, [[true, true, true]]);
     assert.deepEqual((await wired(item(job), { agrees: false }).tap('always')).decided, [], 'not without the owner\'s yes to the warning');
   }
@@ -629,7 +629,7 @@ test('web: at a phone\'s width the page\'s title, its line and the button wrap, 
 });
 
 test('web: "Always allow" on an action every bot may be allowed asks whom: only this bot, or all bots (ADR 184)', async () => {
-  const everyBot = { question: 'Who may add label to email with Gmail from now on, whatever the details?', note: 'Only Sorter, or every bot you have and make. You can revoke it on the Connectors page.', only: 'Only Sorter', all: 'All bots' };
+  const everyBot = { question: 'Who may add label to email with Gmail from now on, whatever the details?', note: 'Only Sorter, or every bot you have and make. You can revoke it on the Apps page.', only: 'Only Sorter', all: 'All bots' };
   const x = { key: 'ask:k9', kind: 'ask', a: { id: 'k9', kind: 'connector-action', botId: 'b1', title: 'Add label to email with Gmail?', rows: [], held: true, always: 'Always allow', everyBot } };
   const asked = [[`${everyBot.question}\n\n${everyBot.note}`, 'Only Sorter', 'All bots']];
   assert.deepEqual(await wired(x, { picks: 'yes' }).tap('always'), { asked, decided: [[true, true, true]] });

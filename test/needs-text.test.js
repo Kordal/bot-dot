@@ -326,7 +326,7 @@ test('a name without a letter or a digit reads "Value", combining marks alone in
 test('a waiting job and a waiting tile', () => {
   assert.equal(jobText({ kind: 'script', name: 'Disk check', script: 'df -h | mail root' }, 'Every hour'), 'Wants to add a script: Disk check, Every hour');
   assert.equal(jobText({ kind: 'ai', name: 'Morning news', prompt: 'Read the news' }, 'Daily at 08:00'), 'Wants to add a job: Morning news, Daily at 08:00');
-  assert.equal(tileText({ title: 'Disk', read: { type: 'script', script: 'echo 91' } }), 'Wants to put “Disk” on your Board (a script)');
+  assert.equal(tileText({ title: 'Disk', read: { type: 'script', script: 'echo 91' } }), 'Wants to put “Disk” on your Board');
   assert.doesNotMatch(jobText({ kind: 'script', name: 'Disk check', script: 'df -h | mail root' }, 'Every hour'), /df -h/);
   assert.doesNotMatch(tileText({ title: 'Disk', read: { type: 'script', script: 'echo 91' } }), /echo/);
 });
@@ -349,7 +349,7 @@ test('no line is longer than 160 characters: a long name is clipped with "…", 
   assert.equal(TEXT_MAX, 160);
   assert.equal(lines[0].length, 160);
   assert.match(lines[0], /^Asks to install the skill “A very long name .*…”$/);
-  assert.match(lines[6], /^Wants to put “A very long name .*…” on your Board \(a script\)$/);
+  assert.match(lines[6], /^Wants to put “A very long name .*…” on your Board$/);
   assert.equal(askText({ kind: 'skill', skill: { name: 'two\nlines\tand   blanks' } }), 'Asks to install the skill “two lines and blanks”');
 });
 
@@ -529,6 +529,6 @@ test('a waiting tile has its line and is approved on its card', async () => {
   const hello = await f.wait('hello');
   f.close();
   const tile = hello.data.approvals.tiles.find((x) => x.tileId === t.data.id);
-  assert.deepEqual(tile, { tileId: t.data.id, title: 'Door', botId: keeper.id, botName: 'Door Keeper', botColor: keeper.color, by: 'chief', text: 'Wants to put “Door” on your Board (a script)', yesOn: 'card', no: 'Decline and remove' });
+  assert.deepEqual(tile, { tileId: t.data.id, title: 'Door', botId: keeper.id, botName: 'Door Keeper', botColor: keeper.color, by: 'chief', text: 'Wants to put “Door” on your Board', yesOn: 'card', no: 'Decline and remove' });
   assert.doesNotMatch(JSON.stringify(hello.data.approvals), /door-state/);
 });

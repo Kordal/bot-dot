@@ -29,7 +29,7 @@ function page({ connect = { redirectUrl: 'https://connect.example/gmail', connec
       if (p === '/connectors/connections/ca_1') return { status: statuses.length > 1 ? statuses.shift() : statuses[0] };
       return {};
     },
-    renderConnectors: () => { throw new Error('not the Connectors page'); },
+    renderConnectors: () => { throw new Error('not the Apps page'); },
   });
   vm.runInContext(`${read('connectors.js')}\nthis.reconnectCardsHTML = reconnectCardsHTML;`, ctx);
   // A card as the chat draws it, standing on the page: its outerHTML is what is drawn there now.
@@ -108,7 +108,7 @@ test('web: a second press ends the first wait', async () => {
   assert.match(card.outerHTML, /waits for sign-in/);
 });
 
-test('web: the Connectors page draws a connection without a status, and says why when it cannot draw at all', async () => {
+test('web: the Apps page draws a connection without a status, and says why when it cannot draw at all', async () => {
   const root = { dataset: {}, innerHTML: '' };
   const el = () => ({ dataset: {}, focus() {}, setSelectionRange() {} });
   const data = { configured: true, account: 'own', keyHint: '…1234', connections: [{ id: 'ca_1', toolkit: 'github', app: { name: 'GitHub MCP' }, usedBy: [] }], reconnect: [] };
@@ -122,7 +122,7 @@ test('web: the Connectors page draws a connection without a status, and says why
   assert.match(root.innerHTML, /<b>GitHub MCP<\/b><div><span class="pill ">unknown<\/span>/);
   data.connections = [{ id: 'ca_1', toolkit: 'github', app: null, usedBy: null }]; // something it can't draw
   await ctx.renderConnectors(true);
-  assert.match(root.innerHTML, /<h1>Connectors<\/h1>.*<div class="req-note">Couldn't show your apps: /s);
+  assert.match(root.innerHTML, /<h1>Apps<\/h1>.*<div class="req-note">Couldn't show your apps: /s);
 });
 
 test('web: the chat draws the cards in the reply, and the page styles them', () => {

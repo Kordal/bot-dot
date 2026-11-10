@@ -12,7 +12,7 @@ class JobCallModeTest {
 
     @Test fun aSignedCallIsSaidUnderTheJob() {
         val j = job("""{"id":"j1","name":"Gate","call":true,"callMode":"signed"}""")
-        assertEquals("Takes signed calls: each one is signed with the secret in the Vault, and runs once.", callModeLine(j))
+        assertEquals("Takes signed calls: each one is signed with the secret in Passwords, and runs once.", callModeLine(j))
     }
 
     @Test fun aKeyedCallAJobWithoutCallsAndAnOlderServerSayNothing() {

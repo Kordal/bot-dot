@@ -311,7 +311,7 @@ test('the Chief asks to remove an SSH key: a card, nothing removed before the ye
   assert.equal(asked.asked, 'Old VPS key');
   assert.match(asked.say, /waits for the user's OK/);
   const [card] = await removeCards();
-  assert.deepEqual([card.itemId, card.chatId, card.title, card.yesOn], [doomed.id, turn.chat.id, 'Let the Chief remove “Old VPS key” from the Vault?', 'card']);
+  assert.deepEqual([card.itemId, card.chatId, card.title, card.yesOn], [doomed.id, turn.chat.id, 'Let the Chief remove “Old VPS key” from Passwords?', 'card']);
   assert.ok(card.parts.some((p) => p.label === 'Asked by' && p.now === 'the Chief'));
   assert.ok((await sshItems()).some((i) => i.id === doomed.id), 'still there before the yes');
   // Asked again while its card waits: the same card.
@@ -338,7 +338,7 @@ test('the Chief asks to remove an SSH key: a card, nothing removed before the ye
   const [no] = await removeCards();
   assert.equal((await srv.api(`/asks/${no.id}`, { method: 'POST', body: { yes: false } })).status, 200);
   assert.ok((await sshItems()).some((i) => i.id === kept.id), 'still there after the no');
-  await waitFor(async () => (await chatNow(again.chat)).messages.some((m) => m.text === 'Declined: removing “Keep me” from the Vault.'), { what: 'the decline in the chat' });
+  await waitFor(async () => (await chatNow(again.chat)).messages.some((m) => m.text === 'Declined: removing “Keep me” from Passwords.'), { what: 'the decline in the chat' });
   // Asked again in the week after the no: refused with a sentence, no card.
   const late = await ownerTurn(t, 'Remove Keep me after all.');
   assert.equal((await late.call('remove_vault_item', { entry: 'Keep me', reason: 'Really.' })).error, `Error: ${VAULT_SAY.remove.declined}`);
@@ -355,7 +355,7 @@ test('remove_vault_item: only in a turn the owner started, and for an entry the 
     assert.deepEqual([r.status, r.data.error], [403, VAULT_SAY.notNowRemove]);
   }
   const turn = await ownerTurn(t, 'Remove Nothing.');
-  assert.equal((await turn.call('remove_vault_item', { entry: 'Nothing such', reason: 'x' })).error, 'Error: No entry called "Nothing such" in the Vault. Use the name list_vault shows.');
+  assert.equal((await turn.call('remove_vault_item', { entry: 'Nothing such', reason: 'x' })).error, 'Error: No entry called "Nothing such" in Passwords. Use the name list_vault shows.');
   const none = await srv.asChief('/vault/remove', { method: 'POST', body: { reason: 'x' }, headers: { 'X-Chief-Chat': turn.chat.id } });
   assert.deepEqual([none.status, none.data.error], [400, VAULT_SAY.remove.noEntry]);
   assert.equal((await removeCards()).length, 0);

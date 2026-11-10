@@ -96,7 +96,7 @@ const SHARED_EDIT = { ...SHARED, id: 'm3', action: 'edit', text: 'The owner flie
 const SHARED_REMOVE = { ...SHARED, id: 'm4', action: 'remove', text: '', current: { text: 'The owner flies from Brussels.' }, title: 'Remove from the shared memory' };
 const GUARDED_EDIT = { id: 'g1', action: 'edit', owner: 'coder', text: 'Package manager: npm', current: { text: 'Package manager: pnpm for JavaScript' }, at: AT, bot: CODER, botId: 'coder', guarded: true, title: 'Change what you said', meta: 'in a run you did not start', yes: 'Change it', no: 'Keep it' };
 const GUARDED_REMOVE = { ...GUARDED_EDIT, id: 'g2', action: 'remove', text: '', title: 'Remove what you said', yes: 'Remove it' };
-const FORGET = { id: 'g3', action: 'erase', owner: 'coder', noteId: 'n1', text: 'Deploy key lives in the Vault login “GitHub deploy”. · 2 chats', notes: [{ id: 'n1', text: 'Deploy key lives in the Vault login “GitHub deploy”.' }], runs: [{ runId: 'r1' }, { runId: 'r2' }], at: AT, bot: CODER, botId: 'coder', guarded: true, title: 'Forget for good', meta: 'after reading outside content', yes: 'Forget for good', no: 'Keep' };
+const FORGET = { id: 'g3', action: 'erase', owner: 'coder', noteId: 'n1', text: 'Deploy key lives in Passwords login “GitHub deploy”. · 2 chats', notes: [{ id: 'n1', text: 'Deploy key lives in Passwords login “GitHub deploy”.' }], runs: [{ runId: 'r1' }, { runId: 'r2' }], at: AT, bot: CODER, botId: 'coder', guarded: true, title: 'Forget for good', meta: 'after reading outside content', yes: 'Forget for good', no: 'Keep' };
 const ALL = [SHARED, SHARED_EDIT, SHARED_REMOVE, GUARDED_EDIT, GUARDED_REMOVE, FORGET];
 // The texts of a card's body, in order: [struck, the text]. A change is one block that holds both.
 const bodiesOf = (html) => html.split('<div class="need-body').slice(1).flatMap((block) => [...block.matchAll(/<div class="nb( faint-strike)?">([\s\S]*?)<\/div>/g)].map((m) => [!!m[1], m[2]]));
@@ -112,7 +112,7 @@ test('web: the card of a waiting memory change prints the server\'s title, why i
     ['Remove from the shared memory', 'after reading outside content', ['Decline', 'Approve'], [[false, 'The owner flies from Brussels.']]],
     ['Change what you said', 'in a run you did not start', ['Keep it', 'Change it'], [[true, 'Package manager: pnpm for JavaScript'], [false, 'Package manager: npm']]],
     ['Remove what you said', 'in a run you did not start', ['Keep it', 'Remove it'], [[false, 'Package manager: pnpm for JavaScript']]],
-    ['Forget for good', 'after reading outside content', ['Keep', 'Forget for good'], [[false, 'Deploy key lives in the Vault login “GitHub deploy”. · 2 chats']]],
+    ['Forget for good', 'after reading outside content', ['Keep', 'Forget for good'], [[false, 'Deploy key lives in Passwords login “GitHub deploy”. · 2 chats']]],
   ]);
   // A change is one block, what goes above what comes: a closed card shows its first block only (style.css), and
   // so the start of both. Nothing a yes would save is behind a click.

@@ -19,7 +19,7 @@ const cut = (from, to) => {
 };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const { words } = require('./web-page');
-const page = vm.createContext({ ...words, esc });
+const page = vm.createContext({ ...words, esc, advanced: () => true });
 const NAMES = ['VAULT_TYPES', 'vaultType', 'vaultItemAddr', 'vaultItemLine', 'vaultTypeControl', 'vaultTypeFields', 'wireSecretFile', 'wireVaultType', 'vaultTypeBody'];
 vm.runInContext(`${cut('const VAULT_TYPES = {', 'async function renderVault()')}\n${NAMES.map((n) => `this.${n} = ${n};`).join(' ')}`, page);
 const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
@@ -142,7 +142,7 @@ test('web: Other and GitHub App take a secret of several lines, masked, pasted o
     form.secretFile.files = [{ size: 64 * 1024 + 1, text: async () => 'x' }];
     await form.secretFile.onchange();
     assert.equal(form.password.value, 'kept');
-    assert.deepEqual(toasts, [['That file is too big for the Vault (64 KB at most).', true]]);
+    assert.deepEqual(toasts, [['That file is too big for Passwords (64 KB at most).', true]]);
   });
 });
 
@@ -218,8 +218,8 @@ test('web: Other sends no username; Login and API token send the type and the us
 
 // ---------- the editor ----------
 
-test('web: the editor is "Add to the Vault", Type is its first control, and the fields follow it', () => {
-  assert.match(editor, /<h2>\$\{isNew \? tr\('Add to the Vault'\) : esc\(tr\('Edit \{name\}', \{ name: l\.name \}\)\)\}<\/h2>/);
+test('web: the editor is "Add to Passwords", Type is its first control, and the fields follow it', () => {
+  assert.match(editor, /<h2>\$\{isNew \? tr\('Add to Passwords'\) : esc\(tr\('Edit \{name\}', \{ name: l\.name \}\)\)\}<\/h2>/);
   assert.doesNotMatch(editor, /Add login/);
   const body = editor.slice(at(editor, '<div class="modal-body">'));
   assert.match(body, /^<div class="modal-body">\s*\$\{vaultTypeControl\(l\.type\)\}/, 'the first control');
@@ -241,7 +241,7 @@ test('web: the login editor shows no bots and sends none, so a login keeps the b
 });
 
 test('web: the note of the editor no longer explains where a token ID goes', () => {
-  const note = editor.slice(at(editor, '<div class="req-note">'), at(editor, '<div class="req-error"'));
+  const note = editor.slice(at(editor, '<div class="req-note"${advanced() ? \'\' : \' hidden\'}>'), at(editor, '<div class="req-error"'));
   assert.match(note, /so they never see the secret\.', \{ username: '<span class="mono">\{\{username\}\}<\/span>', password: '<span class="mono">\{\{password\}\}<\/span>' \}\)\}<\/div>/);
   assert.doesNotMatch(editor, /token ID in the first field|put the token ID/i);
 });
@@ -256,7 +256,7 @@ test('web: the words of the editor fit every type', () => {
   assert.match(editor, /<button class="btn primary" type="submit">\$\{tr\('Save'\)\}<\/button>/);
   assert.match(editor, /: tr\('Saved'\) \}\)\)/);
   assert.match(editor, /toast\(tr\('Deleted'\)\);/);
-  assert.match(editor, /tr\('Delete "\{name\}" from the Vault\?', \{ name: l\.name \}\)/);
+  assert.match(editor, /tr\('Delete "\{name\}" from Passwords\?', \{ name: l\.name \}\)/);
   assert.doesNotMatch(editor, /Save login|Login saved|Login deleted|the saved login/);
 });
 

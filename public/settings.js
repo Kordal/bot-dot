@@ -326,7 +326,7 @@ function drawChiefSkills(root) {
 
 // The pages that open from Settings. They are its first rows; Pages is every bot's pages (#361); Storage what the
 // account's files take on the disk (storage.js).
-const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Connectors')], ['vault', tr('Vault')], ['storage', tr('Storage')]];
+const SETTINGS_PAGES = [['runs', tr('Activity')], ['skills', tr('Skills')], ['pages', tr('Pages')], ['connectors', tr('Apps')], ['vault', tr('Passwords')], ['storage', tr('Storage')]];
 
 // The rows to the pages above. Drawn again on every refresh, also while the rows below keep their edits, so that
 // Activity always shows the tasks running now.
@@ -607,7 +607,7 @@ async function frontDoorPost(path, body) {
   const data = await res.json().catch(() => ({}));
   // A session that ended signs in again, as every other call does.
   if (res.status === 401) { location.assign('/sign-in'); throw new Error(tr('Sign in first.')); }
-  if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : tr('botdot answered {status}', { status: res.status }));
+  if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : statusWords(res.status));
   return data;
 }
 

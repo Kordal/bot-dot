@@ -15,7 +15,7 @@ const list = cut('async function renderVault()', 'function openLoginEditor(login
 const editor = cut('function openFileEditor()', '\n}\n');
 
 test('web: the Vault offers "＋ File" only while Bitwarden is unlocked, and lists a file by its name and size', () => {
-  assert.match(list, /\$\{bw\.unlocked \? `<button class="btn" id="add-file">＋ \$\{tr\('File'\)\}<\/button>/);
+  assert.match(list, /\$\{bw\.unlocked && advanced\(\) \? `<button class="btn" id="add-file">＋ \$\{tr\('File'\)\}<\/button>/);
   assert.match(list, /addFile\.onclick = \(\) => openFileEditor\(\)/);
   assert.match(list, /kind === 'file' \? vaultFileLine\(l\)/);
   assert.match(app, /const vaultFileLine = \(l\) => `\$\{esc\(l\.fileName \|\| ''\)\} · \$\{vaultFileSize/);

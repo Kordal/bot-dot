@@ -31,7 +31,7 @@ object AppUpdate {
     /** Download, check it's the file botdot described, and open the installer. */
     suspend fun install(context: Context, api: Api, release: AndroidRelease, onProgress: (Float) -> Unit) {
         if (!ReleaseManifest.secureURL(api.baseUrl)) throw ApiException(tr("Use HTTPS for a remote botdot server."))
-        val manifest = release.release ?: throw ApiException(tr("This update has no signed release manifest."))
+        val manifest = release.release ?: throw ApiException(tr("This update couldn't be checked, so it wasn't installed."))
         manifest.verify("android", BuildConfig.VERSION_CODE.toLong())
         if (manifest.version != release.versionCode.toLong() || manifest.sha256 != release.sha256) throw ApiException(tr("The release does not match its signed manifest."))
         val dir = File(context.cacheDir, "updates").apply { mkdirs(); listFiles()?.forEach { it.delete() } }

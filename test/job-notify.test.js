@@ -130,7 +130,7 @@ test("web: a job's settings show its notify address, read-only; a job without on
   const ctx = vm.createContext({ ...words, esc });
   vm.runInContext(`${cut('const jobNotifyLine = ', 'function jobCardHTML(j, open = false) {')}\nthis.jobNotifyLine = jobNotifyLine;`, ctx);
   assert.equal(ctx.jobNotifyLine({ name: 'x' }), '');
-  assert.equal(ctx.jobNotifyLine({ notifyUrl: 'https://hooks.example.com/a?b=<c>' }), '<div class="faint job-notify">Tells <span class="mono">https://hooks.example.com/a?b=&lt;c&gt;</span> when a run ends, signed with the secret in the Vault.</div>');
+  assert.equal(ctx.jobNotifyLine({ notifyUrl: 'https://hooks.example.com/a?b=<c>' }), '<div class="faint job-notify">Tells <span class="mono">https://hooks.example.com/a?b=&lt;c&gt;</span> when a run ends, signed with the secret in Passwords.</div>');
 });
 
 // ---------- on a real server ----------
@@ -273,6 +273,6 @@ test('a bot proposes a notify address only through propose_job_notify, on its ow
   await carriedOn(bot, run);
   const told = await lastRun(bot);
   const secret = vaultSecret(srv, secretName(bot, job));
-  assert.ok(told.stdin.includes(`The owner allowed you to: tell ${url} when a run of the script “Coop” ends, signed with the secret in the Vault item “${secretName(bot, job)}”, which no bot is given.`), told.stdin);
+  assert.ok(told.stdin.includes(`The owner allowed you to: tell ${url} when a run of the script “Coop” ends, signed with the secret in Passwords item “${secretName(bot, job)}”, which no bot is given.`), told.stdin);
   assert.ok(!told.stdin.includes(secret));
 });

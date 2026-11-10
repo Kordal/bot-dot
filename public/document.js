@@ -229,8 +229,8 @@ const GD_WAIT = 10 * 60_000;
 // status, wait }. Called straight from the tap: ui.open() runs before anything awaits, so pop-up blockers allow it.
 async function googleDocs(doc, st, g, ui) {
   if (st.configured === false) {
-    return ui.status(tr("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again."),
-      { link: { href: '/#connectors', text: tr('Open Connectors ↗') }, error: true });
+    return ui.status(tr("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Apps page, then try again."),
+      { link: { href: '/#connectors', text: tr('Open Apps ↗') }, error: true });
   }
   if (st.connected === false) {
     const win = ui.open();

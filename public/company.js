@@ -608,7 +608,7 @@ const Company = (() => {
         body: file,
       }).then(async (r) => {
         const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || tr('Upload failed ({status})', { status: r.status }));
+        if (!r.ok) throw new Error(d.error || statusWords(r.status));
         Object.assign(s, { upload: d, status: 'ready' });
       }).catch((e) => { s.status = 'failed'; toast(`${file.name}: ${e.message}`, true); }).finally(drawSources);
     }

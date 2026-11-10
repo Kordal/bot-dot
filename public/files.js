@@ -459,7 +459,7 @@ const Files = (() => {
   async function sendFile(c, dir, file, made = false) {
     const r = await fetch(`/api${at(c, 'upload', dir)}${made ? '&folders=1' : ''}`, { method: 'POST', headers: { 'X-Bot-Dot': '1', 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || tr('Upload failed ({status})', { status: r.status }));
+    if (!r.ok) throw new Error(d.error || statusWords(r.status));
   }
   async function upload(c, files) {
     if (files.length > MAX_FILES) toast(tr('Upload at most {n} files at a time.', { n: MAX_FILES }), true);

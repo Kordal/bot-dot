@@ -37,7 +37,7 @@ async function door(path, opts = {}) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const said = typeof data.error === 'string' && data.error.trim();
-    throw Object.assign(new Error(said || tr("botdot couldn't do that ({status}).", { status: res.status })), { status: res.status, refused: !!said });
+    throw Object.assign(new Error(said || statusWords(res.status)), { status: res.status, refused: !!said });
   }
   return data;
 }

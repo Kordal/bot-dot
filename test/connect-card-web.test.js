@@ -15,7 +15,7 @@ const CONNECT = {
   title: 'Connect Gmail for Mail Writer', act: { verb: 'connect', label: 'Connect' }, no: 'Not now', text: 'Needs Gmail connected', yesOn: 'card', at: '2026-11-07T09:00:00.000Z',
 };
 const RECONNECT = { ...CONNECT, id: 'c2', mode: 'reconnect', title: 'Reconnect Gmail', act: { verb: 'connect', label: 'Reconnect' }, text: 'Needs Gmail reconnected' };
-const SETUP = { ...CONNECT, id: 'c3', mode: 'setup', key: true, title: 'Add your Composio key', act: { verb: 'open', screen: 'connectors', label: 'Open Connectors' }, body: 'Composio refused the key.' };
+const SETUP = { ...CONNECT, id: 'c3', mode: 'setup', key: true, title: 'Add your Composio key', act: { verb: 'open', screen: 'connectors', label: 'Open Apps' }, body: 'Composio refused the key.' };
 // Every button of a card, the act button too, in the order drawn.
 const buttons = (html) => [...html.matchAll(/<button class="btn sm[^"]*"( data-need-(?:no|yes|always|act))?( disabled)?>(.*?)<\/button>/g)].map((m) => m[3]);
 
@@ -60,7 +60,7 @@ test('web: a Reconnect reads the server\'s word, and the page\'s own by the mode
 test("web: in setup the card opens Connectors and shows Composio's words; a verb the page does not know draws no card", () => {
   const html = connectPage(SETUP).draw();
   assert.equal(titleOf(html), 'Add your Composio key');
-  assert.deepEqual(buttons(html), ['Not now', 'Open Connectors']);
+  assert.deepEqual(buttons(html), ['Not now', 'Open Apps']);
   assert.match(html, /<div class="need-body"><div class="nb">Composio refused the key\.<\/div><\/div>/);
   assert.equal(connectPage({ ...CONNECT, act: { verb: 'sing', label: 'Sing' } }).draw(), '');
   assert.equal(connectPage({ ...SETUP, act: { verb: 'open', screen: 'claude', label: 'Open' } }).draw(), '');
@@ -88,7 +88,7 @@ test('web: Connect opens the tab on the press, then asks through the card, waits
   assert.equal(p.refreshed(), 1, 'the list of what waits is read again: the card goes with it');
   assert.equal(p.connecting.has('c1'), false);
   assert.deepEqual(p.toasts, [], 'the card says it all');
-  assert.ok(!p.calls.some(([u]) => u.startsWith('/connectors')), 'not the Connectors page\'s own routes, and no question of which bots');
+  assert.ok(!p.calls.some(([u]) => u.startsWith('/connectors')), 'not the Apps page\'s own routes, and no question of which bots');
 });
 
 test('web: an app with no sign-in is done at once', async () => {
@@ -185,7 +185,7 @@ test("a project's Needs you puts what stops the work first: a missing app, and a
 test("a row's button word: the card's own for a verb the page knows, none otherwise", () => {
   const p = connectPage(CONNECT);
   assert.equal(p.actLabel(p.item('ask:c1')), 'Connect');
-  assert.equal(p.actLabel({ kind: 'ask', a: SETUP }), 'Open Connectors');
+  assert.equal(p.actLabel({ kind: 'ask', a: SETUP }), 'Open Apps');
   assert.equal(p.actLabel({ kind: 'ask', a: { kind: 'permission' } }), '');
   assert.equal(p.actLabel({ kind: 'ask', a: { ...CONNECT, act: { verb: 'sing' } } }), '');
   assert.equal(p.actLabel({ kind: 'job', job: {} }), '');

@@ -2493,7 +2493,7 @@ if [ "$REACH" != local ]; then
     'https://boat.dev/dashboard?tab=api-keys' "admin page"
   BOAT_KEY="$KEY_TAKEN"
   take_key connectors Composio BOT_DOT_COMPOSIO_KEY "Use Composio for connectors?" "Composio API key:" \
-    https://platform.composio.dev "Connectors page"
+    https://platform.composio.dev "Apps page"
   COMPOSIO_KEY="$KEY_TAKEN"
   # A checked key is letters, digits, dashes and underscores alone (KEY in lib/group-router.js, lib/boat.js and
   # lib/connectors.js checkKey).

@@ -28,7 +28,7 @@ async function renderConnectors(force = false) {
   try { drawConnectors(); } catch (e) { root.innerHTML = `${connHead()}<div class="req-note">${tr("Couldn't show your apps: {why}", { why: esc(e.message) })}</div>`; }
 }
 const connHead = () => `${subBack()}
-    <div class="section-head"><div><h1>${tr('Connectors')}</h1></div></div>`;
+    <div class="section-head"><div><h1>${tr('Apps')}</h1></div></div>`;
 
 async function loadCatalog(reset) {
   if (conn.loading) return;
@@ -101,7 +101,7 @@ function drawConnectors() {
       <input type="search" id="conn-search" placeholder="${esc(tr('Search apps, e.g. gmail, calendar, notion'))}" value="${esc(conn.search)}">
       <select id="conn-cat"><option value="">${tr('All categories')}</option>${conn.categories.map((c) => `<option value="${esc(c.id)}" ${c.id === conn.category ? 'selected' : ''}>${esc(c.name)} (${c.count})</option>`).join('')}</select>
     </div>
-    <div class="grid app-grid">${conn.catalog.map((t) => `
+    <div class="grid app-grid">${conn.catalog.filter((t) => advanced() || connectedSlugs.has(t.slug) || !['developer', 'key'].includes(t.connect)).map((t) => `
       <article class="card app-card">
         <div class="app-top">${appLogo(t)}<div class="grow"><b>${esc(t.name)}</b><div class="faint" style="font-size:12px">${esc([...t.categories.slice(0, 2), t.toolsCount ? trn(t.toolsCount, '{n} action', '{n} actions') : ''].filter(Boolean).join(' · '))}</div></div></div>
         <p class="skill-desc">${esc(t.description)}</p>
@@ -158,7 +158,7 @@ function drawConnectors() {
   };
   const forget = $('#conn-forget');
   if (forget) forget.onclick = async () => {
-    if (!(await askFirst(tr('Remove your Composio key? Connectors stop working until you add another.'), tr('Remove')))) return;
+    if (!(await askFirst(tr('Remove your Composio key? Apps stop working until you add another.'), tr('Remove')))) return;
     try { await api('/connectors/key', { method: 'DELETE' }); } catch (err) { return toast(err.message, true); }
     conn.catalog = [];
     conn.categories = [];

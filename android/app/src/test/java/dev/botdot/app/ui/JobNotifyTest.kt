@@ -13,7 +13,7 @@ class JobNotifyTest {
     @Test fun theAddressIsReadAndSaidUnderTheJob() {
         val j = job("""{"id":"j1","name":"Gate","notifyUrl":"https://hooks.example.com/gate"}""")
         assertEquals("https://hooks.example.com/gate", j.notifyUrl)
-        assertEquals("Tells https://hooks.example.com/gate when a run ends, signed with the secret in the Vault.", notifyLine(j.notifyUrl!!))
+        assertEquals("Tells https://hooks.example.com/gate when a run ends, signed with the secret in Passwords.", notifyLine(j.notifyUrl!!))
     }
 
     @Test fun aJobWithoutOneHasNone() {

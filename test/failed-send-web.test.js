@@ -776,9 +776,9 @@ test('web: one message goes at a time: a quick answer tapped while a typed messa
   assert.deepEqual(sent, ['A typed message', 'Yes', 'Typed meanwhile']);
 });
 
-test('web: a 5xx without botdot\'s sentence while a new chat is made: "can\'t reach" for 502 and 503, the status otherwise', async () => {
+test('web: a 5xx without botdot\'s sentence while a new chat is made: "can\'t reach" for 502 and 503, in words otherwise', async () => {
   for (const [status, line] of [[502, "Not sent: can't reach botdot. Your message is still here."], [503, "Not sent: can't reach botdot. Your message is still here."],
-    [500, "Not sent: botdot couldn't do that (500). Your message is still here."], [504, "Not sent: botdot couldn't do that (504). Your message is still here."]]) {
+    [500, "Not sent: botdot didn't finish that. Try again in a moment. Your message is still here."], [504, "Not sent: botdot didn't finish that. Try again in a moment. Your message is still here."]]) {
     const s = senders(async () => assert.fail('the page\'s own api() answers'));
     s.ctx.api = reaching({ now: answer(status, undefined) }).api;
     const b = box(s.ctx.sendToChief);

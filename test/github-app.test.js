@@ -117,7 +117,7 @@ test('an installation written after the App ID is used without looking it up', a
 test('no installation, several, or a key GitHub refuses: a sentence that says what to do', async () => {
   await assert.rejects(githubApp.create({ fetch: fakeGitHub({ installations: [] }).fetch }).token(APP), /not installed anywhere yet/);
   const several = fakeGitHub({ installations: [{ id: 81, account: { login: 'Kordal' } }, { id: 82, account: { login: 'other-org' } }] });
-  await assert.rejects(githubApp.create({ fetch: several.fetch }).token(APP), { message: 'This GitHub App is installed on several accounts (Kordal: 81, other-org: 82). Ask the owner to write the installation ID after the App ID in the Vault, e.g. 5237335/81.' });
+  await assert.rejects(githubApp.create({ fetch: several.fetch }).token(APP), { message: 'This GitHub App is installed on several accounts (Kordal: 81, other-org: 82). Ask the owner to write the installation ID after the App ID in Passwords, e.g. 5237335/81.' });
   await assert.rejects(githubApp.create({ fetch: fakeGitHub({ status: 401 }).fetch }).token(APP), /refused the app's key \(HTTP 401\)/);
   await assert.rejects(githubApp.create({ fetch: fakeGitHub().fetch }).token({ ...APP, password: 'not a key' }), /not a private key botdot can sign with/);
   const down = async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ENOTFOUND' } }); };

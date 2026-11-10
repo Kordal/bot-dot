@@ -18,7 +18,7 @@ object Duplicate {
         append(tr("The copy gets:") + "\n")
         plan.copies.forEach { append("• ").append(it).append('\n') }
         append("\n" + tr("Not copied:") + " ").append(plan.notCopied).append('.')
-        if (plan.vaultLocked) append("\n\n" + tr("Bitwarden is locked: unlock it first, so the copy can use the same Vault entries."))
+        if (plan.vaultLocked) append("\n\n" + tr("Bitwarden is locked: unlock it first, so the copy can use the same saved passwords."))
     }
 }
 

@@ -993,4 +993,4 @@ internal fun catchUpOf(showing: Set<String>, unread: Set<String>, rebuild: Boole
     CatchUp(showing - unread - touched, if (rebuild) unread - showing - touched - setOfNotNull(watching) else emptySet())
 
 /** The notification of a tile whose script waits for your OK. */
-internal fun tileWaits(title: String) = tr("Waiting for your OK: “{title}” on your Board (a script)", "title" to title)
+internal fun tileWaits(title: String) = tr("Waiting for your OK: “{title}” on your Board", "title" to title)

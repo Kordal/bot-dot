@@ -68,7 +68,7 @@ test('Bitwarden: the private key is handed out for a bot it is shared with only'
   const bw = await unlocked(t, [SSH_ITEM, OTHER_SSH, reprompt, empty], { 'i-ssh': { bots: ['bot1'] }, 'i-mine': { bots: ['bot1'] }, 'i-empty': { bots: ['bot1'] } });
   assert.deepEqual(bw.sshKey('bot1', 'tailnet servers'), { name: 'Tailnet servers', fingerprint: FINGERPRINT, privateKey: PRIVATE_KEY });
   assert.equal(bw.sshKey('bot1', 'i-ssh').name, 'Tailnet servers', 'by its id too');
-  assert.throws(() => bw.sshKey('bot2', 'Tailnet servers'), /isn't allowed to use the SSH key "Tailnet servers"\. Ask the owner to share it with you in the Vault/);
+  assert.throws(() => bw.sshKey('bot2', 'Tailnet servers'), /isn't allowed to use the SSH key "Tailnet servers"\. Ask the owner to share it with you in Passwords/);
   assert.throws(() => bw.sshKey('bot1', 'Backup box'), /isn't allowed/);
   assert.throws(() => bw.sshKey('bot1', 'Mine'), /asks for the master password again/);
   assert.throws(() => bw.sshKey('bot1', 'Empty'), /has no private key/);
@@ -300,7 +300,7 @@ test('run_with_ssh_key: for a shared SSH key only; the Vault, the Chief and the 
   // Not shared with this bot: refused, and the owner is to share it.
   let r = await run({ key: 'Backup box', command: 'ssh host true' });
   assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /isn't allowed to use the SSH key "Backup box"\. Ask the owner to share it with you in the Vault/);
+  assert.match(r.data.error, /isn't allowed to use the SSH key "Backup box"\. Ask the owner to share it with you in Passwords/);
   // Shared: the route goes on to the computer (here a stand-in that never starts), and nothing of the key comes back.
   r = await run({ key: 'Tailnet servers', command: 'ssh host true' });
   assert.equal(r.data.ok, false);
@@ -346,7 +346,7 @@ test('the run_with_ssh_key tool names the key and the command, and shows what th
   assert.deepEqual(tool.inputSchema.required, ['key', 'command']);
   assert.match(tool.description, /ssh-agent/);
   assert.match(tool.description, /never see the private key/);
-  assert.match(tool.description, /share it with you in the Vault/);
+  assert.match(tool.description, /share it with you in Passwords/);
   const out = await mcp.request('tools/call', { name: 'run_with_ssh_key', arguments: { key: 'Tailnet servers', command: 'ssh admin@server uptime' } });
   assert.equal(out.content[0].text, 'stdout:\n 10:00:00 up 3 days\n\nexit code: 0');
   assert.deepEqual(asked.at(-1), { path: '/session/computer/run-with-ssh-key', body: { key: 'Tailnet servers', command: 'ssh admin@server uptime', timeoutSeconds: 120 } });

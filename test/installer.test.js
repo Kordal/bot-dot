@@ -881,7 +881,7 @@ test('a first install asks for Jev, boat.dev and Composio, checks each key, asks
 
   const again = installer(t, { dotenv: fs.readFileSync(path.join(done.dir, 'front-door', '.env'), 'utf8'), dockerFirst: keyChecks });
   assert.equal(again.status, 0, again.stderr);
-  assert.doesNotMatch(again.said, /Jev|boat\.dev|Composio/, 'a rerun asks nothing again: the admin page and the Connectors page set them');
+  assert.doesNotMatch(again.said, /Jev|boat\.dev|Composio/, 'a rerun asks nothing again: the admin page and the Apps page set them');
 });
 
 test('a first install with no answer takes neither, and an unreachable check is left to the admin page', (t) => {
@@ -912,7 +912,7 @@ test('BOT_DOT_OPENROUTER_KEY, BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer b
   assert.deepEqual(keysOf(composio), { openrouter: null, boat: null, composio: 'good-composio-2' });
 
   const composioRefused = rerun(t, '', { BOT_DOT_COMPOSIO_KEY: 'bad-composio-2' }, { dockerFirst: keyChecks });
-  assert.match(composioRefused.said, /Composio refused BOT_DOT_COMPOSIO_KEY: set the key on the Connectors page\./);
+  assert.match(composioRefused.said, /Composio refused BOT_DOT_COMPOSIO_KEY: set the key on the Apps page\./);
   assert.equal(keysOf(composioRefused), null);
 
   const refused = rerun(t, '', { BOT_DOT_BOAT_KEY: 'bad-boat-2' }, { dockerFirst: keyChecks });

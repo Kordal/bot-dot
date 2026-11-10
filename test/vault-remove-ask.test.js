@@ -89,7 +89,7 @@ test('the card names the bot and the entry, and only the Allow moves the entry t
   const cards = await removeCards();
   assert.equal(cards.length, 1, 'asked twice, one card');
   const [card] = cards;
-  assert.equal(card.title, `Let VPS Admin remove “${KUMA}” from the Vault?`);
+  assert.equal(card.title, `Let VPS Admin remove “${KUMA}” from Passwords?`);
   assert.deepEqual(card.parts, [
     { label: 'Entry', now: `${KUMA} (api.netcup.example)` },
     { label: 'Asked by', now: 'VPS Admin' },
@@ -98,7 +98,7 @@ test('the card names the bot and the entry, and only the Allow moves the entry t
   assert.equal(card.reason, 'Uptime Kuma is gone, so its key is not needed any more.');
   assert.equal(card.yes, 'Allow');
   assert.equal(card.yesOn, 'card', 'the yes is given on the card, never from a notification');
-  assert.equal(card.text, `Asks to remove “${KUMA}” from the Vault`);
+  assert.equal(card.text, `Asks to remove “${KUMA}” from Passwords`);
   assert.equal(card.bot.id, bot.id, "it stands in the bot's chat");
   assert.doesNotMatch(JSON.stringify(card), /kuma-secret/);
   assert.ok(await entry(KUMA), 'nothing is removed before the yes');
@@ -125,7 +125,7 @@ test('the card names the bot and the entry, and only the Allow moves the entry t
   const deletes = bwCalls().filter((c) => c[0] === 'delete');
   assert.deepEqual(deletes, [['delete', 'item', id]], "to Bitwarden's Trash, never deleted for good");
   const next = await srv.nextRun((x) => x.args.includes('🛠 VPS Admin') && /The owner allowed you to/.test(x.stdin), 'the run that carries on');
-  assert.ok(next.stdin.includes(`The owner allowed you to: remove “${KUMA}” from the Vault (it is in Bitwarden's Trash now).`), next.stdin);
+  assert.ok(next.stdin.includes(`The owner allowed you to: remove “${KUMA}” from Passwords (it is in Bitwarden's Trash now).`), next.stdin);
   assert.deepEqual(await removeCards(), []);
   await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.every((x) => !['running', 'queued'].includes(x.status)), { what: 'the run that carried on to end' });
 });
@@ -148,7 +148,7 @@ test('a no leaves the entry, and the bot does not ask for it again', async (t) =
   assert.deepEqual(await removeCards(), []);
 });
 
-test('an entry that is not in the Vault is refused', async (t) => {
+test('an entry that is not in Passwords is refused', async (t) => {
   srv.hold();
   const { token, rec } = await heldRun(srv, bot);
   t.after(() => srv.release(rec));
@@ -175,7 +175,7 @@ test('an entry gone by the time of the yes: nothing is removed and the card goes
   assert.equal((await srv.api(`/vault/${id}`, { method: 'DELETE' })).status, 200);
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   assert.equal(yes.status, 409, JSON.stringify(yes.data));
-  assert.match(yes.data.error, /no longer in the Vault/);
+  assert.match(yes.data.error, /no longer in Passwords/);
   assert.deepEqual(await removeCards(other.id), []);
 });
 
