@@ -1,0 +1,1 @@
+2026-11-10: A team bot is told its work is for its project's own app (a request naming no other is about it; it never asks which, even when its own rules name several), and in a team's chat it is told only that team's project, not every project it is on.
