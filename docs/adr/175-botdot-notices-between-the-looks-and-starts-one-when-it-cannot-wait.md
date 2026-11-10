@@ -18,6 +18,11 @@ Every proactive message came from the clock: four looks a day at fixed times, th
 - **The day's rhythm:** without named times the first look of the day is the brief, and of two or more looks the last closes the day (what the bots finished, what is left for tomorrow, one decision; NOTHING when nothing happened). A hand-off that is due takes the close's place.
 - **More room:** 8 unasked messages a day by default, up to 10 when the owner asks, over 9 looks spread over the waking day (one more than the messages).
 
+## Later parts
+
+- **Learning per kind (P6):** of the last 30 days, a kind of noticed item (event, to-do, card) that started 10 looks or more and was rated up or answered in fewer than 1 in 5 starts no more looks. Its looks age out after 30 days and it starts again. Each unasked message's record keeps `noticed`, the kind that started it.
+- **Urgency in delivery (P4):** an unasked message from a look a weight-3 item started is announced with `urgent: true`, and its notification goes out with high priority. Every other unasked message rings as a reply does.
+
 ## Alternatives
 
 - **Ask Haiku about each weight-2 item without Jev.** A Claude call per item and minute adds up; the next look comes within about 100 minutes anyway.

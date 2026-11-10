@@ -99,3 +99,12 @@ test('what a look is told: why it starts now, and the open items', () => {
   assert.match(block, /- \[today\] A card waits/);
   assert.equal(attention.promptBlock([]), '');
 });
+
+test('a quiet kind starts no look (P6)', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-agenda-'));
+  const a = attention.create({ dataDir: dir, config: () => ({ router: 'haiku' }) });
+  a.refresh(attention.signals({ projects: [project()], now: NOW }), NOW);
+  assert.equal(await a.wake({ now: NOW, quiet: ['event'] }), null);
+  assert.equal((await a.wake({ now: NOW })).kind, 'event');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
