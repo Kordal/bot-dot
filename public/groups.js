@@ -455,13 +455,22 @@ const waitsWhole = (m) => m.canTakeBack === true && (!!waitsLine(m) || signedOut
 
 // One message of the owner's in its place in the chat. A message whose first turns went and that still waits for
 // a busy member says for whom, under it.
-function groupMessageHTML(m, chat) {
+// An answer to a member's question (`question`) shows that question above it, with the head of the member that
+// asked, unless it stands right under that reply (prev: the row before it); a tap goes to the question.
+function groupMessageHTML(m, chat, prev = null) {
   const text = typeof m.text === 'string' ? m.text : '';
   const waits = waitsLine(m);
   return `<div class="bubble-row from-me" data-gmsg="${esc(m.id)}"><div class="stack mine">
+    ${groupQuestionHTML(m.question, prev)}
     <div class="bubble from-me" data-expand><div class="clamp">${escMentions(text, chat)}</div>${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
     <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
   </div></div>`;
+}
+function groupQuestionHTML(q, prev) {
+  if (!q || typeof q !== 'object' || typeof q.runId !== 'string' || typeof q.text !== 'string' || !q.text.trim()) return '';
+  if (prev?.type === 'reply' && prev.run?.id === q.runId) return '';
+  const bot = botById(q.botId) || { id: q.botId, color: memberColor(q.botId) };
+  return `<button type="button" class="g-question" data-question="${esc(q.runId)}" title="${esc(memberName(q.botId, q.botName))}"><i>${botMark(bot)}</i><span>${esc(q.text)}</span></button>`;
 }
 // One waiting message, at the end of the chat: the owner's bubble, faded, for whom it waits, and the way back.
 function groupWaitingHTML(m, chat) {
@@ -529,11 +538,11 @@ function groupThreadHTML(g, chat, newFirst = null) {
   const folded = groupFolded(rows);
   const foldRow = new Set();
   let lastDay = '';
-  return (chat.more ? `<div class="g-earlier"><button type="button" class="btn sm" data-earlier>${tr('Earlier messages')}</button></div>` : '') + rows.map((x) => {
+  return (chat.more ? `<div class="g-earlier"><button type="button" class="btn sm" data-earlier>${tr('Earlier messages')}</button></div>` : '') + rows.map((x, i) => {
     const day = new Date(x.at).toDateString();
     const sep = day !== lastDay ? `<div class="day">${esc(new Date(x.at).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
-    if (x.type === 'message') return sep + groupMessageHTML(x, key);
+    if (x.type === 'message') return sep + groupMessageHTML(x, key, sep ? null : rows[i - 1]);
     const fold = folded.get(x.id);
     const isNew = newFirst !== null && x.id === newFirst;
     const newLine = (on) => (on ? Unread.line(memberColor(x.run.botId, x.run.botColor)) : '');
@@ -700,6 +709,13 @@ function renderGroupChat() {
     }));
     const earlier = $('[data-earlier]', items);
     if (earlier) earlier.onclick = () => loadEarlier(earlier);
+    // The question an answer answers: its reply, as a search match goes to one (read first when further back).
+    $$('[data-question]', items).forEach((el) => (el.onclick = () => {
+      const f = groupFolded(chatItems(chat)).get(el.dataset.question);
+      if (f) openFolds.add(f);
+      state.jump = { runId: el.dataset.question, group: g };
+      renderGroupChat();
+    }));
     $$('[data-fold]', items).forEach((el) => (el.onclick = () => {
       const id = el.dataset.fold;
       if (openFolds.has(id)) openFolds.delete(id); else openFolds.add(id);

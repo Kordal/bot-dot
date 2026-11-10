@@ -37,6 +37,7 @@ async function team(on, name, names) {
   assert.equal(made.status, 201, JSON.stringify(made.data));
   return { group: made.data, bots };
 }
+const kept = (on, group) => JSON.parse(fs.readFileSync(path.join(on.data, 'group-messages', `${group.id}.json`), 'utf8'));
 const send = (on, group, body, as = on.api) => as(`/group-chats/${group.id}/messages`, { method: 'POST', body });
 const chatOf = async (on, group, query = '') => (await on.api(`/group-chats/${group.id}/chat${query}`)).data;
 const messageIn = (c, id) => c.items.find((x) => x.type === 'message' && x.id === id);
@@ -542,6 +543,34 @@ test("a member's question to the owner is the group's open question, and notifie
   for (const b of [writer, coder, reviewer]) reply(srv, b, 'Read.');
   await said(srv, group, 'Darker.');
   assert.deepEqual(after.events.filter((e) => e.type === 'group_asks').map((e) => [e.data.groupId, e.data.asks]), [[group.id, null]]);
+});
+
+test("an answer tapped on a member's question keeps that question with the message, and each turn is told whose question it answers; a message in other words keeps none", async () => {
+  const { group, bots: [writer, coder] } = await team(srv, 'Answers', ['Answer Writer', 'Answer Coder']);
+  reply(srv, writer, 'Written.');
+  reply(srv, coder, 'Two ways to do it.\nWhich one?\n\n[[choices: The quick one | The clean one]]');
+  const first = await said(srv, group, 'Add the dark mode switch.');
+  const asking = repliesIn(first.chat).find((x) => x.run.botId === coder.id).run;
+  // Another member replies after the question: the answer no longer stands under it.
+  for (const b of [writer, coder]) reply(srv, b, `${b.name} has read it.`);
+  const had = srv.runs().length;
+  const answer = await said(srv, group, '  the CLEAN one ');
+  assert.deepEqual(messageIn(answer.chat, answer.id).question, { runId: asking.id, botId: coder.id, botName: 'Answer Coder', text: 'Which one?' });
+  assert.deepEqual(kept(srv, group).find((m) => m.id === answer.id).question.runId, asking.id, 'kept on disk');
+  const [own, other] = srv.runs().slice(had);
+  assert.equal(own.who, 'AnswerCoder');
+  assert.match(own.system, new RegExp(`The owner's message below is their answer to the question at the end of your reply in run ${asking.id}, in the group's chat below\\.`));
+  assert.equal(other.who, 'AnswerWriter');
+  assert.match(other.system, /\n\[botdot [0-9a-f]{16} · the member whose question the owner answers\] 🤖 Answer Coder\n/);
+  assert.match(other.system, new RegExp(`their answer to the question the member named on the line above asked at the end of its reply in run ${asking.id}`));
+  // No question open, or words that are no button of it: no question.
+  reply(srv, coder, 'Which colour?\n\n[[choices: Dark | Darker]]');
+  await said(srv, group, '@AnswerCoder go on');
+  const typed = await said(srv, group, 'Dark, but softer');
+  assert.equal(messageIn(typed.chat, typed.id).question, undefined);
+  assert.ok(!srv.runs().at(-1).system.includes("is their answer to the question"));
+  const plain = await said(srv, group, 'The clean one');
+  assert.equal(messageIn(plain.chat, plain.id).question, undefined, 'the question was answered already');
 });
 
 test("a file the owner attaches in a group is kept once and handed to each member that takes a turn on that message, in its own workspace, and to no other bot; a member's file is handed out with its reply", async () => {

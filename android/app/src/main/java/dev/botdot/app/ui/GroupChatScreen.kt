@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -58,6 +59,7 @@ import dev.botdot.app.data.GroupChatItems
 import dev.botdot.app.data.GroupItem
 import dev.botdot.app.data.GroupLimit
 import dev.botdot.app.data.GroupMessage
+import dev.botdot.app.data.GroupQuestion
 import dev.botdot.app.data.GroupSent
 import dev.botdot.app.data.GroupWorking
 import dev.botdot.app.data.Groups
@@ -486,10 +488,20 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                             Text(emptyGroupWords(members.map { it.name }), color = p.muted, textAlign = TextAlign.Center)
                         }
                     }
-                    items(shown, key = { (it as? GroupItem)?.id ?: (it as Groups.Fold).id }) { x ->
+                    itemsIndexed(shown, key = { _, it -> (it as? GroupItem)?.id ?: (it as Groups.Fold).id }) { i, x ->
                         when (x) {
                             is Groups.Fold -> FoldRow(x, bots) { if (x.open) openFolds.remove(x.messageId) else openFolds[x.messageId] = true }
                             is GroupItem.Message -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                                // The question it answers, unless right under it (shown is newest first): a tap goes to it.
+                                Groups.questionAbove(x.message, shown.getOrNull(i + 1))?.let { q ->
+                                    QuestionRow(q, bots) {
+                                        Groups.folded(vm.rows)[q.runId]?.let { openFolds[it] = true }
+                                        scope.launch {
+                                            val at = withTimeoutOrNull(1_000) { snapshotFlow { shown.indexOfFirst { (it as? GroupItem)?.id == q.runId } }.first { it >= 0 } }
+                                            if (at != null) listState.animateScrollToItem(1 + at)
+                                        }
+                                    }
+                                }
                                 MyBubble(x.message.text, x.message.attachments)
                                 // Its first turns went, and it still waits for a busy member: for whom.
                                 waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8)) }
@@ -514,6 +526,19 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
  * The row a team's answer folds its members' replies under (ADR 201): their small heads and names, and how many; a
  * tap opens or closes them.
  */
+/** The question an owner's message answers ([Groups.questionAbove]), above it: the asker's head and the question. */
+@Composable
+private fun QuestionRow(q: GroupQuestion, bots: List<Bot>, onClick: () -> Unit) {
+    val p = LocalPaper.current
+    val b = bots.firstOrNull { it.id == q.botId }
+    Row(Modifier.padding(bottom = Space.s4).clip(RoundedCornerShape(14.dp)).background(p.raise2).clickable(onClick = onClick)
+        .padding(start = Space.s4, end = Space.s12, top = Space.s4, bottom = Space.s4),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+        SmallFigure(b?.color ?: memberColor(bots, q.botId), b?.outfit, 20.dp)
+        Text(q.text, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 @Composable
 private fun FoldRow(f: Groups.Fold, bots: List<Bot>, onToggle: () -> Unit) {
     val p = LocalPaper.current
