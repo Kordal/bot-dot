@@ -333,7 +333,7 @@ test("a turn's prompt holds the group's chat with every line's author, its own n
   assert.equal(second.chat.cards.length, 0);
 });
 
-test("in its own chat a member recalls what it said in the group, and never what another member said there; a turn takes no inbox and closes no question of its bot's own", async () => {
+test("in its own chat a member recalls what it said in the group, and never what another member said there; a turn takes no inbox, and its reply overtakes the question of its bot's own", async () => {
   const { group, bots: [coder, reviewer] } = await team(srv, 'Recall', ['Recall Coder', 'Recall Reviewer']);
   // Coder asks the owner something in its own chat, and a teammate left it a note: an answer it collects for a
   // question of its own, which wakes nothing (ADR 049), so it still waits when the turn comes.
@@ -351,7 +351,8 @@ test("in its own chat a member recalls what it said in the group, and never what
   const turn = ranOf(srv, coder).at(-1);
   assert.ok(!turn.stdin.includes('The staging box is back.') && !turn.system.includes('The staging box is back.'), 'the inbox is not handed to a turn');
   const bot = (await srv.api(`/bots/${coder.id}`)).data;
-  assert.equal(bot.asks?.runId, asked.id, "the bot's own question is still open");
+  assert.equal(bot.asks ?? null, null, 'the bot asks in one place at a time: its reply in the group came after its question (ADR 211)');
+  assert.ok(asked.id);
   assert.deepEqual(await inboxOf(), before, 'and its inbox is as it was');
 
   // In its own chat: its turn is one of its past runs, the other member's is not.
@@ -521,14 +522,15 @@ test("a member's question to the owner is the group's open question, and notifie
   // A message the owner takes back opens it again.
   reply(srv, coder, 'Still: which colour?\n\n[[choices: Dark | Darker]]');
   await said(srv, group, '@AskCoder and now?');
-  hold(srv, coder);
-  const busy = (await srv.api(`/bots/${coder.id}/run`, { method: 'POST', body: { prompt: 'Something long' } })).data;
-  const own = await heldTurn(srv, coder, "Coder's own run");
-  const waits = (await send(srv, group, { text: '@AskCoder darker' })).data;
+  // (Reviewer is the one kept busy: a message to Coder in its own chat would answer its question, ADR 211.)
+  hold(srv, reviewer);
+  const busy = (await srv.api(`/bots/${reviewer.id}/run`, { method: 'POST', body: { prompt: 'Something long' } })).data;
+  const own = await heldTurn(srv, reviewer, "Reviewer's own run");
+  const waits = (await send(srv, group, { text: '@AskReviewer darker?' })).data;
   assert.equal((await chatOf(srv, group)).asks, null);
   assert.equal((await srv.api(`/group-chats/${group.id}/messages/${waits.id}`, { method: 'DELETE' })).status, 200);
   assert.equal((await chatOf(srv, group)).asks.botId, coder.id);
-  letGo(srv, coder);
+  letGo(srv, reviewer);
   srv.release(own.rec);
   await srv.finished(busy.id);
 
@@ -543,6 +545,45 @@ test("a member's question to the owner is the group's open question, and notifie
   for (const b of [writer, coder, reviewer]) reply(srv, b, 'Read.');
   await said(srv, group, 'Darker.');
   assert.deepEqual(after.events.filter((e) => e.type === 'group_asks').map((e) => [e.data.groupId, e.data.asks]), [[group.id, null]]);
+});
+
+test('a bot asks in one place at a time: written to in its own chat, its question in a group ends; its turn in a group ends that of its own chat or of another group (ADR 211)', async (t) => {
+  const { group, bots: [coder, reviewer] } = await team(srv, 'Elsewhere', ['Else Coder', 'Else Reviewer']);
+  const heard = await feed(srv);
+  t.after(() => heard.close());
+  reply(srv, coder, 'One account or two?\n\n[[choices: One | Two]]');
+  reply(srv, reviewer, 'Fine by me.');
+  const first = await said(srv, group, 'Plan the load test.');
+  const asking = repliesIn(first.chat).find((x) => x.run.botId === coder.id).run;
+  assert.equal(first.chat.asks.runId, asking.id);
+
+  // The owner answers in the bot's own chat: the group's tiles go, on the feed too, and after a reload.
+  reply(srv, coder, 'One account it is.');
+  await srv.finished((await srv.api(`/bots/${coder.id}/run`, { method: 'POST', body: { prompt: 'One account, start at 20 VU' } })).data.id);
+  assert.equal((await chatOf(srv, group)).asks, null, 'answered in its own chat');
+  assert.equal((await srv.api('/group-chats')).data.find((g) => g.id === group.id).asks, null);
+  assert.deepEqual(heard.events.filter((e) => e.type === 'group_asks' && e.data.groupId === group.id).map((e) => e.data.asks?.runId || null), [asking.id, null]);
+
+  // It asks in its own chat, and then replies in the group: its own question ends there.
+  reply(srv, coder, 'Staging or prod?\n\n[[choices: Staging | Prod]]');
+  const own = await srv.finished((await srv.api(`/bots/${coder.id}/run`, { method: 'POST', body: { prompt: 'Where do we test?' } })).data.id);
+  assert.equal((await srv.api(`/bots/${coder.id}`)).data.asks.runId, own.id);
+  reply(srv, coder, 'Staging, as the team said.');
+  reply(srv, reviewer, 'Agreed.');
+  await said(srv, group, 'We test on staging.');
+  assert.equal((await srv.api(`/bots/${coder.id}`)).data.asks ?? null, null, 'answered in the group');
+  assert.deepEqual(heard.events.filter((e) => e.type === 'asks' && e.data.botId === coder.id).map((e) => e.data.asks?.runId || null), [own.id, null]);
+
+  // It asks in one group, and replies in another: the first group's question ends.
+  const two = await makeBot(srv, { name: 'Else Two', emoji: '🤖', prompt: 'Do the work of Else Two.' });
+  const other = (await srv.api('/group-chats', { method: 'POST', body: { name: 'Elsewhere Two', members: [coder.id, two.id] } })).data;
+  reply(srv, coder, 'Which endpoints?\n\n[[choices: All | Login only]]');
+  reply(srv, reviewer, 'No view.');
+  const again = await said(srv, group, 'And the endpoints?');
+  assert.equal(again.chat.asks.botId, coder.id);
+  for (const b of [coder, two]) reply(srv, b, 'Login only, settled here.');
+  await said(srv, other, 'Login only.');
+  assert.equal((await chatOf(srv, group)).asks, null, 'answered in the other group');
 });
 
 test("an answer tapped on a member's question keeps that question with the message, and each turn is told whose question it answers; a message in other words keeps none", async () => {
