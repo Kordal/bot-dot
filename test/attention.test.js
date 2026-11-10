@@ -120,3 +120,20 @@ test('a check the Chief set itself is a weight-3 item from its time on, and neve
   assert.equal((await a.wake({ now: NOW, quiet: ['loop'] })).key, 'loop:r1');
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('bad news and delays: a job that failed or did not run today, and a job\'s run far longer than its last', () => {
+  const jobs = [
+    { botId: 'b1', botName: 'Prices', jobId: 'j1', jobName: 'Morning prices', status: 'error', runId: 'r9', at: new Date(NOW - 3600e3).toISOString(), text: 'Last run at 08:00: failed. It said: "403".' },
+    { botId: 'b1', botName: 'Prices', jobId: 'j2', jobName: 'Weekly', status: 'missed', at: new Date(NOW - 2 * 3600e3).toISOString(), text: 'Did not run at 07:00: botdot was off.' },
+    { botId: 'b1', botName: 'Prices', jobId: 'j3', jobName: 'Old', status: 'error', runId: 'r1', at: new Date(NOW - 30 * 3600e3).toISOString(), text: 'x' },
+  ];
+  const running = [
+    { runId: 'r10', botName: 'Coder', jobName: 'Nightly build', startedAt: new Date(NOW - 45 * 60000).toISOString(), usualMs: 10 * 60000 },
+    { runId: 'r11', botName: 'Coder', jobName: 'Quick', startedAt: new Date(NOW - 15 * 60000).toISOString(), usualMs: 60000 },
+    { runId: 'r12', botName: 'Coder', jobName: 'New', startedAt: new Date(NOW - 90 * 60000).toISOString(), usualMs: null },
+  ];
+  const found = attention.signals({ jobs, running, now: NOW });
+  assert.deepEqual(found.map((f) => [f.key, f.weight]), [['job:j1:r9', 2], [`job:j2:${jobs[1].at}`, 2], ['late:r10', 2]], 'a day old, under 20 minutes, or nothing to compare with: no signal');
+  assert.match(found[0].text, /^Prices's job "Morning prices" failed: .*bring the fix with the news/);
+  assert.match(found[2].text, /^Coder's job "Nightly build" has been running for 45 min; its last run took 10 min\./);
+});
