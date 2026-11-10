@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -83,6 +84,8 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     val others = remember(bots, botId) { bots.orEmpty().filter { it.id != botId } }
     var makingGroup by remember { mutableStateOf(false) }
     val runs = vm.runs
+    // Its newest reply, for the button to it (ToLatestButton): the run, and how far it got.
+    val newestRun = remember(runs) { ChatOrder.rounds(runs).lastOrNull()?.lastOrNull()?.let { "${it.id}:${it.status}" } }
     val waiting = vm.waiting
     val loaded = vm.loaded
     val files = vm.files
@@ -213,79 +216,82 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
             if (empty) EmptyChat(pad, bot?.name.orEmpty(), EmptyChatJobs.botJobs(bot?.jobs.orEmpty()), onJob = { runJob(it) },
                 figure = { BotFigure(bot?.color, bot?.state ?: "idle", size = 56, outfit = bot?.outfit) },
                 top = { ChatNeeds(app, botId) }) { box() }
-            else LazyColumn(
-                Modifier.fillMaxSize(),
-                state = listState,
-                reverseLayout = true, // newest at the bottom, and the list starts there
-                // The top bar and the message box float over the messages, which scroll behind them.
-                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
-                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
-            ) {
-                // Last in the chat: the one line of a working bot (the server's words for what it is doing, "Working…", or "Waiting for your OK" while its
-                // run waits for it), then your messages that wait for it, then what it waits for your OK on (as on the web page).
-                // A run at work has its line and Stop in its own block (#625); this line is for a bot with none of yours.
-                // A script job has no run while its script runs, and no line.
-                item(key = "needs") {
-                    Column {
-                        // The owner's message on its way: above the line of a bot that was free, which reads "Working…"
-                        // until the server answers; under what waits already for a bot at work.
-                        val sent = vm.sent
-                        if (sent != null && running == null) SentBubble(sent, above = true, sentArrives)
-                        // A run at work says it in its block (#625): the line here is only for the owner's message on its
-                        // way to a bot that was free ("Working…").
-                        if (running == null) {
-                            if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], null), sent), bot?.color, room = true)
-                            else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], false), sent), bot?.color)
-                        }
-                        vm.started.forEach { q -> androidx.compose.runtime.key(q.id) { SentBubble(SentMessage(q.id, q.text, q.attachments), above = false) } } // its turn came: until its run is here
-                        WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
-                        if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
-                        ChatNeeds(app, botId)
-                    }
-                }
-                if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
-                // Each run is one block (#625), where its reply ended: below what came while its run worked (a "/btw",
-                // another run, #460), and a run at work at the bottom. A run that replies to another is a further round of
-                // its block (#627), which stands where its newest round's reply does.
-                val blocks = ChatOrder.rounds(runs)
-                val lastReply = blocks.lastOrNull()?.lastOrNull()?.id
-                items(blocks.asReversed(), key = { it.first().id }) { rounds ->
-                    val last = rounds.last()
-                    // Details on the long press opens the newest round's steps; Copy takes its reply.
-                    val detailed = rounds.lastOrNull { RunSteps.shows(it) }
-                    RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
-                        vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { tr("this task") })
-                    }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
-                        rounds.forEachIndexed { n, r ->
-                            if (n > 0) RoundRule()
-                            // The "New" line: above what started the run, or, below your own message, above the rest of the block.
-                            val new = r.id == vm.newFirst
-                            val mine = Unread.mine(r)
-                            val asked = drawsAsked(r)
-                            if (new && !mine && asked) NewLine(bot?.color)
-                            if (asked) YourSide(r, open = r.id in opened)
-                            r.steered.forEach { SteeredMessage(it) }
-                            if (new && (mine || !asked)) NewLine(bot?.color)
-                            val steps = RunSteps.shows(r)
-                            if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
-                                open = RunSteps.open(stepsOpen, r), onOpen = { if (it) stepsOpen[r.id] = r.isRunning else stepsOpen.remove(r.id) }, onStop = { vm.stop(r.id) })
-                            val theirs = @Composable {
-                                TheirSide(r, open = r.id in opened, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
-                                    learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
-                                // Under the reply that is last in the chat, and under the run its open question is from when newer
-                                // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
-                                if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {
-                                    Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
-                                    Questions(r.questions) { text, key -> sendFrom(text, key) }
-                                }
+            else Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    reverseLayout = true, // newest at the bottom, and the list starts there
+                    // The top bar and the message box float over the messages, which scroll behind them.
+                    contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                    verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
+                ) {
+                    // Last in the chat: the one line of a working bot (the server's words for what it is doing, "Working…", or "Waiting for your OK" while its
+                    // run waits for it), then your messages that wait for it, then what it waits for your OK on (as on the web page).
+                    // A run at work has its line and Stop in its own block (#625); this line is for a bot with none of yours.
+                    // A script job has no run while its script runs, and no line.
+                    item(key = "needs") {
+                        Column {
+                            // The owner's message on its way: above the line of a bot that was free, which reads "Working…"
+                            // until the server answers; under what waits already for a bot at work.
+                            val sent = vm.sent
+                            if (sent != null && running == null) SentBubble(sent, above = true, sentArrives)
+                            // A run at work says it in its block (#625): the line here is only for the owner's message on its
+                            // way to a bot that was free ("Working…").
+                            if (running == null) {
+                                if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.botLine(lines[chatKey], null), sent), bot?.color, room = true)
+                                else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines[chatKey], false), sent), bot?.color)
                             }
-                            // Its reply, once the run ended: it arrives when it is new in this open chat, and what
-                            // started the run stands still above it. A run at work has no reply to arrive.
-                            if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) { theirs() }
-                            if (!steps) BlockFoot(r) { vm.stop(r.id) }
+                            vm.started.forEach { q -> androidx.compose.runtime.key(q.id) { SentBubble(SentMessage(q.id, q.text, q.attachments), above = false) } } // its turn came: until its run is here
+                            WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
+                            if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
+                            ChatNeeds(app, botId)
+                        }
+                    }
+                    if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
+                    // Each run is one block (#625), where its reply ended: below what came while its run worked (a "/btw",
+                    // another run, #460), and a run at work at the bottom. A run that replies to another is a further round of
+                    // its block (#627), which stands where its newest round's reply does.
+                    val blocks = ChatOrder.rounds(runs)
+                    val lastReply = blocks.lastOrNull()?.lastOrNull()?.id
+                    items(blocks.asReversed(), key = { it.first().id }) { rounds ->
+                        val last = rounds.last()
+                        // Details on the long press opens the newest round's steps; Copy takes its reply.
+                        val detailed = rounds.lastOrNull { RunSteps.shows(it) }
+                        RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
+                            vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { tr("this task") })
+                        }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
+                            rounds.forEachIndexed { n, r ->
+                                if (n > 0) RoundRule()
+                                // The "New" line: above what started the run, or, below your own message, above the rest of the block.
+                                val new = r.id == vm.newFirst
+                                val mine = Unread.mine(r)
+                                val asked = drawsAsked(r)
+                                if (new && !mine && asked) NewLine(bot?.color)
+                                if (asked) YourSide(r, open = r.id in opened)
+                                r.steered.forEach { SteeredMessage(it) }
+                                if (new && (mine || !asked)) NewLine(bot?.color)
+                                val steps = RunSteps.shows(r)
+                                if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
+                                    open = RunSteps.open(stepsOpen, r), onOpen = { if (it) stepsOpen[r.id] = r.isRunning else stepsOpen.remove(r.id) }, onStop = { vm.stop(r.id) })
+                                val theirs = @Composable {
+                                    TheirSide(r, open = r.id in opened, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
+                                        learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
+                                    // Under the reply that is last in the chat, and under the run its open question is from when newer
+                                    // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
+                                    if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {
+                                        Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
+                                        Questions(r.questions) { text, key -> sendFrom(text, key) }
+                                    }
+                                }
+                                // Its reply, once the run ended: it arrives when it is new in this open chat, and what
+                                // started the run stands still above it. A run at work has no reply to arrive.
+                                if (r.isRunning) theirs() else Column(Modifier.arrives(arrivals, r.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) { theirs() }
+                                if (!steps) BlockFoot(r) { vm.stop(r.id) }
+                            }
                         }
                     }
                 }
+                ToLatestButton(listState, botId, newestRun, pad.calculateBottomPadding()) { BotFigure(bot?.color, "idle", 20, bot?.outfit) }
             }
         }
     }

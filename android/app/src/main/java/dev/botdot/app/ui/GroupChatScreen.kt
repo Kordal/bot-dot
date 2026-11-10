@@ -370,6 +370,11 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     // The messages that wait whole stand at the end of the chat; the rest in their place, newest first for the list.
     val waiting by remember(botsNow, signedOut) { derivedStateOf { vm.rows.filterIsInstance<GroupItem.Message>().map { it.message }.filter { waitsWhole(it, bots, signedOut) } } }
     val shown by remember(botsNow, signedOut) { derivedStateOf { vm.rows.filterNot { it is GroupItem.Message && waitsWhole(it.message, bots, signedOut) }.asReversed() } }
+    // The head on the button to the newest message (ToLatestButton): the member whose reply is newest.
+    @Composable fun newestHead() {
+        val r = shown.firstNotNullOfOrNull { (it as? GroupItem.Reply)?.run } ?: return
+        BotFigure(memberColor(bots, r.botId, r.botColor), "idle", 20, bots.firstOrNull { it.id == r.botId }?.outfit)
+    }
     // Who is next, of the one message the rule picks (Groups.next): its heads stand under the working lines.
     val next by remember { derivedStateOf { Groups.next(vm.rows.filterIsInstance<GroupItem.Message>().map { it.message }, vm.working) } }
     // New replies: the "New" line above the first of them, and the report that reads the group in every app.
@@ -435,61 +440,64 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                 )
             } },
         ) { pad ->
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                state = listState,
-                reverseLayout = true, // newest at the bottom, and the list starts there
-                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
-                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom),
-            ) {
-                // Last in the chat: the stopped line with "Go on", one line per member at work with one "Stop all", the
-                // messages that wait, and what the group waits for the owner's OK on.
-                item(key = "tail") {
-                    Column {
-                        // The replies being written, under the member's name, each in the bubble its reply will have.
-                        vm.drafts.forEach { (w, text) -> androidx.compose.runtime.key(w.runId) { GroupDraft(text, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId)) } }
-                        vm.limit?.let { StoppedLine(it.text) { vm.goOn() } }
-                        // The owner's message on its way: above one line "Working…" while no member works, which the
-                        // members' own lines replace; under what waits already while some do.
-                        val sent = vm.sent
-                        if (sent != null && vm.working.isEmpty()) { SentBubble(sent, above = true, sentArrives); StatusLine(lineWith("", sent), null, room = true) }
-                        vm.working.forEachIndexed { i, w ->
-                            val line = turnLines[w.runId]
-                            StatusLine(workingWords(memberName(bots, w.botId), line, OpeningLine.ofRun(w.workingLine, w.openingLine, app.store.lines.features)), memberColor(bots, w.botId), still = line?.held == true,
-                                onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = tr("Stop all"))
-                        }
-                        // Who is next: the members whose turn has not come, also between two turns, when no line stands.
-                        NextHeads(Groups.heads(next, bots))
-                        if (waiting.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                            waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
-                        }
-                        if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
-                        ChatNeeds(app, chatKey)
-                    }
-                }
-                if (vm.loaded && vm.rows.isEmpty() && vm.sent == null) item {
-                    Column(Modifier.fillMaxWidth().padding(Space.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        GroupPicture(members, 72)
-                        Text(group?.name.orEmpty(), color = p.text, style = MaterialTheme.typography.titleMedium)
-                        Text(emptyGroupWords(members.map { it.name }), color = p.muted, textAlign = TextAlign.Center)
-                    }
-                }
-                items(shown, key = { it.id }) { x ->
-                    when (x) {
-                        is GroupItem.Message -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-                            MyBubble(x.message.text, x.message.attachments)
-                            // Its first turns went, and it still waits for a busy member: for whom.
-                            waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8)) }
-                        }
-                        is GroupItem.Reply -> Column(Modifier.arrives(arrivals, x.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                            val bot = bots.firstOrNull { it.id == x.run.botId }
-                            if (x.id == vm.newFirst) NewLine(memberColor(bots, x.run.botId, x.run.botColor))
-                            // The answer buttons of the group's open question stand under the reply that asked: an
-                            // answer is a message to the group, and the member that asked has the first turn.
-                            GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id) { text, key -> sendFrom(text, key) }
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    reverseLayout = true, // newest at the bottom, and the list starts there
+                    contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                    verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom),
+                ) {
+                    // Last in the chat: the stopped line with "Go on", one line per member at work with one "Stop all", the
+                    // messages that wait, and what the group waits for the owner's OK on.
+                    item(key = "tail") {
+                        Column {
+                            // The replies being written, under the member's name, each in the bubble its reply will have.
+                            vm.drafts.forEach { (w, text) -> androidx.compose.runtime.key(w.runId) { GroupDraft(text, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId)) } }
+                            vm.limit?.let { StoppedLine(it.text) { vm.goOn() } }
+                            // The owner's message on its way: above one line "Working…" while no member works, which the
+                            // members' own lines replace; under what waits already while some do.
+                            val sent = vm.sent
+                            if (sent != null && vm.working.isEmpty()) { SentBubble(sent, above = true, sentArrives); StatusLine(lineWith("", sent), null, room = true) }
+                            vm.working.forEachIndexed { i, w ->
+                                val line = turnLines[w.runId]
+                                StatusLine(workingWords(memberName(bots, w.botId), line, OpeningLine.ofRun(w.workingLine, w.openingLine, app.store.lines.features)), memberColor(bots, w.botId), still = line?.held == true,
+                                    onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = tr("Stop all"))
+                            }
+                            // Who is next: the members whose turn has not come, also between two turns, when no line stands.
+                            NextHeads(Groups.heads(next, bots))
+                            if (waiting.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                                waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
+                            }
+                            if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
+                            ChatNeeds(app, chatKey)
                         }
                     }
+                    if (vm.loaded && vm.rows.isEmpty() && vm.sent == null) item {
+                        Column(Modifier.fillMaxWidth().padding(Space.s24), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                            GroupPicture(members, 72)
+                            Text(group?.name.orEmpty(), color = p.text, style = MaterialTheme.typography.titleMedium)
+                            Text(emptyGroupWords(members.map { it.name }), color = p.muted, textAlign = TextAlign.Center)
+                        }
+                    }
+                    items(shown, key = { it.id }) { x ->
+                        when (x) {
+                            is GroupItem.Message -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+                                MyBubble(x.message.text, x.message.attachments)
+                                // Its first turns went, and it still waits for a busy member: for whom.
+                                waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8)) }
+                            }
+                            is GroupItem.Reply -> Column(Modifier.arrives(arrivals, x.id), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                                val bot = bots.firstOrNull { it.id == x.run.botId }
+                                if (x.id == vm.newFirst) NewLine(memberColor(bots, x.run.botId, x.run.botColor))
+                                // The answer buttons of the group's open question stand under the reply that asked: an
+                                // answer is a message to the group, and the member that asked has the first turn.
+                                GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id) { text, key -> sendFrom(text, key) }
+                            }
+                        }
+                    }
                 }
+                ToLatestButton(listState, groupId, shown.firstOrNull()?.id, pad.calculateBottomPadding()) { newestHead() }
             }
         }
     }
