@@ -233,3 +233,16 @@ test('a run that cannot read reminders.json is logged, and the server stays up',
     await srv.stop();
   }
 });
+
+test('a check (P3, ADR 175) is no ⏰ line at its time: it waits for a look, and is kept until one starts', { timeout: 30_000 }, async () => {
+  const srv = await startServer();
+  try {
+    const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+    const r = await srv.api('/chief/reminders', { method: 'POST', body: { text: 'Did Anna answer about the quote?', at: soon(1000), chatId: chat.id, check: true } });
+    assert.equal(r.status, 201, JSON.stringify(r.data));
+    assert.equal(r.data.check, true);
+    await sleep(3000);
+    assert.deepEqual(bells((await srv.api(`/chief/chats/${chat.id}`)).data, 'Did Anna answer about the quote?'), []);
+    assert.deepEqual(await reminderTexts(srv), ['Did Anna answer about the quote?'], 'kept for the look');
+  } finally { await srv.stop(); }
+});

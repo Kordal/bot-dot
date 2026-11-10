@@ -455,6 +455,7 @@ test('between the looks of the clock, what attention noticed starts a look: once
   assert.deepEqual(await w.tickAt('2026-10-05T10:26:00Z'), { looked: true, posted: true, chatId: 'chat-1', noticed: 'event:p1:e1' });
   assert.deepEqual(w.reasons, ['event:p1:e1'], 'the look is told why it starts');
   assert.deepEqual(w.woken, ['event:p1:e1']);
+  assert.equal(w.offered.at(-1).urgent, true, 'a weight-3 item is posted as urgent');
   assert.deepEqual(await w.tickAt('2026-10-05T10:27:00Z'), { looked: false, reason: 'not-time' }, 'an item starts one look');
   assert.equal(w.looks.raised().at(-1).noticed, 'event', 'its record says what started it');
 
@@ -477,4 +478,31 @@ test('without a time named, the first look of the day is the brief and the last 
   assert.match(look.systemPrompt({ kind: 'wrap' }), /last look of the owner's day[^]*at most 3 short lines[^]*answer NOTHING/);
   assert.match(look.prompt({ now: at('2026-10-05T21:10:00Z'), timeZone: 'UTC', kind: 'wrap' }), /The close of the day, or NOTHING:$/);
   assert.match(look.prompt({ now: at('2026-10-05T21:10:00Z'), timeZone: 'UTC', agenda: 'Why this look starts now: x.' }), /Why this look starts now: x\./);
+});
+
+test('a kind of noticed item the owner leaves unanswered starts no more looks, until its looks age out (ADR 175, P6)', () => {
+  const now = at('2026-10-30T10:00:00Z');
+  const entry = (i, noticed, over = {}) => ({ id: `r${i}`, at: `2026-10-${String(10 + (i % 15)).padStart(2, '0')}T10:00:00Z`, text: 't', rating: null, answer: null, noticed, ...over });
+  const cards = Array.from({ length: 10 }, (_, i) => entry(i, 'card', i === 0 ? { rating: 'up' } : {}));
+  const events = Array.from({ length: 10 }, (_, i) => entry(i, 'event', i < 2 ? { answer: 'thanks' } : {}));
+  const todos = Array.from({ length: 9 }, (_, i) => entry(i, 'todo'));
+  assert.deepEqual(look.quietKinds([...cards, ...events, ...todos, entry(1, undefined)], now), ['card'], 'one in ten liked: quiet; two in ten: not; nine: too few to tell');
+  assert.deepEqual(look.quietKinds(cards.map((r) => ({ ...r, answer: 'no', rating: 'down' })), now), ['card'], 'an answer rated down is no yes');
+  assert.deepEqual(look.quietKinds(cards, at('2026-12-30T10:00:00Z')), [], 'older than 30 days: it starts again');
+});
+
+test('bots that write first share the day\'s budget; the brief and the close of the day still come (ADR 175, P5)', async () => {
+  const w = make();
+  w.clock = at('2026-10-05T07:00:00Z');
+  assert.deepEqual([1, 2, 3, 4].map(() => w.looks.spendForBot()), [true, true, true, false], 'past the budget a report comes quietly');
+  assert.equal(w.looks.status().sentToday, 3);
+  assert.equal((await w.tickAt('2026-10-05T07:50:00Z')).posted, true, 'the brief');
+  assert.equal((await w.tickAt('2026-10-05T09:30:00Z')).reason, 'limit', 'a plain look waits for tomorrow');
+  assert.equal((await w.tickAt('2026-10-05T21:10:00Z')).posted, true, 'the close of the day');
+  w.clock = at('2026-10-06T08:00:00Z');
+  assert.equal(w.looks.spendForBot(), true, 'a new day, a new budget');
+  assert.equal(w.looks.status().sentToday, 1);
+  w.settings.unaskedPerDay = 0;
+  assert.equal(w.looks.spendForBot(), true, 'the Chief\'s silence does not quiet the bots');
+  assert.equal(w.looks.status().sentToday, 1);
 });

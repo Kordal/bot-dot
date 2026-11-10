@@ -48,6 +48,8 @@ test("a reply notifies when the server says it is new, in the bot's or the Chief
   assert.deepEqual(take(f, ev('chief_reply', { chatId: 'c1', title: 'Trip', status: 'success', text: 'Booked.', new: true })).map((n) => [n.title, n.body, n.target]), [['Ada', 'Booked.', 'chief:c1']]);
   assert.deepEqual(take(f, ev('chief_reply', { chatId: 'c1', status: 'error', text: 'Half', error: 'Claude was signed out.', from: { id: 'b1', name: 'News' }, new: true })).map((n) => [n.title, n.body]), [['News', 'Claude was signed out.']]);
   assert.deepEqual(take(f, ev('chief_reply', { chatId: 'c1', status: 'success', text: 'Read here.' })), []);
+  assert.deepEqual(take(f, ev('chief_reply', { chatId: 'c1', status: 'success', text: 'Launch call in 40 min.', unasked: true, urgent: true, new: true })).map((n) => n.urgency), ['high'], 'what needs the owner within the hour rings at once (ADR 175)');
+  assert.deepEqual(take(f, ev('chief_reply', { chatId: 'c1', status: 'success', text: 'A tip.', unasked: true, new: true })).map((n) => n.urgency), [undefined]);
   assert.equal(take(f, ev('run_finished', { botId: 'b1', botName: 'News', status: 'success', result: 'x'.repeat(900), new: true }))[0].body.length, push.BODY_MAX);
   assert.deepEqual(take(f, ev('run_finished', { botId: '../x', botName: 'News', status: 'success', result: 'r', new: true })), [], 'a target is only what the page opens');
 });
