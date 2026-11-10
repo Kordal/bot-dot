@@ -1,4 +1,4 @@
-# ADR-178: Bitwarden stays unlocked across an update
+# ADR-181: Bitwarden stays unlocked across an update
 
 - **Status:** Accepted (2026-11-10, the owner's go on "less heavy, less minding the bots", option A)
 - **Changes:** the rule of `lib/bitwarden.js` that every restart of botdot locks Bitwarden

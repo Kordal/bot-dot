@@ -31,7 +31,7 @@ const vaultLib = require('./lib/vault');
 const vault = vaultLib.create(B.DATA_DIR);
 // Once Bitwarden is connected it is the vault (the "bot-dot" folder); until then the built-in one.
 const bitwarden = require('./lib/bitwarden').create(B.DATA_DIR);
-// The code that runs now, as a stamp: an update changes it, a plain restart or a reboot does not (ADR 178).
+// The code that runs now, as a stamp: an update changes it, a plain restart or a reboot does not (ADR 181).
 // Bitwarden unlocked as botdot exits stays unlocked for the start an update makes.
 const CODE_STAMP = (() => {
   const h = require('crypto').createHash('sha1');

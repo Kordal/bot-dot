@@ -1,4 +1,4 @@
-// Bitwarden stays unlocked across an update (ADR 178): the session is kept for the one start that brings other
+// Bitwarden stays unlocked across an update (ADR 181): the session is kept for the one start that brings other
 // code, encrypted with the Vault's key, for at most 15 minutes, and never across a plain restart.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
