@@ -278,3 +278,21 @@ test("the feed says each notification as a push says it, after the event that ma
     await srv.api('/read', { method: 'POST', body: { app: 'desktop-test', chat: null } });
   } finally { live.close(); }
 });
+
+test('a card the morning brief names rings nothing, and rings once its run waits for the answer; its notification is not taken away (ADR 185)', () => {
+  const rung = new Set();
+  const f = push.follower({ rung });
+  const skill = { id: 's1', kind: 'skill', botName: 'Scout', text: 'Asks to install a skill', waitsForBrief: true };
+  assert.deepEqual(take(f, ev('asks', { waiting: 1, list: [skill] })), []);
+  assert.equal(rung.size, 0);
+  // One that rang while its run waited, then no longer waited for: its notification stays.
+  const held = { id: 'c1', kind: 'connector-action', botName: 'Scout', text: 'Wants to label an email with Gmail' };
+  assert.deepEqual(take(f, ev('asks', { waiting: 2, list: [skill, held] })).map((n) => n.tag), ['ask:c1']);
+  const { notices, closed } = f.take(ev('asks', { waiting: 2, list: [skill, { ...held, waitsForBrief: true }] }));
+  assert.deepEqual([notices, closed], [[], []]);
+  // A card of several rings when one of its asks is waited for.
+  const batch = { id: 'run-r2', title: 'Scout wants 2 things', count: 2 };
+  const b1 = { ...skill, id: 'b1', batch };
+  assert.deepEqual(take(f, ev('asks', { waiting: 2, list: [b1, { ...b1, id: 'b2', waitsForBrief: true }] })), []);
+  assert.deepEqual(take(f, ev('asks', { waiting: 2, list: [b1, { ...b1, id: 'b2', waitsForBrief: undefined }] })).map((n) => n.tag), ['ask:batch:run-r2']);
+});

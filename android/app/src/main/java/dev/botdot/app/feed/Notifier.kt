@@ -303,6 +303,8 @@ class Notifier(
         val hidden: String = tr("Waiting for your OK"), val evenOnWeb: Boolean = false,
         // The other asks of its card of several (#277): one that joins later, or the first answered on its own, rings nothing new.
         val also: List<String> = emptyList(),
+        // A card nobody waits for right now, which the morning's brief names (ADR 185): it rings nothing.
+        val later: Boolean = false,
     )
 
     /** Claude is signed out: one notification per sign-out; a tap opens the app. Signed in again: it goes, and may ring the next time. */
@@ -348,7 +350,7 @@ class Notifier(
 
     /** The feed's asks, one notification per card: what one run waits on rings once, with its card's title and no buttons. */
     private fun askNeeds(list: List<JsonObject>): List<Need> = askNotices(list).map { c ->
-        val n = askNeed(c.first)
+        val n = askNeed(c.first).copy(later = c.later)
         if (c.batch == null) n else n.copy(key = "ask:batch:${c.batch.id}", text = c.batch.title.ifBlank { n.text.ifBlank { tr("Needs your OK") } }, yes = null, no = false, also = c.asks)
     }
 
@@ -389,7 +391,7 @@ class Notifier(
         members.keys.removeAll { it.startsWith(prefix) && it !in keys }
         forget { it.startsWith(prefix) && it !in keys }
         if (rung.removeAll(again)) saveRung()
-        open.forEach { once(it, quiet = it.key in again) }
+        open.filterNot { it.later }.forEach { once(it, quiet = it.key in again) }
     }
 
     /** Rings once. A card of several rings when none of its asks rang before; one that grew is drawn again quietly, with its new title. */
@@ -706,18 +708,22 @@ internal fun staysSilent(webActive: Boolean, evenOnWeb: Boolean): Boolean = webA
  * One notification per card (#277): an ask of its own, or the first ask of a card of several ([batch]) with the keys
  * of all its [asks]. The web push does the same (lib/push.js).
  */
-internal data class AskNotice(val first: JsonObject, val batch: AskBatch?, val asks: List<String>)
+/** [later]: every ask of it waits for the morning's brief (`waitsForBrief`, ADR 185), so it rings nothing. */
+internal data class AskNotice(val first: JsonObject, val batch: AskBatch?, val asks: List<String>, val later: Boolean = false)
 
 internal fun askNotices(list: List<JsonObject>): List<AskNotice> {
     val batchOf = { o: JsonObject -> AskBatch.of(o["batch"]) }
     val byBatch = list.filter { batchOf(it) != null }.groupBy { batchOf(it)!!.id }
     val drawn = mutableSetOf<String>()
     return list.mapNotNull { o ->
-        val batch = batchOf(o) ?: return@mapNotNull AskNotice(o, null, emptyList())
+        val batch = batchOf(o) ?: return@mapNotNull AskNotice(o, null, emptyList(), waitsForBrief(o))
         if (!drawn.add(batch.id)) return@mapNotNull null
-        AskNotice(o, batch, byBatch.getValue(batch.id).map { "ask:${it.str("id")}" })
+        val members = byBatch.getValue(batch.id)
+        AskNotice(o, batch, members.map { "ask:${it.str("id")}" }, members.all(::waitsForBrief))
     }
 }
+
+private fun waitsForBrief(o: JsonObject) = o.str("waitsForBrief") == "true"
 
 /** `yesOn` of an entry whose yes is given on the ask's card and nowhere else (docs/api.md). */
 internal const val YES_ON_CARD = "card"
