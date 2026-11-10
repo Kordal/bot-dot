@@ -165,7 +165,7 @@ const irreversibleSteps = irreversibleStepsLib.create(B.DATA_DIR, {
   connectedApp: (botId, site) => { const app = irreversibleStepsLib.appOfSite(B.bots.get(botId)?.connectors, site); return app ? B.appName(app) || app : null; },
 });
 // Attention (ADR 175): the cards that wait in Needs you and when the owner last wrote, for what the Chief notices between its looks.
-chief.attentionWith({ asks: () => asks.list().map((a) => ({ id: a.id, at: a.at, text: asksLib.askText(a, { appName: B.appName }) })), lastMessageAt: () => activity.lastMessageAt() });
+chief.attentionWith({ asks: () => asks.list().map((a) => ({ id: a.id, at: a.at, text: asksLib.askText(a, { appName: B.appName }), bot: (a.botId && B.bots.get(a.botId)?.name) || null })), lastMessageAt: () => activity.lastMessageAt() });
 B.onRunStarted((meta, carried) => { connectorApprovals.runStarted(meta, carried); irreversibleSteps.runStarted(meta); });
 B.onRunEnded((meta) => { connectorApprovals.runEnded(meta); irreversibleSteps.runEnded(meta); roomRuns.runEnded(meta); });
 // A Chief turn gets connected apps when the owner started it, or when a late yes on its card did (ADR 047): every
