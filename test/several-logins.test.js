@@ -134,7 +134,7 @@ function noDocker(t) {
   return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 }
 
-test('run_with_login with logins: every one must be shared, or no command runs; a login saved with "Usable in its computer" off is usable too (ADR 175)', async (t) => {
+test('run_with_login with logins: every one must be shared, or no command runs; a login saved with "Usable in its computer" off is usable too (ADR 177)', async (t) => {
   const srv = await startServer({ env: noDocker(t) });
   t.after(() => srv.stop());
   const infra = await makeBot(srv, { name: 'Infra Admin', computer: 'linux', computerAlwaysOn: true });

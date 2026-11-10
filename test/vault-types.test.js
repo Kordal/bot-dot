@@ -219,7 +219,7 @@ test('Bitwarden: add keeps the type beside the bots in bitwarden-access.json, an
   assert.ok(kept().every((it) => it.type === 1), 'each a Bitwarden login');
 });
 
-test('Bitwarden: every login reads as usable in its computer and accepting a self-signed certificate, and neither edits the item (ADR 175)', async (t) => {
+test('Bitwarden: every login reads as usable in its computer and accepting a self-signed certificate, and neither edits the item (ADR 177)', async (t) => {
   const { bw, access, kept, writes } = await bitwarden(t, [PORTAL], { 'i-portal': { bots: ['bot1'], insecureTls: false, inComputer: false } });
   assert.deepEqual([bw.list()[0].inComputer, bw.list()[0].insecureTls], [true, true], 'on for an item saved with both off');
   assert.equal(Object.hasOwn(bw.forBot('bot1')[0], 'inComputer'), false, 'nothing for a bot to tell apart');

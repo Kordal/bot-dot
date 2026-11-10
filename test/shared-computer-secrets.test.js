@@ -1,7 +1,7 @@
 // What the owner, the bots and the Chief read about saved secrets used on the account's computer (#106, ADR 035):
 // every bot there works as box with sudo, so each can read what botdot types or hands to a command there. Said
 // plainly in the bots' vault and computer tools, the Chief's Vault tool and the bot's prompt. Every login may be used
-// there (ADR 175), so the Vault's editor has no switch or hint for it.
+// there (ADR 177), so the Vault's editor has no switch or hint for it.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -56,7 +56,7 @@ test('the bot\'s prompt says it, and that botdot puts no secret on a command lin
   assert.match(bots, /What botdot types into your browser or hands to a command on this computer \([^)]*\) every other bot on the computer can read too, as they all have sudo\. botdot puts no secret on a command line, and in a file only for one command or by place_secret_file/);
 });
 
-test('the Vault\'s editor has no switch for a self-signed certificate or for the computer (ADR 175)', () => {
+test('the Vault\'s editor has no switch for a self-signed certificate or for the computer (ADR 177)', () => {
   for (const f of [read('public', 'vault.js'), read('public', 'login-requests.js'), read('android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui', 'VaultScreen.kt')]) {
     assert.doesNotMatch(f, /name="insecureTls"|name="inComputer"|Usable in its computer|Accept a self-signed certificate/);
   }

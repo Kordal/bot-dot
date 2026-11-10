@@ -56,7 +56,7 @@ test('web: the line under it reads by type', () => {
   // A login, as before this task.
   assert.equal(page.vaultItemLine({ type: 'login', username: 'alice' }), '👤 alice · 🔒 secret saved');
   assert.equal(page.vaultItemLine({ username: '' }), '👤 (no username) · 🔒 secret saved', 'without a type: a login');
-  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', hasTotp: true, insecureTls: true, inComputer: true }), '👤 alice · 🔒 secret saved · two-step code', 'both on for every login: not said (ADR 175)');
+  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', hasTotp: true, insecureTls: true, inComputer: true }), '👤 alice · 🔒 secret saved · two-step code', 'both on for every login: not said (ADR 177)');
   // An API token: its token ID, and "token saved".
   assert.equal(page.vaultItemLine({ type: 'api-token', username: 'root@pam!botdot' }), '🆔 root@pam!botdot · 🔒 token saved');
   assert.equal(page.vaultItemLine({ type: 'api-token', username: '' }), '🆔 (no token ID) · 🔒 token saved');
@@ -232,11 +232,11 @@ test('web: the editor is "Add to the Vault", Type is its first control, and the 
   assert.match(editor, /const l = login \|\| \{ name: '', site: '', username: '', allowedBots: \[\] \};/);
 });
 
-test('web: neither the editor nor the dialog of a bot\'s request has a switch for a self-signed certificate or the computer (ADR 175)', () => {
+test('web: neither the editor nor the dialog of a bot\'s request has a switch for a self-signed certificate or the computer (ADR 177)', () => {
   for (const html of [editor, dialog]) assert.doesNotMatch(html, /insecureTls|inComputer/);
 });
 
-test('web: the login editor shows no bots and sends none, so a login keeps the bots it has (ADR 175)', () => {
+test('web: the login editor shows no bots and sends none, so a login keeps the bots it has (ADR 177)', () => {
   assert.doesNotMatch(editor, /Bots that may use it|name="bot"|allowedBots: \$\$/);
 });
 

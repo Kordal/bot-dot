@@ -1,6 +1,6 @@
-# ADR-175: Every saved login accepts a self-signed certificate and is usable in its computer
+# ADR-177: Every saved login accepts a self-signed certificate and is usable in its computer
 
-- **Status:** Proposed (2026-11-09, waits for the owner's yes to the trade-off below)
+- **Status:** Accepted (2026-11-10, the owner said yes to the trade-off below)
 - **Owning task:** the owner's request to remove the Vault's two switches and keep both on
 - **Supersedes:** the switches "Accept self-signed certificate" (`insecureTls`) and "Usable in its computer" (`inComputer`) of a saved login, and the bot's `ask_vault_switch` (docs/decisions/2026-10-18-a-bot-may-use-a-saved-login-in.md, docs/decisions/2026-10-18-a-bot-that-needs-a-switch-of-a.md)
 - **Builds on:** [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (one computer, every bot on it with sudo)
