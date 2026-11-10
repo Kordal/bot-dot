@@ -97,3 +97,42 @@ test('scheduled reporting is quiet by default, emits once, and recovers held rep
     assert.equal((await srv.api(`/runs/${recovered.id}`)).data.deliveredAt, recovered.deliveredAt, 'restart does not deliver twice');
   } finally { f.close(); await srv.stop(); }
 });
+
+test('a watch\'s report writes first and shares the budget; what the owner asked for or cannot wait does not (ADR 175, P5)', () => {
+  const { writesFirst } = require('../lib/reporting');
+  const report = { trigger: 'schedule', status: 'success', notify: 'report-only', reporting: 'delivered', ownerReport: { message: 'The price fell to 279 euros.', urgent: false } };
+  assert.equal(writesFirst(report), true);
+  for (const extra of [{ ownerReport: { message: 'x', urgent: true } }, { notify: 'always' }, { oneTime: true }, { reporting: 'held' }, { trigger: 'manual' }, { reconnect: ['gmail'] }, { choices: ['Yes', 'No'] }, { ownerReport: undefined }]) {
+    assert.equal(writesFirst({ ...report, ...extra }), false, JSON.stringify(extra));
+  }
+});
+
+test('past the day\'s budget a watch\'s report comes quietly: unread, with no notification; an urgent one still rings (ADR 175, P5)', { timeout: 60_000 }, async () => {
+  const srv = await startServer(); const f = await feed(srv);
+  try {
+    await srv.api('/settings', { method: 'PUT', body: { quietHours: { start: 0, end: 0, timeZone: 'UTC' }, unaskedPerDay: 1 } });
+    srv.hold(); srv.reply('Done.');
+    const cases = [
+      { name: 'First', report: { message: 'The price fell to 279 euros.' }, rings: true },
+      { name: 'Second', report: { message: 'It fell again, to 269.' }, rings: false },
+      { name: 'Third', report: { message: 'It sells out today.', urgent: true }, rings: true },
+    ];
+    for (const c of cases) {
+      c.bot = await makeBot(srv, { name: c.name });
+      c.job = (await srv.api(`/bots/${c.bot.id}/jobs`, { method: 'POST', body: { name: c.name, cron: '* * * * *', prompt: `Check ${c.name}` } })).data;
+    }
+    await srv.tick();
+    await waitFor(() => srv.runs().length >= cases.length, { timeout: 30_000, every: 100, what: 'scheduled jobs' });
+    for (const c of cases) {
+      const rec = srv.runs().find((r) => r.stdin.includes(`Check ${c.name}`));
+      await srv.api(`/bots/${c.bot.id}/jobs/${c.job.id}`, { method: 'PUT', body: { enabled: false } });
+      assert.equal((await srv.api('/self/session/notify', { method: 'POST', headers: { 'X-Run-Token': rec.self.env.RUN_TOKEN }, body: c.report })).status, 200);
+      const run = (await srv.api(`/runs?botId=${c.bot.id}`)).data[0];
+      srv.release(rec); await srv.finished(run.id);
+      const ev = await f.wait('run_finished', (d) => d.id === run.id);
+      assert.equal(ev.data.new === true, c.rings, c.name);
+      assert.equal(ev.data.result, c.report.message, 'delivered all the same');
+    }
+    srv.unhold();
+  } finally { f.close(); await srv.stop(); }
+});

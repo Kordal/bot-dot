@@ -490,3 +490,19 @@ test('a kind of noticed item the owner leaves unanswered starts no more looks, u
   assert.deepEqual(look.quietKinds(cards.map((r) => ({ ...r, answer: 'no', rating: 'down' })), now), ['card'], 'an answer rated down is no yes');
   assert.deepEqual(look.quietKinds(cards, at('2026-12-30T10:00:00Z')), [], 'older than 30 days: it starts again');
 });
+
+test('bots that write first share the day\'s budget; the brief and the close of the day still come (ADR 175, P5)', async () => {
+  const w = make();
+  w.clock = at('2026-10-05T07:00:00Z');
+  assert.deepEqual([1, 2, 3, 4].map(() => w.looks.spendForBot()), [true, true, true, false], 'past the budget a report comes quietly');
+  assert.equal(w.looks.status().sentToday, 3);
+  assert.equal((await w.tickAt('2026-10-05T07:50:00Z')).posted, true, 'the brief');
+  assert.equal((await w.tickAt('2026-10-05T09:30:00Z')).reason, 'limit', 'a plain look waits for tomorrow');
+  assert.equal((await w.tickAt('2026-10-05T21:10:00Z')).posted, true, 'the close of the day');
+  w.clock = at('2026-10-06T08:00:00Z');
+  assert.equal(w.looks.spendForBot(), true, 'a new day, a new budget');
+  assert.equal(w.looks.status().sentToday, 1);
+  w.settings.unaskedPerDay = 0;
+  assert.equal(w.looks.spendForBot(), true, 'the Chief\'s silence does not quiet the bots');
+  assert.equal(w.looks.status().sentToday, 1);
+});
