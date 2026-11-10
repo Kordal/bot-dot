@@ -201,7 +201,7 @@ fun SettingsScreen(
                 }
             }
 
-            // "Advanced" (ADR 186): what only a technical owner needs, first the token usage. A server without it shows usage always.
+            // "Advanced" (ADR 192): what only a technical owner needs, first the token usage. A server without it shows usage always.
             edit.advanced?.let { on -> SettingsGroup { SwitchRow(tr("Advanced"), checked = on) { saveModel(edit.copy(advanced = it)) } } }
             // Usage (#301): only from a server that counts it, and under Advanced.
             val usageApi = api

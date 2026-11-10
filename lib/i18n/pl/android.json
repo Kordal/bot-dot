@@ -1306,5 +1306,10 @@
   "None": "Brak",
   "Open Connectors": "Otwórz Konektory",
   "Waiting for sign-in": "Czeka na logowanie",
-  "Advanced": "Zaawansowane"
+  "Advanced": "Zaawansowane",
+  "{n} working": {
+    "one": "{n} pracuje",
+    "few": "{n} pracują",
+    "many": "{n} pracuje"
+  }
 }

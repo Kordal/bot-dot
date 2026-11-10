@@ -25,7 +25,7 @@ test('web: a bot\'s settings have no "Keep its computer on", and saving sends no
   const form = { name: field('Coder'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''),
     tools: field(''), permissionMode: field('dontAsk') };
   const sent = ctx.readBotForm(form, { skills: [], connectors: [] });
-  assert.equal('computer' in sent, false, 'every bot has one (ADR 186): nothing to send');
+  assert.equal('computer' in sent, false, 'every bot has one (ADR 192): nothing to send');
   assert.equal('computerAlwaysOn' in sent, false);
   // A server that still chooses per bot (#541): this machine or boat.dev.
   for (const where of ['linux', 'boat']) {

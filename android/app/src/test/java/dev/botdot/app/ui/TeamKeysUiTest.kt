@@ -8,6 +8,8 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.longClick
@@ -23,9 +25,9 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * A project's team keys (#841): one row per team, its name as a chip that opens the team chat (held: the team's
- * sheet), its bots as keys with the crown on the lead, and a key opens its bot's chat. A team with no bots left is
- * not shown.
+ * A project's teams (#841, ADR 196): one row per team, folded, that opens the team chat (held: the team's sheet); its
+ * chevron shows its bots as keys with the crown on the lead, and a key opens its bot's chat. A team with no bots left
+ * is not shown.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w411dp-h891dp")
@@ -45,11 +47,16 @@ class TeamKeysUiTest {
             Column { TeamKeys(project, bots, info, wide = false, line = { it.description }, chatOf = { id -> { opened += "team:$id" } }, onBot = { opened += "bot:$it" }) { opened += "sheet:$it" } }
         }
         rule.onAllNodesWithTag(TEAM_KEYS).assertCountEquals(1) // the team with no bots left is not shown
-        rule.onAllNodesWithTag(LEAD_CROWN).assertCountEquals(1)
+        rule.onAllNodesWithText("Release Planner").assertCountEquals(0) // folded
+        rule.onAllNodesWithTag(LEAD_CROWN).assertCountEquals(0)
         rule.onNodeWithText("Quotz IT team").assertIsDisplayed().performClick()
+        rule.onNodeWithTag(TEAM_FOLD).performClick()
+        rule.onAllNodesWithTag(LEAD_CROWN).assertCountEquals(1)
         rule.onNodeWithText("Release Planner").performClick()
         rule.onNodeWithText("Quotz IT team").performTouchInput { longClick() }
         assertEquals(listOf("team:t1", "bot:rel", "sheet:t1"), opened)
+        rule.onNodeWithTag(TEAM_FOLD).performClick()
+        rule.onAllNodesWithText("Release Planner").assertCountEquals(0) // folded again
     }
 
     @Test fun withoutATeamChatTheChipOpensTheTeam() {

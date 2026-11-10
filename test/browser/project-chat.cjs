@@ -1,8 +1,9 @@
 // Optional browser check of a project's chat column (#825): node test/browser/project-chat.cjs [shots dir]
 // A wide window shows a project's board and, on its right, one chat as a fixed column, as wide as the bot view's chat
 // (#828: 38vw from 400 to 560 px).
-// Entering the project opens its team's chat; a bot's key, the team's name (#838) and Esc (the Chief) each put their
-// chat in the column, and the key or name on screen is highlighted. 1-9 open the page's keys. Hide gives the board the
+// Entering the project opens its team's chat; a bot's key, the team's row (#838) and Esc (the Chief) each put their
+// chat in the column, and the key or row on screen is highlighted. Teams are folded (ADR 196): the chevron shows the
+// keys and is kept over a reload. 1-9 open the teams' chats. Hide gives the board the
 // whole width, kept over a reload; Show brings the chat back. No row of docked chats. Scratch data only.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -48,6 +49,12 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.deepEqual(await here(), [team.id]);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-team.png') });
 
+    // The team is folded (ADR 196): one row, no keys. Its chevron shows the keys, the lead first with a crown.
+    assert.equal(await page.locator('.sp-keys').count(), 0, 'folded by default');
+    assert.equal(await page.locator(`[data-cf-fold="${team.id}"]`).getAttribute('aria-expanded'), 'false');
+    await page.locator(`[data-cf-fold="${team.id}"]`).click();
+    await page.locator('.sp-keys .key').first().waitFor();
+    assert.deepEqual(await here(), [team.id], 'unfolding keeps the team chat');
     // A bot's key: its chat in the column, its key highlighted, with a crown on the lead.
     assert.equal(await page.locator(`.sp-keys [data-cf-bot="${a.id}"] .cf-crown`).count(), 1, 'the lead\'s crown');
     assert.equal(await page.locator('#company-side').isVisible(), false, 'no tree beside the rail');
@@ -61,11 +68,19 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.waitForFunction((bot) => state.runs.some((r) => r.botId === bot && r.prompt === 'hello'), a.id);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-bot.png') });
 
-    // 2: the page's second key.
+    // 1: the page's first team's chat.
     await page.locator('#view-bot textarea').blur();
-    await page.keyboard.press('2');
+    await page.keyboard.press('1');
+    await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
+    assert.deepEqual(await here(), [team.id]);
+    // Folded again from its chevron; kept over a reload.
+    await page.locator(`[data-cf-fold="${team.id}"]`).click();
+    await page.waitForFunction(() => !document.querySelector('.sp-keys'));
+    await page.locator(`[data-cf-bot="${a.id}"]`).count().then((n) => assert.equal(n, 0));
+    await page.locator(`[data-cf-fold="${team.id}"]`).click();
+    await page.locator('.sp-keys .key').first().waitFor();
+    await page.locator(`[data-cf-bot="${b.id}"]`).click();
     await page.locator('#view-bot #bot-name', { hasText: 'Release Planner' }).waitFor();
-    assert.deepEqual(await here(), [b.id]);
     // The team's name.
     await page.locator(`.sp-chip[data-cf-team-chat="${team.id}"]`).click();
     await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
@@ -87,6 +102,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-hidden.png') });
     await page.reload();
     await page.locator('.cf-top h1', { hasText: 'Quotz IT' }).waitFor({ timeout: 20000 });
+    await page.locator('.sp-keys .key').first().waitFor(); // still unfolded
     await page.locator('#project-chat-show').waitFor();
     assert.equal(await page.evaluate(() => state.view), 'company');
     await page.locator('#project-chat-show').click();
