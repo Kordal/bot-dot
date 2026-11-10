@@ -135,7 +135,8 @@ android {
         unitTests.all { it.systemProperty("filePaths", filePaths.path); it.inputs.file(filePaths) }
         // The words of the Vault's item types, as the web page shows them (VaultTypesTest).
         val vaultTypes = rootProject.file("../test/fixtures/vault-types.json")
-        unitTests.all { it.systemProperty("vaultTypes", vaultTypes.path); it.inputs.file(vaultTypes) }
+        val vaultSearch = rootProject.file("../test/fixtures/vault-search.json")
+        unitTests.all { it.systemProperty("vaultTypes", vaultTypes.path); it.inputs.file(vaultTypes); it.systemProperty("vaultSearch", vaultSearch.path); it.inputs.file(vaultSearch) }
         // The order of a bot's chat, as the web page draws it (ChatOrderTest, #460).
         val chatOrder = rootProject.file("../test/fixtures/chat-order.json")
         unitTests.all { it.systemProperty("chatOrder", chatOrder.path); it.inputs.file(chatOrder) }

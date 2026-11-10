@@ -144,4 +144,18 @@ object VaultTypes {
         put("password", password)
         if (master.isNotEmpty()) put("unlockPassword", master)
     }
+
+    /** Passwords gets a search field once its list is longer than this, like the web page (`VAULT_SEARCH`). */
+    const val SEARCH_AFTER = 8
+
+    /**
+     * Whether [item] is one the words of [query] name: every word in its name, address, username, the hosts it may be
+     * used on, a card's brand and last digits, an identity's holder and e-mail, or a file's name. The web page's
+     * `vaultItemMatches` does the same; test/fixtures/vault-search.json holds the cases both check.
+     */
+    fun matches(item: VaultItem, query: String): Boolean {
+        val hay = (listOf(item.name, item.site, item.username) + item.allowedHosts + listOf(item.brand, item.last4, item.holder, item.email, item.fileName))
+            .map { it.orEmpty().lowercase() }
+        return query.lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }.all { w -> hay.any { it.contains(w) } }
+    }
 }
