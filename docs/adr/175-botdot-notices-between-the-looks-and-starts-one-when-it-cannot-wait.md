@@ -21,6 +21,7 @@ Every proactive message came from the clock: four looks a day at fixed times, th
 ## Later parts
 
 - **Learning per kind (P6):** of the last 30 days, a kind of noticed item (event, to-do, card) that started 10 looks or more and was rated up or answered in fewer than 1 in 5 starts no more looks. Its looks age out after 30 days and it starts again. Each unasked message's record keeps `noticed`, the kind that started it.
+- **Follow-through (P3):** the Chief's `remind_me` takes `check: true` for what it promised to check, what the owner waits for from someone, and the owner's "later". At its time a check is a weight-3 item, never quiet: it starts a look that looks whether it happened and says what it found, and the check is removed. One that could start no look within 6 hours (writing first off, quiet hours) goes off as a ⏰ line after all.
 - **Urgency in delivery (P4):** an unasked message from a look a weight-3 item started is announced with `urgent: true`, and its notification goes out with high priority. Every other unasked message rings as a reply does.
 
 ## Alternatives
