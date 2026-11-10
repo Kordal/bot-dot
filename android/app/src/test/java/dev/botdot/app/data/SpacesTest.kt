@@ -108,4 +108,23 @@ class SpacesTest {
         assertEquals("Scout asks to browse the web", shown[0].text)
         assertEquals("#222222", shown[1].color)
     }
+
+    @Test fun aTeamsWaitsNameItsBotsAndItsChatAndABotOnItsHomeTeamOnly() {
+        val dev = CompanyTeam(id = "dev", name = "Dev", bots = listOf("coder", "qa", "mgr"), lead = "mgr")
+        val test = CompanyTeam(id = "test", name = "Testing", bots = listOf("load", "qa"), lead = "qa")
+        val project = Company(id = "p", name = "Qwotz", teams = listOf(dev, test))
+        val groups = listOf(Group(id = "g-dev", team = "dev"), Group(id = "g-test", team = "test"), Group(id = "g-other"))
+        val waiting = listOf(
+            Waiting(null, "", bot = "coder"),
+            Waiting(null, "", bot = "load", group = "g-test"), // asked in the team chat
+            Waiting(null, "", bot = "qa"),
+            Waiting(null, "", bot = "outsider"),
+        )
+        assertEquals(
+            mapOf("dev" to Spaces.TeamWait(listOf("coder", "mgr"), 0), "test" to Spaces.TeamWait(listOf("qa"), 1)),
+            Spaces.teamWaits(project, waiting, groups, asking = listOf("mgr")),
+        )
+        assertEquals("test", Spaces.homeTeam(project, "qa")) // it leads Testing
+        assertEquals(null, Spaces.homeTeam(project, "outsider"))
+    }
 }

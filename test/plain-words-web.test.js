@@ -1,4 +1,4 @@
-// Plain words on the web page (ADR 200): an answer without botdot's sentence says what to do, never its status; and
+// Plain words on the web page (ADR 205): an answer without botdot's sentence says what to do, never its status; and
 // without Advanced a new password is a login alone, and the Apps marketplace leaves out the apps that need a key or a
 // developer app of the owner's.
 const { test } = require('node:test');

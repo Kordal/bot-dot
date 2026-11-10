@@ -213,7 +213,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         }
         }
         // Its teams' keys (#841), in place of the floor's rooms and desks.
-        TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }) { teamOpen = it }
+        val waits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
+        TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }, waits = waits) { teamOpen = it }
     }
     adding?.let { id -> c.teams.firstOrNull { it.id == id } }?.let { t ->
         BotPicker(tr("Add to {team}", "team" to t.name), offered(t), max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c, t)) }, onDismiss = { adding = null }) { picked, _ ->
@@ -533,7 +534,7 @@ internal const val TEAM_FOLD = "team-fold"
  */
 @OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, chatOf: (String) -> (() -> Unit)?, onBot: (String) -> Unit, onAdd: ((String) -> Unit)? = null, onTeam: (String) -> Unit) {
+internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, chatOf: (String) -> (() -> Unit)?, onBot: (String) -> Unit, onAdd: ((String) -> Unit)? = null, waits: Map<String, dev.botdot.app.data.Spaces.TeamWait> = emptyMap(), onTeam: (String) -> Unit) {
     val p = LocalPaper.current
     val prefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("teams-open", android.content.Context.MODE_PRIVATE)
     var open by remember(c.id) { mutableStateOf(prefs.getStringSet(c.id, emptySet()).orEmpty().toSet()) }
@@ -542,8 +543,12 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
             val t = branch.team
             val chat = chatOf(t.id)
             val unfold = t.id in open
-            val asks = branch.bots.count { info.asks(it.id) > 0 }
-            val working = branch.bots.count { info.asks(it.id) == 0 && (info.working(it.id) || it.running) }
+            // Who waits (ADR 205): its bots by name, then its chat; a bot on several teams only on its home team.
+            val w = waits[t.id] ?: dev.botdot.app.data.Spaces.TeamWait()
+            val who = w.bots.mapNotNull { id -> bots.firstOrNull { it.id == id }?.name } + if (w.chat > 0) listOf(tr("Team chat")) else emptyList()
+            val asks = who.size
+            val whoText = if (who.size > 2) "${who.take(2).joinToString(", ")} +${who.size - 2}" else who.joinToString(", ")
+            val working = branch.bots.count { info.working(it.id) || it.running }
             Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).testTag(TEAM_KEYS)) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = Space.s4, end = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(44.dp).clip(Radius.small).clickable(onClickLabel = tr("Members")) {
@@ -558,13 +563,13 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
                         TeamPicture(branch.bots.take(3), if (branch.bots.size > 1) t.lead else null, 26)
                         Text(t.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = Space.s12))
                         val (word, dot, ink) = when {
-                            asks > 0 -> Triple(tr("Needs you"), p.warn, p.warnText)
+                            asks > 0 -> Triple(tr("Needs you: {who}", "who" to whoText), p.warn, p.warnText)
                             working > 0 -> Triple(trn(working, "{n} working", "{n} working"), p.ok, p.muted)
                             else -> Triple("", p.ok, p.muted)
                         }
                         if (word.isNotEmpty()) {
                             Box(Modifier.padding(start = Space.s8).size(7.dp).clip(CircleShape).background(dot))
-                            Text(word, color = ink, fontSize = Type.s14, fontWeight = if (asks > 0) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
+                            Text(word, color = ink, fontSize = Type.s14, fontWeight = if (asks > 0) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 200.dp))
                         }
                     }
                 }

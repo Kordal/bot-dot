@@ -1,4 +1,4 @@
-// Setup's phone (ADR 200): GET /api/setup carries the address a phone opens as a QR code botdot drew, and none when
+// Setup's phone (ADR 205): GET /api/setup carries the address a phone opens as a QR code botdot drew, and none when
 // botdot opens only on its own machine.
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');

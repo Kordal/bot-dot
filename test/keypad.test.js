@@ -332,3 +332,29 @@ test('leadOf: a member\'s ask is drawn under its team\'s lead in a project; a le
   assert.equal(Keypad.leadOf(projects[0], undefined), null);
   assert.equal(Keypad.leadOf({ teams: [{ id: 't', bots: ['a', 'b'] }] }, 'b'), null);
 });
+
+// ---------- what waits on a project's teams (ADR 205) ----------
+
+test('teamWaits: an ask in a team chat is that team\'s chat; a bot\'s own ask is on its home team only', () => {
+  const project = { teams: [
+    { id: 'dev', bots: ['coder', 'qa', 'mgr'], lead: 'mgr' },
+    { id: 'test', bots: ['load', 'qa'], lead: 'qa' },
+  ] };
+  const groups = [{ id: 'g-dev', team: 'dev' }, { id: 'g-test', team: 'test' }, { id: 'g-other' }];
+  const items = [
+    { kind: 'ask', bot: { id: 'coder' } },
+    { kind: 'ask', bot: { id: 'load' }, group: { id: 'g-test' } }, // asked in the team chat
+    { kind: 'batch', items: [{ bot: { id: 'coder' } }, { bot: { id: 'qa' } }] },
+    { kind: 'ask', bot: { id: 'outsider' } },
+  ];
+  assert.deepEqual(Keypad.teamWaits(project, items, groups, ['mgr']), {
+    dev: { bots: ['coder', 'mgr'], chat: 0 },
+    test: { bots: ['qa'], chat: 1 }, // qa leads Testing: its ask is there, not on Dev
+  });
+  assert.equal(Keypad.homeTeam(project, 'qa'), 'test');
+  assert.equal(Keypad.homeTeam(project, 'coder'), 'dev');
+  assert.equal(Keypad.homeTeam(project, 'outsider'), null);
+  assert.deepEqual(Keypad.teamWaits(project, [], groups), {});
+  // A member's question in the team chat: the chat waits.
+  assert.deepEqual(Keypad.teamWaits(project, [], [{ id: 'g-dev', team: 'dev', asks: { botId: 'qa', text: 'Which?' } }]), { dev: { bots: [], chat: 1 } });
+});

@@ -98,5 +98,35 @@ object Spaces {
     }
 
     /** The bots of a project that ask the owner a question: its teams' only. */
+    /** The team of [project] a bot's own ask is shown on (ADR 205): the team it leads, else its first team; null in none. */
+    fun homeTeam(project: Company, bot: String?): String? {
+        if (bot == null) return null
+        val ts = project.teams.filter { bot in it.bots }
+        return (ts.firstOrNull { it.lead == bot } ?: ts.firstOrNull())?.id
+    }
+
+    /** What waits for the owner on one team (ADR 205): the bots whose own asks wait, in the order they asked, and how many asks wait in its chat. */
+    data class TeamWait(val bots: List<String> = emptyList(), val chat: Int = 0)
+
+    /**
+     * What waits on each team of [project] (ADR 205), by team id: an ask in a team's chat on that team, a bot's own ask
+     * ([waiting] with its bot, or a bot in [asking] with a question in its chat) on its [homeTeam] only.
+     */
+    fun teamWaits(project: Company, waiting: List<Waiting>, groups: List<Group>, asking: List<String> = emptyList()): Map<String, TeamWait> {
+        val teams = project.teams.map { it.id }.toSet()
+        val chats = groups.mapNotNull { g -> g.team?.takeIf { it in teams }?.let { g.id to it } }.toMap()
+        val bots = linkedMapOf<String, MutableList<String>>()
+        val chat = mutableMapOf<String, Int>()
+        fun bot(id: String) { val t = homeTeam(project, id) ?: return; val l = bots.getOrPut(t) { mutableListOf() }; if (id !in l) l += id }
+        for (w in waiting) {
+            val t = w.group?.let { chats[it] }
+            if (t != null) chat[t] = (chat[t] ?: 0) + 1 else w.bot?.takeIf { it.isNotEmpty() }?.let(::bot)
+        }
+        asking.forEach(::bot)
+        // A question a member put in the team's chat, which is its chat's own.
+        for (g in groups) { val t = chats[g.id] ?: continue; if (g.asksValue is kotlinx.serialization.json.JsonObject && (chat[t] ?: 0) == 0) chat[t] = 1 }
+        return (bots.keys + chat.keys).associateWith { TeamWait(bots[it].orEmpty(), chat[it] ?: 0) }
+    }
+
     fun askingIn(project: Company, bots: List<Bot>, asks: (Bot) -> Boolean): List<Bot> = teamBots(listOf(project)).let { t -> bots.filter { it.id in t && asks(it) } }
 }

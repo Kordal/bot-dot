@@ -95,7 +95,7 @@ fun UsageSection(api: Api) {
             a == null -> Hint(tr("Loading…"))
             else -> {
                 if (a.from == a.to) Hint(Usage.dayLabel(a.from)) else Hint(tr("{from} to {to}", "from" to Usage.dayLabel(a.from), "to" to Usage.dayLabel(a.to)))
-                // Advanced (ADR 200): without it no tokens are shown, only the bars and each bot's share of the whole.
+                // Advanced (ADR 205): without it no tokens are shown, only the bars and each bot's share of the whole.
                 val adv by dev.botdot.app.data.Advanced.on.collectAsState()
                 if (adv) Totals(a.totals)
                 if (a.days.size > 1) DayBars(a.days, adv)

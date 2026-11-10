@@ -1315,5 +1315,6 @@
   "botdot couldn't do that. Try again.": "botdot nie mógł tego zrobić. Spróbuj jeszcze raz.",
   "Run history": "Historia pracy",
   "Its files": "Jego pliki",
-  "Temporary files": "Pliki tymczasowe"
+  "Temporary files": "Pliki tymczasowe",
+  "Needs you: {who}": "Czeka na ciebie: {who}"
 }

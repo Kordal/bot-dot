@@ -130,7 +130,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             if (hasName) Section(tr("Name")) {
                 Field(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
             }
-            // Advanced (ADR 200): without it, the Chief's model is left as it is and not shown.
+            // Advanced (ADR 205): without it, the Chief's model is left as it is and not shown.
             val adv by dev.botdot.app.data.Advanced.on.collectAsState()
             if (adv) Section(null) {
                 Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }

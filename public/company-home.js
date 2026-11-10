@@ -299,16 +299,19 @@
     };
     const teamsOf = (id) => (c.teams || []).filter((t) => t.bots.includes(id)).length;
     const shown = (c.teams || []).filter((t) => leadFirst(t).length);
+    const waits = Keypad.teamWaits(c, needs(), state.groups, state.bots.filter((b) => question(b)).map((b) => b.id));
     const rows = shown.map((t, n) => {
       const ids = leadFirst(t);
       const g = (state.groups || []).find((x) => x.team === t.id);
       const on = docked && state.view === 'group' && g && state.groupId === g.id;
       const unfold = open.includes(t.id);
       const faces = ids.slice(0, 3).map((id, i) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}${i === 0 && ids.length > 1 ? CROWN : ''}</i>`; }).join('') + (ids.length > 3 ? `<i class="sp-faces-n">+${ids.length - 3}</i>` : '');
-      const kinds = ids.map((id) => keyStatus(botById(id)).kind);
-      const asks = kinds.filter((k) => k === 'needs').length;
-      const working = kinds.filter((k) => k === 'working').length;
-      const status = asks ? `<span class="sp-st needs">${esc(tr('Needs you'))}</span>` : working ? `<span class="sp-st working">${esc(trn(working, '{n} working', '{n} working'))}</span>` : '';
+      const working = ids.filter((id) => keyStatus(botById(id)).kind === 'working').length;
+      // Who waits (ADR 205): its bots by name, then its chat; a bot on several teams only on its home team.
+      const w = waits[t.id] || { bots: [], chat: 0 };
+      const who = [...w.bots.map((id) => botById(id)?.name).filter(Boolean), ...(w.chat ? [tr('Team chat')] : [])];
+      const whoText = who.length > 2 ? `${who.slice(0, 2).join(', ')} +${who.length - 2}` : who.join(', ');
+      const status = who.length ? `<span class="sp-st needs" title="${esc(who.join(', '))}">${esc(tr('Needs you: {who}', { who: whoText }))}</span>` : working ? `<span class="sp-st working">${esc(trn(working, '{n} working', '{n} working'))}</span>` : '';
       const d = n + 1;
       return `<section class="sp-team${unfold ? ' open' : ''}" style="--c:${esc(t.color || '#8e7cff')}">
         <div class="sp-team-head${on ? ' here' : ''}"><button type="button" class="sp-fold" data-cf-fold="${esc(t.id)}" aria-expanded="${unfold}" aria-label="${esc(tr('Members'))}" title="${esc(tr('Members'))}">${CHEVRON}</button><button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}" title="${esc(d <= 9 ? `${t.name} · ${d}` : t.name)}"${d <= 9 && g ? ` aria-keyshortcuts="${d}"` : ''}><span class="sp-faces">${faces}</span><span class="sp-name">${esc(t.name)}</span>${status}</button><button type="button" class="icon-btn sp-more${teamOpen === t.id ? ' here' : ''}" data-cf-team="${esc(t.id)}" aria-label="${esc(t.name)}" title="${esc(t.name)}">${MORE}</button></div>
@@ -475,7 +478,12 @@
     $$('[data-cf-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); setView('bot', b.dataset.cfBot); }));
     // The team's name opens its chat, docked in the bottom row (#697).
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
-    $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => openTeam(b.dataset.cfTeam)));
+    // ⋯: the team chat's settings in the panel on the right (ADR 205), as a bot's settings; a botdot without team
+    // chats keeps the team beside the board.
+    $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => {
+      const g = (state.groups || []).find((x) => x.team === b.dataset.cfTeam);
+      if (g) setView('groupsettings', g.id); else openTeam(b.dataset.cfTeam);
+    }));
     $$('[data-cf-fold]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); fold(c, b.dataset.cfFold); }));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
     $$('[data-cf-add]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); addToTeam(c, b.dataset.cfAdd); }));
@@ -690,6 +698,28 @@
   Company.steps.home = home;
   // What waits for the owner of one bot, as its desk counts it: the tree of projects shows it too (#689).
   Company.asksOf = (id) => info().asks(id);
+  // The team's part of its chat's settings panel (groups.js renderGroupSettings, ADR 205): its goal, its lead and its
+  // reports, for a team of the project on screen. null for any other.
+  const teamHere = (id) => (state.company?.teams || []).find((t) => t.id === id) || null;
+  Company.teamPanel = {
+    team: teamHere,
+    sig: (id) => { const t = teamHere(id); return t ? JSON.stringify([t.lead, t.report || '', t.lastReport?.at || null, CompanyFloor.objectiveOf(t, state.company.objectives)]) : ''; },
+    html(id) {
+      const t = teamHere(id);
+      if (!t) return '';
+      const o = CompanyFloor.objectiveOf(t, state.company.objectives);
+      return `${o ? `<div class="cf-team-kpi"><span>${esc(o.name)}</span><b>${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></b></div>` : ''}${reportHTML(t)}`;
+    },
+    wire(root, id) {
+      $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(id)}`, 'PUT', { lead: b.dataset.cfLead })));
+      $('[data-cf-report]', root)?.addEventListener('change', (e) => send(`/company/teams/${encodeURIComponent(id)}`, 'PUT', { report: e.target.value || null }));
+    },
+    leadHTML(id, botId) {
+      const t = teamHere(id);
+      if (!t || (t.bots || []).length < 2) return '';
+      return botId === t.lead ? `<span class="cf-lead-chip">${CROWN}${tr('Lead')}</span>` : `<button type="button" class="btn sm ghost" data-cf-lead="${esc(botId)}">${tr('Make lead')}</button>`;
+    },
+  };
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.

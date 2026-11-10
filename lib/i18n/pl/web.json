@@ -1782,5 +1782,7 @@
   "Its files": "Jego pliki",
   "Temporary files": "Pliki tymczasowe",
   "Scan this with your phone, open it, and choose <b>Add to Home Screen</b>.": "Zeskanuj to telefonem, otwórz i wybierz <b>Do ekranu początkowego</b>.",
-  "botdot opens only on this computer for now. Whoever set up botdot can make it reach your phone.": "botdot otwiera się na razie tylko na tym komputerze. Osoba, która go skonfigurowała, może udostępnić go na telefonie."
+  "botdot opens only on this computer for now. Whoever set up botdot can make it reach your phone.": "botdot otwiera się na razie tylko na tym komputerze. Osoba, która go skonfigurowała, może udostępnić go na telefonie.",
+  "Needs you: {who}": "Czeka na ciebie: {who}",
+  "Team chat": "Czat zespołu"
 }
