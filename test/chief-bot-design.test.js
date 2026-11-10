@@ -44,7 +44,7 @@ test('the Chief is started with the four parts of a task, one example, and the o
   // One line after saving; a difference is said plainly; what waits is in the answer, not read back (QW-004).
   assert.match(system, /After create_bot or update_bot, tell the user in one line what the bot does and what it never does \("Price Watcher checks the three shops every morning and never buys anything\."\)/);
   assert.match(system, /Both answer with the bot as it was saved: when it differs from what you sent, say plainly what differs/);
-  assert.match(system, /They also answer with `waiting`, the list of what waits for the user's OK on its card in Needs you \(a changed task or changed rules, .* the home network .*\): say that in one line/);
+  assert.match(system, /Otherwise update_bot answers with `waiting`, the list of what waits for the user's OK on its card in Needs you \(a changed task or changed rules, .* the home network .*\): say that in one line/);
   assert.doesNotMatch(system, /read the bot back|reads back right|get_bot shows the old value/);
   // Questions, dictated tasks, two jobs, existing bots.
   assert.match(system, /Ask at most two short questions, and only what you cannot settle yourself/);
@@ -62,8 +62,8 @@ test("the Chief's tools say the same, and a bot gets no new field for it", async
   const chief = chiefTools(t);
   const tools = await chief.list();
   const of = (name) => tools.find((x) => x.name === name);
-  assert.match(of('create_bot').description, /Its task \(prompt\) is one text: its one job in the first sentence, what it never does, its voice in a few words, and when it wakes; a task the user dictates is saved as given\..* The answer is the bot as it was saved, with its task\. `waiting` in it lists what was not given yet/);
-  assert.match(of('update_bot').description, /Only pass the fields to change\. A changed task \(prompt\) keeps the four parts: one job, what it never does, voice, when it wakes; a task the user dictates is saved as given\. The answer is the bot as it was saved, with its task\. `waiting` in it lists what of this call was not saved/);
+  assert.match(of('create_bot').description, /Its task \(prompt\) is one text: its one job in the first sentence, what it never does, its voice in a few words, and when it wakes; a task the user dictates is saved as given\..* The answer is the bot as it was saved, with its task\. The bot gets everything you make it with at once, with no card in Needs you\./);
+  assert.match(of('update_bot').description, /Only pass the fields to change\. A changed task \(prompt\) keeps the four parts: one job, what it never does, voice, when it wakes; a task the user dictates is saved as given\. The answer is the bot as it was saved, with its task\. In the user's own turn, before you read anything from outside, all is saved at once; else `waiting` in it lists what of this call was not saved/);
   assert.deepEqual(of('create_bot').inputSchema.required, ['name', 'prompt']);
   const fields = Object.keys(of('create_bot').inputSchema.properties);
   for (const part of ['job', 'never', 'neverDoes', 'antiJobs', 'voice', 'wake']) assert.ok(!fields.includes(part), `no "${part}" field`);

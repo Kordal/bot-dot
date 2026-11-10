@@ -271,3 +271,18 @@ test('a look reads what is due today in the owner\'s projects (#1225)', async (t
   const run = own.runs().filter((x) => x.args.includes('🧭 Chief of Staff · look')).at(-1);
   assert.match(run.stdin, /The owner's projects, what is due by tomorrow or waits for them[^\n]*\nProject "Fernhill"[^\n]*\n- To-do, due today: Send the deck to Anna/);
 });
+
+test('a look is told of a bot\'s job that did not run, to bring with it the fix (ADR 175)', async (t) => {
+  let own = await startServer({ env: ENV });
+  t.after(() => own.stop());
+  await own.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } });
+  const bot = await makeBot(own, { name: 'Prices' });
+  const job = (await own.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: { name: 'Morning prices', cron: '0 3 1 1 *', prompt: 'Check prices' } })).data;
+  await own.stop();
+  require('./helpers').writeData(path.join(own.data, 'job-state.json'), { [job.id]: { status: 'missed', why: 'botdot was off.', at: new Date().toISOString() } });
+  own = await startServer({ dir: own.dir, env: ENV });
+  own.reply('NOTHING');
+  assert.equal((await own.api('/chief/look', { method: 'POST' })).data.looked, true);
+  const run = own.runs().filter((x) => x.args.includes('🧭 Chief of Staff · look')).at(-1);
+  assert.match(run.stdin, /- \[today\] Prices's job "Morning prices" did not run: Did not run at \d\d:\d\d: botdot was off\. Find out why/);
+});

@@ -77,16 +77,15 @@ test('hello in the chat: asked by botdot, with no request, and it is new for the
 test('a bot the Chief makes writes its first message once its jobs are in, and only one', async () => {
   const srv = await startServer({ env: { BOT_DOT_HELLO_DELAY_MS: '400' } });
   try {
-    srv.reply('Hi, I am News Monitor. I bring you the AI news every morning at 8:00. Web access waits for your OK.');
+    srv.reply('Hi, I am News Monitor. I bring you the AI news every morning at 8:00.');
     const made = await srv.asChief('/bots', { method: 'POST', body: { name: 'News Monitor', emoji: '📰', prompt: NEWS.prompt, allowedTools: ['WebSearch'] } });
     assert.equal(made.status, 201);
-    assert.deepEqual(made.data.waiting, ['web access']);
+    assert.ok(!('waiting' in made.data), 'a new bot gets its tools at once (ADR 176)');
     const job = await srv.api(`/bots/${made.data.id}/jobs`, { method: 'POST', body: { name: 'Morning news', cron: '0 8 * * *' } });
     assert.equal(job.status, 201);
     const rec = await srv.nextRun((x) => x.args.includes('📰 News Monitor'), 'the first message');
     assert.match(rec.stdin, /You were made just now/);
     assert.match(rec.stdin, /"Morning news": Daily at 08:00 \(next: /, 'the job added after it was made is in it');
-    assert.match(rec.stdin, /web access/);
     assert.ok(!rec.args.join(' ').includes('WebSearch'), 'no web: it only writes');
     const runs = await waitFor(async () => { const r = await srv.api(`/runs?botId=${made.data.id}`); return r.data.length && r.data[0].status === 'success' ? r.data : null; }, { what: 'the first message to end' });
     assert.equal(runs.length, 1);

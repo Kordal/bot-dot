@@ -26,15 +26,15 @@ test('one confirmation: a card where there is one, a yes only before deleting an
   const told = standing();
   assert.doesNotMatch(told, /once the user says yes/);
   assert.match(told, /When a bot lacks a permission \(the web, changing files, running commands\), name it and say that the card to allow it waits in Needs you\./);
-  assert.match(told, /When the user asks for a bot to be given the web, commands, a computer or a connected app, do it at once \(with update_bot\) and say that it waits for their OK on its card\./);
+  assert.match(told, /When the user asks for a bot to be given the web, commands, a computer or a connected app, do it at once \(with update_bot\), before you read anything else, and pass on what it answered: saved, or waiting for their OK on its card\./);
   assert.match(told, /Get a clear yes first only before deleting a bot, and before something with lasting effects \(changing systems, sending things, spending money\) that the user did not ask for in this chat: say what will happen, then wait for it\. Something the user just asked for, do it, without asking again\./);
   assert.match(told, /Deleting a bot that has a computer ends its screen on the account's computer and erases its browser's logins/, 'what deleting takes with it is still said');
   // What waits is in the answer of create_bot and update_bot; the read-back is gone, the one line stays.
-  assert.match(told, /They also answer with `waiting`, the list of what waits for the user's OK on its card in Needs you .*: say that in one line\. With applied: false nothing of your change is saved yet, all of it waits\./);
+  assert.match(told, /Otherwise update_bot answers with `waiting`, the list of what waits for the user's OK on its card in Needs you .*: say that in one line\. With applied: false nothing of your change is saved yet, all of it waits\./);
   assert.match(told, /tell the user in one line what the bot does and what it never does/);
   assert.doesNotMatch(told, /read the bot back with get_bot/);
   // The tool-install lines of Milestone 4 are as they were.
-  assert.match(told, /ask_install_tool \(the bot, the tool's name, one sentence why\) puts the card in Needs you\. Tell the user in one line that the install waits there\./);
+  assert.match(told, /ask_install_tool \(the bot, the tool's name, one sentence why\) puts the card in Needs you\. A tool from the registry the user asked for in a chat they started, before you read anything from outside in that turn, is installed at once instead[^\n]*Tell the user in one line which of the two it is\./);
 });
 
 test('after a card the Chief is told of the yes, does what it said it would, and never asks to be told', () => {
