@@ -84,10 +84,10 @@ class FailedSendTest {
             // A gateway answered that botdot is not there.
             assertEquals("Not sent: can't reach botdot. $kept", sendNote(notSent(ApiException("botdot answered 502", 502)), once))
             assertEquals("Not sent: can't reach botdot. $kept", sendNote(notSent(ApiException("botdot answered 503", 503)), once))
-            // Another answer of the 500s without botdot's sentence: its status, as the web page says it.
-            assertEquals("Not sent: botdot couldn't do that (500). $kept", sendNote(notSent(ApiException("botdot answered 500", 500)), once))
-            assertEquals("Not sent: botdot couldn't do that (504). $kept", sendNote(notSent(ApiException("botdot answered 504", 504)), once))
-            assertEquals("Not sent: botdot couldn't do that (500). $kept", sendNote(notSent(ApiException("Can't reach botdot. (reset)", 500, sent = true)), once))
+            // Another answer of the 500s without botdot's sentence: in words, as the web page says it.
+            assertEquals("Not sent: botdot didn't finish that. Try again in a moment. $kept", sendNote(notSent(ApiException("botdot answered 500", 500)), once))
+            assertEquals("Not sent: botdot didn't finish that. Try again in a moment. $kept", sendNote(notSent(ApiException("botdot answered 504", 504)), once))
+            assertEquals("Not sent: botdot didn't finish that. Try again in a moment. $kept", sendNote(notSent(ApiException("Can't reach botdot. (reset)", 500, sent = true)), once))
         }
         assertEquals("Not sent: The Chief is restarting. $kept", sendNote(notSent(ApiException("The Chief is restarting.", 503, said = true))))
         assertEquals("Not sent: can't reach botdot. $kept", sendNote(notSent(ApiException("dropped", sent = true))))
