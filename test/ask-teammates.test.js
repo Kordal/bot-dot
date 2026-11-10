@@ -1,7 +1,7 @@
 // Bots ask a teammate before giving up (#136): each teammate's line says what it reaches (its connected apps, the
 // names of the saved logins shared with it, a computer, the web), written by botdot and never a secret; the prompt
 // says to ask a teammate who could know before telling the owner something isn't there; and the asked bot answers
-// only what was asked. Every bot may ask every other (ADR 186): no setting keeps one out.
+// only what was asked. Every bot may ask every other (ADR 192): no setting keeps one out.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, makeBot, heldRun, self, fakeConnectedApp } = require('./helpers');

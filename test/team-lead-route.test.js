@@ -1,5 +1,5 @@
 // The owner talks to a team through its lead (ADR 148): a member asks its lead for what it needs from the owner, and
-// the lead passes the answer on. Every bot may message every other (ADR 186), inside a team or not.
+// the lead passes the answer on. Every bot may message every other (ADR 192), inside a team or not.
 process.env.BOT_DOT_RUNS_MAX = '1';
 const path = require('path');
 const { test, before, after } = require('node:test');

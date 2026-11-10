@@ -75,7 +75,7 @@ test('Create grants what the cards show, shares the picked entries and leaves no
   const reader = bots.find((b) => b.name === 'Uptime Reader');
   assert.equal(keeper.computer, 'linux');
   assert.deepEqual(keeper.allowedTools, withAlways('WebFetch'));
-  assert.equal(reader.computer, 'linux', 'every bot has the computer (ADR 186)');
+  assert.equal(reader.computer, 'linux', 'every bot has the computer (ADR 192)');
   const vault = (await srv.api('/vault')).data;
   assert.deepEqual(vault.find((e) => e.id === pve.id).allowedBots, [keeper.id]);
   assert.deepEqual(vault.find((e) => e.id === kuma.id).allowedBots.sort(), [keeper.id, reader.id].sort());

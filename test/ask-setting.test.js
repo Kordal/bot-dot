@@ -1,4 +1,4 @@
-// Every bot may message every other bot and has a computer (ADR 186): asking for either (#137) makes no card, and
+// Every bot may message every other bot and has a computer (ADR 192): asking for either (#137) makes no card, and
 // the bot is told it has them already. Its instructions name nothing of them as switched off.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');

@@ -117,7 +117,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var disabled by remember { mutableStateOf(setOf<String>()) }
     var connectors by remember { mutableStateOf(setOf<String>()) }
     var accounts by remember { mutableStateOf(mapOf<String, String>()) } // its account of an app with two or more (ADR 174)
-    var mayMessage by remember { mutableStateOf(setOf<String>()) } // a server from before ADR 186 only
+    var mayMessage by remember { mutableStateOf(setOf<String>()) } // a server from before ADR 192 only
     var othersMayAsk by remember { mutableStateOf(true) }
     var rooms by remember { mutableStateOf(dev.botdot.app.data.BotRooms()) } // shared rooms (#316), when the server keeps them
     var hotkey by remember { mutableStateOf(0) }
@@ -172,7 +172,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
             if (connectors != b.connectors.toSet()) put("connectors", JsonArray(connectors.map { JsonPrimitive(it) }))
             if (accounts != b.accounts) put("accounts", JsonObject(accounts.mapValues { JsonPrimitive(it.value) }))
-            // Every bot may message every other since ADR 186: only a server from before limits it.
+            // Every bot may message every other since ADR 192: only a server from before limits it.
             if ("everything-allowed" !in server?.features.orEmpty()) {
                 val everyone = others.all { it.id in mayMessage }
                 if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
@@ -262,7 +262,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // only whether. A server from before chose it per bot (ADR 088).
                 val accountComputer = "account-computer" in server?.features.orEmpty()
                 if (!accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
-                    val everyBot = "everything-allowed" in server?.features.orEmpty() // every bot has one (ADR 186)
+                    val everyBot = "everything-allowed" in server?.features.orEmpty() // every bot has one (ADR 192)
                     Choice(tr("Computer"), if (computer) computerOn else "none", (if (everyBot) emptyList() else listOf("none" to tr("None"))) + listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))) {
                         // Between this machine and boat.dev, its files go along or not: asked first (#556).
                         if ("computer-move" in server?.features.orEmpty() && it != b.computer && it != "none" && b.computer != "none") { askMove = it; return@Choice }
@@ -379,7 +379,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             val grants = b.alwaysAllowed
             val roomsShown = dev.botdot.app.data.BotRooms.shows(server?.features) && b.rooms != null
             if ((others.isNotEmpty() && "everything-allowed" !in server?.features.orEmpty()) || roomsShown || trusted.isNotEmpty() || grants.isNotEmpty() || b.overrides.isNotEmpty()) SettingsGroup {
-                // Every bot may message every other (ADR 186): a server from before still limits it here.
+                // Every bot may message every other (ADR 192): a server from before still limits it here.
                 val limits = "everything-allowed" !in server?.features.orEmpty()
                 if (limits && others.isNotEmpty()) FoldSection(tr("May message"), if (others.size > 1 && others.all { it.id in mayMessage }) tr("Everyone") else others.filter { it.id in mayMessage }.joinToString(", ") { it.name }.ifBlank { tr("Nobody") }) {
                     others.forEach { o ->
