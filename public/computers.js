@@ -154,6 +154,8 @@ function openScreen(botId) {
   let info = null;
   const describe = () => api(`/bots/${botId}/computer`).then((d) => {
     info = d;
+    // The server's word on the computer now: a bot made after this page loaded is not in state.computers yet.
+    if (d.state) state.computers = { ...state.computers, [botId]: d.state === 'none' ? undefined : d.state };
     $('#screen-update', m).classList.toggle('hidden', !d.update);
     if (d.update) { $('#screen-update-text', m).textContent = d.update.text; $('#screen-update-yes', m).textContent = d.update.yes; }
     $('#screen-old', m).classList.toggle('hidden', !d.old);
