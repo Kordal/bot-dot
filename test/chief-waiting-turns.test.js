@@ -25,6 +25,8 @@ async function approvedWhileReplying(srv, names) {
   const reply = await srv.nextRun((r) => r.botdot && /Give .* the web/.test(r.stdin), "the Chief's reply");
   for (const name of names) {
     const bot = await makeBot(srv, { name, allowedTools: ['Read'] });
+    // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 176).
+    await srv.asChief('/chief/checkup', { headers: { 'X-Chief-Chat': chat.id } });
     const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: WEB, headers: { 'X-Chief-Chat': chat.id } });
     const yes = await srv.api(`/asks/${change.data.pendingChange}`, { method: 'POST', body: { yes: true } });
     assert.deepEqual(yes.data.carriesOn, CARRIES, 'the answer says the Chief carries on, also while it waits');

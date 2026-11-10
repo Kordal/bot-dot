@@ -254,3 +254,27 @@ test('after a web page, a job in a turn botdot started still waits on a card', a
   await turn.end();
   srv.unhold();
 });
+
+// ADR 176: what the owner asked the Chief for in their own turn is their OK, and the yes on a card after the web is
+// the one OK of that change: no second card.
+test("a bot's change in the owner's turn is saved at once, and after the web it waits on one card only", async (t) => {
+  const bot = await makeBot(srv, { name: 'Owner Asked', prompt: 'Sort the mail.', allowedTools: ['Read'] });
+  const clean = await ownerTurn(t, 'Let Owner Asked browse the web and run commands');
+  const saved = await clean.call('update_bot', { id: bot.id, allowedTools: ['Read', 'WebFetch', 'Bash'], prompt: 'Sort the mail, and look things up.' });
+  assert.ok(!('waiting' in saved) && !saved.pendingChange, JSON.stringify(saved));
+  assert.deepEqual([saved.allowedTools, saved.prompt], [['Read', 'WebFetch', 'Bash'], 'Sort the mail, and look things up.']);
+  assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === bot.id), 'no card');
+  await clean.end();
+
+  const web = await ownerTurn(t, 'Read the Bridge page, then give Owner Asked a computer');
+  await web.uses('WebFetch', { url: 'https://proton.me/mail/bridge' }, PAGE);
+  const held = await web.call('update_bot', { id: bot.id, computer: 'linux' });
+  assert.equal(held.held, true, JSON.stringify(held));
+  await web.end();
+  const [card] = (await heldAsks()).filter((a) => a.path === `bots/${bot.id}`);
+  assert.ok(card);
+  assert.equal((await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).status, 200);
+  assert.equal((await srv.api(`/bots/${bot.id}`)).data.computer, 'linux', 'the yes did it');
+  assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === bot.id && a.kind === 'bot-change'), 'no second card');
+  await srv.api(`/bots/${bot.id}`, { method: 'DELETE' });
+});

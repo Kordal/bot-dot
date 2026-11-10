@@ -738,3 +738,22 @@ test('the worker refuses what is not a bot, a tool name or a list of registry pa
   assert.throws(() => request('toolResolve', { name: 'jq', version: '1; rm' }, where), /version/);
   assert.throws(() => request('toolChown', { principal: 'bot1' }, where), /Unsupported/);
 });
+
+// ADR 176: a registry tool the owner asked the Chief for in their own turn, before it read anything from outside, is
+// installed with no card: their message is the OK.
+test("a registry tool the owner asked for in their own turn installs with no card", async (t) => {
+  const fixer = await makeBot(srv, { name: 'Fixer', allowedTools: ['Read', 'Bash'] });
+  const own = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  srv.hold();
+  await srv.api(`/chief/chats/${own.id}/messages`, { method: 'POST', body: { text: 'Runner needs tree' } });
+  const rec = await srv.nextRun((r) => r.botdot && r.stdin.includes('Runner needs tree'), "the owner's Chief turn");
+  const tools = rpcClient(t, 'mcp-server.js', { ...rec.botdot.env });
+  const asked = await tools.json('ask_install_tool', { bot: fixer.id, name: 'tree', reason: 'The owner asked for it.' });
+  assert.match(asked.note, /^Installing now/, JSON.stringify(asked));
+  assert.ok(!(await srv.api('/asks')).data.some((a) => a.kind === 'tool' && a.tool.name === 'tree'), 'no card');
+  srv.unhold();
+  srv.release(rec);
+  await waitFor(() => installed(fixer, 'tree'), { what: 'tree to be installed' });
+  await quiet();
+  await tools.json('remove_tool', { bot: fixer.id, name: 'tree' });
+});
