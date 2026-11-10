@@ -1,6 +1,8 @@
 package dev.botdot.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
@@ -369,14 +373,16 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     }
     // The messages that wait whole stand at the end of the chat; the rest in their place, newest first for the list.
     val waiting by remember(botsNow, signedOut) { derivedStateOf { vm.rows.filterIsInstance<GroupItem.Message>().map { it.message }.filter { waitsWhole(it, bots, signedOut) } } }
-    val shown by remember(botsNow, signedOut) { derivedStateOf { vm.rows.filterNot { it is GroupItem.Message && waitsWhole(it.message, bots, signedOut) }.asReversed() } }
+    // The members' replies a team's answer folds (ADR 184) stand under one row, open while the owner keeps it open.
+    val openFolds = remember(groupId) { mutableStateMapOf<String, Boolean>() }
+    val shown by remember(botsNow, signedOut) { derivedStateOf { Groups.shown(vm.rows.filterNot { it is GroupItem.Message && waitsWhole(it.message, bots, signedOut) }, openFolds.keys.toSet()).asReversed() } }
     // Who is next, of the one message the rule picks (Groups.next): its heads stand under the working lines.
     val next by remember { derivedStateOf { Groups.next(vm.rows.filterIsInstance<GroupItem.Message>().map { it.message }, vm.working) } }
     // New replies: the "New" line above the first of them, and the report that reads the group in every app.
     NewReplies(app, chatKey, group?.unread ?: 0, arrive = { vm.arrive() }, leave = { vm.leave() }) {
         if (!vm.reachNew()) return@NewReplies
         listState.showFromTop {
-            val i = shown.indexOfFirst { it.id == vm.newFirst }
+            val i = shown.indexOfFirst { (it as? GroupItem)?.id == vm.newFirst }
             (1 + i).takeIf { i >= 0 && listState.layoutInfo.totalItemsCount == 1 + shown.size }
         }
     }
@@ -474,8 +480,9 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                         Text(emptyGroupWords(members.map { it.name }), color = p.muted, textAlign = TextAlign.Center)
                     }
                 }
-                items(shown, key = { it.id }) { x ->
+                items(shown, key = { (it as? GroupItem)?.id ?: (it as Groups.Fold).id }) { x ->
                     when (x) {
+                        is Groups.Fold -> FoldRow(x, bots) { if (x.open) openFolds.remove(x.messageId) else openFolds[x.messageId] = true }
                         is GroupItem.Message -> Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
                             MyBubble(x.message.text, x.message.attachments)
                             // Its first turns went, and it still waits for a busy member: for whom.
@@ -492,6 +499,22 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                 }
             }
         }
+    }
+}
+
+/**
+ * The row a team's answer folds its members' replies under (ADR 184): their small heads and names, and how many; a
+ * tap opens or closes them.
+ */
+@Composable
+private fun FoldRow(f: Groups.Fold, bots: List<Bot>, onToggle: () -> Unit) {
+    val p = LocalPaper.current
+    val who = f.runs.distinctBy { it.botId }
+    Row(Modifier.padding(start = 34.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onToggle).padding(horizontal = Space.s8, vertical = Space.s4),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+        Text(if (f.open) "\u25BE" else "\u25B8", color = p.muted, fontSize = Type.s12)
+        who.forEach { r -> val b = bots.firstOrNull { it.id == r.botId }; SmallFigure(b?.color ?: r.botColor, b?.outfit, 14.dp) }
+        Text("${namesList(who.map { r -> memberName(bots, r.botId).ifBlank { r.botName } })} · ${f.runs.size}", color = p.muted, fontSize = Type.s12)
     }
 }
 

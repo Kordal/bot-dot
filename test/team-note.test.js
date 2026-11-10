@@ -79,13 +79,13 @@ test('the note follows the team: a new lead, a new goal, a bot that leaves', () 
   done();
 });
 
-// The fixed words are short (about 750 characters for a lead, 650 for a member, ADR 148), and with every text of the owner's
+// The fixed words are short (about 1,050 characters for a lead, 950 for a member, ADR 148 and ADR 184), and with every text of the owner's
 // at its longest, made of "<" that prints longer, the whole note stays bounded: the bot's prompt is at its cap.
 test("the note's length is bounded", () => {
   const { s, done } = store(company({ goal: '' }));
   const fixed = (id) => s.botNote(id, () => null).replace(/\n?Your team: .*|\n?Also on it: .*/g, '');
-  assert.ok(fixed('l1').length <= 760, `lead ${fixed('l1').length}`);
-  assert.ok(fixed('m1').length <= 650, `member ${fixed('m1').length}`);
+  assert.ok(fixed('l1').length <= 1060, `lead ${fixed('l1').length}`);
+  assert.ok(fixed('m1').length <= 960, `member ${fixed('m1').length}`);
   const long = (n) => '<a'.repeat(n);
   const ids = Array.from({ length: 40 }, (_, i) => `b${String(i).padStart(7, '0')}`);
   const many = Object.fromEntries(ids.map((id) => [id, { name: long(60), job: long(200) }]));
@@ -94,8 +94,8 @@ test("the note's length is bounded", () => {
   const member = big.s.botNote(ids[1], (id) => many[id]);
   assert.match(lead, /; and 33 more\./, 'six members named');
   assert.ok(!/<a/.test(lead), 'no tag');
-  assert.ok(lead.length <= 1750, `lead ${lead.length}`);
-  assert.ok(member.length <= 1700, `member ${member.length}`);
+  assert.ok(lead.length <= 2050, `lead ${lead.length}`);
+  assert.ok(member.length <= 2000, `member ${member.length}`);
   big.done();
   done();
 });
