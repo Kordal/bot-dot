@@ -118,7 +118,7 @@ function status({ running = false, runs = 0, needs = false, unread = 0, last = n
 // replies), `endedAt` when that run ended, both ISO times. A server without `readAt`: never, and Done stays.
 const seen = (readAt, endedAt) => typeof readAt === 'string' && typeof endedAt === 'string' && !!endedAt && readAt >= endedAt;
 
-// Map(bot id → its project): the project whose team a bot is in (a bot is in at most one team, ADR 110).
+// Map(bot id → its project): the first project whose team a bot is in (ADR 120).
 function projectOf(projects) {
   const map = new Map();
   for (const p of projects || []) for (const t of p.teams || []) for (const id of t.bots || []) if (!map.has(id)) map.set(id, p);
@@ -144,10 +144,12 @@ const blocks = (x) => (x?.kind === 'batch' ? (x.items || []).some(blocks) : x?.k
 const blockersFirst = (items) => [...items.filter(blocks), ...items.filter((x) => !blocks(x))];
 
 // The lead a member's ask is drawn under in a project's views (ADR 148): the owner talks to a team through its lead.
-// null for a lead, a bot in none of the project's teams, or a team without another lead.
+// null for a lead, a bot in none of the project's teams, or a team without another lead. A bot on several teams
+// (ADR 184) that leads one of them is drawn as itself; else under the lead of its first team.
 function leadOf(project, botId) {
-  const t = botId && (project?.teams || []).find((x) => (x.bots || []).includes(botId));
-  return t && t.lead && t.lead !== botId ? t.lead : null;
+  const ts = botId ? (project?.teams || []).filter((x) => (x.bots || []).includes(botId)) : [];
+  if (!ts.length || ts.some((t) => t.lead === botId)) return null;
+  return ts[0].lead || null;
 }
 
 const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf };

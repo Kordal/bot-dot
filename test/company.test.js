@@ -65,7 +65,7 @@ test('answers are saved as given, cut to plain text; what is not a field is not 
   assert.equal(co.evil, undefined);
 });
 
-test('a team has exactly one lead; a bot is in one team; an empty team goes', async () => {
+test('a team has exactly one lead; a bot may be in several teams (ADR 184)', async () => {
   let r = await srv.api('/company/teams', { method: 'POST', body: { name: 'Sales', bots: [a.id, b.id] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const sales = r.data.teams[0];
@@ -75,10 +75,10 @@ test('a team has exactly one lead; a bot is in one team; an empty team goes', as
   assert.equal((await srv.api('/company/teams', { method: 'POST', body: { name: '', bots: [c.id] } })).status, 400);
   assert.equal((await srv.api('/company/teams', { method: 'POST', body: { name: 'X', bots: [] } })).status, 400);
 
-  // Moving the lead to the support team: Sales is led by the next bot.
+  // Sales' lead joins the support team too: it stays in Sales and still leads it.
   r = await srv.api('/company/teams', { method: 'POST', body: { name: 'Support', bots: [c.id, a.id], lead: c.id } });
   const [s1, s2] = r.data.teams;
-  assert.deepEqual([s1.name, s1.bots, s1.lead], ['Sales', [b.id], b.id]);
+  assert.deepEqual([s1.name, s1.bots, s1.lead], ['Sales', [a.id, b.id], a.id]);
   assert.deepEqual([s2.name, s2.bots, s2.lead], ['Support', [c.id, a.id], c.id]);
   assert.notEqual(s1.color, s2.color);
 
@@ -89,9 +89,9 @@ test('a team has exactly one lead; a bot is in one team; an empty team goes', as
   assert.equal((await srv.api(`/company/teams/${s2.id}`, { method: 'PUT', body: { lead: b.id } })).status, 400);
   assert.equal((await srv.asChief(`/company/teams/${s1.id}`, { method: 'DELETE' })).status, 403);
 
-  // Its only bot goes to another team: the empty team goes.
+  // Every bot of Sales joins Help too: Sales keeps them.
   r = await srv.api(`/company/teams/${s2.id}`, { method: 'PUT', body: { bots: [c.id, a.id, b.id] } });
-  assert.deepEqual(r.data.teams.map((t) => t.name), ['Help']);
+  assert.deepEqual(r.data.teams.map((t) => [t.name, t.bots]), [['Sales', [a.id, b.id]], ['Help', [c.id, a.id, b.id]]]);
   assert.equal((await srv.api('/company/teams/nope', { method: 'PUT', body: { lead: a.id } })).status, 404);
 });
 
