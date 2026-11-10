@@ -92,6 +92,8 @@ internal class CompanyWays(
     val onFolder: ((String) -> Unit)? = null,
     /** A folder of a project's folder in Files (the board's Files tile): the project's folder's name, the path in it. */
     val onFolderAt: ((name: String, path: String) -> Unit)? = null,
+    /** A file of the project's folder (the Files tile): opened over its folder in Files. */
+    val onFolderFile: (name: String, path: String) -> Unit = { _, _ -> },
     /** A Chief chat a goal's "Change" started (#820): its id; null where the botdot can't. */
     val onGoalChat: ((String) -> Unit)? = null,
 )
@@ -180,7 +182,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 }
                 if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
                 if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
-                if (filesAt != null) add(Tile("files") { m, _ -> Box(m) { ProjectFilesTile(ui, c, filesAt) } })
+                if (filesAt != null) add(Tile("files") { m, _ -> Box(m) { ProjectFilesTile(ui, c, filesAt, ways.onFolderFile) } })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
@@ -207,7 +209,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 NewTeam(ui, c)
             }
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
-            if (filesAt != null) ProjectFilesTile(ui, c, filesAt)
+            if (filesAt != null) ProjectFilesTile(ui, c, filesAt, ways.onFolderFile)
         }
         if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
         }

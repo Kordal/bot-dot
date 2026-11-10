@@ -38,10 +38,10 @@ private const val FILES_COLOR = "#e8b44a"
 /**
  * The Files tile of a project's board (web: public/company-files-view.js): the newest files of its folder, asked of
  * GET /api/company/files when the project changes and each minute while on screen. A tap on the tile opens the folder
- * in Files; a tap on a file opens Files at the folder it is in.
+ * in Files; a tap on a file opens that file, over its folder in Files.
  */
 @Composable
-internal fun ProjectFilesTile(ui: CompanyUi, c: Company, onFolder: (name: String, path: String) -> Unit) {
+internal fun ProjectFilesTile(ui: CompanyUi, c: Company, onFolder: (name: String, path: String) -> Unit, onFile: (name: String, path: String) -> Unit) {
     val folder = c.folder ?: return
     val p = LocalPaper.current
     var files by remember(c.id) { mutableStateOf<List<RecentFile>>(emptyList()) }
@@ -60,7 +60,7 @@ internal fun ProjectFilesTile(ui: CompanyUi, c: Company, onFolder: (name: String
             Text(tr("Files"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
         }
         files.forEach { f ->
-            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(Radius.small).clickable(onClickLabel = f.name) { onFolder(folder.name, ProjectFiles.folderOf(f.path)) },
+            Row(Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(Radius.small).clickable(onClickLabel = f.name) { onFile(folder.name, f.path) },
                 verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Description, null, tint = p.muted, modifier = Modifier.size(18.dp))
                 Text(f.name, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
