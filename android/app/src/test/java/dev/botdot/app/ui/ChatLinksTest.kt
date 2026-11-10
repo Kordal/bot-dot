@@ -14,17 +14,25 @@ import java.io.File
 
 class ChatLinksTest {
     // The cases the web page shares (test/fixtures/chat-links.json): a text and each address linked in it.
-    private val cases = Json.parseToJsonElement(
+    private val fixture = Json.parseToJsonElement(
         File(System.getProperty("chatLinks") ?: "../../test/fixtures/chat-links.json").readText(),
-    ).jsonObject.getValue("cases").jsonArray.map { it.jsonObject }
+    ).jsonObject
+    private val cases = fixture.getValue("cases").jsonArray.map { it.jsonObject }
 
     @Test fun everyCaseOfTheSharedFixtureLinksItsAddresses() {
         cases.forEach { c ->
             val text = c.getValue("text").jsonPrimitive.content
             val want = c.getValue("links").jsonArray.map { l -> l.jsonArray.map { it.jsonPrimitive.content } }
             val links = chatLinks(text)
-            assertEquals(text, want, links.map { listOf(it.text, it.url) })
+            assertEquals(text, want, links.map { listOf(it.text, it.url, linkLabel(it.text)) })
             links.forEach { assertEquals(it.text, text.substring(it.start, it.start + it.text.length)) }
+        }
+    }
+
+    // A bare address shows its site, so a long address reads as a short link.
+    @Test fun everyLabelOfTheSharedFixture() {
+        fixture.getValue("labels").jsonArray.map { it.jsonArray }.forEach { (url, label) ->
+            assertEquals(url.jsonPrimitive.content, label.jsonPrimitive.content, linkLabel(url.jsonPrimitive.content))
         }
     }
 
@@ -40,9 +48,9 @@ class ChatLinksTest {
         val text = "See news.example.com/a and https://127.0.0.1/x."
         val s = linkedChatText(AnnotatedString(text), Color.White, sites = true)
         val links = s.getLinkAnnotations(0, s.length).map { s.text.substring(it.start, it.end) to (it.item as LinkAnnotation.Url).url }
-        assertEquals(listOf("news.example.com/a" to "https://news.example.com/a", "https://127.0.0.1/x" to "https://127.0.0.1/x"), links)
+        assertEquals(listOf("news.example.com" to "https://news.example.com/a", "127.0.0.1" to "https://127.0.0.1/x"), links)
         assertEquals(listOf("news.example.com", ""), s.getStringAnnotations("site", 0, s.length).map { it.item })
         assertEquals(setOf("site:news.example.com", "site:"), siteIconsIn(listOf(s)).keys)
-        assertEquals(text, linkedChatText(AnnotatedString(text), Color.White).text)
+        assertEquals("See news.example.com and 127.0.0.1.", linkedChatText(AnnotatedString(text), Color.White).text)
     }
 }

@@ -110,6 +110,11 @@ test('web: tables, code blocks, links, bold, italic and inline code are drawn as
   assert.equal(md(null), '');
 });
 
+test('web: a Markdown link whose words are its address shows its site, the address its title', () => {
+  assert.equal(md('[https://www.example.com/a?b=1](https://www.example.com/a?b=1)'),
+    '<p><a class="web-link" href="https://www.example.com/a?b=1" title="https://www.example.com/a?b=1" target="_blank" rel="noopener">example.com</a></p>');
+});
+
 test('web: a table scrolls in its own box, and a column of only numbers lines up on the right', () => {
   const html = md('| Service | Count | Keys |\n|---|---|---|\n| Stripe | 9 | A, B |\n| AI | 1 234,5 | C |\n| R2 | | D |\n| Time | 12:30 | 5 |');
   assert.match(html, /^<div class="md-table"><table><thead>/);
