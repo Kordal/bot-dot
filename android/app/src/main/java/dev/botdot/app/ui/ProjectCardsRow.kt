@@ -104,7 +104,7 @@ internal class CardsState(
     var refused by refusedState
     // A card removed meanwhile closes its Change.
     val shown get() = open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }
-    fun send(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = ui.call(block, done)
+    fun send(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = ui.call(block, done = done)
     fun slots(): List<ProjectCards.Slot> = ProjectCards.slots(c.cards, shown, closing.toSet(), removing.toSet())
     /** [id] off the row now, then [block] sent; its answer, or its refusal, draws the row again. */
     fun leave(list: MutableList<String>, id: String, block: suspend (Api) -> Company) {
