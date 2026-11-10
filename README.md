@@ -20,6 +20,12 @@ It runs on your own Linux server, each account walled off under rootless Docker 
 On a fresh Linux VM or VPS (not a container), as a user with `sudo`:
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/Kordal/bot-dot/main/get.sh | sudo sh
+```
+
+It puts botdot's source in `./bot-dot-source` (installing git first if it's missing) and runs the `install.sh` in it. The same by hand:
+
+```bash
 sudo apt-get update && sudo apt-get install -y git curl   # Fedora, RHEL, Rocky, Alma: sudo dnf install -y git curl
 git clone https://github.com/Kordal/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh

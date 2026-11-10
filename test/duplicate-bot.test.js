@@ -75,16 +75,14 @@ test("the owner's copy has the settings, a new id, name and colour, and none of 
   assert.match(taken.data.error, /already/);
 });
 
-test("the Chief's copy shares no Vault entry, names them, and what it may not give waits for the owner", async () => {
+test("the Chief's copy shares no Vault entry, names them, and gets everything else at once (ADR 176)", async () => {
   const r = await srv.asChief(`/bots/${coder.id}/duplicate`, { method: 'POST', body: { name: 'Coder Chief' } });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   assert.equal(r.data.name, 'Coder Chief');
   assert.deepEqual(r.data.loginsNotShared, ['Portal']);
   assert.ok(!('logins' in r.data));
-  assert.ok(!r.data.allowedTools.includes('Bash(git diff *)'), 'commands wait on a card');
-  assert.deepEqual(r.data.connectors, []);
-  assert.equal(r.data.computer, 'none');
-  assert.ok(r.data.waiting.length, JSON.stringify(r.data));
+  assert.deepEqual([r.data.allowedTools, r.data.connectors, r.data.computer], [coder.allowedTools, coder.connectors, coder.computer], 'no card holds what it is made with');
+  assert.ok(!('waiting' in r.data), JSON.stringify(r.data));
   assert.equal(r.data.prompt, coder.prompt);
   const vault = (await srv.api('/vault')).data;
   assert.ok(!vault.find((e) => e.id === portal.id).allowedBots.includes(r.data.id));
@@ -99,7 +97,7 @@ test('duplicate_bot is a Chief tool that answers the copy as create_bot does', a
   assert.match(made.name, /^Coder \d+$/);
   assert.equal(made.prompt, coder.prompt);
   assert.deepEqual(made.loginsNotShared, ['Portal']);
-  assert.ok(Array.isArray(made.waiting));
+  assert.ok(!('waiting' in made));
 });
 
 test('a long name keeps its number within 60 characters', async () => {

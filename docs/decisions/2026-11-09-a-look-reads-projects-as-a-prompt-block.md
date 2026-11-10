@@ -1,0 +1,1 @@
+2026-11-09: A look learns what is due in the owner's projects from a block botdot writes into its prompt (company.js dueNote: by tomorrow, at most 8 to-dos and 4 events a project, plus a check-in, plan or suggested bot that waits), not from get_company as a tool: a look keeps only its reading tools (ADR 006), and a block costs no tool call and cannot miss a due item (#1225).

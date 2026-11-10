@@ -59,7 +59,7 @@ test('changed instructions are given once, on the next turn, and not on the turn
   assert.match(told, /Your instructions have changed since this conversation started\. These are the current ones, and they replace the ones you were given then:\n<instructions>\nYou are the Chief of Staff in botdot/);
   const given = told.slice(told.indexOf('<instructions>'), told.indexOf('</instructions>'));
   assert.match(given, /<user-rules>\nAnswer in Polish\.\n<\/user-rules>/, "the owner's rules");
-  assert.match(given, /writing_first \(perDay: 0 = off, up to 3\)/, 'what the Chief was told since older chats began');
+  assert.match(given, /writing_first \(perDay: 0 = off, up to 10\)/, 'what the Chief was told since older chats began');
   // What BUSY-002 changed reaches a chat that began before it: a late result is told to the Chief, and a note ends a wait.
   assert.match(given, /If the run is still going when the wait ends, say so in one line: botdot tells you in this chat when the bot is done, and you then report its result in a few lines\./);
   assert.match(given, /When wait_for_run answers with a note that the user wrote to you while you waited, the wait is over: do what the note says, in one line, and end your reply; the user's message is your next turn\./);

@@ -155,3 +155,41 @@ test('the Chief is told each project with its id', () => {
   assert.equal(s.of('gone').read(), null);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a look is told only what is due by tomorrow or waits for the owner, per running project (#1225)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'projects-due-'));
+  const file = path.join(dir, 'company.json');
+  const now = new Date(2026, 9, 14, 9, 0); // 14 October, this machine's day
+  const started = new Date(2026, 9, 3, 9, 0).toISOString();
+  fs.writeFileSync(file, JSON.stringify({ projects: [
+    { id: 'p1', name: 'Fernhill', start: 'x', phase: 'running', startedAt: started,
+      todos: [
+        { id: 'a', text: 'Send the deck', due: '2026-10-14' },
+        { id: 'b', text: 'Call the printer', due: '2026-10-11', bot: 'b1' },
+        { id: 'c', text: 'Book the venue', due: '2026-10-15' },
+        { id: 'd', text: 'Later thing', due: '2026-10-20' },
+        { id: 'e', text: 'Done thing', due: '2026-10-13', done: true },
+        { id: 'f', text: 'No day' },
+      ],
+      events: [{ id: 'e1', title: 'Launch call', day: '2026-10-14', time: '15:00' }, { id: 'e2', title: 'Next week', day: '2026-10-21' }],
+      plan: { items: [{ text: 'Ship the page' }], approved: false },
+      suggestion: { name: 'Pricing Scout', why: 'x', prompt: 'y' } },
+    { id: 'p2', name: 'Quiet', start: 'y', phase: 'running', startedAt: started, todos: [{ id: 'z', text: 'Far', due: '2026-12-01' }] },
+    { id: 'p3', name: 'Draft', start: 'z', phase: 'setup', todos: [{ id: 'y', text: 'Overdue in setup', due: '2026-10-01' }] },
+  ] }));
+  const s = companyLib.create({ file, now: () => now });
+  const note = s.dueNote((b) => (b === 'b1' ? 'Outreach' : b));
+  assert.equal(note.split('\n')[0], 'Project "Fernhill" (day 12 of 90):');
+  const lines = note.split('\n').slice(1);
+  assert.deepEqual(lines.slice(0, 3), [
+    '- To-do, overdue since 2026-10-11: Call the printer (Outreach)',
+    '- To-do, due today: Send the deck',
+    '- To-do, due tomorrow: Book the venue',
+  ], 'the earliest first, a bot\'s named');
+  assert.ok(lines.includes('- Event today at 15:00: Launch call'));
+  assert.ok(lines.includes('- This week\'s plan waits for the owner\'s OK.'));
+  assert.ok(lines.includes('- A suggested bot waits for the owner: Pricing Scout.'));
+  assert.doesNotMatch(note, /Later thing|Done thing|No day|Next week/);
+  assert.doesNotMatch(note, /Quiet|Draft/, 'a project with nothing due, or not running, says nothing');
+  fs.rmSync(dir, { recursive: true, force: true });
+});

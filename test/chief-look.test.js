@@ -53,7 +53,7 @@ test('with no Chief chat, the message of a look starts a new chat, as a new repl
   assert.deepEqual([ev.data.unasked, ev.data.new, ev.data.status, ev.data.error], [true, true, 'success', null], 'announced like a reply');
   assert.match(ev.data.text, /duplicate check/);
   await f.wait('unread', (d) => d.chat === `chief:${chatId}` && d.unread === 1);
-  assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 1, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [] });
 });
 
 test("a look is its own session with web search and botdot's reading tools only", async () => {
@@ -77,11 +77,11 @@ test("the owner's next message in that chat reaches the Chief with the unasked m
   assert.equal(turn.stdin.split('<your-unasked-message>').length, 2);
   assert.match(turn.stdin, new RegExp(`<your-unasked-message>\\n${FIRST.replace(/[.?]/g, '\\$&')}\\nIt stopped at step two\\.\\n</your-unasked-message>\\n\\nbotdot wrote that in a look[^\\n]*\\n\\nMy message: yes, start it again$`));
   // A chat's session from before the Chief wrote first lacks those instructions: the turn tells it what that was and how to stop it.
-  assert.match(turn.stdin, /botdot wrote that in a look: a moment it gives you a few times a day to write to me first\. How often is my setting: when I want fewer, more or none \("stop writing first"\), change it with your writing_first tool \(perDay: 0 = off, up to 3\)\./);
+  assert.match(turn.stdin, /botdot wrote that in a look: a moment it gives you a few times a day to write to me first\. How often is my setting: when I want fewer, more or none \("stop writing first"\), change it with your writing_first tool \(perDay: 0 = off, up to 10\)\./);
   assert.equal(record()[0].answer, 'yes, start it again', "the owner's answer is in the look's record");
   assert.ok(!turn.args.includes('--tools'), "a chat's turn keeps the Chief's own tools");
   const system = turn.system;
-  assert.match(system, /writing_first \(perDay: 0 = off, up to 3\) and confirm in one line/);
+  assert.match(system, /writing_first \(perDay: 0 = off, up to 10\) and confirm in one line/);
   assert.match(system, /lasting preference about these messages[^\n]*save it with remember, place "me"/);
   await say(chatId, 'thanks');
   assert.match(chiefRuns().at(-1).stdin, /<\/from-botdot>\n\nMy message: thanks$/);
@@ -108,7 +108,7 @@ test('a look that answers NOTHING, answers nothing or fails changes no chat file
   await sleep(200);
   assert.deepEqual(chatFiles(), before);
   assert.deepEqual(f.events.slice(events).map((e) => e.type), [], 'nothing on the live feed');
-  assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 1, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [] });
   assert.match(srv.log.join(''), /\[look\] a look failed: Not signed in/, "the problem is in the server's log");
 });
 
@@ -160,7 +160,7 @@ test("the next look's input holds the earlier unasked message with its rating an
   assert.match(input.slice(input.indexOf('Already raised')), /- \d{4}-\d\d-\d\d, rated up, the owner answered "yes, start it again": Your duplicate check on recipes\.example\.com never finished/);
   const last = (await chatOf(chatId)).messages.at(-1);
   assert.deepEqual([last.role, last.unasked, last.text], ['chief', true, 'Proxmox 9 is out; your Homelab Manager still checks for 8.']);
-  assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 2, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 2, times: [] });
 });
 
 test('no look while the Chief is answering the owner', async () => {
@@ -175,13 +175,13 @@ test('no look while the Chief is answering the owner', async () => {
 
 test('the Chief turns writing first down, off and on again for the owner; the setting and the count survive a restart', async () => {
   const set = (perDay) => srv.asChief('/settings/writing-first', { method: 'PUT', body: { perDay } });
-  assert.deepEqual((await srv.asChief('/settings/writing-first')).data, { writingFirst: { perDay: 3, sentToday: 2, times: [] } });
+  assert.deepEqual((await srv.asChief('/settings/writing-first')).data, { writingFirst: { perDay: 8, sentToday: 2, times: [] } });
   assert.deepEqual((await set(2)).data, { writingFirst: { perDay: 2, sentToday: 2, times: [] } });
   const looks = lookRuns().length;
   assert.deepEqual(await lookNow(), { looked: false, reason: 'limit' });
   assert.deepEqual((await set(0)).data.writingFirst.perDay, 0);
   assert.deepEqual(await lookNow(), { looked: false, reason: 'off' });
-  for (const bad of [4, -1, 1.5, '2', null, undefined]) {
+  for (const bad of [11, -1, 1.5, '2', null, undefined]) {
     const r = await set(bad);
     assert.equal(r.status, 400, JSON.stringify(bad));
     assert.equal((await writingFirst()).perDay, 0);
@@ -191,7 +191,7 @@ test('the Chief turns writing first down, off and on again for the owner; the se
   // When (#416): the owner's own times, checked, in the order of their day; only what is passed changes.
   const at = (times) => srv.asChief('/settings/writing-first', { method: 'PUT', body: { times } });
   assert.deepEqual((await at(['16:00', '09:00'])).data, { writingFirst: { perDay: 0, sentToday: 2, times: ['09:00', '16:00'] } });
-  for (const bad of [['9am'], '09:00', ['01:00', '02:00', '03:00', '04:00', '05:00']]) assert.equal((await at(bad)).status, 400, JSON.stringify(bad));
+  for (const bad of [['9am'], '09:00', ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']]) assert.equal((await at(bad)).status, 400, JSON.stringify(bad));
   await srv.api('/settings/quiet-hours', { method: 'PUT', body: { start: 22, end: 7 } });
   const quiet = await at(['23:00']);
   assert.deepEqual([quiet.status, quiet.data.error], [400, '23:00 is inside the quiet hours (22:00 to 07:00), when no look starts. The nearest times are 21:59 and 07:00.']);
@@ -256,4 +256,33 @@ test('the chat the owner last used was deleted: the message starts a new chat, n
   // The next one follows it there.
   assert.deepEqual(await lookNow(), { looked: false, reason: 'limit' });
   assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 3, times: [] });
+});
+
+test('a look reads what is due today in the owner\'s projects (#1225)', async (t) => {
+  const own = await startServer({ env: ENV });
+  t.after(() => own.stop());
+  await own.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } });
+  const now = new Date();
+  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  require('./helpers').writeData(path.join(own.data, 'company.json'), { id: 'p1', name: 'Fernhill', start: 'fernhill.app', phase: 'running', startedAt: now.toISOString(), todos: [{ id: 't1', text: 'Send the deck to Anna', due: day }] });
+  own.reply('NOTHING');
+  const r = (await own.api('/chief/look', { method: 'POST' })).data;
+  assert.equal(r.looked, true, JSON.stringify(r));
+  const run = own.runs().filter((x) => x.args.includes('🧭 Chief of Staff · look')).at(-1);
+  assert.match(run.stdin, /The owner's projects, what is due by tomorrow or waits for them[^\n]*\nProject "Fernhill"[^\n]*\n- To-do, due today: Send the deck to Anna/);
+});
+
+test('a look is told of a bot\'s job that did not run, to bring with it the fix (ADR 175)', async (t) => {
+  let own = await startServer({ env: ENV });
+  t.after(() => own.stop());
+  await own.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } });
+  const bot = await makeBot(own, { name: 'Prices' });
+  const job = (await own.api(`/bots/${bot.id}/jobs`, { method: 'POST', body: { name: 'Morning prices', cron: '0 3 1 1 *', prompt: 'Check prices' } })).data;
+  await own.stop();
+  require('./helpers').writeData(path.join(own.data, 'job-state.json'), { [job.id]: { status: 'missed', why: 'botdot was off.', at: new Date().toISOString() } });
+  own = await startServer({ dir: own.dir, env: ENV });
+  own.reply('NOTHING');
+  assert.equal((await own.api('/chief/look', { method: 'POST' })).data.looked, true);
+  const run = own.runs().filter((x) => x.args.includes('🧭 Chief of Staff · look')).at(-1);
+  assert.match(run.stdin, /- \[today\] Prices's job "Morning prices" did not run: Did not run at \d\d:\d\d: botdot was off\. Find out why/);
 });

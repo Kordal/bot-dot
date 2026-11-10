@@ -35,15 +35,17 @@ test('each held field has its words; what was given at once has none', () => {
 // ---------- the routes ----------
 
 test('POST and PUT /api/bots answer `waiting` when the Chief\'s change was held back, and not otherwise', async () => {
+  // A new bot gets everything it is made with (ADR 176): nothing of it waits on a card.
   const created = await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Watch the news.', allowedTools: ['Read', 'WebSearch', 'Bash'], computer: 'linux', connectors: ['gmail'] } });
   assert.equal(created.status, 201, JSON.stringify(created.data));
-  assert.deepEqual(created.data.waiting, ['web access', 'commands', 'the computer', 'Gmail']);
-  assert.deepEqual(created.data.allowedTools, ['Read'], 'the bot in the answer is as it was saved');
-  assert.ok(created.data.pendingChange);
-  // The card of what waits says the same in its title, and who proposed it (docs/api.md, "Things that need the owner").
-  const card = (await srv.api('/asks')).data.find((a) => a.id === created.data.pendingChange);
-  assert.deepEqual([card.by, card.title], ['chief', 'Change News Watcher: web access, commands, the computer and Gmail?']);
-  assert.deepEqual(card.parts.map((p) => [p.label, p.now, 'was' in p]), [['What it may do', 'browse the web and run commands', false], ['Computer', "a screen on the account's computer, which every bot there shares with sudo, on your home network: a saved login used there, they can all read", false], ['Connected apps', 'Gmail', false]]);
+  assert.ok(!('waiting' in created.data) && !('pendingChange' in created.data), JSON.stringify(created.data));
+  assert.deepEqual([created.data.allowedTools, created.data.computer, created.data.connectors], [['Read', 'WebSearch', 'Bash'], 'linux', ['gmail']]);
+  assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === created.data.id), 'no card for a new bot');
+  // A change to it outside a turn of the owner's waits, and its card says what and who proposed it.
+  const grown = await srv.asChief(`/bots/${created.data.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'Bash', 'WebFetch'], connectors: ['gmail', 'notion'] } });
+  assert.deepEqual(grown.data.waiting, ['web access', 'Notion']);
+  const card = (await srv.api('/asks')).data.find((a) => a.id === grown.data.pendingChange);
+  assert.equal(card.by, 'chief');
   assert.ok(!('chatId' in card), 'made from no chat');
 
   const plain = await srv.asChief('/bots', { method: 'POST', body: { name: 'Note Taker', prompt: 'Take notes.', allowedTools: ['Read', 'Edit'] } });
@@ -77,12 +79,14 @@ test('create_bot and update_bot return `waiting` and the saved main assignment, 
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   const call = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey, CHIEF_CHAT_ID: chat.id }).json;
   const made = await call('create_bot', { name: 'Price Watcher', prompt: 'Watch the price of one thing.', allowedTools: ['Read', 'WebFetch'] });
-  assert.deepEqual(made.waiting, ['web access']);
+  assert.ok(!('waiting' in made) && !('applied' in made), 'a new bot gets what it is made with (ADR 176)');
+  assert.equal(made.prompt, 'Watch the price of one thing.');
+  assert.deepEqual(made.allowedTools, ['Read', 'WebFetch']);
+  // A tool given later, outside a turn of the owner's, waits on a card that keeps the chat.
+  const web = await call('update_bot', { id: made.id, allowedTools: ['Read', 'WebFetch', 'WebSearch'] });
+  assert.deepEqual(web.waiting, ['web access']);
   const card = (await srv.api('/asks')).data.find((a) => a.botId === made.id);
   assert.deepEqual([card.by, card.chatId, card.title], ['chief', chat.id, 'Let Price Watcher browse the web?']);
-  assert.equal(made.prompt, 'Watch the price of one thing.');
-  assert.deepEqual(made.allowedTools, ['Read']);
-  assert.ok(!('applied' in made));
 
   // Everything of the call waits: said so.
   const all = await call('update_bot', { id: made.id, prompt: 'Watch two prices.', computer: 'linux' });
@@ -106,11 +110,12 @@ test('create_bot and update_bot return `waiting` and the saved main assignment, 
 test('the descriptions of create_bot and update_bot say what `waiting` lists, and no longer send the Chief to get_bot', async (t) => {
   const client = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey });
   const tools = (await client.request('tools/list')).tools;
-  for (const name of ['create_bot', 'update_bot']) {
-    const d = tools.find((x) => x.name === name).description;
-    assert.match(d, /`waiting` in it lists what .* the user must approve .* in Needs you first/, name);
-    assert.doesNotMatch(d, /get_bot/, name);
-  }
+  const made = tools.find((x) => x.name === 'create_bot').description;
+  assert.match(made, /everything you make it with at once, with no card/);
+  assert.doesNotMatch(made, /`waiting`|get_bot/);
+  const changed = tools.find((x) => x.name === 'update_bot').description;
+  assert.match(changed, /`waiting` in it lists what .* the user must approve .* in Needs you first/);
+  assert.doesNotMatch(changed, /get_bot/);
 });
 
 // ---------- the chips ----------
@@ -160,7 +165,7 @@ test('from the tool to the chip: what the Chief\'s real tools answer reads right
   const gone = await call('delete_bot', { id: made.id, userConfirmed: true });
   const actions = await chips([['create_bot', {}, made], ['update_bot', { id: made.id }, all], ['delete_bot', { id: made.id, userConfirmed: true }, gone]]);
   assert.deepEqual(actions, [
-    { kind: 'created', text: 'Created Home Helper', botId: made.id, waits: 'commands and the computer wait for your OK' },
+    { kind: 'created', text: 'Created Home Helper', botId: made.id },
     { kind: 'updated', text: 'Home Helper', botId: made.id, waits: 'new rules waits for your OK' },
     { kind: 'deleted', text: 'Deleted Home Helper' },
   ]);
