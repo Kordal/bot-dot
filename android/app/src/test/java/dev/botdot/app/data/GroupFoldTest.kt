@@ -6,7 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * The team's one answer (ADR 184; docs/api.md, "The team's answer"): a message of a team's chat with `answer` has the
+ * The team's one answer (ADR 201; docs/api.md, "The team's answer"): a message of a team's chat with `answer` has the
  * members' replies before that reply folded under one row ([Groups.folded], [Groups.shown]), as `public/groups.js`
  * groupFolded has them.
  */

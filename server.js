@@ -31,6 +31,22 @@ const vaultLib = require('./lib/vault');
 const vault = vaultLib.create(B.DATA_DIR);
 // Once Bitwarden is connected it is the vault (the "bot-dot" folder); until then the built-in one.
 const bitwarden = require('./lib/bitwarden').create(B.DATA_DIR);
+// The code that runs now, as a stamp: an update changes it, a plain restart or a reboot does not (ADR 181).
+// Bitwarden unlocked as botdot exits stays unlocked for the start an update makes.
+const CODE_STAMP = (() => {
+  const h = require('crypto').createHash('sha1');
+  const own = require('node:fs'); // botdot's own code, read as the server's user
+  const walk = (dir) => {
+    for (const e of own.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory()) walk(f);
+      else if (e.isFile() && f.endsWith('.js')) h.update(path.relative(__dirname, f)).update('\0').update(own.readFileSync(f));
+    }
+  };
+  try { h.update(own.readFileSync(__filename)); walk(path.join(__dirname, 'lib')); return h.digest('hex'); } catch { return null; }
+})();
+process.on('exit', () => bitwarden.keepForUpdate(CODE_STAMP));
+bitwarden.resumeAfterUpdate(CODE_STAMP).then((ok) => { if (ok) console.log('[bitwarden] unlocked again after the update'); }).catch(() => {});
 const store = () => (bitwarden.configured() ? bitwarden : vault);
 let unlockWanted = null; // { botId, at }: a bot is waiting for the owner to unlock Bitwarden
 
@@ -149,7 +165,7 @@ const irreversibleSteps = irreversibleStepsLib.create(B.DATA_DIR, {
   connectedApp: (botId, site) => { const app = irreversibleStepsLib.appOfSite(B.bots.get(botId)?.connectors, site); return app ? B.appName(app) || app : null; },
 });
 // Attention (ADR 175): the cards that wait in Needs you and when the owner last wrote, for what the Chief notices between its looks.
-chief.attentionWith({ asks: () => asks.list().map((a) => ({ id: a.id, at: a.at, text: asksLib.askText(a, { appName: B.appName }) })), lastMessageAt: () => activity.lastMessageAt() });
+chief.attentionWith({ asks: () => asks.list().map((a) => ({ id: a.id, at: a.at, text: asksLib.askText(a, { appName: B.appName }), bot: (a.botId && B.bots.get(a.botId)?.name) || null })), lastMessageAt: () => activity.lastMessageAt() });
 B.onRunStarted((meta, carried) => { connectorApprovals.runStarted(meta, carried); irreversibleSteps.runStarted(meta); });
 B.onRunEnded((meta) => { connectorApprovals.runEnded(meta); irreversibleSteps.runEnded(meta); roomRuns.runEnded(meta); });
 // A Chief turn gets connected apps when the owner started it, or when a late yes on its card did (ADR 047): every
@@ -346,7 +362,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -455,6 +471,8 @@ function watchSoon() {
 const WATCH_OWN = new Set(['login_request', 'login_request_closed', 'bitwarden', 'approvals', 'update_available']); // what it emits itself
 feed.subscribe((ev) => { if (!WATCH_OWN.has(ev.type)) watchSoon(); });
 loginRequests.onChange(watchSoon);
+// A login added after the run that asked for it gave up waiting: that run's work carries on (ADR 189).
+loginRequests.onLater((r) => { try { B.carryOnAfterLogin(r); } catch (e) { console.error(`[login] ${e.message}`); } });
 // A bot's run that waits for the owner's login or card says so on the feed, as one that waits for an OK (#1095).
 loginRequests.onRunWaits((r, on) => feed.emitRun('run_waits', B.groupOfRun(r.runId), { chat: `bot:${r.botId}`, botId: r.botId, runId: r.runId, ...(on ? { waitingFor: 'ok' } : {}) }));
 watchForFeed(); // the starting point, so the first change is noticed
@@ -595,7 +613,7 @@ const CHIEF_ROUTES = [
   ['PUT', /^proxies\/default$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|storage\/check|connectors\/session\/(actions|run|wait))$/],
-  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
+  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|run-again|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['POST', /^company\/(teams|todos|decisions|events|card-request)$/],
   ['PUT', /^(company\/(plan|suggestion|standup|layout|dates)|company\/(teams|objectives|todos|events|cards)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(company\/(events|cards|objectives)\/[^/]+|chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],

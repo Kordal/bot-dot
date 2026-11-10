@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { pendingChanges, waitingWords } = require('../lib/bot-changes');
-const { startServer, makeBot, waitFor } = require('./helpers');
+const { startServer, makeBot, waitFor, withAlways } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 let srv;
@@ -39,11 +39,11 @@ test('POST and PUT /api/bots answer `waiting` when the Chief\'s change was held 
   const created = await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Watch the news.', allowedTools: ['Read', 'WebSearch', 'Bash'], computer: 'linux', connectors: ['gmail'] } });
   assert.equal(created.status, 201, JSON.stringify(created.data));
   assert.ok(!('waiting' in created.data) && !('pendingChange' in created.data), JSON.stringify(created.data));
-  assert.deepEqual([created.data.allowedTools, created.data.computer, created.data.connectors], [['Read', 'WebSearch', 'Bash'], 'linux', ['gmail']]);
+  assert.deepEqual([created.data.allowedTools, created.data.computer, created.data.connectors], [withAlways('Read', 'WebSearch', 'Bash'), 'linux', ['gmail']]);
   assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === created.data.id), 'no card for a new bot');
   // A change to it outside a turn of the owner's waits, and its card says what and who proposed it.
-  const grown = await srv.asChief(`/bots/${created.data.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'Bash', 'WebFetch'], connectors: ['gmail', 'notion'] } });
-  assert.deepEqual(grown.data.waiting, ['web access', 'Notion']);
+  const grown = await srv.asChief(`/bots/${created.data.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'Bash', 'Agent'], connectors: ['gmail', 'notion'] } });
+  assert.deepEqual(grown.data.waiting, ['Notion'], 'helpers are given at once, and the web is every bot\'s (ADR 192)');
   const card = (await srv.api('/asks')).data.find((a) => a.id === grown.data.pendingChange);
   assert.equal(card.by, 'chief');
   assert.ok(!('chatId' in card), 'made from no chat');
@@ -81,16 +81,16 @@ test('create_bot and update_bot return `waiting` and the saved main assignment, 
   const made = await call('create_bot', { name: 'Price Watcher', prompt: 'Watch the price of one thing.', allowedTools: ['Read', 'WebFetch'] });
   assert.ok(!('waiting' in made) && !('applied' in made), 'a new bot gets what it is made with (ADR 176)');
   assert.equal(made.prompt, 'Watch the price of one thing.');
-  assert.deepEqual(made.allowedTools, ['Read', 'WebFetch']);
+  assert.deepEqual(made.allowedTools, withAlways('Read', 'WebFetch'));
   // A tool given later, outside a turn of the owner's, waits on a card that keeps the chat.
-  const web = await call('update_bot', { id: made.id, allowedTools: ['Read', 'WebFetch', 'WebSearch'] });
-  assert.deepEqual(web.waiting, ['web access']);
+  const web = await call('update_bot', { id: made.id, allowedTools: ['Read', 'WebFetch', 'Bash'] });
+  assert.deepEqual(web.waiting, ['commands']);
   const card = (await srv.api('/asks')).data.find((a) => a.botId === made.id);
-  assert.deepEqual([card.by, card.chatId, card.title], ['chief', chat.id, 'Let Price Watcher browse the web?']);
+  assert.deepEqual([card.by, card.chatId, card.title], ['chief', chat.id, 'Let Price Watcher run commands?']);
 
   // Everything of the call waits: said so.
-  const all = await call('update_bot', { id: made.id, prompt: 'Watch two prices.', computer: 'linux' });
-  assert.deepEqual(all.waiting, ['the computer', 'new main assignment']);
+  const all = await call('update_bot', { id: made.id, prompt: 'Watch two prices.', allowedTools: ['Read', 'WebFetch', 'Bash'] });
+  assert.deepEqual(all.waiting, ['commands', 'new main assignment']);
   assert.equal(all.prompt, 'Watch the price of one thing.', 'the main assignment as it is saved');
   assert.equal(all.applied, false);
   // Part of it was saved.

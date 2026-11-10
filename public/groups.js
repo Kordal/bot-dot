@@ -494,7 +494,7 @@ function groupEmptyHTML(g) {
     <p class="muted">${names.length ? `${esc(namesList(names))}.<br>${tr('What you write here, all of them read.')}` : tr('Its bots are all gone. Add one, or delete the group.')}</p>
   </div>`;
 }
-// The team's one answer (ADR 184; docs/api.md, "The team's answer"): a message of a team's chat with `answer` has the
+// The team's one answer (ADR 201; docs/api.md, "The team's answer"): a message of a team's chat with `answer` has the
 // members' replies before that reply folded under one row, which opens them. Returns, for each folded reply's id, the
 // id of its message. Android's Groups.folded has the same rule.
 function groupFolded(items) {
@@ -674,7 +674,7 @@ function renderGroupChat() {
   // The line's reply is further back than the page holds: read further, once.
   if (newFirst !== null && !chat.items.has(newFirst) && chat.more && chat.want < GROUP_REACH) loadGroupChat(g.id, GROUP_REACH);
   const items = $('.g-items', thread);
-  // A search match among folded replies opens them (ADR 184).
+  // A search match among folded replies opens them (ADR 201).
   if (state.jump?.runId && state.jump.group?.id === g.id) { const f = groupFolded(chatItems(chat)).get(state.jump.runId); if (f) openFolds.add(f); }
   const sig = JSON.stringify([chatItems(chat).map((x) => (x.type === 'message' ? [x.id, x.text, x.waitsFor, x.canTakeBack, x.attachments, x.answer] : [x.id, x.run.status, x.run.endedAt])),
     chat.more, chat.asks?.runId || null, newFirst, signedOut.on, mentionSig(), g.name, look, [...openFolds]]);

@@ -23,13 +23,13 @@ test('web: a bot\'s settings have no "Keep its computer on", and saving sends no
   vm.runInContext(`${cut('function readBotForm(', '// Switched-off machine/built-in skills')}\nthis.readBotForm = readBotForm;`, ctx);
   const field = (value, checked = false) => ({ value, checked });
   const form = { name: field('Coder'), color: field('#1d9e75'), description: field(''), group: field(''), prompt: field(''), systemPrompt: field(''),
-    computer: field('', true), othersMayAsk: field('', true), tools: field(''), permissionMode: field('dontAsk') };
-  const sent = ctx.readBotForm(form, { skills: [], connectors: [], others: [], mayMessage: new Set() });
-  assert.equal(sent.computer, 'linux');
+    tools: field(''), permissionMode: field('dontAsk') };
+  const sent = ctx.readBotForm(form, { skills: [], connectors: [] });
+  assert.equal('computer' in sent, false, 'every bot has one (ADR 192): nothing to send');
   assert.equal('computerAlwaysOn' in sent, false);
-  // Once boat.dev is set up it is one choice (#541): none, this machine or boat.dev.
-  for (const where of ['none', 'linux', 'boat']) {
-    assert.equal(ctx.readBotForm({ ...form, computer: { type: 'select-one', value: where } }, { skills: [], connectors: [], others: [], mayMessage: new Set() }).computer, where);
+  // A server that still chooses per bot (#541): this machine or boat.dev.
+  for (const where of ['linux', 'boat']) {
+    assert.equal(ctx.readBotForm({ ...form, computer: { type: 'select-one', value: where } }, { skills: [], connectors: [] }).computer, where);
   }
 });
 

@@ -22,6 +22,8 @@ if (dir) fs.appendFileSync(path.join(dir, 'calls.jsonl'), `${JSON.stringify(args
 const slow = (() => { try { return fs.readFileSync(path.join(dir, 'slow'), 'utf8').trim(); } catch { return ''; } })();
 if (slow && slow === args.slice(0, 2).join(' ')) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 4000);
 
+// A session it never gave out reads nothing: as bw, which cannot decrypt its copy of the vault with it.
+if (process.env.BW_SESSION && process.env.BW_SESSION !== 'fixture-session' && args[0] === 'list') { process.stderr.write('Vault is locked.'); process.exit(1); }
 if (args[0] === 'status') out(JSON.stringify({ status: 'locked', userEmail: 'owner@example.com' }));
 else if (args[0] === 'unlock') out('fixture-session');
 else if (args[0] === 'list' && args[1] === 'folders') out(JSON.stringify([{ id: 'folder-1', name: 'bot-dot' }]));

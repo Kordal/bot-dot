@@ -250,8 +250,13 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun askSecret(id: String): String =
         json.parseToJsonElement(get("/asks/${enc(id)}/secret")).jsonObject["value"]?.jsonPrimitive?.contentOrNull.orEmpty()
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
-    suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false): Answered =
-        Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); put("always", always) }))
+    suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false, all: Boolean = false): Answered =
+        Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); if (always && all) put("always", "all") else put("always", always) }))
+    /** What every bot may do without asking ("Always allow" for all bots, ADR 201), for the Connectors screen; only with `every-bot-always`. */
+    suspend fun everyBotGrants(): List<AlwaysAllowed> = json.decodeFromString<GrantList>(get("/connector-actions")).grants
+    /** Revoke one of them: the next such action asks again. */
+    suspend fun revokeEveryBotGrant(action: String): List<AlwaysAllowed> =
+        json.decodeFromString<GrantList>(send("DELETE", "/connector-actions", buildJsonObject { put("action", action) })).grants
     /** "Allow all" or "Decline all" on the card of everything one run waits on (`ask-batches`): each ask answered as its own card would. */
     suspend fun answerAskBatch(id: String, yes: Boolean, ids: List<String>): BatchAnswered =
         BatchAnswered.of(send("POST", "/asks/batch/${enc(id)}", buildJsonObject { put("yes", yes); putJsonArray("ids") { ids.forEach { add(it) } } }))
@@ -792,7 +797,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /** The office floor (#672, #675): a new team, "Make lead", the owner's tasks. */
     suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
         CompanySetup.of(send("POST", co("/company/teams"), buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
-    /** A team's bots: all of them, those added at the end; a bot in another team of the project leaves it. */
+    /** A team's bots: all of them, those added at the end; a bot stays in the project's other teams (ADR 199). */
     suspend fun setTeamBots(team: String, bots: List<String>): Company =
         CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
     suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("lead", bot) }))

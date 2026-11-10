@@ -6,9 +6,9 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, heldRun, self, waitFor, writeData } = require('./helpers');
+const { startServer, makeBot, heldRun, self, waitFor, writeData, withAlways } = require('./helpers');
 const { heldPermissions, grantWords, staleChange } = require('../lib/asks');
-const { kit, BASH, WEB, isRunOf } = require('./carry-on-helpers');
+const { kit, BASH, OVERRIDE, OVERRIDE_WORDS, isRunOf } = require('./carry-on-helpers');
 
 let srv, asksOf, runsOf, answer, refuse, refused, carriedOn, startsNothing;
 before(async () => {
@@ -27,7 +27,9 @@ const from = (chat, opts = {}) => ({ ...opts, headers: { 'X-Chief-Chat': chat.id
 // The Chief's turns after the owner's yes; not the turn it gets when a run it started has ended (BUSY-002).
 const told = (re) => srv.runs().filter((r) => r.botdot && /^botdot writes this, not the user: nobody typed it\. The user said yes on /m.test(r.stdin) && re.test(r.stdin));
 const CARRIES = { who: 'chief', text: 'the Chief carries on' };
+// The web is every bot's (ADR 192): commands are what a changed bot of the Chief's still holds for a yes.
 const WITH_WEB = { allowedTools: ['Read', 'WebSearch', 'WebFetch'] };
+const WITH_BASH = { allowedTools: ['Read', 'Bash'] };
 const kinds = async (bot) => (await asksOf(bot)).map((a) => a.kind).sort();
 
 test('the permissions a changed bot holds are those of the tools it adds', () => {
@@ -52,29 +54,29 @@ test('the permissions a changed bot holds are those of the tools it adds', () =>
 test('a refused tool while a changed bot for that permission waits: no second card, and one yes carries the run on and tells the Chief', async () => {
   const chat = await chatAbout('Give News Watcher the web');
   const bot = await makeBot(srv, { name: 'News Watcher', emoji: '📰', allowedTools: ['Read'] });
-  const change = await srv.asChief(`/bots/${bot.id}`, from(chat, { method: 'PUT', body: WITH_WEB }));
+  const change = await srv.asChief(`/bots/${bot.id}`, from(chat, { method: 'PUT', body: WITH_BASH }));
   // The owner asks the bot meanwhile, and it is refused the web.
-  const stopped = await refused(bot, [WEB], { prompt: 'What is the headline?' });
+  const stopped = await refused(bot, [BASH], { prompt: 'What is the headline?' });
   const cards = await asksOf(bot);
-  assert.deepEqual(cards.map((a) => [a.id, a.kind, a.title]), [[change.data.pendingChange, 'bot-change', 'Let News Watcher browse the web?']], 'one card');
+  assert.deepEqual(cards.map((a) => [a.id, a.kind, a.title]), [[change.data.pendingChange, 'bot-change', 'Let News Watcher run commands?']], 'one card');
   assert.deepEqual(cards[0].then.who, 'chief', 'it says the Chief carries on; the run is carried on as well');
 
-  // Another permission is another grant: its own card.
-  await refused(bot, [BASH], { prompt: 'And the open pull requests?' });
-  assert.deepEqual(await kinds(bot), ['bot-change', 'permission']);
-  await answer((await asksOf(bot)).find((a) => a.kind === 'permission'), false);
+  // Another ask is another grant: its own card.
+  await refused(bot, [OVERRIDE], { prompt: 'And the open pull requests?' });
+  assert.deepEqual(await kinds(bot), ['bot-change', 'override']);
+  await answer((await asksOf(bot)).find((a) => a.kind === 'override'), false);
 
   // A bot of its own for the run that carries on, with nothing written to it since.
   const lone = await makeBot(srv, { name: 'Page Reader', emoji: '📖', allowedTools: ['Read'] });
-  const wait = await srv.asChief(`/bots/${lone.id}`, from(chat, { method: 'PUT', body: WITH_WEB }));
-  const asked = await refused(lone, [WEB], { prompt: 'Read the status page' });
+  const wait = await srv.asChief(`/bots/${lone.id}`, from(chat, { method: 'PUT', body: WITH_BASH }));
+  const asked = await refused(lone, [BASH], { prompt: 'Read the status page' });
   srv.reply('All systems are up.');
   const yes = await answer({ id: wait.data.pendingChange }, true);
   assert.deepEqual([yes.status, yes.data.carriesOn], [200, CARRIES], "no \"The bot changed since this proposal\", and the Chief's turn is named first");
   const next = await carriedOn(lone, asked);
   assert.deepEqual([next.continues, next.result], [asked.id, 'All systems are up.']);
   const rec = srv.runs().filter(isRunOf(lone)).at(-1);
-  assert.match(rec.stdin, /The owner allowed you to: browse the web\./);
+  assert.match(rec.stdin, /The owner allowed you to: run commands\./);
   assert.ok(rec.stdin.includes('<request>\nRead the status page\n</request>'));
   const turn = await waitFor(() => told(/Page Reader/)[0], { what: "the Chief's turn" });
   assert.ok(turn.stdin.includes(`botdot itself starts Page Reader again on the work that stopped without it (its run ${asked.id}), now or as soon as it is free: don't start it for that.`));
@@ -100,8 +102,8 @@ test('ask_permission while a changed bot for that permission waits joins its car
   const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] } });
   const h = await heldRun(srv, bot, 'Check the build');
   assert.deepEqual((await self(srv, h.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To run the build' })).data, { ok: true });
-  assert.equal((await self(srv, h.token, 'ask', { kind: 'permission', permission: 'web', reason: 'To read the docs' })).data.ok, true);
-  assert.deepEqual(await kinds(bot), ['bot-change', 'permission'], 'commands joined the change; the web is another grant');
+  assert.equal((await self(srv, h.token, 'ask', { kind: 'override', ...OVERRIDE.tool_input, reason: 'To post it' })).data.ok, true);
+  assert.deepEqual(await kinds(bot), ['bot-change', 'override'], 'commands joined the change; lifting a rule is another grant');
   srv.unhold(); srv.release(h.rec);
   await srv.finished(h.run.id);
   const card = (await asksOf(bot)).find((a) => a.id === change.data.pendingChange);
@@ -112,7 +114,7 @@ test('ask_permission while a changed bot for that permission waits joins its car
   await carriedOn(bot, h.run);
   const rec = srv.runs().filter(isRunOf(bot)).at(-1);
   assert.match(rec.stdin, /The owner allowed you to: run commands\./);
-  assert.match(rec.stdin, /The owner declined: browse the web\./);
+  assert.ok(rec.stdin.includes(`The owner declined: ${OVERRIDE_WORDS}.`), rec.stdin);
 });
 
 test('a changed bot takes over the card of a permission that waits: its runs move, and the card of the permission goes', async () => {
@@ -129,20 +131,17 @@ test('a changed bot takes over the card of a permission that waits: its runs mov
   srv.reply('The disk was full.');
   const yes = await answer(cards[0], true);
   assert.deepEqual([yes.status, yes.data.carriesOn], [200, CARRIES]);
-  assert.deepEqual([yes.data.bot.allowedTools, yes.data.bot.systemPrompt], [['Read', 'Bash'], 'Never restart a server.']);
+  assert.deepEqual([yes.data.bot.allowedTools, yes.data.bot.systemPrompt], [withAlways('Read', 'Bash'), 'Never restart a server.']);
   const next = await carriedOn(bot, stopped);
   assert.equal(next.result, 'The disk was full.');
   await waitFor(() => told(/Fleet Doctor/)[0], { what: "the Chief's turn" });
   await quiet(chat);
-  // The permission was not declined: nothing remembers a no.
-  await refused(bot, [WEB], { prompt: 'And the status page?' });
-  assert.deepEqual(await kinds(bot), ['permission']);
 });
 
 test('a run the Chief started that joins its changed bot is started again by the one turn, not by a second', async () => {
   const chat = await chatAbout('Make Scout, give it the web and start it');
   const bot = await makeBot(srv, { name: 'Scout', emoji: '🔭', allowedTools: ['Read'] });
-  const change = await srv.asChief(`/bots/${bot.id}`, from(chat, { method: 'PUT', body: WITH_WEB }));
+  const change = await srv.asChief(`/bots/${bot.id}`, from(chat, { method: 'PUT', body: WITH_BASH }));
   // The chat's reply started that run (as its run_bot action records), before the run ended refused the web.
   srv.hold();
   const run = (await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Look around' } })).data;
@@ -151,7 +150,7 @@ test('a run the Chief started that joins its changed bot is started again by the
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
   saved.messages.at(-1).actions = [{ kind: 'run', text: 'Started Scout', botId: bot.id, runId: run.id }];
   writeData(file, saved);
-  refuse([WEB]);
+  refuse([BASH]);
   srv.unhold();
   srv.release(rec);
   const stopped = await srv.finished(run.id);
@@ -171,15 +170,16 @@ test('a run the Chief started that joins its changed bot is started again by the
 test('a changed bot whose bot changed since holds nothing: the permission gets its own card, and the stale card promises nothing', async () => {
   const chat = await chatAbout('Give Librarian the web');
   const bot = await makeBot(srv, { name: 'Librarian', allowedTools: ['Read'] });
-  const change = await srv.asChief(`/bots/${bot.id}`, from(chat, { method: 'PUT', body: WITH_WEB }));
-  // Another permission is allowed first, on its own card: the Chief's proposal no longer fits the bot.
-  const first = await refused(bot, [{ tool_name: 'Edit', tool_use_id: 't3', tool_input: { file_path: 'notes.md' } }], { prompt: 'Write it down' });
-  assert.equal((await answer((await asksOf(bot)).find((a) => a.kind === 'permission'), true)).status, 200);
-  await carriedOn(bot, first); // it has ended before the next request: a bot still at work carries on "when it is free"
+  const change = await srv.asChief(`/bots/${bot.id}`, from(chat, { method: 'PUT', body: WITH_BASH }));
+  // Helpers are given at once (ADR 178): the bot changed, and the Chief's proposal no longer fits it.
+  const h = await heldRun(srv, bot, 'Write it down');
+  assert.equal((await self(srv, h.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'To split it' })).data.given, true);
+  srv.unhold(); srv.release(h.rec);
+  await srv.finished(h.run.id); // it has ended before the next request: a bot still at work carries on "when it is free"
   const stale = (await asksOf(bot)).find((a) => a.id === change.data.pendingChange);
   assert.equal(stale.then, undefined, 'its yes would be refused: it says nothing of what follows');
   // A run that is refused the web now does not wait for that card: the web gets a card that can be allowed.
-  const stopped = await refused(bot, [WEB], { prompt: 'Look it up' });
+  const stopped = await refused(bot, [BASH], { prompt: 'Look it up' });
   assert.deepEqual(await kinds(bot), ['bot-change', 'permission']);
   assert.equal((await answer(stale, true)).status, 409);
   const yes = await answer((await asksOf(bot)).find((a) => a.kind === 'permission'), true);
@@ -191,16 +191,16 @@ test('a changed bot whose bot changed since holds nothing: the permission gets i
 
 test('a proposal still binds what it was made against: a bot the owner changed since answers 409, and the card stays', async () => {
   const bot = await makeBot(srv, { name: 'Writer', allowedTools: ['Read'], prompt: 'Write the notes.' });
-  const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { ...WITH_WEB, prompt: 'Write the notes and look things up.' } });
+  const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { prompt: 'Write the notes and look things up.' } });
   await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { prompt: 'Write the notes, briefly.' } });
   const stale = await answer({ id: change.data.pendingChange }, true);
   assert.deepEqual([stale.status, stale.data.error], [409, 'The bot changed since this proposal. Decline it and ask for a fresh proposal.']);
   const now = (await srv.api(`/bots/${bot.id}`)).data;
-  assert.deepEqual([now.prompt, now.allowedTools], ['Write the notes, briefly.', ['Read']], 'nothing of it was applied');
+  assert.deepEqual([now.prompt, now.allowedTools], ['Write the notes, briefly.', withAlways('Read')], 'nothing of it was applied');
   assert.deepEqual(await kinds(bot), ['bot-change'], 'the card stays, to be declined');
   // So does a proposal whose tools the owner changed themselves.
   const tools = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] } });
   await srv.api(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Edit', 'Write'] } });
   assert.equal((await answer({ id: tools.data.pendingChange }, true)).status, 409);
-  assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.allowedTools, ['Read', 'Edit', 'Write']);
+  assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.allowedTools, withAlways('Read', 'Edit', 'Write'));
 });

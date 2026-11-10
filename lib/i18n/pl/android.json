@@ -460,6 +460,9 @@
   "uses AI": "używa AI",
   "Revoked: its next change waits for your OK": "Cofnięto: jego następna zmiana poczeka na twoją zgodę",
   "Revoke": "Cofnij",
+  "Always allowed for all bots": "Zawsze dozwolone dla wszystkich botów",
+  "Revoked": "Cofnięto",
+  "Couldn't revoke": "Nie udało się cofnąć",
   "Rules you lifted": "Zasady, które zniosłeś",
   "Its rule: {rule}": "Jego zasada: {rule}",
   "Duplicate {name}": "Powiel {name}",
@@ -840,6 +843,8 @@
   },
   "Done": "Gotowe",
   "Idle": "Bezczynny",
+  "Watching": "Pilnuje",
+  "Watching, last {time}": "Pilnuje, ostatnio {time}",
   "Ask the Chief for a bot": "Poproś Szefa o bota",
   "{shown} of {matching}": "{shown} z {matching}",
   "{total} in all": "{total} łącznie",
@@ -1299,5 +1304,11 @@
   "Edit": "Edytuj",
   "None": "Brak",
   "Open Connectors": "Otwórz Konektory",
-  "Waiting for sign-in": "Czeka na logowanie"
+  "Waiting for sign-in": "Czeka na logowanie",
+  "Advanced": "Zaawansowane",
+  "{n} working": {
+    "one": "{n} pracuje",
+    "few": "{n} pracują",
+    "many": "{n} pracuje"
+  }
 }

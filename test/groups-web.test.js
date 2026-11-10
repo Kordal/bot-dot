@@ -1514,7 +1514,7 @@ test('web: against a server without reply-draft a group follows no run stream', 
   assert.deepEqual(p.said.streams, []);
 });
 
-// ---------- the team's one answer (ADR 184) ----------
+// ---------- the team's one answer (ADR 201) ----------
 
 test("web: a team's answer folds the members' replies before it under one row of their heads and names, which opens them", () => {
   const p = page();

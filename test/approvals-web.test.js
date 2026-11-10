@@ -469,14 +469,14 @@ test('web: a yes in the dialog looks first whether the job is still what the dia
 });
 
 // The page's own wiring of a card's buttons, with stand-ins for the card, the browser's question and decide.
-function wired(x, { agrees = true } = {}) {
+function wired(x, { agrees = true, picks = null } = {}) {
   const asked = [], decided = [], busy = [];
   let pressed = null;
   const buttons = { '[data-need-yes]': element(), '[data-need-no]': element(), '[data-need-always]': element() };
   const card = element(buttons, { dataset: { need: x.key } });
   const ctx = vm.createContext({
     ...words, $: (sel, el) => el.querySelector(sel), $$: () => [card], needsOpen: new Set(), openNeed() {}, ToolCard: { is: () => false }, tileScripts: () => [], AI_WHEN_TEXT: {},
-    askFirst: async (q) => { asked.push(q); return agrees; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
+    askFirst: async (q) => { asked.push(q); return agrees; }, askWhich: async (q, yes, other) => { asked.push([q, yes, other]); return picks; }, decide: (...a) => { decided.push(a.slice(1)); busy.push([pressed.textContent, pressed.classList.contains('spin')]); }, whileBusy,
   });
   vm.runInContext(`${cut('// A change that waits beside an approved job or tile', 'function pendingJobs() {')}
     ${cut('// Words of the server\'s that a card draws', '// What changes on a bot (an ask\'s `parts`)')}
@@ -625,4 +625,16 @@ test('web: at a phone\'s width the page\'s title, its line and the button wrap, 
   assert.match(app, /<p class="needs-left">/);
   assert.match(css, /\.modal-foot \{ flex-wrap: wrap; \}/, 'the dialog\'s three buttons wrap at a phone\'s width');
   assert.match(css, /\.need-card\.need-changed:not\(\.open\) \.need-meta \{ white-space: normal; \}/);
+});
+
+test('web: "Always allow" on an action every bot may be allowed asks whom: only this bot, or all bots (ADR 201)', async () => {
+  const everyBot = { question: 'Who may add label to email with Gmail from now on, whatever the details?', note: 'Only Sorter, or every bot you have and make. You can revoke it on the Connectors page.', only: 'Only Sorter', all: 'All bots' };
+  const x = { key: 'ask:k9', kind: 'ask', a: { id: 'k9', kind: 'connector-action', botId: 'b1', title: 'Add label to email with Gmail?', rows: [], held: true, always: 'Always allow', everyBot } };
+  const asked = [[`${everyBot.question}\n\n${everyBot.note}`, 'Only Sorter', 'All bots']];
+  assert.deepEqual(await wired(x, { picks: 'yes' }).tap('always'), { asked, decided: [[true, true, true]] });
+  assert.deepEqual(await wired(x, { picks: 'other' }).tap('always'), { asked, decided: [[true, true, 'all']] });
+  assert.deepEqual(await wired(x, { picks: null }).tap('always'), { asked, decided: [] }, 'Cancel');
+  // A card without it asks with its warning, as before.
+  const one = { ...x, a: { ...x.a, everyBot: undefined, warning: 'It lets Sorter do it.' } };
+  assert.deepEqual(await wired(one).tap('always'), { asked: ['It lets Sorter do it.'], decided: [[true, true, true]] });
 });

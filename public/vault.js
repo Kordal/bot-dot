@@ -149,7 +149,7 @@ async function renderVault() {
         : vaultItemLine(l);
       const about = `${kind === 'login' ? vaultItemAddr(l) : kindLabel(kind)} · ${line}${l.allowedBots.length ? ` · ${tr('Can be used by: {bots}', { bots: l.allowedBots.map((id) => esc(botName(id))).join(', ') })}` : ''}`;
       const value = l.reprompt ? `<span class="bs-val bs-warn">${tr("Bots can't use it")}</span>`
-        : !l.allowedBots.length ? `<span class="bs-val bs-warn">${tr('No bot yet')}</span>`
+        : kind !== 'login' && !l.allowedBots.length ? `<span class="bs-val bs-warn">${tr('No bot yet')}</span>`
         : `<span class="bs-val">${esc(kind === 'card' ? `•••• ${l.last4 || ''}` : kind === 'identity' ? l.holder || '' : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? l.fileName || '' : l.site || '')}</span>`;
       return `<button type="button" class="bs-row bs-link vault-item" data-edit-login="${esc(l.id)}" title="${about.replace(/\p{Extended_Pictographic}\uFE0F?\s?/gu, '').replace(/"/g, '&quot;')}" aria-label="${esc(kind === 'login' ? tr('Edit {name}', { name: l.name }) : `${l.name}: ${tr('Bots…')}`)}"><b>${esc(l.name)}</b>${value}${CHEV}</button>`;
     }).join('')}</div>${placed.length ? `<div class="set-list vault-placed">${placed.map((f) => `<div class="bs-row"><b class="mono" title="${esc(f.item)}">${esc(f.where)}</b><span class="bs-val">${f.written === false ? tr('not written yet') : `${esc(botName(f.botId))}${f.at ? ` · ${esc(ago(f.at))}` : ''}`}</span><button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}</div>` : ''}`

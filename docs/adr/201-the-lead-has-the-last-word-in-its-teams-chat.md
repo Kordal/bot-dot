@@ -1,4 +1,4 @@
-# ADR-184: The lead has the last word in its team's chat
+# ADR-201: The lead has the last word in its team's chat
 
 - **Status:** Accepted (2026-11-10, the owner: "ok go as recommended", on the audit of how bots work together in a team's chat)
 - **Builds on:** [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md), [ADR 081](081-a-short-model-call-picks-who-answers-a-group-message-without-a-mention.md), [ADR 119](119-a-teams-chat-is-a-group-that-follows-the-team-and-a-message-without-a-mention-goes-to-its-lead.md), [ADR 148](148-the-owner-talks-to-a-team-through-its-lead.md)
@@ -25,4 +25,4 @@ In a team's chat the router gives a message to up to two members (ADR 119, as am
 
 - A message two or more members answered costs one more run of the lead, some 10 to 25 seconds.
 - An older app draws every reply; an older server sends no `answer`, and nothing is folded.
-- A team bot's note grows by some 300 characters (DECISIONS.md, 2026-11-10).
+- A team bot's note grows by some 300 characters (docs/decisions/2026-11-10-a-team-decides-what-is-its-own.md).

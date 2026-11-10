@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer, makeBot, writeData } = require('../helpers');
+const { unfoldTeams } = require('../helpers');
 
 (async () => {
   const shots = process.argv[2] || null;
@@ -35,7 +36,8 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.deepEqual(await side.locator('.rail-sq').evaluateAll((els) => els.map((el) => el.title)), ['Botdot', 'Mealwise']);
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor();
     // Botdot's page: its team and three bots, the lead first with its crown (#838).
-    assert.deepEqual(await page.locator('.sp-chip').allInnerTexts(), ['Botdot Growth']);
+    assert.deepEqual(await page.locator('.sp-chip .sp-name').allInnerTexts(), ['Botdot Growth']);
+    await unfoldTeams(page);
     assert.deepEqual(await page.locator('.sp-keys .key .name').allInnerTexts(), ['Demo Scheduler', 'Launch Poster', 'Weekly Tracker']);
     assert.equal(await page.locator(`.sp-keys [data-cf-bot="${a.id}"] .cf-crown`).count(), 1);
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-rail.png') });

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { startServer, makeBot, heldRun, waitFor, fakeConnectedApp, connectorEnv } = require('./helpers');
+const { withAlways } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 test('after the run read a web page, a bot instruction edit waits for the owner and a decline preserves the task (ADR 178)', async (t) => {
@@ -31,15 +32,16 @@ test('Chief proposals cannot grant tools, a computer or connectors, and stale pr
   const srv = await startServer();
   t.after(() => srv.stop());
   const bot = await makeBot(srv, { allowedTools: ['Read'], prompt: 'Owner task' });
-  const change = { prompt: 'New task', allowedTools: ['Read', 'Bash', 'WebFetch'], computer: 'linux', connectors: ['gmail'] };
+  // The web, files and a computer are every bot's (ADR 192): nothing of them waits.
+  const change = { prompt: 'New task', allowedTools: withAlways('Read', 'Bash'), connectors: ['gmail'] };
   const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { ...change, _by: 'you' } });
   assert.ok(proposed.data.pendingChange);
-  assert.deepEqual(proposed.data.waiting, ['web access', 'commands', 'the computer', 'Gmail', 'new main assignment'], 'the answer says what was held back');
-  assert.equal((await srv.api('/asks')).data.find((a) => a.id === proposed.data.pendingChange).text, 'The Chief wants to change its main assignment, what it may do, its computer and its connected apps');
+  assert.deepEqual(proposed.data.waiting, ['commands', 'Gmail', 'new main assignment'], 'the answer says what was held back');
+  assert.equal((await srv.api('/asks')).data.find((a) => a.id === proposed.data.pendingChange).text, 'The Chief wants to change its main assignment, what it may do and its connected apps');
   const before = (await srv.api(`/bots/${bot.id}`)).data;
   assert.equal(before.prompt, 'Owner task');
-  assert.deepEqual(before.allowedTools, ['Read']);
-  assert.equal(before.computer, 'none');
+  assert.deepEqual(before.allowedTools, withAlways('Read'));
+  assert.equal(before.computer, 'linux', 'it has its computer already');
   assert.deepEqual(before.connectors, []);
   await srv.api(`/asks/${proposed.data.pendingChange}`, { method: 'POST', body: { yes: true } });
   const after = (await srv.api(`/bots/${bot.id}`)).data;
@@ -49,7 +51,7 @@ test('Chief proposals cannot grant tools, a computer or connectors, and stale pr
   assert.equal((await srv.api(`/asks/${stale.data.pendingChange}`, { method: 'POST', body: { yes: true } })).status, 409);
   assert.equal((await srv.api(`/bots/${bot.id}`)).data.prompt, 'Latest owner task');
   const removed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read'], connectors: [] } });
-  assert.deepEqual(removed.data.allowedTools, ['Read']);
+  assert.deepEqual(removed.data.allowedTools, withAlways('Read'));
   assert.deepEqual(removed.data.connectors, []);
 });
 
@@ -58,16 +60,16 @@ test('a permission a run asked for and the Chief then proposes is one card, and 
   t.after(() => srv.stop());
   const bot = await makeBot(srv, { allowedTools: ['Read'] });
   // The bot's run is refused the web: its permission card waits. Then the Chief proposes the same.
-  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'WebFetch', tool_use_id: 't1', tool_input: { url: 'https://example.com' } }]));
+  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'curl https://example.com' } }]));
   await srv.finished((await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Read the page' } })).data.id);
   fs.rmSync(path.join(srv.out, 'denials.json'));
   const mine = async () => (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
   assert.deepEqual((await mine()).map((a) => a.kind), ['permission']);
-  const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] } });
+  const proposed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] } });
   assert.deepEqual((await mine()).map((a) => [a.id, a.kind]), [[proposed.data.pendingChange, 'bot-change']], 'the permission card is gone: allowing it first made this proposal stale');
   const yes = await srv.api(`/asks/${proposed.data.pendingChange}`, { method: 'POST', body: { yes: true } });
   assert.equal(yes.status, 200, JSON.stringify(yes.data));
-  assert.deepEqual(yes.data.bot.allowedTools, ['Read', 'WebSearch', 'WebFetch']);
+  assert.deepEqual(yes.data.bot.allowedTools, withAlways('Read', 'Bash'));
   assert.deepEqual(yes.data.carriesOn, { who: 'bot', text: 'it carries on' }, 'and the run that asked carries on');
   await srv.finished((await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.continues), { what: 'the run that carries on' })).id);
 });
@@ -79,14 +81,14 @@ test('combined tool names cannot bypass Chief approval through create or update'
   for (const rule of ['Read,Bash', 'Read Bash', 'Read\tWebFetch', 'Read\nWebSearch', 'Read(*) Bash', 'Read((x) Bash )']) {
     const changed = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: [rule] } });
     assert.equal(changed.status, 400, `reject combined rule ${JSON.stringify(rule)}`);
-    assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.allowedTools, ['Read']);
+    assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.allowedTools, withAlways('Read'));
     const created = await srv.asChief('/bots', { method: 'POST', body: { name: 'Injected tools', prompt: 'Read only', allowedTools: [rule] } });
     assert.equal(created.status, 400);
   }
   const scoped = ['Bash(git diff *)', 'Bash(echo a,b)'];
   const proposal = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', ...scoped] } });
   assert.ok(proposal.data.pendingChange, 'a single scoped rule still waits for approval');
-  assert.deepEqual(proposal.data.allowedTools, ['Read']);
+  assert.deepEqual(proposal.data.allowedTools, withAlways('Read'));
   await srv.api(`/asks/${proposal.data.pendingChange}`, { method: 'POST', body: { yes: true } });
   const { rec } = await heldRun(srv, bot);
   const start = rec.args.indexOf('--allowedTools') + 1;

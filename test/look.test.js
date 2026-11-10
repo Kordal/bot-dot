@@ -321,15 +321,16 @@ async function toolsServer(t, lookMode) {
   return { requests, call };
 }
 
-test("a look's tools are web search and botdot's reading tools only; none of them changes anything or fetches a URL", async (t) => {
-  assert.deepEqual(look.TOOLS, ['WebSearch', 'mcp__botdot__recall', 'mcp__botdot__list_bots', 'mcp__botdot__get_bot', 'mcp__botdot__list_runs', 'mcp__botdot__get_run']);
+test("a look's tools are web search, botdot's reading tools and running a failed job again; none fetches a URL", async (t) => {
+  assert.deepEqual(look.TOOLS, ['WebSearch', 'mcp__botdot__recall', 'mcp__botdot__list_bots', 'mcp__botdot__get_bot', 'mcp__botdot__list_runs', 'mcp__botdot__get_run', 'mcp__botdot__run_failed_job_again']);
+  assert.deepEqual(look.ACTING_TOOLS, ['run_failed_job_again'], 'the one step a look takes itself (ADR 188)');
   // Its prompt holds the owner's data: a tool that fetches a URL of its choosing could send that data anywhere.
   assert.deepEqual(look.WEB_TOOLS, ['WebSearch']);
   for (const fetches of ['WebFetch', 'Fetch', 'Bash', 'mcp__botdot__fetch']) assert.ok(!look.TOOLS.includes(fetches), fetches);
   const s = await toolsServer(t, true);
   const offered = (await s.call('tools/list')).result.tools.map((x) => x.name);
-  assert.deepEqual(offered.sort(), [...look.READING_TOOLS].sort(), 'the tools server offers a look nothing else');
-  assert.deepEqual(look.TOOLS, [...look.WEB_TOOLS, ...look.READING_TOOLS.map((n) => `mcp__botdot__${n}`)]);
+  assert.deepEqual(offered.sort(), [...look.READING_TOOLS, ...look.ACTING_TOOLS].sort(), 'the tools server offers a look nothing else');
+  assert.deepEqual(look.TOOLS, [...look.WEB_TOOLS, ...[...look.READING_TOOLS, ...look.ACTING_TOOLS].map((n) => `mcp__botdot__${n}`)]);
 
   // Every tool a look has, called: botdot is only ever read (GET), and a run is not marked as seen by the Chief.
   const ARGS = { recall: { query: 'backup', history: true }, list_bots: {}, get_bot: { id: 'b1' }, list_runs: { botId: 'b1', limit: 5 }, get_run: { runId: 'r1' } };
@@ -346,6 +347,10 @@ test("a look's tools are web search and botdot's reading tools only; none of the
     assert.equal(q.body, '');
     assert.doesNotMatch(q.url, /seen=/, 'reading a run leaves no mark');
   }
+  // Its one step is a POST to the route that checks the job failed (routes/jobs.js run-again).
+  const before = s.requests.length;
+  await s.call('tools/call', { name: 'run_failed_job_again', arguments: { botId: 'b1', jobId: 'j1' } });
+  assert.deepEqual(s.requests.slice(before).map((q) => `${q.method} ${q.url}`), ['POST /api/bots/b1/jobs/j1/run-again']);
 
   // Tools that change something are not there for a look, also when it asks for them by name.
   for (const name of ['create_bot', 'update_bot', 'delete_bot', 'run_bot', 'run_job', 'add_job', 'remember', 'update_note', 'remove_note', 'restore_note', 'forget', 'list_notes', 'remind_me', 'writing_first', 'set_quiet_hours', 'stop_run', 'wait_for_run']) {
@@ -505,4 +510,13 @@ test('bots that write first share the day\'s budget; the brief and the close of 
   w.settings.unaskedPerDay = 0;
   assert.equal(w.looks.spendForBot(), true, 'the Chief\'s silence does not quiet the bots');
   assert.equal(w.looks.status().sentToday, 1);
+});
+
+test("the brief names the cards that wait in Needs you, since they rang nothing (ADR 185); other looks don't", () => {
+  const now = new Date('2026-10-22T08:00:00Z');
+  const cards = [{ bot: 'Scout', text: 'Asks to install a skill', at: '2026-10-21T19:04:00.000Z' }, { bot: null, text: 'Asks to install gh', at: '2026-10-21T20:00:00.000Z' }];
+  const brief = look.prompt({ now, timeZone: 'UTC', kind: 'brief', cards });
+  assert.match(brief, /Cards that wait for the owner's OK in Needs you[^\n]*\n- Scout: Asks to install a skill \(since 2026-10-21 19:04\)\n- The Chief: Asks to install gh \(since 2026-10-21 20:00\)/);
+  assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC', kind: 'look', cards }), /Cards that wait/);
+  assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC', kind: 'brief' }), /Cards that wait/);
 });

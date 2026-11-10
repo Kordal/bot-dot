@@ -8,7 +8,7 @@ process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, restartServer, makeBot, heldRun, self, seedRuns, readData } = require('./helpers');
-const { kit, WEB } = require('./carry-on-helpers');
+const { kit, BASH } = require('./carry-on-helpers');
 const H = require('../lib/chat-history');
 
 // A run record as botdot keeps it: an answer to the owner, `min` minutes ago, with what differs.
@@ -281,7 +281,7 @@ test('an answer that stopped for the OK carries on as an answer', async () => {
   const bot = await makeBot(srv, { name: 'Web Asker', emoji: '🌐' });
   const first = await ask(srv, bot, 'Find the page', 'Shall I open it?\n[[choices: Open it | Leave it]]');
   srv.reply('I need the web for that.');
-  const stopped = await k.refused(bot, [WEB], { prompt: 'Open it' });
+  const stopped = await k.refused(bot, [BASH], { prompt: 'Open it' });
   assert.equal(stopped.answers, first.run.id);
   const [card] = await k.asksOf(bot);
   srv.reply('Opened.');

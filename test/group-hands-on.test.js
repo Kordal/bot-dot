@@ -70,7 +70,7 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   const facts = { group: { name: 'Dev' }, members, mentioned: false };
   const note = turnNote(members[1], facts);
   // Each rule of the wording, each once; the rule of a message sent with "@all" (#124) not at all.
-  const { together, after, working, teamAfter, toLead, closing, ...rules } = RULES; // the last three: a team's chat only (ADR 184)
+  const { together, after, working, teamAfter, toLead, closing, ...rules } = RULES; // the last three: a team's chat only (ADR 201)
   for (const rule of Object.values(rules)) assert.equal(count(note, rule), 1, rule);
   assert.equal(count(note, together), 0);
   assert.equal(count(note, after), 0, 'nobody answered before the first turn');

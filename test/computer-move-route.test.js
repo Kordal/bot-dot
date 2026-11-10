@@ -41,10 +41,10 @@ test('"Copy files" starts the copy; one that fails says why, keeps the boat.dev 
   assert.equal((await srv.api('/bots/coder/computer/move', { method: 'POST', headers: { 'X-Chief-Key': srv.chiefKey } })).status, 403, 'only the owner');
   assert.equal((await srv.api('/bots/coder/computer/move', { method: 'POST' })).status, 200);
   await until(async () => (await botOf('coder')).computerMove?.state === 'failed');
+  // Every bot has a computer (ADR 192): "none" keeps the one it has, and its failed copy with it.
   const none = await srv.api('/bots/coder', { method: 'PUT', body: { computer: 'none' } });
-  assert.equal(none.status, 200);
-  assert.equal((await botOf('coder')).computerMove, undefined, 'a changed computer forgets the failed copy');
-  assert.equal((await srv.api('/bots/coder/computer/move', { method: 'POST' })).status, 409);
+  assert.deepEqual([none.status, none.data.computer], [200, 'linux']);
+  assert.equal((await botOf('coder')).computerMove?.state, 'failed');
 });
 
 test('"Start empty" copies nothing', async () => {
@@ -88,7 +88,7 @@ test("the account's switch moves every bot with a computer there, its files copi
   const r = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'linux', moveFiles: true }, headers: ADMIN });
   assert.deepEqual(r.data, { place: 'linux', boat: false });
   for (const id of ['alone', 'older']) assert.equal((await botOf(id)).computer, 'linux');
-  assert.equal((await botOf('idle')).computer, 'none', 'a bot without a computer gets none');
+  assert.equal((await botOf('idle')).computer, 'linux', 'one saved without a computer has it where the account has it (ADR 192)');
   const failed = await until(async () => { const b = await botOf('older'); return b.computerMove?.state === 'failed' && b; });
   assert.deepEqual([failed.computerMove.from, failed.computerMove.to], ['boat', 'linux']);
   assert.ok(machines().older, 'its machine is kept for another try');

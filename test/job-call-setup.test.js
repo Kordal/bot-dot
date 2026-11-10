@@ -47,7 +47,7 @@ test('the Chief proposes a call: a card waits beside the job, with the warning a
     assert.equal(r.data.call, false, 'the approved job is not callable yet');
     assert.equal(r.data.change.call, true);
     assert.match(r.data.change.summary, new RegExp(WARNING.replace(/\./g, '\\.')));
-    assert.match(r.data.change.summary, /Garage Watch can browse the web and run commands\./);
+    assert.match(r.data.change.summary, /Garage Watch can browse the web, change files, run commands and use the account's computer, on your home network\./);
     assert.match(r.data.change.summary, /Runs when the garage camera sees motion\./);
     const hello = await live.wait('hello');
     assert.ok(hello.data.approvals.jobs.some((c) => c.jobId === job.id && c.change), 'a card in Needs you');

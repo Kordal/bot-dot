@@ -763,6 +763,8 @@ data class Ask(
     @SerialName("yes") val yesValue: JsonElement? = null,
     // A rule a bot asks to lift (`override`, #253): the words of its second yes, "Allow always for this bot".
     @SerialName("always") val alwaysValue: JsonElement? = null,
+    // "Always allow" for one bot or all bots (ADR 201): { question, note, only, all }, kept as it came.
+    @SerialName("everyBot") val everyBotValue: JsonElement? = null,
     @SerialName("more") val moreValue: JsonElement? = null,
     // A skill a bot wrote after its run read content from others (docs/api.md, "A skill that waits"): `written`,
     // and the server's line for it (`text`). Kept as they came, like the fields above.
@@ -820,6 +822,8 @@ data class Ask(
     val title: String get() = titleValue.textOrNull().orEmpty()
     /** The words of a second yes the server offers ("Allow always for this bot"), or null. */
     val always: String? get() = alwaysValue.textOrNull()
+    /** Whom "Always allow" asks about, this bot or all bots (ADR 201); null on a card that offers this bot only. */
+    val everyBot: EveryBot? get() = EveryBot.of(everyBotValue)
 
     /** What a yes would start, or null: the yes only changes the setting, or the server says nothing of it. */
     val then: Then? get() = Then.of(thenValue)
@@ -923,6 +927,21 @@ fun Ask.standsInChat(scope: String): Boolean = when {
     scope == "chief" -> ((kind == "skill" || kind == "vault-remove") && bot == null) || (kind == "connect-app" && bot == null) || kind == "chief-action"
     else -> bot?.id == scope
 }
+
+/** The words of "Always allow" for one bot or all bots (ADR 201), as the server wrote them. */
+data class EveryBot(val question: String, val note: String, val only: String, val all: String) {
+    companion object {
+        /** `everyBot` as the server sent it; null when any of its words is missing. */
+        fun of(v: JsonElement?): EveryBot? {
+            val o = v as? JsonObject ?: return null
+            return EveryBot(o["question"].textOrNull() ?: return null, o["note"].textOrNull().orEmpty(), o["only"].textOrNull() ?: return null, o["all"].textOrNull() ?: return null)
+        }
+    }
+}
+
+/** What every bot may do without asking: `GET /api/connector-actions`. */
+@Serializable
+data class GrantList(val grants: List<AlwaysAllowed> = emptyList())
 
 /**
  * What a yes on a card would start (`then`, docs/api.md "What follows a yes"): the server's sentence, shown on the
@@ -1186,7 +1205,9 @@ private fun guardedWords(action: String): CardWords = when (action) {
 @Serializable
 data class AppSettings(val defaultModel: String = "", val defaultEffort: String = "", val chiefModel: String = "", val chiefEffort: String = "", val chiefRules: String = "",
                        /** The library skills the owner gave the Chief (ChiefSkills); null from a server without them, and not sent. */
-                       val chiefSkills: List<String>? = null)
+                       val chiefSkills: List<String>? = null,
+                       /** "Advanced" (ADR 192): shows the token usage; null from a server without it, which shows it always. */
+                       val advanced: Boolean? = null)
 
 @Serializable
 data class ModelChoice(val id: String, val label: String = "", val group: String? = null, val note: String? = null, val effort: Boolean = true)

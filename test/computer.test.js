@@ -70,29 +70,17 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   srv.release(rec);
   await srv.finished(run.id);
   srv.unhold();
-  // A bot without one is told nothing of it.
-  const plain = await heldRun(srv, await makeBot(srv, { name: 'No Desk' }));
-  assert.doesNotMatch(plain.rec.system, /You have a computer/);
+  // A bot made without one has it too (ADR 192), and is told the same.
+  const plain = await heldRun(srv, await makeBot(srv, { name: 'No Desk', computer: 'none' }));
+  assert.match(plain.rec.system, /You have a computer/);
   srv.release(plain.rec);
   await srv.finished(plain.run.id);
   srv.unhold();
 });
 
-test("a computer's commands need the run's key, and a bot with a computer", async () => {
+test("a computer's commands need the run's key", async () => {
   const cmd = (token) => srv.api('/vault/session/computer/cmd', { method: 'POST', body: { command: 'screenshot' }, headers: { 'X-Vault-Token': token } });
   assert.equal((await cmd('made-up')).status, 403);
-  const bot = await makeBot(srv);
-  const { rec, run, token } = await heldRun(srv, bot);
-  const r = await cmd(token);
-  assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /doesn't have a computer/);
-  // send_screenshot too (it takes the screenshot through botdot and attaches it).
-  const share = await srv.api('/vault/session/computer/share', { method: 'POST', body: { name: 'QR' }, headers: { 'X-Vault-Token': token } });
-  assert.equal(share.data.ok, false);
-  assert.match(share.data.error, /doesn't have a computer/);
-  srv.release(rec);
-  await srv.finished(run.id);
-  srv.unhold();
 });
 
 test('a bot with a computer is told it stays on when it replies, so it need not keep it on (#104)', async () => {
@@ -105,16 +93,9 @@ test('a bot with a computer is told it stays on when it replies, so it need not 
   srv.unhold();
 });
 
-test('keep_computer_on needs the run\'s key and a bot with a computer (#340)', async () => {
+test('keep_computer_on needs the run\'s key (#340)', async () => {
   const keep = (token) => srv.api('/vault/session/computer/hold', { method: 'POST', body: {}, headers: { 'X-Vault-Token': token } });
   assert.equal((await keep('made-up')).status, 403);
-  const { rec, run, token } = await heldRun(srv, await makeBot(srv, { name: 'No Desk Either' }));
-  const r = await keep(token);
-  assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /doesn't have a computer/);
-  srv.release(rec);
-  await srv.finished(run.id);
-  srv.unhold();
   // A bot whose computer stays on all the time is told so, and holds nothing.
   const always = await heldRun(srv, await makeBot(srv, { name: 'Always On', computer: 'linux', computerAlwaysOn: true }));
   const kept = await keep(always.token);

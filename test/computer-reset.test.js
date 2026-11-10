@@ -41,7 +41,6 @@ before(async () => {
   srv = await startServer({ env: { BOT_DOT_HELPER_SOCKET: socket } });
   coder = await makeBot(srv, { name: 'Coder', computer: 'linux' });
   scout = await makeBot(srv, { name: 'Scout', computer: 'linux' });
-  await makeBot(srv, { name: 'No Desk' });
 });
 after(async () => { await srv.stop(); await new Promise((r) => helper.close(r)); fs.rmSync(dir, { recursive: true, force: true }); });
 

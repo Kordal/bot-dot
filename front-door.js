@@ -62,6 +62,7 @@ const net = require('net');
 const path = require('path');
 const crypto = require('crypto');
 const store = require('./lib/front-door/store');
+const nightUpdate = require('./lib/front-door/night-update');
 const webauthn = require('./lib/front-door/webauthn');
 const limits = require('./lib/front-door/limits');
 const pages = require('./lib/front-door/pages');
@@ -481,6 +482,32 @@ function switchPastDeadline({ only = null, now = Date.now() } = {}) {
   }
 }
 setInterval(() => { try { switchPastDeadline(); } catch (e) { console.error(`[front door] couldn't check the update deadline: ${e.message}`); } }, 60_000).unref();
+
+// ---------- a machine of one account updates at night (ADR 183) ----------
+// No admin page and no one who presses Update: the front door asks root's step for the newest signed release itself,
+// at 04:00 in the owner's time zone (their quiet hours' zone, the machine's when the account doesn't say), once a night.
+const NIGHT_ASKED = path.join(DATA, 'night-update.json');
+const NIGHT_HOUR = /^\d{1,2}$/.test(process.env.FRONT_DOOR_NIGHT_HOUR || '') ? Number(process.env.FRONT_DOOR_NIGHT_HOUR) : nightUpdate.NIGHT_HOUR; // a test's hour
+const hourIn = (timeZone, now) => {
+  try { return Number(new Intl.DateTimeFormat('en-GB', { timeZone, hour: 'numeric', hourCycle: 'h23' }).format(now)); } catch { return now.getHours(); }
+};
+async function updateAtNight(now = new Date()) {
+  if (!ONE_ACCOUNT || !REQUESTS) return;
+  const s = updateStatus();
+  const installed = { version: s.version, selfBuilt: s.selfBuilt };
+  const asked = s.asked || s.update?.state === 'updating';
+  let last = null;
+  try { last = JSON.parse(fs.readFileSync(NIGHT_ASKED, 'utf8')); } catch { /* never asked */ }
+  const may = (hour) => nightUpdate.shouldUpdate({ installed, newest: s.newest, last, asked, hour, now: now.getTime(), nightHour: NIGHT_HOUR });
+  if (!may(NIGHT_HOUR)) return; // all but the hour: the account is asked for its time zone only when the rest holds
+  const settings = await getFromAccount(ONE_ACCOUNT, '/api/settings');
+  if (!may(hourIn(settings?.settings?.quietHours?.timeZone, now))) return;
+  if (!askForUpdate()) return;
+  fs.writeFileSync(NIGHT_ASKED, JSON.stringify({ version: s.newest.version, at: now.toISOString() }));
+  console.log(`[front door] botdot updates itself at night: ${s.version} to ${s.newest.version}`);
+  audited('update', { detail: 'at night, by itself' });
+}
+setInterval(() => updateAtNight().catch((e) => console.error(`[front door] couldn't update at night: ${e.message}`)), Number(process.env.FRONT_DOOR_NIGHT_EVERY_MS) || 60_000).unref();
 
 // ---------- requests ----------
 

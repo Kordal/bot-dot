@@ -117,7 +117,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var disabled by remember { mutableStateOf(setOf<String>()) }
     var connectors by remember { mutableStateOf(setOf<String>()) }
     var accounts by remember { mutableStateOf(mapOf<String, String>()) } // its account of an app with two or more (ADR 174)
-    var mayMessage by remember { mutableStateOf(setOf<String>()) }
+    var mayMessage by remember { mutableStateOf(setOf<String>()) } // a server from before ADR 192 only
     var othersMayAsk by remember { mutableStateOf(true) }
     var rooms by remember { mutableStateOf(dev.botdot.app.data.BotRooms()) } // shared rooms (#316), when the server keeps them
     var hotkey by remember { mutableStateOf(0) }
@@ -172,10 +172,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
             if (connectors != b.connectors.toSet()) put("connectors", JsonArray(connectors.map { JsonPrimitive(it) }))
             if (accounts != b.accounts) put("accounts", JsonObject(accounts.mapValues { JsonPrimitive(it.value) }))
-            val everyone = others.all { it.id in mayMessage }
-            if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
-            if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
-            if (b.othersMayAsk != null && othersMayAsk != b.othersMayAsk) put("othersMayAsk", othersMayAsk)
+            // Every bot may message every other since ADR 192: only a server from before limits it.
+            if ("everything-allowed" !in server?.features.orEmpty()) {
+                val everyone = others.all { it.id in mayMessage }
+                if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
+                if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
+                if (b.othersMayAsk != null && othersMayAsk != b.othersMayAsk) put("othersMayAsk", othersMayAsk)
+            }
             b.rooms?.let { was -> dev.botdot.app.data.BotRooms.change(was, rooms)?.let { put("rooms", it) } }
             if (b.hotkey != null && hotkey != b.hotkey) put("hotkey", hotkey)
         }
@@ -259,14 +262,15 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // only whether. A server from before chose it per bot (ADR 088).
                 val accountComputer = "account-computer" in server?.features.orEmpty()
                 if (!accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
-                    Choice(tr("Computer"), if (computer) computerOn else "none", listOf("none" to tr("None"), "linux" to tr("This machine"), "boat" to tr("External Virtual PC"))) {
+                    val everyBot = "everything-allowed" in server?.features.orEmpty() // every bot has one (ADR 192)
+                    Choice(tr("Computer"), if (computer) computerOn else "none", (if (everyBot) emptyList() else listOf("none" to tr("None"))) + listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))) {
                         // Between this machine and boat.dev, its files go along or not: asked first (#556).
                         if ("computer-move" in server?.features.orEmpty() && it != b.computer && it != "none" && b.computer != "none") { askMove = it; return@Choice }
                         computer = it != "none"
                         if (computer) computerOn = it
                         moveFiles = false
                     }
-                } else SwitchRow(tr("Uses the computer"), checked = computer) { computer = it }
+                } else if ("everything-allowed" !in server?.features.orEmpty()) SwitchRow(tr("Uses the computer"), checked = computer) { computer = it }
                 // Its proxy (ADR 171): on the account's computer only; boat.dev's browser uses the account's.
                 val proxyApi = api
                 if (proxyApi != null && b.computer == "linux" && dev.botdot.app.data.Proxies.shows(server?.features)) BotProxyRow(proxyApi, b, proxy) { proxy = it }
@@ -374,14 +378,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             val trusted = b.jobs.filter { it.alwaysApprove }
             val grants = b.alwaysAllowed
             val roomsShown = dev.botdot.app.data.BotRooms.shows(server?.features) && b.rooms != null
-            if (others.isNotEmpty() || roomsShown || trusted.isNotEmpty() || grants.isNotEmpty() || b.overrides.isNotEmpty()) SettingsGroup {
-                if (others.isNotEmpty()) FoldSection(tr("May message"), if (others.size > 1 && others.all { it.id in mayMessage }) tr("Everyone") else others.filter { it.id in mayMessage }.joinToString(", ") { it.name }.ifBlank { tr("Nobody") }) {
+            if ((others.isNotEmpty() && "everything-allowed" !in server?.features.orEmpty()) || roomsShown || trusted.isNotEmpty() || grants.isNotEmpty() || b.overrides.isNotEmpty()) SettingsGroup {
+                // Every bot may message every other (ADR 192): a server from before still limits it here.
+                val limits = "everything-allowed" !in server?.features.orEmpty()
+                if (limits && others.isNotEmpty()) FoldSection(tr("May message"), if (others.size > 1 && others.all { it.id in mayMessage }) tr("Everyone") else others.filter { it.id in mayMessage }.joinToString(", ") { it.name }.ifBlank { tr("Nobody") }) {
                     others.forEach { o ->
                         CheckRow(o.name, null, o.id in mayMessage) { on -> mayMessage = if (on) mayMessage + o.id else mayMessage - o.id }
                     }
                 }
                 // "Other bots may ask it" (#136): only from a server that has it.
-                if (others.isNotEmpty() && b.othersMayAsk != null) SwitchRow(tr("Other bots may ask it"), checked = othersMayAsk) { othersMayAsk = it }
+                if (limits && others.isNotEmpty() && b.othersMayAsk != null) SwitchRow(tr("Other bots may ask it"), checked = othersMayAsk) { othersMayAsk = it }
                 // Shared rooms (ADR 060, #316): whether it may be in rooms with other accounts' bots, and who may mention it there.
                 if (roomsShown) {
                     SwitchRow(tr("May be in shared rooms"), checked = rooms.allowRooms) { rooms = rooms.copy(allowRooms = it) }

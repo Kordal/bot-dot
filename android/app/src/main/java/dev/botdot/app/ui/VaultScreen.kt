@@ -363,7 +363,8 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
             else -> VaultTypes.rows(i, features) // its type before its address, then the line of that type
         }.forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
         if (i.reprompt) Text(tr("Asks for the master password again in Bitwarden, so bots can't use it."), color = p.faint, fontSize = Type.s12)
-        Text(if (names.isEmpty()) tr("No bot may use it yet") else tr("Can be used by {names}", "names" to names.joinToString(", ")), color = p.faint, fontSize = Type.s12)
+        // A login reaches a bot on the owner's one yes to its request (ADR 192): no warning while none has it yet.
+        if (names.isNotEmpty() || i.kind != "login") Text(if (names.isEmpty()) tr("No bot may use it yet") else tr("Can be used by {names}", "names" to names.joinToString(", ")), color = p.faint, fontSize = Type.s12)
         // Where botdot keeps it in a file (#253), each with its own "Remove the file".
         i.placedIn.forEach { f ->
             Row(verticalAlignment = Alignment.CenterVertically) {

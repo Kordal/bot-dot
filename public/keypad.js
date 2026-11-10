@@ -101,24 +101,27 @@ function pin(bots, groups, item, at) {
 //   unread   new replies the owner has not read ("2 unread")
 //   done     its last run finished, and the owner has not opened its chat since ("Done")
 //   failed   its last run did not, as the list says it ("Couldn't finish")
-//   idle     anything else ("Idle"): no run yet, the owner stopped the last one, or has seen it finish.
+//   idle     anything else ("Idle"): no run yet, the owner stopped the last one, or has seen it finish. A bot with a
+//            job that will run (`watching`, its `nextRunAt`) says "Watching" instead, with `lastTime`, when its last run
+//            was, where there is one: "Watching, last 07:12" (ADR 187).
 // last: the status of its newest run ("success", "error", "stopped"…), null for none. seen: the owner read its chat
 // after that run ended (seen(), from the chat's `readAt`).
 // A key shows it as one line under its name (#664): a dot in the state's colour and its text; while it works, what it
 // does now in place of "Working". The Android app draws the same line.
-function status({ running = false, runs = 0, needs = false, unread = 0, last = null, seen = false } = {}) {
+function status({ running = false, runs = 0, needs = false, unread = 0, last = null, seen = false, watching = false, lastTime = '' } = {}) {
+  const idle = () => (!watching ? { kind: 'idle', text: tr('Idle') } : { kind: 'idle', text: lastTime ? tr('Watching, last {time}', { time: lastTime }) : tr('Watching') });
   if (running) return { kind: 'working', text: runs > 1 ? tr('Working ×{n}', { n: runs }) : tr('Working') };
   if (needs) return { kind: 'needs', text: tr('Needs you') };
   if (unread > 0) return { kind: 'unread', text: trn(unread, '{n} unread', '{n} unread') };
-  if (last === 'success') return seen ? { kind: 'idle', text: tr('Idle') } : { kind: 'done', text: tr('Done') };
+  if (last === 'success') return seen ? idle() : { kind: 'done', text: tr('Done') };
   if (last && last !== 'stopped' && last !== 'running') return { kind: 'failed', text: tr("Couldn't finish") };
-  return { kind: 'idle', text: tr('Idle') };
+  return idle();
 }
 // Whether the owner read a chat after its last run ended: `readAt` is the chat's read position (docs/api.md, New
 // replies), `endedAt` when that run ended, both ISO times. A server without `readAt`: never, and Done stays.
 const seen = (readAt, endedAt) => typeof readAt === 'string' && typeof endedAt === 'string' && !!endedAt && readAt >= endedAt;
 
-// Map(bot id → its project): the project whose team a bot is in (a bot is in at most one team, ADR 110).
+// Map(bot id → its project): the first project whose team a bot is in (ADR 120).
 function projectOf(projects) {
   const map = new Map();
   for (const p of projects || []) for (const t of p.teams || []) for (const id of t.bots || []) if (!map.has(id)) map.set(id, p);
@@ -144,10 +147,12 @@ const blocks = (x) => (x?.kind === 'batch' ? (x.items || []).some(blocks) : x?.k
 const blockersFirst = (items) => [...items.filter(blocks), ...items.filter((x) => !blocks(x))];
 
 // The lead a member's ask is drawn under in a project's views (ADR 148): the owner talks to a team through its lead.
-// null for a lead, a bot in none of the project's teams, or a team without another lead.
+// null for a lead, a bot in none of the project's teams, or a team without another lead. A bot on several teams
+// (ADR 199) that leads one of them is drawn as itself; else under the lead of its first team.
 function leadOf(project, botId) {
-  const t = botId && (project?.teams || []).find((x) => (x.bots || []).includes(botId));
-  return t && t.lead && t.lead !== botId ? t.lead : null;
+  const ts = botId ? (project?.teams || []).filter((x) => (x.bots || []).includes(botId)) : [];
+  if (!ts.length || ts.some((t) => t.lead === botId)) return null;
+  return ts[0].lead || null;
 }
 
 const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf };

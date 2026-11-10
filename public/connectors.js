@@ -22,6 +22,8 @@ async function renderConnectors(force = false) {
   if (!works) { conn.catalog = []; conn.categories = []; conn.replacing = false; }
   if (works && !conn.catalog.length) await loadCatalog(true);
   if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
+  // The actions every bot may do without asking ("Always allow" for all bots on a card, ADR 201), each with Revoke.
+  conn.everyBot = works && state.features?.includes('every-bot-always') ? ((await api('/connector-actions').catch(() => null))?.grants || []) : [];
   // A page that can't be drawn says why, never stays blank (#464).
   try { drawConnectors(); } catch (e) { root.innerHTML = `${connHead()}<div class="req-note">${tr("Couldn't show your apps: {why}", { why: esc(e.message) })}</div>`; }
 }
@@ -92,6 +94,8 @@ function drawConnectors() {
         </div>
       </article>`;
     }).join('')}</div>` : `<div class="card empty" style="padding:26px 20px">${tr('No apps connected yet. Pick one below.')}</div>`}
+    ${conn.everyBot?.length ? `<h3 class="page-sub">${tr('Always allowed for all bots')}</h3>
+    <div class="set-list">${conn.everyBot.map((g) => `<div class="bs-row"><b>${esc(g.label)}</b><button class="btn sm" data-every-revoke="${esc(g.action)}">${tr('Revoke')}</button></div>`).join('')}</div>` : ''}
     <h3 class="page-sub">${tr('Marketplace')} <span class="faint">· ${conn.search || conn.category ? trn(conn.total, '{n} match', '{n} matches') : trn(conn.total, '{n} app', '{n} apps')}</span></h3>
     <div class="conn-filters">
       <input type="search" id="conn-search" placeholder="${esc(tr('Search apps, e.g. gmail, calendar, notion'))}" value="${esc(conn.search)}">
@@ -127,6 +131,9 @@ function drawConnectors() {
   const more = $('#conn-more');
   if (more) more.onclick = async () => { more.disabled = true; await loadCatalog(false); drawConnectors(); };
   $$('[data-connect]', root).forEach((b) => (b.onclick = () => connectApp(b.dataset.connect)));
+  $$('[data-every-revoke]', root).forEach((b) => (b.onclick = async () => {
+    try { conn.everyBot = (await api('/connector-actions', { method: 'DELETE', body: { action: b.dataset.everyRevoke } })).grants; toast(tr('Revoked')); drawConnectors(); } catch (e) { toast(e.message, true); }
+  }));
   $$('[data-forget-app]', root).forEach((b) => (b.onclick = async () => {
     try { await api(`/connectors/reconnect/${encodeURIComponent(b.dataset.forgetApp)}`, { method: 'DELETE' }); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
   }));

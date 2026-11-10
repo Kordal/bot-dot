@@ -373,7 +373,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
     }
     // The messages that wait whole stand at the end of the chat; the rest in their place, newest first for the list.
     val waiting by remember(botsNow, signedOut) { derivedStateOf { vm.rows.filterIsInstance<GroupItem.Message>().map { it.message }.filter { waitsWhole(it, bots, signedOut) } } }
-    // The members' replies a team's answer folds (ADR 184) stand under one row, open while the owner keeps it open.
+    // The members' replies a team's answer folds (ADR 201) stand under one row, open while the owner keeps it open.
     val openFolds = remember(groupId) { mutableStateMapOf<String, Boolean>() }
     val shown by remember(botsNow, signedOut) { derivedStateOf { Groups.shown(vm.rows.filterNot { it is GroupItem.Message && waitsWhole(it.message, bots, signedOut) }, openFolds.keys.toSet()).asReversed() } }
     // Who is next, of the one message the rule picks (Groups.next): its heads stand under the working lines.
@@ -503,7 +503,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
 }
 
 /**
- * The row a team's answer folds its members' replies under (ADR 184): their small heads and names, and how many; a
+ * The row a team's answer folds its members' replies under (ADR 201): their small heads and names, and how many; a
  * tap opens or closes them.
  */
 @Composable

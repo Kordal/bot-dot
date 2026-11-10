@@ -162,17 +162,17 @@ test("your rules for the Chief reach it, capped, and can be cleared", async () =
 
 test('a bot asks for a permission it lacks; only the owner says yes, and then it has it', async () => {
   const { run, token } = await heldRun(srv, designer);
-  assert.equal((await self(srv, token, 'ask', { kind: 'permission', permission: 'web', reason: 'To open the skills.sh page' })).data.ok, true);
+  assert.equal((await self(srv, token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To open the skills.sh page' })).data.ok, true);
   const asked = (await srv.api('/asks')).data;
-  assert.deepEqual(asked.map((a) => [a.kind, a.permission, a.bot?.name]), [['permission', 'web', 'Bot Designer']]);
+  assert.deepEqual(asked.map((a) => [a.kind, a.permission, a.bot?.name]), [['permission', 'commands', 'Bot Designer']]);
   assert.equal((await srv.api('/bots')).data.find((b) => b.id === designer.id).state, 'needs_you');
   assert.equal((await srv.asChief(`/asks/${asked[0].id}`, { method: 'POST', body: { yes: true } })).status, 403, 'the Chief can’t answer it');
-  assert.equal((await srv.asChief('/asks', { method: 'POST', body: { kind: 'permission', permission: 'web' } })).status, 400, 'nor ask for a permission');
+  assert.equal((await srv.asChief('/asks', { method: 'POST', body: { kind: 'permission', permission: 'commands' } })).status, 400, 'nor ask for a permission');
   await srv.api(`/asks/${asked[0].id}`, { method: 'POST', body: { yes: true } });
   const bot = (await srv.api(`/bots/${designer.id}`)).data;
-  assert.ok(['WebSearch', 'WebFetch'].every((t) => bot.allowedTools.includes(t)));
+  assert.ok(bot.allowedTools.includes('Bash'));
   assert.equal((await srv.api('/asks')).data.length, 0);
-  assert.match((await self(srv, token, 'ask', { kind: 'permission', permission: 'web', reason: 'again' })).data.error, /already have/);
+  assert.match((await self(srv, token, 'ask', { kind: 'permission', permission: 'commands', reason: 'again' })).data.error, /already have/);
   srv.unhold();
   await srv.finished(run.id);
 });

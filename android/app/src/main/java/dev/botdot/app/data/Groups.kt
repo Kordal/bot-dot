@@ -134,7 +134,7 @@ data class GroupLimit(val text: String, val messages: List<String> = emptyList()
 /**
  * The owner's message in a group. [to]: the members it was for. [waitsFor]: the members whose turn waits because
  * they are working. [next]: those whose turn has not come. [canTakeBack]: none of its turns has started.
- * [answer]: the reply that is its team's one answer (ADR 184): the members' replies before it are folded under it.
+ * [answer]: the reply that is its team's one answer (ADR 201): the members' replies before it are folded under it.
  */
 data class GroupMessage(
     val id: String, val text: String, val at: String, val attachments: List<Attachment> = emptyList(),
@@ -399,7 +399,7 @@ object Groups {
     }
 
     /**
-     * The team's one answer (ADR 184; docs/api.md, "The team's answer"): a message with [GroupMessage.answer] has the
+     * The team's one answer (ADR 201; docs/api.md, "The team's answer"): a message with [GroupMessage.answer] has the
      * members' replies before that reply folded under one row, which opens them. For each folded reply's id, the id
      * of its message. `public/groups.js` groupFolded has the same rule.
      */

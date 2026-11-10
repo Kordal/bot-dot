@@ -63,7 +63,7 @@ test('a team gets its chat: its name, the lead first, its colour; renaming it re
 });
 
 const setRoute = (answer) => fs.writeFileSync(path.join(srv.out, 'route.txt'), answer);
-// What the lead answers on its last word (ADR 184): a run told it has the last word answers this.
+// What the lead answers on its last word (ADR 201): a run told it has the last word answers this.
 const LAST_WORD = 'the last word as its lead';
 const lastWord = (text) => fs.writeFileSync(path.join(srv.out, 'result-if-told.json'), JSON.stringify(text ? { [LAST_WORD]: text } : {}));
 // The line ends with the lead's last word: settled only once the team's answer is there (between the members' last
@@ -98,7 +98,7 @@ test('a message the router cannot place goes to the lead alone; the lead hands o
   assert.equal(sent.status, 201, JSON.stringify(sent.data));
   const c = await answered(g, sent.data.id);
   const mine = c.items.filter((x) => x.type === 'reply' && x.run.groupMessageId === sent.data.id).map((x) => x.run);
-  assert.deepEqual(mine.map((r) => r.botId), [lead.id, writer.id, lead.id], 'the lead, the member it named, then the lead\'s last word (ADR 184)');
+  assert.deepEqual(mine.map((r) => r.botId), [lead.id, writer.id, lead.id], 'the lead, the member it named, then the lead\'s last word (ADR 201)');
   assert.equal(c.items.find((x) => x.id === sent.data.id).answer, mine[2].id, 'its last word is the team\'s answer');
   assert.match(ranOf(srv, lead).at(-1).system, /you have the last word as its lead: this turn is yours\. Never pass on it/);
   lastWord(null);
@@ -121,7 +121,7 @@ test('a message the router cannot place goes to the lead alone; the lead hands o
   assert.deepEqual(kept.to, [lead.id]);
 });
 
-test('two members the router picks answer to the lead, and the lead writes the team\'s one answer last (ADR 184)', async () => {
+test('two members the router picks answer to the lead, and the lead writes the team\'s one answer last (ADR 201)', async () => {
   const g = await teamChat(team.id);
   setRoute('{"members":[2,3]}'); // Writer and Poster: not the lead
   reply(srv, writer, 'A forum post needs a short title.');

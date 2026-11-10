@@ -100,7 +100,7 @@ test('a changed bot is answered on its card too, and says in one line what would
   const mine = hello.data.asks.find((a) => a.id === proposed.data.pendingChange);
   // Its entry also has who proposed it and the card's title and parts (docs/api.md, "A changed bot"); the line stays one line.
   assert.deepEqual(entry(mine), { id: mine.id, kind: 'bot-change', botId: coder.id, botName: 'Coder', botColor: coder.color, what: null, skill: null, by: 'chief', title: 'Change Coder: new rules?',
-    parts: [{ label: 'Rules', was: '', now: 'Never push to main.' }], text: 'The Chief wants to change its rules', yesOn: 'card', at: null });
+    parts: [{ label: 'Rules', was: '', now: 'Never push to main.' }], text: 'The Chief wants to change its rules', yesOn: 'card', at: null, waitsForBrief: true });
   const card = (await srv.api('/asks')).data.find((a) => a.id === mine.id);
   assert.deepEqual([card.text, card.yesOn], ['The Chief wants to change its rules', 'card']);
   assert.match(card.details, /Never push to main/, 'the card is where the proposed rules show');

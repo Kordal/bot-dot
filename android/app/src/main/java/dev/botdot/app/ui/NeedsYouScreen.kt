@@ -90,6 +90,7 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Answered
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Ask
+import dev.botdot.app.data.EveryBot
 import dev.botdot.app.data.SecretWords
 import dev.botdot.app.data.AskCard
 import dev.botdot.app.data.askCards
@@ -321,7 +322,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                         is AskCard.One -> {
                             val a = card.ask
                             val who = askWho(a)
-                            Failing(failures["a:${a.id}"]) { AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } } }
+                            Failing(failures["a:${a.id}"]) { AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always, all -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always, all) } } }
                         }
                         is AskCard.Several -> AskBatchCard(card, askWho(card.asks.first()), failures[card.key],
                             onAll = { yes ->
@@ -333,7 +334,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                                 }
                             }) { a ->
                             val who = askWho(a)
-                            Failing(failures["a:${a.id}"]) { AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always) } } }
+                            Failing(failures["a:${a.id}"]) { AskApproval(a, who, reveal = { api!!.askSecret(a.id) }) { title, yes, label, always, all -> decide("a:${a.id}", who, title, yes, label, ask = a) { api!!.answerAsk(a.id, yes, always, all) } } }
                         }
                     }
                 } }
@@ -493,7 +494,7 @@ fun ChatNeeds(app: BotDotApp, scope: String) {
         // In the Chief's chat the card of a tool, and of a changed bot, says which bot it is for, as it looks now.
         val askWho = { a: Ask -> if (chief || group != null) a.bot?.let { named(bots.firstOrNull { b -> b.id == it.id }, it.name, it.color) } else null }
         val oneAsk: @Composable (Ask) -> Unit = { a ->
-            AskApproval(a, askWho(a), reveal = { api!!.askSecret(a.id) }) { title, yes, label, always -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always) } }
+            AskApproval(a, askWho(a), reveal = { api!!.askSecret(a.id) }) { title, yes, label, always, all -> decide("a:${a.id}", title, yes, label) { api!!.answerAsk(a.id, yes, always, all) } }
         }
         // What one run waits on is one card here too (#277).
         askCards(myAsks).forEach { card ->
@@ -1136,6 +1137,21 @@ private fun AlwaysQuestion(text: String, label: String, done: (Boolean) -> Unit)
     dismissButton = { TextButton(onClick = { done(false) }) { Text(tr("Cancel"), color = LocalPaper.current.text) } },
 )
 
+/** "Always allow" for one bot or all bots (ADR 201): the server's question and note, Cancel, `all` and `only`. done(true) for all bots, done(false) for this bot only, done(null) for Cancel. */
+@Composable
+private fun WhomQuestion(e: EveryBot, done: (Boolean?) -> Unit) = AlertDialog(
+    onDismissRequest = { done(null) },
+    title = { Text(e.question) },
+    text = { Text(e.note) },
+    confirmButton = {
+        Row {
+            TextButton(onClick = { done(true) }) { Text(e.all, color = LocalPaper.current.text) }
+            TextButton(onClick = { done(false) }) { Text(e.only, color = LocalPaper.current.text) }
+        }
+    },
+    dismissButton = { TextButton(onClick = { done(null) }) { Text(tr("Cancel"), color = LocalPaper.current.text) } },
+)
+
 /** A warning, set apart in amber: that of a tool from a link, and that of a login used on another website; the app puts the sign in front. Closed, it keeps two lines in sight. */
 @Composable
 private fun Warning(text: String) {
@@ -1289,8 +1305,8 @@ internal fun askTitle(a: Ask): String = when {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { "" }, answer: (String, Boolean, String?, Boolean) -> Unit) {
-    val decide: (String, Boolean, String?) -> Unit = { title, yes, label -> answer(title, yes, label, false) }
+private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { "" }, answer: (String, Boolean, String?, Boolean, Boolean) -> Unit) {
+    val decide: (String, Boolean, String?) -> Unit = { title, yes, label -> answer(title, yes, label, false, false) }
     if (a.act != null) {
         // A card whose main button the server names by a verb (`act`, docs/api.md "A missing connected app"): its
         // title, in setup what is wrong, Not now and that button, no more. Connect opens the app's sign-in page and
@@ -1324,9 +1340,14 @@ private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { ""
         // `warning`, which names the bot and the action (#474), as on the web page.
         val always = a.always?.takeIf { it.isNotBlank() } ?: tr("Always allow")
         var asking by remember(a.id) { mutableStateOf(false) }
-        if (asking) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { if (a.chiefsAction) alwaysAllowChief(who?.name ?: tr("the Chief")) else ALWAYS_ALLOW_QUESTION }, always) {
+        // An action every bot may be allowed (ADR 201): the question is whom, this bot only or all bots, as on the web page.
+        val everyBot = a.everyBot
+        if (asking && everyBot != null) WhomQuestion(everyBot) { pick ->
             asking = false
-            if (it) answer(a.title, true, tr("Always allowed"), true)
+            if (pick != null) answer(a.title, true, if (pick) tr("Always allowed for all bots") else tr("Always allowed"), true, pick)
+        } else if (asking) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { if (a.chiefsAction) alwaysAllowChief(who?.name ?: tr("the Chief")) else ALWAYS_ALLOW_QUESTION }, always) {
+            asking = false
+            if (it) answer(a.title, true, tr("Always allowed"), true, false)
         }
         Card(who, a.title, connectorState(who?.name ?: a.bot?.name?.ifBlank { null } ?: tr("The bot"), a.held, a.stoppedAt) ?: a.reason, expandable = true) {
             if (rows.isNotEmpty()) Facts(rows, whole = LocalCardOpen.current)
@@ -1346,7 +1367,7 @@ private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { ""
         // asks first with the server's `warning`.
         val always = a.always?.takeIf { it.isNotBlank() && a.chiefActionYes }
         var asking by remember(a.id) { mutableStateOf(false) }
-        if (asking && always != null) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { "$always?" }, always) { asking = false; if (it) answer(a.title, true, tr("Always allowed"), true) }
+        if (asking && always != null) AlwaysQuestion(ToolCard.text(a.warning).ifEmpty { "$always?" }, always) { asking = false; if (it) answer(a.title, true, tr("Always allowed"), true, false) }
         Card(who, a.title, a.chiefActionLine, expandable = true) {
             if (a.rows.isNotEmpty()) Facts(a.rows, whole = LocalCardOpen.current)
             if (a.tooLong) Text(TOO_LONG, color = LocalPaper.current.muted, fontSize = Type.s12)
@@ -1399,7 +1420,7 @@ private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { ""
             // A rule a bot asks to lift (#253) has the server's second yes, `always`: "Allow always for this bot".
             val always = if (a.kind == "override") a.always?.takeIf { it.isNotBlank() } else null
             Buttons(a.yes ?: tr("Allow"), { decide(a.title, true, tr("Allowed")) }, tr("Decline"), { decide(a.title, false, null) },
-                onAlways = always?.let { { answer(a.title, true, tr("Always allowed"), true) } }, alwaysLabel = always ?: tr("Always approve"))
+                onAlways = always?.let { { answer(a.title, true, tr("Always allowed"), true, false) } }, alwaysLabel = always ?: tr("Always approve"))
         }
     } else if (a.kind == "permission") {
         val title = tr("Let it {what}?", "what" to (a.what?.label ?: a.permission))

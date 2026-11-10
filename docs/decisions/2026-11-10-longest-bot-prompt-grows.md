@@ -1,0 +1,1 @@
+2026-11-10: The bound of the longest bot prompt in `test/prompt-private.test.js` goes from 127,000 to 136,000 characters (ADR 192): every bot now has a computer, so the computer's part of the prompt is in every bot's prompt, and the longest one measured 132,572. Rejected: trimming the computer's part for this, which every bot now needs.
