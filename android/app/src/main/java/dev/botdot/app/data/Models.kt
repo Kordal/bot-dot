@@ -1277,7 +1277,7 @@ data class Connection(val id: String, val toolkit: String = "", val status: Stri
     val label: String? = null, val accounts: Int = 1, val createdAt: String? = null)
 
 @Serializable
-data class ConnectorsInfo(val configured: Boolean = false, val account: String? = null, val keyHint: String? = null, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList(), val reconnect: List<ReconnectApp> = emptyList())
+data class ConnectorsInfo(val configured: Boolean = false, val account: String? = null, val keyHint: String? = null, val machine: Boolean = false, val error: String? = null, val keyRejected: Boolean = false, val connections: List<Connection> = emptyList(), val reconnect: List<ReconnectApp> = emptyList())
 
 /** An app connected before a switch to another Composio account, offered with "Connect again" (#409). */
 @Serializable

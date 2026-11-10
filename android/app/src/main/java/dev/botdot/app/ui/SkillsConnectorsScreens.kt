@@ -200,11 +200,15 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
             }
             // The key, always at the top: replaced or removed here (#440).
             item {
+                // The machine's key (ADR 206): set for every account here; changed only with Advanced on.
+                val adv by dev.botdot.app.data.Advanced.on.collectAsState()
                 if (replacing) Section(null) { ComposioKeyField({ saveKey(it) }, onCancel = { replacing = false }) { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(COMPOSIO_KEYS))) } }
                 else Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(tr("Composio key {key}", "key" to i.keyHint.orEmpty()).trim(), color = p.text, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { replacing = true }) { Text(tr("Replace"), color = p.text) }
-                    TextButton(onClick = { askRemoveKey = true }) { Text(tr("Remove"), color = p.err) }
+                    Text(if (i.machine) tr("Set up for everyone on this botdot") else tr("Composio key {key}", "key" to i.keyHint.orEmpty()).trim(), color = p.text, modifier = Modifier.weight(1f))
+                    if (!i.machine || adv) {
+                        TextButton(onClick = { replacing = true }) { Text(tr("Replace"), color = p.text) }
+                        TextButton(onClick = { askRemoveKey = true }) { Text(tr("Remove"), color = p.err) }
+                    }
                 }
             }
             if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }

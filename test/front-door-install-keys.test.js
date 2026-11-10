@@ -59,28 +59,33 @@ test('the front door takes them when it starts and every minute after', () => {
   assert.match(code, /takeInstallKeys\(\);\n\s*setInterval\(takeInstallKeys, 60_000\)/);
 });
 
-// The Composio key (ADR 160) is the admin's account's: it waits in composio-key.json, which only the front door reads,
-// until that account takes it.
-test('the Composio key waits for the admin\'s account, on a machine of one account too, until it is handed', (t) => {
+// The Composio key (ADR 206) is the machine's: kept in composio-key.json, which only the front door reads, and handed
+// to every account; the admin page sets and removes it too.
+test("the Composio key is the machine's: kept, on a machine of one account too, and set or removed from the admin page", (t) => {
   const s = stores(t);
   assert.equal(installKeys.composio(s.dir), null);
+  assert.equal(installKeys.composioState(s.dir), null, 'never set: nothing to hand or take back');
   fs.writeFileSync(s.file, JSON.stringify({ openrouter: null, boat: null, composio: 'ak_goodgoodgood' }));
   assert.deepEqual(installKeys.take(s.dir, { groupRouter: null, boat: null }), { openrouter: false, boat: false, composio: true });
   assert.ok(!fs.existsSync(s.file));
   assert.equal(installKeys.composio(s.dir), 'ak_goodgoodgood');
   assert.equal(fs.statSync(path.join(s.dir, 'composio-key.json')).mode & 0o777, 0o600);
-  assert.equal(s.groupRouter.shown().router, 'haiku', 'never the machine\'s');
-  installKeys.handed(s.dir);
+  assert.equal(s.groupRouter.shown().router, 'haiku', "Jev's key isn't touched");
+  installKeys.setComposio(s.dir, 'ak_fromtheadmin');
+  assert.equal(installKeys.composio(s.dir), 'ak_fromtheadmin');
+  installKeys.setComposio(s.dir, null);
   assert.equal(installKeys.composio(s.dir), null);
+  assert.deepEqual(installKeys.composioState(s.dir), { key: null }, 'removed: the accounts that took it remove theirs');
   fs.writeFileSync(s.file, JSON.stringify({ composio: 'x"y' }));
   assert.equal(installKeys.take(s.dir, s).composio, false);
   assert.equal(installKeys.composio(s.dir), null);
 });
 
-test('the front door hands the Composio key to the admin\'s account and keeps it while no answer comes', () => {
+test("the front door hands the machine's Composio key to every account, once a key, and again an hour after a refusal", () => {
   const code = fs.readFileSync(path.join(__dirname, '..', 'front-door.js'), 'utf8');
-  assert.match(code, /const COMPOSIO_TO = ADMIN \|\| SETUP_ACCOUNT;/);
-  assert.match(code, /askAccount\(COMPOSIO_TO, 'POST', '\/api\/connectors\/install-key', \{ key \}/);
-  assert.match(code, /if \(!r\.status \|\| r\.status >= 500\) return;/);
-  assert.match(code, /if \(r\.status === 400\) \{\s*composioRefusedAt = Date\.now\(\);[\s\S]{0,200}?return;\s*\}\s*installKeys\.handed\(DATA\);/, 'a refused key is kept and handed again later');
+  assert.match(code, /for \(const \{ name \} of doors\.listAccounts\(\)\) \{/);
+  assert.match(code, /askAccount\(name, 'POST', '\/api\/connectors\/install-key', \{ key \}, 30_000\)/);
+  assert.match(code, /if \(!r\.status \|\| r\.status >= 500\) return;/, 'not running or no answer: next minute');
+  assert.match(code, /if \(r\.status === 400 && key\) \{\s*composioAnswered\.set\(name, \{ refused: Date\.now\(\) \}\);/, 'a refused key is handed again later');
+  assert.match(code, /if \(mark !== composioMark\) \{ composioAnswered\.clear\(\);/, 'a new key is handed to every account again');
 });

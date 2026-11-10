@@ -144,7 +144,7 @@ function standIn(door, account, { answer = null } = {}) {
 
 // What the front door asks every account on its own timers, whatever a browser does (ADR 081, #529, ADR 105): left out
 // by `seenOf`, so a test that checks no request of a page reached a botdot server doesn't fail when a timer fires.
-const ON_ITS_OWN = /^\/api\/(group-router|boat|usage-summary|backups\/machine|backups\/offsite)(\?|$)/;
+const ON_ITS_OWN = /^\/api\/(group-router|boat|usage-summary|backups\/machine|backups\/offsite|connectors\/install-key)(\?|$)/;
 // How many requests each stand-in saw, other than those the front door sends on its own.
 const ownSeen = (stand) => stand.seen.filter((r) => !ON_ITS_OWN.test(r.url));
 const seenOf = (stands) => Object.values(stands).map((s) => ownSeen(s).length).join();
