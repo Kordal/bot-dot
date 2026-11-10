@@ -23,7 +23,7 @@ async function renderConnectors(force = false) {
   if (works && !conn.catalog.length) await loadCatalog(true);
   if (works && !conn.categories.length) conn.categories = await api('/connectors/categories').catch(() => []);
   // The actions every bot may do without asking ("Always allow" for all bots on a card, ADR 184), each with Revoke.
-  conn.everyBot = works && state.features.includes('every-bot-always') ? ((await api('/connector-actions').catch(() => null))?.grants || []) : [];
+  conn.everyBot = works && state.features?.includes('every-bot-always') ? ((await api('/connector-actions').catch(() => null))?.grants || []) : [];
   // A page that can't be drawn says why, never stays blank (#464).
   try { drawConnectors(); } catch (e) { root.innerHTML = `${connHead()}<div class="req-note">${tr("Couldn't show your apps: {why}", { why: esc(e.message) })}</div>`; }
 }
