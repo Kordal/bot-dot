@@ -624,6 +624,19 @@ test('web: a reply that failed or was stopped says so under its bot\'s name, and
   assert.match(h, /data-st="failed" data-c="#e24b4a"><\/div>\s*<div class="stack">\s*<div class="g-name" style="--c:#e24b4a">Reviewer<\/div>\s*<div class="bubble from-bot problem"><div class="md"><p>Something went wrong\.<\/p>/);
 });
 
+test("web: an answer to a member's question shows that question above it with the asker's head, unless it stands right under that reply; a tap goes to the question", () => {
+  const p = page();
+  const q = { runId: 'r1', botId: 'coder', botName: 'Coder', text: 'Which <one>?' };
+  const far = p.ctx.groupThreadHTML(p.group(), p.chat([reply('r1', CODER, 'Which one?', { at: at(1) }), reply('r2', REVIEWER, 'Waiting.', { at: at(2) }), message('m1', 'The clean one', { at: at(3), question: q })]));
+  assert.match(far, /<div class="stack mine">\s*<button type="button" class="g-question" data-question="r1" title="Coder"><i><svg class="fig fig-small"[^>]*data-bot="coder"[^>]*><\/svg><\/i><span>Which &lt;one&gt;\?<\/span><\/button>\s*<div class="bubble from-me"/);
+  const near = p.ctx.groupThreadHTML(p.group(), p.chat([reply('r1', CODER, 'Which one?', { at: at(1) }), message('m1', 'The clean one', { at: at(2), question: q })]));
+  assert.doesNotMatch(near, /g-question/, 'right under the question it answers');
+  // A message from an older server, or with a question it can't read: as before.
+  for (const bad of [undefined, null, 'r1', { runId: 'r1' }, { runId: 7, text: 'x' }]) assert.doesNotMatch(p.ctx.groupMessageHTML(message('m1', 'Yes', { question: bad }), 'group:g1', null), /g-question/);
+  assert.match(src, /\$\$\('\[data-question\]', items\)\.forEach\(\(el\) => \(el\.onclick = \(\) => \{[^]*?state\.jump = \{ runId: el\.dataset\.question, group: g \};\s*renderGroupChat\(\);/);
+  assert.match(css, /\.g-question span \{[^}]*text-overflow: ellipsis;/);
+});
+
 test('web: a mention is drawn as today, and typing "@" in a group suggests its members and nobody else', () => {
   const p = page();
   const mentions = p.ctx.mentionCtx('group:g1');

@@ -135,11 +135,13 @@ data class GroupLimit(val text: String, val messages: List<String> = emptyList()
  * The owner's message in a group. [to]: the members it was for. [waitsFor]: the members whose turn waits because
  * they are working. [next]: those whose turn has not come. [canTakeBack]: none of its turns has started.
  * [answer]: the reply that is its team's one answer (ADR 201): the members' replies before it are folded under it.
+ * [question]: the member's question it answers with one of its buttons (docs/api.md, "question").
  */
 data class GroupMessage(
     val id: String, val text: String, val at: String, val attachments: List<Attachment> = emptyList(),
     val to: List<String> = emptyList(), val waitsFor: List<String> = emptyList(), val next: List<String> = emptyList(),
     val canTakeBack: Boolean = false, val atLimit: Boolean = false, val stopped: Boolean = false, val answer: String? = null,
+    val question: GroupQuestion? = null,
 ) {
     companion object {
         /** A message as the server sent it; null without an id: it cannot be taken back, or told from the next. */
@@ -148,8 +150,20 @@ data class GroupMessage(
             return GroupMessage(
                 o["id"].textOrNull() ?: return null, o["text"].whole(), o["at"].textOrNull().orEmpty(), Queued.attachments(o["attachments"]),
                 texts(o["to"]), texts(o["waitsFor"]), texts(o["next"]), isTrue(o["canTakeBack"]), isTrue(o["atLimit"]), isTrue(o["stopped"]),
-                o["answer"].textOrNull(),
+                o["answer"].textOrNull(), GroupQuestion.of(o["question"]),
             )
+        }
+    }
+}
+
+/** The question of a member's reply ([runId]) that an owner's message answers, in one line ([text]). */
+data class GroupQuestion(val runId: String, val botId: String, val botName: String, val text: String) {
+    companion object {
+        /** As the server sent it; null without a run or a text: such a message is drawn as before. */
+        fun of(v: JsonElement?): GroupQuestion? {
+            val o = v as? JsonObject ?: return null
+            val text = o["text"].textOrNull()?.takeIf { it.isNotBlank() } ?: return null
+            return GroupQuestion(o["runId"].textOrNull() ?: return null, o["botId"].textOrNull().orEmpty(), o["botName"].textOrNull().orEmpty(), text)
         }
     }
 }
@@ -427,6 +441,12 @@ object Groups {
         }
         return out
     }
+
+    /**
+     * The question shown above an owner's message ([GroupMessage.question]), unless it stands right under the reply
+     * that asked: [before] is the row before it as the chat shows it, oldest first.
+     */
+    fun questionAbove(m: GroupMessage, before: Any?): GroupQuestion? = m.question?.takeUnless { (before as? GroupItem.Reply)?.id == it.runId }
 
     /** The row a message's folded replies stand under: their runs, oldest first, and whether it is open. */
     data class Fold(val messageId: String, val runs: List<Run>, val open: Boolean) { val id get() = "fold:$messageId" }

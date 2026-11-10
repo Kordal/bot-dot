@@ -1770,6 +1770,12 @@ details.bs-row { display: block; }
 .g-fold i { display: flex; }
 .g-fold .fig.fig-small { margin: 0; }
 .g-fold span { margin-left: var(--sp-4); }
+/* The question an answer of the owner's answers, above it: the asker's head and the question, a tap goes to it. */
+.g-question { display: flex; align-items: center; gap: var(--sp-8); max-width: 100%; margin: 0 0 var(--sp-4); padding: var(--sp-4) var(--sp-12) var(--sp-4) var(--sp-4); border: 0; border-radius: var(--r-14); background: var(--raise-2); color: var(--muted); font: inherit; font-size: var(--fs-12); text-align: left; cursor: pointer; }
+.g-question:hover { color: var(--text); }
+.g-question i { display: flex; flex: none; }
+.g-question .fig.fig-small { margin: 0; }
+.g-question span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 /* One line per member at work, with its name; "Stop all" ends them together. */
 .g-working { display: flex; flex-direction: column; }
 .g-working .status-line { margin: var(--sp-4) 0; }
