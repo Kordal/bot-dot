@@ -252,7 +252,7 @@ test('admin page: the rail has the groups Accounts, Usage, Sign-ups, Feedback, A
   const groups = main.split('<div class="group"').slice(1);
   assert.equal(groups.length, 6);
   const sections = (g) => [...g.matchAll(/<section id="([^"]+)">/g)].map((m) => m[1]);
-  assert.deepEqual(groups.map(sections), [['accounts'], ['usage'], ['sign-up-links'], ['feedback'], ['audit'], ['machine', 'update-section', 'offsite-section', 'rooms', 'group-router', 'replays', 'boat']]);
+  assert.deepEqual(groups.map(sections), [['accounts'], ['usage'], ['sign-up-links'], ['feedback'], ['audit'], ['machine', 'update-section', 'offsite-section', 'rooms', 'group-router', 'replays', 'boat', 'composio']]);
   assert.match(groups[5], /^ id="settings">/);
   // Every section is reachable from the rail: a group's own link, or Settings' links to each of its sections.
   for (const id of groups.flatMap(sections)) assert.ok(nav.includes(`href="#${id}"`), id);
