@@ -591,7 +591,7 @@ function wireNeedCards(root, items) {
     if (yes) yes.onclick = () => answerNeed(x, true, yes);
     // Its warning is asked on the page, its yes in the button's own words.
     const sure = (q) => askFirst(q, always.textContent, { danger: false });
-    if (always) always.onclick = async () => { if (x.a?.kind === 'chief-action') { if (await sure(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action') { if (await sure(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || await sure(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
+    if (always) always.onclick = async () => { if (x.a?.kind === 'chief-action') { if (await sure(said(x.a.warning) || `${said(x.a.always)}?`)) whileApproving(always, null, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'override') { whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (x.a?.kind === 'connector-action' && x.a.everyBot) { const e = x.a.everyBot; const pick = await askWhich(`${said(e.question)}\n\n${said(e.note)}`, said(e.only), said(e.all)); if (pick) whileApproving(always, x.job, () => decide(x, true, true, pick === 'other' ? 'all' : true)); return; } if (x.a?.kind === 'connector-action') { if (await sure(said(x.a.warning) || (x.a.chief ? tr('Let {name} do this from now on, whatever the details?', { name: chiefTitle() }) : tr('Let this bot do this from now on, whatever the details?')))) whileApproving(always, x.job, () => decide(x, true, true, true)); return; } if (!touchesScript(x.job) || await sure(scriptWarning(x.bot.name, x.job.name))) whileApproving(always, x.job, () => decide(x, true, true, true)); };
     if (no) no.onclick = () => answerNeed(x, false, no);
     if (op) op.onclick = () => openNeed(x, el);
     const show = $('[data-need-show]', el);
@@ -780,6 +780,7 @@ function markAnswered(x, yes, always, answer, chats) {
 // tile the server's (`text` of the answer: "Declined and removed", "Kept as it was: …", "Changed: …") in place of
 // "Declined", and of "Approved" on a change. A memory change always reads the server's: "Forgotten", "Kept".
 function answeredWord(x, yes, always, answer) {
+  if (always === 'all') return tr('Always allowed for all bots');
   if (always) return x.a?.kind === 'chief-action' ? tr('Always allowed') : tr('Always approved');
   if (x.kind === 'tilesug') return yes ? tr('On your Board') : tr('Not added');
   const waits = x.kind === 'job' ? x.job : x.kind === 'tile' ? x.t : null;
