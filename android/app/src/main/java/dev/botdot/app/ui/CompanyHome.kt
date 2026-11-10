@@ -30,6 +30,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -548,7 +550,7 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
                         open = if (unfold) open - t.id else open + t.id
                         prefs.edit().putStringSet(c.id, open).apply()
                     }.testTag(TEAM_FOLD), contentAlignment = Alignment.Center) {
-                        Icon(if (unfold) androidx.compose.material.icons.Icons.Outlined.ExpandMore else androidx.compose.material.icons.Icons.Outlined.ChevronRight, contentDescription = tr("Members"), tint = p.muted, modifier = Modifier.size(20.dp))
+                        Icon(if (unfold) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, contentDescription = tr("Members"), tint = p.muted, modifier = Modifier.size(20.dp))
                     }
                     Row(Modifier.weight(1f).heightIn(min = 48.dp).clip(Radius.small)
                         .combinedClickable(onClickLabel = if (chat != null) tr("Team chat") else t.name, onLongClickLabel = t.name, onLongClick = { onTeam(t.id) }, onClick = { chat?.invoke() ?: onTeam(t.id) })
