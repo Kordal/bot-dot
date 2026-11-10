@@ -471,6 +471,8 @@ function watchSoon() {
 const WATCH_OWN = new Set(['login_request', 'login_request_closed', 'bitwarden', 'approvals', 'update_available']); // what it emits itself
 feed.subscribe((ev) => { if (!WATCH_OWN.has(ev.type)) watchSoon(); });
 loginRequests.onChange(watchSoon);
+// A login added after the run that asked for it gave up waiting: that run's work carries on (ADR 189).
+loginRequests.onLater((r) => { try { B.carryOnAfterLogin(r); } catch (e) { console.error(`[login] ${e.message}`); } });
 // A bot's run that waits for the owner's login or card says so on the feed, as one that waits for an OK (#1095).
 loginRequests.onRunWaits((r, on) => feed.emitRun('run_waits', B.groupOfRun(r.runId), { chat: `bot:${r.botId}`, botId: r.botId, runId: r.runId, ...(on ? { waitingFor: 'ok' } : {}) }));
 watchForFeed(); // the starting point, so the first change is noticed
@@ -611,7 +613,7 @@ const CHIEF_ROUTES = [
   ['PUT', /^proxies\/default$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
   ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|storage\/check|connectors\/session\/(actions|run|wait))$/],
-  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
+  ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|run-again|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['POST', /^company\/(teams|todos|decisions|events|card-request)$/],
   ['PUT', /^(company\/(plan|suggestion|standup|layout|dates)|company\/(teams|objectives|todos|events|cards)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(company\/(events|cards|objectives)\/[^/]+|chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],

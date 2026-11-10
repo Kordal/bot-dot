@@ -294,6 +294,14 @@ class KeypadTest {
         assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status())
     }
 
+    // A bot with a job that will run says Watching where it would say Idle (ADR 187)
+    @Test fun aBotWithAJobSaysWatching() {
+        assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Watching, last 07:12"), Keypad.status(watching = true, last = "success", seen = true, lastTime = "07:12"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Watching"), Keypad.status(watching = true))
+        assertEquals("an unseen result comes first", Keypad.Status(Keypad.StatusKind.DONE, "Done"), Keypad.status(watching = true, last = "success"))
+        assertEquals(Keypad.Status(Keypad.StatusKind.FAILED, "Couldn't finish"), Keypad.status(watching = true, last = "error"))
+    }
+
     @Test fun aFinishedRunTheOwnerHasSeenSaysIdle() {
         assertEquals(Keypad.Status(Keypad.StatusKind.IDLE, "Idle"), Keypad.status(last = "success", seen = true))
         assertEquals(Keypad.Status(Keypad.StatusKind.FAILED, "Couldn't finish"), Keypad.status(last = "error", seen = true))
