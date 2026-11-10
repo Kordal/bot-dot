@@ -33,3 +33,10 @@ test('web: without Advanced a new password has no Type, says Website, and asks f
 test('web: without Advanced the marketplace leaves out apps that need a key or a developer app', () => {
   assert.match(read('connectors.js'), /conn\.catalog\.filter\(\(t\) => advanced\(\) \|\| connectedSlugs\.has\(t\.slug\) \|\| !\['developer', 'key'\]\.includes\(t\.connect\)\)/);
 });
+
+test('web: without Advanced, Setup shows the phone as a QR code to scan, and no bot computers or extras', () => {
+  const setup = read('setup.js');
+  assert.match(setup, /if \(!adv && a\.qr\) \{\n    phone = setupItem\(\{ state: 'ok', icon: '📱', title: tr\('Your phone'\), body: `\$\{tr\('Scan this with your phone/);
+  assert.match(setup, /\$\{adv \? computers : ''\}\$\{phone\}\$\{tz\}/);
+  assert.match(setup, /\$\{adv \? `<h3 class="page-sub">\$\{tr\('Extras'\)\}<\/h3>/);
+});

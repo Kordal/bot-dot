@@ -93,11 +93,12 @@ test('web: the card says what became of the last move, and that it moves now', (
   assert.equal(ctx.updateCardText({ autoUpdate: false, last: null, ready: null }), '');
 });
 
-test("web: the switch says what On and Off do, and no line follows while nothing waits", async () => {
+test("web: the switch is its own label, and no line follows while nothing waits", async () => {
   const { ctx, card } = page({ update: { autoUpdate: true, asked: false, canUpdate: false, ready: null, last: null } });
   await ctx.loadUpdateCard();
-  // As its tooltip and its description for a screen reader, not lines under it (#635).
-  assert.match(card.innerHTML, /<label class="bs-row" title="On: always use the latest botdot version\. Off: update when you're ready, before the admin's deadline\." aria-description="On: [^"]*"><b>Update automatically<\/b>/);
+  // No tooltip or lines under it: "Update automatically" says it (#635, plain words).
+  assert.match(card.innerHTML, /<label class="bs-row"><b>Update automatically<\/b>/);
+  assert.doesNotMatch(card.innerHTML, /title="On:/);
   assert.match(card.innerHTML, /<summary><b>Updates<\/b><span class="bs-val">Automatic<\/span>/, 'its row says how it is');
   assert.doesNotMatch(card.innerHTML, /id="update-said"/);
   assert.doesNotMatch(card.innerHTML, /What's new/);

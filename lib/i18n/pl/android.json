@@ -1312,5 +1312,8 @@
   "botdot doesn't allow that here.": "botdot na to tu nie pozwala.",
   "That is too big for botdot.": "To jest za duże dla botdot.",
   "botdot didn't finish that. Try again in a moment.": "botdot tego nie dokończył. Spróbuj za chwilę.",
-  "botdot couldn't do that. Try again.": "botdot nie mógł tego zrobić. Spróbuj jeszcze raz."
+  "botdot couldn't do that. Try again.": "botdot nie mógł tego zrobić. Spróbuj jeszcze raz.",
+  "Run history": "Historia pracy",
+  "Its files": "Jego pliki",
+  "Temporary files": "Pliki tymczasowe"
 }

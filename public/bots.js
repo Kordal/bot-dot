@@ -315,7 +315,7 @@ function renderBotSettings(force = false) {
           <div class="bs-body">${llmFieldsHTML('bot', { model: b.model, effort: b.effort }, tr('Default ({model})', { model: llmSummary(state.settings?.defaultModel, state.settings?.defaultEffort) }))}</div>
         </details>
         <details class="bs-row bs-more" id="bs-rules">
-          <summary${tipAttrs(tr("Its personality and rules, added to Claude Code's system prompt."))}><b>${tr('Rules')}</b><span class="bs-val">${esc(b.systemPrompt.split('\n')[0])}</span>${CHEV}</summary>
+          <summary><b>${tr('Rules')}</b><span class="bs-val">${esc(b.systemPrompt.split('\n')[0])}</span>${CHEV}</summary>
           <div class="bs-body"><textarea name="systemPrompt" rows="3" aria-label="${esc(tr('Personality and rules'))}">${esc(b.systemPrompt)}</textarea></div>
         </details>
       </div>
@@ -343,7 +343,7 @@ function renderBotSettings(force = false) {
       </div>
 
       <div class="set-list">
-        ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"${tipAttrs(tr('It may join rooms with other accounts on this machine. There it only talks: no tools, no notes, nothing of yours.'))}><b>${tr('Shared rooms')}</b>
+        ${showsRoomSettings(b) ? `<label class="bs-row" id="bs-rooms"${tipAttrs(tr('It may join rooms with other people on this botdot. There it only talks: no tools, no notes, nothing of yours.'))}><b>${tr('Shared rooms')}</b>
           <span class="switch"><input type="checkbox" name="allowRooms" ${b.rooms.allowRooms ? 'checked' : ''} aria-label="${esc(tr('Shared rooms'))}"><span></span></span></label>
         <label class="bs-row bs-rooms-who ${b.rooms.allowRooms ? '' : 'hidden'}"><b>${tr('Who may mention it')}</b>
           <select name="roomsWho" aria-label="${esc(tr('Who may mention it'))}">${ROOM_WHO.map(([v, label]) => `<option value="${v}" ${b.rooms.whoMayMention === v ? 'selected' : ''}>${label}</option>`).join('')}</select>${CHEV}</label>` : ''}
