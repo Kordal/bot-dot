@@ -39,6 +39,7 @@ What differs from a server:
 - **This computer only.** A phone can't reach it: it answers on localhost.
 - **The VM can't reach your computer or your home network.** It has its own firewall, which refuses connections to private addresses, and on Windows it doesn't mount your drives or run Windows programs.
 - **On Linux there is no VM.** The bots' computers run under gVisor, as their account's Linux user, which is not yours, and that user's connections to private addresses (your home network) and to SMTP are refused. Your own programs' traffic is untouched. What a VM adds and Linux doesn't have: a flaw in gVisor and rootless Docker together would land on your computer as that user, which reads what your home folder lets others read (`ls -ld ~`: `drwxr-x---` or `drwx------` keeps it out). [ADR 170](adr/170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md) has the details.
+- **Updates by itself** at night: at 04:00 in your time zone, when a newer version is out, botdot on this computer updates itself, and your bots carry on after it ([ADR 183](adr/183-a-machine-of-one-account-updates-itself-at-night.md)). The app updates itself too.
 - **Update and remove** from the app's menu: **Update botdot on this Mac** (or PC, or computer) and **Remove botdot on this Mac…**, which deletes its bots, chats, memory, Vault and logins for good. Download a backup first in **Settings → Backups** if you want to keep them.
 
 The app installs botdot from `main`, so it gets the newest version of the day, which is less tested than a server's update.
