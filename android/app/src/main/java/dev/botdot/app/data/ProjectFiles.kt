@@ -26,6 +26,13 @@ object ProjectFiles {
     /** The folder a file is in, from the project's folder: "" at its top. */
     fun folderOf(path: String): String = path.substringBeforeLast('/', "")
 
+    /**
+     * The Files route a tap on one of the tile's files goes to: the project's folder at the file's folder, the file
+     * opened over it (web: Files.openFolderFile). [encode] is Uri.encode on the phone.
+     */
+    fun fileRoute(folder: String, path: String, encode: (String) -> String): String =
+        "files/${encode(UploadedFiles.FOLDER + folder)}?root=&path=${encode(folderOf(path))}&file=${encode(path)}"
+
     /** When a file changed, as Files says it: its time today, "Yesterday", else its day ("4 Nov"). */
     fun whenOf(at: Long, zone: ZoneId = ZoneId.systemDefault(), today: LocalDate = LocalDate.now(zone)): String {
         if (at <= 0) return ""

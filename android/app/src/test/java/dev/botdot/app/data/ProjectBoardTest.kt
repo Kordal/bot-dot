@@ -55,6 +55,15 @@ class ProjectBoardTest {
         assertEquals("Files", ProjectBoard.label("files"))
     }
 
+    // A tap on a file of the tile opens that file, not only its folder (the route carries it to FilesScreen).
+    @Test fun aFileOfTheFilesTileOpensThatFile() {
+        val enc: (String) -> String = { java.net.URLEncoder.encode(it, "UTF-8").replace("+", "%20") }
+        assertEquals("files/${enc(UploadedFiles.FOLDER + "qwotz")}?root=&path=&file=2026-11-10-prod-login.md",
+            ProjectFiles.fileRoute("qwotz", "2026-11-10-prod-login.md", enc))
+        assertEquals("files/${enc(UploadedFiles.FOLDER + "qwotz")}?root=&path=docs%2Fplans&file=docs%2Fplans%2Fa%20b.md",
+            ProjectFiles.fileRoute("qwotz", "docs/plans/a b.md", enc))
+    }
+
     @Test fun theFilesTileSaysWhereAFileIsAndWhenItChanged() {
         val zone = java.time.ZoneId.of("UTC")
         val today = java.time.LocalDate.of(2026, 11, 6)

@@ -403,6 +403,7 @@ class MainActivity : ComponentActivity() {
                             onTeam = { open("group/$it") },
                             onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
                             onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
+                            onFolderFile = { name, path -> nav.navigate(dev.botdot.app.data.ProjectFiles.fileRoute(name, path, android.net.Uri::encode)) },
                             onGoalChat = { open("chief/$it") },
                         ), spaces = spaceWays, railed = railed, field = false)
                     }
@@ -509,6 +510,7 @@ class MainActivity : ComponentActivity() {
                                 onTeam = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) },
                                 onFolder = { nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + it)}") },
                             onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
+                            onFolderFile = { name, path -> nav.navigate(dev.botdot.app.data.ProjectFiles.fileRoute(name, path, android.net.Uri::encode)) },
                                 onGoalChat = { dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
                             ), spaces = spaceWays)
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
@@ -534,9 +536,9 @@ class MainActivity : ComponentActivity() {
                     composable("dashboard") { DashboardScreen(app, onBot = { nav.navigate("bot/$it") }, onNeeds = { nav.navigate("needs") }) { nav.popBackStack() } }
                     composable("needs") { e -> NeedsYouScreen(app, onChat = { nav.navigate("chief/$it") }, onDone = { if (nav.currentBackStackEntry == e) nav.popBackStack() }) { nav.popBackStack() } }
                     // A bot's files, or the Chief's (#603), full screen.
-                    // Storage opens one at a folder: ?root=…&path=….
-                    composable("files/{id}?root={root}&path={path}", arguments = listOf(navArgument("root") { defaultValue = "" }, navArgument("path") { defaultValue = "" })) { e ->
-                        FilesScreen(app, e.arguments?.getString("id") ?: "", startRoot = e.arguments?.getString("root").orEmpty(), startPath = e.arguments?.getString("path").orEmpty()) { nav.popBackStack() }
+                    // Storage opens one at a folder: ?root=…&path=…; the board's Files tile also opens a file over it: &file=….
+                    composable("files/{id}?root={root}&path={path}&file={file}", arguments = listOf(navArgument("root") { defaultValue = "" }, navArgument("path") { defaultValue = "" }, navArgument("file") { defaultValue = "" })) { e ->
+                        FilesScreen(app, e.arguments?.getString("id") ?: "", startRoot = e.arguments?.getString("root").orEmpty(), startPath = e.arguments?.getString("path").orEmpty(), startFile = e.arguments?.getString("file").orEmpty()) { nav.popBackStack() }
                     }
                     composable("screen/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""

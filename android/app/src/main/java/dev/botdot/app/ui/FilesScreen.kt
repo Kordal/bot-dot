@@ -149,7 +149,7 @@ private data class FxCarry(val move: Boolean, val from: String, val entries: Lis
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
-fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPath: String = "", onBack: () -> Unit) {
+fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPath: String = "", startFile: String = "", onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val server by app.store.version.value.collectAsState()
@@ -272,6 +272,13 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
         val src = WorkspaceFiles.file(ownerId, at, e.path)
         if (viewer) DocViewer.open = DocViewer.Request(src, e.name, name, botId = if (at != WorkspaceFiles.SERVER && folder == null) ownerId else null)
         else act(tr("open it")) { BotFiles.openElsewhere(context, it, src, e.name) }
+    }
+    // A file asked for on the way in (the board's Files tile): opened once, over its folder.
+    var fileOpened by rememberSaveable(ownerId) { mutableStateOf(startFile.isEmpty()) }
+    LaunchedEffect(api, fileOpened) {
+        if (fileOpened || api == null) return@LaunchedEffect
+        fileOpened = true
+        open(WorkspaceEntry(startFile.substringAfterLast('/'), startFile, "file"))
     }
     fun download(list: List<WorkspaceEntry>) {
         val a = api ?: return tell(tr("Not connected to botdot"))
