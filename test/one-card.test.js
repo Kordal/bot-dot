@@ -64,8 +64,7 @@ test('a refused tool while a changed bot for that permission waits: no second ca
   assert.deepEqual(await kinds(bot), ['bot-change', 'permission']);
   await answer((await asksOf(bot)).find((a) => a.kind === 'permission'), false);
 
-  // The owner sent the bot a second request after the first asked: that first request does not carry on (A10).
-  // So a bot of its own for the run that does.
+  // A bot of its own for the run that carries on, with nothing written to it since.
   const lone = await makeBot(srv, { name: 'Page Reader', emoji: '📖', allowedTools: ['Read'] });
   const wait = await srv.asChief(`/bots/${lone.id}`, from(chat, { method: 'PUT', body: WITH_WEB }));
   const asked = await refused(lone, [WEB], { prompt: 'Read the status page' });
@@ -86,8 +85,10 @@ test('a refused tool while a changed bot for that permission waits: no second ca
   assert.deepEqual([both.status, both.data.carriesOn], [200, CARRIES]);
   await waitFor(() => told(/News Watcher/)[0], { what: "the Chief's turn" });
   await quiet(chat);
-  await startsNothing(bot, 2);
-  assert.ok(!told(/News Watcher/)[0].stdin.includes(stopped.id), 'the Chief is told of no run');
+  // The first request carries on although the owner asked the bot again since (ADR 180), told of that request.
+  await carriedOn(bot, stopped);
+  assert.match(srv.runs().filter(isRunOf(bot)).at(-1).stdin, /<later-message>\nAnd the open pull requests\?\n<\/later-message>/);
+  await startsNothing(bot, 3);
 });
 
 test('ask_permission while a changed bot for that permission waits joins its card, also after a no to the permission', async () => {

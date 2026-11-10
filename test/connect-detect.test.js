@@ -185,7 +185,7 @@ test('a run the Chief started is handed back to the Chief once the app is connec
   drop('googlecalendar');
 });
 
-test('the work does not carry on when the owner wrote to the bot since, or after a day', { timeout: 60_000 }, async () => {
+test('the work carries on when the owner wrote to the bot since, and not after a week (ADR 180)', { timeout: 60_000 }, async () => {
   const wrote = await makeBot(srv, { name: 'Busy Reader', emoji: '📰', connectors: ['todoist'] });
   const a = await heldRun(srv, wrote, 'Read my tasks');
   assert.equal((await run(a.token, 'todoist', 'TODOIST_GET_TASKS')).data.code, 'needs-connect');
@@ -200,7 +200,7 @@ test('the work does not carry on when the owner wrote to the bot since, or after
   srv.release(b.rec);
   srv.unhold();
   await srv.finished(b.run.id);
-  const day = new Date(Date.now() - 25 * 3600e3).toISOString();
+  const day = new Date(Date.now() - 7 * 24 * 3600e3 - 3600e3).toISOString();
   writeData(path.join(srv.data, 'asks.json'), stored().map((x) => (x.botId === late.id ? { ...x, at: day, runs: x.runs.map((r) => ({ ...r, at: day })) } : x)));
 
   account('todoist');
@@ -208,8 +208,9 @@ test('the work does not carry on when the owner wrote to the bot since, or after
   assert.deepEqual([...await cardsOf(wrote), ...await cardsOf(late)], [], 'both cards settle');
   assert.deepEqual((await srv.api(`/bots/${late.id}`)).data.connectors, ['todoist']);
   await sleep(100);
-  assert.equal((await runsOf(wrote)).length, 2, 'no run carries on after the owner wrote');
-  assert.equal((await runsOf(late)).length, 1, 'nor after a day');
+  await waitFor(async () => (await runsOf(wrote)).length === 3 && (await runsOf(wrote)).every((r) => r.status !== 'running'), { what: 'the read carrying on' });
+  assert.deepEqual((await runsOf(wrote)).filter((r) => r.continues).map((r) => r.continues), [a.run.id], 'it carries on after the owner wrote');
+  assert.equal((await runsOf(late)).length, 1, 'not after a week');
   drop('todoist');
 });
 

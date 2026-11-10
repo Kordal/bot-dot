@@ -183,7 +183,7 @@ test("a bot carries on after the yes on a job it added, a tile it suggested and 
   await handed(rules.run, 'change your main assignment');
 });
 
-test('nothing starts after a decline, once the owner wrote to the bot after the proposal, or for a proposal made in a job\'s own run', async () => {
+test('nothing starts after a decline or for a proposal made in a job\'s own run, and a later message of the owner is told to what carries on', async () => {
   const bot = await makeBot(srv, { name: 'Tidy', emoji: '🧹' });
   const add = (name) => (token) => self(srv, token, 'jobs', { action: 'add', name, kind: 'ai', cron: `0 ${AT} * * *`, prompt: 'Tidy up.', assessment: 'It needs judgement.' });
 
@@ -193,14 +193,17 @@ test('nothing starts after a decline, once the owner wrote to the bot after the 
   assert.deepEqual((await approve(bot, no.did.data.job, false)).data, { ok: true, removed: true, text: 'Declined and removed' });
   await startsNothing(bot, 1);
 
-  // The owner wrote to the bot after the proposal: they have taken it up themselves.
+  // The owner wrote to the bot after the proposal: the request still carries on, told of it (ADR 180).
   const taken = await inRun(bot, 'Tidy up every evening', add('Evening tidy'));
   const later = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Never mind the evenings' } });
   await srv.finished(later.data.id);
-  assert.equal((await jobsOf(bot))[0].then, undefined, 'its card says nothing of what follows');
+  assert.deepEqual((await jobsOf(bot))[0].then, { who: 'bot', text: 'It carries on with “Tidy up every evening” when you allow it.' });
   const yes = await approve(bot, taken.did.data.job, true);
-  assert.deepEqual([yes.data.approved, yes.data.carriesOn], [true, undefined]);
-  await startsNothing(bot, 3);
+  assert.equal(yes.data.approved, true);
+  assert.ok(yes.data.carriesOn, 'it carries on');
+  await carriedOn(bot, taken.run);
+  assert.match((await lastRun(bot)).stdin, /<later-message>\nNever mind the evenings\n<\/later-message>/);
+  await startsNothing(bot, 4);
 
   // A job's own run that adds a job: the yes only adds it.
   srv.hold();
@@ -213,7 +216,7 @@ test('nothing starts after a decline, once the owner wrote to the bot after the 
   assert.deepEqual([own.data.job.approved, own.data.job.then], [false, undefined]);
   const added = await approve(bot, own.data.job, true);
   assert.deepEqual([added.data.approved, added.data.carriesOn], [true, undefined]);
-  await startsNothing(bot, 4);
+  await startsNothing(bot, 5);
 });
 
 test('botdot stopped and started with a change waiting: the approved job runs and the change still waits', async () => {

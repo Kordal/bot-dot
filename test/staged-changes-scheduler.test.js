@@ -103,7 +103,7 @@ test('one job: what waits beside it, what replaces it, and what changes at once'
   assert.deepEqual([normalizeJob({ ...fresh, name: 'Renamed' }, fresh, 'chief').runId, normalizeJob({ ...fresh }, fresh, 'you').approved], ['r4', false], 'untouched, it waits as it did');
 });
 
-test('what a yes on a proposal starts: the request of the owner or a teammate, for a day, and never a job or a run of the Chief', () => {
+test('what a yes on a proposal starts: the request of the owner or a teammate, for a week, and never a job or a run of the Chief', () => {
   const bot = { id: 'b1', jobs: [{ id: 'j1', enabled: true, approved: true }] };
   const at = new Date(Date.now() - 3600e3).toISOString();
   const run = (fields) => ({ id: 'r1', botId: 'b1', trigger: 'manual', startedAt: at, status: 'success', prompt: 'Do it', ...fields });
@@ -113,8 +113,9 @@ test('what a yes on a proposal starts: the request of the owner or a teammate, f
   assert.deepEqual(who({ jobId: 'j1', trigger: 'schedule' }), [], "not in a job's own run");
   assert.deepEqual(who({ jobId: 'j1', trigger: 'manual' }), [], 'nor in its "Run now"');
   assert.deepEqual(who({ startedBy: 'chief' }), [], 'a run the Chief started is not handed back for it');
-  assert.deepEqual(who({}, {}, { now: Date.now() + 24 * 3600e3 }), [], 'not after 24 hours');
-  assert.deepEqual(who({}, {}, { later: [{ id: 'r2', botId: 'b1', trigger: 'manual', startedAt: new Date().toISOString() }] }), [], 'not once the owner wrote to the bot after it');
+  assert.deepEqual(who({}, {}, { now: Date.now() + 24 * 3600e3 }), ['owner'], 'still a day later (ADR 180)');
+  assert.deepEqual(who({}, {}, { now: Date.now() + 7 * 24 * 3600e3 }), [], 'not after a week');
+  assert.deepEqual(who({}, {}, { later: [{ id: 'r2', botId: 'b1', trigger: 'manual', startedAt: new Date().toISOString() }] }), ['owner'], 'also once the owner wrote to the bot after it: it is told of that');
   // A change a bot proposed to its instructions is a proposal too; a permission's ask is none, and repeats a job's run.
   assert.deepEqual(who({ jobId: 'j1', trigger: 'schedule' }, { kind: 'bot-change', by: 'bot' }), []);
   assert.deepEqual(who({ jobId: 'j1', trigger: 'schedule' }, { kind: 'permission' }), ['job']);

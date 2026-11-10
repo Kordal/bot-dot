@@ -153,7 +153,7 @@ test('an action too long to show in full, after the bot stopped waiting: "Allow 
   srv.release(rec);
 });
 
-test('a card nobody waits for goes when the owner sends that bot a new message', async (t) => {
+test('a card nobody waits for stays when the owner sends that bot a new message (ADR 180)', async (t) => {
   const bot = await makeBot(srv, { name: 'Asked Again', emoji: '🔁', connectors: ['gmail'] });
   const { told, cards } = await waitedOut(t, srv, bot);
   assert.match(told[0], /^Error: The owner has not answered yet, so this action was not done\. Its card stays in Needs you/);
@@ -162,12 +162,14 @@ test('a card nobody waits for goes when the owner sends that bot a new message',
   srv.unhold();
   await srv.finished((await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Something else' } })).data.id);
   assert.deepEqual((await cardsOf(srv, bot)).map((a) => [a.id, a.then]), [[cards[0].id, THEN]]);
-  // The owner's own message: they have taken it up themselves, and an OK for the earlier run has nothing left to apply to.
+  // The owner's own message drops nothing either: the card stays, and its yes would carry the run on, told of that
+  // message. Here the owner says no.
   const again = (await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Did you tell Anna?' } })).data;
-  assert.deepEqual(await cardsOf(srv, bot), []);
   await srv.finished(again.id);
-  const gone = await answer(srv, cards[0], { yes: true });
-  assert.deepEqual([gone.status, gone.data.error], [404, 'That request was already answered.']);
+  assert.deepEqual((await cardsOf(srv, bot)).map((a) => [a.id, a.then]), [[cards[0].id, THEN]]);
+  const no = await answer(srv, cards[0], { yes: false });
+  assert.equal(no.status, 200);
+  assert.deepEqual(await cardsOf(srv, bot), []);
 });
 
 test('a card whose yes can start nothing any more: "Allow once" says that nothing was done, "Always allow" changes the setting only', async (t) => {
