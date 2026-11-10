@@ -1,6 +1,6 @@
 # ADR-160: The installer gives the admin's account its Composio key
 
-- **Status:** Accepted
+- **Status:** Accepted; the key is the machine's and goes to every account since [ADR 206](206-the-machines-composio-key-goes-to-every-account.md)
 - **Owning task:** the owner's request in the project thread "Ask for Composio key at install"
 - **Builds on:** the installer's keys of [#937](https://github.com/Kordal/bot-dot/pull/937) (Jev's OpenRouter key and the boat.dev key, `data/install-keys.json`), and the rule of [#440](https://github.com/Kordal/bot-dot/issues/440) that connectors run only on a Composio key the owner made.
 

@@ -69,7 +69,7 @@ function drawConnectors() {
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
   root.innerHTML = `${head}
     <div class="set-list conn-setup">${conn.replacing ? `${keyForm(tr('New Composio API key'), tr('Save'))}<button type="button" class="bs-row bs-link" id="conn-cancel"><b>${tr('Cancel')}</b></button>`
-      : `<div class="bs-row key-row"><b>Composio</b><span class="bs-val">${esc(d.keyHint || '')}</span><button class="btn sm" id="conn-replace">${tr('Replace')}</button><button class="btn sm danger" id="conn-forget">${tr('Remove')}</button></div>`}</div>
+      : `<div class="bs-row key-row"><b>Composio</b><span class="bs-val">${d.machine ? tr('Set up for everyone on this botdot') : esc(d.keyHint || '')}</span>${d.machine && !advanced() ? '' : `<button class="btn sm" id="conn-replace">${tr('Replace')}</button><button class="btn sm danger" id="conn-forget">${tr('Remove')}</button>`}</div>`}</div>
     ${d.error ? `<div class="req-note">${esc(d.error)}</div>` : ''}
     <h3 class="page-sub">${tr('Your apps')}</h3>
     ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `

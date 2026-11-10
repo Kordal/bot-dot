@@ -190,6 +190,34 @@ test("the installer's key, from the front door alone, is taken only while there 
   assert.equal((await srv.api('/connectors')).data.keyHint, '…ne_2', "the owner's own key stays");
 });
 
+// The machine's key (ADR 206), from the admin page or the fleet console: a key taken from it follows it, a new one
+// replaces it and null removes it; the owner's own key is never touched, and one the owner removed isn't taken again.
+test("the machine's key follows the machine: replaced, removed, and never over the owner's own", async () => {
+  const room = { 'x-botdot-room': '1' };
+  const hand = (key) => srv.api('/connectors/install-key', { method: 'POST', body: { key }, headers: room });
+  await srv.api('/connectors/key', { method: 'DELETE' });
+  assert.equal((await hand(null)).data.removed, false, 'nothing to take back');
+  const taken = await hand(OWN_KEY);
+  assert.deepEqual([taken.status, taken.data.taken, taken.data.machine], [200, true, true], JSON.stringify(taken.data));
+  assert.equal((await srv.api('/connectors')).data.machine, true, 'the Apps page says it is set up for everyone');
+  assert.equal((await hand(OWN_KEY)).data.kept, true, 'the same key: nothing to do');
+  const replaced = await hand(OWN_KEY_2);
+  assert.deepEqual([replaced.data.taken, replaced.data.keyHint], [true, '…ne_2'], "a new machine's key replaces it");
+  const removed = await hand(null);
+  assert.deepEqual([removed.data.removed, removed.data.configured], [true, false], 'the admin removed it: it goes');
+
+  await hand(OWN_KEY);
+  await srv.api('/connectors/key', { method: 'DELETE' }); // the owner says no to it
+  const declined = await hand(OWN_KEY_2);
+  assert.deepEqual([declined.data.kept, declined.data.configured], [true, false], 'not handed again once the owner removed it');
+
+  await srv.api('/connectors/key', { method: 'PUT', body: { key: OWN_KEY } });
+  assert.equal((await srv.api('/connectors')).data.machine, false, 'a pasted key is the owner\'s own');
+  assert.equal((await hand(OWN_KEY_2)).data.kept, true);
+  assert.equal((await hand(null)).data.kept, true, "the owner's own key stays when the machine's goes");
+  assert.equal((await srv.api('/connectors')).data.keyHint, '…_789');
+});
+
 test('checkKey answers ok, refused or unreachable, as the installer reads it', async () => {
   const { checkKey } = require('../lib/connectors');
   const answer = (status) => async () => ({ ok: status < 300, status });

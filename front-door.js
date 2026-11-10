@@ -80,6 +80,7 @@ const boatStore = require('./lib/front-door/boat');
 const installKeys = require('./lib/front-door/install-keys');
 const storageBox = require('./lib/front-door/storage-box');
 const boatLib = require('./lib/boat');
+const connectorsLib = require('./lib/connectors');
 const usageStore = require('./lib/front-door/usage');
 const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
@@ -1174,31 +1175,40 @@ function takeInstallKeys() {
   }
   handComposio();
 }
-// The installer's Composio key (ADR 161): the admin's own account's (a managed machine's first), handed until that
-// account answers, which it does once it is made and running. It takes it only while it has no key of its own.
-const COMPOSIO_TO = ADMIN || SETUP_ACCOUNT;
-// A key Composio refused is kept and handed again an hour later: a project key the fleet console has just made may
-// not be accepted yet, and the account says why on its Connectors page meanwhile.
+// The machine's Composio key (ADR 206): from the installer, the fleet console (KEYS, ADR 162) or the admin page, handed
+// to every account. An account keeps a key its owner pasted, and one its owner removed is not handed again; one taken
+// from here follows the machine's: a new key replaces it, a removed one goes. Each account is asked once for each key
+// (again after a restart), and an hour after it refused one: a project key the fleet console has just made may not be
+// accepted yet, and the account says why on its Apps page meanwhile.
 const COMPOSIO_REFUSED_WAIT_MS = Number(process.env.FRONT_DOOR_COMPOSIO_RETRY_MS) || 3600_000;
-let handingComposio = false;
-let composioRefusedAt = 0;
+const composioAnswered = new Map(); // account → the key's mark it answered for, or { refused: ms }
+const composioHanding = new Set();
+let composioMark = null;
 function handComposio() {
-  if (Date.now() - composioRefusedAt < COMPOSIO_REFUSED_WAIT_MS) return;
-  const key = COMPOSIO_TO && !handingComposio ? installKeys.composio(DATA) : null;
-  if (!key) return;
-  handingComposio = true;
-  askAccount(COMPOSIO_TO, 'POST', '/api/connectors/install-key', { key }, 30_000).then((r) => {
-    handingComposio = false;
-    if (!r.status || r.status >= 500) return; // not made, not running, or Composio gave no answer: next minute
-    if (r.status === 400) {
-      composioRefusedAt = Date.now();
-      console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key, tried again in an hour: ${r.data?.error || r.status}`);
-      return;
-    }
-    installKeys.handed(DATA);
-    if (r.status !== 200) console.error(`[front door] ${COMPOSIO_TO} didn't take the installer's Composio key: ${r.data?.error || r.status}`);
-    else if (!r.data?.kept) console.log(`[front door] the installer's Composio key went to ${COMPOSIO_TO}`);
-  });
+  const state = installKeys.composioState(DATA);
+  if (!state) return; // never set: nothing to hand, nothing to take back
+  const key = state.key;
+  const mark = key ? crypto.createHash('sha256').update(key).digest('hex').slice(0, 16) : 'none';
+  if (mark !== composioMark) { composioAnswered.clear(); composioMark = mark; }
+  for (const { name } of doors.listAccounts()) {
+    const was = composioAnswered.get(name);
+    if (was === mark || composioHanding.has(name) || (was?.refused && Date.now() - was.refused < COMPOSIO_REFUSED_WAIT_MS)) continue;
+    composioHanding.add(name);
+    askAccount(name, 'POST', '/api/connectors/install-key', { key }, 30_000).then((r) => {
+      composioHanding.delete(name);
+      if (composioMark !== mark) return; // the key changed meanwhile: the new one is handed
+      if (!r.status || r.status >= 500) return; // not running, or Composio gave no answer: next minute
+      if (r.status === 400 && key) {
+        composioAnswered.set(name, { refused: Date.now() });
+        console.error(`[front door] ${name} didn't take the machine's Composio key, tried again in an hour: ${r.data?.error || r.status}`);
+        return;
+      }
+      composioAnswered.set(name, mark);
+      if (r.status !== 200) console.error(`[front door] ${name} didn't take the machine's Composio key: ${r.data?.error || r.status}`);
+      else if (r.data?.taken) console.log(`[front door] the machine's Composio key went to ${name}`);
+      else if (r.data?.removed) console.log(`[front door] the machine's Composio key was taken back from ${name}`);
+    });
+  }
 }
 takeInstallKeys();
 setInterval(takeInstallKeys, 60_000).unref();
@@ -1540,6 +1550,24 @@ async function adminRoutes(req, res, p, account) {
     audited(key ? 'boat-key-set' : 'boat-key-removed');
     handBoat(true);
     return send(res, 200, shown);
+  }
+  // The machine's Composio key (ADR 206): every account without a key of its own connects apps with it. Checked with
+  // Composio before it is kept; null removes it, and the accounts that took it lose it. It is never answered.
+  if (p === '/admin/composio' && req.method === 'GET') return send(res, 200, { keySet: !!installKeys.composio(DATA) });
+  if (p === '/admin/composio' && req.method === 'POST') {
+    const body = (await readJson(req)) || {};
+    const key = typeof body.key === 'string' ? body.key.trim() : null;
+    if (body.key !== null && !key) return send(res, 400, { error: 'Paste a Composio API key.' });
+    if (key) {
+      const checked = installKeys.KEY.test(key) ? await connectorsLib.checkKey(key) : 'refused';
+      if (checked === 'refused') return send(res, 400, { error: "Composio doesn't accept that key. Copy a project API key from Composio's dashboard (Settings → API keys)." });
+      if (checked === 'unreachable') return send(res, 502, { error: "Composio can't be reached. Try again." });
+    }
+    installKeys.setComposio(DATA, key);
+    console.log(`[front door] the admin ${key ? 'set' : 'removed'} the machine's Composio key`);
+    audited(key ? 'composio-key-set' : 'composio-key-removed');
+    handComposio();
+    return send(res, 200, { keySet: !!key });
   }
   if (p === '/admin/accounts' && req.method === 'GET') {
     switchPastDeadline();
