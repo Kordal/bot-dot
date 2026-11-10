@@ -37,7 +37,7 @@ test('any file up to 64 KB is taken (#231); an empty, too big or unreadable one 
   const big = Buffer.concat([PEM_BYTES, Buffer.alloc(64 * 1024)]);
   assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: big.toString('base64') }), /bigger than 64 KB/);
   const justOver = Buffer.concat([PEM_BYTES, Buffer.alloc(64 * 1024 - PEM_BYTES.length + 1, 0x41)]);
-  assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: justOver.toString('base64') }), /That file is 65 KB\. A file in the Vault can be at most 64 KB\./);
+  assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: justOver.toString('base64') }), /That file is 65 KB\. A file in Passwords can be at most 64 KB\./);
   const exactly = Buffer.concat([PEM_BYTES, Buffer.alloc(64 * 1024 - PEM_BYTES.length, 0x41)]);
   assert.equal(vaultFiles.readFile({ fileName: 'key.pem', content: exactly.toString('base64') }).bytes.length, 64 * 1024);
   assert.throws(() => vaultFiles.readFile({ fileName: 'key.pem', content: '' }), /^Error: Pick the file\.$/);
@@ -112,7 +112,7 @@ test('Bitwarden: an added file is a secure note of the bot-dot folder, listed by
   const got = bw.file('bot1', 'github app');
   assert.ok(Buffer.from(got.content, 'base64').equals(PEM_BYTES), 'byte for byte');
   assert.equal(got.fileName, 'app.pem');
-  assert.throws(() => bw.file('bot2', 'GitHub App'), /isn't allowed to use the file "GitHub App"\. Ask the owner to share it with you in the Vault/);
+  assert.throws(() => bw.file('bot2', 'GitHub App'), /isn't allowed to use the file "GitHub App"\. Ask the owner to share it with you in Passwords/);
   assert.throws(() => bw.file('bot1', 'A note'), /No saved file called "A note"/);
   assert.throws(() => bw.credentials('bot1', 'GitHub App'), /No saved login/, 'a file is no login');
 

@@ -90,8 +90,8 @@ class AskWordsTest {
 
     @Test fun aVaultRemoveIsAnsweredOnItsCardOnly() {
         // A bot asks to remove a Vault entry: the server's line, and Decline alone (`yesOn: "card"`).
-        val remove = """{"id":"r1","kind":"vault-remove","botId":"vps","botName":"VPS Admin","text":"Asks to remove “Uptime Kuma netcup API key” from the Vault","yesOn":"card"}"""
-        assertEquals("Asks to remove “Uptime Kuma netcup API key” from the Vault", words(remove).first)
+        val remove = """{"id":"r1","kind":"vault-remove","botId":"vps","botName":"VPS Admin","text":"Asks to remove “Uptime Kuma netcup API key” from Passwords","yesOn":"card"}"""
+        assertEquals("Asks to remove “Uptime Kuma netcup API key” from Passwords", words(remove).first)
         assertEquals(listOf("Decline"), buttons(remove))
     }
 }

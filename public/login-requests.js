@@ -85,7 +85,7 @@ function openLoginRequest(r, host = null) {
         </div>
         ${r.reason ? `<div class="req-reason"><span class="muted">${r.from === 'chief' ? tr('The Chief says:') : tr('The bot says:')}</span> “${esc(r.reason)}”</div>` : ''}
         ${reusable.length ? `
-          <fieldset><legend>${tr('Already in your Vault')}</legend>
+          <fieldset><legend>${tr('Already in your Passwords')}</legend>
             ${reusable.map((e) => `<div class="req-existing"><span>🔑 <b>${esc(e.name)}</b> ${e.username ? `· ${esc(e.username)}` : ''}</span><button type="button" class="btn sm" data-allow="${esc(e.id)}">${tr('Let {bot} use it', { bot: esc(r.bot.name) })}</button></div>`).join('')}
           </fieldset>` : ''}
         ${loginRequestOthers(r)}
@@ -95,7 +95,7 @@ function openLoginRequest(r, host = null) {
         ${vaultTypeFields(r.type, { username: r.username })}
         <label class="field">${tr('Save as')}<input type="text" name="name" value="${esc(r.name)}"></label>
         ${state.bw?.configured && !state.bw.unlocked ? `<label class="field">${tr('Bitwarden master password')} <span class="hint">${tr('Bitwarden is locked; this unlocks it so the login is saved there')}</span><input type="password" name="unlockPassword" autocomplete="current-password" required></label>` : ''}
-        <div class="req-note">🛡 ${state.bw?.configured ? tr("Goes straight into your Bitwarden (bot-dot folder). The AI never sees it, and it isn't written to the chat or logs.") : tr("Goes straight into your encrypted Vault. The AI never sees it, and it isn't written to the chat or logs.")}
+        <div class="req-note">🛡 ${state.bw?.configured ? tr("Goes straight into your Bitwarden (bot-dot folder). The AI never sees it, and it isn't written to the chat or logs.") : tr("Goes straight into your encrypted Passwords. The AI never sees it, and it isn't written to the chat or logs.")}
           ${tr('Only continue if you expected this request: web pages can try to trick bots into asking.')}</div>
       </div>
       <div class="modal-foot">

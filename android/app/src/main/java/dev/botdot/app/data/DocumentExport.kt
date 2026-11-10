@@ -31,7 +31,7 @@ object DocumentExport {
         else -> tr("Connect…")
     }
     const val GOOGLE_DOCS_APP = "googledocs"
-    val GOOGLE_DOCS_NOT_SET_UP: String get() = tr("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Connectors page, then try again.")
+    val GOOGLE_DOCS_NOT_SET_UP: String get() = tr("Google Docs can't be reached: connected apps aren't set up on this server. Add a Composio key on the Apps page, then try again.")
     val GOOGLE_DOCS_SIGN_IN: String get() = tr("Sign in to Google in the browser, then come back and tap Google Docs again to save.")
 
     /** Only a Google Doc's own address is opened from the server's answer. */

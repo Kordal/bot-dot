@@ -35,7 +35,7 @@ test('the bot asking for a command it was refused makes one permission card, wit
   refuse([bash, { ...bash, tool_use_id: 't2' }, { tool_name: 'mcp__claude_ai_AgentMail__list_inboxes', tool_use_id: 't3', tool_input: {} }]);
   await run(bot);
   let list = await asksOf(bot);
-  assert.equal(list.length, 1, 'one card for the commands; apps are left to the Connectors page');
+  assert.equal(list.length, 1, 'one card for the commands; apps are left to the Apps page');
   assert.equal(list[0].permission, 'commands');
   assert.match(list[0].reason, /List open pull requests/);
   assert.deepEqual(Object.keys(list[0]).sort(), ['at', 'bot', 'botId', 'forBots', 'id', 'kind', 'permission', 'reason', 'text', 'then', 'what'], 'what a card of a refused tool has');

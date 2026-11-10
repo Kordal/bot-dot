@@ -69,7 +69,7 @@ test("web: a job's settings say it takes signed calls, beside the notify line; a
   const { cut, esc, words } = require('./web-page');
   const ctx = vm.createContext({ ...words, esc });
   vm.runInContext(`${cut('const jobCallModeLine = ', 'function jobCardHTML(j, open = false) {')}\nthis.jobCallModeLine = jobCallModeLine;`, ctx);
-  assert.equal(ctx.jobCallModeLine({ call: true, callMode: 'signed' }), '<div class="faint job-call-mode">Takes signed calls: each one is signed with the secret in the Vault, and runs once.</div>');
+  assert.equal(ctx.jobCallModeLine({ call: true, callMode: 'signed' }), '<div class="faint job-call-mode">Takes signed calls: each one is signed with the secret in Passwords, and runs once.</div>');
   assert.equal(ctx.jobCallModeLine({ call: true }), '');
   assert.equal(ctx.jobCallModeLine({ call: false, callMode: 'signed' }), '');
 });
@@ -265,7 +265,7 @@ test("a bot proposes a signed call on its own job; the yes tells it the address 
   await carriedOn(bot, asked.run);
   const rec = await lastRun(bot);
   const address = `${srv.base}/call/${srv.account}/${bot.id}/${job.id}`;
-  assert.ok(rec.stdin.includes(`The owner allowed you to: let the script “Pulls” take signed calls: its call address is ${address}, and its secret is in the Vault item “${secretName(bot, job)}”, which no bot is given.`), rec.stdin);
+  assert.ok(rec.stdin.includes(`The owner allowed you to: let the script “Pulls” take signed calls: its call address is ${address}, and its secret is in Passwords item “${secretName(bot, job)}”, which no bot is given.`), rec.stdin);
   assert.ok(!rec.stdin.includes(secret), 'never the secret');
 
   const { did } = await inRun(bot, 'Stop the GitHub calls', async (token) => ({

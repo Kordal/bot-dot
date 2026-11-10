@@ -97,7 +97,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         val body = res.body.string()
         if (!res.isSuccessful) {
             val msg = runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonPrimitive?.takeIf { it.isString }?.content }.getOrNull()?.trim()?.ifEmpty { null }
-            throw ApiException(msg ?: if (res.code == 403) tr("botdot refused this device: {body}", "body" to body.take(200)) else tr("botdot answered {code}", "code" to res.code), res.code, said = msg != null)
+            throw ApiException(msg ?: statusWords(res.code), res.code, said = msg != null)
         }
         return body
     }
@@ -1013,3 +1013,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
 fun JsonObject.str(key: String): String = this[key]?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() } ?: ""
 fun JsonObject.arr(key: String): JsonArray? = this[key] as? JsonArray
+
+/** A status with no sentence of botdot's, in words for someone who does not know HTTP (ADR 200): never the number. */
+internal fun statusWords(code: Int): String = when {
+    code == 401 -> tr("Sign in again, then try once more.")
+    code == 403 -> tr("botdot doesn't allow that here.")
+    code == 413 -> tr("That is too big for botdot.")
+    code >= 500 -> tr("botdot didn't finish that. Try again in a moment.")
+    else -> tr("botdot couldn't do that. Try again.")
+}

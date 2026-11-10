@@ -291,7 +291,7 @@
       try {
         const r = await fetch('/api/uploads?to=chief', { method: 'POST', headers: { 'X-Bot-Dot': '1', 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
         const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || tr('Upload failed ({status})', { status: r.status }));
+        if (!r.ok) throw new Error(d.error || statusWords(r.status));
         added.push({ kind: 'file', name: file.name, upload: d });
       } catch (e) { toast(`${file.name}: ${e.message}`, true); }
     }

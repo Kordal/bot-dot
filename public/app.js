@@ -83,6 +83,13 @@ function setSignedOut(claude) {
 // Not reached: no answer came, or a gateway answered in botdot's place that it is not there (502, 503
 // without botdot's sentence), as Tailscale Serve does while botdot is down. A 504 is a gateway that
 // gave up waiting: botdot is away, and may have taken the request.
+// A status with no sentence of botdot's, as a sentence for someone who does not know HTTP (ADR 200): never the number.
+const statusWords = (status) => status === 401 ? tr('Sign in again, then try once more.')
+  : status === 403 ? tr("botdot doesn't allow that here.")
+  : status === 413 ? tr('That is too big for botdot.')
+  : status >= 500 ? tr("botdot didn't finish that. Try again in a moment.")
+  : tr("botdot couldn't do that. Try again.");
+
 async function api(path, opts = {}) {
   const unreached = () => Object.assign(new Error(tr("Can't reach botdot.")), { unreached: true });
   let res;
@@ -108,7 +115,7 @@ async function api(path, opts = {}) {
   if (notThere) throw unreached();
   if (!res.ok) {
     // state: the server's word for what stands in the way (the viewer's "gone", "computer-off": #251).
-    throw Object.assign(new Error(said || tr("botdot couldn't do that ({status}).", { status: res.status })), { status: res.status, refused: !!said, unsure: !said && res.status >= 500 },
+    throw Object.assign(new Error(said || statusWords(res.status)), { status: res.status, refused: !!said, unsure: !said && res.status >= 500 },
       typeof data.state === 'string' ? { state: data.state } : {});
   }
   return data;

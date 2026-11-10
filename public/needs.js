@@ -526,7 +526,7 @@ function actNeed(x) {
 function actLabel(x) {
   const act = x.kind === 'ask' && x.a.act && typeof x.a.act === 'object' ? x.a.act : null;
   if (!act || !(act.verb === 'connect' || (act.verb === 'open' && act.screen === 'connectors'))) return '';
-  return said(act.label) || (act.verb === 'connect' ? (x.a.mode === 'reconnect' ? tr('Reconnect') : tr('Connect')) : tr('Open Connectors'));
+  return said(act.label) || (act.verb === 'connect' ? (x.a.mode === 'reconnect' ? tr('Reconnect') : tr('Connect')) : tr('Open Apps'));
 }
 const needLive = (x, here = null) => [x.a?.batch?.id, x.a?.act?.verb, x.a?.act?.label, x.a?.body, x.a?.kind === 'connect-app' ? connecting.get(x.a.id) || null : null, x.a?.batch?.title, x.a?.batch?.own, x.group?.name, x.a?.held, x.a?.stoppedAt, rowsCut(x.a), tooLong(x.a), x.job?.no, x.t?.no, changeOf(x.job || x.t) || null, x.p?.title, x.p?.guarded, x.p?.text];
 
@@ -702,7 +702,7 @@ function updateChatNeeds(thread, scope) {
 }
 
 // "Always approve" a script job: its later changes run without you seeing them, so say what that means first.
-const scriptWarning = (bot, job) => tr("Always approve \"{job}\" from {bot}?\n\nIt's a script: it runs as commands on this computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks {bot} into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in {bot}'s settings.", { bot, job });
+const scriptWarning = (bot, job) => tr("Always approve \"{job}\" from {bot}?\n\nIt's a quick check without AI. It can change anything on botdot's computer, so allow it only if you trust {bot}.\n\nYou can take this back in {bot}'s settings.", { bot, job });
 
 // A job in one line: when it runs and what kind it is.
 const jobLine = (j) => `${j.when} · ${j.kind === 'script' ? tr('a script, no AI') : tr('uses AI')}`;

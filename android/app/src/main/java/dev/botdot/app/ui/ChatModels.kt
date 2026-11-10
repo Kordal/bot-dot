@@ -23,6 +23,7 @@ import dev.botdot.app.data.Run
 import dev.botdot.app.data.ReplyDraft
 import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.str
+import dev.botdot.app.data.statusWords
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -840,7 +841,7 @@ internal fun without(list: kotlinx.serialization.json.JsonElement?, id: String):
     } ?: list
 
 /** A failure before the message was sent that botdot answered with a [status] and no sentence: see [notSent]. */
-internal class NotSent(val status: Int) : IOException(tr("botdot couldn't do that ({status}).", "status" to status))
+internal class NotSent(val status: Int) : IOException(statusWords(status))
 
 /**
  * A failure before the message itself was sent (its chat could not be made), in the web page's words. botdot's own
@@ -883,7 +884,7 @@ internal fun sendNote(e: Throwable, once: Boolean = false): String {
         api.said && said.isNotEmpty() -> notSentBecause(said)
         api.status == 502 || api.status == 503 || (api.status == 0 && (once || !api.sent)) -> tr("Not sent: can't reach botdot.") + " " + STILL_HERE
         api.status == 0 || api.status >= 500 -> tr("It may have been sent: check the chat.") + " " + STILL_HERE
-        else -> notSentBecause(tr("botdot couldn't do that ({status}).", "status" to api.status)) // an answer without a sentence, as the web page says it
+        else -> notSentBecause(statusWords(api.status)) // an answer without a sentence, as the web page says it
     }
 }
 

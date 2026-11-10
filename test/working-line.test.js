@@ -64,7 +64,7 @@ test('a step in, one short plain line out', () => {
   assert.equal(tool('mcp__computer__read_file', { path: '/workspace/b1/notes.md' }), 'Reading a file on its computer');
   assert.equal(tool('mcp__computer__write_file', { path: '/workspace/b1/notes.md', content: 'x' }), 'Saving a file on its computer');
   assert.equal(tool('mcp__computer__move_mouse', { x: 1, y: 2 }), 'Using its computer');
-  assert.equal(tool('mcp__computer__run_shell', { command: 'ls' }), 'Running a command on its computer');
+  assert.equal(tool('mcp__computer__run_shell', { command: 'ls' }), 'Working on its computer');
   assert.equal(tool('mcp__computer__run_shell', { command: 'df -h', description: 'Check disk space' }), 'Check disk space');
   assert.equal(tool('mcp__computer__run_with_file', { file: 'k.pem', command: 'openssl x', description: 'Sign the token' }), 'Sign the token');
   assert.equal(tool('mcp__computer__run_with_file', { file: 'k.pem', command: 'openssl x' }), 'Running a command with a saved file');
@@ -73,7 +73,7 @@ test('a step in, one short plain line out', () => {
   assert.equal(tool('mcp__computer__run_with_ssh_key', { key: 'Tailnet servers', command: 'ssh admin@host uptime' }), 'Running a command with a saved SSH key');
   assert.equal(tool('mcp__computer__run_with_ssh_key', { key: 'Tailnet servers', command: 'ssh admin@host uptime', description: 'Check the server is up' }), 'Check the server is up');
   assert.equal(tool('mcp__computer__run_with_login', { login: 'Bridge', command: 'curl x', description: 'Read the inbox' }), 'Read the inbox');
-  assert.equal(tool('mcp__vault__api_request', { url: 'https://api.github.com/user', login: 'GitHub' }), 'Calling api.github.com');
+  assert.equal(tool('mcp__vault__api_request', { url: 'https://api.github.com/user', login: 'GitHub' }), 'Checking api.github.com');
   assert.equal(tool('mcp__vault__request_login', { site: 'github.com' }), 'Asking you for a login');
   assert.equal(tool('mcp__connectors__connector_run', { app: 'gmail', action: 'GMAIL_SEND_EMAIL' }), 'Using gmail');
   assert.equal(tool('mcp__self__remember', { text: 'x' }), 'Saving a note');
@@ -101,10 +101,10 @@ test('a secret, a whole command, a long address and a file\'s path are not in a 
   const steps = [
     ['WebFetch', { url: 'https://user:SECRET@www.example.com/a/very/long/path/that/goes/on?token=SECRET&q=SECRET#SECRET' }, 'Reading example.com'],
     ['mcp__computer__open_browser', { url: 'https://example.com/login?password=SECRET' }, 'Opening example.com'],
-    ['mcp__vault__api_request', { url: 'https://api.example.com/v1?key=SECRET', login: 'SECRET', body: 'SECRET' }, 'Calling api.example.com'],
+    ['mcp__vault__api_request', { url: 'https://api.example.com/v1?key=SECRET', login: 'SECRET', body: 'SECRET' }, 'Checking api.example.com'],
     ['Bash', { command: 'curl -H "Authorization: Bearer SECRET" https://example.com' }, 'Running a command'],
     ['Bash', { command: 'curl -H "Authorization: Bearer SECRET" https://example.com', description: 'Check the vault files' }, 'Check the vault files'],
-    ['mcp__computer__run_shell', { command: 'export KEY=SECRET' }, 'Running a command on its computer'],
+    ['mcp__computer__run_shell', { command: 'export KEY=SECRET' }, 'Working on its computer'],
     ['mcp__computer__run_shell', { command: 'export KEY=SECRET', description: 'Read the repo' }, 'Read the repo'],
     ['mcp__computer__run_with_login', { login: 'SECRET', command: 'curl --user SECRET' }, 'Running a command with a saved login'],
     ['mcp__computer__start_program', { command: 'app --token SECRET' }, 'Starting a program on its computer'],

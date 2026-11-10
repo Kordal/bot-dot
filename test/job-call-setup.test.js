@@ -102,7 +102,7 @@ test('a bot cannot turn a call on for its own job', async () => {
 });
 
 let key;
-test('the yes saves the key in the Vault as an API token for no bot, and a call with it runs the job', async () => {
+test('the yes saves the key in Passwords as an API token for no bot, and a call with it runs the job', async () => {
   const r = await approve(bot, job);
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.call, true);
@@ -130,7 +130,7 @@ test('the Chief reads the call address and where the key is, and never the key o
   assert.ok(!seen.includes(key) && !seen.includes(hash));
 });
 
-test('a new key replaces the one in the Vault at once: the old key answers 401', async () => {
+test('a new key replaces the one in Passwords at once: the old key answers 401', async () => {
   const r = await srv.asChief(`${at(bot, job)}/call/setup`, { method: 'POST' });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.vaultItem, keyName(bot, job));

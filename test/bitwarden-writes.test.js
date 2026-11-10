@@ -66,7 +66,7 @@ test('Bitwarden: syncs asked for while one runs are that one, and a login reques
   await bw.sync({ ifOlderThan: 60_000 });
   assert.deepEqual(since(), [], 'synced a moment ago');
   await bw.sync();
-  assert.deepEqual(since().map((c) => c[0]), ['sync', 'list', 'list'], 'the Vault page\'s Sync still syncs');
+  assert.deepEqual(since().map((c) => c[0]), ['sync', 'list', 'list'], 'the Passwords page\'s Sync still syncs');
 });
 
 // RFC 6238's test values (appendix B): the ASCII secret 12345678901234567890, 8 digits, 30 seconds.

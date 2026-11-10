@@ -49,7 +49,7 @@ const vaultFileLine = (l) => `${esc(l.fileName || '')} · ${vaultFileSize(Number
 // The Type control, and the fields that hold the secret of a type, in the editor and in the "needs a login"
 // dialog. username: what the username field starts with. isNew: a new item needs its secret; a saved one
 // keeps it when the field is left empty. Other has the secret alone.
-const vaultTypeControl = (type) => `<label class="field">${tr('Type')}<select name="type">${Object.entries(VAULT_TYPES).map(([value, t]) => `<option value="${value}"${value === vaultType(type) ? ' selected' : ''}>${t.label}</option>`).join('')}</select></label>`;
+const vaultTypeControl = (type) => (!advanced() && vaultType(type) === 'login' ? '<input type="hidden" name="type" value="login">' : `<label class="field">${tr('Type')}<select name="type">${Object.entries(VAULT_TYPES).map(([value, t]) => `<option value="${value}"${value === vaultType(type) ? ' selected' : ''}>${t.label}</option>`).join('')}</select></label>`);
 function vaultTypeFields(type, { username = '', isNew = true } = {}) {
   const t = VAULT_TYPES[vaultType(type)];
   // What a field means beyond its label is its tooltip, not a line beside it (#1190).
@@ -84,7 +84,7 @@ function wireSecretFile(form) {
     const file = form.secretFile.files[0];
     form.secretFile.value = '';
     if (!file) return;
-    if (file.size > SECRET_FILE_MAX) { toast(tr('That file is too big for the Vault (64 KB at most).'), true); return; }
+    if (file.size > SECRET_FILE_MAX) { toast(tr('That file is too big for Passwords (64 KB at most).'), true); return; }
     form.password.value = await file.text();
   };
 }
@@ -130,8 +130,8 @@ async function renderVault() {
   root.innerHTML = `
     ${subBack()}
     <div class="section-head">
-      <div><h1 title="${esc(bw.configured ? tr("Your Bitwarden's bot-dot folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them.") : tr('Saved logins your bots can use without ever seeing the password.'))}">${tr('Vault')}</h1></div>
-      ${locked ? '' : `<div class="vault-add">${bw.unlocked ? `<button class="btn" id="add-file">＋ ${tr('File')}</button><button class="btn" id="add-ssh-key">＋ ${tr('SSH key')}</button>` : ''}<button class="btn primary" id="add-login">＋ ${tr('Add')}</button></div>`}
+      <div><h1 title="${esc(bw.configured ? tr("Your Bitwarden's bot-dot folder: logins, cards, identities, SSH keys and files your bots can use without ever seeing them.") : tr('Saved logins your bots can use without ever seeing the password.'))}">${tr('Passwords')}</h1></div>
+      ${locked ? '' : `<div class="vault-add">${bw.unlocked && advanced() ? `<button class="btn" id="add-file">＋ ${tr('File')}</button><button class="btn" id="add-ssh-key">＋ ${tr('SSH key')}</button>` : ''}<button class="btn primary" id="add-login">＋ ${tr('Add')}</button></div>`}
     </div>
     ${!bw.configured ? (bw.installed === false ? `<div class="req-note">${tr('To use Bitwarden, install its command-line tool first: {command}, then reload.', { command: '<span class="mono">brew install bitwarden-cli</span>' })}</div>` : bitwardenSetupHTML()) : `
     <div class="set-list"><div class="bs-row bw-bar">
@@ -185,16 +185,16 @@ function openLoginEditor(login, { onSaved } = {}) {
   const l = login || { name: '', site: '', username: '', allowedBots: [] };
   const m = openModal(`
     <form id="login-form" autocomplete="off">
-      <div class="modal-head"><h2>${isNew ? tr('Add to the Vault') : esc(tr('Edit {name}', { name: l.name }))}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${isNew ? tr('Add to Passwords') : esc(tr('Edit {name}', { name: l.name }))}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         ${vaultTypeControl(l.type)}
         <div class="row">
           <label class="field">${tr('Name')}<input type="text" name="name" value="${esc(l.name)}" placeholder="${esc(tr('e.g. Recipes'))}"></label>
-          <label class="field" title="${esc(tr('The secret is only used with this address'))}">${tr('Website or server')}<input type="text" name="site" value="${esc(l.site)}" placeholder="recipes.example.com or pve.example.ts.net" required></label>
+          <label class="field" title="${esc(tr('The secret is only used with this address'))}">${advanced() ? tr('Website or server') : tr('Website')}<input type="text" name="site" value="${esc(l.site)}" placeholder="${advanced() ? 'recipes.example.com or pve.example.ts.net' : 'recipes.example.com'}" required></label>
         </div>
         ${vaultTypeFields(l.type, { username: l.username, isNew })}
-        <label class="field" title="${esc(tr('Only these hosts may receive this login. Subdomains are not included automatically.'))}">${tr('Additional exact hosts')}<input type="text" name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
-        <div class="req-note">${tr('Bots can use this login to sign in on the website, or to call its API: they write {username} and {password} in the request and botdot fills them in, so they never see the secret.', { username: '<span class="mono">{{username}}</span>', password: '<span class="mono">{{password}}</span>' })}</div>
+        <label class="field"${advanced() ? '' : ' style="display:none"'} title="${esc(tr('Only these hosts may receive this login. Subdomains are not included automatically.'))}">${tr('Additional exact hosts')}<input type="text" name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
+        <div class="req-note"${advanced() ? '' : ' hidden'}>${tr('Bots can use this login to sign in on the website, or to call its API: they write {username} and {password} in the request and botdot fills them in, so they never see the secret.', { username: '<span class="mono">{{username}}</span>', password: '<span class="mono">{{password}}</span>' })}</div>
         <div class="req-error" role="alert" hidden></div>
       </div>
       <div class="modal-foot">
@@ -207,7 +207,7 @@ function openLoginEditor(login, { onSaved } = {}) {
   wireVaultType(form, { username: l.username, isNew });
   const del = $('#delete-login', m);
   if (del) del.onclick = async () => {
-    if (!(await askFirst(state.bw?.configured ? tr("Delete \"{name}\"? It moves to Bitwarden's trash, where you can restore it for 30 days.", { name: l.name }) : tr('Delete "{name}" from the Vault?', { name: l.name }), tr('Delete')))) return;
+    if (!(await askFirst(state.bw?.configured ? tr("Delete \"{name}\"? It moves to Bitwarden's trash, where you can restore it for 30 days.", { name: l.name }) : tr('Delete "{name}" from Passwords?', { name: l.name }), tr('Delete')))) return;
     whileBusy(del, tr('Deleting…'), async () => {
       try {
         await api(`/vault/${l.id}`, { method: 'DELETE' });
@@ -522,7 +522,7 @@ function openFileEditor() {
     refused.hidden = true;
     const file = form.file.files[0];
     if (!file) return refuse(tr('Pick the file.'));
-    if (file.size > VAULT_FILE_MAX) return refuse(tr('That file is {size} KB. A file in the Vault can be at most 64 KB.', { size: Math.ceil(file.size / 1024) }));
+    if (file.size > VAULT_FILE_MAX) return refuse(tr('That file is {size} KB. A file in Passwords can be at most 64 KB.', { size: Math.ceil(file.size / 1024) }));
     const bytes = new Uint8Array(await file.arrayBuffer());
     let binary = '';
     for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));

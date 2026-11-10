@@ -12,16 +12,16 @@ const ADMIN = { id: 'infra', name: 'Infra Admin', color: '#e8a33d' };
 const SAVE = {
   id: 's1', kind: 'vault-save', botId: 'infra', bot: ADMIN, name: 'Qwotz prod DB', site: 'db.qwotz.example', from: 'generate',
   reason: 'The Postgres password of Qwotz prod.',
-  title: 'Let Infra Admin save “Qwotz prod DB” in the Vault?',
+  title: 'Let Infra Admin save “Qwotz prod DB” in Passwords?',
   parts: [{ label: 'Entry', now: 'Qwotz prod DB (db.qwotz.example)' }, { label: 'Source', now: 'made by botdot' }, { label: 'Shared with', now: 'Infra Admin' }],
   secret: { label: 'Secret', show: 'Show', hide: 'Hide' },
-  yes: 'Save', yesOn: 'card', text: 'Asks to save “Qwotz prod DB” in the Vault', at: '2026-11-04T21:00:00.000Z',
+  yes: 'Save', yesOn: 'card', text: 'Asks to save “Qwotz prod DB” in Passwords', at: '2026-11-04T21:00:00.000Z',
 };
 const draw = (ask) => { const p = page({ state: { asks: [ask] } }); return p.needCardHTML(p.item(`ask:${ask.id}`)); };
 
 test("web: the card is the server's title, the reason, its rows, the secret as dots with Show, and Decline / Save", () => {
   const html = draw(SAVE);
-  assert.equal(titleOf(html), 'Let Infra Admin save “Qwotz prod DB” in the Vault?');
+  assert.equal(titleOf(html), 'Let Infra Admin save “Qwotz prod DB” in Passwords?');
   assert.equal(metaOf(html), 'The Postgres password of Qwotz prod.');
   assert.deepEqual(rowsOf(html), [['Entry', 'Qwotz prod DB (db.qwotz.example)'], ['Source', 'made by botdot'], ['Shared with', 'Infra Admin']]);
   assert.match(html, /<span class="need-secret-label">Secret<\/span><code class="mono" data-need-secret>••••••••<\/code><button type="button" class="btn sm ghost" data-need-show data-show="Show" data-hide="Hide">Show<\/button>/);
@@ -38,7 +38,7 @@ test('web: Show reads the secret from the server only when pressed, and Hide put
   assert.match(app, /if \(show\) show\.onclick = \(\) => toggleSecret\(x, show, el\);/);
 });
 
-test('web: a secret the owner types has Show and Hide beside it, in the Vault and in the "needs a login" dialog', () => {
+test('web: a secret the owner types has Show and Hide beside it, in Passwords and in the "needs a login" dialog', () => {
   const vault = fs.readFileSync(path.join(__dirname, '..', 'public', 'vault.js'), 'utf8');
   assert.equal((vault.match(/\$\{revealButton\(\)\}<\/span><\/label>/g) || []).length, 2, 'the line and the box of several lines');
   assert.match(vault, /field\.type = shown \? 'text' : 'password'/);

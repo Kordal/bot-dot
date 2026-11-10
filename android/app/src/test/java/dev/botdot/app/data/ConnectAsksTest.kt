@@ -27,7 +27,7 @@ class ConnectAsksTest {
         assertEquals("Connect", asks("[${card()}]").single().actLabel)
         assertEquals("Reconnect", asks("[${card(act = """{"verb":"connect"}""").replace("\"mode\":\"connect\"", "\"mode\":\"reconnect\"")}]").single().actLabel)
         assertEquals("Connect", asks("[${card(act = """{"verb":"connect"}""")}]").single().actLabel)
-        assertEquals("Open Connectors", asks("[${card(act = """{"verb":"open","screen":"connectors"}""")}]").single().actLabel)
+        assertEquals("Open Apps", asks("[${card(act = """{"verb":"open","screen":"connectors"}""")}]").single().actLabel)
         // A card of any other kind has none: its own buttons.
         assertNull(asks("""[{"id":"a1","kind":"skill"}]""").single().actLabel)
     }

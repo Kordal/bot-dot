@@ -22,7 +22,7 @@ test('appError: status by what helps, the app\'s words as detail; forBot: the se
   const e = E.appError(raw, { app: 'googledocs', name: 'Google Docs' });
   assert.deepEqual([e.status, e.code, e.action, e.app, e.appError], [409, 'app-permission', 'reconnect', 'googledocs', true]);
   assert.match(e.detail, /ACCESS_TOKEN_SCOPE_INSUFFICIENT/);
-  assert.equal(E.forBot(e).startsWith("Google Docs wasn't allowed to do this. Ask the owner to reconnect it on the Connectors page. The app said: {"), true);
+  assert.equal(E.forBot(e).startsWith("Google Docs wasn't allowed to do this. Ask the owner to reconnect it on the Apps page. The app said: {"), true);
   assert.equal(E.appError(google(429, 'RESOURCE_EXHAUSTED', '', 'Quota exceeded')).status, 503);
   const other = E.appError('boom', { name: 'Slack' });
   assert.deepEqual([other.status, other.code, other.message], [502, 'app-failed', "Slack couldn't do it."]);

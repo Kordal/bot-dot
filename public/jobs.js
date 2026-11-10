@@ -67,10 +67,10 @@ function wireJobChange(card) {
 // edited here; the Chief or the bot proposes it and the owner approves it on a card. '' for a job without one.
 // The Vault logins a script job's script may use with botdot-request (ADR 085): shown, not edited (the Chief changes them by chat).
 const jobLoginsLine = (j) => (j.kind === 'script' && Array.isArray(j.logins) && j.logins.length ? `<div class="faint job-logins">${tr('Logins: {names}', { names: esc(j.logins.filter((n) => typeof n === 'string').join(', ')) })}</div>` : '');
-const jobNotifyLine = (j) => (typeof j.notifyUrl === 'string' && j.notifyUrl ? `<div class="faint job-notify">${tr('Tells {url} when a run ends, signed with the secret in the Vault.', { url: `<span class="mono">${esc(j.notifyUrl)}</span>` })}</div>` : '');
+const jobNotifyLine = (j) => (typeof j.notifyUrl === 'string' && j.notifyUrl ? `<div class="faint job-notify">${tr('Tells {url} when a run ends, signed with the secret in Passwords.', { url: `<span class="mono">${esc(j.notifyUrl)}</span>` })}</div>` : '');
 // A job that takes signed calls (`callMode: "signed"`, docs/api.md "A signed call"): how a sender gets in, beside the
 // notify line. '' for any other job.
-const jobCallModeLine = (j) => (j.call === true && j.callMode === 'signed' ? `<div class="faint job-call-mode">${tr('Takes signed calls: each one is signed with the secret in the Vault, and runs once.')}</div>` : '');
+const jobCallModeLine = (j) => (j.call === true && j.callMode === 'signed' ? `<div class="faint job-call-mode">${tr('Takes signed calls: each one is signed with the secret in Passwords, and runs once.')}</div>` : '');
 
 // What an empty task means, as its placeholder rather than a line beside its label (#635).
 const jobPromptEmpty = (script) => (script ? tr('When it is asked') : tr("Empty: the bot's main assignment"));

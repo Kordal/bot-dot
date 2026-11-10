@@ -119,7 +119,7 @@ test('a login with 20 additional hosts: 400 with a sentence, the login unchanged
   const id = await ask('twentyfirst.example.com');
   const r = await answer(id, { action: 'allow', loginId: saved.Full.id });
   assert.equal(r.status, 400);
-  assert.equal(r.data.error, '"Full" already has 20 additional hosts. Remove one in the Vault first.');
+  assert.equal(r.data.error, '"Full" already has 20 additional hosts. Remove one in Passwords first.');
   const e = await login(saved.Full.id);
   assert.equal(e.allowedHosts.length, 20);
   assert.ok(!e.allowedHosts.includes('twentyfirst.example.com'));

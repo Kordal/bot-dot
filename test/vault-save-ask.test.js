@@ -32,7 +32,7 @@ test('a new secret botdot makes is saved at once for that bot, with no card (ADR
   const { token, rec } = await heldRun(srv, bot);
   t.after(() => srv.release(rec));
   const said = await vaultTools(t, token).text('save_to_vault', { name: 'Qwotz prod secrets', site: '57.129.155.118', generate: true, reason: 'The app secret of Qwotz prod, for the launch on OVH.' });
-  assert.match(said, /^Saved "Qwotz prod secrets" in the Vault, shared with you/);
+  assert.match(said, /^Saved "Qwotz prod secrets" in Passwords, shared with you/);
   assert.match(said, /Never write the secret in your reply/);
   assert.deepEqual(await saveCards(), [], 'no card');
   const saved = await login('Qwotz prod secrets');

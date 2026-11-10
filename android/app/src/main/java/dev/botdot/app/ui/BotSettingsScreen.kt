@@ -263,7 +263,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
                 // only whether. A server from before chose it per bot (ADR 088).
                 val accountComputer = "account-computer" in server?.features.orEmpty()
-                if (!accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
+                // Advanced (ADR 200): without it, where its computer is and its proxy are left as they are and not shown.
+                val advOn by dev.botdot.app.data.Advanced.on.collectAsState()
+                if (advOn && !accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
                     val everyBot = "everything-allowed" in server?.features.orEmpty() // every bot has one (ADR 192)
                     Choice(tr("Computer"), if (computer) computerOn else "none", (if (everyBot) emptyList() else listOf("none" to tr("None"))) + listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))) {
                         // Between this machine and boat.dev, its files go along or not: asked first (#556).
@@ -272,10 +274,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         if (computer) computerOn = it
                         moveFiles = false
                     }
-                } else if ("everything-allowed" !in server?.features.orEmpty()) SwitchRow(tr("Uses the computer"), checked = computer) { computer = it }
+                } else if ("everything-allowed" !in server?.features.orEmpty()) SwitchRow(tr("Browser"), checked = computer) { computer = it }
                 // Its proxy (ADR 171): on the account's computer only; boat.dev's browser uses the account's.
                 val proxyApi = api
-                if (proxyApi != null && b.computer == "linux" && dev.botdot.app.data.Proxies.shows(server?.features)) BotProxyRow(proxyApi, b, proxy) { proxy = it }
+                if (advOn && proxyApi != null && b.computer == "linux" && dev.botdot.app.data.Proxies.shows(server?.features)) BotProxyRow(proxyApi, b, proxy) { proxy = it }
                 val move = botsNow?.firstOrNull { it.id == botId }?.computerMove ?: b.computerMove
                 if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     if (move.state == "copying") Text(tr("Copying files") + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)
@@ -569,7 +571,7 @@ private fun ColorPicker(selected: String, onPick: (String) -> Unit) {
 }
 
 /** Why "Always approve" on a script needs a second thought. */
-fun scriptWarningText(name: String) = tr("It's a script: it runs as commands on botdot's computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks {name} into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in {name}'s settings.", "name" to name)
+fun scriptWarningText(name: String) = tr("It's a quick check without AI. It can change anything on botdot's computer, so allow it only if you trust {name}.\n\nYou can take this back in {name}'s settings.", "name" to name)
 
 @Composable
 internal fun GroupHead(text: String) = Text(text, color = LocalPaper.current.muted, fontSize = Type.s12, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,

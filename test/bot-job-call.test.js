@@ -92,7 +92,7 @@ test("the owner's yes makes the key for no bot; the bot carries on told the addr
   await carriedOn(bot, asked.run);
   const rec = await lastRun(bot);
   const address = `${srv.base}/call/${srv.account}/${bot.id}/${job.id}`;
-  assert.ok(rec.stdin.includes(`The owner allowed you to: let the script “Gate” take calls: its call address is ${address}, and its key is in the Vault item “${keyName(bot, job)}”, which no bot is given.`), rec.stdin);
+  assert.ok(rec.stdin.includes(`The owner allowed you to: let the script “Gate” take calls: its call address is ${address}, and its key is in Passwords item “${keyName(bot, job)}”, which no bot is given.`), rec.stdin);
   const hash = crypto.createHash('sha256').update(key).digest('hex');
   assert.ok(!rec.stdin.includes(key) && !rec.stdin.includes(hash), 'never the key');
 

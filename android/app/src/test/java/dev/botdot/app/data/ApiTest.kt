@@ -254,11 +254,11 @@ class ApiTest {
         // botdot's own sentence.
         server.enqueue(MockResponse.Builder().code(409).body("""{"error":" The Chief is busy. "}""").build())
         failure().let { assertEquals(listOf("The Chief is busy.", 409, true), listOf(it.message, it.status, it.said)) }
-        // A gateway's answer, and an `error` that is no sentence: the status, and not botdot's words.
+        // A gateway's answer, and an `error` that is no sentence: what to do in words, not the status, and not botdot's words.
         server.enqueue(MockResponse.Builder().code(502).body("<html>Bad Gateway</html>").build())
-        failure().let { assertEquals(listOf("botdot answered 502", 502, false), listOf(it.message, it.status, it.said)) }
+        failure().let { assertEquals(listOf("botdot didn't finish that. Try again in a moment.", 502, false), listOf(it.message, it.status, it.said)) }
         server.enqueue(MockResponse.Builder().code(500).body("""{"error":"  "}""").build())
-        failure().let { assertEquals(listOf("botdot answered 500", 500, false), listOf(it.message, it.status, it.said)) }
+        failure().let { assertEquals(listOf("botdot didn't finish that. Try again in a moment.", 500, false), listOf(it.message, it.status, it.said)) }
         server.enqueue(MockResponse.Builder().code(500).body("""{"error":true}""").build())
         failure().let { assertEquals(listOf(500, false), listOf(it.status, it.said)) }
         // The connection dropped after the request went out: botdot may have taken it.

@@ -334,10 +334,10 @@ function renderBotSettings(force = false) {
           <summary${tipAttrs(tr('Reports, memos and overviews it made for you. Open one to keep it up to date.'))}><b>${tr('Pages')}</b><span class="bs-val" id="bs-pages-val"></span>${CHEV}</summary>
           <div class="bs-body pg-list" id="page-list"><span class="faint">${tr('Loading…')}</span></div>
         </details>` : ''}
-        ${boatChoice ? `<label class="bs-row"><b>${tr('Computer')}</b>
+        ${boatChoice ? `<label class="bs-row"${advanced() ? '' : ' hidden'}><b>${tr('Computer')}</b>
           <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
         </label>` : ''}
-        ${b.computer === 'linux' && typeof Proxies !== 'undefined' ? `<div class="bs-slot" id="bs-proxy">${Proxies.botRowHTML(b)}</div>` : ''}
+        ${b.computer === 'linux' && typeof Proxies !== 'undefined' ? `<div class="bs-slot" id="bs-proxy"${advanced() ? '' : ' hidden'}>${Proxies.botRowHTML(b)}</div>` : ''}
         <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
         ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>${tr('Its screen')}</b>${CHEV}</button>` : ''}
       </div>
@@ -578,7 +578,7 @@ function renderBotSettings(force = false) {
     let r;
     try { r = await api(`/bots/${b.id}`, { method: 'DELETE' }); } catch (err) { busy(false); return toast(err.message, true); }
     // `computer` is about its old computer of its own from before the account's computer (#104), if it still had one.
-    toast(r.computer === 'erased' ? tr('Bot and its old computer deleted') : r.computer === 'failed' ? tr("Bot deleted, but its old computer couldn't be erased (is Docker running?)") : tr('Bot deleted'), r.computer === 'failed');
+    toast(r.computer === 'erased' ? tr('Bot and its old computer deleted') : r.computer === 'failed' ? tr("Bot deleted, but its old computer couldn't be erased.") : tr('Bot deleted'), r.computer === 'failed');
     delete root.dataset.bot;
     leaveBot();
     await refresh();
@@ -596,7 +596,7 @@ async function openDuplicate(b) {
       <p style="margin:12px 0 4px">${tr('The copy gets:')}</p>
       <ul style="margin:0;padding-left:20px">${plan.copies.map((line) => `<li>${esc(line)}</li>`).join('')}</ul>
       <p class="hint" style="margin:12px 0 0">${esc(tr('Not copied: {what}.', { what: plan.notCopied }))}</p>
-      ${plan.vaultLocked ? `<p class="hint" style="margin:8px 0 0">${tr('Bitwarden is locked: unlock it first, so the copy can use the same Vault entries.')}</p>` : ''}
+      ${plan.vaultLocked ? `<p class="hint" style="margin:8px 0 0">${tr('Bitwarden is locked: unlock it first, so the copy can use the same saved passwords.')}</p>` : ''}
     </div>
     <div class="modal-foot">
       <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>

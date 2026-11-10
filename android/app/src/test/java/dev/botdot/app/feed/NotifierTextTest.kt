@@ -26,6 +26,6 @@ class NotifierTextTest {
     }
 
     @Test fun aTilesScriptWaitsOnYourBoard() {
-        assertEquals("Waiting for your OK: “Lights” on your Board (a script)", tileWaits("Lights"))
+        assertEquals("Waiting for your OK: “Lights” on your Board", tileWaits("Lights"))
     }
 }

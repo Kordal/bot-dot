@@ -65,7 +65,7 @@ test('what needs the owner rings once, not while the web page is in use, and aga
   const rung = new Set();
   const f = push.follower({ rung, chiefName: () => 'Ada' });
   const job = { botId: 'b1', botName: 'News', jobId: 'j1', jobName: 'Digest', text: 'Wants to run “Digest” every morning' };
-  const tile = { tileId: 't1', title: 'Weather', botId: null, botName: null, text: 'Waiting for your OK: “Weather” on your Board (a script)', yesOn: 'card' };
+  const tile = { tileId: 't1', title: 'Weather', botId: null, botName: null, text: 'Waiting for your OK: “Weather” on your Board', yesOn: 'card' };
   const one = take(f, ev('approvals', { jobs: [job], tiles: [], memoryChanges: [] }));
   assert.deepEqual(one, [{ title: 'News', body: job.text, target: 'needs', tag: 'job:b1/j1', urgency: 'high' }]);
   assert.deepEqual(take(f, ev('approvals', { jobs: [job], tiles: [tile], memoryChanges: [] })).map((n) => [n.title, n.tag]), [['Ada', 'tile:t1']], 'the job rang already; the tile is the Chief’s');

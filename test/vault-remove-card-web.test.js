@@ -10,15 +10,15 @@ const ADMIN = { id: 'vps', name: 'VPS Admin', color: '#4a7fd8' };
 const REMOVE = {
   id: 'r1', kind: 'vault-remove', botId: 'vps', bot: ADMIN, itemId: 'i1', loginName: 'Uptime Kuma netcup API key', site: 'api.netcup.example',
   reason: 'Uptime Kuma is gone, so its key is not needed any more.',
-  title: 'Let VPS Admin remove “Uptime Kuma netcup API key” from the Vault?',
+  title: 'Let VPS Admin remove “Uptime Kuma netcup API key” from Passwords?',
   parts: [{ label: 'Entry', now: 'Uptime Kuma netcup API key (api.netcup.example)' }, { label: 'Asked by', now: 'VPS Admin' }, { label: 'Goes to', now: "Bitwarden's Trash, where you can restore it for 30 days" }],
-  yes: 'Allow', yesOn: 'card', text: 'Asks to remove “Uptime Kuma netcup API key” from the Vault', at: '2026-10-19T15:00:00.000Z',
+  yes: 'Allow', yesOn: 'card', text: 'Asks to remove “Uptime Kuma netcup API key” from Passwords', at: '2026-10-19T15:00:00.000Z',
 };
 const draw = (ask) => { const p = page({ state: { asks: [ask] } }); return p.needCardHTML(p.item(`ask:${ask.id}`)); };
 
 test("web: the card is the server's title, the reason, the entry, the bot and the Trash as rows, and Decline / Allow", () => {
   const html = draw(REMOVE);
-  assert.equal(titleOf(html), 'Let VPS Admin remove “Uptime Kuma netcup API key” from the Vault?');
+  assert.equal(titleOf(html), 'Let VPS Admin remove “Uptime Kuma netcup API key” from Passwords?');
   assert.equal(metaOf(html), 'Uptime Kuma is gone, so its key is not needed any more.');
   assert.deepEqual(rowsOf(html), [['Entry', 'Uptime Kuma netcup API key (api.netcup.example)'], ['Asked by', 'VPS Admin'], ['Goes to', 'Bitwarden&#39;s Trash, where you can restore it for 30 days']], 'as the HTML has it');
   assert.deepEqual(buttonsOf(html), ['Decline', 'Allow']);

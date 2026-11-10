@@ -62,12 +62,12 @@ test("a yes to a call while Bitwarden doesn't answer, or is locked, says nothing
   assert.equal(late.status, 503, JSON.stringify(late.data));
   assert.match(late.data.error, /Bitwarden didn't answer in time\. The new one is made once it answers/);
   assert.equal(again.status, 409, JSON.stringify(again.data));
-  assert.match(again.data.error, /being made in the Vault already/);
+  assert.match(again.data.error, /being made in Passwords already/);
   fs.rmSync(slowFile);
-  await waitFor(() => bwSecret(srv, `Call key: ${bot.name} / ${job.name}`) !== key, { what: 'the new key in the Vault' });
+  await waitFor(() => bwSecret(srv, `Call key: ${bot.name} / ${job.name}`) !== key, { what: 'the new key in Passwords' });
 });
 
-test('yeses to a call pressed again and again while Bitwarden works make one key in the Vault, not one each', async (t) => {
+test('yeses to a call pressed again and again while Bitwarden works make one key in Passwords, not one each', async (t) => {
   const srv = await startServer({ env: { BW_BIN: FAKE_BW } });
   t.after(() => srv.stop());
   assert.equal((await srv.api('/vault/bitwarden/setup', { method: 'POST', body: { server: 'us', clientId: CLIENT_ID, clientSecret: 'fixture-client-secret' } })).status, 200);
