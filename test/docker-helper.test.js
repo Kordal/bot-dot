@@ -23,6 +23,9 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
     req.on('error', reject); req.end(JSON.stringify(value));
   });
   assert.equal((await call({ operation: 'inspect', args: ['test-bot'] })).data.value.state, 'running');
+  // The account's computer's state without a bot (GET /computers, computer-screens stateNow): refused, every
+  // computer window of an account behind the helper said "isn't made yet" (2026-11-10).
+  assert.equal((await call({ operation: 'inspect', args: [] })).data.value.state, 'running');
   for (const value of [
     { operation: 'exec', args: ['host', 'sh'] },
     { operation: 'inspect', args: ['../../host'] },
@@ -51,7 +54,7 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
     assert.equal((await call(value)).status, 200, JSON.stringify(value));
   }
   // A computer erased or made again is followed by the cleanup of the desktop it ran on (#191).
-  assert.deepEqual(calls, ['test-bot', ['clean'], ['resetAll'], ['clean'], ['updateAll'], ['clean'], ['copyOld', 'test-bot']]);
+  assert.deepEqual(calls, ['test-bot', undefined, ['clean'], ['resetAll'], ['clean'], ['updateAll'], ['clean'], ['copyOld', 'test-bot']]);
 });
 
 test("owner edits and power settings never turn off the account's computer (#104)", async (t) => {

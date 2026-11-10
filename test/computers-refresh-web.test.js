@@ -14,3 +14,12 @@ test("a refresh's awaited reads leave out /computers", () => {
   assert.match(read, /const computersRead = api\('\/computers'\)/);
   assert.match(read, /computersRead\.then\(\(c\) => \{\n\s+if \(!c \|\| !latest\(\) \|\| JSON\.stringify\(c\) === JSON\.stringify\(state\.computers \|\| \{\}\)\) return;/);
 });
+
+// 2026-11-10: a bot made after the page loaded showed "isn't made yet" on its running computer: opening its
+// computer takes the server's state from /api/bots/:id/computer into state.computers before the screen is drawn.
+test("opening a bot's computer takes its state from the server's answer", () => {
+  const computers = fs.readFileSync(path.join(__dirname, '..', 'public', 'computers.js'), 'utf8');
+  const describe = computers.slice(computers.indexOf('const describe = () =>'), computers.indexOf('describe();'));
+  assert.match(describe, /if \(d\.state\) state\.computers = \{ \.\.\.state\.computers, \[botId\]: d\.state === 'none' \? undefined : d\.state \};/);
+  assert.ok(describe.indexOf('state.computers') < describe.indexOf('frame();'));
+});
