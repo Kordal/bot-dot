@@ -506,3 +506,12 @@ test('bots that write first share the day\'s budget; the brief and the close of 
   assert.equal(w.looks.spendForBot(), true, 'the Chief\'s silence does not quiet the bots');
   assert.equal(w.looks.status().sentToday, 1);
 });
+
+test("the brief names the cards that wait in Needs you, since they rang nothing (ADR 185); other looks don't", () => {
+  const now = new Date('2026-10-22T08:00:00Z');
+  const cards = [{ bot: 'Scout', text: 'Asks to install a skill', at: '2026-10-21T19:04:00.000Z' }, { bot: null, text: 'Asks to install gh', at: '2026-10-21T20:00:00.000Z' }];
+  const brief = look.prompt({ now, timeZone: 'UTC', kind: 'brief', cards });
+  assert.match(brief, /Cards that wait for the owner's OK in Needs you[^\n]*\n- Scout: Asks to install a skill \(since 2026-10-21 19:04\)\n- The Chief: Asks to install gh \(since 2026-10-21 20:00\)/);
+  assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC', kind: 'look', cards }), /Cards that wait/);
+  assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC', kind: 'brief' }), /Cards that wait/);
+});

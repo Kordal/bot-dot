@@ -491,13 +491,19 @@ function askName(question, value = '', yes = tr('Save'), { secret = false } = {}
   return asked(question, yes, { field: { value, secret } });
 }
 
-function asked(question, yes, { danger = false, field = null }) {
+// Two yeses and Cancel (ADR 184, "Always allow" for one bot or all): 'yes' for the primary one, 'other' for the
+// second, null for Cancel or Escape.
+function askWhich(question, yes, other) {
+  return asked(question, yes, { other });
+}
+
+function asked(question, yes, { danger = false, field = null, other = null }) {
   let m = $('#ask-first');
   if (!m) { m = document.createElement('dialog'); m.id = 'ask-first'; document.body.append(m); }
   if (m.open) m.close();
   const [head, ...rest] = String(question).split(/\n\s*\n/);
   m.innerHTML = `<form method="dialog"><div class="modal-head"><h2></h2></div>${rest.length || field ? '<div class="modal-body"></div>' : ''}
-    <div class="modal-foot"><button type="button" class="btn" data-ask-no></button><button class="btn primary${danger ? ' danger' : ''}" data-ask-yes></button></div></form>`;
+    <div class="modal-foot"><button type="button" class="btn" data-ask-no></button>${other ? '<button type="button" class="btn" data-ask-other></button>' : ''}<button class="btn primary${danger ? ' danger' : ''}" data-ask-yes></button></div></form>`;
   $('h2', m).textContent = head.trim();
   const body = $('.modal-body', m);
   for (const text of rest) { const p = document.createElement('p'); p.textContent = text.trim(); body.append(p); }
@@ -510,11 +516,13 @@ function asked(question, yes, { danger = false, field = null }) {
   }
   $('[data-ask-no]', m).textContent = tr('Cancel');
   $('[data-ask-yes]', m).textContent = yes;
+  if (other) $('[data-ask-other]', m).textContent = other;
   return new Promise((resolve) => {
     let said = false;
     $('form', m).onsubmit = (e) => { e.preventDefault(); said = true; m.close(); };
     $('[data-ask-no]', m).onclick = () => m.close();
-    m.addEventListener('close', () => resolve(input ? (said ? input.value : null) : said), { once: true });
+    if (other) $('[data-ask-other]', m).onclick = () => { said = 'other'; m.close(); };
+    m.addEventListener('close', () => resolve(input ? (said ? input.value : null) : other ? (said === 'other' ? 'other' : said ? 'yes' : null) : said), { once: true });
     m.showModal();
     // Cancel first for a question, so Enter can't say yes by itself; the field for a name, its text chosen.
     if (input) { input.focus(); input.select(); } else $('[data-ask-no]', m).focus();
