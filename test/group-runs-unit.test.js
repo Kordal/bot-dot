@@ -73,21 +73,27 @@ test('a turn is a run of its member with its group and the message it belongs to
   assert.deepEqual([ownDone.groupId, ownDone.groupMessageId, B.groupOfRun(own.id)], [undefined, undefined, null]);
 });
 
-test("a question asked in a group is not the bot's own, and a turn does not answer the bot's own question", async () => {
+test("a question asked in a group is not the bot's own, and a later turn in a group ends the bot's own question (ADR 211)", async () => {
   const asker = B.bots.create({ name: 'Asker', emoji: '❓', prompt: 'Ask.' });
   reply('Two drafts.\nShould I send it now?\n\n[[choices: Yes | No]]');
   const turn = await ended(B.startRun(asker, { prompt: 'In the group', groupId: dev.id, groupMessageId: 'm2' }).id);
   assert.deepEqual(turn.choices, ['Yes', 'No']);
   assert.equal(B.asksOfBot(asker.id), null);
-  // Its own chat: it asks there, and a later turn in the group leaves that question open.
+  // Its own chat: it asks there, and a later turn in the group ends that question: a bot asks in one place at a time.
   const own = await ended(B.startRun(asker, { prompt: 'In its own chat' }).id);
   assert.equal(B.asksOfBot(asker.id).runId, own.id);
   reply(null);
-  const heard = listen();
+  let heard = listen();
   await ended(B.startRun(asker, { prompt: 'In the group again', groupId: dev.id, groupMessageId: 'm3' }).id);
-  assert.equal(B.asksOfBot(asker.id).runId, own.id);
-  assert.deepEqual(heard.of('asks'), []);
-  // The owner's message in its own chat answers it.
+  heard.stop();
+  assert.equal(B.asksOfBot(asker.id), null);
+  assert.deepEqual(heard.of('asks').map((d) => [d.botId, d.asks]), [[asker.id, null]]);
+  // Asked again in its own chat, the owner's message there answers it.
+  reply('Should I send it now?\n\n[[choices: Yes | No]]');
+  const again = await ended(B.startRun(asker, { prompt: 'In its own chat again' }).id);
+  assert.equal(B.asksOfBot(asker.id).runId, again.id);
+  reply(null);
+  heard = listen();
   await ended(B.startRun(asker, { prompt: 'Yes' }).id);
   heard.stop();
   assert.equal(B.asksOfBot(asker.id), null);

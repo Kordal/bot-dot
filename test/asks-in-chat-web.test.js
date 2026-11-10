@@ -39,6 +39,15 @@ test('web: the answers stand under the run the bot asks from, also with newer ru
   assert.doesNotMatch(ctx.botThreadHTML({ ...bot, asks: undefined }, [asked, chief]), /class="choices"/);
 });
 
+test('web: the last reply that asked loses its answers once its question ended in another chat; one that asks nothing keeps them (ADR 211)', () => {
+  const ctx = page();
+  const asked = run('r1', 1, { choices: ['One', 'Two'], asks: true });
+  const bot = { id: 'iw', name: 'Load Tester', color: '#c46' };
+  assert.match(ctx.botThreadHTML({ ...bot, asks: { text: 'One or two?', runId: 'r1', at: at(1) } }, [asked]), /<div class="choices">One\|Two<\/div>/);
+  assert.doesNotMatch(ctx.botThreadHTML(bot, [asked]), /class="choices"/, 'answered in a group: no buttons');
+  assert.match(ctx.botThreadHTML(bot, [run('r1', 1, { choices: ['Yes', 'No'] })]), /<div class="choices">Yes\|No<\/div>/, 'a reply the Chief or a teammate asked for keeps them under the last reply');
+});
+
 test('web: the chat reads back to the run its open question is from when the page does not hold it', async () => {
   const ctx = page();
   const bot = { id: 'iw', asks: { text: 'What problem should it solve?', runId: 'old', at: at(1) } };

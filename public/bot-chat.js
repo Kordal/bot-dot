@@ -5,6 +5,8 @@
 // newFirst: the run the "New" line goes above (the server's firstUnread when the chat was opened), or null.
 // The answers of a reply stand under the reply that is last in the chat, and under the run its open question is from (bot.asks) when
 // newer runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
+// A reply that asked (r.asks) keeps its answers only while it is the bot's open question: answered in another chat,
+// in a group the bot is in, they go (ADR 211).
 function botThreadHTML(bot, runs, newFirst = null) {
   if (!runs.length) {
     return `
@@ -235,7 +237,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
-        ${(last || r.id === bot.asks?.runId) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions) : ''}
+        ${(r.id === bot.asks?.runId || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }

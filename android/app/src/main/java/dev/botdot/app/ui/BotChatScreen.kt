@@ -278,7 +278,8 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                         learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
                                     // Under the reply that is last in the chat, and under the run its open question is from when newer
                                     // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
-                                    if ((r.id == lastReply || r.id == askedIn) && r.status == "success") {
+                                    // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).
+                                    if ((r.id == askedIn || (r.id == lastReply && !r.asks)) && r.status == "success") {
                                         Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
                                         Questions(r.questions) { text, key -> sendFrom(text, key) }
                                     }
