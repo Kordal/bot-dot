@@ -50,7 +50,9 @@ class Store(
         /** Why the last refresh failed (null once one works again). */
         val error: StateFlow<String?> = _error.asStateFlow()
 
-        private var stale = true
+        @Volatile private var stale = true
+        // The botdot its value comes from, or its read started on: the botdot the app starts on does not clear it again.
+        @Volatile private var from: String? = null
         private var loadedAt = 0L
         private val lock = Mutex()
         private val kicks = Channel<Boolean>(Channel.CONFLATED) // true: soon (after a burst), false: now
@@ -63,7 +65,7 @@ class Store(
                         else withTimeoutOrNull(quietMs) { front.first { it } }
                     }
                     kicks.tryReceive() // a change said while it waited: this read covers it
-                    refresh()
+                    if (stale) refresh() // else a read started since the kick covers it (at start: the first look and the botdot both kick)
                 }
             }
             // Someone started looking: bring it up to date if it's out of date.
@@ -88,6 +90,7 @@ class Store(
             try {
                 lock.withLock {
                     synchronized(this) { if (queued === mine) queued = null } // started: who asks from now on gets the next read
+                    from = a.baseUrl // first: the botdot's clear from here on sees this read and leaves it
                     stale = false
                     runCatching { fetch(a) }
                         .onSuccess { if (api.value === a) { _value.value = it; _error.value = null; loadedAt = SystemClock.elapsedRealtime() } }
@@ -112,8 +115,11 @@ class Store(
         fun set(v: T) { _value.value = v; stale = false; loadedAt = SystemClock.elapsedRealtime() }
         fun update(f: (T) -> T) { _value.value?.let { _value.value = f(it) } }
 
-        /** Another botdot: forget what this one had. */
-        fun clear() { _value.value = null; _error.value = null; stale = true; if (watched) kicks.trySend(false) }
+        /** Another botdot: forget what this one had. Not when what it has, or is reading, is from [baseUrl] already. */
+        fun clear(baseUrl: String? = null) {
+            if (baseUrl != null && from == baseUrl) return
+            from = null; _value.value = null; _error.value = null; stale = true; if (watched) kicks.trySend(false)
+        }
     }
 
     val bots = Part { it.bots() }
@@ -249,7 +255,7 @@ class Store(
         // The botdot is known (right after the app starts) or another one was chosen: what's looked at loads (again).
         scope.launch {
             var had: String? = null
-            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.role; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear() }; _projectList.value = emptyList(); _addingProject.value = false; had = a?.baseUrl }
+            api.collect { a -> if (a?.baseUrl != had) { lines.serverHas(null); lines.clear(); jobThens.clear(); claude.clear(); _chiefName.value = ChiefName.role; turnLines.clear(); cardGroups.clear(); answeredAway.clear(); pageSaves.clear(); parts.forEach { it.clear(a?.baseUrl) }; _projectList.value = emptyList(); _addingProject.value = false; had = a?.baseUrl }
                 // A new Api for the same botdot (signed in again) acts on the project shown, as the one before it.
                 else if (a != null && many) a.project = company.value.value?.company?.id
             }
