@@ -222,7 +222,7 @@ test("in a turn a member handed on, a forget and a change to a note the owner st
   const edit = await mem(handed, { action: 'edit', id: pnpm.id, text: 'The owner uses npm now.' });
   assert.equal(edit.result, 'saved', JSON.stringify(edit));
   assert.deepEqual(await notesNow(), [['The gate code is MAGNOLIA.', 'owner'], ['The owner uses npm now.', 'outside']]);
-  // A removal is done at once, told under the reply: the note comes back for 30 days (ADR 177).
+  // A removal is done at once, told under the reply: the note comes back for 30 days (ADR 178).
   const removal = await mem(handed, { action: 'remove', id: pnpm.id });
   assert.equal(removal.result, 'saved', JSON.stringify(removal));
   assert.deepEqual(await notesNow(), [['The gate code is MAGNOLIA.', 'owner']]);

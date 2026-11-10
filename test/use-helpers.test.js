@@ -31,7 +31,7 @@ test('a bot without the permission has no Agent tool and no word of helpers', as
   srv.unhold();
 });
 
-test('ask_permission "helpers" gives them at once, with no card, and the next run has Agent and Task and the guidance (ADR 177)', async () => {
+test('ask_permission "helpers" gives them at once, with no card, and the next run has Agent and Task and the guidance (ADR 178)', async () => {
   const bot = await makeBot(srv, { name: 'Coder', emoji: '💻', allowedTools: ['Read', 'Edit', 'Write', 'Bash'] });
   const h = await heldRun(srv, bot, 'Port the three services');
   const r = await self(srv, h.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'To port the three services in parallel' });

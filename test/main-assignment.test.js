@@ -46,7 +46,7 @@ test('a bot from before jobs gets a job named "Main assignment"; a job that has 
   assert.equal(jobs.normalizeJobs([old], [old], 'you')[0].name, OLD_NAME);
 });
 
-test("a bot's change to its main assignment in the owner's clean run is saved at once and noted under the reply (ADR 177)", async (t) => {
+test("a bot's change to its main assignment in the owner's clean run is saved at once and noted under the reply (ADR 178)", async (t) => {
   const bot = await makeBot(srv, { name: 'Proposer', prompt: 'Owner task' });
   const { run, rec } = await heldRun(srv, bot);
   t.after(() => { srv.unhold(); srv.release(rec); });
@@ -56,7 +56,7 @@ test("a bot's change to its main assignment in the owner's clean run is saved at
   assert.match(tool.description, /saved at once and the owner can undo it; else it waits for the owner's approval in Needs you/);
   assert.equal(tool.inputSchema.properties.task.description, 'Your complete new main assignment (omit to keep it)');
   assert.doesNotMatch(JSON.stringify((await self.request('tools/list')).tools), OLD);
-  // In a run the owner started that has read nothing outside, it is saved at once, with no card (ADR 177).
+  // In a run the owner started that has read nothing outside, it is saved at once, with no card (ADR 178).
   const answer = await self.text('update_instructions', { task: 'A new task', reason: 'The owner asked' });
   assert.equal(answer, 'Changed your main assignment. It applies from your next run; the owner can undo it. Tell the owner in one line.');
   assert.equal((await srv.api(`/bots/${bot.id}`)).data.prompt, 'A new task');

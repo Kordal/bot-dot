@@ -267,7 +267,7 @@ test('an approved and a declined memory change each write one line of the audit 
   const b = await bot();
   const h = await held(t, b, ownerAsks(srv, b, 'Read the page and remember what it says about me.'));
   await uses(h, 'WebFetch');
-  // Saved at once (ADR 059), and removed at once (ADR 177); a forget of them waits.
+  // Saved at once (ADR 059), and removed at once (ADR 178); a forget of them waits.
   const notes = [];
   for (const text of ['The owner plays the cello', 'The owner plays the oboe']) notes.push((await mem(h, { action: 'add', text, scope: 'shared' })).note);
   const one = await mem(h, { action: 'forget', notes: [notes[0].id], about: 'cello' });

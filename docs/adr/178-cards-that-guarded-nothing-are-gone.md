@@ -1,4 +1,4 @@
-# ADR-177: Cards that guarded nothing are gone
+# ADR-178: Cards that guarded nothing are gone
 
 - **Status:** Accepted
 - **Owning task:** the owner's OK of 10 November 2026 on the approvals audit (https://claude.ai/artifact/EDDPL7ABQ5FVEbcq2NApJK)

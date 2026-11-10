@@ -216,7 +216,7 @@ test('learning cannot be turned down: "learning" from an older app or the Chief 
   assert.equal((await self(srv, token, 'memory', { action: 'add', text: 'ALPACA saved by the bot' })).status, 200);
 });
 
-test('memory review uses its chosen model, sees notes/runs, saves shared additions and changes at once, and a shared removal too (ADR 177)', async (t) => {
+test('memory review uses its chosen model, sees notes/runs, saves shared additions and changes at once, and a shared removal too (ADR 178)', async (t) => {
   const bot = await makeBot(srv, { name: 'Reviewed memory' });
   const old = await finishedRun(srv, bot, 'Review PANGOLIN situation', 'PANGOLIN observations');
   await add(srv, bot.id, 'PANGOLIN pinned owner note');
@@ -241,7 +241,7 @@ test('memory review uses its chosen model, sees notes/runs, saves shared additio
   assert.match(await tools.text('update_memory', { id: shared.id, note: 'PANGOLIN changed shared fact', reason: 'Review correction' }), /^Updated note/);
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id), []);
   assert.equal((await srv.api(`/memory/notes/${shared.id}/history`)).data[0].reason, 'Review correction');
-  // A removal is saved at once too, and the owner can bring it back for 30 days (ADR 177).
+  // A removal is saved at once too, and the owner can bring it back for 30 days (ADR 178).
   assert.match(await tools.text('remove_note', { id: shared.id }), /^Removed note/);
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id), []);
   assert.ok(!(await srv.api('/memory/shared')).data.memory.some((n) => n.id === shared.id));

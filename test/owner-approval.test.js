@@ -5,7 +5,7 @@ const path = require('path');
 const { startServer, makeBot, heldRun, waitFor, fakeConnectedApp, connectorEnv } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
-test('after the run read a web page, a bot instruction edit waits for the owner and a decline preserves the task (ADR 177)', async (t) => {
+test('after the run read a web page, a bot instruction edit waits for the owner and a decline preserves the task (ADR 178)', async (t) => {
   const srv = await startServer();
   t.after(() => srv.stop());
   const bot = await makeBot(srv, { prompt: 'Owner task', systemPrompt: 'Owner rules' });

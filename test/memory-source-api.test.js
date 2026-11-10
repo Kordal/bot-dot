@@ -204,7 +204,7 @@ test('a follow-up after teammates answered answers as the run it follows', async
   assert.deepEqual((await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.noteId === said.id), [], 'no card');
 });
 
-test('D15: a note of the owner\'s is changed at once in the owner\'s clean run and any other (ADR 059), refused in a job\'s run and the review; removed at once anywhere else, and a forget of it waits as a guarded change (ADR 177)', async (t) => {
+test('D15: a note of the owner\'s is changed at once in the owner\'s clean run and any other (ADR 059), refused in a job\'s run and the review; removed at once anywhere else, and a forget of it waits as a guarded change (ADR 178)', async (t) => {
   const b = await bot();
   const said = await typed(b.id, 'Use pnpm');
   const own = await typed(b.id, 'Reports go out on Mondays');
@@ -272,7 +272,7 @@ test('D15: a note of the owner\'s is changed at once in the owner\'s clean run a
   const newApp = listen('?guarded=1');
   await waitFor(() => oldApp.some((e) => e.type === 'hello') && newApp.some((e) => e.type === 'hello'), { what: 'both apps to be connected' });
   const chiefs = await held(t, b, asChief(b));
-  // A removal is done at once, also of what the owner said, since the owner can bring it back for 30 days (ADR 177).
+  // A removal is done at once, also of what the owner said, since the owner can bring it back for 30 days (ADR 178).
   const removed = await mem(chiefs, { action: 'remove', id: said.id, reason: 'The Chief said so' });
   assert.equal(removed.result, 'saved');
   assert.match(removed.say, /^Removed note/);
@@ -331,7 +331,7 @@ test('D15: a note of the owner\'s is changed at once in the owner\'s clean run a
   assert.deepEqual((await learnedOf(chiefs)).at(-1).chip, 'Changed what you said, its own conclusion: Reports go out on Fridays');
 });
 
-test('a shared addition or change after outside content is saved at once and told under the reply, and a removal is done at once (ADR 059, ADR 177)', async (t) => {
+test('a shared addition or change after outside content is saved at once and told under the reply, and a removal is done at once (ADR 059, ADR 178)', async (t) => {
   const b = await bot();
   const h = await held(t, b);
   const direct = await remember(h, 'The owner lives in Łódź', { scope: 'shared' });
@@ -353,7 +353,7 @@ test('a shared addition or change after outside content is saved at once and tol
   // In the words of a done change (ADR 059).
   const rows = (await learnedOf(h)).map((x) => x.chip);
   assert.deepEqual(rows.slice(-2), ['Remembered for all bots, after outside content: Read on a page, for all', 'Updated for all bots, after outside content: A shared note of a bot, changed']);
-  // A removal is done at once too, since the owner can bring it back for 30 days (ADR 177).
+  // A removal is done at once too, since the owner can bring it back for 30 days (ADR 178).
   const removal = await mem(h, { action: 'remove', id: page.note.id });
   assert.equal(removal.result, 'saved');
   assert.match(removal.say, /^Removed note/);

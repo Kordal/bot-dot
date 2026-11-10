@@ -179,7 +179,7 @@ test('after the turn read a bot\'s reply, a note is not the owner\'s, and a chan
   assert.equal(late.saved[0].saidBy, 'outside');
   assert.equal(late.chip, 'Remembered for Coder, after outside content: Prefers small pull requests');
   assert.match(late.say, /It is recorded as saved after outside content, not as the user's own word/);
-  // What a bot concluded is changed at once; a forget of what the owner said waits, guarded. A removal does not (ADR 177).
+  // What a bot concluded is changed at once; a forget of what the owner said waits, guarded. A removal does not (ADR 178).
   const free = await turn.call('update_note', { id: late.notes[0], note: 'Prefers small pull requests, under 200 lines', reason: 'more exact' });
   assert.equal(free.chip, 'Updated for Coder, after outside content: Prefers small pull requests, under 200 lines');
   const forget = await turn.call('forget', { notes: [first.notes[0]], about: 'deploys Fridays' });
@@ -190,7 +190,7 @@ test('after the turn read a bot\'s reply, a note is not the owner\'s, and a chan
   const changed = await turn.call('update_note', { id: first.notes[0], note: 'Deploys go out on Mondays' });
   assert.deepEqual([changed.result, changed.chip], ['saved', 'Changed what you said for Coder, after outside content: Deploys go out on Mondays']);
   assert.equal((await notesOf(coder.id)).find((n) => n.id === first.notes[0]).source, 'outside');
-  // A removal is done at once: the note comes back for 30 days (ADR 177).
+  // A removal is done at once: the note comes back for 30 days (ADR 178).
   const gone = await turn.call('remove_note', { id: first.notes[0], reason: 'no longer' });
   assert.equal(gone.result, 'saved');
   assert.ok(!(await notesOf(coder.id)).some((n) => n.id === first.notes[0]));

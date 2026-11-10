@@ -27,7 +27,7 @@ before(async () => {
 });
 after(async () => { srv.unhold(); await srv.stop(); docker.remove(); });
 
-test('a new secret botdot makes is saved at once for that bot, with no card (ADR 177)', async (t) => {
+test('a new secret botdot makes is saved at once for that bot, with no card (ADR 178)', async (t) => {
   srv.hold();
   const { token, rec } = await heldRun(srv, bot);
   t.after(() => srv.release(rec));
