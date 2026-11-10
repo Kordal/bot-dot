@@ -160,7 +160,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     }
 
     fun tell(text: String?) = android.widget.Toast.makeText(context, text ?: tr("That didn't work"), android.widget.Toast.LENGTH_LONG).show()
-    fun took(c: Company) = app.store.tookProject(c)
+    fun took(c: Company, made: Boolean = false) = app.store.tookProject(c, made)
     fun company(): Company? = app.store.company.value.value?.company
 
     /** Saves [fields] as given, drawn at once as [now] has them; a refused save takes the server's company back. */
@@ -181,9 +181,9 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
         removingGoals += id
         call({ it.removeObjective(id) }) { removingGoals -= id }
     }
-    fun call(block: suspend (Api) -> Company, done: (Boolean) -> Unit = {}) = scope.launch {
+    fun call(block: suspend (Api) -> Company, made: Boolean = false, done: (Boolean) -> Unit = {}) = scope.launch {
         val a = api ?: run { tell(tr("Can't reach botdot.")); done(false); return@launch }
-        runCatching { block(a) }.onSuccess { took(it); done(true) }.onError { tell(it.message); done(false) }
+        runCatching { block(a) }.onSuccess { took(it, made); done(true) }.onError { tell(it.message); done(false) }
     }
 }
 
@@ -305,7 +305,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
         if (n.isEmpty() || ui.going) return
         if (ui.sources.any { it.uploading }) return ui.tell(tr("Wait for the files to finish uploading."))
         ui.going = true
-        ui.call({ it.startEmptyProject(n, ui.sources.toList()) }) { ok -> ui.going = false; if (ok) { naming = false; name = ""; ui.sources.clear() }; ui.step = null }
+        ui.call({ it.startEmptyProject(n, ui.sources.toList()) }, made = true) { ok -> ui.going = false; if (ok) { naming = false; name = ""; ui.sources.clear() }; ui.step = null }
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> addFiles(ui, context, uris) }
     fun go() {
@@ -313,7 +313,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
         if (start.isEmpty() || ui.going) return
         if (ui.sources.any { it.uploading }) return ui.tell(tr("Wait for the files to finish uploading."))
         ui.going = true
-        ui.call({ it.startCompany(start, ui.sources.toList()) }) { ok -> ui.going = false; if (ok) { ui.sources.clear(); ui.step = "about" } }
+        ui.call({ it.startCompany(start, ui.sources.toList()) }, made = true) { ok -> ui.going = false; if (ok) { ui.sources.clear(); ui.step = "about" } }
     }
     Column(Modifier.fillMaxSize().padding(horizontal = Space.s16, vertical = Space.s16)) {
         Spacer(Modifier.weight(1f))

@@ -225,10 +225,14 @@ class Store(
         company.set(CompanyHeld(null))
     }
 
-    /** A project as botdot answered a change of it: shown when it is the one shown (or a new one just made), kept in the list either way. */
-    fun tookProject(c: Company) {
+    /**
+     * A project as botdot answered a change of it: shown when it is the one shown, kept in the list either way. [made]:
+     * the answer to Go on the start screen, shown while that screen is still on, even when the feed's `project` event
+     * put it in the list first (it is sent before the answer, so the start screen stayed on).
+     */
+    fun tookProject(c: Company, made: Boolean = false) {
         if (!many) return company.set(CompanyHeld(c))
-        val made = _addingProject.value && _projectList.value.none { it.id == c.id }
+        val made = made && _addingProject.value
         _projectList.value = ManyProjects.changed(_projectList.value, c.id, c)
         if (made) { _addingProject.value = false; _shownProject.value = c.id }
         if (made || company.value.value?.company?.id == c.id) { api.value?.project = c.id; company.set(CompanyHeld(c)) }
