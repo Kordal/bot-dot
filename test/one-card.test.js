@@ -27,7 +27,7 @@ const from = (chat, opts = {}) => ({ ...opts, headers: { 'X-Chief-Chat': chat.id
 // The Chief's turns after the owner's yes; not the turn it gets when a run it started has ended (BUSY-002).
 const told = (re) => srv.runs().filter((r) => r.botdot && /^botdot writes this, not the user: nobody typed it\. The user said yes on /m.test(r.stdin) && re.test(r.stdin));
 const CARRIES = { who: 'chief', text: 'the Chief carries on' };
-// The web is every bot's (ADR 186): commands are what a changed bot of the Chief's still holds for a yes.
+// The web is every bot's (ADR 192): commands are what a changed bot of the Chief's still holds for a yes.
 const WITH_WEB = { allowedTools: ['Read', 'WebSearch', 'WebFetch'] };
 const WITH_BASH = { allowedTools: ['Read', 'Bash'] };
 const kinds = async (bot) => (await asksOf(bot)).map((a) => a.kind).sort();

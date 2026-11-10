@@ -41,7 +41,7 @@ test('web: index.html loads usage.js after boot.js, and Settings draws the card 
   const scripts = [...read('index.html').matchAll(/<script src="\/([^"]+)"><\/script>/g)].map((m) => m[1]);
   assert.ok(scripts.indexOf('usage.js') > scripts.indexOf('boot.js'));
   const settings = read('settings.js');
-  assert.match(settings, /state\.features\.includes\('token-usage'\) && \(s\.advanced \|\| !state\.features\.includes\('advanced'\)\) \? '<details class="bs-row bs-more" id="usage-card"><\/details>'/, 'a row of Settings that opens under itself, only under Advanced (ADR 186)');
+  assert.match(settings, /state\.features\.includes\('token-usage'\) && \(s\.advanced \|\| !state\.features\.includes\('advanced'\)\) \? '<details class="bs-row bs-more" id="usage-card"><\/details>'/, 'a row of Settings that opens under itself, only under Advanced (ADR 192)');
   assert.match(settings, /id="settings-advanced"/, 'the Advanced switch');
   assert.match(settings, /api\('\/settings', \{ method: 'PUT', body: \{ advanced: adv\.checked \} \}\)/);
   assert.match(settings, /typeof Usage !== 'undefined'\) Usage\.open\(\$\('#usage-card', root\)\)/);

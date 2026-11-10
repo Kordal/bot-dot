@@ -320,7 +320,7 @@ async function askFor(denials) {
   if (!env?.SELF_URL || !env.RUN_TOKEN || env.SELF_CAN_EDIT === '0') return; // not in the memory review, which keeps to its tools
   const seen = new Set();
   for (const d of denials) {
-    // A stand-in for an ask that is not a permission (every bot has the web and files, ADR 186, and helpers are given
+    // A stand-in for an ask that is not a permission (every bot has the web and files, ADR 192, and helpers are given
     // at once): 'Override' asks to lift one of its rules for one action, as ask_override does.
     if (d.tool_name === 'Override') {
       try {
