@@ -355,6 +355,7 @@ function panel() {
     // GET /api/bots/:id/jobs before a yes: the jobs as the server has them now (ctx.jobs; none set: no list).
     api: async (url, opts) => { if (!opts) return ctx.jobs; calls.push([url, opts.body]); return ctx.answer; },
     $: (sel, root) => root.querySelector(sel),
+    advanced: () => true,
   });
   vm.runInContext(`${cut('const AI_WHEN_TEXT = {', 'const readJob = ')}
     ${cut('// Jobs waiting for the owner\'s OK', '// ---------- connectors (apps through Composio)')}

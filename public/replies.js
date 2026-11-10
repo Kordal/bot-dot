@@ -177,7 +177,9 @@ const chatHeights = typeof ResizeObserver === 'function' ? new ResizeObserver((e
     if (was && h && h !== was && t.scrollHeight - t.scrollTop - was < 4) t.scrollTop = t.scrollHeight;
   }
 }) : null;
-function holdChatEnd(thread) {
+// It also gets the button to its newest message (to-latest.js); `head` draws the head of the chat's one writer.
+function holdChatEnd(thread, head = null) {
+  if (thread && typeof ToLatest !== 'undefined') ToLatest.watch(thread, head);
   if (!thread || !chatHeights || heldChats.has(thread)) return;
   heldChats.set(thread, thread.clientHeight);
   chatHeights.observe(thread);

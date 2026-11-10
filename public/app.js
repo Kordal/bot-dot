@@ -3,6 +3,9 @@
 // order of index.html, and the start of the page (boot.js) comes last (#77).
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+// Advanced (ADR 200): the technical rows (models, exact tools, cron, scripts, tokens, a run's folder) show only while
+// the account has it on. A server without the switch shows them all, as before.
+const advanced = () => !state.features.includes('advanced') || state.settings?.advanced !== false;
 
 const state = {
   view: 'chief',

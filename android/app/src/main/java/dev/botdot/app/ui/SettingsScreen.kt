@@ -133,6 +133,9 @@ fun SettingsScreen(
     }
     LaunchedEffect(api) { load() }
 
+    // Advanced (ADR 200): without it, the models and the proxy are left out.
+    val adv = dev.botdot.app.data.Advanced.shows(server?.features, info.settings)
+    LaunchedEffect(server, info) { if (server != null) dev.botdot.app.data.Advanced.take(server?.features, info.settings) }
     val models = listOf("" to tr("Claude Code's default")) + info.models.map { it.id to it.label.ifBlank { it.id } }
     val efforts = listOf("" to tr("Claude Code's default")) + info.efforts.map { it.id to it.label }
     val canThink = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
@@ -162,13 +165,15 @@ fun SettingsScreen(
             if (dev.botdot.app.data.Storage.shows(server?.features)) Link(tr("Storage"), onClick = onStorage) // what the account's files take on the disk
             Spacer(Modifier.height(Space.s16))
 
-            Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
-            if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
-            Rule()
+            if (adv) {
+                Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
+                if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
+                Rule()
+            }
 
             // The account's proxies (ADR 171): the one the bots use, each with its test.
             val proxyApi = api
-            if (proxyApi != null && dev.botdot.app.data.Proxies.shows(server?.features)) ProxySection(proxyApi, ::tell, ::saved)
+            if (adv && proxyApi != null && dev.botdot.app.data.Proxies.shows(server?.features)) ProxySection(proxyApi, ::tell, ::saved)
 
             // The interface's language (#645): saved by itself, and every screen draws again in it at once.
             if (server?.features?.contains(I18n.FEATURE) == true) {
@@ -201,11 +206,9 @@ fun SettingsScreen(
                 }
             }
 
-            // "Advanced" (ADR 192): what only a technical owner needs, first the token usage. A server without it shows usage always.
-            edit.advanced?.let { on -> SettingsGroup { SwitchRow(tr("Advanced"), checked = on) { saveModel(edit.copy(advanced = it)) } } }
-            // Usage (#301): only from a server that counts it, and under Advanced.
+            // Usage (#301): only from a server that counts it; without Advanced (ADR 200) without tokens.
             val usageApi = api
-            if (usageApi != null && edit.advanced != false && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
+            if (usageApi != null && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
 
             // Claude's sign-in (the setup page's first step), for when it has to be done again.
             setup?.let { s ->
@@ -328,6 +331,12 @@ fun SettingsScreen(
             if (server?.features?.contains("accounts") == true) {
                 FoldSection(tr("Sign-ins")) {
                     SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
+                }
+            }
+            // Advanced (ADR 200): saved by itself; every screen follows at once.
+            if (server?.features?.contains(dev.botdot.app.data.Advanced.FEATURE) == true) {
+                SwitchRow(tr("Advanced"), checked = adv) { on ->
+                    scope.launch { runCatching { api!!.saveSettings(AppSettings(advanced = on)) }.onSuccess { info = it; edit = it.settings; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                 }
             }
             Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
