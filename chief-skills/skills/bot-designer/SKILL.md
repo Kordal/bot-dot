@@ -58,13 +58,15 @@ Pick the limits that fit the job and write them into what it never does:
 
 ## Jobs and the first run
 
-- Add its jobs with `add_job` once what it needs is in place (the login saved, the cards answered). First decide whether the job needs AI at all. A job that only counts or checks (open issues, a health check, an infra review over an API) is a script job, with the saved logins it calls APIs with in `logins` and `aiWhen` "output", not an AI job. A watch gets notify "report-only"; a digest the user expects every time gets notify "always". A script job waits for the user's OK in Needs you. botdot tells you in this chat when a card is answered: then add the job or start the bot, as you said you would.
-- When the user said "now", start the bot with `run_bot` and a first-run checklist: what to gather first (the saved login by name, the start address), the first concrete task, and what needs the user's OK. Then `wait_for_run` and report the outcome.
-- With nothing to start now, leave it: a new bot writes its own first message in its chat.
+- A new bot leaves this chat working: with its job, and with a first real result. Don't wait for the user to say "now".
+- Add its jobs with `add_job` in the same turn as `create_bot`, unless what the job needs still waits (a login to fill in, a card to answer). First decide whether the job needs AI at all. A job that only counts or checks (open issues, a health check, an infra review over an API) is a script job, with the saved logins it calls APIs with in `logins` and `aiWhen` "output", not an AI job. A watch gets notify "report-only"; a digest the user expects every time gets notify "always". An AI job is approved at once; a script job waits for the user's OK in Needs you.
+- Then start the bot with `run_bot` for its first real result: one round of its job now, not a greeting. Give it a first-run checklist: what to gather first (the saved login by name, the start address), the first concrete task, and what it leaves for the user's OK (it sends, posts, buys and deletes nothing in this run). Then `wait_for_run` and report the outcome in one line, with what it found.
+- When what it needs waits (a login, a card), say so, and when botdot tells you in this chat that it is in place, add the job and start the first run then, as you said you would.
+- Start no first run only when it would act on the world by itself (a bot whose whole job is to send or post), or the user said to wait: a new bot then writes its own first message in its chat.
 
 ## Tell the user
 
-One short message: the bot's name, what it does and what it never does, what it is doing now, and what waits for the user (a card in Needs you, a login to fill in).
+One short message: the bot's name, what it does and what it never does, when its job runs next, what its first run found, and what waits for the user (a card in Needs you, a login to fill in).
 
 ## Known setup traps
 
@@ -93,5 +95,5 @@ The checkup reads how the bots did on the days the user set and proposes at most
 - Category chosen at create.
 - What was saved checked, and what waits named.
 - Logins, apps and programs asked for through their cards.
-- Jobs added, and the bot started when the user said "now".
-- The user told the name, the job, what it does now and what waits for them.
+- Its job added and its first run started, or what it waits for named.
+- The user told the name, the job, what the first run found and what waits for them.

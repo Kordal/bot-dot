@@ -1,7 +1,7 @@
 // The Chief's tool answers are compact (#1099): JSON on one line, and list_bots without what only get_bot needs.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { startServer, makeBot } = require('./helpers');
+const { startServer, makeBot, withAlways } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 let srv;
@@ -21,6 +21,6 @@ test('list_bots names each hat, kit or drawn, and leaves out colour, tool lists 
   assert.equal(listed.find((b) => b.id === plain.id).hat, (await srv.api(`/bots/${plain.id}`)).data.outfit?.hat ? 'drawn' : null);
   for (const k of ['id', 'name', 'description', 'computer', 'jobs', 'running']) assert.ok(k in one, k);
   const full = await tools.json('get_bot', { id: kit.id });
-  assert.deepEqual(full.allowedTools, ['Read']);
+  assert.deepEqual(full.allowedTools, withAlways('Read'));
   assert.ok('color' in full && 'outfit' in full);
 });

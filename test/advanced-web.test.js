@@ -1,4 +1,4 @@
-// Advanced on the web page (ADR 186): one switch at the end of Settings; while it is off the page leaves out the
+// Advanced on the web page (ADR 192): one switch at the end of Settings; while it is off the page leaves out the
 // technical rows (the models, a bot's commands, helpers, exact tools and permission mode, a run's folder and
 // `claude --resume`), and a server without the switch shows them all, as before.
 const { test } = require('node:test');
@@ -24,7 +24,7 @@ test('web: advanced() is on for a server without the switch, and follows the acc
 test('web: Settings ends with the Advanced switch, saved by itself, and draws again', () => {
   assert.match(settings, /state\.features\.includes\('advanced'\) \? `<label class="bs-row"><b>\$\{tr\('Advanced'\)\}<\/b><span class="switch"><input type="checkbox" id="settings-advanced"/);
   const wire = settings.slice(settings.indexOf('function wireAdvanced(root)'), settings.indexOf('// The interface\'s language'));
-  assert.match(wire, /api\('\/settings', \{ method: 'PUT', body: \{ advanced: box\.checked \} \}\)/);
+  assert.match(wire, /api\('\/settings', \{ method: 'PUT', body: \{ advanced: sw\.checked \} \}\)/);
   assert.match(wire, /renderSettings\(\);/);
   assert.match(wire, /render\(\);/, 'every screen draws again');
 });
@@ -40,10 +40,9 @@ test('web: without Advanced, Settings leaves out the model, the proxy and the bo
   assert.match(settings, /id="chief-model"\$\{advanced\(\) \? '' : ' hidden'\}/, "the Chief's model too");
 });
 
-test('web: without Advanced, a bot keeps files and the web; commands, helpers, exact tools and its model are hidden, not dropped', () => {
+test('web: without Advanced, its commands, helpers, exact tools and its model are hidden, not dropped', () => {
   assert.match(bots, /key: 'bash'[^\n]*advanced: true/);
   assert.match(bots, /key: 'helpers'[^\n]*advanced: true/);
-  assert.doesNotMatch(bots.match(/key: 'files'[^\n]*/)[0] + bots.match(/key: 'web'[^\n]*/)[0], /advanced/);
   assert.match(bots, /\$\{p\.advanced && !advanced\(\) \? ' hidden' : ''\}><input type="checkbox" data-perm=/, 'still in the form: what is saved stays');
   assert.match(bots, /<details class="bs-exact"\$\{advanced\(\) \? '' : ' hidden'\}/);
   assert.match(bots, /id="bs-model"\$\{advanced\(\) \? '' : ' hidden'\}/);

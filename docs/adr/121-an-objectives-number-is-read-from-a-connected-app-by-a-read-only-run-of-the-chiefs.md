@@ -25,3 +25,5 @@ A project's objectives are numbers (ADR 110, #690) that the owner or the Chief s
 
 - A source costs one short Claude run a day (a week) per objective, at most six per project.
 - A disconnected app fails at once, without a run, and is said once.
+
+_Amended by [ADR 191](191-a-leads-report-moves-the-goals-it-plainly-reached.md): a lead's report moves a goal without a source too, by one call that hands back moves botdot checks, never by a bot's tool._

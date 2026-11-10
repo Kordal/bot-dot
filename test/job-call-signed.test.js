@@ -97,7 +97,7 @@ test("the Chief proposes a signed call: the card says the secret lets a sender i
   assert.equal(p.status, 200, JSON.stringify(p.data));
   const waiting = await jobOf(bot, job);
   assert.deepEqual([waiting.call, waiting.callMode, waiting.change.call, waiting.change.callMode], [false, undefined, true, 'signed']);
-  assert.ok(waiting.change.summary.startsWith(`${calls.WARNING_SIGNED} Repo Watch can run commands. Runs when`), waiting.change.summary);
+  assert.ok(waiting.change.summary.startsWith(`${calls.WARNING_SIGNED} Repo Watch can browse the web, change files, run commands and use the account's computer, on your home network. Runs when`), waiting.change.summary);
   assert.equal(vaultSecret(srv, secretName(bot, job)), null, 'no secret before the yes');
   assert.deepEqual([(await setup(bot, job)).waiting, (await setup(bot, job)).waitingMode], [true, 'signed']);
 

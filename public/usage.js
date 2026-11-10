@@ -65,7 +65,7 @@ const Usage = (() => {
   function botsHTML(bots) {
     if (!bots.length) return `<p class="muted" style="margin:0">${advanced() ? tr('No tokens used in this timeframe.') : tr('Nothing in this timeframe.')}</p>`;
     const top = Math.max(...bots.map((b) => b.totalTokens), 1);
-    // Without Advanced (ADR 186) a bot's share of the whole, not its tokens.
+    // Without Advanced (ADR 192) a bot's share of the whole, not its tokens.
     const all = bots.reduce((n, b) => n + b.totalTokens, 0) || 1;
     const amount = (b) => (advanced() ? tokens(b.totalTokens) : `${Math.round((b.totalTokens / all) * 100)}%`);
     return `<div class="usage-bots">${bots.map((b) => `

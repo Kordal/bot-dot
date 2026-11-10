@@ -26,3 +26,5 @@ ADR 110 gave the company (the Projects place, spec #687) a list of the owner's t
 - The Chief's and the bots' prompts grow by a few lines for a bot of a team (bounded: ten items of 300 characters).
 - The project calendar (#687 item 8) can draw an item by its `due` and its `repeat` without a change to the record.
 - Android shows the old list until it is drawn there with the same filters.
+
+_Amended by [ADR 190](190-the-owners-dated-to-do-starts-its-bot-on-its-day.md): the owner's item for a bot dated for a later day, and each next item of its repeat, starts the bot on its day too._

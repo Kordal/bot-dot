@@ -93,17 +93,11 @@ test("the Chief can't reach a bot that isn't this account's, and its helper is n
   assert.deepEqual(asked.filter(([op]) => ['health', 'logs', 'stop', 'ensure', 'restartAll'].includes(op)), []);
 });
 
-test("the Chief can't stop, start or erase a computer itself, nor restart one of a bot that has none", async (t) => {
+test("the Chief can't stop, start or erase a computer itself", async (t) => {
   const bot = await makeBot(srv, { computer: 'linux' });
   for (const action of ['reset', 'stop', 'start']) {
     assert.equal((await srv.asChief(`/bots/${bot.id}/computer`, { method: 'POST', body: { action } })).status, 403, action);
   }
-  const plain = await makeBot(srv);
-  asked = [];
-  const r = await srv.asChief(`/bots/${plain.id}/computer/restart`, { method: 'POST' });
-  assert.equal(r.status, 409);
-  assert.match(r.data.error, /This bot has no computer/);
-  assert.deepEqual(asked.filter(([op]) => ['stop', 'ensure', 'restartAll'].includes(op)), []);
 });
 
 test("the account's computer is not restarted on the Chief's word under a bot's run: the owner is asked", async (t) => {

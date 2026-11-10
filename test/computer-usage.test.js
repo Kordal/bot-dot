@@ -157,7 +157,6 @@ before(async () => {
   srv = await startServer({ env: { BOT_DOT_HELPER_SOCKET: socket } });
   coder = await makeBot(srv, { name: 'Coder', computer: 'linux' });
   scout = await makeBot(srv, { name: 'Scout', computer: 'linux' });
-  await makeBot(srv, { name: 'No Desk' });
   // Their screens, as their first computer tools gave them: Coder 1, Scout 2.
   await srv.stop();
   fs.writeFileSync(path.join(srv.data, 'computer-screens.json'), JSON.stringify({ [coder.id]: 1, [scout.id]: 2 }));

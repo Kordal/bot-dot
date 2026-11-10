@@ -371,8 +371,8 @@ function renderSettings() {
         <summary><b>${tr('Backups')}</b><span class="bs-val">${tr('Checking…')}</span>${CHEV}</summary>
       </details>
       <details class="bs-row bs-more" id="update-card" hidden></details>
-      ${signOutCardHTML()}
       ${state.features.includes('advanced') ? `<label class="bs-row"><b>${tr('Advanced')}</b><span class="switch"><input type="checkbox" id="settings-advanced"${advanced() ? ' checked' : ''} aria-label="${esc(tr('Advanced'))}"><span></span></span></label>` : ''}
+      ${signOutCardHTML()}
     </div>`;
   wireAdvanced(root);
   drawInstallCard();
@@ -414,19 +414,19 @@ function renderSettings() {
   };
 }
 
-// Advanced (ADR 186): saved by itself; every screen draws again with the technical rows shown or hidden.
+// Advanced (ADR 192): saved by itself; every screen draws again with the technical rows shown or hidden.
 function wireAdvanced(root) {
-  const box = $('#settings-advanced', root);
-  if (!box) return;
-  box.onchange = async () => {
-    box.disabled = true;
+  const sw = $('#settings-advanced', root);
+  if (!sw) return;
+  sw.onchange = async () => {
+    sw.disabled = true;
     try {
-      state.settings = (await api('/settings', { method: 'PUT', body: { advanced: box.checked } })).settings;
+      state.settings = (await api('/settings', { method: 'PUT', body: { advanced: sw.checked } })).settings;
       root.innerHTML = '';
       renderSettings();
       flashSaved(root);
       render();
-    } catch (err) { toast(err.message, true); box.checked = advanced(); box.disabled = false; }
+    } catch (err) { toast(err.message, true); sw.checked = advanced(); sw.disabled = false; }
   };
 }
 

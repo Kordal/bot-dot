@@ -1,6 +1,5 @@
-// The owner talks to a team through its lead (ADR 148): a member may always message its lead, and a lead its members,
-// whatever their "May message" says, so what a member needs from the owner reaches the lead and the answer comes back.
-// A bot outside the team stays as its settings say.
+// The owner talks to a team through its lead (ADR 148): a member asks its lead for what it needs from the owner, and
+// the lead passes the answer on. Every bot may message every other (ADR 186), inside a team or not.
 process.env.BOT_DOT_RUNS_MAX = '1';
 const path = require('path');
 const { test, before, after } = require('node:test');
@@ -33,38 +32,28 @@ async function held(bot, fn) {
   }
 }
 
-test('a member that may message nobody may still message its lead, and is told to ask it for what it needs from the owner', async () => {
+test('a member messages its lead, and is told to ask it for what it needs from the owner', async () => {
   await held(member, async (h) => {
     assert.equal(h.rec.self.env.SELF_TEAM, '1');
     assert.match(h.rec.system, /ask the lead with message_bot \(priority: true\), not the owner/);
     assert.doesNotMatch(h.rec.system, new RegExp(`Bots you may not message yet: [^\\n]*Lead Finder`));
     const r = await self(srv, h.token, 'message', { to: lead.id, message: 'Which school list should I use? The owner has to pick.', priority: false });
     assert.equal(r.status, 200, JSON.stringify(r.data));
-    assert.match((await self(srv, h.token, 'message', { to: outsider.id, message: 'hi', priority: false })).data.error, /may not message/);
   });
 });
 
-test('a lead may message its members to pass the owner\'s answer on, and no bot outside its team', async () => {
+test('a lead messages its members to pass the owner\'s answer on', async () => {
   await held(lead, async (h) => {
     assert.match(h.rec.system, /The owner talks to the team through you/);
     const r = await self(srv, h.token, 'message', { to: member.id, message: 'The owner picked the Leeds list.', priority: false });
     assert.equal(r.status, 200, JSON.stringify(r.data));
-    assert.match((await self(srv, h.token, 'message', { to: outsider.id, message: 'hi', priority: false })).data.error, /may not message/);
   });
 });
 
-test('a bot outside every team gets no way to its lead', async () => {
+test('a bot outside every team is told nothing of a lead, and messages any bot', async () => {
   await held(outsider, async (h) => {
-    assert.equal(h.rec.self.env.SELF_TEAM, '0');
-    assert.match((await self(srv, h.token, 'message', { to: lead.id, message: 'hi', priority: false })).data.error, /may not message/);
+    assert.equal(h.rec.self.env.SELF_TEAM, '1');
+    assert.doesNotMatch(h.rec.system, /The owner talks to the team through you/);
+    assert.equal((await self(srv, h.token, 'message', { to: member.id, message: 'hi', priority: false })).data.ok, true);
   });
-});
-
-test('a bot kept to the owner is not reached through a team', async () => {
-  await srv.api(`/bots/${lead.id}`, { method: 'PUT', body: { othersMayAsk: false } });
-  try {
-    await held(member, async (h) => {
-      assert.match((await self(srv, h.token, 'message', { to: lead.id, message: 'hi', priority: false })).data.error, /kept to the owner/);
-    });
-  } finally { await srv.api(`/bots/${lead.id}`, { method: 'PUT', body: { othersMayAsk: true } }); }
 });

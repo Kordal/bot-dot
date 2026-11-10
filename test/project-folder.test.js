@@ -45,16 +45,17 @@ test('a project has a folder named as it was made, listed with the shared projec
   await srv.api(`/company?project=${r.data.id}`, { method: 'DELETE' });
 });
 
-test('a bot on the computer is told the folder on its computer; a bot without it gets the project file tools', async () => {
+test('a bot on the computer is told the folder on its computer, and so is one made without it', async () => {
   let { rec } = await heldRun(srv, coder, 'Where are the files?');
   assert.match(rec.system, /Project folder, shared by its bots: "\/workspace\/projects\/Fernhill Shop" on your computer\./);
   assert.equal(rec.self.env.SELF_FOLDER, '0');
   assert.match(rec.system, /Save each draft, text or other piece of work for the project there as a file as you make it, and name that file when you say it is written, ready or waiting for review: never say so of work that has no file there\./, 'no work said ready without its file');
   assert.doesNotMatch(rec.system, /Shared projects:/, 'said once, in the team note');
   srv.release(rec);
+  // Every bot has the computer (ADR 186): the same folder, on its computer.
   ({ rec } = await heldRun(srv, writer, 'Where are the files?'));
-  assert.match(rec.system, /on the account's computer, reached with the project file tools \(list_project_files/);
-  assert.equal(rec.self.env.SELF_FOLDER, '1');
+  assert.match(rec.system, /Project folder, shared by its bots: "\/workspace\/projects\/Fernhill Shop" on your computer\./);
+  assert.equal(rec.self.env.SELF_FOLDER, '0');
   srv.release(rec);
 });
 
@@ -126,18 +127,12 @@ test("a path in a team bot's reply opens the file in its project's folder, relat
   docker.answer('exec.txt', `ok 16 1760000000\n${file}`);
   const open = (bot, p) => srv.api(`/bots/${bot.id}/path?path=${encodeURIComponent(p)}&view=1`);
   const script = () => execs().at(-1).args.at(-1);
-  // Relative to the project's folder, as the bot names it: not in its workspace on botdot, so read there.
-  let r = await open(writer, 'install-docs/QUICK-INSTALL.md');
+  // In full: the project's folder on the account's computer, read from botdot's own seat.
+  let r = await open(writer, '/workspace/projects/Fernhill Shop/install-docs/QUICK-INSTALL.md');
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.text, '# Quick install\n');
-  assert.equal(r.data.name, 'QUICK-INSTALL.md');
   assert.ok(execs().at(-1).args.includes('botdot.account.computer'), "from botdot's own seat");
-  assert.match(script(), /p='\/workspace\/projects\/Fernhill Shop\/install-docs\/QUICK-INSTALL\.md'/);
   assert.match(script(), /'\/workspace\/projects\/Fernhill Shop'\/\*\)/, 'inside the project folder only');
-  // In full, for a bot without the computer too.
-  r = await open(writer, '/workspace/projects/Fernhill Shop/install-docs/QUICK-INSTALL.md');
-  assert.equal(r.status, 200, JSON.stringify(r.data));
-  assert.equal(r.data.text, '# Quick install\n');
   // A bot on the computer: its own folder there is looked in first.
   r = await open(coder, 'notes.md');
   assert.equal(r.status, 200, JSON.stringify(r.data));
@@ -203,7 +198,7 @@ test("deleting a project keeps its folder for its bots on the computer, or delet
   let r = await srv.api(`/company?project=${pid}`, { method: 'DELETE' });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const kept = (await srv.api('/projects')).data.projects.find((p) => p.name === 'Fernhill Shop');
-  assert.deepEqual([kept.bots, kept.project], [[coder.id], undefined]);
+  assert.deepEqual([[...kept.bots].sort(), kept.project], [[coder.id, writer.id].sort(), undefined], 'both are on the computer (ADR 186)');
 
   // Deleted: with what it holds, on the computer.
   r = await srv.api('/company', { method: 'POST', body: { start: 'Oakwood' } });

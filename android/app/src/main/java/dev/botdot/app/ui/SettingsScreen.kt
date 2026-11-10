@@ -133,7 +133,7 @@ fun SettingsScreen(
     }
     LaunchedEffect(api) { load() }
 
-    // Advanced (ADR 186): without it, the models and the proxy are left out.
+    // Advanced (ADR 192): without it, the models and the proxy are left out.
     val adv = dev.botdot.app.data.Advanced.shows(server?.features, info.settings)
     LaunchedEffect(server, info) { if (server != null) dev.botdot.app.data.Advanced.take(server?.features, info.settings) }
     val models = listOf("" to tr("Claude Code's default")) + info.models.map { it.id to it.label.ifBlank { it.id } }
@@ -206,7 +206,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Usage (#301): only from a server that counts it.
+            // Usage (#301): only from a server that counts it; without Advanced (ADR 192) without tokens.
             val usageApi = api
             if (usageApi != null && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
 
@@ -333,7 +333,7 @@ fun SettingsScreen(
                     SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
                 }
             }
-            // Advanced (ADR 186): saved by itself; every screen follows at once.
+            // Advanced (ADR 192): saved by itself; every screen follows at once.
             if (server?.features?.contains(dev.botdot.app.data.Advanced.FEATURE) == true) {
                 SwitchRow(tr("Advanced"), checked = adv) { on ->
                     scope.launch { runCatching { api!!.saveSettings(AppSettings(advanced = on)) }.onSuccess { info = it; edit = it.settings; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }

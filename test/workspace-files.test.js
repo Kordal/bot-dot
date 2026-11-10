@@ -213,7 +213,6 @@ test('only the owner: the Chief is refused everything', async () => {
 
 test("on the computer: off, it says so and nothing starts; on, the bot's folder there is listed, opened and deleted in", async () => {
   const c = (what, p, more = '') => at(what, p, `&root=computer${more}`, pc);
-  assert.equal((await srv.api(at('', '', '&root=computer'))).data.state, 'no-computer', 'a bot without the computer');
   docker.answer('inspect.json', null);
   const before = docker.calls().length;
   const off = await srv.api(c('', ''));

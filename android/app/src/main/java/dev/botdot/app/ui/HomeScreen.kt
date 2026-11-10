@@ -350,8 +350,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         is Keypad.Key.OfBot -> k.bot.let { b ->
             val r = lastRun[b.id]
             val running = b.running || r?.isRunning == true
-            val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status, runs = b.runningCount, seen = Keypad.seen(b.readAt, r?.endedAt))
-            // How long it has worked, from the run that is going; a run not in the list yet: no time.
+            val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status, runs = b.runningCount, seen = Keypad.seen(b.readAt, r?.endedAt), watching = !b.nextRunAt.isNullOrEmpty())
+            // How long it has worked, from the run that is going; a run not in the list yet: no time. Else when its last run
+            // started, which stands beside "Watching" as its "last" (ADR 187).
             val time = when {
                 !running -> listTime(r?.startedAt)
                 r?.isRunning == true -> runCatching { Keypad.since(now - java.time.Instant.parse(r.startedAt).toEpochMilli()) }.getOrDefault("")

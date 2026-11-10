@@ -406,7 +406,7 @@ test('a turn botdot started is given no tool that writes memory, and the route r
   const asking = await newChat();
   // A new bot gets its tools at once (ADR 176): the web given later, outside a turn of the owner's, waits on a card.
   const made = (await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Read the news.', allowedTools: ['Read'] }, headers: { 'X-Chief-Chat': asking.id } })).data;
-  await srv.asChief(`/bots/${made.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch'] }, headers: { 'X-Chief-Chat': asking.id } });
+  await srv.asChief(`/bots/${made.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] }, headers: { 'X-Chief-Chat': asking.id } });
   const card = (await srv.api('/asks')).data.find((a) => a.botId === made.id);
   await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   const answered = await srv.nextRun((x) => isChief(x) && /The user said yes on the card/.test(x.stdin), "the Chief's turn about the card");
@@ -414,7 +414,7 @@ test('a turn botdot started is given no tool that writes memory, and the route r
 
   // A look has no chat and the reading tools only; a call that names no chat, or a chat where no turn is going, is refused.
   const look = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey, BOT_DOT_LOOK: '1' });
-  assert.deepEqual((await names(look)).sort(), ['get_bot', 'get_run', 'list_bots', 'list_runs', 'recall']);
+  assert.deepEqual((await names(look)).sort(), ['get_bot', 'get_run', 'list_bots', 'list_runs', 'recall', 'run_failed_job_again']);
   await refused({});
   await refused({ 'X-Chief-Chat': chat.id });
   // Without the word, the tools' server offers none of them.

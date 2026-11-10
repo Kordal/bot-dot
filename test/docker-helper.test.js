@@ -99,9 +99,9 @@ test("owner edits and power settings never turn off the account's computer (#104
     assert.equal((await srv.api(`/bots/${bot.id}`, { method: 'PUT', body })).status, 200);
     await waitFor(async () => (await status()) === expected, { what: `explicit power change to ${expected}` });
   }
-  // Every bot with a computer shows the state of the account's computer, which they all work on.
+  // Every bot shows the state of the account's computer, which they all work on (ADR 186).
   const other = await makeBot(srv, { name: 'Second', computer: 'linux' });
-  assert.deepEqual((await srv.api('/computers')).data, { [other.id]: 'running' });
+  assert.deepEqual((await srv.api('/computers')).data, { [bot.id]: 'running', [other.id]: 'running' });
 });
 
 test("a seat may carry its bot's name, which its commits on the computer carry (#547)", () => {

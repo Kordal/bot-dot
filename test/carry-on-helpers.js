@@ -22,14 +22,17 @@ async function fakeGithub() {
 
 // Tools a run was refused, as Claude Code reports them when it ends.
 const BASH = { tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list', description: 'List open pull requests' } };
-const WEB = { tool_name: 'WebFetch', tool_use_id: 't2', tool_input: { url: 'https://example.com' } };
+// A second ask of a run that is not a permission: every bot has the web and files (ADR 186), and helpers are given at
+// once (ADR 178), so the stand-in Claude asks to lift one of its rules for one action, as ask_override does.
+const OVERRIDE = { tool_name: 'Override', tool_use_id: 't2', tool_input: { rule: 'Never post in the team channel', action: 'post the summary in the team channel' } };
+const OVERRIDE_WORDS = 'post the summary in the team channel, once, in this run, though your rule “Never post in the team channel” says otherwise';
 // A run of this bot, among the stand-in Claude's runs.
 const isRunOf = (bot) => (x) => x.args.includes(`${bot.emoji} ${bot.name}`);
 
 function kit(srv) {
   // What the stand-in Claude's next runs are refused.
   const refuse = (denials) => fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify(denials));
-  const asksOf = async (bot) => (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
+  const asksOf = async (bot) => (await srv.api('/asks?override=1')).data.filter((a) => a.botId === bot.id);
   const runsOf = async (bot) => (await srv.api(`/runs?botId=${bot.id}`)).data;
   const answer = (ask, yes) => srv.api(`/asks/${ask.id}`, { method: 'POST', body: { yes } });
   const lastRun = (bot) => waitFor(() => srv.runs().filter(isRunOf(bot)).at(-1), { what: `a run of ${bot.name}` });
@@ -52,4 +55,4 @@ function kit(srv) {
   return { refuse, asksOf, runsOf, answer, lastRun, refused, carriedOn, startsNothing };
 }
 
-module.exports = { kit, fakeGithub, BASH, WEB, isRunOf };
+module.exports = { kit, fakeGithub, BASH, OVERRIDE, OVERRIDE_WORDS, isRunOf };

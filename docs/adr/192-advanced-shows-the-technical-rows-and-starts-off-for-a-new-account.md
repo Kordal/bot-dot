@@ -1,6 +1,7 @@
-# ADR-186: Advanced shows the technical rows, and starts off for a new account
+# ADR-192: Advanced shows the technical rows, and starts off for a new account
 
 - **Status:** Accepted (2026-11-10, the owner's "All ok" on the audit "Botdot bez żargonu")
+- **Extends:** [ADR 186](186-every-bot-has-the-web-files-a-computer-and-every-other-bot.md), which made the switch and put the token usage under it
 - **Keeps:** every setting, tool and route; the Chief and the bots change all of it by chat as before
 
 ## Context

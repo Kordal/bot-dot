@@ -119,7 +119,6 @@ test('between botdot and the computer: off it says so and nothing starts; on, a 
   r = await post('move', { from: 'a.txt', into: '', place: { root: 'server' } }, '?root=computer', pc);
   assert.equal(r.data.state, 'computer-off');
   assert.ok(!docker.calls().slice(before).some((x) => ['run', 'start', 'exec'].includes(x.args[0])), 'nothing started or run');
-  assert.equal((await post('copy', { from: 'report.md', into: '', place: { root: 'computer' } })).data.state, 'no-computer', 'a bot without the computer');
   assert.equal((await post('copy', { from: 'report.md', into: '', place: { root: 'project', project: 'nope' } }, '', pc)).data.state, 'no-project');
 
   docker.answer('inspect.json', '"running"|"bot-dot/desktop:latest"|"sha256:a"');

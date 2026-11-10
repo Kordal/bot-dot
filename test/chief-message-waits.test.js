@@ -133,7 +133,7 @@ test("the owner's messages start before the turns botdot starts, in the order se
   const bot = await makeBot(srv, { name: 'Alpha', allowedTools: ['Read'] });
   // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 176).
   await srv.asChief('/chief/checkup', { headers: { 'X-Chief-Chat': id } });
-  const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] }, headers: { 'X-Chief-Chat': id } });
+  const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] }, headers: { 'X-Chief-Chat': id } });
   assert.equal((await srv.api(`/asks/${change.data.pendingChange}`, { method: 'POST', body: { yes: true } })).status, 200);
   assert.deepEqual(onDisk()[id].map((w) => !!w.owner), [false]);
 
@@ -207,7 +207,7 @@ test("while Claude is signed out the owner's waiting messages stay waiting, with
   const bot = await makeBot(own, { name: 'Alpha', allowedTools: ['Read'] });
   // The turn read the bots' runs first (a checkup's records): its change waits on a card (ADR 176).
   await own.asChief('/chief/checkup', { headers: { 'X-Chief-Chat': id } });
-  const change = await own.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch', 'WebFetch'] }, headers: { 'X-Chief-Chat': id } });
+  const change = await own.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] }, headers: { 'X-Chief-Chat': id } });
   assert.equal((await own.api(`/asks/${change.data.pendingChange}`, { method: 'POST', body: { yes: true } })).status, 200);
 
   // The owner signs out: the reply that was going ends, and the message that waited does not start to fail.

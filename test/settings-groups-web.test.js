@@ -30,7 +30,7 @@ test("web: a bot's rows stand in three lists, each with its own, and the categor
   const holds = (list, ids) => ids.forEach((id) => assert.ok(list.includes(id), id));
   holds(lists[0], ['bs-pinned', 'hotkeyRow(b)', 'id="bs-model"', 'id="bs-rules"']);
   holds(lists[1], ['id="bs-skills"', 'id="bs-apps"', 'data-bs-jobs', 'id="bs-files"', 'id="bs-pages"', 'id="bs-move"', 'data-bs-screen']);
-  holds(lists[2], ['May message', 'othersMayAsk', 'id="bs-rooms"', 'id="bs-always"', 'id="bs-overrides"', 'id="bs-advanced"']);
+  holds(lists[2], ['id="bs-rooms"', 'id="bs-always"', 'id="bs-overrides"', 'id="bs-advanced"']);
   holds(lists[3], ['id="delete-bot"']);
   assert.doesNotMatch(settings, /<div class="field">\$\{tr\('Category'\)\}/);
   assert.match(settings, /<div class="group-picker" id="group-picker" role="group" aria-label="\$\{esc\(tr\('Category'\)\)\}">/, 'a screen reader still hears it');
