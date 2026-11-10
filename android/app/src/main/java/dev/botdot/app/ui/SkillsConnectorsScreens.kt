@@ -48,6 +48,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.AlwaysAllowed
 import dev.botdot.app.data.BuiltinSkill
 import dev.botdot.app.data.CatalogApp
 import dev.botdot.app.data.ChiefSkills
@@ -156,7 +157,12 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     var askRemoveKey by remember { mutableStateOf(false) }
     var replacing by remember { mutableStateOf(false) }
 
-    suspend fun load() { runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: tr("Couldn't load")) } }
+    // What every bot may do without asking ("Always allow" for all bots on a card, ADR 184), each with Revoke.
+    var everyBot by remember { mutableStateOf<List<AlwaysAllowed>>(emptyList()) }
+    suspend fun load() {
+        runCatching { api?.connectors() }.onSuccess { info = it }.onError { tell(it.message ?: tr("Couldn't load")) }
+        if ("every-bot-always" in app.store.version.value.value?.features.orEmpty()) runCatching { api?.everyBotGrants() }.onSuccess { everyBot = it.orEmpty() }
+    }
     suspend fun saveKey(key: String): Boolean = runCatching { api!!.setComposioKey(key) }
         .onSuccess { replacing = false; found = emptyList(); tell(tr("Saved")); load() }.onError { tell(it.message ?: tr("Couldn't save")) }.isSuccess
     LaunchedEffect(api) { load() }
@@ -226,6 +232,15 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                         TextButton(onClick = { connect(c.toolkit, another = true) }) { Text(tr("Add account"), color = p.okText) }
                     }
                     TextButton(onClick = { askRemove = c.id }) { Text(tr("Remove"), color = p.err) }
+                }
+            }
+            if (everyBot.isNotEmpty()) {
+                item { Text(tr("Always allowed for all bots"), color = p.text, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = Space.s12)) }
+                items(everyBot, key = { "e:${it.action}" }) { g ->
+                    Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
+                        Text(g.label.ifBlank { g.action }, color = p.text, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { scope.launch { runCatching { api!!.revokeEveryBotGrant(g.action) }.onSuccess { everyBot = it; tell(tr("Revoked")) }.onError { tell(it.message ?: tr("Couldn't revoke")) } } }) { Text(tr("Revoke"), color = p.text) }
+                    }
                 }
             }
             item {

@@ -887,6 +887,8 @@
   "Always approve \"{job}\" from {bot}?\n\nIt's a script: it runs as commands on this computer with your permissions, without AI and without the bot's tool limits. If a web page or email ever tricks {bot} into changing it, the new version would run on its schedule without you seeing it first.\n\nYou can take this back in {bot}'s settings.": "Zawsze zatwierdzać „{job}” od {bot}?\n\nTo skrypt: działa jako polecenia na tym komputerze z twoimi uprawnieniami, bez AI i bez limitów narzędzi bota. Jeśli strona internetowa lub e-mail kiedyś nakłoni {bot} do jego zmiany, nowa wersja uruchomi się zgodnie z harmonogramem, zanim ją zobaczysz.\n\nMożesz to cofnąć w ustawieniach bota {bot}.",
   "It could not be answered.": "Nie udało się odpowiedzieć.",
   "Always allowed": "Zawsze dozwolone",
+  "Always allowed for all bots": "Zawsze dozwolone dla wszystkich botów",
+  "Revoked": "Cofnięto",
   "On your Board": "Na twojej Tablicy",
   "Not added": "Nie dodano",
   "Installing": "Instalowanie",

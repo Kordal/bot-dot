@@ -59,4 +59,15 @@ class AskBatchTest {
         assertEquals("Coder wants 2 things for “Fix the build”", notices[1].batch?.title)
         assertEquals(listOf("ask:p1", "ask:o1", "ask:s1"), notices[1].asks)
     }
+
+    @Test fun aCardTheBriefNamesRingsNothingUnlessOneOfItsAsksIsWaitedFor() {
+        // ADR 185: `waitsForBrief` on each ask the morning's brief names; a card of several rings when one of them is waited for.
+        val list = Json.parseToJsonElement("""[
+            {"id":"a1","kind":"permission","botId":"b1","waitsForBrief":true},
+            {"id":"a2","kind":"skill","botId":"b2","waitsForBrief":true,"batch":{"id":"r2","title":"Two things"}},
+            {"id":"a3","kind":"connector-action","botId":"b2","batch":{"id":"r2","title":"Two things"}},
+            {"id":"a4","kind":"tool","botId":"b3"}
+        ]""").let { it as kotlinx.serialization.json.JsonArray }.map { it.jsonObject }
+        assertEquals(listOf(true, false, false), askNotices(list).map { it.later })
+    }
 }
