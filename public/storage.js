@@ -7,10 +7,10 @@
 const StoragePage = (() => {
   const GROUP_NAMES = {
     computer: () => tr('Computer'), bots: () => tr('Bots’ files'), projects: () => tr('Projects'), uploads: () => tr('Uploads'),
-    chats: () => tr('Chats and memory'), caches: () => tr('Caches'), other: () => tr('Other'),
+    chats: () => tr('Chats and memory'), caches: () => tr('Temporary files'), other: () => tr('Other'),
   };
   const LABELS = {
-    home: () => tr('Home'), browser: () => tr('Browser'), system: () => tr('Installed programs'), runs: () => tr('Runs'),
+    home: () => tr('Its files'), browser: () => tr('Browser'), system: () => tr('Installed programs'), runs: () => tr('Run history'),
     memory: () => tr('Memory'), botdot: () => 'botdot', computer: () => tr('Computer'), disk: () => tr('System'),
   };
   const FOLDER = '<svg viewBox="0 0 16 16"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z"/></svg>';

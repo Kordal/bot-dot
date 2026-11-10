@@ -30,10 +30,10 @@ object Storage {
 
     fun groupName(id: String): String = when (id) {
         "computer" -> tr("Computer"); "bots" -> tr("Bots’ files"); "projects" -> tr("Projects"); "uploads" -> tr("Uploads")
-        "chats" -> tr("Chats and memory"); "caches" -> tr("Caches"); else -> tr("Other")
+        "chats" -> tr("Chats and memory"); "caches" -> tr("Temporary files"); else -> tr("Other")
     }
     fun nameOf(n: Node): String = when (n.label) {
-        "home" -> tr("Home"); "browser" -> tr("Browser"); "system" -> tr("Installed programs"); "runs" -> tr("Runs")
+        "home" -> tr("Its files"); "browser" -> tr("Browser"); "system" -> tr("Installed programs"); "runs" -> tr("Run history")
         "memory" -> tr("Memory"); "botdot" -> "botdot"; "computer" -> tr("Computer"); "disk" -> tr("System"); else -> n.name
     }
 

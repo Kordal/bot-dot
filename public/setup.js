@@ -130,8 +130,15 @@ function drawSetup() {
     ? setupItem({ state: 'off', icon: '🖥', title: tr('Bot computers'), body: tr("{why}, so bots can't have their own desktop. Everything else works.", { why: esc(s.docker?.error || tr('Docker is not available')) }) })
     : setupItem({ state: 'ok', icon: '🖥', title: tr('Bot computers'), body: s.docker.image ? tr('Ready. Any bot can get its own desktop with a browser (turn it on in the bot’s settings).') : tr('Ready. The desktop downloads the first time a bot needs one, which takes a few minutes once.') });
 
+  // Without Advanced (ADR 200): the phone is a QR code to scan, and nothing about Tailscale, Docker or the extras.
+  const adv = advanced();
+  const scan = a.qr ? `<div class="setup-qr">${a.qr}</div>` : '';
   let phone;
-  if (a.tailnet) {
+  if (!adv && a.qr) {
+    phone = setupItem({ state: 'ok', icon: '📱', title: tr('Your phone'), body: `${tr('Scan this with your phone, open it, and choose <b>Add to Home Screen</b>.')}${scan}` });
+  } else if (!adv) {
+    phone = setupItem({ state: 'off', icon: '📱', title: tr('Your phone'), body: tr('botdot opens only on this computer for now. Whoever set up botdot can make it reach your phone.') });
+  } else if (a.tailnet) {
     phone = setupItem({
       state: 'ok', icon: '📱', title: tr('Your phone'),
       body: tr('Private on your tailnet at {address}, and only your passkey signs in to your account.<br>On your phone, open it and choose <b>Add to Home Screen</b> to use it like an app.', { address: `<b>https://${esc(a.host)}</b>` }),
@@ -164,9 +171,9 @@ function drawSetup() {
     <div class="section-head"><div><h1>${tr('Setup')}</h1>${unknown || c.loggedIn ? '' : `<p>${tr('One step and botdot is ready.')}</p>`}</div></div>
     ${claude}${loginBox}
     ${chiefNameSetupItem(s)}
-    ${computers}${phone}${tz}
-    <h3 class="page-sub">${tr('Extras')}</h3>
-    ${extras.join('')}
+    ${adv ? computers : ''}${phone}${tz}
+    ${adv ? `<h3 class="page-sub">${tr('Extras')}</h3>
+    ${extras.join('')}` : ''}
     ${state.bots.length ? '' : `<p class="muted settings-hint">${tr('Moving from another botdot?')} <button type="button" class="link-btn" id="restore-open">${tr('Restore a backup')}</button></p>`}
     <div class="settings-foot"><button class="btn primary" id="setup-done" ${c.loggedIn || unknown ? '' : 'disabled'}>${s.done ? tr('Back to your bots') : tr('Meet your Chief of Staff')}</button></div>`;
 

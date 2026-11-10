@@ -574,7 +574,7 @@ function drawUpdateCard(u) {
   card.innerHTML = `
       <summary><b>${tr('Updates')}</b><span class="bs-val">${u.ready ? tr('New version') : u.autoUpdate ? tr('Automatic') : ''}</span>${CHEV}</summary>
       <div class="bs-body">
-        <label class="bs-row"${tipAttrs(tr("On: always use the latest botdot version. Off: update when you're ready, before the admin's deadline."))}><b>${tr('Update automatically')}</b>
+        <label class="bs-row"><b>${tr('Update automatically')}</b>
           <span class="switch"><input type="checkbox" id="auto-update" aria-label="${esc(tr('Update automatically'))}"${u.autoUpdate ? ' checked' : ''}><span></span></span></label>
         ${updateCardText(u) ? `<p class="muted" id="update-said">${esc(updateCardText(u))}</p>` : ''}
         ${u.canUpdate ? `<div><button type="button" class="btn" id="update-now">${tr('Update now')}</button></div>` : ''}

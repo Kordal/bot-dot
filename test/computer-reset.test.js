@@ -60,7 +60,8 @@ test("a bot's computer says which bots use it and what a reset erases, in the se
   assert.deepEqual(d.bots.map((b) => b.name), ['Coder', 'Scout'], 'every bot with a computer, and no other');
   assert.equal(d.reset.title, "Reset the account's computer?");
   assert.match(d.reset.text, /Coder and Scout/);
-  assert.match(d.reset.text, /\/home\/box and \/workspace/);
+  assert.match(d.reset.text, /Lost: its files, the logins in its browser and the programs installed on it\./);
+  assert.doesNotMatch(d.reset.text, /\/home\/box|\/workspace|Tailscale|sudo/, "no paths or tools in its words");
   assert.match(d.reset.text, /logins/);
   assert.match(d.reset.text, /installed/);
   assert.equal(d.reset.yes, 'Reset');
@@ -72,8 +73,8 @@ test('an update is offered with what it keeps and what it loses, and is done for
   state = 'running'; outdated = true;
   const d = (await srv.api(`/bots/${scout.id}/computer`)).data;
   assert.match(d.update.text, /keep/);
-  assert.match(d.update.text, /\/home\/box and \/workspace/);
-  assert.match(d.update.text, /installed with apt/);
+  assert.match(d.update.text, /keeps its files and the logins in its browser/);
+  assert.doesNotMatch(d.update.text, /\/home\/box|apt|Tailscale/);
   assert.equal(d.update.yes, 'Update');
   asked = [];
   const r = await srv.api('/computer/update', { method: 'POST' });
@@ -113,7 +114,7 @@ test("the Chief asks for the reset on a card in Needs you, and the owner's yes d
   const [card] = cards;
   assert.equal(card.title, "Reset the account's computer");
   assert.match(card.meta, /Coder and Scout/);
-  assert.match(card.meta, /\/home\/box and \/workspace/);
+  assert.match(card.meta, /Lost: its files/);
   assert.equal(card.text, "Asks to reset the account's computer");
   assert.equal(card.yesOn, 'card');
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
