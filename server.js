@@ -31,6 +31,22 @@ const vaultLib = require('./lib/vault');
 const vault = vaultLib.create(B.DATA_DIR);
 // Once Bitwarden is connected it is the vault (the "bot-dot" folder); until then the built-in one.
 const bitwarden = require('./lib/bitwarden').create(B.DATA_DIR);
+// The code that runs now, as a stamp: an update changes it, a plain restart or a reboot does not (ADR 178).
+// Bitwarden unlocked as botdot exits stays unlocked for the start an update makes.
+const CODE_STAMP = (() => {
+  const h = require('crypto').createHash('sha1');
+  const own = require('node:fs'); // botdot's own code, read as the server's user
+  const walk = (dir) => {
+    for (const e of own.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory()) walk(f);
+      else if (e.isFile() && f.endsWith('.js')) h.update(path.relative(__dirname, f)).update('\0').update(own.readFileSync(f));
+    }
+  };
+  try { h.update(own.readFileSync(__filename)); walk(path.join(__dirname, 'lib')); return h.digest('hex'); } catch { return null; }
+})();
+process.on('exit', () => bitwarden.keepForUpdate(CODE_STAMP));
+bitwarden.resumeAfterUpdate(CODE_STAMP).then((ok) => { if (ok) console.log('[bitwarden] unlocked again after the update'); }).catch(() => {});
 const store = () => (bitwarden.configured() ? bitwarden : vault);
 let unlockWanted = null; // { botId, at }: a bot is waiting for the owner to unlock Bitwarden
 
