@@ -1,4 +1,4 @@
-// Advanced on the web page (ADR 192): one switch at the end of Settings; while it is off the page leaves out the
+// Advanced on the web page (ADR 200): one switch at the end of Settings; while it is off the page leaves out the
 // technical rows (the models, a bot's commands, helpers, exact tools and permission mode, a run's folder and
 // `claude --resume`), and a server without the switch shows them all, as before.
 const { test } = require('node:test');

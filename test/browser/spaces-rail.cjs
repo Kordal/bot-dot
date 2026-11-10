@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer, makeBot, writeData } = require('../helpers');
+const { unfoldTeams } = require('../helpers');
 
 (async () => {
   const shots = process.argv[2] || null;
@@ -94,13 +95,17 @@ const { startServer, makeBot, writeData } = require('../helpers');
     for (const name of ['Ops Watchkeeper', 'Recipe Finder', 'Quotz IT team']) assert.ok(homeNames.includes(name), `Home: ${name}`);
     assert.equal(await page.locator('.kp-filter, [data-home-bots]').count(), 0, 'no filter');
     await page.locator('#rail .rail-sq').click();
+    await page.locator('.sp-chip', { hasText: 'Quotz IT team' }).waitFor();
+    await unfoldTeams(page, '.sp-keys .key');
     await page.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor();
     assert.equal(await page.locator('.sp-chip', { hasText: 'Quotz IT team' }).count(), 1, 'the team\'s name');
     if (shots) await page.screenshot({ path: path.join(shots, 'spaces-keys-project.png') });
     const phone = await (await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', hasTouch: true, isMobile: true })).newPage();
     phone.on('pageerror', (e) => errors.push(e.message));
     await phone.goto(`${srv.base}/#company`);
-    await phone.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor({ timeout: 20000 });
+    await phone.locator('.sp-chip', { hasText: 'Quotz IT team' }).waitFor({ timeout: 20000 });
+    await unfoldTeams(phone, '.sp-keys .key');
+    await phone.locator('.sp-keys .key .name', { hasText: 'Ops Watchkeeper' }).waitFor();
     if (shots) await phone.screenshot({ path: path.join(shots, 'spaces-keys-phone-project.png'), fullPage: true });
     assert.equal((await phone.locator('[data-sp-field]').innerText()).trim(), 'Message the team…', "the team's chat at the foot");
     await phone.locator('.cf-top [data-space-pick]').click();

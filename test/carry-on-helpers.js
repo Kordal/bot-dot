@@ -22,7 +22,7 @@ async function fakeGithub() {
 
 // Tools a run was refused, as Claude Code reports them when it ends.
 const BASH = { tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list', description: 'List open pull requests' } };
-// A second ask of a run that is not a permission: every bot has the web and files (ADR 186), and helpers are given at
+// A second ask of a run that is not a permission: every bot has the web and files (ADR 192), and helpers are given at
 // once (ADR 178), so the stand-in Claude asks to lift one of its rules for one action, as ask_override does.
 const OVERRIDE = { tool_name: 'Override', tool_use_id: 't2', tool_input: { rule: 'Never post in the team channel', action: 'post the summary in the team channel' } };
 const OVERRIDE_WORDS = 'post the summary in the team channel, once, in this run, though your rule “Never post in the team channel” says otherwise';

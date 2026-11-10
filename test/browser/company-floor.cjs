@@ -9,6 +9,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
 const { startServer, makeBot, writeData, waitFor } = require('../helpers');
+const { unfoldTeams } = require('../helpers');
 
 (async () => {
   const shots = process.argv[2] || null;
@@ -52,6 +53,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       const row = (t) => page.locator('.sp-team', { has: page.locator(`[data-cf-team-chat="${t}"]`) });
       const sales = row('t1');
       assert.equal(await sales.locator('.cf-crown').count(), 1);
+      await unfoldTeams(page);
       const keys = await sales.locator('.sp-keys .key .name').allInnerTexts();
       if (name === 'wide') assert.deepEqual(keys, ['Sales Follow-up', 'Lead Finder', 'Outreach', 'Lead Scorer', 'Demo Booker']);
       else assert.equal(keys[0], 'Lead Finder'); // made lead on the wide page

@@ -1,4 +1,4 @@
-// Advanced (ADR 192): one switch of the account that shows the apps' technical rows. A new account starts with it off,
+// Advanced (ADR 200): one switch of the account that shows the apps' technical rows. A new account starts with it off,
 // an account that had settings before the switch existed keeps seeing what it saw, and only true or false is taken.
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');

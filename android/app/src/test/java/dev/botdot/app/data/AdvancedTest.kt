@@ -16,7 +16,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Advanced (ADR 192): a server without the switch shows every row; with it, the account's choice; before the settings
+ * Advanced (ADR 200): a server without the switch shows every row; with it, the account's choice; before the settings
  * are read nothing is taken away; and a save of the switch sends it alone.
  */
 class AdvancedTest {

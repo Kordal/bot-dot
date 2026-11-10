@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Advanced (ADR 192): one switch of the account that shows the technical rows (the models, a bot's commands, helpers,
+ * Advanced (ADR 200): one switch of the account that shows the technical rows (the models, a bot's commands, helpers,
  * exact tools and permission mode, a job's cron and script, a run's folder, tokens). A server without `advanced` in
  * its features shows them all, as before; until the settings are read nothing is taken away.
  */

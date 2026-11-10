@@ -238,7 +238,7 @@ test('web: the job card\'s header, the always-approved list and the "When" list 
   for (const p of page.CRON_PRESETS) assert.equal(describe(p.cron), p.label, p.cron);
 });
 
-test('web: without Advanced (ADR 192) a job card has no cron, its own schedule is a choice in its words, and a script sits behind "Show code"', () => {
+test('web: without Advanced (ADR 200) a job card has no cron, its own schedule is a choice in its words, and a script sits behind "Show code"', () => {
   const page = jobsPage({ advanced: () => false });
   const own = page.jobCardHTML({ ...JOB, cron: '0 */6 * * *', when: 'Every 6 hours', kind: 'script', script: 'echo hi' });
   assert.match(own, /<option value="0 \*\/6 \* \* \*" selected>Every 6 hours<\/option>/);

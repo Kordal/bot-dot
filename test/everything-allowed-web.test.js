@@ -1,4 +1,4 @@
-// Every bot has the web, changing files, a computer and every other bot to ask (ADR 186): the web page draws no
+// Every bot has the web, changing files, a computer and every other bot to ask (ADR 192): the web page draws no
 // switch for any of them and its save sends none; the Android app hides theirs from a server that says so.
 // The page's own code, cut out of public/app.js (test/web-page.js); the Android app's, read as text.
 const { test } = require('node:test');

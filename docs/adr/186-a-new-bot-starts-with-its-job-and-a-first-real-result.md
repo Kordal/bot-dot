@@ -1,4 +1,4 @@
-# ADR-193: A new bot starts with its job and a first real result
+# ADR-186: A new bot starts with its job and a first real result
 
 - **Status:** Accepted (2026-11-10, the owner's go on "less heavy, less minding the bots")
 - **Changes:** the Chief's skill bot-designer: a first run only when the owner said "now"; else the bot's own first message (#511)

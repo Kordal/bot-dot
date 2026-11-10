@@ -268,31 +268,51 @@
     return `<div class="cf-floor bare">${cards}${c.suggestion ? `<div class="cf-side">${suggestionHTML(c, c.suggestion)}</div>` : ''}${calendar}${files}</div>`;
   }
 
-  // ---------- the teams (#838, ADR 132): a row each above the objectives and the board (#1188), in place of the floor's desks ----------
-  // The team's name with its stacked faces opens the team chat; its bots are keys, the lead first with a crown; ⋯ opens
-  // the team beside the board (its lead, its report). The key or name whose chat is in the column is highlighted.
+  // ---------- the teams (#838, ADR 132, ADR 196): a row each above the objectives and the board (#1188) ----------
+  // Folded by default: a team is one row (its faces with the lead first, its name, what it is at) that opens the team
+  // chat. The chevron before it shows its bots as keys, the lead first with a crown; a key opens that bot's own chat.
+  // ⋯ opens the team beside the board (its lead, its report). Which teams are unfolded is kept per project on this
+  // device. The row or key whose chat is in the column is highlighted.
   const leadFirst = (t) => { const ids = t.bots.filter((id) => botById(id)); return ids.includes(t.lead) ? [t.lead, ...ids.filter((id) => id !== t.lead)] : ids; };
-  // The keys of a project's page in reading order: 1-9 open them (list.js, onKeypadKey).
-  const keysOf = (c) => (c?.teams || []).flatMap((t) => leadFirst(t).map(botById));
+  // The keys of a project's page in reading order: 1-9 open its teams' chats (list.js, onKeypadKey).
+  const keysOf = (c) => (c?.teams || []).filter((t) => leadFirst(t).length).map((t) => (state.groups || []).find((g) => g.team === t.id)).filter(Boolean);
+  const UNFOLD = 'botdot.teamsOpen';
+  const unfoldedAll = () => { try { return JSON.parse(localStorage.getItem(UNFOLD) || '{}') || {}; } catch { return {}; } };
+  const unfolded = (c) => { const v = unfoldedAll()[c?.id]; return Array.isArray(v) ? v : []; };
+  function fold(c, teamId) {
+    const all = unfoldedAll();
+    const now = unfolded(c);
+    all[c.id] = now.includes(teamId) ? now.filter((x) => x !== teamId) : [...now, teamId];
+    try { localStorage.setItem(UNFOLD, JSON.stringify(all)); } catch {}
+    Company.redraw();
+  }
   const MORE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>';
+  const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
   function teamsHTML(c) {
     const docked = typeof Dock !== 'undefined' && Dock.docked();
-    const keys = keysOf(c);
-    const keyHTML = (b, lead) => {
+    const open = unfolded(c);
+    const keyHTML = (b, lead, teams) => {
       const st = keyStatus(b);
       const on = docked && state.view === 'bot' && state.botId === b.id;
-      const d = keys.indexOf(b) + 1;
-      return `<button type="button" class="key${on ? ' active' : ''}" data-cf-bot="${esc(b.id)}" title="${esc(d <= 9 ? `${b.name} · ${d}` : b.name)}"${d <= 9 ? ` aria-keyshortcuts="${d}"` : ''}><span class="key-head">${botFigure(b.color, b.state, '', b.outfit, b.id)}${lead ? CROWN : ''}</span><span class="name">${esc(b.name)}</span>${keyState(st, st.kind === 'working' ? liveLine(b) : '')}</button>`;
+      const many = teams > 1 ? `<span class="sp-teams-n" title="${esc(trn(teams, 'In {n} team', 'In {n} teams'))}">${teams}</span>` : '';
+      return `<button type="button" class="key${on ? ' active' : ''}" data-cf-bot="${esc(b.id)}" title="${esc(b.name)}"><span class="key-head">${botFigure(b.color, b.state, '', b.outfit, b.id)}${lead ? CROWN : ''}${many}</span><span class="name">${esc(b.name)}</span>${keyState(st, st.kind === 'working' ? liveLine(b) : '')}</button>`;
     };
-    const rows = (c.teams || []).map((t) => {
+    const teamsOf = (id) => (c.teams || []).filter((t) => t.bots.includes(id)).length;
+    const shown = (c.teams || []).filter((t) => leadFirst(t).length);
+    const rows = shown.map((t, n) => {
       const ids = leadFirst(t);
-      if (!ids.length) return '';
       const g = (state.groups || []).find((x) => x.team === t.id);
       const on = docked && state.view === 'group' && g && state.groupId === g.id;
-      const faces = ids.slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}</i>`; }).join('');
-      return `<section class="sp-team" style="--c:${esc(t.color || '#8e7cff')}">
-        <div class="sp-team-head"><button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}"><span class="sp-faces">${faces}</span><span>${esc(t.name)}</span></button><button type="button" class="icon-btn sp-more${teamOpen === t.id ? ' here' : ''}" data-cf-team="${esc(t.id)}" aria-label="${esc(t.name)}" title="${esc(t.name)}">${MORE}</button></div>
-        <div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1)).join('')}<button type="button" class="key sp-join" data-cf-add="${esc(t.id)}" aria-label="${esc(tr('Add bots to {team}', { team: t.name }))}" title="${esc(tr('Add bots to {team}', { team: t.name }))}">${Company.ICON.plus}</button></div>
+      const unfold = open.includes(t.id);
+      const faces = ids.slice(0, 3).map((id, i) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}${i === 0 && ids.length > 1 ? CROWN : ''}</i>`; }).join('') + (ids.length > 3 ? `<i class="sp-faces-n">+${ids.length - 3}</i>` : '');
+      const kinds = ids.map((id) => keyStatus(botById(id)).kind);
+      const asks = kinds.filter((k) => k === 'needs').length;
+      const working = kinds.filter((k) => k === 'working').length;
+      const status = asks ? `<span class="sp-st needs">${esc(tr('Needs you'))}</span>` : working ? `<span class="sp-st working">${esc(trn(working, '{n} working', '{n} working'))}</span>` : '';
+      const d = n + 1;
+      return `<section class="sp-team${unfold ? ' open' : ''}" style="--c:${esc(t.color || '#8e7cff')}">
+        <div class="sp-team-head${on ? ' here' : ''}"><button type="button" class="sp-fold" data-cf-fold="${esc(t.id)}" aria-expanded="${unfold}" aria-label="${esc(tr('Members'))}" title="${esc(tr('Members'))}">${CHEVRON}</button><button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}" title="${esc(d <= 9 ? `${t.name} · ${d}` : t.name)}"${d <= 9 && g ? ` aria-keyshortcuts="${d}"` : ''}><span class="sp-faces">${faces}</span><span class="sp-name">${esc(t.name)}</span>${status}</button><button type="button" class="icon-btn sp-more${teamOpen === t.id ? ' here' : ''}" data-cf-team="${esc(t.id)}" aria-label="${esc(t.name)}" title="${esc(t.name)}">${MORE}</button></div>
+        ${unfold ? `<div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1, teamsOf(id))).join('')}<button type="button" class="key sp-join" data-cf-add="${esc(t.id)}" aria-label="${esc(tr('Add bots to {team}', { team: t.name }))}" title="${esc(tr('Add bots to {team}', { team: t.name }))}">${Company.ICON.plus}</button></div>` : ''}
       </section>`;
     }).join('');
     return `<div class="sp-teams">${rows}<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
@@ -456,6 +476,7 @@
     // The team's name opens its chat, docked in the bottom row (#697).
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
     $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => openTeam(b.dataset.cfTeam)));
+    $$('[data-cf-fold]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); fold(c, b.dataset.cfFold); }));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
     $$('[data-cf-add]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); addToTeam(c, b.dataset.cfAdd); }));
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
@@ -635,7 +656,7 @@
   }
 
   // "+" at the end of a team's row: the account's other bots to tick, those in no team of this project first;
-  // one in another team says so, as it leaves that team. "New bot" asks the Chief for one in this team, in a new
+  // one in another team says which; it stays there too (ADR 199). "New bot" asks the Chief for one in this team, in a new
   // Chief chat with the words ready; with no other bot to offer, "+" goes there straight away.
   function addToTeam(c, id) {
     const t = c.teams.find((x) => x.id === id);
@@ -672,5 +693,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
+  Company.steps.sig = () => [unfolded(state.company), Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
 })();

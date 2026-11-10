@@ -227,7 +227,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
                 val a = api.value ?: return@collect
                 val features = runCatching { a.version().features }.getOrNull()
                 dev.botdot.app.data.I18n.sync(a, features)
-                if (ev.type == "hello") dev.botdot.app.data.Advanced.sync(a, features) // Advanced (ADR 192)
+                if (ev.type == "hello") dev.botdot.app.data.Advanced.sync(a, features) // Advanced (ADR 200)
             }
         }
         val bundled = runCatching { FigureDef.parse(assets.open("figure.json").bufferedReader().use { it.readText() }) }.getOrNull()

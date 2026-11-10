@@ -414,7 +414,7 @@ function renderSettings() {
   };
 }
 
-// Advanced (ADR 192): saved by itself; every screen draws again with the technical rows shown or hidden.
+// Advanced (ADR 200): saved by itself; every screen draws again with the technical rows shown or hidden.
 function wireAdvanced(root) {
   const sw = $('#settings-advanced', root);
   if (!sw) return;

@@ -78,7 +78,7 @@ const jobPromptEmpty = (script) => (script ? tr('When it is asked') : tr("Empty:
 function jobCardHTML(j, open = false) {
   const script = j.kind === 'script';
   const preset = CRON_PRESETS.some((p) => p.cron === j.cron);
-  // Without Advanced (ADR 192): a schedule of its own is one more choice, in its words, and no cron; a script sits
+  // Without Advanced (ADR 200): a schedule of its own is one more choice, in its words, and no cron; a script sits
   // behind "Show code"; what kind of job it is stays as it is.
   const adv = advanced();
   const scriptPart = `<div class="job-script ${script ? '' : 'hidden'}">

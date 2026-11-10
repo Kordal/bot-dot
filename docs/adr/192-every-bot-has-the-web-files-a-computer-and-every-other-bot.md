@@ -1,4 +1,4 @@
-# ADR-186: Every bot has the web, files, a computer and every other bot
+# ADR-192: Every bot has the web, files, a computer and every other bot
 
 - **Status:** Accepted (2026-11-10, the owner asked for it)
 - **Owning task:** the owner's request: every bot may ask any other without the owner, has the internet and Files, may use the computer and its browser, uses a login after the owner's yes with no list of bots on the card, and token usage only under Advanced
