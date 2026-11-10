@@ -252,7 +252,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
     suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false, all: Boolean = false): Answered =
         Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); if (always && all) put("always", "all") else put("always", always) }))
-    /** What every bot may do without asking ("Always allow" for all bots, ADR 184), for the Connectors screen; only with `every-bot-always`. */
+    /** What every bot may do without asking ("Always allow" for all bots, ADR 201), for the Connectors screen; only with `every-bot-always`. */
     suspend fun everyBotGrants(): List<AlwaysAllowed> = json.decodeFromString<GrantList>(get("/connector-actions")).grants
     /** Revoke one of them: the next such action asks again. */
     suspend fun revokeEveryBotGrant(action: String): List<AlwaysAllowed> =

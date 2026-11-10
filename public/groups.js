@@ -494,19 +494,53 @@ function groupEmptyHTML(g) {
     <p class="muted">${names.length ? `${esc(namesList(names))}.<br>${tr('What you write here, all of them read.')}` : tr('Its bots are all gone. Add one, or delete the group.')}</p>
   </div>`;
 }
+// The team's one answer (ADR 201; docs/api.md, "The team's answer"): a message of a team's chat with `answer` has the
+// members' replies before that reply folded under one row, which opens them. Returns, for each folded reply's id, the
+// id of its message. Android's Groups.folded has the same rule.
+function groupFolded(items) {
+  const out = new Map();
+  for (const m of items) {
+    if (m.type !== 'message' || typeof m.answer !== 'string') continue;
+    const answer = items.find((x) => x.type === 'reply' && x.id === m.answer);
+    if (!answer) continue;
+    for (const x of items) if (x.type === 'reply' && x.id !== answer.id && x.run.groupMessageId === m.id && String(x.at) <= String(answer.at)) out.set(x.id, m.id);
+  }
+  return out;
+}
+const openFolds = new Set(); // the messages whose folded replies the owner opened, while the page is open
+// The row the folded replies of a message stand under: the heads and names of who wrote them, and how many.
+function groupFoldHTML(messageId, folded, open) {
+  const runs = folded.map((x) => x.run);
+  const bots = [...new Map(runs.map((r) => [r.botId, r])).values()];
+  return `<button type="button" class="g-fold" data-fold="${esc(messageId)}" aria-expanded="${open}">${bots.map((r) => `<i>${botMark(botById(r.botId) || { id: r.botId, color: r.botColor })}</i>`).join('')}<span>${esc(namesList(bots.map((r) => memberName(r.botId, r.botName))))} · ${runs.length}</span></button>`;
+}
 // The chat's rows, oldest first: the owner's messages and the replies, with the "New" line above the first new
-// reply (newFirst: that run's id). The messages that wait whole are not among them: they stand at the end.
+// reply (newFirst: that run's id). The messages that wait whole are not among them: they stand at the end. The
+// members' replies a team's answer folds stand under one row (groupFolded), where the first of them stood.
 function groupThreadHTML(g, chat, newFirst = null) {
   const key = `group:${g.id}`;
   const rows = chatItems(chat).filter((x) => x.type !== 'message' || !waitsWhole(x));
   if (!rows.length && !chatItems(chat).length) return groupEmptyHTML(g);
+  const folded = groupFolded(rows);
+  const foldRow = new Set();
   let lastDay = '';
   return (chat.more ? `<div class="g-earlier"><button type="button" class="btn sm" data-earlier>${tr('Earlier messages')}</button></div>` : '') + rows.map((x) => {
     const day = new Date(x.at).toDateString();
     const sep = day !== lastDay ? `<div class="day">${esc(new Date(x.at).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
     if (x.type === 'message') return sep + groupMessageHTML(x, key);
-    return sep + (newFirst !== null && x.id === newFirst ? Unread.line(memberColor(x.run.botId, x.run.botColor)) : '') + groupReplyHTML(x.run, chat.asks?.runId || null);
+    const fold = folded.get(x.id);
+    const isNew = newFirst !== null && x.id === newFirst;
+    const newLine = (on) => (on ? Unread.line(memberColor(x.run.botId, x.run.botColor)) : '');
+    if (fold && !foldRow.has(fold)) {
+      foldRow.add(fold);
+      const open = openFolds.has(fold);
+      const head = groupFoldHTML(fold, rows.filter((y) => folded.get(y.id) === fold), open);
+      if (!open) return sep + newLine(rows.some((y) => folded.get(y.id) === fold && y.id === newFirst)) + head;
+      return sep + head + newLine(isNew) + groupReplyHTML(x.run, chat.asks?.runId || null);
+    }
+    if (fold && !openFolds.has(fold)) return sep;
+    return sep + newLine(isNew) + groupReplyHTML(x.run, chat.asks?.runId || null);
   }).join('');
 }
 
@@ -640,8 +674,10 @@ function renderGroupChat() {
   // The line's reply is further back than the page holds: read further, once.
   if (newFirst !== null && !chat.items.has(newFirst) && chat.more && chat.want < GROUP_REACH) loadGroupChat(g.id, GROUP_REACH);
   const items = $('.g-items', thread);
-  const sig = JSON.stringify([chatItems(chat).map((x) => (x.type === 'message' ? [x.id, x.text, x.waitsFor, x.canTakeBack, x.attachments] : [x.id, x.run.status, x.run.endedAt])),
-    chat.more, chat.asks?.runId || null, newFirst, signedOut.on, mentionSig(), g.name, look]);
+  // A search match among folded replies opens them (ADR 201).
+  if (state.jump?.runId && state.jump.group?.id === g.id) { const f = groupFolded(chatItems(chat)).get(state.jump.runId); if (f) openFolds.add(f); }
+  const sig = JSON.stringify([chatItems(chat).map((x) => (x.type === 'message' ? [x.id, x.text, x.waitsFor, x.canTakeBack, x.attachments, x.answer] : [x.id, x.run.status, x.run.endedAt])),
+    chat.more, chat.asks?.runId || null, newFirst, signedOut.on, mentionSig(), g.name, look, [...openFolds]]);
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
     root.dataset.sig = sig;
@@ -659,6 +695,11 @@ function renderGroupChat() {
     }));
     const earlier = $('[data-earlier]', items);
     if (earlier) earlier.onclick = () => loadEarlier(earlier);
+    $$('[data-fold]', items).forEach((el) => (el.onclick = () => {
+      const id = el.dataset.fold;
+      if (openFolds.has(id)) openFolds.delete(id); else openFolds.add(id);
+      renderGroupChat();
+    }));
     // An answer to the group's open question is a message to the group: the member that asked has the first turn.
     wireChoices(items, (t, k) => sendFrom(form, () => sendToGroup(g.id, t, [], k)));
     markSearch();

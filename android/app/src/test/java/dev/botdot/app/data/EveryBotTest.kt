@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** "Always allow" for one bot or all bots (ADR 184): the card's words, and what every bot may do, for the Connectors screen. */
+/** "Always allow" for one bot or all bots (ADR 201): the card's words, and what every bot may do, for the Connectors screen. */
 class EveryBotTest {
     private fun ask(more: String) = Api.JSON.decodeFromString<Ask>("""{"id":"k9","kind":"connector-action","botId":"b1"$more}""")
 

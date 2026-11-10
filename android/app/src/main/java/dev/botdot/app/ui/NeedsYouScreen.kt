@@ -1137,7 +1137,7 @@ private fun AlwaysQuestion(text: String, label: String, done: (Boolean) -> Unit)
     dismissButton = { TextButton(onClick = { done(false) }) { Text(tr("Cancel"), color = LocalPaper.current.text) } },
 )
 
-/** "Always allow" for one bot or all bots (ADR 184): the server's question and note, Cancel, `all` and `only`. done(true) for all bots, done(false) for this bot only, done(null) for Cancel. */
+/** "Always allow" for one bot or all bots (ADR 201): the server's question and note, Cancel, `all` and `only`. done(true) for all bots, done(false) for this bot only, done(null) for Cancel. */
 @Composable
 private fun WhomQuestion(e: EveryBot, done: (Boolean?) -> Unit) = AlertDialog(
     onDismissRequest = { done(null) },
@@ -1340,7 +1340,7 @@ private fun AskApproval(a: Ask, who: Named?, reveal: suspend () -> String = { ""
         // `warning`, which names the bot and the action (#474), as on the web page.
         val always = a.always?.takeIf { it.isNotBlank() } ?: tr("Always allow")
         var asking by remember(a.id) { mutableStateOf(false) }
-        // An action every bot may be allowed (ADR 184): the question is whom, this bot only or all bots, as on the web page.
+        // An action every bot may be allowed (ADR 201): the question is whom, this bot only or all bots, as on the web page.
         val everyBot = a.everyBot
         if (asking && everyBot != null) WhomQuestion(everyBot) { pick ->
             asking = false

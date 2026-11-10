@@ -628,7 +628,7 @@ test('web: at a phone\'s width the page\'s title, its line and the button wrap, 
   assert.match(css, /\.need-card\.need-changed:not\(\.open\) \.need-meta \{ white-space: normal; \}/);
 });
 
-test('web: "Always allow" on an action every bot may be allowed asks whom: only this bot, or all bots (ADR 184)', async () => {
+test('web: "Always allow" on an action every bot may be allowed asks whom: only this bot, or all bots (ADR 201)', async () => {
   const everyBot = { question: 'Who may add label to email with Gmail from now on, whatever the details?', note: 'Only Sorter, or every bot you have and make. You can revoke it on the Connectors page.', only: 'Only Sorter', all: 'All bots' };
   const x = { key: 'ask:k9', kind: 'ask', a: { id: 'k9', kind: 'connector-action', botId: 'b1', title: 'Add label to email with Gmail?', rows: [], held: true, always: 'Always allow', everyBot } };
   const asked = [[`${everyBot.question}\n\n${everyBot.note}`, 'Only Sorter', 'All bots']];

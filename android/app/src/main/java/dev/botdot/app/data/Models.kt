@@ -398,6 +398,7 @@ data class Run(
     val notificationAudience: String? = null, // "owner" when its reply addresses the owner, a teammate's request too
     val inbox: List<InboxNote>? = null, // notes other bots left, read at its start
     val replyTo: String? = null, // the run the owner replied to (#627): this run is a further round of its block
+    val groupMessageId: String? = null, // a turn in a group: the owner's message there it belongs to (ADR 018)
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each
     val choices: List<String>? = null, // quick answers to its closing question
@@ -762,7 +763,7 @@ data class Ask(
     @SerialName("yes") val yesValue: JsonElement? = null,
     // A rule a bot asks to lift (`override`, #253): the words of its second yes, "Allow always for this bot".
     @SerialName("always") val alwaysValue: JsonElement? = null,
-    // "Always allow" for one bot or all bots (ADR 184): { question, note, only, all }, kept as it came.
+    // "Always allow" for one bot or all bots (ADR 201): { question, note, only, all }, kept as it came.
     @SerialName("everyBot") val everyBotValue: JsonElement? = null,
     @SerialName("more") val moreValue: JsonElement? = null,
     // A skill a bot wrote after its run read content from others (docs/api.md, "A skill that waits"): `written`,
@@ -821,7 +822,7 @@ data class Ask(
     val title: String get() = titleValue.textOrNull().orEmpty()
     /** The words of a second yes the server offers ("Allow always for this bot"), or null. */
     val always: String? get() = alwaysValue.textOrNull()
-    /** Whom "Always allow" asks about, this bot or all bots (ADR 184); null on a card that offers this bot only. */
+    /** Whom "Always allow" asks about, this bot or all bots (ADR 201); null on a card that offers this bot only. */
     val everyBot: EveryBot? get() = EveryBot.of(everyBotValue)
 
     /** What a yes would start, or null: the yes only changes the setting, or the server says nothing of it. */
@@ -927,7 +928,7 @@ fun Ask.standsInChat(scope: String): Boolean = when {
     else -> bot?.id == scope
 }
 
-/** The words of "Always allow" for one bot or all bots (ADR 184), as the server wrote them. */
+/** The words of "Always allow" for one bot or all bots (ADR 201), as the server wrote them. */
 data class EveryBot(val question: String, val note: String, val only: String, val all: String) {
     companion object {
         /** `everyBot` as the server sent it; null when any of its words is missing. */

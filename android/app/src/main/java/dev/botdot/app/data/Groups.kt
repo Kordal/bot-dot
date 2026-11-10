@@ -134,11 +134,12 @@ data class GroupLimit(val text: String, val messages: List<String> = emptyList()
 /**
  * The owner's message in a group. [to]: the members it was for. [waitsFor]: the members whose turn waits because
  * they are working. [next]: those whose turn has not come. [canTakeBack]: none of its turns has started.
+ * [answer]: the reply that is its team's one answer (ADR 201): the members' replies before it are folded under it.
  */
 data class GroupMessage(
     val id: String, val text: String, val at: String, val attachments: List<Attachment> = emptyList(),
     val to: List<String> = emptyList(), val waitsFor: List<String> = emptyList(), val next: List<String> = emptyList(),
-    val canTakeBack: Boolean = false, val atLimit: Boolean = false, val stopped: Boolean = false,
+    val canTakeBack: Boolean = false, val atLimit: Boolean = false, val stopped: Boolean = false, val answer: String? = null,
 ) {
     companion object {
         /** A message as the server sent it; null without an id: it cannot be taken back, or told from the next. */
@@ -147,6 +148,7 @@ data class GroupMessage(
             return GroupMessage(
                 o["id"].textOrNull() ?: return null, o["text"].whole(), o["at"].textOrNull().orEmpty(), Queued.attachments(o["attachments"]),
                 texts(o["to"]), texts(o["waitsFor"]), texts(o["next"]), isTrue(o["canTakeBack"]), isTrue(o["atLimit"]), isTrue(o["stopped"]),
+                o["answer"].textOrNull(),
             )
         }
     }
@@ -395,6 +397,39 @@ object Groups {
         val running = working.mapNotNullTo(HashSet()) { it.messageId }
         return messages.lastOrNull { (working.isEmpty() || it.id in running) && !it.stopped && it.next.isNotEmpty() }?.next.orEmpty()
     }
+
+    /**
+     * The team's one answer (ADR 201; docs/api.md, "The team's answer"): a message with [GroupMessage.answer] has the
+     * members' replies before that reply folded under one row, which opens them. For each folded reply's id, the id
+     * of its message. `public/groups.js` groupFolded has the same rule.
+     */
+    fun folded(rows: List<GroupItem>): Map<String, String> {
+        val out = LinkedHashMap<String, String>()
+        for (m in rows.filterIsInstance<GroupItem.Message>()) {
+            val answer = rows.firstOrNull { it is GroupItem.Reply && it.id == m.message.answer } ?: continue
+            for (x in rows) if (x is GroupItem.Reply && x.id != answer.id && x.run.groupMessageId == m.message.id && x.at <= answer.at) out[x.id] = m.message.id
+        }
+        return out
+    }
+
+    /**
+     * The rows as the chat shows them, oldest first: a message's folded replies ([folded]) are one [Fold] where the
+     * first of them stood, and stand under it only when [open] has that message.
+     */
+    fun shown(rows: List<GroupItem>, open: Set<String>): List<Any> {
+        val folded = folded(rows)
+        val seen = HashSet<String>()
+        val out = ArrayList<Any>()
+        for (x in rows) {
+            val m = folded[x.id]
+            if (m != null && seen.add(m)) out += Fold(m, rows.filter { folded[it.id] == m }.filterIsInstance<GroupItem.Reply>().map { it.run }, m in open)
+            if (m == null || m in open) out += x
+        }
+        return out
+    }
+
+    /** The row a message's folded replies stand under: their runs, oldest first, and whether it is open. */
+    data class Fold(val messageId: String, val runs: List<Run>, val open: Boolean) { val id get() = "fold:$messageId" }
 
     /** The bots of who is next ([next]) that exist, in that order: a bot the app does not know is given no head. */
     fun heads(next: List<String>, bots: List<Bot>): List<Bot> = next.mapNotNull { id -> bots.firstOrNull { it.id == id } }

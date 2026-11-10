@@ -1513,3 +1513,28 @@ test('web: against a server without reply-draft a group follows no run stream', 
   p.ctx.renderGroupChat();
   assert.deepEqual(p.said.streams, []);
 });
+
+// ---------- the team's one answer (ADR 201) ----------
+
+test("web: a team's answer folds the members' replies before it under one row of their heads and names, which opens them", () => {
+  const p = page();
+  const mine = (id, bot, text, n, more = {}) => reply(id, bot, text, { at: at(n), groupMessageId: 'm1', ...more });
+  const items = [message('m1', 'Do we need a new machine?', { answer: 'r3' }), mine('r1', WRITER, 'Three options.', 2), mine('r2', REVIEWER, 'No need: VM 108.', 3), mine('r3', CODER, 'No new machine: VM 108.', 4), mine('r4', WRITER, 'Installed.', 5)];
+  assert.deepEqual(plain([...p.ctx.groupFolded(items).entries()]), [['r1', 'm1'], ['r2', 'm1']], 'the replies before the answer, not the answer, not what came after it');
+  const c = p.chat(items);
+  const h = p.ctx.groupThreadHTML(p.group(), c);
+  assert.doesNotMatch(h, /data-reply="r1"|data-reply="r2"/, 'folded');
+  assert.match(h, /<button type="button" class="g-fold" data-fold="m1" aria-expanded="false"><i><svg[^>]*data-bot="writer"[^>]*><\/svg><\/i><i><svg[^>]*data-bot="reviewer"[^>]*><\/svg><\/i><span>Issue Writer and Reviewer · 2<\/span><\/button>/);
+  assert.ok(h.indexOf('data-fold="m1"') < h.indexOf('data-reply="r3"') && h.indexOf('data-reply="r3"') < h.indexOf('data-reply="r4"'));
+  // Opened: the row stays, with every folded reply under it.
+  vm.runInContext("openFolds.add('m1')", p.ctx);
+  const open = p.ctx.groupThreadHTML(p.group(), c);
+  assert.match(open, /data-fold="m1" aria-expanded="true"/);
+  assert.ok(open.indexOf('data-fold="m1"') < open.indexOf('data-reply="r1"') && open.indexOf('data-reply="r2"') < open.indexOf('data-reply="r3"'));
+  vm.runInContext("openFolds.delete('m1')", p.ctx);
+  // A message without an answer, or whose answer the page does not hold, folds nothing.
+  const plainChat = p.chat([message('m1', 'Hi'), mine('r1', WRITER, 'Hi.', 2), mine('r2', CODER, 'Hello.', 3)]);
+  assert.doesNotMatch(p.ctx.groupThreadHTML(p.group(), plainChat), /g-fold/);
+  assert.equal(p.ctx.groupFolded([message('m1', 'Hi', { answer: 'gone' }), mine('r1', WRITER, 'Hi.', 2)]).size, 0);
+  assert.match(css, /\.g-fold\[aria-expanded="true"\]::before \{ transform: rotate\(90deg\); \}/);
+});

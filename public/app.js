@@ -494,7 +494,7 @@ function askName(question, value = '', yes = tr('Save'), { secret = false } = {}
   return asked(question, yes, { field: { value, secret } });
 }
 
-// Two yeses and Cancel (ADR 184, "Always allow" for one bot or all): 'yes' for the primary one, 'other' for the
+// Two yeses and Cancel (ADR 201, "Always allow" for one bot or all): 'yes' for the primary one, 'other' for the
 // second, null for Cancel or Escape.
 function askWhich(question, yes, other) {
   return asked(question, yes, { other });
