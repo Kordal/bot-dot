@@ -262,7 +262,7 @@ test("a bot's change in the owner's turn is saved at once, and after the web it 
   const clean = await ownerTurn(t, 'Let Owner Asked browse the web and run commands');
   const saved = await clean.call('update_bot', { id: bot.id, allowedTools: ['Read', 'WebFetch', 'Bash'], prompt: 'Sort the mail, and look things up.' });
   assert.ok(!('waiting' in saved) && !saved.pendingChange, JSON.stringify(saved));
-  assert.deepEqual([saved.allowedTools, saved.prompt], [['Read', 'WebFetch', 'Bash', 'WebSearch', 'Edit', 'Write'], 'Sort the mail, and look things up.'], 'the web and files every bot has join (ADR 186)');
+  assert.deepEqual([saved.allowedTools, saved.prompt], [['Read', 'WebFetch', 'Bash', 'WebSearch', 'Edit', 'Write'], 'Sort the mail, and look things up.'], 'the web and files every bot has join (ADR 192)');
   assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === bot.id), 'no card');
   await clean.end();
 

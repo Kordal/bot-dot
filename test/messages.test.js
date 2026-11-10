@@ -28,7 +28,7 @@ test('cleanText trims and caps a message', () => {
   assert.equal(cleanText('x'.repeat(MAX_CHARS + 50)).length, MAX_CHARS);
 });
 
-test('every bot gets the tools once there is another bot: no list limits it (ADR 186)', async () => {
+test('every bot gets the tools once there is another bot: no list limits it (ADR 192)', async () => {
   const { rec, run } = await heldRun(srv, surfer);
   assert.equal(rec.self.env.SELF_TEAM, '1');
   srv.release(rec);
@@ -42,7 +42,7 @@ test('every bot gets the tools once there is another bot: no list limits it (ADR
   await srv.api(`/bots/${alone.id}`, { method: 'DELETE' });
 });
 
-test('a bot may message every other bot, bots made later too, and nothing limits it (ADR 186)', async () => {
+test('a bot may message every other bot, bots made later too, and nothing limits it (ADR 192)', async () => {
   const open = await makeBot(srv, { name: 'Open Door', emoji: '🚪' });
   assert.equal(open.mayMessageAll, true);
   const later = await makeBot(srv, { name: 'Latecomer', emoji: '⏰', mayMessage: [] });

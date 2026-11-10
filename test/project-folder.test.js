@@ -52,7 +52,7 @@ test('a bot on the computer is told the folder on its computer, and so is one ma
   assert.match(rec.system, /Save each draft, text or other piece of work for the project there as a file as you make it, and name that file when you say it is written, ready or waiting for review: never say so of work that has no file there\./, 'no work said ready without its file');
   assert.doesNotMatch(rec.system, /Shared projects:/, 'said once, in the team note');
   srv.release(rec);
-  // Every bot has the computer (ADR 186): the same folder, on its computer.
+  // Every bot has the computer (ADR 192): the same folder, on its computer.
   ({ rec } = await heldRun(srv, writer, 'Where are the files?'));
   assert.match(rec.system, /Project folder, shared by its bots: "\/workspace\/projects\/Fernhill Shop" on your computer\./);
   assert.equal(rec.self.env.SELF_FOLDER, '0');
@@ -198,7 +198,7 @@ test("deleting a project keeps its folder for its bots on the computer, or delet
   let r = await srv.api(`/company?project=${pid}`, { method: 'DELETE' });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const kept = (await srv.api('/projects')).data.projects.find((p) => p.name === 'Fernhill Shop');
-  assert.deepEqual([[...kept.bots].sort(), kept.project], [[coder.id, writer.id].sort(), undefined], 'both are on the computer (ADR 186)');
+  assert.deepEqual([[...kept.bots].sort(), kept.project], [[coder.id, writer.id].sort(), undefined], 'both are on the computer (ADR 192)');
 
   // Deleted: with what it holds, on the computer.
   r = await srv.api('/company', { method: 'POST', body: { start: 'Oakwood' } });
