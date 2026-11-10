@@ -5,7 +5,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer } = require('./helpers');
+const { startServer, withAlways } = require('./helpers');
 const teamLib = require('../lib/company-team');
 
 let srv; let pve; let kuma;
@@ -74,8 +74,8 @@ test('Create grants what the cards show, shares the picked entries and leaves no
   const keeper = bots.find((b) => b.name === 'Homelab Keeper');
   const reader = bots.find((b) => b.name === 'Uptime Reader');
   assert.equal(keeper.computer, 'linux');
-  assert.deepEqual(keeper.allowedTools, ['WebFetch']);
-  assert.equal(reader.computer, 'none');
+  assert.deepEqual(keeper.allowedTools, withAlways('WebFetch'));
+  assert.equal(reader.computer, 'linux', 'every bot has the computer (ADR 186)');
   const vault = (await srv.api('/vault')).data;
   assert.deepEqual(vault.find((e) => e.id === pve.id).allowedBots, [keeper.id]);
   assert.deepEqual(vault.find((e) => e.id === kuma.id).allowedBots.sort(), [keeper.id, reader.id].sort());

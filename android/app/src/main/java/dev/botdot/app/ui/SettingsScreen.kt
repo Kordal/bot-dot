@@ -201,9 +201,11 @@ fun SettingsScreen(
                 }
             }
 
-            // Usage (#301): only from a server that counts it.
+            // "Advanced" (ADR 186): what only a technical owner needs, first the token usage. A server without it shows usage always.
+            edit.advanced?.let { on -> SettingsGroup { SwitchRow(tr("Advanced"), checked = on) { saveModel(edit.copy(advanced = it)) } } }
+            // Usage (#301): only from a server that counts it, and under Advanced.
             val usageApi = api
-            if (usageApi != null && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
+            if (usageApi != null && edit.advanced != false && dev.botdot.app.data.Usage.shows(server?.features)) UsageSection(usageApi)
 
             // Claude's sign-in (the setup page's first step), for when it has to be done again.
             setup?.let { s ->

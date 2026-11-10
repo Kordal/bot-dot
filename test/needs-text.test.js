@@ -486,11 +486,11 @@ test('a new ask is announced with its line', async () => {
   const other = await makeBot(srv, { name: 'News Watcher', allowedTools: ['Read'] });
   const f = await feed(srv);
   await f.wait('hello');
-  const proposed = await srv.asChief(`/bots/${other.id}`, { method: 'PUT', body: { computer: 'linux' } });
+  const proposed = await srv.asChief(`/bots/${other.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] } });
   const ev = await f.wait('asks', (d) => d.list.some((a) => a.id === proposed.data.pendingChange));
   f.close();
   const mine = ev.data.list.find((a) => a.id === proposed.data.pendingChange);
-  assert.deepEqual([mine.botName, mine.text, mine.yesOn], ['News Watcher', 'The Chief wants to change its computer', 'card']);
+  assert.deepEqual([mine.botName, mine.text, mine.yesOn], ['News Watcher', 'The Chief wants to change what it may do', 'card']);
   await srv.api(`/asks/${mine.id}`, { method: 'POST', body: { yes: false } });
 });
 

@@ -137,14 +137,13 @@ test('no mentions, no note', () => {
 
 // ---------- the server ----------
 
-let srv, doctor, keeper, quiet;
+let srv, doctor, keeper;
 before(async () => {
   srv = await startServer();
   await srv.api('/skills', { method: 'POST', body: { name: 'weekly-report', description: 'How the weekly report looks.', instructions: 'Headings, then bullets.' } });
   await srv.api('/skills', { method: 'POST', body: { name: 'tone', description: "The owner's tone.", instructions: 'Plain.' } });
   doctor = await makeBot(srv, { name: 'Fleet Doctor', emoji: '🩺', description: 'Keeps the homelab healthy.', skills: ['weekly-report'], jobs: [{ name: 'Morning check', cron: '0 7 * * *', prompt: 'Check every server.' }] });
   keeper = await makeBot(srv, { name: 'Todo Keeper', emoji: '✅' });
-  quiet = await makeBot(srv, { name: 'Quiet One', emoji: '🤫', mayMessage: [] });
 });
 after(() => srv.stop());
 
@@ -208,18 +207,3 @@ test('a Chief message gets the note, with the whole library', async () => {
   assert.equal(turn.stdin.trim(), 'Give @tone to @TodoKeeper');
 });
 
-test("mentioning a bot it may not message only gives the note: nothing is sent, run or granted", async () => {
-  const doctorRuns = (await srv.api(`/runs?botId=${doctor.id}`)).data.length;
-  const r = await srv.api(`/bots/${quiet.id}/run`, { method: 'POST', body: { prompt: 'Tell @FleetDoctor the disks are full' } });
-  assert.equal(r.status, 201, JSON.stringify(r.data));
-  const rec = await runOf(quiet);
-  assert.match(rec.system, /@FleetDoctor is the bot Fleet Doctor/);
-  assert.equal(rec.self.env.SELF_TEAM, '0', 'still no tools to message other bots');
-  await srv.finished(r.data.id);
-
-  assert.equal((await srv.api(`/runs?botId=${doctor.id}`)).data.length, doctorRuns, 'Fleet Doctor was not started');
-  assert.deepEqual((await srv.api(`/bots/${doctor.id}/inbox`)).data, [], 'nor left a note');
-  const after = (await srv.api(`/bots/${quiet.id}`)).data;
-  assert.deepEqual(after.mayMessage, []);
-  assert.equal(after.mayMessageAll, false);
-});

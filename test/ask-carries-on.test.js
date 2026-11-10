@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { startServer, makeBot, heldRun, self, waitFor, sleep } = require('./helpers');
-const { kit, fakeGithub, BASH, WEB, isRunOf } = require('./carry-on-helpers');
+const { kit, fakeGithub, BASH, OVERRIDE, OVERRIDE_WORDS, isRunOf } = require('./carry-on-helpers');
 
 let srv, github, refuse, asksOf, runsOf, answer, lastRun, refused, carriedOn, startsNothing;
 before(async () => {
@@ -71,7 +71,7 @@ test("after Allow the bot goes on with the owner's request, once, and the chat s
 
 test('a decline starts nothing, and two yeses on one ask start one run', async () => {
   const no = await makeBot(srv, { name: 'Surfer', emoji: '🏄', allowedTools: ['Read'] });
-  await refused(no, [WEB]);
+  await refused(no, [BASH]);
   const [declined] = await asksOf(no);
   assert.ok(declined.then);
   assert.deepEqual((await answer(declined, false)).data, { ok: true, declined: true });
@@ -89,9 +89,9 @@ test('a decline starts nothing, and two yeses on one ask start one run', async (
 
 test('a run that waits for two asks carries on once, after the last answer, told what was allowed and declined', async () => {
   const bot = await makeBot(srv, { name: 'Both', emoji: '🧰', allowedTools: ['Read'] });
-  const first = await refused(bot, [BASH, WEB]);
+  const first = await refused(bot, [BASH, OVERRIDE]);
   const cards = await asksOf(bot);
-  assert.deepEqual(cards.map((a) => a.permission).sort(), ['commands', 'web']);
+  assert.deepEqual(cards.map((a) => a.kind).sort(), ['override', 'permission']);
   for (const a of cards) assert.match(a.then.text, /^It carries on with “Check the PRs”/, 'each card says what follows');
   const commands = cards.find((a) => a.permission === 'commands');
   const yes = await answer(commands, true);
@@ -99,27 +99,27 @@ test('a run that waits for two asks carries on once, after the last answer, told
   await startsNothing(bot, 1);
   assert.ok((await asksOf(bot))[0].then, 'the card that is left still says it carries on');
   // The last answer is a no: it carries on with what was allowed, and is told what was not.
-  assert.deepEqual((await answer(cards.find((a) => a.permission === 'web'), false)).data, { ok: true, declined: true });
+  assert.deepEqual((await answer(cards.find((a) => a.kind === 'override'), false)).data, { ok: true, declined: true });
   await carriedOn(bot, first);
   const rec = await lastRun(bot);
   assert.match(rec.stdin, /The owner allowed you to: run commands\./);
-  assert.match(rec.stdin, /The owner declined: browse the web\. Do without it, and don't ask for it again\./);
+  assert.ok(rec.stdin.includes(`The owner declined: ${OVERRIDE_WORDS}. Do without it, and don't ask for it again.`), rec.stdin);
   await startsNothing(bot, 2);
 
   // Both declined: nothing starts.
   const none = await makeBot(srv, { name: 'Neither', emoji: '🙅', allowedTools: ['Read'] });
-  await refused(none, [BASH, WEB]);
+  await refused(none, [BASH, OVERRIDE]);
   for (const a of await asksOf(none)) await answer(a, false);
   await startsNothing(none, 1);
 
   // Both allowed: one run, told both.
   const all = await makeBot(srv, { name: 'Everything', emoji: '🎒', allowedTools: ['Read'] });
-  const stopped = await refused(all, [BASH, WEB]);
+  const stopped = await refused(all, [BASH, OVERRIDE]);
   const answers = [];
   for (const a of await asksOf(all)) answers.push((await answer(a, true)).data.carriesOn);
   assert.deepEqual(answers, [undefined, { who: 'bot', text: 'it carries on' }]);
   await carriedOn(all, stopped);
-  assert.match((await lastRun(all)).stdin, /The owner allowed you to: run commands and browse the web\./);
+  assert.ok((await lastRun(all)).stdin.includes(`The owner allowed you to: run commands and ${OVERRIDE_WORDS}.`));
   await startsNothing(all, 2);
 });
 
@@ -182,12 +182,12 @@ test("a job's run asked first and the owner's request was refused the same: Allo
   const bot = await makeBot(srv, { name: 'Early Bird', emoji: '🐦', allowedTools: ['Read'] });
   const job = (await srv.asChief(`/bots/${bot.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Morning news', cron: '0 7 * * *', prompt: 'Read the news.', assessment: 'Needs AI' } })).data;
   // 7:00: the job's run is refused the web, and the card appears.
-  refuse([WEB]);
+  refuse([BASH]);
   const atSeven = await srv.finished((await srv.api(`/bots/${bot.id}/jobs/${job.id}/run`, { method: 'POST' })).data.run.id);
   refuse([]);
   assert.equal((await asksOf(bot))[0].then.text, 'It runs “Morning news” again when you allow it.');
   // 8:00: the owner asks the bot something, which is refused the same and joins the card.
-  const atEight = await refused(bot, [WEB], { prompt: 'What is new today?' });
+  const atEight = await refused(bot, [BASH], { prompt: 'What is new today?' });
   const [card, ...more] = await asksOf(bot);
   assert.deepEqual(more, [], 'one card');
   const kept = JSON.parse(fs.readFileSync(path.join(srv.data, 'asks.json'), 'utf8')).find((a) => a.id === card.id);
@@ -204,11 +204,11 @@ test("a job's run asked first and the owner's request was refused the same: Allo
   // Two requests of the owner after the job's run, all three on one card: one run, for the later request.
   const two = await makeBot(srv, { name: 'Night Owl', emoji: '🦉', allowedTools: ['Read'] });
   const nightly = (await srv.asChief(`/bots/${two.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Night watch', cron: '0 1 * * *', prompt: 'Watch the logs.', assessment: 'Needs AI' } })).data;
-  refuse([WEB]);
+  refuse([BASH]);
   const watch = await srv.finished((await srv.api(`/bots/${two.id}/jobs/${nightly.id}/run`, { method: 'POST' })).data.run.id);
   refuse([]);
-  const earlier = await refused(two, [WEB], { prompt: 'What is new today?' });
-  const later = await refused(two, [WEB], { prompt: 'And the weather?' });
+  const earlier = await refused(two, [BASH], { prompt: 'What is new today?' });
+  const later = await refused(two, [BASH], { prompt: 'And the weather?' });
   const [three] = await asksOf(two);
   assert.deepEqual(JSON.parse(fs.readFileSync(path.join(srv.data, 'asks.json'), 'utf8')).find((a) => a.id === three.id).runs.map((r) => r.id), [watch.id, earlier.id, later.id]);
   assert.equal(three.then.text, 'It carries on with “And the weather?” when you allow it.');
@@ -225,10 +225,10 @@ test("behind a busy bot the later request waits its turn though its card is olde
   for (const meanwhile of [false, true]) {
     const bot = await makeBot(srv, meanwhile ? { name: 'Interrupted', emoji: '✋', allowedTools: ['Read'] } : { name: 'Patient', emoji: '⏳', allowedTools: ['Read'] });
     const job = (await srv.asChief(`/bots/${bot.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Morning news', cron: '0 7 * * *', prompt: 'Read the news.', assessment: 'Needs AI' } })).data;
-    refuse([WEB]);
+    refuse([BASH]);
     await srv.finished((await srv.api(`/bots/${bot.id}/jobs/${job.id}/run`, { method: 'POST' })).data.run.id);
     refuse([]);
-    const request = await refused(bot, [WEB], { prompt: 'What is new today?' });
+    const request = await refused(bot, [BASH], { prompt: 'What is new today?' });
     srv.hold();
     const held = [(await srv.asChief(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Something long' } })).data];
     const recs = [await srv.nextRun((x) => isRunOf(bot)(x) && /Something long/.test(x.stdin), 'the long run')];
@@ -259,7 +259,7 @@ test('a run that already carried on does not carry on a second time', async () =
   // command: the run that carries on is refused the command too. One Allow on that card starts one run.
   const bot = await makeBot(srv, { name: 'Looper', emoji: '➰', allowedTools: ['Read'] });
   const h = await heldRun(srv, bot, 'Fetch and build');
-  await self(srv, h.token, 'ask', { kind: 'permission', permission: 'web', reason: 'To fetch it' });
+  await self(srv, h.token, 'ask', { kind: 'override', ...OVERRIDE.tool_input, reason: 'To post it' });
   assert.deepEqual((await answer((await asksOf(bot))[0], true)).data.carriesOn, { who: 'bot', text: 'it carries on when it is free' });
   refuse([BASH]);
   srv.unhold();
@@ -284,7 +284,7 @@ test('work that waits already is told of a second yes, and a message the owner s
   // message was sent before the run asked for it, though it started after, so the one run still follows.
   const bot = await makeBot(srv, { name: 'Juggler', emoji: '🤹', allowedTools: ['Read'] });
   const h = await heldRun(srv, bot, 'Fetch and build');
-  await self(srv, h.token, 'ask', { kind: 'permission', permission: 'web', reason: 'To fetch it' });
+  await self(srv, h.token, 'ask', { kind: 'override', ...OVERRIDE.tool_input, reason: 'To post it' });
   assert.deepEqual((await answer((await asksOf(bot))[0], true)).data.carriesOn, { who: 'bot', text: 'it carries on when it is free' });
   await sleep(5); // a later moment than the yes, on any clock
   const other = (await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Any news meanwhile?' } })).data;
@@ -303,7 +303,7 @@ test('work that waits already is told of a second yes, and a message the owner s
   await srv.finished(other.id);
   const next = await carriedOn(bot, h.run);
   assert.equal(next.prompt, 'Fetch and build');
-  assert.match((await lastRun(bot)).stdin, /The owner allowed you to: browse the web and run commands\./);
+  assert.ok((await lastRun(bot)).stdin.includes(`The owner allowed you to: ${OVERRIDE_WORDS} and run commands.`));
   await startsNothing(bot, 3);
 });
 
@@ -324,7 +324,7 @@ test('an ask from before, with no run, only changes the setting', async () => {
 test('ask_permission and ask_skill record the run, and a skill carries on after Install', async () => {
   const bot = await makeBot(srv, { name: 'Asker', emoji: '🙋', allowedTools: ['Read'] });
   const h = await heldRun(srv, bot, 'Tidy my desk');
-  assert.equal((await self(srv, h.token, 'ask', { kind: 'permission', permission: 'web', reason: 'To read the page' })).data.ok, true);
+  assert.equal((await self(srv, h.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To read the page' })).data.ok, true);
   assert.equal((await self(srv, h.token, 'ask', { kind: 'skill', url: 'https://github.com/acme/skills', reason: 'It knows how' })).data.skill, 'tidy-desk');
   const cards = await asksOf(bot);
   assert.deepEqual(cards.map((a) => a.kind).sort(), ['permission', 'skill']);
@@ -338,7 +338,7 @@ test('ask_permission and ask_skill record the run, and a skill carries on after 
   const next = await carriedOn(bot, h.run);
   const rec = await lastRun(bot);
   assert.match(rec.stdin, /The owner allowed you to: use the skill “tidy-desk”\./);
-  assert.match(rec.stdin, /The owner declined: browse the web\./);
+  assert.match(rec.stdin, /The owner declined: run commands\./);
   assert.equal(next.prompt, 'Tidy my desk');
   await startsNothing(bot, 2);
 });

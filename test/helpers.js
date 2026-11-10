@@ -479,4 +479,7 @@ function boatShown(command) {
   const m = /^(?:r=[A-Za-z0-9_-]+; )?([\s\S]*?)(?:exec )?(?:timeout -k 15 \d+ )?python3 -I -c '(?:[^']|'\\'')*' botdot-run [^']*?-- \S+ -c '((?:[^']|'\\'')*)'([\s\S]*)$/.exec(command);
   return m ? `${m[1]}${m[2].replace(/'\\''/g, "'")}${m[3]}` : command;
 }
-module.exports = { boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+// A bot's tools as the server saves them: every bot has the web and changing files (ADR 186), after the ones given.
+const ALWAYS_TOOLS = ['WebSearch', 'WebFetch', 'Edit', 'Write'];
+const withAlways = (...tools) => [...tools, ...ALWAYS_TOOLS.filter((t) => !tools.includes(t))];
+module.exports = { withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
