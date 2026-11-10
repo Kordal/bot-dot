@@ -342,6 +342,11 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
     }
     val mentions = remember(room) { Rooms.world(room) }
     val shown by remember { derivedStateOf { vm.messages.asReversed() } }
+    // The head on the button to the newest message (ToLatestButton): the bot whose message is newest, in its colour here.
+    @Composable fun newestHead() {
+        val m = shown.firstOrNull { it.bot != null && !it.notice } ?: return
+        BotFigure(room?.bots?.firstOrNull { it.account == m.account && it.id == m.bot?.id }?.color ?: GONE_COLOR, "idle", 20, null)
+    }
     val sent = vm.outbox.sent?.unlessIn(vm.own(mine))
     val server by app.store.version.value.collectAsState()
     CompositionLocalProvider(LocalMentions provides mentions, LocalSiteIcons provides sitesShown(server?.features), LocalProductCards provides productCardsShown(server?.features)) {
@@ -361,28 +366,31 @@ fun RoomChatScreen(app: BotDotApp, roomId: String, onSettings: () -> Unit, onBac
                 )
             },
         ) { pad ->
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                state = listState,
-                reverseLayout = true,
-                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
-                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom),
-            ) {
-                item(key = "tail") {
-                    Column {
-                        if (sent != null) SentBubble(sent, above = false)
-                        val working = room?.let { Rooms.workingLine(it) }.orEmpty()
-                        if (working.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
-                            Text(working, color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
-                            TextButton(onClick = { vm.stop() }) { Text(tr("Stop"), color = p.text) }
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    reverseLayout = true,
+                    contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                    verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom),
+                ) {
+                    item(key = "tail") {
+                        Column {
+                            if (sent != null) SentBubble(sent, above = false)
+                            val working = room?.let { Rooms.workingLine(it) }.orEmpty()
+                            if (working.isNotEmpty()) Row(Modifier.fillMaxWidth().padding(top = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                                Text(working, color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite })
+                                TextButton(onClick = { vm.stop() }) { Text(tr("Stop"), color = p.text) }
+                            }
                         }
                     }
+                    if (vm.loaded && vm.messages.isEmpty() && sent == null) item {
+                        Text(RoomChat.EMPTY, color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(Space.s24))
+                    }
+                    vm.error?.let { e -> item { Text(e, color = p.err, modifier = Modifier.padding(Space.s16)) } }
+                    items(shown, key = { it.id }) { m -> RoomMessageRow(m, room, mine) }
                 }
-                if (vm.loaded && vm.messages.isEmpty() && sent == null) item {
-                    Text(RoomChat.EMPTY, color = p.muted, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(Space.s24))
-                }
-                vm.error?.let { e -> item { Text(e, color = p.err, modifier = Modifier.padding(Space.s16)) } }
-                items(shown, key = { it.id }) { m -> RoomMessageRow(m, room, mine) }
+                ToLatestButton(listState, roomId, shown.firstOrNull()?.id, pad.calculateBottomPadding()) { newestHead() }
             }
         }
     }

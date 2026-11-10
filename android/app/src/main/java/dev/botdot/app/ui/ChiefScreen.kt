@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -202,76 +203,79 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             // The "New" line: above the message the server named, or the next one that is loaded.
             val newFirst = vm.newFirst
             val newAt = remember(messages, first, newFirst) { Unread.rowFrom(List(messages.size) { first + it }, newFirst) }
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                state = listState,
-                reverseLayout = true,
-                // The top bar and the message box float over the messages, which scroll behind them.
-                contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
-                verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
-            ) {
-                // Last in the chat: the Chief's working line while it replies, then your messages that wait for the
-                // reply to end, then what it set up or asked for. Where Send stays, the line is all there is of its
-                // working state (what it is doing in the server's words, its opening line first, else "Thinking…"), with Stop at its end;
-                // against a botdot from before, the line is its opening line and the reply's bubble says the rest.
-                val sent = vm.sent // the owner's message on its way, as in a bot's chat: also the first of a new chat
-                if (messages.isNotEmpty() || sent != null) item(key = "needs") {
-                    Column {
-                        if (sent != null && !busy) SentBubble(sent, above = true, sentArrives)
-                        if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.chiefLine(lines["chief:$chatId"], activity.lastOrNull(), busy), sent), CHIEF_COLOR, onStop = if (busy) ({ vm.stop() }) else null, room = true)
-                        else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines["chief:$chatId"].takeIf { busy }, working = false), sent), CHIEF_COLOR)
-                        WaitingMessages(vm.queued, tr("the Chief"), onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
-                        if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
-                        ChatNeeds(app, "chief")
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    reverseLayout = true,
+                    // The top bar and the message box float over the messages, which scroll behind them.
+                    contentPadding = PaddingValues(start = Space.s16, end = Space.s16, top = pad.calculateTopPadding() + Space.s4, bottom = pad.calculateBottomPadding() + Space.s4),
+                    verticalArrangement = Arrangement.spacedBy(Space.s12, Alignment.Bottom), // few messages: at the bottom, by the message box
+                ) {
+                    // Last in the chat: the Chief's working line while it replies, then your messages that wait for the
+                    // reply to end, then what it set up or asked for. Where Send stays, the line is all there is of its
+                    // working state (what it is doing in the server's words, its opening line first, else "Thinking…"), with Stop at its end;
+                    // against a botdot from before, the line is its opening line and the reply's bubble says the rest.
+                    val sent = vm.sent // the owner's message on its way, as in a bot's chat: also the first of a new chat
+                    if (messages.isNotEmpty() || sent != null) item(key = "needs") {
+                        Column {
+                            if (sent != null && !busy) SentBubble(sent, above = true, sentArrives)
+                            if (stays) StatusLine(lineWith(dev.botdot.app.data.OpeningLine.chiefLine(lines["chief:$chatId"], activity.lastOrNull(), busy), sent), CHIEF_COLOR, onStop = if (busy) ({ vm.stop() }) else null, room = true)
+                            else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines["chief:$chatId"].takeIf { busy }, working = false), sent), CHIEF_COLOR)
+                            WaitingMessages(vm.queued, tr("the Chief"), onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
+                            if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
+                            ChatNeeds(app, "chief")
+                        }
                     }
-                }
-                itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
-                    // A reply that is new in this open chat arrives; the owner's own message and a reply still
-                    // being written are no replies, and stand still.
-                    Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                        if (newAt >= 0 && messages.size - 1 - i == newAt) NewLine(CHIEF_COLOR)
-                        val chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a -> // a mail draft's card names its bot in its footer
-                            val bot = botById[a.botId]
-                            val screen = a.kind == "run" && bot?.computer == "linux"
-                            chipText(chipWords(a, screen), p.warnText) to when {
-                                a.kind == "skill" -> onSkills
-                                a.botId != null || a.runId != null -> ({
-                                    scope.launch {
-                                        runCatching {
-                                            val id = a.botId ?: app.api.value?.run(a.runId!!)?.botId
-                                            val target = botById[id]
-                                            if (target == null) snack.showSnackbar(tr("This bot is no longer available"))
-                                            else if (a.kind == "run" && target.computer == "linux") onScreen(target.id)
-                                            else onBot(target.id)
-                                        }.onError { snack.showError(it.message ?: tr("Couldn't open bot")) }
-                                    }
-                                    Unit
-                                })
-                                else -> null
+                    itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
+                        // A reply that is new in this open chat arrives; the owner's own message and a reply still
+                        // being written are no replies, and stand still.
+                        Column(Modifier.arrives(arrivals, "${first + messages.size - 1 - i}".takeUnless { m.role == "user" || m.pending }), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                            if (newAt >= 0 && messages.size - 1 - i == newAt) NewLine(CHIEF_COLOR)
+                            val chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a -> // a mail draft's card names its bot in its footer
+                                val bot = botById[a.botId]
+                                val screen = a.kind == "run" && bot?.computer == "linux"
+                                chipText(chipWords(a, screen), p.warnText) to when {
+                                    a.kind == "skill" -> onSkills
+                                    a.botId != null || a.runId != null -> ({
+                                        scope.launch {
+                                            runCatching {
+                                                val id = a.botId ?: app.api.value?.run(a.runId!!)?.botId
+                                                val target = botById[id]
+                                                if (target == null) snack.showSnackbar(tr("This bot is no longer available"))
+                                                else if (a.kind == "run" && target.computer == "linux") onScreen(target.id)
+                                                else onBot(target.id)
+                                            }.onError { snack.showError(it.message ?: tr("Couldn't open bot")) }
+                                        }
+                                        Unit
+                                    })
+                                    else -> null
+                                }
+                            }
+                            val index = first + messages.size - 1 - i // its place in the whole chat
+                            val approval = remember { messageKey() } // one key for the plan's Approve while it is shown
+                            // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
+                            if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
+                            Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
+                                plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
+                                onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
+                                onDismiss = { vm.dismiss() },
+                                thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
+                            // A mail draft (#415): its card under the reply, with its own buttons in place of the answer buttons.
+                            val mail = m.draft?.takeIf { m.role == "chief" && !m.pending }
+                            if (mail != null) {
+                                val bot = mail.botId?.let { botById[it] }
+                                MailDraftCard(mail, mail.bot ?: bot?.name, screen = bot?.computer == "linux",
+                                    onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
+                            }
+                            if (i == 0 && m.role == "chief" && !m.pending && !busy && mail == null) {
+                                Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
+                                Questions(m.questions) { text, key -> sendFrom(text, key) }
                             }
                         }
-                        val index = first + messages.size - 1 - i // its place in the whole chat
-                        val approval = remember { messageKey() } // one key for the plan's Approve while it is shown
-                        // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
-                        if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
-                        Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
-                            plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
-                            onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
-                            onDismiss = { vm.dismiss() },
-                            thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
-                        // A mail draft (#415): its card under the reply, with its own buttons in place of the answer buttons.
-                        val mail = m.draft?.takeIf { m.role == "chief" && !m.pending }
-                        if (mail != null) {
-                            val bot = mail.botId?.let { botById[it] }
-                            MailDraftCard(mail, mail.bot ?: bot?.name, screen = bot?.computer == "linux",
-                                onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
-                        }
-                        if (i == 0 && m.role == "chief" && !m.pending && !busy && mail == null) {
-                            Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
-                            Questions(m.questions) { text, key -> sendFrom(text, key) }
-                        }
                     }
                 }
+                ToLatestButton(listState, chatId, messages.lastOrNull()?.let { "${first + messages.size}:${it.text.length}" }, pad.calculateBottomPadding()) { BotFigure(CHIEF_COLOR, "idle", 20, FigureDef.CHIEF) }
             }
         }
     }

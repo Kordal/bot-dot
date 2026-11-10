@@ -426,7 +426,7 @@ function renderChief() {
       ${composerHTML(messageChief())}
       <div class="job-chips" id="chief-job-chips"></div>`;
     wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
-    holdChatEnd($('#chat-thread', root));
+    holdChatEnd($('#chat-thread', root), () => chiefFigure());
     $('#chat-thread', root).addEventListener('scroll', (e) => { if (e.target.scrollTop < 400) loadOlder(e.target); }, { passive: true });
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
     if ($('#chief-files-btn')) $('#chief-files-btn').onclick = () => Files.open(chiefAsBot()); // files.js (#603)
