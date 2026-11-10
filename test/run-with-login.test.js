@@ -211,20 +211,6 @@ test('run_with_login: refused without a computer and for a login not shared with
   srv.unhold();
 });
 
-test('run_with_login: a bot without a computer is told so', async (t) => {
-  const srv = await startServer();
-  t.after(() => srv.stop());
-  const bot = await makeBot(srv, { name: 'No Desk' });
-  await srv.api('/vault', { method: 'POST', body: { name: 'Bridge', site: '127.0.0.1', password: SECRET, allowedBots: [bot.id], inComputer: true } });
-  const held = await heldRun(srv, bot);
-  const r = await srv.api('/vault/session/computer/run-with-login', { method: 'POST', headers: { 'X-Vault-Token': held.token }, body: { login: 'Bridge', command: 'true' } });
-  assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /doesn't have a computer/);
-  srv.release(held.rec);
-  await srv.finished(held.run.id);
-  srv.unhold();
-});
-
 // ---------- the bot's tool (lib/computer-mcp.js) ----------
 
 test('the run_with_login tool says how to use the values, and shows what the command returned', async (t) => {

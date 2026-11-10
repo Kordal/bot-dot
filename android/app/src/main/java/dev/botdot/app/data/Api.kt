@@ -797,7 +797,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /** The office floor (#672, #675): a new team, "Make lead", the owner's tasks. */
     suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
         CompanySetup.of(send("POST", co("/company/teams"), buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
-    /** A team's bots: all of them, those added at the end; a bot stays in the project's other teams (ADR 191). */
+    /** A team's bots: all of them, those added at the end; a bot stays in the project's other teams (ADR 199). */
     suspend fun setTeamBots(team: String, bots: List<String>): Company =
         CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
     suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("lead", bot) }))

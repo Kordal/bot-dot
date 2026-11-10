@@ -58,10 +58,10 @@ test('the bot asking for a command it was refused makes one permission card, wit
 
 test('after a no, nobody asks for it again for a week', async () => {
   const bot = await makeBot(srv, { name: 'Surfer', emoji: '🏄', allowedTools: ['Read'] });
-  refuse([{ tool_name: 'WebFetch', tool_use_id: 't1', tool_input: { url: 'https://example.com' } }]);
+  refuse([{ tool_name: 'Bash', tool_use_id: 't1', tool_input: { command: 'gh pr list', description: 'List open pull requests' } }]);
   await run(bot);
   const [card] = await asksOf(bot);
-  assert.equal(card.permission, 'web');
+  assert.equal(card.permission, 'commands');
   await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: false } });
   await run(bot);
   assert.equal((await asksOf(bot)).length, 0, 'not asked again');
@@ -69,7 +69,7 @@ test('after a no, nobody asks for it again for a week', async () => {
   // The bot asking itself is refused too, and told why.
   for (let i = 0; i < 2; i++) await srv.nextRun((x) => x.args.includes('🏄 Surfer'), 'the earlier runs'); // not the run to use below
   const h = await heldRun(srv, bot);
-  const r = await self(srv, h.token, 'ask', { kind: 'permission', permission: 'web', reason: 'To read the page' });
+  const r = await self(srv, h.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To list them' });
   assert.match(r.data.error, /said no to this recently/);
   srv.release(h.rec);
   await srv.finished(h.run.id);

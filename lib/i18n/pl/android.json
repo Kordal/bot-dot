@@ -843,6 +843,8 @@
   },
   "Done": "Gotowe",
   "Idle": "Bezczynny",
+  "Watching": "Pilnuje",
+  "Watching, last {time}": "Pilnuje, ostatnio {time}",
   "Ask the Chief for a bot": "Poproś Szefa o bota",
   "{shown} of {matching}": "{shown} z {matching}",
   "{total} in all": "{total} łącznie",
@@ -1302,5 +1304,6 @@
   "Edit": "Edytuj",
   "None": "Brak",
   "Open Connectors": "Otwórz Konektory",
-  "Waiting for sign-in": "Czeka na logowanie"
+  "Waiting for sign-in": "Czeka na logowanie",
+  "Advanced": "Zaawansowane"
 }

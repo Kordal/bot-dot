@@ -245,7 +245,7 @@ test('a turn botdot started is offered no tool that makes or changes a group, an
   const asking = await newChat();
   // A new bot gets its tools at once (ADR 176): the web given later, outside a turn of the owner's, waits on a card.
   const watcher = (await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Read the news.', allowedTools: ['Read'] }, headers: { 'X-Chief-Chat': asking.id } })).data;
-  await srv.asChief(`/bots/${watcher.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch'] }, headers: { 'X-Chief-Chat': asking.id } });
+  await srv.asChief(`/bots/${watcher.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'Bash'] }, headers: { 'X-Chief-Chat': asking.id } });
   const card = (await srv.api('/asks')).data.find((a) => a.botId === watcher.id);
   await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   const rec = await srv.nextRun((x) => isChief(x) && /The user said yes on the card/.test(x.stdin), "the Chief's turn about the card");

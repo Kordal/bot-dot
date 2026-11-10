@@ -21,7 +21,7 @@ import java.time.ZoneId
 object CompanyFloor {
     /**
      * The bots "+" offers to add to [team]: the account's bots not in it, those in no other team of [c] first,
-     * each with the name of the other team it is in (it stays in that team too, ADR 191), or null.
+     * each with the name of the other team it is in (it stays in that team too, ADR 199), or null.
      */
     fun addable(c: Company, team: CompanyTeam, bots: List<Bot>): List<Pair<Bot, String?>> {
         val other = c.teams.filter { it.id != team.id }.flatMap { t -> t.bots.map { it to t.name } }.toMap()

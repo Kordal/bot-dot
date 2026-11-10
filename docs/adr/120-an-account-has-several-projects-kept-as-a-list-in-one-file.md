@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#689](https://github.com/Kordal/bot-dot/issues/689), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
-- **Changed by:** [ADR 191](191-a-bot-may-be-in-several-teams-of-one-project.md): a bot may be in several teams of one project (2026-11-10)
+- **Changed by:** [ADR 199](199-a-bot-may-be-in-several-teams-of-one-project.md): a bot may be in several teams of one project (2026-11-10)
 - **Supersedes:** the "one company per account" part of [ADR 110](110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)
 
 ## Context

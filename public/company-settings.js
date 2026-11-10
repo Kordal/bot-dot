@@ -108,7 +108,7 @@
     const add = editing === 'new' ? editorHTML(c, null) : `<div class="ps-adds"><button type="button" class="btn sm" data-ps-new-team>${PLUS}${tr('New team')}</button></div>`;
     return section('team', tr('Team'), teams + add);
   }
-  // A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 191), its lead.
+  // A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 199), its lead.
   function editorHTML(c, t) {
     if (!draft) draft = t ? { name: t.name, bots: [...t.bots], lead: t.lead } : { name: '', bots: [], lead: '' };
     const lead = draft.bots.includes(draft.lead) ? draft.lead : draft.bots[0] || '';

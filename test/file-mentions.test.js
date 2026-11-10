@@ -64,7 +64,6 @@ test('search: at most 50, and says there are more; what is asked is checked; onl
 });
 
 test('search on the computer: off, it says so for its folder and leaves it out of all; on, one script looks in its folder and its projects', async () => {
-  assert.equal((await search('sum', '&root=computer')).data.state, 'no-computer');
   put('summary-here.md', 'x', pc);
   docker.answer('inspect.json', null);
   const before = docker.calls().length;
@@ -125,7 +124,7 @@ test("a file mentioned in a bot's chat: the run gets where it is, a small text f
   assert.match(rec.system, /- @\[botdot:reports\/2026-w43\] is the folder reports\/2026-w43\/ in your workspace on botdot\. Open it there when the task needs it\./);
   assert.match(rec.system, /- @\[botdot:big\.txt\] is the file big\.txt in your workspace on botdot\. Open it there when the task needs it\./);
   assert.match(rec.system, /- @\[botdot:gone\.md\] is gone\.md in your workspace on botdot, which is not there now: it was deleted or moved\./);
-  assert.match(rec.system, /- @\[computer:a\.md\] names \/workspace\/[\w-]+\/a\.md on your computer, which you can't reach\./);
+  assert.match(rec.system, /- @\[computer:a\.md\] (is|names) [^\n]*\/workspace\/[\w-]+\/a\.md on your computer/);
   assert.equal(rec.stdin.startsWith(text), true, 'the message itself is unchanged');
   await srv.finished(r.data.id);
 });

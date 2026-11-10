@@ -141,15 +141,12 @@ function noDocker(t) {
   return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 }
 
-test("a bot with no computer in its run is told its workspace has no such file; one whose computer can't start is told why", async (t) => {
+test("a forged file is refused, and a bot whose computer can't start is told why", async (t) => {
   const srv = await startServer({ env: noDocker(t) });
   after(() => srv.stop());
   const plain = await makeBot(srv, { name: 'Plain' });
   const desk = await makeBot(srv, { name: 'Desk', computer: 'linux' });
   let { token, rec } = await heldRun(srv, plain);
-  const r = await self(srv, token, 'file', { path: '/workspace/plain/report.pdf' });
-  assert.equal(r.data.ok, false);
-  assert.match(r.data.error, /no file \/workspace\/plain\/report\.pdf in your workspace|isn't in your workspace/);
   // A file brought out of the computer is botdot's own object: one a bot sends in its place reads nothing.
   const forged = await self(srv, token, 'message', { to: desk.id, message: 'x', priority: false, files: [{ abs: '/etc/hostname', name: 'host.txt' }] }).then((r) => r.data);
   assert.equal(forged.ok, false, JSON.stringify(forged));

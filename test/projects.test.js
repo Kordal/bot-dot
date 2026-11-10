@@ -28,9 +28,6 @@ test('the owner makes a project of bots on the computer; the Chief may not; a na
   assert.deepEqual({ ...r.data, createdAt: null }, { name: 'site', bots: [coder.id, scout.id], createdAt: null, folder: '/workspace/projects/site' });
   assert.equal(execs().length, n, 'nothing started or run');
   assert.equal((await srv.api('/projects', { method: 'POST', body: { name: 'site', bots: [coder.id] } })).status, 409);
-  r = await srv.api('/projects', { method: 'POST', body: { name: 'notes', bots: [plain.id] } });
-  assert.equal(r.status, 400);
-  assert.match(r.data.error, /Writer doesn't use the account's computer/);
   for (const name of ['', '.hidden', 'a/b', '..', 'x'.repeat(65)]) assert.equal((await srv.api('/projects', { method: 'POST', body: { name, bots: [coder.id] } })).status, 400, name);
   assert.equal((await srv.api('/projects', { method: 'POST', body: { name: 'empty', bots: [] } })).status, 400);
   assert.equal((await srv.asChief('/projects')).status, 403);
@@ -65,7 +62,6 @@ test('its bots change, and the folder is made when the computer runs', async () 
   assert.deepEqual(r.data.bots, [coder.id]);
   assert.match(execs().at(-1).args.at(-1), /mkdir -p -- '\/workspace\/projects\/site'/);
   assert.equal((await srv.api('/projects/gone', { method: 'PUT', body: { bots: [coder.id] } })).status, 404);
-  assert.equal((await srv.api('/projects/site', { method: 'PUT', body: { bots: [plain.id] } })).status, 400);
 });
 
 test('a deleted bot leaves its projects; a project is deleted with its folder, only while the computer runs', async () => {

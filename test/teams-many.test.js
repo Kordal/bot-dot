@@ -1,4 +1,4 @@
-// A bot may be in several teams of one project (ADR 191): adding it to a team keeps it in its others, each team keeps
+// A bot may be in several teams of one project (ADR 199): adding it to a team keeps it in its others, each team keeps
 // its own lead, the bot is told each team (or the group's team alone in a team chat), and a lead of several teams names
 // which one its report is for.
 const { test } = require('node:test');

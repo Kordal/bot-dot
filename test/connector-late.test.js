@@ -279,7 +279,7 @@ test("the card of a run the Chief was told to start again goes, and its yes star
   // run a second time, goes.
   const bot = await makeBot(srv, { name: 'Courier', emoji: '🕊️', allowedTools: ['Read'], connectors: ['gmail'] });
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
-  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'WebFetch', tool_use_id: 't2', tool_input: { url: 'https://example.com' } }]));
+  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'Bash', tool_use_id: 't2', tool_input: { command: 'gh pr list', description: 'List open pull requests' } }]));
   const { stopped, cards } = await waitedOut(t, srv, bot, { start: fromChiefChat(bot, chat) }).finally(() => fs.writeFileSync(path.join(srv.out, 'denials.json'), '[]'));
   srv.unhold();
   const email = cards.find((a) => a.kind === 'connector-action');
@@ -355,7 +355,7 @@ test('a yes on another card of that run, while its late grant waits behind a bus
   // bot from that run already, so the Chief is not told to start it too, and the allowed email is not lost.
   const bot = await makeBot(srv, { name: 'Pigeon', emoji: '🐦', allowedTools: ['Read'], connectors: ['gmail'] });
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
-  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'WebFetch', tool_use_id: 't2', tool_input: { url: 'https://example.com' } }]));
+  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'Bash', tool_use_id: 't2', tool_input: { command: 'gh pr list', description: 'List open pull requests' } }]));
   const { stopped, cards } = await waitedOut(t, srv, bot, { start: fromChiefChat(bot, chat) }).finally(() => fs.writeFileSync(path.join(srv.out, 'denials.json'), '[]'));
   const email = cards.find((a) => a.kind === 'connector-action');
   const web = cards.find((a) => a.kind === 'permission');
@@ -368,7 +368,7 @@ test('a yes on another card of that run, while its late grant waits behind a bus
 
   const yes = await answer(srv, web, { yes: true });
   assert.deepEqual(yes.data.carriesOn, { who: 'bot', text: 'it carries on when it is free' }, 'botdot carries on, not the Chief');
-  assert.deepEqual(queued(), [[`carry:${stopped.id}`, ['send email with Gmail', 'browse the web'], [GRANT]]], 'the work that waits is told of this answer too');
+  assert.deepEqual(queued(), [[`carry:${stopped.id}`, ['send email with Gmail', 'run commands'], [GRANT]]], 'the work that waits is told of this answer too');
   assert.equal((await runsOf(srv, bot)).find((r) => r.id === stopped.id).handedBackAt, undefined, 'the run was not handed back');
   await sleep(60);
   assert.equal(srv.runs().filter((x) => x.botdot && x.stdin.includes(`Its run ${stopped.id}, which you started in this chat`)).length, 0, 'no turn of the Chief');
@@ -378,7 +378,7 @@ test('a yes on another card of that run, while its late grant waits behind a bus
   srv.release(long);
   await srv.finished(busy.id);
   const rec = await startedAgain(srv, bot);
-  assert.match(rec.stdin, /The owner allowed you to: send email with Gmail and browse the web\./);
+  assert.match(rec.stdin, /The owner allowed you to: send email with Gmail and run commands\./);
   assert.equal((await call(srv, rec)).data.ok, true);
   assert.equal(app.executed.length, before + 1);
   assert.deepEqual((await runsOf(srv, bot)).filter((r) => r.continues).map((r) => r.continues), [stopped.id], 'one run carries on from it');
@@ -392,7 +392,7 @@ test("the same once the owner wrote in that Chief chat: the yes still joins the 
   // (ADR 010), so it is told of the web too, and does not start without knowing what it may do.
   const bot = await makeBot(srv, { name: 'Swallow', emoji: '🪶', allowedTools: ['Read'], connectors: ['gmail'] });
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
-  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'WebFetch', tool_use_id: 't2', tool_input: { url: 'https://example.com' } }]));
+  fs.writeFileSync(path.join(srv.out, 'denials.json'), JSON.stringify([{ tool_name: 'Bash', tool_use_id: 't2', tool_input: { command: 'gh pr list', description: 'List open pull requests' } }]));
   const { stopped, cards } = await waitedOut(t, srv, bot, { start: fromChiefChat(bot, chat) }).finally(() => fs.writeFileSync(path.join(srv.out, 'denials.json'), '[]'));
   const email = cards.find((a) => a.kind === 'connector-action');
   const web = cards.find((a) => a.kind === 'permission');
@@ -408,20 +408,20 @@ test("the same once the owner wrote in that Chief chat: the yes still joins the 
 
   const yes = await answer(srv, web, { yes: true });
   assert.deepEqual(yes.data.carriesOn, { who: 'bot', text: 'it carries on when it is free' }, 'botdot carries on');
-  assert.deepEqual(queued(), [[`carry:${stopped.id}`, ['send email with Gmail', 'browse the web'], [GRANT]]], 'the work that waits is told of this answer too, and keeps its grant');
+  assert.deepEqual(queued(), [[`carry:${stopped.id}`, ['send email with Gmail', 'run commands'], [GRANT]]], 'the work that waits is told of this answer too, and keeps its grant');
   assert.equal((await runsOf(srv, bot)).find((r) => r.id === stopped.id).handedBackAt, undefined, 'the run was not handed back');
   await sleep(60);
   assert.equal(srv.runs().filter((x) => x.botdot && x.stdin.includes(`Its run ${stopped.id}, which you started in this chat`)).length, 0, 'no turn of the Chief');
   // In the chat the owner wrote in, botdot's one line, as for any work they took up there.
   const lines = (await srv.api(`/chief/chats/${chat.id}`)).data.messages.slice(said.messages.length).map((m) => [m.role, m.notice ? m.text : null]);
-  assert.deepEqual(lines, [['chief', 'Approved: web access for Swallow.']]);
+  assert.deepEqual(lines, [['chief', 'Approved: commands for Swallow.']]);
 
   // The bot is free: it is started again once, told both, and its call goes through with the grant, once.
   const before = app.executed.length;
   srv.release(long);
   await srv.finished(busy.id);
   const rec = await startedAgain(srv, bot);
-  assert.match(rec.stdin, /The owner allowed you to: send email with Gmail and browse the web\./);
+  assert.match(rec.stdin, /The owner allowed you to: send email with Gmail and run commands\./);
   assert.equal((await call(srv, rec)).data.ok, true);
   assert.equal((await call(srv, rec)).data.needsApproval, true, 'the grant is used once');
   assert.equal(app.executed.length, before + 1);

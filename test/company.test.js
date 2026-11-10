@@ -65,7 +65,7 @@ test('answers are saved as given, cut to plain text; what is not a field is not 
   assert.equal(co.evil, undefined);
 });
 
-test('a team has exactly one lead; a bot may be in several teams (ADR 191)', async () => {
+test('a team has exactly one lead; a bot may be in several teams (ADR 199)', async () => {
   let r = await srv.api('/company/teams', { method: 'POST', body: { name: 'Sales', bots: [a.id, b.id] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const sales = r.data.teams[0];

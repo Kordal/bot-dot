@@ -262,19 +262,19 @@ test("a bot's change in the owner's turn is saved at once, and after the web it 
   const clean = await ownerTurn(t, 'Let Owner Asked browse the web and run commands');
   const saved = await clean.call('update_bot', { id: bot.id, allowedTools: ['Read', 'WebFetch', 'Bash'], prompt: 'Sort the mail, and look things up.' });
   assert.ok(!('waiting' in saved) && !saved.pendingChange, JSON.stringify(saved));
-  assert.deepEqual([saved.allowedTools, saved.prompt], [['Read', 'WebFetch', 'Bash'], 'Sort the mail, and look things up.']);
+  assert.deepEqual([saved.allowedTools, saved.prompt], [['Read', 'WebFetch', 'Bash', 'WebSearch', 'Edit', 'Write'], 'Sort the mail, and look things up.'], 'the web and files every bot has join (ADR 186)');
   assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === bot.id), 'no card');
   await clean.end();
 
-  const web = await ownerTurn(t, 'Read the Bridge page, then give Owner Asked a computer');
+  const web = await ownerTurn(t, 'Read the Bridge page, then let Owner Asked use helpers');
   await web.uses('WebFetch', { url: 'https://proton.me/mail/bridge' }, PAGE);
-  const held = await web.call('update_bot', { id: bot.id, computer: 'linux' });
+  const held = await web.call('update_bot', { id: bot.id, allowedTools: [...saved.allowedTools, 'Agent'] });
   assert.equal(held.held, true, JSON.stringify(held));
   await web.end();
   const [card] = (await heldAsks()).filter((a) => a.path === `bots/${bot.id}`);
   assert.ok(card);
   assert.equal((await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).status, 200);
-  assert.equal((await srv.api(`/bots/${bot.id}`)).data.computer, 'linux', 'the yes did it');
+  assert.ok((await srv.api(`/bots/${bot.id}`)).data.allowedTools.includes('Agent'), 'the yes did it');
   assert.ok(!(await srv.api('/asks')).data.some((a) => a.botId === bot.id && a.kind === 'bot-change'), 'no second card');
   await srv.api(`/bots/${bot.id}`, { method: 'DELETE' });
 });

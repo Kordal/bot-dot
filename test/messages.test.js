@@ -28,19 +28,21 @@ test('cleanText trims and caps a message', () => {
   assert.equal(cleanText('x'.repeat(MAX_CHARS + 50)).length, MAX_CHARS);
 });
 
-test('a bot only gets the tools when it has teammates', async () => {
+test('every bot gets the tools once there is another bot: no list limits it (ADR 186)', async () => {
   const { rec, run } = await heldRun(srv, surfer);
   assert.equal(rec.self.env.SELF_TEAM, '1');
   srv.release(rec);
   await srv.finished(run.id);
   const alone = await makeBot(srv, { name: 'Loner', emoji: '🙂', mayMessage: [] });
+  assert.deepEqual([alone.mayMessageAll, alone.mayMessage], [true, []], 'a list sent is not kept');
   const h = await heldRun(srv, alone);
-  assert.equal(h.rec.self.env.SELF_TEAM, '0');
+  assert.equal(h.rec.self.env.SELF_TEAM, '1');
   srv.release(h.rec);
   await srv.finished(h.run.id);
+  await srv.api(`/bots/${alone.id}`, { method: 'DELETE' });
 });
 
-test('a new bot may message every other bot, bots made later too, until the owner limits it', async () => {
+test('a bot may message every other bot, bots made later too, and nothing limits it (ADR 186)', async () => {
   const open = await makeBot(srv, { name: 'Open Door', emoji: '🚪' });
   assert.equal(open.mayMessageAll, true);
   const later = await makeBot(srv, { name: 'Latecomer', emoji: '⏰', mayMessage: [] });
@@ -51,14 +53,14 @@ test('a new bot may message every other bot, bots made later too, until the owne
   assert.equal((await self(srv, h.token, 'message', { to: later.id, message: 'hi', priority: false })).data.ok, true);
   srv.release(h.rec);
   await srv.finished(h.run.id);
-  // A list limits it; mayMessageAll opens it again.
-  const limited = (await srv.api(`/bots/${open.id}`, { method: 'PUT', body: { mayMessage: [social.id] } })).data;
-  assert.equal(limited.mayMessageAll, false);
+  // A list, or "Other bots may ask it" off, sent by an app from before, changes nothing.
+  const limited = (await srv.api(`/bots/${open.id}`, { method: 'PUT', body: { mayMessage: [social.id], mayMessageAll: false } })).data;
+  assert.equal(limited.mayMessageAll, true);
+  assert.equal((await srv.api(`/bots/${later.id}`, { method: 'PUT', body: { othersMayAsk: false } })).data.othersMayAsk, true);
   const h2 = await heldRun(srv, open);
-  assert.match((await self(srv, h2.token, 'message', { to: later.id, message: 'hi', priority: false })).data.error, /may not message/);
+  assert.equal((await self(srv, h2.token, 'message', { to: later.id, message: 'hi again', priority: false })).data.ok, true);
   srv.release(h2.rec);
   await srv.finished(h2.run.id);
-  assert.equal((await srv.api(`/bots/${open.id}`, { method: 'PUT', body: { mayMessageAll: true } })).data.mayMessageAll, true);
   for (const b of [open, later]) await srv.api(`/bots/${b.id}`, { method: 'DELETE' });
 });
 
@@ -74,7 +76,7 @@ test('bots saved before "everyone" existed may message everyone', async () => {
   } finally { s2.stop(); }
 });
 
-test('refused: itself, a bot not in its list, an empty message, no run token', async () => {
+test('refused: itself, no such bot, an empty message, no run token', async () => {
   const { rec, run, token } = await heldRun(srv, surfer);
   assert.match((await self(srv, token, 'message', { to: surfer.id, message: 'hi', priority: true })).data.error, /That's you/);
   assert.match((await self(srv, token, 'message', { to: 'nobody', message: 'hi', priority: true })).data.error, /no bot/);
@@ -82,10 +84,6 @@ test('refused: itself, a bot not in its list, an empty message, no run token', a
   assert.equal((await self(srv, 'not-a-token', 'message', { to: social.id, message: 'hi', priority: true })).status, 403);
   srv.release(rec);
   await srv.finished(run.id);
-  const h = await heldRun(srv, social);
-  assert.match((await self(srv, h.token, 'message', { to: surfer.id, message: 'hi', priority: true })).data.error, /may not message/);
-  srv.release(h.rec);
-  await srv.finished(h.run.id);
 });
 
 test('priority starts the other bot, marked as from a bot; it may reply', async () => {
@@ -104,7 +102,7 @@ test('priority starts the other bot, marked as from a bot; it may reply', async 
   srv.release(rec);
   const mine = await srv.finished(run.id);
   assert.equal(mine.sentTo.id, social.id);
-  // Social Watch may answer Web Surfer, though Web Surfer isn't in its list.
+  // Social Watch answers Web Surfer.
   const reply = await self(srv, theirs.self.env.RUN_TOKEN, 'message', { to: surfer.id, message: 'Nothing new.', priority: false });
   assert.equal(reply.data.ok, true);
   srv.release(theirs);
