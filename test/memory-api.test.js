@@ -216,7 +216,7 @@ test('learning cannot be turned down: "learning" from an older app or the Chief 
   assert.equal((await self(srv, token, 'memory', { action: 'add', text: 'ALPACA saved by the bot' })).status, 200);
 });
 
-test('memory review uses its chosen model, sees notes/runs, saves shared additions and changes at once, and a shared removal requires owner approval', async (t) => {
+test('memory review uses its chosen model, sees notes/runs, saves shared additions and changes at once, and a shared removal too (ADR 177)', async (t) => {
   const bot = await makeBot(srv, { name: 'Reviewed memory' });
   const old = await finishedRun(srv, bot, 'Review PANGOLIN situation', 'PANGOLIN observations');
   await add(srv, bot.id, 'PANGOLIN pinned owner note');
@@ -241,12 +241,10 @@ test('memory review uses its chosen model, sees notes/runs, saves shared additio
   assert.match(await tools.text('update_memory', { id: shared.id, note: 'PANGOLIN changed shared fact', reason: 'Review correction' }), /^Updated note/);
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id), []);
   assert.equal((await srv.api(`/memory/notes/${shared.id}/history`)).data[0].reason, 'Review correction');
-  assert.match(await tools.text('remove_note', { id: shared.id }), /waits for the owner's OK/);
-  const pending = (await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id);
-  assert.equal(pending.length, 1);
-  assert.equal((await srv.asChief(`/memory/pending/${pending[0].id}`, { method: 'POST', body: { approve: true } })).status, 403);
-  await srv.api(`/memory/pending/${pending[0].id}`, { method: 'POST', body: { approve: false } });
-  assert.ok((await srv.api('/memory/shared')).data.memory.some((n) => n.id === shared.id));
+  // A removal is saved at once too, and the owner can bring it back for 30 days (ADR 177).
+  assert.match(await tools.text('remove_note', { id: shared.id }), /^Removed note/);
+  assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === bot.id), []);
+  assert.ok(!(await srv.api('/memory/shared')).data.memory.some((n) => n.id === shared.id));
   srv.release(rec); await srv.finished(r.run.id);
   assert.ok((await chief.json('memory_status')).bots.find((b) => b.id === bot.id).lastReview);
   assert.equal((await srv.api(`/memory/runs/${old.id}`)).status, 200);
@@ -278,11 +276,11 @@ test('a full server restart retains notes, versions, pending approvals, exclusio
   const review = (await server.api(`/memory/review/${bot.id}`, { method: 'POST' })).data;
   const rec = await server.nextRun((x) => x.self && x.stdin.includes('This run is your memory review'));
   const shared = (await self(server, rec.self.env.RUN_TOKEN, 'memory', { action: 'add', scope: 'shared', text: 'CHINCHILLA shared' })).data.note;
-  await self(server, rec.self.env.RUN_TOKEN, 'memory', { action: 'remove', id: shared.id }); // a removal in the review waits
+  await self(server, rec.self.env.RUN_TOKEN, 'memory', { action: 'forget', notes: [shared.id] }); // a forget in the review waits, guarded
   server.release(rec); await server.finished(review.run.id);
   await server.stop();
   server = await startServer({ dir });
-  const memory = (await server.api('/memory')).data;
+  const memory = (await server.api('/memory?guarded=1')).data;
   const restored = memory.bots.find((b) => b.id === bot.id).notes[0];
   assert.equal(restored.id, n.id);
   assert.equal(restored.pinned, false);

@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { askText, jobText, tileText, proposalView, TEXT_MAX } = require('../lib/asks');
-const { startServer, makeBot, feed, heldRun, self, seedRuns } = require('./helpers');
+const { startServer, makeBot, feed, heldRun, self, seedRuns, waitFor } = require('./helpers');
 
 // ---------- the wording ----------
 
@@ -500,6 +500,9 @@ test('a waiting script job is approved on its card; a waiting AI job from its no
   assert.equal(script.status, 201, JSON.stringify(script.data));
   assert.equal(script.data.approved, false);
   const { token, rec, run } = await heldRun(srv, watcher);
+  // The run read the web first: its AI job waits (ADR 177; in a clean run of the owner's it would not).
+  fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'WebFetch', input: {} }] } }]));
+  await waitFor(async () => ((await srv.api(`/runs/${run.id}`)).data.events || []).some((e) => e.type === 'assistant'), { what: 'the run to have read the web' });
   const ai = await self(srv, token, 'jobs', { action: 'add', name: 'Morning summary', kind: 'ai', cron: '0 8 * * *', prompt: 'Summarise what the disks did.', assessment: 'It needs judgement.' });
   assert.equal(ai.data.needsApproval, true, JSON.stringify(ai.data));
   srv.release(rec); await srv.finished(run.id); srv.unhold();

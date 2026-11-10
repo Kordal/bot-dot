@@ -53,7 +53,7 @@ test("the owner's yes is the one OK: a check the bot sets up in their run needs 
   assert.equal(mine.job.approved, true);
   assert.equal(mine.needsApproval, false);
   const daily = await addIn(bot, check({ name: 'Daily', at: undefined, cron: '20 13 * * *' }));
-  assert.equal(daily.needsApproval, true, 'a recurring job still waits');
+  assert.equal(daily.needsApproval, false, 'a recurring AI job in a clean run of the owner\'s is approved too (ADR 177)');
   const chiefs = await addIn(bot, check({ name: 'For the Chief' }), { chief: true });
   assert.equal(chiefs.needsApproval, true, "a run the Chief started isn't the owner's yes");
 });

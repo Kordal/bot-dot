@@ -31,47 +31,39 @@ test('a bot without the permission has no Agent tool and no word of helpers', as
   srv.unhold();
 });
 
-test('ask_permission "helpers" makes a card naming the bot, and Allow gives the next run Agent and Task and the guidance', async () => {
+test('ask_permission "helpers" gives them at once, with no card, and the next run has Agent and Task and the guidance (ADR 177)', async () => {
   const bot = await makeBot(srv, { name: 'Coder', emoji: '💻', allowedTools: ['Read', 'Edit', 'Write', 'Bash'] });
   const h = await heldRun(srv, bot, 'Port the three services');
   const r = await self(srv, h.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'To port the three services in parallel' });
-  assert.equal(r.data.ok, true, JSON.stringify(r.data));
+  assert.deepEqual([r.data.ok, r.data.given], [true, true], JSON.stringify(r.data));
+  assert.match(r.data.say, /from your next run/);
   srv.release(h.rec);
   await srv.finished(h.run.id);
   srv.unhold();
-  const [card] = await asksOf(bot);
-  assert.deepEqual([card.kind, card.permission, card.reason], ['permission', 'helpers', 'To port the three services in parallel']);
-  assert.equal(card.text, 'Asks to use helpers');
-  assert.equal(card.bot.name, 'Coder');
-  const yes = (await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).data;
-  assert.equal(yes.ok, true, JSON.stringify(yes));
+  assert.deepEqual(await asksOf(bot), [], 'no card');
   const tools = (await srv.api(`/bots/${bot.id}`)).data.allowedTools;
   assert.ok(tools.includes('Agent') && tools.includes('Task'), tools.join(', '));
-  // The run that asked carries on with them.
-  const next = await srv.nextRun((x) => x.self?.env && x.args.includes('💻 Coder'), 'the run that carries on');
-  assert.ok(allowedOf(next).includes('Agent') && allowedOf(next).includes('Task'), allowedOf(next).join(' '));
-  assert.match(next.system, HELPERS);
-  assert.match(next.system, /its own git worktree and branch beside it/);
-  assert.match(next.system, /Helpers keep no notes/);
-  srv.release(next);
-  await srv.finished((await srv.api(`/runs?botId=${bot.id}`)).data.find((x) => x.continues).id);
+  const next = await heldRun(srv, bot, 'Port them now');
+  assert.ok(allowedOf(next.rec).includes('Agent') && allowedOf(next.rec).includes('Task'), allowedOf(next.rec).join(' '));
+  assert.match(next.rec.system, HELPERS);
+  assert.match(next.rec.system, /its own git worktree and branch beside it/);
+  assert.match(next.rec.system, /Helpers keep no notes/);
   // Asked again, it already has it.
-  const again = await heldRun(srv, bot);
-  const r2 = await self(srv, again.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'Again' });
+  const r2 = await self(srv, next.token, 'ask', { kind: 'permission', permission: 'helpers', reason: 'Again' });
   assert.match(r2.data.error, /already have that permission/);
-  srv.release(again.rec);
-  await srv.finished(again.run.id);
+  srv.release(next.rec);
+  await srv.finished(next.run.id);
   srv.unhold();
 });
 
-test('a refused Agent call asks the owner for helpers', async () => {
+test('a refused Agent call gives the bot helpers, with no card', async () => {
   const bot = await makeBot(srv, { name: 'Researcher', emoji: '🔎', allowedTools: ['Read'] });
   refuse([{ tool_name: 'Agent', tool_use_id: 't1', tool_input: { description: 'Read the three reports', prompt: 'Summarise them' } }]);
   const r = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Compare the reports' } });
   await srv.finished(r.data.id);
   refuse([]);
-  const list = await asksOf(bot);
-  assert.equal(list.length, 1);
-  assert.equal(list[0].permission, 'helpers');
-  assert.match(list[0].reason, /Read the three reports/);
+  assert.deepEqual(await asksOf(bot), []);
+  const tools = (await srv.api(`/bots/${bot.id}`)).data.allowedTools;
+  assert.ok(tools.includes('Agent'), tools.join(', '));
 });
+

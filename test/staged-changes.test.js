@@ -4,7 +4,9 @@
 // in test/dashboard.test.js, and what the Chief asked for in a chat in test/chief-carries-on.test.js.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { startServer, restartServer, makeBot, self, feed } = require('./helpers');
+const fs = require('fs');
+const path = require('path');
+const { startServer, restartServer, makeBot, self, feed, waitFor } = require('./helpers');
 const { kit, isRunOf } = require('./carry-on-helpers');
 
 let srv, runsOf, carriedOn, startsNothing, lastRun;
@@ -28,6 +30,9 @@ async function inRun(bot, request, what, reply = 'Proposed it. It waits for your
   srv.hold();
   const started = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: request } });
   const rec = await srv.nextRun((x) => x.self?.env && isRunOf(bot)(x) && x.stdin.includes(request), `the run about “${request}”`);
+  // It reads the web first, so the AI job it sets up waits on a card (ADR 177: in a clean run it would not).
+  fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify([{ type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'WebFetch', input: {} }] } }]));
+  await waitFor(async () => ((await srv.api(`/runs/${started.data.id}`)).data.events || []).some((e) => e.type === 'assistant'), { what: 'the run to have read the web' });
   const did = await what(rec.self.env.RUN_TOKEN);
   srv.reply(reply);
   srv.release(rec);

@@ -211,11 +211,9 @@ test("in a turn a member handed on, a forget and a change to a note the owner st
   const forget = await mem(handed, { action: 'forget', notes: [code.id], about: 'gate code' });
   assert.deepEqual([forget.result, forget.erased], ['waits', undefined], JSON.stringify(forget));
   assert.match(forget.say, /^Not done: a forget erases for good, and this run has read outside content\. It waits for the owner on a card in Needs you \("Forget for good" or "Keep"\)\. Nothing is erased until then\./);
-  const removal = await mem(handed, { action: 'remove', id: pnpm.id });
-  assert.equal(removal.result, 'waits', JSON.stringify(removal));
-  // Two cards, each guarded and the group's; an app that does not ask for guarded changes is sent none of them.
+  // One card, guarded and the group's; an app that does not ask for guarded changes is sent none of it.
   const cards = (await srv.api('/memory/pending?guarded=1')).data.filter((p) => p.botId === coder.id);
-  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.groupId]).sort(), [['erase', true, group.id], ['remove', true, group.id]].sort());
+  assert.deepEqual(cards.map((p) => [p.action, p.guarded, p.groupId]), [['erase', true, group.id]]);
   assert.deepEqual((await srv.api('/memory/pending')).data.filter((p) => p.botId === coder.id), []);
   // Nothing is erased: both notes stand as the owner said them.
   const notesNow = async () => (await srv.api('/memory')).data.bots.find((b) => b.id === coder.id).notes.filter((n) => [code.id, pnpm.id].includes(n.id)).map((n) => [n.text, n.source]).sort();
@@ -224,6 +222,10 @@ test("in a turn a member handed on, a forget and a change to a note the owner st
   const edit = await mem(handed, { action: 'edit', id: pnpm.id, text: 'The owner uses npm now.' });
   assert.equal(edit.result, 'saved', JSON.stringify(edit));
   assert.deepEqual(await notesNow(), [['The gate code is MAGNOLIA.', 'owner'], ['The owner uses npm now.', 'outside']]);
+  // A removal is done at once, told under the reply: the note comes back for 30 days (ADR 177).
+  const removal = await mem(handed, { action: 'remove', id: pnpm.id });
+  assert.equal(removal.result, 'saved', JSON.stringify(removal));
+  assert.deepEqual(await notesNow(), [['The gate code is MAGNOLIA.', 'owner']]);
   // And what it saves itself is not the owner's word.
   assert.equal((await mem(handed, { action: 'add', scope: 'self', text: 'Writer says the owner uses npm.' })).note.source, 'outside');
   letGo(srv, coder);
