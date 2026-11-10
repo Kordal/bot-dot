@@ -134,7 +134,7 @@ function noDocker(t) {
   return { PATH: `${bin}${path.delimiter}${process.env.PATH}` };
 }
 
-test('run_with_login with logins: every one must be shared and usable in the computer, or no command runs', async (t) => {
+test('run_with_login with logins: every one must be shared, or no command runs; a login saved with "Usable in its computer" off is usable too (ADR 177)', async (t) => {
   const srv = await startServer({ env: noDocker(t) });
   t.after(() => srv.stop());
   const infra = await makeBot(srv, { name: 'Infra Admin', computer: 'linux', computerAlwaysOn: true });
@@ -144,7 +144,6 @@ test('run_with_login with logins: every one must be shared and usable in the com
   const secret = await add('OVH_APPLICATION_SECRET', 'app-secret-0002', { inComputer: false });
   await add('OVH_CONSUMER_KEY', 'third-value', { allowedBots: [other.id] });
   await add('ovh-application-key', 'clash-0004');
-  await add('Spare', 'spare-0005', { inComputer: false });
   const held = await heldRun(srv, infra);
   const run = (body) => srv.api('/vault/session/computer/run-with-login', { method: 'POST', headers: { 'X-Vault-Token': held.token }, body: { command: 'true', ...body } });
   const three = ['OVH_APPLICATION_KEY', 'OVH_APPLICATION_SECRET', 'OVH_CONSUMER_KEY'];
@@ -152,12 +151,8 @@ test('run_with_login with logins: every one must be shared and usable in the com
   let r = await run({ logins: three });
   assert.equal(r.data.ok, false);
   assert.match(r.data.error, /isn't allowed to use the "OVH_CONSUMER_KEY" login/, 'the one not shared is named');
-  assert.match(r.data.error, /The "OVH_APPLICATION_SECRET" login isn't usable in your computer\. Ask the owner for it with ask_vault_switch \(switch "inComputer"\)/, 'the one switched off is named');
-  assert.doesNotMatch(r.data.error, /"OVH_APPLICATION_KEY"/, 'the one that passes is not');
+  assert.doesNotMatch(r.data.error, /"OVH_APPLICATION_KEY"|"OVH_APPLICATION_SECRET"|usable in your computer/, 'the ones that pass are not, the one saved with the old switch off too');
   assert.match((await run({ logins: [...three, 'a', 'b', 'c', 'd', 'e', 'f'] })).data.error, /At most 8 logins in one call, not 9/);
-  // Two switched off: both named, one card each.
-  r = await run({ logins: ['OVH_APPLICATION_SECRET', 'Spare'] });
-  assert.match(r.data.error, /The "OVH_APPLICATION_SECRET", "Spare" logins aren't usable in your computer\. Ask the owner for each with ask_vault_switch \(switch "inComputer", once per login\)/);
   assert.match((await run({ logins: ['OVH_APPLICATION_KEY', 'ovh_application_key'] })).data.error, /"OVH_APPLICATION_KEY" is in logins twice/);
   assert.match((await run({ login: 'OVH_APPLICATION_KEY', logins: three })).data.error, /not both/);
   r = await run({ logins: ['OVH_APPLICATION_KEY', 'ovh-application-key'] });
@@ -166,7 +161,7 @@ test('run_with_login with logins: every one must be shared and usable in the com
 
   // Once every login passes, the route goes on to the computer (here a stand-in that never starts), and its log
   // line names each login and no value.
-  await srv.api(`/vault/${secret.id}`, { method: 'PUT', body: { inComputer: true } });
+  assert.equal((await srv.api('/vault')).data.find((l) => l.id === secret.id).inComputer, true, 'saved off, read as on');
   r = await run({ logins: ['OVH_APPLICATION_KEY', 'OVH_APPLICATION_SECRET'] });
   assert.equal(r.data.ok, false);
   assert.doesNotMatch(r.data.error, /usable in your computer|isn't allowed/);

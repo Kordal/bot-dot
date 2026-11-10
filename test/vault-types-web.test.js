@@ -56,11 +56,10 @@ test('web: the line under it reads by type', () => {
   // A login, as before this task.
   assert.equal(page.vaultItemLine({ type: 'login', username: 'alice' }), '👤 alice · 🔒 secret saved');
   assert.equal(page.vaultItemLine({ username: '' }), '👤 (no username) · 🔒 secret saved', 'without a type: a login');
-  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', hasTotp: true, insecureTls: true }), '👤 alice · 🔒 secret saved · two-step code · self-signed certificate OK');
+  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', hasTotp: true, insecureTls: true, inComputer: true }), '👤 alice · 🔒 secret saved · two-step code', 'both on for every login: not said (ADR 177)');
   // An API token: its token ID, and "token saved".
   assert.equal(page.vaultItemLine({ type: 'api-token', username: 'root@pam!botdot' }), '🆔 root@pam!botdot · 🔒 token saved');
   assert.equal(page.vaultItemLine({ type: 'api-token', username: '' }), '🆔 (no token ID) · 🔒 token saved');
-  assert.equal(page.vaultItemLine({ type: 'api-token', username: '', insecureTls: true }), '🆔 (no token ID) · 🔒 token saved · self-signed certificate OK');
   // Other: the secret alone, also when a username is still stored with it.
   assert.equal(page.vaultItemLine({ type: 'other', username: '' }), '🔒 secret saved');
   assert.equal(page.vaultItemLine({ type: 'other', username: 'kept-from-before' }), '🔒 secret saved');
@@ -227,24 +226,22 @@ test('web: the editor is "Add to the Vault", Type is its first control, and the 
   assert.ok(at(body, '${vaultTypeControl(l.type)}') < at(body, 'name="name"'));
   assert.ok(at(body, 'name="site"') < at(body, '${vaultTypeFields(l.type, { username: l.username, isNew })}'));
   assert.ok(at(body, '${vaultTypeFields(') < at(body, 'name="allowedHosts"'), 'the other fields stay');
-  for (const name of ['name', 'site', 'allowedHosts', 'insecureTls', 'bot']) assert.match(body, new RegExp(`name="?${name}"?`));
+  for (const name of ['name', 'site', 'allowedHosts']) assert.match(body, new RegExp(`name="?${name}"?`));
   assert.match(editor, /wireVaultType\(form, \{ username: l\.username, isNew \}\);/);
   // A new item: no type yet, so Login is chosen.
   assert.match(editor, /const l = login \|\| \{ name: '', site: '', username: '', allowedBots: \[\] \};/);
 });
 
-test('web: the editor has "Usable in its computer", off for a new item, and sends it; the dialog of a bot\'s request has none', () => {
-  const body = editor.slice(at(editor, '<div class="modal-body">'));
-  assert.match(body, /<label class="toggle"><input type="checkbox" name="inComputer" \$\{l\.inComputer \? 'checked' : ''\}> \$\{tr\('Usable in its computer'\)\} /);
-  assert.ok(at(body, 'name="insecureTls"') < at(body, 'name="inComputer"'), 'right under the certificate');
-  const submit = editor.slice(at(editor, 'form.onsubmit = async (e) => {'));
-  assert.match(submit, /insecureTls: form\.insecureTls\.checked,\s*inComputer: form\.inComputer\.checked,/);
-  assert.doesNotMatch(dialog, /inComputer/, 'a bot asking for a login cannot have it marked from there');
-  assert.equal(page.vaultItemLine({ type: 'login', username: 'alice', inComputer: true }), '👤 alice · 🔒 secret saved · usable in its computer');
+test('web: neither the editor nor the dialog of a bot\'s request has a switch for a self-signed certificate or the computer (ADR 177)', () => {
+  for (const html of [editor, dialog]) assert.doesNotMatch(html, /insecureTls|inComputer/);
+});
+
+test('web: the login editor shows no bots and sends none, so a login keeps the bots it has (ADR 177)', () => {
+  assert.doesNotMatch(editor, /Bots that may use it|name="bot"|allowedBots: \$\$/);
 });
 
 test('web: the note of the editor no longer explains where a token ID goes', () => {
-  const note = editor.slice(at(editor, '<div class="req-note">'), at(editor, '<fieldset>'));
+  const note = editor.slice(at(editor, '<div class="req-note">'), at(editor, '<div class="req-error"'));
   assert.match(note, /so they never see the secret\.', \{ username: '<span class="mono">\{\{username\}\}<\/span>', password: '<span class="mono">\{\{password\}\}<\/span>' \}\)\}<\/div>/);
   assert.doesNotMatch(editor, /token ID in the first field|put the token ID/i);
 });
@@ -277,14 +274,13 @@ test("web: a save sets the editor aside; refused, it comes back with the server'
 test('web: the dialog has the Type control above its new-login fields, set from the type of the request', () => {
   assert.ok(at(dialog, "tr('or save a new one:')") < at(dialog, '${vaultTypeControl(r.type)}'));
   assert.match(dialog, /\$\{vaultTypeControl\(r\.type\)\}\s*\$\{vaultTypeFields\(r\.type, \{ username: r\.username \}\)\}/, 'the fields right under it');
-  assert.ok(at(dialog, '${vaultTypeFields(r.type') < at(dialog, 'name="insecureTls"'));
   assert.match(dialog, /wireVaultType\(form, \{ username: r\.username \}\);/, 'and they follow the choice');
   assert.doesNotMatch(dialog, /Username, email or token ID|Password, token or key/);
   assert.match(dialog, /tr\('\{bot\} needs a login', \{ bot: botLabel\(r\.bot\) \}\)\}<\/h2>/, 'the heading stays');
 });
 
 test('web: Save in the dialog sends the chosen type, and for Other no username', () => {
-  assert.match(dialog, /const body = \{ action: 'save', name: form\.name\.value\.trim\(\), \.\.\.vaultTypeBody\(form\), password: form\.password\.value, insecureTls: form\.insecureTls\.checked \};/);
+  assert.match(dialog, /const body = \{ action: 'save', name: form\.name\.value\.trim\(\), \.\.\.vaultTypeBody\(form\), password: form\.password\.value \};/);
   // Other has no username field to put the cursor in.
   assert.match(dialog, /\(r\.username \|\| !form\.username \? form\.password : form\.username\)\.focus\(\)/);
 });
