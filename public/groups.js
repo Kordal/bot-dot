@@ -246,6 +246,7 @@ function renderGroupSettings() {
           <div class="bs-group" id="gs-members"></div>
           <button type="button" class="bs-row bs-link" id="gs-add"><b>${tr('Add a bot')}</b><span class="bs-chev" aria-hidden="true">›</span></button>
         </div>
+        <div class="set-list gs-team hidden" id="gs-team"></div>
         <div class="set-list notes-list" aria-label="${esc(tr('Notes'))}">
           <div class="bs-group" id="gs-notes"></div>
           <div class="bs-row note-row">${noteKindSelect('decision', 'gs-note-kind')}<input type="text" id="gs-note-text" maxlength="${NOTE_MAX}" autocomplete="off" placeholder="${esc(tr('Add a note'))}" aria-label="${esc(tr('Add a note'))}"></div>
@@ -296,14 +297,18 @@ function renderGroupSettings() {
   const name = $('#gs-name', root);
   if (document.activeElement !== name && name.value !== g.name) name.value = g.name; // renamed elsewhere; not under the cursor
   const members = groupMembers(g);
-  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null]);
+  const team = g.team && typeof Company !== 'undefined' && Company.teamPanel?.team(g.team) ? Company.teamPanel : null; // a team of the project on screen (ADR 205)
+  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null, team ? team.sig(g.team) : '']);
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
   $('#gs-members', root).innerHTML = members.map((b) => `
     <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}<span class="grow">${esc(b.name)}</span>
-      ${g.team ? '' : `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button>`}</div>`).join('')
+      ${g.team ? (team ? team.leadHTML(g.team, b.id) : '') : `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button>`}</div>`).join('')
     || `<p class="faint">${tr('Its bots are all gone. Add one, or delete the group.')}</p>`;
+  const box = $('#gs-team', root);
+  if (box) { box.innerHTML = team ? team.html(g.team) : ''; box.classList.toggle('hidden', !box.innerHTML); }
+  if (team) team.wire(root, g.team);
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {
     const now = groupById(root.dataset.group);
     if (now) changeGroup(now, { members: now.members.filter((id) => id !== b.dataset.takeOut) });

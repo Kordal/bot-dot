@@ -478,7 +478,12 @@
     $$('[data-cf-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); setView('bot', b.dataset.cfBot); }));
     // The team's name opens its chat, docked in the bottom row (#697).
     $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
-    $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => openTeam(b.dataset.cfTeam)));
+    // ⋯: the team chat's settings in the panel on the right (ADR 205), as a bot's settings; a botdot without team
+    // chats keeps the team beside the board.
+    $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => {
+      const g = (state.groups || []).find((x) => x.team === b.dataset.cfTeam);
+      if (g) setView('groupsettings', g.id); else openTeam(b.dataset.cfTeam);
+    }));
     $$('[data-cf-fold]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); fold(c, b.dataset.cfFold); }));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
     $$('[data-cf-add]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); addToTeam(c, b.dataset.cfAdd); }));
@@ -693,6 +698,28 @@
   Company.steps.home = home;
   // What waits for the owner of one bot, as its desk counts it: the tree of projects shows it too (#689).
   Company.asksOf = (id) => info().asks(id);
+  // The team's part of its chat's settings panel (groups.js renderGroupSettings, ADR 205): its goal, its lead and its
+  // reports, for a team of the project on screen. null for any other.
+  const teamHere = (id) => (state.company?.teams || []).find((t) => t.id === id) || null;
+  Company.teamPanel = {
+    team: teamHere,
+    sig: (id) => { const t = teamHere(id); return t ? JSON.stringify([t.lead, t.report || '', t.lastReport?.at || null, CompanyFloor.objectiveOf(t, state.company.objectives)]) : ''; },
+    html(id) {
+      const t = teamHere(id);
+      if (!t) return '';
+      const o = CompanyFloor.objectiveOf(t, state.company.objectives);
+      return `${o ? `<div class="cf-team-kpi"><span>${esc(o.name)}</span><b>${esc(String(o.current))}<span> / ${esc(String(o.target))}</span></b></div>` : ''}${reportHTML(t)}`;
+    },
+    wire(root, id) {
+      $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(id)}`, 'PUT', { lead: b.dataset.cfLead })));
+      $('[data-cf-report]', root)?.addEventListener('change', (e) => send(`/company/teams/${encodeURIComponent(id)}`, 'PUT', { report: e.target.value || null }));
+    },
+    leadHTML(id, botId) {
+      const t = teamHere(id);
+      if (!t || (t.bots || []).length < 2) return '';
+      return botId === t.lead ? `<span class="cf-lead-chip">${CROWN}${tr('Lead')}</span>` : `<button type="button" class="btn sm ghost" data-cf-lead="${esc(botId)}">${tr('Make lead')}</button>`;
+    },
+  };
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.

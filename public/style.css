@@ -3393,6 +3393,9 @@ dialog.co-delete .modal-foot { border-top: 0; }
    project's bot carries the project's small square. */
 .kp-proj { flex: none; display: grid; place-items: center; width: 20px; height: 20px; border-radius: var(--r-8); background: var(--c); color: #fff; font-size: var(--fs-12); font-weight: 600; }
 .sp-needs { margin-bottom: var(--sp-16); }
+.gs-team { display: flex; flex-direction: column; gap: var(--sp-12); padding: var(--sp-12); }
+.member-row .cf-lead-chip, .member-row .btn { flex: none; }
+.member-row svg.cf-crown { width: 12px; height: 12px; fill: #f5c542; stroke: none; }
 .sp-teams { display: flex; flex-direction: column; gap: var(--sp-8); margin: var(--sp-24) 0 var(--sp-32); }
 .cf-line + .sp-teams { margin-top: var(--sp-48); } /* the day line's labels hang under it */
 /* A team folded (ADR 196): one row that opens its chat; the chevron unfolds its keys under it. */
