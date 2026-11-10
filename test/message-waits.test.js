@@ -281,7 +281,7 @@ test('after botdot is stopped and started, the run that was cut off says so and 
   } finally { own.unhold(); await own.stop(); }
 });
 
-test("a waiting message counts as sent from when it was sent: the earlier request still carries on, told of it (ADR 177)", async () => {
+test("a waiting message counts as sent from when it was sent: the earlier request still carries on, told of it (ADR 180)", async () => {
   // The owner's request is refused the web and its card waits. The bot is busy with other work when the owner
   // sends it a new message, which waits. A yes on the card still carries the earlier request on, after that
   // message, and tells it what the owner wrote since.
@@ -323,7 +323,7 @@ test('the rule reads when a message was sent, before when its run started', () =
   const stopped = { id: 'r1', botId: 'b', trigger: 'manual', status: 'success', prompt: 'Check the PRs', startedAt: '2026-10-06T09:58:00.000Z' };
   const facts = (later) => ({ ask: { botId: 'b', at, runs: [{ id: 'r1', at }] }, bot: { id: 'b', jobs: [] }, stopped: { r1: stopped }, later, now: Date.parse(at) + 60e3 });
   const message = (sentAt, startedAt) => ({ id: 'r2', botId: 'b', trigger: 'manual', sentAt, startedAt });
-  // Either way it carries on (ADR 177): what counts as written since is what it is told of (`since`).
+  // Either way it carries on (ADR 180): what counts as written since is what it is told of (`since`).
   const since = (later) => asksLib.whatCarriesOn(facts(later))[0].since;
   assert.equal(since([message('2026-10-06T09:59:00.000Z', '2026-10-06T10:05:00.000Z')]), undefined);
   assert.deepEqual(since([message('2026-10-06T10:01:00.000Z', '2026-10-06T10:05:00.000Z')]), ['r2']);

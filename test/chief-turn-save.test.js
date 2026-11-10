@@ -47,7 +47,7 @@ async function turnWithReports(srv) {
   srv.release(look);
   assert.equal((await looked).data.chatId, chat.id);
   // A card of the Chief's that the owner declines: botdot's line waits in the turn (post()). The turn read the bots'
-  // runs first (a checkup's records), so its change is no longer the owner's word and waits (ADR 177).
+  // runs first (a checkup's records), so its change is no longer the owner's word and waits (ADR 176).
   await srv.asChief('/chief/checkup', { headers: { 'X-Chief-Chat': chat.id } });
   const change = await srv.asChief(`/bots/${bot.id}`, { method: 'PUT', body: { prompt: 'Sort the mail.\nFlag the tax office.' }, headers: { 'X-Chief-Chat': chat.id } });
   assert.equal((await srv.api(`/asks/${change.data.pendingChange}`, { method: 'POST', body: { yes: false } })).status, 200);

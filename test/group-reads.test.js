@@ -241,7 +241,7 @@ test('a turn that carries on is told that it has a reply to give, in the group',
   assert.doesNotMatch(note, /PASS/);
 });
 
-test("the owner's later message is told to the work that carries on in the chat it was sent in, and in no other (ADR 177)", () => {
+test("the owner's later message is told to the work that carries on in the chat it was sent in, and in no other (ADR 180)", () => {
   const bot = { id: 'b1', jobs: [] };
   const now = Date.parse('2026-10-08T12:00:00Z');
   const at = '2026-10-08T11:00:00.000Z';

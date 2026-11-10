@@ -113,7 +113,7 @@ test('what a yes on a proposal starts: the request of the owner or a teammate, f
   assert.deepEqual(who({ jobId: 'j1', trigger: 'schedule' }), [], "not in a job's own run");
   assert.deepEqual(who({ jobId: 'j1', trigger: 'manual' }), [], 'nor in its "Run now"');
   assert.deepEqual(who({ startedBy: 'chief' }), [], 'a run the Chief started is not handed back for it');
-  assert.deepEqual(who({}, {}, { now: Date.now() + 24 * 3600e3 }), ['owner'], 'still a day later (ADR 177)');
+  assert.deepEqual(who({}, {}, { now: Date.now() + 24 * 3600e3 }), ['owner'], 'still a day later (ADR 180)');
   assert.deepEqual(who({}, {}, { now: Date.now() + 7 * 24 * 3600e3 }), [], 'not after a week');
   assert.deepEqual(who({}, {}, { later: [{ id: 'r2', botId: 'b1', trigger: 'manual', startedAt: new Date().toISOString() }] }), ['owner'], 'also once the owner wrote to the bot after it: it is told of that');
   // A change a bot proposed to its instructions is a proposal too; a permission's ask is none, and repeats a job's run.

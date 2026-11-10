@@ -35,7 +35,7 @@ test('each held field has its words; what was given at once has none', () => {
 // ---------- the routes ----------
 
 test('POST and PUT /api/bots answer `waiting` when the Chief\'s change was held back, and not otherwise', async () => {
-  // A new bot gets everything it is made with (ADR 177): nothing of it waits on a card.
+  // A new bot gets everything it is made with (ADR 176): nothing of it waits on a card.
   const created = await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Watch the news.', allowedTools: ['Read', 'WebSearch', 'Bash'], computer: 'linux', connectors: ['gmail'] } });
   assert.equal(created.status, 201, JSON.stringify(created.data));
   assert.ok(!('waiting' in created.data) && !('pendingChange' in created.data), JSON.stringify(created.data));
@@ -79,7 +79,7 @@ test('create_bot and update_bot return `waiting` and the saved main assignment, 
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   const call = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey, CHIEF_CHAT_ID: chat.id }).json;
   const made = await call('create_bot', { name: 'Price Watcher', prompt: 'Watch the price of one thing.', allowedTools: ['Read', 'WebFetch'] });
-  assert.ok(!('waiting' in made) && !('applied' in made), 'a new bot gets what it is made with (ADR 177)');
+  assert.ok(!('waiting' in made) && !('applied' in made), 'a new bot gets what it is made with (ADR 176)');
   assert.equal(made.prompt, 'Watch the price of one thing.');
   assert.deepEqual(made.allowedTools, ['Read', 'WebFetch']);
   // A tool given later, outside a turn of the owner's, waits on a card that keeps the chat.

@@ -179,7 +179,7 @@ test('only the owner answers the card; after the yes botdot writes the file, aga
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   assert.equal(yes.status, 200, JSON.stringify(yes.data));
   assert.ok(audit().some((l) => l.action === 'secret-file.allowed' && l.bot === ops.id && l.where === "the account's computer:/home/box/traefik/ovh.env"));
-  // The run that asked carries on after the yes, told of the run the owner started since (ADR 177): let it end first.
+  // The run that asked carries on after the yes, told of the run the owner started since (ADR 180): let it end first.
   const carried = await srv.nextRun((x) => x.args.includes(`${ops.emoji} ${ops.name}`) && /stopped because it lacked/.test(x.stdin), 'the run that carries on');
   srv.release(carried);
   await waitFor(async () => (await srv.api(`/runs?botId=${ops.id}`)).data.every((x) => !['running', 'queued'].includes(x.status)), { what: 'no run of Infra Admin going' });

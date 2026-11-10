@@ -153,7 +153,7 @@ test('an action too long to show in full, after the bot stopped waiting: "Allow 
   srv.release(rec);
 });
 
-test('a card nobody waits for stays when the owner sends that bot a new message (ADR 177)', async (t) => {
+test('a card nobody waits for stays when the owner sends that bot a new message (ADR 180)', async (t) => {
   const bot = await makeBot(srv, { name: 'Asked Again', emoji: '🔁', connectors: ['gmail'] });
   const { told, cards } = await waitedOut(t, srv, bot);
   assert.match(told[0], /^Error: The owner has not answered yet, so this action was not done\. Its card stays in Needs you/);

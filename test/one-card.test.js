@@ -85,7 +85,7 @@ test('a refused tool while a changed bot for that permission waits: no second ca
   assert.deepEqual([both.status, both.data.carriesOn], [200, CARRIES]);
   await waitFor(() => told(/News Watcher/)[0], { what: "the Chief's turn" });
   await quiet(chat);
-  // The first request carries on although the owner asked the bot again since (ADR 177), told of that request.
+  // The first request carries on although the owner asked the bot again since (ADR 180), told of that request.
   await carriedOn(bot, stopped);
   assert.match(srv.runs().filter(isRunOf(bot)).at(-1).stdin, /<later-message>\nAnd the open pull requests\?\n<\/later-message>/);
   await startsNothing(bot, 3);

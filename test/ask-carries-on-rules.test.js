@@ -41,7 +41,7 @@ test('an ask with no run, or with a run that is no longer found, only changes th
   assert.deepEqual(whatCarriesOn(facts([run({ botId: 'other' })])), [], "another bot's run");
 });
 
-test('a run carries on after a later message of the owner, told of it; a later request on the same card carries on in its place (OK-010, ADR 177)', () => {
+test('a run carries on after a later message of the owner, told of it; a later request on the same card carries on in its place (OK-010, ADR 180)', () => {
   // The later message was not refused, so it is on no card: the run still carries on, and is told of it (scenario A10).
   const again = run({ id: 'r2', startedAt: ago(5), prompt: 'And the issues?' });
   const told = whatCarriesOn(facts([run()], { later: [again] }));
@@ -81,7 +81,7 @@ test("a job's run asked first and the owner's request joined its card: the reque
   const found = whatCarriesOn(card([atSeven, atEight]));
   assert.deepEqual(who(found), ['owner:r8'], 'one run, for the 8:00 request');
   assert.deepEqual(thenOf(found), { who: 'bot', text: 'It carries on with “What is new today?” when you allow it.' });
-  // The 8:00 message was not refused (the bot did it): it is on no card, and the job still runs again (ADR 177).
+  // The 8:00 message was not refused (the bot did it): it is on no card, and the job still runs again (ADR 180).
   assert.deepEqual(who(whatCarriesOn(card([atSeven], [atSeven, atEight]))), ['job:r7']);
   assert.deepEqual(thenOf(whatCarriesOn(card([atSeven], [atSeven, atEight]))), { who: 'bot', text: 'It runs “Morning news” again when you allow it.' });
   // Two requests of the owner, both refused and on that card: the later one only.
@@ -106,7 +106,7 @@ test("a teammate's request follows the same rule as a job's run (OK-010)", () =>
   const card = (runs, later = runs) => facts(runs, { made: ago(60), later });
   assert.deepEqual(who(whatCarriesOn(card([mate]))), ['teammate:m']);
   assert.deepEqual(who(whatCarriesOn(card([mate, mine]))), ['owner:r8'], 'the owner sent the bot a message after it asked');
-  assert.deepEqual(who(whatCarriesOn(card([mate], [mate, mine]))), ['teammate:m'], 'one that was not refused drops nothing (ADR 177)');
+  assert.deepEqual(who(whatCarriesOn(card([mate], [mate, mine]))), ['teammate:m'], 'one that was not refused drops nothing (ADR 180)');
   // The other way round: the teammate's request came after the owner's. No message of the owner followed either.
   const first = run({ id: 'r1', startedAt: ago(61), prompt: 'Read the status page' });
   const after = run({ id: 'm', trigger: 'bot', fromBot: { id: 'b2', name: 'Fleet Doctor' }, startedAt: ago(31), askedAt: ago(30) });
@@ -123,7 +123,7 @@ test('a run that was carried on from does not carry on again', () => {
 
 test('older than a week, deleted or stopped by the owner: nothing carries on', () => {
   const WEEK = 7 * 24 * 60;
-  assert.deepEqual(who(whatCarriesOn(facts([run()], { made: ago(WEEK - 1) }))), ['owner:r1'], 'just inside the week (ADR 177)');
+  assert.deepEqual(who(whatCarriesOn(facts([run()], { made: ago(WEEK - 1) }))), ['owner:r1'], 'just inside the week (ADR 180)');
   assert.deepEqual(who(whatCarriesOn(facts([run()], { made: ago(25 * 60) }))), ['owner:r1'], 'a day and an hour later');
   assert.deepEqual(whatCarriesOn(facts([run()], { made: ago(WEEK) })), [], 'a week');
   assert.deepEqual(whatCarriesOn(facts([run({ askedAt: ago(5) })], { made: ago(WEEK) })), [], 'also for a run that joined the old card lately');
@@ -259,7 +259,7 @@ test("a changed bot that runs wait for: the Chief's turn comes first, and each f
   assert.equal(thenOf(found).who, 'chief');
   // The owner wrote in the chat since: no turn, and the run still carries on.
   assert.deepEqual(who(whatCarriesOn({ ...joined, chat: { ...CHAT, wroteAt: ago(1) } })), ['owner:r1']);
-  // The owner asked the bot again after the run joined: the Chief's turn, and the run, told of it (ADR 177).
+  // The owner asked the bot again after the run joined: the Chief's turn, and the run, told of it (ADR 180).
   const again = run({ id: 'r2', startedAt: ago(5) });
   assert.deepEqual(whatCarriesOn({ ...joined, later: [again] }).map((f) => f.who), ['chief', 'owner']);
   // The card is a week old and its run is not: the run carries on, the Chief has no turn.
@@ -330,7 +330,7 @@ test('the owner wrote in that chat after that run asked: it does not carry on, a
   assert.deepEqual(whatCarriesOn({ ...late, stopped: { r1: { ...first, handedBackAt: ago(2) } } }), [], 'a run that was handed back is no such run either');
   assert.deepEqual(whatCarriesOn({ ...late, chats: {} }), [], 'and it still needs the chat that started it');
   // No line where nothing would have carried on anyway: the bot is gone, a week passed, the chat is gone,
-  // or the owner stopped the run. Asking the bot again since drops nothing (ADR 177): the line is still written.
+  // or the owner stopped the run. Asking the bot again since drops nothing (ADR 180): the line is still written.
   for (const [why, other] of Object.entries({
     gone: { bot: null }, old: { ask: { ...taken.ask, at: ago(7 * 24 * 60) } }, 'no chat': { chats: {} },
     stopped: { stopped: { r1: { ...first, status: 'stopped' }, r2: { ...second, status: 'stopped' } } },

@@ -80,7 +80,7 @@ test('a bot the Chief makes writes its first message once its jobs are in, and o
     srv.reply('Hi, I am News Monitor. I bring you the AI news every morning at 8:00.');
     const made = await srv.asChief('/bots', { method: 'POST', body: { name: 'News Monitor', emoji: '📰', prompt: NEWS.prompt, allowedTools: ['WebSearch'] } });
     assert.equal(made.status, 201);
-    assert.ok(!('waiting' in made.data), 'a new bot gets its tools at once (ADR 177)');
+    assert.ok(!('waiting' in made.data), 'a new bot gets its tools at once (ADR 176)');
     const job = await srv.api(`/bots/${made.data.id}/jobs`, { method: 'POST', body: { name: 'Morning news', cron: '0 8 * * *' } });
     assert.equal(job.status, 201);
     const rec = await srv.nextRun((x) => x.args.includes('📰 News Monitor'), 'the first message');

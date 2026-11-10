@@ -739,7 +739,7 @@ test('the worker refuses what is not a bot, a tool name or a list of registry pa
   assert.throws(() => request('toolChown', { principal: 'bot1' }, where), /Unsupported/);
 });
 
-// ADR 177: a registry tool the owner asked the Chief for in their own turn, before it read anything from outside, is
+// ADR 176: a registry tool the owner asked the Chief for in their own turn, before it read anything from outside, is
 // installed with no card: their message is the OK.
 test("a registry tool the owner asked for in their own turn installs with no card", async (t) => {
   const fixer = await makeBot(srv, { name: 'Fixer', allowedTools: ['Read', 'Bash'] });

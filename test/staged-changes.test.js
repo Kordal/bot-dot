@@ -188,7 +188,7 @@ test('nothing starts after a decline or for a proposal made in a job\'s own run,
   assert.deepEqual((await approve(bot, no.did.data.job, false)).data, { ok: true, removed: true, text: 'Declined and removed' });
   await startsNothing(bot, 1);
 
-  // The owner wrote to the bot after the proposal: the request still carries on, told of it (ADR 177).
+  // The owner wrote to the bot after the proposal: the request still carries on, told of it (ADR 180).
   const taken = await inRun(bot, 'Tidy up every evening', add('Evening tidy'));
   const later = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Never mind the evenings' } });
   await srv.finished(later.data.id);

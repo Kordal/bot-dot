@@ -403,7 +403,7 @@ test('a turn botdot started is given no tool that writes memory, and the route r
 
   // An answered card: the owner's yes on a change the Chief asked for in a chat.
   const asking = await newChat();
-  // A new bot gets its tools at once (ADR 177): the web given later, outside a turn of the owner's, waits on a card.
+  // A new bot gets its tools at once (ADR 176): the web given later, outside a turn of the owner's, waits on a card.
   const made = (await srv.asChief('/bots', { method: 'POST', body: { name: 'News Watcher', prompt: 'Read the news.', allowedTools: ['Read'] }, headers: { 'X-Chief-Chat': asking.id } })).data;
   await srv.asChief(`/bots/${made.id}`, { method: 'PUT', body: { allowedTools: ['Read', 'WebSearch'] }, headers: { 'X-Chief-Chat': asking.id } });
   const card = (await srv.api('/asks')).data.find((a) => a.botId === made.id);

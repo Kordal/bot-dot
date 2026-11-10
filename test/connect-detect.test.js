@@ -185,7 +185,7 @@ test('a run the Chief started is handed back to the Chief once the app is connec
   drop('googlecalendar');
 });
 
-test('the work carries on when the owner wrote to the bot since, and not after a week (ADR 177)', { timeout: 60_000 }, async () => {
+test('the work carries on when the owner wrote to the bot since, and not after a week (ADR 180)', { timeout: 60_000 }, async () => {
   const wrote = await makeBot(srv, { name: 'Busy Reader', emoji: '📰', connectors: ['todoist'] });
   const a = await heldRun(srv, wrote, 'Read my tasks');
   assert.equal((await run(a.token, 'todoist', 'TODOIST_GET_TASKS')).data.code, 'needs-connect');

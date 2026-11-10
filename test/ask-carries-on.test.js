@@ -142,7 +142,7 @@ test('a second run that asks for the same thing joins the card, and each waiting
   await startsNothing(bot, 4);
 });
 
-test('the owner asked again and was refused the same: Allow carries on with the later request only; a later message that was not refused is told to the work that carries on (ADR 177)', async () => {
+test('the owner asked again and was refused the same: Allow carries on with the later request only; a later message that was not refused is told to the work that carries on (ADR 180)', async () => {
   const bot = await makeBot(srv, { name: 'Moved on', emoji: '🚶', allowedTools: ['Read'] });
   const first = await refused(bot, [BASH], { prompt: 'Check the PRs' });
   assert.ok((await asksOf(bot))[0].then);
@@ -163,7 +163,7 @@ test('the owner asked again and was refused the same: Allow carries on with the 
   assert.deepEqual((await runsOf(bot)).filter((r) => r.continues).map((r) => r.continues), [second.id], 'one run, and none for the request the owner has since replaced');
 
   // The later message was not refused, so it is on no card: the first request still carries on, told of it
-  // (scenario A10, ADR 177).
+  // (scenario A10, ADR 180).
   const done = await makeBot(srv, { name: 'Answered', emoji: '✅', allowedTools: ['Read'] });
   const asked = await refused(done, [BASH], { prompt: 'Check the PRs' });
   assert.ok((await asksOf(done))[0].then);
@@ -221,7 +221,7 @@ test("a job's run asked first and the owner's request was refused the same: Allo
 test("behind a busy bot the later request waits its turn though its card is older, and is told of a message the owner sends meanwhile", async () => {
   // As above, a job's run made the card and the owner's request joined it; the bot is busy when the yes comes.
   // The owner's message meanwhile starts no run beside the one that is going (ADR 011): it waits and starts before
-  // the work that carries on, which then still starts, told of that message (ADR 177).
+  // the work that carries on, which then still starts, told of that message (ADR 180).
   for (const meanwhile of [false, true]) {
     const bot = await makeBot(srv, meanwhile ? { name: 'Interrupted', emoji: '✋', allowedTools: ['Read'] } : { name: 'Patient', emoji: '⏳', allowedTools: ['Read'] });
     const job = (await srv.asChief(`/bots/${bot.id}/jobs`, { method: 'POST', body: { kind: 'ai', name: 'Morning news', cron: '0 7 * * *', prompt: 'Read the news.', assessment: 'Needs AI' } })).data;

@@ -75,7 +75,7 @@ test("the owner's copy has the settings, a new id, name and colour, and none of 
   assert.match(taken.data.error, /already/);
 });
 
-test("the Chief's copy shares no Vault entry, names them, and gets everything else at once (ADR 177)", async () => {
+test("the Chief's copy shares no Vault entry, names them, and gets everything else at once (ADR 176)", async () => {
   const r = await srv.asChief(`/bots/${coder.id}/duplicate`, { method: 'POST', body: { name: 'Coder Chief' } });
   assert.equal(r.status, 201, JSON.stringify(r.data));
   assert.equal(r.data.name, 'Coder Chief');

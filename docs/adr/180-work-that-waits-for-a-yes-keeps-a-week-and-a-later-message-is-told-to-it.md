@@ -1,4 +1,4 @@
-# ADR-177: Work that waits for a yes keeps a week, and a later message is told to it
+# ADR-180: Work that waits for a yes keeps a week, and a later message is told to it
 
 - **Status:** Accepted (2026-11-10, the owner's go on "less heavy, less minding the bots")
 - **Changes:** [ADR 009](009-the-botdot-server-carries-on-after-an-ok.md) (how long what waits carries on, and what a later message of the owner's does to it)
