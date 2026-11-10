@@ -155,7 +155,34 @@ function leadOf(project, botId) {
   return ts[0].lead || null;
 }
 
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf };
+// The team of a project a bot's own ask is shown on (ADR 205): the team it leads, else its first team. null: in none.
+function homeTeam(project, botId) {
+  const ts = botId ? (project?.teams || []).filter((t) => (t.bots || []).includes(botId)) : [];
+  return (ts.find((t) => t.lead === botId) || ts[0])?.id || null;
+}
+
+// What waits for the owner on each team of a project (ADR 205): { [team id]: { bots, chat } }. `bots`: the ids of the
+// bots whose own asks wait, in the order they asked, each on its home team only; `chat`: how many asks wait in the
+// team's chat, a question a member put there counting as one. items: the Needs you entries (a batch counts each of its asks); asking: the ids of the bots with a
+// question in their own chat; groups: the account's chats, a team's with its `team`.
+function teamWaits(project, items, groups, asking = []) {
+  const out = {};
+  const at = (id) => (out[id] ||= { bots: [], chat: 0 });
+  const teams = new Set((project?.teams || []).map((t) => t.id));
+  const chats = new Map((groups || []).filter((g) => g?.team && teams.has(g.team)).map((g) => [g.id, g.team]));
+  const bot = (id) => { const t = homeTeam(project, id); if (t && !at(t).bots.includes(id)) at(t).bots.push(id); };
+  for (const x of (items || []).flatMap((y) => (y?.kind === 'batch' ? y.items || [] : [y]))) {
+    const chat = x?.group?.id && chats.get(x.group.id);
+    if (chat) at(chat).chat += 1;
+    else if (x?.bot?.id) bot(x.bot.id);
+  }
+  for (const id of asking || []) bot(id);
+  // A question a member put in the team's chat, which is its chat's own.
+  for (const g of groups || []) if (g?.asks && typeof g.asks === 'object' && chats.has(g.id)) at(g.team).chat ||= 1;
+  return out;
+}
+
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf, homeTeam, teamWaits };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

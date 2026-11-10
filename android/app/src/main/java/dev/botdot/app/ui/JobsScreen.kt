@@ -118,7 +118,7 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             )
         }
         if (changeWaits(j)) Text(CHANGE_WAITS, color = p.warnText, style = MaterialTheme.typography.bodyMedium)
-        // How it takes calls and where it tells a run's end: only with Advanced on (ADR 200).
+        // How it takes calls and where it tells a run's end: only with Advanced on (ADR 205).
         val adv by dev.botdot.app.data.Advanced.on.collectAsState()
         if (adv) callModeLine(j)?.let { Text(it, color = p.faint, style = MaterialTheme.typography.bodySmall) }
         if (adv) j.notifyUrl?.takeIf { it.isNotBlank() }?.let { Text(notifyLine(it), color = p.faint, style = MaterialTheme.typography.bodySmall) }

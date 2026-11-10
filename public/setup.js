@@ -130,7 +130,7 @@ function drawSetup() {
     ? setupItem({ state: 'off', icon: '🖥', title: tr('Bot computers'), body: tr("{why}, so bots can't have their own desktop. Everything else works.", { why: esc(s.docker?.error || tr('Docker is not available')) }) })
     : setupItem({ state: 'ok', icon: '🖥', title: tr('Bot computers'), body: s.docker.image ? tr('Ready. Any bot can get its own desktop with a browser (turn it on in the bot’s settings).') : tr('Ready. The desktop downloads the first time a bot needs one, which takes a few minutes once.') });
 
-  // Without Advanced (ADR 200): the phone is a QR code to scan, and nothing about Tailscale, Docker or the extras.
+  // Without Advanced (ADR 205): the phone is a QR code to scan, and nothing about Tailscale, Docker or the extras.
   const adv = advanced();
   const scan = a.qr ? `<div class="setup-qr">${a.qr}</div>` : '';
   let phone;

@@ -1014,7 +1014,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 fun JsonObject.str(key: String): String = this[key]?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() } ?: ""
 fun JsonObject.arr(key: String): JsonArray? = this[key] as? JsonArray
 
-/** A status with no sentence of botdot's, in words for someone who does not know HTTP (ADR 200): never the number. */
+/** A status with no sentence of botdot's, in words for someone who does not know HTTP (ADR 205): never the number. */
 internal fun statusWords(code: Int): String = when {
     code == 401 -> tr("Sign in again, then try once more.")
     code == 403 -> tr("botdot doesn't allow that here.")

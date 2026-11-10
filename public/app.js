@@ -3,7 +3,7 @@
 // order of index.html, and the start of the page (boot.js) comes last (#77).
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
-// Advanced (ADR 200): the technical rows (models, exact tools, cron, scripts, tokens, a run's folder) show only while
+// Advanced (ADR 205): the technical rows (models, exact tools, cron, scripts, tokens, a run's folder) show only while
 // the account has it on. A server without the switch shows them all, as before.
 const advanced = () => !state.features.includes('advanced') || state.settings?.advanced !== false;
 
@@ -83,7 +83,7 @@ function setSignedOut(claude) {
 // Not reached: no answer came, or a gateway answered in botdot's place that it is not there (502, 503
 // without botdot's sentence), as Tailscale Serve does while botdot is down. A 504 is a gateway that
 // gave up waiting: botdot is away, and may have taken the request.
-// A status with no sentence of botdot's, as a sentence for someone who does not know HTTP (ADR 200): never the number.
+// A status with no sentence of botdot's, as a sentence for someone who does not know HTTP (ADR 205): never the number.
 const statusWords = (status) => status === 401 ? tr('Sign in again, then try once more.')
   : status === 403 ? tr("botdot doesn't allow that here.")
   : status === 413 ? tr('That is too big for botdot.')

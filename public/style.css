@@ -3408,8 +3408,8 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .sp-chip:hover { background: var(--fill); }
 .sp-chip:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .sp-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sp-st { flex: none; margin-left: auto; display: inline-flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); font-weight: 400; color: var(--muted); white-space: nowrap; }
-.sp-st::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+.sp-st { flex: 0 1 auto; min-width: 0; max-width: 55%; overflow: hidden; text-overflow: ellipsis; margin-left: auto; display: inline-flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); font-weight: 400; color: var(--muted); white-space: nowrap; }
+.sp-st::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
 .sp-st.needs { color: var(--warn-text); font-weight: 600; }
 .sp-st.needs::before { background: var(--warn); }
 .sp-faces { flex: none; display: inline-flex; }

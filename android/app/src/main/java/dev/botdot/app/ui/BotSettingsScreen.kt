@@ -68,7 +68,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * A bot's settings: who it is and its main assignment, then its computer, jobs, skills, apps and teammates. Its model shows only with Advanced on (ADR 200).
+ * A bot's settings: who it is and its main assignment, then its computer, jobs, skills, apps and teammates. Its model shows only with Advanced on (ADR 205).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -253,7 +253,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     CheckRow(tr("By its place"), null, hotkey == 0) { hotkey = 0 }
                     for (d in 1..9) CheckRow("$d", others.firstOrNull { it.hotkey == d }?.let { tr("Now {name}'s", "name" to it.name) }, hotkey == d) { on -> hotkey = if (on) d else 0 }
                 }
-                // Advanced (ADR 200): without it, its model is left as it is and not shown.
+                // Advanced (ADR 205): without it, its model is left as it is and not shown.
                 val adv by dev.botdot.app.data.Advanced.on.collectAsState()
                 if (adv) Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
                 val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
@@ -263,7 +263,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
                 // only whether. A server from before chose it per bot (ADR 088).
                 val accountComputer = "account-computer" in server?.features.orEmpty()
-                // Advanced (ADR 200): without it, where its computer is and its proxy are left as they are and not shown.
+                // Advanced (ADR 205): without it, where its computer is and its proxy are left as they are and not shown.
                 val advOn by dev.botdot.app.data.Advanced.on.collectAsState()
                 if (advOn && !accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
                     val everyBot = "everything-allowed" in server?.features.orEmpty() // every bot has one (ADR 192)

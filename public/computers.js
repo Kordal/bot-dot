@@ -288,7 +288,7 @@ function runHeader(meta) {
     </div>`;
 }
 
-// A run's folder, model, steps and how to go on in Claude Code: only with Advanced on (ADR 200).
+// A run's folder, model, steps and how to go on in Claude Code: only with Advanced on (ADR 205).
 function detailsInfo(meta) {
   if (!advanced()) return '';
   return `
