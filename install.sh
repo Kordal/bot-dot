@@ -56,6 +56,9 @@
 # machine of one account takes none). The link is in status/sign-in-<account>.json or status/sign-up[-<account>].json
 # ("A link asked by root alone", below), which only root and the front door read, and nowhere else.
 #
+# The fleet console pauses the whole machine with SUSPEND and starts it again with RESUME, root's alone too: every
+# account suspended or resumed in the front door's data, then made to match, as status/suspend.json says.
+#
 # An account whose owner turned "Update automatically" off is left waiting on the version it runs, with the new one in
 # its Docker (ADR 053). "Update now", from its owner's Settings or the admin page, or the deadline the admin set, asks
 # with an empty file named SWITCH-<account>, which no account can be named either: root's step then switches that
@@ -3849,9 +3852,71 @@ keys_request() {
   unset kr_openrouter kr_composio
 }
 
+# The whole machine paused by the fleet console (its customer suspended), root's alone: SUSPEND suspends every account
+# in the front door's data, as the admin page suspends one (its owner sees only that it is paused, its botdot server
+# and computers stop, its data stays), and RESUME starts every one again. With both there, the newer is taken.
+# status/suspend.json says how it went: state (suspended, resumed, refused or failed), at, and error.
+SUSPEND_REQUEST=SUSPEND
+RESUME_REQUEST=RESUME
+pause_said() { write_status suspend.json "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"${2:+,$2}}"; }
+# pause_request FILE: SUSPEND or RESUME taken: the front door's data changed, then every account made to match it.
+pause_request() {
+  pr="$1"
+  pr_kind=resume
+  [ "${pr##*/}" != "$SUSPEND_REQUEST" ] || pr_kind=suspend
+  if ! by_root "$pr"; then
+    rm -f -- "$pr"
+    pause_said refused '"error":"Only root asks for this."'
+    warn "A $pr_kind request that root didn't make was refused."
+    return 0
+  fi
+  rm -f -- "$pr"
+  pr_err="$RUN/pause-err"
+  set +e
+  pr_line="$($D compose --project-directory "$DOOR" exec -T front-door node front-door.js "$pr_kind" --by console </dev/null 2>"$pr_err" | head -n 1)"
+  set -e
+  case "$pr_line" in
+    '{"state":"suspended",'*'}' | '{"state":"resumed",'*'}') ;;
+    *)
+      pr_why="$(head -n 1 "$pr_err" 2>/dev/null | plain_line 200)"
+      rm -f "$pr_err"
+      pause_said failed "\"error\":\"The front door changed nothing${pr_why:+: $pr_why}\""
+      warn "The front door didn't $pr_kind the machine's accounts${pr_why:+: $pr_why}"
+      return 0 ;;
+  esac
+  rm -f "$pr_err"
+  pr_failed=''
+  for pr_home in "$ACCOUNTS"/*/; do
+    pr_name="$(basename "$pr_home")"
+    valid_account "$pr_name" && [ -f "$ACCOUNTS/$pr_name/compose.yaml" ] || continue
+    pr_state="$(door_state "$pr_name")"
+    set +e
+    # shellcheck disable=SC2086 # the state, then its share's three numbers
+    ( set -e; settle "$pr_name" $pr_state )
+    pr_done=$?
+    set -e
+    [ "$pr_done" = 0 ] || pr_failed="$pr_failed${pr_failed:+, }$pr_name"
+  done
+  if [ -n "$pr_failed" ]; then
+    pause_said failed "\"error\":\"The front door's data says $([ "$pr_kind" = suspend ] && echo suspended || echo resumed), but these accounts don't match it yet: $pr_failed\""
+    warn "These accounts weren't made to match the front door: $pr_failed"
+  else
+    pause_said "$([ "$pr_kind" = suspend ] && echo suspended || echo resumed)"
+    ok "Every account of this machine is $([ "$pr_kind" = suspend ] && echo suspended || echo running again)"
+  fi
+}
+
 if [ "$MODE" = requested ]; then
   # The console's keys (ADR 162), first: they take nothing else's time.
   if [ -f "$REQUESTS/$KEYS_REQUEST" ] && [ ! -L "$REQUESTS/$KEYS_REQUEST" ]; then keys_request; fi
+  # The whole machine paused or started again (the console's customer suspended or activated), the newer of the two.
+  pr_s="$REQUESTS/$SUSPEND_REQUEST" pr_r="$REQUESTS/$RESUME_REQUEST"
+  if [ -f "$pr_s" ] && [ ! -L "$pr_s" ] && [ -f "$pr_r" ] && [ ! -L "$pr_r" ]; then
+    if [ "$pr_r" -nt "$pr_s" ]; then rm -f -- "$pr_s"; else rm -f -- "$pr_r"; fi
+  fi
+  for request in "$pr_s" "$pr_r"; do
+    if [ -f "$request" ] && [ ! -L "$request" ]; then pause_request "$request"; fi
+  done
   # A backup set's requests (#986), root's alone: one the front door made is refused. A restore comes first, and a
   # set is made before an update, of what ran until then.
   for request in "$REQUESTS/$RESTORE" "$REQUESTS/$BACKUP"; do
@@ -3931,7 +3996,7 @@ if [ "$MODE" = requested ]; then
     name="$(basename "$request")"
     taken=''
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
-    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$OFFSITE_SET" ] || [ "$name" = "$OFFSITE_RESTORE" ] || [ "$name" = "$RESTORE_TEST_REQUEST" ] || [ "$name" = "$KEYS_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
+    if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$OFFSITE_SET" ] || [ "$name" = "$OFFSITE_RESTORE" ] || [ "$name" = "$RESTORE_TEST_REQUEST" ] || [ "$name" = "$KEYS_REQUEST" ] || [ "$name" = "$SUSPEND_REQUEST" ] || [ "$name" = "$RESUME_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
     elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then

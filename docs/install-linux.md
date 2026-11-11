@@ -88,6 +88,17 @@ When the link is opened, the sign-up page first says that you, the admin, can te
 
 The front door never runs as root. It asks for the new account with an empty file named as it in `/var/lib/botdot/front-door/requests`, and systemd (`botdot-accounts.path`) starts root's one step for it: a copy of the installer in `/var/lib/botdot/bin`, as `install.sh --requested`, which makes the machine match what the front door's data says of that account, and nothing else. What it did is in `journalctl -u botdot-accounts`.
 
+### The whole machine paused
+
+On a managed machine the fleet console pauses every account at once when it suspends its customer, with a file `SUSPEND` of root's in the requests folder, and starts them again with `RESUME`:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/SUSPEND
+sudo touch /var/lib/botdot/front-door/requests/RESUME
+```
+
+Root's step asks the front door to suspend (or resume) every account, as **Suspend** on the admin page does for one (`node front-door.js suspend|resume --by console`, each an audit entry by `console`), then makes each account match: a suspended one's botdot server and computers stop and its data stays, and its owner, signed in or signing in, sees only "Your account is paused by the admin". `status/suspend.json` says `state` (`suspended`, `resumed`, `refused` or `failed`), `at`, and `error`. With both files there, the newer is taken. A request the front door made, not root, is refused.
+
 ## Suspend, delete, and a lost passkey
 
 The admin page lists every account: its name, when it was made, when it was last seen, and whether it runs or is suspended. It never shows what is inside an account. **Change share** sits on each account's card; the rest is under its **⋯**.
