@@ -245,7 +245,12 @@ const cases = [
       assert.match(said, /BOTDOT_READY /);
       const login = (body) => JSON.parse(machine.exec('curl', '-fsSk', '--resolve', `${DOMAIN}:443:127.0.0.1`, '-H', 'Content-Type: application/json', '-H', 'X-Bot-Dot: 1', '-d', JSON.stringify(body), '-c', '/root/cookies', `https://${DOMAIN}/sign-in`));
       for (let n = 0; n < 2; n++) assert.equal(login({ demoCode: code }).ok, true);
-      answers(machine);
+      answers(machine); // The account is usable while its optional computer is still preparing.
+      await until('the background computer preparation to finish', () => {
+        const report = JSON.parse(machine.exec('cat', `${DIR}/front-door/status/computer-preparation.json`));
+        if (report.state === 'failed') throw new Error(`Computer preparation failed: ${JSON.stringify(report)}`);
+        return report.state === 'ready';
+      }, 90_000);
       const list = machine.api('GET', '/api/company/list');
       assert.equal(list.status, 200);
       assert.equal(list.body.projects[0].name, 'Demo: community garden');
