@@ -1,6 +1,8 @@
 // ---------- boot ----------
 
 $('#more-btn').onclick = () => setView('settings');
+// Setup must also open when its address is typed into an already open tab.
+addEventListener('hashchange', () => { if (location.hash === '#setup') setView('setup'); });
 $('#feedback-btn').onclick = () => openFeedback();
 initSideGrip();
 initChatGrip();
