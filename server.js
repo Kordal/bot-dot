@@ -72,7 +72,7 @@ const feed = require('./lib/events');
 const push = require('./lib/push').create(B.DATA_DIR, { allowHttp: process.env.BOT_DOT_PUSH_HTTP === '1', relay: process.env.BOT_DOT_PUSH_RELAY });
 push.follow(feed, { onScreen: (chat) => B.read.onScreen(chat), chiefName: () => chief.named().name, language: () => B.settings.get().language });
 const { signedIn } = require('./lib/setup');
-const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN });
+const setup = require('./lib/setup').create(B.DATA_DIR, { claudeBin: B.CLAUDE_BIN, onClaudeAuthChange: changedClaudeAuth });
 const updates = require('./lib/updates').create({ busy: () => B.activeCount() + chief.activeCount(), computerImage: process.env.BOT_DOT_COMPUTER_IMAGE });
 // An account on a machine of one or more (ADR 028) never updates itself: the admin updates the front door and every
 // account together, on the admin page (#473).
@@ -494,6 +494,13 @@ function sawClaude(c) {
   claudeSeen = known;
   B.claudeIs(known);
   return c;
+}
+// Apply the chosen credential's readiness before releasing the previous credential's hold (#1274).
+// An unchecked subscription waits for a check that can tell, rather than launching queued work on it.
+function changedClaudeAuth(c) {
+  if (signedIn(c) === null) { B.claudeIs(false); saysHeld(); }
+  else sawClaude(c);
+  B.clearClaudeLimit();
 }
 const claudeStatus = (fresh = false) => setup.claudeStatus(fresh).then(sawClaude);
 // After a sign-out whose check could not tell, while botdot holds jobs and messages as signed out: the apps that

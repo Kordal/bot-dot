@@ -1,0 +1,1 @@
+2026-11-11: Serialize Claude credential changes and release the old usage-limit hold only after saving a different effective credential and applying its readiness; rejected: clearing on every setup write or before checking readiness, which bypasses real limits or starts queued work signed out. (#1274)
