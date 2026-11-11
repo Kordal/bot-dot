@@ -47,7 +47,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
-import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.Group
 import dev.botdot.app.data.GroupNote
 import dev.botdot.app.data.GroupNotes
@@ -70,8 +69,8 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
  * A group's settings, opened from its chat's title: its name, its members each with a way to take it out, "Add a
  * bot", its notes (ADR 139), and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
  * botdot server refuses is said in its words. A team's chat (#697) follows its team in Projects: its panel shows its
- * faces, its name, which renames the team with it, its members and its notes, and nothing that changes its members or
- * deletes it.
+ * faces, its name, which renames the team with it, its members and its notes; on a server with `team-chat-members` its
+ * members are added and taken out there too, never its last one, and the team goes only in Projects.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,13 +115,13 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                         BotFigure(b.color, b.state, 32, b.outfit)
                         Spacer(Modifier.size(10.dp))
                         Text(b.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        if (!team) IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
-                            Icon(Icons.Filled.Close, contentDescription = tr("Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
+                        if (Groups.canTakeOut(g, versionNow?.features)) IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
+                            Icon(Icons.Filled.Close, contentDescription = if (team) tr("Take {name} out of the team", "name" to b.name) else tr("Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
-                // Nothing to add: the group is full, or every bot is in it. A team's members follow its team.
-                if (!team && Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
+                // Nothing to add: the group is full, or every bot is in it. A team's chat adds to its team where the server does it.
+                if (Groups.changesMembers(g, versionNow?.features) && Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
             if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
             if (!team) SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
@@ -131,8 +130,9 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
 
     val g = group
     if (adding && g != null) BotPicker(
-        title = tr("Add a bot"), bots = Groups.addable(g, bots).sortedBy { it.name.lowercase() }, max = GROUP_MAX - g.members.size, action = tr("Add"),
-        hint = { n -> addHint(n, g.members.size, g.name) }, onDismiss = { adding = false },
+        title = if (g.team != null) tr("Add to {team}", "team" to g.name) else tr("Add a bot"), bots = Groups.addable(g, bots).sortedBy { it.name.lowercase() },
+        max = Groups.maxOf(g) - g.members.size, action = tr("Add"),
+        hint = { n -> if (g.team != null) "" else addHint(n, g.members.size, g.name) }, onDismiss = { adding = false },
     ) { picked, _ ->
         val a = app.api.value ?: error(tr("Not connected to botdot"))
         a.updateGroup(g.id, a.membersOf(g.members + picked))

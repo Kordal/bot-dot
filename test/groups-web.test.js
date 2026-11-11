@@ -306,6 +306,50 @@ test("web: with `team-chat-rename` a team's chat is renamed in its panel as any 
   assert.equal(parts['#gs-delete'].classList.contains('hidden'), true);
 });
 
+test("web: with `team-chat-members` a team's chat adds and takes out its team's bots in its panel, never its last one", async () => {
+  const p = page({ features: ['groups', 'unread', 'team-chats', 'team-chat-members'] });
+  Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });
+  const pick = picker(p);
+  const { parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual([...parts['#gs-members'].innerHTML.matchAll(/data-take-out="(\w+)" title="(.*?)"/g)].map((m) => m.slice(1)),
+    [['coder', 'Take Coder out of the team'], ['reviewer', 'Take Reviewer out of the team'], ['writer', 'Take Issue Writer out of the team']]);
+  assert.equal(parts['#gs-add'].classList.contains('hidden'), false);
+  assert.equal(parts['#gs-delete'].classList.contains('hidden'), true, 'a team goes in its project, not here');
+  // Taken out: the whole list as it is to be; the server changes the team.
+  p.said.calls.length = 0;
+  await parts['out:writer'].onclick();
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { members: ['coder', 'reviewer'] }]]);
+  // Away from its project's page: the account's other bots, any number, no hint.
+  p.said.calls.length = 0;
+  parts['#gs-add'].onclick();
+  const m = pick.get();
+  assert.match(m.html, /<h2>Add to Dev<\/h2>/);
+  assert.deepEqual(m.rows.map((r) => r.dataset.pick), ['shopper', 'weather']);
+  pick.tick('weather');
+  await pick.submit();
+  assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { members: ['coder', 'reviewer', 'writer', 'weather'] }]]);
+  // Its last bot has no ✕: a team without bots would go with its chat.
+  p.state.groups[0].members = ['coder'];
+  delete p.doc['#view-groupsettings'].dataset.sig;
+  p.ctx.renderGroupSettings();
+  assert.doesNotMatch(parts['#gs-members'].innerHTML, /data-take-out/);
+});
+
+test("web: on its project's page a team chat's \"Add a bot\" is the team's own picker (#1051)", async () => {
+  const p = page({ features: ['groups', 'unread', 'team-chats', 'team-chat-members'] });
+  Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });
+  const added = [];
+  p.ctx.Company = { teamPanel: { team: (id) => (id === 't1' ? { id } : null), sig: () => '', html: () => '', wire() {}, leadHTML: () => '', add: (id, after) => added.push([id, typeof after]) } };
+  const { parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  assert.equal(parts['#gs-add'].classList.contains('hidden'), false);
+  parts['#gs-add'].onclick();
+  assert.deepEqual(added, [['t1', 'function']]);
+});
+
 test('web: the panel shows the group\'s notes, decisions first, each changed where it stands, removed by ✕, and added by Enter (ADR 139)', async () => {
   const NOTES = [
     { id: 'f1', kind: 'fact', text: 'Staging is <b>staging</b>', by: 'botdot', at: at(3) },

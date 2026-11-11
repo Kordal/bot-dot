@@ -379,6 +379,16 @@ object Groups {
     const val TEAM_CHATS = "team-chats"
     /** A team's chat is renamed with its team: PUT of its `name` renames the team in its project. */
     const val TEAM_CHAT_RENAME = "team-chat-rename"
+    /** A team's chat changes its team's bots: PUT of its `members` adds to or takes out of the team in its project. */
+    const val TEAM_CHAT_MEMBERS = "team-chat-members"
+    /** lib/company.js MAX.bots: a team, and so its chat, has at most this many bots. */
+    const val TEAM_MAX = 40
+
+    /** Whether the panel of [g] adds and takes out members: any group's, a team's chat on a server that does it. */
+    fun changesMembers(g: Group, features: Collection<String>?): Boolean = g.team == null || features?.contains(TEAM_CHAT_MEMBERS) == true
+
+    /** Whether [g]'s member can be taken out in its panel: a group goes down to none and is deleted, a team keeps its last bot. */
+    fun canTakeOut(g: Group, features: Collection<String>?): Boolean = changesMembers(g, features) && (g.team == null || g.members.size > 1)
 
     /** The chat of the team [teamId] (#697); null without one. */
     fun teamChat(groups: List<Group>, teamId: String): Group? = groups.firstOrNull { it.team == teamId }
@@ -455,7 +465,10 @@ object Groups {
     fun heads(next: List<String>, bots: List<Bot>): List<Bot> = next.mapNotNull { id -> bots.firstOrNull { it.id == id } }
 
     /** The bots that can be added to a group: those that are not in it. None when it is full. */
-    fun addable(g: Group, bots: List<Bot>): List<Bot> = if (g.members.size >= GROUP_MAX) emptyList() else bots.filter { it.id !in g.members }
+    fun addable(g: Group, bots: List<Bot>): List<Bot> = if (g.members.size >= maxOf(g)) emptyList() else bots.filter { it.id !in g.members }
+
+    /** The most bots [g] can have: six in a group, a team's many in a team's chat. */
+    fun maxOf(g: Group): Int = if (g.team != null) TEAM_MAX else GROUP_MAX
 
     /** The groups with what the server now says of one group's new replies (`group_unread`); the same list when nothing changed. */
     fun setUnread(groups: List<Group>, groupId: String, unread: Int, firstUnread: String?, readAt: String? = null): List<Group> {

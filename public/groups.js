@@ -131,6 +131,7 @@ function moveGroup(g, category, at) {
 // ---------- making and changing a group ----------
 
 const GROUP_MAX = 6; // a group has two to six bots; the server refuses anything else in its own words
+const TEAM_MAX = 40; // lib/company.js MAX.bots: a team's chat has as many as its team
 // "Add a bot to this chat" is offered where a group can be made: the server has groups, and there is another bot.
 const canMakeGroup = (bot) => hasGroups() && state.bots.some((b) => b.id !== bot.id);
 
@@ -266,6 +267,17 @@ function renderGroupSettings() {
     $('#gs-add', root).onclick = () => {
       const now = groupById(root.dataset.group);
       if (!now) return;
+      // A team's chat adds to its team (`team-chat-members`): from its project's page with the team's own picker, which
+      // says the team each bot is in and has "New bot" (#1051); elsewhere the account's other bots, as a group's.
+      if (now.team && typeof Company !== 'undefined' && Company.teamPanel?.team(now.team)) return Company.teamPanel.add(now.team, refresh);
+      if (now.team) return openBotPicker({
+        title: tr('Add to {team}', { team: now.name }),
+        bots: state.bots.filter((b) => !now.members.includes(b.id)).sort(byPlace),
+        max: TEAM_MAX - now.members.length,
+        action: tr('Add'),
+        hint: () => '',
+        done: async (picked) => { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'PUT', body: { members: [...now.members, ...picked] } }); await refresh(); },
+      });
       openBotPicker({
         title: tr('Add a bot'),
         bots: state.bots.filter((b) => !now.members.includes(b.id)).sort(byPlace),
@@ -302,9 +314,12 @@ function renderGroupSettings() {
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
+  // A team's chat: its members are its team's bots, changed here on a server that does it, never down to none.
+  const teamBots = !!g.team && (state.features || []).includes('team-chat-members');
+  const takeOut = (b, words) => `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(words)}" aria-label="${esc(words)}">✕</button>`;
   $('#gs-members', root).innerHTML = members.map((b) => `
     <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}<span class="grow">${esc(b.name)}</span>
-      ${g.team ? (team ? team.leadHTML(g.team, b.id) : '') : `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(tr('Take {name} out of the group', { name: b.name }))}" aria-label="${esc(tr('Take {name} out of the group', { name: b.name }))}">✕</button>`}</div>`).join('')
+      ${g.team ? `${team ? team.leadHTML(g.team, b.id) : ''}${teamBots && members.length > 1 ? takeOut(b, tr('Take {name} out of the team', { name: b.name })) : ''}` : takeOut(b, tr('Take {name} out of the group', { name: b.name }))}</div>`).join('')
     || `<p class="faint">${tr('Its bots are all gone. Add one, or delete the group.')}</p>`;
   const box = $('#gs-team', root);
   if (box) { box.innerHTML = team ? team.html(g.team) : ''; box.classList.toggle('hidden', !box.innerHTML); }
@@ -313,8 +328,10 @@ function renderGroupSettings() {
     const now = groupById(root.dataset.group);
     if (now) changeGroup(now, { members: now.members.filter((id) => id !== b.dataset.takeOut) });
   }));
-  // Nothing to add: the group is full, or every bot is in it. A team's chat follows its team (#697): nothing here.
-  $('#gs-add', root).classList.toggle('hidden', !!g.team || g.members.length >= GROUP_MAX || !state.bots.some((b) => !g.members.includes(b.id)));
+  // Nothing to add: the group is full, or every bot is in it. A team's chat adds to its team where the server does it
+  // (#697 before): on its project's page always, as "New bot" asks the Chief for one.
+  const others = state.bots.some((b) => !g.members.includes(b.id));
+  $('#gs-add', root).classList.toggle('hidden', g.team ? !teamBots || !(team || (others && g.members.length < TEAM_MAX)) : g.members.length >= GROUP_MAX || !others);
   $('#gs-delete', root).classList.toggle('hidden', !!g.team);
   name.disabled = !!g.team && !(state.features || []).includes('team-chat-rename'); // a team's chat is renamed with its team
 }

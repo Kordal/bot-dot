@@ -666,7 +666,7 @@
   // "+" at the end of a team's row: the account's other bots to tick, those in no team of this project first;
   // one in another team says which; it stays there too (ADR 199). "New bot" asks the Chief for one in this team, in a new
   // Chief chat with the words ready; with no other bot to offer, "+" goes there straight away.
-  function addToTeam(c, id) {
+  function addToTeam(c, id, after = () => {}) {
     const t = c.teams.find((x) => x.id === id);
     if (!t) return;
     const teamOf = new Map(c.teams.filter((x) => x.id !== t.id).flatMap((x) => x.bots.map((b) => [b, x.name])));
@@ -686,7 +686,7 @@
       action: tr('Add'),
       hint: () => '',
       more: { label: tr('New bot'), run: askChief },
-      done: async (picked) => { Company.changed({ company: await api(Company.at(`/company/teams/${encodeURIComponent(t.id)}`), { method: 'PUT', body: { bots: [...t.bots, ...picked] } }) }); },
+      done: async (picked) => { Company.changed({ company: await api(Company.at(`/company/teams/${encodeURIComponent(t.id)}`), { method: 'PUT', body: { bots: [...t.bots, ...picked] } }) }); await after(); },
     });
   }
 
@@ -714,6 +714,8 @@
       $$('[data-cf-lead]', root).forEach((b) => (b.onclick = () => send(`/company/teams/${encodeURIComponent(id)}`, 'PUT', { lead: b.dataset.cfLead })));
       $('[data-cf-report]', root)?.addEventListener('change', (e) => send(`/company/teams/${encodeURIComponent(id)}`, 'PUT', { report: e.target.value || null }));
     },
+    // "Add a bot" in the team chat's panel: the same picker as "+" at the end of the team's row (#1051).
+    add(id, after) { if (teamHere(id)) addToTeam(state.company, id, after); },
     leadHTML(id, botId) {
       const t = teamHere(id);
       if (!t || (t.bots || []).length < 2) return '';

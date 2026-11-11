@@ -37,11 +37,11 @@ before(async () => {
   team = r.data.teams[0];
 });
 
-test('a team gets its chat: its name, the lead first, its colour; renaming it renames the team; the owner cannot change its members or delete it', async () => {
+test('a team gets its chat: its name, the lead first, its colour; renaming it renames the team; the owner cannot delete it', async () => {
   const g = await waitFor(() => teamChat(team.id), { what: 'the team chat' });
   assert.deepEqual([g.name, g.members, g.lead, g.color], ['Growth', [lead.id, writer.id, poster.id], lead.id, team.color]);
   const { features } = (await srv.api('/version')).data;
-  assert.ok(features.includes('team-chats') && features.includes('team-chat-rename'));
+  assert.ok(features.includes('team-chats') && features.includes('team-chat-rename') && features.includes('team-chat-members'));
   // Renamed from its chat: the team in its project takes the name, and the chat follows it.
   const renamed = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { name: '  Growth   crew ' } });
   assert.equal(renamed.status, 200, JSON.stringify(renamed.data));
@@ -53,13 +53,37 @@ test('a team gets its chat: its name, the lead first, its colour; renaming it re
   assert.equal(empty.status, 400);
   assert.equal((await teamChat(team.id)).name, 'Growth crew');
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { name: 'Growth' } })).status, 200);
-  const r = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { members: [lead.id, writer.id] } });
-  assert.equal(r.status, 400);
-  assert.match(r.data.error, /team's chat/);
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'DELETE' })).status, 409);
   // Its place in the list is still the owner's.
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { pinned: true } })).status, 200);
   await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { pinned: 0 } });
+});
+
+test("its members, changed in its chat, are its team's bots: added or taken out there, never emptied (team-chat-members)", async () => {
+  const g = await teamChat(team.id);
+  const outsider = (await srv.api('/bots')).data.find((b) => b.name === 'Outsider');
+  const other = await srv.api('/company/teams', { method: 'POST', body: { name: 'Research', bots: [outsider.id] } });
+  assert.equal(other.status, 200, JSON.stringify(other.data));
+  const teamOf = async (id) => (await srv.api('/company')).data.company.teams.find((t) => t.id === id);
+  const added = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { members: [...g.members, outsider.id] } });
+  assert.equal(added.status, 200, JSON.stringify(added.data));
+  assert.deepEqual(added.data.members, [lead.id, writer.id, poster.id, outsider.id], 'the chat follows its team');
+  assert.deepEqual((await teamOf(team.id)).bots, [lead.id, writer.id, poster.id, outsider.id]);
+  assert.deepEqual((await teamOf(other.data.teams.at(-1).id)).bots, [outsider.id], 'it stays in its other team (ADR 199)');
+  // Its lead taken out: the next bot leads, and the chat follows.
+  const out = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { members: [writer.id, poster.id, outsider.id] } });
+  assert.equal(out.status, 200, JSON.stringify(out.data));
+  assert.deepEqual([out.data.members, out.data.lead], [[writer.id, poster.id, outsider.id], writer.id]);
+  // Emptied, the team would go with its chat: refused, and nothing changes.
+  const empty = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { members: [] } });
+  assert.equal(empty.status, 400);
+  assert.match(empty.data.error, /at least one bot/);
+  assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { members: ['gone-bot'] } })).status, 400);
+  assert.deepEqual((await teamOf(team.id)).bots, [writer.id, poster.id, outsider.id]);
+  // Back as it was for the tests below.
+  assert.equal((await srv.api(`/company/teams/${team.id}`, { method: 'PUT', body: { bots: [lead.id, writer.id, poster.id], lead: lead.id } })).status, 200);
+  await srv.api(`/company/teams/${other.data.teams.at(-1).id}`, { method: 'DELETE' });
+  assert.deepEqual((await teamChat(team.id)).members, [lead.id, writer.id, poster.id]);
 });
 
 const setRoute = (answer) => fs.writeFileSync(path.join(srv.out, 'route.txt'), answer);
