@@ -13,6 +13,8 @@
 //   … --by console                                   either one asked by the fleet console through root's step
 //                                                      (#985): one line of JSON, the link or why it was refused, and
 //                                                      an audit entry by the console
+//   node front-door.js suspend|resume --by console      every account suspended or resumed, for the fleet console
+//                                                      through root's step: one line of JSON, the accounts changed
 //
 // FRONT_DOOR_ORIGIN   the address people open, e.g. https://botdot.example.com (a passkey belongs to its name)
 // FRONT_DOOR_SOCKETS  the folder of the accounts' botdot servers' sockets: <folder>/<account>/botdot.sock, each in a
@@ -175,6 +177,22 @@ if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
     if (!e.status) throw e;
     refused(e.message, e.status === 409 || e.status === 404 ? 3 : 2);
   }
+}
+// The whole machine paused or started again by the fleet console through root's step (its customer suspended or
+// activated): every account suspended, or resumed, as the admin page does for one, each an audit entry by the
+// console. One line of JSON, { state: 'suspended' | 'resumed', accounts }, the accounts it changed; an account that
+// was so already is left as it is. Root's step then makes the machine match.
+if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
+  const suspend = process.argv[2] === 'suspend';
+  const changed = [];
+  for (const { name, suspended } of doors.listAccounts()) {
+    if (!!suspended === suspend) continue;
+    doors.setSuspended(name, suspend);
+    audited(suspend ? 'suspend' : 'resume', { actor: 'console', account: name });
+    changed.push(name);
+  }
+  console.log(JSON.stringify({ state: suspend ? 'suspended' : 'resumed', accounts: changed }));
+  process.exit(0);
 }
 const SOCKETS = process.env.FRONT_DOOR_SOCKETS ? path.resolve(process.env.FRONT_DOOR_SOCKETS) : null;
 if (!SOCKETS) {
