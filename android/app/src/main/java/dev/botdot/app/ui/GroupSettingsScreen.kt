@@ -116,7 +116,7 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                         Spacer(Modifier.size(10.dp))
                         Text(b.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         if (Groups.canTakeOut(g, versionNow?.features)) IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
-                            Icon(Icons.Filled.Close, contentDescription = tr(if (team) "Take {name} out of the team" else "Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Close, contentDescription = if (team) tr("Take {name} out of the team", "name" to b.name) else tr("Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
