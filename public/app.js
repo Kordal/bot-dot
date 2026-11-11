@@ -1237,6 +1237,7 @@ const CHAT_VIEWS = ['bot', 'chief', 'group']; // the views that are a chat, with
 const PHONE = '(max-width: 479px)'; // the style's phone width, where the list of bots and a view take turns
 const panelPage = () => Panel.page(state.view, state.panel);
 let covered = false; // the panel is over the chat, as last seen
+let placedChat = null; // the chat show() last put on screen ('group:<id>', chatInView), null for any other view
 function setView(v, sub) {
   if (BOT_NAMES.includes(v) && sub) state.botId = sub;
   if (GROUP_NAMES.includes(v) && sub) state.groupId = sub;
@@ -1301,13 +1302,17 @@ function show({ view: v, panel, via }, fresh = false) {
   render();
   const hid = covered;
   covered = panelCovers();
+  const again = !changed && !!placedChat && chatInView() === placedChat;
+  placedChat = CHAT_VIEWS.includes(v) ? chatInView() : null;
   sayPresent();
   syncRead();
-  // A thread rendered while hidden (phones, or under the panel) has no height yet: jump to the "New" line,
-  // or to the latest message, once visible. A panel that opens or closes beside the chat leaves it where it is.
-  const panelOnly = !changed && was !== now;
-  if (!panelOnly || (hid && !covered)) requestAnimationFrame(threadToEnd);
+  if (placesThread({ panelOnly: !changed && was !== now, again, hid, covered })) requestAnimationFrame(threadToEnd);
 }
+// Whether show() takes the chat to its "New" line, or to its latest message. A chat that comes on screen does; a
+// thread drawn while hidden (phones, or under the panel) has no height yet, and does once visible. A panel that opens
+// or closes beside the chat leaves it where it is, and so does the chat that is open already, opened again from its
+// key or a notification: its line, kept while it stays open, is often far up by then.
+const placesThread = ({ panelOnly, again, hid, covered }) => (!panelOnly && !again) || (hid && !covered);
 function threadToEnd() {
   const t = state.view === 'chief' ? $('#chat-thread') : state.view === 'bot' ? $('#bot-thread') : state.view === 'group' ? $('#group-thread') : state.view === 'rooms' ? $('#room-thread') : null;
   if (t && !scrollToNew(t, true)) t.scrollTop = t.scrollHeight;
