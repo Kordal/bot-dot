@@ -2213,17 +2213,51 @@ same_image() {
   have="$($A image inspect --format '{{.Id}}' "$1" </dev/null 2>/dev/null || true)"
   [ -n "$have" ] && [ "$have" = "$($D image inspect --format '{{.Id}}' "$1" </dev/null 2>/dev/null || true)" ]
 }
+# Stream between daemons: /run is commonly a small tmpfs, not storage for an image-sized archive.
+# A private FIFO and explicit waits preserve both exit statuses under POSIX sh.
+stream_server() (
+  rm -f "$RUN/server-image.tar"
+  hi_tmp="$(mktemp -d "$RUN/image-transfer.XXXXXX")" || die "Couldn't prepare the image transfer."
+  hi_save='' hi_load=''
+  cleanup_transfer() {
+    for hi_pid in "$hi_save" "$hi_load"; do
+      [ -n "$hi_pid" ] || continue
+      kill "$hi_pid" 2>/dev/null || true
+      wait "$hi_pid" 2>/dev/null || true
+    done
+    rm -rf "$hi_tmp"
+  }
+  trap cleanup_transfer EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  mkfifo "$hi_tmp/image" || die "Couldn't prepare the image stream."
+  timeout 900 $D save "$IMAGE" > "$hi_tmp/image" 2> "$hi_tmp/export.err" &
+  hi_save=$!
+  timeout 900 $A load -q < "$hi_tmp/image" 2> "$hi_tmp/import.err" &
+  hi_load=$!
+  hi_export=0 hi_import=0
+  wait "$hi_save" || hi_export=$?
+  hi_save=''
+  wait "$hi_load" || hi_import=$?
+  hi_load=''
+  if [ "$hi_export" != 0 ] && [ -s "$hi_tmp/export.err" ]; then
+    hi_import_why=''
+    [ "$hi_import" = 0 ] || hi_import_why="; import to $1 failed (exit $hi_import): $(tail -n 3 "$hi_tmp/import.err")"
+    die "Couldn't export $IMAGE (exit $hi_export): $(tail -n 3 "$hi_tmp/export.err")$hi_import_why"
+  fi
+  [ "$hi_import" = 0 ] || die "Couldn't hand $IMAGE to $1 (exit $hi_import): $(tail -n 3 "$hi_tmp/import.err")"
+  [ "$hi_export" = 0 ] || die "Couldn't export $IMAGE (exit $hi_export)."
+)
 hand_images() {
   if [ -n "$REGISTRY" ]; then
     # Room first: the images this account's Docker no longer uses go before the new ones come (#190).
     clean_images "$RUN/$1/docker.sock" "$IMAGE" "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_COMPUTER_IMAGE)" "$IMAGE" "$COMPUTER_IMAGE"
     if [ -n "$MANAGED" ] && ! same_image "$IMAGE"; then
       # The machine has already verified and downloaded this digest. Avoid another registry transfer.
-      # pipefail is not POSIX: an archive makes failures of save and load independently visible.
-      hi_archive="$RUN/server-image.tar"
-      $D save -o "$hi_archive" "$IMAGE" </dev/null || die "Couldn't export $IMAGE."
-      $A load -q -i "$hi_archive" </dev/null || { rm -f "$hi_archive"; die "Couldn't hand $IMAGE to $1."; }
-      rm -f "$hi_archive"
+      say "Transferring the verified botdot image into the account $1…"
+      stream_server "$1" || exit 1
+      ok "The verified botdot image is in the account $1"
     else
       pull "$IMAGE" "$A" || die "Couldn't download $IMAGE for the account $1$(because)."
     fi
