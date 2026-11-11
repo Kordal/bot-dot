@@ -385,6 +385,8 @@ That keeps your data. To remove it too (every account's bots, chats, memory, vau
 
 ### Hosting provisioning and review demos
 
+Managed setup streams the already verified server image from the host Docker daemon into the account's daemon through a private FIFO. It does not stage an image-sized archive in `/run`, which is commonly memory-backed. Export and import are both checked; either failure stops readiness reporting and includes Docker's diagnostic. Transfer processes and the FIFO are cleaned up on exit or termination.
+
 `BOT_DOT_INSTALL_TO=sha256:<64 hex digits>` chooses the signed server release for a first install. The installer checks its signature and the matching desktop/source revision before starting it. `sudo sh install.sh --prerequisites` installs and validates machine dependencies, then stops before botdot accounts or images; this is used to build a secret-free hosting base image.
 
 A managed machine prepares the optional bots' computer asynchronously. `systemctl status botdot-computers.service` and `front-door/status/computer-preparation.json` show the result. The timer retries transient failures; disk or authentication failures stay blocked until `sh /var/lib/botdot/bin/prepare-computers.sh --retry` or another install queues them again; the application can already be used. Download output is in the journal, or `computer-preparation.log` without systemd.

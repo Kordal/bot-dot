@@ -24,6 +24,59 @@ test('a transient server pull is retried without rerunning the installer', (t) =
   assert.match(done.said, /Retrying image download/);
 });
 
+test('managed image handoff streams when runtime storage cannot hold an archive', (t) => {
+  const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann' }, dockerFirst: [
+    'if [ "$1" = save ]; then [ "$2" != -o ] || { echo "runtime archive: no space left on device" >&2; exit 1; }; printf "verified-image-stream"; exit 0; fi',
+    'if [ "$1" = load ]; then [ "$(cat)" = verified-image-stream ] || exit 1; exit 0; fi',
+  ] });
+  assert.equal(done.status, 0, done.said + done.stderr);
+  assert.match(done.said, /BOTDOT_READY /);
+  assert.ok(!done.calls.some((c) => c.startsWith('save -o ')));
+  assert.ok(!fs.readdirSync(done.run).some((n) => n.startsWith('image-transfer.')));
+});
+
+test('a partial export cannot report readiness even when the importer exits successfully', (t) => {
+  const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann' }, dockerFirst: [
+    'if [ "$1" = save ]; then printf partial; echo "content digest missing" >&2; exit 23; fi',
+    'if [ "$1" = load ]; then cat >/dev/null; exit 0; fi',
+  ] });
+  assert.notEqual(done.status, 0);
+  assert.match(done.stderr, /Couldn't export .*exit 23.*content digest missing/);
+  assert.doesNotMatch(done.said, /BOTDOT_READY /);
+  assert.ok(!fs.readdirSync(done.run).some((n) => n.startsWith('image-transfer.')));
+});
+
+test('a failed importer reports its diagnostic and cleans up the stream', (t) => {
+  const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann' }, dockerFirst: [
+    'if [ "$1" = save ]; then printf image; exit 0; fi',
+    'if [ "$1" = load ]; then cat >/dev/null; echo "account disk full" >&2; exit 24; fi',
+  ] });
+  assert.notEqual(done.status, 0);
+  assert.match(done.stderr, /Couldn't hand .*exit 24.*account disk full/);
+  assert.doesNotMatch(done.said, /BOTDOT_READY /);
+  assert.ok(!fs.readdirSync(done.run).some((n) => n.startsWith('image-transfer.')));
+});
+
+test('termination stops an active managed transfer and removes its FIFO', (t) => {
+  const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann' }, dockerFirst: [
+    'if [ "$1" = save ]; then while :; do printf image; done; fi',
+    'if [ "$1" = load ]; then kill -TERM "$PPID"; cat >/dev/null; exit 0; fi',
+  ] });
+  assert.equal(done.status, 1);
+  assert.doesNotMatch(done.said, /BOTDOT_READY /);
+  assert.ok(!fs.readdirSync(done.run).some((n) => n.startsWith('image-transfer.')));
+});
+
+test('an import error is preserved when the exporter also reports a broken pipe', (t) => {
+  const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann' }, dockerFirst: [
+    'if [ "$1" = save ]; then echo "write stdout: broken pipe" >&2; exit 1; fi',
+    'if [ "$1" = load ]; then cat >/dev/null; echo "account disk full" >&2; exit 24; fi',
+  ] });
+  assert.notEqual(done.status, 0);
+  assert.match(done.stderr, /broken pipe.*import.*exit 24.*account disk full/);
+  assert.doesNotMatch(done.said, /BOTDOT_READY /);
+});
+
 test('a first install checks the selected release rather than latest', (t) => {
   const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann', BOT_DOT_INSTALL_TO: PIN.slice(1) } });
   assert.equal(done.status, 0, done.said + done.stderr);
