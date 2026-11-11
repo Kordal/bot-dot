@@ -2,6 +2,8 @@ package dev.botdot.app.data
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
@@ -47,6 +49,23 @@ class GroupsTest {
         assertEquals("a bot that is gone is not counted", 3 to 1, Groups.teamCount(g, bots.drop(1)))
         assertTrue(Groups.TEAM_CHATS == "team-chats")
         assertEquals("the server feature that renames a team from its chat", "team-chat-rename", Groups.TEAM_CHAT_RENAME)
+    }
+
+    @Test fun aTeamsChatChangesItsTeamsBotsOnAServerThatDoesIt() {
+        val group = groups("[$dev]").single()
+        val team = group.copy(team = "tm1", lead = "coder")
+        val bots = (1..10).map { Bot(id = "b$it", name = "B$it") } + listOf(Bot(id = "coder", name = "Coder"))
+        assertTrue("a group's panel changes its members", Groups.changesMembers(group, null) && Groups.canTakeOut(group, null))
+        assertFalse("an older server keeps a team's members with its team", Groups.changesMembers(team, listOf(Groups.TEAM_CHATS)))
+        assertFalse(Groups.canTakeOut(team, listOf(Groups.TEAM_CHATS)))
+        val on = listOf(Groups.TEAM_CHATS, Groups.TEAM_CHAT_MEMBERS)
+        assertEquals("team-chat-members", Groups.TEAM_CHAT_MEMBERS)
+        assertTrue(Groups.changesMembers(team, on) && Groups.canTakeOut(team, on))
+        assertFalse("a team keeps its last bot", Groups.canTakeOut(team.copy(membersValue = JsonArray(listOf(JsonPrimitive("coder")))), on))
+        val six = team.copy(membersValue = JsonArray((1..6).map { JsonPrimitive("b$it") }))
+        assertEquals("a team's chat is not full at six", listOf("b7", "b8", "b9", "b10", "coder"), Groups.addable(six, bots).map { it.id })
+        assertEquals(Groups.TEAM_MAX, Groups.maxOf(six))
+        assertTrue("a group is", Groups.addable(six.copy(team = null), bots).isEmpty())
     }
 
     @Test fun aGroupCarriesItsMembersItsPlaceAndWhatItsChatHolds() {

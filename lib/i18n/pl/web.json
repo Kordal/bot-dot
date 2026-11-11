@@ -930,6 +930,7 @@
   "Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.": "Usunąć grupę {name}?\n\nJej czat zostanie wymazany. Żaden bot nie zostanie usunięty: każdy zachowa własny czat.",
   "{name} deleted": "Usunięto: {name}",
   "Take {name} out of the group": "Usuń {name} z grupy",
+  "Take {name} out of the team": "Usuń {name} z zespołu",
   "Its bots are all gone. Add one, or delete the group.": "Nie ma już żadnego z jej botów. Dodaj któregoś albo usuń grupę.",
   "{names} and {last}": "{names} i {last}",
   "Waits until {names} are free": "Czeka, aż {names} będą wolni",
