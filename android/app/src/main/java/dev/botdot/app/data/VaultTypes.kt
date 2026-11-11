@@ -150,12 +150,35 @@ object VaultTypes {
 
     /**
      * Whether [item] is one the words of [query] name: every word in its name, address, username, the hosts it may be
-     * used on, a card's brand and last digits, an identity's holder and e-mail, or a file's name. The web page's
-     * `vaultItemMatches` does the same; test/fixtures/vault-search.json holds the cases both check.
+     * used on, a card's brand and last digits, an identity's holder and e-mail, a file's name, or its category. The web
+     * page's `vaultItemMatches` does the same; test/fixtures/vault-search.json holds the cases both check.
      */
     fun matches(item: VaultItem, query: String): Boolean {
-        val hay = (listOf(item.name, item.site, item.username) + item.allowedHosts + listOf(item.brand, item.last4, item.holder, item.email, item.fileName))
+        val hay = (listOf(item.name, item.site, item.username) + item.allowedHosts + listOf(item.brand, item.last4, item.holder, item.email, item.fileName, item.category))
             .map { it.orEmpty().lowercase() }
         return query.lowercase().split(Regex("\\s+")).filter { it.isNotEmpty() }.all { w -> hay.any { it.contains(w) } }
     }
+
+    /** Whether the server keeps categories (ADR 213): only then do the editors have the field. */
+    const val CATEGORIES_FEATURE = "vault-categories"
+    fun categories(features: Collection<String>?): Boolean = features != null && CATEGORIES_FEATURE in features
+
+    /** A category is at most this long, as the server keeps it. */
+    const val CATEGORY_MAX = 40
+
+    /**
+     * The list in its categories (ADR 213): the items without one first, then each category in alphabetical order, each
+     * group's items in the order the Vault lists them. The web page's `vaultGroups` does the same; test/fixtures/vault-search.json
+     * holds the cases both check.
+     */
+    fun groups(items: List<VaultItem>): List<Pair<String, List<VaultItem>>> {
+        val by = LinkedHashMap<String, MutableList<VaultItem>>()
+        items.forEach { by.getOrPut(it.category) { mutableListOf() }.add(it) }
+        return by.entries.sortedWith(compareBy<Map.Entry<String, MutableList<VaultItem>>> { it.key.isNotEmpty() }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.key })
+            .map { it.key to it.value.toList() }
+    }
+
+    /** The categories in use, to pick from in an editor, without the one typed. */
+    fun suggestions(items: List<VaultItem>, typed: String): List<String> =
+        groups(items).map { it.first }.filter { it.isNotEmpty() && !it.equals(typed.trim(), ignoreCase = true) && it.contains(typed.trim(), ignoreCase = true) }
 }

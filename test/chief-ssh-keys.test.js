@@ -374,3 +374,32 @@ test("the Chief's card to remove an entry stands in the Chief's chats, on the we
   const android = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
   assert.match(android, /scope == "chief" -> \(\(kind == "skill" \|\| kind == "vault-remove"\) && bot == null\)/);
 });
+
+// ---------- a category (ADR 213) ----------
+
+test('the Chief puts any entry in a category and takes it out, with no card also after the web; only a key\'s bots and name stay keys\' alone', async (t) => {
+  const login = (await srv.api('/vault', { method: 'POST', body: { name: 'Groceries shop', site: 'shop.example.com', username: 'me', password: 'fixture-password' } })).data;
+  const turn = await ownerTurn(t, 'Read about it, then put Groceries shop and Hardened in Shopping.');
+  await turn.uses('WebSearch', { query: 'shops' });
+  const put = await turn.call('update_vault_item', { item: 'groceries shop', category: 'Shopping' });
+  assert.deepEqual([put.name, put.category, put.say], ['Groceries shop', 'Shopping', 'Groceries shop is in Shopping now.']);
+  const key = await turn.call('update_vault_item', { item: 'Hardened', category: 'shopping' });
+  assert.deepEqual([key.category, key.say], ['Shopping', 'Hardened is in Shopping now.'], 'the one in use, by its own spelling');
+  assert.deepEqual(await heldAsksOf(turn.chat), [], 'no card for a category');
+  const listed = JSON.parse((await turn.tools.call('list_vault', {})).content[0].text);
+  assert.equal(listed.find((l) => l.name === 'Groceries shop').category, 'Shopping');
+  assert.equal((await turn.call('update_vault_item', { item: 'Groceries shop', category: 'Shopping' })).say, 'Nothing changed: Groceries shop is in Shopping.');
+  const out = await turn.call('update_vault_item', { item: 'Groceries shop', category: '' });
+  assert.deepEqual([out.category, out.say], ['', 'Groceries shop is in no category now, not Shopping.']);
+  // A login's bots stay the owner's, with a category or without.
+  assert.equal((await turn.call('update_vault_item', { item: 'Groceries shop', category: 'Shopping', add: ['Scout'] })).error, `Error: ${VAULT_SAY.onlyKeys('Groceries shop')}`);
+  assert.equal((await turn.call('update_vault_item', { item: 'No such entry', category: 'X' })).error, `Error: ${VAULT_SAY.noEntry('No such entry')}`);
+  const r = await srv.asChief(`/vault/${login.id}`, { method: 'PUT', body: { category: 7 }, headers: { 'X-Chief-Chat': turn.chat.id } });
+  assert.equal(r.status, 400);
+  await turn.end();
+  const now = (await srv.api('/vault')).data.find((i) => i.id === login.id);
+  assert.deepEqual([now.category, now.allowedBots], ['', []]);
+  assert.equal((await sshItems()).find((i) => i.name === 'Hardened').category, 'Shopping');
+  await srv.api(`/vault/${login.id}`, { method: 'DELETE' });
+  assert.ok((await srv.api('/version')).data.features.includes('vault-categories'));
+});

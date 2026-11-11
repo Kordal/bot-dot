@@ -408,9 +408,10 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * computer are on for every login (ADR 177), so neither is sent. [bots] null keeps the bots it has: the login editor
      * shows none, and a bot gets a login by asking for it (request_login) or through the Chief.
      */
-    suspend fun saveVaultLogin(id: String?, name: String, site: String, username: String?, password: String, bots: List<String>?, allowedHosts: List<String>, type: String? = null) {
+    suspend fun saveVaultLogin(id: String?, name: String, site: String, username: String?, password: String, bots: List<String>?, allowedHosts: List<String>, type: String? = null, category: String? = null) {
         val body = buildJsonObject {
             if (type != null) put("type", type)
+            if (category != null) put("category", category)
             put("name", name); put("site", site); if (username != null) put("username", username)
             if (bots != null) put("allowedBots", strings(bots))
             put("allowedHosts", strings(allowedHosts))
@@ -419,8 +420,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         if (id == null) send("POST", "/vault", body) else send("PUT", "/vault/${enc(id)}", body)
     }
 
-    /** Which bots may use a card or an identity (their details are changed in Bitwarden). */
-    suspend fun setVaultBots(id: String, bots: List<String>) { send("PUT", "/vault/${enc(id)}", buildJsonObject { put("allowedBots", strings(bots)) }) }
+    /** Which bots may use a card or an identity (their details are changed in Bitwarden), and its category (`vault-categories`) when given. */
+    suspend fun setVaultBots(id: String, bots: List<String>, category: String? = null) { send("PUT", "/vault/${enc(id)}", buildJsonObject { put("allowedBots", strings(bots)); if (category != null) put("category", category) }) }
     suspend fun deleteVaultItem(id: String) { send("DELETE", "/vault/${enc(id)}") }
     /**
      * "Remove the file" (`vault-file`, #253): a secret kept in a file goes from where botdot wrote it. Returns the

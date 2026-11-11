@@ -116,14 +116,31 @@ function vaultTypeBody(form) {
 
 // Passwords gets a search field once its list is longer than this, like the bot picker (groups.js).
 const VAULT_SEARCH = 8;
-const vaultUi = { query: '' };
+const vaultUi = { query: '', items: [] };
 // Whether an item is one the words searched for name: every word in its name, address, username, the hosts it
-// may be used on, a card's brand and last digits, an identity's holder and e-mail, or a file's name.
+// may be used on, a card's brand and last digits, an identity's holder and e-mail, a file's name, or its category.
 function vaultItemMatches(l, q) {
   if (!l) return false;
-  const hay = [l.name, l.site, l.username, ...(l.allowedHosts || []), l.brand, l.last4, l.holder, l.email, l.fileName].map((v) => String(v ?? '').toLowerCase());
+  const hay = [l.name, l.site, l.username, ...(l.allowedHosts || []), l.brand, l.last4, l.holder, l.email, l.fileName, l.category].map((v) => String(v ?? '').toLowerCase());
   return String(q ?? '').toLowerCase().split(/\s+/).filter(Boolean).every((w) => hay.some((h) => h.includes(w)));
 }
+
+// The list in its categories (ADR 213): the items without one first, then each category in alphabetical order, each
+// group's items in the order the Vault lists them. test/fixtures/vault-search.json holds the cases Android checks too.
+function vaultGroups(items) {
+  const groups = new Map([['', []]]);
+  for (const l of items) { const c = String(l.category || ''); if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); }
+  return [...groups].filter(([c, list]) => c !== '' || list.length)
+    .sort(([a], [b]) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b, undefined, { sensitivity: 'base' })))
+    .map(([category, list]) => ({ category, items: list }));
+}
+// The categories in use, for the editors' suggestions.
+const vaultCategories = () => vaultGroups(vaultUi.items).map((g) => g.category).filter(Boolean);
+// The Category field of an editor, with the categories in use to pick from.
+const vaultCategoryField = (category = '') => `<label class="field">${tr('Category')}<input type="text" name="category" value="${esc(category)}" list="vault-categories" maxlength="40" autocomplete="off"><datalist id="vault-categories">${vaultCategories().map((c) => `<option value="${esc(c)}">`).join('')}</datalist></label>`;
+// The categories the owner folded, in this browser only.
+const vaultFolded = new Set((() => { try { return JSON.parse(localStorage.getItem('vault-folded') || '[]'); } catch { return []; } })());
+function saveVaultFolded() { try { localStorage.setItem('vault-folded', JSON.stringify([...vaultFolded])); } catch { /* private window */ } }
 
 async function renderVault() {
   const root = $('#view-vault');
@@ -131,12 +148,26 @@ async function renderVault() {
   let logins = [];
   try { [logins, state.bw] = await Promise.all([api('/vault'), api('/vault/bitwarden')]); } catch (e) { toast(e.message, true); }
   if (state.view !== 'vault') return;
+  vaultUi.items = logins;
   const bw = state.bw || {};
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `${b.name}` : id; };
   const locked = bw.configured && !bw.unlocked;
   // One list like Settings (#1190): Bitwarden is a row, every item a row that opens it, a file a bot placed a row
   // with its Remove. What an item holds is on its row's tooltip and in its editor, not under its name.
   const kindLabel = (kind) => (kind === 'card' ? tr('Payment card') : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? tr('File') : tr('Identity'));
+  const row = (l) => {
+    const kind = l.kind || 'login';
+    const line = kind === 'card' ? `💳 ${esc(l.brand || tr('Card'))} •••• ${esc(l.last4)}${l.expiry ? ` · ${tr('expires {date}', { date: esc(l.expiry) })}` : ''} · ${tr('you approve each payment')}`
+      : kind === 'identity' ? `🪪 ${esc(l.holder || '')}${l.email ? ` · ${esc(l.email)}` : ''}`
+      : kind === 'ssh-key' ? vaultSshKeyLine(l)
+      : kind === 'file' ? vaultFileLine(l)
+      : vaultItemLine(l);
+    const about = `${kind === 'login' ? vaultItemAddr(l) : kindLabel(kind)} · ${line}${l.allowedBots.length ? ` · ${tr('Can be used by: {bots}', { bots: l.allowedBots.map((id) => esc(botName(id))).join(', ') })}` : ''}`;
+    const value = l.reprompt ? `<span class="bs-val bs-warn">${tr("Bots can't use it")}</span>`
+      : kind !== 'login' && !l.allowedBots.length ? `<span class="bs-val bs-warn">${tr('No bot yet')}</span>`
+      : `<span class="bs-val">${esc(kind === 'card' ? `•••• ${l.last4 || ''}` : kind === 'identity' ? l.holder || '' : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? l.fileName || '' : l.site || '')}</span>`;
+    return `<button type="button" class="bs-row bs-link vault-item" data-edit-login="${esc(l.id)}" title="${about.replace(/\p{Extended_Pictographic}\uFE0F?\s?/gu, '').replace(/"/g, '&quot;')}" aria-label="${esc(kind === 'login' ? tr('Edit {name}', { name: l.name }) : `${l.name}: ${tr('Bots…')}`)}"><b>${esc(l.name)}</b>${value}${CHEV}</button>`;
+  };
   const placed = logins.flatMap((l) => (l.placedIn || []).map((f) => ({ ...f, item: l.name })));
   root.innerHTML = `
     ${subBack()}
@@ -152,33 +183,39 @@ async function renderVault() {
     </div></div>
     ${bw.error ? `<div class="req-note">${esc(bw.error)}</div>` : ''}`}
     ${!locked && logins.length > VAULT_SEARCH ? `<input type="search" id="vault-search" class="vault-search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="${tr('Search')}" aria-label="${tr('Search')}" value="${esc(vaultUi.query)}">` : ''}
-    ${locked ? '' : logins.length ? `<div class="set-list vault-list">${logins.map((l) => {
-      const kind = l.kind || 'login';
-      const line = kind === 'card' ? `💳 ${esc(l.brand || tr('Card'))} •••• ${esc(l.last4)}${l.expiry ? ` · ${tr('expires {date}', { date: esc(l.expiry) })}` : ''} · ${tr('you approve each payment')}`
-        : kind === 'identity' ? `🪪 ${esc(l.holder || '')}${l.email ? ` · ${esc(l.email)}` : ''}`
-        : kind === 'ssh-key' ? vaultSshKeyLine(l)
-        : kind === 'file' ? vaultFileLine(l)
-        : vaultItemLine(l);
-      const about = `${kind === 'login' ? vaultItemAddr(l) : kindLabel(kind)} · ${line}${l.allowedBots.length ? ` · ${tr('Can be used by: {bots}', { bots: l.allowedBots.map((id) => esc(botName(id))).join(', ') })}` : ''}`;
-      const value = l.reprompt ? `<span class="bs-val bs-warn">${tr("Bots can't use it")}</span>`
-        : kind !== 'login' && !l.allowedBots.length ? `<span class="bs-val bs-warn">${tr('No bot yet')}</span>`
-        : `<span class="bs-val">${esc(kind === 'card' ? `•••• ${l.last4 || ''}` : kind === 'identity' ? l.holder || '' : kind === 'ssh-key' ? tr('SSH key') : kind === 'file' ? l.fileName || '' : l.site || '')}</span>`;
-      return `<button type="button" class="bs-row bs-link vault-item" data-edit-login="${esc(l.id)}" title="${about.replace(/\p{Extended_Pictographic}\uFE0F?\s?/gu, '').replace(/"/g, '&quot;')}" aria-label="${esc(kind === 'login' ? tr('Edit {name}', { name: l.name }) : `${l.name}: ${tr('Bots…')}`)}"><b>${esc(l.name)}</b>${value}${CHEV}</button>`;
-    }).join('')}</div><div class="set-empty" id="vault-none" hidden>${tr('No matches')}</div>${placed.length ? `<div class="set-list vault-placed">${placed.map((f) => `<div class="bs-row"><b class="mono" title="${esc(f.item)}">${esc(f.where)}</b><span class="bs-val">${f.written === false ? tr('not written yet') : `${esc(botName(f.botId))}${f.at ? ` · ${esc(ago(f.at))}` : ''}`}</span><button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}</div>` : ''}`
+    ${locked ? '' : logins.length ? `${vaultGroups(logins).map((g) => `<section class="vault-group" data-cat="${esc(g.category)}">${g.category ? `<button type="button" class="vault-cat" aria-expanded="${!vaultFolded.has(g.category)}"><b>${esc(g.category)}</b>${CHEV}</button>` : ''}<div class="set-list vault-list"${vaultFolded.has(g.category) ? ' hidden' : ''}>${g.items.map(row).join('')}</div></section>`).join('')}<div class="set-empty" id="vault-none" hidden>${tr('No matches')}</div>${placed.length ? `<div class="set-list vault-placed">${placed.map((f) => `<div class="bs-row"><b class="mono" title="${esc(f.item)}">${esc(f.where)}</b><span class="bs-val">${f.written === false ? tr('not written yet') : `${esc(botName(f.botId))}${f.at ? ` · ${esc(ago(f.at))}` : ''}`}</span><button class="btn sm" data-remove-file="${esc(f.id)}" data-where="${esc(f.where)}">${tr('Remove the file')}</button></div>`).join('')}</div>` : ''}`
       : `<div class="set-empty">${bw.configured ? tr('The bot-dot folder is empty') : tr('No saved logins yet')}</div>`}`;
   // The search of a long list: the rows filter as you type, by name, address, username and the rest a row
   // stands for; what you typed stays when the page draws again after a save.
+  // A folded category shows what a search finds in it, and a group with nothing found goes while the search is there.
   const search = $('#vault-search');
   const filter = () => {
     if (!search) return;
     vaultUi.query = search.value;
+    const searching = !!search.value.trim();
     let left = 0;
-    $$('.vault-list [data-edit-login]').forEach((row) => {
-      row.hidden = !vaultItemMatches(logins.find((x) => x.id === row.dataset.editLogin), search.value);
-      if (!row.hidden) left++;
+    $$('.vault-group').forEach((group) => {
+      let found = 0;
+      $$('.vault-list [data-edit-login]', group).forEach((row) => {
+        row.hidden = !vaultItemMatches(logins.find((x) => x.id === row.dataset.editLogin), search.value);
+        if (!row.hidden) found++;
+      });
+      group.hidden = !found;
+      $('.vault-list', group).hidden = !searching && vaultFolded.has(group.dataset.cat);
+      left += found;
     });
     $('#vault-none').hidden = left > 0;
   };
+  // A category's heading folds it, and the fold is kept for the next visit.
+  $$('.vault-cat').forEach((head) => (head.onclick = () => {
+    const group = head.closest('.vault-group');
+    const cat = group.dataset.cat;
+    const open = head.getAttribute('aria-expanded') !== 'true';
+    if (open) vaultFolded.delete(cat); else vaultFolded.add(cat);
+    saveVaultFolded();
+    head.setAttribute('aria-expanded', String(open));
+    $('.vault-list', group).hidden = !open && !(search && search.value.trim());
+  }));
   if (search) {
     search.oninput = filter;
     search.onkeydown = (e) => { if (e.key === 'Escape' && search.value) { e.stopPropagation(); search.value = ''; filter(); } };
@@ -223,6 +260,7 @@ function openLoginEditor(login, { onSaved } = {}) {
           <label class="field" title="${esc(tr('The secret is only used with this address'))}">${advanced() ? tr('Website or server') : tr('Website')}<input type="text" name="site" value="${esc(l.site)}" placeholder="${advanced() ? 'recipes.example.com or pve.example.ts.net' : 'recipes.example.com'}" required></label>
         </div>
         ${vaultTypeFields(l.type, { username: l.username, isNew })}
+        ${vaultCategoryField(l.category)}
         <label class="field"${advanced() ? '' : ' style="display:none"'} title="${esc(tr('Only these hosts may receive this login. Subdomains are not included automatically.'))}">${tr('Additional exact hosts')}<input type="text" name="allowedHosts" value="${esc((l.allowedHosts || []).join(', '))}" placeholder="api.example.com, auth.example.com"></label>
         <div class="req-note"${advanced() ? '' : ' hidden'}>${tr('Bots can use this login to sign in on the website, or to call its API: they write {username} and {password} in the request and botdot fills them in, so they never see the secret.', { username: '<span class="mono">{{username}}</span>', password: '<span class="mono">{{password}}</span>' })}</div>
         <div class="req-error" role="alert" hidden></div>
@@ -255,6 +293,7 @@ function openLoginEditor(login, { onSaved } = {}) {
       name: form.name.value.trim(),
       site: form.site.value.trim(),
       ...vaultTypeBody(form),
+      category: form.category.value.trim(),
       allowedHosts: form.allowedHosts.value.split(',').map((s) => s.trim()).filter(Boolean),
     };
     if (form.password.value) body.password = form.password.value;
@@ -431,6 +470,7 @@ function openItemBots(item) {
       <div class="modal-head"><h2>${KIND_ICON[item.kind] || '🔑'} ${esc(item.name)}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <p class="muted" style="margin:0">${ITEM_BOTS_HINT[item.kind] || ITEM_BOTS_HINT.identity} ${tr('Change the details themselves in Bitwarden.')}</p>
+        ${vaultCategoryField(item.category)}
         ${botCheckboxes(item.allowedBots).replaceAll(SKILLS_OFF_ATTR(), '')}
       </div>
       <div class="modal-foot"><button type="button" class="btn" data-dismiss>${tr('Cancel')}</button><button class="btn primary">${tr('Save')}</button></div>
@@ -438,7 +478,8 @@ function openItemBots(item) {
   $('#item-bots', m).onsubmit = async (e) => {
     e.preventDefault();
     const allowedBots = $$('input[name=bot]:checked', m).map((c) => c.value);
-    if (await setAside(m, tr('Saving…'), () => api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots } }))) renderVault();
+    const category = $('input[name=category]', m).value.trim();
+    if (await setAside(m, tr('Saving…'), () => api(`/vault/${item.id}`, { method: 'PUT', body: { allowedBots, category } }))) renderVault();
   };
 }
 

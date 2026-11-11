@@ -41,6 +41,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -84,6 +90,9 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     var master by remember { mutableStateOf("") }
     var removingFile by remember { mutableStateOf<SecretFilePlace?>(null) }
     var query by remember { mutableStateOf("") }
+    // The categories folded, kept on this device (ADR 213).
+    val folds = LocalContext.current.getSharedPreferences("vault-folded", android.content.Context.MODE_PRIVATE)
+    var folded by remember { mutableStateOf(folds.getStringSet("folded", emptySet()).orEmpty().toSet()) }
     // Saves, Sync and Lock run on after the tap, with a line that says how they go (#478).
     val work = rememberWork()
 
@@ -139,7 +148,18 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
                 val searches = items.size > VaultTypes.SEARCH_AFTER
                 if (searches) item(key = "search") { VaultSearch(query) { query = it } }
                 val shown = if (searches) items.filter { VaultTypes.matches(it, query) } else items
-                items(shown, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
+                // In its categories: those without one first, then a heading for each, which folds it. A search opens
+                // what it finds in a folded one.
+                for ((category, inIt) in VaultTypes.groups(shown)) {
+                    val open = category !in folded || (searches && query.isNotBlank())
+                    if (category.isNotEmpty()) item(key = "cat:$category") {
+                        VaultCategory(category, open) {
+                            folded = if (category in folded) folded - category else folded + category
+                            folds.edit().putStringSet("folded", folded).apply()
+                        }
+                    }
+                    if (open) items(inIt, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
+                }
                 if (searches && shown.isEmpty()) item { Text(tr("No matches"), color = p.muted, modifier = Modifier.fillMaxWidth().padding(Space.s16), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 if (items.isEmpty()) item {
                     Hint(if (b.configured) tr("Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here.")
@@ -161,9 +181,9 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
     val done: (String?) -> Unit = { msg -> editing = null; adding = false; msg?.let(::tell); scope.launch { load() } }
     val allBots = bots.orEmpty()
     when {
-        adding -> LoginEditor(null, bw?.configured == true, features, api, work, done) { adding = false }
-        editing?.kind == "login" -> LoginEditor(editing, bw?.configured == true, features, api, work, done) { editing = null }
-        editing != null -> ItemBots(editing!!, allBots, api, work, done) { editing = null }
+        adding -> LoginEditor(null, bw?.configured == true, features, items, api, work, done) { adding = false }
+        editing?.kind == "login" -> LoginEditor(editing, bw?.configured == true, features, items, api, work, done) { editing = null }
+        editing != null -> ItemBots(editing!!, allBots, features, items, api, work, done) { editing = null }
         addingKey -> SshKeyEditor(allBots, api, work, { key -> addingKey = false; addedKey = key; scope.launch { load() } }) { addingKey = false }
         addedKey != null -> SshPublicKey(addedKey!!) { addedKey = null }
         addingFile -> FileEditor(allBots, api, work, { addingFile = false; scope.launch { load() } }) { addingFile = false }
@@ -383,6 +403,32 @@ private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>
     }
 }
 
+/** A category's heading (ADR 213): its name and a chevron; a tap folds or opens it. */
+@Composable
+private fun VaultCategory(name: String, open: Boolean, onToggle: () -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Radius.small).clickable(onClickLabel = name, onClick = onToggle).padding(horizontal = Space.s4).semantics { if (!open) stateDescription = tr("Folded") },
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(name, color = p.muted, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.rotate(if (open) 90f else 0f))
+    }
+}
+
+/**
+ * The Category field of an editor (ADR 213), with the categories in use that hold what is typed to pick from. Only
+ * with a server that keeps them.
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryField(value: String, items: List<VaultItem>, onChange: (String) -> Unit) {
+    val p = LocalPaper.current
+    Field(value, { onChange(it.take(VaultTypes.CATEGORY_MAX)) }, label = { Text(tr("Category")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+    val picks = VaultTypes.suggestions(items, value)
+    if (picks.isNotEmpty()) androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        picks.forEach { c -> Text(c, color = p.text, fontSize = Type.s14, modifier = Modifier.clip(Radius.pill).background(p.sunk).clickable { onChange(c) }.padding(horizontal = Space.s12, vertical = Space.s4)) }
+    }
+}
+
 private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪", VaultTypes.SSH_KEY to "🗝️", VaultTypes.FILE to "📄")
 
 /** The search field above a long list: the rows filter as you type (VaultTypes.matches). */
@@ -427,7 +473,7 @@ private fun BitwardenSetup(onConnect: (server: String, serverUrl: String, client
  * follow it at once (VaultTypes). The secret is write-only: empty keeps the saved one.
  */
 @Composable
-private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collection<String>?, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
+private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collection<String>?, all: List<VaultItem>, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     var name by remember { mutableStateOf(item?.name.orEmpty()) }
@@ -438,6 +484,8 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
     var pw by remember { mutableStateOf("") }
     val fields = VaultTypes.editorFields(type, features, isNew = item == null)
     var hosts by remember { mutableStateOf(item?.allowedHosts.orEmpty().joinToString(", ")) }
+    var category by remember { mutableStateOf(item?.category.orEmpty()) }
+    val sorts = VaultTypes.categories(features)
     var error by remember { mutableStateOf<String?>(null) }
     // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
     var aside by remember { mutableStateOf(false) }
@@ -460,6 +508,7 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
                 SecretBox(pw, { pw = it }, fields.secret)
                 TextButton(onClick = pick) { Text(tr("Pick its file"), color = p.text) }
             } else PasswordField(pw, { pw = it }, fields.secret)
+            if (sorts) CategoryField(category, all) { category = it }
             Field(hosts, { hosts = it }, label = { Text(tr("Additional exact hosts")) }, placeholder = { Text("api.example.com, auth.example.com") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
             Hint(tr("Only these hosts may also receive it. Subdomains are not included automatically."))
@@ -473,7 +522,7 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
             work.run(tr("Saving…"), { if (bitwarden) tr("Saved in Bitwarden") else tr("Saved") }, refused = { pw = ""; error = it; aside = false }) {
                 val sent = VaultTypes.sent(type, user, features, saved = item?.type)
                 api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, null,
-                    hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type)
+                    hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (sorts) category.trim() else null)
                 pw = ""; done(null)
             }
         }) { Text(tr("Save"), color = p.text) }
@@ -495,22 +544,25 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
 
 /** Which bots may use a card or an identity; the details themselves are changed in Bitwarden. */
 @Composable
-private fun ItemBots(item: VaultItem, bots: List<Bot>, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
+private fun ItemBots(item: VaultItem, bots: List<Bot>, features: Collection<String>?, all: List<VaultItem>, api: dev.botdot.app.data.Api?, work: WorkState, done: (String?) -> Unit, close: () -> Unit) {
     val p = LocalPaper.current
     var chosen by remember { mutableStateOf(item.allowedBots.toSet()) }
+    var category by remember { mutableStateOf(item.category) }
+    val sorts = VaultTypes.categories(features)
     var error by remember { mutableStateOf<String?>(null) }
     // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
     var aside by remember { mutableStateOf(false) }
     if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${KIND_ICON[item.kind] ?: ""} ${item.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Hint(VaultTypes.itemBotsHint(item.kind) + " " + tr("Change the details themselves in Bitwarden."))
+            if (sorts) CategoryField(category, all) { category = it }
             bots.forEach { b -> CheckRow("${b.emoji} ${b.name}", null, b.id in chosen) { on -> chosen = if (on) chosen + b.id else chosen - b.id } }
             error?.let { Text(it, color = p.err, style = MaterialTheme.typography.bodyMedium) }
         }
     }, confirmButton = {
         TextButton(enabled = !work.busy, onClick = {
             aside = true
-            work.run(tr("Saving…"), { tr("Saved") }, refused = { error = it; aside = false }) { api!!.setVaultBots(item.id, chosen.toList()); done(null) }
+            work.run(tr("Saving…"), { tr("Saved") }, refused = { error = it; aside = false }) { api!!.setVaultBots(item.id, chosen.toList(), if (sorts) category.trim() else null); done(null) }
         }) { Text(tr("Save"), color = p.text) }
     }, dismissButton = { TextButton(onClick = close) { Text(tr("Cancel"), color = p.text) } })
 }

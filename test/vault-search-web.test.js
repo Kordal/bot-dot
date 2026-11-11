@@ -16,7 +16,7 @@ const cut = (from, to) => {
   return app.slice(a, b);
 };
 const page = vm.createContext({});
-vm.runInContext(`${cut('const VAULT_SEARCH = ', 'async function renderVault()')}\nthis.VAULT_SEARCH = VAULT_SEARCH; this.vaultItemMatches = vaultItemMatches;`, page);
+vm.runInContext(`${cut('const VAULT_SEARCH = ', 'async function renderVault()')}\nthis.VAULT_SEARCH = VAULT_SEARCH; this.vaultItemMatches = vaultItemMatches; this.vaultGroups = vaultGroups;`, page);
 const list = cut('async function renderVault()', 'function openLoginEditor(login, ');
 const CASES = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'vault-search.json'), 'utf8'));
 
@@ -41,4 +41,18 @@ test('web: the Bitwarden row names its account and item count, and its name neve
   assert.doesNotMatch(app, /items in bot-dot/);
   assert.match(css, /\.bs-row\.bw-bar > b \{ flex: none; \}/);
   assert.match(css, /\.bs-row\.bw-bar > \.bs-val \{ flex: 1 1 auto; max-width: none; \}/);
+});
+
+test('web: Passwords in its categories: the items without one first, then each category in alphabetical order (ADR 213)', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(page.vaultGroups(CASES.items).map((g) => ({ category: g.category, found: g.items.map((l) => l.id) })))), CASES.groups);
+  assert.deepEqual(JSON.parse(JSON.stringify(page.vaultGroups(CASES.items.filter((l) => l.category)).map((g) => g.category))), ['Servers', 'Shopping'], 'no empty group');
+  assert.deepEqual(page.vaultGroups([]).length, 0);
+  // A category's heading folds its list, a search opens what it finds there, and the editors offer the categories in use.
+  assert.match(list, /class="vault-cat" aria-expanded="\$\{!vaultFolded\.has\(g\.category\)\}"/);
+  assert.match(list, /\$\('\.vault-list', group\)\.hidden = !searching && vaultFolded\.has\(group\.dataset\.cat\)/);
+  assert.match(app, /\$\{vaultCategoryField\(l\.category\)\}/);
+  assert.match(app, /\$\{vaultCategoryField\(item\.category\)\}/);
+  assert.match(app, /body: \{ allowedBots, category \}/);
+  assert.match(app, /category: form\.category\.value\.trim\(\)/);
+  assert.match(css, /\.vault-group\[hidden\], \.vault-group > \.set-list\[hidden\] \{ display: none; \}/);
 });
