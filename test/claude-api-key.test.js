@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
-const { startServer, makeBot } = require('./helpers');
+const { startServer, makeBot, feed } = require('./helpers');
 
 const KEY = 'sk-ant-api03-test-KEY-0123456789abcdefghij-wxyz';
 const OTHER = 'sk-ant-api03-other-key-9876543210zyxwvutsrq-abcd';
@@ -15,11 +15,18 @@ const REFUSED = 'sk-ant-api03-refused-key-000000000000000000-0000';
 
 // A stand-in for Anthropic's API: GET /v1/models answers 200 for a known key, 401 for any other.
 const asked = [];
+const heldChecks = [];
 const anthropic = http.createServer((req, res) => {
   asked.push({ method: req.method, url: req.url, key: req.headers['x-api-key'], version: req.headers['anthropic-version'] });
   const ok = [KEY, OTHER].includes(req.headers['x-api-key']);
-  res.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
-  res.end(JSON.stringify(ok ? { data: [{ id: 'claude-x' }] } : { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }));
+  const answer = () => {
+    if (res.writableEnded) return;
+    res.writeHead(ok ? 200 : 401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(ok ? { data: [{ id: 'claude-x' }] } : { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }));
+  };
+  const held = heldChecks.shift();
+  if (held) { held.answer = answer; held.arrived(); }
+  else answer();
 });
 
 let srv;
@@ -118,4 +125,166 @@ test('on the key, a signed-out subscription still lets bots run', async () => {
   } finally { fs.rmSync(path.join(srv.out, 'signed-out'), { force: true }); }
   assert.ok((await srv.api('/version')).data.features.includes('claude-api-key'));
   await srv.api('/setup/claude/key', { method: 'DELETE' });
+});
+
+
+test('switching from a limited subscription to an API key releases the waiting work', async (t) => {
+  const s = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropic.address().port}` } });
+  t.after(() => s.stop());
+  s.reply('Done.');
+  const f = await feed(s);
+  t.after(() => f.close());
+  const bot = await makeBot(s, { name: 'Waiting For The Key' });
+  const error = path.join(s.out, 'error-result.txt');
+  fs.writeFileSync(error, `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  const first = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Start the report.' } })).data;
+  assert.equal((await s.finished(first.id)).status, 'error');
+  await f.wait('claude', (c) => !!c.backAt);
+  fs.rmSync(error);
+  const chat = (await s.api('/chief/chats', { method: 'POST' })).data;
+  assert.equal((await s.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Continue on the API key.' } })).data.queued.length, 1);
+
+  const saved = await s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+  assert.equal(saved.status, 200);
+  await f.wait('claude', (c) => c.loggedIn === true && !c.backAt);
+  assert.equal((await s.nextRun((r) => r.stdin.includes('Continue on the API key.'), 'the queued Chief turn')).apiKey, KEY);
+  assert.equal((await s.nextRun((r) => r.stdin.includes("stopped because Claude's usage limit was reached"), 'the run interrupted by the old limit')).apiKey, KEY);
+  await s.finished(first.id);
+  f.close();
+  await s.stop();
+  const restarted = await startServer({ dir: s.dir });
+  t.after(() => restarted.stop());
+  const afterRestart = await feed(restarted);
+  try { assert.equal(afterRestart.events.find((e) => e.type === 'hello').data.claude.backAt, undefined); }
+  finally { afterRestart.close(); }
+});
+
+test('selecting or saving the same key and rejected changes preserve its usage-limit hold', async (t) => {
+  const s = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropic.address().port}` } });
+  t.after(() => s.stop());
+  s.reply('Done.');
+  await s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+  const bot = await makeBot(s, { name: 'Limited Key' });
+  const f = await feed(s);
+  t.after(() => f.close());
+  fs.writeFileSync(path.join(s.out, 'error-result.txt'), `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  const run = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'A limited request.' } })).data;
+  await s.finished(run.id);
+  const held = (await f.wait('claude', (c) => !!c.backAt)).data.backAt;
+  for (const [route, body, status] of [
+    ['/setup/claude/use', { use: 'api-key' }, 200],
+    ['/setup/claude/key', { key: KEY }, 200],
+    ['/setup/claude/key', { key: REFUSED }, 400],
+    ['/setup/claude/use', { use: 'wrong' }, 400],
+  ]) {
+    assert.equal((await s.api(route, { method: 'PUT', body })).status, status);
+    const check = await feed(s);
+    try { assert.equal(check.events.find((e) => e.type === 'hello').data.claude.backAt, held); }
+    finally { check.close(); }
+  }
+});
+
+test('changing the selected credential releases its hold, but removing an unused key does not', async (t) => {
+  for (const [method, route, body, expected] of [
+    ['PUT', '/setup/claude/key', { key: OTHER }, OTHER],
+    ['PUT', '/setup/claude/use', { use: 'subscription' }, null],
+    ['DELETE', '/setup/claude/key', undefined, null],
+  ]) {
+    const s = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropic.address().port}` } });
+    t.after(() => s.stop());
+    s.reply('Done.');
+    await s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+    const bot = await makeBot(s, { name: 'Changes Credential' });
+    const f = await feed(s);
+    t.after(() => f.close());
+    const error = path.join(s.out, 'error-result.txt');
+    fs.writeFileSync(error, `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+    const run = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Resume with the chosen credential.' } })).data;
+    await s.finished(run.id);
+    await f.wait('claude', (c) => !!c.backAt);
+    fs.rmSync(error);
+    assert.equal((await s.api(route, { method, body })).status, 200);
+    await f.wait('claude', (c) => c.loggedIn === true && !c.backAt);
+    assert.equal((await s.nextRun((r) => r.stdin.includes("stopped because Claude's usage limit was reached"), 'the resumed run')).apiKey, expected);
+    await s.stop();
+  }
+});
+
+
+test('removing an unused key preserves the subscription hold', async (t) => {
+  const s = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropic.address().port}` } });
+  t.after(() => s.stop());
+  await s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+  await s.api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } });
+  const bot = await makeBot(s, { name: 'Unused Key' });
+  const f = await feed(s);
+  t.after(() => f.close());
+  fs.writeFileSync(path.join(s.out, 'error-result.txt'), `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  const run = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'The subscription is limited.' } })).data;
+  await s.finished(run.id);
+  const held = (await f.wait('claude', (c) => !!c.backAt)).data.backAt;
+  assert.equal((await s.api('/setup/claude/key', { method: 'DELETE' })).status, 200);
+  const check = await feed(s);
+  try { assert.equal(check.events.find((e) => e.type === 'hello').data.claude.backAt, held); }
+  finally { check.close(); }
+});
+
+for (const unavailable of ['signed-out', 'auth-fails']) test(`switching to a subscription that is ${unavailable} leaves queued work waiting for sign-in`, async (t) => {
+  const s = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropic.address().port}` } });
+  t.after(() => s.stop());
+  s.reply('Done.');
+  await s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+  fs.writeFileSync(path.join(s.out, unavailable), '');
+  await s.api('/setup?fresh');
+  const bot = await makeBot(s, { name: 'Needs A Subscription' });
+  const f = await feed(s);
+  t.after(() => f.close());
+  const error = path.join(s.out, 'error-result.txt');
+  fs.writeFileSync(error, `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  const first = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'A key request.' } })).data;
+  await s.finished(first.id);
+  await f.wait('claude', (c) => !!c.backAt);
+  fs.rmSync(error);
+  const queued = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Wait for a valid subscription.' } })).data;
+  assert.equal(queued.status, 'queued');
+  const changed = await s.api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } });
+  if (unavailable === 'signed-out') assert.equal(changed.data.claude.loggedIn, false);
+  else assert.ok(changed.data.claude.error);
+  assert.equal((await s.api(`/runs/${queued.id}`)).data.status, 'queued');
+  fs.rmSync(path.join(s.out, unavailable));
+  await s.api('/setup?fresh');
+  assert.equal((await s.finished(queued.id)).status, 'success');
+});
+
+
+test('overlapping saves of the same key cannot clear a new hold on that key', async (t) => {
+  const s = await startServer({ env: { BOT_DOT_ANTHROPIC_API_URL: `http://127.0.0.1:${anthropic.address().port}` } });
+  t.after(() => s.stop());
+  const holdCheck = () => {
+    const held = {};
+    held.seen = new Promise((resolve) => { held.arrived = resolve; });
+    heldChecks.push(held);
+    return held;
+  };
+  const firstCheck = holdCheck();
+  const secondCheck = holdCheck();
+  t.after(() => { heldChecks.length = 0; firstCheck.answer?.(); secondCheck.answer?.(); });
+  const first = s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+  await firstCheck.seen;
+  const second = s.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } });
+  firstCheck.answer();
+  assert.equal((await first).status, 200);
+  await secondCheck.seen;
+  const f = await feed(s);
+  t.after(() => f.close());
+  const bot = await makeBot(s, { name: 'Concurrent Key Saves' });
+  fs.writeFileSync(path.join(s.out, 'error-result.txt'), `Claude AI usage limit reached|${Math.ceil(Date.now() / 1000) + 3600}`);
+  const run = (await s.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'The chosen key is now limited.' } })).data;
+  await s.finished(run.id);
+  const held = (await f.wait('claude', (c) => !!c.backAt)).data.backAt;
+  secondCheck.answer();
+  assert.equal((await second).status, 200);
+  const check = await feed(s);
+  try { assert.equal(check.events.find((e) => e.type === 'hello').data.claude.backAt, held); }
+  finally { check.close(); }
 });
