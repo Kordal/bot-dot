@@ -366,7 +366,32 @@ const Company = (() => {
   // The pieces the owner can add: the ones not on it, from a server that has them.
   const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? piecesOf(c).filter((k) => !c.board.includes(k)) : []);
   const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');
+  // The Chief's head beside the gear (project-chief): the project's own Chief chat, in the column beside it. The number
+  // is what waits for the owner there: unread replies and the Chief's cards asked in that chat.
+  function chiefWaiting(c) {
+    const id = c?.chiefChat;
+    if (!id) return 0;
+    return Unread.count((state.chats || []).find((x) => x.id === id)) + (state.asks || []).filter((a) => a?.chatId === id).length;
+  }
+  const chiefHTML = () => {
+    if (!(state.features || []).includes('project-chief') || !state.company) return '';
+    const n = chiefWaiting(state.company);
+    const name = chiefTitle();
+    return `<button type="button" class="icon-btn co-chief-btn" data-project-chief aria-label="${esc(name)}${n ? ` (${n})` : ''}" title="${esc(name)}">${chiefFigure('sm')}${n ? `<span class="co-chief-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
+  };
+  async function openProjectChief(b) {
+    const c = state.company;
+    if (!c || b.disabled) return;
+    if (c.chiefChat) return Dock.openChief(c.chiefChat);
+    b.disabled = true;
+    try {
+      const r = await api(at('/company/chief-chat'), { method: 'POST' });
+      if (r.company) changed({ company: r.company });
+      Dock.openChief(r.chatId);
+    } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+  }
   function wirePick(root) {
+    $$('[data-project-chief]', root).forEach((b) => (b.onclick = () => openProjectChief(b)));
     $$('[data-space-pick]', root).forEach((b) => (b.onclick = () => openSpaces(b)));
     $$('[data-sp-tool]', root).forEach((b) => (b.onclick = () => $(`#${b.dataset.spTool}`)?.click()));
     $$('[data-project-settings]', root).forEach((b) => (b.onclick = openSettings));
@@ -702,5 +727,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, chiefHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
 })();

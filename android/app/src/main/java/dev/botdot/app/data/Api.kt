@@ -768,6 +768,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun putObjective(id: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), body))
 
     suspend fun company(): CompanyHeld = CompanySetup.held(get(co("/company")))
+    /** The project's own Chief chat (`project-chief`), made when there is none: its id. */
+    suspend fun projectChiefChat(): String = json.parseToJsonElement(send("POST", co("/company/chief-chat"))).jsonObject["chatId"]?.jsonPrimitive?.content.orEmpty()
     /** The account's projects a mention can name (#700): every one from a botdot with `projects-many`, else its one company. */
     suspend fun projectRefs(features: Collection<String>): List<Mentions.ProjectRef> {
         fun ref(o: JsonElement?): Mentions.ProjectRef? = (o as? JsonObject)?.let { c ->

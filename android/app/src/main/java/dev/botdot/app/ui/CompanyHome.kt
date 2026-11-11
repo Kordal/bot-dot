@@ -96,6 +96,8 @@ internal class CompanyWays(
     val onFolderFile: (name: String, path: String) -> Unit = { _, _ -> },
     /** A Chief chat a goal's "Change" started (#820): its id; null where the botdot can't. */
     val onGoalChat: ((String) -> Unit)? = null,
+    /** The project's own Chief chat, from the Chief's head beside the gear (`project-chief`): its id. */
+    val onChiefChat: ((String) -> Unit)? = null,
 )
 
 private val GOLD = Color(0xFFE8B44A)

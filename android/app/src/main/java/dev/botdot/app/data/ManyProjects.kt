@@ -21,6 +21,8 @@ data class ProjectFolder(val name: String = "", val path: String = "")
  */
 object ManyProjects {
     const val SETTINGS = "project-settings"
+    /** The Chief's head beside the gear: the project's own Chief chat. */
+    const val CHIEF = "project-chief"
     const val FOLDER = "project-folder"
     /** lib/company.js PROJECT_COLORS: the swatches of a project's colour. */
     val COLORS = listOf("#ff6b35", "#34c759", "#3aa0ff", "#8e7cff", "#ffb020", "#ff5c8a", "#2ec4b6", "#b07cff")
