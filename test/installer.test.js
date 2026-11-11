@@ -511,7 +511,7 @@ test('the installer runs as root, and says so first', (t) => {
 
 // --- The images: botdot's signed images, checked before any download (lib/signed-image.js) --------
 
-const DOWNLOADS = /^pull -q ghcr\.io\//;
+const DOWNLOADS = /^pull ghcr\.io\//;
 
 test('a rerun installs the newest signed images, into the machine\'s Docker and the account\'s, pinned by digest', (t) => {
   const done = rerun(t, `BOT_DOT_IMAGE=ghcr.io/kordal/bot-dot${PIN}\nBOT_DOT_COMPUTER_IMAGE=ghcr.io/kordal/bot-dot-desktop${PIN}\n`);
@@ -519,13 +519,13 @@ test('a rerun installs the newest signed images, into the machine\'s Docker and 
   assert.equal(done.env.BOT_DOT_COMPUTER_IMAGE, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`);
   assert.equal(done.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);
   assert.equal(done.accountEnv('ann').BOT_DOT_COMPUTER_IMAGE, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`);
-  assert.ok(done.calls.includes(`pull -q ghcr.io/kordal/bot-dot${SIGNED}`), 'the front door\'s');
+  assert.ok(done.calls.includes(`pull ghcr.io/kordal/bot-dot${SIGNED}`), 'the front door\'s');
   const own = done.accountCalls('ann');
-  assert.ok(own.includes(`pull -q ghcr.io/kordal/bot-dot${SIGNED}`) && own.includes(`pull -q ghcr.io/kordal/bot-dot-desktop${SIGNED}`), own.join('\n'));
-  assert.ok(!done.calls.includes(`pull -q ghcr.io/kordal/bot-dot-desktop${SIGNED}`), 'the computer only where it runs');
+  assert.ok(own.includes(`pull ghcr.io/kordal/bot-dot${SIGNED}`) && own.includes(`pull ghcr.io/kordal/bot-dot-desktop${SIGNED}`), own.join('\n'));
+  assert.ok(!done.calls.includes(`pull ghcr.io/kordal/bot-dot-desktop${SIGNED}`), 'the computer only where it runs');
   assert.ok(!done.docker.some((c) => /^pull .*:latest$/.test(c.call)), 'never the tag, which may have moved since the check');
   const at = (call) => own.indexOf(call);
-  assert.ok(at(`compose --project-directory ${done.dir}/accounts/ann up -d --remove-orphans`) > at(`pull -q ghcr.io/kordal/bot-dot-desktop${SIGNED}`));
+  assert.ok(at(`compose --project-directory ${done.dir}/accounts/ann up -d --remove-orphans`) > at(`pull ghcr.io/kordal/bot-dot-desktop${SIGNED}`));
   assert.ok(at(`compose --project-directory ${done.dir}/accounts/ann exec -T --user 60000:60000 bot-dot node /opt/bot-dot/lib/update-install.js --clean`) > at(`compose --project-directory ${done.dir}/accounts/ann up -d --remove-orphans`), 'the cleanup comes after the new containers');
   // The stand-in gives the cleanup no answer: one warning, and the installer ends as always.
   assert.match(done.said, /Couldn't remove every old image now; the next update tries again\./);
@@ -543,13 +543,13 @@ test('an update makes room first: the images no container uses go before the new
   // The account's Docker: by the new version's rule, keeping what the account runs now and what is about to come.
   const inAccount = at('machine', cleanup(`${done.run}/ann/docker\\.sock`));
   assert.ok(inAccount >= 0, calls.map((c) => c.call).join('\n'));
-  assert.ok(inAccount < at(own, new RegExp(`^pull -q ghcr\\.io/kordal/bot-dot@`)), 'before the account\'s download');
+  assert.ok(inAccount < at(own, new RegExp(`^pull ghcr\\.io/kordal/bot-dot@`)), 'before the account\'s download');
   const args = calls[inAccount].call.split(' ');
   assert.equal(args[12], `ghcr.io/kordal/bot-dot${SIGNED}`, 'run from the new version, already in the machine\'s Docker');
   assert.deepEqual(args.slice(14), [`ghcr.io/kordal/bot-dot${SIGNED}`, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`, `ghcr.io/kordal/bot-dot${SIGNED}`, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`]);
   // The machine's Docker: by the rule of the version it runs now, before the front door's download.
   const inMachine = at('machine', cleanup('/var/run/docker\\.sock'));
-  assert.ok(inMachine >= 0 && inMachine < at('machine', /^pull -q ghcr\.io\/kordal\/bot-dot@/), 'before the machine\'s download');
+  assert.ok(inMachine >= 0 && inMachine < at('machine', /^pull ghcr\.io\/kordal\/bot-dot@/), 'before the machine\'s download');
   const machine = calls[inMachine].call.split(' ');
   assert.equal(machine[12], first.env.BOT_DOT_IMAGE, 'run from what the machine runs now');
   assert.deepEqual(machine.slice(14), [first.env.BOT_DOT_IMAGE, first.env.BOT_DOT_COMPUTER_IMAGE]);
@@ -560,7 +560,7 @@ test('an update makes room first: the images no container uses go before the new
 test('a first install has nothing to make room for in the machine\'s Docker', (t) => {
   const fresh = installer(t, { dotenv: '', input: '1\nbotdot.example.com\nann\n' });
   assert.equal(fresh.status, 0, fresh.stderr);
-  const download = fresh.calls.findIndex((c) => c.startsWith('pull -q ghcr.io/kordal/bot-dot@'));
+  const download = fresh.calls.findIndex((c) => c.startsWith('pull ghcr.io/kordal/bot-dot@'));
   const cleanup = fresh.calls.findIndex((c) => c.includes('-v /var/run/docker.sock:/var/run/docker.sock') && c.includes('image-cleanup.js'));
   assert.ok(download >= 0);
   assert.ok(cleanup === -1 || cleanup > download, 'nothing runs before the first download');
@@ -597,8 +597,8 @@ test("an update pins the bots' computer's new image but doesn't download it into
   const done = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: [has] });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const own = done.accountCalls('ann').slice(first.accountCalls('ann').length);
-  assert.ok(own.includes(`pull -q ghcr.io/kordal/bot-dot${SIGNED}`), 'the server is downloaded');
-  assert.ok(!own.some((c) => c.startsWith('pull -q ghcr.io/kordal/bot-dot-desktop')), own.join('\n'));
+  assert.ok(own.includes(`pull ghcr.io/kordal/bot-dot${SIGNED}`), 'the server is downloaded');
+  assert.ok(!own.some((c) => c.startsWith('pull ghcr.io/kordal/bot-dot-desktop')), own.join('\n'));
   assert.equal(done.accountEnv('ann').BOT_DOT_COMPUTER_IMAGE, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`, 'and pinned for its next update or reset');
   assert.match(done.said, /The bots' computer keeps its image; its Update or reset takes the newest/);
 });
@@ -626,7 +626,7 @@ test('an update stops before any download when an account\'s disk is short of ro
 test('an update with room in every account goes on, and so does one whose registry gives no sizes (#192)', (t) => {
   const first = rerun(t);
   // Downloaded into the machine's Docker and the account's.
-  const downloads = (done) => [...new Set(done.docker.slice(first.docker.length).filter((c) => /^pull -q ghcr\.io\/kordal\/bot-dot@/.test(c.call)).map((c) => c.host))].length;
+  const downloads = (done) => [...new Set(done.docker.slice(first.docker.length).filter((c) => /^pull ghcr\.io\/kordal\/bot-dot@/.test(c.call)).map((c) => c.host))].length;
   const roomy = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: roomAnswers() });
   assert.equal(roomy.status, 0, `${roomy.said}\n${roomy.stderr}`);
   assert.equal(downloads(roomy), 2);
@@ -737,7 +737,7 @@ test('a rerun after a rebuild keeps the self-built images, and still downloads n
 
 test('naming botdot\'s images goes back from self-built to them', (t) => {
   const { env, calls } = rerun(t, 'BOT_DOT_IMAGE=bot-dot/server:latest\nBOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest\n', { BOT_DOT_IMAGE: 'ghcr.io/kordal/bot-dot:latest' });
-  assert.ok(calls.includes(`pull -q ghcr.io/kordal/bot-dot${SIGNED}`));
+  assert.ok(calls.includes(`pull ghcr.io/kordal/bot-dot${SIGNED}`));
   assert.equal(env.BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);
   assert.equal(env.BOT_DOT_COMPUTER_IMAGE, `ghcr.io/kordal/bot-dot-desktop${SIGNED}`);
 });

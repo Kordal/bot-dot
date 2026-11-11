@@ -231,6 +231,34 @@ function refusedBeforeAnyPull(machine, result, sentence) {
 
 const cases = [
   {
+    name: 'a dedicated review demo has fictional data and reusable browser and app access',
+    async run(machine) {
+      await machine.load(stage.server());
+      await machine.load(stage.computer());
+      machine.publish(stage.server(), `${SERVER}:latest`);
+      machine.publish(stage.computer(), `${DESKTOP}:latest`);
+      machine.sign(`${SERVER}:latest`, { app: 'server' });
+      machine.sign(`${DESKTOP}:latest`, { app: 'desktop' });
+      const code = 'review-test-' + 'a'.repeat(32);
+      const hash = require('node:crypto').createHash('sha256').update(code).digest('hex');
+      const said = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest`, BOT_DOT_MANAGED: '1', BOT_DOT_VARIANT: 'one', BOT_DOT_DEMO_CODE_SHA256: hash });
+      assert.match(said, /BOTDOT_READY /);
+      const login = (body) => JSON.parse(machine.exec('curl', '-fsSk', '--resolve', `${DOMAIN}:443:127.0.0.1`, '-H', 'Content-Type: application/json', '-H', 'X-Bot-Dot: 1', '-d', JSON.stringify(body), '-c', '/root/cookies', `https://${DOMAIN}/sign-in`));
+      for (let n = 0; n < 2; n++) assert.equal(login({ demoCode: code }).ok, true);
+      answers(machine);
+      const list = machine.api('GET', '/api/company/list');
+      assert.equal(list.status, 200);
+      assert.equal(list.body.projects[0].name, 'Demo: community garden');
+      assert.equal(machine.api('GET', '/api/company').body.company.todos.length, 2);
+      const verifier = require('node:crypto').randomBytes(32).toString('base64url');
+      const handoff = require('node:crypto').createHash('sha256').update(verifier).digest('base64url');
+      const native = login({ demoCode: code, app: 'android', handoff });
+      assert.match(native.next, /^botdot:\/\/signed-in/);
+      const accepted = JSON.parse(machine.exec('curl', '-fsSk', '--resolve', `${DOMAIN}:443:127.0.0.1`, '-H', 'Content-Type: application/json', '-H', 'X-Bot-Dot: 1', '-d', JSON.stringify({ code: native.code, verifier }), `https://${DOMAIN}/sign-in/handoff`));
+      assert.equal(accepted.ok, true);
+    },
+  },
+  {
     // Today's installer, with the images in a registry, on a public domain: what a stranger gets.
     name: 'a public install from the registry, the admin\'s sign-up through Caddy, and a computer under gVisor',
     async run(machine) {

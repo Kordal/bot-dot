@@ -40,7 +40,7 @@ test('an update request that names a digest installs exactly that signed release
   const env = fs.readFileSync(path.join(first.dir, 'front-door', '.env'), 'utf8');
   assert.match(env, new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/kordal/bot-dot@${NAMED}$`, 'm'), 'the front door pins it');
   assert.match(env, /^BOT_DOT_RELEASE=7$/m, 'and its release number, against which an older one is refused');
-  assert.ok(calls('bob').some((c) => c === `pull -q ghcr.io/kordal/bot-dot@${NAMED}`), 'bob got that very image');
+  assert.ok(calls('bob').some((c) => c === `pull ghcr.io/kordal/bot-dot@${NAMED}`), 'bob got that very image');
   assert.match(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', '.env'), 'utf8'), new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/kordal/bot-dot@${NAMED}$`, 'm'));
 });
 

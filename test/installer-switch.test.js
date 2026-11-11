@@ -40,7 +40,7 @@ test('an update leaves an account whose owner turned "Update automatically" off 
   assert.deepEqual(result.accounts, [{ name: 'ann', result: 'updated' }, { name: 'bob', result: 'waiting' }]);
   assert.ok(done.up('ann'), "ann's account is switched");
   assert.ok(!done.up('bob'), "bob's isn't restarted");
-  assert.ok(done.calls('bob').some((c) => c === `pull -q ghcr.io/kordal/bot-dot${SIGNED}`), 'the new version is downloaded into its Docker');
+  assert.ok(done.calls('bob').some((c) => c === `pull ghcr.io/kordal/bot-dot${SIGNED}`), 'the new version is downloaded into its Docker');
   assert.ok(!done.calls('bob').some((c) => /update-install\.js --clean/.test(c)), 'and its old images stay');
   assert.equal(done.accountEnv('bob').BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${PIN}`, 'it runs the version it ran');
   assert.equal(done.accountEnv('ann').BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${SIGNED}`);

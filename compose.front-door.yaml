@@ -39,6 +39,7 @@ services:
       # On this computer only (local): its one account, and the setup key that makes its passkey.
       FRONT_DOOR_ONE_ACCOUNT: ${FRONT_DOOR_ONE_ACCOUNT:-}
       FRONT_DOOR_SETUP_KEY: ${FRONT_DOOR_SETUP_KEY:-}
+      FRONT_DOOR_DEMO_CODE_SHA256: ${FRONT_DOOR_DEMO_CODE_SHA256:-}
       FRONT_DOOR_MANAGED: ${FRONT_DOOR_MANAGED:-}
       FRONT_DOOR_FIRST_ACCOUNT: ${FRONT_DOOR_FIRST_ACCOUNT:-}
       FRONT_DOOR_HOST: 127.0.0.1
