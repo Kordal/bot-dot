@@ -58,7 +58,7 @@ test('a download is encrypted, small, made once at its address and kept nowhere 
   fs.writeFileSync(path.join(a.data, 'chief', 'unasked.json'), JSON.stringify({ id: 'unasked', title: 'A tip', sessionId: null, createdAt: '2026-10-01T09:00:00.000Z', updatedAt: '2026-10-01T09:00:00.000Z', costUsd: 0,
     messages: [{ role: 'chief', text: 'A tip about your shopping list.', at: '2026-10-01T09:00:00.000Z', unasked: true }] }));
   assert.equal((await a.api('/chief/chats/unasked/messages/0/rating', { method: 'PUT', body: { rating: 'down' } })).status, 200);
-  assert.deepEqual((await a.api('/settings/writing-first', { method: 'PUT', body: { perDay: 2 } })).data.writingFirst, { perDay: 2, sentToday: 0, times: [] });
+  assert.deepEqual((await a.api('/settings/writing-first', { method: 'PUT', body: { perDay: 2 } })).data.writingFirst, { perDay: 2, sentToday: 0, times: [], care: true, careQuiet: [] });
   // The look's record: the rated message (its rating followed it there), and one whose chat was deleted since.
   const looks = JSON.parse(fs.readFileSync(path.join(a.data, 'looks.json'), 'utf8'));
   assert.deepEqual(looks.raised.map((r) => [r.chatId, r.text, r.rating]), [['unasked', 'A tip about your shopping list.', 'down']]);
