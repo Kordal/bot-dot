@@ -363,8 +363,7 @@ a.more-btn { text-decoration: none; }
 /* An answer's lines stop at about 62 characters, so they read on a wide screen; tables, code and cards keep the width. */
 .bubble.from-bot .md > p, .bubble.from-bot .md > ul, .bubble.from-bot .md > ol, .bubble.from-bot .md > blockquote, .bubble.from-bot .md > h1, .bubble.from-bot .md > h2, .bubble.from-bot .md > h3, .bubble.from-bot .md > h4 { max-width: 62ch; }
 .chat-thread .bubble.from-bot:not(.problem) { max-width: 100%; padding: 0 var(--sp-4); background: none; border: 0; border-radius: 0; box-shadow: none; }
-.chat-thread .bubble.from-bot .md a { text-decoration: underline; text-decoration-color: var(--faint); }
-.chat-thread .bubble.from-bot .md a:hover { text-decoration-color: currentColor; }
+.chat-thread .bubble.from-bot .md a { text-decoration: underline; }
 .bubble .md > :first-child { margin-top: 0; }
 .bubble .md > :last-child { margin-bottom: 0; }
 .bubble-meta { font-size: var(--fs-12); color: var(--faint); margin: var(--sp-4) var(--sp-8) 0; display: flex; gap: var(--sp-8); flex-wrap: wrap; align-items: center; }
@@ -835,8 +834,8 @@ img.shot { display: block; max-width: 100%; border-top: 1px solid var(--line); }
 .md a.web-link, .bubble a.web-link { white-space: nowrap; }
 /* A site's icon before a link (#530): on a light rounded backing, so a dark icon shows on the dark page; a globe where
    botdot keeps none. */
-.md a .site-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-right: var(--sp-4); vertical-align: -3px; border-radius: var(--r-8); background: #e6e6e6; overflow: hidden; }
-.md a .site-icon img { width: 14px; height: 14px; display: block; }
+.md a .site-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; margin-right: var(--sp-4); vertical-align: -3px; border-radius: .25em; background: #e6e6e6; overflow: hidden; }
+.md a .site-icon img { width: 14px; height: 14px; display: block; border-radius: .2em; }
 .md a .site-icon.globe { background: none; }
 .md a .site-icon.globe svg { width: 15px; height: 15px; fill: none; stroke: var(--faint); stroke-width: 1.6; }
 
