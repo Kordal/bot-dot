@@ -53,7 +53,7 @@ test('with no Chief chat, the message of a look starts a new chat, as a new repl
   assert.deepEqual([ev.data.unasked, ev.data.new, ev.data.status, ev.data.error], [true, true, 'success', null], 'announced like a reply');
   assert.match(ev.data.text, /duplicate check/);
   await f.wait('unread', (d) => d.chat === `chief:${chatId}` && d.unread === 1);
-  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [], care: true, careQuiet: [] });
 });
 
 test("a look is its own session with web search, botdot's reading tools and running a failed job again", async () => {
@@ -108,7 +108,7 @@ test('a look that answers NOTHING, answers nothing or fails changes no chat file
   await sleep(200);
   assert.deepEqual(chatFiles(), before);
   assert.deepEqual(f.events.slice(events).map((e) => e.type), [], 'nothing on the live feed');
-  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 1, times: [], care: true, careQuiet: [] });
   assert.match(srv.log.join(''), /\[look\] a look failed: Not signed in/, "the problem is in the server's log");
 });
 
@@ -160,7 +160,7 @@ test("the next look's input holds the earlier unasked message with its rating an
   assert.match(input.slice(input.indexOf('Already raised')), /- \d{4}-\d\d-\d\d, rated up, the owner answered "yes, start it again": Your duplicate check on recipes\.example\.com never finished/);
   const last = (await chatOf(chatId)).messages.at(-1);
   assert.deepEqual([last.role, last.unasked, last.text], ['chief', true, 'Proxmox 9 is out; your Homelab Manager still checks for 8.']);
-  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 2, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 8, sentToday: 2, times: [], care: true, careQuiet: [] });
 });
 
 test('no look while the Chief is answering the owner', async () => {
@@ -175,8 +175,8 @@ test('no look while the Chief is answering the owner', async () => {
 
 test('the Chief turns writing first down, off and on again for the owner; the setting and the count survive a restart', async () => {
   const set = (perDay) => srv.asChief('/settings/writing-first', { method: 'PUT', body: { perDay } });
-  assert.deepEqual((await srv.asChief('/settings/writing-first')).data, { writingFirst: { perDay: 8, sentToday: 2, times: [] } });
-  assert.deepEqual((await set(2)).data, { writingFirst: { perDay: 2, sentToday: 2, times: [] } });
+  assert.deepEqual((await srv.asChief('/settings/writing-first')).data, { writingFirst: { perDay: 8, sentToday: 2, times: [], care: true, careQuiet: [] } });
+  assert.deepEqual((await set(2)).data, { writingFirst: { perDay: 2, sentToday: 2, times: [], care: true, careQuiet: [] } });
   const looks = lookRuns().length;
   assert.deepEqual(await lookNow(), { looked: false, reason: 'limit' });
   assert.deepEqual((await set(0)).data.writingFirst.perDay, 0);
@@ -190,7 +190,7 @@ test('the Chief turns writing first down, off and on again for the owner; the se
 
   // When (#416): the owner's own times, checked, in the order of their day; only what is passed changes.
   const at = (times) => srv.asChief('/settings/writing-first', { method: 'PUT', body: { times } });
-  assert.deepEqual((await at(['16:00', '09:00'])).data, { writingFirst: { perDay: 0, sentToday: 2, times: ['09:00', '16:00'] } });
+  assert.deepEqual((await at(['16:00', '09:00'])).data, { writingFirst: { perDay: 0, sentToday: 2, times: ['09:00', '16:00'], care: true, careQuiet: [] } });
   for (const bad of [['9am'], '09:00', ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']]) assert.equal((await at(bad)).status, 400, JSON.stringify(bad));
   await srv.api('/settings/quiet-hours', { method: 'PUT', body: { start: 22, end: 7 } });
   const quiet = await at(['23:00']);
@@ -198,6 +198,14 @@ test('the Chief turns writing first down, off and on again for the owner; the se
   await srv.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } });
   assert.deepEqual((await writingFirst()).times, ['09:00', '16:00'], 'a refused change changes nothing');
   assert.deepEqual((await at([])).data.writingFirst.times, [], 'spread over the day again');
+
+  // Care (ADR 212): "don't worry about me" and "don't mention this" go through the same tool; only what is passed changes.
+  const care = (body) => srv.asChief('/settings/writing-first', { method: 'PUT', body });
+  assert.deepEqual((await care({ careQuiet: ['night'] })).data.writingFirst.careQuiet, ['night']);
+  assert.deepEqual((await care({ care: false })).data.writingFirst.care, false);
+  assert.deepEqual((await writingFirst()).careQuiet, ['night'], 'care off keeps the silenced kinds');
+  for (const bad of [{ care: 'no' }, { careQuiet: ['mood'] }]) assert.equal((await care(bad)).status, 400, JSON.stringify(bad));
+  assert.deepEqual((await care({ care: true, careQuiet: [] })).data.writingFirst.care, true);
 
   // A chat from before botdot kept the look's record: its unasked message joins the record on the next start.
   fs.writeFileSync(path.join(srv.data, 'chief', 'older.json'), JSON.stringify({ id: 'older', title: 'Old', sessionId: null, createdAt: '2026-09-29T08:00:00.000Z', updatedAt: '2026-09-30T10:00:00.000Z', costUsd: 0, messages: [
@@ -219,7 +227,7 @@ test('the Chief turns writing first down, off and on again for the owner; the se
     { id: 'lost-1', chatId: 'older', at: '2026-09-30T11:00:00.000Z', text: 'A tip whose entry was lost.', rating: null, answer: null },
   ], 'adopted once, with its rating and answer');
   assert.equal((await chatOf('older')).messages[2].lookId, 'lost-1');
-  assert.deepEqual(await writingFirst(), { perDay: 0, sentToday: 2, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 0, sentToday: 2, times: [], care: true, careQuiet: [] });
   assert.deepEqual(await lookNow(), { looked: false, reason: 'off' });
   await set(2);
   assert.deepEqual(await lookNow(), { looked: false, reason: 'limit' });
@@ -255,7 +263,7 @@ test('the chat the owner last used was deleted: the message starts a new chat, n
   assert.ok(!(await chatOf(older.id)).messages.some((m) => m.unasked));
   // The next one follows it there.
   assert.deepEqual(await lookNow(), { looked: false, reason: 'limit' });
-  assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 3, times: [] });
+  assert.deepEqual(await writingFirst(), { perDay: 3, sentToday: 3, times: [], care: true, careQuiet: [] });
 });
 
 test('a look reads what is due today in the owner\'s projects (#1225)', async (t) => {

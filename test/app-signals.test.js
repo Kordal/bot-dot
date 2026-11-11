@@ -26,6 +26,12 @@ test('new mail and the next meetings become signals: a meeting within the hour n
   await s.read(NOW);
   assert.deepEqual(calls.map((c) => c.tool), ['GMAIL_FETCH_EMAILS', 'GOOGLECALENDAR_EVENTS_LIST'], 'two read actions, nothing else');
   assert.equal(calls[0].args.query, appSignals.MAIL_QUERY);
+  // The calendar is read for today and tomorrow (ADR 212), so care.js sees the day's meetings and tomorrow's first.
+  const { timeMin, timeMax } = calls[1].args;
+  const from = new Date(NOW); from.setHours(0, 0, 0, 0);
+  assert.equal(timeMin, from.toISOString());
+  assert.equal(Date.parse(timeMax) - Date.parse(timeMin) >= 47 * 3600e3, true);
+  assert.deepEqual(s.events().map((e) => e.id), ['ev1', 'ev2']);
   const found = s.signals(NOW);
   assert.deepEqual(found.map((f) => [f.kind, f.weight]), [['calendar', 3], ['calendar', 2], ['mail', 2]]);
   assert.match(found[0].text, /^Calendar: "Call with the printer" starts at \d\d:\d\d, in 40 min$/);

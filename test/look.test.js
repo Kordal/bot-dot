@@ -106,7 +106,7 @@ test('a look whose time has come posts its message, once', async () => {
   assert.deepEqual(w.posted, ['Your backup check never finished. Want me to run it again?']);
   assert.deepEqual(await w.tickAt('2026-10-05T09:31:00Z'), { looked: false, reason: 'taken' }, 'the same time starts no second look');
   assert.equal(w.runs, 1);
-  assert.deepEqual(w.looks.status(), { perDay: 3, sentToday: 1, times: [] });
+  assert.deepEqual(w.looks.status(), { perDay: 3, sentToday: 1, times: [], care: true, careQuiet: [] });
 });
 
 test('a time missed while botdot was off is not caught up', async () => {
@@ -192,10 +192,10 @@ test('at most three a day by the owner\'s day, fewer when set so; the count surv
   assert.equal(w.runs, 3, 'no look starts once three were sent');
 
   const again = make({ dir: w.dir, started: '2026-10-05T14:42:00Z' }); // botdot restarted
-  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 3, times: [] });
+  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 3, times: [], care: true, careQuiet: [] });
   assert.deepEqual(await again.looks.onDemand(), { looked: false, reason: 'limit' });
   assert.equal((await again.tickAt('2026-10-06T09:30:00Z')).posted, true, 'the next day they start again');
-  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 1, times: [] });
+  assert.deepEqual(again.looks.status(), { perDay: 3, sentToday: 1, times: [], care: true, careQuiet: [] });
 
   again.settings.unaskedPerDay = 1;
   assert.deepEqual(await again.tickAt('2026-10-06T11:10:00Z'), { looked: false, reason: 'limit' }, 'one a day, when the owner asked for that');
