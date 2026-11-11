@@ -131,6 +131,13 @@ const SETUP_KEY = SETUP_ACCOUNT && /^[A-Za-z0-9_-]{32,100}$/.test(process.env.FR
 let machineRam = null;
 const doors = store.open(DATA, { machineRam: () => { const m = load.machine(); if (m?.ramTotal) machineRam = m.ramTotal; return machineRam; }, share: MANAGED ? capacity.MANAGED_SHARE : null });
 
+// A review code is enabled only on an explicitly configured, dedicated managed one-account machine.
+const DEMO_HASH = process.env.FRONT_DOOR_DEMO_CODE_SHA256 || '';
+if (DEMO_HASH && (!MANAGED || !ONE_ACCOUNT || !/^[0-9a-f]{64}$/.test(DEMO_HASH))) {
+  throw new Error('Demo access requires a managed one-account machine and a SHA256 code hash');
+}
+if (DEMO_HASH) doors.createDemoAccount(ONE_ACCOUNT);
+
 // The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
 // admin page alone. None on a machine of one account, which has no admin page, unless it asks for agreement to terms
 // (#987), whose record the operator keeps, or is managed (ADR 154), whose links the fleet console asks for (#985). Never a key, a session, a link or a passkey in an entry: each detail below
@@ -685,7 +692,7 @@ function askAgreement(res, account, app, handoff) {
 
 async function signInRoutes(req, res, p) {
   // Until the first account is made, nobody can sign in, and only the install's link makes it.
-  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn({ terms: TERMS }) : pages.notYet());
+  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn({ terms: TERMS, demo: !!DEMO_HASH }) : pages.notYet());
   if (p === '/sign-in/options' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
     return send(res, 200, { publicKey: webauthn.requestOptions({ rpId: RP_ID, challenge: newChallenge(clientOf(req), { kind: 'get' }) }) });
@@ -693,6 +700,20 @@ async function signInRoutes(req, res, p) {
   if (p === '/sign-in' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
     const body = await readJson(req);
+    if (Object.hasOwn(body, 'demoCode')) {
+      const supplied = crypto.createHash('sha256').update(typeof body.demoCode === 'string' ? body.demoCode : '').digest();
+      if (!DEMO_HASH || !crypto.timingSafeEqual(supplied, Buffer.from(DEMO_HASH, 'hex')) || doors.isSuspended(ONE_ACCOUNT)) {
+        failedTry(tries, clientOf(req), 'sign-ins');
+        return send(res, 401, { error: 'That demo code did not sign you in.' });
+      }
+      const handoff = handoffOf(body, res);
+      if (!handoff) return;
+      if (shutOut(clientOf(req))) return refusedSignIn(req, res, ONE_ACCOUNT);
+      tries.succeeded(clientOf(req));
+      if (mustAgree(ONE_ACCOUNT)) return askAgreement(res, ONE_ACCOUNT, body.app, handoff);
+      audited('demo-sign-in', { account: ONE_ACCOUNT });
+      return signedIn(req, res, 200, ONE_ACCOUNT, body.app, handoff);
+    }
     const { credential, app } = body;
     const handoff = handoffOf(body, res);
     if (!handoff) return;

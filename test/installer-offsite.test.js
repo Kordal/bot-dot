@@ -587,10 +587,14 @@ const ask = (m, name, body, { given = {}, dockerFirst = [] } = {}) => {
 // it returns lets it go.
 function holdLock(t, m) {
   const file = path.join(m.first.run, 'offsite.lock');
-  const child = spawn('flock', ['-n', file, 'sleep', '120'], { stdio: 'ignore', detached: true });
+  const acquired = path.join(m.first.run, 'test-offsite-lock-acquired');
+  fs.rmSync(acquired, { force: true });
+  // Wait for the previous process to release its descriptor, then acknowledge that this child owns the lock.
+  const child = spawn('flock', [file, 'sh', '-c', 'touch "$1"; exec sleep 120', 'hold-offsite-lock', acquired], { stdio: 'ignore', detached: true });
   const release = () => { try { process.kill(-child.pid); } catch { /* gone */ } };
   t.after(release);
-  for (let i = 0; i < 400 && spawnSync('flock', ['-n', file, 'true']).status === 0; i++) spawnSync('sleep', ['0.05']);
+  for (let i = 0; i < 400 && !fs.existsSync(acquired); i++) spawnSync('sleep', ['0.05']);
+  assert.ok(fs.existsSync(acquired), 'the child acquired the off-site lock');
   assert.notEqual(spawnSync('flock', ['-n', file, 'true']).status, 0, 'the lock is held');
   return () => {
     release();

@@ -322,6 +322,7 @@ version_now() { sed -n 's/.*"version":"\([0-9a-f]*\)".*/\1/p' "$DOOR/status/vers
 # admin page shows it while the update runs and names it when it stops (#195). Only an update root's step started for
 # the admin page (BOT_DOT_UPDATE_AT: when it started, BOT_DOT_UPDATE_FROM: the version before) writes update.json.
 phase() {
+  if [ "$MODE" = install ]; then say "== $1${2:+ ($2)}"; return 0; fi
   [ "$MODE" = update ] || return 0
   say "== $1${2:+ ($2)}"
   [ -n "${BOT_DOT_UPDATE_AT:-}" ] || return 0
@@ -340,6 +341,7 @@ case "${1:-}" in
   '') ;;
   --requested) MODE=requested ;;
   --update) MODE=update UNATTENDED=1 ;;
+  --prerequisites) MODE=install PREREQUISITES=1 ;;
   --load) MODE=load ;;
   --offsite) MODE=offsite ;;
   # --restore-test ACCOUNT (#1018): one account's parts of the latest off-site backup restored into a scratch folder,
@@ -1393,8 +1395,8 @@ erase_account() {
 
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
-UNITS="botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service botdot-offsite.timer botdot-offsite.service"
-OWN="front-door accounts sockets disks bin backup offsite update.log requests.log"
+UNITS="botdot-computers.service botdot-computers.timer botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service botdot-offsite.timer botdot-offsite.service"
+OWN="front-door accounts sockets disks bin backup offsite update.log requests.log computer-preparation computer-preparation.log demo-seeded"
 PACKAGES="runsc docker-ce-rootless-extras"
 
 # installed_accounts: each account this machine has: its folder, its socket folder, its disk or its Linux user.
@@ -1489,6 +1491,7 @@ if [ "$MODE" = uninstall ]; then
     say ""
     # Root's step first, so that it makes nothing again meanwhile.
     if [ -n "$SYSTEMD" ]; then
+      systemctl disable --now botdot-computers.timer botdot-computers.service </dev/null >/dev/null 2>&1 || true
       systemctl disable --now botdot-accounts.path botdot-load.timer botdot-offsite.timer </dev/null >/dev/null 2>&1 || true
       systemctl stop botdot-accounts.service botdot-load.service botdot-offsite.service </dev/null >/dev/null 2>&1 || true
       if [ -f "$ETC/systemd/system/botdot-local-firewall.service" ]; then
@@ -1657,15 +1660,20 @@ case "$(docker --version </dev/null 2>/dev/null)" in
 esac
 # The machine's own Docker: the front door, and Caddy for a public domain.
 D="docker"
+# Offline image customization can install/check packages, but has no booted systemd or Docker daemon.
+# Only the prerequisites-only path may skip daemon checks; normal installs always require a running daemon.
+if [ "${PREREQUISITES:-}" != 1 ] || [ "${BOT_DOT_IMAGE_BUILD:-}" != 1 ]; then
 if ! docker info >/dev/null 2>&1; then
   systemctl start docker 2>/dev/null 9>&- || true
   docker info >/dev/null 2>&1 || die "Docker is installed but not running. Start it (sudo systemctl start docker) and run this again."
+fi
 fi
 # machine_logs: the machine's Docker keeps its containers' logs to LOG_OPTS, written once into its daemon.json beside
 # what is there, and restarted once to read it. A daemon.json that names a log driver or its options is the admin's,
 # and stays as it is. The front door and Caddy come back by their restart policy and get the limits when an update
 # makes them again.
 machine_logs() {
+  [ "${PREREQUISITES:-}:${BOT_DOT_IMAGE_BUILD:-}" != 1:1 ] || return 0
   ml_file="$ETC/docker/daemon.json"
   if [ -s "$ml_file" ] && [ "$(tr -d ' \t\r\n' < "$ml_file")" != '{}' ]; then
     grep -qE '"log-(driver|opts)"' "$ml_file" && return 0
@@ -1877,6 +1885,12 @@ if [ "$MODE" = install ] && [ "$(getenforce 2>/dev/null || true)" = Enforcing ];
 fi
 
 # ---------------------------------------------------------------------------------------------
+# A base-image build stops after the same runtime checks as a real install. No accounts, tokens or images.
+if [ "${PREREQUISITES:-}" = 1 ]; then
+  ok "The machine prerequisites are ready"
+  exit 0
+fi
+
 # 2. The images: botdot's signed images from a registry, or ones built on this machine
 
 [ "$MODE" = install ] || [ -f "$ENV" ] || die "botdot isn't installed here ($ENV is missing)."
@@ -1904,6 +1918,10 @@ repository_of() {
 # named_to: the version an update was asked for (#979), BOT_DOT_UPDATE_TO, as sha256: and the 64 hex digits of the
 # server image's digest; nothing for the newest; "invalid" for anything else, which the update refuses at check.
 named_to() {
+  if [ "$MODE" = install ] && [ -n "${BOT_DOT_INSTALL_TO:-}" ]; then
+    if printf '%s' "$BOT_DOT_INSTALL_TO" | grep -Eqx 'sha256:[0-9a-f]{64}'; then printf '%s' "$BOT_DOT_INSTALL_TO"; else printf invalid; fi
+    return 0
+  fi
   [ "$MODE" = update ] && [ -n "${BOT_DOT_UPDATE_TO:-}" ] || return 0
   if printf '%s' "$BOT_DOT_UPDATE_TO" | grep -Eqx 'sha256:[0-9a-f]{64}'; then printf '%s' "$BOT_DOT_UPDATE_TO"; else printf invalid; fi
 }
@@ -1941,14 +1959,27 @@ check() {
 # update says why ("no space left on device"), not only that it couldn't.
 pull() {
   into="${2:-$D}"
-  PULLED="$($into pull -q "$1" </dev/null 2>&1 >/dev/null)" && return 0
-  PULLED="$(printf '%s\n' "$PULLED" | sed '/^[[:space:]]*$/d' | tail -n 1)"
-  [ -n "$TOKEN" ] || return 1
-  printf '%s' "$TOKEN" | $D login "$REGISTRY" -u "$(owner_of "$IMAGE")" --password-stdin >/dev/null 2>&1 \
-    || die "That token didn't work for $REGISTRY. Check that it has the read:packages scope."
-  PULLED="$($into pull -q "$1" </dev/null 2>&1 >/dev/null)" && return 0
-  PULLED="$(printf '%s\n' "$PULLED" | sed '/^[[:space:]]*$/d' | tail -n 1)"
-  return 1
+  pull_try=1 pull_login=''
+  while :; do
+    # Each attempt is bounded. Keep progress in the install log instead of swallowing it with -q.
+    pull_err="$RUN/pull-$$.log"
+    pull_rc_file="$RUN/pull-$$.rc"
+    ( set +e; timeout 900 $into pull "$1" </dev/null; echo "$?" > "$pull_rc_file" ) 2>&1 | tee "$pull_err"
+    pull_rc="$(cat "$pull_rc_file")"; rm -f "$pull_rc_file"
+    if [ "$pull_rc" = 0 ]; then rm -f "$pull_err"; return 0; fi
+    PULLED="$(sed '/^[[:space:]]*$/d' "$pull_err" | tail -n 1)"
+    if grep -Eiq 'unauthorized|authentication required|denied' "$pull_err" && [ -n "$TOKEN" ] && [ -z "$pull_login" ]; then
+      pull_login=1
+      printf '%s' "$TOKEN" | $into login "$REGISTRY" -u "$(owner_of "$IMAGE")" --password-stdin >/dev/null 2>&1 \
+        || { rm -f "$pull_err"; return 1; }
+    elif [ "$pull_try" -ge 3 ] || { [ "$pull_rc" != 124 ] && ! grep -Eiq 'timeout|timed out|connection reset|connection refused|temporary failure|unexpected EOF|TLS handshake|too many requests|429|50[0234]' "$pull_err"; }; then
+      rm -f "$pull_err"; return 1
+    fi
+    rm -f "$pull_err"
+    say "Retrying image download (attempt $((pull_try + 1))/3)…"
+    sleep "$((pull_try * 5))"
+    pull_try=$((pull_try + 1))
+  done
 }
 # because: Docker's reason for the last failed download, after a colon, or nothing.
 because() { [ -z "${PULLED:-}" ] || printf ': %s' "$PULLED"; }
@@ -2166,6 +2197,11 @@ door_files() {
 # would be downloaded unchecked.
 unset BOT_DOT_IMAGE BOT_DOT_COMPUTER_IMAGE
 
+# Refuse an old image before promising review access it does not implement.
+if [ -n "${BOT_DOT_DEMO_CODE_SHA256:-}" ]; then
+  image_file front-door.js | grep FRONT_DOOR_DEMO_CODE_SHA256 >/dev/null || die "This release does not support demo access. Install a release with demo support."
+fi
+
 # Reading JSON with the image's own Node, so the machine doesn't need jq.
 json() { $D run --rm -i --entrypoint node "$IMAGE" -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(($1)??''))}catch{}})"; }
 
@@ -2181,7 +2217,16 @@ hand_images() {
   if [ -n "$REGISTRY" ]; then
     # Room first: the images this account's Docker no longer uses go before the new ones come (#190).
     clean_images "$RUN/$1/docker.sock" "$IMAGE" "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_IMAGE)" "$(get_env "$ACCOUNTS/$1/.env" BOT_DOT_COMPUTER_IMAGE)" "$IMAGE" "$COMPUTER_IMAGE"
-    pull "$IMAGE" "$A" || die "Couldn't download $IMAGE for the account $1$(because)."
+    if [ -n "$MANAGED" ] && ! same_image "$IMAGE"; then
+      # The machine has already verified and downloaded this digest. Avoid another registry transfer.
+      # pipefail is not POSIX: an archive makes failures of save and load independently visible.
+      hi_archive="$RUN/server-image.tar"
+      $D save -o "$hi_archive" "$IMAGE" </dev/null || die "Couldn't export $IMAGE."
+      $A load -q -i "$hi_archive" </dev/null || { rm -f "$hi_archive"; die "Couldn't hand $IMAGE to $1."; }
+      rm -f "$hi_archive"
+    else
+      pull "$IMAGE" "$A" || die "Couldn't download $IMAGE for the account $1$(because)."
+    fi
   elif ! same_image "$IMAGE"; then
     $D save "$IMAGE" </dev/null | $A load -q >/dev/null || die "Couldn't hand $IMAGE to the account $1."
   fi
@@ -2193,8 +2238,18 @@ hand_images() {
       if [ -n "$($A ps -aq --filter label=botdot.computer=account </dev/null 2>/dev/null || true)" ]; then
         ok "The bots' computer keeps its image; its Update or reset takes the newest"
       else
-        say "Downloading the bots' computer (about 7 GB the first time)…"
-        pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it."
+        if [ -n "$MANAGED" ]; then
+          install -d -m 700 "$DIR/computer-preparation"
+          rm -f "$DIR/computer-preparation/$1.blocked"
+          printf '%s\n' "$COMPUTER_IMAGE" > "$DIR/computer-preparation/$1.new"
+          chmod 600 "$DIR/computer-preparation/$1.new"
+          mv "$DIR/computer-preparation/$1.new" "$DIR/computer-preparation/$1"
+          write_status computer-preparation.json "{\"state\":\"preparing\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}"
+          ok "The bots' computer will download in the background"
+        else
+          say "Downloading the bots' computer (about 7 GB the first time)…"
+          pull "$COMPUTER_IMAGE" "$A" && ok "Bots' computer image is up to date" || warn "Couldn't download the bots' computer now; botdot tries again when a bot needs it."
+        fi
       fi ;;
     load)
       if ! same_image "$COMPUTER_IMAGE"; then
@@ -2440,6 +2495,14 @@ if [ -n "$MANAGED" ]; then
   fi
   [ -n "$(get_env "$ENV" FRONT_DOOR_SETUP_KEY)" ] || set_env "$ENV" FRONT_DOOR_SETUP_KEY "$(new_setup_key)"
   [ -z "$VARIANT_WAS" ] || [ "$VARIANT_WAS" = "$VARIANT" ] || ok "This machine now holds $([ "$VARIANT" = one ] && echo 'one account' || echo 'several accounts'): its accounts and passkeys are kept"
+fi
+
+# Review access is chosen only for a fresh dedicated managed machine. Never convert an existing customer in place.
+if [ -n "${BOT_DOT_DEMO_CODE_SHA256:-}" ]; then
+  [ -n "$MANAGED" ] && [ "$VARIANT" = one ] || die "Demo requires a managed one-account machine."
+  printf '%s' "$BOT_DOT_DEMO_CODE_SHA256" | grep -Eqx '[0-9a-f]{64}' || die "Invalid demo code hash."
+  [ -n "$(get_env "$ENV" FRONT_DOOR_DEMO_CODE_SHA256)" ] || [ -z "$VARIANT_WAS" ] || die "Demo must be chosen at the first install."
+  set_env "$ENV" FRONT_DOOR_DEMO_CODE_SHA256 "$BOT_DOT_DEMO_CODE_SHA256"
 fi
 
 # Jev, the decision model, boat.dev, the External Virtual PC (#513, #529), and Composio for the admin's own account's
@@ -4150,6 +4213,17 @@ if [ -n "$REGISTRY" ]; then
   else warn "Couldn't remove every old image of the front door now; the next update tries again."; fi
 fi
 
+# Seed only an explicitly created demo; never touch the data of a normal account.
+if [ -n "$(get_env "$ENV" FRONT_DOOR_DEMO_CODE_SHA256)" ] && [ ! -f "$DIR/demo-seeded" ]; then
+  demo_seed="$RUN/seed-demo.js"
+  if [ -f "$SOURCE/deploy/seed-demo.js" ]; then cp "$SOURCE/deploy/seed-demo.js" "$demo_seed";
+  else image_file deploy/seed-demo.js > "$demo_seed"; fi
+  $D run --rm -i --network none --user 0:0 -e "BOT_DOT_ACCOUNT=$ADMIN" -v "$SOCKETS/$ADMIN:/socket:ro" -v "$demo_seed:/seed-demo.js:ro" --entrypoint node "$IMAGE" /seed-demo.js \
+    || die "Couldn't prepare the fictional demo data. Retry this install."
+  rm -f "$demo_seed"
+  touch "$DIR/demo-seeded"
+fi
+
 # The version every account and the front door now run, for the admin page (#473): the source's revision the image
 # carries, or the image's own id. And whether it is self-built, which the admin builds again before an update.
 VERSION="$($D image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$IMAGE" </dev/null 2>/dev/null || true)"
@@ -4186,6 +4260,46 @@ if [ -f "$SOURCE/install.sh" ] && [ "$SOURCE" != "$BIN" ]; then
 elif [ ! -f "$SOURCE/install.sh" ]; then
   warn "This installer isn't in a file of its own, so sign-up links can't make accounts yet. Run it from botdot's source."
 fi
+# A separate worker and lock keep the optional computer download out of the install and root's request lock.
+if [ -d "$DIR/computer-preparation" ]; then
+  if [ -f "$SOURCE/deploy/prepare-computers.sh" ]; then
+    cp "$SOURCE/deploy/prepare-computers.sh" "$BIN/prepare-computers.sh"
+  else
+    image_file deploy/prepare-computers.sh > "$BIN/prepare-computers.sh"
+  fi
+  chmod 700 "$BIN/prepare-computers.sh"
+  if [ -n "$SYSTEMD" ]; then
+    cat > "$ETC/systemd/system/botdot-computers.service" <<UNIT
+[Unit]
+Description=Prepare botdot computers in the background
+After=docker.service network-online.target
+[Service]
+Type=oneshot
+Environment=BOT_DOT_DIR=$DIR
+Environment=BOT_DOT_RUN=$RUN
+ExecStart=/bin/sh $BIN/prepare-computers.sh
+TimeoutStartSec=95min
+Nice=10
+[Install]
+WantedBy=multi-user.target
+UNIT
+    systemctl daemon-reload
+    cat > "$ETC/systemd/system/botdot-computers.timer" <<UNIT
+[Unit]
+Description=Retry pending botdot computer preparation
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=5min
+[Install]
+WantedBy=timers.target
+UNIT
+    systemctl enable --now botdot-computers.timer
+    systemctl start --no-block botdot-computers.service
+  else
+    BOT_DOT_DIR="$DIR" BOT_DOT_RUN="$RUN" nohup sh "$BIN/prepare-computers.sh" >> "$DIR/computer-preparation.log" 2>&1 </dev/null 9>&- 8>&- &
+  fi
+fi
+
 if [ -n "$SYSTEMD" ]; then
   cat > "$ETC/systemd/system/botdot-accounts.path.new" <<UNIT
 # botdot (install.sh): the front door asked for a new account (ADR 028, #467).

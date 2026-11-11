@@ -26,7 +26,7 @@ const SUB = 165536;
 // tailscale, runsc or setfacl, and a test that leaves one out must find it missing. Made once, as links.
 const OWN = new Set(['docker', 'tailscale', 'dockerd-rootless.sh', 'rootlesskit', 'runsc', 'setfacl', 'newuidmap', 'slirp4netns', 'pasta', 'vpnkit',
   'apt-get', 'dpkg', 'dpkg-query', 'dnf', 'rpm', 'restorecon', 'getcap', 'iptables', 'ip6tables', 'iptables-restore', 'ip6tables-restore', 'useradd', 'userdel', 'umount', 'id', 'chown', 'su', 'systemctl', 'nohup', 'apparmor_parser', 'gpg', 'curl', 'sleep', 'timedatectl', 'uname',
-  'sysctl', 'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent']);
+  'sysctl', 'mkfs.ext4', 'losetup', 'mount', 'mountpoint', 'resize2fs', 'fstrim', 'truncate', 'df', 'getconf', 'getent', 'timeout']);
 let systemTools = null;
 function machineTools() {
   if (systemTools) return systemTools;
@@ -92,7 +92,7 @@ function installer(t, { osRelease = null, dotenv = ANSWERED, given = {}, bins = 
   stand('docker', [
     `printf '%s\\t%s\\n' "\${DOCKER_HOST:-machine}" "$*" >> "${dockerLog}"`,
     ...dockerFirst,
-    `[ "$1" = pull ] && [ "$3" = "${failPull}" ] && { echo 'failed to register layer: write /var/lib/docker/overlay2/l/x: no space left on device' >&2; exit 1; }`,
+    `[ -n "${failPull}" ] && [ "$1" = pull ] && case " $* " in *" ${failPull}"*) true ;; *) false ;; esac && { echo 'failed to register layer: write /var/lib/docker/overlay2/l/x: no space left on device' >&2; exit 1; }`,
     noCompose ? `[ "$1" = compose ] && { echo "docker: 'compose' is not a docker command." >&2; exit 1; }` : '',
     `[ "$1" = run ] && [ "$4" = --entrypoint ] && [ "$5" = node ] && { shift 6; exec "${process.execPath}" "$@"; }`,
     `[ "$1" = run ] && [ "$5" = --entrypoint ] && [ "$6" = cat ] && { cat "${ROOT}$(echo "$8" | sed 's#^/opt/bot-dot##')"; exit; }`,
@@ -141,6 +141,7 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
   stand('systemctl', `${said('systemctl')}\n[ "$1" = show ] && exit ${systemd ? 0 : 1}\ncase "$1" in start|restart) touch "${started}" ;; esac\nexit 0`);
   stand('apt-get', said('apt-get'));
   stand('sleep', 'exit 0');
+  stand('timeout', 'shift; exec "$@"');
   stand('timedatectl', 'exit 1');
   stand('uname', '[ "$1" = -m ] && echo x86_64 || echo Linux');
   // curl: the front door answers on 127.0.0.1, Caddy on the domain (unless `caddy` is false).

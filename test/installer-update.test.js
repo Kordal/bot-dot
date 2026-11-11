@@ -207,7 +207,7 @@ test("an account whose new server starts slowly is waited for while its containe
 });
 
 test("an account whose download fails keeps its version, and the update goes on with the others (#194)", (t) => {
-  const { update, log, home, calls } = updateWithBob(t, `[ "$1" = pull ] && case "$3" in *bot-dot@*) echo 'write /var/lib/docker/x: no space left on device' >&2; exit 1 ;; esac`);
+  const { update, log, home, calls } = updateWithBob(t, `[ "$1" = pull ] && case "$2" in *bot-dot@*) echo 'write /var/lib/docker/x: no space left on device' >&2; exit 1 ;; esac`);
   assert.equal(update.state, 'failed', log);
   assert.ok(update.accounts, `${JSON.stringify(update)}\n${log}`);
   assert.equal(update.accounts.find((a) => a.name === 'ann').result, 'updated');
@@ -277,7 +277,7 @@ test('one installer runs at a time: another waits for it, and then runs', async 
 test('what the installer leaves running holds no lock: an account\'s Docker and the loop without systemd', () => {
   // Started with the lock's descriptor, either would hold it after the run, and the next installer would wait for ever.
   const lasting = code.split('\n').filter((line) => /nohup/.test(line));
-  assert.equal(lasting.length, 3, 'an account\'s Docker, the loop without systemd and an off-site backup without systemd');
+  assert.equal(lasting.length, 4, 'an account\'s Docker, the loop without systemd and an off-site backup without systemd');
   for (const line of lasting) assert.match(line, /9>&-/, line.trim());
   assert.doesNotMatch(code, /export BOT_DOT_LOCKED/, 'only the update root\'s step starts, and the installer it hands over to, go on under its hold');
 });
