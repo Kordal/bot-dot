@@ -1,11 +1,11 @@
 {
   "items": [
-    { "id": "a", "name": "Albert Heijn", "site": "ah.be", "username": "bart@example.com" },
-    { "id": "b", "name": "Beszel STG", "site": "100.69.196.6", "username": "admin" },
-    { "id": "c", "name": "Main card", "kind": "card", "brand": "Visa", "last4": "4242" },
+    { "id": "a", "name": "Albert Heijn", "site": "ah.be", "username": "bart@example.com", "category": "Shopping" },
+    { "id": "b", "name": "Beszel STG", "site": "100.69.196.6", "username": "admin", "category": "Servers" },
+    { "id": "c", "name": "Main card", "kind": "card", "brand": "Visa", "last4": "4242", "category": "Shopping" },
     { "id": "d", "name": "Me", "kind": "identity", "holder": "Alex Example", "email": "alex@example.org" },
     { "id": "e", "name": "Deploy key", "kind": "file", "fileName": "deploy.pem" },
-    { "id": "f", "name": "Call key: VPS Admin", "site": "hq.botdot.app", "allowedHosts": ["api.botdot.app"] }
+    { "id": "f", "name": "Call key: VPS Admin", "site": "hq.botdot.app", "allowedHosts": ["api.botdot.app"], "category": "Servers" }
   ],
   "cases": [
     { "query": "", "found": ["a", "b", "c", "d", "e", "f"] },
@@ -19,6 +19,13 @@
     { "query": "pem", "found": ["e"] },
     { "query": "api.botdot", "found": ["f"] },
     { "query": "botdot vps", "found": ["f"] },
+    { "query": "shopping", "found": ["a", "c"] },
+    { "query": "serv admin", "found": ["b", "f"] },
     { "query": "nothing-like-this", "found": [] }
+  ],
+  "groups": [
+    { "category": "", "found": ["d", "e"] },
+    { "category": "Servers", "found": ["b", "f"] },
+    { "category": "Shopping", "found": ["a", "c"] }
   ]
 }

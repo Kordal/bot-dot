@@ -1640,6 +1640,8 @@ data class VaultItem(
     val kind: String = "login",
     // Of a login-kind item: login, api-token or other (VaultTypes); a server from before the types sends none.
     val type: String = "login",
+    // The group the owner put it in (`vault-categories`, ADR 213), "" for none; any kind may have one.
+    val category: String = "",
     val site: String = "",
     val username: String = "",
     val allowedBots: List<String> = emptyList(),
