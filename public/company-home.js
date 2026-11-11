@@ -460,7 +460,7 @@
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
+      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.chiefHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
       ${needsHTML(c, projectNeeds(c))}
       ${days ? lineHTML(c) : ''}
       ${(days || c.ongoing) && c.checkin ? checkinHTML(c.checkin) : ''}
