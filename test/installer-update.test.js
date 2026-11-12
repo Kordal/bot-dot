@@ -407,7 +407,7 @@ test("root's step measures the machine's load and each account's use, from outsi
   assert.equal(fs.statSync(load).mode & 0o777, 0o750);
   assert.match(once.system, new RegExp(`^chown 0:990 ${load}$`, 'm'), "root's, read by the front door's group");
   const machine = JSON.parse(fs.readFileSync(path.join(load, 'machine.json'), 'utf8'));
-  assert.deepEqual({ ...machine, at: null }, { at: null, cpus: 4, load: 1.25, ramTotal: 8_192_000_000, ramUsed: 2_048_000_000, diskTotal: 62914560 * 1024, diskUsed: 17825792 * 1024 });
+  assert.deepEqual({ ...machine, at: null }, { at: null, cpus: 6, load: 1.25, ramTotal: 8_192_000_000, ramUsed: 2_048_000_000, diskTotal: 62914560 * 1024, diskUsed: 17825792 * 1024 });
   const ann = JSON.parse(fs.readFileSync(path.join(load, 'account-ann.json'), 'utf8'));
   assert.equal(ann.ram, 1610612736, 'what its unit holds');
   assert.equal(ann.cpu, null, 'CPU is measured between two readings');

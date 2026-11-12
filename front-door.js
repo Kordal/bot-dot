@@ -50,7 +50,7 @@
 // FRONT_DOOR_MANAGED  1 on a managed machine (ADR 154), which the fleet console runs through root's step: no admin page
 //                     (/admin and /admin/… are 404), no admin and no shared rooms, its Feedback goes to the console
 //                     through FRONT_DOOR_DATA/outbox (ADR 164), and each account has a
-//                     guaranteed share (4 CPUs, 8 GB of RAM, 40 GB of disk by default) that a new account must fit
+//                     guaranteed share (6 CPUs, 9 GB of RAM, 150 GB of disk by default) that a new account must fit
 //                     beside the others' (lib/front-door/capacity.js). One account with FRONT_DOOR_ONE_ACCOUNT; several
 //                     with FRONT_DOOR_FIRST_ACCOUNT, the first one, made with the setup key, and the others from
 //                     sign-up links root's step makes
