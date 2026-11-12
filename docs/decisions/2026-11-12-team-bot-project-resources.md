@@ -1,0 +1,1 @@
+2026-11-12: A team bot proposes, checks and changes only its project's own machines, accounts and data; the owner's other machines, accounts and projects in its memory or rules stay out unless the owner names them.
