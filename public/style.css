@@ -3346,6 +3346,7 @@ body.bc-dragging, body.bc-dragging * { user-select: none; cursor: grabbing; }
 .co-chip.co-prev span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .co-chip.co-prev:hover { background: var(--fill); }
 .co-chip.sk { width: var(--w); background: linear-gradient(90deg, var(--raise), var(--fill), var(--raise)); background-size: 200% 100%; box-shadow: none; cursor: default; animation: co-sk calc(var(--t3) * 6) infinite linear; }
+.co-title.sk { display: inline-block; width: min(420px, 90%); height: 1.15em; vertical-align: top; border-radius: var(--r-8); background: linear-gradient(90deg, var(--raise), var(--fill), var(--raise)); background-size: 200% 100%; animation: co-sk calc(var(--t3) * 6) infinite linear; }
 @keyframes co-sk { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .co-cal { width: 340px; max-width: 100%; padding: var(--sp-16); border-radius: var(--r-14); background: var(--raise); box-shadow: var(--lift); }
 .co-cal-head { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-8); }
