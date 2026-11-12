@@ -1,4 +1,4 @@
-# ADR-222: A service botdot connects goes through its app, not the owner's hands
+# ADR-223: A service botdot connects goes through its app, not the owner's hands
 
 - **Status:** Accepted (2026-11-12, the owner: "We started setting up Brevo, and the bot didn't know we have a connector for it")
 - **Amends:** [ADR 168](168-a-missing-app-is-one-connect-card-and-connecting-it-carries-the-work-on.md) (when the Chief and a bot ask for an app)

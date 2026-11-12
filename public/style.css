@@ -1591,6 +1591,14 @@ a.file-chip.link:hover { background: var(--fill); }
 /* A run started by another bot's message: its message, on your side of the chat but not yours */
 .from-bot-msg { align-items: flex-end; gap: var(--sp-8); max-width: 76%; }
 .bot-msg-label { color: var(--muted); font-size: var(--fs-14); padding: 0 var(--sp-8); }
+/* What a Chief message is about (ADR 223): the team in its colour, the project before it outside the project's chat. */
+.about { display: inline-flex; align-items: center; gap: var(--sp-8); align-self: flex-start; max-width: 100%; margin: 0 var(--sp-4) var(--sp-4); padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-12); font-weight: 600; color: var(--c); cursor: pointer; }
+.from-me .stack > .about { align-self: flex-end; }
+.about-sq { width: 14px; height: 14px; border-radius: var(--r-8); background: var(--c); flex: none; }
+.about-project { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.about-sep { color: var(--faint); }
+.about-team { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.about:hover .about-team { text-decoration: underline; }
 .bubble-row.from-bot .bot-msg-label { align-self: flex-start; }
 .suggestion-actions { display: flex; gap: var(--sp-8); justify-content: flex-end; }
 .vault-add { display: flex; gap: var(--sp-8); flex-wrap: wrap; }
