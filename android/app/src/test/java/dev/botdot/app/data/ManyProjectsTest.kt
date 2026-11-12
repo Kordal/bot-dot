@@ -163,4 +163,14 @@ class ManyProjectsTest {
         val owner = GroupMessage.of(kotlinx.serialization.json.Json.parseToJsonElement("""{"id":"m2","text":"Hi","at":"2026-11-12T10:00:00Z","as":"boss"}"""))!!
         assertNull("only the Project Manager's message is drawn as another's", owner.asBot)
     }
+
+    @Test fun aProjectsOwnChiefChatIsItsProjectManager() {
+        val on = listOf(ManyProjects.MANAGER)
+        val projects = listOf(Company("p1", chiefChat = "c-pm"), null, Company("p2"))
+        assertTrue(ManyProjects.managerChat(on, projects, "c-pm"))
+        assertFalse(ManyProjects.managerChat(on, projects, "c-other"))
+        assertFalse(ManyProjects.managerChat(on, projects, null))
+        assertFalse(ManyProjects.managerChat(emptyList(), projects, "c-pm"))
+        assertFalse(ManyProjects.managerChat(null, projects, "c-pm"))
+    }
 }

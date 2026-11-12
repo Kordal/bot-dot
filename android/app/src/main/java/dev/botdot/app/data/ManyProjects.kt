@@ -32,6 +32,10 @@ object ManyProjects {
         val mine = c.teams.flatMap { it.bots }.toSet()
         return bots.sortedWith(compareBy<Bot>({ it.id !in mine }, { it.name.lowercase() }))
     }
+
+    /** Whether the Chief chat [chatId] is a project's own, so its head says "Project Manager" (ADR 217). */
+    fun managerChat(features: Collection<String>?, projects: List<Company?>, chatId: String?): Boolean =
+        chatId != null && features != null && MANAGER in features && projects.any { it?.chiefChat == chatId }
     /** Tidy up beside the gear: the project's Chief arranges the whole board, asked in its chat. */
     const val TIDY = "board-tidy"
     const val FOLDER = "project-folder"

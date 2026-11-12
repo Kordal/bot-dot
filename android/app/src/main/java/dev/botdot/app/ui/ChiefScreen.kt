@@ -83,6 +83,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val openTeam = { teamId: String -> groupsNow.orEmpty().firstOrNull { it.team == teamId }?.let { onGroup(it.id) }; Unit }
     val server by app.store.version.value.collectAsState() // its features: whether it rates unasked messages
     val features = server?.features
+    val projectList by app.store.projectList.collectAsState()
+    val shownProject by app.store.company.value.collectAsState()
+    val chiefName = if (dev.botdot.app.data.ManyProjects.managerChat(features, projectList + shownProject?.company, chatId)) tr("Project Manager") else LocalChiefName.current
     val stays = sendStays(features) // Send stays while it replies, and Stop is the word on the working line
     val signedOut by app.store.claude.signedOut.collectAsState()
     val backAt by app.store.claude.backAt.collectAsState()
@@ -185,7 +188,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
             topBar = {
-                ChatBar(lead?.color ?: CHIEF_COLOR, if (busy) "working" else "idle", lead?.name ?: LocalChiefName.current, onName = onSettings, onBack = onBack, outfit = if (lead != null) lead.outfit else FigureDef.CHIEF) {
+                ChatBar(lead?.color ?: CHIEF_COLOR, if (busy) "working" else "idle", lead?.name ?: chiefName, onName = onSettings, onBack = onBack, outfit = if (lead != null) lead.outfit else FigureDef.CHIEF) {
                     // Its files (#603), as a bot's.
                     if (dev.botdot.app.data.FilesExplorer.shows(features) && dev.botdot.app.data.UploadedFiles.chiefShows(features)) RoundButton(Icons.Filled.Folder, tr("Files"), onClick = onFiles)
                     RoundButton(Icons.Filled.Add, tr("New chat")) { vm.open(null) }
@@ -199,7 +202,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             } },
         ) { pad ->
             if (empty) {
-                EmptyChat(pad, LocalChiefName.current, ownJobs, onJob = { runOwnJob(it) },
+                EmptyChat(pad, chiefName, ownJobs, onJob = { runOwnJob(it) },
                     figure = { BotFigure(CHIEF_COLOR, if (busy) "working" else "idle", 56, FigureDef.CHIEF) }) { box() }
                 return@Scaffold
             }
