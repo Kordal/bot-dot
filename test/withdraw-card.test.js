@@ -83,3 +83,15 @@ test('a wait ends early, still pending, when early() says the owner wrote to the
   assert.ok(Date.now() - t < 3_000, 'within about a second of the message');
   loginRequests.settle(r.id, 'expired');
 });
+
+test('each kind of card a run waits on is told it was withdrawn', () => {
+  const told = [];
+  const list = [{ id: 'c1', botId: 'b1', kind: 'connector-action' }, { id: 'c2', botId: 'b1', kind: 'computer-step' }, { id: 'c3', botId: 'b2', kind: 'room-tool' }, { id: 'c4', botId: 'b3', kind: 'permission' }];
+  const asks = { drop: (match) => { const gone = list.filter(match); for (const a of gone) list.splice(list.indexOf(a), 1); return gone; } };
+  const note = (who) => ({ withdrawn: (a) => told.push(`${who}:${a.id}`) });
+  const w = require('../lib/withdraw-cards').create({ asks, loginRequests: { get: () => null }, connectorApprovals: note('app'), irreversibleSteps: note('step'), roomRuns: note('room') });
+  for (const id of ['c1', 'c2', 'c3']) assert.equal(w.withdraw(['b1', 'b2'], id).ok, true);
+  assert.deepEqual(told, ['app:c1', 'step:c2', 'room:c3']);
+  assert.throws(() => w.withdraw(['b1', 'b2'], 'c4'), /Nothing to withdraw/, "not a bot it may withdraw for");
+  assert.equal(list.length, 1);
+});

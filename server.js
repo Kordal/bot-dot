@@ -790,7 +790,7 @@ const storage = require('./lib/storage').create({ dataDir: B.DATA_DIR, bots: () 
 require('./lib/routes/workspace').onDeleted((place, p) => storage.forget(place, p));
 const ctx = { ACCOUNT, audit, storage, secretFiles, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
   UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, irreversibleSteps,
-  withdrawCards: require('./lib/withdraw-cards').create({ asks, loginRequests, connectorApprovals, irreversibleSteps }), roomRuns, backups, backupAlert, connectedApps, tools, chiefReview, connectAsks, PORT,
+  withdrawCards: require('./lib/withdraw-cards').create({ asks, loginRequests, connectorApprovals, irreversibleSteps, roomRuns }), roomRuns, backups, backupAlert, connectedApps, tools, chiefReview, connectAsks, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
   fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };
