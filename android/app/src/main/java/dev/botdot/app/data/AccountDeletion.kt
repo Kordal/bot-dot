@@ -27,6 +27,14 @@ object AccountDeletion {
 
     fun body(name: String): JsonObject = buildJsonObject { put("name", name) }
 
+    /** What the front door answered: [boat] is why its machines on boat.dev were not all deleted, or null when they were. */
+    data class Done(val boat: String?)
+    fun done(answer: JsonObject?): Done = Done((answer?.get("boat") as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null })
+
+    /** What the phone says once it is deleted: with a line on boat.dev's machines when not all of them went. */
+    fun said(done: Done): String = done.boat?.let { tr("Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.", "why" to it) }
+        ?: tr("Your account is deleted.")
+
     /** true, false, or null when the field is left out or isn't a boolean. */
     private fun flag(session: JsonObject?, name: String): Boolean? =
         (session?.get(name) as? JsonPrimitive)?.takeIf { !it.isString }?.content?.let { if (it == "true") true else if (it == "false") false else null }

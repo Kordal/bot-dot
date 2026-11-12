@@ -123,3 +123,17 @@ for (const [what, env] of [['a machine of one account', {}], ['a managed machine
     assert.equal((await b.get('/front-door/session')).status, 200, 'still signed in');
   });
 }
+
+test("a delete bound to an account's userId never deletes one made again with the same name", () => {
+  const store = require('../lib/front-door/store');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-bound-'));
+  try {
+    const doors = store.open(dir);
+    const key = { id: 'k1', alg: -7, jwk: {}, signCount: 0 };
+    doors.createOnlyAccount({ name: 'eve', userId: 'new-one', passkey: key });
+    assert.throws(() => doors.deleteAccount('eve', Date.now(), 'old-one'), (e) => e.status === 409);
+    assert.ok(doors.accountExists('eve'), 'the new eve stays');
+    doors.deleteAccount('eve', Date.now(), 'new-one');
+    assert.ok(!doors.accountExists('eve'));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});

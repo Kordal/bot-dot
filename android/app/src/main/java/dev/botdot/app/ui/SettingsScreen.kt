@@ -451,7 +451,7 @@ fun SettingsScreen(
                     // Done, the front door clears this phone's session, and the sign-in screen opens by itself.
                     scope.launch {
                         runCatching { api!!.deleteAccount(account) }
-                            .onSuccess { confirmDelete = false; android.widget.Toast.makeText(context, tr("Your account is deleted."), android.widget.Toast.LENGTH_LONG).show() }
+                            .onSuccess { confirmDelete = false; android.widget.Toast.makeText(context, dev.botdot.app.data.AccountDeletion.said(it), android.widget.Toast.LENGTH_LONG).show() }
                             .onError { tell(it.message ?: tr("Couldn't delete the account")) }
                         deleting = false
                     }

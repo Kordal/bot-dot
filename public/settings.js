@@ -678,22 +678,37 @@ function openDeleteAccount(account) {
       </div>
     </form>`);
   const field = $('input[name="name"]', m), go = $('#delete-account-go', m);
-  field.oninput = () => { go.disabled = field.value !== account; };
-  $('#delete-account-form', m).onsubmit = (e) => { e.preventDefault(); if (field.value === account) deleteAccount(m, account); };
+  field.oninput = () => { go.disabled = m._deleting === true || field.value !== account; };
+  $('#delete-account-form', m).onsubmit = (e) => { e.preventDefault(); if (field.value === account && !m._deleting) deleteAccount(m, account); };
   return m;
 }
 
 async function deleteAccount(m, account) {
   const go = $('#delete-account-go', m), said = $('#delete-account-said', m);
+  m._deleting = true; // one request at a time: typing the name again doesn't send a second
   go.disabled = true;
+  let done;
   try {
-    const done = await frontDoorPost('/front-door/delete-account', { name: account });
-    location.assign(typeof done.deleted === 'string' && done.deleted.startsWith('/') ? done.deleted : '/sign-in');
+    done = await frontDoorPost('/front-door/delete-account', { name: account });
   } catch (e) {
     said.textContent = e.message;
     said.classList.remove('hidden');
+    m._deleting = false;
     go.disabled = false;
+    return;
   }
+  const next = typeof done.deleted === 'string' && done.deleted.startsWith('/') ? done.deleted : '/sign-in';
+  // The account is gone, but not all its machines on boat.dev: said before the page leaves, with no second delete.
+  if (typeof done.boat === 'string' && done.boat.trim()) {
+    said.textContent = tr('Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.', { why: done.boat.trim() });
+    said.classList.remove('hidden');
+    go.textContent = tr('OK');
+    go.classList.remove('red');
+    go.disabled = false;
+    $('#delete-account-form', m).onsubmit = (e) => { e.preventDefault(); location.assign(next); };
+    return;
+  }
+  location.assign(next);
 }
 
 // ---------- the way to the admin page ----------

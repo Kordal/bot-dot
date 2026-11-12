@@ -88,3 +88,30 @@ test('web: a refusal is said in the form, and nothing is left', async () => {
   assert.equal(m.parts['#delete-account-said'].textContent, "Type your account's name, bob, to delete it.");
   assert.equal(m.parts['#delete-account-go'].disabled, false, 'it can be tried again');
 });
+
+test('web: a second Delete is not sent while the first one waits, even when the name is typed again', async () => {
+  let finish;
+  const { ctx, m, posts } = page({ post: () => new Promise((r) => { finish = r; }) });
+  ctx.openDeleteAccount('bob');
+  type(m, 'bob');
+  await submit(m);
+  type(m, 'bo'); type(m, 'bob');
+  assert.equal(m.parts['#delete-account-go'].disabled, true, 'still off while it waits');
+  await submit(m);
+  assert.equal(posts.length, 1);
+  finish({ ok: true, deleted: '/front-door/deleted' });
+});
+
+test("web: when boat.dev's machines were not all deleted, the form says so before it leaves, with no second delete", async () => {
+  const { ctx, m, posts, went } = page({ post: async () => ({ ok: true, deleted: '/front-door/deleted', boat: 'boat.dev: 1 machine not deleted (timeout)' }) });
+  m.parts['#delete-account-go'].classList = { remove() {} };
+  ctx.openDeleteAccount('bob');
+  type(m, 'bob');
+  await submit(m);
+  assert.deepEqual(went, [], 'it waits for the owner to read it');
+  assert.match(m.parts['#delete-account-said'].textContent, /not all its machines on boat\.dev were \(boat\.dev: 1 machine not deleted \(timeout\)\)/);
+  assert.equal(m.parts['#delete-account-go'].textContent, 'OK');
+  await submit(m);
+  assert.deepEqual(went, ['/front-door/deleted']);
+  assert.equal(posts.length, 1, 'OK only leaves');
+});

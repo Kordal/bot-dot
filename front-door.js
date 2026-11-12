@@ -1820,9 +1820,12 @@ async function eraseBoat(name) {
 // first, then the front door forgets it, its passkeys, sessions and open sign-in links at once, it leaves its rooms,
 // and root's step erases it from the machine. `actor` is who deleted it, kept in the audit entry. Returns what
 // eraseBoat said.
+// The account is bound by its userId before eraseBoat waits: one made again with the same name meanwhile is never
+// deleted by a request for the one before (409).
 async function eraseAccount(name, actor) {
+  const userId = doors.userIdOf(name);
   const boatGone = await eraseBoat(name);
-  doors.deleteAccount(name);
+  doors.deleteAccount(name, Date.now(), userId);
   roomsWithout(name);
   usage?.forget(name);
   const who = actor === name ? 'its owner' : 'the admin';

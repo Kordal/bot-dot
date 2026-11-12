@@ -34,6 +34,8 @@ class AccountDeletionTest {
         MockResponse.Builder().code(code).addHeader("Content-Type", "application/json").body(body).build()
     private fun obj(s: String) = Api.JSON.parseToJsonElement(s).jsonObject
 
+    @Test fun waitsLongerThanTheFrontDoorWaitsForBoatDev() = assertTrue(Api.DELETE_WAIT_S > 90)
+
     @Test fun showsOnlyWhereTheFrontDoorSaysThisAccountMay() {
         val accounts = listOf("accounts")
         assertTrue(AccountDeletion.on(accounts, obj("""{"account":"bob","admin":false,"deleteAccount":true}""")))
@@ -61,11 +63,18 @@ class AccountDeletionTest {
 
     @Test fun sendsTheNameToTheFrontDoorsOwnRouteAndSaysARefusal() = runBlocking {
         door.enqueue(json("""{"ok":true,"deleted":"/front-door/deleted"}"""))
-        api.deleteAccount("bob")
+        assertEquals(null, api.deleteAccount("bob").boat)
         val r = door.takeRequest()
         assertEquals("POST" to "/front-door/delete-account", r.method to r.target)
         assertEquals("1", r.headers["X-Bot-Dot"])
         assertEquals("bob", Api.JSON.parseToJsonElement(r.body!!.utf8()).jsonObject["name"]!!.jsonPrimitive.content)
+
+        door.enqueue(json("""{"ok":true,"deleted":"/front-door/deleted","boat":"boat.dev: 1 machine not deleted (timeout)"}"""))
+        val partly = api.deleteAccount("bob")
+        door.takeRequest()
+        assertEquals("boat.dev: 1 machine not deleted (timeout)", partly.boat)
+        assertTrue(AccountDeletion.said(partly).contains("not all its machines on boat.dev"))
+        assertEquals("Your account is deleted.", AccountDeletion.said(AccountDeletion.Done(null)))
 
         door.enqueue(json("""{"error":"ann is the admin's account: it can't be deleted here. The machine is removed by its admin instead."}""", 409))
         try { api.deleteAccount("ann"); fail("refused") } catch (e: ApiException) { assertTrue(e.message!!.contains("removed by its admin")) }
