@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 const { words } = require('../lib/working-line');
 const { TOOLS } = require('../lib/mcp-server');
-const { startServer, makeBot, heldRun, feed, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, heldRun, feed, waitFor, sleep, streamOf } = require('./helpers');
 const { shortName } = require('../public/mentions.js');
 
 const say = (text) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
@@ -60,16 +60,6 @@ const atWork = (group, bot) => waitFor(async () => { const c = await chatOf(grou
 const of = (type, runId) => f.events.filter((e) => e.type === type && e.data.runId === runId);
 const lines = (runId) => of('group_working_line', runId).map((e) => e.data.text);
 const lineIs = (runId, text) => waitFor(() => lines(runId).at(-1) === text, { what: `the line "${text}" (it reads ${JSON.stringify(lines(runId))})` });
-async function streamOf(p, until, ms = 2000) {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), ms);
-  let got = '';
-  try {
-    const res = await fetch(`${srv.base}/api${p}`, { signal: abort.signal });
-    for await (const chunk of res.body) { got += Buffer.from(chunk).toString(); if (until.test(got)) break; }
-  } catch { /* timed out: what came is what there is */ } finally { clearTimeout(timer); abort.abort(); }
-  return got;
-}
 
 test('in a group each member\'s line follows its turn\'s work, one member after another, in the server\'s words', async (t) => {
   const coder = await makeBot(srv, { name: 'Coder', emoji: '🤖', prompt: 'Write the code.' });
@@ -104,7 +94,7 @@ test('in a group each member\'s line follows its turn\'s work, one member after 
   assert.deepEqual((await chatOf(group)).working, [{ botId: coder.id, runId: first.runId, messageId: sent.id, startedAt: first.startedAt, openingLine: 'Reading the diff', workingLine: 'Reading nytimes.com' }]);
   const run = (await srv.api(`/runs/${first.runId}?events=0`)).data;
   assert.deepEqual([run.workingLine, run.openingLine], ['Reading nytimes.com', 'Reading the diff']);
-  assert.match(await streamOf(`/runs/${first.runId}/stream`, /working_line/), /data: \{"type":"working_line","text":"Reading nytimes.com","steps":\d+\}/);
+  assert.match(await streamOf(srv, `/runs/${first.runId}/stream`, /working_line/), /data: \{"type":"working_line","text":"Reading nytimes.com","steps":\d+\}/);
 
   // At most one change a second, and the last one always: two steps at once give one change.
   await sleep(1100);

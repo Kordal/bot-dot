@@ -303,6 +303,38 @@ async function feed(srv) {
   return { events, close: () => ac.abort(), wait: (type, fn = () => true) => waitFor(() => events.find((e) => e.type === type && fn(e.data)), { what: `a ${type} event` }) };
 }
 
+// A stream (the feed, a run's, a Chief chat's) as a client that connects now gets it. follow() is handed over once
+// the stream sent what matches `ready` (the feed's hello, a run's run_start), after which botdot has subscribed it:
+// nothing the test does next is missed. until(re) is all it sent up to where `re` first matches. Each waits as long
+// as that takes: the feed's hello waits on botdot asking Claude Code whether it is signed in, which under load takes
+// seconds (#1270). `within` bounds a stream that never sends it, and the test then fails saying what did come, not
+// with an assertion on half a stream. streamOf() is follow() and until() at once.
+async function followStream(srv, p, { ready = /[^]/, within = 15_000 } = {}) {
+  const abort = new AbortController();
+  const res = await fetch(`${srv.base}/api${p}`, { signal: abort.signal });
+  const reader = res.body.getReader();
+  let got = '';
+  let ended = false;
+  const until = async (re) => {
+    const timer = setTimeout(() => abort.abort(), within);
+    try {
+      while (!re.test(got) && !ended) {
+        const { value, done } = await reader.read();
+        if (done) ended = true;
+        else got += Buffer.from(value).toString();
+      }
+    } catch (err) {
+      if (!abort.signal.aborted) throw err;
+    } finally { clearTimeout(timer); }
+    if (re.test(got)) return got;
+    abort.abort();
+    throw new Error(`${p} sent no ${re} within ${within} ms${ended ? ' before it ended' : ''}; it sent: ${JSON.stringify(got)}`);
+  };
+  try { await until(ready); } catch (err) { abort.abort(); throw err; }
+  return { until: async (re) => { try { return await until(re); } finally { abort.abort(); } } };
+}
+const streamOf = async (srv, p, until, { within } = {}) => (await followStream(srv, p, { within })).until(until);
+
 // A small .zip (stored, not compressed), e.g. to make an .xlsx for the upload tests.
 function zip(files) {
   const parts = [];
@@ -495,4 +527,4 @@ async function unfoldTeams(page, until = null) {
   if (until) throw new Error(`Timed out unfolding the teams for ${until}`);
 }
 
-module.exports = { unfoldTeams, withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+module.exports = { streamOf, followStream, unfoldTeams, withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };

@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const plan = require('../lib/plan');
-const { startServer, makeBot, heldRun, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, heldRun, waitFor, sleep, streamOf, followStream } = require('./helpers');
 
 const todos = (...steps) => ({ todos: steps.map(([content, status, activeForm]) => ({ content, status, activeForm: activeForm || content })) });
 const use = (name, input = {}, extra = {}) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `t${Math.random()}`, name, input }] }, ...extra });
@@ -72,16 +72,6 @@ before(async () => { srv = await startServer(); });
 after(() => srv?.stop());
 
 const player = (rec) => { const events = []; return (...evs) => { events.push(...evs); fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify(events)); }; };
-async function streamOf(p, until, ms = 2000) {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), ms);
-  let got = '';
-  try {
-    const res = await fetch(`${srv.base}/api${p}`, { signal: abort.signal });
-    for await (const chunk of res.body) { got += Buffer.from(chunk).toString(); if (until.test(got)) break; }
-  } catch { /* timed out: what came is what there is */ } finally { clearTimeout(timer); abort.abort(); }
-  return got;
-}
 const feedPlans = (got) => got.split('\n\n').filter((b) => /^event: run_plan$/m.test(b)).map((b) => JSON.parse(b.match(/^data: (.*)$/m)[1]));
 const planEvents = (got) => got.split('\n\n').map((b) => b.match(/^data: (.*)$/m)?.[1]).filter(Boolean).map((d) => JSON.parse(d)).filter((e) => e.type === 'plan');
 
@@ -105,31 +95,30 @@ test('a bot\'s plan is on its running run and its stream as it changes, and stay
   await sleep(150);
   assert.equal((await runOf()).plan, undefined, 'no plan before the bot makes one');
 
-  const live = streamOf(`/runs/${run.id}/stream?simple`, /"status":"done".*"status":"doing"/s, 4000);
-  const onFeed = streamOf('/events', /event: run_plan[^]*event: run_plan/, 4000); // #629: the feed has it too
-  await sleep(150);
+  const live = await followStream(srv, `/runs/${run.id}/stream?simple`, { ready: /"type":"start"/ });
+  const onFeed = await followStream(srv, '/events', { ready: /event: hello\n/ }); // #629: the feed has it too
   play(write(['Read the prices', 'in_progress', 'Reading the prices'], ['Fetch the pages', 'pending'], ['Write the report', 'pending']));
   await waitFor(async () => (await runOf()).plan?.steps?.[0]?.status === 'doing', { what: 'the plan on the running run' });
   play(write(['Read the prices', 'in_progress', 'Reading the prices'], ['Fetch the pages', 'pending'], ['Write the report', 'pending'])); // the same again: no change
   play(write(['Read the prices', 'completed'], ['Fetch the pages', 'in_progress', 'Fetching the pages'], ['Write the report', 'pending']));
   await waitFor(async () => (await runOf()).plan?.steps?.[1]?.status === 'doing', { what: 'the second step at work' });
-  const sent = planEvents(await live);
+  const sent = planEvents(await live.until(/"status":"done".*"status":"doing"/s));
   assert.equal(sent.length, 2, 'each change once, and a call that changes nothing sends nothing');
   assert.deepEqual(sent[1].plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);
   assert.equal(sent[1].plan.steps[1].doing, 'Fetching the pages');
   // On the feed, which reconnects and replays: each change, with the run it is of.
-  const fed = feedPlans(await onFeed);
+  const fed = feedPlans(await onFeed.until(/event: run_plan[^]*event: run_plan/));
   assert.equal(fed.length, 2);
   assert.deepEqual({ ...fed[1], at: undefined }, { chat: `bot:${bot.id}`, botId: bot.id, runId: run.id, plan: sent[1].plan, at: undefined });
 
   // A reload, and an app that opens the chat later: the plan as it reads now, wherever the run is read.
   for (const got of [await runOf(), (await srv.api(`/runs?botId=${bot.id}`)).data[0]]) assert.deepEqual(got.plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);
   for (const q of ['', '?simple']) {
-    const late = planEvents(await streamOf(`/runs/${run.id}/stream${q}`, /"type":"plan"/));
+    const late = planEvents(await streamOf(srv, `/runs/${run.id}/stream${q}`, /"type":"plan"/));
     assert.equal(late.length, 1, `stream${q}: a client that connects later is given the plan once`);
     assert.deepEqual(late[0].plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);
   }
-  assert.doesNotMatch(await streamOf(`/runs/${run.id}/stream?simple`, /"type":"plan"/), /"type":"step"[^}]*TodoWrite/, 'TodoWrite is no step of its own');
+  assert.doesNotMatch(await streamOf(srv, `/runs/${run.id}/stream?simple`, /"type":"plan"/), /"type":"step"[^}]*TodoWrite/, 'TodoWrite is no step of its own');
 
   play(write(['Read the prices', 'completed'], ['Fetch the pages', 'completed'], ['Write the report', 'completed']));
   await waitFor(async () => (await runOf()).plan?.steps?.[2]?.status === 'done', { what: 'every step done' });
@@ -181,7 +170,7 @@ test('the Chief\'s plan is on its pending reply and its chat\'s stream, and stay
   const pending = await last();
   assert.equal(pending.pending, true);
   assert.deepEqual(pending.plan.steps.map((s) => s.status), ['done', 'doing', 'todo']);
-  const late = planEvents(await streamOf(`/chief/chats/${chat.id}/stream`, /"type":"plan"/));
+  const late = planEvents(await streamOf(srv, `/chief/chats/${chat.id}/stream`, /"type":"plan"/));
   assert.equal(late.length, 1, 'a client that connects later is given the plan once');
   assert.equal(late[0].plan.steps[1].doing, 'Making the inbox bot');
   srv.release(rec);
