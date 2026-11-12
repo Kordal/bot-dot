@@ -11,6 +11,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -21,6 +22,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,8 +31,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
+import dev.botdot.app.data.SCREEN_DONE
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** How often the app asks for the desktop again while it is open: keeps the machine on, and is under boat.dev's 10 minutes. */
 private const val ASK_AGAIN_MS = 4 * 60_000L
@@ -47,9 +51,13 @@ private const val STARTING_MS = 3_000L
 fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
+    val server by app.store.version.value.collectAsState()
+    val canHandBack = server?.features?.contains(SCREEN_DONE) == true
     var control by remember { mutableStateOf(false) }
     var url by remember { mutableStateOf<String?>(null) } // the stream shown; a new one only after it stopped showing
     var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(api) {
         val a = api ?: return@LaunchedEffect
@@ -71,11 +79,17 @@ fun BoatScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(botName.ifBlank { tr("Its screen") }, style = MaterialTheme.typography.titleMedium) },
                 actions = {
+                    // "I'm done" (ADR 225): hands the screen back to the bot, whose last run carries on.
+                    if (url != null && control && canHandBack) TextButton(onClick = {
+                        val a = api ?: return@TextButton
+                        scope.launch { runCatching { a.computerDone(botId) }.onSuccess { onBack() }.onError { snack.showError(it.message ?: tr("Couldn't hand it back")) } }
+                    }) { Text(tr("I'm done"), color = p.text) }
                     if (url != null) TextButton(onClick = { control = !control }) {
                         Text(if (control) tr("Stop controlling") else tr("Take control"), color = if (control) p.err else p.text)
                     }
                 })
         },
+        snackbarHost = { BotSnackbarHost(snack) },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
             val shown = url

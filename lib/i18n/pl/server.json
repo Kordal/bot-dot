@@ -630,5 +630,8 @@
   "Needs your Composio key for {app}": "Potrzebuje twojego klucza Composio do {app}",
   "Needs {app} connected": "Potrzebuje połączenia {app}",
   "Checking the proxies": "Sprawdzam proxy",
-  "Tidy up the board.": "Uporządkuj tablicę."
+  "Tidy up the board.": "Uporządkuj tablicę.",
+  "{name} is working on it already.": "{name} już nad tym pracuje.",
+  "{name} has nothing to carry on. Write to it in its chat.": "{name} nie ma czego kontynuować. Napisz do niego w czacie.",
+  "{name} carries on.": "{name} kontynuuje."
 }

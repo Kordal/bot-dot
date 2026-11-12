@@ -36,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ComputerInfo
+import dev.botdot.app.data.SCREEN_DONE
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
@@ -52,6 +53,8 @@ import kotlinx.coroutines.launch
 fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
+    val server by app.store.version.value.collectAsState()
+    val canHandBack = server?.features?.contains(SCREEN_DONE) == true
     var control by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("checking") } // checking | starting | running | off | error | resetting | reset | updating
     var error by remember { mutableStateOf<String?>(null) }
@@ -137,6 +140,11 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
             TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
                 title = { Text(botName.ifBlank { tr("Its screen") }, style = MaterialTheme.typography.titleMedium) },
                 actions = {
+                    // "I'm done" (ADR 225): hands the screen back to the bot, whose last run carries on.
+                    if (state == "running" && control && canHandBack) TextButton(onClick = {
+                        val a = api ?: return@TextButton
+                        scope.launch { runCatching { a.computerDone(botId) }.onSuccess { onBack() }.onError { snack.showError(it.message ?: tr("Couldn't hand it back")) } }
+                    }) { Text(tr("I'm done"), color = p.text) }
                     if (state == "running") TextButton(onClick = { control = !control }) {
                         Text(if (control) tr("Stop controlling") else tr("Take control"), color = if (control) p.err else p.text)
                     }

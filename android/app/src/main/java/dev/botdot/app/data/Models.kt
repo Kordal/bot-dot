@@ -1712,6 +1712,13 @@ data class TileChange(val title: String? = null, val scripts: List<String>? = nu
  * The desktop of a bot's machine on boat.dev (#564), from `POST /api/bots/:id/computer/desktop`: "starting" until it
  * runs, then boat.dev's stream [url], which a new viewer may open until [expiresAt] (10 minutes). A secret: shown, never kept.
  */
+/** The server's feature for [ScreenDone]. */
+const val SCREEN_DONE = "screen-done"
+
+/** "I'm done" on a bot's screen (ADR 225), from `POST /api/bots/:id/computer/done`: its last run carries on. */
+@Serializable
+data class ScreenDone(val ok: Boolean = false, val text: String = "")
+
 @Serializable
 data class BoatDesktop(val state: String = "starting", val url: String? = null, val expiresAt: String? = null) {
     val running: Boolean get() = state == "running" && url?.startsWith("https://") == true
