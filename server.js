@@ -144,9 +144,16 @@ B.onLoginNames((botId) => store().forBot(botId).map((x) => ({ name: x.name, kind
 // What of a bot waits for the owner's OK on a card, in their words, for its first message (lib/hello.js) and for
 // every run (lib/bots.js cardsNote): a held change of the bot (bot-changes.js waitingWords), a permission it asked
 // for, and any other card of it in Needs you, by the line its notification says.
-B.onWaitingOnCards((bot) => [...asks.list(), ...changeTrials.list()].filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
-  : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`]
-  : [asksLib.askText(a, { appName: B.appName })].filter(Boolean).map((line) => `your OK on “${line}”`))));
+// Each line ends with the card's id ([card …]), which withdraw_card takes (ADR 228). A login or card payment request of
+// the bot's is a card too. A change trial has no card of its own to withdraw.
+const { cardTag } = require('./lib/withdraw-cards');
+B.onWaitingOnCards((bot) => [
+  ...asks.list().filter((a) => a.botId === bot.id).flatMap((a) => (a.kind === 'bot-change' ? waitingWords(a.changes || {}, bot, B.appName)
+    : a.kind === 'permission' ? [`your OK to ${asksLib.PERMISSIONS[a.permission]?.label || a.permission}`]
+    : [asksLib.askText(a, { appName: B.appName })].filter(Boolean).map((line) => `your OK on “${line}”`)).map((line) => `${line} ${cardTag(a.id)}`)),
+  ...loginRequests.pending().filter((r) => r.botId === bot.id).map((r) => `${r.kind === 'card' ? `your OK to pay with “${r.name}” on ${r.site}` : `your login for ${r.site}`} ${cardTag(r.id)}`),
+  ...changeTrials.list().filter((a) => a.botId === bot.id).flatMap((a) => waitingWords(a.changes || {}, bot, B.appName)),
+]);
 // The owner's OK for a write in a connected app: the run waits for it, and a late yes starts the bot again (ADR 010).
 // The Chief is a caller too, in the turns the owner started, and a late yes on its card starts its turn (ADR 047).
 const irreversibleStepsLib = require('./lib/irreversible-steps');
@@ -782,7 +789,8 @@ function tellChiefOfHeld(a, { answer, error }) {
 const storage = require('./lib/storage').create({ dataDir: B.DATA_DIR, bots: () => B.bots.list(), projects: () => require('./lib/projects').list(), chiefName: () => B.settings.chiefName(), computers: B.computers, audit });
 require('./lib/routes/workspace').onDeleted((place, p) => storage.forget(place, p));
 const ctx = { ACCOUNT, audit, storage, secretFiles, callKeys, callRefusals, keys, vault, bitwarden, store, readyForSecrets, setup, updates,
-  UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, irreversibleSteps, roomRuns, backups, backupAlert, connectedApps, tools, chiefReview, connectAsks, PORT,
+  UPDATES_BY_ADMIN, BY_ADMIN, board: dashboard.valueOf(), asks, connectorApprovals, irreversibleSteps,
+  withdrawCards: require('./lib/withdraw-cards').create({ asks, loginRequests, connectorApprovals, irreversibleSteps }), roomRuns, backups, backupAlert, connectedApps, tools, chiefReview, connectAsks, PORT,
   ALLOWED_HOSTS, callAddresses, androidApp, versionInfo, sawClaude, claudeStatus, saysHeld, streamEvents,
   chiefChatOf, doHeldAction, holdAfterWeb, push, unlockWanted: () => unlockWanted, setUnlockWanted: (v) => { unlockWanted = v; },
   fromFrontDoor: (req) => !!req.socket[FROM_FRONT_DOOR], activity, ...shared };

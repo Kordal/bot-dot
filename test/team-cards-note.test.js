@@ -24,11 +24,11 @@ test("the lead and the Project Manager are told what of their bots waits in Need
   srv.release(held.rec); await srv.finished(held.run.id); srv.unhold();
 
   const leadRun = await heldRun(srv, lead, 'Where is the post?');
-  assert.match(leadRun.rec.system, /What of your teammates waits in Needs you right now: Copy waits for the owner's OK to run commands\. Nothing else of theirs waits there/);
+  assert.match(leadRun.rec.system, /What of your teammates waits in Needs you right now: Copy waits for the owner's OK to run commands \[card \w+\]\. Nothing else of theirs waits there/);
   srv.release(leadRun.rec); await srv.finished(leadRun.run.id); srv.unhold();
   await srv.api(`/chief/chats/${pmChat}/messages`, { method: 'POST', body: { text: 'Is anything waiting for me?' } });
   let turn = await srv.nextRun((x) => x.stdin.includes('Is anything waiting for me?'), "the Chief's turn");
-  assert.match(turn.stdin, /What of the project's bots waits in Needs you right now: Copy waits for the owner's OK to run commands\./);
+  assert.match(turn.stdin, /What of the project's bots waits in Needs you right now: Copy waits for the owner's OK to run commands \[card \w+\]\./);
 
   const [card] = (await srv.api('/asks')).data.filter((a) => a.botId === writer.id);
   assert.equal((await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } })).data.ok, true);

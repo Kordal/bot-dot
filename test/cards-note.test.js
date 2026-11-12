@@ -23,7 +23,7 @@ test('a run is told that nothing of its bot waits in Needs you, then what waits,
   await first.done();
 
   const second = await run(bot, 'Write in English from now on');
-  assert.match(second.rec.system, /What of yours waits in Needs you right now: your OK to run commands\. Nothing else of yours waits there\./);
+  assert.match(second.rec.system, /What of yours waits in Needs you right now: your OK to run commands \[card \w+\]\. Nothing else of yours waits there\. As soon as one of these is no longer needed/);
   await second.done();
 
   const [card] = (await srv.api('/asks')).data.filter((a) => a.botId === bot.id);
