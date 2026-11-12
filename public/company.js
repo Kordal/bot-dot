@@ -19,6 +19,7 @@ const Company = (() => {
     down: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
     crown: '<svg class="ct-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>',
     clip: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5l-8.2 8.2a5 5 0 0 1-7.1-7.1l8.5-8.5a3.3 3.3 0 0 1 4.7 4.7l-8.5 8.5a1.7 1.7 0 0 1-2.4-2.4l7.8-7.8"/></svg>',
+    tidy: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="5" rx="1"/><rect x="3" y="11" width="7" height="10" rx="1"/><rect x="13" y="11" width="8" height="10" rx="1"/></svg>',
     more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>',
     gear: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>',
   };
@@ -379,6 +380,18 @@ const Company = (() => {
     const name = chiefTitle();
     return `<button type="button" class="icon-btn co-chief-btn" data-project-chief aria-label="${esc(name)}${n ? ` (${n})` : ''}" title="${esc(name)}">${chiefFigure('sm')}${n ? `<span class="co-chief-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
   };
+  // Tidy up (board-tidy): the project's Chief arranges the whole board, asked in its chat, which opens beside it.
+  const tidyHTML = () => ((state.features || []).includes('board-tidy') && state.company?.phase === 'running' ? `<button type="button" class="icon-btn co-tidy" data-project-tidy aria-label="${tr('Tidy up the board')}" title="${tr('Tidy up the board')}">${ICON.tidy}</button>` : '');
+  async function tidyBoard(b) {
+    const c = state.company;
+    if (!c || b.disabled) return;
+    b.disabled = true;
+    try {
+      const r = await api(at('/company/layout/tidy'), { method: 'POST', body: { layout: window.BoardView?.seen(c) || null } });
+      if (r.company) changed({ company: r.company });
+      Dock.openChief(r.chatId);
+    } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+  }
   async function openProjectChief(b) {
     const c = state.company;
     if (!c || b.disabled) return;
@@ -392,6 +405,7 @@ const Company = (() => {
   }
   function wirePick(root) {
     $$('[data-project-chief]', root).forEach((b) => (b.onclick = () => openProjectChief(b)));
+    $$('[data-project-tidy]', root).forEach((b) => (b.onclick = () => tidyBoard(b)));
     $$('[data-space-pick]', root).forEach((b) => (b.onclick = () => openSpaces(b)));
     $$('[data-sp-tool]', root).forEach((b) => (b.onclick = () => $(`#${b.dataset.spTool}`)?.click()));
     $$('[data-project-settings]', root).forEach((b) => (b.onclick = openSettings));
@@ -727,5 +741,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, chiefHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, chiefHTML, tidyHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
 })();
