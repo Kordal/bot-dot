@@ -1,4 +1,4 @@
-// A teammate's message to a bot at work is sorted as the owner's is (#1278, ADR 221; ADR 106): the small model (Jev,
+// A teammate's message to a bot at work is sorted as the owner's is (#1278, ADR 224; ADR 106): the small model (Jev,
 // or Haiku) says whether it is more for a run that is going. Then it goes into that run, which reads it at its next
 // tool call through its steer hook (ADR 040), framed as a bot's words, and no run starts for it. Another subject, or
 // anything unsure, goes as before. Against a real botdot server and the stand-in for Claude (which answers the sorting

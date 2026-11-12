@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (asked for by the owner, 2026-10-27)
 - **Owning task:** [#613](https://github.com/Kordal/bot-dot/issues/613)
-- **Changed by:** [ADR 221](221-a-teammates-message-to-a-bot-at-work-goes-into-its-run.md): a teammate's message to a bot at work is sorted too, and goes into its run when it is more for it
+- **Changed by:** [ADR 224](224-a-teammates-message-to-a-bot-at-work-goes-into-its-run.md): a teammate's message to a bot at work is sorted too, and goes into its run when it is more for it
 - **Builds on:** [ADR 040](040-a-waiting-message-is-steered-into-the-run-at-its-next-tool-call.md) (Steer), [ADR 063](063-a-btw-question-is-answered-without-tools-beside-the-run.md) ("/btw"), [ADR 082](082-the-admin-chooses-haiku-or-jev-to-pick-who-answers-in-a-group.md) (the admin's choice of Haiku or Jev)
 - **Changes:** [ADR 062](062-a-message-to-a-busy-bot-starts-beside-the-run-that-is-going.md) ("every message to a busy bot starts beside the runs going")
 

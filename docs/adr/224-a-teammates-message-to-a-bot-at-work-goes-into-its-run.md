@@ -1,4 +1,4 @@
-# ADR-221: A teammate's message to a bot at work goes into its run when it is the same task
+# ADR-224: A teammate's message to a bot at work goes into its run when it is the same task
 
 - **Status:** Accepted (2026-11-12, the owner: not every message from another bot as a steer: "niech jev ai zdecyduje czy to ten sam topic czy inny", #1278)
 - **Owning task:** [#1278](https://github.com/Kordal/bot-dot/issues/1278)
