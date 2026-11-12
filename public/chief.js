@@ -656,6 +656,7 @@ async function showChat(id) {
   state.chatReload = false; // this is the chat read again
   state.chatId = id;
   if (id) state.chatNew = false;
+  markMore(); // its head and name: the project's lead's in a project's own chat (ADR 227)
   if (state.view === 'chief') writeHash();
   sayPresent();
   syncRead();

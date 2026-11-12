@@ -137,12 +137,13 @@ data class GroupLimit(val text: String, val messages: List<String> = emptyList()
  * [answer]: the reply that is its team's one answer (ADR 201): the members' replies before it are folded under it.
  * [question]: the member's question it answers with one of its buttons (docs/api.md, "question").
  * [byChief]: the Project Manager wrote it, not the owner (ADR 217): drawn with the Chief's head, never taken back.
+ * [asBot]: it wrote as the project's lead, that bot's id (ADR 227): drawn with its head and name.
  */
 data class GroupMessage(
     val id: String, val text: String, val at: String, val attachments: List<Attachment> = emptyList(),
     val to: List<String> = emptyList(), val waitsFor: List<String> = emptyList(), val next: List<String> = emptyList(),
     val canTakeBack: Boolean = false, val atLimit: Boolean = false, val stopped: Boolean = false, val answer: String? = null,
-    val question: GroupQuestion? = null, val byChief: Boolean = false,
+    val question: GroupQuestion? = null, val byChief: Boolean = false, val asBot: String? = null,
 ) {
     companion object {
         /** A message as the server sent it; null without an id: it cannot be taken back, or told from the next. */
@@ -152,6 +153,7 @@ data class GroupMessage(
                 o["id"].textOrNull() ?: return null, o["text"].whole(), o["at"].textOrNull().orEmpty(), Queued.attachments(o["attachments"]),
                 texts(o["to"]), texts(o["waitsFor"]), texts(o["next"]), isTrue(o["canTakeBack"]), isTrue(o["atLimit"]), isTrue(o["stopped"]),
                 o["answer"].textOrNull(), GroupQuestion.of(o["question"]), o["by"].textOrNull() == "chief",
+                o["as"].textOrNull()?.takeIf { o["by"].textOrNull() == "chief" },
             )
         }
     }
@@ -382,11 +384,16 @@ object Groups {
     const val TEAM_CHAT_RENAME = "team-chat-rename"
     /** A team's chat changes its team's bots: PUT of its `members` adds to or takes out of the team in its project. */
     const val TEAM_CHAT_MEMBERS = "team-chat-members"
+    /** A team's chat picks its team's lead: PUT of its `lead` makes that bot the team's lead in its project. */
+    const val TEAM_CHAT_LEAD = "team-chat-lead"
     /** lib/company.js MAX.bots: a team, and so its chat, has at most this many bots. */
     const val TEAM_MAX = 40
 
     /** Whether the panel of [g] adds and takes out members: any group's, a team's chat on a server that does it. */
     fun changesMembers(g: Group, features: Collection<String>?): Boolean = g.team == null || features?.contains(TEAM_CHAT_MEMBERS) == true
+
+    /** Whether the panel of [g] picks its lead: a team's chat of two bots or more, on a server that does it. */
+    fun picksLead(g: Group, features: Collection<String>?): Boolean = g.team != null && g.members.size > 1 && features?.contains(TEAM_CHAT_LEAD) == true
 
     /** Whether [g]'s member can be taken out in its panel: a group goes down to none and is deleted, a team keeps its last bot. */
     fun canTakeOut(g: Group, features: Collection<String>?): Boolean = changesMembers(g, features) && (g.team == null || g.members.size > 1)

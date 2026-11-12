@@ -61,6 +61,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 private val SPACES = Regex("\\s+")
+private val LEAD_GOLD = androidx.compose.ui.graphics.Color(0xFFE8B44A)
 
 /** A group's name as it is saved: one line, without the blanks around it. */
 internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim()
@@ -70,7 +71,8 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
  * bot", its notes (ADR 139), and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
  * botdot server refuses is said in its words. A team's chat (#697) follows its team in Projects: its panel shows its
  * faces, its name, which renames the team with it, its members and its notes; on a server with `team-chat-members` its
- * members are added and taken out there too, never its last one, and the team goes only in Projects.
+ * members are added and taken out there too, never its last one, and the team goes only in Projects. With
+ * `team-chat-lead` its lead is picked there: the lead's row says Lead, each other's has Make lead.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,6 +117,10 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                         BotFigure(b.color, b.state, 32, b.outfit)
                         Spacer(Modifier.size(10.dp))
                         Text(b.name, color = p.text, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        if (Groups.picksLead(g, versionNow?.features)) {
+                            if (b.id == g.lead) Row(verticalAlignment = Alignment.CenterVertically) { Crown(); Spacer(Modifier.size(4.dp)); Text(tr("Lead"), color = LEAD_GOLD, style = MaterialTheme.typography.bodySmall) }
+                            else SmallButton(tr("Make lead")) { change(g, buildJsonObject { put("lead", b.id) }) }
+                        }
                         if (Groups.canTakeOut(g, versionNow?.features)) IconButton(onClick = { change(g, app.api.value?.membersOf(g.members - b.id) ?: return@IconButton) }) {
                             Icon(Icons.Filled.Close, contentDescription = if (team) tr("Take {name} out of the team", "name" to b.name) else tr("Take {name} out of the group", "name" to b.name), tint = p.muted, modifier = Modifier.size(18.dp))
                         }

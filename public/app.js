@@ -143,7 +143,9 @@ function takeChiefName(name) {
   return true;
 }
 // The head of the Chief's chat, which is drawn once.
-function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) h.textContent = chiefTitle(); }
+function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) { const t = chatLead()?.name || chiefTitle(); if (h.textContent !== t) h.textContent = t; } }
+// The bot that leads the project whose own Chief chat this is (ADR 227), or null: the chat has its head and name.
+function chatLead(id = state.chatId) { const l = (state.chats || []).find((c) => c.id === id)?.lead; return (l && botById(l)) || null; }
 // The Chief's name as the page shows it: the role in the page's language while it has no name of its own. Mentions
 // and the server keep the English role (CHIEF_BOT.name), which they know it by.
 const chiefTitle = () => (chiefName() === CHIEF_ROLE ? tr('Chief of Staff') : chiefName());
@@ -1219,7 +1221,10 @@ function markMore() {
   // The logo's dot pulses while the Chief or a bot is working.
   $('#brand').classList.toggle('busy', !!state.chiefBusy || state.bots.some((b) => b.running));
   const ca = $('#chief-avatar');
-  if (ca && ca.dataset.busy !== String(!!state.chiefBusy)) { ca.dataset.busy = String(!!state.chiefBusy); ca.innerHTML = chiefFigure('sm'); }
+  const lead = chatLead();
+  const look = JSON.stringify([!!state.chiefBusy, lead ? [lead.id, lead.color, lead.outfit || null] : null]);
+  if (ca && ca.dataset.look !== look) { ca.dataset.look = look; ca.innerHTML = lead ? botFigure(lead.color, state.chiefBusy ? 'working' : 'idle', 'sm', lead.outfit, lead.id) : chiefFigure('sm'); }
+  drawChiefName();
 }
 
 

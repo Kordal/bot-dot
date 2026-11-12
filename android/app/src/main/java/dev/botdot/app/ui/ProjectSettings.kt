@@ -72,6 +72,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Company
+import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.CompanyFloor
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.CompanyTeam
@@ -138,7 +139,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                 }
                 Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, features, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
-                Card("team") { TeamRows(ui, c, bots) }
+                Card("team") { if (ManyProjects.LEAD in features) ProjectLeadRow(c, bots, ::patch); TeamRows(ui, c, bots) }
                 Card("reports") { ReportRows(ui, c, features) }
                 Card("rules") { RuleRows(c, ::patch) }
                 Card("archive") { ArchiveRows(ui, c, ::patch) }
@@ -349,6 +350,32 @@ private class TeamDraft(val id: String?, name: String, bots: List<String>, lead:
     var name by mutableStateOf(name)
     var bots by mutableStateOf(bots)
     var lead by mutableStateOf(lead)
+}
+
+/** Who runs the project in its own chat (ADR 227; web: company-settings.js leadHTML): a bot the owner picks, or the Chief. */
+@Composable
+private fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> Unit) {
+    val p = LocalPaper.current
+    var menu by remember { mutableStateOf(false) }
+    val lead = c.lead?.let { id -> bots.firstOrNull { it.id == id } }
+    val chief = LocalChiefName.current
+    Labeled(tr("Project lead")) {
+        Box {
+            Row(Modifier.clip(Radius.pill).background(p.fill).clickable(onClickLabel = tr("Project lead")) { menu = true }.padding(horizontal = Space.s12, vertical = Space.s8),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                if (lead != null) BotFigure(lead.color, lead.state, 22, lead.outfit) else BotFigure(CHIEF_COLOR, "idle", 22, FigureDef.CHIEF)
+                Text(lead?.name ?: chief, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            DropdownMenu(menu, { menu = false }) {
+                DropdownMenuItem(text = { Text(chief, color = p.text, fontSize = Type.s14) }, leadingIcon = { BotFigure(CHIEF_COLOR, "idle", 22, FigureDef.CHIEF) },
+                    onClick = { menu = false; if (lead != null) patch(buildJsonObject { put("lead", JsonNull) }) })
+                ManyProjects.leadChoices(c, bots).forEach { b ->
+                    DropdownMenuItem(text = { Text(b.name, color = p.text, fontSize = Type.s14) }, leadingIcon = { BotFigure(b.color, b.state, 22, b.outfit) },
+                        onClick = { menu = false; if (b.id != c.lead) patch(buildJsonObject { put("lead", b.id) }) })
+                }
+            }
+        }
+    }
 }
 
 @Composable

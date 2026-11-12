@@ -88,3 +88,31 @@ test("the owner's message in the project's own chat tells the Chief it is the Pr
   assert.match(turn.stdin, new RegExp(`project id ${projectId}`));
   assert.match(turn.stdin, /My message: How is the launch going\?/);
 });
+
+test('the owner picks a bot as the project lead: it runs the project chat in its name, and the Chief is back with none (ADR 227)', async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('project-lead'));
+  const boss = await makeBot(srv, { name: 'Boss', emoji: '🧭', prompt: 'Runs the meal planner launch.' });
+  assert.equal((await srv.api('/company', { method: 'PATCH', body: { lead: 'no-such-bot' } })).status, 400);
+  const set = await srv.api('/company', { method: 'PATCH', body: { lead: boss.id } });
+  assert.equal(set.status, 200, JSON.stringify(set.data));
+  assert.equal(set.data.lead, boss.id);
+  // Its chat in the Chief's list says who leads, for the apps to draw its head and name.
+  assert.equal((await srv.api('/chief')).data.chats.find((c) => c.id === pmChat)?.lead, boss.id);
+  // The owner's turn there speaks as the lead.
+  await srv.api(`/chief/chats/${pmChat}/messages`, { method: 'POST', body: { text: 'Who leads this?' } });
+  const turn = await srv.nextRun((x) => x.stdin.includes('Who leads this?'), "the lead's turn in the project chat");
+  assert.match(turn.stdin, new RegExp(`The owner made 🧭 Boss \\(bot id ${boss.id}\\) the project's lead: in this chat you speak as that bot`));
+  assert.match(turn.stdin, /Its job: Runs the meal planner launch\./);
+  // Its message in a team's chat is drawn as the lead's, and the team's turn is told who wrote it.
+  const sent = await srv.asChief(`/company/teams/${team.id}/message`, { method: 'POST', headers: { 'X-Chief-Chat': pmChat }, body: { text: 'Status of the posts?' } });
+  assert.equal(sent.status, 201, JSON.stringify(sent.data));
+  assert.deepEqual([sent.data.by, sent.data.as], ['chief', boss.id]);
+  const team1 = await srv.nextRun((x) => x.stdin.includes('Status of the posts?') || x.args.includes('Status of the posts?'), "the team's turn");
+  assert.match(team1.system + team1.stdin, /the Project Manager, the project's lead\] 🧭 Boss/);
+  // None again, or its bot deleted: the Chief is the Project Manager.
+  assert.equal((await srv.api('/company', { method: 'PATCH', body: { lead: null } })).data.lead, undefined);
+  assert.equal((await srv.api('/chief')).data.chats.find((c) => c.id === pmChat)?.lead, undefined);
+  await srv.api('/company', { method: 'PATCH', body: { lead: boss.id } });
+  assert.equal((await srv.api(`/bots/${boss.id}`, { method: 'DELETE' })).status, 200);
+  assert.equal((await srv.api('/company')).data.company.lead, undefined);
+});

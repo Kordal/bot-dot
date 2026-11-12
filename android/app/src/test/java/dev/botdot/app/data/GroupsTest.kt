@@ -371,4 +371,12 @@ class GroupsTest {
             server.close()
         }
     }
+
+    @Test fun aTeamChatPicksItsLeadOnAServerThatDoesIt() {
+        val team = groups("[$dev]").single().copy(team = "t1", lead = "a", membersValue = JsonArray(listOf(JsonPrimitive("a"), JsonPrimitive("b"))))
+        assertTrue(Groups.picksLead(team, listOf(Groups.TEAM_CHAT_LEAD)))
+        assertFalse(Groups.picksLead(team, listOf(Groups.TEAM_CHAT_MEMBERS)))
+        assertFalse(Groups.picksLead(team.copy(membersValue = JsonArray(listOf(JsonPrimitive("a")))), listOf(Groups.TEAM_CHAT_LEAD)))
+        assertFalse(Groups.picksLead(team.copy(team = null), listOf(Groups.TEAM_CHAT_LEAD)))
+    }
 }

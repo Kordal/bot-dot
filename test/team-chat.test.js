@@ -86,6 +86,22 @@ test("its members, changed in its chat, are its team's bots: added or taken out 
   assert.deepEqual((await teamChat(team.id)).members, [lead.id, writer.id, poster.id]);
 });
 
+test("its lead, picked in its chat, is its team's lead: one of its bots only (team-chat-lead)", async () => {
+  const g = await teamChat(team.id);
+  assert.ok((await srv.api('/version')).data.features.includes('team-chat-lead'));
+  const picked = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { lead: writer.id } });
+  assert.equal(picked.status, 200, JSON.stringify(picked.data));
+  assert.equal(picked.data.lead, writer.id, 'the chat follows its team');
+  assert.equal((await srv.api('/company')).data.company.teams.find((t) => t.id === team.id).lead, writer.id);
+  const outsider = (await srv.api('/bots')).data.find((b) => b.name === 'Outsider');
+  const refused = await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { lead: outsider.id } });
+  assert.equal(refused.status, 400);
+  assert.match(refused.data.error, /one of the team/);
+  assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { lead: '' } })).status, 400);
+  assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { lead: lead.id } })).status, 200);
+  assert.equal((await teamChat(team.id)).lead, lead.id);
+});
+
 const setRoute = (answer) => fs.writeFileSync(path.join(srv.out, 'route.txt'), answer);
 // What the lead answers on its last word (ADR 201): a run told it has the last word answers this.
 const LAST_WORD = 'the last word as its lead';

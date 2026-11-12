@@ -317,13 +317,21 @@ function renderGroupSettings() {
   // A team's chat: its members are its team's bots, changed here on a server that does it, never down to none.
   const teamBots = !!g.team && (state.features || []).includes('team-chat-members');
   const takeOut = (b, words) => `<button type="button" class="icon-btn sm" data-take-out="${esc(b.id)}" title="${esc(words)}" aria-label="${esc(words)}">✕</button>`;
+  // Its lead is its team's: picked here from any page on a server that does it (`team-chat-lead`).
+  const ownLead = !team && !!g.team && (state.features || []).includes('team-chat-lead') && members.length > 1;
+  const leadHTML = (b) => (team ? team.leadHTML(g.team, b.id) : !ownLead ? ''
+    : b.id === g.lead ? `<span class="cf-lead-chip">${TEAM_CROWN}${tr('Lead')}</span>` : `<button type="button" class="btn sm ghost" data-gs-lead="${esc(b.id)}">${tr('Make lead')}</button>`);
   $('#gs-members', root).innerHTML = members.map((b) => `
     <div class="bs-row member-row">${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}<span class="grow">${esc(b.name)}</span>
-      ${g.team ? `${team ? team.leadHTML(g.team, b.id) : ''}${teamBots && members.length > 1 ? takeOut(b, tr('Take {name} out of the team', { name: b.name })) : ''}` : takeOut(b, tr('Take {name} out of the group', { name: b.name }))}</div>`).join('')
+      ${g.team ? `${leadHTML(b)}${teamBots && members.length > 1 ? takeOut(b, tr('Take {name} out of the team', { name: b.name })) : ''}` : takeOut(b, tr('Take {name} out of the group', { name: b.name }))}</div>`).join('')
     || `<p class="faint">${tr('Its bots are all gone. Add one, or delete the group.')}</p>`;
   const box = $('#gs-team', root);
   if (box) { box.innerHTML = team ? team.html(g.team) : ''; box.classList.toggle('hidden', !box.innerHTML); }
   if (team) team.wire(root, g.team);
+  $$('[data-gs-lead]', root).forEach((b) => (b.onclick = () => {
+    const now = groupById(root.dataset.group);
+    if (now) changeGroup(now, { lead: b.dataset.gsLead });
+  }));
   $$('[data-take-out]', root).forEach((b) => (b.onclick = () => {
     const now = groupById(root.dataset.group);
     if (now) changeGroup(now, { members: now.members.filter((id) => id !== b.dataset.takeOut) });
@@ -477,11 +485,13 @@ const waitsWhole = (m) => m.by !== 'chief' && m.canTakeBack === true && (!!waits
 function groupMessageHTML(m, chat, prev = null) {
   const text = typeof m.text === 'string' ? m.text : '';
   const waits = waitsLine(m);
-  // The Project Manager's message (ADR 217): the Chief's head and name, on the bots' side, never the owner's bubble.
+  // The Project Manager's message (ADR 217): the Chief's head and name, on the bots' side, never the owner's bubble;
+  // the project's lead's when it wrote as that bot (`as`, ADR 227).
+  const as = m.by === 'chief' && m.as ? botById(m.as) : null;
   if (m.by === 'chief') return `<div class="bubble-row from-bot g-row" data-gmsg="${esc(m.id)}">
-    ${botFigure(CHIEF_COLOR, 'idle', 'g-head', Figure.CHIEF)}
+    ${as ? botFigure(as.color, 'idle', 'g-head', as.outfit, as.id) : botFigure(CHIEF_COLOR, 'idle', 'g-head', Figure.CHIEF)}
     <div class="stack">
-      <div class="g-name" style="--c:${Unread.tint(CHIEF_COLOR)}">${esc(tr('Project Manager'))}</div>
+      <div class="g-name" style="--c:${Unread.tint(as ? as.color : CHIEF_COLOR)}">${esc(as ? as.name : tr('Project Manager'))}</div>
       <div class="bubble from-bot" data-expand><div class="clamp">${escMentions(text, chat)}</div></div>
       <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
     </div></div>`;

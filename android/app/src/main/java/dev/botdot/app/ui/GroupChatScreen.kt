@@ -504,7 +504,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                         }
                                     }
                                 }
-                                if (x.message.byChief) ManagerMessage(x.message) else MyBubble(x.message.text, x.message.attachments)
+                                if (x.message.byChief) ManagerMessage(x.message, bots.firstOrNull { it.id == x.message.asBot }) else MyBubble(x.message.text, x.message.attachments)
                                 // Its first turns went, and it still waits for a busy member: for whom.
                                 waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8)) }
                             }
@@ -553,14 +553,17 @@ private fun FoldRow(f: Groups.Fold, bots: List<Bot>, onToggle: () -> Unit) {
     }
 }
 
-/** The Project Manager's message in a team's chat (ADR 217): the Chief's head and name, on the bots' side (web: groupMessageHTML). */
+/**
+ * The Project Manager's message in a team's chat (ADR 217): the Chief's head and name, on the bots' side, or the
+ * project's lead's ([lead], ADR 227) when it wrote as that bot (web: groupMessageHTML).
+ */
 @Composable
-private fun ManagerMessage(m: GroupMessage) {
+private fun ManagerMessage(m: GroupMessage, lead: Bot?) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(Modifier.padding(top = Space.s16)) { BotFigure(CHIEF_COLOR, "idle", 28, FigureDef.CHIEF) }
+        Box(Modifier.padding(top = Space.s16)) { if (lead != null) BotFigure(lead.color, "idle", 28, lead.outfit) else BotFigure(CHIEF_COLOR, "idle", 28, FigureDef.CHIEF) }
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-            Text(tr("Project Manager"), color = parseColor(CHIEF_COLOR, LocalPaper.current.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
+            Text(lead?.name ?: tr("Project Manager"), color = parseColor(lead?.color ?: CHIEF_COLOR, LocalPaper.current.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
         }
     }

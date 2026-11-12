@@ -92,7 +92,10 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     var busy by remember { mutableStateOf(false) }
     val id = c.chiefChat
     val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
-    val name = if (manager) tr("Project Manager") else LocalChiefName.current
+    // The project's lead runs its chat when the owner picked one (ADR 227): its head and name, in the Chief's place.
+    val botsNow by ui.app.store.bots.value.collectAsState()
+    val lead = c.lead?.let { l -> botsNow?.firstOrNull { it.id == l } }
+    val name = lead?.name ?: if (manager) tr("Project Manager") else LocalChiefName.current
     val tap = {
         val a = api
         if (id != null) open(id)
@@ -103,7 +106,7 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     }
     RoundButton(if (waiting > 0) "$name ($waiting)" else name, modifier, onClick = tap, content = {
         Box(contentAlignment = Alignment.Center) {
-            BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF)
+            if (lead != null) BotFigure(lead.color, lead.state, 28, lead.outfit) else BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF)
             if (waiting > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).defaultMinSize(minWidth = 16.dp, minHeight = 16.dp).clip(CircleShape).background(p.text).padding(horizontal = Space.s4), contentAlignment = Alignment.Center) {
                 Text(if (waiting > 99) "99+" else waiting.toString(), color = p.bg, fontSize = Type.s12, fontWeight = FontWeight.SemiBold)
             }
