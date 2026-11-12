@@ -13,7 +13,11 @@ mod local;
 #[cfg(desktop)]
 mod menu;
 mod notify;
+#[cfg(target_os = "ios")]
+mod keychain;
 mod route;
+#[cfg(target_os = "ios")]
+mod sheet;
 #[cfg(desktop)]
 mod update;
 
@@ -296,7 +300,7 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
             if route::session_over(&door, load.url()) {
                 let app = on_load.clone();
                 tauri::async_runtime::spawn(async move { session_over(&app, &door) });
-            } else if route::left_door(&door, load.url()) {
+            } else if route::left_door(&door, load.url()) || (cfg!(mobile) && route::sign_up(&door, load.url())) {
                 open_in_browser(&on_load, load.url());
                 let _ = if window.label() == "main" { window.eval("history.back()") } else { window.close() };
             }
@@ -589,9 +593,40 @@ async fn connect(app: AppHandle, address: String) -> Result<(), &'static str> {
         return enter(&app, &address, &cookie).ok_or("failed");
     }
     let secret = Secret::new();
-    open_in_browser(&app, &secret.page(&address));
+    let page = secret.page(&address);
     *state.waiting.lock().unwrap() = Some((address, secret));
+    sign_in_page(&app, page)
+}
+
+// The sign-in page in the system browser, which hands the code back on botdot://.
+#[cfg(not(target_os = "ios"))]
+fn sign_in_page(app: &AppHandle, page: Url) -> Result<(), &'static str> {
+    open_in_browser(app, &page);
     Ok(())
+}
+
+// On iOS in a sheet of the app's own (#965), which gives back botdot://signed-in?code=… itself. Closed with no link, the
+// screen asks again.
+#[cfg(target_os = "ios")]
+fn sign_in_page(app: &AppHandle, page: Url) -> Result<(), &'static str> {
+    let window = main_window(app).ok_or("failed")?;
+    let app = app.clone();
+    window
+        .with_webview(move |webview| {
+            let ended = app.clone();
+            let done: sheet::Done = Box::new(move |link| match link.as_deref().and_then(|l| Url::parse(l).ok()) {
+                Some(link) => signed_in(&ended, &link),
+                None => {
+                    *ended.state::<App>().waiting.lock().unwrap() = None;
+                    let _ = ended.emit("sign-in-closed", ());
+                }
+            });
+            // SAFETY: wry's WKWebView of the main window, on the main thread.
+            if !unsafe { sheet::show(webview.inner(), page.as_str(), done) } {
+                let _ = app.emit("sign-in-failed", ());
+            }
+        })
+        .map_err(|_| "failed")
 }
 
 // The browser came back with `botdot://signed-in?code=…`. A link nobody waits for is nothing. The sign-in waits on

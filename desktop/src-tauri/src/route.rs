@@ -31,6 +31,12 @@ pub fn left_door(door: &Url, shown: &Url) -> bool {
     web(shown) && !same_origin(door, shown) && shown.host_str() != Some("tauri.localhost")
 }
 
+/// A sign-up link of the front door in the window: on iOS it opens in Safari, not in the app (#965), so a new account
+/// is made there and not in the window of the account signed in.
+pub fn sign_up(door: &Url, shown: &Url) -> bool {
+    same_origin(door, shown) && shown.path().starts_with("/sign-up/")
+}
+
 /// What a link that opens a new window does. `about:blank` is a window too: the page opens one and then gives it an
 /// address, and `left_door` closes it if that is another site.
 pub fn new_window(door: &Url, to: &Url) -> Window {
@@ -80,6 +86,16 @@ pub fn fragment_of(target: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_front_doors_own_sign_up_links_are_sign_ups() {
+        let door = Url::parse("https://botdot.example.com/").unwrap();
+        let is = |to: &str| sign_up(&door, &Url::parse(to).unwrap());
+        assert!(is("https://botdot.example.com/sign-up/abc"));
+        assert!(!is("https://botdot.example.com/sign-in"));
+        assert!(!is("https://botdot.example.com/sign-up"));
+        assert!(!is("https://other.example.com/sign-up/abc"));
+    }
 
     #[test]
     fn a_target_opens_where_a_push_opens_it() {

@@ -277,7 +277,7 @@ const HANDOFF_MS = 2 * 60_000;
 const HANDOFFS_MAX = 1000;
 const HANDOFF_CHALLENGE = /^[A-Za-z0-9_-]{43}$/; // a SHA-256 in base64url
 const APP_CALLBACK = 'botdot://signed-in';
-const HANDOFF_APPS = ['android', 'desktop']; // the apps that sign in through the browser
+const HANDOFF_APPS = ['android', 'desktop', 'ios']; // the apps that sign in through the browser
 // Sign-ins whose passkey was right, waiting for their owner to agree to terms that changed (#987):
 // code → { account, app, handoff, until }. Each works once, for 10 minutes, kept in memory only.
 const agreements = new Map();
