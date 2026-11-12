@@ -91,7 +91,7 @@ test('another account: its card keeps the bots on the account they use, and the 
   // A run of each bot acts through its own account.
   for (const [bot, id] of [[reader, 'ca_old'], [writer, 'ca_new_1']]) {
     const { token, rec, run } = await heldRun(srv, bot);
-    if (bot === writer) assert.match(rec.system, /Connected apps you can use: gmail \(new@example\.com\)/);
+    if (bot === writer) assert.match(rec.system, /Connected apps you can use: gmail \(accounts: old@example\.com; new@example\.com \(yours\)\)/);
     const tools = rpcClient(t, 'connectors-mcp.js', connectorEnv(srv, token));
     await tools.call('connector_run', { app: 'gmail', action: 'GMAIL_FETCH_EMAILS', arguments: {} });
     assert.equal(composio.executed.at(-1), id);
