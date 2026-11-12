@@ -2,6 +2,7 @@
 // streams a backup set's parts into a restic repository. A stand-in restic on PATH keeps each part it is given in a
 // folder of its own, as the repository holds it, and writes down what it was asked.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

@@ -1,6 +1,7 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): a first install, botdot's signed images, and what
 // the installer tells a stranger. The other installer tests are in installer-*.test.js, so that they run side by side.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

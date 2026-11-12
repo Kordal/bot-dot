@@ -201,7 +201,8 @@ test("start_program runs as box, on the bot's own screen and in its own folder (
 
 // The wrapper as it runs: the command starts in the bot's folder, made if it is gone, and is run as given.
 test("a bot's command starts in its own folder, made again if it is gone (#105)", async (t) => {
-  const dir = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'workspace-'));
+  // Its real path: pwd says /private/var/… on macOS, where the temp folder is under the link /var.
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'workspace-')));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   await computers.startProgram(seat('progbot'), 'true');
   const wrapper = execs()[0].args.at(-4);

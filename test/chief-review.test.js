@@ -136,9 +136,9 @@ test('on the review day and time the Chief reviews its notes and the shared ones
     { kind: 'share', name: 'price-check', bots: ['Cook'], reason: 'Cook buys what the meals need.' },
     { kind: 'skill', name: 'ghost', description: 'x', instructions: 'y', bots: ['Nobody'], replaces: [noteId] },
   ] }));
-  // The scheduler's minute after the next one is the review's.
+  // The scheduler's minute after the next one is the review's, in the test server's zone (UTC), not this machine's (#1273).
   const next = new Date(Date.parse(await srv.tick()) + 60_000);
-  await srv.api('/memory/settings', { method: 'PUT', body: { review: { enabled: true, day: next.getDay(), time: `${pad(next.getHours())}:${pad(next.getMinutes())}` } } });
+  await srv.api('/memory/settings', { method: 'PUT', body: { review: { enabled: true, day: next.getUTCDay(), time: `${pad(next.getUTCHours())}:${pad(next.getUTCMinutes())}` } } });
   await srv.tick();
   const run = await waitFor(() => reviewRuns()[0], { what: 'the Chief\'s review' });
   assert.ok(!run.args.includes('--allowedTools'), 'it is allowed no tool');

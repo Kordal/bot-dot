@@ -235,7 +235,7 @@ test('the Docker helper accepts runWithSshKey only in its fixed shape', async (t
 // Python as on the computer; skipped where there is none. The real ssh-agent and ssh-add are not here: this checks
 // that the key goes to no program but the agent botdot started.
 const PYTHON = ['/usr/bin/python3', '/usr/local/bin/python3'].find((p) => fs.existsSync(p));
-test('the loader sends the key to no socket whose program is not the agent botdot started', { skip: !PYTHON && 'no python3' }, async (t) => {
+test('the loader sends the key to no socket whose program is not the agent botdot started', { skip: (!PYTHON && 'no python3') || (process.platform !== 'linux' && 'Linux only: SO_PEERCRED') }, async (t) => {
   const dir = scratch();
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const sock = path.join(dir, 'agent');

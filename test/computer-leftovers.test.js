@@ -4,6 +4,7 @@
 // it does around every command of botdot's in the computer; lib/computer-leftovers.js finds what is left anyway.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -41,12 +42,12 @@ function start(flags, command, env = {}) {
 }
 const pidsIn = (text) => text.trim().split(/\s+/).filter(Boolean).map(Number);
 
-test('a command ends as it did, its exit code passed on', async () => {
+test('a command ends as it did, its exit code passed on', onLinux('botdot-run uses prctl and /proc'), async () => {
   assert.equal((await start([], 'exit 3').ended).code, 3);
   assert.equal((await start([], 'kill -TERM $$').ended).code, 128 + 15);
 });
 
-test('a process whose parent died comes to botdot-run, which reaps it as it ends: no zombie stays behind', async (t) => {
+test('a process whose parent died comes to botdot-run, which reaps it as it ends: no zombie stays behind', onLinux('botdot-run uses prctl and /proc'), async (t) => {
   // The inner shell starts a short sleep and ends at once: the sleep's parent is gone, and it ends 0.6 s later.
   const r = start([], 'sh -c "sleep 0.6 & echo \\$!"; sleep 1.5');
   t.after(() => r.child.kill('SIGKILL'));
@@ -59,7 +60,7 @@ test('a process whose parent died comes to botdot-run, which reaps it as it ends
   assert.equal((await r.ended).code, 0);
 });
 
-test('what a command leaves running ends with it, also with setsid or nohup', async () => {
+test('what a command leaves running ends with it, also with setsid or nohup', onLinux('botdot-run uses prctl and /proc'), async () => {
   const { code, out } = await start([], 'setsid sleep 60 & echo $!; nohup sleep 61 >/dev/null 2>&1 & echo $!; (sleep 62 &) ; sleep 0.2').ended;
   assert.equal(code, 0);
   const pids = pidsIn(out);
@@ -67,14 +68,14 @@ test('what a command leaves running ends with it, also with setsid or nohup', as
   for (const pid of pids) assert.ok(!alive(pid), `${pid} ended with the command`);
 });
 
-test('a command that runs out of time ends with what it started, setsid included', async () => {
+test('a command that runs out of time ends with what it started, setsid included', onLinux('botdot-run uses prctl and /proc'), async () => {
   const r = childProcess.spawnSync('timeout', ['-k', '5', '1', 'python3', ...reaped([], 'setsid sleep 60 & echo $!; sleep 60')], { encoding: 'utf8' });
   assert.equal(r.status, 124);
   const [pid] = pidsIn(r.stdout);
   assert.ok(pid && !alive(pid), 'the setsid child is gone');
 });
 
-test('with --keep it stays while what it started runs, and a SIGTERM ends it all', async () => {
+test('with --keep it stays while what it started runs, and a SIGTERM ends it all', onLinux('botdot-run uses prctl and /proc'), async () => {
   const r = start(['--keep', '--screen', '97'], 'setsid sleep 60 & echo $!');
   await waitFor(() => pidsIn(r.out()).length === 1);
   const [pid] = pidsIn(r.out());
@@ -87,7 +88,7 @@ test('with --keep it stays while what it started runs, and a SIGTERM ends it all
   assert.ok(!alive(pid), 'the program is gone');
 });
 
-test('100 short programs on one screen leave no zombie and no process behind', async () => {
+test('100 short programs on one screen leave no zombie and no process behind', onLinux('botdot-run uses prctl and /proc'), async () => {
   // Each cycle starts a program that forks and lets its first process go, as a browser's helpers do. Then all that is
   // under botdot-run is the command itself: no zombie, and nothing left of the 100.
   const r = start(['--keep'], 'for i in $(seq 1 100); do sh -c "sleep 0.05 & sleep 0.01 &"; done; sleep 0.5; ps -o stat= --ppid $PPID');
@@ -125,7 +126,7 @@ test("start_program's program carries its screen and runs under botdot-run --kee
   assert.equal(a.at(-1), 'python3 -m http.server 8080');
 });
 
-test("a screen that rests or ends takes its programs with it, setsid included; a bot's command goes on", async (t) => {
+test("a screen that rests or ends takes its programs with it, setsid included; a bot's command goes on", onLinux('botdot-run uses prctl and /proc'), async (t) => {
   const { computers, calls } = loadComputers();
   await computers.restScreen({ bot: 'scout', screen: 87 });
   const rest = calls.find((x) => x[0] === 'exec' && x.includes('sh'));

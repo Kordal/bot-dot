@@ -1,6 +1,7 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): an update to a named version, the snapshot of each
 // account's data before its switch, and a rollback to it (#979, ADR 155).
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
