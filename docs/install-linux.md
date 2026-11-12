@@ -165,6 +165,14 @@ echo bob | sudo tee /var/lib/botdot/front-door/requests/SIGN-UP
 
 The front door makes the link as the admin page does, and root's step writes it in `/var/lib/botdot/front-door/status/sign-in-ann.json`, `sign-up.json` or `sign-up-bob.json`, which only root and the front door read: `state` (`made`, `refused` or `failed`), `at`, `kind` (`sign-in` or `sign-up`), `account`, and `url` and `expires` once made, or `error`. A sign-up on a machine of one account, a sign-in for an account that doesn't exist, a sign-up for a name that is taken and a request the front door made, not root, are refused. An account made from a sign-up link must fit beside the others' shares, as any other. Every link made or refused is in the audit log, by `console`, without the link; the link is in no log. They work on a machine with an admin page too.
 
+A new sign-up link for an account closes that account's older open ones, so only the newest works. To cancel them without a new one (a refund, a wrong address), root asks with `REVOKE-SIGN-UP-<account>`:
+
+```sh
+sudo touch /var/lib/botdot/front-door/requests/REVOKE-SIGN-UP-bob
+```
+
+Root's step writes `/var/lib/botdot/front-door/status/revoke-sign-up-bob.json`: `state` (`revoked`, `refused` or `failed`), `at`, `account`, and `count` (how many were open, `0` too) or `error`. A revoked link opens a page that says it was cancelled. Links for any name and sign-in links are not touched. A request the front door made, not root, is refused. Each revoke is in the audit log, by `console`, without a link.
+
 ### The console's keys
 
 On a managed machine root's step also takes the fleet console's keys after the install ([ADR 162](adr/162-the-fleet-console-gives-a-managed-machine-its-operators-keys.md)): a file `KEYS` of root's (600) in the requests folder, with a line `openrouter <key>` (Jev, the decision model), `composio <key>` (the first account's Composio key, as the installer's) or both. Root's step removes it as soon as it is read and hands the keys to the front door in `data/install-keys.json`, which it takes within a minute, as it takes the installer's. `status/keys.json` says `state` (`handed` or `refused`), `at`, and `openrouter` and `composio`, each `true` when handed, or `error`; never a key. A key is letters, digits, dashes and underscores (8 to 300); a line that isn't one is not handed. A request the front door made, not root, is refused.

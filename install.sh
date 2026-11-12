@@ -55,6 +55,7 @@
 # makes that account a new passkey, and SIGN-UP for a sign-up link (for the account named on its first line, if any; a
 # machine of one account takes none). The link is in status/sign-in-<account>.json or status/sign-up[-<account>].json
 # ("A link asked by root alone", below), which only root and the front door read, and nowhere else.
+# REVOKE-SIGN-UP-<account> cancels every open sign-up link made for that account (#1279): status/revoke-sign-up-<account>.json.
 #
 # The fleet console pauses the whole machine with SUSPEND and starts it again with RESUME, root's alone too: every
 # account suspended or resumed in the front door's data, then made to match, as status/suspend.json says.
@@ -3918,6 +3919,48 @@ link_request() {
   door_link "$lr_kind" "$lr_status" "$lr_name"
 }
 
+# The sign-up links for one account cancelled, asked by root alone (#1279): REVOKE-SIGN-UP-<account>. The front door
+# revokes every open sign-up link it made for that account, and root writes what it said in
+# status/revoke-sign-up-<account>.json: state (revoked, refused or failed), at, account, and count once revoked, or error.
+REVOKE_SIGN_UP=REVOKE-SIGN-UP-
+# revoke_request FILE: the revoke request FILE taken: refused unless root made it.
+revoke_request() {
+  rr="$1"
+  rr_name="${rr##*/"$REVOKE_SIGN_UP"}"
+  if ! valid_account "$rr_name"; then
+    rm -f -- "$rr"
+    warn "Not an account's name, so no sign-up link was revoked: $(printf '%s' "$rr_name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
+    return 0
+  fi
+  rr_file="$DOOR/status/revoke-sign-up-$rr_name.json"
+  rr_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  mkdir -p "$DOOR/status"
+  if ! by_root "$rr"; then
+    rm -f -- "$rr"
+    put "$rr_file" "{\"state\":\"refused\",\"at\":\"$rr_at\",\"account\":\"$rr_name\",\"error\":\"Only root asks for this.\"}"
+    warn "A request to revoke sign-up links that root didn't make was refused."
+    return 0
+  fi
+  rm -f -- "$rr"
+  rr_err="$RUN/revoke-err"
+  set +e
+  rr_line="$($D compose --project-directory "$DOOR" exec -T front-door node front-door.js revoke-links --account "$rr_name" --by console </dev/null 2>"$rr_err" | head -n 1)"
+  set -e
+  case "$rr_line" in
+    '{"state":"revoked",'*'}' | '{"state":"refused",'*'}')
+      put "$rr_file" "{\"at\":\"$rr_at\",${rr_line#\{}"
+      case "$rr_line" in
+        '{"state":"revoked",'*) ok "The open sign-up links for $rr_name are revoked: $rr_file" ;;
+        *) warn "The sign-up links for $rr_name weren't revoked: $(printf '%s' "$rr_line" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 200)" ;;
+      esac ;;
+    *)
+      rr_why="$(head -n 1 "$rr_err" 2>/dev/null | plain_line 200)"
+      put "$rr_file" "{\"state\":\"failed\",\"at\":\"$rr_at\",\"account\":\"$rr_name\",\"error\":\"The front door revoked no link${rr_why:+: $rr_why}\"}"
+      warn "The front door revoked no sign-up link for $rr_name${rr_why:+: $rr_why}" ;;
+  esac
+  rm -f "$rr_err"
+}
+
 # The fleet console's keys for a managed machine (ADR 162), root's alone: KEYS, lines of `openrouter KEY` and
 # `composio KEY`, written 600 by the console's agent and removed as soon as it is read. They reach the front door the
 # way the installer's do, in data/install-keys.json, which it takes within a minute. status/keys.json says which were
@@ -4088,6 +4131,10 @@ if [ "$MODE" = requested ]; then
     [ -f "$request" ] && [ ! -L "$request" ] || continue
     link_request "$request"
   done
+  for request in "$REQUESTS/$REVOKE_SIGN_UP"*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    revoke_request "$request"
+  done
   for request in "$REQUESTS"/* "$REQUESTS"/.[!.]* "$REQUESTS"/..?*; do
     [ -e "$request" ] || [ -L "$request" ] || continue
     name="$(basename "$request")"
@@ -4095,7 +4142,7 @@ if [ "$MODE" = requested ]; then
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$OFFSITE_SET" ] || [ "$name" = "$OFFSITE_RESTORE" ] || [ "$name" = "$RESTORE_TEST_REQUEST" ] || [ "$name" = "$KEYS_REQUEST" ] || [ "$name" = "$SUSPEND_REQUEST" ] || [ "$name" = "$RESUME_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
-    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP") [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
+    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP" | "$REVOKE_SIGN_UP"*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else

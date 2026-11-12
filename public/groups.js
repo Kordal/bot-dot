@@ -518,11 +518,25 @@ function groupReplyHTML(r, asks = null) {
     ${botFigure(color, r.status === 'error' ? 'failed' : 'idle', 'g-head', bot?.outfit || null, bot?.id || '')}
     <div class="stack">
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
+      ${groupAskedHTML(r)}
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${globalThis.Plan && r.plan ? Plan.replyHTML(r.plan) : ''}</div>
       ${learnedChips(r)}
       <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
       ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
     </div></div>`;
+}
+// The bots outside the group a turn asked (`asked`, ADR 219): one folded line each, opening to the question and what
+// came back. An ask with no answer yet shows its question alone.
+function groupAskedHTML(r) {
+  const asked = Array.isArray(r.asked) ? r.asked.filter((t) => t && typeof t.text === 'string') : [];
+  return asked.map((t) => {
+    const bot = { id: t.id, name: typeof t.name === 'string' ? t.name : '', color: botById(t.id)?.color || t.color };
+    const reply = typeof t.reply === 'string' ? t.reply : '';
+    return `<details class="notes-fold theirs g-asked">${foldSummary(tr('Asked {name}', { name: botLabel(bot) }), reply || t.text)}
+      <div class="note"><div class="bubble from-bot"><div class="md">${md(t.text)}</div></div></div>
+      ${reply ? `<div class="note"><div class="bot-msg-label">${botLabel(bot)}</div><div class="bubble from-other-bot"><div class="md">${md(reply, t.id)}</div></div></div>` : ''}
+    </details>`;
+  }).join('');
 }
 // A group with no message yet: its members, and that all of them read what is written there.
 function groupEmptyHTML(g) {

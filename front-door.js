@@ -13,6 +13,8 @@
 //   … --by console                                   either one asked by the fleet console through root's step
 //                                                      (#985): one line of JSON, the link or why it was refused, and
 //                                                      an audit entry by the console
+//   node front-door.js revoke-links --account NAME     revoke every open sign-up link made for the account NAME
+//                                                      (#1279); with --by console one line of JSON, how many
 //   node front-door.js suspend|resume --by console      every account suspended or resumed, for the fleet console
 //                                                      through root's step: one line of JSON, the accounts changed
 //
@@ -171,11 +173,19 @@ if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
   };
   // One account takes no sign-up link; a new passkey for it, from a sign-in link, it does.
   if (ONE_ACCOUNT && kind === 'sign-up') refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no sign-up links.`, 1);
+  // A new sign-up link for an account closes its older ones: only the newest works (#1279).
+  let revoked = 0;
+  const newSignUp = () => {
+    const made = doors.newSignUpLink({ origin: ORIGIN.origin, account, replace: true });
+    revoked = made.revoked;
+    return made;
+  };
   try {
     const { url, expires } = kind === 'sign-in'
       ? doors.newSignInLink({ origin: ORIGIN.origin, account: account ?? '' })
-      : doors.newSignUpLink({ origin: ORIGIN.origin, account });
+      : newSignUp();
     if (byConsole) {
+      if (revoked) audited('link-revoked', { actor: 'console', account: named, detail: `${revoked} older sign-up link${revoked === 1 ? '' : 's'}` });
       audited(kind === 'sign-in' ? 'sign-in-link' : 'link-made', { actor: 'console', account: named, detail: `until ${new Date(expires).toISOString().slice(0, 16).replace('T', ' ')} UTC` });
       console.log(JSON.stringify({ state: 'made', kind, ...(named ? { account: named } : {}), url, expires: new Date(expires).toISOString() }));
     } else console.log(`${url}\n(works once, until ${new Date(expires).toISOString()})`);
@@ -184,6 +194,31 @@ if (process.argv[2] === 'sign-up-link' || process.argv[2] === 'sign-in-link') {
     if (!e.status) throw e;
     refused(e.message, e.status === 409 || e.status === 404 ? 3 : 2);
   }
+}
+// The sign-up links for one account cancelled (#1279): a refund, a wrong address, a link sent again. Every open
+// sign-up link made for the account is revoked; with --by console one line of JSON, { state: 'revoked', account,
+// count } or { state: 'refused', account?, error }, and an audit entry by the console, never with a link in it.
+// Exit 2 for a name that isn't one, as sign-up-link.
+if (process.argv[2] === 'revoke-links') {
+  const at = process.argv.indexOf('--account');
+  const account = at > 0 ? process.argv[at + 1] ?? '' : '';
+  const by = process.argv.indexOf('--by');
+  const byConsole = by > 0 && process.argv[by + 1] === 'console';
+  let count;
+  try {
+    count = doors.revokeSignUpLinks(account);
+  } catch (e) {
+    if (!e.status) throw e;
+    if (!byConsole) { console.error(e.message); process.exit(2); }
+    audited('link-refused', { actor: 'console', detail: `revoke sign-up links · ${e.message}` });
+    console.log(JSON.stringify({ state: 'refused', error: e.message }));
+    process.exit(2);
+  }
+  if (byConsole) {
+    audited('link-revoked', { actor: 'console', account, detail: `${count} sign-up link${count === 1 ? '' : 's'}` });
+    console.log(JSON.stringify({ state: 'revoked', account, count }));
+  } else console.log(`${count} sign-up link${count === 1 ? '' : 's'} for ${account} revoked.`);
+  process.exit(0);
 }
 // The whole machine paused or started again by the fleet console through root's step (its customer suspended or
 // activated): every account suspended, or resumed, as the admin page does for one, each an audit entry by the
@@ -644,6 +679,8 @@ function takeHandoff(code, verifier) {
   return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(waiting.challenge)) ? waiting : null;
 }
 
+const SIGN_UP_CANCELLED = 'This sign-up link was cancelled. Ask for a new one.';
+const SIGN_IN_CANCELLED = 'This sign-in link was cancelled. Ask for a new one.';
 // The sign-up this token opens: the setup key while the machine has no account (for the account it makes: the one
 // account, or a managed machine's first), else an open sign-up link, or on a machine of one account its sign-in link.
 function signUpLink(token) {
@@ -846,6 +883,12 @@ async function signInRoutes(req, res, p) {
   const link = signUpLink(token);
   if (!link) {
     failedTry(tries, clientOf(req), 'sign-up links');
+    // A link revoked before it was used says so (#1279); used, ended and unknown ones say the same as ever.
+    const revoked = doors.revokedLink(token);
+    if (revoked && !(ONE_ACCOUNT && !revoked.signIn)) {
+      const said = revoked.signIn ? SIGN_IN_CANCELLED : SIGN_UP_CANCELLED;
+      return req.method === 'GET' ? html(res, 410, pages.refused(said)) : send(res, 410, { error: said });
+    }
     if (req.method === 'GET') return html(res, 410, pages.ended());
     return send(res, 410, { error: 'This sign-up link was used or has ended.' });
   }

@@ -30,3 +30,7 @@ A project's team has one lead (ADR 110) that answers for the team (ADR 114). A m
 ## Amendment (2026-11-04)
 
 The alternative left for later is done, on the web page and in the Android app: in a project's Needs you and its to-do, a member's card is drawn under its team's lead, with the lead's face beside the member's words (`Keypad.leadOf`, `Spaces.leadOf` and `Spaces.underLeads`). The card is still the member's: it names the member, Allow and No answer it, and its words open the member's chat. Home draws every card as before, each with its own bot's face.
+
+## Amendment (2026-11-12)
+
+In a team's chat, where the owner reads every reply, a member asks the owner itself and never through the lead ([ADR 218](218-in-a-chat-the-owner-reads-a-bot-asks-the-owner-itself.md)). The relay through the lead stays for a member's own runs.
