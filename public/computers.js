@@ -48,6 +48,18 @@ const boatFrameUrl = (url) => `/boat-desktop.html#u=${encodeURIComponent(url)}`;
 // boat.dev's stream draws no frame in WebKit (Safari, the Mac app) nor is known to in Firefox: there the screen is
 // botdot's own viewer, as on the account's computer (ADR 149). navigator.userAgentData is Chromium's alone.
 const boatViaVnc = () => state.features.includes('boat-desktop-vnc') && !navigator.userAgentData;
+// "I'm done" (ADR 225): while the owner has control, it hands the screen back to the bot, whose last run carries on.
+function screenDone(m, bot) {
+  $('#screen-done', m).onclick = async () => {
+    $('#screen-done', m).disabled = true;
+    try {
+      const r = await api(`/bots/${bot.id}/computer/done`, { method: 'POST' });
+      toast(r.text || tr("I'm done"));
+      m.close();
+    } catch (e) { toast(e.message, true); $('#screen-done', m).disabled = false; }
+  };
+}
+
 function openBoatComputer(bot) {
   let control = false;
   const vnc = boatViaVnc();
@@ -58,6 +70,7 @@ function openBoatComputer(bot) {
       <div class="screen-bar">
         <span class="muted" id="boat-state" style="font-size:12.5px"></span>
         <span style="flex:1"></span>
+        <button class="btn sm primary hidden" id="screen-done">✓ ${tr("I'm done")}</button>
         <button class="btn sm" id="screen-control" disabled>🖱 ${tr('Take control')}</button>
         <a class="btn sm hidden" id="screen-full" target="_blank" rel="noopener noreferrer">⤢ ${tr('Full screen')}</a>
       </div>
@@ -69,6 +82,7 @@ function openBoatComputer(bot) {
   let shown = false, timer = null, open = true;
   const shield = () => {
     $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
+    $('#screen-done', m).classList.toggle('hidden', !control || !state.features.includes('screen-done'));
     if (vnc) {
       // noVNC takes the mouse and keys only when opened with them, as on the account's computer.
       $('#screen-full', m).href = screenUrl(bot.id, control);
@@ -117,6 +131,7 @@ function openBoatComputer(bot) {
     timer = setTimeout(ask, BOAT_ASK_MS);
   };
   $('#screen-control', m).onclick = () => { control = !control; shield(); };
+  screenDone(m, bot);
   m.addEventListener('close', () => {
     open = false;
     clearTimeout(timer);
@@ -140,6 +155,7 @@ function openScreen(botId) {
       <div class="screen-frame" id="screen-frame"><div class="muted">${tr('Loading…')}</div></div>
       <div class="screen-bar">
         <span style="flex:1"></span>
+        <button class="btn sm primary hidden" id="screen-done">✓ ${tr("I'm done")}</button>
         <button class="btn sm" id="screen-control">🖱 ${tr('Take control')}</button>
         <a class="btn sm" id="screen-full" target="_blank" rel="noopener">⤢ ${tr('Full screen')}</a>
         <button class="btn sm danger" id="screen-reset" title="${esc(tr("Erase the account's computer, for every bot that works on it."))}">${tr('Reset')}</button>
@@ -178,6 +194,7 @@ function openScreen(botId) {
     const on = state.computers?.[botId] === 'running' && !off;
     $('#screen-control', m).textContent = control ? `👁 ${tr('Just watch')}` : `🖱 ${tr('Take control')}`;
     $('#screen-full', m).href = screenUrl(botId, control);
+    $('#screen-done', m).classList.toggle('hidden', !(control && on && state.features.includes('screen-done')));
     $('#screen-control', m).disabled = !on;
     $('#screen-frame', m).innerHTML = off
       ? `<div class="screen-off"><div class="big">🖥</div>${esc(off.text)}<div><button class="btn sm" id="screen-start">${esc(off.start)}</button></div></div>`
@@ -198,6 +215,7 @@ function openScreen(botId) {
     } catch (e) { toast(e.message, true); }
   };
   $('#screen-control', m).onclick = () => { control = !control; frame(); };
+  screenDone(m, bot);
   // The account's computer, for every bot (#107): a reset and an update, each after the owner read what it does.
   const forAll = async (what, label) => {
     try {
