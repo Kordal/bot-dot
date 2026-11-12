@@ -647,7 +647,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
 }
 
 /**
- * A bot outside the group this turn asked (ADR 218): one folded line, "Asked Mail Steward" with its small head and the
+ * A bot outside the group this turn asked (ADR 219): one folded line, "Asked Mail Steward" with its small head and the
  * first words of its answer, that opens to the question and the answer. An ask with no answer yet opens to its question.
  */
 @Composable

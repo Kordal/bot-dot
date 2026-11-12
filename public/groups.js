@@ -525,7 +525,7 @@ function groupReplyHTML(r, asks = null) {
       ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
     </div></div>`;
 }
-// The bots outside the group a turn asked (`asked`, ADR 218): one folded line each, opening to the question and what
+// The bots outside the group a turn asked (`asked`, ADR 219): one folded line each, opening to the question and what
 // came back. An ask with no answer yet shows its question alone.
 function groupAskedHTML(r) {
   const asked = Array.isArray(r.asked) ? r.asked.filter((t) => t && typeof t.text === 'string') : [];

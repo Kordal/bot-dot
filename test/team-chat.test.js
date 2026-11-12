@@ -135,7 +135,7 @@ test('a message the router cannot place goes to the lead alone; the lead hands o
   // It hands on by naming members, with no message_bot and no list of bots outside the team (#759).
   assert.match(ran.system, /split the work among the members of this group by naming each in your reply/);
   assert.doesNotMatch(ran.system, /with message_bot \(priority: true\)|Teammates you may message/);
-  // A bot outside the team is named only where ask_bot may ask it (ADR 218), never as one to hand the work on to.
+  // A bot outside the team is named only where ask_bot may ask it (ADR 219), never as one to hand the work on to.
   const [handOn, askList = ''] = ran.system.split("Bots of the owner's team outside this group, which you may ask with ask_bot:");
   assert.doesNotMatch(handOn, /Outsider/, 'a bot that is not on the team is not named for the hand-on');
   assert.match(askList.split('\n\n')[0], /Outsider/, 'it is on the list of bots ask_bot may ask');

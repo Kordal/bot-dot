@@ -1,4 +1,4 @@
-# ADR-218: A member in a group asks a bot outside it and waits for its answer
+# ADR-219: A member in a group asks a bot outside it and waits for its answer
 
 - **Status:** Accepted (2026-11-12, the owner: "Jak bot czegoś nie wie, ale wie że inny bot może pomóc, to powinien móc do niego napisać z własnego czatu", and on the card: yes, in teams' and groups' chats too)
 - **Changes:** #759 (a group's turn has no `message_bot`): it still has none, and gets `ask_bot` for bots that are not members. ADR 192 (every bot may ask every other bot) now holds in a group's turn too.

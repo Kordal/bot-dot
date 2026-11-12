@@ -1,4 +1,4 @@
-// A member's turn in a group asks a bot outside the group (ask_bot, ADR 218): it is told who it may ask, the asked
+// A member's turn in a group asks a bot outside the group (ask_bot, ADR 219): it is told who it may ask, the asked
 // bot works in its own chat with the question, its reply comes back into the turn that waits, and the turn's record
 // shows whom it asked and what came back. Against a real botdot server and the stand-in for Claude
 // (test/fixtures/fake-claude.js): what botdot starts, hands over and refuses, not what a model then does.

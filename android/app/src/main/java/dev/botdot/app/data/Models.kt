@@ -401,7 +401,7 @@ data class Run(
     val groupMessageId: String? = null, // a turn in a group: the owner's message there it belongs to (ADR 018)
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each
-    val asked: List<AskedBot>? = null, // a turn in a group: the bots outside the group it asked, and what came back (ADR 218)
+    val asked: List<AskedBot>? = null, // a turn in a group: the bots outside the group it asked, and what came back (ADR 219)
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
@@ -559,7 +559,7 @@ data class MailDraft(
     val attachments: List<Attachment> = emptyList(), // the files the mail carries; a file of the chat has its `file`
 )
 
-/** A bot outside its group a turn asked (ADR 218): its question, and its reply once it came. */
+/** A bot outside its group a turn asked (ADR 219): its question, and its reply once it came. */
 @Serializable
 data class AskedBot(val id: String = "", val name: String = "", val color: String? = null, val text: String = "", val reply: String? = null, val at: String? = null)
 @Serializable
