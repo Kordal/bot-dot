@@ -36,7 +36,7 @@ test('the lead is told the project, the goal, its team with their jobs and what 
   done();
 });
 
-test('in a turn in a group the lead and a member are told to work there by naming, never with message_bot (#759)', () => {
+test('in a turn in a group the lead and a member are told to work there by naming, never with message_bot (#759), and the member asks the owner itself (ADR 218)', () => {
   const { s, done } = store(company());
   const lead = s.botNote('l1', of, { group: true });
   assert.match(lead, /split the work among the members of this group by naming each in your reply/);
@@ -44,8 +44,12 @@ test('in a turn in a group the lead and a member are told to work there by namin
   assert.doesNotMatch(lead, /message_bot/);
   const member = s.botNote('m1', of, { group: true });
   assert.match(member, /answer the lead in this group, in your reply/);
-  assert.match(member, /name the lead and ask it, not the owner/);
-  assert.match(lead, /The owner talks to the team through you/);
+  // The owner reads a team's chat (ADR 218): a member asks the owner itself there, and nobody relays it.
+  assert.match(member, /The owner reads this chat: when you need something from the owner \(a decision, an answer, a file, a login\), ask the owner yourself at the end of your reply, never the lead or another bot to ask the owner for you/);
+  assert.doesNotMatch(member, /name the lead and ask it/);
+  assert.match(lead, /The owner reads this chat: a member asks the owner itself/);
+  assert.match(lead, /never ask the owner again what a member asked/);
+  assert.doesNotMatch(lead, /The owner talks to the team through you/);
   assert.doesNotMatch(member, /send what the lead asks for back/);
   done();
 });

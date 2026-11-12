@@ -85,6 +85,7 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   assert.match(RULES.handOn, /Name a member that way only to hand the work on/);
   assert.match(RULES.handOn, /needs nothing only the owner can give .* hand it on in this reply: never ask the owner whether to/); // #265
   assert.match(RULES.handOn, /Never use message_bot for a member of this group/);
+  assert.match(RULES.handOn, /never to have it ask the owner something for you\. The owner reads this chat, so what only the owner can give you ask the owner yourself/); // ADR 218
   assert.match(RULES.end, /Name nobody when the work is done, or when the next step is the owner's/);
   assert.match(RULES.end, /Never reply only to thank, to agree, to confirm/);
   assert.equal(count(note, PASS), 1, 'the pass word is given once');
