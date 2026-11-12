@@ -55,7 +55,7 @@ test("a project's own Chief chat is headed Project Manager, every other chat the
 
 test("the Chief's chat head is drawn again for the chat it opens", () => {
   const part = cut('async function showChat(id)', "const thread = $('#chat-thread');");
-  assert.match(part, /drawChiefName\(\)/);
+  assert.match(part, /drawChiefName\?\.\(\)/);
   assert.match(cut('function renderChief()', "wireComposer($('form', root)"), /chiefChatTitle\(state\.chatId\)/);
 });
 

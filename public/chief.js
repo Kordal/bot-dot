@@ -656,7 +656,7 @@ async function showChat(id) {
   state.chatReload = false; // this is the chat read again
   state.chatId = id;
   if (id) state.chatNew = false;
-  drawChiefName(); // a project's chat is its Project Manager, every other the Chief
+  globalThis.drawChiefName?.(); // a project's chat is its Project Manager, every other the Chief
   if (state.view === 'chief') writeHash();
   sayPresent();
   syncRead();
