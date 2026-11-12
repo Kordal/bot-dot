@@ -8,9 +8,9 @@ const vm = require('vm');
 const { app, cut, esc, element, finders, words } = require('./web-page');
 
 // The name's own part of the page, with the Chief's row in the list and its chat's head.
-function names() {
+function names(state = { features: [], chatId: null }) {
   const head = element();
-  const ctx = vm.createContext({ ...finders(element({ '#view-chief .chat-head h2': head })), esc, Mentions: { CHIEF: 'chief' }, CHIEF_COLOR: '#d85a30' });
+  const ctx = vm.createContext({ ...words, ...finders(element({ '#view-chief .chat-head h2': head })), esc, state, Mentions: { CHIEF: 'chief' }, CHIEF_COLOR: '#d85a30' });
   vm.runInContext(`${cut('const CHIEF_BOT = {', '\n')}
     ${cut('// ---------- the Chief\'s name', '// ---------- end of the Chief\'s name')}
     this.CHIEF_BOT = CHIEF_BOT; this.takeChiefName = takeChiefName; this.drawChiefName = drawChiefName; this.chiefName = chiefName; this.chiefMatches = chiefMatches;`, ctx);
@@ -33,6 +33,32 @@ test('the page calls the Chief what the server says, and Chief of Staff when it 
   }
 });
 
+test("a project's own Chief chat is headed Project Manager, every other chat the Chief's name (ADR 217)", () => {
+  const state = { features: ['project-manager'], chatId: 'c-pm', company: { id: 'p1', chiefChat: 'c-pm' }, projects: [{ id: 'p1', chiefChat: 'c-pm' }, { id: 'p2', chiefChat: 'c-two' }] };
+  const { ctx, head } = names(state);
+  ctx.takeChiefName('Ada');
+  ctx.drawChiefName();
+  assert.equal(head.textContent, 'Project Manager');
+  state.chatId = 'c-two';
+  ctx.drawChiefName();
+  assert.equal(head.textContent, 'Project Manager', "another project's chat, not the one shown");
+  for (const id of ['c-other', null]) {
+    state.chatId = id;
+    ctx.drawChiefName();
+    assert.equal(head.textContent, 'Ada', String(id));
+  }
+  state.chatId = 'c-pm';
+  state.features = [];
+  ctx.drawChiefName();
+  assert.equal(head.textContent, 'Ada', 'a server without the Project Manager');
+});
+
+test("the Chief's chat head is drawn again for the chat it opens", () => {
+  const part = cut('async function showChat(id)', "const thread = $('#chat-thread');");
+  assert.match(part, /drawChiefName\(\)/);
+  assert.match(cut('function renderChief()', "wireComposer($('form', root)"), /chiefChatTitle\(state\.chatId\)/);
+});
+
 test('a search finds the Chief by its name and by its role', () => {
   const { ctx } = names();
   ctx.takeChiefName('Ada');
@@ -44,7 +70,7 @@ test('the list, the keys, the panel and the chat head say the name, never a fixe
   for (const [from, to] of [['function drawContacts', '\n}\n'], ['function chiefKeyHTML', '\n}\n'], ['function drawPanelHead', '\n}\n'], ['function renderChief()', "wireComposer($('form', root)"]]) {
     const part = cut(from, to);
     assert.doesNotMatch(part, /Chief of Staff/, from);
-    assert.match(part, /chief(Name|Title)\(\)/, from); // chiefTitle(): the name, or the role in the page's language (#647)
+    assert.match(part, /chief(Name|Title|ChatTitle)\(/, from); // chiefTitle(): the name, or the role in the page's language (#647); chiefChatTitle(): a project's chat is its Project Manager
   }
 });
 

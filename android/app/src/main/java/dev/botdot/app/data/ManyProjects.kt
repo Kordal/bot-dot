@@ -25,6 +25,10 @@ object ManyProjects {
     const val CHIEF = "project-chief"
     /** The project's own Chief chat is its Project Manager, who writes in every team's chat (ADR 217). */
     const val MANAGER = "project-manager"
+
+    /** Whether the Chief chat [chatId] is a project's own, so its head says "Project Manager" (ADR 217). */
+    fun managerChat(features: Collection<String>?, projects: List<Company?>, chatId: String?): Boolean =
+        chatId != null && features != null && MANAGER in features && projects.any { it?.chiefChat == chatId }
     /** Tidy up beside the gear: the project's Chief arranges the whole board, asked in its chat. */
     const val TIDY = "board-tidy"
     const val FOLDER = "project-folder"

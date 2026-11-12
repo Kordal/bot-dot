@@ -415,7 +415,7 @@ function renderChief() {
         ${BACK_BTN}
         <button class="chat-title" id="chief-settings" title="${tr('Its settings')}">
           <div id="chief-avatar">${chiefFigure('sm')}</div>
-          <div class="grow"><h2>${esc(chiefTitle())}</h2></div>
+          <div class="grow"><h2>${esc(chiefChatTitle(state.chatId))}</h2></div>
         </button>
         <div class="actions-right">
           ${state.features.includes('files-explorer') && state.features.includes('chief-files') ? `<button class="icon-btn" id="chief-files-btn" title="${tr('Files')}" aria-label="${tr('Files')}">${ICON.folder}</button>` : ''}
@@ -656,6 +656,7 @@ async function showChat(id) {
   state.chatReload = false; // this is the chat read again
   state.chatId = id;
   if (id) state.chatNew = false;
+  drawChiefName(); // a project's chat is its Project Manager, every other the Chief
   if (state.view === 'chief') writeHash();
   sayPresent();
   syncRead();
