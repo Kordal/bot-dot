@@ -2,6 +2,7 @@
 // the RHEL family through dnf, gVisor from its release files where apt-get isn't, and a clear stop where a machine
 // can't run botdot or its packages can't be installed by the installer.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');

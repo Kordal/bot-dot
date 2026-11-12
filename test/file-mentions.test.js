@@ -4,6 +4,7 @@
 // the one the file explorer uses (#603). The rules of the mention's text are in test/fixtures/mentions.json.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -93,7 +94,7 @@ test('search on the computer: off, it says so for its folder and leaves it out o
   assert.equal((await search('sum', '&root=project&project=Nope', pc)).data.state, 'no-project');
 });
 
-test('the search script looks inside the folder only, never through a link, and takes a name with glob characters as it is', () => {
+test('the search script looks inside the folder only, never through a link, and takes a name with glob characters as it is', onLinux('GNU find'), () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-search-'));
   const root = path.join(dir, 'bot');
   fs.mkdirSync(path.join(root, 'reports', '.git'), { recursive: true });

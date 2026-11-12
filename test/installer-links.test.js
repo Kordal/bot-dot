@@ -3,6 +3,7 @@
 // (`node front-door.js … --by console`) and keeps what it says in a status file only root and the front door read; the
 // front door's side is in test/front-door-console-links.test.js, the round trip in `make install-real`.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

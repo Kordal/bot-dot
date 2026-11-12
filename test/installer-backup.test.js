@@ -2,6 +2,7 @@
 // asked of root's step with the requests BACKUP and RESTORE (#986). The restore's own run through each account's
 // Docker is in `make install-real`; here the stand-in Docker writes down what it was asked.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');

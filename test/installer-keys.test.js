@@ -3,6 +3,7 @@
 // handed, says which it handed in status/keys.json, and writes no key in a log or a status file. The front door's side
 // is in test/front-door-install-keys.test.js and test/front-door-managed.test.js.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

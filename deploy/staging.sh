@@ -111,5 +111,5 @@ done
 removed=$((had - $(count)))
 docker builder prune --all --force --keep-storage "${CACHE_GB}gb" >/dev/null 2>&1 || echo "Warning: couldn't trim the build cache."
 after_kb="$(free_kb)"
-freed="$(awk -v a="${before_kb:-0}" -v b="${after_kb:-0}" 'BEGIN { d = (b - a) / 1048576; printf "%.1f", d < 0 ? 0 : d }')"
+freed="$(awk -v a="${before_kb:-0}" -v b="${after_kb:-0}" 'BEGIN { d = (b - a) / 1048576; printf "%.1f", (d < 0 ? 0 : d) }')"
 echo "Removed $removed old image$( [ "$removed" = 1 ] || echo s) and trimmed the build cache to $CACHE_GB GB: $freed GB freed. Kept $SERVER_IMAGE, $COMPUTER_IMAGE and their previous images."

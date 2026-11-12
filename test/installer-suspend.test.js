@@ -3,6 +3,7 @@
 // account (`node front-door.js suspend|resume --by console`, its side in test/front-door-console-suspend.test.js), then
 // makes each account match the front door's data, and says how it went in status/suspend.json.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

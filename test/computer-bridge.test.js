@@ -4,6 +4,7 @@
 // botdot's own script that reads a file there runs here in sh.
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -77,7 +78,7 @@ test('a path on the computer is in /workspace or /home/box; any other is in the 
 // The bot's computer, as the facade answers by bot id: its script run in sh, here.
 const here = () => ({ bringOut: async (botId, { script }) => { try { return { code: 0, stdout: childProcess.execFileSync('sh', ['-c', script], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }) }; } catch (e) { return { code: e.status, stdout: '', stderr: String(e.stderr) }; } } });
 
-test('a file of its folder comes out byte for byte; a folder, a missing, empty or too big file, or one outside is refused', async () => {
+test('a file of its folder comes out byte for byte; a folder, a missing, empty or too big file, or one outside is refused', onLinux('GNU realpath and stat'), async () => {
   const dir = scratch();
   const own = path.join(dir, 'desk');
   const other = path.join(dir, 'other');

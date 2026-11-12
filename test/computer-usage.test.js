@@ -5,6 +5,7 @@
 // the Chief. The Chief's computer tools act on the account's computer: a restart asks first while bots work on it.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -76,7 +77,7 @@ test("botdot-usage says of what runs on no bot's screen how many are zombies, an
 
 // A busy loop gets one CPU fully only on an idle machine: on a loaded one it gets what the scheduler gives it. So
 // the measure is held against the CPU the loop really had over the same time, read from its /proc/<pid>/stat.
-test('botdot-usage measures CPU over its wait: 100 is one CPU fully used', async (t) => {
+test('botdot-usage measures CPU over its wait: 100 is one CPU fully used', onLinux('reads /proc'), async (t) => {
   // Screen 93: test/computer-leftovers.test.js, which may run at the same time, ends what carries SCREEN=97.
   const busy = childProcess.spawn('python3', ['-c', 'while True: pass'], { env: { ...process.env, SCREEN: '93' }, stdio: 'ignore' });
   t.after(() => busy.kill('SIGKILL'));

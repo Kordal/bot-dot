@@ -3,6 +3,7 @@
 // account's computer, which is never started just to read one. The owner's alone.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -181,7 +182,7 @@ test("a file on the account's computer: off, it says so and nothing starts it; o
 });
 
 // The script that reads a file on the computer, run here with two scratch folders as its roots.
-test('the computer script follows links itself and reads only regular files inside the roots', () => {
+test('the computer script follows links itself and reads only regular files inside the roots', onLinux('GNU realpath and stat'), () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-view-'));
   const home = path.join(dir, 'home'); const work = path.join(dir, 'work');
   fs.mkdirSync(path.join(home, 'sub'), { recursive: true }); fs.mkdirSync(work);
