@@ -3282,6 +3282,11 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
   .app.place-company.proj-chat #chat-row { grid-column: 2; grid-row: 2; min-width: 0; background: var(--raise); container: column / inline-size; }
   .app.place-company.proj-chat #chat-row .back-btn { display: none !important; }
   .app.place-company.proj-chat #proj-chat-grip { display: block; grid-column: 2; grid-row: 2; justify-self: start; }
+  /* A file opened there takes the board's place, and the chat stays in its column (viewer.js place()). */
+  .app.place-company.proj-chat .main.viewing > #view-company { display: none; }
+  .app.place-company.proj-chat .main > .doc-viewer { grid-column: 1; grid-row: 2; width: auto; background: var(--bg); }
+  .app.place-company.proj-chat .main > .doc-viewer .dv-full { display: none; }
+  .app.place-company.proj-chat .main > .doc-viewer .dv-md { margin: 0 auto; }
   .app.place-company.proj-hidden .project-chat-show:not(.hidden) { display: grid; position: absolute; top: var(--sp-24); right: var(--sp-24); z-index: 5; }
   .project-chat-show svg, .dock-ctl.col svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 }
