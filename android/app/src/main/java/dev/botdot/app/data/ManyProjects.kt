@@ -25,6 +25,8 @@ object ManyProjects {
     const val CHIEF = "project-chief"
     /** The project's own Chief chat is its Project Manager, who writes in every team's chat (ADR 217). */
     const val MANAGER = "project-manager"
+    /** Tidy up beside the gear: the project's Chief arranges the whole board, asked in its chat. */
+    const val TIDY = "board-tidy"
     const val FOLDER = "project-folder"
     /** lib/company.js PROJECT_COLORS: the swatches of a project's colour. */
     val COLORS = listOf("#ff6b35", "#34c759", "#3aa0ff", "#8e7cff", "#ffb020", "#ff5c8a", "#2ec4b6", "#b07cff")

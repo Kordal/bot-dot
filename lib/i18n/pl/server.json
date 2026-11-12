@@ -546,6 +546,7 @@
   "Testing a tile": "Testuję kafelek",
   "Adding a tile": "Dodaję kafelek",
   "Changing a tile": "Zmieniam kafelek",
+  "Adding a card": "Dodaję kartę",
   "Changing a card": "Zmieniam kartę",
   "Removing a card": "Usuwam kartę",
   "Removing a goal": "Usuwam cel",
@@ -626,5 +627,6 @@
   "Needs {app} reconnected": "Potrzebuje ponownego połączenia {app}",
   "Needs your Composio key for {app}": "Potrzebuje twojego klucza Composio do {app}",
   "Needs {app} connected": "Potrzebuje połączenia {app}",
-  "Checking the proxies": "Sprawdzam proxy"
+  "Checking the proxies": "Sprawdzam proxy",
+  "Tidy up the board.": "Uporządkuj tablicę."
 }

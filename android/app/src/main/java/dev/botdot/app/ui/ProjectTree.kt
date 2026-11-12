@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
@@ -58,8 +59,23 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
             }
         }
         if (c != null && features != null && ManyProjects.SETTINGS in features) RoundButton(Icons.Outlined.Settings, tr("Project settings"), Modifier.padding(start = Space.s4)) { ui.settingsOpen = true }
+        if (c != null && c.phase == "running" && features != null && ManyProjects.TIDY in features && ways.onChiefChat != null) TidyButton(ui, ways.onChiefChat, Modifier.padding(start = Space.s4))
         if (c != null && features != null && ManyProjects.CHIEF in features && ways.onChiefChat != null) ProjectChiefButton(ui, c, ways.onChiefChat, ManyProjects.MANAGER in features, Modifier.padding(start = Space.s4))
         after()
+    }
+}
+
+/** Tidy up (web: Company.tidyHTML): the project's Chief arranges the whole board, asked in its chat, which opens. */
+@Composable
+private fun TidyButton(ui: CompanyUi, open: (String) -> Unit, modifier: Modifier = Modifier) {
+    val api by ui.app.api.collectAsState()
+    var busy by remember { mutableStateOf(false) }
+    RoundButton(Icons.Outlined.Dashboard, tr("Tidy up the board"), modifier) {
+        val a = api
+        if (a != null && !busy) {
+            busy = true
+            ui.scope.launch { runCatching { a.tidyBoard() }.onSuccess { if (it.isNotEmpty()) { ui.app.store.company.refresh(); open(it) } }; busy = false }
+        }
     }
 }
 

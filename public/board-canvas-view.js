@@ -292,5 +292,15 @@
   // While a tile is dragged the home is not drawn again: that would drop it.
   const busy = () => !!drag;
 
-  window.BoardView = { apply, busy, sig: () => [on()] };
+  // The board as the owner sees it now, for Tidy up (board-tidy): the canvas drawn, or the flow measured as the first
+  // drag would; null without tiles.
+  function seen(c) {
+    if (shown && shown.id === c?.id) return shown.layout;
+    const home = $('.cf-home');
+    if (!home) return null;
+    const groups = tiles(home);
+    return groups.size ? B.complete(B.measured(rects(groups, home), home.clientWidth), [...groups.keys()]) : null;
+  }
+
+  window.BoardView = { apply, busy, seen, sig: () => [on()] };
 })();
