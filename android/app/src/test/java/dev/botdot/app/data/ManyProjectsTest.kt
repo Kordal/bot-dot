@@ -147,4 +147,14 @@ class ManyProjectsTest {
         assertEquals("12", ManyProjects.shownNumber(12.0))
         assertEquals("2026-10-01", ManyProjects.startDay(Company("p", startedAt = "2026-10-01T00:00:00.000Z")))
     }
+
+    @Test fun aProjectsOwnChiefChatIsItsProjectManager() {
+        val on = listOf(ManyProjects.MANAGER)
+        val projects = listOf(Company("p1", chiefChat = "c-pm"), null, Company("p2"))
+        assertTrue(ManyProjects.managerChat(on, projects, "c-pm"))
+        assertFalse(ManyProjects.managerChat(on, projects, "c-other"))
+        assertFalse(ManyProjects.managerChat(on, projects, null))
+        assertFalse(ManyProjects.managerChat(emptyList(), projects, "c-pm"))
+        assertFalse(ManyProjects.managerChat(null, projects, "c-pm"))
+    }
 }

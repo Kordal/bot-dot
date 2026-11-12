@@ -142,8 +142,11 @@ function takeChiefName(name) {
   CHIEF_BOT.name = n;
   return true;
 }
-// The head of the Chief's chat, which is drawn once.
-function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) h.textContent = chiefTitle(); }
+// The head of the Chief's chat, which is drawn once: the chat open in it names it (chiefChatTitle).
+function drawChiefName() { const h = $('#view-chief .chat-head h2'); if (h) h.textContent = chiefChatTitle(state.chatId); }
+// A project's own Chief chat is its Project Manager (ADR 217): its head says so, as the head beside the gear does.
+const isProjectChiefChat = (id) => !!id && (state.features || []).includes('project-manager') && [state.company, ...(state.projects || [])].some((p) => p?.chiefChat === id);
+const chiefChatTitle = (id) => (isProjectChiefChat(id) ? tr('Project Manager') : chiefTitle());
 // The Chief's name as the page shows it: the role in the page's language while it has no name of its own. Mentions
 // and the server keep the English role (CHIEF_BOT.name), which they know it by.
 const chiefTitle = () => (chiefName() === CHIEF_ROLE ? tr('Chief of Staff') : chiefName());
