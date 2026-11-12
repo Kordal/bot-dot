@@ -91,7 +91,7 @@ test('managed, one account: a sign-in link gives the account a new passkey, once
 
 test('managed, several: a sign-up link makes an account while its share fits, and a sign-up for a taken name is refused', async (t) => {
   const env = { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_FIRST_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY };
-  const load = loadDir(t, { cpus: 8, ramTotal: 23.4 * GB });
+  const load = loadDir(t, { cpus: 12, ramTotal: 23.4 * GB });
   const door = await startFrontDoor({ env: { ...env, FRONT_DOOR_LOAD: load } });
   t.after(() => door.stop());
   assert.equal((await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner' })).done.status, 201);
@@ -105,7 +105,7 @@ test('managed, several: a sign-up link makes an account while its share fits, an
   const bea = await signUp(door, new URL(any.said.url).pathname, { name: 'bea' });
   assert.equal(bea.done.status, 201, bea.done.text);
 
-  // A third share doesn't fit an 8-CPU, 24 GB machine: the link is made, and makes no account.
+  // A third share doesn't fit a 12-CPU, 24 GB machine: the link is made, and makes no account.
   const cleo = ask(door, env, 'sign-up-link', '--account', 'cleo');
   assert.equal(cleo.said.account, 'cleo');
   const full = await signUp(door, new URL(cleo.said.url).pathname, { name: 'cleo' });
