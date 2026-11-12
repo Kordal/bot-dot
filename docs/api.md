@@ -666,10 +666,11 @@ When `features` has `memory`. Memory is two things: **notes** (short facts, each
 | The Chief (its tools) | its own user on the machine, or its key | `GET /api/memory`, `GET /api/memory/search`, `GET /api/memory/runs/:id`, `GET /api/memory/semantic`, `PUT /api/memory/semantic`, `POST /api/memory/semantic/pull`, `PUT /api/memory/settings`, `POST /api/memory/review/:botId`, and its own `GET` and `POST /api/chief/memory` (see The Chief's memory). Any other route here answers `403 { error: "The Chief's tools can't do that; only the owner can." }` |
 | A bot's run (its tools) | the header `X-Run-Token`, the key of that one run | `POST /api/self/session/memory`, `/recall` and `/run` only (see A bot's own memory) |
 
-**A note** is `{ id, owner, text, topic, pinned, pinLocked, source, until, by, runId, at, createdAt, usedAt, uses, versions }`:
+**A note** is `{ id, owner, text, topic, pinned, pinLocked, source, until, project, by, runId, at, createdAt, usedAt, uses, versions }`:
 
 - `owner` is a bot's id, `"_shared"` for the shared memory every bot reads, or `"chief"` for the Chief's own notes, which no bot is given.
 - `text` has at most 400 characters, with runs of spaces and line breaks made one space. `topic` is a short label, at most 40 characters, `""` without one.
+- `project`: only on a bot's own note saved in a turn of a project's team chat: that project's id. A turn in another project's team chat is not handed it, pinned or looked up; recall still finds it.
 - `pinned`: the note is in every prompt of its owner (of every bot, for a shared one). At most 30 notes and 15,000 characters are pinned per owner. A note that is not pinned is found by recall and by the lookup before a run. `pinLocked`: the owner pinned it by hand, and botdot never unpins it to make room.
 - `source` is who said it: `"owner"`, `"bot"` or `"outside"` (see The contract). The server sets it. No request sets it: a `source` in a body is ignored.
 - `until` is there for a passing state only: the last calendar day the note holds, as `"2026-10-11"` (see The contract). A note without it lasts.
