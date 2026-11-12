@@ -106,7 +106,16 @@
       return `<div class="ps-row ps-team" style="--c:${esc(t.color)}"><span class="ps-label"><i class="ps-dot"></i>${esc(t.name)}</span><div class="ps-value"><span class="ps-faces">${members.map((b) => `<span class="ps-face-wrap" title="${esc(b.name)}">${face(b)}${b.id === t.lead && members.length > 1 ? CROWN : ''}</span>`).join('')}</span><button type="button" class="btn sm ghost" data-ps-edit-team="${esc(t.id)}">${tr('Edit')}</button></div></div>`;
     }).join('');
     const add = editing === 'new' ? editorHTML(c, null) : `<div class="ps-adds"><button type="button" class="btn sm" data-ps-new-team>${PLUS}${tr('New team')}</button></div>`;
-    return section('team', tr('Team'), teams + add);
+    return section('team', tr('Team'), leadHTML(c) + teams + add);
+  }
+
+  // Who runs the project in its own chat (ADR 227): a bot the owner picks, or the Chief. The project's bots come first.
+  function leadHTML(c) {
+    if (!(state.features || []).includes('project-lead')) return '';
+    const mine = new Set(c.teams.flatMap((t) => t.bots));
+    const bots = [...(state.bots || [])].sort((a, b) => (mine.has(b.id) - mine.has(a.id)) || a.name.localeCompare(b.name));
+    const opt = (v, label) => `<option value="${esc(v)}"${(c.lead || '') === v ? ' selected' : ''}>${esc(label)}</option>`;
+    return row(tr('Project lead'), `<select class="ps-input" data-ps-project-lead aria-label="${tr('Project lead')}">${opt('', chiefTitle())}${bots.map((b) => opt(b.id, b.name)).join('')}</select>`);
   }
   // A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 199), its lead.
   function editorHTML(c, t) {
@@ -269,6 +278,8 @@
       };
     }
     // Reports and the standup.
+    const projectLead = $('[data-ps-project-lead]', root);
+    if (projectLead) projectLead.onchange = () => patch({ lead: projectLead.value || null });
     $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
     const on = $('[data-ps-standup-on]', root);
     on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });

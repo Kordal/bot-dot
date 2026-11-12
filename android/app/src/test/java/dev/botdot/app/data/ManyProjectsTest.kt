@@ -148,6 +148,22 @@ class ManyProjectsTest {
         assertEquals("2026-10-01", ManyProjects.startDay(Company("p", startedAt = "2026-10-01T00:00:00.000Z")))
     }
 
+    @Test fun theProjectLeadIsPickedFromItsOwnBotsFirstThenTheRestByName() {
+        val c = Company("p1", teams = listOf(CompanyTeam(id = "t1", name = "Launch", bots = listOf("z", "m"), lead = "z")), lead = "m")
+        val bots = listOf(Bot(id = "a", name = "Alpha"), Bot(id = "m", name = "mona"), Bot(id = "z", name = "Zed"), Bot(id = "b", name = "beta"))
+        assertEquals(listOf("m", "z", "a", "b"), ManyProjects.leadChoices(c, bots).map { it.id })
+        assertEquals("project-lead", ManyProjects.LEAD)
+        assertEquals("m", c.lead)
+    }
+
+    @Test fun aProjectManagersMessageAsTheProjectLeadNamesItsBot() {
+        val m = GroupMessage.of(kotlinx.serialization.json.Json.parseToJsonElement("""{"id":"m1","text":"Status?","at":"2026-11-12T10:00:00Z","by":"chief","as":"boss"}"""))!!
+        assertTrue(m.byChief)
+        assertEquals("boss", m.asBot)
+        val owner = GroupMessage.of(kotlinx.serialization.json.Json.parseToJsonElement("""{"id":"m2","text":"Hi","at":"2026-11-12T10:00:00Z","as":"boss"}"""))!!
+        assertNull("only the Project Manager's message is drawn as another's", owner.asBot)
+    }
+
     @Test fun aProjectsOwnChiefChatIsItsProjectManager() {
         val on = listOf(ManyProjects.MANAGER)
         val projects = listOf(Company("p1", chiefChat = "c-pm"), null, Company("p2"))

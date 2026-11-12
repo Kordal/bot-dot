@@ -377,8 +377,9 @@ const Company = (() => {
   const chiefHTML = () => {
     if (!(state.features || []).includes('project-chief') || !state.company) return '';
     const n = chiefWaiting(state.company);
-    const name = (state.features || []).includes('project-manager') ? tr('Project Manager') : chiefTitle();
-    return `<button type="button" class="icon-btn co-chief-btn" data-project-chief aria-label="${esc(name)}${n ? ` (${n})` : ''}" title="${esc(name)}">${chiefFigure('sm')}${n ? `<span class="co-chief-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
+    const lead = state.company.lead ? botById(state.company.lead) : null; // the project's lead runs its chat (ADR 227)
+    const name = lead ? lead.name : (state.features || []).includes('project-manager') ? tr('Project Manager') : chiefTitle();
+    return `<button type="button" class="icon-btn co-chief-btn" data-project-chief aria-label="${esc(name)}${n ? ` (${n})` : ''}" title="${esc(name)}">${lead ? botFigure(lead.color, lead.state, 'sm', lead.outfit, lead.id) : chiefFigure('sm')}${n ? `<span class="co-chief-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
   };
   // Tidy up (board-tidy): the project's Chief arranges the whole board, asked in its chat, which opens beside it.
   const tidyHTML = () => ((state.features || []).includes('board-tidy') && state.company?.phase === 'running' ? `<button type="button" class="icon-btn co-tidy" data-project-tidy aria-label="${tr('Tidy up the board')}" title="${tr('Tidy up the board')}">${ICON.tidy}</button>` : '');

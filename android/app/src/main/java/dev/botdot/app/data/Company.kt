@@ -63,6 +63,8 @@ data class Company(
     val folder: ProjectFolder? = null,
     /** Its own Chief chat (`project-chief`), the one botdot's turns about it go to; null until it is made. */
     val chiefChat: String? = null,
+    /** The bot the owner picked to run the project in that chat (`project-lead`, ADR 227); null: the Chief does. */
+    val lead: String? = null,
     /** The cards made by Claude on its board (#776), on a botdot with `project-cards`. */
     val cards: List<ProjectCard> = emptyList(),
     /** The pieces on its board (#780, [ProjectBoard]); null on a project made before, which shows them all. */

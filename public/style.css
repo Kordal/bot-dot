@@ -2998,6 +2998,7 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-todo.done .cf-row-text { color: var(--faint); text-decoration: line-through; }
 .cf-lead-chip { display: inline-flex; align-items: center; gap: var(--sp-4); padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); background: rgba(245, 197, 66, .12); color: #f5c542; font-size: var(--fs-12); }
 .cf-lead-chip .cf-crown { position: static; padding: 0; background: none; }
+.cf-lead-chip svg.team-crown { width: 12px; height: 12px; fill: #f5c542; flex: none; }
 .cf-add { position: relative; margin-top: var(--sp-4); }
 /* The To-do (#692): the filters, an item's chip and delete, Add's who and when, and their pickers. */
 .cf-filters { display: flex; }
