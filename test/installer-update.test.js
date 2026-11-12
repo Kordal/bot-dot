@@ -1,6 +1,7 @@
 // install.sh on a stand-in machine (test/installer-helpers.js): the admin page's update, and whether a newer version
 // exists.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');

@@ -1422,8 +1422,9 @@ if [ "$MODE" = uninstall ]; then
   if [ -f "$DOOR/compose.yaml" ] || id -u "$DOOR_USER" >/dev/null 2>&1; then door=1; fi
   units=''
   for u in $UNITS; do [ ! -f "$ETC/systemd/system/$u" ] || units="$units${units:+, }$u"; done
+  # What the list says of the accounts' shares, if any. Not an apostrophe inside ${…:+…}: bash 3.2, macOS's sh, misreads it (#1273).
   shares=''
-  for f in "$ETC"/systemd/system.control/botdot-account@*.service.d; do [ ! -e "$f" ] || shares=1; done
+  for f in "$ETC"/systemd/system.control/botdot-account@*.service.d; do [ ! -e "$f" ] || shares=", and the accounts' shares"; done
   profile=''
   if grep -qs '^# botdot (install.sh)' "$ETC/apparmor.d/botdot-rootlesskit"; then profile=1; fi
   serve=''
@@ -1454,7 +1455,7 @@ if [ "$MODE" = uninstall ]; then
     say "This removes botdot from this machine for good:"
     [ -z "$door" ] || say "  - the front door: its containers and volumes in this machine's Docker, and its Linux user $DOOR_USER"
     for n in $NAMES; do say "  - the account $n: its botdot server, its bots' computers, its rootless Docker, its Linux user botdot-$n, its disk and its data"; done
-    [ -z "$units" ] || say "  - botdot's systemd units: $units${shares:+, and the accounts' shares}"
+    [ -z "$units" ] || say "  - botdot's systemd units: $units$shares"
     [ -z "$profile" ] || say "  - the AppArmor profile botdot-rootlesskit"
     [ -z "$serve$sites_serve" ] || say "  - Tailscale Serve's setting for botdot"
     [ -z "$here" ] || say "  - $DIR: every account's bots, chats, memory, vault and backups, and the passkeys"
@@ -1560,7 +1561,7 @@ if [ "$MODE" = uninstall ]; then
   elif [ -n "$remove_packages" ]; then
     # Only what was named: apt-get would also take what depends on it, and Docker itself never goes.
     # shellcheck disable=SC2086 # one package per word
-    more="$( [ -z "$pkgs" ] || apt-get -s remove $pkgs </dev/null 2>/dev/null | sed -n 's/^Remv \([^ ]*\).*/\1/p' | while IFS= read -r p; do case " $pkgs " in *" $p "*) ;; *) printf ' %s' "$p" ;; esac; done)"
+    more="$( [ -z "$pkgs" ] || apt-get -s remove $pkgs </dev/null 2>/dev/null | sed -n 's/^Remv \([^ ]*\).*/\1/p' | while IFS= read -r p; do case " $pkgs " in (*" $p "*) ;; (*) printf ' %s' "$p" ;; esac; done)"
     if [ -n "$more" ]; then left "the packages$pkgs: apt-get would remove$more with them"
     elif [ -n "$pkgs" ]; then
       # shellcheck disable=SC2086

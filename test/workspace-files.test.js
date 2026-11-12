@@ -4,6 +4,7 @@
 // followed, what botdot keeps there is read-only, every write is in the audit log, and the Chief is refused.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -293,7 +294,7 @@ test("on the computer: off, it says so and nothing starts; on, the bot's folder 
 });
 
 // The computer's scripts, run here with a scratch folder as the bot's folder.
-test('the computer scripts list, count and delete inside the folder only, never through a link', () => {
+test('the computer scripts list, count and delete inside the folder only, never through a link', onLinux('GNU realpath, stat and find'), () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-ws-'));
   const root = path.join(dir, 'bot');
   fs.mkdirSync(path.join(root, 'src', 'deep'), { recursive: true });
@@ -325,7 +326,7 @@ test('the computer scripts list, count and delete inside the folder only, never 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('the computer scripts (#576) make a folder, put a file and move, inside the folder only, never through a link or over a file', () => {
+test('the computer scripts (#576) make a folder, put a file and move, inside the folder only, never through a link or over a file', onLinux('GNU realpath, stat and find'), () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-ws-'));
   const root = path.join(dir, 'bot');
   fs.mkdirSync(path.join(root, 'proj'), { recursive: true });
@@ -362,7 +363,7 @@ test('the computer scripts (#576) make a folder, put a file and move, inside the
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("a project's folder is written over botdot (#702): in place of a file, the folders on the way made, never through a link or over a folder", () => {
+test("a project's folder is written over botdot (#702): in place of a file, the folders on the way made, never through a link or over a folder", onLinux('GNU realpath, stat and find'), () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-ws-'));
   const root = path.join(dir, 'site');
   fs.mkdirSync(path.join(root, 'docs'), { recursive: true });

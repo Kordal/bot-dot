@@ -2,6 +2,7 @@
 // sees the share's RAM as the machine's and runs on the share's CPUs; every other call is runsc as it is. Run here with
 // stand-ins for runsc, unshare, mount and taskset that write down what they were asked.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('reads /proc/meminfo')) return;
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');

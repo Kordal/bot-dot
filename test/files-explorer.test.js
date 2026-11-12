@@ -5,6 +5,7 @@
 // Chief is refused.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { onLinux } = require('./linux');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -172,7 +173,7 @@ test('the Chief is refused copy, move, keep and thumb; its own workspace copies 
 });
 
 // The computer's new scripts, run here with scratch folders as the places.
-test('the computer scripts copy, move, pack and unpack inside their folders, never over anything', () => {
+test('the computer scripts copy, move, pack and unpack inside their folders, never over anything', onLinux('GNU realpath, stat and find'), () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-carry-'));
   const a = path.join(dir, 'a'); const b = path.join(dir, 'b');
   fs.mkdirSync(path.join(a, 'proj', 'sub'), { recursive: true });

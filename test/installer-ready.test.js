@@ -1,6 +1,7 @@
 // install.sh's last line for a program, BOTDOT_READY (#981): what the fleet console reads of a fresh or updated
 // machine, on every reach, without parsing prose.
 const { test } = require('node:test');
+if (require('./linux').linuxOnlyFile('install.sh uses GNU sed and stat')) return;
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { installer } = require('./installer-helpers');
