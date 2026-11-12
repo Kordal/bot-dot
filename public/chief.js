@@ -556,6 +556,7 @@ function chiefBubble(m, last = false, index = null) {
   return `
     <div class="bubble-row from-bot"${m.pending ? ' data-pending' : ''}>
       <div class="stack">
+        ${m.pending ? '' : globalThis.aboutHTML?.(m) || ''}
         ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
         ${mail}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
@@ -594,17 +595,27 @@ const suggestionBubble = (m) => `
 // A bot the Chief handed a task, with its final reply once the teammates it asked had answered.
 const reportBubble = (m, at = null) => `
   <div class="bubble-row from-me"><div class="stack from-bot-msg">
+    ${globalThis.aboutHTML?.(m) || ''}
     <div class="bot-msg-label">${tr('Message from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
     ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
   </div></div>`;
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
+// What a message is about (ADR 222): its team, in the team's colour, and the project before it where the server
+// names one (a chat that is not the project's own). A tap opens the team's chat.
+function aboutHTML(m) {
+  const t = m?.about?.team;
+  if (!t?.name) return '';
+  const p = m.about.project?.name;
+  return `<button class="about" data-about-team="${esc(t.id || '')}" style="--c:${esc(aboutColor(t.color))}"><span class="about-sq"></span>${p ? `<span class="about-project">${esc(p)}</span><span class="about-sep">›</span>` : ''}<span class="about-team">${esc(t.name)}</span></button>`;
+}
+const aboutColor = (c) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? c : 'var(--muted)');
 const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
 const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
-const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
+const userBubble = (m) => `<div class="bubble-row from-me"><div class="stack mine">${globalThis.aboutHTML?.(m) || ''}<div class="bubble from-me">${escMentions(m.text, CHIEF_BOT.id)}${filesHTML(m.attachments, `chief:${state.chatId}`)}</div>${m.text ? `<div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : ''}</div></div>`;
 
 function wireActions(root) {
   wireMail(root);
@@ -720,6 +731,7 @@ function drawChatRows(thread, id, chat) {
   wireActions(thread);
   wireChoices(thread, (t, key) => sendFrom(form, () => sendToChief(t, [], key)));
   $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
+  $$('[data-about-team]', thread).forEach((b) => (b.onclick = () => openTeamChat(b.dataset.aboutTeam)));
   const build = $('[data-sug-build]', thread);
   if (build) build.onclick = withKey(async (key) => { if (await sendFrom(form, () => sendToChief(PLAN_APPROVAL, [], key))) build.closest('.suggestion-actions')?.remove(); });
   const dismiss = $('[data-sug-dismiss]', thread);

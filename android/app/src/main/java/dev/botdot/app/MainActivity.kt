@@ -452,7 +452,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("home") {
                         if (wide) ChiefScreen(app, "latest", emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
-                            onBot = { open("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }) {}
+                            onBot = { open("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onGroup = { openGroup(it) }) {}
                         else Home(Modifier.fillMaxSize())
                     }
                     val attachArg = listOf(navArgument("attach") { defaultValue = "0" })
@@ -470,7 +470,7 @@ class MainActivity : ComponentActivity() {
                         // Words the Company's floor started for the owner (Change direction at a check-in), else what was shared.
                         val words = remember { app.chiefWords?.also { app.chiefWords = null } ?: text }
                         ChiefScreen(app, e.arguments?.getString("id") ?: "latest", files, words, onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
-                            onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }) { nav.popBackStack() }
+                            onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onGroup = { openGroup(it) }) { nav.popBackStack() }
                     }
                     composable("group/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""
@@ -520,7 +520,7 @@ class MainActivity : ComponentActivity() {
                                     if (o.kind == ProjectChats.CHIEF) ChiefScreen(app, o.id, emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) },
                                         onNeeds = { undock { nav.navigate("needs") } }, onBot = { dock(ProjectChats.Open(ProjectChats.BOT, it)) }, onScreen = { undock { nav.navigate("screen/$it") } },
                                         onSkills = { undock { nav.navigate("skills") } }, onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } },
-                                        onFiles = { undock { nav.navigate("files/${UploadedFiles.CHIEF}") } }) { undock() }
+                                        onFiles = { undock { nav.navigate("files/${UploadedFiles.CHIEF}") } }, onGroup = { dock(ProjectChats.Open(ProjectChats.TEAM, it)) }) { undock() }
                                     else if (o.kind == ProjectChats.TEAM) GroupChatScreen(app, o.id, onSettings = { panelKept = SettingsPanel.toggle(panelKept, groupKey(o.id)) }, onNeeds = { undock { nav.navigate("needs") } },
                                         onSignIn = { undock { nav.navigate("settings") { launchSingleTop = true } } }) { undock() }
                                     else {

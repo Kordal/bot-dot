@@ -31,6 +31,18 @@ class ChiefMessageTest {
         assertFalse(fine.failed)
     }
 
+    @Test fun aMessageAboutATeamLoadsItsTeamAndProject() {
+        val (own, other, none) = chat("""{"id":"c1","messages":[
+            {"role":"chief","text":"Prices are in.","about":{"team":{"id":"t1","name":"Strona","color":"#3b82f6"}}},
+            {"role":"user","text":"49 and 55","about":{"team":{"id":"t1","name":"Strona"},"project":{"id":"p1","name":"Mug shop"}}},
+            {"role":"chief","text":"Hi"}]}""").messages
+        assertEquals("Strona", own.about?.team?.name)
+        assertEquals("#3b82f6", own.about?.team?.color)
+        assertNull(own.about?.project) // the project's own chat names no project
+        assertEquals("Mug shop", other.about?.project?.name)
+        assertNull(none.about)
+    }
+
     @Test fun errorAsWordsLoadsAsBefore() {
         val m = chat("""{"id":"c1","messages":[{"role":"chief","text":"","error":"This reply was cut off because botdot was restarted."}]}""").messages.single()
         assertEquals("This reply was cut off because botdot was restarted.", m.error)
