@@ -241,6 +241,7 @@ const cases = [
       machine.sign(`${DESKTOP}:latest`, { app: 'desktop' });
       const code = 'review-test-' + 'a'.repeat(32);
       const hash = require('node:crypto').createHash('sha256').update(code).digest('hex');
+      machine.asVps6();
       const said = machine.install({ BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest`, BOT_DOT_MANAGED: '1', BOT_DOT_VARIANT: 'one', BOT_DOT_DEMO_CODE_SHA256: hash });
       assert.match(said, /BOTDOT_READY /);
       const login = (body) => JSON.parse(machine.exec('curl', '-fsSk', '--resolve', `${DOMAIN}:443:127.0.0.1`, '-H', 'Content-Type: application/json', '-H', 'X-Bot-Dot: 1', '-d', JSON.stringify(body), '-c', '/root/cookies', `https://${DOMAIN}/sign-in`));
@@ -416,6 +417,7 @@ const cases = [
       const IMAGES = { BOT_DOT_IMAGE: `${SERVER}:latest`, BOT_DOT_COMPUTER_IMAGE: `${DESKTOP}:latest` };
 
       stage.step('install.sh, managed, one account');
+      machine.asVps6();
       const said = machine.install({ ...IMAGES, BOT_DOT_MANAGED: '1', BOT_DOT_VARIANT: 'one' });
       assert.match(said, /The front door is running/);
       assert.match(said, new RegExp(`The account ${ADMIN} is running`));
@@ -423,7 +425,7 @@ const cases = [
       const env = machine.exec('cat', `${DIR}/front-door/.env`);
       assert.match(env, /^FRONT_DOOR_MANAGED=1$/m);
       assert.match(env, new RegExp(`^FRONT_DOOR_ONE_ACCOUNT=${ADMIN}$`, 'm'));
-      assert.match(machine.exec('cat', `${HOME}/share/share.json`), /^\{"cpu":4,"ram":8\}$/, 'the managed share');
+      assert.match(machine.exec('cat', `${HOME}/share/share.json`), /^\{"cpu":6,"ram":9\}$/, 'the managed share');
       assert.equal(machine.api('GET', '/admin').status, 404, 'no admin page');
 
       const ready = readyOf(said);

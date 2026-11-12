@@ -102,7 +102,7 @@
 # as that would cut the owner's own computer off; the accounts' Linux users get a managed machine's guard instead.
 # BOT_DOT_MANAGED=1 makes a managed machine (ADR 154), which the fleet console runs through root's step: on a public or
 # tailnet reach, chosen at the first install and, like local, never offered in a question. Its front door has no admin
-# page and no admin; each account has a guaranteed share of 4 CPUs, 8 GB of RAM and 40 GB of disk, and the machine
+# page and no admin; each account has a guaranteed share of 6 CPUs, 9 GB of RAM and 150 GB of disk, and the machine
 # holds only as many as it has CPUs and, after 2 GB for the system, RAM for. BOT_DOT_VARIANT (kept, default one):
 #   one      one account (BOT_DOT_ADMIN, default owner), as on local: its passkey is made with the setup key
 #   several  the first account is made so too, and later ones only from sign-up links root's step makes
@@ -272,11 +272,11 @@ pkg_add() {
     *) return 1 ;;
   esac
 }
-# A managed machine (ADR 154), as its install chose: 1 or nothing. Its accounts' default share is 4 CPUs, 8 GB of RAM and
-# 40 GB of disk (MANAGED_SHARE in lib/front-door/capacity.js), guaranteed, so not half the machine's RAM.
+# A managed machine (ADR 154), as its install chose: 1 or nothing. Its accounts' default share is 6 CPUs, 9 GB of RAM and
+# 150 GB of disk (MANAGED_SHARE in lib/front-door/capacity.js), guaranteed, so not half the machine's RAM.
 MANAGED="$(get_env "$ENV" BOT_DOT_MANAGED 2>/dev/null || true)"
 [ "$MANAGED" = 1 ] || MANAGED=''
-MANAGED_SHARE="4 8 40"
+MANAGED_SHARE="6 9 150"
 [ -z "$MANAGED" ] || DEFAULT_SHARE="$MANAGED_SHARE"
 # A local botdot on the owner's Linux computer itself, with no VM (ADR 170), as its install chose: 1 or nothing.
 LOCAL_HOST="$(get_env "$ENV" BOT_DOT_LOCAL_HOST 2>/dev/null || true)"

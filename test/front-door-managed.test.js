@@ -36,15 +36,15 @@ async function signUp(door, p, body) {
 
 test('room on a managed machine is its shares against what it has, less a reserve of 2 GB of RAM', () => {
   assert.equal(capacity.roomByShares(VPS6, []), 1, 'a Cloud VPS 6 holds one account');
-  assert.equal(capacity.roomByShares(VPS8, []), 2, 'a Cloud VPS 8 two');
-  assert.equal(capacity.roomByShares(VPS8, [{ cpu: 4, ram: 8 }]), 1);
-  assert.equal(capacity.roomByShares(VPS8, [{ cpu: 4, ram: 8 }, { cpu: 4, ram: 8 }]), 0);
-  assert.equal(capacity.roomByShares({ cpus: 4, ramTotal: 9.7 * GB }, []), 0, '8 GB of share and the reserve don\'t fit 9.7 GB');
-  assert.equal(capacity.roomByShares({ cpus: 3, ramTotal: 64 * GB }, []), 0, 'nor 4 CPUs in 3');
+  assert.equal(capacity.roomByShares(VPS8, []), 1, 'so does a Cloud VPS 8');
+  assert.equal(capacity.roomByShares(VPS8, [{ cpu: 6, ram: 9 }]), 0);
+  assert.equal(capacity.roomByShares({ cpus: 12, ramTotal: 23.4 * GB }, [{ cpu: 6, ram: 9 }]), 1, 'two need 12 CPUs');
+  assert.equal(capacity.roomByShares({ cpus: 6, ramTotal: 10.9 * GB }, []), 0, '9 GB of share and the reserve don\'t fit 10.9 GB');
+  assert.equal(capacity.roomByShares({ cpus: 5, ramTotal: 64 * GB }, []), 0, 'nor 6 CPUs in 5');
   assert.equal(capacity.roomByShares({ cpus: 16, ramTotal: 64 * GB }, [{ cpu: 8, ram: 16 }], { cpu: 2, ram: 4 }), 4, 'a share of its own counts as it is');
   assert.equal(capacity.roomByShares(null, []), null, 'unknown while nothing is measured');
   assert.equal(capacity.roomByShares({ ramTotal: 24 * GB }, []), null);
-  assert.deepEqual(capacity.MANAGED_SHARE, { cpu: 4, ram: 8, disk: 40 });
+  assert.deepEqual(capacity.MANAGED_SHARE, { cpu: 6, ram: 9, disk: 150 });
 });
 
 test('managed, one account on a public origin: no admin page, and the setup key makes the one account', async (t) => {
@@ -69,7 +69,7 @@ test('managed, one account on a public origin: no admin page, and the setup key 
 });
 
 test('managed, several accounts: the first from the setup key, the next from a link only while its share fits', async (t) => {
-  const load = loadDir(t, VPS8);
+  const load = loadDir(t, { cpus: 12, ramTotal: 23.4 * GB });
   const door = await startFrontDoor({ env: { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_FIRST_ACCOUNT: 'owner', FRONT_DOOR_ADMIN: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY, FRONT_DOOR_LOAD: load } });
   t.after(() => door.stop());
   assert.equal(door.firstLink, null, `no sign-up link of its own:\n${door.log.join('')}`);
@@ -86,7 +86,7 @@ test('managed, several accounts: the first from the setup key, the next from a l
   const saved = () => JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.json'), 'utf8'));
   assert.ok(!saved().share, 'the default share is not written: it is the managed one');
 
-  // Root's step makes the later links (#985): an 8-CPU, 24 GB machine holds a second share of 4 CPUs and 8 GB…
+  // Root's step makes the later links (#985): a 12-CPU, 24 GB machine holds a second share of 6 CPUs and 9 GB…
   const bea = await signUp(door, door.newLink().path, { name: 'bea' });
   assert.equal(bea.done.status, 201, bea.done.text);
   // …and no third.

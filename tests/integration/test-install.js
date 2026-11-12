@@ -240,6 +240,12 @@ async function startMachine(name, { image, step }) {
     // docker in an account's own rootless Docker.
     account: (account, ...args) => docker('exec', name, ...accountDocker(account), ...args),
 
+    // The CPUs a Cloud VPS 6 has (6), as getconf answers them on this machine, so a managed install's room for its
+    // share (install.sh room_for_shares) is checked as on one, whatever the runner has. Everything else is real.
+    asVps6() {
+      machine.exec('sh', '-c', "printf '%s\\n' '#!/bin/sh' '[ \"$1\" = _NPROCESSORS_ONLN ] && echo 6 && exit 0' 'exec /usr/bin/getconf \"$@\"' > /usr/local/bin/getconf && chmod 755 /usr/local/bin/getconf");
+    },
+
     // install.sh as a person runs it as root, with `env`, answering `input`. The questions are answered
     // beforehand: a public domain (DOMAIN, with Caddy's own certificate authority) and the admin ADMIN.
     // { status, stdout, stderr }.

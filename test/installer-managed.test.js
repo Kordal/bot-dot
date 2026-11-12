@@ -22,7 +22,7 @@ function proc(t, done, kb) {
   return dir;
 }
 
-test('a managed machine of one account: no admin, its passkey from the setup key, and a share of 4 CPUs and 8 GB', (t) => {
+test('a managed machine of one account: no admin, its passkey from the setup key, and a share of 6 CPUs and 9 GB', (t) => {
   const done = installer(t, { dotenv: '', given: MANAGED });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   assert.doesNotMatch(done.said, /How will people reach|account's name|Use Jev|boat\.dev/, 'it asks nothing');
@@ -44,8 +44,8 @@ test('a managed machine of one account: no admin, its passkey from the setup key
   assert.deepEqual(ready.accounts, ['owner']);
   assert.equal(done.said.split(key).length, 2, 'the key is on the screen in that line alone');
   assert.doesNotMatch(done.said, /admin page|\/admin/);
-  assert.match(done.system, /^systemctl set-property botdot-account@owner\.service CPUQuota=400% MemoryHigh=infinity MemoryMax=8G$/m, 'the managed share');
-  assert.equal(done.read('accounts/owner/share/share.json'), '{"cpu":4,"ram":8}\n');
+  assert.match(done.system, /^systemctl set-property botdot-account@owner\.service CPUQuota=600% MemoryHigh=infinity MemoryMax=9G$/m, 'the managed share');
+  assert.equal(done.read('accounts/owner/share/share.json'), '{"cpu":6,"ram":9}\n');
   assert.ok(fs.existsSync(path.join(done.dir, 'bin', 'install.sh')), "root's step as on any server");
 
   // A rerun keeps it all, and the link goes once the account exists.
@@ -103,19 +103,19 @@ test('several from the start makes the first account with the setup key, on a ta
 });
 
 test('a machine without room for one share is refused before anything is installed', (t) => {
-  // 4 CPUs (the stand-in getconf) and 9.5 GB: 8 GB of share and 2 GB for the system don't fit.
-  const small = installer(t, { dotenv: '', given: { ...MANAGED, BOT_DOT_PROC: proc(t, null, 9961472) } });
+  // 6 CPUs (the stand-in getconf) and 10.5 GB: 9 GB of share and 2 GB for the system don't fit.
+  const small = installer(t, { dotenv: '', given: { ...MANAGED, BOT_DOT_PROC: proc(t, null, 11010048) } });
   assert.equal(small.status, 1);
-  assert.match(small.stderr, /This machine has 4 CPUs and 9\.5 GB of RAM: a managed machine needs 4 CPUs and 8 GB of RAM for each of its 1 account, and 2 GB more for the system\. Nothing was changed\./);
+  assert.match(small.stderr, /This machine has 6 CPUs and 10\.5 GB of RAM: a managed machine needs 6 CPUs and 9 GB of RAM for each of its 1 account, and 2 GB more for the system\. Nothing was changed\./);
   assert.equal(small.docker.filter((c) => /^compose .* up/.test(c.call)).length, 0, 'nothing was started');
   assert.ok(!fs.existsSync(path.join(small.dir, 'front-door', '.env')) || !/BOT_DOT_MANAGED/.test(dotenvOf(small)));
 
-  const fits = installer(t, { dotenv: '', given: { ...MANAGED, BOT_DOT_PROC: proc(t, null, 11 * 1048576) } });
+  const fits = installer(t, { dotenv: '', given: { ...MANAGED, BOT_DOT_PROC: proc(t, null, 12268339) } });
   assert.equal(fits.status, 0, fits.stderr);
 
-  const cpus = installer(t, { dotenv: '', given: MANAGED, bins: { getconf: '#!/bin/sh\necho 3\n' } });
+  const cpus = installer(t, { dotenv: '', given: MANAGED, bins: { getconf: '#!/bin/sh\necho 5\n' } });
   assert.equal(cpus.status, 1);
-  assert.match(cpus.stderr, /This machine has 3 CPUs/);
+  assert.match(cpus.stderr, /This machine has 5 CPUs/);
 });
 
 test('managed is chosen at the first install, never on this computer only, and its answers are checked', (t) => {
