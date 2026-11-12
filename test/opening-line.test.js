@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { clean, reader, MAX } = require('../lib/opening-line');
-const { startServer, makeBot, heldRun, feed, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, heldRun, feed, waitFor, sleep, streamOf } = require('./helpers');
 
 const say = (text) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
 const use = (name = 'WebSearch', input = { query: 'weather Brussels' }, id = 't1') => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } });
@@ -77,17 +77,6 @@ after(async () => { f.close(); await srv.stop(); });
 const player = (rec) => { const events = []; return (...evs) => { events.push(...evs); fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify(events)); }; };
 const runOf = async (id) => (await srv.api(`/runs/${id}?events=0`)).data;
 const lineEvents = (runId) => f.events.filter((e) => e.type === 'opening_line' && e.data.runId === runId);
-// The start of a run's stream, as a client that connects now gets it.
-async function streamOf(p, until, ms = 2000) {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), ms);
-  let got = '';
-  try {
-    const res = await fetch(`${srv.base}/api${p}`, { signal: abort.signal });
-    for await (const chunk of res.body) { got += Buffer.from(chunk).toString(); if (until.test(got)) break; }
-  } catch { /* timed out: what came is what there is */ } finally { clearTimeout(timer); abort.abort(); }
-  return got;
-}
 
 test('the features name it', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('opening-line'));
@@ -120,8 +109,8 @@ test('text, then a tool: the line is offered while the run goes on, and gone whe
   assert.equal((await srv.api(`/runs/${run.id}`)).data.openingLine, 'Checking the weather in Brussels');
   assert.equal((await srv.api(`/runs?botId=${bot.id}`)).data[0].openingLine, 'Checking the weather in Brussels');
   // A client that connects now: the feed's hello and the run's stream both have it.
-  assert.match(await streamOf('/events', /event: hello\ndata: .*\n\n/), new RegExp(`"id":"${run.id}"[^}]*"openingLine":"Checking the weather in Brussels"`));
-  for (const q of ['', '?simple']) assert.match(await streamOf(`/runs/${run.id}/stream${q}`, /opening_line/), /data: \{"type":"opening_line","text":"Checking the weather in Brussels"\}/, `stream${q}`);
+  assert.match(await streamOf(srv, '/events', /event: hello\ndata: .*\n\n/), new RegExp(`"id":"${run.id}"[^}]*"openingLine":"Checking the weather in Brussels"`));
+  for (const q of ['', '?simple']) assert.match(await streamOf(srv, `/runs/${run.id}/stream${q}`, /opening_line/), /data: \{"type":"opening_line","text":"Checking the weather in Brussels"\}/, `stream${q}`);
   // It is not a reply: no dot, and nothing new, while the bot works.
   const listed = (await srv.api(`/bots/${bot.id}`)).data;
   assert.equal(listed.unread, 0);
@@ -168,9 +157,9 @@ test('a tool with no text, text after the first tool, and a plain answer: no lin
     const bot = await makeBot(srv, { name });
     const { run, rec } = await heldRun(srv, bot);
     player(rec)(...events);
-    await waitFor(async () => { const s = await streamOf(`/runs/${run.id}/stream`, /Sunny|sunny|example\.com/, 1500); return /Sunny|sunny|example\.com/.test(s) ? s : null; }, { what: `${name}'s events` });
+    await streamOf(srv, `/runs/${run.id}/stream`, /Sunny|sunny|example\.com/); // its events are in
     assert.equal((await runOf(run.id)).openingLine, undefined, name);
-    assert.doesNotMatch(await streamOf(`/runs/${run.id}/stream`, /Sunny|sunny|example\.com/, 1500), /opening_line/, name);
+    assert.doesNotMatch(await streamOf(srv, `/runs/${run.id}/stream`, /Sunny|sunny|example\.com/), /opening_line/, name);
     srv.release(rec);
     await srv.finished(run.id);
     assert.equal(lineEvents(run.id).length, 0, name);
@@ -241,7 +230,7 @@ test('the Chief is told the same, and its line shows in its chat until the reply
   assert.equal(during.openingLine, 'Setting up your news bot');
   assert.equal(during.messages.at(-1).text, '', 'the reply is still empty');
   assert.equal((await srv.api('/chief')).data.chats.find((c) => c.id === chat.id).openingLine, 'Setting up your news bot');
-  assert.match(await streamOf(`/chief/chats/${chat.id}/stream`, /opening_line/), /data: \{"type":"opening_line","text":"Setting up your news bot"\}/, 'a client that connects now gets it');
+  assert.match(await streamOf(srv, `/chief/chats/${chat.id}/stream`, /opening_line/), /data: \{"type":"opening_line","text":"Setting up your news bot"\}/, 'a client that connects now gets it');
   assert.equal(f.events.some((e) => e.type === 'unread' && e.data.chat === `chief:${chat.id}`), false, 'not a reply');
 
   play(answered('c1'));
