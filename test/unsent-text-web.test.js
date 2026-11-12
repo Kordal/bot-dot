@@ -59,6 +59,6 @@ test("web: a bot's and a group's chat keep the typed text before their view is b
   assert.ok(group.length > 0);
   assert.ok(group.includes("if (root.dataset.group) carry(root, `group:${root.dataset.group}`);"));
   assert.ok(group.indexOf('carry(root') < group.indexOf('root.innerHTML ='));
-  assert.ok(group.includes("putCarried($('form', root), key);"));
+  assert.ok(group.includes("putCarried($('form.composer', root), key);"));
   assert.ok(!app.includes('Dock?.docked()) carried'), 'no longer only into the dock');
 });

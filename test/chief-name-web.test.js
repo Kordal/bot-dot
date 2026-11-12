@@ -56,7 +56,7 @@ test("a project's own Chief chat is headed Project Manager, every other chat the
 test("the Chief's chat head is drawn again for the chat it opens", () => {
   const part = cut('async function showChat(id)', "const thread = $('#chat-thread');");
   assert.match(part, /drawChiefName\?\.\(\)/);
-  assert.match(cut('function renderChief()', "wireComposer($('form', root)"), /chiefChatTitle\(state\.chatId\)/);
+  assert.match(cut('function renderChief()', "wireComposer($('form.composer', root)"), /chiefChatTitle\(state\.chatId\)/);
 });
 
 test('a search finds the Chief by its name and by its role', () => {
@@ -67,7 +67,7 @@ test('a search finds the Chief by its name and by its role', () => {
 });
 
 test('the list, the keys, the panel and the chat head say the name, never a fixed "Chief of Staff"', () => {
-  for (const [from, to] of [['function drawContacts', '\n}\n'], ['function chiefKeyHTML', '\n}\n'], ['function drawPanelHead', '\n}\n'], ['function renderChief()', "wireComposer($('form', root)"]]) {
+  for (const [from, to] of [['function drawContacts', '\n}\n'], ['function chiefKeyHTML', '\n}\n'], ['function drawPanelHead', '\n}\n'], ['function renderChief()', "wireComposer($('form.composer', root)"]]) {
     const part = cut(from, to);
     assert.doesNotMatch(part, /Chief of Staff/, from);
     assert.match(part, /chief(Name|Title|ChatTitle)\(/, from); // chiefTitle(): the name, or the role in the page's language (#647); chiefChatTitle(): a project's chat is its Project Manager

@@ -49,7 +49,7 @@ function page({ features = ['message-waits', 'message-key'], reply = async () =>
   const boxes = { bot: composer(), chief: composer() };
   const doctor = { id: 'doctor', name: 'Fleet Doctor', color: '#c2473d', queued: [] };
   const state = { features, bots: [doctor], runs: [], chatId: 'c1', chatNew: false, chatStream: null, view: 'bot', botId: 'doctor' };
-  const doc = { '#view-bot': { dataset: { bot: 'doctor' } }, '#bot-thread': bot.thread, '#chat-thread': chief.thread, '#view-bot form': boxes.bot.form, '#view-chief form': boxes.chief.form };
+  const doc = { '#view-bot': { dataset: { bot: 'doctor' } }, '#bot-thread': bot.thread, '#chat-thread': chief.thread, '#view-bot form.composer': boxes.bot.form, '#view-chief form.composer': boxes.chief.form };
   const of = (root) => (root === bot.thread ? bot : root === chief.thread ? chief : root.buttons ? bot : null);
   const said = { calls: [], bodies: [], toasts: [], refreshed: 0, shown: [], followed: [], drawn: [] };
   const lib = vm.createContext({ ...words });

@@ -315,13 +315,13 @@ function renderRoomChat(root, r) {
       ${composerHTML('')}`;
     $('[data-rooms-back]', root).onclick = () => setView('rooms');
     $('#room-settings', root).onclick = () => openRoomSettings(r.id);
-    wireComposer($('form', root), (text, files, k) => sendToRoom(r.id, text, k), null, key);
+    wireComposer($('form.composer', root), (text, files, k) => sendToRoom(r.id, text, k), null, key);
     holdChatEnd($('#room-thread', root));
     if (!rooms.chats.get(r.id)?.loaded) loadRoomChat(r.id);
   }
   $('#room-name', root).textContent = r.name;
   $('#room-sub', root).textContent = [roomPeople(r).join(', '), roomBots(r).map(roomBotLabel).join(', ')].filter(Boolean).join(' · ');
-  $('form', root).text.placeholder = roomBots(r).length ? tr('Message {name}… @ names a bot', { name: r.name }) : tr('Message {name}…', { name: r.name });
+  $('form.composer', root).text.placeholder = roomBots(r).length ? tr('Message {name}… @ names a bot', { name: r.name }) : tr('Message {name}…', { name: r.name });
   const thread = $('#room-thread', root);
   const chat = rooms.chats.get(r.id);
   const working = Array.isArray(r.working) ? r.working : [];

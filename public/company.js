@@ -234,7 +234,7 @@ const Company = (() => {
     enter('home');
     state.chatNew = true;
     showChat(null);
-    const box = $('#view-chief form')?.text;
+    const box = $('#view-chief form.composer')?.text;
     if (!box) return;
     box.value = tr('A new bot that ');
     box.dispatchEvent(new Event('input', { bubbles: true }));

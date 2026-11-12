@@ -46,7 +46,7 @@ const NOTE = "Not sent: can't reach botdot. Your message is still here.";
       await page.goto(`${srv.base}/#chief/${id}`);
       const thread = page.locator('#chat-thread');
       await thread.locator('[data-msg="1"]').waitFor();
-      const form = page.locator('#view-chief form');
+      const form = page.locator('#view-chief form.composer');
       const box = form.locator('textarea');
       const note = form.locator('.send-note');
       const awayBeside = page.locator('#away');

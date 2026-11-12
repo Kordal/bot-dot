@@ -110,7 +110,7 @@ function listenFeed(es) {
     if (typeof d.chatId !== 'string' || !d.chatId) return;
     if (!chiefTurns.has(d.chatId)) chiefTurns.set(d.chatId, '');
     placeStatusLines();
-    if (state.view !== 'chief' || d.chatId !== state.chatId || sendingIn.has($('#view-chief form'))) return;
+    if (state.view !== 'chief' || d.chatId !== state.chatId || sendingIn.has($('#view-chief form.composer'))) return;
     if (state.chatStream) state.chatReload = true;
     else showChat(d.chatId);
   });

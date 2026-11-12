@@ -238,7 +238,7 @@ function feed({ view = 'chief', chatId = 'c1', stream = null, sending = false } 
   const ctx = vm.createContext({ ...words, ...noDrafts,
     ...feedStandIns(), JSON, window: { EventSource: true }, state, setTimeout: () => 0, clearTimeout() {},
     chiefTurns: new Map(), openingLines: OpeningLine.keeper(), sendingIn: new WeakSet(sending ? [form] : []),
-    $: (sel) => (sel === '#view-chief form' ? form : null),
+    $: (sel) => (sel === '#view-chief form.composer' ? form : null),
     placeStatusLines: () => did.placed++, showChat: (id) => did.shown.push(id),
     EventSource: class { addEventListener(type, fn) { (listeners[type] ||= []).push(fn); } },
   });
@@ -313,7 +313,7 @@ test('web: a chat that is read takes its reply that is going on, and what waits,
     messages: [{ role: 'user', text: 'Ask Web Surfer.' }, { role: 'chief', pending: true, activity: { tool: 'wait_for_run', text: 'Waiting for Web Surfer' } }] };
   const ctx = vm.createContext({ ...words,
     state, chiefTurns: new Map(), chiefQueued: new Map(), openingLines: OpeningLine.keeper(), OpeningLine,
-    $: (sel) => (sel === '#chat-thread' ? t : sel === '#view-chief form' ? form : null), $$: () => [],
+    $: (sel) => (sel === '#chat-thread' ? t : sel === '#view-chief form.composer' ? form : null), $$: () => [],
     api: async () => chat, newLine: { first: () => null }, toast: () => assert.fail('no toast'), matchMedia: () => ({ matches: true }),
     writeHash() {}, sayPresent() {}, syncRead() {}, mentionSig: () => 'names', messageHTML: (m) => `<div class="bubble-row">${m.text || ''}</div>`,
     wireActions() {}, wireChoices() {}, placeStatusLines() {}, updateChatNeeds() {}, placeChiefLine() {}, markSearch() {}, jumpTo() {},

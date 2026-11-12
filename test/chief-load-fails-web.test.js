@@ -12,7 +12,7 @@ function chief(reply) {
   const state = { chatId: 'c1', chatStream: null, view: 'chief', jump: null };
   const said = { toasts: [], hash: [], present: [], read: 0 };
   const ctx = vm.createContext({ ...words, state,
-    $: (sel) => (sel === '#chat-thread' ? t : sel === '#view-chief form' ? form : null), $$: () => [],
+    $: (sel) => (sel === '#chat-thread' ? t : sel === '#view-chief form.composer' ? form : null), $$: () => [],
     api: reply, newLine: { first: () => null }, toast: (...a) => said.toasts.push(a),
     writeHash: () => said.hash.push(state.chatId), sayPresent: () => said.present.push(state.chatId), syncRead: () => said.read++,
   });
