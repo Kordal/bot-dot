@@ -1,0 +1,1 @@
+2026-11-12: A bot's own memory note saved in a project's team chat is marked with that project; a turn in another project's team chat is not handed it (pinned or looked up), while its own chat and recall still are. Shared notes are about the owner and carry no project.
