@@ -130,6 +130,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun signOutEverywhere() { door("/sign-out-everywhere") }
 
     /**
+     * "Delete account" (#1307): the front door deletes this session's own account, after its [name] typed, and clears
+     * the session's cookie, so the phone signs in again. A refusal throws the front door's sentence.
+     */
+    suspend fun deleteAccount(name: String) { door("/front-door/delete-account", AccountDeletion.body(name)) }
+
+    /**
      * What the front door says of this session (`/front-door/session`): here, whether Feedback goes to an admin page
      * ([Feedback.on]). An older front door leaves the field out, and the app shows no Feedback.
      */

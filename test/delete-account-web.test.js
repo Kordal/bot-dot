@@ -1,0 +1,90 @@
+// "Delete account" in Settings on the web page (#1307): shown only where the front door's session says so, never for
+// the admin's own account, and its Delete works only once the account's name is typed exactly. The page's own code,
+// cut out of public/app.js and run against stand-ins.
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const vm = require('vm');
+const { cut, esc, words } = require('./web-page');
+
+// A stand-in form: the name field, the Delete button and the line that says a refusal.
+function modal() {
+  const parts = {
+    'input[name="name"]': { value: '', oninput: null },
+    '#delete-account-go': { disabled: true },
+    '#delete-account-said': { textContent: '', classList: { remove() { this.shown = true; } } },
+    '#delete-account-form': { onsubmit: null },
+  };
+  return { html: '', parts };
+}
+
+function page({ features = ['accounts'], post = async () => ({ ok: true, deleted: '/front-door/deleted' }) } = {}) {
+  const posts = [];
+  const went = [];
+  const m = modal();
+  const ctx = vm.createContext({
+    ...words,
+    esc,
+    state: { features },
+    CHEV: '',
+    openModal: (html) => { m.html = html; return m; },
+    $: (sel, root) => root.parts[sel],
+    frontDoorPost: async (p, body) => { posts.push([p, body]); return post(p, body); },
+    location: { assign: (to) => went.push(to) },
+  });
+  vm.runInContext(`${cut('// ---------- deleting the account ----------', '// ---------- the way to the admin page ----------')}
+    Object.assign(this, { deleteCardHTML, deleteCardInner, openDeleteAccount });`, ctx);
+  return { ctx, posts, went, m };
+}
+
+const type = (m, value) => { m.parts['input[name="name"]'].value = value; m.parts['input[name="name"]'].oninput(); };
+const submit = async (m) => { m.parts['#delete-account-form'].onsubmit({ preventDefault() {} }); await new Promise((r) => setImmediate(r)); };
+
+test('web: Settings shows "Delete account" only where the front door offers it', () => {
+  const { ctx } = page();
+  assert.match(ctx.deleteCardHTML(), /id="delete-account-card"/);
+  assert.equal(page({ features: [] }).ctx.deleteCardHTML(), '', 'a botdot server without accounts has none');
+  assert.match(ctx.deleteCardInner({ account: 'bob', admin: false, deleteAccount: true }), /<button[^>]*id="delete-account"[^>]*>Delete account…<\/button>/);
+  assert.equal(ctx.deleteCardInner({ account: 'bob', admin: false }), '', 'an older front door, which leaves it out, shows nothing');
+  assert.equal(ctx.deleteCardInner(null), '');
+  assert.match(cut('function renderSettings()', '// ---------- backups ----------'), /\$\{deleteCardHTML\(\)\}[\s\S]*loadDeleteCard\(root\)/);
+});
+
+test("web: the admin's own account is not offered it, and Settings says the machine is removed by its admin", () => {
+  const html = page().ctx.deleteCardInner({ account: 'ann', admin: true, deleteAccount: false });
+  assert.doesNotMatch(html, /id="delete-account"/);
+  assert.match(html, /The machine is removed by its admin instead\./);
+});
+
+test('web: the confirmation lists what is lost and the 14 days, and Delete stays off until the name matches exactly', async () => {
+  const { ctx, m, posts } = page();
+  ctx.openDeleteAccount('bob');
+  assert.match(m.html, /the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback/);
+  assert.match(m.html, /14 days/);
+  assert.match(m.html, /Type your account name, bob, to confirm/);
+  const go = m.parts['#delete-account-go'];
+  assert.equal(go.disabled, true);
+  for (const wrong of ['bo', 'Bob', 'bob ', ' bob']) { type(m, wrong); assert.equal(go.disabled, true, wrong); }
+  await submit(m);
+  assert.deepEqual(posts, [], 'nothing is deleted without the name');
+  type(m, 'bob');
+  assert.equal(go.disabled, false);
+});
+
+test("web: Delete asks the front door's own route, then opens the deleted page", async () => {
+  const { ctx, m, posts, went } = page();
+  ctx.openDeleteAccount('bob');
+  type(m, 'bob');
+  await submit(m);
+  assert.deepEqual(JSON.parse(JSON.stringify(posts)), [['/front-door/delete-account', { name: 'bob' }]]);
+  assert.deepEqual(went, ['/front-door/deleted']);
+});
+
+test('web: a refusal is said in the form, and nothing is left', async () => {
+  const { ctx, m, went } = page({ post: async () => { throw new Error('Type your account\'s name, bob, to delete it.'); } });
+  ctx.openDeleteAccount('bob');
+  type(m, 'bob');
+  await submit(m);
+  assert.deepEqual(went, []);
+  assert.equal(m.parts['#delete-account-said'].textContent, "Type your account's name, bob, to delete it.");
+  assert.equal(m.parts['#delete-account-go'].disabled, false, 'it can be tried again');
+});
