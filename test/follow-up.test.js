@@ -191,3 +191,13 @@ test('a message to a free bot asks nothing', async () => {
   srv.release(rec);
   await srv.finished(sent.data.id);
 });
+
+test("a teammate's message is asked about as a bot's, not the owner's (#1278)", () => {
+  const q = followUp.question({ ...M, from: 'bot-dot Manager' });
+  assert.match(q, /^bot-dot Manager, another bot of the owner's team, wrote to the bot Media Watcher/);
+  assert.match(followUp.question(M), /^The owner wrote to the bot Media Watcher/);
+  const j = followUp.jevRequest({ ...M, from: 'bot-dot Manager' });
+  assert.match(j.questions.r1.instructions, /^Is bot-dot Manager's message more for task 1/);
+  assert.equal(j.state.from, 'bot-dot Manager');
+  assert.equal(followUp.jevRequest(M).state.from, undefined);
+});

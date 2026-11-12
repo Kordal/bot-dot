@@ -268,7 +268,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                 val asked = drawsAsked(r)
                                 if (new && !mine && asked) NewLine(bot?.color)
                                 if (asked) YourSide(r, open = r.id in opened)
-                                r.steered.forEach { SteeredMessage(it) }
+                                r.steered.forEach { if (it.fromBot != null) SteeredFromBot(it, it.fromBot) else SteeredMessage(it) }
                                 if (new && (mine || !asked)) NewLine(bot?.color)
                                 val steps = RunSteps.shows(r)
                                 if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
@@ -477,6 +477,30 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
 private fun LaterPill() {
     val p = LocalPaper.current
     Text(tr("Later"), color = p.muted, fontSize = Type.s12, modifier = Modifier.clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s8, vertical = 1.dp))
+}
+
+/** A teammate's message a run read while it worked (#1278): folded as a message from that bot, with "Steered" and its time. */
+@Composable
+private fun SteeredFromBot(m: dev.botdot.app.data.Steered, from: dev.botdot.app.data.BotRef) {
+    val p = LocalPaper.current
+    var open by remember(m.id) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        val w = LocalMentions.current
+        val line = buildAnnotatedString {
+            append(tr("Message from") + " ")
+            bot(named(w?.bot(from.id), from.name, from.color))
+            append(if (open) " ⌄" else " ›")
+            val peek = foldPeek(m.text)
+            if (!open && peek.isNotEmpty()) withStyle(SpanStyle(color = p.faint)) { append("  $peek") }
+        }
+        FigureText(line, color = p.muted, fontSize = Type.s14, maxLines = 1,
+            modifier = Modifier.padding(start = Space.s48).clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
+        Unfold(open) { Column(Modifier.padding(start = Space.s48).raised(Radius.mine).holdToCopy(m.text).padding(horizontal = Space.s16, vertical = Space.s12)) {
+            Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(m.text), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge)
+            if (m.attachments.isNotEmpty()) FilesRow(m.attachments, onDark = false)
+            Text(m.at?.let { tr("Steered") + " · ${shortTime(it)}" } ?: tr("Steered"), color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4))
+        } }
+    }
 }
 
 /** A run started by another bot's message or a Chief task: one folded line, "Message from Fleet Doctor" (with its small head), that opens to what it said. */

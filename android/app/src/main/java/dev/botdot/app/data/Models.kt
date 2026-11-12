@@ -347,10 +347,20 @@ fun saysSignedOut(features: Collection<String>?): Boolean = features != null && 
  * A message of the owner that a run read while it worked, after "Steer" (`steered` on a run, ADR 040): as the owner
  * wrote it, with its files, and when it was sent. Drawn after the run's request, as the owner's, without buttons.
  */
-data class Steered(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null) {
+data class Steered(val id: String, val text: String = "", val attachments: List<Attachment> = emptyList(), val at: String? = null, val fromBot: BotRef? = null) {
     companion object {
-        /** The run's list as the server sent it, each entry read by itself; one without an id is left out. */
-        fun list(v: JsonElement?): List<Steered> = Queued.list(v).map { Steered(it.id, it.text, it.attachments, it.at) }
+        /**
+         * The run's list as the server sent it, each entry read by itself; one without an id is left out. [fromBot]: a
+         * teammate's message steered into the run (#1278), drawn as that bot's, not the owner's.
+         */
+        fun list(v: JsonElement?): List<Steered> {
+            val from = (v as? JsonArray).orEmpty().mapNotNull { e ->
+                val o = e as? JsonObject ?: return@mapNotNull null
+                val id = o["id"].textOrNull() ?: return@mapNotNull null
+                id to (o["fromBot"] as? JsonObject)?.let { runCatching { Api.JSON.decodeFromJsonElement(BotRef.serializer(), it) }.getOrNull() }?.takeIf { it.id.isNotEmpty() }
+            }.toMap()
+            return Queued.list(v).map { Steered(it.id, it.text, it.attachments, it.at, from[it.id]) }
+        }
     }
 }
 

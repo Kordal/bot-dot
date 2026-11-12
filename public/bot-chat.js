@@ -206,8 +206,11 @@ function runParts(bot, r, last, newest, canReply = false) {
     : r.customPrompt === false
       ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} ${tr('Ran its main assignment')}</span></div>`
       : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta on-hover">${copyBtn(r.prompt)}</div></div></div>`));
-  // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons.
-  const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`);
+  // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons. A
+  // teammate's (#1278, `fromBot`) folds as a message from that bot does.
+  const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => x.fromBot
+    ? `<div class="bubble-row from-me"><details class="notes-fold">${foldSummary(tr('Message from {name}', { name: botLabel(x.fromBot) }), String(x.text || ''))}<div class="note"><div class="bubble from-other-bot">${esc(String(x.text || ''))}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [])}</div><div class="bubble-meta"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></details></div>`
+    : `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(String(x.text || ''), r.botId)}</div>${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `bot:${r.botId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`);
   let reply, stop = '';
   if (r.status === 'running') {
     // No bubble while it works: its step line says it. Only what it attached so far. From a server with drafts, the
