@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const { words } = require('../lib/working-line');
-const { startServer, makeBot, heldRun, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, heldRun, waitFor, sleep, streamOf } = require('./helpers');
 
 const say = (text) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
 const use = (name, input = {}, id = `t${Math.random()}`) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } });
@@ -23,16 +23,6 @@ async function server(t, everyMs) {
 }
 const fast = (t) => server(t, 20);
 const player = (srv, rec) => { const events = []; return (...evs) => { events.push(...evs); fs.writeFileSync(path.join(srv.out, `events-${rec.n}.json`), JSON.stringify(events)); }; };
-async function streamOf(srv, p, until, ms = 2000) {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), ms);
-  let got = '';
-  try {
-    const res = await fetch(`${srv.base}/api${p}`, { signal: abort.signal });
-    for await (const chunk of res.body) { got += Buffer.from(chunk).toString(); if (until.test(got)) break; }
-  } catch { /* timed out: what came is what there is */ } finally { clearTimeout(timer); abort.abort(); }
-  return got;
-}
 // The stream of a Chief chat, as it comes: every event with the time it came at.
 function follow(srv, chatId) {
   const events = [];

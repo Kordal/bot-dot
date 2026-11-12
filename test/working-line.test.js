@@ -9,7 +9,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { words, pacer, follow, MAX, OPENER_MAX, simpleStep, stepDone, TOOL_NAMES } = require('../lib/working-line');
-const { startServer, makeBot, heldRun, feed, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, heldRun, feed, waitFor, sleep, streamOf } = require('./helpers');
 
 const say = (text) => ({ type: 'assistant', message: { content: [{ type: 'text', text }] } });
 const use = (name, input = {}, id = `t${Math.random()}`) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } });
@@ -287,16 +287,6 @@ const player = (rec) => { const events = []; return (...evs) => { events.push(..
 const runOf = async (id) => (await srv.api(`/runs/${id}?events=0`)).data;
 const lines = (runId) => f.events.filter((e) => e.type === 'working_line' && e.data.runId === runId).map((e) => e.data.text);
 const lineIs = (runId, text) => waitFor(() => lines(runId).at(-1) === text, { what: `the line "${text}" (it reads ${JSON.stringify(lines(runId))})` });
-async function streamOf(p, until, ms = 2000) {
-  const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), ms);
-  let got = '';
-  try {
-    const res = await fetch(`${srv.base}/api${p}`, { signal: abort.signal });
-    for await (const chunk of res.body) { got += Buffer.from(chunk).toString(); if (until.test(got)) break; }
-  } catch { /* timed out: what came is what there is */ } finally { clearTimeout(timer); abort.abort(); }
-  return got;
-}
 const logOf = async (runId) => (await srv.api(`/runs/${runId}`)).data.events; // the run's log, as the API reads it
 
 test('the features name it, and the opening line as before', async () => {
@@ -334,16 +324,16 @@ test('the line reads the opening line first, then the server\'s words for each f
     assert.equal(got.workingLine, 'Reading nytimes.com');
     assert.equal(got.openingLine, 'Checking the news');
   }
-  assert.match(await streamOf('/events', /event: hello\ndata: .*\n\n/), new RegExp(`"id":"${run.id}"[^}]*"workingLine":"Reading nytimes.com"`));
+  assert.match(await streamOf(srv, '/events', /event: hello\ndata: .*\n\n/), new RegExp(`"id":"${run.id}"[^}]*"workingLine":"Reading nytimes.com"`));
   // A reconnect of the run's stream: what the line reads now, after what already happened, in both forms.
   for (const q of ['', '?simple']) {
-    const got = await streamOf(`/runs/${run.id}/stream${q}`, /working_line/);
+    const got = await streamOf(srv, `/runs/${run.id}/stream${q}`, /working_line/);
     assert.match(got, /data: \{"type":"working_line","text":"Reading nytimes.com","steps":\d+\}/, `stream${q}`);
     assert.ok(got.indexOf('"type":"opening_line","text":"Checking the news"') < got.indexOf('"type":"working_line"'), `stream${q}: the opening line as before, then the line`);
   }
 
   // Who follows the stream gets each change as it is sent.
-  const live = streamOf(`/runs/${run.id}/stream`, /Messaging Web Surfer/, 4000);
+  const live = streamOf(srv, `/runs/${run.id}/stream`, /Messaging Web Surfer/);
   await sleep(1100);
   play(use('mcp__self__message_bot', { to: surfer.id, message: 'SECRET' }));
   await lineIs(run.id, 'Messaging Web Surfer');
@@ -362,7 +352,7 @@ test('the line reads the opening line first, then the server\'s words for each f
   assert.equal(done.result, 'Here is the news.');
   assert.equal(done.workingLine, undefined);
   assert.equal((await srv.api(`/runs?botId=${bot.id}`)).data[0].workingLine, undefined);
-  assert.doesNotMatch(await streamOf(`/runs/${run.id}/stream`, /run_end/), /working_line/, 'a finished run\'s stream has no line');
+  assert.doesNotMatch(await streamOf(srv, `/runs/${run.id}/stream`, /run_end/), /working_line/, 'a finished run\'s stream has no line');
   assert.equal(done.workingLine, undefined);
   // Its steps stay on its record (run-steps.js, #625): the words of each, never what was sent.
   assert.deepEqual(done.steps.rows.map((r) => r.text), ['Searching the web', 'Reading nytimes.com', 'Messaging Web Surfer']);
@@ -459,7 +449,7 @@ test('"Starting its computer" is the line while the bot\'s computer starts', asy
   const asked = srv.api('/vault/session/computer', { method: 'POST', headers: { 'X-Vault-Token': token } });
   await lineIs(run.id, 'Starting its computer');
   assert.equal((await runOf(run.id)).workingLine, 'Starting its computer');
-  assert.match(await streamOf(`/runs/${run.id}/stream?simple`, /working_line/), /data: \{"type":"working_line","text":"Starting its computer","steps":\d+\}/, 'in the simple form too, which has no `phase`');
+  assert.match(await streamOf(srv, `/runs/${run.id}/stream?simple`, /working_line/), /data: \{"type":"working_line","text":"Starting its computer","steps":\d+\}/, 'in the simple form too, which has no `phase`');
   assert.equal((await asked).data.ok, false, 'the stand-in computer never starts');
   await lineIs(run.id, 'Opening nytimes.com'); // the start is over: the step it was for
   srv.release(rec);
@@ -502,7 +492,7 @@ test('a script job\'s run has no line: nothing is at work for the apps while its
   const now = (await srv.api(`/bots/${bot.id}`)).data;
   assert.equal(now.running, false);
   assert.notEqual(now.state, 'working');
-  assert.doesNotMatch(await streamOf('/events', /event: hello\ndata: .*\n\n/), new RegExp(bot.id), 'nothing of it among what is going on');
+  assert.doesNotMatch(await streamOf(srv, '/events', /event: hello\ndata: .*\n\n/), new RegExp(bot.id), 'nothing of it among what is going on');
   // When it ended with something to show, its run is there, finished: said once, on the feed.
   const { data: done } = await f.wait('run_finished', (d) => d.botId === bot.id);
   assert.deepEqual([done.kind, done.jobName, done.status, done.result], ['script', 'Disk check', 'success', 'disk 91% full']);
