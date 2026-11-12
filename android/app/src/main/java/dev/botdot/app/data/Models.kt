@@ -415,6 +415,7 @@ data class Run(
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
+    val questionChoices: List<List<String>?>? = null, // each question's choices (null for one without), drawn under its box
     val quiet: Boolean = false, // a scheduled run with nothing for the owner: no bubble, no notification
     val btw: Boolean = false, // a quick side question beside the runs going (ADR 063): not one of them
     val learned: List<Learned>? = null, // what it remembered or changed about itself on this run
@@ -635,6 +636,7 @@ data class ChiefMessage(
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
+    val questionChoices: List<List<String>?>? = null, // each question's choices (null for one without), drawn under its box
     val actions: List<ChiefAction>? = null, // what it did while replying
     val draft: MailDraft? = null, // a mail draft waiting for the owner's word to send it (`mail-draft`, #415)
     val unasked: Boolean = false, // the Chief wrote it without being asked: it gets 👍 and 👎 (Ratings)

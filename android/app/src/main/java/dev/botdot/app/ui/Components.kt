@@ -988,10 +988,12 @@ fun inkOn(fill: Color): Color {
 /**
  * Several questions at once, under the newest reply: a box under each, and Send posts them all as one message.
  * [onSend] sends them with their key and says whether it went: the card goes only then, and keeps its answers when it
- * did not. The card keeps its key until an answer changes: changed answers are a new message.
+ * did not. The card keeps its key until an answer changes: changed answers are a new message. [picks]: each
+ * question's choices (null for one without), under its box; a tap fills the box, typed over it is the owner's own.
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Boolean) {
+fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, onSend: suspend (String, String) -> Boolean) {
     if (questions.isNullOrEmpty()) return
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
@@ -1014,6 +1016,15 @@ fun Questions(questions: List<String>?, onSend: suspend (String, String) -> Bool
                     maxLines = 6, // one line to start with; it grows as you type
                     modifier = Modifier.fillMaxWidth().clip(Radius.card).background(p.bg).padding(horizontal = Space.s12, vertical = Space.s8),
                 )
+                picks?.getOrNull(i)?.takeIf { it.isNotEmpty() }?.let { cs ->
+                    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(top = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                        cs.forEach { c ->
+                            // The one the box says is filled.
+                            if (answers[i].trim() == c) androidx.compose.material3.Button(onClick = { answers[i] = c }) { Text(c) }
+                            else SecondaryButton(onClick = { answers[i] = c }) { Text(c, color = p.text) }
+                        }
+                    }
+                }
             }
         }
         val canSend = answers.any { it.isNotBlank() }
