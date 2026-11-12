@@ -85,6 +85,12 @@ listen('local-failed', ({ payload }) => {
   last.hidden = !payload.length;
 });
 listen('local-restart', () => setting(words.restart, false));
+// The iOS app's sign-in sheet was closed (#965): the address again, with nothing to say.
+listen('sign-in-closed', () => {
+  ended();
+  address.hidden = go.hidden = false;
+  said.textContent = '';
+});
 listen('sign-in-failed', () => {
   ended();
   address.hidden = go.hidden = false;

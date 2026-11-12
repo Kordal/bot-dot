@@ -5,6 +5,12 @@ use sha2::{Digest, Sha256};
 use tauri::Url;
 use ureq::tls::{RootCerts, TlsConfig};
 
+/// The app the front door makes the session for (docs/api.md): the iOS app's own, for its feedback and its sessions.
+#[cfg(target_os = "ios")]
+const APP: &str = "ios";
+#[cfg(not(target_os = "ios"))]
+const APP: &str = "desktop";
+
 /// Forgotten once its code has brought a session.
 #[derive(Clone)]
 pub struct Secret {
@@ -28,7 +34,7 @@ impl Secret {
 
     /// A page of the hand-off: the sign-in, or the sign-up that makes a local botdot's one account (ADR 136).
     pub fn on(&self, mut page: Url) -> Url {
-        page.query_pairs_mut().append_pair("app", "desktop").append_pair("handoff", &self.challenge());
+        page.query_pairs_mut().append_pair("app", APP).append_pair("handoff", &self.challenge());
         page
     }
 }

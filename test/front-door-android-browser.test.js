@@ -157,7 +157,7 @@ test("the page sends the Android app's browser back to the app with the code, an
   assert.equal(web.sent.find((s) => s.path === '/sign-in').body.handoff, undefined);
   assert.deepEqual(web.went, ['/']);
   // Another app's name is a sign-in of the web page.
-  const other = await runPage(`?app=ios&handoff=${h.challenge}`, { ok: true, account: 'dana' });
+  const other = await runPage(`?app=fridge&handoff=${h.challenge}`, { ok: true, account: 'dana' });
   assert.equal(other.sent.find((s) => s.path === '/sign-in').body.app, 'web');
 });
 
