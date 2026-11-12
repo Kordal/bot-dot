@@ -39,7 +39,7 @@ function page({ features = ['message-waits'], reply = async () => ({}) } = {}) {
   const boxes = { bot: composer(), chief: composer() };
   const doctor = { id: 'doctor', name: 'Fleet Doctor', color: '#c2473d', queued: [] };
   const state = { features, bots: [doctor], runs: [], chatId: 'c1', chatNew: false, chatStream: null, view: 'bot' };
-  const doc = { '#view-bot': { dataset: { bot: 'doctor' } }, '#bot-thread': bot.thread, '#chat-thread': chief.thread, '#view-bot form': boxes.bot.form, '#view-chief form': boxes.chief.form };
+  const doc = { '#view-bot': { dataset: { bot: 'doctor' } }, '#bot-thread': bot.thread, '#chat-thread': chief.thread, '#view-bot form.composer': boxes.bot.form, '#view-chief form.composer': boxes.chief.form };
   const of = (root) => (root === bot.thread ? bot : root === chief.thread ? chief : root.buttons ? bot : null);
   const said = { calls: [], bodies: [], toasts: [], refreshed: 0, shown: [], followed: [], streams: 0, redrawn: 0 };
   const lib = vm.createContext({ ...words });
@@ -222,7 +222,7 @@ test('web: Send stays: the box of a bot and of the Chief has Send whether or not
     assert.equal(p.boxes.chief.btn.type, 'submit');
     assert.equal(p.boxes.chief.btn.onclick, null);
   }
-  assert.match(cut('function renderBotChat(root', '// Rejects when the task did not go'), /setSendBusy\(\$\('form', root\), false\);/, 'a bot\'s box never had Stop');
+  assert.match(cut('function renderBotChat(root', '// Rejects when the task did not go'), /setSendBusy\(\$\('form.composer', root\), false\);/, 'a bot\'s box never had Stop');
   assert.doesNotMatch(cut('function composerHTML(placeholder', '// Files attached in a composer'), /stop/i, 'the box is drawn with Send alone');
 });
 

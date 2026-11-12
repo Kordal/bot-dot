@@ -355,7 +355,7 @@ function updateChatQueued(thread, chat, sent = null, arrives = false) {
 // why, in the server's words.
 async function steerQueued(chat, queuedId, button) {
   const [kind, id] = chatParts(chat);
-  const form = kind === 'chief' ? $('#view-chief form') : botForm(id);
+  const form = kind === 'chief' ? $('#view-chief form.composer') : botForm(id);
   const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
   try {
@@ -372,7 +372,7 @@ async function steerQueued(chat, queuedId, button) {
 // turn came first (409), the line above the box says so and the chat shows what started.
 async function takeBack(chat, queuedId, button) {
   const [kind, id] = chatParts(chat);
-  const form = kind === 'chief' ? $('#view-chief form') : botForm(id);
+  const form = kind === 'chief' ? $('#view-chief form.composer') : botForm(id);
   const again = () => (kind === 'chief' ? (state.chatId === id ? showChat(id) : null) : refresh());
   if (button) button.disabled = true;
   takenBack.add(queuedId); // the feed may say it left the list before botdot answers here
@@ -401,7 +401,7 @@ function chatOpenIs(chat) {
   return kind === 'chief' ? state.chatId === id : $('#view-bot')?.dataset.bot === id;
 }
 // A bot's message box: the open view's.
-const botForm = () => $('#view-bot form');
+const botForm = () => $('#view-bot form.composer');
 
 // ---------- a working bot's opening line ----------
 

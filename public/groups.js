@@ -716,8 +716,8 @@ function renderGroupChat() {
       </div>
       <div class="chat-thread" id="group-thread"><div class="g-items"></div><div class="g-drafts"></div><div class="g-tail"></div></div>
       ${composerHTML(tr('Message {name}', { name: g.name }))}`;
-    wireComposer($('form', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
-    putCarried($('form', root), key);
+    wireComposer($('form.composer', root), (text, files, k) => sendToGroup(g.id, text, files, k), () => key, key);
+    putCarried($('form.composer', root), key);
     holdChatEnd($('#group-thread', root));
     // A team's chat opens its panel too: its members and its notes. Its name and members follow its team in Projects.
     $('#group-settings').onclick = () => setPanel('toggle');
@@ -728,7 +728,7 @@ function renderGroupChat() {
   if (pic.dataset.sig !== look) { pic.dataset.sig = look; pic.innerHTML = groupPicture(g, 'sm'); }
   $('#group-name').textContent = g.name;
   $('#group-sub').textContent = g.team ? teamLine(g) : groupMembers(g).map((b) => b.name).join(', ');
-  const form = $('form', root);
+  const form = $('form.composer', root);
   form.text.placeholder = tr('Message {name}…', { name: g.name });
   const thread = $('#group-thread');
   const chat = groupChat?.id === g.id && groupChat.loaded ? groupChat : null;
@@ -947,7 +947,7 @@ async function goOnGroup(id, button) {
 // Take a waiting message back: its text and files are in the message box again, and it starts nothing. When its
 // turn came first (409), the line above the box says so and the chat shows what started.
 async function takeBackInGroup(id, messageId, button) {
-  const form = $('#view-group form');
+  const form = $('#view-group form.composer');
   const here = () => $('#view-group')?.dataset.group === id;
   if (button) button.disabled = true;
   try {

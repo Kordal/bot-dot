@@ -641,7 +641,7 @@
     if (decision === 'stop') toast(trn(d.paused || 0, "Switched off {n} job of the project's bots.", "Switched off {n} jobs of the project's bots."));
     if (decision === 'change') {
       openChiefChat(null);
-      const box = $('#view-chief form')?.text;
+      const box = $('#view-chief form.composer')?.text;
       // The project by name (#1088): the Chief has several projects and this chat is a new one.
       const project = state.company?.name || state.company?.start || '';
       const words = state.company?.ongoing ? tr('Monthly review of {project}: I want to change direction.', { project }) : tr('Day {n} check-in of {project}: I want to change direction.', { n: k.day, project });
@@ -675,7 +675,7 @@
       .sort((a, b) => teamOf.has(a.id) - teamOf.has(b.id));
     const askChief = () => {
       openChiefChat(null);
-      const box = $('#view-chief form')?.text;
+      const box = $('#view-chief form.composer')?.text;
       if (box) { box.value = `${tr('A new bot for the {team} team in {project}:', { team: t.name, project: c.name || c.start })} `; box.dispatchEvent(new Event('input')); box.focus(); }
     };
     if (!bots.length) return askChief();

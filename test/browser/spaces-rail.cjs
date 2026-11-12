@@ -167,7 +167,7 @@ const { unfoldTeams } = require('../helpers');
     assert.deepEqual(await page.locator('.ct-menu [role="menuitem"]').allInnerTexts(), ['New bot', 'New project']);
     if (shots) await page.screenshot({ path: path.join(shots, 'spaces-none-menu.png') });
     await page.locator('.ct-menu [data-new-bot]').click();
-    await page.waitForFunction(() => state.view === 'chief' && !state.chatId && document.activeElement === document.querySelector('#view-chief form').text);
+    await page.waitForFunction(() => state.view === 'chief' && !state.chatId && document.activeElement === document.querySelector('#view-chief form.composer').text);
     assert.equal(await page.locator('#view-chief form textarea').inputValue(), 'A new bot that ');
     await page.locator('#rail [data-rail-new]').click();
     await page.locator('.ct-menu [data-new-project]').click();

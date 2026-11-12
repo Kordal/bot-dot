@@ -397,7 +397,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
       ${docked ? '' : '<div class="pip hidden" id="bot-pip"></div>'}
       ${composerHTML(tr('Message {name}', { name: bot.name }))}
       <div class="job-chips"${id('bot-job-chips')}></div>`;
-    const form = $('form', root);
+    const form = $('form.composer', root);
     wireComposer(form, (text, files, key) => runBot(bot.id, text, files, key, replyingTo.get(bot.id)?.runId), () => `bot:${bot.id}`, bot.id);
     $('.attach-list', form).insertAdjacentHTML('beforebegin', '<div class="reply-chip hidden"></div>');
     putCarried(form, `bot:${bot.id}`);
@@ -445,7 +445,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
-    wireChoices(thread, (t, key) => sendFrom($('form', root), () => runBot(bot.id, t, [], key)));
+    wireChoices(thread, (t, key) => sendFrom($('form.composer', root), () => runBot(bot.id, t, [], key)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.
     $$('[data-learned]', thread).forEach((el) => (el.onclick = () => openLearned(el, bot.id)));
@@ -477,7 +477,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   thread.dataset.look = look;
   updateChatNeeds(thread, bot.id);
   if (!docked) updatePip(bot, bot.computer === 'linux' ? runs.find((r) => r.status === 'running' && r.computer) : null); // a machine on boat.dev has no live screen beside its runs
-  setSendBusy($('form', root), false);
+  setSendBusy($('form.composer', root), false);
   globalThis.drawBotPlan?.(bot, runs, root);
   placeStatusLines();
 }

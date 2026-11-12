@@ -425,7 +425,7 @@ function renderChief() {
       <div class="chat-thread" id="chat-thread"></div>
       ${composerHTML(messageChief())}
       <div class="job-chips" id="chief-job-chips"></div>`;
-    wireComposer($('form', root), sendToChief, () => 'chief', CHIEF_BOT.id);
+    wireComposer($('form.composer', root), sendToChief, () => 'chief', CHIEF_BOT.id);
     holdChatEnd($('#chat-thread', root), () => chiefFigure());
     $('#chat-thread', root).addEventListener('scroll', (e) => { if (e.target.scrollTop < 400) loadOlder(e.target); }, { passive: true });
     $('#chief-new').onclick = () => { state.chatNew = true; showChat(null); };
@@ -662,7 +662,7 @@ async function showChat(id) {
   sayPresent();
   syncRead();
   const thread = $('#chat-thread');
-  const form = $('#view-chief form');
+  const form = $('#view-chief form.composer');
   if (!thread) return;
   if (!id) {
     delete thread.dataset.mentions;
@@ -722,7 +722,7 @@ function chatPart(thread, id) {
 // whole chat (data-msg), wired.
 function drawChatRows(thread, id, chat) {
   const from = chat.offset || 0;
-  const form = $('#view-chief form');
+  const form = $('#view-chief form.composer');
   thread.innerHTML = chat.messages.map((m, i, all) => messageHTML(m, i, all, from + i).replace('class="bubble-row', `data-msg="${from + i}" class="bubble-row`)).join('');
   thread.dataset.mentions = mentionSig(); // what its mentions were matched against (see renderChief)
   thread.dataset.chat = id; // whose messages these are (see placeChiefLine)
@@ -840,7 +840,7 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
     chiefTurns.set(id, ''); // its reply began: the working line says so, with Stop
     placeStatusLines();
     thread.scrollTop = thread.scrollHeight;
-    setSendBusy($('#view-chief form'), true, stopChief);
+    setSendBusy($('#view-chief form.composer'), true, stopChief);
     writeHash(); // state.chatId is this chat
     followChief(id);
     loadChief().then(markMore);
@@ -906,10 +906,10 @@ function followChief(id) {
         if (row && row.isConnected !== false) { row.outerHTML = chiefBubble(ev.message, true); placeStatusLines(); } // the reply arrives (chiefArrives)
         else { thread.insertAdjacentHTML('beforeend', chiefBubble(ev.message, true)); updateChatNeeds(thread, 'chief'); placeStatusLines(); }
         wireActions(thread);
-        wireChoices(thread, (t, key) => sendFrom($('#view-chief form'), () => sendToChief(t, [], key)));
+        wireChoices(thread, (t, key) => sendFrom($('#view-chief form.composer'), () => sendToChief(t, [], key)));
       }
       if (near) thread.scrollTop = thread.scrollHeight;
-      setSendBusy($('#view-chief form'), false);
+      setSendBusy($('#view-chief form.composer'), false);
       refresh();
     }
     if (nearEnd(thread)) thread.scrollTop = thread.scrollHeight;

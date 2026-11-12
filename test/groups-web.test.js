@@ -466,7 +466,8 @@ function chatView(p) {
   const items = element({}, { querySelector: (sel) => { const id = (sel.match(/^\[data-reply="(\w+)"\]$/) || [])[1]; return id && items.innerHTML.includes(`data-reply="${id}"`) ? { id } : null; } });
   const tail = element();
   const thread = element({ '.g-items': items, '.g-tail': tail }, { scrollHeight: 0, scrollTop: 0, clientHeight: 0 });
-  const root = element({ form: element({}, { text: {} }) });
+  // A card in the thread can hold a form of its own (a login asked for, ahead of the box): only the box is the box.
+  const root = element({ form: element(), 'form.composer': element({}, { text: {} }) });
   root.dataset.group = p.state.groupId;
   Object.assign(p.doc, { '#view-group': root, '#group-thread': thread, '#group-pic': element(), '#group-name': element(), '#group-sub': element() });
   p.state.view = 'group';
@@ -485,6 +486,7 @@ test('web: a hit goes to its reply in the group, also in a chat that is drawn al
   assert.deepEqual([p.said.jumped, p.state.jump], [['r7'], null]);
   assert.equal(p.doc['#group-name'].textContent, 'Dev');
   assert.equal(p.doc['#group-sub'].textContent, 'Coder, Reviewer, Issue Writer');
+  assert.equal(view.root.querySelector('form.composer').text.placeholder, 'Message Dev…', "the box's, not a card's form");
   assert.deepEqual(p.said.needs, ['group:g1'], 'the cards stand last');
   // The same chat, nothing new in it: a second hit is gone to all the same.
   const drawn = view.items.innerHTML;
@@ -694,7 +696,7 @@ test('web: a mention is drawn as today, and typing "@" in a group suggests its m
   const h = p.ctx.groupMessageHTML(message('m1', '@Coder and @Weather: which <branch>?'), 'group:g1');
   assert.match(h, /<div class="clamp"><span class="mention" title="@Coder"><svg class="fig fig-small"><\/svg>Coder<\/span> and @Weather: which &lt;branch&gt;\?<\/div>/);
   // The message box of a group is wired to its members and uploads to the group.
-  assert.match(src, /wireComposer\(\$\('form', root\), \(text, files, k\) => sendToGroup\(g\.id, text, files, k\), \(\) => key, key\);/);
+  assert.match(src, /wireComposer\(\$\('form.composer', root\), \(text, files, k\) => sendToGroup\(g\.id, text, files, k\), \(\) => key, key\);/);
   assert.match(src, /const key = `group:\$\{g\.id\}`;/);
 });
 
@@ -762,7 +764,7 @@ test('web: a message that waits for a busy member is drawn as waiting and says f
   // "Take back" removes it and puts its text and files into the message box.
   const back = [];
   const form = { _takeBack: (text, files) => back.push([text, files.map((f) => f.name)]) };
-  p.doc['#view-group form'] = form;
+  p.doc['#view-group form.composer'] = form;
   p.doc['#view-group'] = { dataset: { group: 'g1' } };
   await p.ctx.takeBackInGroup('g1', 'm2', { disabled: false });
   assert.deepEqual(p.said.calls[0], ['DELETE', '/group-chats/g1/messages/m2']);
@@ -771,7 +773,7 @@ test('web: a message that waits for a busy member is drawn as waiting and says f
   // Its turn came first: the line above the box says so, and the chat is read again.
   const late = page({ reply: async (path, opts) => (opts.method === 'DELETE' ? refused('It has already started.', 409) : { items: [] }) });
   late.chat([waits]);
-  late.doc['#view-group form'] = {};
+  late.doc['#view-group form.composer'] = {};
   late.doc['#view-group'] = { dataset: { group: 'g1' } };
   const button = { disabled: false };
   await late.ctx.takeBackInGroup('g1', 'm2', button);
