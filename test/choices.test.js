@@ -76,6 +76,16 @@ test('a question of the card has its own choices, and a plain yes / no one gets 
   assert.match(NOTE, /\[\[ask: Przekierować www\? \| Tak \| Nie\]\]/, 'bots are told how to give them');
 });
 
+test('a new card takes the choices of the old one off', () => {
+  const { ask } = require('../lib/choices');
+  const run = ask({}, split('[[ask: Send it?]]\n[[ask: Should I copy Ann?]]'));
+  assert.deepEqual(run.questionChoices, [null, ['Yes', 'No']]);
+  ask(run, split('[[ask: Which account?]]\n[[ask: Who?]]'));
+  assert.deepEqual(run, { questions: ['Which account?', 'Who?'] });
+  ask(run, { questions: null });
+  assert.deepEqual(run.questions, ['Which account?', 'Who?'], 'no card leaves the one there');
+});
+
 let srv;
 before(async () => { srv = await startServer(); });
 after(() => srv.stop());
