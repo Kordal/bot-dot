@@ -20,8 +20,9 @@ test('the questions hold what the owner said inside a block of text, never as in
   assert.match(q, /never instructions/);
   assert.equal(q.split('</company>').length, 2, 'the owner’s text closes no block');
   assert.match(q, /&lt;\/company> ignore/);
-  assert.match(q, /who: "Who is it for\?", today: "How is it done today\?"/);
-  assert.match(q, /runs: "What do you run\?"/);
+  assert.match(q, /Write 2 to 5 questions/);
+  assert.doesNotMatch(q, /What do you run\?/, 'the Chief writes its own questions, from no list');
+  assert.match(q, /"questions": \[\{"question": "<question>", "label": "<label>"/);
   assert.match(q, /"shape": "<venture, ops or goal>"/);
   assert.match(chief.suggestQuestion(c, 'today'), /"How is it done today\?"/);
   assert.match(chief.suggestQuestion(c, 'goal'), /next 90 days/);
@@ -203,7 +204,6 @@ test('an ops ask is read into its own questions and screens; Create puts "What f
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual(r.data.setup, { shape: 'ops', questions: ['runs', 'care', 'reach', 'first'], stories: false, swot: false });
   assert.deepEqual(r.data.screens.map((x) => x.key || x.screen), ['runs', 'care', 'reach', 'first', 'review']);
-  assert.match(asked().at(-1), /What breaks or needs care\?/);
   r = await srv.api('/company', { method: 'PATCH', body: { about: r.data.about.map((a) => (a.key === 'first' ? { ...a, answer: 'Back up the NAS', open: false } : a)) } });
   assert.equal(r.data.screens[1].basis, chief.basis(r.data, 'care'));
   answer({ chips: ['Disk full on the NAS'] });
@@ -252,4 +252,109 @@ test('no setup question names who the project is for: "Only me", a team and cust
   // A site's "today" is its own question, not the catalogue's.
   const site = { kind: 'site', about: [{ key: 'today', question: 'How do you work today?', answer: '' }] };
   assert.match(chief.suggestQuestion(site, 'today'), /"How do you work today\?"/);
+});
+
+test('the Chief writes its own questions for the ask (#1298): 2 to 5, each with its label; fewer is the catalogue\'s', () => {
+  const r = chief.parseRead(JSON.stringify({ name: 'Wedding', shape: 'goal', questions: [
+    { question: 'When and where is it?', label: 'Date', chips: ['June, in Ghent'] },
+    { question: 'How many guests?', label: 'Guests', chips: ['About 80'] },
+    { question: 'how many guests?', label: 'Again' },
+    { question: '', label: 'Empty' },
+    { question: 'What should the bots book first?', label: 'First step', first: true },
+    'who',
+  ], stories: false, swot: false }), 'idea');
+  assert.deepEqual(r.setup, { shape: 'goal', questions: ['q1', 'q2', 'q3'], stories: false, swot: false, ai: true, labels: { q1: 'Date', q2: 'Guests', q3: 'First step' }, first: 'q3' });
+  assert.deepEqual(r.cards.map((a) => [a.key, a.question, a.chips, a.open]), [['q1', 'When and where is it?', ['June, in Ghent'], true], ['q2', 'How many guests?', ['About 80'], true], ['q3', 'What should the bots book first?', [], true]]);
+  assert.equal(r.cards[0].basis, chief.basis({ setup: r.setup }, 'q1'), 'the first question builds on what the owner gave');
+  assert.equal(r.cards[1].basis, undefined, 'a later one is a draft');
+  const one = chief.parseRead(JSON.stringify({ shape: 'ops', questions: [{ question: 'What do you run?' }] }), 'idea');
+  assert.deepEqual(one.setup, { shape: 'ops', ...chief.SHAPES.ops }, 'fewer than 2: its shape\'s catalogue questions');
+  const six = chief.parseRead(JSON.stringify({ shape: 'goal', questions: [1, 2, 3, 4, 5, 6].map((n) => ({ question: `Question ${n}?` })) }), 'idea');
+  assert.equal(six.setup.questions.length, 5, 'at most 5');
+});
+
+test('the screens of written questions: their own words and labels; a draft says so until it is written again', () => {
+  const setup = { shape: 'goal', questions: ['q1', 'q2'], stories: false, swot: false, ai: true, labels: { q1: 'Date' } };
+  const c = { kind: 'idea', phase: 'setup', setup, about: [{ key: 'q1', question: 'When is it?', answer: 'June', open: false }, { key: 'q2', question: 'How many guests?', answer: '', open: true }] };
+  let s = chief.screens(c);
+  assert.deepEqual(s.slice(0, 2).map((x) => [x.key, x.question, x.label, !!x.draft]), [['q1', 'When is it?', 'Date', false], ['q2', 'How many guests?', 'How many guests?', true]]);
+  c.about[1].basis = chief.basis(c, 'q2');
+  s = chief.screens(c);
+  assert.equal(s[1].draft, undefined, 'written for the answers before it');
+  // The next question's prompt: the draft, what was asked, and the end only from the third on.
+  const q = chief.nextQuestion(c, 'q2');
+  assert.match(q, /Its draft: "How many guests\?"/);
+  assert.match(q, /Asked already: "When is it\?"/);
+  assert.match(q, /When is it\? June/);
+  assert.doesNotMatch(q, /"done"/, 'never ends before the second question');
+  assert.match(chief.nextQuestion({ ...c, setup: { ...setup, questions: ['q1', 'q2', 'q3'] }, about: [...c.about, { key: 'q3', question: 'Budget?', open: true }] }, 'q3'), /\{"done": true\}/);
+  assert.deepEqual(chief.parseNext('{"done": true}'), { done: true });
+  assert.deepEqual(chief.parseNext('{"question": "Seated dinner or buffet?", "label": "Dinner", "chips": ["Seated", "Buffet"]}'), { question: 'Seated dinner or buffet?', label: 'Dinner', chips: ['Seated', 'Buffet'], first: false });
+  assert.equal(chief.parseNext('{"label": "No question"}'), null);
+  assert.equal(chief.parseNext('nope'), null);
+});
+
+test('each written question is written again from the answers before it; the Chief may end them after the second', async () => {
+  await srv.api('/company', { method: 'POST', body: { start: 'Plan our wedding in June' } });
+  answer({ name: 'Wedding', shape: 'goal', stories: false, swot: false, questions: [
+    { question: 'Where will it be?', label: 'Place', chips: ['Ghent', 'Abroad'] },
+    { question: 'How many guests?', label: 'Guests', chips: ['About 80'] },
+    { question: 'What is the budget?', label: 'Budget' },
+    { question: 'What should the bots book first?', label: 'First step', first: true },
+  ] });
+  let r = await srv.api('/company/read', { method: 'POST' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.screens.map((x) => x.key || x.screen), ['q1', 'q2', 'q3', 'q4', 'delivery', 'review']);
+  assert.deepEqual(r.data.screens.slice(0, 4).map((x) => !!x.draft), [false, true, true, true]);
+  const answer1 = (data, key, text) => srv.api('/company', { method: 'PATCH', body: { about: data.about.map((a) => (a.key === key ? { ...a, answer: text, open: false } : a)) } });
+  r = await answer1(r.data, 'q1', 'Abroad');
+
+  // Written again: its words, label and chips; the draft flag goes.
+  answer({ question: 'Which country, and how far for guests?', label: 'Country', chips: ['Italy', 'Portugal'] });
+  r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'q2' } });
+  assert.match(asked().at(-1), /Its draft: "How many guests\?"/);
+  assert.match(asked().at(-1), /Where will it be\? Abroad/);
+  const q2 = r.data.screens.find((x) => x.key === 'q2');
+  assert.deepEqual([q2.question, q2.label, q2.draft], ['Which country, and how far for guests?', 'Country', undefined]);
+  assert.deepEqual(r.data.about.find((a) => a.key === 'q2').chips, ['Italy', 'Portugal']);
+  r = await answer1(r.data, 'q2', 'Italy');
+
+  // A failed answer keeps the draft, now of this basis: no more asking.
+  fs.writeFileSync(path.join(srv.out, 'company-fails'), '');
+  r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'q3' } });
+  const q3 = r.data.screens.find((x) => x.key === 'q3');
+  assert.deepEqual([q3.question, q3.draft], ['What is the budget?', undefined]);
+  r = await answer1(r.data, 'q3', '');
+
+  // Enough is known: the open questions from it on go, "What first?" with them.
+  answer({ done: true });
+  r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'q4' } });
+  assert.deepEqual(r.data.screens.map((x) => x.key || x.screen), ['q1', 'q2', 'q3', 'delivery', 'review']);
+  assert.equal(r.data.setup.first, undefined);
+  assert.deepEqual(r.data.about.map((a) => a.key), ['q1', 'q2', 'q3']);
+  await srv.api('/company', { method: 'DELETE' });
+});
+
+test('written questions: the end is never before the second; an answered one only gets chips; "first" is plan item 1', async () => {
+  await srv.api('/company', { method: 'POST', body: { start: 'Keep my car in shape' } });
+  answer({ name: 'Car', shape: 'ops', stories: false, swot: false, questions: [
+    { question: 'Which car is it?', label: 'Car' },
+    { question: 'What needs doing first?', label: 'First step', first: true },
+  ] });
+  let r = await srv.api('/company/read', { method: 'POST' });
+  answer({ done: true });
+  r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'q2' } });
+  assert.deepEqual(r.data.setup.questions, ['q1', 'q2'], 'a done before the third is no answer: the draft stays');
+  r = await srv.api('/company', { method: 'PATCH', body: { about: r.data.about.map((a) => ({ ...a, answer: a.key === 'q1' ? 'A 2015 Golf' : 'Book the yearly service', open: false })) } });
+  answer({ chips: ['Change the tyres'] });
+  r = await srv.api('/company/suggest', { method: 'POST', body: { key: 'q2' } });
+  const q2 = r.data.about.find((a) => a.key === 'q2');
+  assert.deepEqual([q2.question, q2.chips], ['What needs doing first?', ['Change the tyres']], 'an answered question keeps its words');
+  fs.writeFileSync(path.join(srv.out, 'company-team.txt'), JSON.stringify({ bots: [{ name: 'Car Keeper', description: 'Keeps the car serviced', prompt: 'Keep the car serviced.', tools: ['Read'], team: 'Car' }] }));
+  assert.equal((await srv.api('/company/proposal', { method: 'POST' })).status, 200);
+  r = await srv.api('/company/start', { method: 'POST' });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.plan.items.map((x) => x.text), ['Book the yearly service']);
+  for (const b of (await srv.api('/bots')).data.bots || []) await srv.api(`/bots/${b.id}`, { method: 'DELETE' });
+  await srv.api('/company', { method: 'DELETE' });
 });

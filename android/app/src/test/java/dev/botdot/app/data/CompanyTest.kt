@@ -170,6 +170,13 @@ class CompanyTest {
         // As the server sends them.
         val sent = CompanySetup.of("""{"id":"p1","kind":"idea","phase":"setup","screens":[{"screen":"question","key":"runs","question":"What do you run?","label":"Runs","basis":"1505"},{"screen":"delivery"},{"screen":"review","swot":false,"basis":"9"}],"extra":1}""")
         assertEquals(listOf("runs"), CompanySetup.questions(sent))
+        assertEquals(false, CompanySetup.questionScreen(sent, "runs")?.draft)
+        // Questions the Chief wrote (#1298): their own keys, words and labels; a draft is held until written again.
+        val written = CompanySetup.of("""{"id":"p2","kind":"idea","phase":"setup","screens":[{"screen":"question","key":"q1","question":"Where will it be?","label":"Place","basis":"1505"},{"screen":"question","key":"q2","question":"How many guests?","label":"Guests","basis":"ab","draft":true},{"screen":"review","swot":false,"basis":"9"}]}""")
+        assertEquals(listOf("q1", "q2"), CompanySetup.questions(written))
+        assertEquals(true, CompanySetup.questionScreen(written, "q2")?.draft)
+        assertEquals("Guests", CompanySetup.questionScreen(written, "q2")?.label)
+        assertEquals(listOf("about:q1", "about:q2", "goal", "never", "time"), CompanySetup.reviewKeys(written, delivery = false))
     }
 
     @Test fun aQuestionShowsThePreviousAnswerOverIt() {

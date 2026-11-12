@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The setup of a new project against ten asks (#805), over test/fixtures/onboarding-cases.json: each ask is read as
 // POST /api/company/read reads it (lib/company-chief.js) and its team proposed as POST /api/company/proposal
-// proposes it (lib/company-team.js), and checked: the shape fits the ask, 3 to 5 questions, a SWOT and stories only
+// proposes it (lib/company-team.js), and checked: the shape fits the ask, 2 to 5 questions the Chief wrote (#1298), a SWOT and stories only
 // where they fit, and a team of as many bots as the ask needs.
 //
 //   node scripts/onboarding-bench.js          the stand-in for the model (a few keywords): checks the script
@@ -50,7 +50,8 @@ async function fake(prompt, { system }) {
   }
   if (/existing company/.test(prompt)) return JSON.stringify({ name: 'Fernhill', about: 'Project management', serves: 'Agencies', today: '', questions: [], goal: [], never: [] });
   const s = chief.SHAPES[shape];
-  return JSON.stringify({ name: 'X', shape, questions: s.questions.slice(0, 4), stories: s.stories, swot: s.swot, chips: {}, goal: [], never: [], time: [] });
+  const questions = s.questions.slice(0, 4).map((k) => ({ question: `${chief.CATALOGUE[k][0].replace(/\?$/, '')} for ${ask.split(':')[0]}?`, label: chief.CATALOGUE[k][1], chips: [] }));
+  return JSON.stringify({ name: 'X', shape, questions, stories: s.stories, swot: s.swot, goal: [], never: [], time: [] });
 }
 
 (async () => {
@@ -73,12 +74,13 @@ async function fake(prompt, { system }) {
     if (!read) fails.push('no read');
     if (s) {
       if (!k.shape.includes(s.shape)) fails.push(`shape ${s.shape}`);
-      if (s.questions.length < 3 || s.questions.length > 5) fails.push(`${s.questions.length} questions`);
+      if (!s.ai) fails.push('catalogue questions');
+      if (s.questions.length < chief.AI.min || s.questions.length > chief.AI.max) fails.push(`${s.questions.length} questions`);
       if (k.swot !== null && k.swot !== undefined && s.swot !== k.swot) fails.push(`swot ${s.swot}`);
       if (k.stories !== null && k.stories !== undefined && s.stories !== k.stories) fails.push(`stories ${s.stories}`);
     }
     if (bots < k.bots[0] || bots > k.bots[1]) fails.push(`${bots} bots`);
-    rows.push({ ask: k.ask, shape: s?.shape || kind, questions: s?.questions || [], swot: s?.swot ?? null, stories: s?.stories ?? null, bots, readMs, teamMs, ok: !fails.length, fails });
+    rows.push({ ask: k.ask, shape: s?.shape || kind, questions: s ? (read?.cards || []).map((a) => a.question) : [], swot: s?.swot ?? null, stories: s?.stories ?? null, bots, readMs, teamMs, ok: !fails.length, fails });
     if (!args.includes('--json')) process.stderr.write('.');
   }
   const passed = rows.filter((r) => r.ok).length;
@@ -86,7 +88,7 @@ async function fake(prompt, { system }) {
   else {
     console.log(`\n${passed}/${rows.length} asks pass, ${LIVE ? 'live' : 'stand-in'}\n`);
     console.log('| | Ask | Shape | Questions | SWOT | Stories | Bots | Read / team |\n| --- | --- | --- | --- | --- | --- | --- | --- |');
-    for (const r of rows) console.log(`| ${r.ok ? 'ok' : `FAIL: ${r.fails.join(', ')}`} | ${r.ask} | ${r.shape} | ${r.questions.join(', ')} | ${r.swot ?? '-'} | ${r.stories ?? '-'} | ${r.bots} | ${(r.readMs / 1000).toFixed(1)} / ${(r.teamMs / 1000).toFixed(1)} s |`);
+    for (const r of rows) console.log(`| ${r.ok ? 'ok' : `FAIL: ${r.fails.join(', ')}`} | ${r.ask} | ${r.shape} | ${r.questions.join(' / ')} | ${r.swot ?? '-'} | ${r.stories ?? '-'} | ${r.bots} | ${(r.readMs / 1000).toFixed(1)} / ${(r.teamMs / 1000).toFixed(1)} s |`);
   }
   process.exit(passed === rows.length ? 0 : 1);
 })();

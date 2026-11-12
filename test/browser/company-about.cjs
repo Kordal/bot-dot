@@ -166,6 +166,40 @@ const SITE = { name: 'Fernhill', about: 'Project-management app for small agenci
     await page.locator('.co-review').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('.co-swot').count(), 0);
 
+    // Questions the Chief wrote (#1298): the next one written again from the answer before it, its title held until
+    // then; after the second the Chief may end them, and the ticks follow.
+    await srv.api('/company', { method: 'DELETE' });
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ name: 'Wedding', shape: 'goal', stories: false, swot: false, questions: [
+      { question: 'Where will it be?', label: 'Place', chips: ['Ghent', 'Abroad'] },
+      { question: 'How many guests?', label: 'Guests', chips: ['About 80'] },
+      { question: 'What is the budget?', label: 'Budget', chips: ['Under 20k'] },
+      { question: 'What should the bots book first?', label: 'First step', first: true },
+    ], goal: ['A calm day'], never: ['Pay a deposit'] }));
+    await srv.api('/company', { method: 'POST', body: { start: 'Plan our wedding in June' } });
+    await page.reload();
+    await page.locator('.co-q h1', { hasText: 'Where will it be?' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.co-ticks i').count(), 6, 'four questions, the delivery date and the review');
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ question: 'Which country?', label: 'Country', chips: ['Italy', 'Portugal'] }));
+    await page.locator('[data-chip="Abroad"]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-q h1', { hasText: 'Which country?' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.co-q h1', { hasText: 'How many guests?' }).count(), 0, 'the draft is never shown once written again');
+    await page.locator('.co-chip.co-prev', { hasText: 'Abroad' }).waitFor();
+    await shot(page, 'wide-written-question');
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ question: 'How many guests travel?', label: 'Guests', chips: ['About 40'] }));
+    await page.locator('[data-chip="Italy"]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-q h1', { hasText: 'How many guests travel?' }).waitFor({ timeout: 20000 });
+    fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify({ done: true }));
+    await page.locator('[data-chip="About 40"]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-q h1', { hasText: 'When should it be delivered?' }).waitFor({ timeout: 20000 });
+    assert.equal(await page.locator('.co-ticks i').count(), 5, 'the Chief ended the questions after the third');
+    await page.locator('[data-delivery-none]').click();
+    await page.locator('[data-done]').click();
+    await page.locator('.co-review').waitFor();
+    assert.deepEqual(await page.locator('.co-li .co-li-k').allInnerTexts().then((l) => l.slice(0, 3)), ['Place', 'Country', 'Guests']);
+
     // A site: the Chief's cards, its open question highlighted until answered.
     await srv.api('/company', { method: 'DELETE' });
     fs.writeFileSync(path.join(srv.out, 'company.txt'), JSON.stringify(SITE));

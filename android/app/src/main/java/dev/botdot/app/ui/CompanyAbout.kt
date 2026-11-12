@@ -213,6 +213,15 @@ private fun SkeletonChips() {
     }
 }
 
+/** Where a question's title will be while the Chief writes it (#1298). */
+@Composable
+private fun SkeletonTitle() {
+    val p = LocalPaper.current
+    val pulse = rememberInfiniteTransition(label = "skeleton-title")
+    val alpha by pulse.animateFloat(0.5f, 1f, infiniteRepeatable(tween(Motion.SLOW * 3), RepeatMode.Reverse), label = "alpha")
+    Box(Modifier.alpha(alpha).semantics { contentDescription = tr("Working") }.fillMaxWidth(0.8f).height(32.dp).clip(Radius.small).background(p.raise2))
+}
+
 /** A question's foot: Skip quiet on the left, Next on the right. */
 @Composable
 private fun NextFoot(enabled: Boolean, onSkip: () -> Unit, onNext: () -> Unit) =
@@ -237,7 +246,8 @@ private fun Question(ui: CompanyUi, c: Company, i: Int) {
     StepPage({ NextFoot(picked.isNotEmpty(), onSkip = { answer("") }) { answer(picked.joinToString(CompanySetup.SEP)) } }) {
         Ticks(c, AboutScreen.Question(i))
         CompanySetup.previous(c, key)?.let { Previous(it) }
-        CoTitle(ideaQuestion(c, key))
+        // A question the Chief wrote is held until it is written again from the answers before it (#1298).
+        if (waiting && CompanySetup.questionScreen(c, key)?.draft == true) SkeletonTitle() else CoTitle(ideaQuestion(c, key))
         if (waiting) SkeletonChips()
         ChipQuestion(ui, key, if (waiting) emptyList() else a.chips.orEmpty(), picked, multi = true) { ui.picked[key] = it }
     }

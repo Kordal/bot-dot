@@ -263,7 +263,7 @@ data class SourceDraft(val id: String, val kind: String, val name: String, val u
  * [swot]).
  */
 @Serializable
-data class SetupScreen(val screen: String, val key: String? = null, val question: String? = null, val label: String? = null, val basis: String? = null, val swot: Boolean = false)
+data class SetupScreen(val screen: String, val key: String? = null, val question: String? = null, val label: String? = null, val basis: String? = null, val swot: Boolean = false, val draft: Boolean = false)
 
 /** Where a new idea's setup stands on the About step: one of its questions, the stories, the delivery date or the review. */
 sealed interface AboutScreen {

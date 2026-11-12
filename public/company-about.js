@@ -210,7 +210,7 @@
     const waiting = refresh(key, a.basis !== basis, basis);
     const picked = local[key] || split(a.answer);
     const before = i > 0 && list[i - 1].screen === 'question' ? card(c, list[i - 1].key)?.answer : '';
-    body.innerHTML = `<div class="co-q">${before ? `<div class="co-chips"><span class="co-chip co-prev">${ICON.check}<span>${esc(before)}</span></span></div>` : ''}<h1>${esc(said(list[i])[0])}</h1>
+    body.innerHTML = `<div class="co-q">${before ? `<div class="co-chips"><span class="co-chip co-prev">${ICON.check}<span>${esc(before)}</span></span></div>` : ''}${waiting && list[i].draft ? '<h1 aria-busy="true"><span class="co-title sk" aria-hidden="true"></span></h1>' : `<h1>${esc(said(list[i])[0])}</h1>`}
       ${chipsHTML(key, a.chips || [], picked, { waiting })}
     </div>${foot(backBtn(i === 0), nextBtns(picked.length))}`;
     wireChips(body, key, picked, (list) => { local[key] = list; Company.redraw(); }, { multi: true });
