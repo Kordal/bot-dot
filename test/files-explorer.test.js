@@ -190,7 +190,7 @@ test('the computer scripts copy, move, pack and unpack inside their folders, nev
   assert.equal(sh(W.carryScript(a, 'proj', a, 'out')), 'link');
   assert.equal(sh(W.packScript(a, 'out')), 'link');
   const got = tar.unpack(W.computerPacked(sh(W.packScript(a, 'proj'))));
-  assert.deepEqual(got.filter((e) => e.type === 'file').map((e) => [e.name, String(e.data)]), [['proj/proj (2)/sub/f', 'hi'], ['proj/sub/f', 'hi']]);
+  assert.deepEqual(got.filter((e) => e.type === 'file').map((e) => [e.name, String(e.data)]).sort(), [['proj/proj (2)/sub/f', 'hi'], ['proj/sub/f', 'hi']]); // tar order follows the disk's readdir order
   assert.equal(sh(W.packScript(a, 'proj', 10)), 'too-large');
   fs.symlinkSync('f', path.join(a, 'proj', 'sub', 'l'));
   assert.equal(sh(W.packScript(a, 'proj', undefined, { move: true })), 'has-links', 'a move would lose the link');
