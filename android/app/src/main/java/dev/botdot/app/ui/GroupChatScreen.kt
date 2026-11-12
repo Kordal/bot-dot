@@ -72,6 +72,7 @@ import dev.botdot.app.data.ReplyDraft
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.Unread
+import dev.botdot.app.data.AskedBot
 import dev.botdot.app.data.announces
 import dev.botdot.app.data.groupKey
 import dev.botdot.app.data.hasGroupAll
@@ -621,6 +622,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Text(bot?.name ?: r.botName.ifBlank { tr("A bot") }, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
+            r.asked.orEmpty().filter { it.text.isNotBlank() }.forEach { AskedFold(it) }
             when (r.status) {
                 "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
@@ -641,6 +643,37 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
                 Questions(r.questions, onAnswer)
             }
         }
+    }
+}
+
+/**
+ * A bot outside the group this turn asked (ADR 219): one folded line, "Asked Mail Steward" with its small head and the
+ * first words of its answer, that opens to the question and the answer. An ask with no answer yet opens to its question.
+ */
+@Composable
+private fun AskedFold(a: AskedBot) {
+    val p = LocalPaper.current
+    var open by remember(a.id, a.at) { mutableStateOf(false) }
+    val who = named(LocalMentions.current?.bot(a.id), a.name, a.color)
+    val line = androidx.compose.ui.text.buildAnnotatedString {
+        append(tr("Asked") + " ")
+        bot(who)
+        append(if (open) " ⌄" else " ›")
+        val peek = foldPeek(a.reply ?: a.text)
+        if (!open && peek.isNotEmpty()) pushStyle(androidx.compose.ui.text.SpanStyle(color = p.faint)).also { append("  $peek"); pop() }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        FigureText(line, color = p.muted, fontSize = Type.s14, maxLines = 1,
+            modifier = Modifier.clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
+        Unfold(open) { Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            Column(Modifier.raised(Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12)) { MarkdownText(a.text) }
+            a.reply?.takeIf { it.isNotBlank() }?.let { reply ->
+                Column(Modifier.raised(Radius.mine).padding(horizontal = Space.s16, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    FigureText(androidx.compose.ui.text.buildAnnotatedString { bot(who) }, color = p.muted, fontSize = Type.s12, maxLines = 1)
+                    MarkdownText(reply)
+                }
+            }
+        } }
     }
 }
 
