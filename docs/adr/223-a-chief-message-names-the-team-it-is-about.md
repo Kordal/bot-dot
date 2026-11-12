@@ -1,4 +1,4 @@
-# ADR-222: A Chief message names the team it is about
+# ADR-223: A Chief message names the team it is about
 
 - **Status:** Accepted (2026-11-12, the owner picked option A of the mockups, with the project's name in the Chief's other chats)
 - **Builds on:** [ADR 217](217-a-projects-own-chief-chat-is-its-project-manager.md) (the Project Manager), [ADR 211](211-a-bot-asks-in-one-place-at-a-time.md)

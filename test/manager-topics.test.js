@@ -1,4 +1,4 @@
-// What a Chief message is about (ADR 222): a team's answer told to the Project Manager, and a reply that wrote to
+// What a Chief message is about (ADR 223): a team's answer told to the Project Manager, and a reply that wrote to
 // one team, carry that team (and its project, outside the project's own chat), for the apps to draw above it. Against
 // a real botdot server and the stand-in for Claude.
 process.env.BOT_DOT_RUNS_MAX = '1';

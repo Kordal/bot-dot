@@ -602,7 +602,7 @@ const reportBubble = (m, at = null) => `
   </div></div>`;
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
-// What a message is about (ADR 222): its team, in the team's colour, and the project before it where the server
+// What a message is about (ADR 223): its team, in the team's colour, and the project before it where the server
 // names one (a chat that is not the project's own). A tap opens the team's chat.
 function aboutHTML(m) {
   const t = m?.about?.team;

@@ -79,7 +79,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val botsNow by app.store.bots.value.collectAsState()
     val bots = botsNow.orEmpty()
     val groupsNow by app.store.groups.value.collectAsState()
-    // A message's team (ADR 222): its name opens the team's chat.
+    // A message's team (ADR 223): its name opens the team's chat.
     val openTeam = { teamId: String -> groupsNow.orEmpty().firstOrNull { it.team == teamId }?.let { onGroup(it.id) }; Unit }
     val server by app.store.version.value.collectAsState() // its features: whether it rates unasked messages
     val features = server?.features
@@ -372,7 +372,7 @@ private fun Thumbs(rating: String?, onTap: (String) -> Unit) {
 const val PLAN_APPROVAL = "Approved. Go ahead."
 
 /** "Message from Fleet Doctor": the words, then the bot with its small mark. */
-/** What a message is about (ADR 222): the team in its colour, the project before it where the server names one. */
+/** What a message is about (ADR 223): the team in its colour, the project before it where the server names one. */
 @Composable
 internal fun AboutLine(about: dev.botdot.app.data.MessageAbout, mine: Boolean, onTeam: (String) -> Unit) {
     val p = LocalPaper.current

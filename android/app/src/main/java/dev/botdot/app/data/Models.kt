@@ -596,7 +596,7 @@ data class ChiefOverview(
 @Serializable
 data class ChiefActivity(val tool: String = "", val text: String? = null)
 
-/** What a Chief message is about (ADR 222): its team, and its project where the chat is not that project's own. */
+/** What a Chief message is about (ADR 223): its team, and its project where the chat is not that project's own. */
 @Serializable
 data class MessageAbout(val team: AboutTeam? = null, val project: AboutProject? = null)
 
@@ -636,7 +636,7 @@ data class ChiefMessage(
     @SerialName("pages") val pagesValue: JsonElement? = null,
     // A Chief reply: the pages its bots saved in the task it handed them, each with its `botId` and `bot`. Read them through [botPages].
     @SerialName("botPages") val botPagesValue: JsonElement? = null,
-    val about: MessageAbout? = null, // the team it is about (ADR 222), drawn above it
+    val about: MessageAbout? = null, // the team it is about (ADR 223), drawn above it
 ) {
     /** The steps of its work, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)

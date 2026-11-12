@@ -1,4 +1,4 @@
-// What a Chief message is about, on the web page (ADR 222): the team in its colour above the message, the project
+// What a Chief message is about, on the web page (ADR 223): the team in its colour above the message, the project
 // before it when the server names one, nothing for a message about no team. `data/ChiefMessageTest` holds Android's side.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
