@@ -99,3 +99,41 @@ test('a link request root didn\'t make is refused', { skip: process.getuid?.() !
   assert.equal(status(done, 'sign-in-ann.json').error, 'Only root asks for this.');
   assert.equal(status(done, 'sign-up.json').state, 'refused');
 });
+
+// REVOKE-SIGN-UP-<account> (#1279): the front door revokes that account's open sign-up links; root keeps how many.
+const revoker = [
+  'case "$*" in *"front-door.js revoke-links --account "*"--by console"*)',
+  '  printf \'{"state":"revoked","account":"%s","count":2}\\n\' "${11}"; exit 0 ;;',
+  'esac',
+];
+const revokeAsked = (done) => done.docker.map((c) => c.call).filter((c) => c.includes('front-door.js revoke-links'));
+
+test('REVOKE-SIGN-UP-<account>: the account\'s open sign-up links revoked, how many in a status file of root\'s', (t) => {
+  const m = withBob(t);
+  const done = m.step('REVOKE-SIGN-UP-cleo', { dockerFirst: revoker });
+  assert.deepEqual(revokeAsked(done).map((c) => c.split(' exec -T ')[1]), ['front-door node front-door.js revoke-links --account cleo --by console']);
+  const said = status(done, 'revoke-sign-up-cleo.json');
+  assert.deepEqual(said, { at: said.at, state: 'revoked', account: 'cleo', count: 2 });
+  assert.match(said.at, /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+  assert.equal(fs.statSync(path.join(m.first.dir, 'front-door', 'status', 'revoke-sign-up-cleo.json')).mode & 0o777, 0o640);
+  assert.match(done.said, /The open sign-up links for cleo are revoked/);
+  assert.ok(!fs.existsSync(path.join(m.first.dir, 'accounts', 'REVOKE-SIGN-UP-cleo')), 'no account of the request');
+
+  const failed = m.step('REVOKE-SIGN-UP-cleo', { dockerFirst: ['case "$*" in *"front-door.js revoke-links"*) echo "service \\"front-door\\" is not running" >&2; exit 1 ;; esac'] });
+  assert.equal(status(failed, 'revoke-sign-up-cleo.json').state, 'failed');
+  assert.match(status(failed, 'revoke-sign-up-cleo.json').error, /^The front door revoked no link: service front-door is not running$/);
+
+  const bad = m.step('REVOKE-SIGN-UP-Bad_name', { dockerFirst: revoker });
+  assert.equal(revokeAsked(bad).length, 0);
+  assert.match(bad.said, /Not an account's name, so no sign-up link was revoked/);
+});
+
+test('a revoke request root didn\'t make is refused', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
+  const m = withBob(t);
+  const requests = path.join(m.first.dir, 'front-door', 'requests');
+  fs.writeFileSync(path.join(requests, 'REVOKE-SIGN-UP-cleo'), '');
+  fs.chownSync(path.join(requests, 'REVOKE-SIGN-UP-cleo'), 990, 990);
+  const done = m.step('bob', { dockerFirst: revoker });
+  assert.equal(revokeAsked(done).length, 0, 'the front door was asked for nothing');
+  assert.deepEqual({ ...status(done, 'revoke-sign-up-cleo.json'), at: 0 }, { state: 'refused', at: 0, account: 'cleo', error: 'Only root asks for this.' });
+});

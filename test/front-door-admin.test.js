@@ -112,8 +112,12 @@ test('a revoked link makes no account, and the list says it ended', async () => 
   assert.equal(revoked.status, 200, revoked.text);
   assert.equal(revoked.data.link.state, 'ended');
   assert.ok(revoked.data.link.revokedAt);
-  assert.equal((await door.browser().get(link.path)).status, 410);
-  assert.equal((await door.browser().post(`${link.path}/options`, { name: 'carl' })).status, 410);
+  const page = await door.browser().get(link.path);
+  assert.equal(page.status, 410);
+  assert.match(page.text, /This sign-up link was cancelled\. Ask for a new one\./, 'it says it was cancelled (#1279)');
+  const options = await door.browser().post(`${link.path}/options`, { name: 'carl' });
+  assert.equal(options.status, 410);
+  assert.equal(options.data.error, 'This sign-up link was cancelled. Ask for a new one.');
   const row = (await b.get('/admin/links')).data.links.find((l) => l.id === made.data.link.id);
   assert.equal(row.state, 'ended');
 
