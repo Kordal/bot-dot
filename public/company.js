@@ -377,7 +377,7 @@ const Company = (() => {
   const chiefHTML = () => {
     if (!(state.features || []).includes('project-chief') || !state.company) return '';
     const n = chiefWaiting(state.company);
-    const name = chiefTitle();
+    const name = (state.features || []).includes('project-manager') ? tr('Project Manager') : chiefTitle();
     return `<button type="button" class="icon-btn co-chief-btn" data-project-chief aria-label="${esc(name)}${n ? ` (${n})` : ''}" title="${esc(name)}">${chiefFigure('sm')}${n ? `<span class="co-chief-n">${n > 99 ? '99+' : n}</span>` : ''}</button>`;
   };
   // Tidy up (board-tidy): the project's Chief arranges the whole board, asked in its chat, which opens beside it.

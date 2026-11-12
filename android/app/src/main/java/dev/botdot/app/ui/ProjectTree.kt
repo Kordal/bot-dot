@@ -60,7 +60,7 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
         }
         if (c != null && features != null && ManyProjects.SETTINGS in features) RoundButton(Icons.Outlined.Settings, tr("Project settings"), Modifier.padding(start = Space.s4)) { ui.settingsOpen = true }
         if (c != null && c.phase == "running" && features != null && ManyProjects.TIDY in features && ways.onChiefChat != null) TidyButton(ui, ways.onChiefChat, Modifier.padding(start = Space.s4))
-        if (c != null && features != null && ManyProjects.CHIEF in features && ways.onChiefChat != null) ProjectChiefButton(ui, c, ways.onChiefChat, Modifier.padding(start = Space.s4))
+        if (c != null && features != null && ManyProjects.CHIEF in features && ways.onChiefChat != null) ProjectChiefButton(ui, c, ways.onChiefChat, ManyProjects.MANAGER in features, Modifier.padding(start = Space.s4))
         after()
     }
 }
@@ -84,7 +84,7 @@ private fun TidyButton(ui: CompanyUi, open: (String) -> Unit, modifier: Modifier
  * number is what waits for the owner there, its unread replies and the Chief's cards asked in it.
  */
 @Composable
-private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit, manager: Boolean, modifier: Modifier = Modifier) {
     val p = LocalPaper.current
     val chief by ui.app.store.chief.value.collectAsState()
     val needs by ui.app.store.needs.value.collectAsState()
@@ -92,7 +92,7 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     var busy by remember { mutableStateOf(false) }
     val id = c.chiefChat
     val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
-    val name = LocalChiefName.current
+    val name = if (manager) tr("Project Manager") else LocalChiefName.current
     val tap = {
         val a = api
         if (id != null) open(id)

@@ -23,6 +23,8 @@ object ManyProjects {
     const val SETTINGS = "project-settings"
     /** The Chief's head beside the gear: the project's own Chief chat. */
     const val CHIEF = "project-chief"
+    /** The project's own Chief chat is its Project Manager, who writes in every team's chat (ADR 217). */
+    const val MANAGER = "project-manager"
     /** Tidy up beside the gear: the project's Chief arranges the whole board, asked in its chat. */
     const val TIDY = "board-tidy"
     const val FOLDER = "project-folder"

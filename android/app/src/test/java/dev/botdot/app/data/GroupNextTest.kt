@@ -81,4 +81,10 @@ class GroupNextTest {
         assertEquals(listOf("writer", "coder"), Groups.heads(listOf("writer", "gone", "coder"), bots).map { it.id })
         assertEquals(emptyList<Bot>(), Groups.heads(emptyList(), bots))
     }
+
+    @Test fun theProjectManagersMessageIsTheChiefsAndNoOtherIs() {
+        assertEquals(true, message("m1", "[]", ",\"by\":\"chief\"").byChief)
+        assertEquals(false, message("m2", "[]").byChief)
+        assertEquals(false, message("m3", "[]", ",\"by\":\"owner\"").byChief)
+    }
 }

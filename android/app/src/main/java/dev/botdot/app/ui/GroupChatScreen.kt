@@ -54,6 +54,7 @@ import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.Attachment
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.DocumentView
+import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.GroupAsks
 import dev.botdot.app.data.GroupChatItems
 import dev.botdot.app.data.GroupItem
@@ -502,7 +503,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                         }
                                     }
                                 }
-                                MyBubble(x.message.text, x.message.attachments)
+                                if (x.message.byChief) ManagerMessage(x.message) else MyBubble(x.message.text, x.message.attachments)
                                 // Its first turns went, and it still waits for a busy member: for whom.
                                 waitsLine(x.message, bots).let { if (it.isNotEmpty()) Text(it, color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4, end = Space.s8)) }
                             }
@@ -548,6 +549,19 @@ private fun FoldRow(f: Groups.Fold, bots: List<Bot>, onToggle: () -> Unit) {
         Text(if (f.open) "\u25BE" else "\u25B8", color = p.muted, fontSize = Type.s12)
         who.forEach { r -> val b = bots.firstOrNull { it.id == r.botId }; SmallFigure(b?.color ?: r.botColor, b?.outfit, 14.dp) }
         Text("${namesList(who.map { r -> memberName(bots, r.botId).ifBlank { r.botName } })} · ${f.runs.size}", color = p.muted, fontSize = Type.s12)
+    }
+}
+
+/** The Project Manager's message in a team's chat (ADR 217): the Chief's head and name, on the bots' side (web: groupMessageHTML). */
+@Composable
+private fun ManagerMessage(m: GroupMessage) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Box(Modifier.padding(top = Space.s16)) { BotFigure(CHIEF_COLOR, "idle", 28, FigureDef.CHIEF) }
+        Spacer(Modifier.size(6.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+            Text(tr("Project Manager"), color = parseColor(CHIEF_COLOR, LocalPaper.current.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
+            TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
+        }
     }
 }
 
