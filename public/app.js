@@ -378,9 +378,10 @@ const answerKey = (of, c) => {
 const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length && !(of && answered.get(of) === 'sent')
   ? `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${of && answered.get(of) === 'sending' ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}</div>`
   : '');
-// Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question.
-const questionsHTML = (questions) => (questions?.length
-  ? `<div class="ask-card card">${questions.map((q) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea></label>`).join('')}<button class="btn primary sm" disabled>${tr('Send')}</button></div>`
+// Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question, and under a box
+// the question's choices (`picks`, the reply's questionChoices), each a button that fills it.
+const questionsHTML = (questions, picks) => (questions?.length
+  ? `<div class="ask-card card">${questions.map((q, i) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea>${picks?.[i]?.length ? `<span class="ask-picks">${picks[i].map((c) => `<button type="button" class="btn" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</span>` : ''}</label>`).join('')}<button class="btn primary sm" data-send disabled>${tr('Send')}</button></div>`
   : '');
 // send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
@@ -408,9 +409,16 @@ function wireChoices(root, send) {
   });
   $$('.ask-card', root).forEach((card) => {
     const boxes = $$('textarea', card);
-    const btn = $('button', card);
+    const btn = $('[data-send]', card);
     boxes.forEach((ta, i) => {
-      ta.oninput = () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + ta.offsetHeight - ta.clientHeight, 200) + 'px'; btn.disabled = !boxes.some((b) => b.value.trim()); };
+      const picks = $$('[data-pick]', ta.closest('label'));
+      ta.oninput = () => {
+        ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + ta.offsetHeight - ta.clientHeight, 200) + 'px';
+        btn.disabled = !boxes.some((b) => b.value.trim());
+        picks.forEach((p) => p.classList.toggle('on', p.dataset.pick === ta.value.trim())); // the one the box says
+      };
+      // A choice fills the box; typed over, the answer is the owner's own.
+      picks.forEach((p) => (p.onclick = (e) => { e.preventDefault(); ta.value = p.dataset.pick; ta.oninput(); }));
       // Enter goes to the next box, and sends from the last one (Shift+Enter: a new line). On a phone it's a new line.
       ta.onkeydown = (e) => {
         if (e.key !== 'Enter' || e.shiftKey || e.isComposing || matchMedia('(pointer: coarse)').matches) return;

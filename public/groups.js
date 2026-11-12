@@ -532,7 +532,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${globalThis.Plan && r.plan ? Plan.replyHTML(r.plan) : ''}</div>
       ${learnedChips(r)}
       <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
-      ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions) : ''}
+      ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}
     </div></div>`;
 }
 // The bots outside the group a turn asked (`asked`, ADR 219): one folded line each, opening to the question and what

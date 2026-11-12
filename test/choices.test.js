@@ -1,7 +1,7 @@
 // Answer buttons (lib/choices.js): [[choices: …]] leaves the text and becomes buttons.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { split, NOTE } = require('../lib/choices');
+const { split, NOTE, asText } = require('../lib/choices');
 const { startServer, makeBot, feed } = require('./helpers');
 
 test('split takes the last line off and returns its choices', () => {
@@ -47,12 +47,43 @@ test('[[ask: …]] lines with text after them still become a card', () => {
     text: 'Here is what I found:\n\n- **New address:** the admin box has a new address.\n- **Server A:** stopped since Friday; I did not touch it.\n\nI saved the new address and the state of server A.',
     choices: null,
     questions: ['Should I start the service on server A and enable it at boot, or did someone stop it on purpose?', 'Should I set up the app on server B now, before you add the DNS record and the API key?'],
+    questionChoices: [null, ['Yes', 'No']], // the either-or gets none, the plain yes / no its Yes and No
   });
   assert.deepEqual(split('Hm.\n[[ask: A?]]\nNoted.\n[[ask: B?]]'), { text: 'Hm.\n\nNoted.', choices: null, questions: ['A?', 'B?'] }, 'apart, too');
   assert.deepEqual(split('Hm.\n[[ask: Send it?]]\nNoted.'), { text: 'Hm.\n\nSend it?\n\nNoted.', choices: null, questions: null }, 'one question stays text where it was');
   for (const t of ['Hm.\n[[ask: A?]]\n[[ask: B?]]\nNoted.', 'See [[ask: this?]] here.', '[[ask: A?]]\n\nok']) {
     assert.doesNotMatch(split(t).text, /\[\[\s*ask/i, `no raw marker in ${JSON.stringify(t)}`);
   }
+});
+
+test('a choices marker at the end of its question\'s line becomes buttons, and its words stay', () => {
+  assert.deepEqual(
+    split('Czy mam ustawić przekierowanie www na botdot.app? [[choices: Tak, przekieruj | Nie, zostaw]]\n\nUsunąłem stare wpisy.'),
+    { text: 'Czy mam ustawić przekierowanie www na botdot.app?\n\nUsunąłem stare wpisy.', choices: ['Tak, przekieruj', 'Nie, zostaw'], questions: null },
+  );
+  assert.deepEqual(split('Send it? [[choices: Yes | No]]'), { text: 'Send it?', choices: ['Yes', 'No'], questions: null });
+});
+
+test('a question of the card has its own choices, and a plain yes / no one gets Yes and No in its language', () => {
+  const r = split('Two decisions.\n[[ask: Przekierować www.botdot.app na botdot.app? (polecam tak) | Tak | Nie]]\n[[ask: Czy zgadzasz się na płatności na żywo?]]\n[[ask: Which account?]]\n[[ask: Should I send it now or tomorrow?]]');
+  assert.deepEqual(r.questions, ['Przekierować www.botdot.app na botdot.app? (polecam tak)', 'Czy zgadzasz się na płatności na żywo?', 'Which account?', 'Should I send it now or tomorrow?']);
+  assert.deepEqual(r.questionChoices, [['Tak', 'Nie'], ['Tak', 'Nie'], null, null]);
+  assert.deepEqual(split('[[ask: Soll ich es senden?]]\n[[ask: Do you want a copy? (recommended)]]').questionChoices, [['Ja', 'Nein'], ['Yes', 'No']]);
+  assert.deepEqual(split('[[ask: Czy wolisz A czy B?]]\n[[ask: Czy to jutro albo w piątek?]]'), { text: '', choices: null, questions: ['Czy wolisz A czy B?', 'Czy to jutro albo w piątek?'] }, 'an either-or gets no buttons');
+  assert.deepEqual(split('[[ask: Which one? | A | B | C]]\n[[ask: Who?]]').questionChoices, [['A', 'B', 'C'], null]);
+  assert.equal(split('Hm.\n[[ask: Send it? | Yes | No]]').text, 'Hm.\n\nSend it?', 'one question stays text, without its choices');
+  assert.match(asText(r), /- Czy zgadzasz się na płatności na żywo\? \(Tak \| Nie\)/, 'the Chief reads them too');
+  assert.match(NOTE, /\[\[ask: Przekierować www\? \| Tak \| Nie\]\]/, 'bots are told how to give them');
+});
+
+test('a new card takes the choices of the old one off', () => {
+  const { ask } = require('../lib/choices');
+  const run = ask({}, split('[[ask: Send it?]]\n[[ask: Should I copy Ann?]]'));
+  assert.deepEqual(run.questionChoices, [null, ['Yes', 'No']]);
+  ask(run, split('[[ask: Which account?]]\n[[ask: Who?]]'));
+  assert.deepEqual(run, { questions: ['Which account?', 'Who?'] });
+  ask(run, { questions: null });
+  assert.deepEqual(run.questions, ['Which account?', 'Who?'], 'no card leaves the one there');
 });
 
 let srv;

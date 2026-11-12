@@ -377,7 +377,9 @@ a.more-btn { text-decoration: none; }
 .ask-card { display: flex; flex-direction: column; gap: var(--sp-12); width: min(100%, 440px); margin: var(--sp-12) 0 0; padding: var(--sp-16); box-sizing: border-box; }
 .ask-card label { display: flex; flex-direction: column; gap: var(--sp-4); font-size: var(--fs-14); }
 .ask-card textarea { resize: none; min-height: 0; max-height: 200px; line-height: 1.45; }
-.ask-card .btn { align-self: flex-end; }
+.ask-card > .btn { align-self: flex-end; }
+.ask-picks { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.ask-picks .btn.on { background: var(--ink); color: var(--ink-text); border-color: var(--ink); }
 .stack.mine { align-items: flex-end; max-width: 76%; }
 .stack.mine > .bubble.from-me { max-width: 100%; }
 .bubble-meta .copy-btn { display: inline-flex; padding: var(--sp-4); border-radius: var(--r-8); color: var(--faint); }

@@ -643,7 +643,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             RunScreenshots(r)
             if (asks && r.status == "success") {
                 Choices(r.choices, r.yes, color, onAnswer)
-                Questions(r.questions, onAnswer)
+                Questions(r.questions, r.questionChoices, onAnswer)
             }
         }
     }

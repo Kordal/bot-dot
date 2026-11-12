@@ -240,7 +240,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
-        ${(r.id === bot.asks?.runId || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions) : ''}
+        ${(r.id === bot.asks?.runId || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }

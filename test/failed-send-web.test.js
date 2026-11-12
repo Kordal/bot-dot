@@ -241,14 +241,17 @@ function answers(send) {
   const row = element();
   const buttons = ['Yes', 'No'].map((c) => element({}, { dataset: { choice: c }, closest: () => row }));
   row.querySelectorAll = () => buttons;
-  const boxes = ['Which inbox?', 'From when?'].map((q) => element({}, { dataset: { q }, value: '', offsetHeight: 0, clientHeight: 0, scrollHeight: 0 }));
+  // The second question has its choices under its box (questionsHTML's picks).
+  const picks = ['Today', 'This week'].map((c) => element({}, { dataset: { pick: c } }));
+  const labels = [element(), element({ '[data-pick]': picks })];
+  const boxes = ['Which inbox?', 'From when?'].map((q, i) => element({}, { dataset: { q }, value: '', offsetHeight: 0, clientHeight: 0, scrollHeight: 0, closest: () => labels[i] }));
   const sendBtn = element({}, { disabled: true });
-  const card = element({ textarea: boxes, button: sendBtn });
+  const card = element({ textarea: boxes, '[data-send]': sendBtn });
   const thread = element({ '[data-choice]': buttons, '.ask-card': [card] });
   const ctx = vm.createContext({ ...words, ...finders(), Math, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
   vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('function wireChoices(root, send)', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
   ctx.wireChoices(thread, send);
-  return { row, buttons, card, boxes, sendBtn };
+  return { row, buttons, card, boxes, sendBtn, picks };
 }
 
 test('web: a quick answer goes only after its send went; after a send that failed the buttons are still there to use', async () => {
@@ -330,6 +333,31 @@ test('web: a question card keeps its answers until its send went', async () => {
   await a.sendBtn.onclick();
   assert.equal(a.card.removed, true);
   assert.equal(sent.length, 2);
+});
+
+test('web: a question\'s choice fills its box and is marked; typed over, the answer is the owner\'s own', async () => {
+  const sent = [];
+  const a = answers(async (t) => { sent.push(t); return true; });
+  a.picks[1].onclick({ preventDefault() {} });
+  assert.equal(a.boxes[1].value, 'This week');
+  assert.deepEqual(a.picks.map((p) => p.classList.contains('on')), [false, true]);
+  assert.equal(a.sendBtn.disabled, false);
+  a.boxes[1].value = 'This week, from Monday';
+  a.boxes[1].oninput();
+  assert.deepEqual(a.picks.map((p) => p.classList.contains('on')), [false, false]);
+  a.picks[0].onclick({ preventDefault() {} });
+  await a.sendBtn.onclick();
+  assert.deepEqual(sent, ['Which inbox?\n→ –\n\nFrom when?\n→ Today']);
+});
+
+test('web: questionsHTML draws a question\'s choices under its box, and none for a question without', () => {
+  const ctx = vm.createContext({ esc: (s) => String(s), tr: (s) => s });
+  vm.runInContext(`${cut('const questionsHTML = ', '// send(text, key) resolves')}\nthis.questionsHTML = questionsHTML;`, ctx);
+  const html = ctx.questionsHTML(['Send it?', 'To whom?'], [['Yes', 'No'], null]);
+  assert.equal((html.match(/data-pick=/g) || []).length, 2);
+  assert.match(html, /data-q="Send it\?"><\/textarea><span class="ask-picks"><button type="button" class="btn" data-pick="Yes">Yes<\/button>/);
+  assert.match(html, /data-q="To whom\?"><\/textarea><\/label>/);
+  assert.equal((ctx.questionsHTML(['A?', 'B?']).match(/data-pick=/g) || []).length, 0, 'a server before them sends none');
 });
 
 test('web: a send from outside the box shows the same line above that chat\'s box, and tells whether it went', async () => {
