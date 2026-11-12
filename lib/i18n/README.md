@@ -17,6 +17,7 @@ The same words as the What's new notes in `whats-new/pl/`. Informal "ty", lowerc
 | --- | --- |
 | bot | bot |
 | Chief of Staff / the Chief | Szef sztabu / Szef |
+| Project Manager | Kierownik projektu |
 | main assignment | główne zadanie |
 | task (a run's request) | zlecenie |
 | job / scheduled job | zadanie / zaplanowane zadanie |

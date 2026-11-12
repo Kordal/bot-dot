@@ -1595,3 +1595,13 @@ test("web: a team's answer folds the members' replies before it under one row of
   assert.equal(p.ctx.groupFolded([message('m1', 'Hi', { answer: 'gone' }), mine('r1', WRITER, 'Hi.', 2)]).size, 0);
   assert.match(css, /\.g-fold\[aria-expanded="true"\]::before \{ transform: rotate\(90deg\); \}/);
 });
+
+test("web: the Project Manager's message in a team's chat has the Chief's head and its name, on the bots' side, and is never taken back (ADR 217)", () => {
+  const p = page();
+  const pm = message('m9', 'Launch needs the post by Friday.', { by: 'chief', canTakeBack: true, waitsFor: ['coder'], next: ['coder'] });
+  const c = p.chat([pm], { working: [{ botId: 'coder', runId: 'r5', startedAt: at(2) }] });
+  const rows = p.ctx.groupThreadHTML(p.group(), c);
+  assert.match(rows, /<div class="bubble-row from-bot g-row" data-gmsg="m9">\s*<div class="avatar head g-head" data-st="idle" data-c="#d85a30"><\/div>\s*<div class="stack">\s*<div class="g-name" style="--c:#d85a30">Project Manager<\/div>\s*<div class="bubble from-bot" data-expand><div class="clamp">Launch needs the post by Friday\.<\/div><\/div>/);
+  assert.doesNotMatch(rows, /from-me/);
+  assert.doesNotMatch(p.ctx.groupTailHTML(p.group(), c), /data-take-back/);
+});

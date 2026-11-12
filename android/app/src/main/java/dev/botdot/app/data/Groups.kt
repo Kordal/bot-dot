@@ -136,12 +136,13 @@ data class GroupLimit(val text: String, val messages: List<String> = emptyList()
  * they are working. [next]: those whose turn has not come. [canTakeBack]: none of its turns has started.
  * [answer]: the reply that is its team's one answer (ADR 201): the members' replies before it are folded under it.
  * [question]: the member's question it answers with one of its buttons (docs/api.md, "question").
+ * [byChief]: the Project Manager wrote it, not the owner (ADR 217): drawn with the Chief's head, never taken back.
  */
 data class GroupMessage(
     val id: String, val text: String, val at: String, val attachments: List<Attachment> = emptyList(),
     val to: List<String> = emptyList(), val waitsFor: List<String> = emptyList(), val next: List<String> = emptyList(),
     val canTakeBack: Boolean = false, val atLimit: Boolean = false, val stopped: Boolean = false, val answer: String? = null,
-    val question: GroupQuestion? = null,
+    val question: GroupQuestion? = null, val byChief: Boolean = false,
 ) {
     companion object {
         /** A message as the server sent it; null without an id: it cannot be taken back, or told from the next. */
@@ -150,7 +151,7 @@ data class GroupMessage(
             return GroupMessage(
                 o["id"].textOrNull() ?: return null, o["text"].whole(), o["at"].textOrNull().orEmpty(), Queued.attachments(o["attachments"]),
                 texts(o["to"]), texts(o["waitsFor"]), texts(o["next"]), isTrue(o["canTakeBack"]), isTrue(o["atLimit"]), isTrue(o["stopped"]),
-                o["answer"].textOrNull(), GroupQuestion.of(o["question"]),
+                o["answer"].textOrNull(), GroupQuestion.of(o["question"]), o["by"].textOrNull() == "chief",
             )
         }
     }

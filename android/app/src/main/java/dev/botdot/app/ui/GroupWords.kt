@@ -76,7 +76,7 @@ internal val WAITS_FOR_SIGN_IN: String get() = tr("Waits until Claude is signed 
  * A message none of whose turns has started, and that waits: for a busy member, or for Claude to be signed in. It is
  * drawn at the end of the chat, faded, with "Take back", as a waiting message in a bot's chat is.
  */
-internal fun waitsWhole(m: GroupMessage, bots: List<Bot>, signedOut: Boolean): Boolean = m.canTakeBack && (waitsLine(m, bots).isNotEmpty() || signedOut)
+internal fun waitsWhole(m: GroupMessage, bots: List<Bot>, signedOut: Boolean): Boolean = !m.byChief && m.canTakeBack && (waitsLine(m, bots).isNotEmpty() || signedOut)
 
 /** What stands under a message that waits whole. */
 internal fun waitsWords(m: GroupMessage, bots: List<Bot>): String = waitsLine(m, bots).ifEmpty { WAITS_FOR_SIGN_IN }

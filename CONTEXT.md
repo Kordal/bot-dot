@@ -110,6 +110,10 @@ _Avoid_: uploads, attachments (in what the user reads)
 A space of its own beside Home, opened from its square in the rail (the switch "Bots | Projects" in a narrow window): what the user works on (a site or an idea), its 90-day goal and objectives, and its bots in teams that each have exactly one lead ([ADR 110](docs/adr/110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)). The code and the API still call it the company (`/api/company`, feature `company`). Not a group, which is a chat, and not a category, which is a folder of the list.
 _Avoid_: company, firm (in what the user reads)
 
+**Project Manager**:
+The Chief of Staff in a project's own chat, opened from its head beside the project's gear: the user talks to the whole project there, and it writes in each team's chat, reads them, and reports each team's answer back ([ADR 217](docs/adr/217-a-projects-own-chief-chat-is-its-project-manager.md)). Not a bot of its own and no member of a team. Its message in a team's chat is never the user's word.
+_Avoid_: PM, coordinator
+
 **Space**:
 Home or one project: what the page shows at a time, each with its board, its Needs you, its keys and one chat on the right ([ADR 132](docs/adr/132-home-and-projects-are-spaces-of-one-view.md)). A wide window moves between them with the rail on the left. Not a page of the keypad, and not a place (the old word for Bots and Projects).
 _Avoid_: workspace, tab, place (for a space)
