@@ -165,11 +165,16 @@ test('two members the router picks answer to the lead, and the lead writes the t
   assert.ok(keptOf(g, sent.data.id).turns.find((t) => t.runId === m.answer).closing);
   const first = ranOf(srv, writer).at(-2).system;
   assert.match(first, /You speak to the team's lead, not to the owner/);
+  // The owner reads the team's chat (ADR 218): a member asks the owner itself, never through the lead.
+  assert.match(first, /ask the owner yourself, at the end of your reply, as one recommendation and one yes or no question\. Never ask the lead or another member to ask the owner for you\./);
+  assert.match(first, /never to have it ask the owner something for you/);
+  assert.doesNotMatch(first, /goes to the lead, which asks/);
   assert.doesNotMatch(first, /The owner reads every member's reply/);
   assert.match(ranOf(srv, poster).at(-1).system, /name that member with the fact, so that it corrects its own part: never correct it for the owner/);
   const closing = ranOf(srv, lead).at(-1).system;
   assert.match(closing, /Write the team's one answer to the owner/);
   assert.match(closing, /never hand the owner options the team can choose between/);
+  assert.match(closing, /A member that asked the owner in its reply has asked already: never ask it again/);
   assert.match(closing, /Decide as a team what is technical, can be undone and costs nothing/);
   assert.doesNotMatch(closing, /reply with the single word PASS/);
   lastWord(null);
