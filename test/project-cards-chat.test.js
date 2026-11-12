@@ -1,6 +1,7 @@
 // A card on a project's board is changed from a chat (#907): a bot of the project's team sees the board's cards in
 // its prompt, lists them and changes one by its title; the Chief changes one with its tool. The change keeps what the
-// card was asked from. A bot or the Chief removes a card or a goal only in a turn the owner started.
+// card was asked from. A bot of the project and the Chief add a card from a chat; they remove a card or a goal only in
+// a turn the owner started.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
@@ -25,7 +26,7 @@ const cardNow = async (id) => (await srv.api('/company')).data.company.cards.fin
 
 test("a bot of the project sees the board's cards, and changes the one the owner names, keeping what it was asked from", async (t) => {
   const { rec, token } = await heldRun(srv, a, 'Add a graph to the Buildr card');
-  assert.match(rec.system, /The project's board has these cards: c1 "Buildr Open Issues", c2 "Customer calls"\. When the owner asks to change one, change it with change_project_card, and to remove one, remove_project_card/);
+  assert.match(rec.system, /The project's board has these cards: c1 "Buildr Open Issues", c2 "Customer calls"\. Add a card with add_project_card; when the owner asks to change one, change it with change_project_card, and to remove one, remove_project_card/);
   assert.match(rec.system, /The project's goals, the tiles at the top of its board: o1 "Grokbot bots migrated" \(0 of 50\), o2 "Open-source installs" \(3 of 200\), o3 "Hosted plans renewed" \(0 of 10\)\. When the owner asks to remove one, remove it with remove_project_goal\./);
   let r = (await self(srv, token, 'cards', { action: 'list' })).data;
   assert.match(r.text, /^card c1 "Buildr Open Issues"[\s\S]*\ncard c2 "Customer calls"/);
@@ -42,8 +43,21 @@ test("a bot of the project sees the board's cards, and changes the one the owner
   const stored = require('../lib/jsonfile').readJson(path.join(srv.data, 'project-cards.json'), {})[pid].find((x) => x.id === 'c1');
   assert.deepEqual(stored.earlier, [{ ask: 'Open issues of Buildr', answers: [{ q: 'Which repository?', a: 'kordal/buildr' }] }]);
   const tools = rpcClient(t, 'self-mcp.js', rec.self.env);
-  assert.deepEqual((await tools.request('tools/list')).tools.map((x) => x.name).filter((n) => /project_card/.test(n)), ['list_project_cards', 'change_project_card', 'remove_project_card']);
+  assert.deepEqual((await tools.request('tools/list')).tools.map((x) => x.name).filter((n) => /project_card/.test(n)), ['list_project_cards', 'add_project_card', 'change_project_card', 'remove_project_card']);
   assert.ok((await tools.request('tools/list')).tools.some((x) => x.name === 'remove_project_goal'));
+  srv.unhold();
+});
+
+test('a bot of the project adds a card, which asks its questions on the board', async () => {
+  const { token } = await heldRun(srv, a, 'Put the open PRs of kordal/buildr on the board');
+  let r = (await self(srv, token, 'cards', { action: 'add', ask: '  ' })).data;
+  assert.equal(r.ok, false, 'an add says what');
+  r = (await self(srv, token, 'cards', { action: 'add', ask: 'Open PRs of kordal/buildr' })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.text, /^Added card \w+ "Open PRs of kordal\/buildr" \(waits for the owner.s answers[^)]*\) to the board/);
+  const added = (await srv.api('/company')).data.company.cards.find((c) => c.ask === 'Open PRs of kordal/buildr');
+  assert.equal(added.state, 'asking');
+  writeData(path.join(srv.data, 'project-cards.json'), { [pid]: require('../lib/jsonfile').readJson(path.join(srv.data, 'project-cards.json'), {})[pid].filter((c) => c.id !== added.id) });
   srv.unhold();
 });
 
@@ -85,13 +99,18 @@ test('a run the owner did not start removes nothing', async () => {
   await srv.api(`/bots/${a.id}/jobs/${job.id}`, { method: 'DELETE' });
 });
 
-test('the Chief changes a card by its title; outside a turn the owner started it adds and removes nothing', async () => {
+test('the Chief adds a card and changes one by its title; outside a turn the owner started it removes nothing', async () => {
   const r = await srv.asChief('/company/cards/customer%20calls', { method: 'PUT', body: { ask: 'only this month' } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal((await cardNow('c2')).ask, 'only this month');
   assert.equal((await srv.asChief('/company/cards/c2', { method: 'DELETE' })).status, 403, 'no turn of the owner goes');
   assert.equal((await srv.asChief('/company/objectives/o2', { method: 'DELETE' })).status, 403);
-  assert.equal((await srv.asChief('/company/cards', { method: 'POST', body: { ask: 'New one' } })).status, 403);
+  const made = await srv.asChief('/company/cards', { method: 'POST', body: { ask: 'Signups this week' } });
+  assert.equal(made.status, 201, JSON.stringify(made.data));
+  const added = made.data.cards.find((c) => c.ask === 'Signups this week');
+  assert.equal(added.state, 'asking');
+  assert.equal((await srv.asChief('/company/cards', { method: 'POST', body: {} })).status, 400, 'an add says what');
+  writeData(path.join(srv.data, 'project-cards.json'), { [pid]: require('../lib/jsonfile').readJson(path.join(srv.data, 'project-cards.json'), {})[pid].filter((c) => c.id !== added.id) });
   assert.equal((await srv.asChief('/company/cards/c2/cancel', { method: 'POST' })).status, 403);
 });
 
