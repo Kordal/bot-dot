@@ -606,6 +606,16 @@ data class ChiefOverview(
 @Serializable
 data class ChiefActivity(val tool: String = "", val text: String? = null)
 
+/** What a Chief message is about (ADR 223): its team, and its project where the chat is not that project's own. */
+@Serializable
+data class MessageAbout(val team: AboutTeam? = null, val project: AboutProject? = null)
+
+@Serializable
+data class AboutTeam(val id: String = "", val name: String = "", val color: String? = null)
+
+@Serializable
+data class AboutProject(val id: String = "", val name: String = "")
+
 @Serializable
 data class ChiefMessage(
     val role: String,
@@ -636,6 +646,7 @@ data class ChiefMessage(
     @SerialName("pages") val pagesValue: JsonElement? = null,
     // A Chief reply: the pages its bots saved in the task it handed them, each with its `botId` and `bot`. Read them through [botPages].
     @SerialName("botPages") val botPagesValue: JsonElement? = null,
+    val about: MessageAbout? = null, // the team it is about (ADR 223), drawn above it
 ) {
     /** The steps of its work, or null for none. */
     val plan: Plan? get() = Plan.of(planValue)
@@ -1701,6 +1712,13 @@ data class TileChange(val title: String? = null, val scripts: List<String>? = nu
  * The desktop of a bot's machine on boat.dev (#564), from `POST /api/bots/:id/computer/desktop`: "starting" until it
  * runs, then boat.dev's stream [url], which a new viewer may open until [expiresAt] (10 minutes). A secret: shown, never kept.
  */
+/** The server's feature for [ScreenDone]. */
+const val SCREEN_DONE = "screen-done"
+
+/** "I'm done" on a bot's screen (ADR 225), from `POST /api/bots/:id/computer/done`: its last run carries on. */
+@Serializable
+data class ScreenDone(val ok: Boolean = false, val text: String = "")
+
 @Serializable
 data class BoatDesktop(val state: String = "starting", val url: String? = null, val expiresAt: String? = null) {
     val running: Boolean get() = state == "running" && url?.startsWith("https://") == true

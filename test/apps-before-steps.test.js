@@ -1,4 +1,4 @@
-// A service botdot connects goes through its app, not the owner's hands (ADR 222): the Chief looks it up before it
+// A service botdot connects goes through its app, not the owner's hands (ADR 223): the Chief looks it up before it
 // gives steps by hand, and a bot's ask_chief_for_app says it is for any of the services botdot connects.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

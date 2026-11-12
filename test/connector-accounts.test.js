@@ -92,7 +92,7 @@ test('another account: its card keeps the bots on the account they use, and the 
   for (const [bot, id] of [[reader, 'ca_old'], [writer, 'ca_new_1']]) {
     const { token, rec, run } = await heldRun(srv, bot);
     if (bot === writer) assert.match(rec.system, /Connected apps you can use: gmail \(accounts: old@example\.com; new@example\.com \(yours\)\)/);
-    // Any service botdot connects is asked for before the owner gets steps by hand (ADR 222).
+    // Any service botdot connects is asked for before the owner gets steps by hand (ADR 223).
     assert.match(rec.system, /Before you give the owner steps to do by hand in one, or ask them to copy something out of it, ask for it with ask_chief_for_app/);
     const tools = rpcClient(t, 'connectors-mcp.js', connectorEnv(srv, token));
     await tools.call('connector_run', { app: 'gmail', action: 'GMAIL_FETCH_EMAILS', arguments: {} });

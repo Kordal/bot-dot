@@ -1321,5 +1321,7 @@
   "Needs you: {who}": "Czeka na ciebie: {who}",
   "Set up for everyone on this botdot": "Ustawione dla wszystkich w tym botdot",
   "Project Manager": "Kierownik projektu",
-  "Asked": "Zapytał"
+  "Asked": "Zapytał",
+  "I'm done": "Gotowe",
+  "Couldn't hand it back": "Nie udało się oddać ekranu"
 }
