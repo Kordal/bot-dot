@@ -136,6 +136,8 @@
   "The Chief wants to change {what}": "Szef chce zmienić {what}",
   "After reading the web: {title}": "Po czytaniu internetu: {title}",
   "Wants to {action} with {app}": "Chce w {app}: {action}",
+  "Wants to {action} with {app}, {n} times": "Chce w {app}: {action}, {n} razy",
+  "{action}, {n} times?": "{action}, {n} razy?",
   "Asks to turn on “{switch}” for “{login}”": "Prosi o włączenie „{switch}” dla „{login}”",
   "Asks to remove “{entry}” from Passwords": "Prosi o usunięcie „{entry}” z Haseł",
   "Asks to keep {secrets} in a file at {where}": "Prosi o trzymanie {secrets} w pliku {where}",
