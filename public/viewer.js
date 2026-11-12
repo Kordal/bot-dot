@@ -134,12 +134,26 @@ const DocViewer = (() => {
   }
 
   const box = () => $('#doc-viewer');
+  // Where the viewer stands: beside the chat in its row, or, on a wide window's project page, where the board is, so
+  // the chat column stays beside it (#825's column is too narrow to hold both). Placed again when the page changes.
+  const onBoard = () => !!$('#app.place-company.proj-chat') && !!globalThis.matchMedia?.('(min-width: 1001px)').matches;
+  function place(el = box()) {
+    const host = onBoard() ? $('.main') : $('#chat-row');
+    if (el?.parentElement && host?.appendChild && el.parentElement !== host) host.appendChild(el);
+    // In the chat's row it takes the settings panel's place; on the board the panel stays beside the chat.
+    $('#chat-row')?.classList.toggle('with-viewer', !!cur && !(el?.parentElement && el.parentElement !== $('#chat-row')));
+  }
+  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
+    const app = $('#app');
+    if (app) new MutationObserver(() => { if (cur) place(); }).observe(app, { attributes: true, attributeFilter: ['class'] });
+    if (globalThis.matchMedia) matchMedia('(min-width: 1001px)').addEventListener?.('change', () => { if (cur) place(); });
+  });
   function draw() {
     const el = box();
     if (!el) return;
+    place(el);
     el.classList.toggle('hidden', !cur);
     el.classList.toggle('full', !!cur?.full);
-    $('#chat-row')?.classList.toggle('with-viewer', !!cur);
     $('#chat-row')?.classList.toggle('viewer-full', !!cur?.full);
     $('.main')?.classList.toggle('viewing', !!cur);
     el.innerHTML = cur ? html(cur) : '';
