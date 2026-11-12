@@ -65,3 +65,12 @@ test('web: the Chief\'s stream says when its reply read a steered message, and t
   assert.match(follow, /ev\.type === 'steered'/);
   assert.match(follow, /row\.insertAdjacentHTML\('beforebegin', steeredBubbles\(ev\.steered\)\)/);
 });
+
+test("web: a teammate's message steered into a run (#1278) folds as a message from that bot, with Steered and its time", () => {
+  const c = chat();
+  c.plain = (t) => String(t);
+  const html = c.botThreadHTML(bot, [run({ steered: [{ id: 'msg:x:1', text: 'Bart dopisuje: <i>www</i>', attachments: [], at: '2026-10-20T10:01:00.000Z', fromBot: { id: 'pm', name: 'Manager', emoji: '🧭' } }, steered[1]] })]);
+  assert.match(html, /<details class="notes-fold"><summary class="fold-line"><span class="fold-who">Message from Manager<\/span><span class="fold-peek">Bart dopisuje: &lt;i&gt;www&lt;\/i&gt;<\/span><\/summary><div class="note"><div class="bubble from-other-bot">Bart dopisuje: &lt;i&gt;www&lt;\/i&gt;<\/div><div class="bubble-meta"><span>Steered · t\(2026-10-20T10:01:00\.000Z\)<\/span><copy><\/div><\/div><\/details>/);
+  assert.doesNotMatch(html, /class="bubble from-me"[^>]*><div class="clamp">Bart dopisuje/, "not drawn as the owner's");
+  assert.ok(html.indexOf('Bart dopisuje') < html.indexOf('&lt;b&gt;and port 2222'), 'in order');
+});

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (by the owner, 2026-10-22)
 - **Owning task:** [#333](https://github.com/Kordal/bot-dot/issues/333)
+- **Changed by:** [ADR 221](221-a-teammates-message-to-a-bot-at-work-goes-into-its-run.md): a teammate's message to a bot at work that is more for its run goes into that run, not beside it
 - **Changes:** [ADR 011](011-a-bot-does-one-thing-at-a-time-and-the-owners-message-waits.md) ("A bot does one thing at a time"), for messages
 
 ## Context
