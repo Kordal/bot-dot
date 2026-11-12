@@ -382,6 +382,40 @@ test("a backup carries the computer's /workspace, read in pieces, and a restore 
   });
 });
 
+test("a download is asked for in seconds while the computer's files are still packing, and they come last", async (t) => {
+  const packed = require('crypto').randomBytes(1000);
+  const computer = standInComputer(packed);
+  const pack = computer.backupWorkspace;
+  let packDone;
+  const packing = new Promise((r) => { packDone = r; });
+  computer.backupWorkspace = async (s) => (s.op === 'pack' ? packing.then(() => pack(s)) : pack(s));
+  await withBackup(t, computer, async (backup, dataDir) => {
+    const r = await backup.prepare(PASS);
+    assert.deepEqual(computer.calls, [], 'answered before the pack ended');
+    const file = path.join(dataDir, '..', r.name);
+    const out = fs.createWriteStream(file);
+    const down = backup.download(r.token, out);
+    await new Promise((res) => setTimeout(res, 50));
+    assert.ok(fs.statSync(file).size > 0, 'the file started before the pack ended');
+    packDone();
+    assert.equal(await down, true);
+    assert.deepEqual(computer.calls, ['pack', 'read', 'drop']);
+    await backup.stage(file, PASS);
+    assert.ok(fs.readFileSync(path.join(dataDir, '.restore-pending', 'data', '.computer', 'workspace.tgz')).equals(packed));
+  });
+});
+
+test("a pack that fails ends the download, and a new one can be asked for", async (t) => {
+  const computer = standInComputer(Buffer.from('x'));
+  computer.backupWorkspace = async (s) => (s.op === 'pack' ? { code: 2, stderr: 'tar: No space left on device' } : { code: 0 });
+  await withBackup(t, computer, async (backup, dataDir) => {
+    const r = await backup.prepare(PASS);
+    await assert.rejects(backup.download(r.token, fs.createWriteStream(path.join(dataDir, '..', r.name))), /Couldn't pack the computer's files: tar: No space left on device/);
+    assert.equal(backup.status().preparing, false);
+    assert.ok((await backup.prepare(PASS)).token);
+  });
+});
+
 test("an account whose computer doesn't run is backed up as before, and a backup of it restores (#1020)", async (t) => {
   const computer = standInComputer(Buffer.alloc(0), { running: false });
   await withBackup(t, computer, async (backup, dataDir) => {
