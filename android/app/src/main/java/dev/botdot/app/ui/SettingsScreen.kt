@@ -448,10 +448,12 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(enabled = !deleting && dev.botdot.app.data.AccountDeletion.matches(deleteTyped, account), onClick = {
                     deleting = true
-                    // Done, the front door clears this phone's session, and the sign-in screen opens by itself.
-                    scope.launch {
-                        runCatching { api!!.deleteAccount(account) }
-                            .onSuccess { confirmDelete = false; android.widget.Toast.makeText(context, dev.botdot.app.data.AccountDeletion.said(it), android.widget.Toast.LENGTH_LONG).show() }
+                    // Done, the front door clears this phone's session, and the sign-in screen opens by itself, which
+                    // leaves Settings and ends its scope: the app's own scope and context keep the answer to say it.
+                    val a = api!!
+                    app.scope.launch {
+                        runCatching { a.deleteAccount(account) }
+                            .onSuccess { confirmDelete = false; android.widget.Toast.makeText(app, dev.botdot.app.data.AccountDeletion.said(it), android.widget.Toast.LENGTH_LONG).show() }
                             .onError { tell(it.message ?: tr("Couldn't delete the account")) }
                         deleting = false
                     }
