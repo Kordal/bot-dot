@@ -248,6 +248,18 @@ test('an app whose Composio slug has a _ or - in it is the same app however a bo
   assert.deepEqual(await C.chiefNeed({ app: 'GitHub MCP' }), { connected: true, name: 'GitHub MCP' });
   assert.ok(!asks.list().some((a) => a.kind === 'connect-app'), 'no Set up card');
 
+  // Not connected at all: the card is under github_mcp as it was written, and a name with spaces still finds googlecalendar.
+  connectors.connections = async () => [];
+  const card = await C.need({ bot: lacks, app: 'github_mcp', reason: 'To open pull requests.' });
+  assert.deepEqual([card.ask.kind, card.ask.app, card.ask.name, card.ask.mode], ['connect-app', 'github_mcp', 'GitHub MCP', 'connect']);
+  connectors.toolkit = async (slug) => {
+    if (slug === 'googlecalendar') return { slug, name: 'Google Calendar' };
+    throw Object.assign(new Error('Toolkit not found'), { composio: true, status: 404 });
+  };
+  assert.equal((await C.chiefNeed({ app: 'google_calendar' })).ask.app, 'googlecalendar');
+  connectors.connections = async () => [{ id: 'ca_1', toolkit: 'github_mcp', status: 'ACTIVE' }];
+  connectors.toolkit = toolkit;
+
   const apps = require('../lib/connected-apps').create({ connectAsks: C, post: () => {} });
   await assert.rejects(apps.request({ bot: has, session: {}, app: 'githubmcp', reason: 'To open pull requests.' }), /already yours/);
   fs.rmSync(dir, { recursive: true, force: true });
