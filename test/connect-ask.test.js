@@ -277,16 +277,29 @@ test('a Connect pressed again keeps only the last one\'s connection on the card,
   assert.equal(err.superseded, true);
   assert.equal(asks.list().find((x) => x.id === a.id).connectionId, 'ca_3');
 
-  // A failure whose route still puts Composio's refusal in words while a newer Connect starts and makes its
-  // connection: the card read before it has moved on, and the route leaves it as it is (lib/routes/asks.js).
-  const before = asks.list().find((x) => x.id === a.id);
-  assert.equal(C.movedOn(before), false, 'nothing newer yet');
+  // The route handles a failure later (it puts Composio's refusal in words) and changes the card only while that
+  // Connect is the card's last one (lib/routes/asks.js): not after a newer Connect made its connection, nor after a
+  // newer one failed and set the card itself.
   pending.length = 0;
-  const later = C.connect(a, 'http://x/connectors/done');
-  assert.equal(C.movedOn(before), true, 'a Connect started meanwhile');
+  const slow = C.connect(a, 'http://x/connectors/done').catch((e) => e);
   await new Promise((r) => setImmediate(r));
-  pending[0]({ redirectUrl: 'https://c/4', connectionId: 'ca_4', expiresAt: 'last' });
-  await later;
-  assert.equal(C.movedOn(before), true, 'a newer connection is on the card');
+  pending[0](Promise.reject(Object.assign(new Error('Composio answered 500'), { composio: true })));
+  const slowErr = await slow;
+  assert.equal(C.current(a.id, slowErr.attempt), true, 'no newer Connect yet: the route may set the card');
+  const okNewer = C.connect(a, 'http://x/connectors/done');
+  await new Promise((r) => setImmediate(r));
+  pending[1]({ redirectUrl: 'https://c/4', connectionId: 'ca_4', expiresAt: 'last' });
+  await okNewer;
+  assert.equal(C.current(a.id, slowErr.attempt), false, 'a newer Connect made its connection');
+  const slow2 = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  await new Promise((r) => setImmediate(r));
+  pending[2](Promise.reject(Object.assign(new Error('Composio answered 500'), { composio: true })));
+  const slow2Err = await slow2;
+  const failNewer = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  await new Promise((r) => setImmediate(r));
+  pending[3](Promise.reject(Object.assign(new Error('refused'), { status: 401 })));
+  const newerErr = await failNewer;
+  assert.equal(C.current(a.id, slow2Err.attempt), false, 'a newer Connect failed and has the card');
+  assert.equal(C.current(a.id, newerErr.attempt), true);
   C.stopAll?.();
 });
