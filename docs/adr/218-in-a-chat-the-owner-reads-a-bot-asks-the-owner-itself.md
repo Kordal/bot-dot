@@ -1,6 +1,7 @@
 # ADR-218: In a chat the owner reads, a bot asks the owner itself
 
 - **Status:** Accepted (2026-11-12, the owner: "A bot asks another bot to ask me, when I'm already in this chat")
+- **Amended by:** [ADR 229](229-a-teams-chat-asks-the-owner-once-and-a-handed-on-member-brings-its-result.md): in a team's chat the lead's last word asks the one question that still stands
 - **Amends:** [ADR 148](148-the-owner-talks-to-a-team-through-its-lead.md) in a team's chat; [ADR 201](201-the-lead-has-the-last-word-in-its-teams-chat.md), "no question to the owner" for a member
 
 ## Context

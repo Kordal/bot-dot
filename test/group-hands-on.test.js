@@ -70,7 +70,7 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   const facts = { group: { name: 'Dev' }, members, mentioned: false };
   const note = turnNote(members[1], facts);
   // Each rule of the wording, each once; the rule of a message sent with "@all" (#124) not at all.
-  const { together, after, working, teamAfter, toLead, closing, pm, ...rules } = RULES; // teamAfter, toLead, closing: a team's chat only (ADR 201); pm: the Project Manager's message (ADR 217)
+  const { together, after, working, teamAfter, toLead, closing, pm, handed: handedRule, afterClosing, ...rules } = RULES; // teamAfter, toLead, closing: a team's chat only (ADR 201); pm: the Project Manager's message (ADR 217); handed, afterClosing: a handed-on turn only (ADR 229)
   for (const rule of Object.values(rules)) assert.equal(count(note, rule), 1, rule);
   assert.equal(count(note, together), 0);
   assert.equal(count(note, after), 0, 'nobody answered before the first turn');
@@ -98,6 +98,10 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   assert.match(handed, /The work is for the message of the owner's below/);
   assert.doesNotMatch(handed, /named you in it|Every member reads it and has one turn/);
   for (const rule of Object.values(rules)) assert.equal(count(handed, rule), 1, rule);
+  // It restates nothing it read (ADR 229), once; only a turn the lead's last word handed on is told the answer is written.
+  assert.deepEqual([count(note, handedRule), count(handed, handedRule), count(handed, afterClosing)], [0, 1, 0]);
+  assert.equal(count(turnNote(members[1], { ...facts, handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' }, afterClosing: true }), afterClosing), 1);
+  assert.equal(count(turnNote(members[1], { ...facts, posted: true, handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' } }), handedRule), 0, 'a member\'s post is no hand-on of work');
 
   // A later turn of the owner's message is told who answered it before, and to repeat none of them (#489): once,
   // the pass word still once. A handed-on turn is not: it has work from the member that named it.
