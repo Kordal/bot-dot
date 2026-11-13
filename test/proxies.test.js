@@ -83,7 +83,8 @@ function standIns(to) {
       if (!head.includes('\r\n\r\n')) return;
       c.off('data', onData);
       asked.push(['http', head.split(' ')[1]]);
-      if (!head.includes(`Proxy-Authorization: Basic ${Buffer.from('kordal:s3cret').toString('base64')}`)) { c.end('HTTP/1.1 407 Proxy Authentication Required\r\n\r\n'); return; }
+      if (!head.includes('Proxy-Authorization:')) { c.end('HTTP/1.1 407 Proxy Authentication Required\r\n\r\n'); return; }
+      if (!head.includes(`Proxy-Authorization: Basic ${Buffer.from('kordal:s3cret').toString('base64')}`)) { c.end('HTTP/1.1 401 Unauthorized\r\nProxy-Message: Invalid credentials\r\n\r\n'); return; }
       c.write('HTTP/1.1 200 Connection established\r\n\r\n');
       relay(c);
     };
@@ -119,6 +120,7 @@ test('a test goes through the proxy with its login, the site\'s name resolved th
     assert.equal(viaHttp.ok, true);
     assert.deepEqual(asked.at(-1), ['http', 'ipinfo.test:443']);
     assert.deepEqual(await check({ type: 'http', host: '127.0.0.1', port: httpPort, username: '', password: '' }, opts), { ok: false, error: 'refused the login' });
+    assert.deepEqual(await check({ type: 'http', host: '127.0.0.1', port: httpPort, username: 'kordal', password: 'nope' }, opts), { ok: false, error: 'refused the login' }, 'a 401 is a refused login too');
     const closed = net.createServer();
     const dead = await listen(closed);
     closed.close();
