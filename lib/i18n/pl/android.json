@@ -1123,6 +1123,7 @@
   "Connect again": "Połącz ponownie",
   "Add account": "Dodaj konto",
   "no bot uses it yet": "jeszcze żaden bot jej nie używa",
+  "used by all bots": "używają jej wszystkie boty",
   "used by {n} bots": {
     "one": "używa jej {n} bot",
     "few": "używają jej {n} boty",

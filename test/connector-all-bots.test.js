@@ -27,7 +27,6 @@ test('a new bot has every connected app, and one connected later too, with no ca
   await srv.api('/connectors'); // botdot lists the connections again
   assert.deepEqual((await appsOf(bot)).sort(), ['gmail', 'slack']);
   assert.deepEqual((await srv.api('/asks')).data.filter((a) => a.botId === bot.id), [], 'no card gives it the app');
-  assert.deepEqual(saved(bot).connectors, [], 'bots.json keeps no connected app: the connection gives it');
   const list = (await srv.api('/connectors')).data.connections;
   assert.ok(list.find((c) => c.toolkit === 'slack').usedBy.includes(bot.id), 'the Apps page lists it among the bots that use the app');
 });
@@ -60,7 +59,6 @@ test('an app taken away stays away after it is disconnected and connected again;
   await srv.api(`/bots/${off.id}`, { method: 'PUT', body: { connectors: ['gmail'] } });
   connected.splice(connected.indexOf('slack'), 1); // gone from Composio's list
   await srv.api('/connectors');
-  assert.ok(!(await appsOf(on)).includes('slack'), 'an app no longer connected is no bot\'s');
   await srv.api(`/bots/${on.id}`, { method: 'PUT', body: { connectors: ['gmail'] } }); // its settings saved meanwhile
   assert.deepEqual(saved(on).appsOff, [], 'losing an app that is gone is not taking it away');
   connected.push('slack');

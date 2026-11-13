@@ -10,7 +10,7 @@ A bot used an app only once it was given it: by the owner in its settings or on 
 
 ## Decision
 
-- **A bot's apps are every connected app less the ones the owner took away.** bots.json keeps `appsOff` (the apps taken away) and, in `connectors`, only the apps given by name that no account lists (an app without a sign-in). What the server hands out as `connectors` is the apps with an account in Composio's list (working or signed out; not a sign-in only begun), those given by name, less `appsOff` (`lib/bots.js` withApps, `lib/connectors.js` accountApps). An app connected later is every bot's at once, with no card and no change to any bot.
+- **A bot's apps are every connected app less the ones the owner took away.** bots.json keeps `appsOff` (the apps taken away) beside `connectors` as before. What the server hands out as `connectors` is the apps with an account in Composio's list (working or signed out; not a sign-in only begun) and the bot's own, less `appsOff` (`lib/bots.js` withApps, `lib/connectors.js` accountApps). An app connected later is every bot's at once, with no card and no change to any bot.
 - **Taking away is the owner's change of `connectors`**, as before: a bot's settings or the Apps page leave a connected app out, and it goes to `appsOff`; putting it back takes it out. No request sets `appsOff` itself.
 - **What leaves because it is gone is not taken away.** An app disconnected, or not connected again after a switch of Composio account, leaves every bot; connected again, every bot has it, and a bot it was taken from still has it off.
 - **The Chief or a bot giving one back waits for the owner** (a changed bot's card), as giving an app did: only the owner gives back what the owner took away.

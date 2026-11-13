@@ -143,7 +143,7 @@ test('an app that needs no sign-in settles at once; a refused sign-in turns the 
   assert.equal(r.status, 200);
   assert.deepEqual([r.data.noAuth, r.data.settled], [true, true]);
   assert.ok(!(await listed(w.id)));
-  assert.deepEqual((await srv.api(`/bots/${bot.id}`)).data.connectors, ['weather']);
+  assert.ok((await srv.api(`/bots/${bot.id}`)).data.connectors.includes('weather'));
 
   srv.reply('GitHub is already connected once; remove the old connection in Connectors and try again.');
   const g = (await offer({ app: 'github', bot: bot.id })).data;
@@ -166,13 +166,14 @@ test("a changed bot's card gives a connected app the bot lacks (asked: 'app'), a
   await srv.finished(run.id);
   // As lib/connect-asks.js giveApp makes it: a bot's own ask_permission-like card.
   const at = new Date().toISOString();
-  const card = { id: 'giveapp1', kind: 'bot-change', botId: bot.id, by: 'bot', asked: 'app', app: 'googlecalendar', name: 'Google Calendar', reason: 'To plan the week.', runId: run.id, changes: { connectors: ['googlecalendar'] }, before: { connectors: [] }, at, runs: [{ id: run.id, at }] };
+  const had = (await srv.api(`/bots/${bot.id}`)).data.connectors; // every connected app (ADR 231)
+  const card = { id: 'giveapp1', kind: 'bot-change', botId: bot.id, by: 'bot', asked: 'app', app: 'googlecalendar', name: 'Google Calendar', reason: 'To plan the week.', runId: run.id, changes: { connectors: [...had, 'googlecalendar'] }, before: { connectors: had }, at, runs: [{ id: run.id, at }] };
   fs.writeFileSync(path.join(srv.data, 'asks.json'), JSON.stringify([...stored(), card]));
   const shown = (await srv.api('/asks')).data.find((x) => x.id === card.id);
   assert.deepEqual([shown.title, shown.yes, shown.text, shown.yesOn], ['Let Planner use Google Calendar?', 'Allow', 'Asks to use Google Calendar', 'card']);
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true } });
   assert.equal(yes.status, 200, JSON.stringify(yes.data));
-  assert.deepEqual(yes.data.bot.connectors, ['googlecalendar']);
+  assert.deepEqual(yes.data.bot.connectors, [...had, 'googlecalendar']);
   assert.equal(yes.data.carriesOn?.who, 'bot');
   await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.continues === run.id), { what: 'the run that carries on' });
 });
