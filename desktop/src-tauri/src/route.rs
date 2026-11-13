@@ -49,6 +49,17 @@ pub fn new_window(door: &Url, to: &Url) -> Window {
     }
 }
 
+/// A window opened with no address yet: it stays hidden until its page is one of this botdot's own (`shows_in_app`).
+pub fn opens_blank(to: &Url) -> bool {
+    to.as_str() == "about:blank"
+}
+
+/// Whether a window of the app shows the page it starts: this botdot's own. Another site goes to the browser
+/// (`left_door`), and `about:blank` is shown by nothing.
+pub fn shows_in_app(door: &Url, shown: &Url) -> bool {
+    web(shown) && same_origin(door, shown)
+}
+
 /// On iOS a page can't open a window of its own: wry has no new windows there. A link that would open one, or
 /// `window.open` with an address, goes in this window instead, where `left_door` sends another site to Safari.
 /// `window.open('about:blank')` gives `null`, and the page's own code then goes itself. Only the window's own page,
@@ -131,6 +142,16 @@ mod tests {
         assert!(!left_door(&door, &url("http://localhost:3000/chat")));
         assert!(!left_door(&door, &url("tauri://localhost/index.html")));
         assert!(!left_door(&door, &url("about:blank")));
+    }
+
+    #[test]
+    fn a_blank_window_stays_hidden_until_it_shows_this_botdots_page() {
+        let door = url("https://botdot.example.com/");
+        assert!(opens_blank(&url("about:blank")));
+        assert!(!opens_blank(&url("https://botdot.example.com/api/files/a.pdf")));
+        assert!(shows_in_app(&door, &url("https://botdot.example.com/api/files/a.pdf")));
+        assert!(!shows_in_app(&door, &url("about:blank")));
+        assert!(!shows_in_app(&door, &url("https://connect.composio.dev/link/abc")), "another site goes to the browser");
     }
 
     #[test]

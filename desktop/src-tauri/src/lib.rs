@@ -303,6 +303,9 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
             } else if route::left_door(&door, load.url()) || (cfg!(mobile) && route::sign_up(&door, load.url())) {
                 open_in_browser(&on_load, load.url());
                 let _ = if window.label() == "main" { window.eval("history.back()") } else { window.close() };
+            } else if route::shows_in_app(&door, load.url()) {
+                // A window opened blank, hidden until its page is one of this botdot's own (`new_window`).
+                let _ = window.show();
             }
         })
         .on_new_window(move |to, features| {
@@ -310,9 +313,14 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
             match route::new_window(&door, &to) {
                 route::Window::OfTheApp => {
                     let number = on_new_window.state::<App>().windows.fetch_add(1, Ordering::Relaxed);
+                    let blank = route::opens_blank(&to);
                     let builder = WebviewWindowBuilder::new(&on_new_window, format!("page-{number}"), WebviewUrl::External(to)).title("botdot");
                     #[cfg(desktop)]
                     let builder = builder.window_features(features);
+                    // `window.open('about:blank')` on a press, given its address once botdot answers (a sign-in page
+                    // of an app, a Google Doc): hidden until then, so another site goes to the browser with no empty
+                    // window of the app in between, and a page that never gets an address shows nothing.
+                    let builder = builder.visible(!blank);
                     #[cfg(mobile)]
                     let _ = features;
                     match guarded(&on_new_window, builder).build() {

@@ -202,6 +202,8 @@ document.addEventListener('click', (e) => {
   connectApp(slug, () => set('connected'), { live, opened: () => set('waiting'), failed: (msg) => set('failed', msg), ended: () => set('idle') });
 });
 
+// How long the press waits for botdot to give the sign-in page's address.
+const CONNECT_START_MS = 30_000;
 // Composio's sign-in page opens in a new tab; this waits for the connection to become active.
 // connected: what happens then, instead of this page's own list and its question of which bots may use it.
 // on (a Reconnect card, a missing app's card): opened() once the sign-in page is open, failed(message) instead of a
@@ -216,10 +218,17 @@ async function connectApp(slug, connected = null, on = {}) {
   // another: one more account of an app that is connected (ADR 174); its bots are picked once it works.
   const start = on.start || (() => api('/connectors/connect', { method: 'POST', body: { app: slug, ...(on.another ? { another: true } : {}) } }));
   const status = on.status || ((r) => api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`));
-  let r;
-  try { r = await start(); } catch (e) { win?.close(); return fail(e.message); }
+  // A botdot that never answers (a stuck server, a dropped link), or an answer with no page, ends here: the blank
+  // window closes and the button says so, never left on "Opening…".
+  let r, timer;
+  const late = new Promise((_, no) => { timer = setTimeout(() => no(new Error(tr("botdot didn't finish that. Try again in a moment."))), CONNECT_START_MS); });
+  try {
+    r = await Promise.race([new Promise((res) => res(start())), late]);
+    if (!r?.noAuth && !/^https?:\/\//.test(String(r?.redirectUrl || ''))) throw new Error(tr("botdot didn't finish that. Try again in a moment."));
+  } catch (e) { win?.close(); return live() ? fail(e.message) : undefined; } finally { clearTimeout(timer); }
+  if (!live()) { win?.close(); return; }
   if (r.noAuth) { win?.close(); return connected ? connected() : chooseAppBots(slug); }
-  if (win) win.location = r.redirectUrl; else location.assign(r.redirectUrl);
+  try { if (win && !win.closed) win.location = r.redirectUrl; else location.assign(r.redirectUrl); } catch { location.assign(r.redirectUrl); }
   if (on.opened) on.opened(); else toast(tr("Sign in on the page that opened. botdot notices when you're done."));
   const expires = Date.parse(r.expiresAt);
   const until = Number.isFinite(expires) && expires > Date.now() ? expires : Date.now() + 10 * 60_000;

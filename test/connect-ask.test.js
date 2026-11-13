@@ -136,6 +136,20 @@ test('Connect keeps the connection and never the page; once it is ACTIVE the bot
   assert.deepEqual((await srv.api(`/asks/${a.id}/connect`)).status, 404, 'settled once');
 });
 
+test('one sign-in connects the app for every bot whose card waits for it', { timeout: 60_000 }, async () => {
+  const coder = await makeBot(srv, { name: 'Coder', emoji: '💻' });
+  const manager = await makeBot(srv, { name: 'Manager', emoji: '📋' });
+  const a = (await offer({ app: 'linear', bot: coder.id })).data;
+  const b = (await offer({ app: 'linear', bot: manager.id })).data;
+  const c = await srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+  assert.equal(c.status, 200, JSON.stringify(c.data));
+  composio.status[c.data.connectionId].status = 'ACTIVE';
+  assert.equal((await srv.api(`/asks/${a.id}/connect`)).data.settled, true);
+  assert.ok(!(await listed(a.id)) && !(await listed(b.id)), 'both cards are gone');
+  assert.deepEqual((await srv.api(`/bots/${coder.id}`)).data.connectors, ['linear']);
+  assert.deepEqual((await srv.api(`/bots/${manager.id}`)).data.connectors, ['linear']);
+});
+
 test('an app that needs no sign-in settles at once; a refused sign-in turns the card to setup, which closes', { timeout: 60_000 }, async () => {
   const bot = await makeBot(srv, { name: 'Forecaster', emoji: '🌦️' });
   const w = (await offer({ app: 'weather', bot: bot.id })).data;

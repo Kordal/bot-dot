@@ -22,7 +22,7 @@ function page({ connect = { redirectUrl: 'https://connect.example/gmail', connec
       addEventListener: (type, fn) => { if (type === 'click') onClick = fn; },
       querySelectorAll: () => cards,
     },
-    setTimeout: (fn) => waits.push(fn), // the wait for the connection: one step at a time, by the test
+    setTimeout: (fn, ms) => (ms === 3000 ? waits.push(fn) : 0), clearTimeout: () => {}, // the wait for the connection: one step at a time, by the test
     api: async (p, opts = {}) => {
       calls.push([p, opts.method || 'GET', opts.body]);
       if (p === '/connectors/connect') { if (connect instanceof Error) throw connect; return connect; }
