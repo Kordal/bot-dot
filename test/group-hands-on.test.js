@@ -101,6 +101,15 @@ test('a turn is told once when to answer, pass, hand on and end; a handed-on tur
   // It restates nothing it read (ADR 229), once; only a turn the lead's last word handed on is told the answer is written.
   assert.deepEqual([count(note, handedRule), count(handed, handedRule), count(handed, afterClosing)], [0, 1, 0]);
   assert.equal(count(turnNote(members[1], { ...facts, handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' }, afterClosing: true }), afterClosing), 1);
+  // After the last word it asks the owner nothing: no rule tells it to, in a first turn or one that carries on (ADR 229).
+  for (const carriesOn of [false, true]) {
+    const after = turnNote(members[1], { ...facts, group: { name: 'Dev', team: 't', lead: 'a' }, handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' }, afterClosing: true, carriesOn });
+    assert.deepEqual([count(after, handedRule), count(after, afterClosing)], [1, 1], `carriesOn ${carriesOn}`);
+    assert.doesNotMatch(after, /ask the owner yourself/, `carriesOn ${carriesOn}`);
+    assert.match(after, /To hand the work on, name the member in your reply/, `carriesOn ${carriesOn}: it may still hand on`);
+  }
+  const resumed = turnNote(members[1], { ...facts, handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' }, carriesOn: true });
+  assert.deepEqual([count(resumed, handedRule), count(resumed, afterClosing)], [1, 0], 'a handed-on turn that carries on keeps the rule');
   assert.equal(count(turnNote(members[1], { ...facts, posted: true, handedBy: { id: 'a', name: 'Issue Writer', emoji: '📝' } }), handedRule), 0, 'a member\'s post is no hand-on of work');
 
   // A later turn of the owner's message is told who answered it before, and to repeat none of them (#489): once,

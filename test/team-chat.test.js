@@ -216,6 +216,8 @@ test('a member the lead\'s last word hands the work on to brings only its result
   assert.match(afterIt, /The lead has already written the team's answer to the owner, above, and your reply is folded under it/);
   assert.match(afterIt, /ask the owner nothing: the lead's answer asked what only the owner can answer/);
   assert.match(afterIt, /Never restate what a member said in this chat/);
+  assert.doesNotMatch(afterIt, /what only the owner can give you ask the owner yourself|You speak to the team's lead, not to the owner/, 'no turn rule tells it to ask the owner');
+  assert.match(afterIt, /after the lead's last word, bring only your result and ask nothing/);
   assert.doesNotMatch(firstTurn, /The lead has already written the team's answer|Never restate what a member said in this chat/, 'the member\'s first turn was nobody\'s hand-on');
 });
 
