@@ -249,7 +249,10 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             // A running company: its home, the office floor (#675).
             c.running -> {
                 ui.follow(c)
-                Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways) }
+                val fixed = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty()
+                var board by androidx.compose.runtime.saveable.rememberSaveable(c.id) { mutableStateOf(false) }
+                BackHandler(fixed && board) { board = false }
+                Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways, overview = fixed && !board, onBoard = { board = true }, onOverview = { board = false }) }
                 if (field) DefaultChatField(ui, c, ways)
             }
             else -> {

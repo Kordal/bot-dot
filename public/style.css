@@ -3623,3 +3623,18 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .pd-size { color: var(--muted); font-size: var(--fs-12); white-space: nowrap; }
 .pd-ok { color: var(--ok-text); }
 .pd-err { color: var(--err); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50%; }
+
+/* Fixed project overview (ADR 236): one readable column, with the saved Board reached separately. */
+.po-home .cf-top { flex-wrap: wrap; }
+.po-home .cf-top h1 { flex: 1; min-width: 0; }
+.po-overview { display: grid; gap: var(--sp-16); margin-bottom: var(--sp-24); }
+.po-section { padding: var(--sp-16); margin-bottom: var(--sp-16); background: var(--raise-2); border-radius: var(--r-14); }
+.po-section h2 { font-size: var(--fs-16); font-weight: 600; margin: 0 0 var(--sp-12); }
+.po-section p { overflow-wrap: anywhere; }
+.po-goal { font-size: var(--fs-20); }
+.po-row { display: block; width: 100%; padding: var(--sp-12); text-align: left; background: transparent; color: var(--text); border: 0; border-bottom: 1px solid var(--line); }
+.po-row:hover { background: var(--raise-3); }
+.po-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-8); margin-bottom: var(--sp-4); }
+.po-meta span, .po-stamp, .po-empty { color: var(--muted); font-size: var(--fs-12); }
+.po-text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+.po-error { color: var(--err); }

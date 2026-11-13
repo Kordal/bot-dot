@@ -352,7 +352,14 @@
   // The lead a member's ask is drawn under in this project (ADR 148), or null.
   const underLead = (c, x) => { const id = Keypad.leadOf(c, x?.bot?.id); return id ? botById(id) : null; };
   // What stops its bots' work comes first (Keypad.blockersFirst): a missing app shows within the three rows.
-  const projectNeeds = (c) => Keypad.blockersFirst(Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups));
+  const projectNeeds = (c) => {
+    const all = needs();
+    const selected = Keypad.asksOf(all, c, Company.projects ? Company.projects() : [c], state.groups);
+    if (!state.features.includes('project-overview') || !c.chiefChat) return Keypad.blockersFirst(selected);
+    const keys = new Set(selected.map((x) => x.key));
+    const chiefAsk = (x) => x.a?.chatId === c.chiefChat || (x.items || []).some(chiefAsk);
+    return Keypad.blockersFirst(all.filter((x) => keys.has(x.key) || chiefAsk(x)));
+  };
   // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
   const projectAsking = (c) => { const ids = new Set([...c.teams.flatMap((t) => t.bots), ...(c.bots || [])]); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
 
@@ -454,8 +461,22 @@
       ${reportHTML(team)}`;
   }
 
+  let boardFor = null;
+  Company.steps.homeClosed = () => { boardFor = null; };
+  function overviewHome(root, c) {
+    const items = projectNeeds(c);
+    root.innerHTML = `<div class="cf-home po-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.chiefHTML()}<button type="button" class="btn sm" data-po-board>${tr('Board')}</button>${Company.railOn() ? Company.toolsHTML() : ''}</header>
+      <section class="po-section"><h2>${tr('Needs you')}</h2>${needsHTML(c, items) || `<p>${(state.asks == null || state.approvals == null ? tr('Loading…') : tr('Nothing needs you right now.'))}</p>`}<button type="button" class="btn sm" data-po-needs>${tr('Review')}</button></section>
+      ${ProjectOverview.html(c)}${teamsHTML(c)}</div>${Company.railOn() ? fieldHTML(c) : ''}`;
+    wire(root, c);
+    ProjectOverview.wire(root, c);
+    $('[data-po-board]', root).onclick = () => { boardFor = c.id; root.scrollTop = 0; Company.redraw(); };
+    $('[data-po-needs]', root).onclick = () => setView('needs');
+  }
+
   // ---------- drawing and wiring ----------
   function home(root, c) {
+    if (state.features.includes('project-overview') && boardFor !== c.id) return overviewHome(root, c);
     if (window.BoardView?.busy()) return; // a tile is dragged: drawn again once it is dropped
     const known = info();
     const f = { ...CompanyFloor.floor(c, state.bots, known), info: known };
@@ -475,6 +496,10 @@
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
     </div>${Company.railOn() ? fieldHTML(c) : ''}`;
+    if (state.features.includes('project-overview')) {
+      $('.cf-top', root).insertAdjacentHTML('beforeend', `<button type="button" class="btn sm" data-po-back>${tr('Overview')}</button>`);
+      $('[data-po-back]', root).onclick = () => { boardFor = null; root.scrollTop = 0; Company.redraw(); };
+    }
     window.BoardView?.apply(root, c); // the tiles where the owner put them (#783, board-canvas-view.js)
     for (const k of kept) { const el = $(k.sel, root); if (el) { el.value = k.value; if (k.focus) el.focus(); } }
     wire(root, c);
@@ -755,5 +780,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null]), state.botsKnown];
+  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null]), state.botsKnown, boardFor, typeof ProjectOverview !== 'undefined' ? ProjectOverview.sig(state.company?.id) : null];
 })();
