@@ -81,7 +81,7 @@ test('offer_connect_app puts the Connect card in this chat, joins it when asked 
   // An app with a working connection gets no card: the Chief uses it, or gives it with update_bot.
   account('slack');
   const slack = await turn.tools.json('offer_connect_app', { app: 'slack', reason: 'To post.' });
-  assert.deepEqual(slack, { asked: false, note: 'Slack is connected already: use it, or give it with update_bot connectors.' });
+  assert.deepEqual(slack, { asked: false, note: 'Slack is connected already: use it. Every bot has it unless the owner took it away.' });
   assert.equal((await cards()).filter((a) => a.app === 'slack').length, 0);
   const unknown = await turn.tools.call('offer_connect_app', { app: 'nosuchapp', reason: 'x' });
   assert.ok(unknown.isError);

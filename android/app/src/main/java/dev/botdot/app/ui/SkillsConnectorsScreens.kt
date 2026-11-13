@@ -151,6 +151,8 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
     val snack = remember { SnackbarHostState() }
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
     var info by remember { mutableStateOf<ConnectorsInfo?>(null) }
+    // Every bot has every connected app unless the owner took it away (ADR 231): "all bots" when none is without it.
+    val botsNow by app.store.bots.value.collectAsState()
     var query by remember { mutableStateOf("") }
     var found by remember { mutableStateOf<List<CatalogApp>>(emptyList()) }
     var askRemove by remember { mutableStateOf<String?>(null) }
@@ -228,7 +230,8 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                         // Which account it is (ADR 174).
                         c.label?.let { Text(it, color = p.text, style = MaterialTheme.typography.bodyMedium) }
                         val n = c.usedBy.size
-                        Text("${c.status.lowercase().replaceFirstChar { it.uppercase() }} · " + if (n == 0) tr("no bot uses it yet") else trn(n, "used by {n} bot", "used by {n} bots"),
+                        val allBots = botsNow.orEmpty().let { all -> all.size > 1 && all.all { it.id in c.usedBy } }
+                        Text("${c.status.lowercase().replaceFirstChar { it.uppercase() }} · " + if (n == 0) tr("no bot uses it yet") else if (allBots) tr("used by all bots") else trn(n, "used by {n} bot", "used by {n} bots"),
                             color = if (c.status == "ACTIVE") p.muted else p.warnText, fontSize = Type.s12)
                     }
                     // The app's newest working account adds another.
