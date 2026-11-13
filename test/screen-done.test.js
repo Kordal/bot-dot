@@ -16,13 +16,16 @@ test("I'm done carries the bot's last run on, told the owner handed its screen b
   const bot = await makeBot(srv, { name: 'Form Maker', emoji: '🧪', computer: 'linux' });
   srv.reply('The Brevo sign-in waits on my screen: press I\'m done once you are signed in.');
   const first = await srv.finished((await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Make the waitlist form in Brevo' } })).data.id);
+  const project = (await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Waitlist forms' } })).data;
+  await srv.api(`/company?project=${project.id}`, { method: 'PATCH', body: { lead: bot.id } });
+  assert.equal((await srv.api(`/company/updates/now?project=${project.id}`, { method: 'POST', body: { key: 'screen-waits-update' } })).status, 200);
   const r = await done(bot);
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual([r.data.ok, r.data.status, r.data.text], [true, 'started', 'Form Maker carries on.']);
   const next = await carriedOn(bot, first);
   assert.equal(next.prompt, 'Make the waitlist form in Brevo');
   assert.match((await lastRun(bot)).stdin, /handed it back to you with "I'm done"/);
-  await startsNothing(bot, 2);
+  await startsNothing(bot, 3);
 });
 
 test("I'm done is the owner's alone, and says so when there is nothing to carry on", async () => {

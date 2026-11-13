@@ -140,3 +140,23 @@ test('a report from a left-out run is not copied into a new bot-readable update'
   const after = (await srv.api('/company/updates/now?project=' + c.id, { method: 'POST', body: { key: 'report-after-forget' } })).data;
   assert.doesNotMatch(after.update.text, /PRIVATE_REPORT_ORCHID/);
 });
+
+
+test('a busy Chief cannot block an update delivered to the selected manager', async () => {
+  const boss = await makeBot(srv, { name: 'Busy Chief Manager' });
+  const c = (await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Busy Chief project' } })).data;
+  await srv.api(`/company?project=${c.id}`, { method: 'PATCH', body: { lead: boss.id } });
+  const chatId = (await srv.api(`/company/chief-chat?project=${c.id}`, { method: 'POST' })).data.chatId;
+  srv.hold();
+  try {
+    await srv.api(`/chief/chats/${chatId}/messages`, { method: 'POST', body: { text: 'Check the project' } });
+    await waitFor(async () => (await srv.api(`/chief/chats/${chatId}`)).data.busy, { what: 'Chief works' });
+    const toManager = await srv.asChief(`/company/standup?project=${c.id}`, { method: 'PUT', headers: { 'X-Chief-Chat': chatId }, body: { now: true } });
+    assert.equal(toManager.status, 200, JSON.stringify(toManager.data));
+    assert.equal((await srv.api(`/company?project=${c.id}`)).data.company.lastUpdate.botId, boss.id);
+    await srv.api(`/company?project=${c.id}`, { method: 'PATCH', body: { lead: null } });
+    const toBusyChief = await srv.api(`/company/updates/now?project=${c.id}`, { method: 'POST', body: { key: 'busy-chief-new-key' } });
+    assert.equal(toBusyChief.status, 409, 'only the actual Chief destination waits for its turn to end');
+  } finally { srv.unhold(); }
+  await waitFor(async () => !(await srv.api(`/chief/chats/${chatId}`)).data.busy, { what: 'Chief finishes' });
+});

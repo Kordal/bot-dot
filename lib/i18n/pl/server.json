@@ -650,5 +650,6 @@
   "No goal figures recorded.": "Nie zapisano wartości celów.",
   "Saved report unavailable for this update: {team}.": "Zapisany raport jest niedostępny dla tej aktualizacji: {team}.",
   "{done} of {total} steps marked done": "{done} z {total} kroków oznaczono jako gotowe",
-  "Not marked done": "Nie oznaczono jako gotowe"
+  "Not marked done": "Nie oznaczono jako gotowe",
+  "The project conversation is busy.": "Rozmowa projektu jest zajęta."
 }
