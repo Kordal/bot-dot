@@ -29,6 +29,8 @@ const fake = http.createServer((req, res) => {
     if (p === '/auth_configs') return json(200, { items: [{ id: `ac_${url.searchParams.get('toolkit_slug')}`, status: 'ENABLED' }] });
     if (p === '/connected_accounts/link') {
       const b = JSON.parse(body);
+      // A sign-in that Composio answers late, and then refuses: held until the test lets it go.
+      if (b.auth_config_id === 'ac_gated' && composio.gate) { const g = composio.gate; composio.gate = null; return g.then(() => json(500, { error: { message: 'Composio is down for a moment' } })); }
       if (b.auth_config_id === 'ac_github') return json(400, { error: { message: '{"code":1803,"detail":"ConnectedAccount_MultipleAccountsNotAllowed for ac_github"}' } });
       const id = `ca_${b.auth_config_id.slice(3)}_${++composio.links}`;
       composio.status[id] = { app: b.auth_config_id.slice(3), status: 'INITIATED' };
@@ -148,6 +150,23 @@ test('one sign-in connects the app for every bot whose card waits for it', { tim
   assert.ok(!(await listed(a.id)) && !(await listed(b.id)), 'both cards are gone');
   assert.deepEqual((await srv.api(`/bots/${coder.id}`)).data.connectors, ['linear']);
   assert.deepEqual((await srv.api(`/bots/${manager.id}`)).data.connectors, ['linear']);
+});
+
+test('a Connect that fails after a newer one made its connection leaves the card to the newer one', { timeout: 60_000 }, async () => {
+  const bot = await makeBot(srv, { name: 'Gate Keeper', emoji: '🚪' });
+  const a = (await offer({ app: 'gated', bot: bot.id })).data;
+  let open;
+  composio.gate = new Promise((r) => { open = r; });
+  const first = srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+  await waitFor(async () => !composio.gate, { what: 'the first Connect reaching Composio' });
+  const second = await srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+  assert.equal(second.status, 200, JSON.stringify(second.data));
+  open();
+  const late = await first;
+  assert.equal(late.status, 502, 'the late one answers its own press with its error');
+  assert.equal(late.data.mode, undefined, 'and does not turn the card to setup');
+  const card = stored().find((x) => x.id === a.id);
+  assert.deepEqual([card.mode, card.connectionId], ['connect', second.data.connectionId]);
 });
 
 test('an app that needs no sign-in settles at once; a refused sign-in turns the card to setup, which closes', { timeout: 60_000 }, async () => {
