@@ -34,7 +34,8 @@ test('"/btw" to a replying Chief is answered at once, above the reply that goes 
   assert.deepEqual(JSON.parse(arg('--mcp-config')), { mcpServers: {} });
   assert.ok(!side.args.includes('--resume'), 'no session of the chat');
   assert.match(side.stdin, /the Chief of Staff in botdot/);
-  assert.match(side.stdin, /Bots the owner deleted: Old Helper \(id [\s\S]*Still named there[^\n]*Tom Stays/, 'it knows which bots are gone (gone-bots.js)');
+  assert.ok(side.stdin.includes(`Bots the owner deleted: Old Helper (id ${old.id}, `), 'it knows which bots are gone (gone-bots.js)');
+  assert.match(side.stdin, /Still named there[^\n]*Tom Stays/);
   assert.match(side.stdin, /asked by the owner:\n<request>\nCheck every bot and sum up how they did this week\n<\/request>/);
   assert.match(side.stdin, /<question>\nhow far are you\?\n<\/question>/);
 

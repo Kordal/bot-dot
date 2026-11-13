@@ -36,7 +36,7 @@ test('"/btw" to a working bot is answered by a talk-only turn that knows what th
   assert.equal(rec.self, null, 'none of its tools');
   assert.match(rec.stdin, /<request>\nRead the whole hub and sum it up\n<\/request>/);
   assert.match(rec.stdin, /<question>\nhow far are you\?\n<\/question>/);
-  assert.match(rec.stdin, /Bots the owner deleted: Old Helper \(id /, 'it knows which bots are gone (gone-bots.js)');
+  assert.ok(rec.stdin.includes(`Bots the owner deleted: Old Helper (id ${old.id}, `), 'it knows which bots are gone (gone-bots.js)');
   assert.deepEqual(waitingIn(bot), [], 'nothing waits');
 
   srv.reply('About halfway.');
