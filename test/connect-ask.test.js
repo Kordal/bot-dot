@@ -227,3 +227,28 @@ test("connect-ask's cards in lib: modes, words, giveApp and its holds", () => {
   assert.deepEqual(C.giveApp({ bot, app: 'gmail' }), { held: true, name: 'Gmail' });
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('an app whose Composio slug has a _ or - in it is the same app however a bot writes it', async () => {
+  // "GitHub MCP" is github_mcp in Composio. A bot that has it and asks for "githubmcp" or "GitHub MCP" is told it
+  // has it, with no card; a bot without it gets the card that gives it the connected github_mcp, never a setup.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const has = { id: 'b1', name: 'Coder', connectors: ['github_mcp'] };
+  const lacks = { id: 'b2', name: 'Manager', connectors: [] };
+  const toolkit = async (slug) => {
+    if (slug === 'github_mcp') return { slug, name: 'GitHub MCP' };
+    throw Object.assign(new Error('Toolkit not found'), { composio: true, status: 404 });
+  };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], toolkit, connections: async () => [{ id: 'ca_1', toolkit: 'github_mcp', status: 'ACTIVE' }] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => ({ b1: has, b2: lacks }[id] || null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  for (const app of ['githubmcp', 'GitHub MCP', 'github-mcp']) await assert.rejects(C.need({ bot: has, app }), /GitHub MCP is already yours/, app);
+  const given = await C.need({ bot: lacks, app: 'githubmcp', reason: 'To open pull requests.' });
+  assert.equal(given.given, true);
+  assert.deepEqual([given.ask.kind, given.ask.app, given.ask.name, given.ask.changes], ['bot-change', 'github_mcp', 'GitHub MCP', { connectors: ['github_mcp'] }]);
+  assert.deepEqual(await C.chiefNeed({ app: 'GitHub MCP' }), { connected: true, name: 'GitHub MCP' });
+  assert.ok(!asks.list().some((a) => a.kind === 'connect-app'), 'no Set up card');
+
+  const apps = require('../lib/connected-apps').create({ connectAsks: C, post: () => {} });
+  await assert.rejects(apps.request({ bot: has, session: {}, app: 'githubmcp', reason: 'To open pull requests.' }), /already yours/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
