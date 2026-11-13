@@ -303,3 +303,18 @@ test('a Connect pressed again keeps only the last one\'s connection on the card,
   assert.equal(C.current(a.id, newerErr.attempt), true);
   C.stopAll?.();
 });
+
+test('a Reconnect card is not settled by another card\'s sign-in of the same app', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bots = { b1: { id: 'b1', connectors: [] }, b2: { id: 'b2', connectors: [] }, b3: { id: 'b3', connectors: [] } };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => bots[id] || null, update: (id, ch) => Object.assign(bots[id], ch) }, connectors, appName: () => 'Jira', carryOnAfter: () => ({}) });
+  const plain = C.offer({ botId: 'b1', app: 'jira' }).ask;
+  const other = C.offer({ botId: 'b2', app: 'jira' }).ask;
+  const again = C.offer({ botId: 'b3', app: 'jira', mode: 'reconnect' }).ask;
+  C.settle(plain, 'ca_9');
+  const left = asks.list().filter((x) => x.kind === 'connect-app').map((x) => x.id);
+  assert.ok(!left.includes(other.id), 'another plain Connect card settles with it');
+  assert.ok(left.includes(again.id), 'the Reconnect card waits for its own sign-in');
+});
