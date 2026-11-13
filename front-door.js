@@ -836,8 +836,9 @@ async function signInRoutes(req, res, p) {
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
     // (ADR 068): a room's maker makes an invite link, and opening one joins.
-    // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account).
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account). deleteAccountPage
+    // (#1312): where a managed machine's owner starts deleting it instead, a page of botdot.app; null elsewhere.
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), deleteAccountPage: MANAGED ? DELETE_ACCOUNT_PAGE : null, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1840,6 +1841,11 @@ async function eraseAccount(name, actor) {
 // machine, which its admin removes instead. A machine of one account and a managed machine (ADR 154) offer it to none:
 // there the account is the machine, removed by whoever runs it.
 const deletesItself = (account) => !ONE_ACCOUNT && !MANAGED && !!ADMIN && !!account && account !== ADMIN;
+
+// On a managed machine (ADR 154) the account is the machine, which the fleet console runs, so Settings' "Delete account"
+// opens this page instead (#1312): it says how its owner asks for the account to be deleted. The stores ask that
+// deleting can be started in the app.
+const DELETE_ACCOUNT_PAGE = 'https://botdot.app/account-deletion/';
 
 // The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.

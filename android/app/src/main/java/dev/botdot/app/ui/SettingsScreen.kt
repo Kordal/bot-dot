@@ -342,6 +342,13 @@ fun SettingsScreen(
                 FoldSection(tr("Delete account")) {
                     SecondaryButton(onClick = { deleteTyped = ""; confirmDelete = true }) { Text(tr("Delete account…"), color = p.err) }
                 }
+            } else if (dev.botdot.app.data.AccountDeletion.page(server?.features, session) != null) {
+                // A managed machine (#1312): the account is the machine, so the page of botdot.app says how.
+                val deletePage = dev.botdot.app.data.AccountDeletion.page(server?.features, session)!!
+                FoldSection(tr("Delete account")) {
+                    Text(tr("Your account is deleted on botdot.app: the page says how."), color = p.muted)
+                    SecondaryButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deletePage))) } }) { Text(tr("Delete account…"), color = p.err) }
+                }
             } else if (dev.botdot.app.data.AccountDeletion.adminNote(server?.features, session)) {
                 FoldSection(tr("Delete account")) {
                     Text(tr("This is the admin's account of this machine, so it can't be deleted here. The machine is removed by its admin instead."), color = p.muted)

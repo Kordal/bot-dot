@@ -64,7 +64,7 @@ test('managed, one account on a public origin: no admin page, and the setup key 
   assert.equal((await b.get('/admin')).status, 404);
   assert.equal((await b.get('/admin/accounts')).status, 404);
   assert.equal(owner.seen.filter((r) => r.url.startsWith('/admin')).length, 0, 'never passed on to the account');
-  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: false, feedback: true, feedbackScreenshots: true, updates: false, rooms: false, roomLinks: false });
+  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: false, deleteAccountPage: 'https://botdot.app/account-deletion/', feedback: true, feedbackScreenshots: true, updates: false, rooms: false, roomLinks: false });
   assert.equal((await b.get('/api/bots')).data.account, 'owner');
 });
 

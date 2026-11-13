@@ -55,6 +55,7 @@ const saved = () => JSON.parse(fs.readFileSync(path.join(door.data, 'front-door.
 
 test('the session says who may delete their own account: every account but the admin\'s', async () => {
   assert.equal((await browsers.bob.get('/front-door/session')).data.deleteAccount, true);
+  assert.equal((await browsers.bob.get('/front-door/session')).data.deleteAccountPage, null, 'a self-hosted machine names no page (#1312)');
   const ann = (await browsers.ann.get('/front-door/session')).data;
   assert.equal(ann.admin, true);
   assert.equal(ann.deleteAccount, false, 'the only admin is not offered it');
@@ -112,13 +113,15 @@ test('an owner deletes their own account: it is gone at once, the machine is ask
 });
 
 const SETUP_KEY = 'k'.repeat(40);
-for (const [what, env] of [['a machine of one account', {}], ['a managed machine', { FRONT_DOOR_MANAGED: '1' }]]) {
+for (const [what, env, page] of [['a machine of one account', {}, null], ['a managed machine', { FRONT_DOOR_MANAGED: '1' }, 'https://botdot.app/account-deletion/']]) {
   test(`${what} offers it to nobody: there the account is the machine`, async (t) => {
     const one = await startFrontDoor({ env: { ...env, FRONT_DOOR_ONE_ACCOUNT: 'solo', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
     const s = await standIn(one, 'solo', { answer: () => [200, { account: 'solo' }] });
     t.after(async () => { await one.stop(); s.close(); });
     const b = await signUp('solo', { path: `/sign-up/${SETUP_KEY}` }, one);
     assert.equal((await b.get('/front-door/session')).data.deleteAccount, false);
+    // #1312: a managed machine's Settings opens botdot.app's page instead; a self-hosted one shows nothing.
+    assert.equal((await b.get('/front-door/session')).data.deleteAccountPage, page);
     assert.equal((await b.post('/front-door/delete-account', { name: 'solo' })).status, 404);
     assert.equal((await b.get('/front-door/session')).status, 200, 'still signed in');
   });
