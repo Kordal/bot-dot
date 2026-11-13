@@ -142,7 +142,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
     val ownBots = dev.botdot.app.data.ProjectBots.FEATURE in features
     val notIn = remember(c, bots) { dev.botdot.app.data.ProjectBots.addable(c, bots) }
     var addingOwn by rememberSaveable { mutableStateOf(false) }
-    val addOwn: () -> Unit = { if (notIn.isEmpty()) ways.onChiefSay(newBotWords(c)) else addingOwn = true }
+    val addOwn: () -> Unit = { if (ui.projectBotsSaving) Unit else if (notIn.isEmpty()) ways.onChiefSay(newBotWords(c)) else addingOwn = true }
     // The pieces the owner put on the board (#780); a project made before has them all.
     fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
     // The Files tile (project-files): a running project's folder, on a botdot that has it, when the app can open Files.
@@ -241,18 +241,17 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         if (teamView) {
             Text(tr("Team"), color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
             ProjectTeamSettings(ui, c, bots, features)
-            if (ownBots && c.bots.isEmpty()) SmallButton(tr("Add bot"), onClick = addOwn)
+            if (ownBots && c.bots.isEmpty() && !ui.projectBotsSaving) SmallButton(tr("Add bot"), onClick = addOwn)
         }
         if (!overview) {
         // Its teams' keys (#841), in place of the floor's rooms and desks.
         val waits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
         TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }, waits = waits) { teamOpen = it }
-        if (ownBots) OwnKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, onBot = ways.onBot, onAdd = addOwn)
+        if (ownBots) OwnKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, onBot = ways.onBot, onAdd = addOwn.takeUnless { ui.projectBotsSaving })
         }
     }
     if (addingOwn) BotPicker(tr("Add bot"), notIn, max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c)) }, onDismiss = { addingOwn = false }) { picked, _ ->
-        val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
-        ui.took(a.setProjectBots(c.bots + picked))
+        ui.setOwnBots(c.bots + picked)
     }
     adding?.let { id -> c.teams.firstOrNull { it.id == id } }?.let { t ->
         BotPicker(tr("Add to {team}", "team" to t.name), offered(t), max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c, t)) }, onDismiss = { adding = null }) { picked, _ ->
@@ -275,7 +274,7 @@ private fun newBotWords(c: Company): String = tr("A new bot for {project}:", "pr
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun OwnKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, onBot: (String) -> Unit, onAdd: () -> Unit) {
+internal fun OwnKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, onBot: (String) -> Unit, onAdd: (() -> Unit)?) {
     val p = LocalPaper.current
     val own = c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
     if (own.isEmpty()) return
@@ -286,7 +285,7 @@ internal fun OwnKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide:
                 status = Keypad.status(b.running, needs = ask, unread = b.unread, runs = b.runningCount))
             TeamKey(look, crown = false, wide = wide) { onBot(b.id) }
         }
-        TeamAddKey(tr("Add bot"), wide, onAdd)
+        if (onAdd != null) TeamAddKey(tr("Add bot"), wide, onAdd)
     }
 }
 

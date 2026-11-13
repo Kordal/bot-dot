@@ -44,14 +44,30 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await picker.locator('h2', { hasText: 'Add bot' }).waitFor();
     assert.deepEqual(await picker.locator('[data-pick] b').allInnerTexts(), ['QA Tester']);
     await picker.locator('[data-dismiss]').first().click();
-    // Its settings list it with ✕, which takes it out of the project.
+    // The secondary view shares a write guard: removing and adding must not overwrite each other.
+    let release, started;
+    const waiting = new Promise((done) => { started = done; });
+    await page.route('**/api/company/bots?*', async (route) => {
+      started();
+      await new Promise((done) => { release = done; });
+      await route.continue();
+    }, { times: 1 });
+    await page.locator(`[data-ps-unbot="${coder.id}"]`).click();
+    await waiting;
+    assert.ok(await page.locator('[data-cf-add-bot]').isDisabled(), 'adding waits for the removal response');
+    release();
+    await page.locator(`[data-ps-unbot="${coder.id}"]`).waitFor({ state: 'detached' });
+    assert.equal((await srv.api('/company')).data.company.bots, undefined);
+    await page.locator('[data-cf-add-bot]').click();
+    await picker.locator(`[data-pick="${coder.id}"]`).click();
+    await picker.locator('.btn.primary', { hasText: 'Add' }).click();
+    await page.locator(`[data-ps-unbot="${coder.id}"]`).waitFor();
+    assert.deepEqual((await srv.api('/company')).data.company.bots, [coder.id]);
+    // Full settings retain the same membership editor too.
     await page.locator('[data-pt-back]').click();
     await page.locator('.cf-top [data-project-settings]').click();
-    const ps = page.locator('.ps-page');
-    await ps.locator(`[data-ps-unbot="${coder.id}"]`).waitFor();
-    if (out) await page.screenshot({ path: path.join(out, 'project-bots-settings.png') });
-    await ps.locator(`[data-ps-unbot="${coder.id}"]`).click();
-    await ps.locator(`[data-ps-unbot="${coder.id}"]`).waitFor({ state: 'detached' });
+    await page.locator(`[data-ps-unbot="${coder.id}"]`).click();
+    await page.locator(`[data-ps-unbot="${coder.id}"]`).waitFor({ state: 'detached' });
     assert.equal((await srv.api('/company')).data.company.bots, undefined);
     assert.deepEqual(errors, []);
     console.log('project bots: ok');

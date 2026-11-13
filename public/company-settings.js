@@ -19,6 +19,7 @@
   const EVERY = [['daily', () => tr('Daily')], ['weekly', () => tr('Weekly')]];
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   // The team being edited: its id, 'new' for a new one, or null; and what its editor holds.
+  const botWrites = new Set();
   let editing = null;
   let draft = null;
   // A change that came while a field had the focus: drawn once it loses it.
@@ -303,9 +304,9 @@
     }
     // One removal at a time: each sends the whole list, so a second one waits for the first one's answer.
     $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => {
-      $$('[data-ps-unbot]', root).forEach((x) => (x.disabled = true));
-      call('/company/bots', 'PUT', { bots: (c.bots || []).filter((id) => id !== b.dataset.psUnbot) });
+      setBots(c, (c.bots || []).filter((id) => id !== b.dataset.psUnbot));
     }));
+    $$('[data-ps-unbot], [data-cf-add-bot]', root).forEach((b) => (b.disabled = botWrites.has(c.id)));
     const projectLead = $('[data-ps-project-lead]', root);
     if (projectLead) projectLead.onchange = () => patch({ lead: projectLead.value || null });
   }
@@ -325,8 +326,17 @@
     if (added.length) patch({ sources: [...(state.company?.id === c.id ? state.company.sources : c.sources), ...added] });
   }
 
+  async function setBots(c, bots) {
+    if (botWrites.has(c.id)) return;
+    const path = c.id ? `/company/bots?project=${encodeURIComponent(c.id)}` : '/company/bots';
+    botWrites.add(c.id); Company.redraw();
+    try { Company.changed({ company: await api(path, { method: 'PUT', body: { bots } }) }); }
+    catch (e) { toast(e.message, true); }
+    finally { botWrites.delete(c.id); Company.redraw(); }
+  }
+
   Company.teamSettings = {
-    html: teamHTML, wire: wireTeam, sig: () => [editing, draft],
+    html: teamHTML, wire: wireTeam, setBots, busy: (id) => botWrites.has(id), sig: () => [editing, draft, [...botWrites]],
     hold(root) { pending = typing(root); return pending; },
   };
   Company.steps.settings = (root, c) => draw(root, c);

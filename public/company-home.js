@@ -753,6 +753,7 @@
   // "Add bot" (ADR 233): the account's bots not in the project yet, to tick; they join it in no team. "New bot" asks
   // the Chief for one for the project, in a new Chief chat with the words ready; with no bot to offer, it goes there.
   function addToProject(c) {
+    if (Company.teamSettings.busy(c.id)) return;
     const mine = new Set([...(c.teams || []).flatMap((t) => t.bots), ...(c.bots || [])]);
     const bots = state.bots.filter((b) => !mine.has(b.id));
     const askChief = () => {
@@ -768,7 +769,7 @@
       action: tr('Add'),
       hint: () => '',
       more: { label: tr('New bot'), run: askChief },
-      done: async (picked) => { Company.changed({ company: await api(Company.at('/company/bots'), { method: 'PUT', body: { bots: [...(c.bots || []), ...picked] } }) }); },
+      done: async (picked) => Company.teamSettings.setBots(c, [...(c.bots || []), ...picked]),
     });
   }
 

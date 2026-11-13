@@ -128,6 +128,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     var creating by mutableStateOf(false)
     var apps by mutableStateOf<Set<String>?>(null)
     // The project's settings (#701, #703) over its screen.
+    var projectBotsSaving by mutableStateOf(false)
     var teamFor by mutableStateOf<String?>(null)
     var settingsOpen by mutableStateOf(false)
     // Spaces (#840): what the project's name switches to, and whether the rail beside the screen does that instead.
@@ -198,6 +199,13 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
             } catch (e: Exception) { tell(e.message ?: tr("Couldn't open the chat"))
             } finally { openingChief.cancel(c.id) }
         }
+    }
+    /** Addition and removal both replace the entire list: allow only one pending owner write. */
+    suspend fun setOwnBots(ids: List<String>) {
+        if (projectBotsSaving) return
+        val a = api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+        projectBotsSaving = true
+        try { took(a.setProjectBots(ids)) } finally { projectBotsSaving = false }
     }
     fun call(block: suspend (Api) -> Company, made: Boolean = false, done: (Boolean) -> Unit = {}) = scope.launch {
         val a = api ?: run { tell(tr("Can't reach botdot.")); done(false); return@launch }
