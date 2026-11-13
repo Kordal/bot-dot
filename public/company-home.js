@@ -445,6 +445,7 @@
   // How often the lead reports (#696), and its latest report.
   const REPORT_RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
   function reportHTML(team) {
+    if ((state.features || []).includes('project-updates')) return '';
     const r = team.lastReport;
     const by = r && botById(r.bot);
     return `<div class="cf-report-head"><span class="co-k">${tr('Reports')}</span><select class="co-asks" data-cf-report aria-label="${tr('Reports')}">${REPORT_RHYTHMS.map(([k, label]) => `<option value="${k}"${(team.report || '') === k ? ' selected' : ''}>${label()}</option>`).join('')}</select></div>

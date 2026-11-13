@@ -261,7 +261,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
     }
     val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }) {
-        TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
+        TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features && dev.botdot.app.data.ProjectUpdates.FEATURE !in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
 }
 

@@ -782,6 +782,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun addTeam(body: JsonObject): Company = CompanySetup.of(send("POST", co("/company/teams"), body))
     suspend fun deleteTeam(team: String): Company = CompanySetup.of(send("DELETE", co("/company/teams/${enc(team)}")))
     /** The morning standup (#698): on or off, or its time. */
+    suspend fun setProjectUpdates(every: String): Company = CompanySetup.of(send("PUT", co("/company/updates"), buildJsonObject { put("every", every) }))
     suspend fun setStandup(body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/standup"), body))
     /** An objective's other fields (#699, #701): `{ source }` and the like, as given. */
     suspend fun putObjective(id: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), body))

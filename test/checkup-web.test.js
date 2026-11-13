@@ -181,5 +181,10 @@ test('web: a checkup\'s message shows its answer buttons and no 👍 and 👎', 
 
 test('web: once the owner answered, the buttons are gone: only the newest reply has them', () => {
   assert.doesNotMatch(page.chiefBubble(MESSAGE, false, 0), /data-choice=/);
-  assert.match(app, /chiefBubble\(m, i === all\.length - 1, at\)/);
+  const line = app.match(/^const messageHTML = .*$/m)[0];
+  vm.runInContext(`${line}; this.renderMessage = messageHTML;`, page);
+  const update = { role: 'chief', notice: true, projectUpdate: 'p:one', text: 'Project update' };
+  assert.match(page.renderMessage(MESSAGE, 0, [MESSAGE, update]), /data-choice=/, 'a summary is not the owner answering');
+  assert.doesNotMatch(page.renderMessage(MESSAGE, 0, [MESSAGE, { role: 'user', text: 'Do 1' }]), /data-choice=/);
+
 });

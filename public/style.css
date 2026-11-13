@@ -3198,6 +3198,7 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .ps-main { display: flex; flex-direction: column; gap: var(--sp-16); min-width: 0; }
 .ps-card { padding: var(--sp-16) var(--sp-16) var(--sp-4); border: 1px solid var(--line-2); border-radius: var(--r-14); background: var(--panel); scroll-margin-top: var(--sp-16); }
 .ps-card h2 { margin: 0 0 var(--sp-4); font-size: var(--fs-16); font-weight: 600; }
+.ps-hint { color: var(--muted); font-size: var(--fs-14); line-height: 1.5; overflow-wrap: anywhere; }
 .ps-danger h2 { color: var(--err); }
 .ps-row { display: flex; align-items: center; gap: var(--sp-16); min-height: 48px; padding: var(--sp-8) 0; border-top: 1px solid var(--line); }
 .ps-card h2 + .ps-row { border-top: 0; }

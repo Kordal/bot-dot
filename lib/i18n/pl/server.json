@@ -633,5 +633,16 @@
   "Tidy up the board.": "Uporządkuj tablicę.",
   "{name} is working on it already.": "{name} już nad tym pracuje.",
   "{name} has nothing to carry on. Write to it in its chat.": "{name} nie ma czego kontynuować. Napisz do niego w czacie.",
-  "{name} carries on.": "{name} kontynuuje."
+  "{name} carries on.": "{name} kontynuuje.",
+  "Project update: {name}": "Aktualizacja projektu: {name}",
+  "Marked done": "Oznaczone jako gotowe",
+  "No newly completed items recorded.": "Nie zapisano nowych ukończonych zadań.",
+  "No current work recorded.": "Nie zapisano trwających prac.",
+  "No current failure recorded.": "Nie zapisano bieżącego błędu.",
+  "Nothing currently asks for your answer or approval.": "Nic nie czeka teraz na twoją odpowiedź lub zgodę.",
+  "No new decisions recorded.": "Nie zapisano nowych decyzji.",
+  "Latest replies and reports": "Najnowsze odpowiedzi i raporty",
+  "No new replies or reports recorded.": "Nie zapisano nowych odpowiedzi ani raportów.",
+  "No new recorded team report: {team}.": "Brak nowego zapisanego raportu zespołu: {team}.",
+  "This update uses recorded activity. It starts no work and answers or approves nothing.": "Ta aktualizacja korzysta z zapisanej aktywności. Nie rozpoczyna pracy, nie odpowiada i nie udziela zgody."
 }

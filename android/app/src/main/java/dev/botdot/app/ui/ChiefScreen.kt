@@ -273,7 +273,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                 MailDraftCard(mail, mail.bot ?: bot?.name, screen = bot?.computer == "linux",
                                     onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
                             }
-                            if (i == 0 && m.role == "chief" && !m.pending && !busy && mail == null) {
+                            if (m.projectUpdate == null && newestFirst.take(i).all { it.projectUpdate != null } && m.role == "chief" && !m.pending && !busy && mail == null) {
                                 Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
                                 Questions(m.questions, m.questionChoices) { text, key -> sendFrom(text, key) }
                             }

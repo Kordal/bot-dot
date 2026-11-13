@@ -3,6 +3,8 @@
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#696](https://github.com/Kordal/bot-dot/issues/696), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
 
+**Automatic reporting is superseded by [ADR 240](240-project-updates-use-recorded-work-in-the-primary-conversation.md).** Legacy settings and history remain; approved plan execution remains unchanged.
+
 ## Context
 
 A project's week plan (ADR 110, #673) was a list of items the Chief handed out with `run_bot` after the owner's Approve. Teams had a lead (ADR 114) that knew it led, but nothing gave it its team's work or asked it to report, so the owner had to ask each team where it stood.
