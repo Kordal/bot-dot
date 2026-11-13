@@ -93,15 +93,16 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
     val raw = c.proposal.orEmpty()
     val n = proposed.size
     StepPage({
-        Foot({ WordsButton(tr("Back")) { ui.step = "about" } }) {
-            GoButton(trn(n, "Create {n} bot", "Create {n} bots"), enabled = n > 0, busy = ui.creating) {
-                if (ui.creating) return@GoButton
+        Foot({ WordsButton(tr("Back")) { ui.step = if (c.conversation) null else "about" } }) {
+            GoButton(if (c.conversation) tr("Approve first step") else trn(n, "Create {n} bot", "Create {n} bots"), enabled = n > 0 && (!c.conversation || (ui.saving == 0 && !ui.sending)), busy = ui.creating) {
+                if (ui.creating || (c.conversation && (ui.saving > 0 || ui.sending))) return@GoButton
                 ui.creating = true
                 ui.step = "start"
-                ui.call({ it.createTeam() }) { ok -> ui.creating = false; if (!ok) ui.step = "team" }
+                ui.call({ it.createTeam(c.creationReview) }) { ok -> ui.creating = false; if (!ok) ui.step = "team" }
             }
         }
     }) {
+        if (c.conversation && c.firstStep.isNotBlank()) { Text(tr("First step")); Text(c.firstStep) }
         proposed.forEach { b ->
             BotCard(ui, c, b,
                 onRename = { name -> save(CompanySetup.edited(raw, b.key, mapOf("name" to JsonPrimitive(name)))) },

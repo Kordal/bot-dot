@@ -188,7 +188,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     }
     private val openingChief = dev.botdot.app.data.ProjectChats.ChiefRequests()
     fun openChief(c: Company, open: (String) -> Unit) {
-        c.chiefChat?.let { open(it); return }
+        c.chiefChat?.takeIf { !c.conversation || c.creationSent }?.let { open(it); return }
         val a = api ?: run { tell(tr("Can't reach botdot.")); return }
         if (!openingChief.start(c.id, open)) return
         scope.launch {
@@ -224,7 +224,11 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
     val p = LocalPaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val ui = remember(app) { CompanyUi(app, scope, context) }
+    var savedSources by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+    val ui = remember(app) { CompanyUi(app, scope, context).also { u ->
+        if (savedSources.isNotEmpty()) runCatching { dev.botdot.app.data.Api.JSON.decodeFromString(kotlinx.serialization.builtins.ListSerializer(SourceDraft.serializer()), savedSources) }.getOrNull()?.let { list -> u.sources.addAll(list.map { if (it.uploading) it.copy(failed = true) else it }) }
+    } }
+    LaunchedEffect(ui.sources.toList()) { savedSources = dev.botdot.app.data.Api.JSON.encodeToString(kotlinx.serialization.builtins.ListSerializer(SourceDraft.serializer()), ui.sources.toList()) }
     ui.spaces = spaces
     ui.railed = railed
     if (ui.spaceSheet && spaces?.shown == true) SpaceSheet(spaces) { ui.spaceSheet = false }
@@ -256,7 +260,19 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             c == null -> {
                 // A new project beside others (#703): their names over the start screen, to go back to one.
                 if (many && list.isNotEmpty()) ProjectTitle(ui, null, ways, Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s12, top = Space.s8))
-                StartForm(ui, empty = CompanySetup.EMPTY in server?.features.orEmpty(), titled = !(many && list.isNotEmpty()))
+                StartForm(ui, conversation = "project-conversation" in server?.features.orEmpty(), empty = CompanySetup.EMPTY in server?.features.orEmpty(), titled = !(many && list.isNotEmpty()))
+            }
+            c.conversation && "project-conversation" in server?.features.orEmpty() && !c.running && ui.step !in listOf("team", "start") -> {
+                ui.follow(c)
+                LaunchedEffect(c.id) { ui.openChief(c) { ways.onChiefChat?.invoke(it) ?: ways.onChief() } }
+                Column(Modifier.fillMaxSize().padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+                    ProjectTitle(ui, c, ways, boardTools = false)
+                    Text(c.start, color = p.text)
+                    Text(tr("Discuss the first step with the Chief. Review the proposal before anything starts."), color = p.muted)
+                    if (c.firstStep.isNotBlank()) { Text(tr("First step"), fontSize = Type.s20, fontWeight = FontWeight.SemiBold); Text(c.firstStep, color = p.text) }
+                    SmallButton(LocalChiefName.current) { ui.openChief(c) { ways.onChiefChat?.invoke(it) ?: ways.onChief() } }
+                    if (!c.proposal.isNullOrEmpty()) SmallButton(tr("Review first step")) { ui.step = "team" }
+                }
             }
             // A running company: its home, the office floor (#675).
             c.running -> {
@@ -280,7 +296,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
                     ProjectTitle(ui, c, ways, Modifier.weight(1f))
                     SetupMenu(ui, c)
                 }
-                StepBar(at, enabled = !c.running) { ui.step = it }
+                if (!c.conversation) StepBar(at, enabled = !c.running) { ui.step = it }
                 Box(Modifier.weight(1f)) {
                     when (at) {
                         "about" -> AboutStep(ui, c)
@@ -320,10 +336,12 @@ private fun StepBar(at: String, enabled: Boolean, onStep: (String) -> Unit) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
+private fun StartForm(ui: CompanyUi, empty: Boolean, conversation: Boolean = false, titled: Boolean = true) {
     val p = LocalPaper.current
     val context = LocalContext.current
     var what by rememberSaveable { mutableStateOf("") }
+    var creationKey by rememberSaveable { mutableStateOf(java.util.UUID.randomUUID().toString()) }
+    var creationBasis by rememberSaveable { mutableStateOf("") }
     var attaching by remember { mutableStateOf(false) }
     var linking by remember { mutableStateOf(false) }
     var link by remember { mutableStateOf("") }
@@ -342,8 +360,11 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
         val start = what.trim()
         if (start.isEmpty() || ui.going) return
         if (ui.sources.any { it.uploading }) return ui.tell(tr("Wait for the files to finish uploading."))
+        if (conversation && ui.sources.any { it.failed }) return ui.tell(tr("Remove failed files or add them again."))
+        val basis = CompanySetup.startBody(start, ui.sources.toList()).toString()
+        if (basis != creationBasis) { creationBasis = basis; creationKey = java.util.UUID.randomUUID().toString() }
         ui.going = true
-        ui.call({ it.startCompany(start, ui.sources.toList()) }, made = true) { ok -> ui.going = false; if (ok) { ui.sources.clear(); ui.step = "about" } }
+        ui.call({ it.startCompany(start, ui.sources.toList(), creationKey.takeIf { conversation }) }, made = true) { ok -> ui.going = false; if (ok) { ui.sources.clear(); ui.step = if (conversation) null else "about"; creationKey = java.util.UUID.randomUUID().toString() } }
     }
     Column(Modifier.fillMaxSize().padding(horizontal = Space.s16, vertical = Space.s16)) {
         Spacer(Modifier.weight(1f))
@@ -363,7 +384,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
                     modifier = Modifier.fillMaxWidth().focusRequester(requester).semanticsLabel(tr("Project name")))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WordsButton(tr("Back"), enabled = !ui.going) { naming = false } }
             } else {
-                Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
+                Field(what, { what = it.take(500); creationKey = java.util.UUID.randomUUID().toString() }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
                     placeholder = { Text(tr("Goal, matter or site"), color = p.faint) },
                     leadingIcon = {
                         Box {
@@ -387,7 +408,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, titled: Boolean = true) {
                 if (ui.sources.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                     ui.sources.forEach { s -> SourceChip(s) { ui.sources.removeAll { it.id == s.id } } }
                 }
-                if (empty) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                if (empty && !conversation) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     WordsButton(tr("Start from scratch"), enabled = !ui.going) { naming = true }
                 }
             }

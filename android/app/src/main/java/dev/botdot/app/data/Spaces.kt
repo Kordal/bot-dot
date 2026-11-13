@@ -55,13 +55,13 @@ object Spaces {
      */
     fun defaultChat(project: Company?, bots: List<Bot>?, features: Collection<String>?): String? {
         if (project == null) return CHIEF
-        if (!project.running) return null
-        if (ManyProjects.MANAGER_BOT in features.orEmpty() && project.lead != null) {
+        if (!project.running && !(project.conversation && "project-conversation" in features.orEmpty())) return null
+        if (project.running && ManyProjects.MANAGER_BOT in features.orEmpty() && project.lead != null) {
             if (bots == null) return null
             if (bots.any { it.id == project.lead }) return "bot/${project.lead}"
         }
         if (ManyProjects.CHIEF !in features.orEmpty()) return CHIEF
-        return project.chiefChat?.takeIf { it.isNotEmpty() }?.let { "chief/$it" } ?: "$PROJECT_CHIEF${project.id}"
+        return project.chiefChat?.takeIf { it.isNotEmpty() && (!project.conversation || project.creationSent) }?.let { "chief/$it" } ?: "$PROJECT_CHIEF${project.id}"
     }
 
     const val PROJECT_CHIEF = "project-chief/"

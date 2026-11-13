@@ -19,7 +19,7 @@
   // What this page holds beside the company: the Chief at work, the open parts and a half-typed line.
   // reach: the gap whose menu is open ("key|kind|need"); vault: the Vault's entries for it, read when it opens.
   // askedAt: when the proposal was asked for, so a long wait can say so.
-  const ui = { asking: false, askedAt: 0, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, apps: null, reach: null, vault: null };
+  const ui = { asking: false, askedAt: 0, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, saving: 0, apps: null, reach: null, vault: null };
 
   async function loadApps() {
     if (ui.apps) return;
@@ -29,7 +29,10 @@
   }
   const took = (c) => { Company.put(c); Company.redraw(); };
   async function call(path, body, method = 'POST') {
+    ui.saving++;
+    if (state.company?.conversation) $('[data-create]')?.setAttribute('disabled', '');
     try { took(await api(Company.at(path), { method, ...(body ? { body } : {}) })); return true; } catch (e) { toast(e.message, true); return false; }
+    finally { ui.saving--; Company.redraw(); }
   }
   // The Chief proposes the team: one call of up to two minutes (lib/company-team.js), so the page shows it at work.
   // A 409 "busy" is the same proposal asked before (the page was reloaded meanwhile): it waits and reads the project
@@ -65,7 +68,7 @@
     loadApps();
     const n = c.proposal.length;
     root.innerHTML = `<div class="co-team">
-      <div class="co-cards">${c.proposal.map((p) => card(c, p)).join('')}
+      <div class="co-cards">${c.conversation ? `<section class="co-panel"><h2>${tr('First step')}</h2><p>${esc(c.firstStep)}</p></section>` : ''}${c.proposal.map((p) => card(c, p)).join('')}
         <button type="button" class="btn co-addbot" data-add-bot>${Company.ICON.plus}${tr('Add a bot')}</button>
       </div>
       <aside class="co-aside">
@@ -80,7 +83,7 @@
         <section class="co-panel"><h2>${tr('Project memory')}</h2><div class="co-facts">${I.check}${trn(c.facts || 0, '{n} fact', '{n} facts')}</div></section>
       </aside>
     </div>
-    <div class="co-foot"><button type="button" class="btn ghost" data-back>${I.back}${tr('Back')}</button><button type="button" class="co-go" data-create ${n ? '' : 'disabled'}>${trn(n, 'Create {n} bot', 'Create {n} bots')}</button></div>`;
+    <div class="co-foot"><button type="button" class="btn ghost" data-back>${I.back}${tr('Back')}</button><button type="button" class="co-go" data-create ${n && (!c.conversation || (!ui.saving && !ui.sending)) ? '' : 'disabled'}>${c.conversation ? tr('Approve first step') : trn(n, 'Create {n} bot', 'Create {n} bots')}</button></div>`;
     wire(root, c);
   }
 
@@ -172,8 +175,8 @@
       call('/company', { starter: { ...c.starter, [kind]: c.starter[kind].map((x) => (x.key === key ? { ...x, on: b.checked } : x)) } }, 'PATCH');
     }));
     $$('[data-unnever]', root).forEach((b) => (b.onclick = () => call('/company', { never: c.never.filter((_, i) => i !== Number(b.dataset.unnever)) }, 'PATCH')));
-    $('[data-back]', root).onclick = () => Company.go('about');
-    $('[data-create]', root).onclick = () => create();
+    $('[data-back]', root).onclick = () => Company.go(c.conversation ? 'conversation' : 'about');
+    $('[data-create]', root).onclick = () => create(c.creationReview);
     $$('.co-card', root).forEach((el) => {
       const key = el.dataset.key;
       const p = c.proposal.find((x) => x.key === key);
@@ -210,11 +213,12 @@
   }
 
   // ---------- Start ----------
-  async function create() {
-    if (ui.creating) return;
+  async function create(shownReview) {
+    if (ui.creating || (state.company?.conversation && (ui.saving || ui.sending))) return;
     ui.creating = true;
+    const review = state.company?.conversation ? shownReview : null;
     Company.go('start');
-    try { Company.put(await api(Company.at('/company/start'), { method: 'POST' })); } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
+    try { Company.put(await api(Company.at('/company/start'), { method: 'POST', ...(review ? { body: { review } } : {}) })); } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
     ui.creating = false;
     Company.redraw();
   }

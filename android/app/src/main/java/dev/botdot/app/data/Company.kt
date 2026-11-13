@@ -25,6 +25,10 @@ data class Company(
     val kind: String = "idea",
     val start: String = "",
     val phase: String = "setup",
+    val conversation: Boolean = false,
+    val creationSent: Boolean = false,
+    val creationReview: String? = null,
+    val firstStep: String = "",
     val day: Int? = null,
     val startedAt: String? = null,
     val sources: List<CompanySource> = emptyList(),
@@ -257,6 +261,7 @@ data class StoryIdeas(val stories: List<String> = emptyList(), val group: String
 data class CompanyHeld(val company: Company?)
 
 /** A source picked on the start screen before Go: a link, or a file on its way up ([upload] once it is there). */
+@Serializable
 data class SourceDraft(val id: String, val kind: String, val name: String, val url: String? = null, val size: Long = 0, val upload: Attachment? = null, val failed: Boolean = false) {
     val uploading: Boolean get() = kind == "file" && upload == null && !failed
 }
@@ -315,8 +320,9 @@ object CompanySetup {
     fun held(answer: String): CompanyHeld = held((Api.JSON.parseToJsonElement(answer) as? JsonObject)?.get("company"))
 
     /** `POST /api/company`: what the owner works on, and the sources that are ready (a file still on its way is left out). */
-    fun startBody(start: String, sources: List<SourceDraft>): JsonObject = buildJsonObject {
+    fun startBody(start: String, sources: List<SourceDraft>, creationKey: String? = null): JsonObject = buildJsonObject {
         put("start", start.trim())
+        if (creationKey != null) { put("conversation", true); put("key", creationKey) }
         put("sources", sourcesJson(sources))
     }
 

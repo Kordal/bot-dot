@@ -1352,5 +1352,10 @@
   "Latest replies": "Ostatnie odpowiedzi",
   "No replies yet.": "Na razie brak odpowiedzi.",
   "Open folder": "Otwórz folder",
-  "No failed work or open questions.": "Brak nieudanej pracy i pytań czekających na odpowiedź."
+  "No failed work or open questions.": "Brak nieudanej pracy i pytań czekających na odpowiedź.",
+  "Discuss the first step with the Chief. Review the proposal before anything starts.": "Omów pierwszy krok z szefem personelu. Zatwierdź propozycję, zanim praca się zacznie.",
+  "Review first step": "Sprawdź pierwszy krok",
+  "Remove failed files or add them again.": "Usuń pliki, których nie udało się przesłać, lub dodaj je ponownie.",
+  "First step": "Pierwszy krok",
+  "Approve first step": "Zatwierdź pierwszy krok"
 }

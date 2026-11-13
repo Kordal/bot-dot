@@ -26,3 +26,5 @@ The catalogue of ADR 127 has 14 questions in three shapes, picked all at once by
 
 - One more call of the fast model per question after the first (at most four per project).
 - Projects read before keep their catalogue questions; an app before this change shows a draft's words until they are written again.
+
+New projects on apps with `project-conversation` use [ADR 239](239-new-projects-start-in-their-chiefs-conversation.md); existing setup and older apps retain this flow.

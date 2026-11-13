@@ -35,7 +35,13 @@ const Company = (() => {
   const keep = () => { try { localStorage.setItem(KEY, place === 'company' ? shownId || 'company' : 'home'); } catch { /* private mode */ } };
   let loaded = false;
   // What the start screen holds before Go: the sources picked so far.
-  const draft = { sources: [] };
+  const draft = { sources: [], text: '', key: null };
+  const conversationOn = () => state.features.includes('project-conversation');
+  function keepCreation(text = $('#co-what')?.value ?? draft.text) {
+    if (draft.text !== text) draft.key = null;
+    draft.text = text;
+  }
+
   // Start from scratch asks the project's name first (#857): its folder is made from it, so it is never "New project (2)".
   let naming = false;
   // The steps of the setup, then the home. Each later part puts its own drawing here: (root, company) => void.
@@ -405,7 +411,7 @@ const Company = (() => {
   async function openProjectChief(b = {}, canOpen = () => true) {
     const c = state.company;
     if (!c || b.disabled || openingChief.has(c.id)) return;
-    if (c.chiefChat) return Dock.openChief(c.chiefChat);
+    if (c.chiefChat && (!c.conversation || c.creationSent)) return Dock.openChief(c.chiefChat);
     b.disabled = true;
     openingChief.add(c.id);
     const view = state.view, chat = state.chatId, bot = state.botId, group = state.groupId;
@@ -543,11 +549,12 @@ const Company = (() => {
   function drawScreen(root, c, home) {
     if (settingsOpen) { steps.settings(root, c); return; }
     if (!c) drawStart(root);
+    else if (conversationOn() && c.conversation && c.phase !== 'running' && !['team', 'start'].includes(current)) drawCreation(root, c);
     else if (home) steps.home(root, c);
     else {
       const at = stepOf(c);
       // The ⋯ at the bar's end: its settings and its delete, while setting up too (#791, #801).
-      root.innerHTML = `<div class="co-steps-line">${stepBar(at, c)}${moreHTML()}</div><div class="co-body" id="co-body"></div>`;
+      root.innerHTML = `<div class="co-steps-line">${c.conversation ? '' : stepBar(at, c)}${moreHTML()}</div><div class="co-body" id="co-body"></div>`;
       const body = $('#co-body', root);
       if (steps[at]) steps[at](body, c); else drawGiven(body, c);
       // While setting up, About and Team on the bar open their step; Start is Create's.
@@ -581,18 +588,18 @@ const Company = (() => {
   // and "Start from scratch" right under them (#849).
   function drawStart(root) {
     if (naming) return drawNaming(root);
-    const typed = $('#co-what', root)?.value || '';
+    const typed = $('#co-what', root)?.value || (conversationOn() ? draft.text : '') || '';
     root.innerHTML = `<div class="co-start co-new">
       <h1>${tr('What shall we take on?')}</h1>
       <form class="co-ask" id="co-ask"><button type="button" class="icon-btn co-clip" data-attach aria-label="${tr('Attach')}" title="${tr('Attach')}" aria-haspopup="menu">${ICON.clip}</button><input id="co-what" name="what" autocomplete="off" maxlength="500" placeholder="${tr('Goal, matter or site')}" aria-label="${tr('Goal, matter or site')}" /><button type="submit" class="co-go co-go-icon" aria-label="${tr('Go')}" disabled>${ICON.go}</button><input type="file" multiple hidden id="co-files" /></form>
       <div id="co-sources">${sourcesHTML(draft.sources, true)}</div>
-      ${(state.features || []).includes('project-empty') ? `<button type="button" class="co-text-btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
+      ${(state.features || []).includes('project-empty') && !conversationOn() ? `<button type="button" class="co-text-btn co-empty" data-start-empty>${tr('Start from scratch')}</button>` : ''}
     </div>`;
     const form = $('#co-ask', root);
     const input = form.what;
     input.value = typed;
     const ready = () => { form.querySelector('.co-go').disabled = !input.value.trim(); };
-    input.oninput = ready;
+    input.oninput = () => { ready(); if (conversationOn()) keepCreation(input.value); };
     ready();
     form.onsubmit = (e) => { e.preventDefault(); begin(input.value, form.querySelector('.co-go')); };
     const files = $('#co-files', root);
@@ -607,6 +614,17 @@ const Company = (() => {
     wireSources(root);
     if (state.view === 'company' && !typed) input.focus();
   }
+  function drawCreation(root, c) {
+    root.innerHTML = `<div class="cf-home"><header class="cf-top"><h1>${pickHTML(c.name || c.start)}</h1>${gearHTML()}</header>
+      <p>${esc(c.start)}</p><p>${tr('Discuss the first step with the Chief. Review the proposal before anything starts.')}</p>
+      ${c.firstStep ? `<section class="po-section"><h2>${tr('First step')}</h2><p>${esc(c.firstStep)}</p></section>` : ''}
+      <button type="button" class="btn primary" data-creation-chat>${esc(chiefTitle())}</button>
+      ${c.proposal?.length ? `<button type="button" class="btn" data-creation-review>${tr('Review first step')}</button>` : ''}</div>`;
+    wirePick(root);
+    $('[data-creation-chat]', root).onclick = () => openProjectChief();
+    $('[data-creation-review]', root)?.addEventListener('click', () => go('team'));
+  }
+
   // Start from scratch (#857): the project's name, then the empty project with its folder named after it. Back keeps
   // what was typed on the start screen; a redraw meanwhile keeps the name typed so far.
   let typedWhat = '';
@@ -641,6 +659,7 @@ const Company = (() => {
   // The sources as chips: a file or a link, removable on the new-project screen.
   const sourcesHTML = (list, removable) => (list.length ? `<ul class="co-sources">${list.map((s) => `<li class="co-src${s.status === 'failed' ? ' failed' : s.status === 'uploading' ? ' busy' : ''}">${s.kind === 'link' ? ICON.link : ICON.file}<span class="co-src-name">${esc(s.name)}</span>${removable ? `<button type="button" class="co-src-x" data-unsource="${esc(s.id)}" aria-label="${tr('Remove')}">${ICON.x}</button>` : ''}</li>`).join('')}</ul>` : '');
   function drawSources() {
+    if (conversationOn()) { draft.key = null; keepCreation(); }
     const box = $('#co-sources');
     if (!box) return;
     box.innerHTML = sourcesHTML(draft.sources, true);
@@ -688,10 +707,15 @@ const Company = (() => {
     const start = String(text || '').trim();
     if (!start) return;
     const sources = readySources();
-    if (sources) made({ start, sources }, button, () => { draft.sources = []; current = 'about'; });
+    if (sources) {
+      if (conversationOn()) keepCreation(start);
+      const extra = conversationOn() ? { conversation: true, key: draft.key || (draft.key = crypto.randomUUID()) } : {};
+      made({ start, sources, ...extra }, button, () => { draft.sources = []; draft.text = ''; draft.key = null; current = conversationOn() ? 'conversation' : 'about'; });
+    }
   }
   // The sources picked on the start screen, for a new project of either kind; null while a file still uploads.
   function readySources() {
+    if (conversationOn() && draft.sources.some((s) => s.status === 'failed')) { toast(tr('Remove failed files or add them again.'), true); return null; }
     if (draft.sources.some((s) => s.status === 'uploading')) { toast(tr('Wait for the files to finish uploading.'), true); return null; }
     return draft.sources.filter((s) => s.status === 'ready').map((s) => (s.kind === 'link' ? { kind: 'link', url: s.url, name: s.name } : { kind: 'file', name: s.name, upload: s.upload }));
   }
@@ -704,6 +728,7 @@ const Company = (() => {
       if (many()) { state.projects = [...(state.projects || []).filter((p) => p.id !== state.company.id), state.company]; adding = false; shownId = state.company.id; keepShown(); drawSide(); }
       then();
       render();
+      if (conversationOn() && state.company?.conversation && state.company.phase !== 'running') Dock.openDefault();
     } catch (e) { toast(e.message, true); button.disabled = false; }
   }
 
