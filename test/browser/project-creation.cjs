@@ -16,7 +16,7 @@ const { goSpace } = require('../space-helpers');
         if (unseen.length) await srv.api('/whats-new/seen', { method: 'POST', body: { id: unseen[0].id } });
         page = await browser.newPage({ viewport });
         const errors = []; page.on('pageerror', (e) => errors.push(e.message));
-        await page.goto(`${srv.base}/#company`);
+        await page.goto(`${srv.base}/`);
         await page.waitForFunction(() => state.botsKnown && state.features.includes('company'));
         await page.locator('#app.has-rail').waitFor();
         if (viewport.width < 1001) { const back = page.locator('#chat-row [data-back]:visible').first(); if (await back.count()) await back.click(); }
