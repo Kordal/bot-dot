@@ -1376,9 +1376,11 @@ remove_account() {
   done
   ok "The account $1 is erased: its data, containers and Linux user"
 }
-# erase_account NAME: the account NAME removed, as the admin deleted it. Never the admin's own account.
+# erase_account NAME: the account NAME removed, as the admin deleted it. Never the admin's own account. A managed
+# machine has no admin (ADR 154): FRONT_DOOR_ADMIN names its first account there, which its owner deletes in Settings
+# once the fleet console has ended its subscription (#1313, ADR 241).
 erase_account() {
-  [ "$1" != "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The account $1 is the admin's own, so it wasn't erased."
+  [ -n "$MANAGED" ] || [ "$1" != "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ] || die "The account $1 is the admin's own, so it wasn't erased."
   remove_account "$1"
   # Its off-site snapshots go after the grace period (#1019), and its part of the backup set at once.
   offsite_erase "$1"

@@ -93,6 +93,7 @@ const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
 const subscriptionLib = require('./lib/front-door/subscription');
 const outboxLib = require('./lib/front-door/outbox');
+const deletionLib = require('./lib/front-door/deletion');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -333,6 +334,9 @@ const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process
 // Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
 // goes to the fleet console, through an outbox beside the front door's data that the console's agent empties (ADR 164).
 const outbox = MANAGED ? outboxLib.create(path.join(DATA, 'outbox')) : null;
+// Its owner's "Delete account" on a managed machine (#1313, ADR 241): asked of the fleet console through the same
+// outbox, and kept until the console has ended the subscription.
+const deletion = MANAGED ? deletionLib.create(path.join(DATA, 'outbox'), DATA) : null;
 const FEEDBACK = !!outbox || (!ONE_ACCOUNT && !!ADMIN);
 const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
@@ -828,6 +832,18 @@ async function signInRoutes(req, res, p) {
     if (account === ADMIN) return send(res, 409, { error: `${account} is the admin's account: it can't be deleted here. The machine is removed by its admin instead.` });
     if (!deletesItself(account)) return send(res, 404, { error: 'Not found' });
     if (body.name !== account) return send(res, 400, { error: `Type your account's name, ${account}, to delete it.` });
+    // The account that pays for a managed machine (#1313, ADR 241): asked of the fleet console, which ends the
+    // subscription first; the machine's accounts are erased once it answers (settleDeletions), and nothing before.
+    if (billed(account)) {
+      if (deletion.state(account) !== 'pending') {
+        try { deletion.ask(account, doors.listAccounts().map((a) => a.name)); } catch (e) {
+          console.error(`[front door] couldn't ask the fleet console to delete the account ${account}: ${e.message}`);
+          return send(res, 503, { error: "Your account can't be deleted right now. Try again later." });
+        }
+        console.log(`[front door] the owner of ${account} asked to delete it: the fleet console ends its subscription first`);
+      }
+      return send(res, 202, { ok: true, pending: true });
+    }
     const boatGone = await eraseAccount(account, account);
     return send(res, 200, { ok: true, deleted: '/front-door/deleted', ...(boatGone?.failed ? { boat: boatGone.text } : {}) }, { 'Set-Cookie': sessionCookie(null) });
   }
@@ -836,16 +852,20 @@ async function signInRoutes(req, res, p) {
   // What the web page and the Android app ask of their session: whether it is the admin's, which then shows the way
   // to /admin, and whether Feedback goes anywhere (#216): to the admin page, which a machine of one account has not.
   if (p === '/front-door/session' && req.method === 'GET') {
+    await settleDeletions(); // an answer the console gave since is read now, not at the next look
+    if (deletion?.gone()) return send(res, 401, { error: 'This account is deleted.', signIn: '/sign-in', deleted: '/front-door/deleted' });
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
     // (ADR 068): a room's maker makes an invite link, and opening one joins.
-    // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account). deleteAccountPage
-    // (#1312): where a managed machine's owner starts deleting it instead, a page of botdot.app; null elsewhere.
+    // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account). deletion (#1313):
+    // "pending" while a managed machine's console ends the subscription, "failed" when it couldn't, else null.
+    // deletesAlso: the other accounts that go with it, and deleteEndsSubscription: it ends the subscription first (the
+    // account that pays for a managed machine).
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), deleteAccountPage: MANAGED ? DELETE_ACCOUNT_PAGE : null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), deletion: deletion?.state(account) || null, deletesAlso: billed(account) ? doors.listAccounts().map((a) => a.name).filter((n) => n !== account) : [], deleteEndsSubscription: billed(account), subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1830,29 +1850,50 @@ async function eraseBoat(name) {
 // eraseBoat said.
 // The account is bound by its userId before eraseBoat waits: one made again with the same name meanwhile is never
 // deleted by a request for the one before (409).
-async function eraseAccount(name, actor) {
+async function eraseAccount(name, actor, why = null) {
   const userId = doors.userIdOf(name);
   const boatGone = await eraseBoat(name);
   doors.deleteAccount(name, Date.now(), userId);
   roomsWithout(name);
   usage?.forget(name);
-  const who = actor === name ? 'its owner' : 'the admin';
+  const who = actor === name ? 'its owner' : ADMIN && actor === ADMIN ? 'the admin' : actor;
   console.log(`[front door] ${who} deleted the account ${name}; the machine erases it${boatGone ? ` (${boatGone.text})` : ''}`);
-  audited('delete', { actor, account: name, detail: boatGone?.text });
+  audited('delete', { actor, account: name, detail: [why, boatGone?.text].filter(Boolean).join('; ') || undefined });
   askMachine(name);
   return boatGone;
 }
 
-// Whether this account's owner may delete it in Settings (#1307): only on a machine of several accounts with an admin,
-// who has the admin page. Never the admin's own account: it is the only admin, and nobody would be left to run the
-// machine, which its admin removes instead. A machine of one account and a managed machine (ADR 154) offer it to none:
-// there the account is the machine, removed by whoever runs it.
-const deletesItself = (account) => !ONE_ACCOUNT && !MANAGED && !!ADMIN && !!account && account !== ADMIN;
+// Whether this account's owner may delete it in Settings (#1307): on a machine of several accounts with an admin, who
+// has the admin page, every account but the admin's own: it is the only admin, and nobody would be left to run the
+// machine, which its admin removes instead. On a managed machine (#1313) every account: the fleet console runs it. A
+// self-hosted machine of one account offers it to none: the account is the machine, removed by whoever runs it.
+const deletesItself = (account) => !!account && (MANAGED || (!ONE_ACCOUNT && !!ADMIN && account !== ADMIN));
+// The account that pays for a managed machine (ADR 154): its one account, or the first of several, made with the setup
+// key. Deleting it ends the subscription and the machine with all its accounts (#1313, ADR 241).
+const billed = (account) => MANAGED && !!account && account === SETUP_ACCOUNT;
 
-// On a managed machine (ADR 154) the account is the machine, which the fleet console runs, so Settings' "Delete account"
-// opens this page instead (#1312): it says how its owner asks for the account to be deleted. The stores ask that
-// deleting can be started in the app.
-const DELETE_ACCOUNT_PAGE = 'https://botdot.app/account-deletion/';
+// The fleet console's answers to "Delete account" (ADR 241): one that ended the subscription, or found none, erases every
+// account of the machine, which is gone from then on; a failure erases nothing and stays for its owner to see. Looked
+// at every few seconds, and when a session asks.
+let settling = false;
+async function settleDeletions() {
+  if (!deletion || settling) return;
+  settling = true;
+  try {
+    for (const { account, state } of deletion.granted()) {
+      if (!billed(account)) { console.error(`[front door] an answer to delete ${account}, which doesn't pay for this machine, was ignored`); deletion.finish(account); continue; }
+      if (!deletion.gone()) deletion.markGone(account, state);
+      for (const { name } of doors.listAccounts()) {
+        try { await eraseAccount(name, account, `the machine deleted by its owner; subscription ${state === 'canceled' ? 'cancelled' : 'none'}`); } catch (e) {
+          console.error(`[front door] couldn't delete the account ${name}: ${e.message}`);
+        }
+      }
+      deletion.finish(account);
+      console.log(`[front door] ${account} deleted this machine: its accounts are erased, and it waits to be removed`);
+    }
+  } catch (e) { console.error(`[front door] couldn't settle a deletion: ${e.message}`); } finally { settling = false; }
+}
+if (deletion) setInterval(() => { settleDeletions(); }, 3000).unref();
 
 // The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
@@ -2022,6 +2063,16 @@ const server = http.createServer(async (req, res) => {
     }
     let p;
     try { p = new URL(req.url, ORIGIN.origin).pathname; } catch { return send(res, 400, { error: 'Bad address' }); }
+    // A managed machine its owner deleted (#1313, ADR 241): nothing of it answers any more, only that it is deleted,
+    // until whoever runs the fleet removes it. Fonts stay, for that page.
+    // Its own version still answers, which the installer waits for when it starts the front door.
+    if (deletion?.gone() && !((FONTS[p] || p === '/api/version') && req.method === 'GET')) {
+      req.resume();
+      if (p === '/front-door/deleted' && req.method === 'GET') return html(res, 200, pages.deleted());
+      if (req.method === 'GET' && String(req.headers.accept || '').includes('text/html')) return html(res, 410, pages.deleted());
+      // As an ended session, so that the apps leave for their sign-in, which then says the account is deleted.
+      return send(res, 401, { error: 'This account is deleted.', signIn: '/sign-in', deleted: '/front-door/deleted' });
+    }
     // A write from a page of another site can't send this header without a preflight, which nothing approves.
     // A machine of one account (the Mac app's) has no admin page (ADR 028): there /admin is the account's own.
     // A managed machine has none either, and nothing answers there (ADR 154): the fleet console is its admin.

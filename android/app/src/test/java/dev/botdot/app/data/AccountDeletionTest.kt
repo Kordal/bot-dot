@@ -53,19 +53,21 @@ class AccountDeletionTest {
         assertFalse("not the admin", AccountDeletion.adminNote(listOf("accounts"), obj("""{"account":"bob","admin":false,"deleteAccount":false}""")))
     }
 
-    @Test fun aManagedMachineOpensThePageTheFrontDoorNames() {
+    @Test fun aManagedMachineDeletesInTheAppOnceItsSubscriptionEnds() {
         val accounts = listOf("accounts")
-        val url = "https://botdot.app/account-deletion/"
-        val managed = obj("""{"account":"solo","admin":false,"deleteAccount":false,"deleteAccountPage":"$url"}""")
-        assertEquals(url, AccountDeletion.page(accounts, managed))
-        assertFalse("no Delete of its own", AccountDeletion.on(accounts, managed))
-        assertEquals("a self-hosted machine names none", null, AccountDeletion.page(accounts, obj("""{"account":"solo","deleteAccount":false,"deleteAccountPage":null}""")))
-        assertEquals("an older front door", null, AccountDeletion.page(accounts, obj("""{"account":"solo","deleteAccount":false}""")))
-        assertEquals("no front door", null, AccountDeletion.page(emptyList(), managed))
-        for (bad in listOf("http://botdot.app/account-deletion/", "javascript:alert(1)", "not a url", "https://")) {
-            assertEquals(bad, null, AccountDeletion.page(accounts, obj("""{"deleteAccountPage":"$bad"}""")))
-        }
-        assertEquals("not a string", null, AccountDeletion.page(accounts, obj("""{"deleteAccountPage":42}""")))
+        val owner = obj("""{"account":"owner","admin":false,"deleteAccount":true,"deletion":null,"deletesAlso":["bea"],"deleteEndsSubscription":true}""")
+        assertTrue(AccountDeletion.on(accounts, owner))
+        assertTrue(AccountDeletion.endsSubscription(owner))
+        assertEquals(listOf("bea"), AccountDeletion.also(owner))
+        assertEquals(null, AccountDeletion.deletion(owner))
+        assertEquals("pending", AccountDeletion.deletion(obj("""{"deletion":"pending"}""")))
+        assertEquals("failed", AccountDeletion.deletion(obj("""{"deletion":"failed"}""")))
+        assertEquals("anything else is nothing", null, AccountDeletion.deletion(obj("""{"deletion":"maybe"}""")))
+        val bob = obj("""{"account":"bob","deleteAccount":true}""")
+        assertFalse("an older or self-hosted front door bills nothing", AccountDeletion.endsSubscription(bob))
+        assertEquals(emptyList<String>(), AccountDeletion.also(bob))
+        assertTrue(AccountDeletion.done(obj("""{"ok":true,"pending":true}""")).pending)
+        assertFalse(AccountDeletion.done(obj("""{"ok":true,"deleted":"/front-door/deleted"}""")).pending)
     }
 
     @Test fun deleteWorksOnlyForTheNameTypedExactly() {

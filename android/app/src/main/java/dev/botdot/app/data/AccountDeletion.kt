@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -20,14 +21,17 @@ object AccountDeletion {
         features?.contains("accounts") == true && flag(session, "admin") == true && flag(session, "deleteAccount") == false
 
     /**
-     * Where a managed machine's owner starts deleting the account instead (#1312): the page of botdot.app the front
-     * door's session names (`deleteAccountPage`), only an https address; null elsewhere and from an older front door.
+     * Where a managed machine's deletion is (#1313, ADR 241): "pending" while its fleet console ends the subscription,
+     * "failed" when it couldn't (nothing was deleted), else null.
      */
-    fun page(features: List<String>?, session: JsonObject?): String? {
-        if (features?.contains("accounts") != true) return null
-        val page = (session?.get("deleteAccountPage") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
-        return page.takeIf { runCatching { java.net.URI(page) }.getOrNull()?.let { it.scheme == "https" && !it.host.isNullOrEmpty() } == true }
-    }
+    fun deletion(session: JsonObject?): String? =
+        (session?.get("deletion") as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it == "pending" || it == "failed" }
+
+    /** Whether deleting it cancels the subscription first: the account that pays for a managed machine. */
+    fun endsSubscription(session: JsonObject?): Boolean = flag(session, "deleteEndsSubscription") == true
+
+    /** The other accounts of the machine that go with it. */
+    fun also(session: JsonObject?): List<String> = (session?.get("deletesAlso") as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content } ?: emptyList()
 
     /** The session's own account, whose name is typed to confirm; empty when the front door sent none. */
     fun account(session: JsonObject?): String = (session?.get("account") as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
@@ -37,9 +41,18 @@ object AccountDeletion {
 
     fun body(name: String): JsonObject = buildJsonObject { put("name", name) }
 
-    /** What the front door answered: [boat] is why its machines on boat.dev were not all deleted, or null when they were. */
-    data class Done(val boat: String?)
-    fun done(answer: JsonObject?): Done = Done((answer?.get("boat") as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null })
+    /**
+     * What the front door answered: [boat] is why its machines on boat.dev were not all deleted, or null when they were;
+     * [pending] when a managed machine's fleet console ends the subscription first (#1313).
+     */
+    data class Done(val boat: String?, val pending: Boolean = false)
+    fun done(answer: JsonObject?): Done = Done(
+        (answer?.get("boat") as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null },
+        (answer?.get("pending") as? JsonPrimitive)?.takeIf { !it.isString }?.content == "true",
+    )
+
+    /** What the phone says when the console couldn't cancel the subscription. */
+    fun failed(): String = tr("Your subscription couldn't be cancelled, so nothing was deleted. Try again later.")
 
     /** What the phone says once it is deleted: with a line on boat.dev's machines when not all of them went. */
     fun said(done: Done): String = done.boat?.let { tr("Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.", "why" to it) }

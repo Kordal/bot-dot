@@ -342,16 +342,23 @@ fun SettingsScreen(
                 }
             }
             // "Delete account" (#1307): where the front door says this account may; the admin's own account is told why not.
+            // On a managed machine (#1313) one the fleet console must allow first shows "Deleting…" until it has.
             if (dev.botdot.app.data.AccountDeletion.on(server?.features, session)) {
-                FoldSection(tr("Delete account")) {
-                    SecondaryButton(onClick = { deleteTyped = ""; confirmDelete = true }) { Text(tr("Delete account…"), color = p.err) }
+                val state = dev.botdot.app.data.AccountDeletion.deletion(session)
+                // Opened while it waits: the card follows it, and the sign-in screen opens once the account is gone.
+                if (state == "pending") LaunchedEffect(state) {
+                    while (true) {
+                        kotlinx.coroutines.delay(3000)
+                        val now = runCatching { api?.frontDoorSession() }.getOrNull() ?: continue
+                        session = now
+                        if (dev.botdot.app.data.AccountDeletion.deletion(now) != "pending") break
+                    }
                 }
-            } else if (dev.botdot.app.data.AccountDeletion.page(server?.features, session) != null) {
-                // A managed machine (#1312): the account is the machine, so the page of botdot.app says how.
-                val deletePage = dev.botdot.app.data.AccountDeletion.page(server?.features, session)!!
                 FoldSection(tr("Delete account")) {
-                    Text(tr("Your account is deleted on botdot.app: the page says how."), color = p.muted)
-                    SecondaryButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(deletePage))) } }) { Text(tr("Delete account…"), color = p.err) }
+                    if (state == "failed") Text(dev.botdot.app.data.AccountDeletion.failed(), color = p.err)
+                    SecondaryButton(enabled = state != "pending", onClick = { deleteTyped = ""; confirmDelete = true }) {
+                        Text(if (state == "pending") tr("Deleting…") else tr("Delete account…"), color = p.err)
+                    }
                 }
             } else if (dev.botdot.app.data.AccountDeletion.adminNote(server?.features, session)) {
                 FoldSection(tr("Delete account")) {
@@ -451,6 +458,8 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(tr("This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback."))
+                    if (dev.botdot.app.data.AccountDeletion.endsSubscription(session)) Text(tr("Your subscription is cancelled first."))
+                    dev.botdot.app.data.AccountDeletion.also(session).takeIf { it.isNotEmpty() }?.let { Text(tr("The other accounts on this machine are deleted too: {names}.", "names" to it.joinToString(", "))) }
                     Text(tr("Off-site backups of the account are kept for 14 days, then removed."))
                     Field(deleteTyped, { deleteTyped = it }, label = { Text(tr("Type your account name, {name}, to confirm", "name" to account)) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii))
@@ -464,11 +473,36 @@ fun SettingsScreen(
                     val a = api!!
                     app.scope.launch {
                         runCatching { a.deleteAccount(account) }
-                            .onSuccess { confirmDelete = false; android.widget.Toast.makeText(app, dev.botdot.app.data.AccountDeletion.said(it), android.widget.Toast.LENGTH_LONG).show() }
+                            .onSuccess { done ->
+                                if (!done.pending) {
+                                    confirmDelete = false
+                                    android.widget.Toast.makeText(app, dev.botdot.app.data.AccountDeletion.said(done), android.widget.Toast.LENGTH_LONG).show()
+                                    return@onSuccess
+                                }
+                                // A managed machine (#1313): the fleet console ends the subscription first. Asked every few
+                                // seconds; once the account is gone the front door answers as an ended session, and the
+                                // sign-in screen opens by itself.
+                                while (true) {
+                                    kotlinx.coroutines.delay(3000)
+                                    val now = runCatching { a.frontDoorSession() }
+                                    val ended = (now.exceptionOrNull() as? dev.botdot.app.data.ApiException)?.status == 401
+                                    if (ended) {
+                                        confirmDelete = false
+                                        android.widget.Toast.makeText(app, tr("Your account is deleted."), android.widget.Toast.LENGTH_LONG).show()
+                                        break
+                                    }
+                                    now.getOrNull()?.let { session = it }
+                                    if (dev.botdot.app.data.AccountDeletion.deletion(now.getOrNull()) == "failed") {
+                                        confirmDelete = false
+                                        tell(dev.botdot.app.data.AccountDeletion.failed())
+                                        break
+                                    }
+                                }
+                            }
                             .onError { tell(it.message ?: tr("Couldn't delete the account")) }
                         deleting = false
                     }
-                }) { Text(tr("Delete account"), color = p.err) }
+                }) { Text(if (deleting) tr("Deleting…") else tr("Delete account"), color = p.err) }
             },
             dismissButton = { TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text(tr("Cancel"), color = p.text) } },
         )

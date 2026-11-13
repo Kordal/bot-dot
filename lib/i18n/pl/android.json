@@ -1,4 +1,7 @@
 {
+  "Your subscription couldn't be cancelled, so nothing was deleted. Try again later.": "Nie udało się anulować subskrypcji, więc nic nie zostało usunięte. Spróbuj później.",
+  "Your subscription is cancelled first.": "Najpierw anulujemy twoją subskrypcję.",
+  "The other accounts on this machine are deleted too: {names}.": "Inne konta na tej maszynie też znikną: {names}.",
   "Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.": "Twoje konto jest usunięte, ale nie wszystkie jego maszyny na boat.dev zostały usunięte ({why}). Powiedz o tym adminowi tej maszyny.",
   "Couldn't tell whether your account was deleted. Open botdot again: if it asks you to sign in, it was.": "Nie wiadomo, czy twoje konto zostało usunięte. Otwórz botdot ponownie: jeśli poprosi o zalogowanie, zostało.",
   "Your account is deleted.": "Twoje konto jest usunięte.",

@@ -663,28 +663,25 @@ function drawSubscriptionRow(root, session) {
 
 // Settings → "Delete account" (#1307): the owner deletes their own account, as the admin does on the admin page. Only
 // where the front door says so (its session's `deleteAccount`): an older front door leaves it out and shows nothing.
-// The admin's own account is never offered it: Settings says the machine is removed by its admin instead.
+// The admin's own account is never offered it: Settings says the machine is removed by its admin instead. On a managed
+// machine (#1313, ADR 241) the account that pays for it is deleted once the fleet console has ended its subscription:
+// the session says `deletion` "pending" until then, or "failed" when it couldn't, and nothing was deleted.
 const deleteCardHTML = () => (state.features.includes('accounts') ? '<div id="delete-account-card"></div>' : '');
+const deleteFailed = () => tr("Your subscription couldn't be cancelled, so nothing was deleted. Try again later.");
 
 function deleteCardInner(session) {
   const card = (body) => `
-    <details class="bs-row bs-more">
+    <details class="bs-row bs-more"${session?.deletion ? ' open' : ''}>
       <summary><b>${tr('Delete account')}</b>${CHEV}</summary>
       <div class="bs-body">${body}</div>
     </details>`;
-  if (session?.deleteAccount === true) return card(`<div><button type="button" class="btn red" id="delete-account">${tr('Delete account…')}</button></div>`);
-  // A managed machine (#1312): the account is the machine, so the page of botdot.app the front door names says how.
-  const page = deletePage(session);
-  if (page) return card(`<p class="muted">${tr('Your account is deleted on botdot.app: the page says how.')}</p><div><a class="btn red" id="delete-account-page" href="${esc(page)}" target="_blank" rel="noopener noreferrer">${tr('Delete account…')}</a></div>`);
+  if (session?.deleteAccount === true) {
+    if (session.deletion === 'pending') return card(`<div><button type="button" class="btn red" disabled>${tr('Deleting…')}</button></div>`);
+    const failed = session.deletion === 'failed' ? `<p class="req-note" role="alert">${deleteFailed()}</p>` : '';
+    return card(`${failed}<div><button type="button" class="btn red" id="delete-account">${tr('Delete account…')}</button></div>`);
+  }
   if (session?.admin === true && session.deleteAccount === false) return card(`<p class="muted">${tr("This is the admin's account of this machine, so it can't be deleted here. The machine is removed by its admin instead.")}</p>`);
   return '';
-}
-
-// The page a managed machine's front door names for deleting its account, only an https address; else null.
-function deletePage(session) {
-  const page = session?.deleteAccountPage;
-  if (typeof page !== 'string') return null;
-  try { return new URL(page).protocol === 'https:' ? page : null; } catch { return null; }
 }
 
 async function loadDeleteCard(root) {
@@ -695,16 +692,36 @@ async function loadDeleteCard(root) {
   drawSubscriptionRow(root, session); // the same session says where the subscription is managed
   slot.innerHTML = deleteCardInner(session);
   const btn = $('#delete-account', slot);
-  if (btn) btn.onclick = () => openDeleteAccount(session.account);
+  if (btn) btn.onclick = () => openDeleteAccount(session);
+  if (session?.deletion === 'pending') watchDeletion(() => loadDeleteCard(root));
 }
 
-// The confirmation: what is lost, the 14 days of off-site backups, and the account's name typed before Delete works.
-function openDeleteAccount(account) {
+// While the fleet console ends the subscription: the session is asked every few seconds. Once the account is gone (no
+// session, or the machine answers that it is deleted) the page that says so opens; a failure calls `failed`.
+function watchDeletion(failed) {
+  clearTimeout(watchDeletion.next);
+  watchDeletion.next = setTimeout(async () => {
+    let res = null;
+    try { res = await fetch('/front-door/session'); } catch { /* not reached now: asked again */ }
+    if (res && (res.status === 401 || res.status === 410)) return location.assign('/front-door/deleted');
+    const s = res?.ok ? await res.json().catch(() => null) : null;
+    if (s?.deletion === 'failed') return failed();
+    watchDeletion(failed);
+  }, 3000);
+}
+
+// The confirmation: what is lost, the subscription cancelled first on a managed machine, the other accounts that go
+// with it, the 14 days of off-site backups, and the account's name typed before Delete works.
+function openDeleteAccount(session) {
+  const account = session.account;
+  const also = Array.isArray(session.deletesAlso) ? session.deletesAlso.filter((n) => typeof n === 'string') : [];
   const m = openModal(`
     <form id="delete-account-form" autocomplete="off">
       <div class="modal-head"><h2>${tr('Delete your account?')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
         <p>${tr('This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback.')}</p>
+        ${session.deleteEndsSubscription === true ? `<p>${tr('Your subscription is cancelled first.')}</p>` : ''}
+        ${also.length ? `<p>${tr('The other accounts on this machine are deleted too: {names}.', { names: esc(also.join(', ')) })}</p>` : ''}
         <p>${tr('Off-site backups of the account are kept for 14 days, then removed.')}</p>
         <label class="field">${tr('Type your account name, {name}, to confirm', { name: esc(account) })}<input name="name" autocapitalize="none" spellcheck="false" autocomplete="off"></label>
         <p class="req-note hidden" id="delete-account-said" role="alert"></p>
@@ -722,23 +739,35 @@ function openDeleteAccount(account) {
 
 async function deleteAccount(m, account) {
   const go = $('#delete-account-go', m), said = $('#delete-account-said', m);
+  const say = (text) => { said.textContent = text; said.classList.remove('hidden'); };
   m._deleting = true; // one request at a time: typing the name again doesn't send a second
   go.disabled = true;
   let done;
   try {
     done = await frontDoorPost('/front-door/delete-account', { name: account });
   } catch (e) {
-    said.textContent = e.message;
-    said.classList.remove('hidden');
+    say(e.message);
     m._deleting = false;
     go.disabled = false;
+    return;
+  }
+  // A managed machine (#1313): the fleet console ends the subscription first; the form waits for it.
+  if (done.pending === true) {
+    go.textContent = tr('Deleting…');
+    said.classList.add('hidden');
+    watchDeletion(() => {
+      say(deleteFailed());
+      go.textContent = tr('Delete account');
+      m._deleting = false;
+      go.disabled = false;
+      loadDeleteCard(document);
+    });
     return;
   }
   const next = typeof done.deleted === 'string' && done.deleted.startsWith('/') ? done.deleted : '/sign-in';
   // The account is gone, but not all its machines on boat.dev: said before the page leaves, with no second delete.
   if (typeof done.boat === 'string' && done.boat.trim()) {
-    said.textContent = tr('Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.', { why: done.boat.trim() });
-    said.classList.remove('hidden');
+    say(tr('Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.', { why: done.boat.trim() }));
     go.textContent = tr('OK');
     go.classList.remove('red');
     go.disabled = false;
