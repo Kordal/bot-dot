@@ -262,6 +262,18 @@ test("botdot's image carries the installer and its release check, for the admin 
   assert.ok(allowed.includes('!lib/'));
 });
 
+test('every file install.sh reads back out of the image is in it (.dockerignore is an allowlist)', () => {
+  // A path left out of the allowlist is missing from the image: cat fails and the update stops at its last step.
+  const allowed = fs.readFileSync(path.join(ROOT, '.dockerignore'), 'utf8').split('\n').filter((l) => l.startsWith('!')).map((l) => l.slice(1));
+  const inImage = (file) => allowed.some((a) => (a.endsWith('/') ? file.startsWith(a) : file === a));
+  const read = [...code.matchAll(/image_file ([A-Za-z0-9_./-]+)/g)].map((m) => m[1]).filter((f) => !f.includes('$'));
+  assert.ok(read.includes('deploy/prepare-computers.sh') && read.includes('deploy/seed-demo.js'), read.join(', '));
+  for (const file of read) {
+    assert.ok(inImage(file), `${file} is read with image_file but .dockerignore leaves it out of the image`);
+    assert.ok(fs.existsSync(path.join(ROOT, file)), `${file} is read with image_file but is not in the repository`);
+  }
+});
+
 test('one installer runs at a time: another waits for it, and then runs', async (t) => {
   const first = rerun(t);
   const lock = path.join(first.run, 'install.lock');
