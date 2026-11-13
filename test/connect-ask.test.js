@@ -264,5 +264,17 @@ test('a Connect pressed again keeps only the last one\'s connection on the card,
   const card = asks.list().find((x) => x.id === a.id);
   assert.deepEqual([card.connectionId, card.expiresAt], ['ca_2', 'later']);
   if (other) assert.equal(asks.list().find((x) => x.id === other.id).connectionId, undefined, 'another card is left as it was');
+
+  // An older press that fails after a newer one started: it says so, and the card stays the newer one's.
+  pending.length = 0;
+  const failing = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  const newer = C.connect(a, 'http://x/connectors/done');
+  await new Promise((r) => setImmediate(r));
+  pending[1]({ redirectUrl: 'https://c/3', connectionId: 'ca_3', expiresAt: 'latest' });
+  await newer;
+  pending[0](Promise.reject(Object.assign(new Error('Composio answered 500'), { composio: true })));
+  const err = await failing;
+  assert.equal(err.superseded, true);
+  assert.equal(asks.list().find((x) => x.id === a.id).connectionId, 'ca_3');
   C.stopAll?.();
 });
