@@ -49,6 +49,7 @@ test('in a turn in a group the lead and a member are told to work there by namin
   assert.doesNotMatch(member, /name the lead and ask it/);
   assert.match(lead, /The owner reads this chat: a member asks the owner itself/);
   assert.match(lead, /never ask the owner again what a member asked/);
+  assert.match(lead, /except in your last word, whose one question at the end holds what still stands/); // ADR 229
   assert.doesNotMatch(lead, /The owner talks to the team through you/);
   assert.doesNotMatch(member, /send what the lead asks for back/);
   done();
