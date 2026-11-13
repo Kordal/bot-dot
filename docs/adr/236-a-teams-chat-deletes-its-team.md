@@ -1,6 +1,7 @@
 # ADR-236: A team's chat deletes its team
 
 - **Status:** Accepted (2026-11-13, the owner: "here should also be able to delete the team", on a team's chat settings)
+- **Owning task:** [#1340](https://github.com/Kordal/bot-dot/issues/1340)
 - **Amends:** [ADR 119](119-a-teams-chat-is-a-group-that-follows-the-team-and-a-message-without-a-mention-goes-to-its-lead.md) (the owner cannot delete a team's chat)
 
 ## Context

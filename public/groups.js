@@ -313,7 +313,7 @@ function renderGroupSettings() {
   if (document.activeElement !== name && name.value !== g.name) name.value = g.name; // renamed elsewhere; not under the cursor
   const members = groupMembers(g);
   const team = g.team && typeof Company !== 'undefined' && Company.teamPanel?.team(g.team) ? Company.teamPanel : null; // a team of the project on screen (ADR 205)
-  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null, team ? team.sig(g.team) : '']);
+  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null, team ? team.sig(g.team) : '', state.features || []]); // features read late redraw it
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
