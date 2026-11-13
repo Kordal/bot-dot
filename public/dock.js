@@ -33,6 +33,7 @@ const Dock = (() => {
   function draw() {
     if (!$('#chat-row')) return;
     if (state.view !== 'chief' || !shows()) chiefHere = false;
+    if (!shows() || failedDefault !== state.company?.id) failedDefault = null;
     if (drawColumn()) return;
     drawFull();
   }
@@ -62,6 +63,7 @@ const Dock = (() => {
   const setHidden = (on) => { hidden = on; try { if (on) localStorage.setItem(HKEY, 'hidden'); else localStorage.removeItem(HKEY); } catch { /* private mode */ } };
   let showBtn = null; // #project-chat-show: the column back, at the top right of the board
   let opening = false; // the default chat is being opened
+  let failedDefault = null; // a failed automatic open waits for an explicit retry or another space
   // The selected Project Manager is the primary contact (ADR 234); otherwise the project's own Chief.
   // null as the Chief id means its chat needs making. undefined keeps older servers' ordinary Chief entry.
   function defaultChat() {
@@ -74,6 +76,7 @@ const Dock = (() => {
     return { kind: 'chief', id: state.features.includes('project-chief') ? c.chiefChat || null : undefined };
   }
   function openDefault() {
+    failedDefault = null;
     const d = defaultChat();
     if (d) return kinds[d.kind].open(d.id);
   }
@@ -89,14 +92,16 @@ const Dock = (() => {
     if (open) $('#view-company')?.classList.remove('hidden');
     syncHead(open);
     const bare = state.view === 'company';
-    if (bare && !hidden && !opening) {
+    if (bare && !hidden && !opening && failedDefault !== state.company?.id) {
       const d = defaultChat();
       // Opened after this drawing: opening it draws the screen again.
       if (d) {
         const project = state.company.id;
         opening = true;
         queueMicrotask(async () => {
-          try { if (state.company?.id === project && state.view === 'company' && column() && !hidden) await openDefault(); }
+          try {
+            if (state.company?.id === project && state.view === 'company' && column() && !hidden && await openDefault() === false) failedDefault = project;
+          }
           finally { opening = false; }
         });
       }

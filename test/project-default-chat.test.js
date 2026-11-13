@@ -80,3 +80,44 @@ test('a delayed Chief chat creation keeps its project and cannot reopen it after
   await pending;
   assert.deepEqual(opened, []);
 });
+
+test('a delayed Chief creation does not replace an explicitly opened bot conversation', async () => {
+  let resolve;
+  const opened = [];
+  const state = { company: { id: 'p1' }, view: 'company' };
+  const ctx = vm.createContext({ state, place: 'company', at: (path) => path,
+    api: () => new Promise((done) => { resolve = done; }), changed() {}, toast() {},
+    Dock: { openChief: (id) => opened.push(id) },
+  });
+  const source = read('company.js');
+  vm.runInContext(source.slice(source.indexOf('  const openingChief ='), source.indexOf('  function wirePick')), ctx);
+  const pending = ctx.openProjectChief();
+  state.view = 'bot'; state.botId = 'manager';
+  resolve({ chatId: 'chief-p1' });
+  await pending;
+  assert.deepEqual(opened, []);
+});
+
+test('failed automatic entry waits for an explicit retry instead of retrying on every redraw', async () => {
+  const p = page();
+  const { element } = require('./web-page');
+  const app = element();
+  const row = element();
+  const main = { appendChild() {} };
+  const ctx = vm.createContext({ state: p.state, botById() {}, groupById() {}, Company: { place: () => 'company' },
+    localStorage: { getItem() { return null; } }, addEventListener() {}, queueMicrotask,
+    matchMedia: () => ({ matches: true }), $: (sel) => ({ '#app': app, '#chat-row': row, '.main': main })[sel], $$: () => [],
+    document: { addEventListener() {}, createElement: () => element({}, { setAttribute() {} }) }, tr: (x) => x,
+  });
+  ctx.state.view = 'company';
+  vm.runInContext(read('dock.js'), ctx);
+  let attempts = 0;
+  ctx.Dock.kinds.chief.open = async () => { attempts++; return false; };
+  ctx.Dock.draw();
+  await new Promise((done) => setImmediate(done));
+  ctx.Dock.draw();
+  await new Promise((done) => setImmediate(done));
+  assert.equal(attempts, 1);
+  await ctx.Dock.openDefault();
+  assert.equal(attempts, 2, 'the owner can retry');
+});

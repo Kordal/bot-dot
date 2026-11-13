@@ -67,6 +67,7 @@
   "Login not saved: {why}": "Login nie został zapisany: {why}",
   "that didn't work": "nie udało się",
   "Saved. {botName} will continue.": "Zapisano. {botName} będzie kontynuować.",
+  "Couldn't open the chat": "Nie udało się otworzyć rozmowy",
   "Couldn't open the file": "Nie udało się otworzyć pliku",
   "Use HTTPS for a remote botdot server.": "Do zdalnego serwera botdot użyj HTTPS.",
   "Can't reach botdot. Is Tailscale on? ({why})": "Brak połączenia z botdot. Czy Tailscale jest włączony? ({why})",

@@ -181,6 +181,20 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
         removingGoals += id
         call({ it.removeObjective(id) }) { removingGoals -= id }
     }
+    private val openingChief = mutableSetOf<String>()
+    fun openChief(c: Company, open: (String) -> Unit) {
+        c.chiefChat?.let { open(it); return }
+        val a = api ?: run { tell(tr("Can't reach botdot.")); return }
+        if (!openingChief.add(c.id)) return
+        scope.launch {
+            try {
+                val chat = a.projectChiefChat(c.id)
+                if (api === a && a.project == c.id && chat.isNotEmpty()) { app.store.company.refresh(); open(chat) }
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { tell(e.message ?: tr("Couldn't open the chat"))
+            } finally { openingChief.remove(c.id) }
+        }
+    }
     fun call(block: suspend (Api) -> Company, made: Boolean = false, done: (Boolean) -> Unit = {}) = scope.launch {
         val a = api ?: run { tell(tr("Can't reach botdot.")); done(false); return@launch }
         runCatching { block(a) }.onSuccess { took(it, made); done(true) }.onError { tell(it.message); done(false) }
@@ -576,7 +590,6 @@ private fun DefaultChatField(ui: CompanyUi, c: Company, ways: CompanyWays) {
     val server by app.store.version.value.collectAsState()
     val route = dev.botdot.app.data.Spaces.defaultChat(c, bots, server?.features) ?: return
     val manager = route.takeIf { it.startsWith("bot/") }?.removePrefix("bot/")?.let { id -> bots.orEmpty().firstOrNull { it.id == id } }
-    var busy by remember(c.id) { mutableStateOf(false) }
     if (manager != null) {
         SpaceChatField(manager.name, manager.unread, manager.color, onClick = { ways.onBot(manager.id) }) { BotFigure(manager.color ?: CHIEF_COLOR, manager.state, 28, manager.outfit) }
     } else {
@@ -585,19 +598,7 @@ private fun DefaultChatField(ui: CompanyUi, c: Company, ways: CompanyWays) {
         val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
         val open = {
             if (route == dev.botdot.app.data.Spaces.CHIEF || ways.onChiefChat == null) ways.onChief()
-            else if (id != null) ways.onChiefChat.invoke(id)
-            else if (!busy) {
-                val api = ui.api
-                if (api != null) {
-                    busy = true
-                    ui.scope.launch {
-                        runCatching { api.projectChiefChat(c.id) }.onSuccess { chat ->
-                            if (api.project == c.id && chat.isNotEmpty()) { app.store.company.refresh(); ways.onChiefChat.invoke(chat) }
-                        }.onFailure { ui.tell(it.message ?: tr("Couldn't open the chat")) }
-                        busy = false
-                    }
-                }
-            }
+            else ui.openChief(c, ways.onChiefChat)
         }
         SpaceChatField(name, waiting, CHIEF_COLOR, onClick = open) { BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF) }
     }

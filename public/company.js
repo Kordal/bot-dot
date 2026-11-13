@@ -406,11 +406,12 @@ const Company = (() => {
     if (c.chiefChat) return Dock.openChief(c.chiefChat);
     b.disabled = true;
     openingChief.add(c.id);
+    const view = state.view, chat = state.chatId, bot = state.botId, group = state.groupId;
     try {
       const r = await api(at('/company/chief-chat'), { method: 'POST' });
       if (r.company) changed({ company: r.company });
-      if (state.company?.id === c.id && place === 'company') Dock.openChief(r.chatId);
-    } catch (e) { toast(e.message, true); } finally { openingChief.delete(c.id); b.disabled = false; }
+      if (state.company?.id === c.id && place === 'company' && state.view === view && state.chatId === chat && state.botId === bot && state.groupId === group) Dock.openChief(r.chatId);
+    } catch (e) { toast(e.message, true); return false; } finally { openingChief.delete(c.id); b.disabled = false; }
   }
   function wirePick(root) {
     $$('[data-project-chief]', root).forEach((b) => (b.onclick = () => openProjectChief(b)));
