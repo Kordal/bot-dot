@@ -724,7 +724,8 @@ const Company = (() => {
     if (!state.company) closeSettings(false);
     loaded = true;
     drawSide();
-    if (state.view === 'company') render();
+    // Its page is up beside a docked chat too (the view is then the chat's): drawn there as well.
+    if (state.view === 'company' || (typeof Dock !== 'undefined' && Dock.docked())) render();
   }
 
   // A running project's page is up, beside its chat or alone, outside a phone (#838): its keys answer 1-9.

@@ -823,6 +823,9 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /** A team's bots: all of them, those added at the end; a bot stays in the project's other teams (ADR 199). */
     suspend fun setTeamBots(team: String, bots: List<String>): Company =
         CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
+    /** The project's own bots in no team (ADR 233): the whole list. */
+    suspend fun setProjectBots(bots: List<String>): Company =
+        CompanySetup.of(send("PUT", co("/company/bots"), buildJsonObject { put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
     suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("lead", bot) }))
     /** How often a team's lead reports (#696): daily, twice-weekly, weekly, or "" for none. */
     suspend fun setReportRhythm(team: String, every: String): Company =

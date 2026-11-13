@@ -65,11 +65,11 @@ object Spaces {
     // ---------- each bot in one space (#841) ----------
 
     /** The bots in a team of one of [projects]. */
-    fun teamBots(projects: List<Company>): Set<String> = projects.flatMap { c -> c.teams.flatMap { it.bots } }.toSet()
+    fun teamBots(projects: List<Company>): Set<String> = projects.flatMap { c -> c.teams.flatMap { it.bots } + c.bots }.toSet()
 
     /** The project each team bot is in, as the rail draws it: Home's Needs you marks a project's ask with its square. */
     fun spaceOfBot(projects: List<Company>): Map<String, Space> = buildMap {
-        for (c in projects) { val s = Space(c.id, ManyProjects.nameOf(c), c.color ?: ManyProjects.DEFAULT_COLOR, 0); for (t in c.teams) for (b in t.bots) putIfAbsent(b, s) }
+        for (c in projects) { val s = Space(c.id, ManyProjects.nameOf(c), c.color ?: ManyProjects.DEFAULT_COLOR, 0); for (b in c.teams.flatMap { it.bots } + c.bots) putIfAbsent(b, s) }
     }
 
     /**

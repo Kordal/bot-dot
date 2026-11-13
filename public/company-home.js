@@ -318,7 +318,13 @@
         ${unfold ? `<div class="sp-keys">${ids.map((id) => keyHTML(botById(id), id === t.lead && ids.length > 1, teamsOf(id))).join('')}<button type="button" class="key sp-join" data-cf-add="${esc(t.id)}" aria-label="${esc(tr('Add bots to {team}', { team: t.name }))}" title="${esc(tr('Add bots to {team}', { team: t.name }))}">${Company.ICON.plus}</button></div>` : ''}
       </section>`;
     }).join('');
-    return `<div class="sp-teams">${rows}<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button></div>`;
+    // The project's own bots in no team (ADR 233): their keys under the teams, "+" adding more; with none, "Add bot"
+    // beside "New team".
+    const own = (state.features || []).includes('project-bots') ? (c.bots || []).filter((id) => botById(id)) : null;
+    const addBot = tr('Add bot');
+    const ownRow = own?.length ? `<section class="sp-team sp-own"><div class="sp-keys">${own.map((id) => keyHTML(botById(id), false, 0)).join('')}<button type="button" class="key sp-join" data-cf-add-bot aria-label="${esc(addBot)}" title="${esc(addBot)}">${Company.ICON.plus}</button></div></section>` : '';
+    const adds = `<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>${own && !own.length ? `<button type="button" class="sp-new" data-cf-add-bot>${Company.ICON.plus}${esc(addBot)}</button>` : ''}`;
+    return `<div class="sp-teams">${rows}${ownRow}<div class="sp-adds">${adds}</div></div>`;
   }
   // The bottom field below a wide window (#839, ADR 132): the project's default chat, its first team's with the
   // team's faces, else the Chief's. A tap opens that chat full screen, ready to write in, as Home's Chief field does.
@@ -347,7 +353,7 @@
   // What stops its bots' work comes first (Keypad.blockersFirst): a missing app shows within the three rows.
   const projectNeeds = (c) => Keypad.blockersFirst(Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups));
   // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
-  const projectAsking = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
+  const projectAsking = (c) => { const ids = new Set([...c.teams.flatMap((t) => t.bots), ...(c.bots || [])]); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
 
   // ---------- the panel: the To-do (#692), or a team ----------
   // The To-do's filter (All, You, Bots, Done) and what the Add field will give the new item: who it is for (null:
@@ -370,7 +376,7 @@
     return new Date(`${due}T12:00:00Z`).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
   // The bots an item may be for: the project's, or every bot while it has no team.
-  const projectBots = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); const in_ = state.bots.filter((b) => ids.has(b.id)); return in_.length ? in_ : state.bots; };
+  const projectBots = (c) => { const ids = new Set([...c.teams.flatMap((t) => t.bots), ...(c.bots || [])]); const in_ = state.bots.filter((b) => ids.has(b.id)); return in_.length ? in_ : state.bots; };
   const head = (b) => (b ? botFigure(colorOf(b), 'idle', 'sm', outfitOf(b)) : chiefFigure('sm'));
   const you = `<span class="cf-you sm">${YOU}</span>`;
   // An item's chip: how it repeats, else that its bot works now, else its due day.
@@ -486,6 +492,7 @@
     }));
     $$('[data-cf-fold]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); fold(c, b.dataset.cfFold); }));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));
+    $$('[data-cf-add-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); addToProject(c); }));
     $$('[data-cf-add]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); addToTeam(c, b.dataset.cfAdd); }));
     $('[data-sp-field]', root)?.addEventListener('click', () => { Dock.openDefault(); requestAnimationFrame(() => $('#chat-row .view:not(.hidden) textarea')?.focus()); });
     const asks = projectNeeds(c).slice(0, 3);
@@ -690,6 +697,28 @@
     });
   }
 
+  // "Add bot" (ADR 233): the account's bots not in the project yet, to tick; they join it in no team. "New bot" asks
+  // the Chief for one for the project, in a new Chief chat with the words ready; with no bot to offer, it goes there.
+  function addToProject(c) {
+    const mine = new Set([...(c.teams || []).flatMap((t) => t.bots), ...(c.bots || [])]);
+    const bots = state.bots.filter((b) => !mine.has(b.id));
+    const askChief = () => {
+      openChiefChat(null);
+      const box = $('#view-chief form.composer')?.text;
+      if (box) { box.value = `${tr('A new bot for {project}:', { project: c.name || c.start })} `; box.dispatchEvent(new Event('input')); box.focus(); }
+    };
+    if (!bots.length) return askChief();
+    openBotPicker({
+      title: tr('Add bot'),
+      bots,
+      max: 40,
+      action: tr('Add'),
+      hint: () => '',
+      more: { label: tr('New bot'), run: askChief },
+      done: async (picked) => { Company.changed({ company: await api(Company.at('/company/bots'), { method: 'PUT', body: { bots: [...(c.bots || []), ...picked] } }) }); },
+    });
+  }
+
   // A click outside the open "Show as" menu, or Escape, closes it.
   const closeMenu = () => { if (menuFor) { menuFor = null; Company.redraw(); } };
   document.addEventListener('click', (e) => { if (menuFor && !e.target.closest?.('.cf-menu')) closeMenu(); });
@@ -725,5 +754,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [unfolded(state.company), Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
+  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
 })();

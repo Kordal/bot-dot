@@ -34,7 +34,7 @@ object ManyProjects {
     fun manager(c: Company, bots: List<Bot>): Bot? = c.lead?.let { id -> bots.firstOrNull { it.id == id } }
     /** The bots a project's lead is picked from (ADR 227): the project's own first, then the rest, each by name. */
     fun leadChoices(c: Company, bots: List<Bot>): List<Bot> {
-        val mine = c.teams.flatMap { it.bots }.toSet()
+        val mine = (c.teams.flatMap { it.bots } + c.bots).toSet()
         return bots.sortedWith(compareBy<Bot>({ it.id !in mine }, { it.name.lowercase() }))
     }
 
@@ -96,7 +96,10 @@ object ManyProjects {
     }
 
     /** What waits for the owner in a project: the sum of its bots' [asks]. */
-    fun waits(c: Company, bots: List<Bot>, asks: (String) -> Int): Int = branches(c, bots).sumOf { b -> b.bots.sumOf { asks(it.id) } }
+    fun waits(c: Company, bots: List<Bot>, asks: (String) -> Int): Int {
+        val ids = bots.map { it.id }.toSet()
+        return (branches(c, bots).flatMap { b -> b.bots.map { it.id } } + c.bots.filter { it in ids }).distinct().sumOf(asks)
+    }
 
     /** Whether a node of the tree is open: as the owner left it, else a project while it is the one shown, a team always. */
     fun isOpen(folds: Map<String, Boolean>, key: String, shown: String?): Boolean =

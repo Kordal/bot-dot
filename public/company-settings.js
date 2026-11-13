@@ -106,17 +106,24 @@
       return `<div class="ps-row ps-team" style="--c:${esc(t.color)}"><span class="ps-label"><i class="ps-dot"></i>${esc(t.name)}</span><div class="ps-value"><span class="ps-faces">${members.map((b) => `<span class="ps-face-wrap" title="${esc(b.name)}">${face(b)}${b.id === t.lead && members.length > 1 ? CROWN : ''}</span>`).join('')}</span><button type="button" class="btn sm ghost" data-ps-edit-team="${esc(t.id)}">${tr('Edit')}</button></div></div>`;
     }).join('');
     const add = editing === 'new' ? editorHTML(c, null) : `<div class="ps-adds"><button type="button" class="btn sm" data-ps-new-team>${PLUS}${tr('New team')}</button></div>`;
-    return section('team', tr('Team'), leadHTML(c) + teams + add);
+    return section('team', tr('Team'), leadHTML(c) + teams + ownHTML(c) + add);
   }
 
   // Who talks to the project's teams for the owner (ADR 230): a bot the owner picks, in its own chat, or the Chief in
   // the project's own chat. The project's bots come first.
   function leadHTML(c) {
     if (!(state.features || []).includes('project-lead')) return '';
-    const mine = new Set(c.teams.flatMap((t) => t.bots));
+    const mine = new Set([...c.teams.flatMap((t) => t.bots), ...(c.bots || [])]);
     const bots = [...(state.bots || [])].sort((a, b) => (mine.has(b.id) - mine.has(a.id)) || a.name.localeCompare(b.name));
     const opt = (v, label) => `<option value="${esc(v)}"${(c.lead || '') === v ? ' selected' : ''}>${esc(label)}</option>`;
     return row(tr('Project Manager'), `<select class="ps-input" data-ps-project-lead aria-label="${tr('Project Manager')}">${opt('', chiefTitle())}${bots.map((b) => opt(b.id, b.name)).join('')}</select>`);
+  }
+  // The project's own bots in no team (ADR 233), each with ✕ to take it out of the project. They are added on the
+  // project's page.
+  function ownHTML(c) {
+    const own = (c.bots || []).map(botById).filter(Boolean);
+    if (!own.length) return '';
+    return row(tr('Bots'), `<span class="ps-own">${own.map((b) => `<span class="ps-own-bot">${face(b)}<span>${esc(b.name)}</span><button type="button" class="icon-btn" data-ps-unbot="${esc(b.id)}" aria-label="${esc(tr('Remove {name}', { name: b.name }))}" title="${esc(tr('Remove {name}', { name: b.name }))}">${X}</button></span>`).join('')}</span>`, 'top');
   }
   // A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 199), its lead.
   function editorHTML(c, t) {
@@ -279,6 +286,11 @@
       };
     }
     // Reports and the standup.
+    // One removal at a time: each sends the whole list, so a second one waits for the first one's answer.
+    $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => {
+      $$('[data-ps-unbot]', root).forEach((x) => (x.disabled = true));
+      call('/company/bots', 'PUT', { bots: (c.bots || []).filter((id) => id !== b.dataset.psUnbot) });
+    }));
     const projectLead = $('[data-ps-project-lead]', root);
     if (projectLead) projectLead.onchange = () => patch({ lead: projectLead.value || null });
     $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
