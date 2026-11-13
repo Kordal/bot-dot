@@ -110,6 +110,7 @@ test('failed automatic entry waits for an explicit retry instead of retrying on 
     document: { addEventListener() {}, createElement: () => element({}, { setAttribute() {} }) }, tr: (x) => x,
   });
   ctx.state.view = 'company';
+  delete ctx.state.company.chiefChat;
   vm.runInContext(read('dock.js'), ctx);
   let attempts = 0;
   ctx.Dock.kinds.chief.open = async () => { attempts++; return false; };
@@ -120,4 +121,14 @@ test('failed automatic entry waits for an explicit retry instead of retrying on 
   assert.equal(attempts, 1);
   await ctx.Dock.openDefault();
   assert.equal(attempts, 2, 'the owner can retry');
+  ctx.Dock.draw();
+  await new Promise((done) => setImmediate(done));
+  // A newly selected manager must not inherit a failed Chief entry.
+  ctx.state.company.lead = 'manager';
+  ctx.botById = (id) => ctx.state.bots.find((b) => b.id === id);
+  let contact;
+  ctx.Dock.kinds.bot.open = (id) => { contact = id; };
+  ctx.Dock.draw();
+  await new Promise((done) => setImmediate(done));
+  assert.equal(contact, 'manager');
 });

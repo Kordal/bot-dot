@@ -33,7 +33,7 @@ const Dock = (() => {
   function draw() {
     if (!$('#chat-row')) return;
     if (state.view !== 'chief' || !shows()) chiefHere = false;
-    if (!shows() || failedDefault !== state.company?.id) failedDefault = null;
+    if (!shows() || failedDefault !== state.company?.id || state.company?.chiefChat || defaultChat()?.kind === 'bot') failedDefault = null;
     if (drawColumn()) return;
     drawFull();
   }
@@ -102,7 +102,7 @@ const Dock = (() => {
           try {
             if (state.company?.id === project && state.view === 'company' && column() && !hidden && await openDefault() === false) failedDefault = project;
           }
-          finally { opening = false; }
+          finally { opening = false; if (state.company?.id !== project) draw(); }
         });
       }
     }
