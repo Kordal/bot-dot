@@ -101,7 +101,7 @@ test('a key Composio refuses still takes the app off the bots, and says it may b
   const r = await srv.api('/connectors/connections/ca_linear', { method: 'DELETE' });
   assert.equal(r.status, 200);
   assert.match(r.data.note, /is off your list, but Composio didn't confirm removing it/);
-  assert.deepEqual(await botApps(bot), []);
+  assert.ok(!(await botApps(bot)).includes('linear'), 'every bot has the apps still connected (ADR 231), not this one');
   const page = (await srv.api('/connectors')).data;
   assert.equal(page.keyRejected, true);
   assert.deepEqual(page.connections, [], 'nothing shown as connected on a key Composio refuses');
