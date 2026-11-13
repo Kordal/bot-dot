@@ -27,6 +27,7 @@ test('a deleted bot is told until a bot has its name again, and for 90 days at m
   assert.equal(g.note([{ id: 'new', name: 'anna <b>' }]), '', 'a new bot with its name is not gone');
   t += (gone.KEEP_DAYS + 1) * 24 * 3600 * 1000;
   assert.equal(g.note([]), '');
+  assert.deepEqual(JSON.parse(fs.readFileSync(g.FILE, 'utf8')), [], 'an expired one leaves the file as it is read');
   for (let i = 0; i < gone.MAX + 5; i++) g.add({ id: `b${i}`, name: `Bot ${i}` });
   assert.equal(g.list([]).length, gone.MAX);
   fs.rmSync(dir, { recursive: true, force: true });
