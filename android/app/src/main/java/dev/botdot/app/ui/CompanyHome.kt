@@ -139,8 +139,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     fun offered(t: CompanyTeam): List<Bot> = CompanyFloor.addable(c, t, bots).map { (b, other) -> if (other != null) b.copy(description = tr("In {team}", "team" to other)) else b }
     // "Add bot" (ADR 233): the project's own bots in no team, on a botdot that has them; the account's bots not in the
     // project are offered, and with none the Chief is asked for a new one.
-    val ownBots = ProjectBots.FEATURE in features
-    val notIn = remember(c, bots) { ProjectBots.addable(c, bots) }
+    val ownBots = dev.botdot.app.data.ProjectBots.FEATURE in features
+    val notIn = remember(c, bots) { dev.botdot.app.data.ProjectBots.addable(c, bots) }
     var addingOwn by rememberSaveable { mutableStateOf(false) }
     val addOwn: () -> Unit = { if (notIn.isEmpty()) ways.onChiefSay(newBotWords(c)) else addingOwn = true }
     // The pieces the owner put on the board (#780); a project made before has them all.
