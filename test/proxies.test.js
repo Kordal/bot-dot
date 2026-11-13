@@ -94,9 +94,9 @@ function standIns(to) {
 
 const listen = (server) => new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 
-function selfSigned(dir) {
+function selfSigned(dir, names = ['ipinfo.test']) {
   try {
-    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(dir, 'key.pem'), '-out', path.join(dir, 'cert.pem'), '-days', '1', '-subj', '/CN=ipinfo.test', '-addext', 'subjectAltName=DNS:ipinfo.test'], { stdio: 'ignore' });
+    execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', path.join(dir, 'key.pem'), '-out', path.join(dir, 'cert.pem'), '-days', '1', '-subj', `/CN=${names[0]}`, '-addext', `subjectAltName=${names.map((n) => `DNS:${n}`).join(',')}`], { stdio: 'ignore' });
     return { key: fs.readFileSync(path.join(dir, 'key.pem')), cert: fs.readFileSync(path.join(dir, 'cert.pem')) };
   } catch { return null; }
 }
@@ -122,9 +122,58 @@ test('a test goes through the proxy with its login, the site\'s name resolved th
     const closed = net.createServer();
     const dead = await listen(closed);
     closed.close();
-    assert.match((await check({ type: 'socks5', host: '127.0.0.1', port: dead, username: '', password: '' }, opts)).error, /^didn't answer/);
+    assert.deepEqual(await check({ type: 'socks5', host: '127.0.0.1', port: dead, username: '', password: '' }, opts), { ok: false, error: 'refused the connection' });
   } finally {
     for (const s of [site, socks, http]) s.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('a proxy that lets the test in but whose exit doesn\'t reach the site says so, and the next site is asked', async (t) => {
+  const dir = scratch();
+  const pem = selfSigned(dir, ['ipinfo.test', 'ipwho.test', 'limited.test', 'empty.test']);
+  if (!pem) { t.skip('no openssl'); fs.rmSync(dir, { recursive: true, force: true }); return; }
+  const open = new Set(); // every connection, closed at the end even when an assertion fails midway
+  const answering = tls.createServer(pem, (s) => { open.add(s); s.once('data', () => s.end('HTTP/1.0 200 OK\r\n\r\n{"ip":"198.51.100.7","country":"Belgium","country_code":"BE","city":"Brussels"}')); });
+  const empty = tls.createServer(pem, (s) => { open.add(s); s.once('data', () => s.end('HTTP/1.0 200 OK\r\n\r\nnull')); });
+  const limited = tls.createServer(pem, (s) => { open.add(s); s.once('data', () => s.end('HTTP/1.0 429 Too Many Requests\r\n\r\n{"error":"rate limit"}')); });
+  const silent = net.createServer((s) => open.add(s)); // the tunnel opens, nothing ever comes back
+  const ports = { 'ipinfo.test': await listen(silent), 'ipwho.test': await listen(answering), 'limited.test': await listen(limited), 'empty.test': await listen(empty) };
+  // An HTTP proxy that answers 200 to every CONNECT at once, before it knows its exit can get there, as many do.
+  const proxy = net.createServer((c) => {
+    let head = '';
+    const onData = (d) => {
+      head += d.toString('latin1');
+      if (!head.includes('\r\n\r\n')) return;
+      c.off('data', onData);
+      c.write('HTTP/1.1 200 Connection established\r\n\r\n');
+      const up = net.connect(ports[head.split(' ')[1].split(':')[0]], '127.0.0.1');
+      open.add(up);
+      up.on('error', () => c.destroy());
+      c.on('error', () => up.destroy());
+      c.pipe(up).pipe(c);
+    };
+    open.add(c);
+    c.on('data', onData);
+  });
+  const p = { type: 'http', host: '127.0.0.1', port: await listen(proxy), username: '', password: '' };
+  const site = (host) => ({ host, port: 443, path: '/' });
+  try {
+    assert.deepEqual(await check(p, { sites: [site('ipinfo.test')], ca: pem.cert, seconds: 1 }), { ok: false, error: "let the test in, but didn't reach ipinfo.test in time" });
+    assert.deepEqual(await check(p, { sites: [site('limited.test')], ca: pem.cert, seconds: 2 }), { ok: false, error: 'let the test in, but limited.test answered 429' });
+    const next = await check(p, { sites: [site('ipinfo.test'), site('limited.test'), site('empty.test'), site('ipwho.test')], ca: pem.cert, seconds: 1 });
+    assert.deepEqual({ ...next, ms: typeof next.ms }, { ok: true, ip: '198.51.100.7', country: 'BE', city: 'Brussels', ms: 'number' });
+    // A proxy that can't be reached isn't asked again for another site.
+    const closed = net.createServer();
+    const dead = await listen(closed);
+    closed.close();
+    const tries = t.mock.method(net, 'connect');
+    assert.deepEqual(await check({ ...p, port: dead }, { sites: [site('ipinfo.test'), site('ipwho.test')], ca: pem.cert, seconds: 1 }), { ok: false, error: 'refused the connection' });
+    assert.equal(tries.mock.callCount(), 1);
+    tries.mock.restore();
+  } finally {
+    for (const s of open) s.destroy();
+    for (const s of [answering, limited, empty, silent, proxy]) s.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
