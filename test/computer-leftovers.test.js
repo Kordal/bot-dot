@@ -218,7 +218,7 @@ test("the computer's status says in plain words what was left behind, and the Ch
   const srv = await startServer({ env: { BOT_DOT_HELPER_SOCKET: socket, BOT_DOT_LEFTOVERS_MS: '30' } });
   t.after(async () => { await srv.stop(); await new Promise((r) => helper.close(r)); fs.rmSync(dir, { recursive: true, force: true }); });
   const bot = await makeBot(srv, { name: 'Media Watcher', computer: 'linux' });
-  const status = async () => (await srv.api(`/bots/${bot.id}/computer`)).data.usage.other;
+  const status = async () => (await srv.api(`/bots/${bot.id}/computer/status`)).data.usage.other;
   await waitFor(async () => (await status()).leftSince, { timeout: 10_000 });
   const o = await status();
   assert.equal(o.text, 'Left behind: 1189 processes, 489 MB memory, 598% CPU');

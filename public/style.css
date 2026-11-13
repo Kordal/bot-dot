@@ -1482,9 +1482,6 @@ a.bs-link, a.bs-link:hover { color: inherit; text-decoration: none; }
 .vault-placed .bs-row > b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-12); }
 
 /* live steps of a running bot */
-.screen-usage { margin-top: var(--sp-12); font-size: var(--fs-12); display: grid; gap: var(--sp-4); }
-.usage-row { display: flex; gap: var(--sp-12); justify-content: space-between; }
-.usage-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* live screen preview in a bot's chat */
 .bot-view { position: relative; }

@@ -1387,7 +1387,6 @@ data class ComputerInfo(
     val reset: ComputerWords? = null,
     val update: ComputerWords? = null,
     val old: OldComputer? = null,
-    val usage: ComputerUsage? = null,
     val screenOff: ScreenOff? = null,
     /** "boat" for a bot's machine of its own on boat.dev (ADR 088): only [state] and [text] are about it. */
     val kind: String = "",
@@ -1410,18 +1409,6 @@ data class ScreenOff(val text: String = "", val start: String = "")
 
 @Serializable
 data class ComputerUser(val id: String = "", val name: String = "")
-
-/**
- * What each bot uses of the account's computer now (#109, `computer-usage`), in the server's words: [text] says what
- * is counted, [bots] has a row per bot, most memory first, and [other] what runs on no bot's screen. Absent while
- * the computer is not on, and from a server from before.
- */
-@Serializable
-data class ComputerUsage(val text: String = "", val bots: List<UsageRow> = emptyList(), val other: UsageRow? = null)
-
-/** One row of it: whose it is ([name]) and what it uses, as one line ([text]: "1.6 GB memory · 88% CPU"). */
-@Serializable
-data class UsageRow(val id: String = "", val name: String = "", val memoryBytes: Double = 0.0, val cpuPercent: Double = 0.0, val processes: Int = 0, val text: String = "")
 
 /** A confirmation as the server words it: its title (may be empty), its text, and what its yes button reads. */
 @Serializable
