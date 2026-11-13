@@ -42,9 +42,12 @@ test("the Chief's look, checkup and memory review are told the account's languag
   assert.match(read('lib/chief-review.js'), /systemPrompt\(\{ rules: s\.chiefRules, name: s\.chiefName, lang: s\.language \}\)/);
 });
 
-test("a project's standup lines are asked in the account's language", async () => {
-  assert.match(read('lib/routes/company.js'), /language: \(\) => B\.settings\.get\(\)\.language,/);
-  assert.match(read('lib/company-standup.js'), /system: \[SYSTEM, languageNote\(language\(\)\)\]/);
+test("a project's recorded update is in the account's language", () => {
+  const c = require('../lib/company').clean({ id: 'garden', name: 'Garden' });
+  const text = require('../lib/project-updates').text(c, { work: [], blockers: [], replies: [] }, { language: 'pl' });
+  assert.match(text, /Aktualizacja projektu: Garden/);
+  assert.match(text, /Nie zapisano nowych ukończonych zadań/);
+  assert.doesNotMatch(text, /No new decisions recorded/);
 });
 
 test("a new bot's first message is in the owner's language", () => {

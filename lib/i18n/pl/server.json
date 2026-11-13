@@ -644,5 +644,9 @@
   "Latest replies and reports": "Najnowsze odpowiedzi i raporty",
   "No new replies or reports recorded.": "Nie zapisano nowych odpowiedzi ani raportów.",
   "No new recorded team report: {team}.": "Brak nowego zapisanego raportu zespołu: {team}.",
-  "This update uses recorded activity. It starts no work and answers or approves nothing.": "Ta aktualizacja korzysta z zapisanej aktywności. Nie rozpoczyna pracy, nie odpowiada i nie udziela zgody."
+  "This update uses recorded activity. It starts no work and answers or approves nothing.": "Ta aktualizacja korzysta z zapisanej aktywności. Nie rozpoczyna pracy, nie odpowiada i nie udziela zgody.",
+  "A question waits in this chat.": "W tym czacie czeka pytanie.",
+  "Goal progress": "Postęp celów",
+  "No goal figures recorded.": "Nie zapisano wartości celów.",
+  "Saved report unavailable for this update: {team}.": "Zapisany raport jest niedostępny dla tej aktualizacji: {team}."
 }

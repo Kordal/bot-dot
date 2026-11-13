@@ -34,7 +34,7 @@ const { goSpace } = require('../space-helpers');
         assert.equal(await page.locator('[data-ps-report], [data-ps-standup-on]').count(), 0);
         await page.locator('[data-ps-back]').click();
         await srv.api(`/company/updates/now?project=${id}`, { method: 'POST', body: { key: `browser-update-${viewport.width}` } });
-        if (viewport.width < 1001) await page.locator('[data-po-chat]').first().click();
+        if (viewport.width < 1001) await page.locator('[data-sp-field]:visible').first().click();
         await page.locator('#view-chief .bubble:visible').filter({ hasText: 'Project update: Garden launch' }).first().waitFor();
         await page.locator('#view-chief [data-choice="Monday"]:visible').waitFor();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
@@ -47,7 +47,7 @@ const { goSpace } = require('../space-helpers');
         await goSpace(page);
         if (viewport.width < 1001) { const back = page.locator('#chat-row [data-back]:visible').first(); if (await back.count()) await back.click(); }
         await page.locator('[data-project-settings]:visible').first().click();
-        await page.locator('[data-ps-standup-on]').waitFor();
+        await page.locator('[data-ps-standup-on]').waitFor({ state: 'attached' });
         assert.equal(await page.locator('[data-ps-updates]').count(), 0);
       } finally { await page?.close(); await srv.stop(); }
     }

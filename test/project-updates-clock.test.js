@@ -27,7 +27,7 @@ test('one latest update preserves old opted-in times, coalesces overlap and wait
 test('a new preference replaces the old union; off, archived and setup projects stay quiet', () => {
   const weekly = c({ updates: { every: 'weekly' }, updatesFrom: '2026-11-12T00:00:00Z', updateThrough: '2026-11-13T09:01:00Z' });
   assert.equal(due(weekly, new Date('2026-11-13T17:01:00Z'), options), null);
-  for (const extra of [{ updates: { every: 'off' } }, { archived: true }, { phase: 'setup' }]) assert.equal(due(c(extra), new Date('2026-11-13T17:01:00Z'), options), null);
+  for (const extra of [{ updates: { every: 'off' }, updatePendingAt: '2026-11-13T12:00:00Z' }, { archived: true }, { phase: 'setup' }]) assert.equal(due(c(extra), new Date('2026-11-13T17:01:00Z'), options), null);
 });
 
 test('the quiet-hours zone and daylight-saving transition still produce a single stable daily slot', () => {
@@ -48,4 +48,11 @@ test('recorded completion, current work, failures, decisions and open questions 
   assert.match(output, /Decisions\n• Use the north bed/);
   assert.match(output, /No new recorded team report: Garden/);
   assert.doesNotMatch(output.split('Current work')[0], /might be done/);
+});
+
+test('goal progress and a failed objective source reach the same update as other recorded work', () => {
+  const project = c({ objectives: [{ id: 'users', name: 'Sign-ups', current: 12, target: 50, source: { app: 'stripe', what: 'Active accounts', failed: 'Analytics connection failed' } }] });
+  const output = text(project, { work: [], blockers: [], replies: [] });
+  assert.match(output, /Goal progress\n• Sign-ups: 12 \/ 50/);
+  assert.match(output, /Blockers\n• Sign-ups: Analytics connection failed/);
 });

@@ -497,7 +497,7 @@ internal fun ProjectUpdateRows(c: Company, onChange: (String) -> Unit) {
     Text(tr("One update in the primary conversation. Questions and approvals stay in Needs you."), color = p.muted, fontSize = Type.s14)
     if (every == "existing") Text(tr("Existing report times stay combined until you choose a new rhythm."), color = p.muted, fontSize = Type.s14)
     c.updates?.schedules.orEmpty().forEach { Text(it, color = p.muted, fontSize = Type.s14) }
-    if (c.lastUpdate?.error != null) Text(tr("The last project update could not be delivered. botdot will try again."), color = p.err, fontSize = Type.s14)
+    if (c.lastUpdate?.error != null) Text(tr("The last project update could not be delivered."), color = p.err, fontSize = Type.s14)
 }
 
 private fun rhythmName(k: String) = when (k) { "daily" -> tr("Daily"); "twice-weekly" -> tr("Twice a week"); "weekly" -> tr("Weekly"); else -> tr("Off") }

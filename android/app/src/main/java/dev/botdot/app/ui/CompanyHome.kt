@@ -261,7 +261,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
     }
     val team = teamOpen?.let { id -> c.teams.firstOrNull { it.id == id } }
     if (team != null) ModalBottomSheet(onDismissRequest = { teamOpen = null }) {
-        TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features && dev.botdot.app.data.ProjectUpdates.FEATURE !in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
+        TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, reportControls = dev.botdot.app.data.ProjectUpdates.FEATURE !in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
 }
 
@@ -541,7 +541,7 @@ internal fun SmallButton(label: String, onClick: () -> Unit) {
 
 /** A team, opened from its room: its objective, its bots with what each does, the lead's chip, Make lead on the others, its reports. */
 @Composable
-private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<Bot>, reports: Boolean, line: (Bot) -> String, onBot: (String) -> Unit) {
+private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<Bot>, reports: Boolean, reportControls: Boolean, line: (Bot) -> String, onBot: (String) -> Unit) {
     val p = LocalPaper.current
     val o = CompanyFloor.objectiveOf(team, c.objectives)
     val members = team.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
@@ -572,16 +572,16 @@ private fun TeamSheet(ui: CompanyUi, c: Company, team: CompanyTeam, bots: List<B
                 else if (moving == null) SmallButton(tr("Make lead")) { moving = b.id; ui.call({ it.makeLead(team.id, b.id) }) { moving = null } }
             }
         }
-        if (reports) Reports(ui, team, bots)
+        if (reports) Reports(ui, team, bots, reportControls)
     }
 }
 
 /** How often the team's lead reports (#696), and its latest report with its bot's head and time. */
 @Composable
-private fun Reports(ui: CompanyUi, team: CompanyTeam, bots: List<Bot>) {
+private fun Reports(ui: CompanyUi, team: CompanyTeam, bots: List<Bot>, controls: Boolean) {
     val p = LocalPaper.current
     val words = mapOf("" to tr("Off"), "daily" to tr("Daily"), "twice-weekly" to tr("Twice a week"), "weekly" to tr("Weekly"))
-    Choice(tr("Reports"), team.report.orEmpty(), CompanyFloor.RHYTHMS.map { it to words[it].orEmpty() }) { every ->
+    if (controls) Choice(tr("Reports"), team.report.orEmpty(), CompanyFloor.RHYTHMS.map { it to words[it].orEmpty() }) { every ->
         if (every != team.report.orEmpty()) ui.call({ it.setReportRhythm(team.id, every) })
     }
     val r = team.lastReport?.takeIf { it.text.isNotBlank() } ?: return
