@@ -25,6 +25,7 @@ test("{account} is the account's name, URL-encoded", () => {
   assert.equal(sub.page('https://billing.example/p?a={account}', 'ann'), 'https://billing.example/p?a=ann');
   assert.equal(sub.page('https://billing.example/{account}/{account}', 'a-b'), 'https://billing.example/a-b/a-b');
   assert.equal(sub.page('https://billing.example/p', 'ann'), 'https://billing.example/p', 'one page for every account');
+  assert.equal(sub.page('HTTPS://Billing.Example/p', 'ann'), 'https://billing.example/p', 'normalised for the apps');
   assert.equal(sub.page(null, 'ann'), null);
   assert.equal(sub.page('https://billing.example/p', null), null);
 });

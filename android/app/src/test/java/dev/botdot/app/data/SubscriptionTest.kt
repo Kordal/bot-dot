@@ -12,6 +12,7 @@ class SubscriptionTest {
     @Test fun aManagedMachineNamesItsBillingPage() {
         val url = "https://billing.example/p?a=solo"
         assertEquals(url, Subscription.page(accounts, obj("""{"account":"solo","subscriptionPage":"$url"}""")))
+        assertEquals("a scheme in capitals", "HTTPS://billing.example/p", Subscription.page(accounts, obj("""{"subscriptionPage":"HTTPS://billing.example/p"}""")))
     }
 
     @Test fun noRowWithoutAnHttpsPage() {

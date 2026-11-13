@@ -12,6 +12,6 @@ object Subscription {
     fun page(features: List<String>?, session: JsonObject?): String? {
         if (features?.contains("accounts") != true) return null
         val page = (session?.get("subscriptionPage") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
-        return page.takeIf { runCatching { java.net.URI(page) }.getOrNull()?.let { it.scheme == "https" && !it.host.isNullOrEmpty() } == true }
+        return page.takeIf { runCatching { java.net.URI(page) }.getOrNull()?.let { it.scheme.equals("https", ignoreCase = true) && !it.host.isNullOrEmpty() } == true }
     }
 }
