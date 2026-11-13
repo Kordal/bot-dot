@@ -2,6 +2,7 @@
 // The tile is on the board with the folder's newest files while the computer runs; a click on a file opens it over its
 // folder in Files, a click on the tile opens the folder; taken off in Project settings, it is gone. Wide and phone.
 // Scratch data, the computer a stand-in (test/fixtures/fake-docker.js).
+const { openProjectBoard } = require('../space-helpers');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -31,6 +32,7 @@ const { startServer, makeBot, writeData, fakeDocker } = require('../helpers');
       const page = await ctx.newPage();
       page.on('pageerror', (e) => errors.push(e.message));
       await page.goto(`${srv.base}/#company`);
+      await openProjectBoard(page);
       const tile = page.locator('.cf-files');
       await tile.locator('[data-cf-file]').first().waitFor({ timeout: 20000 });
       assert.deepEqual(await tile.locator('.cf-row-text').allInnerTexts(), ['hetzner-auction-2026-11-06.md', 'plan.md', 'contabo-vs-hetzner.md']);
@@ -59,6 +61,7 @@ const { startServer, makeBot, writeData, fakeDocker } = require('../helpers');
     assert.deepEqual(r.data.board, ['calendar']);
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(`${srv.base}/#company`);
+      await openProjectBoard(page);
     await page.locator('.cf-cal').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('.cf-files').count(), 0);
     assert.deepEqual(errors, []);

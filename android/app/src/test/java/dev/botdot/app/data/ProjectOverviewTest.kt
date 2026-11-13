@@ -23,4 +23,13 @@ class ProjectOverviewTest {
         assertEquals(emptyList<OverviewEntry>(), snapshot.blockers)
         assertEquals(emptyList<OverviewEntry>(), snapshot.replies)
     }
+    @Test fun anOwnerTodoOpensTheProjectsPrimaryConversationNotAnUnrelatedChief() {
+        val todo = OverviewEntry(id = "todo", state = "planned", text = "Review copy")
+        val project = Company(id = "p1", phase = "running", chiefChat = "c-project")
+        val features = listOf(ProjectOverview.FEATURE, ManyProjects.CHIEF, ManyProjects.MANAGER_BOT)
+        assertEquals("chief/c-project", todo.destination(project, emptyList(), features))
+        assertEquals("project-chief/p1", todo.destination(project.copy(chiefChat = null), emptyList(), features))
+        assertEquals("bot/manager", todo.destination(project.copy(lead = "manager"), listOf(Bot(id = "manager", name = "Manager")), features))
+    }
+
 }

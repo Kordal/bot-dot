@@ -6,7 +6,8 @@ const ProjectOverview = (() => {
     const s = stateOf(c.id);
     if (s.busy || (!force && Date.now() - s.at < 30_000)) return;
     s.busy = true;
-    const overviewPath = Company.at('/company/overview'), filesPath = Company.at('/company/files');
+    const query = `?project=${encodeURIComponent(c.id)}`;
+    const overviewPath = `/company/overview${query}`, filesPath = `/company/files${query}`;
     const repaint = () => { if (state.company?.id === c.id && Company.place() === 'company' && (state.view === 'company' || Dock.docked())) Company.redraw(); };
     const data = api(overviewPath).then((r) => {
       if (r.projectId !== c.id) throw new Error(tr('Information unavailable'));

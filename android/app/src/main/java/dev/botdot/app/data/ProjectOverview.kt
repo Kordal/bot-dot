@@ -9,4 +9,12 @@ data class ProjectOverview(val projectId: String, val at: String, val goal: Stri
 }
 
 @Serializable
-data class OverviewEntry(val id: String, val botId: String? = null, val chatId: String? = null, val groupId: String? = null, val name: String = "", val state: String = "", val text: String = "", val at: String = "")
+data class OverviewEntry(val id: String, val botId: String? = null, val chatId: String? = null, val groupId: String? = null, val name: String = "", val state: String = "", val text: String = "", val at: String = "") {
+    /** An owner-assigned to-do has no actor: it uses the same primary contact as the project field. */
+    fun destination(project: Company, bots: List<Bot>?, features: Collection<String>?): String? = when {
+        groupId != null -> "group/$groupId"
+        chatId != null -> "chief/$chatId"
+        botId != null -> "bot/$botId"
+        else -> Spaces.defaultChat(project, bots, features)
+    }
+}

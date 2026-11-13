@@ -171,7 +171,6 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             val projectBots = dev.botdot.app.data.Spaces.teamBots(listOf(c))
             val chiefAsks = needs?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in projectBots }
             chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
-            if (here.isEmpty() && chiefAsks.isEmpty()) Text(if (needs == null) tr("Loading…") else tr("Nothing needs you right now."), color = p.muted)
         }
         if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
             ui.scope.launch {

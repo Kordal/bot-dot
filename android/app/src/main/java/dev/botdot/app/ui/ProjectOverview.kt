@@ -49,11 +49,13 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
         }
     }
     fun open(x: OverviewEntry) {
+        val route = x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features) ?: return
         when {
-            x.groupId != null -> ways.onTeam?.invoke(x.groupId) ?: ways.onNeeds()
-            x.chatId != null -> ways.onChiefChat?.invoke(x.chatId) ?: ways.onChief()
-            x.botId != null -> ways.onBot(x.botId)
-            else -> c.lead?.let(ways.onBot) ?: ways.onChief()
+            route.startsWith("group/") -> ways.onTeam?.invoke(route.removePrefix("group/")) ?: ways.onNeeds()
+            route.startsWith("bot/") -> ways.onBot(route.removePrefix("bot/"))
+            route.startsWith(dev.botdot.app.data.Spaces.PROJECT_CHIEF) -> ways.onChiefChat?.let { ui.openChief(c, it) }
+            route == dev.botdot.app.data.Spaces.CHIEF -> ways.onChief()
+            route.startsWith("chief/") -> ways.onChiefChat?.invoke(route.removePrefix("chief/"))
         }
     }
     Column(Modifier.fillMaxWidth().testTag("project-overview"), verticalArrangement = Arrangement.spacedBy(Space.s16)) {

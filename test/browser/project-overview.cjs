@@ -33,6 +33,14 @@ const path = require('node:path');
       const afterRead = (await srv.api('/company?project=p1')).data.company;
       assert.deepEqual(afterRead.layout, saved.layout);
       assert.deepEqual(afterRead.board, saved.board);
+      // A question without an approval card is shown without a blanket "nothing needs you" claim.
+      await page.route('**/api/company/overview?project=p1', (r) => r.fulfill({ json: {
+        projectId: 'p1', at: new Date().toISOString(), work: [], replies: [],
+        blockers: [{ id: 'question', botId: bot.id, name: 'Writer', state: 'asks', text: 'Which headline?' }],
+      } }), { times: 1 });
+      await page.locator('[data-po-refresh]').click();
+      await page.getByText('Which headline?', { exact: true }).waitFor();
+      assert.equal(await page.getByText('Nothing needs you right now.', { exact: true }).count(), 0);
       await page.locator('[data-po-board]').click();
       await page.locator('[data-po-back]').waitFor();
       await page.locator('[data-cf-goal="g1"]').waitFor();
@@ -68,6 +76,22 @@ const path = require('node:path');
     await page.waitForFunction(() => !ProjectOverview.sig('p1').busy);
     assert.equal(await page.locator('.po-goal').innerText(), 'Plant trees');
     assert.equal(await page.evaluate(() => state.company.id), 'p2');
+    // Leaving for Home while a refresh waits must not switch the owner back to Projects.
+    let releaseHome;
+    let startHome;
+    const pendingHome = new Promise((done) => { startHome = done; });
+    await page.route('**/api/company/overview?project=p2', async (route) => {
+      startHome();
+      await new Promise((done) => { releaseHome = done; });
+      await route.fulfill({ json: { projectId: 'p2', at: new Date().toISOString(), work: [], blockers: [], replies: [] } });
+    });
+    await page.locator('[data-po-refresh]').click();
+    await pendingHome;
+    await page.locator('#rail .brand').click();
+    await page.waitForFunction(() => Company.place() === 'bots');
+    releaseHome();
+    await page.waitForFunction(() => !ProjectOverview.sig('p2').busy);
+    assert.equal(await page.evaluate(() => Company.place()), 'bots');
     await page.close();
     console.log('fixed project overview: ok');
   } finally { await browser?.close(); await srv.stop(); }

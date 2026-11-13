@@ -2,6 +2,7 @@
 // A new project's home is its title, its gear and New card; a pick under the ask of a new card puts a piece on the
 // board (To-do: the panel; the teams are rows under it, no piece, #838); Project settings take one off again. A project made before shows every
 // piece. Wide and phone. Scratch data only.
+const { openProjectBoard } = require('../space-helpers');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -32,6 +33,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
 
       write({ board: [] });
       await page.goto(`${srv.base}/#company`);
+      await openProjectBoard(page);
       await page.locator('.pc-new').waitFor({ timeout: 20000 });
       assert.equal(await page.locator('.cf-day, .cf-line, .cf-goals, .cf-room, .cf-chief, .cf-new, .cf-cal, .cf-panel').count(), 0, 'nothing but New card');
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-empty.png`), fullPage: true });
@@ -62,7 +64,9 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       // A project made before #780 has no board: every piece, as it always had.
       write({ board: undefined });
       await page.goto(`${srv.base}/#company`);
+      await openProjectBoard(page);
       await page.reload();
+      await openProjectBoard(page);
       await page.locator('.cf-day').waitFor({ state: 'attached', timeout: 20000 }); // hidden on a phone, where the 90-day line shows the day (#839)
       assert.ok(await page.locator('.cf-panel').count());
       await page.locator('.pc-new').click();
