@@ -400,14 +400,14 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
     // The project's own bots in no team (ADR 233; web: company-settings.js ownHTML), each with ✕ to take it out.
     val own = c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
     // One removal at a time: each sends the whole list, so the next waits for the project as the answer left it.
-    var removing by remember(c.bots) { mutableStateOf(false) }
+    var removing by remember(c.id) { mutableStateOf(false) }
     if (own.isNotEmpty()) Labeled(tr("Bots")) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             own.forEach { b ->
                 Row(Modifier.clip(Radius.pill).background(p.fill).padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     BotFigure(b.color, b.state, 22, b.outfit)
                     Text(b.name, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 160.dp))
-                    IconButton({ removing = true; ui.call({ it.setProjectBots(c.bots - b.id) }, done = { ok -> if (!ok) removing = false }) }, Modifier.size(44.dp), enabled = !removing) {
+                    IconButton({ removing = true; ui.call({ it.setProjectBots(c.bots - b.id) }, done = { removing = false }) }, Modifier.size(44.dp), enabled = !removing) {
                         Icon(Icons.Filled.Close, tr("Remove {name}", "name" to b.name), tint = p.muted, modifier = Modifier.size(16.dp))
                     }
                 }

@@ -57,6 +57,9 @@ test("a bot in no team is told the project, its scope, goal and to-do, and no te
   assert.match(note, /Ship it/);
   assert.doesNotMatch(note, /You lead team|You are on team|split the work/);
   assert.match(s.todoNote('b'), /list_project_todos/);
+  s.addDecision({ text: 'Posts go out on Mondays' });
+  assert.match(s.decisionsNote('b'), /Posts go out on Mondays/, "it is told the owner's decisions too");
+  assert.equal(s.decisionsNote('c'), '');
   assert.equal(s.botNote('c', of), '', 'a bot of no project has none');
   assert.equal(s.botNote('b', of, { team: 't9', group: true }), '', "a team chat's note is of that team alone");
   done();

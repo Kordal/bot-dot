@@ -353,7 +353,7 @@
   // What stops its bots' work comes first (Keypad.blockersFirst): a missing app shows within the three rows.
   const projectNeeds = (c) => Keypad.blockersFirst(Keypad.asksOf(needs(), c, Company.projects ? Company.projects() : [c], state.groups));
   // The project's bots that ask the owner a question: its teams' only (a bot of no team asks on Home).
-  const projectAsking = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
+  const projectAsking = (c) => { const ids = new Set([...c.teams.flatMap((t) => t.bots), ...(c.bots || [])]); return state.bots.filter((b) => ids.has(b.id) && question(b)); };
 
   // ---------- the panel: the To-do (#692), or a team ----------
   // The To-do's filter (All, You, Bots, Done) and what the Add field will give the new item: who it is for (null:
@@ -376,7 +376,7 @@
     return new Date(`${due}T12:00:00Z`).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
   // The bots an item may be for: the project's, or every bot while it has no team.
-  const projectBots = (c) => { const ids = new Set(c.teams.flatMap((t) => t.bots)); const in_ = state.bots.filter((b) => ids.has(b.id)); return in_.length ? in_ : state.bots; };
+  const projectBots = (c) => { const ids = new Set([...c.teams.flatMap((t) => t.bots), ...(c.bots || [])]); const in_ = state.bots.filter((b) => ids.has(b.id)); return in_.length ? in_ : state.bots; };
   const head = (b) => (b ? botFigure(colorOf(b), 'idle', 'sm', outfitOf(b)) : chiefFigure('sm'));
   const you = `<span class="cf-you sm">${YOU}</span>`;
   // An item's chip: how it repeats, else that its bot works now, else its due day.
