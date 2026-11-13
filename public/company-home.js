@@ -288,7 +288,7 @@
   }
   const MORE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>';
   const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
-  function teamsHTML(c) {
+  function teamsHTML(c, editor = false) {
     const docked = typeof Dock !== 'undefined' && Dock.docked();
     const open = unfolded(c);
     const keyHTML = (b, lead, teams) => {
@@ -323,7 +323,8 @@
     const own = (state.features || []).includes('project-bots') ? (c.bots || []).filter((id) => botById(id)) : null;
     const addBot = tr('Add bot');
     const ownRow = own?.length ? `<section class="sp-team sp-own"><div class="sp-keys">${own.map((id) => keyHTML(botById(id), false, 0)).join('')}<button type="button" class="key sp-join" data-cf-add-bot aria-label="${esc(addBot)}" title="${esc(addBot)}">${Company.ICON.plus}</button></div></section>` : '';
-    const adds = `<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>${own && !own.length ? `<button type="button" class="sp-new" data-cf-add-bot>${Company.ICON.plus}${esc(addBot)}</button>` : ''}`;
+    const newTeam = editor ? '' : `<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>`;
+    const adds = `${newTeam}${own && !own.length ? `<button type="button" class="sp-new" data-cf-add-bot>${Company.ICON.plus}${esc(addBot)}</button>` : ''}`;
     return `<div class="sp-teams">${rows}${ownRow}<div class="sp-adds">${adds}</div></div>`;
   }
   // The same primary contact as the wide chat column (ADR 235), named before the owner writes.
@@ -462,20 +463,34 @@
   }
 
   let boardFor = null;
-  Company.steps.homeClosed = () => { boardFor = null; };
+  let teamFor = null;
+  Company.steps.homeClosed = () => { boardFor = null; teamFor = null; Company.steps.settingsClosed?.(); };
   function overviewHome(root, c) {
     const items = projectNeeds(c);
-    root.innerHTML = `<div class="cf-home po-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.chiefHTML()}<button type="button" class="btn sm" data-po-board>${tr('Board')}</button>${Company.railOn() ? Company.toolsHTML() : ''}</header>
+    root.innerHTML = `<div class="cf-home po-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.chiefHTML()}<button type="button" class="btn sm" data-po-team>${tr('Team')}</button><button type="button" class="btn sm" data-po-board>${tr('Board')}</button>${Company.railOn() ? Company.toolsHTML() : ''}</header>
       <section class="po-section"><h2>${tr('Needs you')}</h2>${needsHTML(c, items)}<button type="button" class="btn sm" data-po-needs>${tr('Review')}</button></section>
-      ${ProjectOverview.html(c)}${teamsHTML(c)}</div>${Company.railOn() ? fieldHTML(c) : ''}`;
+      ${ProjectOverview.html(c)}</div>${Company.railOn() ? fieldHTML(c) : ''}`;
     wire(root, c);
     ProjectOverview.wire(root, c);
+    $('[data-po-team]', root).onclick = () => { teamFor = c.id; root.scrollTop = 0; Company.redraw(); };
     $('[data-po-board]', root).onclick = () => { boardFor = c.id; root.scrollTop = 0; Company.redraw(); };
     $('[data-po-needs]', root).onclick = () => setView('needs');
   }
 
+  function teamHome(root, c) {
+    if ($('[data-pt-root]', root) && Company.teamSettings.hold(root)) return;
+    root.innerHTML = `<div class="cf-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.chiefHTML()}<button type="button" class="btn sm" data-pt-back>${tr('Overview')}</button></header>
+      <div data-pt-root>${Company.teamSettings.html(c)}${teamsHTML(c, true)}</div></div>${Company.railOn() ? fieldHTML(c) : ''}`;
+    const team = c.teams.find((t) => t.id === teamOpen);
+    if (team) $('[data-pt-root]', root).insertAdjacentHTML('beforeend', `<aside class="cf-panel">${teamHTML(c, team)}</aside>`);
+    wire(root, c);
+    Company.teamSettings.wire(root, c);
+    $('[data-pt-back]', root).onclick = () => { teamFor = null; teamOpen = null; Company.steps.settingsClosed?.(); root.scrollTop = 0; Company.redraw(); };
+  }
+
   // ---------- drawing and wiring ----------
   function home(root, c) {
+    if (state.features.includes('project-overview') && teamFor === c.id) return teamHome(root, c);
     if (state.features.includes('project-overview') && boardFor !== c.id) return overviewHome(root, c);
     if (window.BoardView?.busy()) return; // a tile is dragged: drawn again once it is dropped
     const known = info();
@@ -515,7 +530,7 @@
     $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => {
       const g = (state.groups || []).find((x) => x.team === b.dataset.cfTeam);
       if (g) setView('groupsettings', g.id); else {
-        if (state.features.includes('project-overview') && boardFor !== c.id) { boardFor = c.id; teamOpen = null; root.scrollTop = 0; }
+        if (state.features.includes('project-overview') && teamFor !== c.id) { teamFor = c.id; boardFor = null; teamOpen = null; root.scrollTop = 0; }
         openTeam(b.dataset.cfTeam);
       }
     }));
@@ -783,5 +798,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null]), state.botsKnown, boardFor, typeof ProjectOverview !== 'undefined' ? ProjectOverview.sig(state.company?.id) : null];
+  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null]), state.botsKnown, boardFor, teamFor, Company.teamSettings?.sig(), typeof ProjectOverview !== 'undefined' ? ProjectOverview.sig(state.company?.id) : null];
 })();

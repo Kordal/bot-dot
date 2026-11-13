@@ -25,7 +25,8 @@ const { startServer, makeBot, writeData } = require('../helpers');
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
     await page.locator('.cf-top h1', { hasText: 'Botdot' }).waitFor({ timeout: 20000 });
-    await page.locator('.sp-new', { hasText: 'New team' }).waitFor();
+    await page.locator('[data-po-team]').click();
+    await page.locator('[data-ps-new-team]').waitFor();
     if (out) await page.screenshot({ path: path.join(out, 'project-bots-empty.png') });
     await page.locator('.sp-new[data-cf-add-bot]', { hasText: 'Add bot' }).click();
     const picker = page.locator('#bot-picker');
@@ -44,6 +45,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.deepEqual(await picker.locator('[data-pick] b').allInnerTexts(), ['QA Tester']);
     await picker.locator('[data-dismiss]').first().click();
     // Its settings list it with ✕, which takes it out of the project.
+    await page.locator('[data-pt-back]').click();
     await page.locator('.cf-top [data-project-settings]').click();
     const ps = page.locator('.ps-page');
     await ps.locator(`[data-ps-unbot="${coder.id}"]`).waitFor();

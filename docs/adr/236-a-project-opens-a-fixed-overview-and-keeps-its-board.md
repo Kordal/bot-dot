@@ -14,7 +14,7 @@ Projects asks the owner to arrange a Board, choose chart styles and create cards
 - An owner-only, read-only `GET /api/company/overview` supplies bounded recorded activity and recent replies. The server classifies active runs, open to-dos, current questions and latest failures. It computes no completion percentage or inferred progress. Bot activity comes from project members and the selected manager; turns in other teams or ordinary groups are excluded. A bot's own chat may serve more than one project: its activity is labelled with its name, not represented as proof of this project's progress.
 - Only successful finished runs and completed, non-error Chief replies enter recent replies. A reply remains a reply, not proof the goal was met. Failed and incomplete work stays separate.
 - The apps poll the visible overview every 30 seconds and let the owner refresh. A failed refresh keeps explicitly labelled saved information. Initial loading, missing information, empty sections and file errors/offline state are explicit. The existing project-files read never starts the computer.
-- Needs you retains the existing review/approval flow; the overview never grants permissions. The primary conversation remains within reach. Teams and their management stay available until the separate Team-view ticket.
+- Needs you retains the existing review/approval flow; the overview never grants permissions. The primary conversation remains within reach. Team management is secondary under Team since [ADR 237](237-team-management-is-secondary-to-the-project-overview.md).
 - Apps ask for the feature; an older server keeps the existing project home. No existing API changes shape.
 
 ## Alternatives

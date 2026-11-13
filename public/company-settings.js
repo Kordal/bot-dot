@@ -253,6 +253,27 @@
       deliver.onchange = () => patch({ deliverBy: deliver.value || '' });
       $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
     }
+    wireTeam(root, c);
+    // Reports and the standup.
+    $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
+    const on = $('[data-ps-standup-on]', root);
+    on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });
+    const time = $('[data-ps-standup-time]', root);
+    time.onchange = () => { if (time.value) call('/company/standup', 'PUT', { time: time.value }); };
+    // Rules.
+    $$('[data-ps-unnever]', root).forEach((b) => (b.onclick = () => patch({ never: c.never.filter((_, i) => i !== Number(b.dataset.psUnnever)) })));
+    const neverForm = $('[data-ps-never-form]', root);
+    if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); added(neverForm.text, '[data-ps-never-form] input'); if (t) patch({ never: [...c.never, t] }); };
+    // Archive or delete.
+    $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
+    $('[data-ps-delete]', root).onclick = () => Company.deleteProject(c);
+  }
+
+  function wireTeam(root, c) {
+    if (!root.dataset.ptWired) {
+      root.dataset.ptWired = '1';
+      root.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing(root)) Company.redraw(); }, 0));
+    }
     // Teams.
     $$('[data-ps-edit-team]', root).forEach((b) => (b.onclick = () => { editing = b.dataset.psEditTeam; draft = null; Company.redraw(); }));
     const newTeam = $('[data-ps-new-team]', root);
@@ -285,7 +306,6 @@
         call(`/company/teams/${encodeURIComponent(t.id)}`, 'DELETE');
       };
     }
-    // Reports and the standup.
     // One removal at a time: each sends the whole list, so a second one waits for the first one's answer.
     $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => {
       $$('[data-ps-unbot]', root).forEach((x) => (x.disabled = true));
@@ -293,18 +313,6 @@
     }));
     const projectLead = $('[data-ps-project-lead]', root);
     if (projectLead) projectLead.onchange = () => patch({ lead: projectLead.value || null });
-    $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
-    const on = $('[data-ps-standup-on]', root);
-    on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });
-    const time = $('[data-ps-standup-time]', root);
-    time.onchange = () => { if (time.value) call('/company/standup', 'PUT', { time: time.value }); };
-    // Rules.
-    $$('[data-ps-unnever]', root).forEach((b) => (b.onclick = () => patch({ never: c.never.filter((_, i) => i !== Number(b.dataset.psUnnever)) })));
-    const neverForm = $('[data-ps-never-form]', root);
-    if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); added(neverForm.text, '[data-ps-never-form] input'); if (t) patch({ never: [...c.never, t] }); };
-    // Archive or delete.
-    $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
-    $('[data-ps-delete]', root).onclick = () => Company.deleteProject(c);
   }
 
   // Files added as sources: uploaded for the Chief, as the start screen does, then saved with the others.
@@ -322,6 +330,10 @@
     if (added.length) patch({ sources: [...(state.company?.id === c.id ? state.company.sources : c.sources), ...added] });
   }
 
+  Company.teamSettings = {
+    html: teamHTML, wire: wireTeam, sig: () => [editing, draft],
+    hold(root) { pending = typing(root); return pending; },
+  };
   Company.steps.settings = (root, c) => draw(root, c);
   Company.steps.settingsClosed = () => { editing = null; draft = null; pending = false; loginMenu = false; };
 })();

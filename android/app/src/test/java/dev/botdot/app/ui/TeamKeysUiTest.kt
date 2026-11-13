@@ -7,6 +7,7 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -65,4 +66,42 @@ class TeamKeysUiTest {
         rule.onNodeWithText("Quotz IT team").performClick()
         assertEquals(listOf("t1"), opened)
     }
+    @Test fun aStandaloneProjectBotHasItsChatAndAnAddEntryWithoutATeam() {
+        val opened = mutableListOf<String>()
+        val alone = Company(id = "solo", bots = listOf("ops"))
+        rule.setContent {
+            OwnKeys(alone, bots, info, wide = false, line = { "" }, onBot = { opened += it }, onAdd = { opened += "add" })
+        }
+        rule.onNodeWithText("Ops Watchkeeper").assertIsDisplayed().performClick()
+        rule.onNodeWithContentDescription("Add bot").performClick()
+        assertEquals(listOf("ops", "add"), opened)
+    }
+
+    @Test fun aBotInTwoTeamsStillOpensTheSameIndividualChat() {
+        val opened = mutableListOf<String>()
+        val shared = project.copy(id = "shared", teams = listOf(
+            CompanyTeam(id = "a", name = "Research", bots = listOf("ops")),
+            CompanyTeam(id = "b", name = "Delivery", bots = listOf("ops")),
+        ))
+        rule.setContent {
+            TeamKeys(shared, bots, info, wide = false, line = { "" }, chatOf = { null }, onBot = { opened += it }) {}
+        }
+        rule.onAllNodesWithTag(TEAM_FOLD)[0].performClick()
+        rule.onAllNodesWithTag(TEAM_FOLD)[1].performClick()
+        rule.onAllNodesWithText("Ops Watchkeeper")[0].performClick()
+        rule.onAllNodesWithText("Ops Watchkeeper")[1].performClick()
+        assertEquals(listOf("ops", "ops"), opened)
+    }
+
+    @Test fun theProjectManagerPickerIncludesStandaloneBotsAndKeepsTheChiefChoice() {
+        val selected = mutableListOf<String>()
+        val alone = Company(id = "solo", bots = listOf("ops"))
+        rule.setContent {
+            ProjectLeadRow(alone, bots) { selected += it["lead"].toString() }
+        }
+        rule.onNodeWithText("Chief of Staff").performClick()
+        rule.onNodeWithText("Ops Watchkeeper").performClick()
+        assertEquals(listOf("\"ops\""), selected)
+    }
+
 }

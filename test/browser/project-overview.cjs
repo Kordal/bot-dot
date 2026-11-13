@@ -28,6 +28,7 @@ const path = require('node:path');
       await page.getByText('No recorded work.', { exact: true }).waitFor();
       assert.match(await page.locator('.po-goal').innerText(), /Launch safely/);
       assert.equal(await page.locator('.po-goal img').count(), 0, 'owner text is not markup');
+      assert.equal(await page.locator('[data-cf-new], [data-cf-add-bot], .sp-teams').count(), 0, 'team organisation stays out of the main project view');
       assert.equal(await page.locator('[data-project-tidy], .pc-new, [data-cf-show]').count(), 0, 'Board editing is not in the overview');
       assert.ok(await page.getByText('Files are unavailable while the computer is off.', { exact: true }).isVisible());
       const afterRead = (await srv.api('/company?project=p1')).data.company;

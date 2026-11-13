@@ -140,7 +140,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                 }
                 Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, features, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
-                Card("team") { if (ManyProjects.LEAD in features) ProjectLeadRow(c, bots, ::patch); TeamRows(ui, c, bots) }
+                Card("team") { ProjectTeamSettings(ui, c, bots, features) }
                 Card("reports") { ReportRows(ui, c, features) }
                 Card("rules") { RuleRows(c, ::patch) }
                 Card("archive") { ArchiveRows(ui, c, ::patch) }
@@ -344,6 +344,13 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
     }
 }
 
+/** The existing Team editor, shared by settings and the secondary project Team view. */
+@Composable
+internal fun ProjectTeamSettings(ui: CompanyUi, c: Company, bots: List<Bot>, features: List<String>) {
+    if (ManyProjects.LEAD in features) ProjectLeadRow(c, bots) { fields -> ui.call({ it.patchCompany(fields) }) }
+    TeamRows(ui, c, bots)
+}
+
 // ---------- Team ----------
 
 /** A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 199), its lead. */
@@ -355,7 +362,7 @@ private class TeamDraft(val id: String?, name: String, bots: List<String>, lead:
 
 /** Who talks to the project's teams (ADR 230; web: company-settings.js leadHTML): a bot the owner picks, or the Chief. */
 @Composable
-private fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> Unit) {
+internal fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> Unit) {
     val p = LocalPaper.current
     var menu by remember { mutableStateOf(false) }
     val lead = c.lead?.let { id -> bots.firstOrNull { it.id == id } }

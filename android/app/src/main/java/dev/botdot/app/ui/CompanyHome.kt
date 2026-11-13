@@ -112,7 +112,7 @@ private val GOLD = Color(0xFFE8B44A)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview: Boolean = false, onBoard: () -> Unit = {}, onOverview: () -> Unit = {}) {
+internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview: Boolean = false, teamView: Boolean = false, onTeamView: () -> Unit = {}, onBoard: () -> Unit = {}, onOverview: () -> Unit = {}) {
     val p = LocalPaper.current
     val bots = ui.bots.collectAsState().value.orEmpty()
     val waiting by ui.app.store.waiting.collectAsState(initial = emptyList())
@@ -152,14 +152,15 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
     // A long press on the flow puts the tiles on the canvas (#821): from then on a long press and a drag moves one.
     var started by rememberSaveable(c.id) { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
-    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.runtime.key(c.id, overview) { rememberScrollState() }).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.runtime.key(c.id, overview, teamView) { rememberScrollState() }).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         // Its name picks another project and its gear opens its settings (#703).
-        ProjectTitle(ui, c, ways, boardTools = !overview) {
-            if (overview) SmallButton(tr("Board"), onClick = onBoard)
+        ProjectTitle(ui, c, ways, boardTools = !overview && !teamView) {
+            if (overview) { SmallButton(tr("Team"), onClick = onTeamView); SmallButton(tr("Board"), onClick = onBoard) }
             else if (dev.botdot.app.data.ProjectOverview.FEATURE in features) SmallButton(tr("Overview"), onClick = onOverview)
-            c.day?.takeIf { !overview }?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
+            c.day?.takeIf { !overview && !teamView }?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
+        if (!teamView) {
         if (overview) {
             Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
             SmallButton(tr("Review"), onClick = ways.onNeeds)
@@ -236,11 +237,18 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         }
         }
         }
-        if (overview) NewTeam(ui, c, addOwn.takeIf { ownBots && c.bots.isEmpty() })
+        }
+        if (teamView) {
+            Text(tr("Team"), color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
+            ProjectTeamSettings(ui, c, bots, features)
+            if (ownBots && c.bots.isEmpty()) SmallButton(tr("Add bot"), onClick = addOwn)
+        }
+        if (!overview) {
         // Its teams' keys (#841), in place of the floor's rooms and desks.
         val waits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
         TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }, waits = waits) { teamOpen = it }
         if (ownBots) OwnKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, onBot = ways.onBot, onAdd = addOwn)
+        }
     }
     if (addingOwn) BotPicker(tr("Add bot"), notIn, max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c)) }, onDismiss = { addingOwn = false }) { picked, _ ->
         val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
@@ -267,7 +275,7 @@ private fun newBotWords(c: Company): String = tr("A new bot for {project}:", "pr
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun OwnKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, onBot: (String) -> Unit, onAdd: () -> Unit) {
+internal fun OwnKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, onBot: (String) -> Unit, onAdd: () -> Unit) {
     val p = LocalPaper.current
     val own = c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
     if (own.isEmpty()) return
