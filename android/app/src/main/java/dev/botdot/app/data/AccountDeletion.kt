@@ -29,6 +29,12 @@ object AccountDeletion {
         return page.takeIf { runCatching { java.net.URI(page) }.getOrNull()?.let { it.scheme == "https" && !it.host.isNullOrEmpty() } == true }
     }
 
+    /**
+     * Whether Delete asks for the account to be deleted rather than deleting it at once (#1313): a managed machine,
+     * whose fleet console erases it. The account is paused and signed out at once.
+     */
+    fun request(session: JsonObject?): Boolean = flag(session, "deletionRequest") == true
+
     /** The session's own account, whose name is typed to confirm; empty when the front door sent none. */
     fun account(session: JsonObject?): String = (session?.get("account") as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
 
@@ -37,12 +43,19 @@ object AccountDeletion {
 
     fun body(name: String): JsonObject = buildJsonObject { put("name", name) }
 
-    /** What the front door answered: [boat] is why its machines on boat.dev were not all deleted, or null when they were. */
-    data class Done(val boat: String?)
-    fun done(answer: JsonObject?): Done = Done((answer?.get("boat") as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null })
+    /**
+     * What the front door answered: [boat] is why its machines on boat.dev were not all deleted, or null when they were;
+     * [requested], that a managed machine took the request to delete it (#1313).
+     */
+    data class Done(val boat: String?, val requested: Boolean = false)
+    fun done(answer: JsonObject?): Done = Done(
+        (answer?.get("boat") as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null },
+        flag(answer, "requested") == true,
+    )
 
     /** What the phone says once it is deleted: with a line on boat.dev's machines when not all of them went. */
-    fun said(done: Done): String = done.boat?.let { tr("Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.", "why" to it) }
+    fun said(done: Done): String = if (done.requested) tr("Your account is being deleted.")
+        else done.boat?.let { tr("Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.", "why" to it) }
         ?: tr("Your account is deleted.")
 
     /** true, false, or null when the field is left out or isn't a boolean. */

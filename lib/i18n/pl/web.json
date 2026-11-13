@@ -67,6 +67,7 @@
   "This is the admin's account of this machine, so it can't be deleted here. The machine is removed by its admin instead.": "To konto admina tej maszyny, więc nie da się go tu usunąć. Maszynę usuwa jej admin.",
   "Delete your account?": "Usunąć twoje konto?",
   "This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback.": "Od razu i na zawsze znikną: konto, jego boty, czaty, pliki, notatki, Tablica, kontenery, passkeye, sesje i zgłoszenia.",
+  "Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days.": "Konto zostanie od razu wstrzymane i wylogowane na wszystkich urządzeniach. Subskrypcja zostanie anulowana, a konto, jego boty, czaty, pliki, notatki i Tablica znikną w ciągu 7 dni.",
   "Off-site backups of the account are kept for 14 days, then removed.": "Kopie zapasowe konta poza serwerem są trzymane przez 14 dni, potem znikają.",
   "Type your account name, {name}, to confirm": "Wpisz nazwę konta, {name}, żeby potwierdzić",
   "Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.": "Wylogować wszędzie? Każda przeglądarka i aplikacja zalogowana na twoje konto, także ta, zaloguje się ponownie kluczem dostępu.",

@@ -129,3 +129,16 @@ test("web: when boat.dev's machines were not all deleted, the form says so befor
   assert.deepEqual(went, ['/front-door/deleted']);
   assert.equal(posts.length, 1, 'OK only leaves');
 });
+
+test('web: on a managed machine Delete asks for the account to be deleted, and says the subscription is cancelled (#1313)', async () => {
+  const { ctx, posts, went, m } = page({ post: async () => ({ ok: true, requested: true, deleted: '/front-door/deleting' }) });
+  ctx.openDeleteAccount('solo', true);
+  assert.match(m.html, /Your subscription is cancelled/);
+  assert.doesNotMatch(m.html, /This deletes at once/);
+  type(m, 'solo');
+  await submit(m);
+  assert.deepEqual(JSON.parse(JSON.stringify(posts)), [['/front-door/delete-account', { name: 'solo' }]]);
+  assert.deepEqual([...went], ['/front-door/deleting']);
+  ctx.openDeleteAccount('bob');
+  assert.match(m.html, /This deletes at once/, 'elsewhere unchanged');
+});

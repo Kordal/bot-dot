@@ -1,7 +1,8 @@
 // "Delete account" in Settings (#1307): a signed-in owner deletes their own account the same way the admin does on the
 // admin page, after typing its name. The front door forgets it, its passkeys, its sessions and its open sign-in links
 // at once, asks the machine to erase the rest and keeps an audit entry by the account itself. The admin's own account,
-// the only admin, is never deleted this way, and a machine of one account or a managed one offers it to nobody.
+// the only admin, is never deleted this way, a machine of one account offers it to nobody, and a managed one asks the
+// fleet console for it (#1313).
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
@@ -113,19 +114,54 @@ test('an owner deletes their own account: it is gone at once, the machine is ask
 });
 
 const SETUP_KEY = 'k'.repeat(40);
-for (const [what, env, page] of [['a machine of one account', {}, null], ['a managed machine', { FRONT_DOOR_MANAGED: '1' }, 'https://botdot.app/account-deletion/']]) {
-  test(`${what} offers it to nobody: there the account is the machine`, async (t) => {
-    const one = await startFrontDoor({ env: { ...env, FRONT_DOOR_ONE_ACCOUNT: 'solo', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
-    const s = await standIn(one, 'solo', { answer: () => [200, { account: 'solo' }] });
-    t.after(async () => { await one.stop(); s.close(); });
-    const b = await signUp('solo', { path: `/sign-up/${SETUP_KEY}` }, one);
-    assert.equal((await b.get('/front-door/session')).data.deleteAccount, false);
-    // #1312: a managed machine's Settings opens botdot.app's page instead; a self-hosted one shows nothing.
-    assert.equal((await b.get('/front-door/session')).data.deleteAccountPage, page);
-    assert.equal((await b.post('/front-door/delete-account', { name: 'solo' })).status, 404);
-    assert.equal((await b.get('/front-door/session')).status, 200, 'still signed in');
-  });
-}
+test('a machine of one account offers it to nobody: there the account is the machine', async (t) => {
+  const one = await startFrontDoor({ env: { FRONT_DOOR_ONE_ACCOUNT: 'solo', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
+  const s = await standIn(one, 'solo', { answer: () => [200, { account: 'solo' }] });
+  t.after(async () => { await one.stop(); s.close(); });
+  const b = await signUp('solo', { path: `/sign-up/${SETUP_KEY}` }, one);
+  const session = (await b.get('/front-door/session')).data;
+  assert.equal(session.deleteAccount, false);
+  assert.equal(session.deletionRequest, false);
+  assert.equal(session.deleteAccountPage, null);
+  assert.equal((await b.post('/front-door/delete-account', { name: 'solo' })).status, 404);
+  assert.equal((await b.get('/front-door/session')).status, 200, 'still signed in');
+});
+
+// #1313 (ADR 241): on a managed machine Delete asks the fleet console, through the Feedback outbox, and the account is
+// suspended and signed out at once; the console's resume drops the request.
+test('a managed machine asks the console to delete the account, and suspends it meanwhile', async (t) => {
+  const one = await startFrontDoor({ env: { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'solo', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
+  const s = await standIn(one, 'solo', { answer: () => [200, { account: 'solo' }] });
+  t.after(async () => { await one.stop(); s.close(); });
+  const b = await signUp('solo', { path: `/sign-up/${SETUP_KEY}` }, one);
+  const session = (await b.get('/front-door/session')).data;
+  assert.equal(session.deleteAccount, true);
+  assert.equal(session.deletionRequest, true);
+  assert.equal(session.deleteAccountPage, null);
+  assert.equal((await b.post('/front-door/delete-account', { name: 'other' })).status, 400, 'the name typed must match');
+
+  const done = await b.post('/front-door/delete-account', { name: 'solo', app: 'android', version: '1.2.3' });
+  assert.equal(done.status, 200, done.text);
+  assert.deepEqual(done.data, { ok: true, requested: true, deleted: '/front-door/deleting' });
+  const dir = path.join(one.data, 'outbox');
+  const files = fs.readdirSync(dir);
+  assert.equal(files.length, 1);
+  assert.match(files[0], /^feedback-[0-9a-f]{32}\.json$/, 'the agent of any version brings it');
+  const sent = JSON.parse(fs.readFileSync(path.join(dir, files[0]), 'utf8'));
+  assert.deepEqual({ ...sent, created: undefined }, { id: files[0].slice(9, 41), account: 'solo', created: undefined, kind: 'deletion', text: 'Delete the account solo', app: 'android', version: '1.2.3', screenshots: [] });
+
+  assert.equal((await b.get('/front-door/session')).status, 401, 'signed out');
+  const state = JSON.parse(fs.readFileSync(path.join(one.data, 'front-door.json'), 'utf8')).accounts.solo;
+  assert.ok(state.suspended && state.deleting === state.suspended, 'suspended, marked as being deleted');
+  const page = await one.browser().get('/front-door/deleting');
+  assert.equal(page.status, 200);
+  assert.match(page.text, /Your account is being deleted\./);
+
+  const store = require('../lib/front-door/store').open(one.data);
+  assert.ok(store.deletingSince('solo'));
+  store.setSuspended('solo', false);
+  assert.equal(store.deletingSince('solo'), null, 'a resume drops the request');
+});
 
 test("a delete bound to an account's userId never deletes one made again with the same name", () => {
   const store = require('../lib/front-door/store');
