@@ -44,6 +44,8 @@ data class Company(
     /** The objectives and cards Create puts on its board (#810, [ProjectStarter]), while it is set up. */
     val starter: Starter? = null,
     val teams: List<CompanyTeam> = emptyList(),
+    /** Its own bots in no team (`project-bots`, ADR 233), by id. */
+    val bots: List<String> = emptyList(),
     val teamChat: List<TeamLine> = emptyList(),
     val canUndo: Boolean = false,
     val facts: Int = 0,

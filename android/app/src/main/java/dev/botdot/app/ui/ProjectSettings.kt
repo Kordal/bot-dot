@@ -38,6 +38,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -378,6 +379,7 @@ private fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> U
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
     val p = LocalPaper.current
@@ -393,6 +395,21 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
                 members.take(6).forEach { b -> Box { BotFigure(b.color, b.state, 24, b.outfit); if (b.id == t.lead && members.size > 1) Crown(Modifier.align(Alignment.TopEnd)) } }
             }
             SmallButton(tr("Edit")) { draft = TeamDraft(t.id, t.name, t.bots, t.lead) }
+        }
+    }
+    // The project's own bots in no team (ADR 233; web: company-settings.js ownHTML), each with ✕ to take it out.
+    val own = c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
+    if (own.isNotEmpty()) Labeled(tr("Bots")) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+            own.forEach { b ->
+                Row(Modifier.clip(Radius.pill).background(p.fill).padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                    BotFigure(b.color, b.state, 22, b.outfit)
+                    Text(b.name, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 160.dp))
+                    IconButton({ ui.call({ it.setProjectBots(c.bots - b.id) }) }, Modifier.size(44.dp)) {
+                        Icon(Icons.Filled.Close, tr("Remove {name}", "name" to b.name), tint = p.muted, modifier = Modifier.size(16.dp))
+                    }
+                }
+            }
         }
     }
     val d = draft

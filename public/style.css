@@ -3240,6 +3240,8 @@ dialog.cf-cal-modal { width: min(1080px, calc(100% - 24px)); }
 .ps-show-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-8); font-size: var(--fs-14); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ps-team .ps-label { color: var(--text); }
 .ps-faces { display: flex; }
+.ps-own { display: flex; flex-wrap: wrap; gap: var(--sp-8); }
+.ps-own-bot { display: inline-flex; align-items: center; gap: var(--sp-8); padding-left: var(--sp-4); border-radius: var(--r-pill); background: var(--fill); }
 .ps-face-wrap { position: relative; margin-left: calc(-1 * var(--sp-4)); }
 .ps-face-wrap:first-child { margin-left: 0; }
 .ps-face { display: inline-flex; width: 28px; height: 28px; }
@@ -3478,7 +3480,9 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .sp-keys .sp-join:hover, .sp-keys .sp-join:focus-visible { --key-bg: #2c2c2c; color: var(--text); }
 .sp-join svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .pick-search { width: 100%; margin-bottom: var(--sp-8); }
-.sp-new { align-self: flex-start; margin-top: var(--sp-8); display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 44px; padding: 0 var(--sp-16) 0 var(--sp-12); border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font: inherit; font-size: var(--fs-14); cursor: pointer; }
+.sp-adds { display: flex; flex-wrap: wrap; gap: var(--sp-8); margin-top: var(--sp-8); }
+.sp-own .sp-keys { padding: var(--sp-12) var(--sp-8); }
+.sp-new { align-self: flex-start; display: inline-flex; align-items: center; gap: var(--sp-8); min-height: 44px; padding: 0 var(--sp-16) 0 var(--sp-12); border: 0; border-radius: var(--r-pill); background: var(--fill); color: var(--text); font: inherit; font-size: var(--fs-14); cursor: pointer; }
 .sp-new:hover { background: #2c2c2c; }
 .sp-new svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 

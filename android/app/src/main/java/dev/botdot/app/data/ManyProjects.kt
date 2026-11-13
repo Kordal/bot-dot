@@ -34,7 +34,7 @@ object ManyProjects {
     fun manager(c: Company, bots: List<Bot>): Bot? = c.lead?.let { id -> bots.firstOrNull { it.id == id } }
     /** The bots a project's lead is picked from (ADR 227): the project's own first, then the rest, each by name. */
     fun leadChoices(c: Company, bots: List<Bot>): List<Bot> {
-        val mine = c.teams.flatMap { it.bots }.toSet()
+        val mine = (c.teams.flatMap { it.bots } + c.bots).toSet()
         return bots.sortedWith(compareBy<Bot>({ it.id !in mine }, { it.name.lowercase() }))
     }
 

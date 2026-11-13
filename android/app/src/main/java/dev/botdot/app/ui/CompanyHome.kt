@@ -137,6 +137,12 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     // "+" at the end of a team's row: the team it adds to, while its picker is open.
     var adding by rememberSaveable { mutableStateOf<String?>(null) }
     fun offered(t: CompanyTeam): List<Bot> = CompanyFloor.addable(c, t, bots).map { (b, other) -> if (other != null) b.copy(description = tr("In {team}", "team" to other)) else b }
+    // "Add bot" (ADR 233): the project's own bots in no team, on a botdot that has them; the account's bots not in the
+    // project are offered, and with none the Chief is asked for a new one.
+    val ownBots = ProjectBots.FEATURE in features
+    val notIn = remember(c, bots) { ProjectBots.addable(c, bots) }
+    var addingOwn by rememberSaveable { mutableStateOf(false) }
+    val addOwn: () -> Unit = { if (notIn.isEmpty()) ways.onChiefSay(newBotWords(c)) else addingOwn = true }
     // The pieces the owner put on the board (#780); a project made before has them all.
     fun on(k: String) = dev.botdot.app.data.ProjectBoard.shows(c, k)
     // The Files tile (project-files): a running project's folder, on a botdot that has it, when the app can open Files.
@@ -180,7 +186,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
                 }
                 if (on("teams")) {
                     c.suggestion?.let { sg -> add(Tile("suggest") { m, _ -> Box(m) { SuggestedCard(ui, c, sg) } }) }
-                    add(Tile("new-team") { m, _ -> Box(m) { NewTeam(ui, c) } })
+                    add(Tile("new-team") { m, _ -> Box(m) { NewTeam(ui, c, addOwn.takeIf { ownBots && c.bots.isEmpty() }) } })
                 }
                 if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
                 if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
@@ -208,7 +214,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
             if (dev.botdot.app.data.ProjectCards.shows(features, c)) ProjectCardsRow(ui, c, dev.botdot.app.data.ProjectBoard.missing(features, c))
             if (on("teams")) {
                 c.suggestion?.let { SuggestedCard(ui, c, it) }
-                NewTeam(ui, c)
+                NewTeam(ui, c, addOwn.takeIf { ownBots && c.bots.isEmpty() })
             }
             if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) CalendarTile(ui, c, bots)
             if (filesAt != null) ProjectFilesTile(ui, c, filesAt, ways.onFolderFile)
@@ -219,6 +225,11 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         // Its teams' keys (#841), in place of the floor's rooms and desks.
         val waits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
         TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }, waits = waits) { teamOpen = it }
+        if (ownBots) OwnKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, onBot = ways.onBot, onAdd = addOwn)
+    }
+    if (addingOwn) BotPicker(tr("Add bot"), notIn, max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c)) }, onDismiss = { addingOwn = false }) { picked, _ ->
+        val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+        ui.took(a.setProjectBots(c.bots + picked))
     }
     adding?.let { id -> c.teams.firstOrNull { it.id == id } }?.let { t ->
         BotPicker(tr("Add to {team}", "team" to t.name), offered(t), max = 40, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ways.onChiefSay(newBotWords(c, t)) }, onDismiss = { adding = null }) { picked, _ ->
@@ -231,6 +242,36 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         TeamSheet(ui, c, team, bots, reports = CompanyFloor.LEADS in features, line = { lineOf(it) }, onBot = { teamOpen = null; ways.onBot(it) })
     }
 }
+
+/** The words the project's "New bot" starts a Chief chat with (ADR 233). */
+private fun newBotWords(c: Company): String = tr("A new bot for {project}:", "project" to c.name.ifBlank { c.start }) + " "
+
+/**
+ * The project's own bots in no team (ADR 233; web: company-home.js teamsHTML), as keys under its teams with "+" after
+ * them; none: nothing here, "Add bot" stands beside New team.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun OwnKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide: Boolean, line: (Bot) -> String, onBot: (String) -> Unit, onAdd: () -> Unit) {
+    val p = LocalPaper.current
+    val own = c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
+    if (own.isEmpty()) return
+    FlowRow(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).padding(Space.s8).testTag(OWN_KEYS), horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+        own.forEach { b ->
+            val ask = info.asks(b.id) > 0
+            val look = KeyLook(b.name, line(b), b.color, b.state, outfit = b.outfit, unread = b.unread, asks = ask,
+                status = Keypad.status(b.running, needs = ask, unread = b.unread, runs = b.runningCount))
+            TeamKey(look, crown = false, wide = wide) { onBot(b.id) }
+        }
+        TeamAddKey(tr("Add bot"), wide, onAdd)
+    }
+}
+
+/** The tag of the project's own bots' keys. */
+internal const val OWN_KEYS = "own-keys"
+
+/** The tag of "Add bot" beside New team. */
+internal const val OWN_ADD = "own-add"
 
 /** The words a team's "New bot" starts a Chief chat with. */
 private fun newBotWords(c: Company, t: CompanyTeam): String =
@@ -425,15 +466,23 @@ private fun SuggestedCard(ui: CompanyUi, c: Company, s: Suggested) {
     }
 }
 
-/** A dashed "New team": a name and its bots, the first picked its lead; the bots in no team are offered first. */
+/**
+ * A dashed "New team": a name and its bots, the first picked its lead; the bots in no team are offered first. With
+ * [addBot], "Add bot" beside it (ADR 233): the project has none of its own yet.
+ */
 @Composable
-private fun NewTeam(ui: CompanyUi, c: Company) {
+private fun NewTeam(ui: CompanyUi, c: Company, addBot: (() -> Unit)? = null) {
     val p = LocalPaper.current
     var picking by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).dashedBox(p.line2).clickable(onClickLabel = tr("New team")) { picking = true }.padding(Space.s12),
+    @Composable
+    fun Dashed(label: String, m: Modifier, onClick: () -> Unit) = Row(m.heightIn(min = 56.dp).dashedBox(p.line2).clickable(onClickLabel = label, onClick = onClick).padding(Space.s12),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.Filled.Add, null, tint = p.muted, modifier = Modifier.size(18.dp))
-        Text(tr("New team"), color = p.muted, fontSize = Type.s14, modifier = Modifier.padding(start = Space.s8))
+        Text(label, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8))
+    }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+        Dashed(tr("New team"), Modifier.weight(1f)) { picking = true }
+        if (addBot != null) Dashed(tr("Add bot"), Modifier.weight(1f).testTag(OWN_ADD), addBot)
     }
     if (picking) {
         val inTeam = c.teams.flatMap { it.bots }.toSet()

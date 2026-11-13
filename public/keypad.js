@@ -121,10 +121,10 @@ function status({ running = false, runs = 0, needs = false, unread = 0, last = n
 // replies), `endedAt` when that run ended, both ISO times. A server without `readAt`: never, and Done stays.
 const seen = (readAt, endedAt) => typeof readAt === 'string' && typeof endedAt === 'string' && !!endedAt && readAt >= endedAt;
 
-// Map(bot id → its project): the first project whose team a bot is in (ADR 120).
+// Map(bot id → its project): the first project whose team a bot is in (ADR 120), or that has it in no team (ADR 233).
 function projectOf(projects) {
   const map = new Map();
-  for (const p of projects || []) for (const t of p.teams || []) for (const id of t.bots || []) if (!map.has(id)) map.set(id, p);
+  for (const p of projects || []) for (const id of [...(p.teams || []).flatMap((t) => t.bots || []), ...(p.bots || [])]) if (!map.has(id)) map.set(id, p);
   return map;
 }
 // What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots, and those
