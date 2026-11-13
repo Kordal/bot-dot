@@ -563,7 +563,7 @@ private fun ManagerMessage(m: GroupMessage, lead: Bot?) {
         Box(Modifier.padding(top = Space.s16)) { if (lead != null) BotFigure(lead.color, "idle", 28, lead.outfit) else BotFigure(CHIEF_COLOR, "idle", 28, FigureDef.CHIEF) }
         Spacer(Modifier.size(6.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-            Text(lead?.name ?: tr("Project Manager"), color = parseColor(lead?.color ?: CHIEF_COLOR, LocalPaper.current.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
+            Text(lead?.name ?: LocalChiefName.current, color = parseColor(lead?.color ?: CHIEF_COLOR, LocalPaper.current.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             TheirBubble(shortTime(m.at), copyText = m.text) { MarkdownText(m.text) }
         }
     }

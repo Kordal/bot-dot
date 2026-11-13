@@ -111,7 +111,7 @@ A space of its own beside Home, opened from its square in the rail (the switch "
 _Avoid_: company, firm (in what the user reads)
 
 **Project Manager**:
-The Chief of Staff in a project's own chat, opened from its head beside the project's gear: the user talks to the whole project there, and it writes in each team's chat, reads them, and reports each team's answer back ([ADR 217](docs/adr/217-a-projects-own-chief-chat-is-its-project-manager.md)). Not a bot of its own and no member of a team. Its message in a team's chat is never the user's word.
+The bot the user picks in a project's settings to talk to all its teams: the user writes to it in its own chat, opened from its head beside the Chief's on the project's page, and it writes in each team's chat, reads them, and reports each team's answer back ([ADR 230](docs/adr/230-the-project-manager-is-the-bot-the-owner-picked-and-the-projects-chat-is-the-chiefs.md)). With none picked, the Chief of Staff does it in the project's own chat ([ADR 217](docs/adr/217-a-projects-own-chief-chat-is-its-project-manager.md)), which is always the Chief's. No member of a team by being it. Its message in a team's chat is never the user's word.
 _Avoid_: PM, coordinator
 
 **Space**:

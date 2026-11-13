@@ -25,17 +25,19 @@ object ManyProjects {
     const val CHIEF = "project-chief"
     /** The project's own Chief chat is its Project Manager, who writes in every team's chat (ADR 217). */
     const val MANAGER = "project-manager"
-    /** The owner picks a bot to lead the project in its own chat (ADR 227): PATCH of the project's `lead`. */
+    /** The owner picks a bot to lead the project (ADR 227): PATCH of the project's `lead`. */
     const val LEAD = "project-lead"
+    /** That bot is the project's Project Manager in its own chat, the project's chat stays the Chief's (ADR 230). */
+    const val MANAGER_BOT = "project-manager-bot"
+
+    /** The project's Project Manager (ADR 230): the bot the owner picked, while it is there; null with none. */
+    fun manager(c: Company, bots: List<Bot>): Bot? = c.lead?.let { id -> bots.firstOrNull { it.id == id } }
     /** The bots a project's lead is picked from (ADR 227): the project's own first, then the rest, each by name. */
     fun leadChoices(c: Company, bots: List<Bot>): List<Bot> {
         val mine = c.teams.flatMap { it.bots }.toSet()
         return bots.sortedWith(compareBy<Bot>({ it.id !in mine }, { it.name.lowercase() }))
     }
 
-    /** Whether the Chief chat [chatId] is a project's own, so its head says "Project Manager" (ADR 217). */
-    fun managerChat(features: Collection<String>?, projects: List<Company?>, chatId: String?): Boolean =
-        chatId != null && features != null && MANAGER in features && projects.any { it?.chiefChat == chatId }
     /** Tidy up beside the gear: the project's Chief arranges the whole board, asked in its chat. */
     const val TIDY = "board-tidy"
     const val FOLDER = "project-folder"

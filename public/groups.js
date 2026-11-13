@@ -485,13 +485,13 @@ const waitsWhole = (m) => m.by !== 'chief' && m.canTakeBack === true && (!!waits
 function groupMessageHTML(m, chat, prev = null) {
   const text = typeof m.text === 'string' ? m.text : '';
   const waits = waitsLine(m);
-  // The Project Manager's message (ADR 217): the Chief's head and name, on the bots' side, never the owner's bubble;
-  // the project's lead's when it wrote as that bot (`as`, ADR 227).
+  // The Project Manager's message (ADR 217): on the bots' side, never the owner's bubble, with the head and name of
+  // the bot the owner picked (`as`, ADR 230), or the Chief's when the Chief wrote it.
   const as = m.by === 'chief' && m.as ? botById(m.as) : null;
   if (m.by === 'chief') return `<div class="bubble-row from-bot g-row" data-gmsg="${esc(m.id)}">
     ${as ? botFigure(as.color, 'idle', 'g-head', as.outfit, as.id) : botFigure(CHIEF_COLOR, 'idle', 'g-head', Figure.CHIEF)}
     <div class="stack">
-      <div class="g-name" style="--c:${Unread.tint(as ? as.color : CHIEF_COLOR)}">${esc(as ? as.name : tr('Project Manager'))}</div>
+      <div class="g-name" style="--c:${Unread.tint(as ? as.color : CHIEF_COLOR)}">${esc(as ? as.name : chiefTitle())}</div>
       <div class="bubble from-bot" data-expand><div class="clamp">${escMentions(text, chat)}</div></div>
       <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
     </div></div>`;

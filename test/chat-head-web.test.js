@@ -25,7 +25,7 @@ test('web: the Chief\'s figure and name open its settings the same way, and its 
   const title = chief.match(/<button class="chat-title" id="chief-settings"[^>]*>([\s\S]*?)<\/button>/);
   assert.ok(title, 'one button around the figure and the name');
   assert.match(title[1], /id="chief-avatar"/);
-  assert.match(title[1], /<h2>\$\{esc\(chiefChatTitle\(state\.chatId\)\)\}<\/h2>/, "the name the owner gave it (#41), or Project Manager in a project's own chat (ADR 217)");
+  assert.match(title[1], /<h2>\$\{esc\(chiefTitle\(\)\)\}<\/h2>/, "the name the owner gave it (#41), in a project's own chat too (ADR 230)");
   assert.match(app, /\$\('#chief-settings'\)\.onclick = \(\) => setPanel\('toggle'\);/);
   assert.doesNotMatch(chief, /ICON\.(gear|history)/);
 });

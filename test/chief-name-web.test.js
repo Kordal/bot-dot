@@ -33,30 +33,16 @@ test('the page calls the Chief what the server says, and Chief of Staff when it 
   }
 });
 
-test("a project's own Chief chat is headed Project Manager, every other chat the Chief's name (ADR 217)", () => {
-  const state = { features: ['project-manager'], chatId: 'c-pm', company: { id: 'p1', chiefChat: 'c-pm' }, projects: [{ id: 'p1', chiefChat: 'c-pm' }, { id: 'p2', chiefChat: 'c-two' }] };
+test("every Chief chat is headed the Chief's name, a project's own too: the Project Manager is a bot of its own (ADR 230)", () => {
+  const state = { features: ['project-manager', 'project-manager-bot'], chatId: 'c-pm', chats: [{ id: 'c-pm', lead: 'b1' }], company: { id: 'p1', chiefChat: 'c-pm', lead: 'b1' }, projects: [{ id: 'p1', chiefChat: 'c-pm', lead: 'b1' }] };
   const { ctx, head } = names(state);
   ctx.takeChiefName('Ada');
-  ctx.drawChiefName();
-  assert.equal(head.textContent, 'Project Manager');
-  state.chatId = 'c-two';
-  ctx.drawChiefName();
-  assert.equal(head.textContent, 'Project Manager', "another project's chat, not the one shown");
-  for (const id of ['c-other', null]) {
+  for (const id of ['c-pm', 'c-other', null]) {
     state.chatId = id;
     ctx.drawChiefName();
     assert.equal(head.textContent, 'Ada', String(id));
   }
-  state.chatId = 'c-pm';
-  state.features = [];
-  ctx.drawChiefName();
-  assert.equal(head.textContent, 'Ada', 'a server without the Project Manager');
-});
-
-test("the Chief's chat head is drawn again for the chat it opens", () => {
-  const part = cut('async function showChat(id)', "const thread = $('#chat-thread');");
-  assert.match(part, /drawChiefName\?\.\(\)/);
-  assert.match(cut('function renderChief()', "wireComposer($('form.composer', root)"), /chiefChatTitle\(state\.chatId\)/);
+  assert.match(cut('function renderChief()', "wireComposer($('form.composer', root)"), /<h2>\$\{esc\(chiefTitle\(\)\)\}<\/h2>/);
 });
 
 test('a search finds the Chief by its name and by its role', () => {
@@ -70,7 +56,7 @@ test('the list, the keys, the panel and the chat head say the name, never a fixe
   for (const [from, to] of [['function drawContacts', '\n}\n'], ['function chiefKeyHTML', '\n}\n'], ['function drawPanelHead', '\n}\n'], ['function renderChief()', "wireComposer($('form.composer', root)"]]) {
     const part = cut(from, to);
     assert.doesNotMatch(part, /Chief of Staff/, from);
-    assert.match(part, /chief(Name|Title|ChatTitle)\(/, from); // chiefTitle(): the name, or the role in the page's language (#647); chiefChatTitle(): a project's chat is its Project Manager
+    assert.match(part, /chief(Name|Title)\(/, from); // chiefTitle(): the name, or the role in the page's language (#647)
   }
 });
 

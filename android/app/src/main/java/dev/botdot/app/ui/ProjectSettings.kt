@@ -352,16 +352,16 @@ private class TeamDraft(val id: String?, name: String, bots: List<String>, lead:
     var lead by mutableStateOf(lead)
 }
 
-/** Who runs the project in its own chat (ADR 227; web: company-settings.js leadHTML): a bot the owner picks, or the Chief. */
+/** Who talks to the project's teams (ADR 230; web: company-settings.js leadHTML): a bot the owner picks, or the Chief. */
 @Composable
 private fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> Unit) {
     val p = LocalPaper.current
     var menu by remember { mutableStateOf(false) }
     val lead = c.lead?.let { id -> bots.firstOrNull { it.id == id } }
     val chief = LocalChiefName.current
-    Labeled(tr("Project lead")) {
+    Labeled(tr("Project Manager")) {
         Box {
-            Row(Modifier.clip(Radius.pill).background(p.fill).clickable(onClickLabel = tr("Project lead")) { menu = true }.padding(horizontal = Space.s12, vertical = Space.s8),
+            Row(Modifier.clip(Radius.pill).background(p.fill).clickable(onClickLabel = tr("Project Manager")) { menu = true }.padding(horizontal = Space.s12, vertical = Space.s8),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 if (lead != null) BotFigure(lead.color, lead.state, 22, lead.outfit) else BotFigure(CHIEF_COLOR, "idle", 22, FigureDef.CHIEF)
                 Text(lead?.name ?: chief, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis)
