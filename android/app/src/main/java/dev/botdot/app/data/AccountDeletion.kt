@@ -19,6 +19,16 @@ object AccountDeletion {
     fun adminNote(features: List<String>?, session: JsonObject?): Boolean =
         features?.contains("accounts") == true && flag(session, "admin") == true && flag(session, "deleteAccount") == false
 
+    /**
+     * Where a managed machine's owner starts deleting the account instead (#1312): the page of botdot.app the front
+     * door's session names (`deleteAccountPage`), only an https address; null elsewhere and from an older front door.
+     */
+    fun page(features: List<String>?, session: JsonObject?): String? {
+        if (features?.contains("accounts") != true) return null
+        val page = (session?.get("deleteAccountPage") as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
+        return page.takeIf { runCatching { java.net.URI(page) }.getOrNull()?.let { it.scheme == "https" && !it.host.isNullOrEmpty() } == true }
+    }
+
     /** The session's own account, whose name is typed to confirm; empty when the front door sent none. */
     fun account(session: JsonObject?): String = (session?.get("account") as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
 

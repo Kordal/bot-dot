@@ -647,8 +647,18 @@ function deleteCardInner(session) {
       <div class="bs-body">${body}</div>
     </details>`;
   if (session?.deleteAccount === true) return card(`<div><button type="button" class="btn red" id="delete-account">${tr('Delete account…')}</button></div>`);
+  // A managed machine (#1312): the account is the machine, so the page of botdot.app the front door names says how.
+  const page = deletePage(session);
+  if (page) return card(`<p class="muted">${tr('Your account is deleted on botdot.app: the page says how.')}</p><div><a class="btn red" id="delete-account-page" href="${esc(page)}" target="_blank" rel="noopener noreferrer">${tr('Delete account…')}</a></div>`);
   if (session?.admin === true && session.deleteAccount === false) return card(`<p class="muted">${tr("This is the admin's account of this machine, so it can't be deleted here. The machine is removed by its admin instead.")}</p>`);
   return '';
+}
+
+// The page a managed machine's front door names for deleting its account, only an https address; else null.
+function deletePage(session) {
+  const page = session?.deleteAccountPage;
+  if (typeof page !== 'string') return null;
+  try { return new URL(page).protocol === 'https:' ? page : null; } catch { return null; }
 }
 
 async function loadDeleteCard(root) {
