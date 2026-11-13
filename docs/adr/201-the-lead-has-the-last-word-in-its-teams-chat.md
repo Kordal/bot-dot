@@ -1,6 +1,7 @@
 # ADR-201: The lead has the last word in its team's chat
 
 - **Status:** Accepted (2026-11-10, the owner: "ok go as recommended", on the audit of how bots work together in a team's chat)
+- **Amended by:** [ADR 229](229-a-teams-chat-asks-the-owner-once-and-a-handed-on-member-brings-its-result.md): one question to the owner per message, and a member handed on by the last word brings only its result
 - **Builds on:** [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md), [ADR 081](081-a-short-model-call-picks-who-answers-a-group-message-without-a-mention.md), [ADR 119](119-a-teams-chat-is-a-group-that-follows-the-team-and-a-message-without-a-mention-goes-to-its-lead.md), [ADR 148](148-the-owner-talks-to-a-team-through-its-lead.md)
 
 ## Context

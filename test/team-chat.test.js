@@ -190,10 +190,33 @@ test('two members the router picks answer to the lead, and the lead writes the t
   const closing = ranOf(srv, lead).at(-1).system;
   assert.match(closing, /Write the team's one answer to the owner/);
   assert.match(closing, /never hand the owner options the team can choose between/);
-  assert.match(closing, /A member that asked the owner in its reply has asked already: never ask it again/);
+  // One question to the owner for a message (ADR 229): the lead's last word asks what still stands, and leaves no other open.
+  assert.match(closing, /put what still stands into your one question at the end: it is the one question the owner answers for this message, so leave no other open/);
+  assert.doesNotMatch(closing, /never ask it again/);
+  assert.match(first, /When a member already asked the owner for the same thing in this chat, never ask it again/);
   assert.match(closing, /Decide as a team what is technical, can be undone and costs nothing/);
   assert.doesNotMatch(closing, /reply with the single word PASS/);
   lastWord(null);
+});
+
+test('a member the lead\'s last word hands the work on to brings only its result, and restates nothing (ADR 229)', async () => {
+  const g = await teamChat(team.id);
+  setRoute('{"members":[2,3]}'); // Writer and Poster: not the lead
+  reply(srv, writer, 'The post needs a title.');
+  reply(srv, poster, 'The forum allows 60 characters.');
+  lastWord('We post on Thursday. @Writer draft the title today.');
+  const sent = await srv.api(`/group-chats/${g.id}/messages`, { method: 'POST', body: { text: 'Plan the forum post.' } });
+  const c = await answered(g, sent.data.id);
+  lastWord(null);
+  await waitFor(() => keptOf(g, sent.data.id).turns.length === 4 && keptOf(g, sent.data.id).done, { timeout: 20_000, what: 'the member the last word handed on' });
+  const turns = keptOf(g, sent.data.id).turns;
+  assert.deepEqual(turns.map((t) => [t.botId, !!t.closing]), [[writer.id, false], [poster.id, false], [lead.id, true], [writer.id, false]]);
+  assert.equal(c.items.find((x) => x.id === sent.data.id).answer, turns[2].runId, 'the last word stays the team\'s answer');
+  const [firstTurn, afterIt] = ranOf(srv, writer).slice(-2).map((r) => r.system);
+  assert.match(afterIt, /The lead has already written the team's answer to the owner, above, and your reply is folded under it/);
+  assert.match(afterIt, /ask the owner nothing: the lead's answer asked what only the owner can answer/);
+  assert.match(afterIt, /Never restate what a member said in this chat/);
+  assert.doesNotMatch(firstTurn, /The lead has already written the team's answer|Never restate what a member said in this chat/, 'the member\'s first turn was nobody\'s hand-on');
 });
 
 test('one member alone answers for the team: the lead has no last word and nothing is folded', async () => {
