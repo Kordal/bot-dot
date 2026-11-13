@@ -529,8 +529,11 @@
       const id = b.dataset.cfTeamChat;
       if (!(state.groups || []).some((g) => g.team === id)) {
         // A newly created team's project may arrive before the groups feed refresh.
+        // Status updates may redraw the buttons while this read waits; only navigation cancels the action.
+        const context = () => JSON.stringify([Company.place(), state.view, state.botId, state.groupId, state.chatId, teamFor, boardFor, !!$('[data-pt-root]', root), !!$('.ps-page', root)]);
+        const before = context();
         state.groups = await loadGroups();
-        if (state.company?.id !== c.id || !b.isConnected) return;
+        if (state.company?.id !== c.id || context() !== before) return;
       }
       openTeamChat(id);
     }));

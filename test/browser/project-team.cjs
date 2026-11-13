@@ -56,7 +56,20 @@ const { startServer, writeData, makeBot } = require('../helpers');
       assert.ok(await page.locator('[data-pt-root]').isVisible());
       // Creating a team provides its real chat and preserves return navigation too.
       const writing = saved.teams.find((t) => t.name === 'Writing');
+      // A status redraw while the missing chat list loads must not discard the click.
+      let releaseChat, chatStarted;
+      const chatPending = new Promise((done) => { chatStarted = done; });
+      await page.evaluate(() => { state.groups = []; Company.redraw(); });
+      await page.route('**/api/group-chats', async (route) => {
+        const response = await route.fetch();
+        chatStarted();
+        await new Promise((done) => { releaseChat = done; });
+        await route.fulfill({ response });
+      }, { times: 1 });
       await page.locator(`[data-cf-team-chat="${writing.id}"]`).click();
+      await chatPending;
+      await page.evaluate(() => Company.redraw());
+      releaseChat();
       await page.waitForFunction(() => state.view === 'group');
       if (viewport.width < 1001) await page.locator('#chat-row [data-back]:visible').first().click();
       assert.ok(await page.locator('[data-pt-root]').isVisible());
