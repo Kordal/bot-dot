@@ -1,4 +1,4 @@
-# ADR-237: Team management is secondary to the project overview
+# ADR-238: Team management is secondary to the project overview
 
 - **Status:** Accepted (2026-11-13, the owner asked to implement the next approved slice)
 - **Owning task:** [#1330](https://github.com/Kordal/bot-dot/issues/1330), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)
