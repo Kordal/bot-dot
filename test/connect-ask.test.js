@@ -276,5 +276,17 @@ test('a Connect pressed again keeps only the last one\'s connection on the card,
   const err = await failing;
   assert.equal(err.superseded, true);
   assert.equal(asks.list().find((x) => x.id === a.id).connectionId, 'ca_3');
+
+  // A failure whose route still puts Composio's refusal in words while a newer Connect starts and makes its
+  // connection: the card read before it has moved on, and the route leaves it as it is (lib/routes/asks.js).
+  const before = asks.list().find((x) => x.id === a.id);
+  assert.equal(C.movedOn(before), false, 'nothing newer yet');
+  pending.length = 0;
+  const later = C.connect(a, 'http://x/connectors/done');
+  assert.equal(C.movedOn(before), true, 'a Connect started meanwhile');
+  await new Promise((r) => setImmediate(r));
+  pending[0]({ redirectUrl: 'https://c/4', connectionId: 'ca_4', expiresAt: 'last' });
+  await later;
+  assert.equal(C.movedOn(before), true, 'a newer connection is on the card');
   C.stopAll?.();
 });
