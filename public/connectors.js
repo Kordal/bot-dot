@@ -213,6 +213,8 @@ document.addEventListener('click', (e) => {
   connectApp(slug, () => set('connected'), { live, opened: () => set('waiting'), failed: (msg) => set('failed', msg), ended: () => set('idle') });
 });
 
+// How long the press waits for botdot to give the sign-in page's address.
+const CONNECT_START_MS = 30_000;
 // Composio's sign-in page opens in a new tab; this waits for the connection to become active.
 // connected: what happens then, instead of this page's own list and its question of which bots may use it.
 // on (a Reconnect card, a missing app's card): opened() once the sign-in page is open, failed(message) instead of a
@@ -220,6 +222,9 @@ document.addEventListener('click', (e) => {
 // waiting. start() and status(answer): the requests that open the sign-in and ask how it stands, in place of the
 // Connectors page's own (a missing app's card asks through its ask, docs/api.md "A missing connected app"). An
 // answer with `expiresAt` is waited for until then.
+// A sign-in page's address that a window can open: http(s), and one that parses (a bad one throws on navigation).
+const webPage = (u) => { try { return ['http:', 'https:'].includes(new URL(String(u || '')).protocol); } catch { return false; } };
+
 async function connectApp(slug, connected = null, on = {}) {
   const live = on.live || (() => true);
   const win = window.open('about:blank', '_blank'); // opened now, so pop-up blockers allow it
@@ -227,8 +232,15 @@ async function connectApp(slug, connected = null, on = {}) {
   // another: one more account of an app that is connected (ADR 174); its bots are picked once it works.
   const start = on.start || (() => api('/connectors/connect', { method: 'POST', body: { app: slug, ...(on.another ? { another: true } : {}) } }));
   const status = on.status || ((r) => api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`));
-  let r;
-  try { r = await start(); } catch (e) { win?.close(); return fail(e.message); }
+  // A botdot that never answers (a stuck server, a dropped link), or an answer with no page, ends here: the blank
+  // window closes and the button says so, never left on "Opening…".
+  let r, timer;
+  const late = new Promise((_, no) => { timer = setTimeout(() => no(new Error(tr("botdot didn't finish that. Try again in a moment."))), CONNECT_START_MS); });
+  try {
+    r = await Promise.race([new Promise((res) => res(start())), late]);
+    if (!r?.noAuth && !webPage(r?.redirectUrl)) throw new Error(tr("botdot didn't finish that. Try again in a moment."));
+  } catch (e) { win?.close(); return live() ? fail(e.message) : undefined; } finally { clearTimeout(timer); }
+  if (!live()) { win?.close(); return; }
   // Connected: every bot has it now (ADR 231), so nothing is asked; one more account still picks the bots that move to it.
   const done = async (account = null) => {
     if (connected) return connected();
@@ -237,7 +249,7 @@ async function connectApp(slug, connected = null, on = {}) {
     return account ? chooseAppBots(slug, true, account) : null;
   };
   if (r.noAuth) { win?.close(); return done(); }
-  if (win) win.location = r.redirectUrl; else location.assign(r.redirectUrl);
+  try { if (win && !win.closed) win.location = r.redirectUrl; else location.assign(r.redirectUrl); } catch { location.assign(r.redirectUrl); }
   if (on.opened) on.opened(); else toast(tr("Sign in on the page that opened. botdot notices when you're done."));
   const expires = Date.parse(r.expiresAt);
   const until = Number.isFinite(expires) && expires > Date.now() ? expires : Date.now() + 10 * 60_000;

@@ -14,7 +14,7 @@ const asksLib = require('../lib/asks');
 const connectAsksLib = require('../lib/connect-asks');
 
 const REDIRECT = 'https://connect.composio.example/link/secret-page-123';
-const composio = { status: {}, users: {}, links: 0 };
+const composio = { status: {}, users: {}, links: 0, worded: [] };
 const fake = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -29,6 +29,14 @@ const fake = http.createServer((req, res) => {
     if (p === '/auth_configs') return json(200, { items: [{ id: `ac_${url.searchParams.get('toolkit_slug')}`, status: 'ENABLED' }] });
     if (p === '/connected_accounts/link') {
       const b = JSON.parse(body);
+      // A sign-in that Composio answers late, and then refuses: held until the test lets it go.
+      if (b.auth_config_id === 'ac_gated' && composio.gate) { const g = composio.gate; composio.gate = null; return g.then(() => json(500, { error: { message: 'Composio is down for a moment' } })); }
+      // A sign-in Composio refuses in words botdot puts plainly, or with a refused key (401), once per entry of worded.
+      if (b.auth_config_id === 'ac_worded' && composio.worded.length) {
+        const how = composio.worded.shift();
+        if (how === '401') return json(401, { error: { message: 'Invalid API key' } });
+        return json(400, { error: { message: `{"code":1800,"detail":"Worded refusal ${++composio.links}"}` } });
+      }
       if (b.auth_config_id === 'ac_github') return json(400, { error: { message: '{"code":1803,"detail":"ConnectedAccount_MultipleAccountsNotAllowed for ac_github"}' } });
       const id = `ca_${b.auth_config_id.slice(3)}_${++composio.links}`;
       composio.status[id] = { app: b.auth_config_id.slice(3), status: 'INITIATED' };
@@ -134,6 +142,37 @@ test('Connect keeps the connection and never the page; once it is ACTIVE the bot
   const next = await waitFor(async () => (await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.continues === run.id), { what: 'the run that carries on' });
   assert.ok(next);
   assert.deepEqual((await srv.api(`/asks/${a.id}/connect`)).status, 404, 'settled once');
+});
+
+test('one sign-in connects the app for every bot whose card waits for it', { timeout: 60_000 }, async () => {
+  const coder = await makeBot(srv, { name: 'Coder', emoji: '💻' });
+  const manager = await makeBot(srv, { name: 'Manager', emoji: '📋' });
+  const a = (await offer({ app: 'linear', bot: coder.id })).data;
+  const b = (await offer({ app: 'linear', bot: manager.id })).data;
+  const c = await srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+  assert.equal(c.status, 200, JSON.stringify(c.data));
+  composio.status[c.data.connectionId].status = 'ACTIVE';
+  assert.equal((await srv.api(`/asks/${a.id}/connect`)).data.settled, true);
+  assert.ok(!(await listed(a.id)) && !(await listed(b.id)), 'both cards are gone');
+  assert.ok((await srv.api(`/bots/${coder.id}`)).data.connectors.includes('linear'));
+  assert.ok((await srv.api(`/bots/${manager.id}`)).data.connectors.includes('linear'));
+});
+
+test('a Connect that fails after a newer one made its connection leaves the card to the newer one', { timeout: 60_000 }, async () => {
+  const bot = await makeBot(srv, { name: 'Gate Keeper', emoji: '🚪' });
+  const a = (await offer({ app: 'gated', bot: bot.id })).data;
+  let open;
+  composio.gate = new Promise((r) => { open = r; });
+  const first = srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+  await waitFor(async () => !composio.gate, { what: 'the first Connect reaching Composio' });
+  const second = await srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+  assert.equal(second.status, 200, JSON.stringify(second.data));
+  open();
+  const late = await first;
+  assert.equal(late.status, 502, 'the late one answers its own press with its error');
+  assert.equal(late.data.mode, undefined, 'and does not turn the card to setup');
+  const card = stored().find((x) => x.id === a.id);
+  assert.deepEqual([card.mode, card.connectionId], ['connect', second.data.connectionId]);
 });
 
 test('an app that needs no sign-in settles at once; a refused sign-in turns the card to setup, which closes', { timeout: 60_000 }, async () => {
@@ -321,4 +360,118 @@ test("a bot's ask for github_mcp, which isn't connected, is a card under github_
   assert.deepEqual([r.asked, r.name, r.mode], [true, 'GitHub MCP', 'connect']);
   assert.deepEqual(asks.list().filter((a) => a.kind === 'connect-app').map((a) => a.app), ['github_mcp']);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a Connect pressed again keeps only the last one\'s connection on the card, whichever answers last', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const pending = [];
+  const connectors = {
+    status: () => ({ configured: true, keyRejected: false }), reconnect: () => [],
+    connect: () => new Promise((res) => pending.push(res)),
+    connection: async () => ({ status: 'INITIATED' }),
+  };
+  const C = connectAsksLib.create({ asks, bots: { get: () => ({ id: 'b1', connectors: [] }) }, connectors, appName: () => 'Linear', carryOnAfter: () => ({}), every: 3_600_000 });
+  const a = C.offer({ botId: 'b1', app: 'linear' }).ask;
+  const other = C.offer({ botId: 'b2x', app: 'notion' }).ask ?? null;
+  const first = C.connect(a, 'http://x/connectors/done');
+  const second = C.connect(a, 'http://x/connectors/done');
+  await new Promise((r) => setImmediate(r));
+  pending[1]({ redirectUrl: 'https://c/2', connectionId: 'ca_2', expiresAt: 'later' });
+  assert.equal((await second).connectionId, 'ca_2');
+  pending[0]({ redirectUrl: 'https://c/1', connectionId: 'ca_1', expiresAt: 'sooner' });
+  assert.equal((await first).redirectUrl, 'https://c/1', 'the late one still answers its own press');
+  const card = asks.list().find((x) => x.id === a.id);
+  assert.deepEqual([card.connectionId, card.expiresAt], ['ca_2', 'later']);
+  if (other) assert.equal(asks.list().find((x) => x.id === other.id).connectionId, undefined, 'another card is left as it was');
+
+  // An older press that fails after a newer one started: it says so, and the card stays the newer one's.
+  pending.length = 0;
+  const failing = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  const newer = C.connect(a, 'http://x/connectors/done');
+  await new Promise((r) => setImmediate(r));
+  pending[1]({ redirectUrl: 'https://c/3', connectionId: 'ca_3', expiresAt: 'latest' });
+  await newer;
+  pending[0](Promise.reject(Object.assign(new Error('Composio answered 500'), { composio: true })));
+  const err = await failing;
+  assert.equal(err.superseded, true);
+  assert.equal(asks.list().find((x) => x.id === a.id).connectionId, 'ca_3');
+
+  // The route handles a failure later (it puts Composio's refusal in words) and changes the card only while that
+  // Connect is the card's last one (lib/routes/asks.js): not after a newer Connect made its connection, nor after a
+  // newer one failed and set the card itself.
+  pending.length = 0;
+  const slow = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  await new Promise((r) => setImmediate(r));
+  pending[0](Promise.reject(Object.assign(new Error('Composio answered 500'), { composio: true })));
+  const slowErr = await slow;
+  assert.equal(C.current(a.id, slowErr.attempt), true, 'no newer Connect yet: the route may set the card');
+  const okNewer = C.connect(a, 'http://x/connectors/done');
+  await new Promise((r) => setImmediate(r));
+  pending[1]({ redirectUrl: 'https://c/4', connectionId: 'ca_4', expiresAt: 'last' });
+  await okNewer;
+  assert.equal(C.current(a.id, slowErr.attempt), false, 'a newer Connect made its connection');
+  const slow2 = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  await new Promise((r) => setImmediate(r));
+  pending[2](Promise.reject(Object.assign(new Error('Composio answered 500'), { composio: true })));
+  const slow2Err = await slow2;
+  const failNewer = C.connect(a, 'http://x/connectors/done').catch((e) => e);
+  await new Promise((r) => setImmediate(r));
+  pending[3](Promise.reject(Object.assign(new Error('refused'), { status: 401 })));
+  const newerErr = await failNewer;
+  assert.equal(C.current(a.id, slow2Err.attempt), false, 'a newer Connect failed and has the card');
+  assert.equal(C.current(a.id, newerErr.attempt), true);
+  C.stopAll?.();
+});
+
+test('a Reconnect card is not settled by another card\'s sign-in of the same app', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bots = { b1: { id: 'b1', connectors: [] }, b2: { id: 'b2', connectors: [] }, b3: { id: 'b3', connectors: [] } };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => bots[id] || null, update: (id, ch) => Object.assign(bots[id], ch) }, connectors, appName: () => 'Jira', carryOnAfter: () => ({}) });
+  const plain = C.offer({ botId: 'b1', app: 'jira' }).ask;
+  const other = C.offer({ botId: 'b2', app: 'jira' }).ask;
+  const again = C.offer({ botId: 'b3', app: 'jira', mode: 'reconnect' }).ask;
+  C.settle(plain, 'ca_9');
+  const left = asks.list().filter((x) => x.kind === 'connect-app').map((x) => x.id);
+  assert.ok(!left.includes(other.id), 'another plain Connect card settles with it');
+  assert.ok(left.includes(again.id), 'the Reconnect card waits for its own sign-in');
+});
+
+// The route words Composio's refusal with Claude (connectRefusal); a Connect pressed again meanwhile takes the card.
+async function refusedWhileWorded(second) {
+  const bot = await makeBot(srv, { name: `Worded ${second}`, emoji: '💬' });
+  const a = (await offer({ app: 'worded', bot: bot.id })).data;
+  composio.worded.push('refuse');
+  const before = new Set(srv.runs().map((r) => r.n));
+  srv.hold();
+  try {
+    const first = srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+    await waitFor(() => srv.runs().find((r) => !before.has(r.n) && String(r.stdin).includes('connect worded')), { what: 'the refusal being put in words' });
+    if (second === '401') composio.worded.push('401');
+    const next = await srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+    srv.unhold();
+    const late = await first;
+    assert.equal(late.status, 502, 'the first answers its own press with its error');
+    assert.equal(late.data.mode, undefined, 'and leaves the card to the newer Connect');
+    return { a, next, card: stored().find((x) => x.id === a.id) };
+  } finally { srv.unhold(); }
+}
+
+test('a refusal put in words while a newer Connect made its connection leaves the card to the newer one', { timeout: 60_000 }, async () => {
+  const { next, card } = await refusedWhileWorded('ok');
+  assert.equal(next.status, 200, JSON.stringify(next.data));
+  assert.deepEqual([card.mode, card.connectionId, card.error || null], ['connect', next.data.connectionId, null]);
+});
+
+test('a refusal put in words while a newer Connect found the key refused leaves the card asking for the key', { timeout: 60_000 }, async () => {
+  try {
+    const { next, card } = await refusedWhileWorded('401');
+    assert.deepEqual([next.status, next.data.mode], [409, 'setup']);
+    assert.deepEqual([card.mode, card.key, card.error || null], ['setup', true, null]);
+  } finally {
+    const r = await srv.api('/connectors/key', { method: 'PUT', body: { key: 'pk_test_key_1' } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+  }
 });

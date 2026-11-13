@@ -38,7 +38,7 @@ function page({ state = {}, answer = () => ({ ok: true }), screen = {}, extra = 
     ...words, Motion, esc, state: st, loginReq: { pending: [] }, CHIEF_COLOR, CHIEF_BOT: { id: 'chief', name: 'Chief of Staff', color: CHIEF_COLOR }, chiefTitle: () => 'Chief of Staff', BACK_BTN: '',
     botById: (id) => st.bots.find((b) => b.id === id), colorOf: (b) => b?.color || '#888780',
     botLabel: (b) => (b ? `<svg class="fig fig-small"></svg>${esc(b.name)}` : ''),
-    CSS: { escape: (s) => s }, PLAN_APPROVAL: '', loadDash() {}, wireNeedCards() {}, wireBatchCards() {},
+    CSS: { escape: (s) => s }, URL, PLAN_APPROVAL: '', loadDash() {}, wireNeedCards() {}, wireBatchCards() {},
     api: async (url, opts) => { calls.push([url, opts.method, opts.body]); const a = answer(url, opts.body); if (a instanceof Error) throw a; return a; },
     toast: (text, bad) => toasts.push([text, !!bad]), whileBusy,
     refreshNeeds: () => { refreshed++; },

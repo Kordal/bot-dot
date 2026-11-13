@@ -14,7 +14,7 @@ function page({ connect = { redirectUrl: 'https://connect.example/gmail', connec
   let onClick = null;
   const waits = [];
   const cards = [];
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, URL,
     state: { view: 'bot', bots: [] }, esc, encodeURIComponent, toast: (m) => toasts.push(m), askFirst: async () => true, location: {},
     $: () => ({ dataset: {} }),
     window: { open: () => tab },
@@ -22,7 +22,7 @@ function page({ connect = { redirectUrl: 'https://connect.example/gmail', connec
       addEventListener: (type, fn) => { if (type === 'click') onClick = fn; },
       querySelectorAll: () => cards,
     },
-    setTimeout: (fn) => waits.push(fn), // the wait for the connection: one step at a time, by the test
+    setTimeout: (fn, ms) => (ms === 3000 ? waits.push(fn) : 0), clearTimeout: () => {}, // the wait for the connection: one step at a time, by the test
     api: async (p, opts = {}) => {
       calls.push([p, opts.method || 'GET', opts.body]);
       if (p === '/connectors/connect') { if (connect instanceof Error) throw connect; return connect; }
@@ -112,7 +112,7 @@ test('web: the Apps page draws a connection without a status, and says why when 
   const root = { dataset: {}, innerHTML: '' };
   const el = () => ({ dataset: {}, focus() {}, setSelectionRange() {} });
   const data = { configured: true, account: 'own', keyHint: '…1234', connections: [{ id: 'ca_1', toolkit: 'github', app: { name: 'GitHub MCP' }, usedBy: [] }], reconnect: [] };
-  const ctx = vm.createContext({ ...words,
+  const ctx = vm.createContext({ ...words, URL,
     state: { view: 'connectors', bots: [] }, esc, encodeURIComponent, URLSearchParams, toast() {}, subBack: () => '', botLabel: () => '',
     $: (q) => (q === '#view-connectors' ? root : el()), $$: () => [], document: { addEventListener() {} },
     api: async (p) => (p === '/connectors' ? data : p.startsWith('/connectors/catalog') ? { items: [], nextOffset: null, total: 0 } : []),
