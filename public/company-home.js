@@ -326,12 +326,13 @@
     const adds = `<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>${own && !own.length ? `<button type="button" class="sp-new" data-cf-add-bot>${Company.ICON.plus}${esc(addBot)}</button>` : ''}`;
     return `<div class="sp-teams">${rows}${ownRow}<div class="sp-adds">${adds}</div></div>`;
   }
-  // The bottom field below a wide window (#839, ADR 132): the project's default chat, its first team's with the
-  // team's faces, else the Chief's. A tap opens that chat full screen, ready to write in, as Home's Chief field does.
+  // The same primary contact as the wide chat column (ADR 235), named before the owner writes.
   function fieldHTML(c) {
-    const t = (c.teams || []).find((x) => leadFirst(x).length && (state.groups || []).some((g) => g.team === x.id));
-    const head = t ? `<span class="sp-faces">${leadFirst(t).slice(0, 3).map((id) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}</i>`; }).join('')}</span>` : chiefFigure();
-    const text = t ? tr('Message the team…') : chiefTitle();
+    const d = Dock.defaultChat();
+    if (!d) return '';
+    const bot = d.kind === 'bot' ? botById(d.id) : null;
+    const head = bot ? botFigure(bot.color, bot.state, '', bot.outfit, bot.id) : chiefFigure();
+    const text = bot ? bot.name : chiefTitle();
     return `<button type="button" class="kp-chief sp-field" data-sp-field title="${esc(text)}">${head}<span>${esc(text)}</span><i class="kp-send">${SEND_ARROW}</i></button>`;
   }
   // A project's own Needs you (#838): only the asks of its bots, as rows like Home's.
@@ -754,5 +755,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null])];
+  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null]), state.botsKnown];
 })();

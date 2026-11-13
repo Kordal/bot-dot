@@ -97,20 +97,11 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     val p = LocalPaper.current
     val chief by ui.app.store.chief.value.collectAsState()
     val needs by ui.app.store.needs.value.collectAsState()
-    val api by ui.app.api.collectAsState()
-    var busy by remember { mutableStateOf(false) }
     val id = c.chiefChat
     val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
     // The project's own chat is always the Chief's (ADR 230).
     val name = LocalChiefName.current
-    val tap = {
-        val a = api
-        if (id != null) open(id)
-        else if (a != null && !busy) {
-            busy = true
-            ui.scope.launch { runCatching { a.projectChiefChat() }.onSuccess { if (it.isNotEmpty()) { ui.app.store.company.refresh(); open(it) } }; busy = false }
-        }
-    }
+    val tap = { ui.openChief(c, open) }
     RoundButton(if (waiting > 0) "$name ($waiting)" else name, modifier, onClick = tap, content = {
         Box(contentAlignment = Alignment.Center) {
             BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF)

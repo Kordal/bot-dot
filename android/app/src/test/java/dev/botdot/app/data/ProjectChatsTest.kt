@@ -28,4 +28,17 @@ class ProjectChatsTest {
         assertEquals(FULL, ProjectChats.settle(HALF, 0f, tap = true))
         assertEquals(HALF, ProjectChats.settle(FULL, 0f, tap = true))
     }
+    @Test fun repeatedChiefRequestsShareCreationAndOnlyOpenTheLatestSelection() {
+        val pending = ProjectChats.ChiefRequests()
+        val opened = mutableListOf<String>()
+        assertEquals(true, pending.start("p1") { opened += "old:$it" })
+        assertEquals(false, pending.start("p1") { opened += "latest:$it" })
+        pending.finish("p1", "c1")
+        assertEquals(listOf("latest:c1"), opened)
+        assertEquals(true, pending.start("p1") { opened += it })
+        pending.cancel("p1")
+        pending.finish("p1", "cancelled")
+        assertEquals(listOf("latest:c1"), opened)
+    }
+
 }

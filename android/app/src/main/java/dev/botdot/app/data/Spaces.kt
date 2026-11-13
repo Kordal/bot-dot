@@ -50,15 +50,21 @@ object Spaces {
     /** [space] while it is still there; Home once its project is gone. */
     fun still(space: String, ids: List<String>): String = if (space == HOME || space in ids) space else HOME
 
-    /**
-     * The chat a space opens with, as a route: the Chief's on Home; in a project its team's chat (the first team that has
-     * one, on a botdot with team chats), else the Chief's (ADR 119).
+    /** The primary contact (ADR 235). Null while setup or the selected bot's list is still loading.
+     * PROJECT_CHIEF names a project whose Chief chat must be made before opening it.
      */
-    fun defaultChat(project: Company?, groups: List<Group>, features: Collection<String>?): String {
-        if (project == null || features == null || Groups.TEAM_CHATS !in features) return CHIEF
-        val chat = project.teams.firstNotNullOfOrNull { t -> Groups.teamChat(groups, t.id) } ?: return CHIEF
-        return "group/${chat.id}"
+    fun defaultChat(project: Company?, bots: List<Bot>?, features: Collection<String>?): String? {
+        if (project == null) return CHIEF
+        if (!project.running) return null
+        if (ManyProjects.MANAGER_BOT in features.orEmpty() && project.lead != null) {
+            if (bots == null) return null
+            if (bots.any { it.id == project.lead }) return "bot/${project.lead}"
+        }
+        if (ManyProjects.CHIEF !in features.orEmpty()) return CHIEF
+        return project.chiefChat?.takeIf { it.isNotEmpty() }?.let { "chief/$it" } ?: "$PROJECT_CHIEF${project.id}"
     }
+
+    const val PROJECT_CHIEF = "project-chief/"
 
     const val CHIEF = "chief/latest"
 

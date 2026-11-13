@@ -1,7 +1,7 @@
 // Optional browser check of a project's chat column (#825): node test/browser/project-chat.cjs [shots dir]
 // A wide window shows a project's board and, on its right, one chat as a fixed column, as wide as the bot view's chat
 // (#828: 38vw from 400 to 560 px).
-// Entering the project opens its team's chat; a bot's key, the team's row (#838) and Esc (the Chief) each put their
+// Entering the project opens its own Chief chat; a bot's key, the team's row (#838) and Esc (the Chief) each put their
 // chat in the column, and the key or row on screen is highlighted. Teams are folded (ADR 196): the chevron shows the
 // keys and is kept over a reload. 1-9 open the teams' chats. Hide gives the board the
 // whole width, kept over a reload; Show brings the chat back. No row of docked chats. Scratch data only.
@@ -37,8 +37,8 @@ const { startServer, makeBot, writeData } = require('../helpers');
     const width = async () => Math.round((await row.boundingBox()).width);
     const here = () => page.$$eval('.sp-teams .sp-chip.here, .sp-teams .key.active', (els) => els.map((el) => el.dataset.cfBot || el.dataset.cfTeamChat));
 
-    // Entering the project: its team's chat, in the column on the right, the board beside it.
-    await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
+    // Entering the project: its own Chief chat, even with a team present.
+    await page.waitForFunction(() => state.view === 'chief' && state.chatId === state.company.chiefChat && !!state.chatId);
     assert.ok(await page.locator('#view-company').isVisible(), 'the board stays');
     assert.equal(await width(), 547);
     const main = await page.locator('.main').boundingBox();
@@ -46,7 +46,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.ok(Math.abs(main.x + main.width - (box.x + box.width)) < 2, 'the column stands at the right edge');
     assert.ok((await page.locator('#view-company').boundingBox()).x + (await page.locator('#view-company').boundingBox()).width <= box.x + 1, 'the board is left of it');
     assert.ok(!(await page.locator('#dock').isVisible()), 'no row of docked chats');
-    assert.deepEqual(await here(), [team.id]);
+    assert.deepEqual(await here(), []);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-team.png') });
 
     // The team is folded (ADR 196): one row, no keys. Its chevron shows the keys, the lead first with a crown.
@@ -54,7 +54,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.equal(await page.locator(`[data-cf-fold="${team.id}"]`).getAttribute('aria-expanded'), 'false');
     await page.locator(`[data-cf-fold="${team.id}"]`).click();
     await page.locator('.sp-keys .key').first().waitFor();
-    assert.deepEqual(await here(), [team.id], 'unfolding keeps the team chat');
+    assert.deepEqual(await here(), [], 'unfolding keeps the primary conversation');
     // A bot's key: its chat in the column, its key highlighted, with a crown on the lead.
     assert.equal(await page.locator(`.sp-keys [data-cf-bot="${a.id}"] .cf-crown`).count(), 1, 'the lead\'s crown');
     assert.equal(await page.locator('#company-side').isVisible(), false, 'no tree beside the rail');
@@ -92,7 +92,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.equal(await width(), 547);
     assert.deepEqual(await here(), []);
 
-    // Hide: the board takes the whole width, and stays so over a reload; Show brings the team's chat back.
+    // Hide: kept over reload; Show returns to the primary conversation.
     await page.locator('#view-chief [data-dock-hide]').click();
     await page.waitForFunction(() => state.view === 'company');
     assert.ok(!(await row.isVisible()), 'no chat column');
@@ -106,8 +106,19 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('#project-chat-show').waitFor();
     assert.equal(await page.evaluate(() => state.view), 'company');
     await page.locator('#project-chat-show').click();
-    await page.locator('#view-group #group-name', { hasText: 'Quotz IT team' }).waitFor();
+    await page.waitForFunction(() => state.view === 'chief' && state.chatId === state.company.chiefChat);
     assert.ok(!(await page.locator('#project-chat-show').isVisible()));
+
+    // Selecting a manager changes the next primary entry, on wide and narrow windows.
+    assert.equal((await srv.api('/company', { method: 'PATCH', body: { lead: b.id } })).status, 200);
+    await page.reload();
+    await page.locator('#rail .rail-sq').first().click();
+    await page.waitForFunction((id) => state.view === 'bot' && state.botId === id, b.id);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.locator('#view-bot [data-back]').click();
+    await page.locator('[data-sp-field]', { hasText: 'Release Planner' }).click();
+    await page.waitForFunction((id) => state.view === 'bot' && state.botId === id, b.id);
+    await page.setViewportSize({ width: 1440, height: 900 });
 
     // A narrower window: 38vw.
     await page.setViewportSize({ width: 1180, height: 820 });

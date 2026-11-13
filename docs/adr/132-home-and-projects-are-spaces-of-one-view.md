@@ -3,6 +3,8 @@
 - **Status:** Accepted (2026-11-02)
 - **Owning task:** [#837](https://github.com/Kordal/bot-dot/issues/837), [#838](https://github.com/Kordal/bot-dot/issues/838), [#839](https://github.com/Kordal/bot-dot/issues/839), spec [#836](https://github.com/Kordal/bot-dot/issues/836)
 
+- **Changed by:** [ADR 235](235-a-project-opens-its-managers-conversation.md): a project’s primary conversation is its selected Project Manager’s, otherwise its own Chief chat.
+
 ## Context
 
 Bots and Projects are two places behind the switch "Bots | Projects" ([ADR 110](110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md)). Each has its own layout: the Bots home is the keypad with one chat on the right ([ADR 029](029-a-wide-window-opens-on-the-keypad-with-one-chat-on-the-right.md)), a project is a tree, a board and its own chat column. A team bot shows up in both, and the switch is the only thing that joins them. The owner approved option C of the mockups: one view made of spaces, moved between by a rail.

@@ -58,13 +58,21 @@ class SpacesTest {
         assertEquals(Spaces.HOME, Spaces.still(Spaces.HOME, emptyList()))
     }
 
-    @Test fun aProjectOpensItsTeamChatElseTheChief() {
-        val chat = Group(id = "g7", name = "Growth", team = "t1")
-        assertEquals("group/g7", Spaces.defaultChat(shop, listOf(chat), features))
-        assertEquals(Spaces.CHIEF, Spaces.defaultChat(gym, listOf(chat), features)) // no team
-        assertEquals(Spaces.CHIEF, Spaces.defaultChat(shop, emptyList(), features)) // its chat not there
-        assertEquals(Spaces.CHIEF, Spaces.defaultChat(shop, listOf(chat), listOf(CompanySetup.FEATURE))) // no team chats
-        assertEquals(Spaces.CHIEF, Spaces.defaultChat(null, listOf(chat), features)) // Home
+    @Test fun aProjectOpensItsManagerOrItsOwnChiefNeverItsFirstTeam() {
+        val supported = features + listOf(ManyProjects.MANAGER_BOT, ManyProjects.CHIEF)
+        val running = shop.copy(phase = "running", lead = "b2", chiefChat = "c-shop")
+        assertEquals("bot/b2", Spaces.defaultChat(running, bots, supported))
+        assertEquals("chief/c-shop", Spaces.defaultChat(running.copy(lead = null), bots, supported))
+        assertEquals("chief/c-shop", Spaces.defaultChat(running.copy(lead = "gone"), bots, supported))
+        assertEquals("chief/c-gym", Spaces.defaultChat(gym.copy(phase = "running", chiefChat = "c-gym"), bots, supported))
+        assertEquals("project-chief/p1", Spaces.defaultChat(running.copy(lead = null, chiefChat = null), bots, supported))
+        assertEquals("project-chief/p1", Spaces.defaultChat(running.copy(chiefChat = null), bots, listOf(ManyProjects.CHIEF))) // one-company server
+        assertEquals("chief/c-shop", Spaces.defaultChat(running, bots, listOf(ManyProjects.CHIEF)))
+        assertEquals(Spaces.CHIEF, Spaces.defaultChat(running, bots, features)) // older server
+        assertEquals(Spaces.CHIEF, Spaces.defaultChat(null, bots, supported)) // Home
+        assertEquals(null, Spaces.defaultChat(shop, bots, supported)) // setup
+        assertEquals(null, Spaces.defaultChat(running, null, supported)) // bots still loading
+        assertEquals("chief/c-shop", Spaces.defaultChat(running.copy(lead = null), null, supported)) // no need for bots
     }
 
     @Test fun homesNeedsYouListsAllAndAProjectOnlyItsOwn() {

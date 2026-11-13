@@ -25,6 +25,7 @@ const state = {
   checkup: null, // the checkup's setting, as the server last said it (GET /api/settings/checkup, the feed's `checkup`)
   approvals: null, // what waits for the owner, as the live feed lists it (hello, approvals): a waiting job's `then` is there
   bots: [],
+  botsKnown: false, // the selected Project Manager may still be loading
   runs: [],
   status: null,
   selectedRun: null,
@@ -1154,7 +1155,7 @@ async function readAll() {
     // a message is then drawn as a mention.
     if (!state.skillLib && skillLib) skillLib.then(() => { if (latest() && state.skillLib) render(); });
     if (!latest()) return; // a read that hung, and a newer one began
-    Object.assign(state, { bots, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), groups: await groupsRead });
+    Object.assign(state, { bots, botsKnown: true, runs, activity: Array.isArray(activity) ? activity : [], chats: chief.chats, chiefBusy: chief.busy, chiefUnread: Unread.count(chief), groups: await groupsRead });
     if (takeChiefName(chief.chief?.name)) drawChiefName();
     if (state.view === 'group' && state.groupId) loadGroupChat(state.groupId);
     // The lines: those of runs and replies that are still going on stay, the rest go. A run's is its working line
