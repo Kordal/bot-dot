@@ -71,8 +71,9 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
  * bot", its notes (ADR 139), and "Delete this group", which says that it deletes no bot. Every change saves by itself, and what the
  * botdot server refuses is said in its words. A team's chat (#697) follows its team in Projects: its panel shows its
  * faces, its name, which renames the team with it, its members and its notes; on a server with `team-chat-members` its
- * members are added and taken out there too, never its last one, and the team goes only in Projects. With
- * `team-chat-lead` its lead is picked there: the lead's row says Lead, each other's has Make lead.
+ * members are added and taken out there too, never its last one. With `team-chat-lead` its lead is picked there: the
+ * lead's row says Lead, each other's has Make lead. With `team-chat-delete` it has "Delete team", which deletes the
+ * team in its project with its chat; its bots stay.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,7 +131,8 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                 if (Groups.changesMembers(g, versionNow?.features) && Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
             if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
-            if (!team) SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(tr("Delete this group"), color = p.err) }
+            // A team's chat deletes its team with it, on a server that does it (`team-chat-delete`).
+            if (Groups.deletes(g, versionNow?.features)) SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(if (team) tr("Delete team") else tr("Delete this group"), color = p.err) }
         }
     }
 
@@ -146,8 +148,8 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
     }
     if (askDelete && g != null) AlertDialog(
         onDismissRequest = { askDelete = false },
-        title = { Text(tr("Delete the group {name}?", "name" to g.name)) },
-        text = { Text(tr("Its chat is erased. No bot is deleted: each keeps its own chat.")) },
+        title = { Text(if (g.team != null) tr("Delete the team {name}?", "name" to g.name) else tr("Delete the group {name}?", "name" to g.name)) },
+        text = { Text(if (g.team != null) tr("Its chat is erased. Its bots stay.") else tr("Its chat is erased. No bot is deleted: each keeps its own chat.")) },
         confirmButton = {
             TextButton(onClick = {
                 askDelete = false

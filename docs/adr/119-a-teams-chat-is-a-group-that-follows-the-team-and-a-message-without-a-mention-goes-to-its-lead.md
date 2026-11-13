@@ -1,6 +1,6 @@
 # ADR-119: A team's chat is a group that follows the team, and a message without a mention goes to its lead
 
-- **Status:** Accepted (2026-10-29), amended by [#759](https://github.com/Kordal/bot-dot/issues/759)
+- **Status:** Accepted (2026-10-29), amended by [#759](https://github.com/Kordal/bot-dot/issues/759) and [ADR 237](237-a-teams-chat-deletes-its-team.md) (its chat deletes the team)
 - **Owning task:** [#697](https://github.com/Kordal/bot-dot/issues/697), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
 - **Builds on:** [ADR 018](018-a-group-is-a-chat-of-its-own-and-a-turn-is-a-run-of-its-member.md), [ADR 019](019-the-botdot-server-gives-the-turns-in-a-group.md), [ADR 081](081-a-short-model-call-picks-who-answers-a-group-message-without-a-mention.md), [ADR 110](110-a-company-is-a-place-of-its-own-with-teams-that-each-have-one-lead.md), [ADR 114](114-a-team-bot-is-told-its-project-and-a-lead-what-leading-means.md)
 

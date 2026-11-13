@@ -379,4 +379,13 @@ class GroupsTest {
         assertFalse(Groups.picksLead(team.copy(membersValue = JsonArray(listOf(JsonPrimitive("a")))), listOf(Groups.TEAM_CHAT_LEAD)))
         assertFalse(Groups.picksLead(team.copy(team = null), listOf(Groups.TEAM_CHAT_LEAD)))
     }
+
+    @Test fun aTeamChatDeletesItsTeamOnAServerThatDoesIt() {
+        val group = groups("[$dev]").single()
+        val team = group.copy(team = "t1", lead = "a")
+        assertTrue(Groups.deletes(group, emptyList()))
+        assertTrue(Groups.deletes(team, listOf(Groups.TEAM_CHAT_DELETE)))
+        assertFalse(Groups.deletes(team, listOf(Groups.TEAM_CHAT_LEAD)))
+        assertFalse(Groups.deletes(team, null))
+    }
 }

@@ -231,7 +231,8 @@ async function changeGroup(g, body) {
 }
 
 // The group's panel, opened from the chat's title: its name, its members each with a way to take it out, "Add a
-// bot", and "Delete this group", which deletes no bot. Every change saves by itself.
+// bot", and "Delete this group", which deletes no bot (a team's chat: "Delete team", `team-chat-delete`). Every change
+// saves by itself.
 function renderGroupSettings() {
   const root = $('#view-groupsettings');
   const g = groupById(state.groupId);
@@ -299,7 +300,9 @@ function renderGroupSettings() {
     loadGroupNotes(g.id);
     $('#gs-delete', root).onclick = async () => {
       const now = groupById(root.dataset.group);
-      if (!now || !(await askFirst(tr('Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.', { name: now.name }), tr('Delete')))) return;
+      // A team's chat deletes its team with it, on a server that does it (`team-chat-delete`): its bots stay.
+      const asked = now?.team ? tr('Delete the team {name}?\n\nIts chat is erased. Its bots stay.', { name: now.name }) : now && tr('Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.', { name: now.name });
+      if (!now || !(await askFirst(asked, tr('Delete')))) return;
       try { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'DELETE' }); toast(tr('{name} deleted', { name: now.name })); } catch (e) { toast(e.message, true); return; }
       state.groups = state.groups.filter((x) => x.id !== now.id);
       leaveBot();
@@ -310,7 +313,7 @@ function renderGroupSettings() {
   if (document.activeElement !== name && name.value !== g.name) name.value = g.name; // renamed elsewhere; not under the cursor
   const members = groupMembers(g);
   const team = g.team && typeof Company !== 'undefined' && Company.teamPanel?.team(g.team) ? Company.teamPanel : null; // a team of the project on screen (ADR 205)
-  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null, team ? team.sig(g.team) : '']);
+  const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null, team ? team.sig(g.team) : '', state.features || []]); // features read late redraw it
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
@@ -340,7 +343,9 @@ function renderGroupSettings() {
   // (#697 before): on its project's page always, as "New bot" asks the Chief for one.
   const others = state.bots.some((b) => !g.members.includes(b.id));
   $('#gs-add', root).classList.toggle('hidden', g.team ? !teamBots || !(team || (others && g.members.length < TEAM_MAX)) : g.members.length >= GROUP_MAX || !others);
-  $('#gs-delete', root).classList.toggle('hidden', !!g.team);
+  const del = $('#gs-delete', root);
+  del.classList.toggle('hidden', !!g.team && !(state.features || []).includes('team-chat-delete'));
+  del.innerHTML = `<b>${g.team ? tr('Delete team') : tr('Delete this group')}</b>`;
   name.disabled = !!g.team && !(state.features || []).includes('team-chat-rename'); // a team's chat is renamed with its team
 }
 

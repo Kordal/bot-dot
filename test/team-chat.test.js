@@ -37,7 +37,7 @@ before(async () => {
   team = r.data.teams[0];
 });
 
-test('a team gets its chat: its name, the lead first, its colour; renaming it renames the team; the owner cannot delete it', async () => {
+test('a team gets its chat: its name, the lead first, its colour; renaming it renames the team', async () => {
   const g = await waitFor(() => teamChat(team.id), { what: 'the team chat' });
   assert.deepEqual([g.name, g.members, g.lead, g.color], ['Growth', [lead.id, writer.id, poster.id], lead.id, team.color]);
   const { features } = (await srv.api('/version')).data;
@@ -53,7 +53,6 @@ test('a team gets its chat: its name, the lead first, its colour; renaming it re
   assert.equal(empty.status, 400);
   assert.equal((await teamChat(team.id)).name, 'Growth crew');
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { name: 'Growth' } })).status, 200);
-  assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'DELETE' })).status, 409);
   // Its place in the list is still the owner's.
   assert.equal((await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { pinned: true } })).status, 200);
   await srv.api(`/group-chats/${g.id}`, { method: 'PUT', body: { pinned: 0 } });
@@ -263,6 +262,23 @@ test('the chat follows the team: a new lead, a renamed team, a bot that joins or
   await srv.api(`/company/teams/${team.id}`, { method: 'DELETE' });
   await waitFor(async () => !(await teamChat(team.id)), { what: 'the chat to go with its team' });
   assert.equal(fs.existsSync(path.join(srv.data, 'group-messages', `${g.id}.json`)), false);
+});
+
+test("deleting a team's chat deletes its team, the owner's alone; its bots stay (team-chat-delete)", async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('team-chat-delete'));
+  const made = await srv.api('/company/teams', { method: 'POST', body: { name: 'Ops', bots: [poster.id] } });
+  assert.equal(made.status, 200, JSON.stringify(made.data));
+  const ops = made.data.teams.find((t) => t.name === 'Ops');
+  const g = await waitFor(() => teamChat(ops.id), { what: 'the Ops chat' });
+  // The Chief deletes no group, a team's chat neither.
+  assert.equal((await srv.asChief(`/group-chats/${g.id}`, { method: 'DELETE' })).status, 403);
+  assert.ok((await srv.api('/company')).data.company.teams.some((t) => t.id === ops.id));
+  const gone = await srv.api(`/group-chats/${g.id}`, { method: 'DELETE' });
+  assert.equal(gone.status, 200, JSON.stringify(gone.data));
+  assert.deepEqual(gone.data, { ok: true, name: 'Ops' });
+  assert.equal((await srv.api('/company')).data.company.teams.some((t) => t.id === ops.id), false);
+  await waitFor(async () => !(await teamChat(ops.id)), { what: 'the chat to go with its team' });
+  assert.ok((await srv.api(`/bots/${poster.id}`)).status === 200, 'its bot stays');
 });
 
 test('only a team chat names its lead in a turn', () => {
