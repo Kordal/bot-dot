@@ -399,16 +399,18 @@ const Company = (() => {
       Dock.openChief(r.chatId);
     } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
   }
-  async function openProjectChief(b) {
+  const openingChief = new Set();
+  async function openProjectChief(b = {}) {
     const c = state.company;
-    if (!c || b.disabled) return;
+    if (!c || b.disabled || openingChief.has(c.id)) return;
     if (c.chiefChat) return Dock.openChief(c.chiefChat);
     b.disabled = true;
+    openingChief.add(c.id);
     try {
       const r = await api(at('/company/chief-chat'), { method: 'POST' });
       if (r.company) changed({ company: r.company });
-      Dock.openChief(r.chatId);
-    } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
+      if (state.company?.id === c.id && place === 'company') Dock.openChief(r.chatId);
+    } catch (e) { toast(e.message, true); } finally { openingChief.delete(c.id); b.disabled = false; }
   }
   function wirePick(root) {
     $$('[data-project-chief]', root).forEach((b) => (b.onclick = () => openProjectChief(b)));
@@ -750,5 +752,5 @@ const Company = (() => {
     });
   }
 
-  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, chiefHTML, tidyHTML, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
+  return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, chiefHTML, tidyHTML, openProjectChief, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
 })();

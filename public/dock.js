@@ -15,7 +15,7 @@ const Dock = (() => {
     team: { open: (id) => setView('group', id) },
     // The Chief's chat (#819), on the chat it shows (a goal's change ask opens a new one there). Beside the project
     // only when opened from it (openChief), not whenever the Chief's view is up, as it is while the page starts.
-    chief: { open: () => openChief() },
+    chief: { open: (id) => id === null ? Company.openProjectChief() : openChief(id) },
   };
 
   const shows = () => typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company';
@@ -62,20 +62,20 @@ const Dock = (() => {
   const setHidden = (on) => { hidden = on; try { if (on) localStorage.setItem(HKEY, 'hidden'); else localStorage.removeItem(HKEY); } catch { /* private mode */ } };
   let showBtn = null; // #project-chat-show: the column back, at the top right of the board
   let opening = false; // the default chat is being opened
-  // The chat a project opens on (#825): its team's chat, where a message without @ goes to the lead (ADR 119); the
-  // Chief's for a project with no team chat yet. A project in its setup opens none: the setup keeps the width.
+  // The selected Project Manager is the primary contact (ADR 234); otherwise the project's own Chief.
+  // null as the Chief id means its chat needs making. undefined keeps older servers' ordinary Chief entry.
   function defaultChat() {
     const c = state.company;
     if (!c || c.phase !== 'running') return null;
-    const g = (c.teams || []).map((t) => (state.groups || []).find((x) => x.team === t.id)).find(Boolean);
-    if (g) return { kind: 'team', id: g.id };
-    if (!state.groupsKnown) return null; // its team chat may not be loaded yet
-    return { kind: 'chief', id: 'chief' };
+    if (state.features.includes('project-manager-bot') && c.lead) {
+      if (!state.botsKnown) return null;
+      if (botById(c.lead)) return { kind: 'bot', id: c.lead };
+    }
+    return { kind: 'chief', id: state.features.includes('project-chief') ? c.chiefChat || null : undefined };
   }
-  // The project's default chat, opened: the bottom field below a wide window (#839).
   function openDefault() {
-    const d = defaultChat() || { kind: 'chief' };
-    kinds[d.kind].open(d.id);
+    const d = defaultChat();
+    if (d) return kinds[d.kind].open(d.id);
   }
   // Draws the Projects screen of a wide window; false below it.
   function drawColumn() {
@@ -92,7 +92,14 @@ const Dock = (() => {
     if (bare && !hidden && !opening) {
       const d = defaultChat();
       // Opened after this drawing: opening it draws the screen again.
-      if (d) { opening = true; queueMicrotask(() => { opening = false; if (state.view === 'company' && column() && !hidden) kinds[d.kind].open(d.id); }); }
+      if (d) {
+        const project = state.company.id;
+        opening = true;
+        queueMicrotask(async () => {
+          try { if (state.company?.id === project && state.view === 'company' && column() && !hidden) await openDefault(); }
+          finally { opening = false; }
+        });
+      }
     }
     if (!showBtn) {
       showBtn = document.createElement('button');

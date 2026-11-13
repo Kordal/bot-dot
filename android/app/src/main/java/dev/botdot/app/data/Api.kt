@@ -788,7 +788,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     suspend fun company(): CompanyHeld = CompanySetup.held(get(co("/company")))
     /** The project's own Chief chat (`project-chief`), made when there is none: its id. */
-    suspend fun projectChiefChat(): String = json.parseToJsonElement(send("POST", co("/company/chief-chat"))).jsonObject["chatId"]?.jsonPrimitive?.content.orEmpty()
+    suspend fun projectChiefChat(id: String? = project): String = json.parseToJsonElement(send("POST", ManyProjects.at("/company/chief-chat", id))).jsonObject["chatId"]?.jsonPrimitive?.content.orEmpty()
     /** Tidy up (`board-tidy`): the project's Chief is asked in its chat to arrange the whole board; that chat's id. */
     suspend fun tidyBoard(): String = json.parseToJsonElement(send("POST", co("/company/layout/tidy"), buildJsonObject { })).jsonObject["chatId"]?.jsonPrimitive?.content.orEmpty()
     /** The account's projects a mention can name (#700): every one from a botdot with `projects-many`, else its one company. */

@@ -236,7 +236,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             c.running -> {
                 ui.follow(c)
                 Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways) }
-                if (field) DefaultChatField(app, c, ways)
+                if (field) DefaultChatField(ui, c, ways)
             }
             else -> {
                 ui.follow(c)
@@ -566,24 +566,39 @@ internal fun ChiefAtWork(line: String? = null) = Column(Modifier.fillMaxWidth().
     if (line != null) Text(line, color = LocalPaper.current.text, fontSize = Type.s16, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
 }
 
-/**
- * A project's default chat as a field at the bottom (#840, C-5), where no chat column stands beside the project: its
- * team's chat with the team's faces, else the Chief's (ADR 119). A tap opens it as the floor opens a chat.
- */
+/** The same primary contact as the wide project conversation (ADR 234). */
 @Composable
-private fun DefaultChatField(app: BotDotApp, c: Company, ways: CompanyWays) {
-    val groups by app.store.groups.value.collectAsState()
+private fun DefaultChatField(ui: CompanyUi, c: Company, ways: CompanyWays) {
+    val app = ui.app
     val bots by app.store.bots.value.collectAsState()
     val chief by app.store.chief.value.collectAsState()
+    val needs by app.store.needs.value.collectAsState()
     val server by app.store.version.value.collectAsState()
-    val route = dev.botdot.app.data.Spaces.defaultChat(c, groups.orEmpty(), server?.features)
-    val team = route.removePrefix("group/").takeIf { route.startsWith("group/") }?.let { id -> groups.orEmpty().firstOrNull { it.id == id } }
-    val open = ways.onTeam
-    if (team != null && open != null) {
-        val lead = team.lead ?: c.teams.firstOrNull { it.id == team.team }?.lead
-        SpaceChatField(team.name, team.unread, team.color, onClick = { open(team.id) }) { TeamPicture(dev.botdot.app.data.Groups.teamFaces(team, bots.orEmpty()), lead, 28) }
+    val route = dev.botdot.app.data.Spaces.defaultChat(c, bots, server?.features) ?: return
+    val manager = route.takeIf { it.startsWith("bot/") }?.removePrefix("bot/")?.let { id -> bots.orEmpty().firstOrNull { it.id == id } }
+    var busy by remember(c.id) { mutableStateOf(false) }
+    if (manager != null) {
+        SpaceChatField(manager.name, manager.unread, manager.color, onClick = { ways.onBot(manager.id) }) { BotFigure(manager.color ?: CHIEF_COLOR, manager.state, 28, manager.outfit) }
     } else {
         val name = LocalChiefName.current
-        SpaceChatField(name, chief?.unread ?: 0, CHIEF_COLOR, onClick = ways.onChief) { BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF) }
+        val id = c.chiefChat
+        val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
+        val open = {
+            if (route == dev.botdot.app.data.Spaces.CHIEF || ways.onChiefChat == null) ways.onChief()
+            else if (id != null) ways.onChiefChat.invoke(id)
+            else if (!busy) {
+                val api = ui.api
+                if (api != null) {
+                    busy = true
+                    ui.scope.launch {
+                        runCatching { api.projectChiefChat(c.id) }.onSuccess { chat ->
+                            if (api.project == c.id && chat.isNotEmpty()) { app.store.company.refresh(); ways.onChiefChat.invoke(chat) }
+                        }.onFailure { ui.tell(it.message ?: tr("Couldn't open the chat")) }
+                        busy = false
+                    }
+                }
+            }
+        }
+        SpaceChatField(name, waiting, CHIEF_COLOR, onClick = open) { BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF) }
     }
 }

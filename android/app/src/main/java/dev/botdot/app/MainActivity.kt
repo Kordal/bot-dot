@@ -114,6 +114,7 @@ import dev.botdot.app.ui.SignInScreen
 import dev.botdot.app.ui.VaultScreen
 import dev.botdot.app.ui.StorageScreen
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 class MainActivity : ComponentActivity() {
     /** Where a tapped notification wants to go ("bot:<id>" | "chief:<chatId>" | "group:<id>" | "room:<id>"). */
@@ -292,7 +293,9 @@ class MainActivity : ComponentActivity() {
                 var space by rememberSaveable { mutableStateOf(Spaces.HOME) }
                 var newSpace by rememberSaveable { mutableStateOf(false) } // "New project": the start screen, no project yet
                 var searchAsk by rememberSaveable { mutableStateOf(0) }
+                var conversationRequest by remember { mutableStateOf(0) }
                 fun goSpace(id: String, keep: Boolean = true) {
+                    val request = ++conversationRequest
                     space = id
                     newSpace = false
                     panelKept = null
@@ -305,8 +308,20 @@ class MainActivity : ComponentActivity() {
                     app.store.showProject(id)
                     scope.launch { app.settings.setProject(id) }
                     if (keypad) {
-                        val to = Spaces.defaultChat(projects.firstOrNull { it.id == id }, groupsNow.orEmpty(), features)
-                        if (to == Spaces.CHIEF) nav.popBackStack("home", inclusive = false) else nav.openBeside(to)
+                        val project = projects.firstOrNull { it.id == id }
+                        scope.launch {
+                            runCatching {
+                                val bots = botsNow ?: app.store.bots.value.first { it != null }
+                                val to = Spaces.defaultChat(project, bots, features) ?: return@runCatching
+                                val destination = if (to.startsWith(Spaces.PROJECT_CHIEF)) {
+                                    val api = app.api.value ?: return@runCatching
+                                    "chief/${api.projectChiefChat(id)}"
+                                } else to
+                                if (space == id && conversationRequest == request) {
+                                    if (destination == Spaces.CHIEF) nav.popBackStack("home", inclusive = false) else nav.openBeside(destination)
+                                }
+                            }.onFailure { android.widget.Toast.makeText(this@MainActivity, it.message ?: tr("Couldn't open the chat"), android.widget.Toast.LENGTH_LONG).show() }
+                        }
                     } else if (wide) nav.openBeside("company") else nav.navigate("company") { launchSingleTop = true }
                 }
                 fun startProject() {
