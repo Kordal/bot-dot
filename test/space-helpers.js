@@ -15,4 +15,15 @@ async function goSpace(page, where = 'project') {
   await (where === 'home' ? sheet.locator('[data-space="home"]') : where === 'new' ? sheet.locator('[data-space=""]') : sheet.locator('.sp-row:not([data-space="home"]):not([data-space=""])').first()).click();
 }
 
-module.exports = { goSpace };
+// Board-specific checks use the same secondary entry as the owner (ADR 236).
+async function openProjectBoard(page) {
+  const settingsBack = page.locator('[data-ps-back]');
+  if (await settingsBack.isVisible()) await settingsBack.click();
+  const overview = page.locator('[data-po-board]');
+  const board = page.locator('[data-po-back]');
+  await overview.or(board).first().waitFor({ timeout: 20000 });
+  if (await overview.isVisible()) await overview.click();
+  await board.waitFor();
+}
+
+module.exports = { goSpace, openProjectBoard };

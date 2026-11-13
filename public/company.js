@@ -82,6 +82,7 @@ const Company = (() => {
   function show(id) {
     const p = projects().find((x) => x.id === id);
     if (!p) return;
+    steps.homeClosed?.();
     adding = false;
     shownId = id;
     keepShown();
@@ -93,6 +94,7 @@ const Company = (() => {
   }
   // "+": what are you working on, for a new project.
   function startNew() {
+    steps.homeClosed?.();
     closeSettings(false);
     adding = true;
     naming = false;

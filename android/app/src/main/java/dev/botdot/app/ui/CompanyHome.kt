@@ -112,7 +112,7 @@ private val GOLD = Color(0xFFE8B44A)
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
+internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview: Boolean = false, onBoard: () -> Unit = {}, onOverview: () -> Unit = {}) {
     val p = LocalPaper.current
     val bots = ui.bots.collectAsState().value.orEmpty()
     val waiting by ui.app.store.waiting.collectAsState(initial = emptyList())
@@ -152,20 +152,33 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
     // A long press on the flow puts the tiles on the canvas (#821): from then on a long press and a drag moves one.
     var started by rememberSaveable(c.id) { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+    Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.runtime.key(c.id, overview) { rememberScrollState() }).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         // Its name picks another project and its gear opens its settings (#703).
-        ProjectTitle(ui, c, ways) {
-            c.day?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
+        ProjectTitle(ui, c, ways, boardTools = !overview) {
+            if (overview) SmallButton(tr("Board"), onClick = onBoard)
+            else if (dev.botdot.app.data.ProjectOverview.FEATURE in features) SmallButton(tr("Overview"), onClick = onOverview)
+            c.day?.takeIf { !overview }?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
+        }
+        if (overview) {
+            Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
+            SmallButton(tr("Review"), onClick = ways.onNeeds)
         }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
         val here = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()).let { dev.botdot.app.data.Spaces.underLeads(c, it, bots) }.sortedBy { if (it.act != null) 0 else 1 } } // what stops its bots' work first: a missing app
+        if (overview) {
+            val needs by ui.app.store.needs.value.collectAsState()
+            val projectBots = dev.botdot.app.data.Spaces.teamBots(listOf(c))
+            val chiefAsks = needs?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in projectBots }
+            chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
+        }
         if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
             ui.scope.launch {
                 runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
                 ui.app.store.needs.refresh()
             }
         })
+        if (overview) FixedProjectOverview(ui, c, ways) else {
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
@@ -222,6 +235,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays) {
         if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
         }
         }
+        }
+        if (overview) NewTeam(ui, c, addOwn.takeIf { ownBots && c.bots.isEmpty() })
         // Its teams' keys (#841), in place of the floor's rooms and desks.
         val waits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
         TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }, waits = waits) { teamOpen = it }

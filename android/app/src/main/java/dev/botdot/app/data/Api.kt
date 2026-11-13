@@ -846,7 +846,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         CompanySetup.of(send("POST", co("/company/todos"), ProjectTodo.addBody(text, bot, due, repeat)))
     suspend fun deleteTodo(id: String): Company = CompanySetup.of(send("DELETE", co("/company/todos/${enc(id)}")))
     /** The Files tile (project-files): the newest files of the project's folder; `off`, none, while the computer is off. */
-    suspend fun projectFiles(): RecentFiles = json.decodeFromString(RecentFiles.serializer(), get(co("/company/files")))
+    suspend fun projectFiles(id: String? = project): RecentFiles = json.decodeFromString(RecentFiles.serializer(), get(ManyProjects.at("/company/files", id)))
+    suspend fun projectOverview(id: String): ProjectOverview = json.decodeFromString(ProjectOverview.serializer(), get(ManyProjects.at("/company/overview", id)))
     /** The project's calendar (#695): what falls on each day from [from] to [to], both included (at most 62 days). */
     suspend fun projectCalendar(from: String, to: String): List<CalendarItem> =
         json.decodeFromString(CalendarAnswer.serializer(), get(co("/company/calendar?from=${enc(from)}&to=${enc(to)}"))).items

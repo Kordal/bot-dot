@@ -201,7 +201,17 @@ test("a project's Needs you puts what stops the work first: a missing app, and a
   assert.deepEqual(Keypad.blockersFirst(items).map((x) => x.key), ['ask:c1', 'ask:g1', 'batch:c', 'ask:p1', 'ask:p2', 'job:j', 'batch:b']);
   assert.deepEqual(Keypad.blockersFirst([]), []);
   const home = read('company-home.js');
-  assert.match(home, /const projectNeeds = \(c\) => Keypad\.blockersFirst\(Keypad\.asksOf\(/, 'the strip, its wiring and the To-do read the same order');
+  const project = { id: 'project', bots: ['writer'], teams: [], chiefChat: 'chief-project' };
+  const projectItems = items.map((x) => ({ ...x, bot: { id: 'writer' } }));
+  projectItems.push({ key: 'ask:chief', kind: 'ask', a: { chatId: 'chief-project', kind: 'connect-app' } });
+  projectItems.push({ key: 'ask:other', kind: 'ask', a: { chatId: 'other-project', kind: 'connect-app' } });
+  const ctx = vm.createContext({ Keypad, needs: () => projectItems, state: { groups: [], features: ['project-overview'] }, Company: { projects: () => [project] } });
+  const start = home.indexOf('  const projectNeeds =');
+  const end = home.indexOf("  // The project's bots", start);
+  vm.runInContext(home.slice(start, end) + '\nthis.projectNeeds = projectNeeds;', ctx);
+  const keys = ctx.projectNeeds(project).map((x) => x.key);
+  assert.deepEqual(Array.from(keys), ['ask:c1', 'ask:g1', 'batch:c', 'ask:chief', 'ask:p1', 'ask:p2', 'job:j', 'batch:b']);
+
   // The row's button is the card's own (Connect, Open Connectors), in place of Review, in the strip and the To-do.
   assert.match(home, /: actLabel\(x\) \? `<button type="button" class="kp-allow" data-kp-act="\$\{i\}">\$\{esc\(actLabel\(x\)\)\}<\/button>`/);
   assert.match(home, /\$\$\('\[data-kp-act\]', box\)\.forEach\(\(b\) => \(b\.onclick = \(\) => actNeed\(asks\[Number\(b\.dataset\.kpAct\)\]\)\)\);/);

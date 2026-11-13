@@ -41,7 +41,7 @@ import dev.botdot.app.data.tr
  * the spaces switch projects and the team keys reach the bots (#841).
  */
 @Composable
-internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifier: Modifier = Modifier, after: @Composable () -> Unit = {}) {
+internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifier: Modifier = Modifier, boardTools: Boolean = true, after: @Composable () -> Unit = {}) {
     val p = LocalPaper.current
     val server by ui.app.store.version.value.collectAsState()
     val features = server?.features
@@ -59,7 +59,7 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
             }
         }
         if (c != null && features != null && ManyProjects.SETTINGS in features) RoundButton(Icons.Outlined.Settings, tr("Project settings"), Modifier.padding(start = Space.s4)) { ui.settingsOpen = true }
-        if (c != null && c.phase == "running" && features != null && ManyProjects.TIDY in features && ways.onChiefChat != null) TidyButton(ui, ways.onChiefChat, Modifier.padding(start = Space.s4))
+        if (boardTools && c != null && c.phase == "running" && features != null && ManyProjects.TIDY in features && ways.onChiefChat != null) TidyButton(ui, ways.onChiefChat, Modifier.padding(start = Space.s4))
         if (c != null && features != null && ManyProjects.CHIEF in features && ways.onChiefChat != null) ProjectChiefButton(ui, c, ways.onChiefChat, Modifier.padding(start = Space.s4))
         if (c != null && features != null && ManyProjects.MANAGER_BOT in features) ProjectManagerButton(ui, c, ways.onBot, Modifier.padding(start = Space.s4))
         after()
