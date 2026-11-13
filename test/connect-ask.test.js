@@ -268,5 +268,11 @@ test('a card or a Not now from before, under the slug without its _, is the same
   // Its Not now holds the app under either spelling.
   asks.take(old.id, { declined: true });
   assert.deepEqual(await C.need({ bot, app: 'githubmcp', reason: 'To open pull requests.' }), { held: true, name: 'GitHub MCP' });
+  // A Not now stored before, under githubmcp, holds github_mcp too.
+  const other = { id: 'b2', name: 'Coder', connectors: [] };
+  const C2 = connectAsksLib.create({ asks, bots: { get: (id) => (id === 'b2' ? other : null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  asks.take(asks.add({ kind: 'connect-app', botId: 'b2', app: 'githubmcp', name: 'Githubmcp', mode: 'connect', reason: 'x' }).id, { declined: true });
+  assert.ok(JSON.parse(fs.readFileSync(path.join(dir, 'asks-declined.json'), 'utf8')).some((d) => d.botId === 'b2' && d.connectApp === 'githubmcp'));
+  assert.deepEqual(await C2.need({ bot: other, app: 'GitHub MCP', reason: 'To open pull requests.' }), { held: true, name: 'GitHub MCP' });
   fs.rmSync(dir, { recursive: true, force: true });
 });
