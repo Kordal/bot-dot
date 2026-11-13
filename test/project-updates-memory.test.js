@@ -31,8 +31,19 @@ test('startup backfill classifies a generated receipt that was already indexed b
   const legacy = { ...r, kind: 'ai', projectUpdate: undefined };
   m.backfill({ listRuns: () => [legacy], readMeta: () => legacy, readEvents: () => [], stepsOf: () => [] });
   assert.equal((await recalled(m)).length, 1, 'the legacy index really contains this text');
-  m.backfill({ listRuns: () => [r], readMeta: () => r, readEvents: () => [], stepsOf: () => [] });
+  m.backfill({ listRuns: () => [{ id: r.id, startedAt: r.startedAt, status: r.status }], readMeta: () => r, readEvents: () => [], stepsOf: () => [] });
   assert.equal(m.leftOut(r.id), true);
   assert.deepEqual(m.runsSince('alpha', ''), []);
   assert.deepEqual(await recalled(m), []);
+});
+
+
+test('an explicitly ordinary indexed run keeps the fast path without reopening its file', (t) => {
+  const { memory: m } = scratchMemory(t);
+  const r = runMeta({ trigger: 'project' });
+  m.backfill({ listRuns: () => [r], readEvents: () => [], stepsOf: () => [] });
+  let reads = 0;
+  m.backfill({ listRuns: () => [{ id: r.id, startedAt: r.startedAt, status: r.status, projectUpdate: false }], readMeta: () => { reads++; return r; }, readEvents: () => [], stepsOf: () => [] });
+  assert.equal(reads, 0);
+  assert.deepEqual(m.runsSince('alpha', '').map((x) => x.run_id), [r.id]);
 });
