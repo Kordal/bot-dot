@@ -158,7 +158,7 @@ test('automatic Chief entry stops after the wide column disappears while explici
 test('finishing an empty bot-list load invalidates the project home so its Chief field can appear', () => {
   const state = { company: { lead: 'gone' }, bots: [], groups: [], botsKnown: false };
   const ctx = vm.createContext({ state, Company: { steps: {} }, window: {}, unfolded: () => [], needs: () => [],
-    boardFor: null, teamOpen: null, changing: false, menuFor: null, sourceFor: null, apps: null, filter: 'all', menu: null, pick: null,
+    boardFor: null, teamFor: null, teamOpen: null, changing: false, menuFor: null, sourceFor: null, apps: null, filter: 'all', menu: null, pick: null,
   });
   vm.runInContext(read('company-home.js').split('\n').find((line) => line.includes('Company.steps.sig =')), ctx);
   const before = JSON.stringify(ctx.Company.steps.sig());

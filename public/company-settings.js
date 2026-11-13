@@ -19,6 +19,7 @@
   const EVERY = [['daily', () => tr('Daily')], ['weekly', () => tr('Weekly')]];
   const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   // The team being edited: its id, 'new' for a new one, or null; and what its editor holds.
+  const botWrites = new Set();
   let editing = null;
   let draft = null;
   // A change that came while a field had the focus: drawn once it loses it.
@@ -185,11 +186,6 @@
   }
 
   function wire(root, c) {
-    if (!root.dataset.psWired) {
-      root.dataset.psWired = '1';
-      // A change that waited for the field to lose the focus, drawn after its own save went out.
-      root.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing(root)) Company.redraw(); }, 0));
-    }
     $('[data-ps-back]', root).onclick = () => Company.closeSettings();
     $$('[data-ps-go]', root).forEach((b) => (b.onclick = () => $(`#ps-${b.dataset.psGo}`, root)?.scrollIntoView({ block: 'start', behavior: 'smooth' })));
     // Enter saves the field (by leaving it), Escape puts back what it held.
@@ -253,6 +249,27 @@
       deliver.onchange = () => patch({ deliverBy: deliver.value || '' });
       $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
     }
+    wireTeam(root, c);
+    // Reports and the standup.
+    $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
+    const on = $('[data-ps-standup-on]', root);
+    on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });
+    const time = $('[data-ps-standup-time]', root);
+    time.onchange = () => { if (time.value) call('/company/standup', 'PUT', { time: time.value }); };
+    // Rules.
+    $$('[data-ps-unnever]', root).forEach((b) => (b.onclick = () => patch({ never: c.never.filter((_, i) => i !== Number(b.dataset.psUnnever)) })));
+    const neverForm = $('[data-ps-never-form]', root);
+    if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); added(neverForm.text, '[data-ps-never-form] input'); if (t) patch({ never: [...c.never, t] }); };
+    // Archive or delete.
+    $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
+    $('[data-ps-delete]', root).onclick = () => Company.deleteProject(c);
+  }
+
+  function wireTeam(root, c) {
+    if (!root.dataset.psWired) {
+      root.dataset.psWired = '1';
+      root.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing(root)) Company.redraw(); }, 0));
+    }
     // Teams.
     $$('[data-ps-edit-team]', root).forEach((b) => (b.onclick = () => { editing = b.dataset.psEditTeam; draft = null; Company.redraw(); }));
     const newTeam = $('[data-ps-new-team]', root);
@@ -274,6 +291,7 @@
       $('[data-ps-save-team]', ed).onclick = async () => {
         const body = { name: draft.name.trim(), bots: draft.bots, lead: draft.bots.includes(draft.lead) ? draft.lead : draft.bots[0] };
         const was = editing;
+        name.blur(); ed.inert = true;
         editing = null; draft = null;
         if (!(await call(was === 'new' ? '/company/teams' : `/company/teams/${encodeURIComponent(was)}`, was === 'new' ? 'POST' : 'PUT', body))) { editing = was; draft = body; Company.redraw(); }
       };
@@ -285,26 +303,13 @@
         call(`/company/teams/${encodeURIComponent(t.id)}`, 'DELETE');
       };
     }
-    // Reports and the standup.
     // One removal at a time: each sends the whole list, so a second one waits for the first one's answer.
     $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => {
-      $$('[data-ps-unbot]', root).forEach((x) => (x.disabled = true));
-      call('/company/bots', 'PUT', { bots: (c.bots || []).filter((id) => id !== b.dataset.psUnbot) });
+      setBots(c, (c.bots || []).filter((id) => id !== b.dataset.psUnbot)).catch((e) => toast(e.message, true));
     }));
+    $$('[data-ps-unbot], [data-cf-add-bot]', root).forEach((b) => (b.disabled = botWrites.has(c.id)));
     const projectLead = $('[data-ps-project-lead]', root);
     if (projectLead) projectLead.onchange = () => patch({ lead: projectLead.value || null });
-    $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
-    const on = $('[data-ps-standup-on]', root);
-    on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });
-    const time = $('[data-ps-standup-time]', root);
-    time.onchange = () => { if (time.value) call('/company/standup', 'PUT', { time: time.value }); };
-    // Rules.
-    $$('[data-ps-unnever]', root).forEach((b) => (b.onclick = () => patch({ never: c.never.filter((_, i) => i !== Number(b.dataset.psUnnever)) })));
-    const neverForm = $('[data-ps-never-form]', root);
-    if (neverForm) neverForm.onsubmit = (e) => { e.preventDefault(); const t = neverForm.text.value.trim(); added(neverForm.text, '[data-ps-never-form] input'); if (t) patch({ never: [...c.never, t] }); };
-    // Archive or delete.
-    $('[data-ps-archive]', root).onclick = () => patch({ archived: !c.archived });
-    $('[data-ps-delete]', root).onclick = () => Company.deleteProject(c);
   }
 
   // Files added as sources: uploaded for the Chief, as the start screen does, then saved with the others.
@@ -322,6 +327,18 @@
     if (added.length) patch({ sources: [...(state.company?.id === c.id ? state.company.sources : c.sources), ...added] });
   }
 
+  async function setBots(c, bots) {
+    if (botWrites.has(c.id)) throw new Error(tr('Saving…'));
+    const path = c.id ? `/company/bots?project=${encodeURIComponent(c.id)}` : '/company/bots';
+    botWrites.add(c.id); Company.redraw();
+    try { Company.changed({ company: await api(path, { method: 'PUT', body: { bots } }) }); }
+    finally { botWrites.delete(c.id); Company.redraw(); }
+  }
+
+  Company.teamSettings = {
+    html: teamHTML, wire: wireTeam, setBots, busy: (id) => botWrites.has(id), sig: () => [editing, draft, [...botWrites]],
+    hold(root) { pending = typing(root); return pending; },
+  };
   Company.steps.settings = (root, c) => draw(root, c);
   Company.steps.settingsClosed = () => { editing = null; draft = null; pending = false; loginMenu = false; };
 })();

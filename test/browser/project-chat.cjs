@@ -49,6 +49,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     assert.deepEqual(await here(), []);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-team.png') });
 
+    await page.locator('[data-po-team]').click();
     // The team is folded (ADR 196): one row, no keys. Its chevron shows the keys, the lead first with a crown.
     assert.equal(await page.locator('.sp-keys').count(), 0, 'folded by default');
     assert.equal(await page.locator(`[data-cf-fold="${team.id}"]`).getAttribute('aria-expanded'), 'false');
@@ -102,6 +103,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-hidden.png') });
     await page.reload();
     await page.locator('.cf-top h1', { hasText: 'Quotz IT' }).waitFor({ timeout: 20000 });
+    await page.locator('[data-po-team]').click();
     await page.locator('.sp-keys .key').first().waitFor(); // still unfolded
     await page.locator('#project-chat-show').waitFor();
     assert.equal(await page.evaluate(() => state.view), 'company');
@@ -125,6 +127,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.waitForFunction(() => Math.round(document.querySelector('#chat-row').getBoundingClientRect().width) === 448);
     if (shots) await page.screenshot({ path: path.join(shots, 'project-chat-narrow.png') });
     // A bot's settings cover the chat in the column, not squeeze it.
+    await page.locator('[data-po-team]').click();
     await page.locator(`[data-cf-bot="${a.id}"]`).first().click();
     await page.locator('#view-bot #bot-name', { hasText: 'Ops Watchkeeper' }).waitFor();
     await page.locator('#view-bot .chat-title, #view-bot #bot-name').first().click();

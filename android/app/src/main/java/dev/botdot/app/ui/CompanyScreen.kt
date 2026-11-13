@@ -128,6 +128,8 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     var creating by mutableStateOf(false)
     var apps by mutableStateOf<Set<String>?>(null)
     // The project's settings (#701, #703) over its screen.
+    var projectBotsSaving by mutableStateOf(false)
+    var teamFor by mutableStateOf<String?>(null)
     var settingsOpen by mutableStateOf(false)
     // Spaces (#840): what the project's name switches to, and whether the rail beside the screen does that instead.
     var spaces by mutableStateOf<SpaceWays?>(null)
@@ -141,6 +143,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
     fun follow(c: Company) {
         if (forId == c.id) return
         forId = c.id
+        teamFor = null
         screen = null; readFailed = false; swotting = false; who = null; choosingWho = false; missing = ""; editing = null
         ideas.clear(); own.clear(); picked.clear(); tried.clear()
         proposeFailed = ""; draft = ""; adding = false
@@ -148,6 +151,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
 
     /** Show project [id] (#703), remembered on this device. */
     fun show(id: String) {
+        teamFor = null
         app.store.showProject(id)
         scope.launch { app.settings.setProject(id) }
         step = null; settingsOpen = false
@@ -155,6 +159,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
 
     /** "New project": the start screen, for another one. */
     fun startNew() {
+        teamFor = null
         app.store.newProject()
         sources.clear(); step = null; settingsOpen = false
     }
@@ -194,6 +199,13 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
             } catch (e: Exception) { tell(e.message ?: tr("Couldn't open the chat"))
             } finally { openingChief.cancel(c.id) }
         }
+    }
+    /** Addition and removal both replace the entire list: allow only one pending owner write. */
+    suspend fun setOwnBots(ids: List<String>) {
+        if (projectBotsSaving) return
+        val a = api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+        projectBotsSaving = true
+        try { took(a.setProjectBots(ids)) } finally { projectBotsSaving = false }
     }
     fun call(block: suspend (Api) -> Company, made: Boolean = false, done: (Boolean) -> Unit = {}) = scope.launch {
         val a = api ?: run { tell(tr("Can't reach botdot.")); done(false); return@launch }
@@ -251,8 +263,9 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
                 ui.follow(c)
                 val fixed = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty()
                 var board by androidx.compose.runtime.saveable.rememberSaveable(c.id) { mutableStateOf(false) }
-                BackHandler(fixed && board) { board = false }
-                Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways, overview = fixed && !board, onBoard = { board = true }, onOverview = { board = false }) }
+                val teamView = fixed && ui.teamFor == c.id
+                BackHandler(fixed && (board || teamView)) { board = false; ui.teamFor = null }
+                Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways, overview = fixed && !board && !teamView, teamView = teamView, onTeamView = { ui.teamFor = c.id; board = false }, onBoard = { board = true }, onOverview = { board = false; ui.teamFor = null }) }
                 if (field) DefaultChatField(ui, c, ways)
             }
             else -> {

@@ -140,7 +140,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                 }
                 Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, features, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("goal") { GoalRows(ui, c, features, ::patch) }
-                Card("team") { if (ManyProjects.LEAD in features) ProjectLeadRow(c, bots, ::patch); TeamRows(ui, c, bots) }
+                Card("team") { ProjectTeamSettings(ui, c, bots, features) }
                 Card("reports") { ReportRows(ui, c, features) }
                 Card("rules") { RuleRows(c, ::patch) }
                 Card("archive") { ArchiveRows(ui, c, ::patch) }
@@ -344,6 +344,13 @@ private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (
     }
 }
 
+/** The existing Team editor, shared by settings and the secondary project Team view. */
+@Composable
+internal fun ProjectTeamSettings(ui: CompanyUi, c: Company, bots: List<Bot>, features: List<String>) {
+    if (ManyProjects.LEAD in features) ProjectLeadRow(c, bots) { fields -> ui.call({ it.patchCompany(fields) }) }
+    TeamRows(ui, c, bots)
+}
+
 // ---------- Team ----------
 
 /** A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 199), its lead. */
@@ -355,7 +362,7 @@ private class TeamDraft(val id: String?, name: String, bots: List<String>, lead:
 
 /** Who talks to the project's teams (ADR 230; web: company-settings.js leadHTML): a bot the owner picks, or the Chief. */
 @Composable
-private fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> Unit) {
+internal fun ProjectLeadRow(c: Company, bots: List<Bot>, patch: (JsonObject) -> Unit) {
     val p = LocalPaper.current
     var menu by remember { mutableStateOf(false) }
     val lead = c.lead?.let { id -> bots.firstOrNull { it.id == id } }
@@ -400,14 +407,13 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
     // The project's own bots in no team (ADR 233; web: company-settings.js ownHTML), each with ✕ to take it out.
     val own = c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }
     // One removal at a time: each sends the whole list, so the next waits for the project as the answer left it.
-    var removing by remember(c.id) { mutableStateOf(false) }
     if (own.isNotEmpty()) Labeled(tr("Bots")) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             own.forEach { b ->
                 Row(Modifier.clip(Radius.pill).background(p.fill).padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     BotFigure(b.color, b.state, 22, b.outfit)
                     Text(b.name, color = p.text, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 160.dp))
-                    IconButton({ removing = true; ui.call({ it.setProjectBots(c.bots - b.id) }, done = { removing = false }) }, Modifier.size(44.dp), enabled = !removing) {
+                    IconButton({ ui.scope.launch { runCatching { ui.setOwnBots(c.bots - b.id) }.onFailure { ui.tell(it.message) } } }, Modifier.size(44.dp), enabled = !ui.projectBotsSaving) {
                         Icon(Icons.Filled.Close, tr("Remove {name}", "name" to b.name), tint = p.muted, modifier = Modifier.size(16.dp))
                     }
                 }
