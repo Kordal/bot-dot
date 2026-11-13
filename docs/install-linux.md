@@ -195,6 +195,14 @@ sudo FRONT_DOOR_TERMS_URL=https://example.com/terms FRONT_DOOR_PRIVACY_URL=https
 
 With both addresses set, the sign-up page, from a sign-up link or from the setup key, shows one box, "I agree to the Terms and the Privacy policy", each word a link that opens in a new tab, and makes no passkey until it is ticked. The front door keeps the version and the time in the account's record (`front-door.json`) and writes a `terms-agreed` entry to the audit log. When you change the version, every owner is asked once more at their next sign-in, before the account opens. Without both addresses nothing is asked.
 
+## Subscription page
+
+A managed machine can show its owner where they manage what they pay: `FRONT_DOOR_SUBSCRIPTION_URL`, an `https` address the installer keeps in `/var/lib/botdot/front-door/.env` once given ([ADR 234](adr/234-a-managed-machines-settings-open-the-billing-page-the-fleet-console-names.md)). Settings then has a "Subscription" row that opens it in the browser. `{account}` in it is replaced by the account's name. On a machine that isn't managed, or without the setting, there is no row.
+
+```bash
+sudo BOT_DOT_MANAGED=1 FRONT_DOOR_SUBSCRIPTION_URL='https://billing.example.com/manage?account={account}' sh bot-dot-source/install.sh
+```
+
 ## The Android app's sign-in
 
 The Android app signs in on your front door's own sign-in page, in the phone's browser: **Sign in with your passkey** opens the page, your password manager there (Proton Pass, Bitwarden, Google Password Manager) offers the passkey, and the browser comes back to the app signed in. It works with any domain and any build of the app, the releases' or your own, with nothing to set on the server.
