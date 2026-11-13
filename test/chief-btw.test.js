@@ -4,7 +4,7 @@
 // message as any. Against a real botdot server and the stand-in for Claude, whose runs are held and released.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { startServer, feed, waitFor } = require('./helpers');
+const { startServer, feed, waitFor, makeBot } = require('./helpers');
 
 let srv, f;
 before(async () => { srv = await startServer(); f = await feed(srv); await f.wait('hello'); });
@@ -17,6 +17,9 @@ const say = (id, text) => srv.api(`/chief/chats/${id}/messages`, { method: 'POST
 const replyDone = (id) => waitFor(async () => { const c = await chatOf(id); return !c.busy && !c.messages.at(-1).pending ? c : null; }, { what: 'the Chief to reply' });
 
 test('"/btw" to a replying Chief is answered at once, above the reply that goes on, and the next turn knows it', async () => {
+  const old = await makeBot(srv, { name: 'Old Helper' });
+  await makeBot(srv, { name: 'Tom Stays', prompt: 'Ask Old Helper for the photos.' });
+  await srv.api(`/bots/${old.id}`, { method: 'DELETE' });
   const c = (await srv.api('/chief/chats', { method: 'POST' })).data;
   srv.hold();
   await say(c.id, 'Check every bot and sum up how they did this week');
@@ -31,6 +34,7 @@ test('"/btw" to a replying Chief is answered at once, above the reply that goes 
   assert.deepEqual(JSON.parse(arg('--mcp-config')), { mcpServers: {} });
   assert.ok(!side.args.includes('--resume'), 'no session of the chat');
   assert.match(side.stdin, /the Chief of Staff in botdot/);
+  assert.match(side.stdin, /Bots the owner deleted: Old Helper \(id [\s\S]*Still named there[^\n]*Tom Stays/, 'it knows which bots are gone (gone-bots.js)');
   assert.match(side.stdin, /asked by the owner:\n<request>\nCheck every bot and sum up how they did this week\n<\/request>/);
   assert.match(side.stdin, /<question>\nhow far are you\?\n<\/question>/);
 

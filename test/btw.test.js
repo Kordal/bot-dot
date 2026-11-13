@@ -21,6 +21,8 @@ const waitingIn = (bot) => (fs.existsSync(path.join(srv.data, 'queue.json')) ? r
 
 test('"/btw" to a working bot is answered by a talk-only turn that knows what the run was asked', async () => {
   const bot = await makeBot(srv, { name: 'Side Note', emoji: '📝' });
+  const old = await makeBot(srv, { name: 'Old Helper' });
+  await srv.api(`/bots/${old.id}`, { method: 'DELETE' });
   const long = await heldRun(srv, bot, 'Read the whole hub and sum it up');
 
   const asked = await send(bot, '/btw how far are you?');
@@ -34,6 +36,7 @@ test('"/btw" to a working bot is answered by a talk-only turn that knows what th
   assert.equal(rec.self, null, 'none of its tools');
   assert.match(rec.stdin, /<request>\nRead the whole hub and sum it up\n<\/request>/);
   assert.match(rec.stdin, /<question>\nhow far are you\?\n<\/question>/);
+  assert.match(rec.stdin, /Bots the owner deleted: Old Helper \(id /, 'it knows which bots are gone (gone-bots.js)');
   assert.deepEqual(waitingIn(bot), [], 'nothing waits');
 
   srv.reply('About halfway.');
