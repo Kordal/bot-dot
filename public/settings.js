@@ -372,6 +372,7 @@ function renderSettings() {
       </details>
       <details class="bs-row bs-more" id="update-card" hidden></details>
       ${state.features.includes('advanced') ? `<label class="bs-row"><b>${tr('Advanced')}</b><span class="switch"><input type="checkbox" id="settings-advanced"${advanced() ? ' checked' : ''} aria-label="${esc(tr('Advanced'))}"><span></span></span></label>` : ''}
+      ${subscriptionRowHTML()}
       ${signOutCardHTML()}
       ${deleteCardHTML()}
     </div>`;
@@ -633,6 +634,31 @@ async function signOutEverywhere() {
   toast(typeof data.error === 'string' && data.error.trim() ? data.error : tr("Couldn't sign out ({status}).", { status: res.status }), true);
 }
 
+// ---------- the subscription ----------
+
+// Settings → "Subscription" (ADR 234): a managed machine's billing page, which the fleet console names; the front
+// door's session carries it for this account (`subscriptionPage`). It opens in a new tab, and the desktop app hands a
+// new tab to the default browser. Elsewhere, and from an older front door, the row isn't there.
+const subscriptionRowHTML = () => (state.features.includes('accounts') ? '<div id="subscription-row" hidden></div>' : '');
+
+function subscriptionRowInner(session) {
+  const page = subscriptionPage(session);
+  return page ? `<a class="bs-row bs-link" id="subscription" href="${esc(page)}" target="_blank" rel="noopener noreferrer"><b>${tr('Subscription')}</b>${CHEV}</a>` : '';
+}
+
+function subscriptionPage(session) {
+  const page = session?.subscriptionPage;
+  if (typeof page !== 'string') return null;
+  try { const u = new URL(page); return u.protocol === 'https:' && u.hostname ? page : null; } catch { return null; }
+}
+
+function drawSubscriptionRow(root, session) {
+  const slot = $('#subscription-row', root);
+  if (!slot) return;
+  slot.innerHTML = subscriptionRowInner(session);
+  slot.hidden = !slot.innerHTML;
+}
+
 // ---------- deleting the account ----------
 
 // Settings → "Delete account" (#1307): the owner deletes their own account, as the admin does on the admin page. Only
@@ -666,6 +692,7 @@ async function loadDeleteCard(root) {
   if (!slot) return;
   let session = null;
   try { session = await fetch('/front-door/session').then((r) => (r.ok ? r.json() : null)); } catch { /* nothing to show */ }
+  drawSubscriptionRow(root, session); // the same session says where the subscription is managed
   slot.innerHTML = deleteCardInner(session);
   const btn = $('#delete-account', slot);
   if (btn) btn.onclick = () => openDeleteAccount(session.account);

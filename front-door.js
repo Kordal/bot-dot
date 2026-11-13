@@ -60,6 +60,9 @@
 //                     an owner agrees to at sign-up, and their version (default 1), for a machine sold as hosting (#987,
 //                     lib/front-door/terms.js): with both addresses set, no passkey is made before "I agree" is ticked,
 //                     and a sign-in after the version changed asks once more. Unset: nothing is asked
+// FRONT_DOOR_SUBSCRIPTION_URL  with FRONT_DOOR_MANAGED: the https page where an owner manages their subscription,
+//                     which Settings opens as "Subscription" (ADR 234, lib/front-door/subscription.js); `{account}` in
+//                     it is the account's name. Unset: no Subscription row
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
@@ -88,6 +91,7 @@ const connectorsLib = require('./lib/connectors');
 const usageStore = require('./lib/front-door/usage');
 const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
+const subscriptionLib = require('./lib/front-door/subscription');
 const outboxLib = require('./lib/front-door/outbox');
 
 const ORIGIN = (() => {
@@ -119,6 +123,8 @@ if (ONE_ACCOUNT !== null && !store.ACCOUNT_NAME.test(ONE_ACCOUNT)) {
 const TERMS = termsLib.fromEnv(process.env, (line) => console.error(line));
 // A managed machine (ADR 154): its first account, when it holds several.
 const MANAGED = process.env.FRONT_DOOR_MANAGED === '1';
+// Settings' "Subscription" on a managed machine (ADR 234): the billing page the fleet console names, or null.
+const SUBSCRIPTION = subscriptionLib.fromEnv(process.env, MANAGED, (line) => console.error(line));
 const FIRST_ACCOUNT = MANAGED && !ONE_ACCOUNT ? process.env.FRONT_DOOR_FIRST_ACCOUNT || null : null;
 if (FIRST_ACCOUNT !== null && !store.ACCOUNT_NAME.test(FIRST_ACCOUNT)) {
   console.error("FRONT_DOOR_FIRST_ACCOUNT is an account's name: 2 to 24 lowercase letters, digits and dashes, starting with a letter.");
@@ -838,7 +844,8 @@ async function signInRoutes(req, res, p) {
     // (ADR 068): a room's maker makes an invite link, and opening one joins.
     // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account). deleteAccountPage
     // (#1312): where a managed machine's owner starts deleting it instead, a page of botdot.app; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), deleteAccountPage: MANAGED ? DELETE_ACCOUNT_PAGE : null, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), deleteAccountPage: MANAGED ? DELETE_ACCOUNT_PAGE : null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.

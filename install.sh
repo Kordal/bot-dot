@@ -108,6 +108,8 @@
 #   several  the first account is made so too, and later ones only from sign-up links root's step makes
 # A rerun with BOT_DOT_VARIANT=several turns one into several and keeps the account; back to one is refused while the
 # machine has another account. Until the first account exists, the setup key's sign-up link is in BOTDOT_READY alone.
+# FRONT_DOOR_SUBSCRIPTION_URL (kept once given, managed only): the https billing page Settings opens as "Subscription"
+# (ADR 234); `{account}` in it is the account's name. An empty value isn't a change: the console gives a new address.
 # Every install and update, on every reach, ends with one line for a program such as the fleet console (#981):
 #   BOTDOT_READY {"origin":"https://botdot.example.com","version":"1a2b3c4","reach":"public","accounts":["ann"],
 #                 "signUp":"https://botdot.example.com/sign-up/<token>"}
@@ -2671,7 +2673,7 @@ set_env "$ENV" COMPOSE_PROJECT_NAME botdot
 [ -z "${FRONT_DOOR_ANDROID_KEYS:-}" ] || set_env "$ENV" FRONT_DOOR_ANDROID_KEYS "$FRONT_DOOR_ANDROID_KEYS"
 # The terms and the privacy policy an owner agrees to at sign-up, and their version (#987): given once, kept; a
 # new FRONT_DOOR_TERMS_VERSION asks every owner once more at their next sign-in. Unset, nothing is asked.
-for setting in FRONT_DOOR_TERMS_URL FRONT_DOOR_PRIVACY_URL FRONT_DOOR_TERMS_VERSION; do
+for setting in FRONT_DOOR_TERMS_URL FRONT_DOOR_PRIVACY_URL FRONT_DOOR_TERMS_VERSION FRONT_DOOR_SUBSCRIPTION_URL; do
   eval "given=\${$setting:-}"
   [ -z "$given" ] || set_env "$ENV" "$setting" "$given"
 done

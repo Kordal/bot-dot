@@ -330,6 +330,10 @@ fun SettingsScreen(
                 context.startActivity(Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
 
+            // "Subscription" (ADR 234): a managed machine's billing page, which the fleet console names, in the browser.
+            dev.botdot.app.data.Subscription.page(server?.features, session)?.let { page ->
+                Link(tr("Subscription")) { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(page))) } }
+            }
             // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
             // again with its passkey (the dialog says so).
             if (server?.features?.contains("accounts") == true) {

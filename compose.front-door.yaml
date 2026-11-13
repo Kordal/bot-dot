@@ -42,6 +42,8 @@ services:
       FRONT_DOOR_DEMO_CODE_SHA256: ${FRONT_DOOR_DEMO_CODE_SHA256:-}
       FRONT_DOOR_MANAGED: ${FRONT_DOOR_MANAGED:-}
       FRONT_DOOR_FIRST_ACCOUNT: ${FRONT_DOOR_FIRST_ACCOUNT:-}
+      # A managed machine's billing page, Settings' "Subscription" (ADR 234): none unless the fleet console gave one.
+      FRONT_DOOR_SUBSCRIPTION_URL: ${FRONT_DOOR_SUBSCRIPTION_URL:-}
       FRONT_DOOR_HOST: 127.0.0.1
       FRONT_DOOR_PORT: ${FRONT_DOOR_PORT:-4700}
       # Bots' interactive pages (#399, ADR 072): the sandbox's own address, on the front door's second port.
