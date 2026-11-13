@@ -291,6 +291,7 @@
       $('[data-ps-save-team]', ed).onclick = async () => {
         const body = { name: draft.name.trim(), bots: draft.bots, lead: draft.bots.includes(draft.lead) ? draft.lead : draft.bots[0] };
         const was = editing;
+        name.blur(); ed.inert = true;
         editing = null; draft = null;
         if (!(await call(was === 'new' ? '/company/teams' : `/company/teams/${encodeURIComponent(was)}`, was === 'new' ? 'POST' : 'PUT', body))) { editing = was; draft = body; Company.redraw(); }
       };
@@ -304,7 +305,7 @@
     }
     // One removal at a time: each sends the whole list, so a second one waits for the first one's answer.
     $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => {
-      setBots(c, (c.bots || []).filter((id) => id !== b.dataset.psUnbot));
+      setBots(c, (c.bots || []).filter((id) => id !== b.dataset.psUnbot)).catch((e) => toast(e.message, true));
     }));
     $$('[data-ps-unbot], [data-cf-add-bot]', root).forEach((b) => (b.disabled = botWrites.has(c.id)));
     const projectLead = $('[data-ps-project-lead]', root);
@@ -327,11 +328,10 @@
   }
 
   async function setBots(c, bots) {
-    if (botWrites.has(c.id)) return;
+    if (botWrites.has(c.id)) throw new Error(tr('Saving…'));
     const path = c.id ? `/company/bots?project=${encodeURIComponent(c.id)}` : '/company/bots';
     botWrites.add(c.id); Company.redraw();
     try { Company.changed({ company: await api(path, { method: 'PUT', body: { bots } }) }); }
-    catch (e) { toast(e.message, true); }
     finally { botWrites.delete(c.id); Company.redraw(); }
   }
 
