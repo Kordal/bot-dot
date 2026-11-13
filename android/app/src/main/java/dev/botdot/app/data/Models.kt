@@ -592,7 +592,6 @@ data class ChiefChatSummary(
     val unread: Int = 0, // its new replies
     val firstUnread: Int? = null, // the place of the first of them in the whole chat
     val openingLine: String? = null, // while the Chief replies in it: what it said it is about to do (OpeningLine)
-    val lead: String? = null, // a project's own chat: the bot that leads the project, drawn in the Chief's place (ADR 227)
 )
 
 /** A bot's plan for the Chief that waits for your "Approve". */

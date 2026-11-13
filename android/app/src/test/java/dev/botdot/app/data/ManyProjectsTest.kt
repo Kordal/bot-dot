@@ -164,13 +164,11 @@ class ManyProjectsTest {
         assertNull("only the Project Manager's message is drawn as another's", owner.asBot)
     }
 
-    @Test fun aProjectsOwnChiefChatIsItsProjectManager() {
-        val on = listOf(ManyProjects.MANAGER)
-        val projects = listOf(Company("p1", chiefChat = "c-pm"), null, Company("p2"))
-        assertTrue(ManyProjects.managerChat(on, projects, "c-pm"))
-        assertFalse(ManyProjects.managerChat(on, projects, "c-other"))
-        assertFalse(ManyProjects.managerChat(on, projects, null))
-        assertFalse(ManyProjects.managerChat(emptyList(), projects, "c-pm"))
-        assertFalse(ManyProjects.managerChat(null, projects, "c-pm"))
+    @Test fun theProjectManagerIsTheBotTheOwnerPickedWhileItIsThere() {
+        val bots = listOf(Bot(id = "a", name = "Alpha"), Bot(id = "m", name = "Mona"))
+        assertEquals("m", ManyProjects.manager(Company("p1", lead = "m"), bots)?.id)
+        assertNull("none picked: the Chief is", ManyProjects.manager(Company("p1"), bots))
+        assertNull("a bot that is gone", ManyProjects.manager(Company("p1", lead = "gone"), bots))
+        assertEquals("project-manager-bot", ManyProjects.MANAGER_BOT)
     }
 }

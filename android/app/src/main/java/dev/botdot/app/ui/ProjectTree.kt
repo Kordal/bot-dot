@@ -60,9 +60,18 @@ internal fun ProjectTitle(ui: CompanyUi, c: Company?, ways: CompanyWays, modifie
         }
         if (c != null && features != null && ManyProjects.SETTINGS in features) RoundButton(Icons.Outlined.Settings, tr("Project settings"), Modifier.padding(start = Space.s4)) { ui.settingsOpen = true }
         if (c != null && c.phase == "running" && features != null && ManyProjects.TIDY in features && ways.onChiefChat != null) TidyButton(ui, ways.onChiefChat, Modifier.padding(start = Space.s4))
-        if (c != null && features != null && ManyProjects.CHIEF in features && ways.onChiefChat != null) ProjectChiefButton(ui, c, ways.onChiefChat, ManyProjects.MANAGER in features, Modifier.padding(start = Space.s4))
+        if (c != null && features != null && ManyProjects.CHIEF in features && ways.onChiefChat != null) ProjectChiefButton(ui, c, ways.onChiefChat, Modifier.padding(start = Space.s4))
+        if (c != null && features != null && ManyProjects.MANAGER_BOT in features) ProjectManagerButton(ui, c, ways.onBot, Modifier.padding(start = Space.s4))
         after()
     }
+}
+
+/** The project's Project Manager beside the Chief (ADR 230; web: Company.chiefHTML): the bot the owner picked, its head opening its chat. */
+@Composable
+private fun ProjectManagerButton(ui: CompanyUi, c: Company, open: (String) -> Unit, modifier: Modifier = Modifier) {
+    val botsNow by ui.app.store.bots.value.collectAsState()
+    val b = ManyProjects.manager(c, botsNow.orEmpty()) ?: return
+    RoundButton("${tr("Project Manager")}: ${b.name}", modifier, onClick = { open(b.id) }, content = { BotFigure(b.color, b.state, 28, b.outfit) })
 }
 
 /** Tidy up (web: Company.tidyHTML): the project's Chief arranges the whole board, asked in its chat, which opens. */
@@ -84,7 +93,7 @@ private fun TidyButton(ui: CompanyUi, open: (String) -> Unit, modifier: Modifier
  * number is what waits for the owner there, its unread replies and the Chief's cards asked in it.
  */
 @Composable
-private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit, manager: Boolean, modifier: Modifier = Modifier) {
+private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPaper.current
     val chief by ui.app.store.chief.value.collectAsState()
     val needs by ui.app.store.needs.value.collectAsState()
@@ -92,10 +101,8 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     var busy by remember { mutableStateOf(false) }
     val id = c.chiefChat
     val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
-    // The project's lead runs its chat when the owner picked one (ADR 227): its head and name, in the Chief's place.
-    val botsNow by ui.app.store.bots.value.collectAsState()
-    val lead = c.lead?.let { l -> botsNow?.firstOrNull { it.id == l } }
-    val name = lead?.name ?: if (manager) tr("Project Manager") else LocalChiefName.current
+    // The project's own chat is always the Chief's (ADR 230).
+    val name = LocalChiefName.current
     val tap = {
         val a = api
         if (id != null) open(id)
@@ -106,7 +113,7 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     }
     RoundButton(if (waiting > 0) "$name ($waiting)" else name, modifier, onClick = tap, content = {
         Box(contentAlignment = Alignment.Center) {
-            if (lead != null) BotFigure(lead.color, lead.state, 28, lead.outfit) else BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF)
+            BotFigure(CHIEF_COLOR, if (chief?.busy == true) "working" else "idle", 28, FigureDef.CHIEF)
             if (waiting > 0) Box(Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).defaultMinSize(minWidth = 16.dp, minHeight = 16.dp).clip(CircleShape).background(p.text).padding(horizontal = Space.s4), contentAlignment = Alignment.Center) {
                 Text(if (waiting > 99) "99+" else waiting.toString(), color = p.bg, fontSize = Type.s12, fontWeight = FontWeight.SemiBold)
             }

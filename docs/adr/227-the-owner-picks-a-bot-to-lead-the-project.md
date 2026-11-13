@@ -1,6 +1,6 @@
 # ADR-227: The owner picks a bot to lead the project
 
-- **Status:** Accepted (2026-11-12, the owner: "the user must be able to designate the project lead", and picked "a bot runs the project" over "a team's lead is enough")
+- **Status:** Accepted (2026-11-12, the owner: "the user must be able to designate the project lead", and picked "a bot runs the project" over "a team's lead is enough"); changed by [ADR 230](230-the-project-manager-is-the-bot-the-owner-picked-and-the-projects-chat-is-the-chiefs.md): the bot runs the teams from its own chat, and the project's chat stays the Chief's
 - **Builds on:** [ADR 217](217-a-projects-own-chief-chat-is-its-project-manager.md) (the Project Manager), [ADR 223](223-a-chief-message-names-the-team-it-is-about.md)
 
 ## Context

@@ -29,3 +29,17 @@ test('a tap opens the chat in the column; with none yet it asks the server to ma
   assert.match(open, /Dock\.openChief\(r\.chatId\)/);
   assert.match(co, /\$\$\('\[data-project-chief\]', root\)/);
 });
+
+test("the compass is always the Chief's, and the Project Manager the owner picked has its own head beside it, opening its chat (ADR 230)", () => {
+  const co = read('company.js');
+  const chief = co.slice(co.indexOf('const chiefHTML = () =>'), co.indexOf('const managerHTML'));
+  assert.match(chief, /chiefFigure\('sm'\)/);
+  assert.doesNotMatch(chief, /botFigure|\.lead/, "the project's lead no longer takes the Chief's place");
+  const manager = co.slice(co.indexOf('const managerHTML'), co.indexOf('// Tidy up (board-tidy)'));
+  assert.match(manager, /includes\('project-manager-bot'\) && state\.company\?\.lead \? botById\(state\.company\.lead\) : null/);
+  assert.match(manager, /if \(!b\) return '';/);
+  assert.match(manager, /data-project-manager="\$\{esc\(b\.id\)\}"/);
+  assert.match(manager, /botFigure\(b\.color, b\.state, 'sm', b\.outfit, b\.id\)/);
+  assert.match(chief, /\$\{managerHTML\(\)\}/, 'right after the Chief');
+  assert.match(co, /\$\$\('\[data-project-manager\]', root\)\.forEach\(\(b\) => \(b\.onclick = \(\) => Dock\.kinds\.bot\.open\(b\.dataset\.projectManager\)\)\)/);
+});

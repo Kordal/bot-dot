@@ -83,9 +83,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     val openTeam = { teamId: String -> groupsNow.orEmpty().firstOrNull { it.team == teamId }?.let { onGroup(it.id) }; Unit }
     val server by app.store.version.value.collectAsState() // its features: whether it rates unasked messages
     val features = server?.features
-    val projectList by app.store.projectList.collectAsState()
-    val shownProject by app.store.company.value.collectAsState()
-    val chiefName = if (dev.botdot.app.data.ManyProjects.managerChat(features, projectList + shownProject?.company, chatId)) tr("Project Manager") else LocalChiefName.current
+    val chiefName = LocalChiefName.current // every Chief chat is the Chief's, a project's own too (ADR 230)
     val stays = sendStays(features) // Send stays while it replies, and Stop is the word on the working line
     val signedOut by app.store.claude.signedOut.collectAsState()
     val backAt by app.store.claude.backAt.collectAsState()
@@ -176,10 +174,6 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
     // Where this chat opens on the web page, for the link under a diagram (Markdown.kt).
     val api by app.api.collectAsState()
-    // A project's own chat whose project has a lead (ADR 227): drawn with that bot's head and name, in the Chief's place.
-    val chiefList by app.store.chief.value.collectAsState()
-    val leadBots by app.store.bots.value.collectAsState()
-    val lead = chiefList?.chats?.firstOrNull { it.id == chatId }?.lead?.let { id -> leadBots?.firstOrNull { it.id == id } }
     val onWeb = api?.let { a -> chatId?.let { chatOnWeb(a.baseUrl, "chief", it) } }
     // A file you sent in this chat opens in the viewer (#268).
     val ownFiles = remember(chatId, server?.features) { chatId?.takeIf { DocumentView.opensChatFiles(server?.features) }?.let { id -> { f: Attachment -> DocumentView.chiefUpload(id, f.file) } } }
@@ -188,7 +182,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             containerColor = p.bg,
             snackbarHost = { BotSnackbarHost(snack) },
             topBar = {
-                ChatBar(lead?.color ?: CHIEF_COLOR, if (busy) "working" else "idle", lead?.name ?: chiefName, onName = onSettings, onBack = onBack, outfit = if (lead != null) lead.outfit else FigureDef.CHIEF) {
+                ChatBar(CHIEF_COLOR, if (busy) "working" else "idle", chiefName, onName = onSettings, onBack = onBack, outfit = FigureDef.CHIEF) {
                     // Its files (#603), as a bot's.
                     if (dev.botdot.app.data.FilesExplorer.shows(features) && dev.botdot.app.data.UploadedFiles.chiefShows(features)) RoundButton(Icons.Filled.Folder, tr("Files"), onClick = onFiles)
                     RoundButton(Icons.Filled.Add, tr("New chat")) { vm.open(null) }

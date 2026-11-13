@@ -109,13 +109,14 @@
     return section('team', tr('Team'), leadHTML(c) + teams + add);
   }
 
-  // Who runs the project in its own chat (ADR 227): a bot the owner picks, or the Chief. The project's bots come first.
+  // Who talks to the project's teams for the owner (ADR 230): a bot the owner picks, in its own chat, or the Chief in
+  // the project's own chat. The project's bots come first.
   function leadHTML(c) {
     if (!(state.features || []).includes('project-lead')) return '';
     const mine = new Set(c.teams.flatMap((t) => t.bots));
     const bots = [...(state.bots || [])].sort((a, b) => (mine.has(b.id) - mine.has(a.id)) || a.name.localeCompare(b.name));
     const opt = (v, label) => `<option value="${esc(v)}"${(c.lead || '') === v ? ' selected' : ''}>${esc(label)}</option>`;
-    return row(tr('Project lead'), `<select class="ps-input" data-ps-project-lead aria-label="${tr('Project lead')}">${opt('', chiefTitle())}${bots.map((b) => opt(b.id, b.name)).join('')}</select>`);
+    return row(tr('Project Manager'), `<select class="ps-input" data-ps-project-lead aria-label="${tr('Project Manager')}">${opt('', chiefTitle())}${bots.map((b) => opt(b.id, b.name)).join('')}</select>`);
   }
   // A team's editor: its name, which bots are in it (a bot may be in several teams, ADR 199), its lead.
   function editorHTML(c, t) {
