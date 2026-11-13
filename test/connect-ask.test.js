@@ -288,3 +288,19 @@ test('a card or a Not now from before, under the slug without its _, is the same
   assert.deepEqual(await C2.need({ bot: other, app: 'GitHub MCP', reason: 'To open pull requests.' }), { held: true, name: 'GitHub MCP' });
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a card made under githubmcp settles when github_mcp is connected, and the bot gets github_mcp', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bot = { id: 'b1', name: 'Coder', connectors: [] };
+  const bots = { get: (id) => (id === 'b1' ? bot : null), list: () => [bot], update: (id, patch) => Object.assign(bot, patch) };
+  const connectors = { status: () => ({ configured: false, keyRejected: false }), reconnect: () => [], knownConnections: () => [] };
+  const C = connectAsksLib.create({ asks, bots, connectors, appName: asksLib.appWord, carryOnAfter: () => ({}) });
+  // Made without a key: Composio could not be asked, so the card has the slug without its _.
+  const card = C.offer({ botId: 'b1', app: 'github_mcp' }).ask;
+  assert.deepEqual([card.app, card.mode, card.key], ['githubmcp', 'setup', true]);
+  C.listed([{ id: 'ca_9', toolkit: 'github_mcp', status: 'ACTIVE', createdAt: new Date(Date.now() + 1000).toISOString() }], []);
+  assert.ok(!asks.list().some((a) => a.id === card.id), 'the card settled');
+  assert.deepEqual(bot.connectors, ['github_mcp']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
