@@ -386,6 +386,8 @@ object Groups {
     const val TEAM_CHAT_MEMBERS = "team-chat-members"
     /** A team's chat picks its team's lead: PUT of its `lead` makes that bot the team's lead in its project. */
     const val TEAM_CHAT_LEAD = "team-chat-lead"
+    /** A team's chat deletes its team: DELETE of the chat deletes the team in its project, and its chat with it. */
+    const val TEAM_CHAT_DELETE = "team-chat-delete"
     /** lib/company.js MAX.bots: a team, and so its chat, has at most this many bots. */
     const val TEAM_MAX = 40
 
@@ -394,6 +396,9 @@ object Groups {
 
     /** Whether the panel of [g] picks its lead: a team's chat of two bots or more, on a server that does it. */
     fun picksLead(g: Group, features: Collection<String>?): Boolean = g.team != null && g.members.size > 1 && features?.contains(TEAM_CHAT_LEAD) == true
+
+    /** Whether the panel of [g] deletes it: any group, a team's chat (and so its team) on a server that does it. */
+    fun deletes(g: Group, features: Collection<String>?): Boolean = g.team == null || features?.contains(TEAM_CHAT_DELETE) == true
 
     /** Whether [g]'s member can be taken out in its panel: a group goes down to none and is deleted, a team keeps its last bot. */
     fun canTakeOut(g: Group, features: Collection<String>?): Boolean = changesMembers(g, features) && (g.team == null || g.members.size > 1)

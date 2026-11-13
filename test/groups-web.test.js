@@ -291,6 +291,21 @@ test("web: a team's chat opens the same panel: its members and notes, with nothi
   assert.deepEqual(p.said.calls, [['GET', '/group-chats/g1/notes']], 'its notes are read as any group\'s');
 });
 
+test("web: with `team-chat-delete` a team's chat has \"Delete team\": it asks first, and the server deletes the team with its chat", async () => {
+  const p = page({ features: ['groups', 'unread', 'team-chats', 'team-chat-delete'] });
+  Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });
+  const { parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(parts['#gs-delete'].classList.contains('hidden'), false);
+  assert.equal(parts['#gs-delete'].innerHTML, '<b>Delete team</b>');
+  p.said.calls.length = 0;
+  await parts['#gs-delete'].onclick();
+  assert.match(p.said.confirms[0], /^Delete the team Dev\?\n\nIts chat is erased\. Its bots stay\.$/);
+  assert.deepEqual(p.said.calls, [['DELETE', '/group-chats/g1']]);
+  assert.deepEqual([p.state.groups.length, p.said.left, p.state.bots.length], [0, 1, 5], 'the chat is gone from the list and left, and every bot is there');
+});
+
 test("web: with `team-chat-rename` a team's chat is renamed in its panel as any group's, and the server renames its team", async () => {
   const p = page({ features: ['groups', 'unread', 'team-chat-rename'] });
   Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6' });

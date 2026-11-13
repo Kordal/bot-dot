@@ -758,6 +758,8 @@
   "Add a bot": "Dodaj bota",
   "Delete this group": "Usuń tę grupę",
   "Delete the group {name}?": "Usunąć grupę {name}?",
+  "Delete the team {name}?": "Usunąć zespół {name}?",
+  "Its chat is erased. Its bots stay.": "Jego czat zostanie wymazany. Jego boty zostaną.",
   "Its chat is erased. No bot is deleted: each keeps its own chat.": "Jej czat zostanie wymazany. Żaden bot nie zostanie usunięty: każdy zachowa swój czat.",
   "{names} and {last}": "{names} i {last}",
   "Next: {names}": "Następny: {names}",

@@ -936,6 +936,7 @@
     "many": "{n} botów w {name}."
   },
   "A group has two to six bots.": "Grupa ma od dwóch do sześciu botów.",
+  "Delete the team {name}?\n\nIts chat is erased. Its bots stay.": "Usunąć zespół {name}?\n\nJego czat zostanie wymazany. Jego boty zostaną.",
   "Delete the group {name}?\n\nIts chat is erased. No bot is deleted: each keeps its own chat.": "Usunąć grupę {name}?\n\nJej czat zostanie wymazany. Żaden bot nie zostanie usunięty: każdy zachowa własny czat.",
   "{name} deleted": "Usunięto: {name}",
   "Take {name} out of the group": "Usuń {name} z grupy",
