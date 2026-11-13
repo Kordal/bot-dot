@@ -66,3 +66,24 @@ test('a question about the reply is answered aside; a task of its own, files or 
   srv.release(turn);
   await quiet(id);
 });
+
+test('generated project receipts never reach the Chief follow-up sorter', async (t) => {
+  t.after(() => { srv.unhold(); fs.rmSync(path.join(srv.out, 'follow-up.txt'), { force: true }); });
+  const project = (await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Sorter privacy' } })).data;
+  await srv.api(`/company/decisions?project=${project.id}`, { method: 'POST', body: { text: 'RECEIPT_ONLY_ORCHID' } });
+  const receipt = await srv.api(`/company/updates/now?project=${project.id}`, { method: 'POST', body: { key: 'sorter-receipt' } });
+  assert.match(receipt.data.update.text, /RECEIPT_ONLY_ORCHID/);
+  const id = receipt.data.update.chatId;
+  srv.hold();
+  await say(id, 'Plan the garden launch');
+  const turn = await srv.nextRun((x) => isChief(x) && /Plan the garden launch/.test(x.stdin), 'the project Chief turn');
+  answer('{"decision":"steer","run":1}');
+  const n = asks().length;
+  await say(id, 'also add a seed order');
+  assert.equal(asks().length, n + 1);
+  const asked = fs.readFileSync(path.join(srv.out, asks().at(-1)), 'utf8');
+  assert.match(asked, /Plan the garden launch/);
+  assert.doesNotMatch(asked, /RECEIPT_ONLY_ORCHID|Project update:/);
+  srv.unhold(); srv.release(turn);
+  await quiet(id);
+});

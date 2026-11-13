@@ -118,13 +118,13 @@ fun switchColors() = LocalPaper.current.let { p ->
 /** Pick one of a few options, as a row of chips. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun Chips(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+fun Chips(options: List<Pair<String, String>>, selected: String, enabled: Boolean = true, onSelect: (String) -> Unit) {
     val p = LocalPaper.current
     FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         options.forEach { (id, label) ->
             val on = id == selected
             Text(label, color = if (on) p.inkText else p.text, fontSize = Type.s14,
-                modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.sunk).clickable { onSelect(id) }.padding(horizontal = Space.s16, vertical = Space.s8))
+                modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.sunk).clickable(enabled = enabled) { onSelect(id) }.padding(horizontal = Space.s16, vertical = Space.s8))
         }
     }
 }

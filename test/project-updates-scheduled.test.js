@@ -28,3 +28,28 @@ test('quiet hours hold automatic delivery, then one recorded update reaches the 
     assert.match(messages[0].result, /Project update: Scheduled garden/);
   } finally { await srv.stop(); }
 });
+
+test('the first update covers its reporting boundary, and later updates retain their delivery cursor', async (t) => {
+  for (const mode of ['new preference', 'saved project', 'delivered']) await t.test(mode, async () => {
+    const srv = await startServer();
+    try {
+      const c = (await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Weekly garden' } })).data;
+      const ago = (days) => new Date(Date.now() - days * 864e5).toISOString();
+      writeData(path.join(srv.data, 'company.json'), {
+        ...c, startedAt: ago(10), updates: { every: 'weekly' },
+        ...(mode !== 'saved project' ? { updatesFrom: ago(6) } : {}),
+        ...(mode === 'delivered' ? { updateThrough: ago(2) } : {}),
+        todos: [{ id: 'beds', text: 'Beds completed three days ago', done: true, doneAt: ago(3) }],
+        decisions: [{ id: 'early', text: 'Decision before the preference', at: ago(8), by: 'you' }, { id: 'recent', text: 'Tuesday seed decision', at: ago(3), by: 'you' }, { id: 'latest', text: 'Latest water decision', at: ago(0.5), by: 'you' }],
+      });
+      const sent = await srv.api('/company/updates/now', { method: 'POST', body: { key: `first-weekly-${mode.replaceAll(' ', '-')}` } });
+      assert.equal(sent.status, 200, JSON.stringify(sent.data));
+      const text = sent.data.update.text;
+      assert.match(text, /Latest water decision/);
+      if (mode === 'delivered') assert.doesNotMatch(text, /Beds completed three days ago|Tuesday seed decision/);
+      else assert.match(text, /Beds completed three days ago[\s\S]*Tuesday seed decision/);
+      if (mode === 'saved project') assert.match(text, /Decision before the preference/);
+      else assert.doesNotMatch(text, /Decision before the preference/);
+    } finally { await srv.stop(); }
+  });
+});

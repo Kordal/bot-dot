@@ -467,7 +467,13 @@ private fun TeamEditor(d: TeamDraft, bots: List<Bot>, onDelete: (() -> Unit)?, o
 private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
     val p = LocalPaper.current
     if (dev.botdot.app.data.ProjectUpdates.FEATURE in features) {
-        ProjectUpdateRows(c) { every -> ui.call({ it.setProjectUpdates(every) }) }
+        ProjectUpdateRows(c) { every ->
+            try {
+                val api = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+                ui.took(api.setProjectUpdates(every))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { ui.tell(e.message) }
+        }
         return
     }
     if (CompanyFloor.LEADS in features) c.teams.forEach { t ->
@@ -490,10 +496,17 @@ private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
 }
 
 @Composable
-internal fun ProjectUpdateRows(c: Company, onChange: (String) -> Unit) {
+internal fun ProjectUpdateRows(c: Company, onChange: suspend (String) -> Unit) {
     val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var saving by remember(c.id) { mutableStateOf(false) }
     val every = c.updates?.every ?: "existing"
-    Chips(dev.botdot.app.data.ProjectUpdates.choices(c.updates).map { it to if (it == "existing") tr("Existing schedules") else rhythmName(it) }, every, onChange)
+    Chips(dev.botdot.app.data.ProjectUpdates.choices(c.updates).map { it to if (it == "existing") tr("Existing schedules") else rhythmName(it) }, every, enabled = !saving) { picked ->
+        if (!saving) {
+            saving = true
+            scope.launch { try { onChange(picked) } finally { saving = false } }
+        }
+    }
     Text(tr("One update in the primary conversation. Questions and approvals stay in Needs you."), color = p.muted, fontSize = Type.s14)
     if (every == "existing") Text(tr("Existing report times stay combined until you choose a new rhythm."), color = p.muted, fontSize = Type.s14)
     c.updates?.schedules.orEmpty().forEach { Text(it, color = p.muted, fontSize = Type.s14) }
