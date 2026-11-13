@@ -12,6 +12,9 @@
 !bot-skills/
 !vendor/
 !deploy/desktop/
+# Read back out of the image by install.sh: the background computer download and a demo's fictional data.
+!deploy/prepare-computers.sh
+!deploy/seed-demo.js
 # The What's new notes the server shows after an update (#219).
 !whats-new/
 # Read back out of the image by install.sh and the updater in Settings.

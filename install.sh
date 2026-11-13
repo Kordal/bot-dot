@@ -4301,7 +4301,7 @@ fi
 if [ -n "$(get_env "$ENV" FRONT_DOOR_DEMO_CODE_SHA256)" ] && [ ! -f "$DIR/demo-seeded" ]; then
   demo_seed="$RUN/seed-demo.js"
   if [ -f "$SOURCE/deploy/seed-demo.js" ]; then cp "$SOURCE/deploy/seed-demo.js" "$demo_seed";
-  else image_file deploy/seed-demo.js > "$demo_seed"; fi
+  else { image_file deploy/seed-demo.js > "$demo_seed" && [ -s "$demo_seed" ]; } || die "Couldn't read deploy/seed-demo.js from the image."; fi
   $D run --rm -i --network none --user 0:0 -e "BOT_DOT_ACCOUNT=$ADMIN" -v "$SOCKETS/$ADMIN:/socket:ro" -v "$demo_seed:/seed-demo.js:ro" --entrypoint node "$IMAGE" /seed-demo.js \
     || die "Couldn't prepare the fictional demo data. Retry this install."
   rm -f "$demo_seed"
@@ -4349,7 +4349,9 @@ if [ -d "$DIR/computer-preparation" ]; then
   if [ -f "$SOURCE/deploy/prepare-computers.sh" ]; then
     cp "$SOURCE/deploy/prepare-computers.sh" "$BIN/prepare-computers.sh"
   else
-    image_file deploy/prepare-computers.sh > "$BIN/prepare-computers.sh"
+    { image_file deploy/prepare-computers.sh > "$BIN/prepare-computers.sh.new" && [ -s "$BIN/prepare-computers.sh.new" ]; } \
+      || { rm -f "$BIN/prepare-computers.sh.new"; die "Couldn't read deploy/prepare-computers.sh from the image."; }
+    mv "$BIN/prepare-computers.sh.new" "$BIN/prepare-computers.sh"
   fi
   chmod 700 "$BIN/prepare-computers.sh"
   if [ -n "$SYSTEMD" ]; then
