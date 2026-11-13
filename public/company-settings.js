@@ -185,11 +185,6 @@
   }
 
   function wire(root, c) {
-    if (!root.dataset.psWired) {
-      root.dataset.psWired = '1';
-      // A change that waited for the field to lose the focus, drawn after its own save went out.
-      root.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing(root)) Company.redraw(); }, 0));
-    }
     $('[data-ps-back]', root).onclick = () => Company.closeSettings();
     $$('[data-ps-go]', root).forEach((b) => (b.onclick = () => $(`#ps-${b.dataset.psGo}`, root)?.scrollIntoView({ block: 'start', behavior: 'smooth' })));
     // Enter saves the field (by leaving it), Escape puts back what it held.
@@ -270,8 +265,8 @@
   }
 
   function wireTeam(root, c) {
-    if (!root.dataset.ptWired) {
-      root.dataset.ptWired = '1';
+    if (!root.dataset.psWired) {
+      root.dataset.psWired = '1';
       root.addEventListener('focusout', () => setTimeout(() => { if (pending && !typing(root)) Company.redraw(); }, 0));
     }
     // Teams.

@@ -55,7 +55,6 @@ const { startServer, writeData, makeBot } = require('../helpers');
       assert.ok(await page.locator('[data-pt-root]').isVisible());
       // Creating a team provides its real chat and preserves return navigation too.
       const writing = saved.teams.find((t) => t.name === 'Writing');
-      console.log("chat fixture", writing.id, await page.evaluate(() => state.groups.map((g) => [g.id, g.team])), errors);
       await page.locator(`[data-cf-team-chat="${writing.id}"]`).click();
       await page.waitForFunction(() => state.view === 'group');
       if (viewport.width < 1001) await page.locator('#chat-row [data-back]:visible').first().click();
@@ -63,6 +62,7 @@ const { startServer, writeData, makeBot } = require('../helpers');
       await page.locator('[data-pt-back]').click();
       await page.locator('[data-po-root]').waitFor();
       assert.equal(await page.locator('.sp-teams').count(), 0);
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal overflow');
       assert.deepEqual(errors, []);
       await page.close();
     }

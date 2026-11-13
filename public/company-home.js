@@ -524,7 +524,16 @@
     Company.wirePick(root);
     $$('[data-cf-bot]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); setView('bot', b.dataset.cfBot); }));
     // The team's name opens its chat, docked in the bottom row (#697).
-    $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); openTeamChat(b.dataset.cfTeamChat); }));
+    $$('[data-cf-team-chat]', root).forEach((b) => (b.onclick = async (e) => {
+      e.stopPropagation();
+      const id = b.dataset.cfTeamChat;
+      if (!(state.groups || []).some((g) => g.team === id)) {
+        // A newly created team's project may arrive before the groups feed refresh.
+        state.groups = await loadGroups();
+        if (state.company?.id !== c.id || !b.isConnected) return;
+      }
+      openTeamChat(id);
+    }));
     // ⋯: the team chat's settings in the panel on the right (ADR 205), as a bot's settings; a botdot without team
     // chats keeps the team beside the board.
     $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => {
