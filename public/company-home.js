@@ -514,7 +514,10 @@
     // chats keeps the team beside the board.
     $$('[data-cf-team]', root).forEach((b) => (b.onclick = () => {
       const g = (state.groups || []).find((x) => x.team === b.dataset.cfTeam);
-      if (g) setView('groupsettings', g.id); else openTeam(b.dataset.cfTeam);
+      if (g) setView('groupsettings', g.id); else {
+        if (state.features.includes('project-overview') && boardFor !== c.id) { boardFor = c.id; teamOpen = null; root.scrollTop = 0; }
+        openTeam(b.dataset.cfTeam);
+      }
     }));
     $$('[data-cf-fold]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); fold(c, b.dataset.cfFold); }));
     $('[data-cf-new]', root)?.addEventListener('click', () => newTeam(c));

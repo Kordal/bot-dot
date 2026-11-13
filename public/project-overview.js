@@ -46,6 +46,6 @@ const ProjectOverview = (() => {
     root.querySelectorAll('[data-po-file]').forEach((b) => b.onclick = () => c.folder && Files.openFolderFile(folder(), b.dataset.poFile));
     root.querySelector('[data-po-folder]')?.addEventListener('click', () => Files.openFolder(folder()));
   }
-  setInterval(() => { if (state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);
+  setInterval(() => { if (!document.hidden && state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);
   return { html, wire, sig: (id) => snapshots.get(id) || null };
 })();

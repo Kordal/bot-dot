@@ -17,7 +17,7 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
     const lead = await makeBot(srv, { name: 'Demo Scheduler', color: '#1d9e75' });
     assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'botdot.app' } })).status, 201);
     const c = (await srv.api('/company')).data.company;
-    assert.deepEqual(c.board, []);
+    assert.deepEqual(c.board, ['files']); // the existing Files migration runs once (#project-files)
     const write = (extra) => writeData(path.join(srv.data, 'company.json'), {
       ...c, phase: 'running', startedAt: new Date(Date.now() - 3_600_000).toISOString(),
       teams: [{ id: 't1', name: 'Botdot', color: '#34c759', bots: [lead.id], lead: lead.id }], plan: { items: [{ text: 'Post the launch' }], approved: false }, ...extra,
@@ -40,13 +40,13 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
 
       await page.locator('.pc-new').click();
       // The teams are rows of keys under the board, never a piece (#838).
-      assert.deepEqual(await picked(page), ['days', 'goals', 'calendar', 'todo']);
+      assert.deepEqual(await picked(page), ['days', 'goals', 'calendar', 'todo', 'files']);
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-picks.png`), fullPage: true });
       await page.locator('[data-pc-piece="todo"]').click();
       await page.locator('.cf-panel', { hasText: 'Post the launch' }).waitFor({ timeout: 10000 });
       assert.deepEqual(await board(), ['todo']);
       await page.locator('.pc-new').click();
-      assert.deepEqual(await picked(page), ['days', 'goals', 'calendar']);
+      assert.deepEqual(await picked(page), ['days', 'goals', 'calendar', 'files']);
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-todo.png`), fullPage: true });
 
       if (name === 'wide') {

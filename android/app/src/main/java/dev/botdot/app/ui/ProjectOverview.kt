@@ -28,6 +28,10 @@ import dev.botdot.app.data.ProjectOverview
 import dev.botdot.app.data.ProjectFiles
 import dev.botdot.app.data.RecentFiles
 import dev.botdot.app.data.tr
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** A fixed reading order; polls only while this overview is composed, never starts the computer. */
@@ -35,17 +39,20 @@ import kotlinx.coroutines.delay
 internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) {
     val p = LocalPaper.current
     val api by ui.app.api.collectAsState()
+    val life = LocalLifecycleOwner.current
     var snapshot by remember(c.id, api) { mutableStateOf<ProjectOverview?>(null) }
     var files by remember(c.id, api) { mutableStateOf<RecentFiles?>(null) }
     var error by remember(c.id, api) { mutableStateOf<String?>(null) }
     var filesError by remember(c.id, api) { mutableStateOf<String?>(null) }
     var request by remember(c.id) { mutableStateOf(0) }
-    LaunchedEffect(c.id, api, request) {
+    LaunchedEffect(c.id, api, request, life) {
         val a = api ?: return@LaunchedEffect
+        life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
         while (true) {
-            runCatching { a.projectOverview(c.id) }.onSuccess { if (it.projectId == c.id) { snapshot = it; error = null } }.onError { error = it.message ?: tr("Couldn't refresh") }
-            runCatching { a.projectFiles(c.id) }.onSuccess { files = it; filesError = null }.onError { filesError = it.message ?: tr("Couldn't load files") }
+            runCatching { a.projectOverview(c.id) }.onSuccess { if (it.projectId == c.id) { snapshot = it; error = null } }.onFailure { if (it is CancellationException) throw it; error = it.message ?: tr("Couldn't refresh") }
+            runCatching { a.projectFiles(c.id) }.onSuccess { files = it; filesError = null }.onFailure { if (it is CancellationException) throw it; filesError = it.message ?: tr("Couldn't load files") }
             delay(30_000)
+        }
         }
     }
     fun open(x: OverviewEntry) {

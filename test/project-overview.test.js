@@ -18,7 +18,7 @@ test('the overview separates recorded work, blockers and replies without inventi
     now: '2026-11-13T16:00:00Z',
   });
   assert.equal(result.goal, 'Launch the site');
-  assert.ok(result.work.some((x) => x.id === 'work' && x.state === 'working'));
+  assert.ok(result.work.some((x) => x.id === 'work' && x.state === 'working' && x.text === '')); // an original request is not a recorded action line
   assert.ok(result.work.some((x) => x.id === 'todo' && x.state === 'planned'));
   assert.ok(result.blockers.some((x) => x.id === 'bad' && x.state === 'failed'));
   assert.ok(result.blockers.some((x) => x.text === 'Which headline?'));
