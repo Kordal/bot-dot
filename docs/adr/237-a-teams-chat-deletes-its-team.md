@@ -1,4 +1,4 @@
-# ADR-236: A team's chat deletes its team
+# ADR-237: A team's chat deletes its team
 
 - **Status:** Accepted (2026-11-13, the owner: "here should also be able to delete the team", on a team's chat settings)
 - **Owning task:** [#1340](https://github.com/Kordal/bot-dot/issues/1340)
