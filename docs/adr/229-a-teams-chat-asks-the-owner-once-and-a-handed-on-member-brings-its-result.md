@@ -1,6 +1,7 @@
 # ADR-229: A team's chat asks the owner once, and a handed-on member brings its result
 
 - **Status:** Accepted (2026-11-13, the owner: "Yes do it", on the review of the Botdot Launch team's chat of 12 Nov 2026)
+- **Amended by:** [ADR 232](232-a-reply-written-before-the-owners-answer-asks-nothing.md) (a reply written before the owner's answer asks nothing)
 - **Amends:** [ADR 201](201-the-lead-has-the-last-word-in-its-teams-chat.md) (the lead's last word) and [ADR 218](218-in-a-chat-the-owner-reads-a-bot-asks-the-owner-itself.md) ("the lead does not ask again"), in a team's chat; [#489](https://github.com/Kordal/bot-dot/issues/489) (a handed-on turn was told nothing about restating)
 
 ## Context
