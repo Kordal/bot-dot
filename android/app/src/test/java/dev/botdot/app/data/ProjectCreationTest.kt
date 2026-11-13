@@ -7,6 +7,10 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ProjectCreationTest {
+    @Test fun whitespaceEditsKeepTheSameEffectiveCreationRequest() {
+        assertEquals("Prepare the talk", CompanySetup.creationText("  Prepare  the talk \n"))
+    }
+
     @Test fun onlyTheNegotiatedRequestOptsIntoConversationAndKeepsItsRetryKey() {
         val sources = listOf(SourceDraft("link", "link", "Brief", "https://example.com/brief"))
         val legacy = CompanySetup.startBody("  Launch  ", sources)

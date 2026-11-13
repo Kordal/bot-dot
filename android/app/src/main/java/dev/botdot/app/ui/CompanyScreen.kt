@@ -353,7 +353,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, conversation: Boolean = fal
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> addFiles(ui, context, uris) }
     fun go() {
-        val start = what.trim().replace(Regex("\\s+"), " ")
+        val start = CompanySetup.creationText(what)
         if (start.isEmpty() || ui.going) return
         if (ui.sources.any { it.uploading }) return ui.tell(tr("Wait for the files to finish uploading."))
         if (conversation && ui.sources.any { it.failed }) return ui.tell(tr("Remove failed files or add them again."))

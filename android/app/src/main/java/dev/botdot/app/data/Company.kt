@@ -324,9 +324,11 @@ object CompanySetup {
         CompanyHeld((element as? JsonObject)?.let { Api.JSON.decodeFromJsonElement(Company.serializer(), it) })
     fun held(answer: String): CompanyHeld = held((Api.JSON.parseToJsonElement(answer) as? JsonObject)?.get("company"))
 
+    fun creationText(text: String): String = text.trim().replace(Regex("\\s+"), " ")
+
     /** `POST /api/company`: what the owner works on, and the sources that are ready (a file still on its way is left out). */
     fun startBody(start: String, sources: List<SourceDraft>, creationKey: String? = null): JsonObject = buildJsonObject {
-        put("start", start.trim())
+        put("start", if (creationKey != null) creationText(start) else start.trim())
         if (creationKey != null) { put("conversation", true); put("key", creationKey) }
         put("sources", sourcesJson(sources))
     }
