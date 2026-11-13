@@ -228,3 +228,97 @@ test("connect-ask's cards in lib: modes, words, giveApp and its holds", () => {
   assert.deepEqual(C.giveApp({ bot, app: 'gmail' }), { held: true, name: 'Gmail' });
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('an app whose Composio slug has a _ or - in it is the same app however a bot writes it', async () => {
+  // "GitHub MCP" is github_mcp in Composio. A bot that has it and asks for "githubmcp" or "GitHub MCP" is told it
+  // has it, with no card; a bot without it gets the card that gives it the connected github_mcp, never a setup.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const has = { id: 'b1', name: 'Coder', connectors: ['github_mcp'] };
+  const lacks = { id: 'b2', name: 'Manager', connectors: [] };
+  const toolkit = async (slug) => {
+    if (slug === 'github_mcp') return { slug, name: 'GitHub MCP' };
+    throw Object.assign(new Error('Toolkit not found'), { composio: true, status: 404 });
+  };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], toolkit, connections: async () => [{ id: 'ca_1', toolkit: 'github_mcp', status: 'ACTIVE' }] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => ({ b1: has, b2: lacks }[id] || null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  for (const app of ['githubmcp', 'GitHub MCP', 'github-mcp']) await assert.rejects(C.need({ bot: has, app }), /GitHub MCP is already yours/, app);
+  const given = await C.need({ bot: lacks, app: 'githubmcp', reason: 'To open pull requests.' });
+  assert.equal(given.given, true);
+  assert.deepEqual([given.ask.kind, given.ask.app, given.ask.name, given.ask.changes], ['bot-change', 'github_mcp', 'GitHub MCP', { connectors: ['github_mcp'] }]);
+  assert.deepEqual(await C.chiefNeed({ app: 'GitHub MCP' }), { connected: true, name: 'GitHub MCP' });
+  assert.ok(!asks.list().some((a) => a.kind === 'connect-app'), 'no Set up card');
+
+  // Not connected at all: the card is under github_mcp as it was written, and a name with spaces still finds googlecalendar.
+  connectors.connections = async () => [];
+  const card = await C.need({ bot: lacks, app: 'github_mcp', reason: 'To open pull requests.' });
+  assert.deepEqual([card.ask.kind, card.ask.app, card.ask.name, card.ask.mode], ['connect-app', 'github_mcp', 'GitHub MCP', 'connect']);
+  connectors.toolkit = async (slug) => {
+    if (slug === 'googlecalendar') return { slug, name: 'Google Calendar' };
+    throw Object.assign(new Error('Toolkit not found'), { composio: true, status: 404 });
+  };
+  assert.equal((await C.chiefNeed({ app: 'google_calendar' })).ask.app, 'googlecalendar');
+  connectors.connections = async () => [{ id: 'ca_1', toolkit: 'github_mcp', status: 'ACTIVE' }];
+  connectors.toolkit = toolkit;
+
+  const apps = require('../lib/connected-apps').create({ connectAsks: C, post: () => {} });
+  await assert.rejects(apps.request({ bot: has, session: {}, app: 'githubmcp', reason: 'To open pull requests.' }), /already yours/);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a card or a Not now from before, under the slug without its _, is the same app as github_mcp', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bot = { id: 'b1', name: 'Manager', connectors: [] };
+  const toolkit = async (slug) => ({ slug, name: slug === 'github_mcp' ? 'GitHub MCP' : slug });
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], toolkit, connections: async () => [{ id: 'ca_1', toolkit: 'github_mcp', status: 'EXPIRED' }] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => (id === 'b1' ? bot : null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  // The card the old spelling made: asked again, the same card, which now keeps Composio's slug for its Connect.
+  const old = asks.add({ kind: 'connect-app', botId: 'b1', app: 'githubmcp', name: 'Githubmcp', mode: 'setup', error: 'No such app', reason: 'To open pull requests.' });
+  const again = await C.need({ bot, app: 'GitHub MCP', reason: 'To open pull requests.' });
+  assert.deepEqual([again.joined, again.ask.id, again.ask.app, again.ask.name, again.ask.mode], [true, old.id, 'github_mcp', 'GitHub MCP', 'reconnect']);
+  assert.equal(asks.list().filter((a) => a.kind === 'connect-app').length, 1);
+  // Its Not now holds the app under either spelling.
+  asks.take(old.id, { declined: true });
+  assert.deepEqual(await C.need({ bot, app: 'githubmcp', reason: 'To open pull requests.' }), { held: true, name: 'GitHub MCP' });
+  // A Not now stored before, under githubmcp, holds github_mcp too.
+  const other = { id: 'b2', name: 'Coder', connectors: [] };
+  const C2 = connectAsksLib.create({ asks, bots: { get: (id) => (id === 'b2' ? other : null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  asks.take(asks.add({ kind: 'connect-app', botId: 'b2', app: 'githubmcp', name: 'Githubmcp', mode: 'connect', reason: 'x' }).id, { declined: true });
+  assert.ok(JSON.parse(fs.readFileSync(path.join(dir, 'asks-declined.json'), 'utf8')).some((d) => d.botId === 'b2' && d.connectApp === 'githubmcp'));
+  assert.deepEqual(await C2.need({ bot: other, app: 'GitHub MCP', reason: 'To open pull requests.' }), { held: true, name: 'GitHub MCP' });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('a card made under githubmcp settles when github_mcp is connected, and the bot gets github_mcp', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bot = { id: 'b1', name: 'Coder', connectors: [] };
+  const bots = { get: (id) => (id === 'b1' ? bot : null), list: () => [bot], update: (id, patch) => Object.assign(bot, patch) };
+  const connectors = { status: () => ({ configured: false, keyRejected: false }), reconnect: () => [], knownConnections: () => [] };
+  const C = connectAsksLib.create({ asks, bots, connectors, appName: asksLib.appWord, carryOnAfter: () => ({}) });
+  // Made without a key: Composio could not be asked, so the card has the slug without its _.
+  const card = C.offer({ botId: 'b1', app: 'github_mcp' }).ask;
+  assert.deepEqual([card.app, card.mode, card.key], ['githubmcp', 'setup', true]);
+  C.listed([{ id: 'ca_9', toolkit: 'github_mcp', status: 'ACTIVE', createdAt: new Date(Date.now() + 1000).toISOString() }], []);
+  assert.ok(!asks.list().some((a) => a.id === card.id), 'the card settled');
+  assert.deepEqual(bot.connectors, ['github_mcp']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a bot's ask for github_mcp, which isn't connected, is a card under github_mcp", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bot = { id: 'b1', name: 'Coder', connectors: [] };
+  const toolkit = async (slug) => {
+    if (slug === 'github_mcp') return { slug, name: 'GitHub MCP' };
+    throw Object.assign(new Error('Toolkit not found'), { composio: true, status: 404 });
+  };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], toolkit, connections: async () => [] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => (id === 'b1' ? bot : null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  const apps = require('../lib/connected-apps').create({ connectAsks: C, post: () => {} });
+  const r = await apps.request({ bot, session: {}, app: 'github_mcp', reason: 'To open pull requests.' });
+  assert.deepEqual([r.asked, r.name, r.mode], [true, 'GitHub MCP', 'connect']);
+  assert.deepEqual(asks.list().filter((a) => a.kind === 'connect-app').map((a) => a.app), ['github_mcp']);
+  fs.rmSync(dir, { recursive: true, force: true });
+});

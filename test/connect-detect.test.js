@@ -26,7 +26,8 @@ const fake = http.createServer((req, res) => {
     const json = (code, d) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(d)); };
     const p = new URL(req.url, 'http://x').pathname;
     if (p === '/connected_accounts' && req.method === 'GET') return json(200, { items: composio.accounts.map((a) => ({ id: a.id, toolkit: { slug: a.app }, status: a.status, created_at: a.created_at })) });
-    if (p.startsWith('/toolkits/')) { const slug = p.split('/').at(-1); return slug === 'nosuchapp' ? json(404, { message: 'Toolkit not found' }) : json(200, { slug, name: slug, composio_managed_auth_schemes: ['OAUTH2'] }); }
+    // A slug with a _ is no app but github_mcp: Composio's googledocs is not google_docs.
+    if (p.startsWith('/toolkits/')) { const slug = p.split('/').at(-1); return slug === 'nosuchapp' || (slug.includes('_') && slug !== 'github_mcp') ? json(404, { message: 'Toolkit not found' }) : json(200, { slug, name: slug, composio_managed_auth_schemes: ['OAUTH2'] }); }
     if (p.startsWith('/tools/execute/')) {
       const action = p.split('/').at(-1);
       composio.executed.push(action);
@@ -34,7 +35,8 @@ const fake = http.createServer((req, res) => {
     }
     if (p.startsWith('/tools/')) {
       const slug = p.split('/').at(-1);
-      return json(200, { slug, toolkit: { slug: slug.split('_')[0].toLowerCase() }, no_auth: false, tags: slug.includes('SEND') ? ['createHint'] : ['readOnlyHint'] });
+      // GHMCP_: an action of GitHub MCP, whose slug in Composio keeps its _ (github_mcp).
+      return json(200, { slug, toolkit: { slug: slug.startsWith('GHMCP_') ? 'github_mcp' : slug.split('_')[0].toLowerCase() }, no_auth: false, tags: slug.includes('SEND') ? ['createHint'] : ['readOnlyHint'] });
     }
     if (p === '/toolkits') return json(200, { items: [], next_cursor: null });
     return json(404, { message: 'Not here' });
@@ -252,4 +254,19 @@ test('the watch of an open sign-in page settles its card once Composio says ACTI
     await sleep(30);
     assert.equal(asked, at, 'nor after its page expired');
   } finally { C.stopAll(); fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("a run on an app whose Composio slug has a _ gets its card under that slug, joining one from before without it", { timeout: 60_000 }, async () => {
+  const bot = await makeBot(srv, { name: 'Coder', emoji: '💻', connectors: ['github_mcp'] });
+  // The card the old spelling made (#1321): asked again, the same card, now under github_mcp.
+  const old = { id: 'oldghmcp', kind: 'connect-app', botId: bot.id, app: 'githubmcp', name: 'Githubmcp', mode: 'setup', error: 'No such app', reason: 'To open pull requests.', at: new Date().toISOString() };
+  fs.writeFileSync(path.join(srv.data, 'asks.json'), JSON.stringify([...(fs.existsSync(path.join(srv.data, 'asks.json')) ? stored() : []), old]));
+  srv.reply('GitHub MCP is not connected yet.');
+  const held = await heldRun(srv, bot, 'List the open issues');
+  const r = await run(held.token, 'github_mcp', 'GHMCP_LIST_ISSUES');
+  assert.equal(r.data.code, 'needs-connect', JSON.stringify(r.data));
+  const cards = await cardsOf(bot);
+  assert.deepEqual(cards.map((c) => [c.id, c.app, c.mode]), [[old.id, 'github_mcp', 'connect']]);
+  srv.unhold();
+  await srv.finished(held.run.id);
 });
