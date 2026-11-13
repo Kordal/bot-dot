@@ -252,3 +252,21 @@ test('an app whose Composio slug has a _ or - in it is the same app however a bo
   await assert.rejects(apps.request({ bot: has, session: {}, app: 'githubmcp', reason: 'To open pull requests.' }), /already yours/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a card or a Not now from before, under the slug without its _, is the same app as github_mcp', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bot = { id: 'b1', name: 'Manager', connectors: [] };
+  const toolkit = async (slug) => ({ slug, name: slug === 'github_mcp' ? 'GitHub MCP' : slug });
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], toolkit, connections: async () => [{ id: 'ca_1', toolkit: 'github_mcp', status: 'EXPIRED' }] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => (id === 'b1' ? bot : null) }, connectors, appName: (s) => (s === 'github_mcp' ? 'GitHub MCP' : asksLib.appWord(s)), carryOnAfter: () => ({}) });
+  // The card the old spelling made: asked again, the same card, which now keeps Composio's slug for its Connect.
+  const old = asks.add({ kind: 'connect-app', botId: 'b1', app: 'githubmcp', name: 'Githubmcp', mode: 'setup', error: 'No such app', reason: 'To open pull requests.' });
+  const again = await C.need({ bot, app: 'GitHub MCP', reason: 'To open pull requests.' });
+  assert.deepEqual([again.joined, again.ask.id, again.ask.app, again.ask.name, again.ask.mode], [true, old.id, 'github_mcp', 'GitHub MCP', 'reconnect']);
+  assert.equal(asks.list().filter((a) => a.kind === 'connect-app').length, 1);
+  // Its Not now holds the app under either spelling.
+  asks.take(old.id, { declined: true });
+  assert.deepEqual(await C.need({ bot, app: 'githubmcp', reason: 'To open pull requests.' }), { held: true, name: 'GitHub MCP' });
+  fs.rmSync(dir, { recursive: true, force: true });
+});
