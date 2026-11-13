@@ -586,7 +586,7 @@ test('a bot asks in one place at a time: written to in its own chat, its questio
   assert.equal((await chatOf(srv, group)).asks, null, 'answered in the other group');
 });
 
-test("a reply that started before the owner answered a question asks nothing: it shows without buttons, and the next reply's question is open (ADR 229)", async () => {
+test("a reply that started before the owner answered a question asks nothing: it shows without buttons, and the next reply's question is open (ADR 232)", async () => {
   const { group, bots: [asker, slow] } = await team(srv, 'Late', ['Late Asker', 'Late Slow']);
   reply(srv, asker, 'PR #15 is ready.\nMay I publish it?\n\n[[choices: Yes, publish | Not yet]]');
   reply(srv, slow, 'PR #15 is ready.\nMay Late Asker publish it?\n\n[[choices: Yes, publish | Not yet]]');
@@ -601,12 +601,13 @@ test("a reply that started before the owner answered a question asks nothing: it
   const yes = (await send(srv, group, { text: 'Yes, publish' })).data;
   assert.equal(yes.question?.runId, asking.runId);
   // Late Slow's reply ends after the answer, asking it again: written without the answer, it asks nothing.
+  const had = ranOf(srv, slow).length; // before the release: its next turn may start at once
   srv.release(writing.rec);
   const stale = await waitFor(async () => repliesIn(await chatOf(srv, group)).find((x) => x.run.botId === slow.id && x.run.groupMessageId === first.id)?.run, { what: "Late Slow's reply" });
   assert.equal((await chatOf(srv, group)).asks, null, 'no buttons under a question the owner already answered');
   assert.equal((await srv.api('/group-chats')).data.find((g) => g.id === group.id).asks, null, 'and no "asks" in the list');
   // Its next turn, started after the answer, asks again: that question is open.
-  const next = await heldTurn(srv, slow, "Late Slow's turn of the answer");
+  const next = { rec: await waitFor(() => ranOf(srv, slow)[had], { what: "Late Slow's turn of the answer" }) };
   letGo(srv, slow);
   srv.release(next.rec);
   const c = await settled(srv, group, yes.id);
