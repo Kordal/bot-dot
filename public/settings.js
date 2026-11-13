@@ -695,16 +695,21 @@ async function loadDeleteCard(root) {
   drawSubscriptionRow(root, session); // the same session says where the subscription is managed
   slot.innerHTML = deleteCardInner(session);
   const btn = $('#delete-account', slot);
-  if (btn) btn.onclick = () => openDeleteAccount(session.account);
+  if (btn) btn.onclick = () => openDeleteAccount(session.account, session.deletionRequest === true);
 }
 
 // The confirmation: what is lost, the 14 days of off-site backups, and the account's name typed before Delete works.
-function openDeleteAccount(account) {
+// `request` (#1313): a managed machine, where the account is paused at once and erased by botdot, its subscription
+// cancelled.
+function openDeleteAccount(account, request = false) {
+  const what = request
+    ? `<p>${tr("Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days. This can't be undone.")}</p>`
+    : `<p>${tr('This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback.')}</p>`;
   const m = openModal(`
     <form id="delete-account-form" autocomplete="off">
       <div class="modal-head"><h2>${tr('Delete your account?')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
-        <p>${tr('This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback.')}</p>
+        ${what}
         <p>${tr('Off-site backups of the account are kept for 14 days, then removed.')}</p>
         <label class="field">${tr('Type your account name, {name}, to confirm', { name: esc(account) })}<input name="name" autocapitalize="none" spellcheck="false" autocomplete="off"></label>
         <p class="req-note hidden" id="delete-account-said" role="alert"></p>

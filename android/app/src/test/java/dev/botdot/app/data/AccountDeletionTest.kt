@@ -68,6 +68,21 @@ class AccountDeletionTest {
         assertEquals("not a string", null, AccountDeletion.page(accounts, obj("""{"deleteAccountPage":42}""")))
     }
 
+    @Test fun aManagedMachineAsksForTheAccountToBeDeleted() = runBlocking {
+        val accounts = listOf("accounts")
+        val managed = obj("""{"account":"solo","admin":false,"deleteAccount":true,"deletionRequest":true,"deleteAccountPage":null}""")
+        assertTrue(AccountDeletion.on(accounts, managed))
+        assertTrue(AccountDeletion.request(managed))
+        assertFalse("elsewhere it deletes at once", AccountDeletion.request(obj("""{"account":"bob","deleteAccount":true}""")))
+        assertEquals(null, AccountDeletion.page(accounts, managed))
+
+        door.enqueue(json("""{"ok":true,"requested":true,"deleted":"/front-door/deleting"}"""))
+        val done = api.deleteAccount("solo")
+        door.takeRequest()
+        assertTrue(done.requested)
+        assertEquals("Your account is being deleted.", AccountDeletion.said(done))
+    }
+
     @Test fun deleteWorksOnlyForTheNameTypedExactly() {
         val account = AccountDeletion.account(obj("""{"account":"bob","deleteAccount":true}"""))
         assertEquals("bob", account)

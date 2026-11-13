@@ -826,13 +826,16 @@ async function signInRoutes(req, res, p) {
     if (!account) { req.resume(); return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' }); }
     const body = (await readJson(req)) || {};
     if (account === ADMIN) return send(res, 409, { error: `${account} is the admin's account: it can't be deleted here. The machine is removed by its admin instead.` });
-    if (!deletesItself(account)) return send(res, 404, { error: 'Not found' });
+    if (!deletesItself(account) && !asksDeletion(account)) return send(res, 404, { error: 'Not found' });
     if (body.name !== account) return send(res, 400, { error: `Type your account's name, ${account}, to delete it.` });
+    if (asksDeletion(account)) return askDeletion(res, account, body);
     const boatGone = await eraseAccount(account, account);
     return send(res, 200, { ok: true, deleted: '/front-door/deleted', ...(boatGone?.failed ? { boat: boatGone.text } : {}) }, { 'Set-Cookie': sessionCookie(null) });
   }
   // What a deleted account's browser sees after "Delete account" (#1307): no session is needed.
   if (p === '/front-door/deleted' && req.method === 'GET') return html(res, 200, pages.deleted());
+  // What it sees after asking for a managed machine's account to be deleted (#1313).
+  if (p === '/front-door/deleting' && req.method === 'GET') return html(res, 200, pages.deleting());
   // What the web page and the Android app ask of their session: whether it is the admin's, which then shows the way
   // to /admin, and whether Feedback goes anywhere (#216): to the admin page, which a machine of one account has not.
   if (p === '/front-door/session' && req.method === 'GET') {
@@ -843,9 +846,10 @@ async function signInRoutes(req, res, p) {
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
     // (ADR 068): a room's maker makes an invite link, and opening one joins.
     // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account). deleteAccountPage
-    // (#1312): where a managed machine's owner starts deleting it instead, a page of botdot.app; null elsewhere.
+    // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
+    // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), deleteAccountPage: MANAGED ? DELETE_ACCOUNT_PAGE : null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1850,9 +1854,26 @@ async function eraseAccount(name, actor) {
 const deletesItself = (account) => !ONE_ACCOUNT && !MANAGED && !!ADMIN && !!account && account !== ADMIN;
 
 // On a managed machine (ADR 154) the account is the machine, which the fleet console runs, so Settings' "Delete account"
-// opens this page instead (#1312): it says how its owner asks for the account to be deleted. The stores ask that
-// deleting can be started in the app.
-const DELETE_ACCOUNT_PAGE = 'https://botdot.app/account-deletion/';
+// asks the console for it instead (#1313, ADR 241): the request goes through the Feedback outbox (ADR 164), the account
+// is suspended and signed out everywhere at once, and the console cancels its subscription and erases the machine
+// behind its operator's passkey. A resume by the console drops the request.
+const asksDeletion = (account) => MANAGED && !!outbox && !!account && account !== ADMIN;
+
+function askDeletion(res, account, body) {
+  if (doors.isSuspended(account)) return send(res, 409, { error: doors.deletingSince(account) ? 'Your account is being deleted already.' : PAUSED });
+  try {
+    outbox.deletion({ id: crypto.randomBytes(16).toString('hex'), account, created: new Date().toISOString(), app: body.app === 'android' ? 'android' : 'web', version: typeof body.version === 'string' ? body.version.slice(0, 40) : null });
+  } catch (e) {
+    console.error(`[front door] couldn't put the deletion request of ${account} in the outbox: ${e.message}`);
+    return send(res, 503, { error: "Your request couldn't be sent. Try again later." });
+  }
+  doors.setSuspended(account, true, Date.now(), { deleting: true });
+  doors.endAccountSessions(account);
+  audited('deletion-requested', { actor: account, account });
+  console.log(`[front door] the owner of ${account} asked for it to be deleted; it is suspended until the console erases the machine`);
+  askMachine(account);
+  return send(res, 200, { ok: true, requested: true, deleted: '/front-door/deleting' }, { 'Set-Cookie': sessionCookie(null) });
+}
 
 // The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
@@ -2070,7 +2091,7 @@ const server = http.createServer(async (req, res) => {
     // A suspended account: its owner is told that and nothing else, whatever they ask, until the admin resumes it.
     if (account && doors.isSuspended(account)) {
       req.resume();
-      if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) return html(res, 503, pages.paused());
+      if ((req.method === 'GET' || req.method === 'HEAD') && !p.startsWith('/api/')) return html(res, 503, doors.deletingSince(account) ? pages.deleting() : pages.paused());
       return send(res, 503, { error: PAUSED, paused: true });
     }
     if (account && calls.isPassedCall(p)) return send(res, 404, { error: 'A call goes to its call address, /call/<account>/<bot>/<job>.' });

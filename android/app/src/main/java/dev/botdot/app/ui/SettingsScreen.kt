@@ -450,7 +450,8 @@ fun SettingsScreen(
             title = { Text(tr("Delete your account?")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(tr("This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback."))
+                    Text(if (dev.botdot.app.data.AccountDeletion.request(session)) tr("Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days. This can't be undone.")
+                        else tr("This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback."))
                     Text(tr("Off-site backups of the account are kept for 14 days, then removed."))
                     Field(deleteTyped, { deleteTyped = it }, label = { Text(tr("Type your account name, {name}, to confirm", "name" to account)) }, singleLine = true,
                         keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii))
