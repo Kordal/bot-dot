@@ -26,7 +26,8 @@ const fake = http.createServer((req, res) => {
     const json = (code, d) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(d)); };
     const p = new URL(req.url, 'http://x').pathname;
     if (p === '/connected_accounts' && req.method === 'GET') return json(200, { items: composio.accounts.map((a) => ({ id: a.id, toolkit: { slug: a.app }, status: a.status, created_at: a.created_at })) });
-    if (p.startsWith('/toolkits/')) { const slug = p.split('/').at(-1); return slug === 'nosuchapp' ? json(404, { message: 'Toolkit not found' }) : json(200, { slug, name: slug, composio_managed_auth_schemes: ['OAUTH2'] }); }
+    // A slug with a _ is no app but github_mcp: Composio's googledocs is not google_docs.
+    if (p.startsWith('/toolkits/')) { const slug = p.split('/').at(-1); return slug === 'nosuchapp' || (slug.includes('_') && slug !== 'github_mcp') ? json(404, { message: 'Toolkit not found' }) : json(200, { slug, name: slug, composio_managed_auth_schemes: ['OAUTH2'] }); }
     if (p.startsWith('/tools/execute/')) {
       const action = p.split('/').at(-1);
       composio.executed.push(action);
