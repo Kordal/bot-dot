@@ -66,6 +66,7 @@ class SpacesTest {
         assertEquals("chief/c-shop", Spaces.defaultChat(running.copy(lead = "gone"), bots, supported))
         assertEquals("chief/c-gym", Spaces.defaultChat(gym.copy(phase = "running", chiefChat = "c-gym"), bots, supported))
         assertEquals("project-chief/p1", Spaces.defaultChat(running.copy(lead = null, chiefChat = null), bots, supported))
+        assertEquals("project-chief/p1", Spaces.defaultChat(running.copy(chiefChat = null), bots, listOf(ManyProjects.CHIEF))) // one-company server
         assertEquals("chief/c-shop", Spaces.defaultChat(running, bots, listOf(ManyProjects.CHIEF)))
         assertEquals(Spaces.CHIEF, Spaces.defaultChat(running, bots, features)) // older server
         assertEquals(Spaces.CHIEF, Spaces.defaultChat(null, bots, supported)) // Home

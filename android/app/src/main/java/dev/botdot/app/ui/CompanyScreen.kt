@@ -189,7 +189,7 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
         scope.launch {
             try {
                 val chat = a.projectChiefChat(c.id)
-                if (api === a && a.project == c.id && chat.isNotEmpty()) { app.store.company.refresh(); open(chat) }
+                if (api === a && app.store.company.value.value?.company?.id == c.id && chat.isNotEmpty()) { app.store.company.refresh(); open(chat) }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Exception) { tell(e.message ?: tr("Couldn't open the chat"))
             } finally { openingChief.remove(c.id) }
@@ -595,7 +595,8 @@ private fun DefaultChatField(ui: CompanyUi, c: Company, ways: CompanyWays) {
     } else {
         val name = LocalChiefName.current
         val id = c.chiefChat
-        val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
+        val waiting = if (route == dev.botdot.app.data.Spaces.CHIEF) chief?.unread ?: 0
+            else if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
         val open = {
             if (route == dev.botdot.app.data.Spaces.CHIEF || ways.onChiefChat == null) ways.onChief()
             else ui.openChief(c, ways.onChiefChat)
