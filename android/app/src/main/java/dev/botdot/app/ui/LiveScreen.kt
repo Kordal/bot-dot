@@ -211,18 +211,6 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     }
                 }
             }
-            // What each bot uses of the account's computer, most memory first (#109).
-            info?.usage?.let { u ->
-                Column(Modifier.fillMaxWidth().background(p.sunk).padding(horizontal = Space.s16, vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                    if (u.text.isNotBlank()) Text(u.text, color = p.muted, fontSize = Type.s12)
-                    (u.bots + listOfNotNull(u.other)).forEach { row ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(row.name, color = p.text, fontSize = Type.s14, maxLines = 1, modifier = Modifier.weight(1f, fill = false).padding(end = Space.s12))
-                            Text(row.text, color = p.muted, fontSize = Type.s14)
-                        }
-                    }
-                }
-            }
         }
     }
 

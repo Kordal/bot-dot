@@ -172,24 +172,27 @@ test('the server announces the use per bot in its features', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('computer-usage'));
 });
 
-test("a bot's computer says what each bot uses of it, most memory first, in the server's words", async () => {
+test("a bot's computer status says what each bot uses of it, most memory first, in the server's words; its dialog does not", async () => {
   state = 'running';
   used = { 1: { memoryBytes: 450e6, cpuPercent: 2.4, processes: 6 }, 2: { memoryBytes: 1.6e9, cpuPercent: 87.6, processes: 30 } };
-  const d = (await srv.api(`/bots/${coder.id}/computer`)).data;
+  const d = (await srv.api(`/bots/${coder.id}/computer/status`)).data;
   assert.deepEqual(d.usage.bots.map((b) => [b.name, b.memoryBytes, b.cpuPercent]), [['Scout', 1.6e9, 87.6], ['Coder', 450e6, 2.4]]);
   assert.equal(d.usage.bots[0].text, '1.6 GB memory · 88% CPU');
   assert.equal(d.usage.bots[1].text, '450 MB memory · 2% CPU');
   assert.equal(d.usage.other.text, '300 MB memory · 1% CPU');
   assert.match(d.usage.text, /one CPU/);
   assert.doesNotMatch(JSON.stringify(d.usage), /share|limit|of \d/i, 'no share or limit in an account (AGENTS.md rule 5)');
+  const before = ops('usage').length;
+  assert.equal((await srv.api(`/bots/${coder.id}/computer`)).data.usage, undefined, 'the screen dialog shows none, so it waits for no measure');
+  assert.equal(ops('usage').length, before);
 });
 
 test('a bot with no screen yet, or nothing on it, uses nothing; a stopped computer has no use to show', async () => {
   used = { 1: { memoryBytes: 450e6, cpuPercent: 0.2, processes: 6 } };
-  const d = (await srv.api(`/bots/${scout.id}/computer`)).data;
+  const d = (await srv.api(`/bots/${scout.id}/computer/status`)).data;
   assert.deepEqual(d.usage.bots.map((b) => [b.name, b.text]), [['Coder', '450 MB memory · 0% CPU'], ['Scout', 'nothing running']]);
   state = 'stopped';
-  assert.equal((await srv.api(`/bots/${scout.id}/computer`)).data.usage, undefined);
+  assert.equal((await srv.api(`/bots/${scout.id}/computer/status`)).data.usage, undefined);
   state = 'running';
 });
 

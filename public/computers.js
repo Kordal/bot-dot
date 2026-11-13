@@ -31,14 +31,6 @@ function fitScreen(m, ratio = 4 / 3) {
   m.style.setProperty('--screen-w', `${Math.max(240, Math.floor(room * ratio))}px`);
 }
 
-// What each bot uses of the account's computer (#109), as the server words it: its line, then a row per bot, most
-// memory first, and what runs on no bot's screen. Nothing for a server from before, or a computer that is not on.
-function usageRows(usage) {
-  if (!usage?.bots) return '';
-  const row = (name, text) => `<div class="usage-row"><span class="usage-name">${esc(name)}</span><span class="muted">${esc(text)}</span></div>`;
-  return `<div class="muted usage-text">${esc(usage.text || '')}</div>${usage.bots.map((b) => row(b.name, b.text)).join('')}${usage.other ? row(usage.other.name || '', usage.other.text) : ''}`;
-}
-
 // A bot's machine of its own on boat.dev (ADR 088): its desktop from boat.dev's stream (#564), at its 16:9, and its line
 // in the server's words. The page asks botdot for a new address each time it opens the screen, and again every few
 // minutes while it is open, which keeps the machine on and the full-screen link fresh; an address is never kept. As
@@ -162,10 +154,9 @@ function openScreen(botId) {
       </div>
       <div class="req-note hidden" id="screen-update"><span id="screen-update-text"></span> <button class="btn sm" id="screen-update-yes"></button></div>
       <div class="req-note hidden" id="screen-old"><span id="screen-old-text"></span> <button class="btn sm" id="screen-old-copy"></button> <button class="btn sm danger" id="screen-old-erase"></button></div>
-      <div class="screen-usage hidden" id="screen-usage"></div>
     </div>`);
   // The account's computer as the server describes it (#107): the words of its reset, of an update when one is
-  // offered, of the bot's old computer of its own while it has one, and what each bot uses of it (#109). Nothing of
+  // offered, of the bot's old computer of its own while it has one. Nothing of
   // them is this page's own.
   let info = null;
   const describe = () => api(`/bots/${botId}/computer`).then((d) => {
@@ -180,8 +171,6 @@ function openScreen(botId) {
       $('#screen-old-copy', m).textContent = d.old.copy;
       $('#screen-old-erase', m).textContent = d.old.erase;
     }
-    $('#screen-usage', m).innerHTML = usageRows(d.usage);
-    $('#screen-usage', m).classList.toggle('hidden', !d.usage?.bots);
     frame();
   }).catch(() => {});
   describe();
