@@ -439,6 +439,23 @@ test('a Reconnect card is not settled by another card\'s sign-in of the same app
   assert.ok(left.includes(again.id), 'the Reconnect card waits for its own sign-in');
 });
 
+test('a card that waits for the same app written another way settles under the slug of the one signed in', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bots = { b1: { id: 'b1', connectors: [] }, b2: { id: 'b2', connectors: [] } };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [] };
+  const C = connectAsksLib.create({ asks, bots: { get: (id) => bots[id] || null, update: (id, ch) => Object.assign(bots[id], ch), list: () => Object.values(bots) }, connectors, appName: () => 'GitHub MCP', carryOnAfter: () => ({}) });
+  // One made without a key keeps the slug without its _; the other has Composio's slug.
+  const other = C.offer({ botId: 'b2', app: 'githubmcp' }).ask;
+  const made = C.offer({ botId: 'b1', app: 'githubmcp' }).ask;
+  const signed = asks.mark((x) => x.id === made.id, { app: 'github_mcp' })[0];
+  assert.deepEqual([signed.app, other.app], ['github_mcp', 'githubmcp']);
+  C.settle(signed, 'ca_7');
+  assert.ok(!asks.list().some((x) => x.id === other.id), 'the other card settled with it');
+  assert.deepEqual([bots.b1.connectors, bots.b2.connectors], [['github_mcp'], ['github_mcp']]);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
 // The route words Composio's refusal with Claude (connectRefusal); a Connect pressed again meanwhile takes the card.
 async function refusedWhileWorded(second) {
   const bot = await makeBot(srv, { name: `Worded ${second}`, emoji: '💬' });
