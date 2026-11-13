@@ -64,7 +64,7 @@ data class PlanView(val plan: Plan, val stopped: Boolean, val id: String) {
 
         /** A Chief chat: its pending reply's plan, else its last reply's when that failed or was stopped before its plan was done. */
         fun ofChief(chatId: String, messages: List<ChiefMessage>, dismissed: (String) -> Boolean): PlanView? {
-            val last = messages.lastOrNull { it.role == "chief" } ?: return null
+            val last = messages.lastOrNull { it.role == "chief" && it.projectUpdate == null } ?: return null
             val plan = last.plan ?: return null
             val id = chiefId(chatId, last)
             if (last.pending) return PlanView(plan, stopped = false, id = id)

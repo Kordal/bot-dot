@@ -611,7 +611,7 @@ function aboutHTML(m) {
   return `<button class="about" data-about-team="${esc(t.id || '')}" style="--c:${esc(aboutColor(t.color))}"><span class="about-sq"></span>${p ? `<span class="about-project">${esc(p)}</span><span class="about-sep">›</span>` : ''}<span class="about-team">${esc(t.name)}</span></button>`;
 }
 const aboutColor = (c) => (/^#[0-9a-f]{6}$/i.test(String(c || '')) ? c : 'var(--muted)');
-const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, i === all.length - 1, at));
+const messageHTML = (m, i, all, at = i) => (m.role === 'user' ? userBubble(m) : m.role === 'suggestion' ? suggestionBubble(m) : m.role === 'report' ? reportBubble(m, at) : steeredBubbles(m.steered) + chiefBubble(m, !m.projectUpdate && all.slice(i + 1).every((x) => x.projectUpdate), at));
 // What the owner steered into a reply while the Chief worked (ADR 040): their messages, before that reply, without buttons.
 const steeredBubbles = (list) => (Array.isArray(list) ? list : []).map((x) => `<div class="bubble-row from-me" data-steered><div class="stack mine"><div class="bubble from-me">${escMentions(String(x.text || ''), CHIEF_BOT.id)}${filesHTML(Array.isArray(x.attachments) ? x.attachments : [], `chief:${state.chatId}`)}</div><div class="bubble-meta on-hover"><span>${tr('Steered · {time}', { time: esc(msgTime(x.at)) })}</span>${copyBtn(String(x.text || ''))}</div></div></div>`).join('');
 
@@ -691,7 +691,7 @@ async function showChat(id) {
   // Its reply that is going on, and what waits for it: both as the server has them now.
   if (chat.busy) chiefTurns.set(id, chiefActivity(chat.messages.filter((m) => m.pending).pop()?.activity)); else chiefTurns.delete(id);
   chiefQueued.set(id, queuedList(chat.queued));
-  thread._last = chat.messages.filter((m) => m.role === 'chief').pop() || null; // the reply whose plan shows above the box
+  thread._last = chat.messages.filter((m) => m.role === 'chief' && !m.projectUpdate).pop() || null; // the reply whose plan shows above the box
   globalThis.drawChiefPlan?.(id, thread._last);
   placeStatusLines();
   updateChatNeeds(thread, 'chief');

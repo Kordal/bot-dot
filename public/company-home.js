@@ -445,9 +445,11 @@
   // How often the lead reports (#696), and its latest report.
   const REPORT_RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
   function reportHTML(team) {
+    const combined = (state.features || []).includes('project-updates');
     const r = team.lastReport;
+    if (combined && !r) return '';
     const by = r && botById(r.bot);
-    return `<div class="cf-report-head"><span class="co-k">${tr('Reports')}</span><select class="co-asks" data-cf-report aria-label="${tr('Reports')}">${REPORT_RHYTHMS.map(([k, label]) => `<option value="${k}"${(team.report || '') === k ? ' selected' : ''}>${label()}</option>`).join('')}</select></div>
+    return `<div class="cf-report-head"><span class="co-k">${tr('Reports')}</span>${combined ? '' : `<select class="co-asks" data-cf-report aria-label="${tr('Reports')}">${REPORT_RHYTHMS.map(([k, label]) => `<option value="${k}"${(team.report || '') === k ? ' selected' : ''}>${label()}</option>`).join('')}</select>`}</div>
       ${r ? `<div class="cf-report">${by ? botFigure(by.color, 'idle', 'sm', by.outfit) : ''}<div class="cf-report-text">${esc(r.text)}<span class="cf-report-at">${esc(msgTime(r.at))}</span></div></div>` : ''}`;
   }
   function teamHTML(c, team) {

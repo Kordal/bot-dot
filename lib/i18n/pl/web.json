@@ -1819,5 +1819,10 @@
   "Discuss the first step with the Chief. Review the proposal before anything starts.": "Omów pierwszy krok z szefem personelu. Zatwierdź propozycję, zanim praca się zacznie.",
   "Review first step": "Sprawdź pierwszy krok",
   "Remove failed files or add them again.": "Usuń pliki, których nie udało się przesłać, lub dodaj je ponownie.",
-  "Approve first step": "Zatwierdź pierwszy krok"
+  "Approve first step": "Zatwierdź pierwszy krok",
+  "Project updates": "Aktualizacje projektu",
+  "Existing schedules": "Dotychczasowe terminy",
+  "One update in the primary conversation. Questions and approvals stay in Needs you.": "Jedna aktualizacja w głównej rozmowie. Pytania i zgody pozostają w Czeka na ciebie.",
+  "Existing report times stay combined until you choose a new rhythm.": "Dotychczasowe terminy raportów są łączone, dopóki nie wybierzesz nowej częstotliwości.",
+  "The last project update could not be delivered.": "Nie udało się dostarczyć ostatniej aktualizacji projektu."
 }

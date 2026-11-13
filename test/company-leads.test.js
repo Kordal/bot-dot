@@ -110,14 +110,15 @@ after(async () => { await srv.stop(); });
 
 const runOf = (bot, words) => srv.nextRun((x) => x.args.includes(`${bot.emoji} ${bot.name}`) && x.stdin.includes(words), `a run of ${bot.name} with "${words}"`);
 
-test('a new lead asks how often to report; its answer is kept on the team, and its report shows on the page', async () => {
+test('legacy report tools keep working, without automatic questions for each lead', async () => {
   srv.hold();
   let r = await srv.api('/company/teams', { method: 'POST', body: { name: 'Growth', bots: [a.id, b.id] } });
   assert.equal(r.status, 200, JSON.stringify(r.data));
   const team = r.data.teams[0];
-  const asked = await runOf(a, 'how often you should send them the team');
+  await srv.api(`/bots/${a.id}/run`, { method: 'POST', body: { prompt: 'Keep the report rhythm I asked for' } });
+  const asked = await runOf(a, 'Keep the report rhythm I asked for');
   assert.equal(asked.self.env.SELF_LEAD, '1');
-  await waitFor(async () => (await srv.api('/company')).data.company.teams[0].asked === a.id, { what: 'the lead marked asked' });
+  assert.equal((await srv.api('/company')).data.company.teams[0].asked, undefined, 'no per-lead setup question');
 
   // A member may not; the lead keeps what the owner answered, and posts its report.
   await srv.api(`/bots/${b.id}/run`, { method: 'POST', body: { prompt: 'hi' } });
@@ -129,7 +130,7 @@ test('a new lead asks how often to report; its answer is kept on the team, and i
   srv.unhold();
   srv.release(asked);
   srv.release(member);
-  const finished = await waitFor(async () => (await srv.api(`/runs?botId=${a.id}`)).data.find((x) => x.trigger === 'project' && x.status !== 'running'), { what: "the lead's run" });
+  const finished = await waitFor(async () => (await srv.api(`/runs?botId=${a.id}`)).data.find((x) => x.prompt === 'Keep the report rhythm I asked for' && x.status !== 'running'), { what: "the lead's run" });
   assert.equal(finished.notificationAudience, 'owner');
   let t = (await srv.api('/company')).data.company.teams[0];
   assert.equal(t.report, 'weekly');
@@ -141,23 +142,24 @@ test('a new lead asks how often to report; its answer is kept on the team, and i
   r = await srv.asChief(`/company/teams/${team.id}`, { method: 'PUT', body: { report: 'often' } });
   assert.equal(r.status, 400);
 
-  // A new lead is asked again.
+  // Changing the lead no longer starts another report-preference interview.
+  const before = (await srv.api('/runs')).data.length;
   await srv.api(`/company/teams/${team.id}`, { method: 'PUT', body: { lead: b.id } });
-  await runOf(b, 'how often you should send them the team');
-  t = (await srv.api('/company')).data.company.teams[0];
-  await waitFor(async () => (await srv.api('/company')).data.company.teams[0].asked === b.id, { what: 'the new lead marked asked' });
   await srv.api(`/company/teams/${team.id}`, { method: 'PUT', body: { lead: a.id } });
-  await runOf(a, 'how often you should send them the team');
+  assert.equal((await srv.api('/runs')).data.length, before);
 });
 
-test("a lead's report counts a draft as done only when its file is in the project's folder", async () => {
+test('a saved lead report is included in one project update rather than starting another report run', async () => {
   const co = (await srv.api('/company')).data.company;
   const raw = JSON.parse(fs.readFileSync(path.join(srv.data, 'company.json'), 'utf8'));
   const from = new Date(Date.now() - 3 * 86_400_000).toISOString();
   writeData(path.join(srv.data, 'company.json'), { ...raw, teams: raw.teams.map((t) => ({ ...t, report: 'daily', reportFrom: from })) });
+  const before = (await srv.api('/runs')).data.length;
   await srv.api(`/company/teams/${co.teams[0].id}`, { method: 'PUT', body: { name: 'Growth' } });
-  const run = await runOf(a, 'daily report of team');
-  assert.match(run.stdin, /First check the project's folder \(list_project_files, or the folder on your computer\): a draft, text or file counts as done or waiting for the owner only when it is there, whatever a run or a member said/);
+  const r = await srv.api('/company/updates/now', { method: 'POST', body: { key: 'saved-team-report' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.match(r.data.update.text, /Done: landing page/);
+  assert.equal((await srv.api('/runs')).data.length, before, 'Chief snapshot starts no bot run');
 });
 
 test('approving the plan starts each lead on its team\'s items', async () => {

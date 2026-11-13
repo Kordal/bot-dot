@@ -62,6 +62,8 @@ data class Company(
     val checkin: CheckinDue? = null,
     val suggestion: Suggested? = null,
     val decisions: List<Decision> = emptyList(),
+    val updates: ProjectUpdateSetting? = null,
+    val lastUpdate: ProjectUpdateReceipt? = null,
     val standup: StandupSetting? = null,
     val standupToday: Standup? = null,
     /** Several projects (#689, #701, #702): its letter's colour in the list, archived (folded under Archived), its folder. */
@@ -531,4 +533,16 @@ object CompanySetup {
 
     /** A value of the feed's `company` event, or null for an event of another kind. */
     fun event(ev: FeedEvent): CompanyHeld? = if (ev.type == FEATURE && "company" in ev.data) held(ev.data["company"].takeIf { it !is JsonNull }) else null
+}
+
+/** One update rhythm, with schedule words supplied by the server. */
+@Serializable
+data class ProjectUpdateSetting(val every: String = "existing", val schedules: List<String> = emptyList())
+
+@Serializable
+data class ProjectUpdateReceipt(val key: String = "", val at: String = "", val botId: String? = null, val chatId: String? = null, val error: String? = null)
+
+object ProjectUpdates {
+    const val FEATURE = "project-updates"
+    fun choices(setting: ProjectUpdateSetting?) = (if (setting?.every == "existing" || setting == null) listOf("existing") else emptyList()) + listOf("off", "daily", "twice-weekly", "weekly")
 }

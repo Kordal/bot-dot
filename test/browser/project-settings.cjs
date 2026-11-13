@@ -37,7 +37,7 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top [data-project-settings]').click();
     const ps = page.locator('.ps-page');
     await ps.locator('.ps-top h1', { hasText: 'Botdot' }).waitFor();
-    assert.deepEqual(await ps.locator('.ps-nav button').allInnerTexts(), ['General', 'Goal', 'Team', 'Reports', 'Rules', 'Archive or delete']);
+    assert.deepEqual(await ps.locator('.ps-nav button').allInnerTexts(), ['General', 'Goal', 'Team', 'Project updates', 'Rules', 'Archive or delete']);
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-top.png') });
 
     // Name: saved on Enter, the tree follows.
@@ -68,11 +68,10 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await ps.locator('[data-ps-never-form] input').fill('Email customers');
     await ps.locator('[data-ps-never-form] input').press('Enter');
     await until(async () => (await get('p1')).never.join('|') === 'Spend money|Email customers', 'rule');
-    // A lead's report rhythm and the standup.
-    await ps.locator('[data-ps-team="t1"][data-ps-report="weekly"]').click();
-    await until(async () => (await get('p1')).teams[0].report === 'weekly', 'report');
-    await ps.locator('.switch:has([data-ps-standup-on]) > span').click();
-    await until(async () => (await get('p1')).standup.on === false, 'standup');
+    // One preference replaces the lead report and standup controls.
+    assert.equal(await ps.locator('[data-ps-report], [data-ps-standup-on]').count(), 0);
+    await ps.locator('[data-ps-updates]').selectOption('weekly');
+    await until(async () => (await get('p1')).updates.every === 'weekly', 'project updates');
     // A team's name and lead.
     await ps.locator('[data-ps-edit-team="t1"]').click();
     await ps.locator('[data-ps-team-name]').fill('Growth');

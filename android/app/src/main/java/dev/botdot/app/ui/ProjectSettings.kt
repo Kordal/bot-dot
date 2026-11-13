@@ -126,7 +126,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
         }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             SECTIONS.forEach { k ->
-                Text(sectionName(k), color = p.text, fontSize = Type.s14, modifier = Modifier.clip(Radius.pill).background(p.fill)
+                Text(if (k == "reports" && dev.botdot.app.data.ProjectUpdates.FEATURE in features) tr("Project updates") else sectionName(k), color = p.text, fontSize = Type.s14, modifier = Modifier.clip(Radius.pill).background(p.fill)
                     .clickable { at[k]?.let { y -> scope.launch { scroll.animateScrollTo(y) } } }.padding(horizontal = Space.s12, vertical = Space.s8))
             }
         }
@@ -134,7 +134,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
             Column(Modifier.widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 @Composable fun Card(k: String, content: @Composable () -> Unit) = Column(Modifier.onGloballyPositioned { at[k] = it.positionInParent().y.toInt() }) {
                     SettingsGroup { Column(Modifier.padding(vertical = Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
-                        Text(sectionName(k), color = if (k == "archive") p.err else p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
+                        Text(if (k == "reports" && dev.botdot.app.data.ProjectUpdates.FEATURE in features) tr("Project updates") else sectionName(k), color = if (k == "archive") p.err else p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                         content()
                     } }
                 }
@@ -466,6 +466,16 @@ private fun TeamEditor(d: TeamDraft, bots: List<Bot>, onDelete: (() -> Unit)?, o
 @Composable
 private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
     val p = LocalPaper.current
+    if (dev.botdot.app.data.ProjectUpdates.FEATURE in features) {
+        ProjectUpdateRows(c) { every ->
+            try {
+                val api = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+                ui.took(api.setProjectUpdates(every))
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e
+            } catch (e: Exception) { ui.tell(e.message) }
+        }
+        return
+    }
     if (CompanyFloor.LEADS in features) c.teams.forEach { t ->
         Labeled(t.name) {
             Chips(ManyProjects.RHYTHMS.map { it to rhythmName(it) }, t.report.orEmpty()) { every -> ui.call({ it.setReportRhythm(t.id, every) }) }
@@ -483,6 +493,24 @@ private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
                 modifier = Modifier.semantics { contentDescription = tr("Morning standup") })
         }
     }
+}
+
+@Composable
+internal fun ProjectUpdateRows(c: Company, onChange: suspend (String) -> Unit) {
+    val p = LocalPaper.current
+    val scope = rememberCoroutineScope()
+    var saving by remember(c.id) { mutableStateOf(false) }
+    val every = c.updates?.every ?: "existing"
+    Chips(dev.botdot.app.data.ProjectUpdates.choices(c.updates).map { it to if (it == "existing") tr("Existing schedules") else rhythmName(it) }, every, enabled = !saving) { picked ->
+        if (!saving) {
+            saving = true
+            scope.launch { try { onChange(picked) } finally { saving = false } }
+        }
+    }
+    Text(tr("One update in the primary conversation. Questions and approvals stay in Needs you."), color = p.muted, fontSize = Type.s14)
+    if (every == "existing") Text(tr("Existing report times stay combined until you choose a new rhythm."), color = p.muted, fontSize = Type.s14)
+    c.updates?.schedules.orEmpty().forEach { Text(it, color = p.muted, fontSize = Type.s14) }
+    if (c.lastUpdate?.error != null) Text(tr("The last project update could not be delivered."), color = p.err, fontSize = Type.s14)
 }
 
 private fun rhythmName(k: String) = when (k) { "daily" -> tr("Daily"); "twice-weekly" -> tr("Twice a week"); "weekly" -> tr("Weekly"); else -> tr("Off") }

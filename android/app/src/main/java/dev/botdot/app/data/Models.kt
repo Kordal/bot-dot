@@ -620,6 +620,7 @@ data class AboutProject(val id: String = "", val name: String = "")
 @Serializable
 data class ChiefMessage(
     val role: String,
+    val projectUpdate: String? = null,
     val activity: ChiefActivity? = null,
     val text: String = "",
     val attachments: List<Attachment>? = null,

@@ -3,6 +3,8 @@
 - **Status:** Accepted (2026-10-29)
 - **Owning task:** [#698](https://github.com/Kordal/bot-dot/issues/698), spec [#687](https://github.com/Kordal/bot-dot/issues/687)
 
+**Automatic reporting is superseded by [ADR 240](240-project-updates-use-recorded-work-in-the-primary-conversation.md).** Legacy settings and history remain; approved plan execution remains unchanged.
+
 ## Context
 
 A project (ADR 110) has teams, each with one lead that answers for its team (ADR 114). The owner wants each workday's start in one place: what every team got done, does next and is blocked on, without opening every lead's chat, and one message rather than one per lead.

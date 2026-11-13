@@ -12,7 +12,7 @@
   const CROWN = '<svg class="ps-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   // lib/company.js PROJECT_COLORS.
   const COLORS = ['#ff6b35', '#34c759', '#3aa0ff', '#8e7cff', '#ffb020', '#ff5c8a', '#2ec4b6', '#b07cff'];
-  const SECTIONS = [['general', () => tr('General')], ['goal', () => tr('Goal')], ['team', () => tr('Team')], ['reports', () => tr('Reports')], ['rules', () => tr('Rules')], ['archive', () => tr('Archive or delete')]];
+  const SECTIONS = [['general', () => tr('General')], ['goal', () => tr('Goal')], ['team', () => tr('Team')], ['reports', () => (state.features || []).includes('project-updates') ? tr('Project updates') : tr('Reports')], ['rules', () => tr('Rules')], ['archive', () => tr('Archive or delete')]];
   const RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
   // How the floor draws an objective (#690, company-floor.js displayOf): lib/company.js DISPLAYS.
   const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
@@ -140,6 +140,16 @@
   }
 
   function reportsHTML(c) {
+    if ((state.features || []).includes('project-updates')) {
+      const every = c.updates?.every || 'existing';
+      const choices = [...(every === 'existing' ? [['existing', () => tr('Existing schedules')]] : []), ...RHYTHMS.map(([key, name]) => [key || 'off', name])];
+      const select = `<select class="ps-input" data-ps-updates aria-label="${tr('Project updates')}">${choices.map(([key, name]) => `<option value="${key}"${key === every ? ' selected' : ''}>${name()}</option>`).join('')}</select>`;
+      return section('reports', tr('Project updates'), row(tr('Project updates'), select)
+        + `<p class="ps-hint">${tr('One update in the primary conversation. Questions and approvals stay in Needs you.')}</p>`
+        + (every === 'existing' ? `<p class="ps-hint">${tr('Existing report times stay combined until you choose a new rhythm.')}</p>` : '')
+        + (c.updates?.schedules || []).map((s) => `<p class="ps-hint">${esc(s)}</p>`).join('')
+        + (c.lastUpdate?.error ? `<p class="ps-hint">${tr('The last project update could not be delivered.')}</p>` : ''));
+    }
     const leads = c.teams.map((t) => row(esc(t.name), seg('data-ps-report', RHYTHMS, t.report || '', ` data-ps-team="${esc(t.id)}"`))).join('');
     const standup = `<input class="ps-input ps-time" type="time" data-ps-standup-time value="${esc(c.standup.time)}" aria-label="${tr('Standup time')}"${c.standup.on ? '' : ' disabled'} /><label class="switch"><input type="checkbox" data-ps-standup-on ${c.standup.on ? 'checked' : ''} aria-label="${tr('Morning standup')}"><span></span></label>`;
     return section('reports', tr('Reports'), leads + row(tr('Morning standup'), standup));
@@ -250,12 +260,13 @@
       $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
     }
     wireTeam(root, c);
-    // Reports and the standup.
+    $('[data-ps-updates]', root)?.addEventListener('change', (e) => call('/company/updates', 'PUT', { every: e.target.value }));
+    // Legacy reports and the standup.
     $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));
     const on = $('[data-ps-standup-on]', root);
-    on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });
+    if (on) on.onchange = () => call('/company/standup', 'PUT', { on: on.checked });
     const time = $('[data-ps-standup-time]', root);
-    time.onchange = () => { if (time.value) call('/company/standup', 'PUT', { time: time.value }); };
+    if (time) time.onchange = () => { if (time.value) call('/company/standup', 'PUT', { time: time.value }); };
     // Rules.
     $$('[data-ps-unnever]', root).forEach((b) => (b.onclick = () => patch({ never: c.never.filter((_, i) => i !== Number(b.dataset.psUnnever)) })));
     const neverForm = $('[data-ps-never-form]', root);
