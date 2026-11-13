@@ -286,7 +286,11 @@
       };
     }
     // Reports and the standup.
-    $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => call('/company/bots', 'PUT', { bots: (c.bots || []).filter((id) => id !== b.dataset.psUnbot) })));
+    // One removal at a time: each sends the whole list, so a second one waits for the first one's answer.
+    $$('[data-ps-unbot]', root).forEach((b) => (b.onclick = () => {
+      $$('[data-ps-unbot]', root).forEach((x) => (x.disabled = true));
+      call('/company/bots', 'PUT', { bots: (c.bots || []).filter((id) => id !== b.dataset.psUnbot) });
+    }));
     const projectLead = $('[data-ps-project-lead]', root);
     if (projectLead) projectLead.onchange = () => patch({ lead: projectLead.value || null });
     $$('[data-ps-report]', root).forEach((b) => (b.onclick = () => call(`/company/teams/${encodeURIComponent(b.dataset.psTeam)}`, 'PUT', { report: b.dataset.psReport || null })));

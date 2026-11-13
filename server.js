@@ -632,7 +632,7 @@ const CHIEF_ROUTES = [
   // The Project Manager (ADR 217): it writes in a team's chat and reads it.
   ['POST', /^company\/teams\/[^/]+\/message$/],
   ['GET', /^company\/teams\/[^/]+\/chat$/],
-  ['PUT', /^(company\/(plan|suggestion|standup|layout|dates)|company\/(teams|objectives|todos|events|cards)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
+  ['PUT', /^(company\/(plan|suggestion|standup|layout|dates|bots)|company\/(teams|objectives|todos|events|cards)\/[^/]+|chief\/files\/[^/]+|chief\/jobs\/[^/]+|bots\/[^/]+|skills\/[^/]+|group-chats\/[^/]+|vault\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|memory\/settings|memory\/semantic|settings\/quiet-hours|settings\/writing-first|settings\/checkup|settings\/chief-name|dashboard\/layout|dashboard\/tiles\/[^/]+|dashboard\/tiles\/[^/]+\/value)$/],
   ['DELETE', /^(company\/(events|cards|objectives)\/[^/]+|chief\/jobs\/[^/]+|chief\/connector-actions|chief\/after-web|bots\/[^/]+|bots\/[^/]+\/files\/[^/]+|bots\/[^/]+\/jobs\/[^/]+|bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)|chief\/reminders\/[^/]+|dashboard\/tiles\/[^/]+|tools\/[^/]+\/[^/]+)$/],
 ];
 require('./lib/project-manager').install(); // a team's answer to the Project Manager reaches its chat (ADR 217)

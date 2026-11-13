@@ -26,9 +26,9 @@ test('a bot in no team is told the project and uses its to-do; a bot of no proje
   await srv.api('/company/bots', { method: 'PUT', body: { bots: [writer.id] } });
   const { run, rec, token } = await heldRun(srv, writer, 'What is on?');
   assert.match(rec.system, /You are a bot of the owner's project "Fernhill", in none of its teams/);
-  const r = (await self(srv, token, 'todos', { action: 'add', text: 'Draft the post', who: 'me' })).data;
+  const r = (await self(srv, token, 'todos', { action: 'add', text: 'Draft the post', assignee: 'me' })).data;
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.ok((await srv.api('/company')).data.company.todos.some((x) => x.text === 'Draft the post'));
+  assert.ok((await srv.api('/company')).data.company.todos.some((x) => x.text === 'Draft the post' && x.bot === writer.id));
   srv.unhold(); srv.release(rec); await srv.finished(run.id);
   const o = await heldRun(srv, other, 'Hi');
   assert.doesNotMatch(o.rec.system, /Fernhill/);

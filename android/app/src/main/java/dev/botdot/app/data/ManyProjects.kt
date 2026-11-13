@@ -96,7 +96,10 @@ object ManyProjects {
     }
 
     /** What waits for the owner in a project: the sum of its bots' [asks]. */
-    fun waits(c: Company, bots: List<Bot>, asks: (String) -> Int): Int = branches(c, bots).sumOf { b -> b.bots.sumOf { asks(it.id) } }
+    fun waits(c: Company, bots: List<Bot>, asks: (String) -> Int): Int {
+        val ids = bots.map { it.id }.toSet()
+        return (branches(c, bots).flatMap { b -> b.bots.map { it.id } } + c.bots.filter { it in ids }).distinct().sumOf(asks)
+    }
 
     /** Whether a node of the tree is open: as the owner left it, else a project while it is the one shown, a team always. */
     fun isOpen(folds: Map<String, Boolean>, key: String, shown: String?): Boolean =

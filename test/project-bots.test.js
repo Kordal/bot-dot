@@ -70,3 +70,12 @@ test("the Chief's note and a mention name the bots in no team", () => {
   assert.match(s.mentionFacts(name).text, /Bots in no team: Writer/);
   done();
 });
+
+test('the Project Manager and the bots in no team may always message each other', () => {
+  const { s, done } = store([]);
+  s.setBots(['b', 'c']);
+  s.patch({ lead: 'a' });
+  assert.deepEqual(s.teamLinks('a').sort(), ['b', 'c']);
+  assert.deepEqual(s.teamLinks('b'), ['a']);
+  done();
+});
