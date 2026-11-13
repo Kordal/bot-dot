@@ -123,9 +123,14 @@ test("the owner picks a bot as the Project Manager: it talks to the teams from i
   assert.match(turn.system + turn.stdin, /the Project Manager\] 🧭 Boss/);
   assert.match(turn.system + turn.stdin, /The Project Manager wrote the message below, not the owner/);
   assert.equal(turn.self.env.SELF_PM, '0', "a team's turn answers as a member");
-  const member = await self(srv, turn.self.env.RUN_TOKEN, 'team-chat', { team: team.id });
-  assert.equal(member.status, 403);
-  assert.match(member.data.error, /no project's Project Manager/);
+  // In a turn of a team's chat no bot writes with team_chat, the Project Manager neither, and a bot that runs no
+  // project never does.
+  await srv.api('/company', { method: 'PATCH', body: { lead: lead.id } });
+  const inTurn = await self(srv, turn.self.env.RUN_TOKEN, 'team-chat', { team: team.id });
+  assert.equal(inTurn.status, 403);
+  assert.match(inTurn.data.error, /not a turn in a team's chat/);
+  assert.throws(() => require('../lib/project-manager').projectOfManager(writer.id, { team: team.id }), /no project's Project Manager/);
+  await srv.api('/company', { method: 'PATCH', body: { lead: boss.id } });
   srv.release(turn);
   // The team's answer comes back to the bot's own chat, in a run botdot starts.
   const told = await srv.nextRun((x) => x.args.includes(`${boss.emoji} ${boss.name}`) && x.stdin.includes('<team-answer>'), "the Project Manager's run with the team's answer");
