@@ -310,6 +310,7 @@ class MainActivity : ComponentActivity() {
                     scope.launch { app.settings.setProject(id) }
                     if (keypad) {
                         val project = projects.firstOrNull { it.id == id }
+                        val entryAtRequest = nav.currentBackStackEntry
                         scope.launch {
                             runCatching {
                                 val needsManager = dev.botdot.app.data.ManyProjects.MANAGER_BOT in features.orEmpty() && project?.lead != null
@@ -319,7 +320,7 @@ class MainActivity : ComponentActivity() {
                                     val api = app.api.value ?: return@runCatching
                                     "chief/${api.projectChiefChat(id)}"
                                 } else to
-                                if (space == id && !newSpace && conversationRequest == request) {
+                                if (space == id && !newSpace && conversationRequest == request && nav.currentBackStackEntry === entryAtRequest) {
                                     if (destination == Spaces.CHIEF) nav.popBackStack("home", inclusive = false) else nav.openBeside(destination)
                                 }
                             }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; android.widget.Toast.makeText(this@MainActivity, it.message ?: tr("Couldn't open the chat"), android.widget.Toast.LENGTH_LONG).show() }
@@ -412,6 +413,7 @@ class MainActivity : ComponentActivity() {
                 @Composable
                 fun ProjectPane(modifier: Modifier) {
                     val request = conversationRequest
+                    val entryAtRequest = nav.currentBackStackEntry
                     Box(modifier) {
                         CompanyScreen(app, wide = true, ways = CompanyWays(
                             onBot = { open("bot/$it") },
@@ -424,7 +426,7 @@ class MainActivity : ComponentActivity() {
                             onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
                             onFolderFile = { name, path -> nav.navigate(dev.botdot.app.data.ProjectFiles.fileRoute(name, path, android.net.Uri::encode)) },
                             onGoalChat = { open("chief/$it") },
-                            onChiefChat = { if (request == conversationRequest) open("chief/$it") },
+                            onChiefChat = { if (request == conversationRequest && nav.currentBackStackEntry === entryAtRequest) open("chief/$it") },
                         ), spaces = spaceWays, railed = railed, field = false)
                     }
                 }
@@ -512,6 +514,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("company") {
                         val request = conversationRequest
+                        val entryAtRequest = nav.currentBackStackEntry
                         // From the floor: a bot's, a team's or the Chief's chat as a sheet over it (#705, #820), Needs you, and a
                         // new Chief chat with the owner's words started.
                         var docked by rememberSaveable { mutableStateOf<String?>(null) }
@@ -533,7 +536,7 @@ class MainActivity : ComponentActivity() {
                             onFolderAt = { name, at -> nav.navigate("files/${android.net.Uri.encode(dev.botdot.app.data.UploadedFiles.FOLDER + name)}?root=&path=${android.net.Uri.encode(at)}") },
                             onFolderFile = { name, path -> nav.navigate(dev.botdot.app.data.ProjectFiles.fileRoute(name, path, android.net.Uri::encode)) },
                                 onGoalChat = { dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
-                                onChiefChat = { if (request == conversationRequest) dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
+                                onChiefChat = { if (request == conversationRequest && nav.currentBackStackEntry === entryAtRequest) dock(ProjectChats.Open(ProjectChats.CHIEF, it)) },
                             ), spaces = spaceWays)
                             ProjectChatSheet(ProjectChats.of(docked), dockHeight, onHeight = { dockHeight = it }) { o ->
                                 androidx.compose.runtime.key(o.key) {

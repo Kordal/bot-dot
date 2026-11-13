@@ -69,7 +69,7 @@ test('a delayed Chief chat creation keeps its project and cannot reopen it after
   const state = { company: { id: 'p1' } };
   const ctx = vm.createContext({ state, place: 'company', at: (path) => `${path}?project=${state.company.id}`,
     api: (path) => { assert.equal(path, '/company/chief-chat?project=p1'); return new Promise((done) => { resolve = done; }); },
-    changed() {}, toast: () => assert.fail('no error expected'), Dock: { openChief: (id) => opened.push(id) },
+    projects: () => [], changed() {}, toast: () => assert.fail('no error expected'), Dock: { openChief: (id) => opened.push(id) },
   });
   const source = read('company.js');
   vm.runInContext(source.slice(source.indexOf('  const openingChief ='), source.indexOf('  function wirePick')), ctx);
@@ -153,4 +153,36 @@ test('automatic Chief entry stops after the wide column disappears while explici
   resolve({ chatId: 'chief-p1' });
   await explicit;
   assert.deepEqual(opened, ['chief-p1']);
+});
+
+test('finishing an empty bot-list load invalidates the project home so its Chief field can appear', () => {
+  const state = { company: { lead: 'gone' }, bots: [], groups: [], botsKnown: false };
+  const ctx = vm.createContext({ state, Company: { steps: {} }, window: {}, unfolded: () => [], needs: () => [],
+    teamOpen: null, changing: false, menuFor: null, sourceFor: null, apps: null, filter: 'all', menu: null, pick: null,
+  });
+  vm.runInContext(read('company-home.js').split('\n').find((line) => line.includes('Company.steps.sig =')), ctx);
+  const before = JSON.stringify(ctx.Company.steps.sig());
+  state.botsKnown = true;
+  assert.notEqual(JSON.stringify(ctx.Company.steps.sig()), before);
+});
+
+test('changing the manager during Chief creation retains the new selection and rejects automatic Chief entry', async () => {
+  let resolve;
+  const opened = [];
+  const state = { company: { id: 'p1' }, view: 'company' };
+  const ctx = vm.createContext({ state, place: 'company', at: (path) => path,
+    api: () => new Promise((done) => { resolve = done; }),
+    changed: ({ company }) => { state.company = company; }, toast() {},
+    Dock: { openChief: (id) => opened.push(id) },
+  });
+  const source = read('company.js');
+  vm.runInContext(source.slice(source.indexOf('  const openingChief ='), source.indexOf('  function wirePick')), ctx);
+  const pending = ctx.openProjectChief(undefined, () => !state.company.lead);
+  state.company = { id: 'p1', lead: 'manager', name: 'New name' };
+  resolve({ chatId: 'chief-p1', company: { id: 'p1', name: 'Old name' } });
+  await pending;
+  assert.deepEqual(opened, []);
+  assert.equal(state.company.lead, 'manager');
+  assert.equal(state.company.name, 'New name');
+  assert.equal(state.company.chiefChat, 'chief-p1');
 });

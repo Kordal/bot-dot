@@ -97,12 +97,16 @@ const Dock = (() => {
       // Opened after this drawing: opening it draws the screen again.
       if (d) {
         const project = state.company.id;
+        const sameContact = () => {
+          const now = defaultChat();
+          return now?.kind === d.kind && (d.kind === 'chief' || now.id === d.id);
+        };
         opening = true;
         queueMicrotask(async () => {
           try {
-            if (state.company?.id === project && state.view === 'company' && column() && !hidden && await openDefault(() => column() && !hidden) === false) failedDefault = project;
+            if (state.company?.id === project && state.view === 'company' && column() && !hidden && await openDefault(() => column() && !hidden && sameContact()) === false) failedDefault = project;
           }
-          finally { opening = false; if (state.company?.id !== project) draw(); }
+          finally { opening = false; if (state.company?.id !== project || (state.view === 'company' && !sameContact())) draw(); }
         });
       }
     }

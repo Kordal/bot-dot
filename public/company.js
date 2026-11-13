@@ -409,7 +409,9 @@ const Company = (() => {
     const view = state.view, chat = state.chatId, bot = state.botId, group = state.groupId;
     try {
       const r = await api(at('/company/chief-chat'), { method: 'POST' });
-      if (r.company) changed({ company: r.company });
+      // This request only makes the Chief chat; do not overwrite settings changed while it waited.
+      const current = state.company?.id === c.id ? state.company : projects().find((p) => p.id === c.id);
+      if (current) changed({ company: { ...current, chiefChat: r.chatId } });
       if (state.company?.id === c.id && place === 'company' && state.view === view && state.chatId === chat && state.botId === bot && state.groupId === group && canOpen()) Dock.openChief(r.chatId);
     } catch (e) { toast(e.message, true); return false; } finally { openingChief.delete(c.id); b.disabled = false; }
   }
