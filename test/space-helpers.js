@@ -17,9 +17,13 @@ async function goSpace(page, where = 'project') {
 
 // Board-specific checks use the same secondary entry as the owner (ADR 236).
 async function openProjectBoard(page) {
-  await page.locator('[data-po-board]').waitFor({ timeout: 20000 });
-  await page.locator('[data-po-board]').click();
-  await page.locator('[data-po-back]').waitFor();
+  const settingsBack = page.locator('[data-ps-back]');
+  if (await settingsBack.isVisible()) await settingsBack.click();
+  const overview = page.locator('[data-po-board]');
+  const board = page.locator('[data-po-back]');
+  await overview.or(board).first().waitFor({ timeout: 20000 });
+  if (await overview.isVisible()) await overview.click();
+  await board.waitFor();
 }
 
 module.exports = { goSpace, openProjectBoard };

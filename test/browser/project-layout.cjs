@@ -3,7 +3,6 @@
 // drag stands every tile on the canvas where it stood, moves the dragged one and saves; dragging the room onto the
 // To-do slides the To-do down, a corner makes it bigger, the arrows move the focused tile; no two tiles overlap, on
 // the page or on botdot, and a reload shows the same. Scratch data only.
-const { openProjectBoard } = require('../space-helpers');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { chromium } = require('playwright');
@@ -33,7 +32,6 @@ const clear = (l) => { for (const a of Object.keys(l)) for (const b of Object.ke
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));
     await page.goto(`${srv.base}/#company`);
-      await openProjectBoard(page);
     await page.locator('.cf-room').waitFor({ timeout: 20000 });
     assert.equal(await page.locator('.bc-tile').count(), 0, 'the flow until arranged');
     assert.equal(await layout(), undefined);
@@ -86,7 +84,6 @@ const clear = (l) => { for (const a of Object.keys(l)) for (const b of Object.ke
 
     // A reload: the same places, and a click on a tile still clicks.
     await page.reload();
-      await openProjectBoard(page);
     await page.locator('.bc-tile[data-tile="room:t1"]').waitFor({ timeout: 20000 });
     const s = (await page.locator('.bc-wrap').boundingBox()).width / B.W;
     const after = await box(page, 'room:t1');
