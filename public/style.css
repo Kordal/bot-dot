@@ -400,6 +400,7 @@ a.more-btn { text-decoration: none; }
 .chip { display: inline-flex; align-items: center; gap: var(--sp-8); align-self: flex-start; font-size: var(--fs-12); color: var(--muted); background: var(--sunk); padding: var(--sp-4) var(--sp-12); border-radius: var(--r-pill); border: 0; }
 button.chip { cursor: pointer; }
 button.chip:hover { color: var(--text); }
+.chip-more { cursor: pointer; font: inherit; font-size: var(--fs-12); }
 .chip.later { padding: 1px var(--sp-8); font-size: var(--fs-12); vertical-align: 1px; } /* a note the wake gate held (ADR 083) */
 .typing { display: inline-flex; gap: var(--sp-4); vertical-align: middle; margin-right: var(--sp-8); }
 .typing span { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); animation: bounce 1.2s infinite ease-in-out; }

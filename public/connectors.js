@@ -65,6 +65,16 @@ function drawConnectors() {
     return;
   }
   const botName = (id) => { const b = state.bots.find((x) => x.id === id); return b ? `<span class="chip">${botLabel(b)}</span>` : ''; };
+  // The bots of an app (ADR 231: every bot, unless the owner took it away): "All bots" when it is every one, else the
+  // first few and "+N", which shows the rest in place.
+  const FEW = 4;
+  const botsOf = (ids, none = '') => {
+    const known = ids.filter((id) => state.bots.some((b) => b.id === id));
+    if (!known.length) return none;
+    if (state.bots.length > 1 && known.length === state.bots.length) return `<span class="chip">${tr('All bots')}</span>`;
+    if (known.length <= FEW + 1) return known.map(botName).join('');
+    return `${known.slice(0, FEW).map(botName).join('')}<button type="button" class="chip chip-more" data-more-bots="${esc(known.slice(FEW).join(','))}">+${known.length - FEW}</button>`;
+  };
   const connectedSlugs = new Set(d.connections.filter((c) => c.status === 'ACTIVE').map((c) => c.toolkit));
   const pending = new Set(d.connections.filter((c) => c.status !== 'ACTIVE').map((c) => c.toolkit));
   root.innerHTML = `${head}
@@ -75,7 +85,7 @@ function drawConnectors() {
     ${d.connections.length || d.reconnect?.length ? `<div class="grid">${(d.reconnect || []).map((a) => `
       <article class="card app-card">
         <div class="app-top">${appLogo(a)}<div class="grow"><b>${esc(a.name)}</b></div></div>
-        <div class="chips">${a.usedBy.map(botName).join('')}</div>
+        <div class="chips">${botsOf(a.usedBy)}</div>
         <div class="app-actions">
           <button class="btn sm primary" data-connect="${esc(a.slug)}">${tr('Connect again')}</button>
           <button class="btn sm" data-forget-app="${esc(a.slug)}">${tr('Remove')}</button>
@@ -87,7 +97,7 @@ function drawConnectors() {
       const many = (c.accounts || 1) > 1;
       return `<article class="card app-card" data-conn="${esc(c.id)}">
         <div class="app-top">${appLogo(c.app)}<div class="grow"><b>${esc(c.app?.name || c.toolkit)}</b>${c.label ? `<div class="conn-label">${esc(c.label)}</div>` : ''}<div><span class="pill ${tone}">${esc(label)}</span></div></div></div>
-        <div class="chips">${c.usedBy.map(botName).join('') || `<span class="faint" style="font-size:12.5px">${tr('No bot uses it yet')}</span>`}</div>
+        <div class="chips">${botsOf(c.usedBy, `<span class="faint" style="font-size:12.5px">${tr('No bot uses it yet')}</span>`)}</div>
         <div class="app-actions">
           ${c.status === 'ACTIVE' ? `<button class="btn sm" data-app-bots="${esc(c.toolkit)}"${many ? ` data-account="${esc(c.id)}"` : ''}>${tr('Bots…')}</button>${newest ? `<button class="btn sm" data-another="${esc(c.toolkit)}">${tr('Add account')}</button>` : ''}` : `<button class="btn sm primary" data-connect="${esc(c.toolkit)}">${tr('Connect again')}</button>`}
           <button class="btn sm danger" data-disconnect="${esc(c.id)}">${tr('Disconnect')}</button>
@@ -137,6 +147,7 @@ function drawConnectors() {
   $$('[data-forget-app]', root).forEach((b) => (b.onclick = async () => {
     try { await api(`/connectors/reconnect/${encodeURIComponent(b.dataset.forgetApp)}`, { method: 'DELETE' }); await refresh(); renderConnectors(true); } catch (e) { toast(e.message, true); }
   }));
+  $$('[data-more-bots]', root).forEach((b) => (b.onclick = () => { b.insertAdjacentHTML('afterend', b.dataset.moreBots.split(',').map(botName).join('')); b.remove(); }));
   $$('[data-app-bots]', root).forEach((b) => (b.onclick = () => chooseAppBots(b.dataset.appBots, false, b.dataset.account || null)));
   $$('[data-another]', root).forEach((b) => (b.onclick = () => connectApp(b.dataset.another, null, { another: true })));
   $$('[data-disconnect]', root).forEach((b) => (b.onclick = async () => {
@@ -227,7 +238,14 @@ async function connectApp(slug, connected = null, on = {}) {
     if (!r?.noAuth && !/^https?:\/\//.test(String(r?.redirectUrl || ''))) throw new Error(tr("botdot didn't finish that. Try again in a moment."));
   } catch (e) { win?.close(); return live() ? fail(e.message) : undefined; } finally { clearTimeout(timer); }
   if (!live()) { win?.close(); return; }
-  if (r.noAuth) { win?.close(); return connected ? connected() : chooseAppBots(slug); }
+  // Connected: every bot has it now (ADR 231), so nothing is asked; one more account still picks the bots that move to it.
+  const done = async (account = null) => {
+    if (connected) return connected();
+    await refresh();
+    await renderConnectors(true);
+    return account ? chooseAppBots(slug, true, account) : null;
+  };
+  if (r.noAuth) { win?.close(); return done(); }
   try { if (win && !win.closed) win.location = r.redirectUrl; else location.assign(r.redirectUrl); } catch { location.assign(r.redirectUrl); }
   if (on.opened) on.opened(); else toast(tr("Sign in on the page that opened. botdot notices when you're done."));
   const expires = Date.parse(r.expiresAt);
@@ -239,9 +257,7 @@ async function connectApp(slug, connected = null, on = {}) {
     const c = await Promise.resolve().then(() => status(r)).catch(() => null);
     if (c?.status === 'ACTIVE') {
       if (!on.opened) toast(tr('Connected'));
-      if (connected) return connected();
-      await renderConnectors(true);
-      return chooseAppBots(slug, true, on.another ? r.connectionId : null);
+      return done(on.another ? r.connectionId : null);
     }
     if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { fail(c.statusReason ? tr("Connecting didn't work: {why}", { why: c.statusReason }) : tr("Connecting didn't work")); return connected ? null : renderConnectors(true); }
     // The sign-in tab was closed without connecting: one more look (it may have just finished), then no more waiting.
