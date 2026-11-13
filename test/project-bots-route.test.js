@@ -35,6 +35,17 @@ test('a bot in no team is told the project and uses its to-do; a bot of no proje
   srv.unhold(); srv.release(o.rec); await srv.finished(o.run.id);
 });
 
+test("the Project Manager is told the project's own bots to message, never itself", async () => {
+  await srv.api('/company/bots', { method: 'PUT', body: { bots: [writer.id, other.id] } });
+  assert.equal((await srv.api('/company', { method: 'PATCH', body: { lead: writer.id } })).status, 200);
+  const { run, rec } = await heldRun(srv, writer, 'Who can help?');
+  const line = rec.system.split('\n').find((l) => l.startsWith('Its bots in no team:')) || '';
+  assert.match(line, new RegExp(`\\(id ${other.id}\\).*message_bot`));
+  assert.ok(!line.includes(`id ${writer.id}`), line);
+  srv.unhold(); srv.release(rec); await srv.finished(run.id);
+  await srv.api('/company', { method: 'PATCH', body: { lead: null } });
+});
+
 test('a deleted bot leaves the project', async () => {
   await srv.api('/company/bots', { method: 'PUT', body: { bots: [writer.id, other.id] } });
   assert.equal((await srv.api(`/bots/${other.id}`, { method: 'DELETE' })).status, 200);
