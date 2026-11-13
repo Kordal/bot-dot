@@ -229,7 +229,14 @@ async function connectApp(slug, connected = null, on = {}) {
   const status = on.status || ((r) => api(`/connectors/connections/${encodeURIComponent(r.connectionId)}`));
   let r;
   try { r = await start(); } catch (e) { win?.close(); return fail(e.message); }
-  if (r.noAuth) { win?.close(); return connected ? connected() : chooseAppBots(slug); }
+  // Connected: every bot has it now (ADR 231), so nothing is asked; one more account still picks the bots that move to it.
+  const done = async (account = null) => {
+    if (connected) return connected();
+    await refresh();
+    await renderConnectors(true);
+    return account ? chooseAppBots(slug, true, account) : null;
+  };
+  if (r.noAuth) { win?.close(); return done(); }
   if (win) win.location = r.redirectUrl; else location.assign(r.redirectUrl);
   if (on.opened) on.opened(); else toast(tr("Sign in on the page that opened. botdot notices when you're done."));
   const expires = Date.parse(r.expiresAt);
@@ -241,9 +248,7 @@ async function connectApp(slug, connected = null, on = {}) {
     const c = await Promise.resolve().then(() => status(r)).catch(() => null);
     if (c?.status === 'ACTIVE') {
       if (!on.opened) toast(tr('Connected'));
-      if (connected) return connected();
-      await renderConnectors(true);
-      return chooseAppBots(slug, true, on.another ? r.connectionId : null);
+      return done(on.another ? r.connectionId : null);
     }
     if (c && ['FAILED', 'EXPIRED'].includes(c.status)) { fail(c.statusReason ? tr("Connecting didn't work: {why}", { why: c.statusReason }) : tr("Connecting didn't work")); return connected ? null : renderConnectors(true); }
     // The sign-in tab was closed without connecting: one more look (it may have just finished), then no more waiting.
