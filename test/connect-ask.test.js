@@ -14,7 +14,7 @@ const asksLib = require('../lib/asks');
 const connectAsksLib = require('../lib/connect-asks');
 
 const REDIRECT = 'https://connect.composio.example/link/secret-page-123';
-const composio = { status: {}, users: {}, links: 0 };
+const composio = { status: {}, users: {}, links: 0, worded: [] };
 const fake = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -31,6 +31,12 @@ const fake = http.createServer((req, res) => {
       const b = JSON.parse(body);
       // A sign-in that Composio answers late, and then refuses: held until the test lets it go.
       if (b.auth_config_id === 'ac_gated' && composio.gate) { const g = composio.gate; composio.gate = null; return g.then(() => json(500, { error: { message: 'Composio is down for a moment' } })); }
+      // A sign-in Composio refuses in words botdot puts plainly, or with a refused key (401), once per entry of worded.
+      if (b.auth_config_id === 'ac_worded' && composio.worded.length) {
+        const how = composio.worded.shift();
+        if (how === '401') return json(401, { error: { message: 'Invalid API key' } });
+        return json(400, { error: { message: `{"code":1800,"detail":"Worded refusal ${++composio.links}"}` } });
+      }
       if (b.auth_config_id === 'ac_github') return json(400, { error: { message: '{"code":1803,"detail":"ConnectedAccount_MultipleAccountsNotAllowed for ac_github"}' } });
       const id = `ca_${b.auth_config_id.slice(3)}_${++composio.links}`;
       composio.status[id] = { app: b.auth_config_id.slice(3), status: 'INITIATED' };
@@ -337,4 +343,41 @@ test('a Reconnect card is not settled by another card\'s sign-in of the same app
   const left = asks.list().filter((x) => x.kind === 'connect-app').map((x) => x.id);
   assert.ok(!left.includes(other.id), 'another plain Connect card settles with it');
   assert.ok(left.includes(again.id), 'the Reconnect card waits for its own sign-in');
+});
+
+// The route words Composio's refusal with Claude (connectRefusal); a Connect pressed again meanwhile takes the card.
+async function refusedWhileWorded(second) {
+  const bot = await makeBot(srv, { name: `Worded ${second}`, emoji: '💬' });
+  const a = (await offer({ app: 'worded', bot: bot.id })).data;
+  composio.worded.push('refuse');
+  const before = new Set(srv.runs().map((r) => r.n));
+  srv.hold();
+  try {
+    const first = srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+    await waitFor(() => srv.runs().find((r) => !before.has(r.n) && String(r.stdin).includes('connect worded')), { what: 'the refusal being put in words' });
+    if (second === '401') composio.worded.push('401');
+    const next = await srv.api(`/asks/${a.id}/connect`, { method: 'POST', body: {} });
+    srv.unhold();
+    const late = await first;
+    assert.equal(late.status, 502, 'the first answers its own press with its error');
+    assert.equal(late.data.mode, undefined, 'and leaves the card to the newer Connect');
+    return { a, next, card: stored().find((x) => x.id === a.id) };
+  } finally { srv.unhold(); }
+}
+
+test('a refusal put in words while a newer Connect made its connection leaves the card to the newer one', { timeout: 60_000 }, async () => {
+  const { next, card } = await refusedWhileWorded('ok');
+  assert.equal(next.status, 200, JSON.stringify(next.data));
+  assert.deepEqual([card.mode, card.connectionId, card.error || null], ['connect', next.data.connectionId, null]);
+});
+
+test('a refusal put in words while a newer Connect found the key refused leaves the card asking for the key', { timeout: 60_000 }, async () => {
+  try {
+    const { next, card } = await refusedWhileWorded('401');
+    assert.deepEqual([next.status, next.data.mode], [409, 'setup']);
+    assert.deepEqual([card.mode, card.key, card.error || null], ['setup', true, null]);
+  } finally {
+    const r = await srv.api('/connectors/key', { method: 'PUT', body: { key: 'pk_test_key_1' } });
+    assert.equal(r.status, 200, JSON.stringify(r.data));
+  }
 });
