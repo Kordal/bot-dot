@@ -258,6 +258,19 @@ function chiefTools(t) {
   return { list: async () => (await client.request('tools/list')).tools, call: (name, args) => client.request('tools/call', { name, arguments: args }) };
 }
 
+test("every object a Chief's tool takes lists its fields, or a call with any field at all is refused as unknown", async (t) => {
+  const bare = [];
+  const walk = (s, at) => {
+    if (!s || typeof s !== 'object') return;
+    if (s.type === 'object' && !s.properties && !s.additionalProperties) bare.push(at);
+    for (const [k, v] of Object.entries(s.properties || {})) walk(v, `${at}.${k}`);
+    if (s.items) walk(s.items, `${at}[]`);
+    if (s.additionalProperties && typeof s.additionalProperties === 'object') walk(s.additionalProperties, `${at}{}`);
+  };
+  for (const tool of await chiefTools(t).list()) walk(tool.inputSchema, tool.name);
+  assert.deepEqual(bare, []);
+});
+
 test("the Chief's tools speak of an icon and a hat: the kit is listed to choose from, a hat is set and changed, a wrong name comes back with the right ones", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
