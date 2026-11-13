@@ -303,8 +303,9 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
             } else if route::left_door(&door, load.url()) || (cfg!(mobile) && route::sign_up(&door, load.url())) {
                 open_in_browser(&on_load, load.url());
                 let _ = if window.label() == "main" { window.eval("history.back()") } else { window.close() };
-            } else if route::shows_in_app(&door, load.url()) {
-                // A window opened blank, hidden until its page is one of this botdot's own (`new_window`).
+            } else if window.label() != "main" && route::shows_in_app(&door, load.url()) {
+                // A window opened blank, hidden until its page is one of this botdot's own (`new_window`). Never the
+                // main window, which stays in the tray when the app starts hidden.
                 let _ = window.show();
             }
         })

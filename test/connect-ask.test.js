@@ -241,3 +241,28 @@ test("connect-ask's cards in lib: modes, words, giveApp and its holds", () => {
   assert.deepEqual(C.giveApp({ bot, app: 'gmail' }), { held: true, name: 'Gmail' });
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('a Connect pressed again keeps only the last one\'s connection on the card, whichever answers last', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const pending = [];
+  const connectors = {
+    status: () => ({ configured: true, keyRejected: false }), reconnect: () => [],
+    connect: () => new Promise((res) => pending.push(res)),
+    connection: async () => ({ status: 'INITIATED' }),
+  };
+  const C = connectAsksLib.create({ asks, bots: { get: () => ({ id: 'b1', connectors: [] }) }, connectors, appName: () => 'Linear', carryOnAfter: () => ({}), every: 3_600_000 });
+  const a = C.offer({ botId: 'b1', app: 'linear' }).ask;
+  const other = C.offer({ botId: 'b2x', app: 'notion' }).ask ?? null;
+  const first = C.connect(a, 'http://x/connectors/done');
+  const second = C.connect(a, 'http://x/connectors/done');
+  await new Promise((r) => setImmediate(r));
+  pending[1]({ redirectUrl: 'https://c/2', connectionId: 'ca_2', expiresAt: 'later' });
+  assert.equal((await second).connectionId, 'ca_2');
+  pending[0]({ redirectUrl: 'https://c/1', connectionId: 'ca_1', expiresAt: 'sooner' });
+  assert.equal((await first).redirectUrl, 'https://c/1', 'the late one still answers its own press');
+  const card = asks.list().find((x) => x.id === a.id);
+  assert.deepEqual([card.connectionId, card.expiresAt], ['ca_2', 'later']);
+  if (other) assert.equal(asks.list().find((x) => x.id === other.id).connectionId, undefined, 'another card is left as it was');
+  C.stopAll?.();
+});
