@@ -68,12 +68,12 @@ const Dock = (() => {
   // null as the Chief id means its chat needs making. undefined keeps older servers' ordinary Chief entry.
   function defaultChat() {
     const c = state.company;
-    if (!c || c.phase !== 'running') return null;
-    if (state.features.includes('project-manager-bot') && c.lead) {
+    if (!c || (c.phase !== 'running' && !(c.conversation && state.features.includes('project-conversation')))) return null;
+    if (c.phase === 'running' && state.features.includes('project-manager-bot') && c.lead) {
       if (!state.botsKnown) return null;
       if (botById(c.lead)) return { kind: 'bot', id: c.lead };
     }
-    return { kind: 'chief', id: state.features.includes('project-chief') ? c.chiefChat || null : undefined };
+    return { kind: 'chief', id: state.features.includes('project-chief') ? (c.conversation && !c.creationSent ? null : c.chiefChat || null) : undefined };
   }
   function openDefault(canOpen) {
     failedDefault = null;

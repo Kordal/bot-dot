@@ -799,7 +799,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         if (CompanySetup.MANY in features) return (JSON.parseToJsonElement(get("/company/list")) as? JsonObject)?.get("projects")?.let { it as? JsonArray }?.mapNotNull(::ref).orEmpty()
         return listOfNotNull(ref((JSON.parseToJsonElement(get("/company")) as? JsonObject)?.get("company")))
     }
-    suspend fun startCompany(start: String, sources: List<SourceDraft>): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.startBody(start, sources)))
+    suspend fun startCompany(start: String, sources: List<SourceDraft>, creationKey: String? = null): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.startBody(start, sources, creationKey)))
     suspend fun startEmptyProject(name: String, sources: List<SourceDraft> = emptyList()): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.emptyBody(name, sources)))
     /** The board's layout, all of it (#784). */
     suspend fun setLayout(layout: Map<String, List<Int>>): Company = CompanySetup.of(send("PUT", co("/company/layout"),
@@ -816,7 +816,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun changeTeam(text: String): Company = CompanySetup.of(send("POST", co("/company/proposal/chat"), buildJsonObject { put("text", text) }))
     suspend fun duplicateIntoTeam(bot: String): Company = CompanySetup.of(send("POST", co("/company/proposal/duplicate"), buildJsonObject { put("bot", bot) }))
     suspend fun undoTeam(): Company = CompanySetup.of(send("POST", co("/company/proposal/undo")))
-    suspend fun createTeam(): Company = CompanySetup.of(send("POST", co("/company/start")))
+    suspend fun createTeam(review: String? = null): Company = CompanySetup.of(send("POST", co("/company/start"), buildJsonObject { if (review != null) put("review", review) }))
     /** The office floor (#672, #675): a new team, "Make lead", the owner's tasks. */
     suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
         CompanySetup.of(send("POST", co("/company/teams"), buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))

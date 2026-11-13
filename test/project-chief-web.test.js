@@ -21,13 +21,24 @@ test("the head is drawn only with project-chief, after the gear, with what waits
   assert.ok(home.indexOf('Company.gearHTML()') < home.indexOf('Company.chiefHTML()'), 'after the gear');
 });
 
-test('a tap opens the chat in the column; with none yet it asks the server to make it first', () => {
+test('a tap opens its saved chat, or resumes an interrupted creation before opening it', async () => {
+  const vm = require('node:vm');
+  const opened = [], requests = [];
+  const state = { company: { id: 'p', chiefChat: 'saved' }, view: 'company' };
+  const ctx = vm.createContext({ state, place: 'company', Dock: { openChief: (id) => opened.push(id) },
+    at: (p) => p, projects: () => [], changed: (d) => { state.company = d.company; }, toast: () => {},
+    api: async (p) => { requests.push(p); return { chatId: 'saved', company: { creationSent: true } }; },
+  });
   const co = read('company.js');
-  const open = co.slice(co.indexOf('async function openProjectChief'), co.indexOf('function wirePick'));
-  assert.match(open, /if \(c\.chiefChat\) return Dock\.openChief\(c\.chiefChat\)/);
-  assert.match(open, /\/company\/chief-chat/);
-  assert.match(open, /Dock\.openChief\(r\.chatId\)/);
-  assert.match(co, /\$\$\('\[data-project-chief\]', root\)/);
+  vm.runInContext(co.slice(co.indexOf('  const openingChief ='), co.indexOf('  function wirePick')), ctx);
+  await ctx.openProjectChief();
+  assert.deepEqual(opened, ['saved']);
+  assert.deepEqual(requests, []);
+  state.company = { ...state.company, conversation: true, creationSent: false };
+  await ctx.openProjectChief();
+  assert.deepEqual(requests, ['/company/chief-chat']);
+  assert.equal(state.company.creationSent, true);
+  assert.deepEqual(opened, ['saved', 'saved']);
 });
 
 test("the compass is always the Chief's, and the Project Manager the owner picked has its own head beside it, opening its chat (ADR 230)", () => {

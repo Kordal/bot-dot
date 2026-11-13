@@ -19,7 +19,7 @@
   // What this page holds beside the company: the Chief at work, the open parts and a half-typed line.
   // reach: the gap whose menu is open ("key|kind|need"); vault: the Vault's entries for it, read when it opens.
   // askedAt: when the proposal was asked for, so a long wait can say so.
-  const ui = { asking: false, askedAt: 0, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, apps: null, reach: null, vault: null };
+  const ui = { asking: false, askedAt: 0, failed: '', sending: false, adding: false, renaming: null, draft: '', creating: false, saving: 0, apps: null, reach: null, vault: null };
 
   async function loadApps() {
     if (ui.apps) return;
@@ -29,7 +29,10 @@
   }
   const took = (c) => { Company.put(c); Company.redraw(); };
   async function call(path, body, method = 'POST') {
+    ui.saving++;
+    if (state.company?.conversation) $('[data-create]')?.setAttribute('disabled', '');
     try { took(await api(Company.at(path), { method, ...(body ? { body } : {}) })); return true; } catch (e) { toast(e.message, true); return false; }
+    finally { ui.saving--; Company.redraw(); }
   }
   // The Chief proposes the team: one call of up to two minutes (lib/company-team.js), so the page shows it at work.
   // A 409 "busy" is the same proposal asked before (the page was reloaded meanwhile): it waits and reads the project
@@ -65,12 +68,12 @@
     loadApps();
     const n = c.proposal.length;
     root.innerHTML = `<div class="co-team">
-      <div class="co-cards">${c.proposal.map((p) => card(c, p)).join('')}
+      <div class="co-cards">${c.conversation ? `<section class="co-panel"><h2>${tr('First step')}</h2><p>${esc(c.firstStep)}</p></section>` : ''}${c.proposal.map((p) => card(c, p)).join('')}
         <button type="button" class="btn co-addbot" data-add-bot>${Company.ICON.plus}${tr('Add a bot')}</button>
       </div>
       <aside class="co-aside">
         <section class="co-panel">
-          <button type="button" class="btn co-existing" data-existing aria-expanded="${ui.adding}">${Company.ICON.plus}${tr('Add existing bot')}</button>
+          ${c.conversation ? '' : `<button type="button" class="btn co-existing" data-existing aria-expanded="${ui.adding}">${Company.ICON.plus}${tr('Add existing bot')}</button>`}
           ${ui.adding ? existing(c) : ''}
           ${c.teamChat?.length ? `<div class="co-chat">${c.teamChat.map((m) => (m.who === 'you' ? `<div class="co-said">${esc(m.text)}</div>` : `<div class="co-reply">${chiefFigure('sm')}<span>${esc(m.text)}</span>${m.undo && c.canUndo ? `<button type="button" class="co-undo" data-undo>${tr('Undo')}</button>` : ''}</div>`)).join('')}</div>` : ''}
           <form class="co-ask small" id="co-change"><input name="text" autocomplete="off" maxlength="300" placeholder="${tr('Change the team…')}" aria-label="${tr('Change the team…')}" ${ui.sending ? 'disabled' : ''} /><button type="submit" class="co-go${ui.sending ? ' spin' : ''}" aria-label="${tr('Send')}" ${ui.sending ? 'disabled' : ''}>${Company.ICON.go}</button></form>
@@ -80,7 +83,7 @@
         <section class="co-panel"><h2>${tr('Project memory')}</h2><div class="co-facts">${I.check}${trn(c.facts || 0, '{n} fact', '{n} facts')}</div></section>
       </aside>
     </div>
-    <div class="co-foot"><button type="button" class="btn ghost" data-back>${I.back}${tr('Back')}</button><button type="button" class="co-go" data-create ${n ? '' : 'disabled'}>${trn(n, 'Create {n} bot', 'Create {n} bots')}</button></div>`;
+    <div class="co-foot"><button type="button" class="btn ghost" data-back>${I.back}${tr('Back')}</button><button type="button" class="co-go" data-create ${n && (!c.conversation || (!ui.saving && !ui.sending)) ? '' : 'disabled'}>${c.conversation ? tr('Approve first step') : trn(n, 'Create {n} bot', 'Create {n} bots')}</button></div>`;
     wire(root, c);
   }
 
@@ -127,6 +130,7 @@
     return `<article class="co-card" data-key="${esc(p.key)}">
       <div class="co-card-head">${botFigure(p.color, 'idle')}<div class="co-card-title"><div class="co-card-name">${name}</div>${p.description ? `<div class="co-card-job">${esc(p.description)}</div>` : ''}</div><button type="button" class="icon-btn" data-remove aria-label="${tr('Remove')}">${I.trash}</button></div>
       <div class="co-rows">
+        ${c.conversation ? `<span class="co-k">${tr('Main assignment')}</span><div class="co-v">${esc(p.prompt || p.description)}</div><span class="co-k">${tr('Allowed tools')}</span><div class="co-v">${chips(p.tools || [], '')}</div>${p.cron ? `<span class="co-k">${tr('Schedule')}</span><div class="co-v">${esc(p.schedule || tr('Custom schedule'))} · ${esc(c.creationZone || '')}</div>` : ''}` : ''}
         <span class="co-k">${tr('Owns')}</span><div class="co-v">${chips(p.owns, Company.ICON.file)}</div>
         <span class="co-k">${tr('Connects')}</span><div class="co-v">${p.connects.length ? p.connects.map((a) => `<span class="co-tag-chip${missing.includes(a) ? ' off' : ''}">${Company.ICON.link}${esc(appName(a))}</span>`).join('') : `<span class="co-none">${tr('None')}</span>`}</div>
         <span class="co-k">${tr('Routines')}</span><div class="co-v">${p.routines ? `<label class="co-routine"><span class="switch"><input type="checkbox" data-routine ${p.routinesOn ? 'checked' : ''} aria-label="${esc(p.routines)}"><span></span></span>${esc(p.routines)}</label>` : `<span class="co-none">${tr('None')}</span>`}</div>
@@ -164,7 +168,7 @@
     };
     // "Add a bot" is said to the Chief, who designs it.
     $('[data-add-bot]', root).onclick = () => { ui.draft = tr('Add a bot that '); const input = $('#co-change input'); input.value = ui.draft; input.focus(); };
-    $('[data-existing]', root).onclick = () => { ui.adding = !ui.adding; Company.redraw(); };
+    $('[data-existing]', root)?.addEventListener('click', () => { ui.adding = !ui.adding; Company.redraw(); });
     $$('[data-duplicate]', root).forEach((b) => (b.onclick = () => { b.disabled = true; call('/company/proposal/duplicate', { bot: b.dataset.duplicate }); }));
     $$('[data-undo]', root).forEach((b) => (b.onclick = () => call('/company/proposal/undo')));
     $$('[data-starter]', root).forEach((b) => (b.onchange = () => {
@@ -172,8 +176,8 @@
       call('/company', { starter: { ...c.starter, [kind]: c.starter[kind].map((x) => (x.key === key ? { ...x, on: b.checked } : x)) } }, 'PATCH');
     }));
     $$('[data-unnever]', root).forEach((b) => (b.onclick = () => call('/company', { never: c.never.filter((_, i) => i !== Number(b.dataset.unnever)) }, 'PATCH')));
-    $('[data-back]', root).onclick = () => Company.go('about');
-    $('[data-create]', root).onclick = () => create();
+    $('[data-back]', root).onclick = () => Company.go(c.conversation ? 'conversation' : 'about');
+    $('[data-create]', root).onclick = () => create(c.creationReview);
     $$('.co-card', root).forEach((el) => {
       const key = el.dataset.key;
       const p = c.proposal.find((x) => x.key === key);
@@ -210,11 +214,12 @@
   }
 
   // ---------- Start ----------
-  async function create() {
-    if (ui.creating) return;
+  async function create(shownReview) {
+    if (ui.creating || (state.company?.conversation && (ui.saving || ui.sending))) return;
     ui.creating = true;
+    const review = state.company?.conversation ? shownReview : null;
     Company.go('start');
-    try { Company.put(await api(Company.at('/company/start'), { method: 'POST' })); } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
+    try { const next = await api(Company.at('/company/start'), { method: 'POST', ...(review ? { body: { review } } : {}) }); Company.put(next); if (next.conversation && next.phase === 'running') { Company.go(null); Dock.openDefault(); } } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
     ui.creating = false;
     Company.redraw();
   }
