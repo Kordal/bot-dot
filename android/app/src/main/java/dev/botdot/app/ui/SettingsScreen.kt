@@ -108,6 +108,10 @@ fun SettingsScreen(
     var code by remember { mutableStateOf("") }
     var confirmLogout by remember { mutableStateOf<Int?>(null) } // how many bots are working, while asking
     var confirmSignOut by remember { mutableStateOf(false) }
+    var session by remember { mutableStateOf<kotlinx.serialization.json.JsonObject?>(null) } // what the front door says of it
+    var confirmDelete by remember { mutableStateOf(false) } // "Delete account" (#1307)
+    var deleteTyped by remember { mutableStateOf("") }
+    var deleting by remember { mutableStateOf(false) }
     var keyOpen by remember { mutableStateOf(false) } // the box for an Anthropic API key (#35)
     var apiKey by remember { mutableStateOf("") }
     var confirmRemoveKey by remember { mutableStateOf(false) }
@@ -123,7 +127,7 @@ fun SettingsScreen(
                 if (server?.boat == true && server?.features?.contains("boat-size") == true) boatSizes = runCatching { a.boatSizes() }.getOrNull()
                 if (dev.botdot.app.data.ComputerPlace.shows(server?.features, server?.boat)) computerPlace = runCatching { a.computerPlace() }.getOrNull()
                 // Updates: only where the front door says this account chooses when it switches (ADR 053).
-                val session = runCatching { a.frontDoorSession() }.getOrNull()
+                session = runCatching { a.frontDoorSession() }.getOrNull()
                 update = if (dev.botdot.app.data.OwnUpdate.on(server?.features, session)) runCatching { a.ownUpdate() }.getOrNull() else null
                 // An older front door has no such route: no notes.
                 updateNotes = if (update?.ready == true) runCatching { a.updateNotes() }.getOrDefault(emptyList()) else emptyList()
@@ -333,6 +337,16 @@ fun SettingsScreen(
                     SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
                 }
             }
+            // "Delete account" (#1307): where the front door says this account may; the admin's own account is told why not.
+            if (dev.botdot.app.data.AccountDeletion.on(server?.features, session)) {
+                FoldSection(tr("Delete account")) {
+                    SecondaryButton(onClick = { deleteTyped = ""; confirmDelete = true }) { Text(tr("Delete account…"), color = p.err) }
+                }
+            } else if (dev.botdot.app.data.AccountDeletion.adminNote(server?.features, session)) {
+                FoldSection(tr("Delete account")) {
+                    Text(tr("This is the admin's account of this machine, so it can't be deleted here. The machine is removed by its admin instead."), color = p.muted)
+                }
+            }
             // Advanced (ADR 205): saved by itself; every screen follows at once.
             if (server?.features?.contains(dev.botdot.app.data.Advanced.FEATURE) == true) {
                 SwitchRow(tr("Advanced"), checked = adv) { on ->
@@ -418,6 +432,36 @@ fun SettingsScreen(
         },
         dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text(tr("Cancel"), color = p.text) } },
     )
+    if (confirmDelete) {
+        val account = dev.botdot.app.data.AccountDeletion.account(session)
+        AlertDialog(
+            onDismissRequest = { if (!deleting) confirmDelete = false },
+            title = { Text(tr("Delete your account?")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(tr("This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback."))
+                    Text(tr("Off-site backups of the account are kept for 14 days, then removed."))
+                    Field(deleteTyped, { deleteTyped = it }, label = { Text(tr("Type your account name, {name}, to confirm", "name" to account)) }, singleLine = true,
+                        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, keyboardType = KeyboardType.Ascii))
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !deleting && dev.botdot.app.data.AccountDeletion.matches(deleteTyped, account), onClick = {
+                    deleting = true
+                    // Done, the front door clears this phone's session, and the sign-in screen opens by itself, which
+                    // leaves Settings and ends its scope: the app's own scope and context keep the answer to say it.
+                    val a = api!!
+                    app.scope.launch {
+                        runCatching { a.deleteAccount(account) }
+                            .onSuccess { confirmDelete = false; android.widget.Toast.makeText(app, dev.botdot.app.data.AccountDeletion.said(it), android.widget.Toast.LENGTH_LONG).show() }
+                            .onError { tell(it.message ?: tr("Couldn't delete the account")) }
+                        deleting = false
+                    }
+                }) { Text(tr("Delete account"), color = p.err) }
+            },
+            dismissButton = { TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text(tr("Cancel"), color = p.text) } },
+        )
+    }
 }
 
 /** On the subscription, the API key as the other way to run (#35): the saved one ([saved]), or a new one. */

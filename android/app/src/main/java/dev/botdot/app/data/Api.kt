@@ -66,6 +66,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     // Live streams (the feed, a run's, the Chief's, the rooms'): botdot says something every 15–25 s, so one quiet for
     // [quietMs] is a dead socket that only looks open (the phone changed networks, woke from Doze), and fails (#1078).
     private val liveClient = client.newBuilder().readTimeout(quietMs, TimeUnit.MILLISECONDS).build()
+    // "Delete account" (#1307): the front door waits up to 90 s for boat.dev before it deletes, so the answer may come later.
+    private val deleteClient = client.newBuilder().readTimeout(DELETE_WAIT_S, TimeUnit.SECONDS).build()
 
     /** The full address of an API path ("/files/…"), e.g. for a picture. */
     fun url(path: String) = baseUrl.trimEnd('/') + "/api" + path
@@ -73,10 +75,10 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     private fun request(path: String) = Request.Builder().url(url(path)).header("Accept", "application/json")
 
-    private suspend fun call(req: Request): String = withContext(Dispatchers.IO) {
+    private suspend fun call(req: Request, using: OkHttpClient = client): String = withContext(Dispatchers.IO) {
         val went = Went()
         try {
-            client.newCall(req.newBuilder().tag(Went::class.java, went).build()).execute().use { res ->
+            using.newCall(req.newBuilder().tag(Went::class.java, went).build()).execute().use { res ->
                 try {
                     readOrThrow(res)
                 } catch (e: ApiException) {
@@ -128,6 +130,21 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     /** "Sign out everywhere": the front door ends every session of the account, in every app, this one too. */
     suspend fun signOutEverywhere() { door("/sign-out-everywhere") }
+
+    /**
+     * "Delete account" (#1307): the front door deletes this session's own account, after its [name] typed, and clears
+     * the session's cookie, so the phone signs in again. A refusal throws the front door's sentence.
+     */
+    suspend fun deleteAccount(name: String): AccountDeletion.Done {
+        val req = Request.Builder().url(baseUrl.trimEnd('/') + "/front-door/delete-account").header("Accept", "application/json").header("X-Bot-Dot", "1")
+            .post(AccountDeletion.body(name).toString().toRequestBody(JSON_TYPE)).build()
+        val answer = try { call(req, deleteClient) } catch (e: ApiException) {
+            // Sent, and no answer came: the front door may still have deleted it.
+            if (e.sent && e.status == 0) throw ApiException(tr("Couldn't tell whether your account was deleted. Open botdot again: if it asks you to sign in, it was."), sent = true)
+            throw e
+        }
+        return AccountDeletion.done(runCatching { json.parseToJsonElement(answer).jsonObject }.getOrNull())
+    }
 
     /**
      * What the front door says of this session (`/front-door/session`): here, whether Feedback goes to an admin page
@@ -992,6 +1009,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
             res
         }
 
+        /** How long "Delete account" waits for its answer: longer than the front door's 90 s for boat.dev. */
+        const val DELETE_WAIT_S = 120L
         val CLIENT: OkHttpClient = OkHttpClient.Builder()
             .followRedirects(false)
             .followSslRedirects(false)

@@ -812,6 +812,21 @@ async function signInRoutes(req, res, p) {
     console.log(`[front door] account ${account} signed out everywhere (${ended} session${ended === 1 ? '' : 's'})`);
     return send(res, 200, { ok: true, ended }, { 'Set-Cookie': sessionCookie(null) });
   }
+  // "Delete account" in Settings (#1307): the owner signed in deletes their own account, the same way the admin does,
+  // after typing its name. Only the person signed in reaches it: no botdot server, and so no Chief or bot. The session
+  // is gone with the account, and the cookie is cleared.
+  if (p === '/front-door/delete-account' && req.method === 'POST') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) { req.resume(); return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' }); }
+    const body = (await readJson(req)) || {};
+    if (account === ADMIN) return send(res, 409, { error: `${account} is the admin's account: it can't be deleted here. The machine is removed by its admin instead.` });
+    if (!deletesItself(account)) return send(res, 404, { error: 'Not found' });
+    if (body.name !== account) return send(res, 400, { error: `Type your account's name, ${account}, to delete it.` });
+    const boatGone = await eraseAccount(account, account);
+    return send(res, 200, { ok: true, deleted: '/front-door/deleted', ...(boatGone?.failed ? { boat: boatGone.text } : {}) }, { 'Set-Cookie': sessionCookie(null) });
+  }
+  // What a deleted account's browser sees after "Delete account" (#1307): no session is needed.
+  if (p === '/front-door/deleted' && req.method === 'GET') return html(res, 200, pages.deleted());
   // What the web page and the Android app ask of their session: whether it is the admin's, which then shows the way
   // to /admin, and whether Feedback goes anywhere (#216): to the admin page, which a machine of one account has not.
   if (p === '/front-door/session' && req.method === 'GET') {
@@ -821,7 +836,8 @@ async function signInRoutes(req, res, p) {
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
     // (ADR 068): a room's maker makes an invite link, and opening one joins.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    // deleteAccount (#1307): its owner may delete it in Settings (POST /front-door/delete-account).
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1800,6 +1816,31 @@ async function eraseBoat(name) {
   return { text: `boat.dev: its machines not deleted (${doors.isSuspended(name) ? 'the account is suspended, so its server is stopped' : 'its server gave no answer'})`, failed: true };
 }
 
+// Deleting an account, by the admin on the admin page or by its owner in Settings (#1307): its machines on boat.dev go
+// first, then the front door forgets it, its passkeys, sessions and open sign-in links at once, it leaves its rooms,
+// and root's step erases it from the machine. `actor` is who deleted it, kept in the audit entry. Returns what
+// eraseBoat said.
+// The account is bound by its userId before eraseBoat waits: one made again with the same name meanwhile is never
+// deleted by a request for the one before (409).
+async function eraseAccount(name, actor) {
+  const userId = doors.userIdOf(name);
+  const boatGone = await eraseBoat(name);
+  doors.deleteAccount(name, Date.now(), userId);
+  roomsWithout(name);
+  usage?.forget(name);
+  const who = actor === name ? 'its owner' : 'the admin';
+  console.log(`[front door] ${who} deleted the account ${name}; the machine erases it${boatGone ? ` (${boatGone.text})` : ''}`);
+  audited('delete', { actor, account: name, detail: boatGone?.text });
+  askMachine(name);
+  return boatGone;
+}
+
+// Whether this account's owner may delete it in Settings (#1307): only on a machine of several accounts with an admin,
+// who has the admin page. Never the admin's own account: it is the only admin, and nobody would be left to run the
+// machine, which its admin removes instead. A machine of one account and a managed machine (ADR 154) offer it to none:
+// there the account is the machine, removed by whoever runs it.
+const deletesItself = (account) => !ONE_ACCOUNT && !MANAGED && !!ADMIN && !!account && account !== ADMIN;
+
 // The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is
 // neither suspended nor deleted here: nobody would be left to resume it, nor to reach the admin page.
 async function accountAction(req, res, name, action) {
@@ -1866,13 +1907,7 @@ async function accountAction(req, res, name, action) {
   }
   if (action === 'delete') {
     if (body.name !== name) return send(res, 400, { error: `Type the account's name, ${name}, to delete it.` });
-    const boatGone = await eraseBoat(name);
-    doors.deleteAccount(name);
-    roomsWithout(name);
-    usage?.forget(name);
-    console.log(`[front door] the admin deleted the account ${name}; the machine erases it${boatGone ? ` (${boatGone.text})` : ''}`);
-    audited('delete', { account: name, detail: boatGone?.text });
-    askMachine(name);
+    const boatGone = await eraseAccount(name, ADMIN);
     return send(res, 200, { ok: true, ...(boatGone?.failed ? { boat: boatGone.text } : {}) });
   }
   doors.setSuspended(name, action === 'suspend');
