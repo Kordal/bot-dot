@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { startServer, waitFor } = require('./helpers');
+const { rpcClient } = require('./memory-helpers');
 test('a conversation creation retries without duplicating the project or first message', async () => {
   let srv = await startServer();
   try {
@@ -87,5 +88,23 @@ test('a Vault entry added or replaced after review is not silently shared at app
     assert.equal(started.status, 200, JSON.stringify(started.data));
     const entries = (await srv.api('/vault')).data;
     for (const id of [replacement.id, later.id]) assert.deepEqual(entries.find((e) => e.id === id).allowedBots || [], [], 'only exact reviewed ids can be shared');
+  } finally { await srv.stop(); }
+});
+
+test("the Chief's own set_company_team tool stages a proposal: its bots' fields are known, not each one \"unknown\"", async (t) => {
+  const srv = await startServer();
+  try {
+    const c = (await srv.api('/company', { method: 'POST', body: { start: 'Plan the backlog', conversation: true, key: 'creation-test-mcp' } })).data;
+    const client = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey, CHIEF_CHAT_ID: c.chiefChat });
+    const call = (args) => client.request('tools/call', { name: 'set_company_team', arguments: args });
+    const bot = { name: 'Backlog Keeper', description: 'Keeps the backlog in order', prompt: 'Review open issues weekly. Never close one.', owns: ['Backlog'], connects: ['github'], tools: ['Read'], routines: 'Mondays 8:00', cron: '0 8 * * 1', asksFirst: 'rules', preview: 'Three priorities with links', team: 'Core', computer: false, logins: [], ssh: [] };
+    const staged = await call({ project: c.id, firstStep: 'List three priorities for next week', proposal: [bot] });
+    assert.notEqual(staged.isError, true, staged.content?.[0]?.text);
+    const project = JSON.parse(staged.content[0].text);
+    assert.equal(project.firstStep, 'List three priorities for next week');
+    assert.equal(project.proposal[0].name, 'Backlog Keeper');
+    const wrong = await call({ project: c.id, firstStep: 'x', proposal: [{ ...bot, salary: 1 }] });
+    assert.equal(wrong.isError, true);
+    assert.match(wrong.content[0].text, /unknown field "salary" in proposal\[0\]/, 'a field the review has no place for is still refused, by name');
   } finally { await srv.stop(); }
 });
