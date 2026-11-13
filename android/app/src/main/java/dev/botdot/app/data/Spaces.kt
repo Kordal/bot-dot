@@ -50,7 +50,7 @@ object Spaces {
     /** [space] while it is still there; Home once its project is gone. */
     fun still(space: String, ids: List<String>): String = if (space == HOME || space in ids) space else HOME
 
-    /** The primary contact (ADR 234). Null while setup or the selected bot's list is still loading.
+    /** The primary contact (ADR 235). Null while setup or the selected bot's list is still loading.
      * PROJECT_CHIEF names a project whose Chief chat must be made before opening it.
      */
     fun defaultChat(project: Company?, bots: List<Bot>?, features: Collection<String>?): String? {

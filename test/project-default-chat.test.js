@@ -132,3 +132,25 @@ test('failed automatic entry waits for an explicit retry instead of retrying on 
   await new Promise((done) => setImmediate(done));
   assert.equal(contact, 'manager');
 });
+
+test('automatic Chief entry stops after the wide column disappears while explicit entry can still open', async () => {
+  let resolve;
+  let column = true;
+  const opened = [];
+  const state = { company: { id: 'p1' }, view: 'company' };
+  const ctx = vm.createContext({ state, place: 'company', at: (path) => path,
+    api: () => new Promise((done) => { resolve = done; }), changed() {}, toast() {},
+    Dock: { openChief: (id) => opened.push(id) },
+  });
+  const source = read('company.js');
+  vm.runInContext(source.slice(source.indexOf('  const openingChief ='), source.indexOf('  function wirePick')), ctx);
+  const pending = ctx.openProjectChief(undefined, () => column);
+  column = false;
+  resolve({ chatId: 'chief-p1' });
+  await pending;
+  assert.deepEqual(opened, []);
+  const explicit = ctx.openProjectChief();
+  resolve({ chatId: 'chief-p1' });
+  await explicit;
+  assert.deepEqual(opened, ['chief-p1']);
+});

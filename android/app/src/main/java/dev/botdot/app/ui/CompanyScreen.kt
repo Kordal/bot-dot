@@ -181,18 +181,18 @@ internal class CompanyUi(val app: BotDotApp, val scope: CoroutineScope, private 
         removingGoals += id
         call({ it.removeObjective(id) }) { removingGoals -= id }
     }
-    private val openingChief = mutableSetOf<String>()
+    private val openingChief = dev.botdot.app.data.ProjectChats.ChiefRequests()
     fun openChief(c: Company, open: (String) -> Unit) {
         c.chiefChat?.let { open(it); return }
         val a = api ?: run { tell(tr("Can't reach botdot.")); return }
-        if (!openingChief.add(c.id)) return
+        if (!openingChief.start(c.id, open)) return
         scope.launch {
             try {
                 val chat = a.projectChiefChat(c.id)
-                if (api === a && app.store.company.value.value?.company?.id == c.id && chat.isNotEmpty()) { app.store.company.refresh(); open(chat) }
+                if (api === a && app.store.company.value.value?.company?.id == c.id && chat.isNotEmpty()) { app.store.company.refresh(); openingChief.finish(c.id, chat) }
             } catch (e: kotlinx.coroutines.CancellationException) { throw e
             } catch (e: Exception) { tell(e.message ?: tr("Couldn't open the chat"))
-            } finally { openingChief.remove(c.id) }
+            } finally { openingChief.cancel(c.id) }
         }
     }
     fun call(block: suspend (Api) -> Company, made: Boolean = false, done: (Boolean) -> Unit = {}) = scope.launch {
@@ -580,7 +580,7 @@ internal fun ChiefAtWork(line: String? = null) = Column(Modifier.fillMaxWidth().
     if (line != null) Text(line, color = LocalPaper.current.text, fontSize = Type.s16, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
 }
 
-/** The same primary contact as the wide project conversation (ADR 234). */
+/** The same primary contact as the wide project conversation (ADR 235). */
 @Composable
 private fun DefaultChatField(ui: CompanyUi, c: Company, ways: CompanyWays) {
     val app = ui.app

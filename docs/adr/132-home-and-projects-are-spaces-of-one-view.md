@@ -3,7 +3,7 @@
 - **Status:** Accepted (2026-11-02)
 - **Owning task:** [#837](https://github.com/Kordal/bot-dot/issues/837), [#838](https://github.com/Kordal/bot-dot/issues/838), [#839](https://github.com/Kordal/bot-dot/issues/839), spec [#836](https://github.com/Kordal/bot-dot/issues/836)
 
-- **Changed by:** [ADR 234](234-a-project-opens-its-managers-conversation.md): a project’s primary conversation is its selected Project Manager’s, otherwise its own Chief chat.
+- **Changed by:** [ADR 235](235-a-project-opens-its-managers-conversation.md): a project’s primary conversation is its selected Project Manager’s, otherwise its own Chief chat.
 
 ## Context
 

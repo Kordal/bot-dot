@@ -326,7 +326,7 @@
     const adds = `<button type="button" class="sp-new" data-cf-new>${Company.ICON.plus}${tr('New team')}</button>${own && !own.length ? `<button type="button" class="sp-new" data-cf-add-bot>${Company.ICON.plus}${esc(addBot)}</button>` : ''}`;
     return `<div class="sp-teams">${rows}${ownRow}<div class="sp-adds">${adds}</div></div>`;
   }
-  // The same primary contact as the wide chat column (ADR 234), named before the owner writes.
+  // The same primary contact as the wide chat column (ADR 235), named before the owner writes.
   function fieldHTML(c) {
     const d = Dock.defaultChat();
     if (!d) return '';

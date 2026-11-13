@@ -72,6 +72,7 @@ class SpacesTest {
         assertEquals(Spaces.CHIEF, Spaces.defaultChat(null, bots, supported)) // Home
         assertEquals(null, Spaces.defaultChat(shop, bots, supported)) // setup
         assertEquals(null, Spaces.defaultChat(running, null, supported)) // bots still loading
+        assertEquals("chief/c-shop", Spaces.defaultChat(running.copy(lead = null), null, supported)) // no need for bots
     }
 
     @Test fun homesNeedsYouListsAllAndAProjectOnlyItsOwn() {

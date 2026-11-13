@@ -25,6 +25,15 @@ object ProjectChats {
         return Open(kind, id).takeIf { (kind == BOT || kind == TEAM || kind == CHIEF) && id.isNotEmpty() }
     }
 
+    /** Several taps share one Chief-chat creation, but only the latest caller owns navigation. */
+    class ChiefRequests {
+        private val waiting = mutableMapOf<String, (String) -> Unit>()
+        /** True starts the request; false joins the creation already in flight. */
+        fun start(project: String, open: (String) -> Unit): Boolean = waiting.put(project, open) == null
+        fun finish(project: String, chat: String) { waiting.remove(project)?.invoke(chat) }
+        fun cancel(project: String) { waiting.remove(project) }
+    }
+
     /** Where the sheet goes. */
     enum class Height { HALF, FULL, CLOSED }
 

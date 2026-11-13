@@ -400,7 +400,7 @@ const Company = (() => {
     } catch (e) { toast(e.message, true); } finally { b.disabled = false; }
   }
   const openingChief = new Set();
-  async function openProjectChief(b = {}) {
+  async function openProjectChief(b = {}, canOpen = () => true) {
     const c = state.company;
     if (!c || b.disabled || openingChief.has(c.id)) return;
     if (c.chiefChat) return Dock.openChief(c.chiefChat);
@@ -410,7 +410,7 @@ const Company = (() => {
     try {
       const r = await api(at('/company/chief-chat'), { method: 'POST' });
       if (r.company) changed({ company: r.company });
-      if (state.company?.id === c.id && place === 'company' && state.view === view && state.chatId === chat && state.botId === bot && state.groupId === group) Dock.openChief(r.chatId);
+      if (state.company?.id === c.id && place === 'company' && state.view === view && state.chatId === chat && state.botId === bot && state.groupId === group && canOpen()) Dock.openChief(r.chatId);
     } catch (e) { toast(e.message, true); return false; } finally { openingChief.delete(c.id); b.disabled = false; }
   }
   function wirePick(root) {

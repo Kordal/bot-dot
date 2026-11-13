@@ -15,7 +15,7 @@ const Dock = (() => {
     team: { open: (id) => setView('group', id) },
     // The Chief's chat (#819), on the chat it shows (a goal's change ask opens a new one there). Beside the project
     // only when opened from it (openChief), not whenever the Chief's view is up, as it is while the page starts.
-    chief: { open: (id) => id === null ? Company.openProjectChief() : openChief(id) },
+    chief: { open: (id, canOpen) => id === null ? Company.openProjectChief(undefined, canOpen) : openChief(id) },
   };
 
   const shows = () => typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company';
@@ -64,7 +64,7 @@ const Dock = (() => {
   let showBtn = null; // #project-chat-show: the column back, at the top right of the board
   let opening = false; // the default chat is being opened
   let failedDefault = null; // a failed automatic open waits for an explicit retry or another space
-  // The selected Project Manager is the primary contact (ADR 234); otherwise the project's own Chief.
+  // The selected Project Manager is the primary contact (ADR 235); otherwise the project's own Chief.
   // null as the Chief id means its chat needs making. undefined keeps older servers' ordinary Chief entry.
   function defaultChat() {
     const c = state.company;
@@ -75,10 +75,10 @@ const Dock = (() => {
     }
     return { kind: 'chief', id: state.features.includes('project-chief') ? c.chiefChat || null : undefined };
   }
-  function openDefault() {
+  function openDefault(canOpen) {
     failedDefault = null;
     const d = defaultChat();
-    if (d) return kinds[d.kind].open(d.id);
+    if (d) return kinds[d.kind].open(d.id, canOpen);
   }
   // Draws the Projects screen of a wide window; false below it.
   function drawColumn() {
@@ -100,7 +100,7 @@ const Dock = (() => {
         opening = true;
         queueMicrotask(async () => {
           try {
-            if (state.company?.id === project && state.view === 'company' && column() && !hidden && await openDefault() === false) failedDefault = project;
+            if (state.company?.id === project && state.view === 'company' && column() && !hidden && await openDefault(() => column() && !hidden) === false) failedDefault = project;
           }
           finally { opening = false; if (state.company?.id !== project) draw(); }
         });

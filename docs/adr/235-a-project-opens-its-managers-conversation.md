@@ -1,4 +1,4 @@
-# ADR-234: A project opens its manager's conversation
+# ADR-235: A project opens its manager's conversation
 
 - **Status:** Accepted (2026-11-13, the owner approved the five-PR Projects simplification)
 - **Owning task:** [#1328](https://github.com/Kordal/bot-dot/issues/1328), spec [#1327](https://github.com/Kordal/bot-dot/issues/1327)

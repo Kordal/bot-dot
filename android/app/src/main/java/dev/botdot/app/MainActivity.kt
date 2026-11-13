@@ -146,6 +146,7 @@ class MainActivity : ComponentActivity() {
                 val server by app.settings.server.collectAsState(initial = "…")
                 val nav = rememberNavController()
                 val scope = rememberCoroutineScope()
+                var conversationRequest by remember { mutableStateOf(0) }
                 val askNotify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { FeedService.start(this) }
 
                 // Once connected: notifications permission, then the background connection.
@@ -163,6 +164,7 @@ class MainActivity : ComponentActivity() {
                     val t = target ?: return@LaunchedEffect
                     if (server == null || server == "…") return@LaunchedEffect
                     openTarget.value = null
+                    conversationRequest++
                     if (t.startsWith("bot:") || t.startsWith("chief:") || t.startsWith("group:") || t.startsWith("room:") || t == "needs") panelOff.value()
                     when {
                         t.startsWith("bot:") -> nav.navigate("bot/${t.removePrefix("bot:")}") { launchSingleTop = true }
@@ -293,7 +295,6 @@ class MainActivity : ComponentActivity() {
                 var space by rememberSaveable { mutableStateOf(Spaces.HOME) }
                 var newSpace by rememberSaveable { mutableStateOf(false) } // "New project": the start screen, no project yet
                 var searchAsk by rememberSaveable { mutableStateOf(0) }
-                var conversationRequest by remember { mutableStateOf(0) }
                 fun goSpace(id: String, keep: Boolean = true) {
                     val request = ++conversationRequest
                     space = id
@@ -311,7 +312,8 @@ class MainActivity : ComponentActivity() {
                         val project = projects.firstOrNull { it.id == id }
                         scope.launch {
                             runCatching {
-                                val bots = botsNow ?: app.store.bots.value.first { it != null }
+                                val needsManager = dev.botdot.app.data.ManyProjects.MANAGER_BOT in features.orEmpty() && project?.lead != null
+                                val bots = if (needsManager) botsNow ?: app.store.bots.value.first { it != null } else botsNow
                                 val to = Spaces.defaultChat(project, bots, features) ?: return@runCatching
                                 val destination = if (to.startsWith(Spaces.PROJECT_CHIEF)) {
                                     val api = app.api.value ?: return@runCatching
