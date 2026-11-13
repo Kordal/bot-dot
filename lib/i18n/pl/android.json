@@ -3,7 +3,7 @@
   "Couldn't tell whether your account was deleted. Open botdot again: if it asks you to sign in, it was.": "Nie wiadomo, czy twoje konto zostało usunięte. Otwórz botdot ponownie: jeśli poprosi o zalogowanie, zostało.",
   "Your account is deleted.": "Twoje konto jest usunięte.",
   "Your account is being deleted.": "Twoje konto jest w trakcie usuwania.",
-  "Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days.": "Konto zostanie od razu wstrzymane i wylogowane na wszystkich urządzeniach. Subskrypcja zostanie anulowana, a konto, jego boty, czaty, pliki, notatki i Tablica znikną w ciągu 7 dni.",
+  "Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days. This can't be undone.": "Konto zostanie od razu wstrzymane i wylogowane na wszystkich urządzeniach. Subskrypcja zostanie anulowana, a konto, jego boty, czaty, pliki, notatki i Tablica znikną w ciągu 7 dni. Tego nie da się cofnąć.",
   "Couldn't delete the account": "Nie udało się usunąć konta",
   "Latest": "Najnowsze",
   "Couldn't load": "Nie udało się wczytać",

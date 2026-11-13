@@ -703,7 +703,7 @@ async function loadDeleteCard(root) {
 // cancelled.
 function openDeleteAccount(account, request = false) {
   const what = request
-    ? `<p>${tr('Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days.')}</p>`
+    ? `<p>${tr("Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days. This can't be undone.")}</p>`
     : `<p>${tr('This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback.')}</p>`;
   const m = openModal(`
     <form id="delete-account-form" autocomplete="off">
