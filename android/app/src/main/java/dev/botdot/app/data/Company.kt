@@ -26,6 +26,7 @@ data class Company(
     val start: String = "",
     val phase: String = "setup",
     val conversation: Boolean = false,
+    val creationZone: String = "",
     val creationSent: Boolean = false,
     val creationReview: String? = null,
     val firstStep: String = "",
@@ -247,6 +248,10 @@ data class Proposed(
     val computer: Boolean = false,
     val logins: List<Need> = emptyList(),
     val ssh: List<Need> = emptyList(),
+    val prompt: String = "",
+    val tools: List<String> = emptyList(),
+    val cron: String? = null,
+    val schedule: String? = null,
 )
 
 /** A Vault login or SSH key a proposed bot must reach (#808): what the Chief named, and the entry once one is matched or picked. */

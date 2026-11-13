@@ -73,7 +73,7 @@
       </div>
       <aside class="co-aside">
         <section class="co-panel">
-          <button type="button" class="btn co-existing" data-existing aria-expanded="${ui.adding}">${Company.ICON.plus}${tr('Add existing bot')}</button>
+          ${c.conversation ? '' : `<button type="button" class="btn co-existing" data-existing aria-expanded="${ui.adding}">${Company.ICON.plus}${tr('Add existing bot')}</button>`}
           ${ui.adding ? existing(c) : ''}
           ${c.teamChat?.length ? `<div class="co-chat">${c.teamChat.map((m) => (m.who === 'you' ? `<div class="co-said">${esc(m.text)}</div>` : `<div class="co-reply">${chiefFigure('sm')}<span>${esc(m.text)}</span>${m.undo && c.canUndo ? `<button type="button" class="co-undo" data-undo>${tr('Undo')}</button>` : ''}</div>`)).join('')}</div>` : ''}
           <form class="co-ask small" id="co-change"><input name="text" autocomplete="off" maxlength="300" placeholder="${tr('Change the team…')}" aria-label="${tr('Change the team…')}" ${ui.sending ? 'disabled' : ''} /><button type="submit" class="co-go${ui.sending ? ' spin' : ''}" aria-label="${tr('Send')}" ${ui.sending ? 'disabled' : ''}>${Company.ICON.go}</button></form>
@@ -130,6 +130,7 @@
     return `<article class="co-card" data-key="${esc(p.key)}">
       <div class="co-card-head">${botFigure(p.color, 'idle')}<div class="co-card-title"><div class="co-card-name">${name}</div>${p.description ? `<div class="co-card-job">${esc(p.description)}</div>` : ''}</div><button type="button" class="icon-btn" data-remove aria-label="${tr('Remove')}">${I.trash}</button></div>
       <div class="co-rows">
+        ${c.conversation ? `<span class="co-k">${tr('Main assignment')}</span><div class="co-v">${esc(p.prompt || p.description)}</div><span class="co-k">${tr('Allowed tools')}</span><div class="co-v">${chips(p.tools || [], '')}</div>${p.cron ? `<span class="co-k">${tr('Schedule')}</span><div class="co-v">${esc(p.schedule || tr('Custom schedule'))} · ${esc(c.creationZone || '')}</div>` : ''}` : ''}
         <span class="co-k">${tr('Owns')}</span><div class="co-v">${chips(p.owns, Company.ICON.file)}</div>
         <span class="co-k">${tr('Connects')}</span><div class="co-v">${p.connects.length ? p.connects.map((a) => `<span class="co-tag-chip${missing.includes(a) ? ' off' : ''}">${Company.ICON.link}${esc(appName(a))}</span>`).join('') : `<span class="co-none">${tr('None')}</span>`}</div>
         <span class="co-k">${tr('Routines')}</span><div class="co-v">${p.routines ? `<label class="co-routine"><span class="switch"><input type="checkbox" data-routine ${p.routinesOn ? 'checked' : ''} aria-label="${esc(p.routines)}"><span></span></span>${esc(p.routines)}</label>` : `<span class="co-none">${tr('None')}</span>`}</div>
@@ -167,7 +168,7 @@
     };
     // "Add a bot" is said to the Chief, who designs it.
     $('[data-add-bot]', root).onclick = () => { ui.draft = tr('Add a bot that '); const input = $('#co-change input'); input.value = ui.draft; input.focus(); };
-    $('[data-existing]', root).onclick = () => { ui.adding = !ui.adding; Company.redraw(); };
+    $('[data-existing]', root)?.addEventListener('click', () => { ui.adding = !ui.adding; Company.redraw(); });
     $$('[data-duplicate]', root).forEach((b) => (b.onclick = () => { b.disabled = true; call('/company/proposal/duplicate', { bot: b.dataset.duplicate }); }));
     $$('[data-undo]', root).forEach((b) => (b.onclick = () => call('/company/proposal/undo')));
     $$('[data-starter]', root).forEach((b) => (b.onchange = () => {
@@ -218,7 +219,7 @@
     ui.creating = true;
     const review = state.company?.conversation ? shownReview : null;
     Company.go('start');
-    try { Company.put(await api(Company.at('/company/start'), { method: 'POST', ...(review ? { body: { review } } : {}) })); } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
+    try { const next = await api(Company.at('/company/start'), { method: 'POST', ...(review ? { body: { review } } : {}) }); Company.put(next); if (next.conversation && next.phase === 'running') { Company.go(null); Dock.openDefault(); } } catch (e) { toast(e.message, true); ui.creating = false; return Company.go('team'); }
     ui.creating = false;
     Company.redraw();
   }

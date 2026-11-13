@@ -111,14 +111,14 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
         }
         CoChip(tr("Add a bot"), dashed = false, icon = Icons.Filled.Add) { ui.draft = tr("Add a bot that ") }
         CoPanel {
-            CoChip(tr("Add existing bot"), on = false, dashed = false, icon = Icons.Filled.Add) { ui.adding = !ui.adding }
-            if (ui.adding) Existing(ui, proposed)
+            if (!c.conversation) CoChip(tr("Add existing bot"), on = false, dashed = false, icon = Icons.Filled.Add) { ui.adding = !ui.adding }
+            if (ui.adding && !c.conversation) Existing(ui, proposed)
             c.teamChat.forEach { m ->
                 if (m.who == "you") Text(m.text, color = p.text, fontSize = Type.s14, modifier = Modifier.fillMaxWidth().padding(start = Space.s32).clip(Radius.card).background(p.sunk).padding(Space.s12))
                 else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     BotFigure(CHIEF_COLOR, "idle", 24, dev.botdot.app.data.FigureDef.CHIEF)
                     Text(m.text, color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
-                    if (m.undo && c.canUndo) WordsButton(tr("Undo")) { ui.call({ it.undoTeam() }) }
+                    if (m.undo && c.canUndo) WordsButton(tr("Undo")) { ui.saving++; ui.call({ it.undoTeam() }) { ui.saving-- } }
                 }
             }
             AskField(ui.draft, { ui.draft = it.take(300) }, label = tr("Change the team…"), placeholder = tr("Change the team…"), button = tr("Send"), busy = ui.sending) {
@@ -218,6 +218,7 @@ private fun BotCard(ui: CompanyUi, c: Company, b: Proposed, onRename: (String) -
             }
             RoundButton(Icons.Outlined.Delete, tr("Remove"), size = 36.dp, onClick = onRemove)
         }
+        if (c.conversation) CreationBotDetails(b, c.creationZone)
         Row2(tr("Owns")) { if (b.owns.isEmpty()) None() else b.owns.forEach { Tag(it) } }
         Row2(tr("Connects")) { if (b.connects.isEmpty()) None() else b.connects.forEach { Tag(CompanySetup.appName(it), off = it in missing, link = true) } }
         Row2(tr("Routines")) {
@@ -295,4 +296,13 @@ private fun Tag(text: String, off: Boolean = false, link: Boolean = false, icon:
         if (icon != null) { Icon(icon, null, tint = if (off) p.faint else p.muted, modifier = Modifier.size(13.dp)); Spacer(Modifier.size(4.dp)) }
         Text(text, color = if (off) p.faint else p.text, fontSize = Type.s12)
     }
+}
+
+/** The effective grant displayed before approving a conversational project's first step. */
+@Composable
+internal fun CreationBotDetails(b: Proposed, zone: String) {
+    val p = LocalPaper.current
+    Row2(tr("Main assignment")) { Text(b.prompt.ifBlank { b.description }, color = p.text, fontSize = Type.s14) }
+    Row2(tr("Allowed tools")) { if (b.tools.isEmpty()) None() else b.tools.forEach { Tag(it) } }
+    b.schedule?.let { words -> Row2(tr("Schedule")) { Text("$words · $zone", color = p.text, fontSize = Type.s14) } }
 }

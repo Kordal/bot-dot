@@ -35,10 +35,9 @@ const Company = (() => {
   const keep = () => { try { localStorage.setItem(KEY, place === 'company' ? shownId || 'company' : 'home'); } catch { /* private mode */ } };
   let loaded = false;
   // What the start screen holds before Go: the sources picked so far.
-  const draft = { sources: [], text: '', key: null };
+  const draft = { sources: [], text: '', key: null, basis: null };
   const conversationOn = () => state.features.includes('project-conversation');
   function keepCreation(text = $('#co-what')?.value ?? draft.text) {
-    if (draft.text !== text) draft.key = null;
     draft.text = text;
   }
 
@@ -419,7 +418,7 @@ const Company = (() => {
       const r = await api(at('/company/chief-chat'), { method: 'POST' });
       // This request only makes the Chief chat; do not overwrite settings changed while it waited.
       const current = state.company?.id === c.id ? state.company : projects().find((p) => p.id === c.id);
-      if (current) changed({ company: { ...current, chiefChat: r.chatId } });
+      if (current) changed({ company: { ...current, chiefChat: r.chatId, ...(r.company?.creationSent ? { creationSent: true } : {}) } });
       if (state.company?.id === c.id && place === 'company' && state.view === view && state.chatId === chat && state.botId === bot && state.groupId === group && canOpen()) Dock.openChief(r.chatId);
     } catch (e) { toast(e.message, true); return false; } finally { openingChief.delete(c.id); b.disabled = false; }
   }
@@ -659,7 +658,7 @@ const Company = (() => {
   // The sources as chips: a file or a link, removable on the new-project screen.
   const sourcesHTML = (list, removable) => (list.length ? `<ul class="co-sources">${list.map((s) => `<li class="co-src${s.status === 'failed' ? ' failed' : s.status === 'uploading' ? ' busy' : ''}">${s.kind === 'link' ? ICON.link : ICON.file}<span class="co-src-name">${esc(s.name)}</span>${removable ? `<button type="button" class="co-src-x" data-unsource="${esc(s.id)}" aria-label="${tr('Remove')}">${ICON.x}</button>` : ''}</li>`).join('')}</ul>` : '');
   function drawSources() {
-    if (conversationOn()) { draft.key = null; keepCreation(); }
+    if (conversationOn()) keepCreation();
     const box = $('#co-sources');
     if (!box) return;
     box.innerHTML = sourcesHTML(draft.sources, true);
@@ -704,13 +703,15 @@ const Company = (() => {
   }
 
   async function begin(text, button) {
-    const start = String(text || '').trim();
+    const start = String(text || '').trim().replace(/\s+/g, ' ');
     if (!start) return;
     const sources = readySources();
     if (sources) {
       if (conversationOn()) keepCreation(start);
-      const extra = conversationOn() ? { conversation: true, key: draft.key || (draft.key = crypto.randomUUID()) } : {};
-      made({ start, sources, ...extra }, button, () => { draft.sources = []; draft.text = ''; draft.key = null; current = conversationOn() ? 'conversation' : 'about'; });
+      const basis = JSON.stringify({ start, sources });
+      if (conversationOn() && basis !== draft.basis) { draft.basis = basis; draft.key = messageKey(); }
+      const extra = conversationOn() ? { conversation: true, key: draft.key || (draft.key = messageKey()) } : {};
+      made({ start, sources, ...extra }, button, () => { draft.sources = []; draft.text = ''; draft.key = null; draft.basis = null; current = conversationOn() ? 'conversation' : 'about'; });
     }
   }
   // The sources picked on the start screen, for a new project of either kind; null while a file still uploads.

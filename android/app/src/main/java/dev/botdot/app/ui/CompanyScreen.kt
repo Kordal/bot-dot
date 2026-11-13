@@ -265,14 +265,10 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             c.conversation && "project-conversation" in server?.features.orEmpty() && !c.running && ui.step !in listOf("team", "start") -> {
                 ui.follow(c)
                 LaunchedEffect(c.id) { ui.openChief(c) { ways.onChiefChat?.invoke(it) ?: ways.onChief() } }
-                Column(Modifier.fillMaxSize().padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
-                    ProjectTitle(ui, c, ways, boardTools = false)
-                    Text(c.start, color = p.text)
-                    Text(tr("Discuss the first step with the Chief. Review the proposal before anything starts."), color = p.muted)
-                    if (c.firstStep.isNotBlank()) { Text(tr("First step"), fontSize = Type.s20, fontWeight = FontWeight.SemiBold); Text(c.firstStep, color = p.text) }
-                    SmallButton(LocalChiefName.current) { ui.openChief(c) { ways.onChiefChat?.invoke(it) ?: ways.onChief() } }
-                    if (!c.proposal.isNullOrEmpty()) SmallButton(tr("Review first step")) { ui.step = "team" }
-                }
+                ProjectCreationIntro(c,
+                    onChat = { ui.openChief(c) { ways.onChiefChat?.invoke(it) ?: ways.onChief() } },
+                    onReview = { ui.step = "team" },
+                ) { ProjectTitle(ui, c, ways, boardTools = false) }
             }
             // A running company: its home, the office floor (#675).
             c.running -> {
@@ -357,7 +353,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, conversation: Boolean = fal
     }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> addFiles(ui, context, uris) }
     fun go() {
-        val start = what.trim()
+        val start = what.trim().replace(Regex("\\s+"), " ")
         if (start.isEmpty() || ui.going) return
         if (ui.sources.any { it.uploading }) return ui.tell(tr("Wait for the files to finish uploading."))
         if (conversation && ui.sources.any { it.failed }) return ui.tell(tr("Remove failed files or add them again."))
@@ -384,7 +380,7 @@ private fun StartForm(ui: CompanyUi, empty: Boolean, conversation: Boolean = fal
                     modifier = Modifier.fillMaxWidth().focusRequester(requester).semanticsLabel(tr("Project name")))
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WordsButton(tr("Back"), enabled = !ui.going) { naming = false } }
             } else {
-                Field(what, { what = it.take(500); creationKey = java.util.UUID.randomUUID().toString() }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
+                Field(what, { what = it.take(500) }, singleLine = true, enabled = !ui.going, shape = Radius.pill,
                     placeholder = { Text(tr("Goal, matter or site"), color = p.faint) },
                     leadingIcon = {
                         Box {

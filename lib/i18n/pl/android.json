@@ -1357,5 +1357,8 @@
   "Review first step": "Sprawdź pierwszy krok",
   "Remove failed files or add them again.": "Usuń pliki, których nie udało się przesłać, lub dodaj je ponownie.",
   "First step": "Pierwszy krok",
-  "Approve first step": "Zatwierdź pierwszy krok"
+  "Approve first step": "Zatwierdź pierwszy krok",
+  "Main assignment": "Główne zadanie",
+  "Allowed tools": "Dozwolone narzędzia",
+  "Schedule": "Harmonogram"
 }
