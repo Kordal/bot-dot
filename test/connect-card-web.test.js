@@ -128,14 +128,16 @@ test('web: a botdot that never answers ends the wait: the blank window closes an
   assert.match(p.draw(), /role="alert">botdot didn&#39;t finish that\. Try again in a moment\.<\/div>|role="alert">botdot didn't finish that\. Try again in a moment\.<\/div>/);
 });
 
-test('web: an answer with no sign-in page is a failure, not a blank window', async () => {
-  const p = connectPage(CONNECT, { post: { connectionId: 'ca_1' } });
-  p.show('ask:c1');
-  p.press();
-  await p.settle();
-  assert.equal(p.tab.closed, true);
-  assert.equal(p.tab.location, null);
-  assert.deepEqual(buttons(p.draw()), ['Not now', 'Try again']);
+test('web: an answer with no sign-in page, or one no window can open, is a failure, not a blank window', async () => {
+  for (const post of [{ connectionId: 'ca_1' }, { connectionId: 'ca_1', redirectUrl: 'https://[' }, { connectionId: 'ca_1', redirectUrl: 'javascript:alert(1)' }]) {
+    const p = connectPage(CONNECT, { post });
+    p.show('ask:c1');
+    p.press();
+    await p.settle();
+    assert.equal(p.tab.closed, true, JSON.stringify(post));
+    assert.equal(p.tab.location, null);
+    assert.deepEqual(buttons(p.draw()), ['Not now', 'Try again']);
+  }
 });
 
 test('web: a refusal for a card not on the page (its row on a project\'s page) is a toast', async () => {

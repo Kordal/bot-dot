@@ -222,6 +222,9 @@ const CONNECT_START_MS = 30_000;
 // waiting. start() and status(answer): the requests that open the sign-in and ask how it stands, in place of the
 // Connectors page's own (a missing app's card asks through its ask, docs/api.md "A missing connected app"). An
 // answer with `expiresAt` is waited for until then.
+// A sign-in page's address that a window can open: http(s), and one that parses (a bad one throws on navigation).
+const webPage = (u) => { try { return ['http:', 'https:'].includes(new URL(String(u || '')).protocol); } catch { return false; } };
+
 async function connectApp(slug, connected = null, on = {}) {
   const live = on.live || (() => true);
   const win = window.open('about:blank', '_blank'); // opened now, so pop-up blockers allow it
@@ -235,7 +238,7 @@ async function connectApp(slug, connected = null, on = {}) {
   const late = new Promise((_, no) => { timer = setTimeout(() => no(new Error(tr("botdot didn't finish that. Try again in a moment."))), CONNECT_START_MS); });
   try {
     r = await Promise.race([new Promise((res) => res(start())), late]);
-    if (!r?.noAuth && !/^https?:\/\//.test(String(r?.redirectUrl || ''))) throw new Error(tr("botdot didn't finish that. Try again in a moment."));
+    if (!r?.noAuth && !webPage(r?.redirectUrl)) throw new Error(tr("botdot didn't finish that. Try again in a moment."));
   } catch (e) { win?.close(); return live() ? fail(e.message) : undefined; } finally { clearTimeout(timer); }
   if (!live()) { win?.close(); return; }
   // Connected: every bot has it now (ADR 231), so nothing is asked; one more account still picks the bots that move to it.
