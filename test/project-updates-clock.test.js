@@ -56,3 +56,10 @@ test('goal progress and a failed objective source reach the same update as other
   assert.match(output, /Goal progress\n• Sign-ups: 12 \/ 50/);
   assert.match(output, /Blockers\n• Sign-ups: Analytics connection failed/);
 });
+
+test('goals without numeric targets report checked steps or completion instead of an invented zero', () => {
+  const project = c({ objectives: [{ name: 'Launch', steps: [{ text: 'Draft', done: true }, { text: 'Publish', done: false }] }, { name: 'Choose a venue' }] });
+  const output = text(project, { work: [], blockers: [], replies: [] });
+  assert.match(output, /Launch: 1 of 2 steps marked done/);
+  assert.match(output, /Choose a venue: Not marked done/);
+});

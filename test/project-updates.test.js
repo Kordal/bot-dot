@@ -78,6 +78,9 @@ test('an update reaches the selected manager once and leaves its unanswered ques
   assert.deepEqual((await srv.api(`/bots/${boss.id}`)).data.asks, question, 'question survives restart after a summary');
   assert.equal((await srv.api(url, { method: 'POST', body: { key: 'garden-update-once' } })).data.update.botId, boss.id);
   assert.equal((await srv.asChief(url, { method: 'POST', body: { key: 'unasked-loop' } })).status, 403);
+  await srv.api(`/bots/${boss.id}/run`, { method: 'POST', body: { prompt: 'Read the current goal' } });
+  const next = await srv.nextRun((r) => r.stdin.includes('Read the current goal'), 'a fresh manager turn');
+  assert.doesNotMatch(next.stdin + next.system, /Which date/, 'an earlier server summary cannot revive left-out chat text');
 });
 
 

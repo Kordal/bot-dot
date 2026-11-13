@@ -648,5 +648,7 @@
   "A question waits in this chat.": "W tym czacie czeka pytanie.",
   "Goal progress": "Postęp celów",
   "No goal figures recorded.": "Nie zapisano wartości celów.",
-  "Saved report unavailable for this update: {team}.": "Zapisany raport jest niedostępny dla tej aktualizacji: {team}."
+  "Saved report unavailable for this update: {team}.": "Zapisany raport jest niedostępny dla tej aktualizacji: {team}.",
+  "{done} of {total} steps marked done": "{done} z {total} kroków oznaczono jako gotowe",
+  "Not marked done": "Nie oznaczono jako gotowe"
 }
