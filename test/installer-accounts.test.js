@@ -207,6 +207,13 @@ test("root's step erases nothing the front door doesn't say it deleted, and neve
   assert.match(admin.stderr, /The account ann is the admin's own, so it wasn't erased\./);
   assert.doesNotMatch(admin.system, /^(userdel|systemctl disable)/m);
   assert.ok(fs.existsSync(path.join(first.dir, 'accounts', 'ann', 'compose.yaml')));
+
+  // A managed machine has no admin (#1313, ADR 241): FRONT_DOOR_ADMIN names its first account, which its owner deletes.
+  const env = path.join(first.dir, 'front-door', '.env');
+  fs.appendFileSync(env, 'BOT_DOT_MANAGED=1\n');
+  const owner = step('ann');
+  assert.match(owner.said, /The account ann is erased: its data, containers and Linux user/);
+  assert.ok(!fs.existsSync(path.join(first.dir, 'accounts', 'ann')));
 });
 
 test('an update leaves a suspended account stopped, and erases one the admin deleted', (t) => {

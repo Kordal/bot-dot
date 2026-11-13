@@ -1883,11 +1883,15 @@ async function settleDeletions() {
     for (const { account, state } of deletion.granted()) {
       if (!billed(account)) { console.error(`[front door] an answer to delete ${account}, which doesn't pay for this machine, was ignored`); deletion.finish(account); continue; }
       if (!deletion.gone()) deletion.markGone(account, state);
+      let left = 0;
       for (const { name } of doors.listAccounts()) {
         try { await eraseAccount(name, account, `the machine deleted by its owner; subscription ${state === 'canceled' ? 'cancelled' : 'none'}`); } catch (e) {
-          console.error(`[front door] couldn't delete the account ${name}: ${e.message}`);
+          left++;
+          console.error(`[front door] couldn't delete the account ${name}, tried again in a moment: ${e.message}`);
         }
       }
+      // The answer stays until every account went, so that one that failed is tried again at the next look.
+      if (left) continue;
       deletion.finish(account);
       console.log(`[front door] ${account} deleted this machine: its accounts are erased, and it waits to be removed`);
     }

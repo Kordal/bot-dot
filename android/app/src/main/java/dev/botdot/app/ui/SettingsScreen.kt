@@ -479,25 +479,10 @@ fun SettingsScreen(
                                     android.widget.Toast.makeText(app, dev.botdot.app.data.AccountDeletion.said(done), android.widget.Toast.LENGTH_LONG).show()
                                     return@onSuccess
                                 }
-                                // A managed machine (#1313): the fleet console ends the subscription first. Asked every few
-                                // seconds; once the account is gone the front door answers as an ended session, and the
-                                // sign-in screen opens by itself.
-                                while (true) {
-                                    kotlinx.coroutines.delay(3000)
-                                    val now = runCatching { a.frontDoorSession() }
-                                    val ended = (now.exceptionOrNull() as? dev.botdot.app.data.ApiException)?.status == 401
-                                    if (ended) {
-                                        confirmDelete = false
-                                        android.widget.Toast.makeText(app, tr("Your account is deleted."), android.widget.Toast.LENGTH_LONG).show()
-                                        break
-                                    }
-                                    now.getOrNull()?.let { session = it }
-                                    if (dev.botdot.app.data.AccountDeletion.deletion(now.getOrNull()) == "failed") {
-                                        confirmDelete = false
-                                        tell(dev.botdot.app.data.AccountDeletion.failed())
-                                        break
-                                    }
-                                }
+                                // A managed machine (#1313): the fleet console ends the subscription first. The card says
+                                // "Deleting…" and follows it; once the account is gone the sign-in screen opens by itself.
+                                confirmDelete = false
+                                session = runCatching { a.frontDoorSession() }.getOrNull() ?: session
                             }
                             .onError { tell(it.message ?: tr("Couldn't delete the account")) }
                         deleting = false
