@@ -100,9 +100,31 @@ class ProjectDeskTest {
         val t = desk.state.value.teams.single()
         assertEquals(listOf("Bo", "Ada"), t.keys.map { it.bot.name })
         assertEquals(listOf(true, false), t.keys.map { it.lead })
+        assertEquals(listOf(true, false), t.keys.map { it.crown })
         assertEquals("g1", t.chat)
         assertEquals("1 working", t.word)
         assertEquals("Plans", t.keys[1].line)
+    }
+
+    @Test fun withNoLeadSetTheFirstMemberLeadsWithoutTheCrownWhenAlone() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" }, c = kitchen.replace(",\"lead\":\"b2\"", "").replace("[\"b1\",\"b2\"]", "[\"b1\"]"))
+        runCurrent()
+        val k = desk.state.value.teams.single().keys.single()
+        assertTrue(k.lead)
+        assertFalse(k.crown)
+    }
+
+    @Test fun aSecondTapWhileTheChiefChatIsMadeAsksNothing() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val fake = FakeBotdot { a -> if (a.path == "/company/chief-chat") { gate.await(); 200 to """{"chatId":"c7"}""" } else 200 to "{}" }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        val first = async(Dispatchers.Default) { desk.chiefChat() }
+        until("the first is asked") { fake.asked().any { it.path == "/company/chief-chat" } }
+        assertEquals("", desk.chiefChat())
+        gate.complete(Unit)
+        assertEquals("c7", first.await())
+        assertEquals(1, fake.asked().count { it.path == "/company/chief-chat" })
     }
 
     @Test fun theProjectsOwnBotsAreKeysAndAddBotOffersTheOthers() = runTest {

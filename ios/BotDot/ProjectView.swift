@@ -102,20 +102,37 @@ struct Count: View {
     let n: Int
     var body: some View {
         if n > 0 {
-            Text(n > 99 ? "99+" : "\(n)").font(.caption2.weight(.semibold)).padding(.horizontal, 6).padding(.vertical, 2)
+            Text(ProjectRules.shared.countText(n: Int32(n))).font(.caption2.weight(.semibold)).padding(.horizontal, 6).padding(.vertical, 2)
                 .background(.primary, in: .capsule).foregroundStyle(Color(uiColor: .systemBackground))
         }
+    }
+}
+
+/// A project's page, opened from the switch of spaces: its model is made once, when the page first shows, not each
+/// time Home draws the link (each one follows the Store until it goes).
+struct ProjectView: View {
+    let home: HomeStore
+    let id: String
+    let figure: FigureDef?
+    @State private var model: ProjectModel?
+
+    var body: some View {
+        Group {
+            if let model { ProjectPage(home: home, id: id, figure: figure, model: model) }
+            else { ProgressView() }
+        }
+        .task { if model == nil { model = ProjectModel(home: home) } }
     }
 }
 
 /// A project's page (Android's CompanyHome on a phone): its name, gear, Tidy and Project Manager; what waits in it;
 /// the board (the day, the objectives, the cards, the Files tile); a row per team (the lead first, with the crown),
 /// the project's own bots with Add bot; and its default chat at the bottom.
-struct ProjectView: View {
+struct ProjectPage: View {
     let home: HomeStore
     let id: String
     let figure: FigureDef?
-    @State private var model: ProjectModel
+    let model: ProjectModel
     @State private var settings = false
     @State private var picking: Picking?
     @State private var panel: TeamRoute?
@@ -135,13 +152,6 @@ struct ProjectView: View {
         let title: String
         let bots: [Bot]
         var id: String { team ?? "" }
-    }
-
-    init(home: HomeStore, id: String, figure: FigureDef?) {
-        self.home = home
-        self.id = id
-        self.figure = figure
-        _model = State(initialValue: ProjectModel(home: home))
     }
 
     var body: some View {
@@ -329,7 +339,7 @@ struct KeyRow: View {
             HStack(spacing: 10) {
                 ZStack(alignment: .topTrailing) {
                     if let figure { FigureView(drawing: FigurePaint.shared.figure(def: figure, color: key.bot.color, state: key.bot.state, outfit: key.bot.outfit, dark: true)).frame(width: 32, height: 32) }
-                    if key.lead { Image(systemName: "crown.fill").font(.caption2).foregroundStyle(.yellow).offset(x: 6, y: -4) }
+                    if key.crown { Image(systemName: "crown.fill").font(.caption2).foregroundStyle(.yellow).offset(x: 6, y: -4) }
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(key.bot.name).font(.subheadline.weight(.semibold)).lineLimit(1)
@@ -436,7 +446,7 @@ struct TeamPanel: View {
                     ForEach(t.keys, id: \.bot.id) { k in
                         HStack {
                             KeyRow(key: k, figure: figure) { onBot(k.bot) }
-                            if k.lead || t.keys.count == 1 {
+                            if k.lead {
                                 Text(tr("Lead")).font(.caption).foregroundStyle(.yellow)
                             } else if moving == nil {
                                 Button(tr("Make lead")) {

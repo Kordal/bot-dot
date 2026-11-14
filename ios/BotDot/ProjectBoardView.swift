@@ -91,7 +91,10 @@ struct AskCard: View {
                 .focused($focused)
                 .submitLabel(.send)
                 .onSubmit(go)
-                .onChange(of: typed) { _, now in if now.count > 200 { typed = String(now.prefix(200)) } }
+                .onChange(of: typed) { _, now in
+                    let most = Int(ProjectRules.shared.ASK_MAX)
+                    if now.count > most { typed = String(now.prefix(most)) }
+                }
             Button(action: go) { Image(systemName: "arrow.up") }
                 .buttonStyle(.borderedProminent).clipShape(Circle())
                 .disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty)

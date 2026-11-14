@@ -3,6 +3,9 @@ package dev.botdot.app.data
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -67,6 +70,12 @@ object ProjectRules {
         }
     }
 
+    /** A count on a head or a space: "99+" past 99 (Android's ProjectChiefButton). */
+    fun countText(n: Int): String = if (n > 99) "99+" else n.toString()
+
+    /** How long a card's ask may be (Android's ask field). */
+    const val ASK_MAX = 200
+
     /** When a file of the Files tile changed, in this phone's zone ([ProjectFiles.whenOf]). */
     fun fileWhen(at: Long): String = ProjectFiles.whenOf(at)
 
@@ -75,8 +84,12 @@ object ProjectRules {
         if (features != null && Groups.TEAM_CHATS in features) Groups.teamChat(groups, teamId)?.id else null
 }
 
-/** A bot's key on a project's page: the bot as it is now, its line, whether it asks, and whether it leads its team. */
-data class ProjectKey(val bot: Bot, val line: String, val asks: Boolean, val lead: Boolean)
+/**
+ * A bot's key on a project's page: the bot as it is now, its line, whether it asks, whether it leads its team (the
+ * first when none is set, as Android's team panel says "Lead"), and whether its head wears the crown: a lead of more
+ * than one.
+ */
+data class ProjectKey(val bot: Bot, val line: String, val asks: Boolean, val lead: Boolean, val crown: Boolean = false)
 
 /** A team's row: its keys (the lead first), what it is at ([word]), and its chat's group, when there is one. */
 data class ProjectTeam(val team: CompanyTeam, val keys: List<ProjectKey>, val word: String, val asks: Boolean, val chat: String?, val objective: Objective?)
@@ -161,8 +174,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     private var cardsBefore: List<ProjectCard> = emptyList()
     private var cardsOf: String? = null
     private var filesJob: Job? = null
-    private val openingChief = ProjectChats.ChiefRequests()
-    private val _state = MutableStateFlow(stateOf(null, emptyList(), null, null, null, emptyList(), emptyList(), null, null, emptyMap(), ChiefName.role, Local()))
+    /** The projects whose Chief chat is being made: a second tap meanwhile asks nothing. */
+    private val openingChief = mutableSetOf<String>()
+    private val _state = MutableStateFlow(stateOf(null, emptyList(), null, null, null, emptyList(), null, null, null, emptyMap(), ChiefName.role, Local()))
     /** Everything the page draws; each change of the Store or of a tap here sends a new one. */
     val state: StateFlow<ProjectState> = _state
 
@@ -173,7 +187,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             combine(parts, others, store.company.error, local) { p, o, e, x -> Triple(p, o, e to x) }.collect { (p, o, ex) ->
                 val (e, x) = ex
                 fresh(p.company?.company)
-                _state.value = stateOf(p.version, p.list, p.company, p.bots, p.groups, o.waiting, o.chief?.let { listOf(it) }.orEmpty(), o.needs, e, o.lines, o.name, x)
+                _state.value = stateOf(p.version, p.list, p.company, p.bots, p.groups, o.waiting, o.chief, o.needs, e, o.lines, o.name, x)
             }
         }
     }
@@ -197,24 +211,23 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     private fun stateOf(
         version: VersionInfo?, list: List<Company>, held: CompanyHeld?, botsNow: List<Bot>?, groupsNow: List<Group>?, waiting: List<Waiting>,
-        chiefs: List<ChiefOverview>, needs: Needs?, error: String?, lines: Map<String, String>, chiefName: String, x: Local,
+        chief: ChiefOverview?, needs: Needs?, error: String?, lines: Map<String, String>, chiefName: String, x: Local,
     ): ProjectState {
         val features = version?.features
         val f = features.orEmpty()
         val bots = botsNow.orEmpty()
         val groups = groupsNow.orEmpty()
-        val chief = chiefs.firstOrNull()
         val projects = Spaces.projects(features, list, held?.company)
         val c = held?.company
         fun on(k: String) = c != null && ProjectBoard.shows(c, k)
         val asks = { id: String -> (waiting.count { it.bot == id }) + if (bots.firstOrNull { it.id == id }?.let(ProjectRules::question) != null) 1 else 0 }
-        fun key(b: Bot, lead: Boolean) = ProjectKey(b, ProjectRules.lineOf(b, lines["bot:${b.id}"]), asks(b.id) > 0, lead)
+        fun key(b: Bot, lead: Boolean, crown: Boolean = false) = ProjectKey(b, ProjectRules.lineOf(b, lines["bot:${b.id}"]), asks(b.id) > 0, lead, crown)
         val here = if (c == null) emptyList() else Spaces.underLeads(c, Spaces.needsIn(c, waiting, groups), bots).sortedBy { if (it.act != null) 0 else 1 }
         val waits = if (c == null) emptyMap() else Spaces.teamWaits(c, waiting, groups, bots.filter { ProjectRules.question(it) != null }.map { it.id })
         val teams = if (c == null) emptyList() else ManyProjects.branches(c, bots).map { br ->
             val t = br.team
             val word = ProjectRules.teamWord(waits[t.id] ?: Spaces.TeamWait(), bots, br.bots.count { it.running })
-            ProjectTeam(t, br.bots.map { key(it, it.id == t.lead && br.bots.size > 1) }, word.text, word.asks, ProjectRules.teamChat(features, groups, t.id), CompanyFloor.objectiveOf(t, c.objectives))
+            ProjectTeam(t, br.bots.mapIndexed { i, b -> key(b, b.id == t.lead || (t.lead == null && i == 0), b.id == t.lead && br.bots.size > 1) }, word.text, word.asks, ProjectRules.teamChat(features, groups, t.id), CompanyFloor.objectiveOf(t, c.objectives))
         }
         val route = Spaces.defaultChat(c, botsNow, features)
         val chat = if (c == null || route == null) null else {
@@ -274,8 +287,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     /** Pull to refresh: the project, the bots and what waits. */
     @Throws(Exception::class)
-    suspend fun refresh() {
-        listOf(store.company, store.bots, store.groups, store.needs, store.chief).forEach { scope.launch { it.refresh() } }
+    suspend fun refresh() = coroutineScope {
+        listOf(store.company, store.bots, store.groups, store.needs, store.chief).map { async { it.refresh() } }.awaitAll()
+        Unit
     }
 
     /** Sends [block]; its answer is the project as botdot has it now. A refusal says why and reads the project again. Whether it went. */
@@ -310,25 +324,23 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     /**
      * The project's own Chief chat (ADR 230), made on the first tap: its id, or "" when it couldn't be opened (said)
-     * or is being made by a tap before. Android's CompanyUi.openChief has the same rules.
+     * or is being made by a tap before, which opens it. Android's CompanyUi.openChief has the same rules.
      */
     @Throws(Exception::class)
     suspend fun chiefChat(): String {
         val c = company() ?: return ""
         c.chiefChat?.takeIf { it.isNotEmpty() && (!c.conversation || c.creationSent) }?.let { return it }
-        var opened = ""
-        if (!openingChief.start(c.id) { opened = it }) return ""
-        try {
+        if (!openingChief.add(c.id)) return ""
+        return try {
             val chat = api.projectChiefChat(c.id)
-            if (company()?.id == c.id && chat.isNotEmpty()) { store.company.refresh(); openingChief.finish(c.id, chat) }
+            if (company()?.id == c.id && chat.isNotEmpty()) { store.company.refresh(); chat } else ""
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            say(e.message ?: tr("Couldn't open the chat"))
+            say(e.message ?: tr("Couldn't open the chat")); ""
         } finally {
-            openingChief.cancel(c.id)
+            openingChief.remove(c.id)
         }
-        return opened
     }
 
     // ---------- the cards (#776) ----------
