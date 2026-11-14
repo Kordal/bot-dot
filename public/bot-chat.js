@@ -275,13 +275,19 @@ function asksOpen(asks) { return Array.isArray(asks?.open) ? asks.open.map((x) =
 // The chat lists runs by their start, so it reads back to whichever of the "New" line's run and the open questions
 // started first: all of them are drawn (#1380). While the page does not know when the "New" line's run started it reads
 // back to that run first; once read (the runs reached back), the next draw knows and reads on to the question if it is older.
+const lineStarts = new Map(); // "New" line's run → its start
 function chatBack(bot, newFirst) {
   const open = Array.isArray(bot?.asks?.open) ? bot.asks.open.filter((x) => x?.runId) : bot?.asks?.runId ? [bot.asks] : [];
   // Without the starts (an older server): the oldest reply, the last of `open`.
   const firstAsked = open.length && open.every((x) => x.startedAt) ? open.reduce((a, x) => (x.startedAt < a.startedAt ? x : a)) : open.at(-1);
   if (!firstAsked) return newFirst ?? null;
   if (!newFirst) return firstAsked.runId;
-  const lineStart = [...state.runs, ...(own?.runs || []), ...(reached?.runs || [])].find((r) => r?.id === newFirst)?.startedAt;
+  // Kept once known: reading on to the question replaces the runs that held the "New" line's, and a draw meanwhile
+  // must not turn back to the line.
+  const lineStart = [...state.runs, ...(own?.runs || []), ...(reached?.runs || [])].find((r) => r?.id === newFirst)?.startedAt
+    || lineStarts.get(newFirst);
+  if (lineStart) lineStarts.set(newFirst, lineStart);
+  if (lineStarts.size > 50) lineStarts.delete(lineStarts.keys().next().value);
   return lineStart && firstAsked.startedAt && firstAsked.startedAt < lineStart ? firstAsked.runId : newFirst;
 }
 

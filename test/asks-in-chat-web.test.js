@@ -137,4 +137,13 @@ test('web: a "New" line whose run the page does not hold is read first, then the
   ctx.reachNew('iw', 'n9');
   await new Promise((r) => setTimeout(r, 10));
   assert.equal(ctx.chatBack(bot, 'n9'), 'q1', 'read: it started after the question, so the chat reads on to it');
+  // Reading on to the question: a draw while it is read does not turn back to the "New" line.
+  let done;
+  ctx.api = () => new Promise((r) => { done = r; });
+  ctx.reachNew('iw', 'q1');
+  assert.equal(ctx.chatBack(bot, 'n9'), 'q1', 'the line\'s start is kept while the question is read');
+  ctx.reachNew('iw', ctx.chatBack(bot, 'n9'));
+  done([run('q1', 1)]);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(ctx.chatRuns('iw', 'q1').map((r) => r.id), ['q1'], 'the question is in the chat');
 });
