@@ -95,16 +95,14 @@ fun UsageSection(api: Api) {
             error != null -> Text(error ?: "", color = p.err, style = MaterialTheme.typography.bodySmall)
             a == null -> Hint(tr("Loading…"))
             else -> {
-                if (a.from == a.to) Hint(Usage.dayLabel(a.from)) else Hint(tr("{from} to {to}", "from" to Usage.dayLabel(a.from), "to" to Usage.dayLabel(a.to)))
+                Hint(Usage.range(a))
                 // Advanced (ADR 205): without it no tokens are shown, only the bars and each bot's share of the whole.
                 val adv by dev.botdot.app.data.Advanced.on.collectAsState()
                 if (adv) Totals(a.totals)
                 if (a.days.size > 1) DayBars(a.days, adv)
                 Text(tr("By bot"), color = p.text, style = MaterialTheme.typography.titleSmall)
-                if (a.bots.isEmpty()) Hint(if (adv) tr("No tokens used in this timeframe.") else tr("Nothing in this timeframe."))
-                val top = a.bots.maxOfOrNull { it.totalTokens }?.coerceAtLeast(1L) ?: 1L
-                val all = a.bots.sumOf { it.totalTokens }.coerceAtLeast(1L)
-                a.bots.forEach { b -> BotRow(b, b.totalTokens.toFloat() / top, if (adv) Usage.tokens(b.totalTokens) else "${b.totalTokens * 100 / all}%") }
+                if (a.bots.isEmpty()) Hint(Usage.none(adv))
+                Usage.rows(a, adv).forEach { BotRow(it) }
             }
         }
     }
@@ -153,15 +151,15 @@ private fun DayBars(days: List<Usage.Day>, adv: Boolean = true) {
 }
 
 @Composable
-private fun BotRow(b: Usage.Bot, share: Float, amount: String) {
+private fun BotRow(row: Usage.Row) {
     val p = LocalPaper.current
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(if (b.gone) tr("{name} (deleted)", "name" to b.name) else b.name, color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-            Text(amount, color = p.muted, style = MaterialTheme.typography.bodySmall)
+            Text(row.name, color = p.text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            Text(row.amount, color = p.muted, style = MaterialTheme.typography.bodySmall)
         }
         Box(Modifier.fillMaxWidth().padding(top = Space.s4).height(4.dp).background(p.sunk, RoundedCornerShape(2.dp))) {
-            Box(Modifier.fillMaxWidth(share.coerceIn(0f, 1f)).fillMaxHeight().background(p.muted, RoundedCornerShape(2.dp)))
+            Box(Modifier.fillMaxWidth(row.share.coerceIn(0f, 1f)).fillMaxHeight().background(p.muted, RoundedCornerShape(2.dp)))
         }
     }
 }

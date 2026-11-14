@@ -59,7 +59,9 @@ test('android: the bot has hotkey, and its settings offer it only when the serve
   const app = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app');
   const models = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
   const screen = fs.readFileSync(path.join(app, 'ui', 'BotSettingsScreen.kt'), 'utf8');
+  // What a save sends is the phones' shared layer's (ADR 242, BotSettings.changes), which the screen calls.
+  const shared = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'BotSettings.kt'), 'utf8');
   assert.match(models, /val hotkey: Int\? = null/);
   assert.match(screen, /if \(b\.hotkey != null\) FoldSection\(tr\("Key on the keypad"\)/);
-  assert.match(screen, /if \(b\.hotkey != null && hotkey != b\.hotkey\) put\("hotkey", hotkey\)/);
+  assert.match(shared, /if \(b\.hotkey != null && d\.hotkey != b\.hotkey\) put\("hotkey", d\.hotkey\)/);
 });

@@ -29,9 +29,15 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   folder, rename, keep in mind, share, delete), the document viewer (ViewerView: text and code with line
                   numbers, a CSV as a table, the rest in QuickLook), a bot's computer screen (ScreenView: the shared
                   layer's ScreenStore, noVNC in a WKWebView with the session's cookie, Take control and I'm done, opened
-                  from Home's ⋯ menu), the Board (BoardView: BoardDesk's tiles and taps), the account's parts
-                  (AccountViews: Delete account, Feedback, What's new, the paused account), bots drawn by FigureView,
-                  and tr()
+                  from Home's ⋯ menu), a bot's settings (BotSettingsView: icon, colour, name, assignment, pinned, its
+                  key, with Advanced its model; BotSettingsDesk saves each change by itself), Settings (SettingsView:
+                  Apps, models, language, Usage, Claude, Updates with What's new, the Subscription of a managed account,
+                  Advanced, the address; AppSettingsDesk), Apps (AppsView: the Composio key, the connected apps and who
+                  uses them, search, Connect opening the sign-in in Safari; AppsDesk), the status keypad (KeypadView:
+                  the shared Keypad's pages, digits and pills), the Board (BoardView: BoardDesk's tiles and taps), the
+                  account's parts (AccountViews: Delete account, Feedback, the paused account), What's new once after an
+                  update (WhatsNewSheet), bots drawn by FigureView, and tr(). Home's ⋯ menu opens Settings, Apps, the
+                  keypad, each bot's settings, Feedback and Delete account
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads
@@ -62,7 +68,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile and a chat tile open nothing until #1368 and #1361) |
 | `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | #1368 |
 | `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
-| `WhatsNewDialog` | after an update | `WhatsNewView` |
+| `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
 | `ChiefNameQuestion` | the first run | the alert in `HomeView` |
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
