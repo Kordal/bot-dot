@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
 import dev.botdot.app.data.scheduleWords
+import dev.botdot.app.data.without
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues

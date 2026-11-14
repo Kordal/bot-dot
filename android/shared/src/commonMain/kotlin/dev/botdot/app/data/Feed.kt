@@ -1,9 +1,5 @@
-package dev.botdot.app.feed
+package dev.botdot.app.data
 
-import android.content.SharedPreferences
-import dev.botdot.app.data.Api
-import dev.botdot.app.data.ApiException
-import dev.botdot.app.data.FeedEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -23,10 +19,17 @@ import kotlinx.coroutines.withTimeoutOrNull
 /**
  * The one open connection to botdot's live feed (/api/events). It reconnects by itself, resuming
  * after the last event it saw, so nothing is missed while the phone was in a tunnel. Where it was is
- * kept in [prefs], so that holds when Android restarts the app too. Screens listen to [events] to
- * refresh; [Notifier] turns them into notifications.
+ * kept in [keep], so that holds when the phone restarts the app too. Screens listen to [events] to
+ * refresh; Android's Notifier turns them into notifications. Shared by both phones (ADR 242).
  */
-class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferences? = null) {
+class Feed(private val scope: CoroutineScope, private val keep: Keep? = null) {
+    /** Where the phone keeps the last event it saw, and of which botdot (Android: the preferences file "feed"). */
+    interface Keep {
+        fun server(): String?
+        fun lastId(): String?
+        fun write(server: String, lastId: String?)
+    }
+
     enum class State { Off, Connecting, Connected, Retrying }
 
     private val _state = MutableStateFlow(State.Off)
@@ -50,7 +53,7 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
         if (api?.baseUrl == this.api?.baseUrl && job?.isActive == true) return
         job?.cancel()
         this.api = api
-        lastId = prefs?.takeIf { api != null && it.getString("server", null) == api.baseUrl }?.getString("lastId", null)
+        lastId = keep?.takeIf { api != null && it.server() == api.baseUrl }?.lastId()
         if (api == null) { _state.value = State.Off; return }
         job = scope.launch { loop(api) }
     }
@@ -67,7 +70,7 @@ class Feed(private val scope: CoroutineScope, private val prefs: SharedPreferenc
 
     private fun remember(api: Api, id: String?) {
         lastId = id
-        prefs?.edit()?.putString("server", api.baseUrl)?.putString("lastId", id)?.apply()
+        keep?.write(api.baseUrl, id)
     }
 
     private suspend fun loop(api: Api) {

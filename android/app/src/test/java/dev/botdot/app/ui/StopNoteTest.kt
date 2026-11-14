@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.stopNote
 import dev.botdot.app.data.ApiException
 import org.junit.Assert.assertEquals
 import org.junit.Test

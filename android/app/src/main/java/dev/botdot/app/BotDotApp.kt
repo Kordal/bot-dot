@@ -1,5 +1,6 @@
 package dev.botdot.app
 
+import dev.botdot.app.data.feedKeep
 import dev.botdot.app.data.interceptor
 import dev.botdot.app.data.CLIENT
 import dev.botdot.app.data.onPhone
@@ -22,10 +23,10 @@ import dev.botdot.app.data.Session
 import dev.botdot.app.data.Vault
 import dev.botdot.app.data.Settings
 import dev.botdot.app.data.Store
-import dev.botdot.app.feed.Feed
+import dev.botdot.app.data.Feed
 import dev.botdot.app.feed.Notifier
 import dev.botdot.app.feed.newChats
-import dev.botdot.app.feed.queued
+import dev.botdot.app.data.queued
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,7 +60,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
     val notifying = Dispatchers.Default.limitedParallelism(1)
     lateinit var settings: Settings
     lateinit var notifier: Notifier
-    val feed by lazy { Feed(scope, getSharedPreferences("feed", MODE_PRIVATE)) }
+    val feed by lazy { Feed(scope, feedKeep(getSharedPreferences("feed", MODE_PRIVATE))) }
 
     /** Each chat's plan as the owner left it: folded or open, and the stopped plans dismissed (PlanMemory). */
     val plans by lazy {

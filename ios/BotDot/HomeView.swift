@@ -10,6 +10,7 @@ struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
+    @Environment(\.scenePhase) private var phase
     @State private var vault = false
 
     init(model: AppModel, server: String, api: Api) {
@@ -52,6 +53,7 @@ struct HomeView: View {
             .navigationDestination(for: DocumentView.Opening.self) { ViewerView(api: home.home.api, opening: $0) }
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
+            .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
             .toolbar {
                 Menu {
                     let owners = filesOwners
@@ -72,8 +74,14 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
         }
-        .task { home.start() }
+        .task {
+            home.start()
+            home.home.live(on: true)
+            await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
+        }
         .onDisappear { home.stop() }
+        // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
+        .onChange(of: phase) { _, now in home.home.live(on: now == .active) }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
     }
 
@@ -101,10 +109,17 @@ struct HomeView: View {
             ContactRow(name: g.name, sub: g.last?.text ?? "", unread: Int(g.unread), color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, asks: false,
                        drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, state: "idle", outfit: nil, dark: true) })
         } else if let b = state.bot(id: key) {
-            ContactRow(name: b.name, sub: state.sub(b: b), unread: Int(b.unread), color: b.color, asks: state.asks(b: b),
-                       drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: b.color, state: b.state, outfit: b.outfit, dark: true) })
+            NavigationLink(value: ChatRoute(botId: b.id, name: b.name)) { ContactRow(name: b.name, sub: state.sub(b: b), unread: Int(b.unread), color: b.color, asks: state.asks(b: b),
+                       drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: b.color, state: b.state, outfit: b.outfit, dark: true) }) }
+                .navigationLinkIndicatorVisibility(.hidden) // Android's rows have no arrow
         }
     }
+}
+
+/// A bot's chat, opened from its row.
+struct ChatRoute: Hashable {
+    let botId: String
+    let name: String
 }
 
 /// One row of the list: the mark, the name, what it says under it, and its new replies as dots in its colour (at most
