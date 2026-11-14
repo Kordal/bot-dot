@@ -316,9 +316,14 @@ test("a copy whose account computer was made again under it (an Update) starts o
 });
 
 test("a failed copy's line says so plainly, without Docker's words, and wraps in the panel", () => {
-  const { app } = require('./web-page');
-  assert.match(app, /<span class="danger-text">\$\{tr\('Files not copied'\)\}<\/span> <button type="button" class="link-btn" data-bs-move-retry>/);
-  assert.doesNotMatch(app, /Files not copied: \{why\}/);
+  const { cut, words } = require('./web-page');
+  const vm = require('node:vm');
+  const ctx = vm.createContext({ ...words, esc: (x) => String(x) });
+  vm.runInContext(`${cut("// Its copy's line under Computer", 'function openRunDialog(')}this.computerMoveLine = computerMoveLine;`, ctx);
+  const html = ctx.computerMoveLine({ computerMove: { state: 'failed', from: 'boat', to: 'linux', error: 'No such container: botdot-kordal.account.computer' } });
+  assert.match(html, /<span class="danger-text">Files not copied<\/span>/);
+  assert.match(html, /<button type="button" class="link-btn" data-bs-move-retry>Try again<\/button>/);
+  assert.doesNotMatch(html, /container/, "Docker's words stay in the API");
   const css = fs.readFileSync(path.join(__dirname, '..', 'public/style.css'), 'utf8');
   assert.match(css, /\.bs-note \{ display: block;[^}]*overflow-wrap: anywhere; \}/);
   const kt = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/main/java/dev/botdot/app/ui/BotSettingsScreen.kt'), 'utf8');
