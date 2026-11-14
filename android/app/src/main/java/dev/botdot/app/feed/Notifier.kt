@@ -1,5 +1,6 @@
 package dev.botdot.app.feed
 
+import dev.botdot.app.data.CHIEF_COLOR
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -45,7 +46,6 @@ import dev.botdot.app.data.plainText
 import dev.botdot.app.data.str
 import dev.botdot.app.data.textOrNull
 import dev.botdot.app.data.tr
-import dev.botdot.app.ui.CHIEF_COLOR
 import dev.botdot.app.ui.figureBitmap
 import java.time.Instant
 import kotlinx.coroutines.CancellationException

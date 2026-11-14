@@ -22,7 +22,12 @@ targets:
   BotDot:
     type: application
     platform: iOS
-    sources: [BotDot]
+    sources:
+      - BotDot
+      # The figure definition every app draws its bots from (ADR 003), the server's own file: a copy in the app, until
+      # the server hands out its own.
+      - path: ../lib/figure.json
+        buildPhase: resources
     dependencies:
       # Built by `make ios` (./gradlew :shared:assembleBotdotSharedReleaseXCFramework); static, so nothing is embedded.
       - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework

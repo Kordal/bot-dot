@@ -7,3 +7,6 @@ extension Api: @retroactive @unchecked Sendable {}
 extension Settings: @retroactive @unchecked Sendable {}
 extension Session: @retroactive @unchecked Sendable {}
 extension BrowserSignIn: @retroactive @unchecked Sendable {}
+extension HomeStore: @retroactive @unchecked Sendable {}
+extension HomeState: @retroactive @unchecked Sendable {}
+extension FigureDef: @retroactive @unchecked Sendable {}

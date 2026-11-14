@@ -1,5 +1,9 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.CHIEF_COLOR
+import dev.botdot.app.data.botAsks
+import dev.botdot.app.data.botSub
+import dev.botdot.app.data.ListLayout
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -620,26 +624,4 @@ private fun ConnectionDot(state: Feed.State) {
     // Nothing while all is well; only a word when botdot can't be reached.
     if (state != Feed.State.Retrying) return
     Text(tr("Can't reach botdot"), color = LocalPaper.current.warnText, fontSize = Type.s12, modifier = Modifier.padding(end = Space.s4))
-}
-
-/**
- * What a bot's row says of its open question (`asks` on the bot, docs/api.md): "Asks: <question>", in one line. null
- * when it asks nothing, the server says nothing of it, or it is working: the row then says what it does. [r]: its latest run.
- */
-internal fun botAsks(b: Bot, r: Run?): String? =
-    b.asks?.takeIf { !(b.running || r?.isRunning == true) }?.let { tr("Asks:") + " " + plainText(it.text).replace('\n', ' ').take(120) }
-
-/**
- * What a bot's row says under its name: what it's doing (its [line] as the server says it, "Working…" without
- * one: the words under its chat and the web page's), what it asks the owner ([botAsks]), or the last thing it said.
- * [r]: its latest run.
- */
-internal fun botSub(b: Bot, r: Run?, line: String?): String = when {
-    b.running || r?.isRunning == true -> OpeningLine.status(line, working = true)
-    b.asks != null -> botAsks(b, r).orEmpty()
-    b.jobs.any { it.waits } -> jobWaits(b.jobs.first { it.waits })
-    r == null -> b.description
-    r.status == "success" -> plainText(r.result.orEmpty()).replace('\n', ' ').take(120).ifBlank { b.description }
-    r.status == "stopped" -> tr("Stopped")
-    else -> tr("Couldn't finish")
 }

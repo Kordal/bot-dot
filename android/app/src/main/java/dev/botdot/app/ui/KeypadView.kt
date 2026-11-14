@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.CHIEF_COLOR
+import dev.botdot.app.data.ListLayout
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween

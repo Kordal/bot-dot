@@ -337,6 +337,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /** Says which chat this app shows now, in front ("bot:<id>", "chief:<chatId>"), or null for none: botdot takes it as read. */
     suspend fun read(app: String, chat: String?): ReadAnswer = json.decodeFromString(send("POST", "/read", buildJsonObject { put("app", app); put("chat", chat) }))
     /** The figure definition every bot is drawn from, as the server sent it (FigureDef.parse reads it). */
+    @Throws(Exception::class)
     suspend fun figure(): String = get("/figure")
     /** Its newest runs; before: the page older than that run (an older botdot ignores it and sends the newest). */
     suspend fun runs(botId: String, limit: Int = 40, before: String? = null): List<Run> =
@@ -424,6 +425,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun makeGroup(name: String, members: List<String>): Group = json.decodeFromString(
         send("POST", "/group-chats", buildJsonObject { put("name", name); put("members", strings(members)) }))
     /** A change to a group: any of `name`, `members` (the whole list as it is to be), `category`, `order`, `pinned`. */
+    @Throws(Exception::class)
     suspend fun updateGroup(id: String, changes: JsonObject): Group = json.decodeFromString(send("PUT", "/group-chats/${enc(id)}", changes))
     fun membersOf(ids: List<String>): JsonObject = buildJsonObject { put("members", strings(ids)) }
     /** Deletes the group and its chat. No bot and no run is deleted. */
@@ -586,6 +588,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     // ---------- a bot's settings and computer ----------
 
+    @Throws(Exception::class)
     suspend fun updateBot(botId: String, changes: JsonObject): Bot = json.decodeFromString(send("PUT", "/bots/${enc(botId)}", changes))
     /** A copy of its files to its new computer that failed, again (#556). */
     suspend fun retryComputerMove(botId: String) { send("POST", "/bots/${enc(botId)}/computer/move") }

@@ -14,11 +14,24 @@ class ConnectTest {
         assertNull(Connect.words(Connect.address("hq.example.com")))
     }
 
-    @Test fun aBotdotOnTheComputerItselfIsExplainedNotChecked() {
-        for (a in listOf("localhost", "http://localhost:4747", "127.0.0.1:4747", "https://127.0.0.2", "http://[::1]:4747", "app.localhost")) {
-            assertEquals(Connect.Address.Local, Connect.address(a), a)
-        }
-        assertNotNull(Connect.words(Connect.Address.Local))
+    @Test fun anAddressOnTheDeviceIsTriedAsTheAndroidAppAlwaysDid() {
+        assertEquals(Connect.Address.Local("http://localhost:4747"), Connect.address("http://localhost:4747"))
+        assertEquals(Connect.Address.Local("https://127.0.0.1:4747"), Connect.address("127.0.0.1:4747"))
+        assertEquals(Connect.Address.Local("http://[::1]:4747"), Connect.address("http://[::1]:4747"))
+        assertEquals(Connect.Address.Local("https://app.localhost"), Connect.address("app.localhost"))
+        // Plain HTTP only to localhost itself and loopback addresses: a phone's resolver may send another .localhost name
+        // to DNS, and the session's cookie would go out unencrypted (ReleaseManifest.secureURL).
+        assertEquals(Connect.Address.Insecure, Connect.address("http://app.localhost:4747"))
+        assertEquals(Connect.Address.Insecure, Connect.address("http://app.example.com"), "remote plain HTTP stays refused")
+    }
+
+    @Test fun nothingAnsweringOnTheDeviceIsExplainedAsSo() = kotlinx.coroutines.test.runTest {
+        val o = Connect.connect("http://127.0.0.1:1") // nothing listens on port 1
+        assertEquals(Connect.Outcome.Refused("That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone."), o)
+    }
+
+    @Test fun plainHttpIsRefusedBeforeAnythingIsAsked() = kotlinx.coroutines.test.runTest {
+        assertEquals(Connect.Outcome.Refused("Use HTTPS for a remote botdot server."), Connect.connect("http://hq.example.com"))
     }
 
     @Test fun plainHttpToAnotherComputerAndNonsenseAreRefused() {
@@ -40,5 +53,18 @@ class ConnectTest {
         assertNull(Connect.answer(VersionInfo(app = "bot-dot", frontDoor = true), null))
         assertEquals("That address answers, but it isn't botdot.", Connect.answer(VersionInfo(app = "other"), null))
         assertEquals("This botdot is newer than the app. Update the app.", Connect.answer(VersionInfo(app = "bot-dot", apiVersion = Connect.API_VERSION + 1), null))
+    }
+
+    @Test fun aLocalBotdotThatAnswersSaysWhatItAnswered() {
+        val local = Connect.Address.Local("http://localhost:4747")
+        val older = ApiException("Unknown endpoint", 404)
+        assertEquals("This botdot is older than the app. Ask its admin to update it, then connect again.",
+            Connect.refusal(local, older, Connect.answer(null, older)!!))
+        val nothing = ApiException("Can't reach botdot. Is Tailscale on? (Connection refused)")
+        assertEquals("That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.",
+            Connect.refusal(local, nothing, Connect.answer(null, nothing)!!))
+        // It answered 200 with something that isn't botdot's JSON: what failed to read says so.
+        val notJson = kotlinx.serialization.SerializationException("Unexpected JSON token at offset 0")
+        assertEquals("Unexpected JSON token at offset 0", Connect.refusal(local, notJson, Connect.answer(null, notJson)!!))
     }
 }

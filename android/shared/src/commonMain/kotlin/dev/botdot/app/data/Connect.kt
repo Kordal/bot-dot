@@ -8,11 +8,15 @@ object Connect {
     /** The API this app understands (docs/api.md: `GET /api/version`'s `apiVersion`). */
     const val API_VERSION = 1
 
-    /** An address as typed: one to check, one only this computer reaches, or none. */
+    /** An address as typed: one to check, one on this device itself, or none. */
     sealed interface Address {
         data class Remote(val url: String) : Address
-        /** A botdot on the computer itself (the desktop app's local one: localhost, 127.x, ::1): no phone reaches it. */
-        data object Local : Address
+        /**
+         * An address on the device itself (localhost, 127.x, ::1): the desktop app's local botdot is one, which a phone
+         * doesn't reach. It is still tried, as the Android app always did: the phone's localhost can be a computer's
+         * (adb reverse for the Play screenshots, the iPhone simulator on its Mac).
+         */
+        data class Local(val url: String) : Address
         /** Plain HTTP to another computer: botdot only takes HTTPS from a phone. */
         data object Insecure : Address
         data object NotAnAddress : Address
@@ -24,31 +28,59 @@ object Connect {
         if (s.isEmpty()) return Address.NotAnAddress
         val withScheme = if (s.startsWith("http://") || s.startsWith("https://")) s else "https://$s"
         val host = parseUri(withScheme)?.host?.lowercase()?.removePrefix("[")?.removeSuffix("]")
-        if (host != null && isLoopback(host)) return Address.Local
+        if (host != null && isLoopback(host)) {
+            // Api.normalize keeps plain HTTP to localhost and loopback addresses only (ReleaseManifest.secureURL).
+            return Api.normalize(s)?.let { Address.Local(it) } ?: if (s.startsWith("http://")) Address.Insecure else Address.NotAnAddress
+        }
         if (s.startsWith("http://")) return Address.Insecure
         return Api.normalize(s)?.let { Address.Remote(it) } ?: Address.NotAnAddress
     }
 
-    /** What the screen says of an [address] that can't be checked; null for one that can. */
+    /** What the screen says of an [address] that is refused before it is asked, or of a [Address.Local] that didn't answer. */
     fun words(address: Address): String? = when (address) {
         is Address.Remote -> null
-        Address.Local -> tr("That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.")
+        is Address.Local -> tr("That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.")
         Address.Insecure -> tr("Use HTTPS for a remote botdot server.")
         Address.NotAnAddress -> tr("That doesn't look like an address.")
     }
 
-    /**
-     * Asks [url] whether it is a botdot this app can talk to: null when it is, else what to tell the owner. A front
-     * door (ADR 028) is botdot, and which botdot is behind it is known once signed in.
-     */
-    @Throws(Exception::class)
-    suspend fun check(url: String): String? {
-        val r = runCatching { Api(url).version() }
-        r.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
-        return answer(r.getOrNull(), r.exceptionOrNull())
+    /** What came of an address: the botdot to keep ([frontDoor]: it asks for a sign-in, ADR 028), or what to say. */
+    sealed interface Outcome {
+        data class Connected(val url: String, val frontDoor: Boolean) : Outcome
+        data class Refused(val words: String) : Outcome
     }
 
-    /** What [check] says of the version [v] an address answered, or of the [failure] it answered with instead. */
+    /**
+     * What was [typed], read ([address]) and asked whether it is a botdot this app can talk to: the one connect step of
+     * both phones' address screens. A front door (ADR 028) is botdot, and which botdot is behind it is known once
+     * signed in. An address on the device that doesn't answer is explained as one ([words]).
+     */
+    @Throws(Exception::class)
+    suspend fun connect(typed: String): Outcome {
+        val a = address(typed)
+        val url = when (a) {
+            is Address.Remote -> a.url
+            is Address.Local -> a.url
+            else -> return Outcome.Refused(words(a)!!)
+        }
+        val r = runCatching { Api(url).version() }
+        r.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+        val failed = answer(r.getOrNull(), r.exceptionOrNull()) ?: return Outcome.Connected(url, r.getOrNull()?.frontDoor == true)
+        return Outcome.Refused(refusal(a, r.exceptionOrNull(), failed))
+    }
+
+    /**
+     * What a refused [address] says: one on the device that nothing answered is explained as one ([words]). Api
+     * reports every failure before an answer as an [ApiException] of status 0 (both engines' transport errors are
+     * I/O errors); anything else answered, an HTTP error (an older botdot's 404) or a body that isn't botdot's among
+     * them, and says its own [failed].
+     */
+    internal fun refusal(address: Address, failure: Throwable?, failed: String): String {
+        val unanswered = failure is ApiException && failure.status == 0
+        return if (address is Address.Local && unanswered) words(address)!! else failed
+    }
+
+    /** What [connect] says of the version [v] an address answered, or of the [failure] it answered with instead. */
     internal fun answer(v: VersionInfo?, failure: Throwable?): String? {
         return when {
             // Before botdot had /api/version (it answers "Unknown endpoint").
