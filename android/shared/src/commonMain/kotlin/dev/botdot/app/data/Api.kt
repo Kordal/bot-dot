@@ -185,7 +185,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         }
     }
 
-    private fun why(e: Throwable) = e.message ?: e::class.simpleName ?: "?"
+    private fun why(e: Throwable) = shortWhy(e.message) ?: e::class.simpleName ?: "?"
 
     private suspend fun readOrThrow(res: HttpResponse, cached: String? = null): String {
         val body = cached ?: res.bodyAsText()
@@ -1160,4 +1160,14 @@ fun statusWords(code: Int): String = when {
     code == 413 -> tr("That is too big for botdot.")
     code >= 500 -> tr("botdot didn't finish that. Try again in a moment.")
     else -> tr("botdot couldn't do that. Try again.")
+}
+
+/**
+ * What went wrong in a few words: on the iPhone a failed request's message is the whole NSError ("Exception in http
+ * request: Error Domain=NSURLErrorDomain … NSLocalizedDescription=Could not connect to the server., …"), of which
+ * only its description says anything to a person. Any other message stands as it is.
+ */
+fun shortWhy(message: String?): String? {
+    val m = message ?: return null
+    return Regex("""NSLocalizedDescription=([^,}]+)""").find(m)?.groupValues?.get(1)?.trim()?.removeSuffix(".") ?: m
 }
