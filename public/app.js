@@ -1396,3 +1396,5 @@ function msgTime(iso) {
 }
 
 const plain = (t) => String(t || '').replace(/[#*_`>|\[\]()-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+// openbranch preview test: no functional change
