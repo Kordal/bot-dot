@@ -91,6 +91,8 @@ class GroupChatTalkTest {
         chat.start()
         until("the chat is read") { chat.state.value.loaded }
         assertTrue("Coder and Reviewer" in chat.state.value.empty, chat.state.value.empty)
+        assertTrue(chat.state.value.showsEmpty)
+        assertEquals(4, chat.state.value.room, "a group of two takes four more")
         assertTrue(chat.send("Ship it?"))
         val post = fake.asked().single { it.method == "POST" }
         assertTrue("\"text\":\"Ship it?\"" in post.body, post.body)

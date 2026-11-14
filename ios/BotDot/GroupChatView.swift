@@ -31,7 +31,7 @@ struct GroupChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        if s.loaded && s.rows.isEmpty && s.sent == nil {
+                        if s.showsEmpty {
                             Text(s.empty).foregroundStyle(.secondary).multilineTextAlignment(.center).frame(maxWidth: .infinity).padding()
                         }
                         ForEach(s.rows, id: \.id) { row in
@@ -206,7 +206,7 @@ struct GroupReplyRow: View {
     let onAnswer: (String) -> Void
 
     var body: some View {
-        MemberSide(name: view.name, color: view.color, state: view.run.status == "error" ? "failed" : "idle", outfit: view.bot?.outfit, figure: figure) {
+        MemberSide(name: view.name, color: view.color, state: view.figureState, outfit: view.bot?.outfit, figure: figure) {
             if let reply = view.reply, !reply.isEmpty {
                 MarkdownView(text: reply)
             } else if let ended = view.ended {
@@ -253,7 +253,7 @@ struct GroupMessageRow: View {
                 .buttonStyle(.plain)
             }
             if let by = view.byName {
-                MemberSide(name: by, color: view.byColor, state: "idle", outfit: view.byBot?.outfit ?? (view.byBot == nil ? FigureDef.companion.CHIEF : nil), figure: figure) {
+                MemberSide(name: by, color: view.byColor, state: "idle", outfit: view.byOutfit, figure: figure) {
                     MarkdownView(text: view.message.text)
                 }
             } else {

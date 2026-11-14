@@ -8,13 +8,15 @@ struct GroupPanelView: View {
     let model: GroupChatModel
     let figure: FigureDef?
     @State private var name = ""
+    /// The name was typed in, and not saved yet: only that is saved when the panel closes.
+    @State private var typing = false
+    @FocusState private var naming: Bool
     @State private var adding = false
     @State private var askDelete = false
     @State private var noteKind = "decision"
     @State private var noteText = ""
     @State private var editing: GroupNote?
     @State private var edited = ""
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
@@ -22,8 +24,10 @@ struct GroupPanelView: View {
                 if let s = model.state, let g = s.group {
                     if s.renames {
                         TextField(tr("Name"), text: $name)
+                            .focused($naming)
                             .submitLabel(.done)
-                            .onSubmit { model.rename(name) }
+                            .onChange(of: name) { if naming { typing = true } }
+                            .onSubmit { model.rename(name); typing = false }
                     }
                     Section(tr("Members")) {
                         ForEach(s.members, id: \.id) { b in
@@ -68,7 +72,7 @@ struct GroupPanelView: View {
                     if s.deletes {
                         Button(g.team != nil ? tr("Delete team") : tr("Delete this group"), role: .destructive) { askDelete = true }
                             .confirmationDialog(g.team != nil ? tr("Delete the team {name}?", ["name": g.name]) : tr("Delete the group {name}?", ["name": g.name]), isPresented: $askDelete, titleVisibility: .visible) {
-                                Button(tr("Delete"), role: .destructive) { Task { if await model.delete() { dismiss() } } }
+                                Button(tr("Delete"), role: .destructive) { Task { _ = await model.delete() } } // gone: the chat closes, and this with it
                                 Button(tr("Keep"), role: .cancel) {}
                             } message: {
                                 Text(g.team != nil ? tr("Its chat is erased. Its bots stay.") : tr("Its chat is erased. No bot is deleted: each keeps its own chat."))
@@ -86,7 +90,9 @@ struct GroupPanelView: View {
             }
         }
         .onAppear { name = model.state?.group?.name ?? "" }
-        .onDisappear { model.rename(name) } // closed with the name still typed: saved all the same
+        // Renamed elsewhere: shown, unless a name is being typed here.
+        .onChange(of: model.state?.group?.name) { _, now in if !typing, let now { name = now } }
+        .onDisappear { if typing { model.rename(name) } } // closed with the name still typed: saved all the same
     }
 
     private func kindMenu(_ kind: String, onPick: @escaping (String) -> Void) -> some View {
@@ -135,9 +141,5 @@ private struct AddBots: View {
         }
     }
 
-    /// How many more the group takes: six in a group, a team's many in a team's chat.
-    private var room: Int {
-        guard let g = model.state?.group else { return 0 }
-        return Int(Groups.shared.maxOf(g: g)) - g.members.count
-    }
+    private var room: Int { Int(model.state?.room ?? 0) }
 }

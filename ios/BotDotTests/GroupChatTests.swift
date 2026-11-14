@@ -25,14 +25,14 @@ final class GroupChatTests: XCTestCase {
         let message = try XCTUnwrap(page.items[1] as? GroupItemMessage)
         XCTAssertEqual(message.message.question?.text, "Ship it now or wait?")
 
-        let view = GroupReplyView(id: reply.id, run: reply.run, bot: nil, name: "Coder", color: "#7f77dd", reply: reply.run.result, ended: nil, problem: false,
+        let view = GroupReplyView(id: reply.id, run: reply.run, bot: nil, name: "Coder", color: "#7f77dd", figureState: "idle", reply: reply.run.result, ended: nil, problem: false,
                                   files: [], choices: reply.run.choices ?? [], yes: 0)
         let figure = HomeModel.bundledFigure
         let drawn = ImageRenderer(content: GroupReplyRow(view: view, figure: figure, onAnswer: { _ in }).frame(width: 320))
         XCTAssertNotNil(drawn.cgImage, "a reply under its name, with its answer buttons, draws")
 
         let asked = GroupMessageView(message: message.message, question: message.message.question, questionColor: "#7f77dd", questionBot: nil,
-                                     byName: nil, byColor: nil, byBot: nil, waits: "")
+                                     byName: nil, byColor: nil, byBot: nil, byOutfit: nil, waits: "")
         let answer = ImageRenderer(content: GroupMessageRow(view: asked, figure: figure, onQuestion: { _ in }).frame(width: 320))
         XCTAssertNotNil(answer.cgImage, "a tapped answer with its question above it draws")
     }

@@ -13,6 +13,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import dev.botdot.app.markdown.draftSource
 
 // A group's chat for both phones (ADR 242), with the rules of Android's GroupChatModel (ui/GroupChatScreen.kt) and
 // the words of its GroupWords.kt. Android's group chat moves onto this in #1391; until then the two say the same.
@@ -25,6 +29,8 @@ class GroupReplyView(
     val bot: Bot?,
     val name: String,
     val color: String,
+    /** What its head shows: "failed" for a reply that failed, else "idle". */
+    val figureState: String,
     /** The reply, Markdown ("Done." for an empty one with no files), when it ended well; else null. */
     val reply: String?,
     /** What a reply that did not finish says, and whether it is a problem (drawn as one) or only "Stopped.". */
@@ -51,6 +57,8 @@ class GroupMessageView(
     val byName: String?,
     val byColor: String?,
     val byBot: Bot?,
+    /** What the writer's head wears: the lead's outfit, or the Chief's. */
+    val byOutfit: JsonElement?,
     val waits: String,
 )
 
@@ -94,14 +102,17 @@ class GroupChatState(
     val files: List<Attachment>,
     val uploading: Boolean,
     val loaded: Boolean,
-    /** What an empty group says: its members, and that all of them read it. */
+    /** What an empty group says ([showsEmpty]: nothing is in it yet): its members, and that all of them read it. */
     val empty: String,
+    val showsEmpty: Boolean,
     val notice: String?,
     val noticeCount: Int,
     /** Its notes (ADR 139); null from a botdot without them, or before they are read. */
     val notes: List<GroupNote>?,
     /** The members panel: the bots that can be added, and what it can change. */
     val addable: List<Bot>,
+    /** How many more bots it takes: six in a group, a team's many in a team's chat. */
+    val room: Int,
     val changesMembers: Boolean,
     val canTakeOut: Boolean,
     val renames: Boolean,
@@ -351,7 +362,7 @@ class GroupChat(
         val to = typed.replace(SPACES, " ").trim()
         val g = group() ?: return
         if (to.isEmpty() || to == g.name) return
-        change { api.updateGroup(groupId, kotlinx.serialization.json.buildJsonObject { put("name", kotlinx.serialization.json.JsonPrimitive(to)) }) }
+        change { api.updateGroup(groupId, buildJsonObject { put("name", JsonPrimitive(to)) }) }
     }
 
     /** The member [botId] leaves the group (a group left with none is deleted by botdot). */
@@ -473,7 +484,7 @@ class GroupChat(
                     workingWords(memberName(bots, w.botId), line, OpeningLine.ofRun(w.workingLine, w.openingLine, store.lines.features)), line?.held == true)
             },
             drafts = heldDrafts.shown(rows.filterIsInstance<GroupItem.Reply>().mapTo(HashSet()) { it.id }).map { (w, text) ->
-                GroupDraftView(w.runId, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId), dev.botdot.app.markdown.draftSource(text))
+                GroupDraftView(w.runId, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId), draftSource(text))
             },
             next = next,
             nextWords = if (next.isEmpty()) "" else tr("Next: {names}", "names" to namesList(next.map { it.name })),
@@ -486,11 +497,13 @@ class GroupChat(
             files = files,
             uploading = uploading,
             loaded = loaded,
+            showsEmpty = loaded && rows.isEmpty() && outbox.sent == null,
             empty = if (members.isEmpty()) tr("Its bots are all gone. Add one, or delete the group.") else tr("{names}. What you write here, all of them read.", "names" to namesList(members.map { it.name })),
             notice = notice,
             noticeCount = noticeCount,
             notes = notes?.takeIf { GroupNotes.FEATURE in features.orEmpty() },
             addable = g?.let { Groups.addable(it, bots).sortedBy { b -> b.name.lowercase() } }.orEmpty(),
+            room = g?.let { Groups.maxOf(it) - it.members.size }?.coerceAtLeast(0) ?: 0,
             changesMembers = g != null && Groups.changesMembers(g, features),
             canTakeOut = g != null && Groups.canTakeOut(g, features),
             renames = g != null && (g.team == null || features?.contains(Groups.TEAM_CHAT_RENAME) == true),
@@ -509,6 +522,7 @@ class GroupChat(
             byName = if (m.byChief) lead?.name ?: store.chiefName.value else null,
             byColor = if (m.byChief) lead?.color ?: CHIEF_COLOR else null,
             byBot = if (m.byChief) lead else null,
+            byOutfit = if (m.byChief) lead?.outfit ?: FigureDef.CHIEF else null,
             waits = waitsLine(m, bots),
         )
     }
@@ -524,6 +538,7 @@ class GroupChat(
             bot = bot,
             name = bot?.name ?: r.botName.ifBlank { tr("A bot") },
             color = bot?.color ?: r.botColor ?: GONE_COLOR,
+            figureState = if (r.status == "error") "failed" else "idle",
             reply = if (r.status == "success") r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" } else null,
             ended = ended?.text,
             problem = ended is Ended.Problem,
