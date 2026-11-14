@@ -45,7 +45,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
 | `ChiefNameQuestion` | the first run | the alert in `HomeView` |
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
-| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` (left: the "@" picker of the room's bots; "@Name" typed in the message still mentions) |
+| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` (left: the "@" picker of the room's bots, as "@Name" typed in the message still mentions; the button to the newest message; block Markdown, a message shows inline Markdown) |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
 | `BotChatScreen` (`bot/{id}`), `PlanDock` | Home's rows | #1361 |

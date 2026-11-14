@@ -215,6 +215,12 @@ object Rooms {
     /** Whether [account] made [r], and so may delete it. */
     fun mayDelete(r: Room, account: String?): Boolean = account != null && r.by == account
 
+    /** The longest name a room has (the front door takes 1 to 60 characters). */
+    const val LONGEST_NAME = 60
+
+    /** The new name [typed] in a room's settings, trimmed, when it is one to save (Save shows); null when blank or the same as [now]. */
+    fun renamed(typed: String, now: String): String? = typed.trim().takeIf { it.isNotEmpty() && it != now }
+
     /** Whether the room's settings show its invite link: the front door makes them ([links]), and [account] made [r]. */
     fun maker(r: Room?, account: String?, links: Boolean): Boolean = links && r != null && mayDelete(r, account)
 

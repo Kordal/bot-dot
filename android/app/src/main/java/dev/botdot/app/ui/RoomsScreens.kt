@@ -183,7 +183,7 @@ private fun NameDialog(title: String, label: String, start: String, button: Stri
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Field(text, { text = it.take(60); error = null }, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Field(text, { text = it.take(Rooms.LONGEST_NAME); error = null }, label = { Text(label) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = p.err) }
             }
         },
@@ -475,8 +475,8 @@ fun RoomSettingsScreen(app: BotDotApp, roomId: String, onGone: () -> Unit, onBac
         val r = room ?: return@Scaffold
         Column(Modifier.padding(pad).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Section(tr("Name")) {
-                Field(name, { name = it.take(60) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                if (name.isNotBlank() && name.trim() != r.name) SecondaryButton(enabled = !busy, onClick = { act(tr("Saved")) { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text(tr("Save"), color = p.text) }
+                Field(name, { name = it.take(Rooms.LONGEST_NAME) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (Rooms.renamed(name, r.name) != null) SecondaryButton(enabled = !busy, onClick = { act(tr("Saved")) { app.rooms.took(api().renameRoom(roomId, name.trim())) } }) { Text(tr("Save"), color = p.text) }
             }
             Section(tr("People")) {
                 r.members.forEach { m -> Text(RoomWords.person(m, mine), color = p.text, style = MaterialTheme.typography.bodyLarge) }

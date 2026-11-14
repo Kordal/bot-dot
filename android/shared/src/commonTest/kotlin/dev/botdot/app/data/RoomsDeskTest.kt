@@ -39,11 +39,11 @@ class RoomsDeskTest {
             "GET" to "/front-door/session" -> 200 to """{"rooms":true,"roomLinks":true,"account":"ann"}"""
             "GET" to "/front-door/rooms" -> 200 to """{"rooms":[$room],"invites":[{"room":{"id":"r2","name":"Garden","by":"cy"},"by":"cy"}]}"""
             "POST" to "/front-door/rooms" -> 201 to """{"room":$made}"""
-            "POST" to "/front-door/rooms/r9/link" -> 200 to """{"link":{"url":"https://botdot.test/#rooms/join=abc123"}}"""
+            "POST" to "/front-door/rooms/r9/link" -> 200 to """{"link":{"url":"https://botdot.test/#rooms/join=book-club-link"}}"""
             "POST" to "/front-door/rooms/r2/accept" -> 200 to """{"room":{"id":"r2","name":"Garden","by":"cy"}}"""
             "POST" to "/front-door/rooms/r2/decline" -> 200 to "{}"
-            "GET" to "/front-door/rooms/join/abc123" -> 200 to """{"room":{"id":"r5","name":"Book club","by":"dee"},"member":false}"""
-            "POST" to "/front-door/rooms/join/abc123" -> 200 to """{"room":{"id":"r5","name":"Book club","by":"dee"}}"""
+            "GET" to "/front-door/rooms/join/book-club-link" -> 200 to """{"room":{"id":"r5","name":"Book club","by":"dee"},"member":false}"""
+            "POST" to "/front-door/rooms/join/book-club-link" -> 200 to """{"room":{"id":"r5","name":"Book club","by":"dee"}}"""
             "GET" to "/front-door/rooms/r1" -> 200 to """{"room":$room}"""
             "GET" to "/front-door/rooms/r1/link" -> 200 to """{"link":null}"""
             "GET" to "/front-door/rooms/r1/messages" -> 200 to messages
@@ -110,12 +110,12 @@ class RoomsDeskTest {
         val s = server()
         val desk = RoomsDesk(hub(s), s.api, backgroundScope)
         assertEquals(RoomWords.NOT_A_LINK, desk.look("hello").failed)
-        val seen = desk.look("https://botdot.test/#rooms/join=abc123")
-        assertEquals("abc123", seen.token)
+        val seen = desk.look("https://botdot.test/#rooms/join=book-club-link")
+        assertEquals("book-club-link", seen.token)
         assertEquals("Join Book club?", seen.title)
         assertEquals("dee made this room and shared its invite link.", seen.says)
-        assertEquals(RoomsDone(room = "r5"), desk.join("abc123"))
-        assertEquals(listOf("/front-door/rooms/join/abc123"), s.posts().map { it.path })
+        assertEquals(RoomsDone(room = "r5"), desk.join("book-club-link"))
+        assertEquals(listOf("/front-door/rooms/join/book-club-link"), s.posts().map { it.path })
     }
 
     @Test fun aFailureSaysTheFrontDoorsSentence() = runTest {
@@ -230,9 +230,10 @@ class RoomsDeskTest {
         assertNull(st.link, "no link yet: Make an invite link")
         assertEquals(listOf("Scout · ann" to true, "Pip · bob" to false), st.bots.map { it.label to it.removable })
         assertEquals(listOf("owl"), st.addable.map { it.id }, "allowed in rooms and not in it yet")
-        assertFalse(st.noneAllowed)
         assertTrue(st.mayDelete)
 
+        assertFalse(desk.saves(" Plans "), "the same name: no Save")
+        desk.rename("   ")
         desk.rename(" Plans 2 ")
         until { desk.state.value.name == "Plans 2" }
         assertEquals("Saved", desk.state.value.notice)
@@ -243,6 +244,15 @@ class RoomsDeskTest {
         assertEquals("/front-door/rooms/r1/leave", s.posts().last().path)
         assertTrue(hub.list.value?.rooms.orEmpty().none { it.id == "r1" })
         desk.close()
+    }
+
+    @Test fun theListSaysTodaysTimeThenYesterdayThenTheDay() {
+        val now = kotlin.time.Instant.parse("2026-11-14T15:00:00Z")
+        val utc = kotlinx.datetime.TimeZone.UTC
+        assertEquals("12:05", listClock("2026-11-14T12:05:00Z", utc, now))
+        assertEquals("Yesterday", listClock("2026-11-13T09:00:00Z", utc, now))
+        assertEquals("2 Nov", listClock("2026-11-02T09:00:00Z", utc, now))
+        assertEquals("", listClock("not a time", utc, now))
     }
 
     @Test fun theMovedWordsAreAndroids() {

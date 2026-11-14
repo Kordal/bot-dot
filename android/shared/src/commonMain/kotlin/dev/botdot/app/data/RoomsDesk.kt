@@ -14,6 +14,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.JsonElement
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 // Shared rooms as a phone draws them and nothing more (ADR 060, ADR 242, #1372): the list with its invitations, a
 // room's chat, and its settings, with the Android app's rules and words (ui/RoomsScreens.kt). The iPhone draws what
@@ -54,7 +60,7 @@ data class RoomsJoin(val token: String? = null, val title: String = "", val says
  * The list of shared rooms for a phone, on the app's [RoomsHub]: the invitations with Accept and Decline, the rooms,
  * New room (made with its invite link, ADR 076) and Join by link (ADR 068), as Android's RoomsScreen does them.
  */
-class RoomsDesk(private val hub: RoomsHub, private val api: Api, scope: CoroutineScope, private val time: (String?) -> String = { shortClock(it) }) {
+class RoomsDesk(private val hub: RoomsHub, private val api: Api, scope: CoroutineScope, private val time: (String?) -> String = { listClock(it) }) {
     private val job = SupervisorJob(scope.coroutineContext[Job])
     private val own = CoroutineScope(scope.coroutineContext + job)
 
@@ -82,7 +88,8 @@ class RoomsDesk(private val hub: RoomsHub, private val api: Api, scope: Coroutin
     suspend fun make(name: String): RoomsDone = done {
         val room = api.makeRoom(name.trim())
         hub.took(room)
-        if (hub.links.value) runCatching { api.makeRoomLink(room.id) } // without one, the settings offer "Make an invite link"
+        // Without one, the settings offer "Make an invite link".
+        if (hub.links.value) try { api.makeRoomLink(room.id) } catch (e: CancellationException) { throw e } catch (_: Exception) {}
         room.id
     }
 
@@ -206,6 +213,7 @@ class RoomChatDesk(
     fun start() {
         if (jobs.isNotEmpty()) return
         stopped = false
+        follow() // first: a message that comes while the first page loads is not lost
         jobs += scope.launch { load() }
         jobs += scope.launch {
             // The room's name, its bots and who is writing, from the list; left or deleted, here or elsewhere: the
@@ -265,8 +273,16 @@ class RoomChatDesk(
         if (!more || loadingOlder || stopped) return
         loadingOlder = true
         scope.launch {
-            runCatching { api.roomMessages(roomId, before = oldest) }.onSuccess { page -> messages = Rooms.merge(page.messages, messages); more = page.more }
-            loadingOlder = false
+            try {
+                val page = api.roomMessages(roomId, before = oldest)
+                if (!stopped) { messages = Rooms.merge(page.messages, messages); more = page.more }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // scrolling back up asks again
+            } finally {
+                loadingOlder = false
+            }
             publish()
         }
     }
@@ -383,6 +399,21 @@ class RoomChatDesk(
     }
 }
 
+/**
+ * When a room last had something, as short as the list needs it, as Android's list says it (listTime): the time today,
+ * "Yesterday", then the day; "" for a moment that cannot be read.
+ */
+fun listClock(iso: String?, zone: TimeZone = TimeZone.currentSystemDefault(), now: Instant = Clock.System.now()): String {
+    if (iso.isNullOrBlank()) return ""
+    val t = runCatching { Instant.parse(iso).toLocalDateTime(zone) }.getOrNull() ?: return ""
+    val today = now.toLocalDateTime(zone).date
+    return when {
+        t.date >= today -> "${t.hour.toString().padStart(2, '0')}:${t.minute.toString().padStart(2, '0')}"
+        t.date == today.minus(1, DateTimeUnit.DAY) -> tr("Yesterday")
+        else -> "${t.day} ${monthShort(t.month.ordinal)}"
+    }
+}
+
 /** One of the room's bots in its settings: its label ("name · account"), its colour and look, and whether Remove is offered (this account's). */
 data class RoomBotView(val id: String, val label: String, val color: String?, val outfit: JsonElement?, val removable: Boolean)
 
@@ -398,8 +429,6 @@ data class RoomSettingsState(
     val bots: List<RoomBotView> = emptyList(),
     /** This account's bots that may join, with Add. */
     val addable: List<RoomBotView> = emptyList(),
-    /** None of this account's bots may be in rooms: the settings say where to switch it on. */
-    val noneAllowed: Boolean = false,
     val mayDelete: Boolean = false,
     val busy: Boolean = false,
     val notice: String? = null,
@@ -446,7 +475,6 @@ class RoomSettingsDesk(private val hub: RoomsHub, private val api: Api, private 
             link = l.link,
             bots = r.bots.map { RoomBotView(it.id, Rooms.label(it.name, it.account), it.color, null, it.account == mine) },
             addable = Rooms.addable(r, bots.orEmpty(), mine).map { RoomBotView(it.id, it.name, it.color, it.outfit, false) },
-            noneAllowed = Rooms.addable(r, bots.orEmpty(), mine).isEmpty() && Rooms.noneAllowed(bots),
             mayDelete = Rooms.mayDelete(r, mine),
             busy = l.busy,
             notice = l.notice,
@@ -455,9 +483,16 @@ class RoomSettingsDesk(private val hub: RoomsHub, private val api: Api, private 
         )
     }
 
-    /** Save on the name: the room is called [name] for everyone in it. */
+    /** Save on the name: the room is called [name] for everyone in it; nothing is sent for a blank or the same name ([Rooms.renamed]). */
     @Throws(Exception::class)
-    suspend fun rename(name: String) = act(tr("Saved")) { hub.took(api.renameRoom(roomId, name.trim())) }
+    suspend fun rename(name: String) {
+        val now = state.value.name
+        val to = Rooms.renamed(name, now) ?: return
+        act(tr("Saved")) { hub.took(api.renameRoom(roomId, to)) }
+    }
+
+    /** Whether Save shows for the name [typed] in the box. */
+    fun saves(typed: String): Boolean = state.value.room && Rooms.renamed(typed, state.value.name) != null
 
     /** Make an invite link, or New link (the one before stops working). */
     @Throws(Exception::class)

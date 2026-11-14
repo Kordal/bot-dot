@@ -71,7 +71,7 @@ struct RoomsView: View {
             }
         }
         .alert(tr("New room"), isPresented: $making) {
-            TextField(tr("Name"), text: $name).onChange(of: name) { _, n in if n.count > 60 { name = String(n.prefix(60)) } }
+            TextField(tr("Name"), text: $name).onChange(of: name) { _, n in name = Self.capped(n) }
             Button(tr("Make")) {
                 let typed = name
                 Task {
@@ -106,6 +106,9 @@ struct RoomsView: View {
         }
         .task { await rooms.refresh() }
     }
+
+    /// A room's name as typed, cut at the longest one the front door takes.
+    static func capped(_ n: String) -> String { n.count > Int(Rooms.shared.LONGEST_NAME) ? String(n.prefix(Int(Rooms.shared.LONGEST_NAME))) : n }
 
     /// An action on the list: its room opens, or what went wrong is said.
     private func act(_ block: @escaping @MainActor () async -> RoomsDone?) {
@@ -275,10 +278,9 @@ struct RoomSettingsView: View {
         Form {
             if let model, let s = model.state, s.room {
                 Section(tr("Name")) {
-                    TextField(tr("Name"), text: $name).onChange(of: name) { _, n in if n.count > 60 { name = String(n.prefix(60)) } }
-                    let trimmed = name.trimmingCharacters(in: .whitespaces)
-                    if !trimmed.isEmpty && trimmed != s.name {
-                        Button(tr("Save")) { Task { await model.rename(trimmed) } }.disabled(s.busy)
+                    TextField(tr("Name"), text: $name).onChange(of: name) { _, n in name = RoomsView.capped(n) }
+                    if model.desk.saves(typed: name) {
+                        Button(tr("Save")) { Task { await model.rename(name) } }.disabled(s.busy)
                     }
                 }
                 Section(tr("People")) {
@@ -302,13 +304,8 @@ struct RoomSettingsView: View {
                     ForEach(s.bots, id: \.id) { b in
                         botRow(b) { if b.removable { Button(tr("Remove")) { Task { await model.remove(b.id) } }.disabled(s.busy) } }
                     }
-                    if !s.addable.isEmpty {
-                        Text(tr("Add one of yours")).font(.subheadline).foregroundStyle(.secondary)
-                        ForEach(s.addable, id: \.id) { b in
-                            botRow(b) { Button(tr("Add")) { Task { await model.add(b.id) } }.disabled(s.busy) }
-                        }
-                    } else if s.noneAllowed {
-                        Text(tr("None of your bots may be in shared rooms yet: switch it on in a bot's settings.")).font(.subheadline).foregroundStyle(.secondary)
+                    ForEach(s.addable, id: \.id) { b in
+                        botRow(b) { Button(tr("Add")) { Task { await model.add(b.id) } }.disabled(s.busy) }
                     }
                 }
                 Section {
