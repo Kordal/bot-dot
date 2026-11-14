@@ -17,28 +17,39 @@ class Settings(private val store: DataStore<Preferences>) {
 
     // The store sends everything again on any change (folding a group too): pass on only real changes.
     val server: Flow<String?> = store.data.map { usableServer(it[SERVER]) }.distinctUntilChanged()
+    @Throws(Exception::class)
     suspend fun serverNow(): String? = server.first()
+    @Throws(Exception::class)
     suspend fun setServer(url: String?) = store.edit { if (url == null) it.remove(SERVER) else it[SERVER] = url }
 
     private val FOLDED = stringSetPreferencesKey("folded_groups") // "" is Other
     val foldedGroups: Flow<Set<String>> = store.data.map { it[FOLDED].orEmpty() }.distinctUntilChanged()
+    @Throws(Exception::class)
     suspend fun toggleFolded(group: String) = store.edit { val now = it[FOLDED].orEmpty(); it[FOLDED] = if (group in now) now - group else now + group }
 
     private val LIST_WIDTH = intPreferencesKey("list_width") // dp, beside the chat on a wide screen; none: the standard one
+    @Throws(Exception::class)
     suspend fun listWidthNow(): Int? = store.data.first()[LIST_WIDTH]
+    @Throws(Exception::class)
     suspend fun setListWidth(dp: Int?) = store.edit { if (dp == null) it.remove(LIST_WIDTH) else it[LIST_WIDTH] = dp }
 
     // The space on screen (#840, Spaces): a project's id, or none for Home; "company" from before spaces (the
     // switch was on Projects) is read by Spaces.remembered.
     private val PLACE = stringPreferencesKey("place")
+    @Throws(Exception::class)
     suspend fun spaceNow(): String? = store.data.first()[PLACE]
+    @Throws(Exception::class)
     suspend fun setSpace(id: String) = store.edit { if (id == Spaces.HOME) it.remove(PLACE) else it[PLACE] = id }
 
     private val PROJECT = stringPreferencesKey("project") // the project shown (#703), of the botdot this device is on
     private val TREE = stringSetPreferencesKey("project_tree") // the tree's nodes turned from how they start: "<key>=1" folded, "=0" open
+    @Throws(Exception::class)
     suspend fun projectNow(): String? = store.data.first()[PROJECT]
+    @Throws(Exception::class)
     suspend fun setProject(id: String?) = store.edit { if (id == null) it.remove(PROJECT) else it[PROJECT] = id }
+    @Throws(Exception::class)
     suspend fun treeNow(): Map<String, Boolean> = store.data.first()[TREE].orEmpty().mapNotNull { e -> e.substringBeforeLast('=').takeIf { it.isNotEmpty() }?.let { it to e.endsWith("=1") } }.toMap()
+    @Throws(Exception::class)
     suspend fun setTree(folds: Map<String, Boolean>) = store.edit { it[TREE] = folds.map { (k, v) -> "$k=${if (v) 1 else 0}" }.toSet() }
 }
 

@@ -5,7 +5,7 @@ import SwiftUI
 struct BotDotApp: App {
     var body: some Scene {
         WindowGroup {
-            StartView()
+            RootView()
         }
     }
 }

@@ -57,6 +57,8 @@ import platform.Security.kSecRandomDefault
 import platform.posix.CLOCK_MONOTONIC
 import platform.posix.clock_gettime_nsec_np
 
+internal actual val signInApp: String = "ios"
+
 internal actual fun elapsedRealtimeMs(): Long = (clock_gettime_nsec_np(CLOCK_MONOTONIC.convert()) / 1_000_000u).toLong()
 
 internal actual fun sha256(bytes: ByteArray): ByteArray {
@@ -173,8 +175,9 @@ internal actual fun sentOf(e: Throwable, went: Went): Boolean {
 
 internal actual fun httpEngine(): HttpClientEngine = Darwin.create()
 
-/** The iPhone app has no name of its own on its requests yet: what botdot makes of it is the iOS app's work. */
-internal actual val userAgent: String? = null
+/** The iPhone app's name on its requests, which botdot tells the iOS app by (lib/activity.js): `botdot-ios/0.1`. */
+internal actual val userAgent: String? =
+    "botdot-ios/" + ((platform.Foundation.NSBundle.mainBundle.infoDictionary?.get("CFBundleShortVersionString") as? String) ?: "0")
 
 internal actual fun parseHttpAddress(s: String): HttpAddress? {
     val u = runCatching { Url(s) }.getOrNull()?.takeIf { it.host.isNotEmpty() && (it.protocol.name == "http" || it.protocol.name == "https") } ?: return null

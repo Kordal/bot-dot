@@ -208,15 +208,18 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * SHA-256 that page carried. The session arrives as its cookie and is kept ([Session]). Returns the account's name;
      * a code the front door did not take (spent, too old, or for another secret) throws its sentence.
      */
+    @Throws(Exception::class)
     suspend fun finishSignIn(code: String, verifier: String): String {
         val answer = door("/sign-in/handoff", buildJsonObject { put("code", code); put("verifier", verifier) })
         return json.parseToJsonElement(answer).jsonObject.str("account")
     }
 
     /** Signs this phone out (#466: a paused account's "Use another account"): the front door clears the session's cookie. */
+    @Throws(Exception::class)
     suspend fun signOut() { door("/sign-out") }
 
     /** "Sign out everywhere": the front door ends every session of the account, in every app, this one too. */
+    @Throws(Exception::class)
     suspend fun signOutEverywhere() { door("/sign-out-everywhere") }
 
     /**
@@ -238,6 +241,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * What the front door says of this session (`/front-door/session`): here, whether Feedback goes to an admin page
      * ([Feedback.on]). An older front door leaves the field out, and the app shows no Feedback.
      */
+    @Throws(Exception::class)
     suspend fun frontDoorSession(): JsonObject = json.parseToJsonElement(
         call(Req(baseUrl.trimEnd('/') + "/front-door/session").header("Accept", "application/json").get().build())).jsonObject
 
@@ -326,6 +330,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun deleteGone(w: Storage.Where) { send("DELETE", Storage.goneQuery(w) { enc(it) }) }
     suspend fun usage(from: String? = null, to: String? = null): Usage.Answer = json.decodeFromString(get("/usage${Usage.query(from, to)}"))
 
+    @Throws(Exception::class)
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
     suspend fun bots(): List<Bot> = json.decodeFromString(get("/bots"))
     suspend fun bot(id: String): Bot = json.decodeFromString(get("/bots/${enc(id)}"))

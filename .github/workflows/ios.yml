@@ -1,6 +1,6 @@
 # The iOS app (ADR 242, #1358): the Android app's shared data layer (android/shared) tested in the simulator and built
 # as BotdotShared.xcframework, the app made from ios/project.yml, built and tested in the simulator (make ios), and a
-# screenshot of it there as an artifact. On GitHub's own Mac. Nothing is signed and no job holds a secret: neither the
+# screenshot of it there as an artifact. On GitHub's own Mac. Nothing is signed with a team and no job holds a secret: neither the
 # simulator nor these builds need an Apple account.
 name: iOS
 
