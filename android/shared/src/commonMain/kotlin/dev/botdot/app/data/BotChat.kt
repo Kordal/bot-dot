@@ -75,7 +75,7 @@ class BotChatState(
  * A bot's chat, kept while it is on screen, for both phones (ADR 242): its newest runs first, older ones as it is
  * scrolled up, what waits, the message on its way and what a failed send keeps, the drafts of its runs at work, and
  * Stop. It follows the live feed's [events] for this bot. The rules are Android's BotChatModel's (ui/ChatModels.kt);
- * Android still keeps its own model for Compose, which can move onto this one later.
+ * Android's BotChatModel moves onto this in #1391.
  */
 @OptIn(FlowPreview::class)
 class BotChat(
@@ -212,6 +212,12 @@ class BotChat(
         publish()
         return back.text
     }
+
+    /** The chat was left with [typed] in the box, not sent (#1068): it is kept for when the chat opens again. */
+    fun leave(typed: String) = outbox.leave(typed)
+
+    /** What was typed and not sent when the chat was last left, once; "" for none. */
+    fun takeUnsent(): String = outbox.takeUnsent()
 
     /** The owner edited the message: the line goes. */
     fun edited() { outbox.edited(); publish() }

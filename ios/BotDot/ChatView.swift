@@ -91,8 +91,8 @@ struct ChatView: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { Task { await importFile(url) } } }
         }
-        .task { model.start(); take() }
-        .onDisappear { model.stop() }
+        .task { model.start(); take(); unsent() }
+        .onDisappear { model.leave(typed); model.stop() }
     }
 
     private var composer: some View {
@@ -160,6 +160,15 @@ struct ChatView: View {
         typed = ""
         sentAt += 1
         Task { _ = await model.send(text) } // a failed one comes back through `back`
+    }
+
+    /// What was typed and not sent when the chat was last left comes back once, in front of what is in the box.
+    private func unsent() {
+        let left = model.takeUnsent()
+        guard !left.isEmpty else { return }
+        let now = OutboxKt.withFailed(failed: left, typedSince: typed)
+        restored = now
+        typed = now
     }
 
     /// A failed message waits: into the box, in front of what was typed since.

@@ -34,6 +34,10 @@ final class ChatModel {
     func stopRun(_ runId: String? = nil) { chat.stopRun(runId: runId) }
     func takeBack(_ q: Queued) { chat.takeBack(q: q) }
     func edited() { chat.edited() }
+    /// Left with [typed] not sent: kept for when the chat opens again (#1068).
+    func leave(_ typed: String) { chat.leave(typed: typed) }
+    /// What was typed and not sent when the chat was last left, once.
+    func takeUnsent() -> String { chat.takeUnsent() }
     func drop(_ file: Attachment) { chat.drop(file: file) }
 
     /// Sends what is typed; false when it didn't go (it comes back to the box with the line saying why).
