@@ -39,6 +39,8 @@ class HomeState(
     fun sub(b: Bot): String = botSub(b, lastRun[b.id], lines["bot:${b.id}"])
     /** Its row reads "Asks: …", with the mark. */
     fun asks(b: Bot): Boolean = botAsks(b, lastRun[b.id]) != null
+    /** The bots whose computer screen opens from Home's ⋯ menu ([ComputerScreen.opens]). */
+    val screens: List<Bot> get() = bots.orEmpty().filter { ComputerScreen.opens(it) }
     /** The Board's cards under Needs you: null before the Board has loaded ([stripTiles]). */
     val board: List<Tile>? get() = stripTiles(dashboard)
 }
