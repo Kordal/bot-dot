@@ -13,7 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.Instant
+import kotlin.time.Instant
 
 /**
  * A bot's pages (#346): only from a server with `pages`, a run lists the pages it saved, the viewer reads a page with

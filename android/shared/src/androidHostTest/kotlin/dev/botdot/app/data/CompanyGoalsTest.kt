@@ -10,8 +10,8 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * The goals, the plan's teams and the leads' reports on Android (#704): the rules as the web page has them
@@ -97,12 +97,12 @@ class CompanyGoalsTest {
         assertTrue(CompanyFloor.firstDay(Company("c", phase = "running", day = 1)))
         assertFalse(CompanyFloor.firstDay(Company("c", phase = "running", day = 2)))
         assertFalse(CompanyFloor.firstDay(Company("c", phase = "setup")))
-        assertEquals(LocalDate.of(2026, 10, 30), CompanyFloor.checkinDate("2026-10-01T10:00:00Z", ZoneOffset.UTC))
+        assertEquals(LocalDate(2026, 10, 30), CompanyFloor.checkinDate("2026-10-01T10:00:00Z", TimeZone.UTC))
         assertNull(CompanyFloor.checkinDate(null)); assertNull(CompanyFloor.checkinDate("soon"))
     }
 
     @Test fun aGoalReadFromAnAppSaysWhenItLastUpdated() {
-        val now = java.time.Instant.parse("2026-10-29T12:00:00Z")
+        val now = kotlin.time.Instant.parse("2026-10-29T12:00:00Z")
         val read = CompanySetup.of("""{"id":"c","objectives":[{"id":"o","name":"Subs","target":50,"current":12,
             "source":{"app":"stripe","what":"active subscriptions","every":"daily","readAt":"2026-10-29T10:00:00Z"}}]}""").objectives[0]
         assertEquals("active subscriptions", read.source!!.what)

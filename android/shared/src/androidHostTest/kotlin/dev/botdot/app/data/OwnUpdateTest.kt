@@ -13,7 +13,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Before
 import org.junit.Test
-import java.time.ZoneOffset
+import kotlinx.datetime.TimeZone
 
 /**
  * Settings → Updates (#259, ADR 053), against a stand-in front door: shown only where the front door says this account
@@ -52,7 +52,7 @@ class OwnUpdateTest {
         assertEquals("GET" to "/front-door/update", r.method to r.target)
         assertFalse(u.autoUpdate)
         assertTrue(u.ready && u.canUpdate && !u.moving)
-        assertEquals("A new version (abc1234) is ready. Your account moves to it by itself on Wednesday, Oct 28, or now if you choose.", u.text(ZoneOffset.UTC))
+        assertEquals("A new version (abc1234) is ready. Your account moves to it by itself on Wednesday, Oct 28, or now if you choose.", u.text(TimeZone.UTC))
     }
 
     @Test fun sendsTheSwitchAndUpdateNowToTheFrontDoor() = runBlocking {

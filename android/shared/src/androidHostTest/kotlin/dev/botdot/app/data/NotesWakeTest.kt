@@ -2,7 +2,7 @@ package dev.botdot.app.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.time.Instant
+import kotlin.time.Instant
 
 /** The notes that wait in a bot's chat (#225), as `test/notes-wake-web.test.js` has them on the web page. */
 class NotesWakeTest {

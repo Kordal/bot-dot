@@ -1,5 +1,6 @@
 package dev.botdot.app.feed
 
+import dev.botdot.app.data.plainText
 import dev.botdot.app.data.isReplayOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

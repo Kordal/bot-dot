@@ -9,8 +9,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.LocalDate
-import java.time.ZoneOffset
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 
 /**
  * Files (#603): only from a server that has it; its places; folders first, sorted by name, date or size, dot-names
@@ -81,8 +81,8 @@ class FilesExplorerTest {
         assertTrue(FilesExplorer.thumbs(named("acme.png")))
         assertFalse(FilesExplorer.thumbs(named("prices.csv")))
         assertFalse(FilesExplorer.thumbs(WorkspaceEntry("big.jpg", "big.jpg", "file", 2L * 1024 * 1024)))
-        val zone = ZoneOffset.UTC
-        val today = LocalDate.of(2026, 10, 21)
+        val zone = TimeZone.UTC
+        val today = LocalDate(2026, 10, 21)
         assertEquals("07:00", FilesExplorer.whenOf("2026-10-21T07:00:00Z", zone, today))
         assertEquals("Yesterday", FilesExplorer.whenOf("2026-10-20T07:00:00Z", zone, today))
         assertEquals("16 Oct", FilesExplorer.whenOf("2026-10-16T07:00:00Z", zone, today))

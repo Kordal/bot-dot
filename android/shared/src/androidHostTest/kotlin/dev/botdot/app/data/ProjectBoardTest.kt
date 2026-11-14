@@ -65,8 +65,8 @@ class ProjectBoardTest {
     }
 
     @Test fun theFilesTileSaysWhereAFileIsAndWhenItChanged() {
-        val zone = java.time.ZoneId.of("UTC")
-        val today = java.time.LocalDate.of(2026, 11, 6)
+        val zone = kotlinx.datetime.TimeZone.UTC
+        val today = kotlinx.datetime.LocalDate(2026, 11, 6)
         assertEquals("infra", ProjectFiles.folderOf("infra/plan.md"))
         assertEquals("", ProjectFiles.folderOf("plan.md"))
         assertEquals("08:45", ProjectFiles.whenOf(java.time.Instant.parse("2026-11-06T08:45:00Z").toEpochMilli(), zone, today))

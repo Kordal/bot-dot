@@ -9,7 +9,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-import java.time.Instant
+import kotlin.time.Instant
 
 /**
  * A bot's interactive page (#399, ADR 072): the viewer gets its frame's address and its versions, the frame keeps to
