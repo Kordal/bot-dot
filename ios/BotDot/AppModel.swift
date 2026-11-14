@@ -41,6 +41,9 @@ final class AppModel {
     }
 
     /// The admin paused [server]'s account, or resumed it (nil, or another botdot's).
+    /// Home for [server], or its paused screen when its account is paused already.
+    private func home(_ server: String) -> Screen { paused.now() == server ? .paused(server) : .signedIn(server) }
+
     private func pausedNow(_ server: String?) {
         switch screen {
         case .signedIn(let s) where s == server: screen = .paused(s)
@@ -52,7 +55,7 @@ final class AppModel {
     /// The botdot this phone was set to: Home, until its front door asks for a sign-in ([signInNeeded]), as on Android.
     func start() async {
         let server = (try? await settings.serverNow()) ?? nil
-        screen = server.map { .signedIn($0) } ?? .address
+        screen = server.map { home($0) } ?? .address
     }
 
     /// An address typed in: refused at once, asked whether it is a botdot, then kept.
@@ -68,7 +71,7 @@ final class AppModel {
             case .connected(let connected):
                 _ = try await settings.setServer(url: connected.url)
                 // A front door without this phone's session asks for the sign-in first; a botdot without one doesn't.
-                screen = connected.frontDoor && session.token(server: connected.url) == nil ? .signIn(connected.url) : .signedIn(connected.url)
+                screen = connected.frontDoor && session.token(server: connected.url) == nil ? .signIn(connected.url) : home(connected.url)
             }
         } catch {
             self.error = error.localizedDescription
@@ -105,7 +108,7 @@ final class AppModel {
             return
         }
         switch onEnum(of: flow.state.value) {
-        case .done: screen = .signedIn(server)
+        case .done: screen = home(server)
         case .failed(let failed): error = failed.words
         default: break
         }

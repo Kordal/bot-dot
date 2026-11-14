@@ -130,8 +130,8 @@ fun Blocks(list: List<Block>, color: Color, where: String, ctl: TileControls, mo
 @Composable
 private fun Faint() = Text("·", color = LocalPaper.current.faint)
 
-private fun JsonElement?.num(): Double? = BoardKit.number(this)
-private fun JsonElement?.str(): String? = BoardKit.text(this)
+private fun JsonElement?.num(): Double? = BoardKit.numberOf(this)
+private fun JsonElement?.str(): String? = BoardKit.textOf(this)
 private fun sliderText(b: Block, v: Double) = BoardKit.sliderText(b, v)
 /** Markdown, flattened for a few lines on a tile. */
 private fun plain(md: String) = BoardKit.plain(md)

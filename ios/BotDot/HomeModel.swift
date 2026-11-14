@@ -82,9 +82,11 @@ final class HomeModel {
                 async let offers = try? FrontDoorDesk(api: home.api).read(features: features)
                 async let notes = try? WhatsNew.shared.unseen(api: home.api, features: features)
                 async let ask = try? ChiefName.shared.firstRun(api: home.api, features: features, zone: TimeZone.current.identifier)
-                self.offers = await offers
-                self.whatsNew = await notes ?? []
-                self.askName = await ask?.boolValue ?? false
+                let (o, n, a) = await (offers, notes, ask)
+                // All at once: the name's question first, What's new after it is answered.
+                self.offers = o
+                self.askName = a?.boolValue ?? false
+                self.whatsNew = n ?? []
             }
         }
         let key = s.version?.figureKey

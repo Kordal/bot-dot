@@ -449,7 +449,7 @@ struct BlockView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(Array(b.options.enumerated()), id: \.offset) { i, o in
-                            let on = BoardKit.shared.text(v: o.value) == BoardKit.shared.text(v: b.value)
+                            let on = BoardKit.shared.textOf(v: o.value) == BoardKit.shared.textOf(v: b.value)
                             Button(o.label) { if let k = b.key { Task { await model.choose(key, k, i) } } }
                                 .buttonStyle(.plain)
                                 .font(.subheadline).padding(.horizontal, 12).padding(.vertical, 7)
@@ -542,7 +542,7 @@ private struct SliderBlock: View {
     @State private var value: Double?
 
     var body: some View {
-        let known = BoardKit.shared.number(v: b.value)?.doubleValue
+        let known = BoardKit.shared.numberOf(v: b.value)?.doubleValue
         let now = value ?? known ?? b.min
         VStack(alignment: .leading, spacing: 4) {
             HStack {

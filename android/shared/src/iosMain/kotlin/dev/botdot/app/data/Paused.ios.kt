@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
@@ -14,12 +15,15 @@ import kotlinx.coroutines.launch
 class PausedWatch(private val session: Session) {
     private val scope = MainScope()
 
+    /** The botdot whose account is paused now, or null. */
+    fun now(): String? = session.paused.value
+
     fun watch(onChange: (String?) -> Unit): Job = scope.launch { session.paused.collect { onChange(it) } }
 
     fun poll(api: Api): Job = scope.launch {
         while (true) {
             delay(POLL_MS)
-            runCatching { api.bots() }
+            try { api.bots() } catch (e: CancellationException) { throw e } catch (_: Exception) { }
         }
     }
 

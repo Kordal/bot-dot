@@ -47,7 +47,8 @@ fun ChiefNameQuestion(app: BotDotApp) {
         saving = true
         scope.launch {
             // A bot's name, or botdot away: the question stays, saying why.
-            val failed = api?.let { ChiefName.answer(it, given) } ?: tr("Couldn't save the name")
+            val a = api
+            val failed = if (a == null) tr("Couldn't save the name") else ChiefName.answer(a, given)
             if (failed == null) { asking = false; app.store.chief.refresh() } else error = failed
             saving = false
         }

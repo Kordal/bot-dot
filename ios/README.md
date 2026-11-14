@@ -38,7 +38,8 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView` |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
-| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (no drag to move, colour wheel, table or picture blocks yet) |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile and a chat tile open nothing until #1368 and #1361) |
+| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | #1368 |
 | `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
 | `WhatsNewDialog` | after an update | `WhatsNewView` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
@@ -46,8 +47,8 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
 | `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | left (#1372) |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
-| `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
-| `BotChatScreen` (`bot/{id}`) | Home's rows | #1361 |
+| `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
+| `BotChatScreen` (`bot/{id}`), `PlanDock` | Home's rows | #1361 |
 | `ChiefScreen` (`chief/{id}`) | Home | #1362 |
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | #1367 |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings | #1368 |

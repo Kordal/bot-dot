@@ -77,8 +77,8 @@ object BoardKit {
     fun level(l: String?): String = if (l in setOf("ok", "warn", "err", "info", "plan")) l!! else "info"
 
     /** A control's value as a number, or as text (a choice's, a colour's); null when it has none. */
-    fun number(v: JsonElement?): Double? = (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.doubleOrNull
-    fun text(v: JsonElement?): String? = (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull
+    fun numberOf(v: JsonElement?): Double? = (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.doubleOrNull
+    fun textOf(v: JsonElement?): String? = (v as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull
 
     private fun fmt(n: Double): String = ((n * 100).roundToInt() / 100.0).let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() }
 
