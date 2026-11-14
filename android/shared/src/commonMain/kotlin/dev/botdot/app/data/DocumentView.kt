@@ -24,6 +24,44 @@ object DocumentView {
     /** A file a path in a bot's reply names, or one the owner sent it (relative to its folder). */
     fun pathFile(botId: String, path: String): String = "/bots/${Api.enc(botId)}/path?path=${Api.enc(path)}"
 
+    /**
+     * A file to open in the viewer: [src] its API path, [name] its title, [from] who it is from, [botId] whose computer
+     * the viewer may start for it, [path] the path as a reply wrote it.
+     */
+    data class Opening(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null)
+
+    /**
+     * A file path in [botId]'s reply ([FilePaths]) as a tap opens it (#251): the file it names, relative to the bot's
+     * folder, from [from]. What a chat's file link hands the viewer, on Android and the iPhone.
+     */
+    fun ofPath(botId: String, path: String, from: String = "", name: String = path.substringAfterLast('/')): Opening =
+        Opening(pathFile(botId, path), name, from, botId, path)
+
+    /** What the viewer's body shows, in the order it is decided: what went wrong, the file still coming, then its kind. */
+    enum class Pane { NOT_FOUND, COMPUTER_OFF, FAILED, LOADING, TOO_LARGE, INTERACTIVE, PDF, NO_PREVIEW, IMAGE, TEXT }
+
+    /** [failed]: why the file couldn't be read (404: nothing there, 409: its computer is off). [page]: a bot's page. */
+    fun pane(view: FileView?, failed: Throwable?, page: Boolean): Pane = when {
+        failed != null -> when ((failed as? ApiException)?.status) { 404 -> Pane.NOT_FOUND; 409 -> Pane.COMPUTER_OFF; else -> Pane.FAILED }
+        view == null -> Pane.LOADING
+        !view.downloadable && view.kind == "none" -> Pane.TOO_LARGE
+        view.interactive != null && page -> Pane.INTERACTIVE
+        isPdf(view) -> Pane.PDF
+        view.kind == "none" -> Pane.NO_PREVIEW
+        view.kind == "image" -> Pane.IMAGE
+        else -> Pane.TEXT
+    }
+
+    /** How a file is first shown: Markdown rendered, a CSV as a table, the rest as its text. */
+    fun modeOf(kind: String): String = when (kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" }
+
+    /** The switches over a Markdown file or a CSV, as (mode, label); none for any other. */
+    fun modes(kind: String): List<Pair<String, String>> = when (kind) {
+        "markdown" -> listOf("rendered" to tr("Rendered"), "source" to tr("Source"))
+        "csv" -> listOf("table" to tr("Table"), "source" to tr("Source"))
+        else -> emptyList()
+    }
+
     /** botdot serves the files the owner sent in a Chief chat or a group (#268); the apps open them in the viewer. */
     const val CHAT_FILES = "chat-attachments"
 
