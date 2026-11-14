@@ -101,6 +101,7 @@ class BotChat(
     private val outbox = Outbox.of("bot:$botId")
     private val kicks = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val jobs = mutableListOf<Job>()
+    private var stopped = false
 
     // After every field it reads: Kotlin sets a class's properties in order.
     private val _state = MutableStateFlow(snapshot())
@@ -112,6 +113,7 @@ class BotChat(
     /** The chat came on screen: its newest page, what waits for it, and the feed's events for it. */
     fun start() {
         if (jobs.isNotEmpty()) return
+        stopped = false
         jobs += scope.launch { load() }
         jobs += scope.launch {
             store.bots.value.collect { bots ->
@@ -139,6 +141,7 @@ class BotChat(
 
     /** The chat was left: what it follows stops (a send under way goes on). */
     fun stop() {
+        stopped = true
         jobs.forEach { it.cancel() }
         jobs.clear()
         streams.values.forEach { it.cancel() }
@@ -290,6 +293,8 @@ class BotChat(
     // Each run that goes on now is followed: its line, its draft, its end.
     private val streams = mutableMapOf<String, Job>()
     private fun follow() {
+        // Left: a send, a take back or a turn that ends after it follows no run, so no stream outlives the screen.
+        if (stopped) return
         store.lines.sync(OpeningLine.live(all, store.lines.features)) { it == "bot:$botId" }
         val ids = all.filter { it.isRunning }.map { it.id }.toSet()
         streams.keys.filter { it !in ids }.forEach { streams.remove(it)?.cancel() }

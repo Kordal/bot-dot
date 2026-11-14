@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +34,7 @@ class BotChatTalkTest {
     private data class Asked(val method: String, val path: String, val query: String, val body: String)
 
     /** A botdot that answers each request with [answer] (status, JSON) and keeps what it was asked. */
-    private class FakeBotdot(answer: (Asked) -> Pair<Int, String>) {
+    private class FakeBotdot(answer: suspend (Asked) -> Pair<Int, String>) {
         private val lock = Mutex()
         private val took = mutableListOf<Asked>()
         val api = Api("https://botdot.test", MockEngine { req ->
@@ -177,5 +178,28 @@ class BotChatTalkTest {
         assertTrue("\"file\":\"f1\"" in post.body, post.body)
         assertEquals(emptyList(), chat.state.value.files)
         until("its run is in the chat") { chat.state.value.runs.any { it.run.id == "r9" } }
+    }
+
+    @Test fun aSendThatEndsAfterTheChatWasLeftFollowsNoRun() = runTest {
+        val answer = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var sent = false
+        val going = run("r9", status = "running", prompt = "Look", result = "")
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "POST" && a.path == "/bots/b1/run" -> { answer.await(); sent = true; 200 to going }
+                a.path == "/runs" -> 200 to if (sent) "[$going]" else "[]" // botdot lists the run that goes on
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        val sending = backgroundScope.async { chat.send("Look") }
+        until("the message is on its way") { fake.asked().any { it.method == "POST" } }
+        chat.stop() // the owner went back while it was sent
+        answer.complete(Unit)
+        assertTrue(sending.await(), "the send goes on")
+        advanceTimeBy(1_000); runCurrent()
+        withContext(Dispatchers.Default) { delay(100) }
+        assertTrue(fake.asked().none { it.path.endsWith("/stream") }, "no run's stream is opened for a chat that was left: ${fake.asked().map { it.path }}")
     }
 }
