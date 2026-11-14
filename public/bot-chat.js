@@ -5,7 +5,7 @@
 // newFirst: the run the "New" line goes above (the server's firstUnread when the chat was opened), or null.
 // The answers of a reply stand under the reply that is last in the chat, and under each run an open question is from (bot.asks) when
 // newer runs came after it: what asks the owner can be answered where it stands. Two runs that went at once and both
-// asked keep both their answers (#1377). A reply that asked (r.asks) keeps its answers only while it is one of the
+// asked keep both their answers (#1380). A reply that asked (r.asks) keeps its answers only while it is one of the
 // bot's open questions: answered in another chat, in a group the bot is in, they go (ADR 211).
 function botThreadHTML(bot, runs, newFirst = null) {
   if (!runs.length) {
@@ -269,7 +269,7 @@ function loadInbox(botId) {
 
 // The run a bot's chat reaches back to: its "New" line's, else the one its open question is from (docs/api.md, "A bot
 // that asks"), else none. The question is the newest reply that counts, so the "New" line is never below it.
-// The runs of a bot's open questions (docs/api.md, "A bot that asks"), newest first: every one of them (`open`, #1377),
+// The runs of a bot's open questions (docs/api.md, "A bot that asks"), newest first: every one of them (`open`, #1380),
 // or from a server without it the one of `runId`. A function declaration, so that it is there before this file runs.
 function asksOpen(asks) { return Array.isArray(asks?.open) ? asks.open.map((x) => x.runId) : asks?.runId ? [asks.runId] : []; }
 const chatBack = (bot, newFirst) => newFirst ?? asksOpen(bot?.asks).at(-1) ?? null; // the oldest open question: all of them are drawn
@@ -448,7 +448,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
-    // An answer names the reply it answers: with two questions open, it ends that one alone (#1377).
+    // An answer names the reply it answers: with two questions open, it ends that one alone (#1380).
     wireChoices(thread, (t, key, of) => sendFrom($('form.composer', root), () => runBot(bot.id, t, [], key, null, of)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.

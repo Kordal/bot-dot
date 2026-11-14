@@ -220,7 +220,7 @@ data class Bot(
 
 /**
  * A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked, the
- * newest. [others]: the runs of its other open questions, newest first (`asks.open`, #1377): two runs of the bot that
+ * newest. [others]: the runs of its other open questions, newest first (`asks.open`, #1380): two runs of the bot that
  * went at once and both asked keep both questions.
  */
 data class Asks(val text: String, val runId: String? = null, val at: String? = null, val others: List<String> = emptyList()) {

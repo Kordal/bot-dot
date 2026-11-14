@@ -376,7 +376,7 @@ const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length
   : '');
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question, and under a box
 // the question's choices (`picks`, the reply's questionChoices), each a button that fills it. of: the reply's id, so
-// that what the card sends answers that reply (#1377).
+// that what the card sends answers that reply (#1380).
 const questionsHTML = (questions, picks, of = '') => (questions?.length
   ? `<div class="ask-card card"${of ? ` data-of="${esc(of)}"` : ''}>${questions.map((q, i) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea>${picks?.[i]?.length ? `<span class="ask-picks">${picks[i].map((c) => `<button type="button" class="btn" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</span>` : ''}</label>`).join('')}<button class="btn primary sm" data-send disabled>${tr('Send')}</button></div>`
   : '');

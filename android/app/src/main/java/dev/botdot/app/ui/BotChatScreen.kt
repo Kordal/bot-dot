@@ -108,7 +108,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     }
     // The runs its open questions are from (docs/api.md, "A bot that asks"), however far back: older pages until the
     // oldest is in the chat, so "Needs you" on its key points at something to answer. Two runs that went at once and
-    // both asked keep both questions (#1377).
+    // both asked keep both questions (#1380).
     val askedIn = bot?.asks?.runs.orEmpty()
     val oldestAsked = askedIn.lastOrNull()
     LaunchedEffect(loaded, oldestAsked) { if (loaded && oldestAsked != null) vm.reach(oldestAsked) }
@@ -182,7 +182,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // Reply on a block (#627), against a botdot that takes it: the chip above the box names the block's first request.
     val replies = "reply-to" in features.orEmpty()
     // From a quick answer or a question card: whether it went. What was tapped stays until it did.
-    // answers: the reply whose question it answers, so that with two questions open it ends that one alone (#1377).
+    // answers: the reply whose question it answers, so that with two questions open it ends that one alone (#1380).
     suspend fun sendFrom(text: String, key: String, answers: String? = null): Boolean = vm.send(text, emptyList(), box = false, key = key, answers = answers).await()
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote

@@ -1,4 +1,4 @@
-// Two runs of one bot that ask keep two questions (#1377; docs/api.md, "A bot that asks"). Runs of one bot go beside
+// Two runs of one bot that ask keep two questions (#1380; docs/api.md, "A bot that asks"). Runs of one bot go beside
 // each other (ADR 062): the reply of the second that asks must not take the place of the first's question. An answer
 // that names its run (a tapped answer, a card of questions sent) ends that question alone; a typed message ends all.
 const { test } = require('node:test');
@@ -12,7 +12,7 @@ const botOf = async (srv, bot) => (await srv.api(`/bots/${bot.id}`)).data;
 const open = async (srv, bot) => ((await botOf(srv, bot)).asks?.open || []).map((x) => x.runId);
 const post = async (srv, bot, body) => (await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body })).data;
 
-test('two runs of one bot that ask keep both questions until each is answered (#1377)', async () => {
+test('two runs of one bot that ask keep both questions until each is answered (#1380)', async () => {
   let srv = await startServer();
   let f;
   try {

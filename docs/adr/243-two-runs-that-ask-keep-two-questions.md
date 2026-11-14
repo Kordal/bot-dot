@@ -1,6 +1,6 @@
 # ADR-243: Two runs that ask keep two questions
 
-- **Status:** Accepted (2026-11-14, the owner: "When two instances of the same bot asked me questions that I need to answer (the card) the first card disappeared and was overwritten by the 2nd", #1377)
+- **Status:** Accepted (2026-11-14, the owner: "When two instances of the same bot asked me questions that I need to answer (the card) the first card disappeared and was overwritten by the 2nd", #1380)
 - **Supersedes in part:** the "newest reply" rule of a bot's open question (docs/api.md, A bot that asks; SURE-001)
 - **Builds on:** [ADR 062](062-a-message-to-a-busy-bot-starts-beside-the-run-that-is-going.md), [ADR 211](211-a-bot-asks-in-one-place-at-a-time.md)
 

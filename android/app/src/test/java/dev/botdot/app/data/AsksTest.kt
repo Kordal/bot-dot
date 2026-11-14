@@ -46,7 +46,7 @@ class AsksTest {
     }
 
     @Test fun twoRunsThatAskKeepBothQuestions() {
-        // #1377: the newest is `runId`, as an older app reads it; `open` lists every open question, newest first.
+        // #1380: the newest is `runId`, as an older app reads it; `open` lists every open question, newest first.
         val two = bots("""[{"id":"mail","name":"Mail Sorter","asks":{"text":"Which calendar?","runId":"r10","at":"2026-11-14T13:00:00Z","open":[{"text":"Which calendar?","runId":"r10"},{"text":"$question","runId":"r9"}]}}]""").single()
         assertEquals(listOf("r10", "r9"), two.asks?.runs)
         assertEquals("one question: the run of runId", listOf("r9"), bots(list).first().asks?.runs)

@@ -372,7 +372,7 @@ test('web: a send from outside the box shows the same line above that chat\'s bo
 test('web: every quick answer, question card and plan approval sends that way, in the Chief\'s chat and in a bot\'s', () => {
   // Each with the key of what was tapped (QW-008).
   assert.equal((app.match(/wireChoices\(thread, \(t, key\) => sendFrom\((form|\$\('#view-chief form.composer'\)), \(\) => sendToChief\(t, \[\], key\)\)\);/g) || []).length, 2, 'the chat as opened, and the reply as it arrives');
-  assert.match(app, /wireChoices\(thread, \(t, key, of\) => sendFrom\(\$\('form.composer', root\), \(\) => runBot\(bot\.id, t, \[\], key, null, of\)\)\);/, 'naming the reply it answers (#1377)');
+  assert.match(app, /wireChoices\(thread, \(t, key, of\) => sendFrom\(\$\('form.composer', root\), \(\) => runBot\(bot\.id, t, \[\], key, null, of\)\)\);/, 'naming the reply it answers (#1380)');
   assert.doesNotMatch(app, /CHIEF_SUGGESTIONS|class="suggestion"/, 'a new Chief chat has no example requests (#635)');
   assert.match(app, /build\.onclick = withKey\(async \(key\) => \{ if \(await sendFrom\(form, \(\) => sendToChief\(PLAN_APPROVAL, \[\], key\)\)\) build\.closest\('\.suggestion-actions'\)\?\.remove\(\); \}\);/);
   assert.match(app, /wireComposer\(form, \(text, files, key\) => runBot\(bot\.id, text, files, key, replyingTo\.get\(bot\.id\)\?\.runId\), \(\) => `bot:\$\{bot\.id\}`, bot\.id\);/);
