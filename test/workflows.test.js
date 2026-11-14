@@ -124,9 +124,10 @@ test('no workflow uses a self-hosted runner', () => {
 // The one exception, chosen by the owner: Claude's review (claude-review.yml) holds its sign-in secret, and only for a
 // pull request from a branch of this repository, which only someone with write access can open. GitHub gives a
 // fork's pull request no secrets anyway; the condition says the job is not meant for one.
-const SAME_REPOSITORY = 'github.event.pull_request.head.repo.full_name == github.repository';
-const sameRepositoryOnly = (job) => typeof job.if === 'string' && job.if.includes(SAME_REPOSITORY) && !/\|\|/.test(job.if)
-  && !/!\s*\(?\s*github\.event\.pull_request\.head\.repo\.full_name/.test(job.if)
+// The condition must be exactly this one (spacing and ${{ }} aside): anything looser could be inverted or widened.
+const SAME_REPOSITORY = '!github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository';
+const bare = (expr) => String(expr).replace(/^\s*\$\{\{([\s\S]*)\}\}\s*$/, '$1').replace(/\s+/g, ' ').trim();
+const sameRepositoryOnly = (job) => typeof job.if === 'string' && bare(job.if) === SAME_REPOSITORY
   && !job.environment && job.permissions?.contents === 'read';
 
 test('no job a pull request starts holds a secret or the release environment', () => {
@@ -344,7 +345,10 @@ test("Claude's review runs only for non-draft pull requests from this repository
   const { on, jobs: { review } } = workflow('claude-review.yml');
   assert.deepEqual([...on.pull_request.types].sort(), ['opened', 'ready_for_review', 'reopened', 'synchronize']);
   assert.ok(sameRepositoryOnly(review), 'no fork, no environment, nothing pushed');
-  assert.match(review.if, /!github\.event\.pull_request\.draft/);
+  for (const loose of ['!(github.event.pull_request.head.repo.full_name == github.repository)',
+    `!((${SAME_REPOSITORY}))`, `${SAME_REPOSITORY} || true`, 'github.event.pull_request.head.repo.full_name == github.repository']) {
+    assert.ok(!sameRepositoryOnly({ ...review, if: loose }), loose);
+  }
   const step = review.steps.find((st) => /^anthropics\/claude-code-action@[0-9a-f]{40} /.test(`${st.uses} `));
   assert.ok(step, 'the action is pinned to a commit');
   assert.match(step.with.prompt, /No issues found\./, 'a clean review says so in words a thread can look for');
