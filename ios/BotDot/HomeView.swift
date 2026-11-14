@@ -8,6 +8,12 @@ struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
+    @State private var deleting = false
+    @State private var feedback = false
+    @State private var sent: String?
+    @State private var name = ""
+    @State private var nameError: String?
+    @State private var asking = false
 
     init(model: AppModel, server: String, api: Api) {
         self.model = model
@@ -32,7 +38,14 @@ struct HomeView: View {
                     .listRowSeparator(.hidden)
                 }
                 if let state = home.state, let board = state.board {
-                    BoardCards(tiles: board)
+                    // A tap opens the Board, where each tile does its thing.
+                    NavigationLink {
+                        BoardView(home: home.home, figure: home.figure)
+                    } label: {
+                        BoardCards(tiles: board)
+                    }
+                    .accessibilityIdentifier("board")
+                    .listRowSeparator(.hidden)
                 }
                 if let state = home.state {
                     ForEach(home.order, id: \.self) { key in
@@ -49,6 +62,8 @@ struct HomeView: View {
             .navigationTitle("botdot")
             .toolbar {
                 Menu {
+                    if home.offers?.feedback == true { Button(Feedback.shared.TITLE) { feedback = true } }
+                    if home.offers?.deletion != nil { Button(tr("Delete account"), role: .destructive) { deleting = true } }
                     Button(tr("Change botdot's address")) { model.otherAddress() }
                     Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
                 } label: {
@@ -56,9 +71,45 @@ struct HomeView: View {
                 }
             }
         }
+        .overlay(alignment: .bottom) {
+            if let sent {
+                Text(sent).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16).accessibilityIdentifier("notice")
+                    .task { try? await Task.sleep(for: .seconds(3)); self.sent = nil }
+            }
+        }
+        .sheet(isPresented: $deleting) {
+            if let offer = home.offers?.deletion {
+                AccountDeletionView(offer: offer, api: home.home.api) { words in model.accountDeleted(server, words) }
+            }
+        }
+        .sheet(isPresented: $feedback) {
+            FeedbackView(api: home.home.api, shotsOn: home.offers?.shots == true) { sent = tr("Sent") }
+        }
+        // What's new after an update, once; closed any way, its notes are seen.
+        .sheet(isPresented: Binding(get: { !home.whatsNew.isEmpty && !feedback && !home.askName }, set: { if !$0 { home.whatsNewSeen() } })) {
+            WhatsNewView(entries: home.whatsNew)
+        }
+        // The first run's question for the Chief's name: Save, or Skip to keep "Chief of Staff".
+        .alert(ChiefName.shared.question, isPresented: $asking) {
+            TextField(ChiefName.shared.role, text: $name).onChange(of: name) { _, n in if n.count > Int(ChiefName.shared.MAX) { name = String(n.prefix(Int(ChiefName.shared.MAX))) } }
+            Button(tr("Save")) { answerName(name) }
+            Button(tr("Skip"), role: .cancel) { answerName("") }
+        } message: {
+            Text(nameError.map { ChiefName.shared.explain + "\n\n" + $0 } ?? ChiefName.shared.explain)
+        }
+        .onChange(of: home.askName) { _, ask in asking = ask }
         .task { home.start() }
         .onDisappear { home.stop() }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
+    }
+
+    /// The Chief's name, saved or skipped; a refusal keeps the question, saying why.
+    private func answerName(_ given: String) {
+        Task {
+            nameError = await home.nameChief(given)
+            // The alert closed with the tap: it asks again, saying why.
+            if nameError != nil { asking = true }
+        }
     }
 
     @ViewBuilder

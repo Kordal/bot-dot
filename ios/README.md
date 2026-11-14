@@ -16,9 +16,43 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
-                  layer's cards, NeedsDesk, with their buttons), bots drawn by FigureView, and tr()
+                  layer's cards, NeedsDesk, with their buttons), the Board (BoardView: BoardDesk's tiles and taps), the
+                  account's parts (AccountViews: Delete account, Feedback, What's new, the paused account), bots drawn
+                  by FigureView, and tr()
 BotDotNotify/     the notification service extension (app.botdot.notify), empty for now
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers
 ```
 
 The app and its extension share the App Group `group.app.botdot` and a Keychain access group, for the session and what a push needs.
+
+## Android's screens on iOS
+
+Every screen of the Android app (`android/app/src/main/java/dev/botdot/app/ui/*Screen.kt`, the routes of `MainActivity`'s
+NavHost, its settings panels and its dialogs), and the iOS view that draws it or the ticket of [#1355](https://github.com/Kordal/bot-dot/issues/1355)
+that builds it. A screen added on Android adds its row here. "Left" is part of #1372 that is not built yet.
+
+| Android | Opened from | iOS |
+| --- | --- | --- |
+| `ConnectScreen` (`connect`) | first run, ⋯ | `AddressView` |
+| `SignInScreen` (`sign-in`) | the front door asks | `SignInView` |
+| `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
+| `HomeScreen` (`home`), `HomeParts` | start | `HomeView` |
+| `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (no drag to move, colour wheel, table or picture blocks yet) |
+| `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
+| `WhatsNewDialog` | after an update | `WhatsNewView` |
+| `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
+| `ChiefNameQuestion` | the first run | the alert in `HomeView` |
+| `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
+| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | left (#1372) |
+| `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
+| `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
+| `BotChatScreen` (`bot/{id}`) | Home's rows | #1361 |
+| `ChiefScreen` (`chief/{id}`) | Home | #1362 |
+| `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | #1367 |
+| `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings | #1368 |
+| `VaultScreen` (`vault`) | Settings | #1369 |
+| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | #1370 |
+| `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings | #1371 |
+| `ShareScreen` (`share`) | another app's Share | #1373 |
+| `AppUpdateRow` | Home, Settings | none: the App Store updates the iPhone app |

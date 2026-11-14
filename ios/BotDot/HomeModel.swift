@@ -12,11 +12,18 @@ final class HomeModel {
     /// The list as drawn: the pinned rows, the line under them (ListLayout.PINS), then each category and its rows.
     private(set) var order: [String] = []
     var error: String?
+    /// What the front door offers this account (deleting it, Feedback), read once its features are known.
+    private(set) var offers: FrontDoorOffers?
+    /// The notes of the releases this person has not seen (What's new), shown once.
+    var whatsNew: [WhatsNew.Entry] = []
+    /// The first run's question for the Chief's name (ChiefName.firstRun).
+    var askName = false
 
     let home: HomeStore
     private var watching: Kotlinx_coroutines_coreJob?
     private var figureKey: String??
     private var figureTask: Task<Void, Never>?
+    private var firstRead = false
 
     init(api: Api, bundled: FigureDef? = HomeModel.bundledFigure) {
         home = HomeStore(api: api)
@@ -68,6 +75,18 @@ final class HomeModel {
     private func show(_ s: HomeState) {
         state = s
         order = Self.order(s)
+        if let features = s.version?.features, !firstRead {
+            // Once the server's features are known: what the front door offers, What's new and the first run.
+            firstRead = true
+            Task { [home] in
+                async let offers = try? FrontDoorDesk(api: home.api).read(features: features)
+                async let notes = try? WhatsNew.shared.unseen(api: home.api, features: features)
+                async let ask = try? ChiefName.shared.firstRun(api: home.api, features: features, zone: TimeZone.current.identifier)
+                self.offers = await offers
+                self.whatsNew = await notes ?? []
+                self.askName = await ask?.boolValue ?? false
+            }
+        }
         let key = s.version?.figureKey
         if s.version != nil, figureKey != .some(key) {
             // Another server version: the definition is asked anew, and an answer for the one before is dropped.
@@ -81,6 +100,24 @@ final class HomeModel {
                 self.figure = def
             }
         }
+    }
+
+    /// What's new closed, any way: its notes are seen, here and in every other app.
+    func whatsNewSeen() {
+        let shown = whatsNew
+        whatsNew = []
+        Task { [home] in try? await WhatsNew.shared.seen(api: home.api, entries: shown) }
+    }
+
+    /// Save or Skip on the Chief's name: nil once it was kept, else why not, and the question stays.
+    func nameChief(_ given: String) async -> String? {
+        let failed: String?
+        do { failed = try await ChiefName.shared.answer(api: home.api, given: given) } catch { failed = tr("Couldn't save the name") }
+        if failed == nil {
+            askName = false
+            await refresh()
+        }
+        return failed
     }
 
     private static func order(_ s: HomeState) -> [String] {

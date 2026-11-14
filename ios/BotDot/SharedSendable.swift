@@ -12,3 +12,12 @@ extension HomeState: @retroactive @unchecked Sendable {}
 extension FigureDef: @retroactive @unchecked Sendable {}
 extension NeedsYouStore: @retroactive @unchecked Sendable {}
 extension NeedsState: @retroactive @unchecked Sendable {}
+extension BoardStore: @retroactive @unchecked Sendable {}
+extension BoardState: @retroactive @unchecked Sendable {}
+extension BoardTap: @retroactive @unchecked Sendable {}
+extension FrontDoorOffers: @retroactive @unchecked Sendable {}
+extension FrontDoorDesk: @retroactive @unchecked Sendable {}
+extension FrontDoorDesk.Deleted: @retroactive @unchecked Sendable {}
+extension WhatsNew.Entry: @retroactive @unchecked Sendable {}
+extension PausedWatch: @retroactive @unchecked Sendable {}
+extension KotlinByteArray: @retroactive @unchecked Sendable {}
