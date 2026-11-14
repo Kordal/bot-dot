@@ -35,7 +35,7 @@ struct VaultView: View {
                 } else {
                     entries(state)
                 }
-            } else {
+            } else if vault.state?.error == nil {
                 ProgressView().frame(maxWidth: .infinity)
             }
         }
@@ -130,7 +130,7 @@ struct VaultRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("\(Vault.shared.icon(kind: item.kind)) \(item.name)").font(.body)
+            Text("\(Vault.shared.icon(kind: item.kind, unknown: "🔑")) \(item.name)").font(.body)
             ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
                 Text(l).font(.subheadline).foregroundStyle(.secondary)
             }
@@ -216,7 +216,7 @@ struct LoginEditor: View {
                 }
                 if state.categories {
                     Labeled(tr("Category")) {
-                        TextField(tr("Category"), text: Binding(get: { category }, set: { category = String($0.prefix(Int(VaultTypes.shared.CATEGORY_MAX))) }), prompt: Text(""))
+                        TextField(tr("Category"), text: Binding(get: { category }, set: { category = form.categorized(typed: $0).category }), prompt: Text(""))
                     }
                     let picks = state.suggestions(typed: category)
                     if !picks.isEmpty {
@@ -290,16 +290,17 @@ struct LoginEditor: View {
         guard case .success(let url) = picked else { return }
         let open = url.startAccessingSecurityScopedResource()
         defer { if open { url.stopAccessingSecurityScopedResource() } }
-        if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size > Int(VaultTypes.shared.SECRET_FILE_MAX) {
-            error = tr("That file is too big for Passwords (64 KB at most).")
+        // Its size before it is read, then what was read: a file may grow meanwhile.
+        if let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, let big = Vault.shared.secretFileError(bytes: Int64(size)) {
+            error = big
             return
         }
         guard let data = try? Data(contentsOf: url) else {
             error = tr("Couldn't read that file.")
             return
         }
-        guard data.count <= Int(VaultTypes.shared.SECRET_FILE_MAX) else {
-            error = tr("That file is too big for Passwords (64 KB at most).")
+        if let big = Vault.shared.secretFileError(bytes: Int64(data.count)) {
+            error = big
             return
         }
         secret = String(decoding: data, as: UTF8.self)

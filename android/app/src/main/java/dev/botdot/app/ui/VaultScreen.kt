@@ -542,7 +542,7 @@ private fun ItemBots(item: VaultItem, bots: List<Bot>, features: Collection<Stri
     var error by remember { mutableStateOf<String?>(null) }
     // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
     var aside by remember { mutableStateOf(false) }
-    if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${Vault.icon(item.kind)} ${item.name}") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${Vault.icon(item.kind, unknown = "")} ${item.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Hint(VaultTypes.itemBotsHint(item.kind) + " " + tr("Change the details themselves in Bitwarden."))
             if (sorts) CategoryField(category, all) { category = it }

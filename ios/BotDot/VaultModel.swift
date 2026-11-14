@@ -47,6 +47,7 @@ final class VaultModel {
 
     /// A tap on a category's heading: folded or open again, kept on this phone.
     func toggle(_ category: String) async {
+        error = nil
         do {
             _ = try await vault.toggle(category: category)
         } catch {

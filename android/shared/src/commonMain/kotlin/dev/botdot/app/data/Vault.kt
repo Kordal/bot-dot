@@ -6,13 +6,14 @@ package dev.botdot.app.data
  * The words and the rules of a type are [VaultTypes]'; Android's VaultScreen and the iPhone's VaultView draw this.
  */
 object Vault {
-    /** The mark before an entry's name, by its kind. */
-    fun icon(kind: String): String = when (kind) {
+    /** The mark before an entry's name, by its kind; [unknown] for a kind this app does not know. */
+    fun icon(kind: String, unknown: String = "🔑"): String = when (kind) {
+        "login" -> "🔑"
         "card" -> "💳"
         "identity" -> "🪪"
         VaultTypes.SSH_KEY -> "🗝️"
         VaultTypes.FILE -> "📄"
-        else -> "🔑"
+        else -> unknown
     }
 
     /** The lines under an entry's name: a card's brand and digits, an identity's holder, or the lines of its type. */
@@ -69,6 +70,9 @@ object Vault {
     /** What a refused unlock of Bitwarden says: a wrong master password, or the server's sentence. */
     fun unlockError(e: Throwable): String = unlockFailed(e) // Needs you's rule (NeedsDesk.kt)
 
+    /** Why a secret read from a file of [bytes] can't be taken (over [VaultTypes.SECRET_FILE_MAX]), or null. */
+    fun secretFileError(bytes: Long): String? = if (bytes > VaultTypes.SECRET_FILE_MAX) tr("That file is too big for Passwords (64 KB at most).") else null
+
     /** The entries of a `GET /api/vault` answer. */
     fun read(json: String): List<VaultItem> = Api.JSON.decodeFromString(json)
 }
@@ -94,6 +98,9 @@ data class VaultLogin(
 
     /** Another type picked: one with its own address (a GitHub App's api.github.com) fills an empty address. */
     fun typed(id: String): VaultLogin = copy(type = id, site = VaultTypes.of(id).site?.takeIf { site.isBlank() } ?: site)
+
+    /** A category as typed, cut at what the server keeps ([VaultTypes.CATEGORY_MAX]). */
+    fun categorized(typed: String): VaultLogin = copy(category = typed.take(VaultTypes.CATEGORY_MAX))
 
     /** Save can be tapped: a name and an address, and for a new login its secret. */
     fun canSave(isNew: Boolean): Boolean = name.isNotBlank() && site.isNotBlank() && (!isNew || secret.isNotEmpty())

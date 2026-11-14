@@ -9,6 +9,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * The iPhone's Vault (Settings → Passwords on Android): its entries, Bitwarden's state, the server's features and the
@@ -24,9 +26,16 @@ class VaultStore(val api: Api, private val settings: Settings) {
         combine(parts, settings.foldedVault) { p, f -> VaultState(p.items, p.bitwarden, p.features, p.bots, f, p.error) }.collect { onChange(it) }
     }
 
-    /** Reads it all again; what went wrong reading the entries is the state's [VaultState.error]. */
+    private val reading = Mutex()
+
+    /**
+     * Reads it all again; what went wrong reading the entries is the state's [VaultState.error]. One read at a time, so
+     * an older answer never lands after a newer one.
+     */
     @Throws(Exception::class)
-    suspend fun refresh() = coroutineScope {
+    suspend fun refresh() = reading.withLock { read() }
+
+    private suspend fun read() = coroutineScope {
         val version = async { tried { api.version().features }.getOrNull() }
         val bots = async { tried { api.bots() }.getOrNull() }
         val read = tried { coroutineScope { val i = async { api.vault() }; val b = async { api.bitwarden() }; i.await() to b.await() } }

@@ -50,14 +50,23 @@ final class VaultTests: XCTestCase {
         let first = VaultModel(api: api, settings: settings)
         let started = Task { await first.start() }
         await first.toggle("Servers")
-        while first.state?.folded.contains("Servers") != true { await Task.yield() }
+        try await until { first.state?.folded.contains("Servers") == true }
         started.cancel()
         first.stop()
         let again = VaultModel(api: api, settings: settings)
         let next = Task { await again.start() }
-        while again.state?.folded.contains("Servers") != true { await Task.yield() }
+        try await until { again.state?.folded.contains("Servers") == true }
         next.cancel()
         again.stop()
+    }
+
+    /// Waits for [done], failing after five seconds instead of hanging.
+    private func until(_ done: () -> Bool) async throws {
+        let end = Date().addingTimeInterval(5)
+        while !done() {
+            guard Date() < end else { return XCTFail("timed out") }
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     func testTheEditorIsTheSharedForm() throws {
@@ -70,6 +79,9 @@ final class VaultTests: XCTestCase {
         let s = state([saved])
         XCTAssertEqual(s.fields(form: form.typed(id: "other"), isNew: false).username, nil, "Other asks for the secret alone")
         XCTAssertEqual(s.typeIds(current: nil), ["login", "api-token", "other"])
+        XCTAssertEqual(form.categorized(typed: String(repeating: "x", count: 50)).category.count, 40, "the server keeps 40 characters")
+        XCTAssertNil(Vault.shared.secretFileError(bytes: 64 * 1024))
+        XCTAssertNotNil(Vault.shared.secretFileError(bytes: 64 * 1024 + 1))
         XCTAssertEqual(Vault.shared.deleteWords(bitwarden: true), "It moves to Bitwarden's trash, where you can restore it for 30 days.")
     }
 }

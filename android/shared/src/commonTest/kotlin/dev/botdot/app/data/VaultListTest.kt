@@ -3,6 +3,7 @@ package dev.botdot.app.data
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -66,6 +67,32 @@ class VaultListTest {
         val login = VaultItem(id = "l", name = "Food", site = "food.example.org", username = "alice")
         assertEquals(VaultTypes.rows(login, features), Vault.lines(login, features))
         assertEquals(listOf("🔑", "💳", "🪪", "🗝️", "📄", "🔑"), listOf("login", "card", "identity", "ssh-key", "file", "passkey").map(Vault::icon))
+    }
+
+    @Test
+    fun theListShowsTheLinesOfTheSharedTypesTable() {
+        val shown = Json.parseToJsonElement(fixture("vaultTypes")).jsonObject["items"]!!.jsonArray
+        for (s in shown) {
+            val item = Vault.read("[${s.jsonObject["item"]}]").single()
+            val rows = s.jsonObject["rows"]!!.jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(rows, Vault.lines(item, listOf(VaultTypes.FEATURE)), item.name)
+        }
+        assertTrue(shown.isNotEmpty())
+    }
+
+    @Test
+    fun anUnknownKindHasTheMarkTheCallerGives() {
+        assertEquals("🔑", Vault.icon("passkey"))
+        assertEquals("", Vault.icon("passkey", unknown = ""))
+        assertEquals("💳", Vault.icon("card", unknown = ""))
+    }
+
+    @Test
+    fun aSecretFileIsAtMost64KBAndACategory40Characters() {
+        assertNull(Vault.secretFileError(64L * 1024))
+        assertEquals("That file is too big for Passwords (64 KB at most).", Vault.secretFileError(64L * 1024 + 1))
+        assertEquals(40, VaultLogin().categorized("x".repeat(50)).category.length)
+        assertEquals("Servers", VaultLogin().categorized("Servers").category)
     }
 
     @Test
