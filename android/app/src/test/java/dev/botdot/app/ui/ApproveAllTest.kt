@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.approveAll
+import dev.botdot.app.data.scriptsLeft
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Job

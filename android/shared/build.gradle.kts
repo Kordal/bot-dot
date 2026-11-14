@@ -57,6 +57,7 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock) // a fake botdot for the shared tests (NeedsDeskTest)
         }
         getByName("androidHostTest").dependencies {
             implementation(libs.junit)
@@ -99,6 +100,11 @@ kotlin.sourceSets.commonTest { kotlin.srcDir(writeFixtures) }
 // Android lint reads the host tests' sources, the written fixture paths among them.
 tasks.matching { it.name.contains("HostTest") && it.name.contains("lint", ignoreCase = true) }.configureEach { dependsOn(writeFixtures) }
 tasks.withType<AbstractTestTask>().configureEach { inputs.files(fixtures.values).withPropertyName("fixtures") }
+
+// The iOS tests run in the simulator IOS_SIMULATOR names (its UDID), as `make ios` does; else in Kotlin's own default.
+providers.environmentVariable("IOS_SIMULATOR").orNull?.takeIf { it.isNotBlank() }?.let { id ->
+    tasks.withType<org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeSimulatorTest>().configureEach { device.set(id) }
+}
 
 // SKIE sends nothing anywhere: no analytics from this build.
 skie {

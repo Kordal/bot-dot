@@ -10,3 +10,5 @@ extension BrowserSignIn: @retroactive @unchecked Sendable {}
 extension HomeStore: @retroactive @unchecked Sendable {}
 extension HomeState: @retroactive @unchecked Sendable {}
 extension FigureDef: @retroactive @unchecked Sendable {}
+extension NeedsYouStore: @retroactive @unchecked Sendable {}
+extension NeedsState: @retroactive @unchecked Sendable {}

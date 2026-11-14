@@ -21,8 +21,15 @@ struct HomeView: View {
                 if let error = home.state?.error ?? home.error {
                     Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
                 }
-                if let state = home.state, !state.waiting.isEmpty {
-                    NeedsYou(waiting: state.waiting, figure: home.figure)
+                if let state = home.state, NeedsDeskKt.needsYouOpens(waiting: state.waiting, bots: state.bots) {
+                    // A tap opens Needs you, where each card is answered.
+                    NavigationLink {
+                        NeedsYouView(home: home.home, figure: home.figure)
+                    } label: {
+                        NeedsYou(waiting: state.waiting, figure: home.figure)
+                    }
+                    .accessibilityIdentifier("needs-you")
+                    .listRowSeparator(.hidden)
                 }
                 if let state = home.state, let board = state.board {
                     BoardCards(tiles: board)

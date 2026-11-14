@@ -1,7 +1,5 @@
 package dev.botdot.app.data
 
-import dev.botdot.app.ui.describeCron
-import dev.botdot.app.ui.scheduleWords
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -114,13 +112,13 @@ class ScheduleWordsTest {
 
     /** No screen says a schedule on its own: the cron is read, and `describeCron` called, by `scheduleWords` alone. */
     @Test fun everyScreenAsksScheduleWords() {
-        val lines = File("src/main/java/dev/botdot/app").walkTopDown().filter { it.extension == "kt" }
+        val lines = (File("src/main/java/dev/botdot/app").walkTopDown() + File("../shared/src/commonMain/kotlin").walkTopDown()).filter { it.extension == "kt" }
             .flatMap { f -> f.readLines().map { f.name to it.trim() } }.toList()
         assertTrue(lines.size > 1000)
         val one = "fun scheduleWords(j: Job): String = j.words?.takeIf { it.isNotBlank() } ?: describeCron(j.cron)"
-        assertEquals(listOf("NeedsYouScreen.kt" to one), lines.filter { (_, l) -> ".cron" in l })
-        assertEquals(listOf("NeedsYouScreen.kt" to one), lines.filter { (_, l) -> "describeCron(" in l && !l.startsWith("fun describeCron(") })
-        assertEquals(listOf("BotSettingsScreen.kt", "JobsScreen.kt", "NeedsYouScreen.kt"),
+        assertEquals(listOf("NeedsCards.kt" to one), lines.filter { (_, l) -> ".cron" in l })
+        assertEquals(listOf("NeedsCards.kt" to one), lines.filter { (_, l) -> "describeCron(" in l && !l.startsWith("fun describeCron(") })
+        assertEquals(listOf("BotSettingsScreen.kt", "JobsScreen.kt", "NeedsCards.kt"),
             lines.filter { (_, l) -> "scheduleWords(j)" in l && l != one }.map { it.first }.sorted())
     }
 

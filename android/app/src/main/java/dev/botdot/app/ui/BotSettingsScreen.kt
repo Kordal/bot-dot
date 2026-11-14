@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.scheduleWords
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
@@ -569,9 +570,6 @@ private fun ColorPicker(selected: String, onPick: (String) -> Unit) {
         }
     }
 }
-
-/** Why "Always approve" on a script needs a second thought. */
-fun scriptWarningText(name: String) = tr("It's a quick check without AI. It can change anything on botdot's computer, so allow it only if you trust {name}.\n\nYou can take this back in {name}'s settings.", "name" to name)
 
 @Composable
 internal fun GroupHead(text: String) = Text(text, color = LocalPaper.current.muted, fontSize = Type.s12, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
