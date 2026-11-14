@@ -29,7 +29,13 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   folder, rename, keep in mind, share, delete), the document viewer (ViewerView: text and code with line
                   numbers, a CSV as a table, the rest in QuickLook), a bot's computer screen (ScreenView: the shared
                   layer's ScreenStore, noVNC in a WKWebView with the session's cookie, Take control and I'm done, opened
-                  from Home's ⋯ menu), bots drawn by FigureView, and tr()
+                  from Home's ⋯ menu), a bot's settings (BotSettingsView: icon, colour, name, assignment, pinned, its
+                  key, with Advanced its model; BotSettingsDesk saves each change by itself), Settings (SettingsView:
+                  Apps, models, language, Usage, Claude, Updates with What's new, the Subscription of a managed account,
+                  Advanced, the address; AppSettingsDesk), Apps (AppsView: the Composio key, the connected apps and who
+                  uses them, search, Connect opening the sign-in in Safari; AppsDesk), the status keypad (KeypadView:
+                  the shared Keypad's pages, digits and pills), What's new once after an update (WhatsNewSheet), bots
+                  drawn by FigureView, and tr(). Home's ⋯ menu opens Settings, Apps, the keypad and each bot's settings
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads

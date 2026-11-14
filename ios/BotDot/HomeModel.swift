@@ -12,6 +12,9 @@ final class HomeModel {
     /// The list as drawn: the pinned rows, the line under them (ListLayout.PINS), then each category and its rows.
     private(set) var order: [String] = []
     var error: String?
+    /// What's new since the last update (#219): shown once, then seen.
+    private(set) var whatsNew: [WhatsNew.Entry] = []
+    private var askedWhatsNew = false
 
     let home: HomeStore
     private var watching: Kotlinx_coroutines_coreJob?
@@ -65,9 +68,24 @@ final class HomeModel {
         }
     }
 
+    /// The What's new sheet closed: its notes are seen, and it goes.
+    func whatsNewClosed() {
+        let seen = whatsNew
+        whatsNew = []
+        Task { [home] in try? await home.whatsNewSeen(entries: seen) }
+    }
+
     private func show(_ s: HomeState) {
         state = s
         order = Self.order(s)
+        if s.version != nil, !askedWhatsNew {
+            // Asked once its features are known, as Android's Home asks.
+            askedWhatsNew = true
+            Task { [home] in
+                let notes = (try? await home.whatsNew()) ?? []
+                self.whatsNew = notes
+            }
+        }
         let key = s.version?.figureKey
         if s.version != nil, figureKey != .some(key) {
             // Another server version: the definition is asked anew, and an answer for the one before is dropped.
