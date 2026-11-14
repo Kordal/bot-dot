@@ -21,6 +21,8 @@ final class FilesModel {
 
     let files: FilesStore
     private var watching: Kotlinx_coroutines_coreJob?
+    /// Where files saved for Share go, gone with the folder's screen.
+    private let shared = FileManager.default.temporaryDirectory.appendingPathComponent("files").appendingPathComponent(UUID().uuidString)
 
     init(api: Api, at: FilesPlace) {
         files = FilesStore(api: api, ownerId: at.owner, name: at.name, place: at.place, path: at.path)
@@ -41,6 +43,7 @@ final class FilesModel {
 
     deinit {
         files.close()
+        try? FileManager.default.removeItem(at: shared)
     }
 
     func refresh() async { try? await files.refresh() }
@@ -75,7 +78,7 @@ final class FilesModel {
 
     /// The file [opening] saved in the app's own storage, for Share; nil when it couldn't be (said).
     func saved(_ opening: DocumentView.Opening) async -> URL? {
-        await ViewerModel.save(DocumentViewer(api: files.api, opening: opening)) { self.notice = $0 }
+        await ViewerModel.save(DocumentViewer(api: files.api, opening: opening), in: shared.appendingPathComponent(UUID().uuidString)) { self.notice = $0 }
     }
 }
 
@@ -104,11 +107,17 @@ final class ViewerModel {
         mode = v.mode
     }
 
-    /// The file itself, saved once and kept while the viewer is open.
+    private var fetching: Task<URL?, Never>?
+
+    /// The file itself, saved once and kept while the viewer is open: QuickLook and Share wait for the same download.
     func fetch() async -> URL? {
         if let file { return file }
-        file = await Self.save(viewer, in: dir) { self.notice = $0 }
-        return file
+        let task = fetching ?? Task { await Self.save(viewer, in: dir) { self.notice = $0 } }
+        fetching = task
+        let url = await task.value
+        if url == nil { fetching = nil } // asked again on the next tap
+        file = url
+        return url
     }
 
     func startComputer() async {
@@ -121,7 +130,7 @@ final class ViewerModel {
 
     /// [viewer]'s file in the folder [dir] (one of its own in the app's temporary files); nil when it couldn't be saved
     /// ([failed] says why).
-    static func save(_ viewer: DocumentViewer, in dir: URL = FileManager.default.temporaryDirectory.appendingPathComponent("viewer").appendingPathComponent(UUID().uuidString), failed: (String) -> Void) async -> URL? {
+    static func save(_ viewer: DocumentViewer, in dir: URL, failed: (String) -> Void) async -> URL? {
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             return URL(fileURLWithPath: try await viewer.save(dir: dir.path))

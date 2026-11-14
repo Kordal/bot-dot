@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  * One folder of Files on the iPhone (#1368), at one moment: what FilesStore read, and what Android's Files decides
  * from it (FilesExplorer): the entries in their order, what each can do, and what the folder's space shows.
  */
-class FilesState(
+data class FilesState(
     val ownerId: String,
     /** Whose files: the bot's name, the Chief's, or a project's. */
     val name: String,
@@ -189,9 +189,3 @@ class FilesStore(val api: Api, val ownerId: String, val name: String, place: Str
 
     fun close() = scope.cancel()
 }
-
-private fun FilesState.copy(
-    place: String = this.place, path: String = this.path, places: List<String> = this.places, features: List<String>? = this.features,
-    listing: WorkspaceListing? = this.listing, failed: Throwable? = this.failed, kept: List<UploadedFile> = this.kept,
-    query: String = this.query, found: List<FoundFile>? = this.found, sort: FilesExplorer.Sort = this.sort,
-) = FilesState(ownerId, name, place, path, places, features, listing, failed, kept, query, found, sort)

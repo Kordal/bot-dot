@@ -85,7 +85,8 @@ struct FilesView: View {
                 ContentUnavailableView(s.emptyWords, systemImage: "folder")
             case .entries:
                 List {
-                    ForEach(Array(s.shown.enumerated()), id: \.element.path) { i, e in row(s, i, e) }
+                    // Keyed by place and path: a search finds the same path in more than one place.
+                    ForEach(s.shown.indices.map { (key: s.shownAt[$0] + "\u{0}" + s.shown[$0].path, i: $0) }, id: \.key) { k in row(s, k.i, s.shown[k.i]) }
                 }
                 .listStyle(.plain)
             }
