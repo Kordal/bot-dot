@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.without
 import dev.botdot.app.data.describe
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -57,6 +58,8 @@ import dev.botdot.app.data.Bot
 import dev.botdot.app.data.BitwardenStatus
 import dev.botdot.app.data.SecretFilePlace
 import dev.botdot.app.data.VaultItem
+import dev.botdot.app.data.Vault
+import dev.botdot.app.data.VaultLogin
 import dev.botdot.app.data.VaultTypes
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
@@ -146,22 +149,19 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
             }
             if (!b.error.isNullOrBlank() && b.configured) item { Text(b.error!!, color = p.err, style = MaterialTheme.typography.bodySmall) }
             if (!locked) {
-                val searches = items.size > VaultTypes.SEARCH_AFTER
-                if (searches) item(key = "search") { VaultSearch(query) { query = it } }
-                val shown = if (searches) items.filter { VaultTypes.matches(it, query) } else items
+                if (Vault.searches(items)) item(key = "search") { VaultSearch(query) { query = it } }
                 // In its categories: those without one first, then a heading for each, which folds it. A search opens
                 // what it finds in a folded one.
-                for ((category, inIt) in VaultTypes.groups(shown)) {
-                    val open = category !in folded || (searches && query.isNotBlank())
+                for ((category, open, inIt) in Vault.sections(items, query, folded)) {
                     if (category.isNotEmpty()) item(key = "cat:$category") {
                         VaultCategory(category, open) {
-                            folded = if (category in folded) folded - category else folded + category
+                            folded = Vault.toggled(folded, category)
                             folds.edit().putStringSet("folded", folded).apply()
                         }
                     }
                     if (open) items(inIt, key = { it.id }) { i -> VaultRow(i, bots.orEmpty(), features, onRemoveFile = { removingFile = it }) { editing = i } }
                 }
-                if (searches && shown.isEmpty()) item { Text(tr("No matches"), color = p.muted, modifier = Modifier.fillMaxWidth().padding(Space.s16), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
+                if (Vault.noMatches(items, query)) item { Text(tr("No matches"), color = p.muted, modifier = Modifier.fillMaxWidth().padding(Space.s16), textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
                 if (items.isEmpty()) item {
                     Hint(if (b.configured) tr("Nothing in the bot-dot folder yet. Move the logins, cards and identities bots may use into that folder in Bitwarden, or add a login here.")
                         else tr("No saved logins yet. Add one so a bot can sign in to a site for you."))
@@ -381,19 +381,12 @@ private fun SshPublicKey(key: VaultItem, close: () -> Unit) {
 @Composable
 private fun VaultRow(i: VaultItem, bots: List<Bot>, features: Collection<String>?, onRemoveFile: (SecretFilePlace) -> Unit, onClick: () -> Unit) {
     val p = LocalPaper.current
-    val names = i.allowedBots.map { id -> bots.firstOrNull { it.id == id }?.name ?: id }
     Column(Modifier.fillMaxWidth().raised(Radius.card).clickable(onClick = onClick).padding(Space.s12)) {
-        Text("${KIND_ICON[i.kind] ?: "🔑"} ${i.name}", color = p.text, style = MaterialTheme.typography.titleMedium)
-        when (i.kind) {
-            "card" -> listOf("${i.brand ?: tr("Card")} •••• ${i.last4.orEmpty()}" + (i.expiry?.let { " · " + tr("expires {date}", "date" to it) } ?: "") + " · " + tr("you approve each payment"))
-            "identity" -> listOf(listOfNotNull(i.holder, i.email).joinToString(" · "))
-            VaultTypes.SSH_KEY -> VaultTypes.sshKeyRows(i)
-            VaultTypes.FILE -> VaultTypes.fileRows(i)
-            else -> VaultTypes.rows(i, features) // its type before its address, then the line of that type
-        }.forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
+        Text("${Vault.icon(i.kind)} ${i.name}", color = p.text, style = MaterialTheme.typography.titleMedium)
+        Vault.lines(i, features).forEach { Text(it, color = p.muted, style = MaterialTheme.typography.bodyMedium) }
         if (i.reprompt) Text(tr("Asks for the master password again in Bitwarden, so bots can't use it."), color = p.faint, fontSize = Type.s12)
         // A login reaches a bot on the owner's one yes to its request (ADR 192): no warning while none has it yet.
-        if (names.isNotEmpty() || i.kind != "login") Text(if (names.isEmpty()) tr("No bot may use it yet") else tr("Can be used by {names}", "names" to names.joinToString(", ")), color = p.faint, fontSize = Type.s12)
+        Vault.botsLine(i, bots)?.let { Text(it, color = p.faint, fontSize = Type.s12) }
         // Where botdot keeps it in a file (#253), each with its own "Remove the file".
         i.placedIn.forEach { f ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -429,8 +422,6 @@ private fun CategoryField(value: String, items: List<VaultItem>, onChange: (Stri
         picks.forEach { c -> Text(c, color = p.text, fontSize = Type.s14, modifier = Modifier.clip(Radius.pill).background(p.sunk).clickable { onChange(c) }.padding(horizontal = Space.s12, vertical = Space.s4)) }
     }
 }
-
-private val KIND_ICON = mapOf("login" to "🔑", "card" to "💳", "identity" to "🪪", VaultTypes.SSH_KEY to "🗝️", VaultTypes.FILE to "📄")
 
 /** The search field above a long list: the rows filter as you type (VaultTypes.matches). */
 @Composable
@@ -517,13 +508,12 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
             if (item != null) TextButton(onClick = { askDelete = true }, enabled = !work.busy) { Text(tr("Delete"), color = p.err) }
         }
     }, confirmButton = {
-        TextButton(enabled = !work.busy && name.isNotBlank() && site.isNotBlank() && (item != null || pw.isNotEmpty()), onClick = {
+        val form = VaultLogin(name, site, type, user, pw, hosts, category)
+        TextButton(enabled = !work.busy && form.canSave(isNew = item == null), onClick = {
             aside = true
             // A refused save: the server's sentence, the form as it was typed, the secret cleared (docs/api.md).
             work.run(tr("Saving…"), { if (bitwarden) tr("Saved in Bitwarden") else tr("Saved") }, refused = { pw = ""; error = it; aside = false }) {
-                val sent = VaultTypes.sent(type, user, features, saved = item?.type)
-                api!!.saveVaultLogin(item?.id, name.trim(), site, sent.username, pw, null,
-                    hosts.split(',').map(String::trim).filter(String::isNotEmpty), sent.type, if (sorts) category.trim() else null)
+                form.save(api!!, item, features)
                 pw = ""; done(null)
             }
         }) { Text(tr("Save"), color = p.text) }
@@ -532,7 +522,7 @@ private fun LoginEditor(item: VaultItem?, bitwarden: Boolean, features: Collecti
     if (askDelete && item != null) AlertDialog(
         onDismissRequest = { askDelete = false },
         title = { Text(tr("Delete {name}?", "name" to item.name)) },
-        text = { Text(if (bitwarden) tr("It moves to Bitwarden's trash, where you can restore it for 30 days.") else tr("Bots can't use it any more.")) },
+        text = { Text(Vault.deleteWords(bitwarden)) },
         confirmButton = {
             TextButton(onClick = {
                 askDelete = false
@@ -553,7 +543,7 @@ private fun ItemBots(item: VaultItem, bots: List<Bot>, features: Collection<Stri
     var error by remember { mutableStateOf<String?>(null) }
     // Set aside while it saves (#478): gone at once, back with the server's sentence when refused.
     var aside by remember { mutableStateOf(false) }
-    if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${KIND_ICON[item.kind] ?: ""} ${item.name}") }, text = {
+    if (!aside) AlertDialog(onDismissRequest = close, title = { Text("${Vault.icon(item.kind, unknown = "")} ${item.name}") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             Hint(VaultTypes.itemBotsHint(item.kind) + " " + tr("Change the details themselves in Bitwarden."))
             if (sorts) CategoryField(category, all) { category = it }

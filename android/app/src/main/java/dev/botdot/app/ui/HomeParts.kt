@@ -3,6 +3,7 @@ package dev.botdot.app.ui
 import dev.botdot.app.data.BoardKit
 import dev.botdot.app.data.BoardWords
 import dev.botdot.app.data.tileColor
+import dev.botdot.app.data.without
 import dev.botdot.app.data.stripTiles
 import dev.botdot.app.data.stripKpi
 import androidx.compose.animation.core.Animatable

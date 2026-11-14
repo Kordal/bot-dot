@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.without
 import dev.botdot.app.data.CHIEF_COLOR
 import dev.botdot.app.data.botAsks
 import dev.botdot.app.data.botSub
@@ -93,7 +94,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import dev.botdot.app.data.tr
-import dev.botdot.app.feed.Feed
+import dev.botdot.app.data.Feed
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject

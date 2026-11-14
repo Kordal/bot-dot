@@ -34,7 +34,7 @@ before(async () => {
   const origin = `http://127.0.0.1:${fake.server.address().port}`;
   const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
   fake.publicKey = crypto.createPublicKey(privateKey);
-  apns = apnsClient.create({ keyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }), keyId: 'KEY1234567', teamId: 'TEAM123456', topic: 'dev.botdot.ios', origins: { production: origin, development: origin } });
+  apns = apnsClient.create({ keyPem: privateKey.export({ type: 'pkcs8', format: 'pem' }), keyId: 'KEY1234567', teamId: 'TEAM123456', topic: 'app.botdot', origins: { production: origin, development: origin } });
   const log = { log: (m) => logged.push(m), error: (m) => logged.push(m) };
   server = http.createServer(relay.create({ apns, limit: relay.limiter({ burst: 3, everyMs: 60_000 }), log }));
   await new Promise((r) => server.listen(0, '127.0.0.1', r));
@@ -52,7 +52,7 @@ test('a push goes to Apple as a generic alert with mutable-content, the seal, th
   assert.deepEqual(r, { status: 200, data: { ok: true } });
   const got = fake.got.at(-1);
   assert.equal(got.headers[':path'], `/3/device/${TOKEN}`);
-  assert.equal(got.headers['apns-topic'], 'dev.botdot.ios');
+  assert.equal(got.headers['apns-topic'], 'app.botdot');
   assert.equal(got.headers['apns-push-type'], 'alert');
   assert.equal(got.headers['apns-collapse-id'], 'bot:b1');
   assert.ok(Number(got.headers['apns-expiration']) > Date.now() / 1000 + 3600, 'kept for a day');

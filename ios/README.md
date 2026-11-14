@@ -16,14 +16,25 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
-                  layer's cards, NeedsDesk, with their buttons), the Board (BoardView: BoardDesk's tiles and taps), the
-                  account's parts (AccountViews: Delete account, Feedback, What's new, the paused account), bots drawn
-                  by FigureView, and tr()
-BotDotNotify/     the notification service extension (app.botdot.notify), empty for now
-BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers
+                  layer's cards, NeedsDesk, with their buttons), a bot's chat (ChatView: its replies' Markdown, the live
+                  feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box),
+                  Passwords (VaultView, from Home's ⋯ menu: the entries in their categories, which fold, a search over a
+                  list longer than eight, a login's editor, Bitwarden's unlock), the Board (BoardView: BoardDesk's tiles
+                  and taps), the account's parts (AccountViews: Delete account, Feedback, What's new, the paused
+                  account), bots drawn by FigureView, and tr()
+BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
+                  key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
+BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads
+                  the seals the server made (test/fixtures/push-seals.json)
 ```
 
 The app and its extension share the App Group `group.app.botdot` and a Keychain access group, for the session and what a push needs.
+
+## Notifications
+
+ADR 150: a botdot that announces `apns-push` (its push relay is set) gets this phone's APNs token and a 32-byte key the app makes and keeps in the shared Keychain group (`POST /api/push/apns`, after the permission, asked when Home first shows such a botdot). Each push comes through the project's relay as "botdot" / "New notification" with a seal; the extension opens it and shows the real title and body, with the buttons the server named (`buttons`: Reply on a chat's, Decline and Approve on a card's), registered as a category of their own. A tap or a button goes to `Notifications.swift`, which asks the shared layer (`PushNotices`) what it opens and sends: a chat (the hook `AppModel.chatToOpen`, for the chat screen), else Home, where Needs you is. Opening the app clears what was delivered. Signing out removes the device.
+
+A simulator gets no push from Apple without the team's key. `xcrun simctl push <udid> app.botdot <payload.json>` delivers one as the relay sends it (`{ "aps": { "alert": …, "mutable-content": 1, "thread-id": … }, "sealed": … }`), and the extension opens it when the seal was made with this simulator's key. A real device build needs the App ID `app.botdot` with Push Notifications and a provisioning profile with `aps-environment` (relay/README.md).
 
 ## Android's screens on iOS
 
@@ -48,11 +59,12 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | left (#1372) |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
-| `BotChatScreen` (`bot/{id}`), `PlanDock` | Home's rows | #1361 |
+| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` |
+| `PlanDock` | a bot's chat | left (#1361) |
 | `ChiefScreen` (`chief/{id}`) | Home | #1362 |
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | #1367 |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings | #1368 |
-| `VaultScreen` (`vault`) | Settings | #1369 |
+| `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
 | `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | #1370 |
 | `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings | #1371 |
 | `ShareScreen` (`share`) | another app's Share | #1373 |
