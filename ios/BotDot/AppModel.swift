@@ -21,7 +21,7 @@ final class AppModel {
 
     let session: Session
     private let sessions: KeychainSessions
-    private let settings: Settings
+    let settings: Settings
 
     init(directory: URL? = nil, sessions: KeychainSessions = KeychainSessions()) {
         self.sessions = sessions
