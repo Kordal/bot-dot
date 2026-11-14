@@ -14,4 +14,8 @@ final class SharedBridgeTests: XCTestCase {
         XCTAssertEqual(tr("Ran {name}", ["name": "Ops"]), "Ran Ops")
         XCTAssertEqual(trn(2, "{n} bot", "{n} bots"), "2 bots")
     }
+
+    func testTheAppStartsNoScreenWhileItHostsTheTests() {
+        XCTAssertTrue(BotDotApp.hostsTests, "the tests' host opens no botdot of its own")
+    }
 }
