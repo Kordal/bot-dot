@@ -1681,7 +1681,8 @@ label.bs-row { cursor: pointer; }
 .bs-link.busy b { display: inline-flex; align-items: center; gap: var(--sp-8); }
 .bs-link.busy b::before { content: ''; width: .9em; height: .9em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btn-spin .8s linear infinite; flex: none; }
 .bs-note:empty { display: none; }
-.bs-note { min-height: 0; font-size: var(--fs-12); line-height: 1.45; padding-top: 0; color: var(--muted); }
+.bs-note .danger-text { font-size: inherit; }
+.bs-note { display: block; min-height: 0; font-size: var(--fs-12); line-height: 1.45; padding-top: 0; color: var(--muted); overflow-wrap: anywhere; }
 /* A row that opens what it holds under it: a <details> whose summary is the row. */
 details.bs-row { display: block; }
 .bs-more > summary { display: flex; align-items: flex-start; gap: var(--sp-12); cursor: pointer; list-style: none; }

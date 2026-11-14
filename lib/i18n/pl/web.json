@@ -1033,7 +1033,7 @@
   "Copy its files to the External Virtual PC?": "Skopiować jego pliki na Zewnętrzny wirtualny PC?",
   "Copying files · {pct}%": "Kopiowanie plików · {pct}%",
   "Copying files…": "Kopiowanie plików…",
-  "Files not copied: {why}": "Pliki nie zostały skopiowane: {why}",
+  "Files not copied": "Pliki nie zostały skopiowane",
   "it failed": "nie udało się",
   "Run {name}": "Uruchom: {name}",
   "Run a bot": "Uruchom bota",

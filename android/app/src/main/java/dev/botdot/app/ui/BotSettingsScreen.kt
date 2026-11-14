@@ -282,7 +282,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 if (move != null) androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
                     if (move.state == "copying") Text(tr("Copying files") + (if (move.total > 0) " · ${move.done * 100 / move.total}%" else "…"), color = p.muted, style = MaterialTheme.typography.bodySmall)
                     else {
-                        Text(tr("Files not copied: {why}", "why" to (move.error ?: tr("it failed"))), color = p.err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                        Text(tr("Files not copied"), color = p.err, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
                         TextButton(onClick = { scope.launch { runCatching { api!!.retryComputerMove(botId) }.onError { tell(it.message ?: tr("Couldn't try again")) } } }) { Text(tr("Try again"), color = p.text) }
                     }
                 }
