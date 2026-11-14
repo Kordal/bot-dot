@@ -6,9 +6,9 @@ import BotdotShared
 /// it to its place; pull down to refresh. The ⋯ menu opens Passwords (VaultView) and the Chief's and each bot's
 /// Files (on Android from their chats, which the iPhone doesn't have yet).
 struct HomeView: View {
-    @State private var path = NavigationPath()
     let model: AppModel
     let server: String
+    @State private var path = NavigationPath()
     @State private var home: HomeModel
     /// The bot whose computer screen is open, from the ⋯ menu.
     @State private var screen: ScreenOpen?
@@ -46,6 +46,13 @@ struct HomeView: View {
                     BoardCards(tiles: board)
                 }
                 if let state = home.state {
+                    // The Chief first, as on Android: its chat is one conversation.
+                    NavigationLink(value: ChiefRoute()) {
+                        ContactRow(name: state.chiefName, sub: "", unread: Int(state.chiefUnread), color: ChiefColorKt.CHIEF_COLOR, asks: false,
+                                   drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: ChiefColorKt.CHIEF_COLOR, state: state.chiefBusy ? "working" : "idle", outfit: FigureDef.companion.CHIEF, dark: true) })
+                    }
+                    .navigationLinkIndicatorVisibility(.hidden)
+                    .moveDisabled(true)
                     ForEach(home.order, id: \.self) { key in
                         row(key, state)
                             .moveDisabled(key == ListLayout.shared.PINS || ListLayout.shared.isHeading(key: key))
@@ -62,6 +69,7 @@ struct HomeView: View {
             .navigationTitle("botdot")
             .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) }
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
+            .navigationDestination(for: ChiefRoute.self) { r in ChiefView(home: home.home, chatId: r.chatId) }
             .navigationDestination(for: GroupRoute.self) { r in GroupChatView(home: home.home, groupId: r.groupId, name: r.name, figure: home.figure) }
             .toolbar {
                 Menu {
@@ -99,10 +107,32 @@ struct HomeView: View {
             home.home.live(on: true)
             await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
         }
+        // A notification's tap: its chat, once Home knows its bots and groups (AppModel.chatToOpen).
+        .onChange(of: model.chatToOpen, initial: true) { openAsked() } // a cold start's tap too
+        .onChange(of: home.state?.bots?.count) { openAsked() }
+        .onChange(of: home.state?.groups?.count) { openAsked() }
         .onDisappear { home.stop() }
         // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
         .onChange(of: phase) { _, now in home.home.live(on: now == .active) }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
+    }
+
+    /// Opens the chat a notification asked for, as the shared layer decides (PushNotices.opening): a bot's or a group's
+    /// once Home has read them, a Chief conversation at once; what can't be opened is let go, so the same tap works again.
+    private func openAsked() {
+        switch onEnum(of: PushNotices.shared.opening(chat: model.chatToOpen, bots: home.state?.bots, groups: home.state?.groups)) {
+        case .unasked, .wait:
+            return
+        case .botChat(let b):
+            path.append(ChatRoute(botId: b.id, name: b.name))
+        case .chiefChat(let c):
+            path.append(ChiefRoute(chatId: c.chatId))
+        case .groupChat(let g):
+            path.append(GroupRoute(groupId: g.id, name: g.name))
+        case .letGo:
+            break
+        }
+        model.chatOpened()
     }
 
     /// Whose Files open from here: the Chief's, then each bot's in the list's order (FilesExplorer.opensFor).
@@ -137,6 +167,12 @@ struct HomeView: View {
                 .navigationLinkIndicatorVisibility(.hidden) // Android's rows have no arrow
         }
     }
+}
+
+/// The Chief's chat: one conversation, its latest.
+struct ChiefRoute: Hashable {
+    /// A notification's conversation; nil, the latest.
+    var chatId: String? = nil
 }
 
 /// A bot's chat, opened from its row.
