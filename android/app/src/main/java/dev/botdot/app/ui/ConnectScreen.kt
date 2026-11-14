@@ -26,13 +26,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Api
-import dev.botdot.app.data.ApiException
+import dev.botdot.app.data.Connect
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
-const val API_VERSION = 1
-
-/** Where's your botdot? Checks the address answers as botdot, with an API this app understands. */
+/** Where's your botdot? Checks the address answers as botdot, with an API this app understands (Connect, shared with iOS). */
 @Composable
 fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
     val p = LocalPaper.current
@@ -46,21 +44,8 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
         checking = true
         error = null
         scope.launch {
-            val r = runCatching { Api(url).version() }
+            error = Connect.check(url)
             checking = false
-            val v = r.getOrNull()
-            val failure = r.exceptionOrNull()
-            error = when {
-                // Before botdot had /api/version (it answers "Unknown endpoint").
-                failure is ApiException && failure.status == 404 -> tr("This botdot is older than the app. Ask its admin to update it, then connect again.")
-                failure != null -> failure.message
-                v == null || v.app != "bot-dot" -> tr("That address answers, but it isn't botdot.")
-                // A front door (ADR 028): which botdot is behind it is known once signed in.
-                v.frontDoor -> null
-                v.apiVersion > API_VERSION -> tr("This botdot is newer than the app. Update the app.")
-                v.apiVersion < API_VERSION -> tr("This botdot is older than the app. Ask its admin to update it.")
-                else -> null
-            }
             if (error == null) onConnected(url)
         }
     }

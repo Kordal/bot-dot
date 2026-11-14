@@ -48,6 +48,9 @@ expect fun monthShort(month: Int, locale: String): String
  */
 internal expect fun nameChars(s: String): String
 
+/** The app a sign-in in the browser names (docs/api.md, "A native app's hand-off"): "android" or "ios". */
+internal expect val signInApp: String
+
 /** Math.round: the nearest whole number, halves up, and 0 for NaN. */
 internal fun jround(v: Double): Long = if (v.isNaN()) 0L else v.roundToLong()
 

@@ -96,6 +96,8 @@ val writeFixtures = tasks.register<WriteFixtures>("writeFixtures") {
     out.set(layout.buildDirectory.dir("generated/fixtures/kotlin"))
 }
 kotlin.sourceSets.commonTest { kotlin.srcDir(writeFixtures) }
+// Android lint reads the host tests' sources, the written fixture paths among them.
+tasks.matching { it.name.contains("HostTest") && it.name.contains("lint", ignoreCase = true) }.configureEach { dependsOn(writeFixtures) }
 tasks.withType<AbstractTestTask>().configureEach { inputs.files(fixtures.values).withPropertyName("fixtures") }
 
 // SKIE sends nothing anywhere: no analytics from this build.

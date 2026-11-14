@@ -53,18 +53,21 @@ test('activity: the app of a request, the owner\'s messages, cards and the media
   const a = activityLib.create(dir, { now: () => now });
   assert.equal(activityLib.clientOf('okhttp/4.12.0'), 'android');
   assert.equal(activityLib.clientOf('Mozilla/5.0 (Linux; Android 14; wv)'), 'android');
+  assert.equal(activityLib.clientOf('botdot-ios/0.1'), 'ios', 'the iOS app (ADR 242)');
   assert.equal(activityLib.clientOf('curl/8'), null);
-  assert.deepEqual(a.day('2026-10-20'), { active: false, web: 0, android: 0, messages: 0, cards: { shown: 0, answered: 0, medianAnswerMs: null } });
+  assert.equal(activityLib.clientOf('Ktor client'), null);
+  assert.deepEqual(a.day('2026-10-20'), { active: false, web: 0, android: 0, ios: 0, messages: 0, cards: { shown: 0, answered: 0, medianAnswerMs: null } });
   a.saw('GET', '/api/bots', 'Mozilla/5.0');
   a.saw('POST', '/api/bots/b1/run', 'okhttp/4');
   a.saw('POST', '/api/chief/chats/c1/messages', 'Mozilla/5.0');
   a.saw('POST', '/api/group-chats/g1/messages', 'curl/8');
   a.saw('POST', '/api/bots/b1', 'Mozilla/5.0');
+  a.saw('GET', '/api/bots', 'botdot-ios/0.1');
   a.cardShown(); a.cardShown(); a.cardShown();
   a.cardAnswered(new Date(now - 60_000).toISOString());
   a.cardAnswered(new Date(now - 180_000).toISOString());
   a.cardAnswered('not a date');
-  assert.deepEqual(a.day('2026-10-20'), { active: true, web: 3, android: 1, messages: 3, cards: { shown: 3, answered: 3, medianAnswerMs: 120_000 } });
+  assert.deepEqual(a.day('2026-10-20'), { active: true, web: 3, android: 1, ios: 1, messages: 3, cards: { shown: 3, answered: 3, medianAnswerMs: 120_000 } });
   // Kept on disk; a day past KEEP_DAYS goes.
   a.flush();
   assert.deepEqual(activityLib.create(dir, { now: () => now }).day('2026-10-20').messages, 3);

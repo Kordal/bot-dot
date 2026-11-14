@@ -1,6 +1,7 @@
 # The iOS app (ADR 242): native SwiftUI on the Android app's shared data layer (android/shared, BotdotShared.xcframework).
 # `make ios` builds the framework, makes BotDot.xcodeproj from this file with XcodeGen (the project is not in git) and
-# builds and tests it in the simulator. No signing team here: CI and the simulator build unsigned.
+# builds and tests it in the simulator. No signing team here: a simulator build is signed ad hoc ("Sign to Run
+# Locally", no Apple account), so its entitlements (the Keychain, the App Group) apply; a device build is not signed.
 name: BotDot
 options:
   bundleIdPrefix: app.botdot
@@ -12,8 +13,9 @@ settings:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.1"
     CURRENT_PROJECT_VERSION: "1"
-    CODE_SIGNING_ALLOWED: "NO"
-    CODE_SIGN_IDENTITY: ""
+    "CODE_SIGNING_ALLOWED[sdk=iphoneos*]": "NO"
+    "CODE_SIGN_IDENTITY[sdk=iphonesimulator*]": "-"
+    CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: "YES"
 targets:
@@ -36,6 +38,10 @@ targets:
       properties:
         CFBundleDisplayName: botdot
         UILaunchScreen: {}
+        # The front door's sign-in hands back to botdot://signed-in?code=… (ASWebAuthenticationSession takes it first).
+        CFBundleURLTypes:
+          - CFBundleURLName: app.botdot.sign-in
+            CFBundleURLSchemes: [botdot]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
     entitlements:
       path: BotDot/BotDot.entitlements

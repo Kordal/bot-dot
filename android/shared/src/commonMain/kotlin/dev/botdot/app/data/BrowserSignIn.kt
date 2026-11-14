@@ -15,8 +15,8 @@ import kotlin.io.encoding.Base64
 class Handoff(val server: String, val verifier: String, val startedAt: Long) {
     val challenge: String get() = challengeOf(verifier)
 
-    /** The front door's sign-in page, which hands the sign-in back to this app. */
-    val page: String get() = "${server.trimEnd('/')}/sign-in?app=android&handoff=$challenge"
+    /** The front door's sign-in page, which hands the sign-in back to this app ([signInApp]: android or ios). */
+    val page: String get() = "${server.trimEnd('/')}/sign-in?app=$signInApp&handoff=$challenge"
 
     /** What the phone keeps of it until the browser comes back. */
     fun kept(): String = "$startedAt $server $verifier"

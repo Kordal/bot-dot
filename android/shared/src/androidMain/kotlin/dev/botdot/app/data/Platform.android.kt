@@ -20,6 +20,8 @@ import java.time.format.TextStyle
 import java.util.Base64
 import java.util.Locale
 
+internal actual val signInApp: String = "android"
+
 internal actual fun elapsedRealtimeMs(): Long = SystemClock.elapsedRealtime()
 
 internal actual fun sha256(bytes: ByteArray): ByteArray = MessageDigest.getInstance("SHA-256").digest(bytes)
