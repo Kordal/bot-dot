@@ -250,23 +250,34 @@ data class InlineRun(val text: String, val bold: Boolean = false, val italic: Bo
  * *italic*, ~~struck~~), each web address in plain text linked and shown as its site ([chatLinks], [linkLabel]). The
  * same reading as Android's inlineText, without its file paths and site icons.
  */
-fun inlineRuns(s: String, bold: Boolean = false, italic: Boolean = false, strike: Boolean = false): List<InlineRun> {
+fun inlineRuns(s: String, bold: Boolean = false, italic: Boolean = false, strike: Boolean = false, paths: Boolean = false): List<InlineRun> {
     val out = mutableListOf<InlineRun>()
+    // Text, with each file path in it ([paths]: a bot's reply) a link the chat opens in the viewer ([filePathOf]).
+    fun text(t: String) {
+        if (!paths) { out += InlineRun(t, bold, italic, strike = strike); return }
+        var at = 0
+        for (f in dev.botdot.app.data.FilePaths.find(t)) {
+            if (f.start > at) out += InlineRun(t.substring(at, f.start), bold, italic, strike = strike)
+            out += InlineRun(f.text, bold, italic, strike = strike, link = FILE_LINK + f.text)
+            at = f.start + f.text.length
+        }
+        if (at < t.length) out += InlineRun(t.substring(at), bold, italic, strike = strike)
+    }
     fun plain(t: String) {
         var at = 0
         for (link in chatLinks(t)) {
-            if (link.start > at) out += InlineRun(t.substring(at, link.start), bold, italic, strike = strike)
+            if (link.start > at) text(t.substring(at, link.start))
             out += InlineRun(linkLabel(link.text), bold, italic, strike = strike, link = link.url)
             at = link.start + link.text.length
         }
-        if (at < t.length) out += InlineRun(t.substring(at), bold, italic, strike = strike)
+        if (at < t.length) text(t.substring(at))
     }
     var at = 0
     for (m in INLINE.findAll(s)) {
         plain(s.substring(at, m.range.first))
         val g = m.groupValues
         when {
-            g[1].isNotEmpty() || g[2].isNotEmpty() -> out += inlineRuns(g[1].ifEmpty { g[2] }, bold = true, italic = italic, strike = strike)
+            g[1].isNotEmpty() || g[2].isNotEmpty() -> out += inlineRuns(g[1].ifEmpty { g[2] }, bold = true, italic = italic, strike = strike, paths = paths)
             g[3].isNotEmpty() -> out += InlineRun(g[4], bold, italic, code = true, strike = strike)
             g[5].isNotEmpty() -> {
                 val target = parseUri(g[6])
@@ -275,11 +286,17 @@ fun inlineRuns(s: String, bold: Boolean = false, italic: Boolean = false, strike
                 } else out += InlineRun(g[5], bold, italic, strike = strike)
             }
             g[7].isNotEmpty() -> plain(g[7])
-            g[8].isNotEmpty() || g[9].isNotEmpty() -> out += inlineRuns(g[8].ifEmpty { g[9] }, bold = bold, italic = true, strike = strike)
-            g[10].isNotEmpty() -> out += inlineRuns(g[10], bold = bold, italic = italic, strike = true)
+            g[8].isNotEmpty() || g[9].isNotEmpty() -> out += inlineRuns(g[8].ifEmpty { g[9] }, bold = bold, italic = true, strike = strike, paths = paths)
+            g[10].isNotEmpty() -> out += inlineRuns(g[10], bold = bold, italic = italic, strike = true, paths = paths)
         }
         at = m.range.last + 1
     }
     plain(s.substring(at))
     return out
 }
+
+/** How a file path in a reply is linked ([inlineRuns] with paths): the chat opens it in the viewer, not the browser. */
+const val FILE_LINK = "botdot-file:"
+
+/** The file path a link in a reply names ([FILE_LINK]); null for a web address. */
+fun filePathOf(link: String): String? = link.takeIf { it.startsWith(FILE_LINK) }?.removePrefix(FILE_LINK)?.ifEmpty { null }

@@ -74,6 +74,7 @@ val fixtures = mapOf(
     "mentionsTable" to "test/fixtures/mentions.json",
     "releaseVectors" to "test/fixtures/release-signing/vectors.json",
     "quoteCases" to "test/fixtures/quote-cases.json",
+    "filePaths" to "test/fixtures/file-paths.json",
     "vaultTypes" to "test/fixtures/vault-types.json",
     "vaultSearch" to "test/fixtures/vault-search.json",
     "chatOrder" to "test/fixtures/chat-order.json",

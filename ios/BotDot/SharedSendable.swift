@@ -9,6 +9,12 @@ extension Session: @retroactive @unchecked Sendable {}
 extension BrowserSignIn: @retroactive @unchecked Sendable {}
 extension HomeStore: @retroactive @unchecked Sendable {}
 extension HomeState: @retroactive @unchecked Sendable {}
+extension FilesStore: @retroactive @unchecked Sendable {}
+extension FilesState: @retroactive @unchecked Sendable {}
+extension DocumentViewer: @retroactive @unchecked Sendable {}
+extension Viewed: @retroactive @unchecked Sendable {}
+extension WorkspaceEntry: @retroactive @unchecked Sendable {}
+extension DocumentView.Opening: @retroactive @unchecked Sendable {}
 extension FigureDef: @retroactive @unchecked Sendable {}
 extension NeedsYouStore: @retroactive @unchecked Sendable {}
 extension NeedsState: @retroactive @unchecked Sendable {}
