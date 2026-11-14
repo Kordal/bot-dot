@@ -149,7 +149,8 @@ test("a bot asks until the owner writes to it: asks on the bot, the feed's event
     const ended = (await f.wait('run_finished', (d) => d.id === first.id)).data;
     assert.deepEqual([ended.asks, ended.title, ended.question, ended.result], [true, 'Mail Sorter asks', 'Should I send the digest now?', 'I found two drafts.\nShould I send the digest now?']);
     assert.equal((await srv.api(`/runs?botId=${bot.id}`)).data.find((r) => r.id === first.id).question, 'Should I send the digest now?', 'in the list of runs too');
-    const asks = { text: 'Should I send the digest now?', runId: first.id, at: first.endedAt };
+    const one = { text: 'Should I send the digest now?', runId: first.id, at: first.endedAt };
+    const asks = { ...one, open: [one] };
     for (const b of [await botOf(srv, bot), await listed(srv, bot)]) assert.deepEqual([b.asks, b.state], [asks, 'needs_you']);
     assert.deepEqual((await f.wait('asks', (d) => d.botId === bot.id)).data.asks, asks);
     assert.equal((await srv.api(`/runs?botId=${bot.id}`)).data[0].asks, true, 'in the list of runs');
@@ -172,7 +173,8 @@ test("a bot asks until the owner writes to it: asks on the bot, the feed's event
     srv.release(rec);
     const second = await srv.finished(tapped.id);
     assert.deepEqual([second.asks, second.questions.length], [true, 3]);
-    assert.deepEqual((await botOf(srv, bot)).asks, { text: 'Which account should I send it from? (+2 more)', runId: second.id, at: second.endedAt });
+    const card = { text: 'Which account should I send it from? (+2 more)', runId: second.id, at: second.endedAt };
+    assert.deepEqual((await botOf(srv, bot)).asks, { ...card, open: [card] });
     await waitFor(() => asked(f, bot).at(-1) === second.id, { what: 'the new question on the feed' });
 
     // While the bot is busy with something else the question stays; a message that waits its turn ends it, and
@@ -266,7 +268,8 @@ test("a job's question is never quiet: it is in the chat with its answers, new, 
     const told = (await f.wait('run_finished', (d) => d.id === a.id)).data;
     assert.deepEqual([told.quiet, told.new, told.asks, told.title, told.result], [false, true, true, 'Mail Sorter asks', 'Which account should I send it from? (+2 more)']);
     const bot = await botOf(srv, asker);
-    assert.deepEqual([bot.unread, bot.state, bot.asks], [1, 'needs_you', { text: 'Which account should I send it from? (+2 more)', runId: a.id, at: question.endedAt }]);
+    const card = { text: 'Which account should I send it from? (+2 more)', runId: a.id, at: question.endedAt };
+    assert.deepEqual([bot.unread, bot.state, bot.asks], [1, 'needs_you', { ...card, open: [card] }]);
     assert.equal(bot.jobs[0].last.status, 'success');
 
     // No question and nothing to report: quiet as today.
@@ -299,7 +302,8 @@ test("a job's question is never quiet: it is in the chat with its answers, new, 
     const morning = await waitFor(async () => { const r = (await srv.api(`/runs/${n.id}`)).data; return r.reporting === 'delivered' ? r : null; }, { what: 'the held question to be delivered' });
     assert.deepEqual([morning.quiet, morning.asks, !!morning.deliveredAt], [undefined, true, true]);
     const now = await botOf(srv, watcher);
-    assert.deepEqual([now.unread, now.state, now.asks], [1, 'needs_you', { text: 'Should I send the digest now?', runId: n.id, at: morning.deliveredAt }]);
+    const morningAsks = { text: 'Should I send the digest now?', runId: n.id, at: morning.deliveredAt };
+    assert.deepEqual([now.unread, now.state, now.asks], [1, 'needs_you', { ...morningAsks, open: [morningAsks] }]);
   } finally { f?.close(); srv.unhold(); await srv.stop(); }
 });
 

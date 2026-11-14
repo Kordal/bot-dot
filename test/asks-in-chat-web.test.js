@@ -94,3 +94,28 @@ test('web: a bot\'s chat reads its own newest runs: other bots\' runs do not pus
   ctx.state.botId = 'iw';
   assert.ok(![...ctx.chatRuns('iw', null)].some((r) => r.id === 'late'));
 });
+
+test('web: two runs that asked keep both answers, and the chat reads back to the older one (#1377)', () => {
+  const ctx = page();
+  const first = run('r1', 1, { choices: ['Send', 'Wait'], asks: true });
+  const second = run('r2', 2, { choices: ['Work', 'Home'], asks: true });
+  const asks = { text: 'Which calendar?', runId: 'r2', at: at(2), open: [{ runId: 'r2' }, { runId: 'r1' }] };
+  const bot = { id: 'iw', name: 'Office Helper', color: '#c46', asks };
+  const html = ctx.botThreadHTML(bot, [first, second]);
+  assert.match(html, /<div class="choices">Send\|Wait<\/div>/, 'the older question keeps its answers');
+  assert.match(html, /<div class="choices">Work\|Home<\/div>/);
+  assert.equal(ctx.chatBack(bot, null), 'r1', 'back to the oldest open question');
+  // One answered: its answers go, the other's stay.
+  const html1 = ctx.botThreadHTML({ ...bot, asks: { ...asks, open: [{ runId: 'r2' }] } }, [first, second]);
+  assert.doesNotMatch(html1, /Send\|Wait/);
+  assert.match(html1, /Work\|Home/);
+  // A server without `open`: the newest alone, as before.
+  assert.doesNotMatch(ctx.botThreadHTML({ ...bot, asks: { text: 'x', runId: 'r2', at: at(2) } }, [first, second]), /Send\|Wait/);
+});
+
+test('web: a card of questions names the reply it answers (#1377)', () => {
+  const ctx = vm.createContext({ ...words, esc });
+  vm.runInContext(`${cut('// Several questions at once ([[ask: …]])', '// send(text, key) resolves')}\nthis.questionsHTML = questionsHTML;`, ctx);
+  assert.match(ctx.questionsHTML(['Which calendar?'], null, 'r7'), /<div class="ask-card card" data-of="r7">/);
+  assert.match(ctx.questionsHTML(['Which calendar?']), /<div class="ask-card card">/);
+});

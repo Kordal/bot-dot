@@ -11,7 +11,7 @@ A bot's open question was the question of its newest reply to the owner. That he
 ## Decision
 
 - **A bot can have several open questions.** A reply that asks stays open until it is answered, as before, or a newer reply ends it. A newer reply ends it only when its run started after the question reached the chat: the next turn, as before. A run that went beside it ends nothing, and neither does the run of an answer to another of its questions.
-- **An answer names its question.** A tapped answer and a sent card of questions carry the run they answer (`answers`); that question ends alone, and the others stay. A typed message names none and ends them all, as before. Reply on a run (`replyTo`) names that run too.
+- **An answer names its question.** A tapped answer and a sent card of questions carry the run they answer (`answers`); that question ends alone, and the others stay. A typed message that is word for word one of the newest question's answers answers that one, as before; any other typed message, Reply on a run among them, ends them all.
 - **An answer goes to a run of its own.** It is never sorted into another run at work (ADR 106): it is handed the question it answers.
 - **The API keeps its shape.** `asks` on a bot is the newest question as before, and lists every open one in `open` (`asks-several`). The web page and Android draw the answers under each of them; an older app draws them under the newest only, as before.
 
@@ -22,5 +22,5 @@ A bot's open question was the question of its newest reply to the owner. That he
 
 ## Consequences
 
-- A typed answer to one of two questions ends both: the owner taps or uses Reply to answer one of them alone.
+- A typed answer to one of two questions ends both, unless it is one of the newest question's answer buttons word for word: the owner taps to answer one of them alone.
 - An older app that taps the older question's answer sends no `answers`: the server takes it as a message as before.

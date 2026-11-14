@@ -240,7 +240,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
-        ${(asksOpen(bot.asks).includes(r.id) || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
+        ${((Array.isArray(bot.asks?.open) ? bot.asks.open.some((x) => x.runId === r.id) : r.id === bot.asks?.runId) || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }
@@ -269,6 +269,9 @@ function loadInbox(botId) {
 
 // The run a bot's chat reaches back to: its "New" line's, else the one its open question is from (docs/api.md, "A bot
 // that asks"), else none. The question is the newest reply that counts, so the "New" line is never below it.
+// The runs of a bot's open questions (docs/api.md, "A bot that asks"), newest first: every one of them (`open`, #1377),
+// or from a server without it the one of `runId`. A function declaration, so that it is there before this file runs.
+function asksOpen(asks) { return Array.isArray(asks?.open) ? asks.open.map((x) => x.runId) : asks?.runId ? [asks.runId] : []; }
 const chatBack = (bot, newFirst) => newFirst ?? asksOpen(bot?.asks).at(-1) ?? null; // the oldest open question: all of them are drawn
 
 // The open chat's own newest runs, read for it: state.runs is the newest 200 of all bots, and on an account whose

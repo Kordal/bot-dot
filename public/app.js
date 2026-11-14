@@ -369,9 +369,6 @@ const answerKey = (of, c) => {
   if (!answerKeys.has(k)) answerKeys.set(k, messageKey());
   return answerKeys.get(k);
 };
-// The runs of a bot's open questions (docs/api.md, "A bot that asks"), newest first: every one of them (`open`, #1377),
-// or from a server without it the one of `runId`.
-const asksOpen = (asks) => (Array.isArray(asks?.open) ? asks.open.map((x) => x.runId) : asks?.runId ? [asks.runId] : []);
 // Quick answers under the newest reply ([[choices: …]], see lib/choices.js): tap one to send it. The one at
 // `yes` is filled with the colour of the bot that asks. of: the reply's id, so that a tap answers it once (answered).
 const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length && !(of && answered.get(of) === 'sent')
