@@ -18,8 +18,11 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
                   layer's cards, NeedsDesk, with their buttons), a bot's chat (ChatView: its replies' Markdown, the live
                   feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box; a file
-                  path in a reply opens in the viewer, MarkdownView(paths:)), Passwords (VaultView, from Home's ⋯ menu:
-                  the entries in their categories, which fold, a search over a list longer than eight, a login's editor,
+                  path in a reply opens in the viewer, MarkdownView(paths:)), a group's chat (GroupChatView: each
+                  member's reply under its own name, a tapped answer with its question above it, the members at work
+                  with Stop all, who is next, Go on, waiting messages; its title opens the members panel,
+                  GroupPanelView: name, members, notes, delete), Passwords (VaultView, from Home's ⋯ menu: the entries
+                  in their categories, which fold, a search over a list longer than eight, a login's editor,
                   Bitwarden's unlock), Files (FilesView, from Home's ⋯ menu: a bot's or the Chief's places and folders,
                   sort, search, upload from Photos or Files, a new folder, rename, keep in mind, share, delete), the
                   document viewer (ViewerView: text and code with line numbers, a CSV as a table, the rest in
