@@ -14,6 +14,7 @@ struct HomeView: View {
     @State private var name = ""
     @State private var nameError: String?
     @State private var asking = false
+    @Environment(\.scenePhase) private var phase
 
     init(model: AppModel, server: String, api: Api) {
         self.model = model
@@ -45,6 +46,16 @@ struct HomeView: View {
                         BoardCards(tiles: board)
                     }
                     .accessibilityIdentifier("board")
+                    .listRowSeparator(.hidden)
+                }
+                if let rooms = home.rooms.state, rooms.on {
+                    // "Shared rooms" under Needs you and the Board, as on Android, with the invitations that wait.
+                    NavigationLink {
+                        RoomsView(rooms: home.rooms, figure: home.figure)
+                    } label: {
+                        Text("\(Text(RoomWords.shared.TITLE).bold())\(Text(rooms.row.map { " · " + $0 } ?? "").foregroundStyle(.orange))").lineLimit(1)
+                    }
+                    .accessibilityIdentifier("rooms")
                     .listRowSeparator(.hidden)
                 }
                 if let state = home.state {
@@ -100,6 +111,7 @@ struct HomeView: View {
         .onChange(of: home.askName) { _, ask in asking = ask }
         .task { home.start() }
         .onDisappear { home.stop() }
+        .onChange(of: phase) { _, p in home.rooms.front(p == .active) }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
     }
 

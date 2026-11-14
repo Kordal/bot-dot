@@ -16,8 +16,8 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
-                  layer's cards, NeedsDesk, with their buttons), the Board (BoardView: BoardDesk's tiles and taps), the
-                  account's parts (AccountViews: Delete account, Feedback, What's new, the paused account), bots drawn
+                  layer's cards, NeedsDesk, with their buttons), the Board (BoardView: BoardDesk's tiles and taps), shared
+                  rooms (RoomsView: RoomsDesk's list, a room's chat and its settings), the account's parts (AccountViews: Delete account, Feedback, What's new, the paused account), bots drawn
                   by FigureView, and tr()
 BotDotNotify/     the notification service extension (app.botdot.notify), empty for now
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers
@@ -45,7 +45,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
 | `ChiefNameQuestion` | the first run | the alert in `HomeView` |
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
-| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | left (#1372) |
+| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` (left: the "@" picker of the room's bots; "@Name" typed in the message still mentions) |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
 | `BotChatScreen` (`bot/{id}`), `PlanDock` | Home's rows | #1361 |

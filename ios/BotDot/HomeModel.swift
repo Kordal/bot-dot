@@ -20,6 +20,8 @@ final class HomeModel {
     var askName = false
 
     let home: HomeStore
+    /// Shared rooms, where the front door has them on for this account: Home's row, and the screens it opens.
+    let rooms: RoomsModel
     private var watching: Kotlinx_coroutines_coreJob?
     private var figureKey: String??
     private var figureTask: Task<Void, Never>?
@@ -27,12 +29,14 @@ final class HomeModel {
 
     init(api: Api, bundled: FigureDef? = HomeModel.bundledFigure) {
         home = HomeStore(api: api)
+        rooms = RoomsModel(home: home)
         figure = bundled
     }
 
     /// Follows the Store: each change of a part draws Home again.
     func start() {
         guard watching == nil else { return }
+        rooms.start()
         watching = home.watch { [weak self] state in
             MainActor.assumeIsolated { self?.show(state) }
         }
