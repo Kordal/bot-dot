@@ -117,3 +117,30 @@ test('a newer run that started after a question still takes its place, as in one
     assert.deepEqual(await open(srv, bot), [later.id]);
   } finally { await srv.stop(); }
 });
+
+test('an answer that names a question no longer open is no answer to another with the same words', async () => {
+  const srv = await startServer();
+  try {
+    const bot = await makeBot(srv, { name: 'Office Helper', emoji: '🗂️' });
+    srv.hold();
+    const a = await post(srv, bot, { prompt: 'make the invoice' });
+    const aRec = await srv.nextRun(isRunOf(bot, 'make the invoice'));
+    const b = await post(srv, bot, { prompt: 'make the receipt' });
+    const bRec = await srv.nextRun(isRunOf(bot, 'make the receipt'));
+    srv.reply(BUTTONS);
+    srv.release(aRec);
+    await srv.finished(a.id);
+    srv.release(bRec);
+    await srv.finished(b.id);
+    assert.deepEqual(await open(srv, bot), [b.id, a.id]);
+    srv.unhold();
+    srv.reply('Sent.');
+    const tapped = await post(srv, bot, { prompt: 'Yes', answers: a.id });
+    await srv.finished(tapped.id);
+    assert.deepEqual(await open(srv, bot), [b.id]);
+    // The same tap again, from a page that drew it before: not taken as the answer to b, whose button says the same.
+    const again = await post(srv, bot, { prompt: 'Yes', answers: a.id });
+    assert.equal(again.answers, undefined);
+    await srv.finished(again.id);
+  } finally { srv.unhold(); await srv.stop(); }
+});

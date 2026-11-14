@@ -52,6 +52,10 @@ class AsksTest {
         assertEquals("one question: the run of runId", listOf("r9"), bots(list).first().asks?.runs)
         val odd = bots("""[{"id":"mail","name":"Mail Sorter","asks":{"text":"Which calendar?","runId":"r10","open":[7,{"runId":"r10"},{"text":"x"},{"runId":"r9"},{"runId":"r9"}]}}]""").single()
         assertEquals("what is no run is left out, and each run once", listOf("r10", "r9"), odd.asks?.runs)
+        // The run that started first asked last: the chat reads back to it.
+        val started = bots("""[{"id":"mail","name":"Mail Sorter","asks":{"text":"Which calendar?","runId":"r10","open":[{"runId":"r10","startedAt":"2026-11-14T13:00:00Z"},{"runId":"r9","startedAt":"2026-11-14T13:05:00Z"}]}}]""").single()
+        assertEquals("r10", started.asks?.reachBack)
+        assertEquals("no starts: the oldest reply", "r9", two.asks?.reachBack)
         val fed = Asks.on(bots(list), event("""{"botId":"mail","asks":{"text":"Which calendar?","runId":"r10","open":[{"runId":"r10"},{"runId":"r9"}]}}"""))
         assertEquals(listOf("r10", "r9"), fed[0].asks?.runs)
     }

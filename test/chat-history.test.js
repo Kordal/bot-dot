@@ -125,6 +125,12 @@ test('which run a message answers: the words of a button under the newest run th
   assert.equal(H.answered([{ ...question, excludedFromMemory: true }], 'Send it'), null, 'a run excluded from memory is not handed to the bot, so nothing answers it');
   assert.equal(H.answerNote({ id: 'q' }), '');
   assert.match(H.answerNote(question), /their answer to the question at the end of your reply in run q, which is in your chat above in full\. The answers you offered there, as buttons: Send it \| Cancel\./);
+  // A question of a left-out run (ADR 016): the run is told it answers it, and none of its words (#1380).
+  const hidden = H.answerNote(question, { leftOut: true });
+  assert.match(hidden, /run q, which the owner left out of your chat/);
+  assert.doesNotMatch(hidden, /Send it|Cancel/);
+  assert.match(H.answerNote({ id: 'c', questions: ['Which calendar?'] }), /answers the questions at the end of your reply in run c/);
+  assert.doesNotMatch(H.answerNote({ id: 'c', questions: ['Which calendar?'] }, { leftOut: true }), /Which calendar/);
 });
 
 test("text inside a request or a reply cannot pass for an exchange of the owner's", () => {

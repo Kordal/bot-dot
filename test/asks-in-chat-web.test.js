@@ -105,6 +105,14 @@ test('web: two runs that asked keep both answers, and the chat reads back to the
   assert.match(html, /<div class="choices">Send\|Wait<\/div>/, 'the older question keeps its answers');
   assert.match(html, /<div class="choices">Work\|Home<\/div>/);
   assert.equal(ctx.chatBack(bot, null), 'r1', 'back to the oldest open question');
+  // The run that started first asked last: the chat reads back to it, as it lists runs by their start.
+  const started = { ...asks, open: [{ runId: 'r1', startedAt: at(1) }, { runId: 'r2', startedAt: at(2) }] };
+  assert.equal(ctx.chatBack({ ...bot, asks: started }, null), 'r1');
+  ctx.state.runs = [run('n9', 30)];
+  assert.equal(ctx.chatBack({ ...bot, asks: started }, 'n9'), 'r1', 'a newer "New" line does not stop it short of a question');
+  ctx.state.runs = [run('n0', 0)];
+  assert.equal(ctx.chatBack({ ...bot, asks: started }, 'n0'), 'n0', 'an older "New" line reaches past both');
+  ctx.state.runs = [];
   // One answered: its answers go, the other's stay.
   const html1 = ctx.botThreadHTML({ ...bot, asks: { ...asks, open: [{ runId: 'r2' }] } }, [first, second]);
   assert.doesNotMatch(html1, /Send\|Wait/);

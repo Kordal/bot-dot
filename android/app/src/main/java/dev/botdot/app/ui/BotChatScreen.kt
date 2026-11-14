@@ -110,7 +110,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // oldest is in the chat, so "Needs you" on its key points at something to answer. Two runs that went at once and
     // both asked keep both questions (#1380).
     val askedIn = bot?.asks?.runs.orEmpty()
-    val oldestAsked = askedIn.lastOrNull()
+    val oldestAsked = bot?.asks?.reachBack
     LaunchedEffect(loaded, oldestAsked) { if (loaded && oldestAsked != null) vm.reach(oldestAsked) }
     LaunchedEffect(botId) { vm.addShared(shared) }
     // Near the top (the list is upside down: near its end): the page before.

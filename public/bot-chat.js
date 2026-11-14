@@ -272,7 +272,17 @@ function loadInbox(botId) {
 // The runs of a bot's open questions (docs/api.md, "A bot that asks"), newest first: every one of them (`open`, #1380),
 // or from a server without it the one of `runId`. A function declaration, so that it is there before this file runs.
 function asksOpen(asks) { return Array.isArray(asks?.open) ? asks.open.map((x) => x.runId) : asks?.runId ? [asks.runId] : []; }
-const chatBack = (bot, newFirst) => newFirst ?? asksOpen(bot?.asks).at(-1) ?? null; // the oldest open question: all of them are drawn
+// The chat lists runs by their start, so it reads back to whichever of the "New" line's run and the open questions
+// started first: all of them are drawn (#1380). A start the page does not know leaves the "New" line's run, as before.
+function chatBack(bot, newFirst) {
+  const open = Array.isArray(bot?.asks?.open) ? bot.asks.open.filter((x) => x?.runId) : bot?.asks?.runId ? [bot.asks] : [];
+  // Without the starts (an older server): the oldest reply, the last of `open`.
+  const firstAsked = open.length && open.every((x) => x.startedAt) ? open.reduce((a, x) => (x.startedAt < a.startedAt ? x : a)) : open.at(-1);
+  if (!firstAsked) return newFirst ?? null;
+  if (!newFirst) return firstAsked.runId;
+  const lineStart = state.runs.find((r) => r.id === newFirst)?.startedAt;
+  return lineStart && firstAsked.startedAt && firstAsked.startedAt < lineStart ? firstAsked.runId : newFirst;
+}
 
 // The open chat's own newest runs, read for it: state.runs is the newest 200 of all bots, and on an account whose
 // other bots run often (their jobs, quiet ones too) a bot's own runs fall out of it. Its chat then lost what the
