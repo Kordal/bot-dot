@@ -129,7 +129,7 @@ function main() {
   const missing = [['APNS_KEY_FILE or APNS_KEY', keyPem], ['APNS_KEY_ID', env.APNS_KEY_ID], ['APNS_TEAM_ID', env.APNS_TEAM_ID]].filter(([, v]) => !v).map(([n]) => n);
   if (missing.length) { console.error(`The relay needs ${missing.join(', ')} (relay/README.md).`); process.exit(1); }
   const origins = env.APNS_ORIGIN ? { production: env.APNS_ORIGIN, development: env.APNS_ORIGIN } : undefined;
-  const apns = require('./apns').create({ keyPem, keyId: env.APNS_KEY_ID, teamId: env.APNS_TEAM_ID, topic: env.APNS_TOPIC || 'dev.botdot.ios', origins });
+  const apns = require('./apns').create({ keyPem, keyId: env.APNS_KEY_ID, teamId: env.APNS_TEAM_ID, topic: env.APNS_TOPIC || 'app.botdot', origins });
   const server = http.createServer(create({ apns }));
   const port = Number(env.PORT) || 8787;
   server.listen(port, env.HOST || '0.0.0.0', () => console.log(`[relay] on ${port}`));

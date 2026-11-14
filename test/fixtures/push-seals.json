@@ -1,0 +1,144 @@
+{
+  "about": "Seals made by the server (lib/apns.js relayRequest of what lib/push.js makes of feed events), for the iOS app to open: base64url of version 1 | 12-byte nonce | AES-256-GCM ciphertext | 16-byte tag, the version byte as additional data. `opens`: what a tap opens (chat, needs or app). Made by scripts/push-seals.js; test/push-apns.test.js checks every seal opens to its payload.",
+  "seed": "VHvdgLPG_cGk6hSmQ209X-Vlr0wQEBrL0B5f6rSl0NA",
+  "cases": [
+    {
+      "what": "a bot's reply: Reply, a tap opens its chat",
+      "sealed": "AevgAiGt0EyftlMa3GkVjunLWITTJP84tjXlbSd7SNt4cYdka6pkX6ONEtsK6rP6U0ODf6yaM-R-oAqJcp9KPl8947qga9aab-96P1nZnyonr3xMBvR9b7NmfitLb6MlQ2_bKZWu0Nm_dtYcsTEpTAg68lsT1agJnzGxre90kYoMikWDmpO1f9Akt_A",
+      "collapseId": "bot:b1",
+      "threadId": "bot:b1",
+      "payload": {
+        "title": "News",
+        "body": "Today\nFound 3 articles.",
+        "target": "bot:b1",
+        "tag": "bot:b1",
+        "buttons": {
+          "reply": "Reply"
+        }
+      },
+      "opens": "chat"
+    },
+    {
+      "what": "a Chief reply in Polish",
+      "sealed": "ARS7dJC21KhacX6X2GJE4ixHO5NSSQZSm1DMR6wvh7dpb-6_AfTAwzwnUGUc7Yc03LqBilsrzVDUodQzVZvMFw5I9mcR0_9IS-a-htEvoz7PBJEvd50iXVjt3SUkWnZ378_RpEHjDoQyJ392nJoEaI1qc5Y21qfr0gmuz4zNZQr9I2rQlflfepIszqJ5rQSymx-CdoNM6FNVANg",
+      "collapseId": "chief:c1",
+      "threadId": "chief:c1",
+      "payload": {
+        "title": "Ada",
+        "body": "Zarezerwowane. Lot o 7:40 ✈️",
+        "target": "chief:c1",
+        "tag": "chief:c1",
+        "buttons": {
+          "reply": "Odpowiedz"
+        }
+      },
+      "opens": "chat"
+    },
+    {
+      "what": "a question in a group",
+      "sealed": "AbW8aKaEDFryaITYYqjFlVlYdVSSJnO2X_V3NKIJXRiSRbyV7AuLy_cc1E1iriTSzvNU_82OoVwQM5yqYyM6za9ZQVuMY-mdtuR_iUXMlH91-r5o6wv4AHVcig0lKLxU_nnOCx8OFabXyQcOVnzOJlghCgFpQsMbMeSGaDnB9cIQ-zXAAxc",
+      "collapseId": "group:g1",
+      "threadId": "group:g1",
+      "payload": {
+        "title": "Coder asks",
+        "body": "Ship it?",
+        "target": "group:g1",
+        "tag": "group:g1",
+        "buttons": {
+          "reply": "Reply"
+        }
+      },
+      "opens": "chat"
+    },
+    {
+      "what": "a job that waits: Decline and Approve, a tap opens Needs you",
+      "sealed": "AWkNzf99--1F5JIujKx6TRDCk7FisaWDH-i87IVFd_YOgJU5jg2Q0tLHfY5AKvTRhvFqXC79qY7_0S14RAUWL7vnhezCYuNPh1alKIzn-s8P5dxL-uH8IISqNmr7As5U0leW3ZYs0AYwpJPg_hzoAtGYjgLNdPIPrs4eB3frXs8zIpiqpQlckBoezfhjpKIDuaX7ZZid7XwbY3stsaxqj7xtDJtZrUjJzMlRLDRJzH1FHOoMVyZp",
+      "collapseId": "job:b1/j1",
+      "threadId": "needs",
+      "payload": {
+        "title": "News",
+        "body": "Wants to run “Digest” every morning",
+        "target": "needs",
+        "tag": "job:b1/j1",
+        "buttons": {
+          "no": "Decline and remove",
+          "yes": "Approve"
+        }
+      },
+      "opens": "needs"
+    },
+    {
+      "what": "an ask whose yes is on its card, asked in a group: Decline alone, a tap opens the group",
+      "sealed": "ASWhmQyFZn9mZ8nFKhPIjOzU7oVr3SP-3AtkTa5aRzB6Ne0nVN-Oc5VqwAG9AcrCugmUHpNBAdJo_0S6DP-gLe2C9B4mKJJeq3CrPFA97dFnLiitXJBuj4RE-s5NW4RlXF_GNZIO8qVXKCBenQVdXpMnXCak8yFSrP7DxMxuCHQjz06bpaHhx0SJXEOCIvqcmgSJi8Dd15lbidA",
+      "collapseId": "ask:a1",
+      "threadId": "group:g2",
+      "payload": {
+        "title": "Scout in Dev",
+        "body": "Wants to send email with Gmail",
+        "target": "group:g2",
+        "tag": "ask:a1",
+        "buttons": {
+          "no": "Decline"
+        }
+      },
+      "opens": "chat"
+    },
+    {
+      "what": "a card of several: no buttons, a long tag",
+      "sealed": "AQ1NRhFSOQBNrSGtdcIkuc_rKZxnYbv_SUzaRjsiHTYZpx_I2FR73x9bhcFnj9fCZ0lcZ5AVGGsq04HRQWzHHbguBGPF25v7WeK0DqnU_q84iQ_6gQ3T2XVmqzbiuQ1ggp0TXJtY-6eR71ZscpbeftVuSaon5Z1PSvV73J3dVbh5N0AYH1-rjYjDnIDdQNzGoH5ROyhcuzjXf_9Rq9KASsxINgm1sM20KPYgTnKxQ9fy4R7sAgtQ_kYQ",
+      "collapseId": "h:lypohw7MRScpRQyVy-u6skGt_jWCql2hab-8LeOxaVk",
+      "threadId": "needs",
+      "payload": {
+        "title": "Scout",
+        "body": "Scout wants 2 things",
+        "target": "needs",
+        "tag": "ask:batch:run-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "opens": "needs"
+    },
+    {
+      "what": "a bot's plan for the Chief",
+      "sealed": "Af7JLdmhRItfSrckS14sEEndD5LL2qy5BKPLrY0BIBQQ8Ug9Tm0AqyyzH1ad-4s3_ITex9vfNE06JbN6mOtSwjakV-UHOUEi319jP-YKawCKBxvXzwc_C-fKVNb3GZTOHnITQkYQBoRXl6rhufjD1PB9Ipo5e8dOql3lCaTvWTPVTUQGbkG7v2BQ-TCSa_pDuUBiTB2yYtinL_C9Ac_rYhYGtMI",
+      "collapseId": "plan:c2",
+      "threadId": "chief:c2",
+      "payload": {
+        "title": "News",
+        "body": "A plan for the Chief: A digest",
+        "target": "chief:c2",
+        "tag": "plan:c2",
+        "buttons": {
+          "no": "Decline",
+          "yes": "Approve"
+        }
+      },
+      "opens": "chat"
+    },
+    {
+      "what": "Claude signed out: no buttons, a tap opens the app",
+      "sealed": "AXFqGYVXqfSi9AGD2YNf7YGxuVq_LHknJtxFVyVS57XoP83ATMKwWJRZEb8atoMZTyKwNj7VQrz6iwa3YZw9RzvAMC1XkH3KUtzcaBVvchUfDQfd-Psn-Oq7-r_WVuOp03NdvDH6UVoKmUxOanV9BParwh3UQYMNIOEQn1E",
+      "collapseId": "claude",
+      "threadId": "app",
+      "payload": {
+        "title": "botdot",
+        "body": "Claude is signed out: bots can't work.",
+        "target": "app",
+        "tag": "claude"
+      },
+      "opens": "app"
+    }
+  ],
+  "refused": [
+    {
+      "what": "one byte changed",
+      "sealed": "AevgAiGt0EyftlMa3GkVjunLWITSJP84tjXlbSd7SNt4cYdka6pkX6ONEtsK6rP6U0ODf6yaM-R-oAqJcp9KPl8947qga9aab-96P1nZnyonr3xMBvR9b7NmfitLb6MlQ2_bKZWu0Nm_dtYcsTEpTAg68lsT1agJnzGxre90kYoMikWDmpO1f9Akt_A"
+    },
+    {
+      "what": "another version",
+      "sealed": "AuvgAiGt0EyftlMa3GkVjunLWITTJP84tjXlbSd7SNt4cYdka6pkX6ONEtsK6rP6U0ODf6yaM-R-oAqJcp9KPl8947qga9aab-96P1nZnyonr3xMBvR9b7NmfitLb6MlQ2_bKZWu0Nm_dtYcsTEpTAg68lsT1agJnzGxre90kYoMikWDmpO1f9Akt_A"
+    },
+    {
+      "what": "too short",
+      "sealed": "AQID"
+    }
+  ]
+}
