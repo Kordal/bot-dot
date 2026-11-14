@@ -371,8 +371,6 @@ class BotChat(
         )
     }
 
-    /** "07:30" today, "4 Nov, 07:30" on another day: the phone's clock, as Android's shortTime. */
-
     companion object {
         const val PAGE = 40
         const val NEWEST = 8
