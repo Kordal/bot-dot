@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.PLAN_APPROVAL
 import dev.botdot.app.data.CHIEF_COLOR
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -369,9 +370,6 @@ private fun Thumbs(rating: String?, onTap: (String) -> Unit) {
         }
     }
 }
-
-/** What Approve sends to answer a bot's plan for the Chief (the server knows it). */
-const val PLAN_APPROVAL = "Approved. Go ahead."
 
 /** "Message from Fleet Doctor": the words, then the bot with its small mark. */
 /** What a message is about (ADR 223): the team in its colour, the project before it where the server names one. */

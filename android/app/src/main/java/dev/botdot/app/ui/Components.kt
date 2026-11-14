@@ -1034,7 +1034,7 @@ fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, onSe
         androidx.compose.material3.Button(
             onClick = {
                 // Each question with its answer (see lib/choices.js).
-                val all = questions.mapIndexed { i, q -> "$q\n→ ${answers[i].trim().ifEmpty { "–" }}" }.joinToString("\n\n")
+                val all = dev.botdot.app.data.questionsAnswer(questions, answers)
                 scope.launch { if (onSend(all, keys.of(all))) used = true }
             },
             enabled = canSend,

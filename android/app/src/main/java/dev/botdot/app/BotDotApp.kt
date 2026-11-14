@@ -89,7 +89,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
         bwUnlockError.value = null
         scope.launch {
             val r = runCatching { api.unlockBitwarden(masterPassword) }
-            val error = r.exceptionOrNull()?.let { e -> if (e.message.orEmpty().contains("not right")) tr("Wrong master password") else e.message ?: tr("That didn't work") }
+            val error = r.exceptionOrNull()?.let { dev.botdot.app.data.unlockFailed(it) }
             bwUnlockError.value = error
             bwUnlocking.value = false
             Toast.makeText(this@BotDotApp, error ?: tr("Bitwarden is unlocked"), Toast.LENGTH_SHORT).show()
@@ -104,13 +104,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
         savingLogins.value += requestId
         scope.launch {
             val r = runCatching { api.answerRequest(requestId, body) }
-            val error = r.exceptionOrNull()?.let { e ->
-                when {
-                    e is dev.botdot.app.data.ApiException && e.status == 423 -> tr("Bitwarden is locked: enter your master password too.")
-                    e.message.orEmpty().contains("not right") -> tr("Wrong master password, login not saved")
-                    else -> tr("Login not saved: {why}", "why" to (e.message ?: tr("that didn't work")))
-                }
-            }
+            val error = r.exceptionOrNull()?.let { dev.botdot.app.data.loginNotSaved(it) }
             store.needs.refresh()
             savingLogins.value -= requestId
             Toast.makeText(this@BotDotApp, error ?: tr("Saved. {botName} will continue.", "botName" to botName), Toast.LENGTH_SHORT).show()

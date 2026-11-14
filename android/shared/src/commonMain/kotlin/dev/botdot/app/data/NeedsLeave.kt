@@ -1,4 +1,4 @@
-package dev.botdot.app.ui
+package dev.botdot.app.data
 
 /**
  * Needs you returns the owner to where they came from (#264): once the last open card is answered on the screen,

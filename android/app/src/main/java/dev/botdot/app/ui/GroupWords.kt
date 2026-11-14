@@ -104,5 +104,5 @@ internal fun canMakeGroup(features: Collection<String>?, otherBots: Int): Boolea
 internal fun addHint(n: Int, members: Int, name: String): String = if (n > 0) trn(members + n, "{n} bot in {name}.", "{n} bots in {name}.", "name" to name) else tr("A group has two to six bots.")
 
 /** A card's bot as Needs you names it when the card was asked in a group: "Coder in Dev". */
-internal fun Named.inGroup(group: String?): Named = if (group.isNullOrBlank()) this else copy(name = tr("{name} in {group}", "name" to name, "group" to group))
+internal fun Named.inGroup(group: String?): Named = if (group.isNullOrBlank()) this else copy(name = dev.botdot.app.data.nameInGroup(name, group))
 
