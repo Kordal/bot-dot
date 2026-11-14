@@ -1,0 +1,9 @@
+# Made by XcodeGen from project.yml (make ios), and by xcodebuild.
+BotDot.xcodeproj/
+build/
+DerivedData/
+# XcodeGen writes these from project.yml too.
+BotDot/Info.plist
+BotDot/BotDot.entitlements
+BotDotNotify/Info.plist
+BotDotNotify/BotDotNotify.entitlements

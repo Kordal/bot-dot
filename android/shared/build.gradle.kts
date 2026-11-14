@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFramework
 
 // The app's data layer (docs/adr/242-…): the API, the store and every rule, in Kotlin Multiplatform, so the Android app
 // and the iOS app run the same code. Its package stays dev.botdot.app.data, as it was in :app.
@@ -6,6 +7,8 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kmp.library)
     alias(libs.plugins.kotlin.serialization)
+    // Swift sees a Flow as an AsyncSequence and a suspend function as async (the iOS app, ios/, ADR 242).
+    alias(libs.plugins.skie)
 }
 
 kotlin {
@@ -16,8 +19,16 @@ kotlin {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         withHostTest { isReturnDefaultValues = true } // android.util.Log and the like do nothing in unit tests
     }
-    iosArm64()
-    iosSimulatorArm64()
+    // BotdotShared.xcframework, for the iPhone and its simulator: ./gradlew :shared:assembleBotdotSharedReleaseXCFramework
+    // (or Debug), in build/XCFrameworks; ios/project.yml links it.
+    val xcf = XCFramework("BotdotShared")
+    listOf(iosArm64(), iosSimulatorArm64()).forEach {
+        it.binaries.framework {
+            baseName = "BotdotShared"
+            isStatic = true
+            xcf.add(this)
+        }
+    }
 
     compilerOptions { freeCompilerArgs.add("-Xexpect-actual-classes") }
 
@@ -86,3 +97,11 @@ val writeFixtures = tasks.register<WriteFixtures>("writeFixtures") {
 }
 kotlin.sourceSets.commonTest { kotlin.srcDir(writeFixtures) }
 tasks.withType<AbstractTestTask>().configureEach { inputs.files(fixtures.values).withPropertyName("fixtures") }
+
+// SKIE sends nothing anywhere: no analytics from this build.
+skie {
+    analytics {
+        disableUpload.set(true)
+        enabled.set(false)
+    }
+}
