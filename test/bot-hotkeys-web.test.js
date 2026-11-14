@@ -57,7 +57,7 @@ test('web: saving sends hotkey as a number once it was chosen, and nothing where
 
 test('android: the bot has hotkey, and its settings offer it only when the server sends it', () => {
   const app = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app');
-  const models = fs.readFileSync(path.join(app, 'data', 'Models.kt'), 'utf8');
+  const models = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
   const screen = fs.readFileSync(path.join(app, 'ui', 'BotSettingsScreen.kt'), 'utf8');
   assert.match(models, /val hotkey: Int\? = null/);
   assert.match(screen, /if \(b\.hotkey != null\) FoldSection\(tr\("Key on the keypad"\)/);

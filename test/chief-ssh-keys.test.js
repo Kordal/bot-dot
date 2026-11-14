@@ -371,7 +371,7 @@ test('remove_vault_item: only in a turn the owner started, and for an entry the 
 test("the Chief's card to remove an entry stands in the Chief's chats, on the web page and in the Android app", () => {
   const web = fs.readFileSync(path.join(__dirname, '..', 'public', 'needs.js'), 'utf8');
   assert.match(web, /\['skill', 'vault-remove'\]\.includes\(x\.a\.kind\) && !x\.a\.botId/);
-  const android = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
+  const android = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
   assert.match(android, /scope == "chief" -> \(\(kind == "skill" \|\| kind == "vault-remove"\) && bot == null\)/);
 });
 

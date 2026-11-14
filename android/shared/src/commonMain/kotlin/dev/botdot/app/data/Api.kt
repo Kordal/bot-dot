@@ -73,6 +73,12 @@ internal expect fun sentOf(e: Throwable, went: Went): Boolean
 /** The phone's HTTP: OkHttp on Android (one connection pool with the pictures', Api.CLIENT), URLSession on iOS. */
 internal expect fun httpEngine(): io.ktor.client.engine.HttpClientEngine
 
+/**
+ * What the app calls itself on every request, or null for the phone's HTTP's own name. botdot tells the Android app
+ * by it (lib/activity.js: OkHttp's own `okhttp/…`), so Ktor's `ktor-client` must not take its place.
+ */
+internal expect val userAgent: String?
+
 /** An address as OkHttp's HttpUrl reads it ("https://host:8443/a"), and the same with only its root ("https://host:8443"). */
 internal class HttpAddress(val text: String, val root: String)
 
@@ -133,6 +139,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
                 method = req.method
                 for ((k, v) in req.headers) header(k, v)
                 if (token != null) header(HttpHeaders.Cookie, "${Session.COOKIE}=$token")
+                userAgent?.let { header(HttpHeaders.UserAgent, it) }
                 req.body?.let { setBody(it) }
                 if (wait != null) timeout { socketTimeoutMillis = wait }
                 untrack = track(went)

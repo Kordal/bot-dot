@@ -252,8 +252,8 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.ok([].concat(jobs.evidence.needs).includes('build'));
 });
 
-// A Mac runs only the Tauri project's builds: the desktop app (ADR 137) and the iOS app (ADR 151), never the stopped
-// native Mac app.
+// A Mac runs only the Tauri project's builds: the desktop app (ADR 137) and the iOS app (ADR 151), and the Android app's
+// shared data layer for the iPhone (ADR 242), never the stopped native Mac app.
 test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
@@ -261,8 +261,12 @@ test("the Android release builds on GitHub's machines, and no workflow builds or
   assert.equal(tests.changes.outputs.mac, undefined);
   const ios = workflow('ios.yml').jobs.simulator;
   assert.equal(ios.defaults.run['working-directory'], 'desktop/src-tauri', 'the iOS app is the Tauri project');
+  // The Android app's shared data layer, built for the iPhone and tested in the simulator (ADR 242): Gradle on android/shared only.
+  const shared = workflow('ios-shared.yml').jobs.shared;
+  assert.equal(shared.defaults.run['working-directory'], 'android');
+  assert.deepEqual(shared.steps.filter((st) => st.run).map((st) => st.run), ['./gradlew :shared:compileKotlinIosArm64 :shared:iosSimulatorArm64Test --console=plain']);
   for (const name of fs.readdirSync(WORKFLOWS)) {
-    if (name === 'ios.yml') continue;
+    if (name === 'ios.yml' || name === 'ios-shared.yml') continue;
     const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
     assert.doesNotMatch(text, /make mac-|runs-on: macos|xcodebuild|swift (build|test)|working-directory: macos/, name);
     if (name !== 'desktop.yml') assert.doesNotMatch(text, /\bmacos-(latest|\d)/, name);

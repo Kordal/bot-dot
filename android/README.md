@@ -65,7 +65,7 @@ Or open the `android` folder in Android Studio and press Run.
 
 When the app first opens, enter your botdot's address, e.g. `my-vm.my-tailnet.ts.net`, with Tailscale on. Behind a front door ([ADR 028](../docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)) the app then signs in once with your account's passkey and stays signed in until it is signed out. The sign-in is the front door's own page, in the phone's browser (a Custom Tab): the password manager you use there (Proton Pass, Bitwarden, Google's) offers the passkey, and the page sends the browser back to the app with a one-time code that only this app's secret turns into its session (docs/api.md, "The front door"). Any domain and any build work, a debug build too; nothing is set on the server. If the browser stays on the page after the passkey, tap **Back to the app**. More: [Install on Linux](../docs/install-linux.md#the-android-apps-sign-in).
 
-**Checks** (CI runs them too): `./gradlew testDebugUnitTest` (unit tests), `./gradlew :app:connectedDebugAndroidTest` with an emulator or phone connected (the browser's way back to the app after the sign-in; CI runs it on an emulator) and `./gradlew lintDebug` (new lint problems fail; the ones already there are in `app/lint-baseline.xml`). In debug builds each request to botdot shows in Logcat under the tag `botdot-http`.
+**Checks** (CI runs them too): `./gradlew testDebugUnitTest :shared:testAndroidHostTest` (unit tests; `:shared:iosSimulatorArm64Test` runs the shared ones in the iOS simulator, on a Mac), `./gradlew :app:connectedDebugAndroidTest` with an emulator or phone connected (the browser's way back to the app after the sign-in; CI runs it on an emulator) and `./gradlew lintDebug` (new lint problems fail; the ones already there are in `app/lint-baseline.xml`). In debug builds each request to botdot shows in Logcat under the tag `botdot-http`.
 
 **Baseline profile** (faster start and scrolling): `app/src/release/generated/baselineProfiles` holds the code a start and the first steps run, compiled when the app is installed. After bigger changes to the screens, make it again with an emulator or phone connected (Android 13 or later) and commit it:
 
@@ -74,7 +74,7 @@ When the app first opens, enter your botdot's address, e.g. `my-vm.my-tailnet.ts
 ./gradlew :baselineprofile:connectedBenchmarkReleaseAndroidTest   # cold start, without and with it (on a real phone)
 ```
 
-**The head:** the app draws bots from the botdot server's own definition, `../lib/figure.json` (the head, the face and movement of each state, where the hat sits and the kit of hats; see [ADR 003](../docs/adr/003-one-figure-definition-for-all-apps.md) and [ADR 004](../docs/adr/004-pieces-as-restricted-shape-lists.md)). The build copies that file into the app (`copyFigure` in `app/build.gradle.kts`), so there is no second copy in Git; once connected, the app asks the server for its definition (`GET /api/figure`) and draws from that instead. `data/Figure.kt` reads a definition and says what to draw and where its three layers (head, eyes, pupils) are at a moment, `ui/BotFigure.kt` draws it, and `ui/FigureClock.kt` asks for frames only while something moves; `public/figure.js` on the web page is the reference they must match.
+**The head:** the app draws bots from the botdot server's own definition, `../lib/figure.json` (the head, the face and movement of each state, where the hat sits and the kit of hats; see [ADR 003](../docs/adr/003-one-figure-definition-for-all-apps.md) and [ADR 004](../docs/adr/004-pieces-as-restricted-shape-lists.md)). The build copies that file into the app (`copyFigure` in `app/build.gradle.kts`), so there is no second copy in Git; once connected, the app asks the server for its definition (`GET /api/figure`) and draws from that instead. `shared/…/data/Figure.kt` reads a definition and says what to draw and where its three layers (head, eyes, pupils) are at a moment, `ui/BotFigure.kt` draws it, and `ui/FigureClock.kt` asks for frames only while something moves; `public/figure.js` on the web page is the reference they must match.
 
 **Testing against a botdot on your computer:** the emulator reaches your computer as `10.0.2.2`. Start botdot with `BOT_DOT_ALLOWED_HOSTS=10.0.2.2`, then connect the app to `http://10.0.2.2:4747`. Plain HTTP is allowed for that address only, and only in debug builds.
 
@@ -84,14 +84,8 @@ When the app first opens, enter your botdot's address, e.g. `my-vm.my-tailnet.ts
 app/src/main/java/dev/botdot/app/
   BotDotApp.kt        the app's shared pieces: settings, the API, the live feed, notifications
   MainActivity.kt     navigation, notification taps, Share → botdot
-  data/Api.kt         botdot's API over OkHttp, with live streams (Server-Sent Events)
-  data/Models.kt      what the API returns
-  data/Unread.kt      new replies: how many dots, where the "New" line goes, and the report of the chat on screen
-  data/Figure.kt      the bots' head, read from the server's definition: what to draw for a state and a hat
-  data/Store.kt       what several screens show (bots, the Chief's chats, what waits for you, the Board), kept
-                      once and brought up to date from the live feed, only the parts each event changes
-  data/Settings.kt    the saved botdot address, and which categories you folded
   data/AppUpdate.kt   installing a newer app from your botdot
+  data/BotFiles.kt    opening a file a bot attached, in another app on the phone (also BackupDownload, PickedFolder)
   feed/Feed.kt        the one open connection to /api/events, reconnecting and resuming by itself
   feed/FeedService.kt keeps that connection open in the background
   feed/Notifier.kt    turns feed events into notifications
@@ -101,6 +95,16 @@ app/src/main/java/dev/botdot/app/
                       update row, Markdown, form pieces, the bots' heads, the Paper theme
   ui/ChatModels.kt    a bot's chat and a Chief chat, kept while open (and while the phone turns): newest part first,
                       older as you scroll up
-app/src/test/         unit tests
+app/src/test/         unit tests of the screens and the feed
+shared/               the data layer, Kotlin Multiplatform, shared with the iOS app (ADR 242); package dev.botdot.app.data
+  src/commonMain/       everything the API returns and every rule: Api.kt (botdot's API over Ktor, with live streams,
+                        Server-Sent Events), Models.kt, Unread.kt, Figure.kt (the bots' head), Store.kt (what several
+                        screens show, kept once and brought up to date from the live feed), Settings.kt (the saved
+                        botdot address, which categories you folded)
+  src/androidMain/      what Android does its own way (Platform.android.kt): OkHttp under Ktor, one connection pool
+                        with the pictures, the session in private preferences, files from a Uri
+  src/iosMain/          the same for the iPhone (Platform.ios.kt): URLSession, Foundation, Security
+  src/commonTest/       the tests of the shared fixtures (../test/fixtures), on Android's host and in the iOS simulator
+  src/androidHostTest/  the data layer's other tests, on the JVM (many against a stand-in botdot, MockWebServer)
 baselineprofile/      makes the baseline profile, and the start-up benchmark
 ```

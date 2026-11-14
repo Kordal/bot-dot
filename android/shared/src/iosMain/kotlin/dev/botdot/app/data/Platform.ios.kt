@@ -169,6 +169,9 @@ internal actual fun sentOf(e: Throwable, went: Went): Boolean {
 
 internal actual fun httpEngine(): HttpClientEngine = Darwin.create()
 
+/** The iPhone app has no name of its own on its requests yet: what botdot makes of it is the iOS app's work. */
+internal actual val userAgent: String? = null
+
 internal actual fun parseHttpAddress(s: String): HttpAddress? {
     val u = runCatching { Url(s) }.getOrNull()?.takeIf { it.host.isNotEmpty() && (it.protocol.name == "http" || it.protocol.name == "https") } ?: return null
     val root = URLBuilder(u).apply { encodedPath = "/"; encodedParameters.clear(); fragment = "" }.buildString()

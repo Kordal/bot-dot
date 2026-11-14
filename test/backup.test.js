@@ -219,7 +219,7 @@ test('the page, the app, docs/api.md and the server ask for the same shortest pa
   assert.equal(MIN_PASSPHRASE, 12, 'the fallback for a server that sends none');
   assert.doesNotMatch(card, /minlength="\d|at least \d+ characters/, 'no number of its own on the page');
   assert.doesNotMatch(fs.readFileSync(path.join(ROOT, 'lib', 'i18n', 'pl', 'web.json'), 'utf8'), /co najmniej \d+ znak/);
-  const model = fs.readFileSync(path.join(ROOT, 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
+  const model = fs.readFileSync(path.join(ROOT, 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8');
   assert.match(model, /val minPassphrase: Int = 12/);
   const api = fs.readFileSync(path.join(ROOT, 'docs', 'api.md'), 'utf8');
   assert.match(api, /`minPassphrase` \(12\)/);

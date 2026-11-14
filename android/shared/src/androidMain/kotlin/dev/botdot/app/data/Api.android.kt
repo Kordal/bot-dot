@@ -64,6 +64,9 @@ val Api.Companion.CLIENT: OkHttpClient get() = client
 
 internal actual fun httpEngine(): HttpClientEngine = OkHttp.create { preconfigured = client }
 
+/** OkHttp's own name, as the app sent it before Ktor: `okhttp/5.5.0`. */
+internal actual val userAgent: String? = "okhttp/${okhttp3.OkHttp.VERSION}"
+
 internal actual fun parseHttpAddress(s: String): HttpAddress? {
     val u = s.toHttpUrlOrNull() ?: return null
     return HttpAddress(u.toString(), u.newBuilder().encodedPath("/").query(null).build().toString())
