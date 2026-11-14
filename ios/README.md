@@ -16,7 +16,9 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
-                  layer's cards, NeedsDesk, with their buttons), bots drawn by FigureView, and tr()
+                  layer's cards, NeedsDesk, with their buttons), Passwords (VaultView, from Home's ⋯ menu: the entries
+                  in their categories, which fold, a search over a list longer than eight, a login's editor,
+                  Bitwarden's unlock), bots drawn by FigureView, and tr()
                   Files (FilesView, from Home's ⋯ menu: a bot's or the Chief's places and folders, sort, search, upload
                   from Photos or Files, a new folder, rename, keep in mind, share, delete) and the document viewer
                   (ViewerView: text and code with line numbers, a CSV as a table, the rest in QuickLook)

@@ -18,3 +18,7 @@ extension DocumentView.Opening: @retroactive @unchecked Sendable {}
 extension FigureDef: @retroactive @unchecked Sendable {}
 extension NeedsYouStore: @retroactive @unchecked Sendable {}
 extension NeedsState: @retroactive @unchecked Sendable {}
+extension VaultStore: @retroactive @unchecked Sendable {}
+extension VaultState: @retroactive @unchecked Sendable {}
+extension VaultItem: @retroactive @unchecked Sendable {}
+extension VaultLogin: @retroactive @unchecked Sendable {}
