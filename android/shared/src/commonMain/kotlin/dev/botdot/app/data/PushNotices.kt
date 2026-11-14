@@ -43,6 +43,36 @@ object PushNotices {
     /** Where a reply typed in the notification of [chat] goes; null for what is no chat. */
     fun replyTo(chat: String): ReplyTo? = chatOf(chat)
 
+    /**
+     * What Home does with the chat a notification's tap asked for ([chat], `"bot:<id>"` and so on), knowing [bots]
+     * and [groups] (null: not read yet). A bot's or a group's chat opens once it is known, and is let go when they are
+     * read and it isn't among them; a Chief conversation opens at once. What is let go leaves Home showing.
+     */
+    fun opening(chat: String?, bots: List<Bot>?, groups: List<Group>?): Opening = when (val to = chat?.let { chatOf(it) }) {
+        null -> if (chat == null) Opening.Unasked else Opening.LetGo
+        is ReplyTo.Bot -> when {
+            bots == null -> Opening.Wait
+            else -> bots.firstOrNull { it.id == to.id }?.let { Opening.BotChat(it.id, it.name) } ?: Opening.LetGo
+        }
+        is ReplyTo.Chief -> Opening.ChiefChat(to.chatId)
+        is ReplyTo.Group -> when {
+            groups == null -> Opening.Wait
+            else -> groups.firstOrNull { it.id == to.id }?.let { Opening.GroupChat(it.id, it.name) } ?: Opening.LetGo
+        }
+    }
+
+    sealed class Opening {
+        /** No chat asked for. */
+        data object Unasked : Opening()
+        /** Not yet: Home hasn't read its bots or groups. */
+        data object Wait : Opening()
+        /** Nothing to open: done with it, Home shows. */
+        data object LetGo : Opening()
+        data class BotChat(val id: String, val name: String) : Opening()
+        data class ChiefChat(val chatId: String) : Opening()
+        data class GroupChat(val id: String, val name: String) : Opening()
+    }
+
     sealed class ReplyTo {
         data class Bot(val id: String) : ReplyTo()
         data class Chief(val chatId: String) : ReplyTo()

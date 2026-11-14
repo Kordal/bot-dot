@@ -91,4 +91,21 @@ class PushNoticesTest {
         assertFalse(PushNotices.sendsToPhones(listOf("web-push")))
         assertFalse(PushNotices.sendsToPhones(null))
     }
+
+    @Test fun aTapOpensAKnownBotsChatWaitsForTheBotsAndLetsGoOfAnUnknownOne() {
+        val bots = listOf(Bot(id = "b1", name = "News"))
+        assertEquals(PushNotices.Opening.Wait, PushNotices.opening("bot:b1", null, null), "a cold start: the bots aren't read yet")
+        assertEquals(PushNotices.Opening.BotChat("b1", "News"), PushNotices.opening("bot:b1", bots, emptyList()))
+        assertEquals(PushNotices.Opening.LetGo, PushNotices.opening("bot:gone", bots, emptyList()), "a bot no longer there")
+    }
+
+    @Test fun aChiefConversationOpensAtOnceAndAGroupOnceItsGroupIsKnown() {
+        val groups = Group.list("""[{"id":"g1","name":"Dev","members":["b1"]}]""")
+        assertEquals(PushNotices.Opening.ChiefChat("c7"), PushNotices.opening("chief:c7", null, null))
+        assertEquals(PushNotices.Opening.Wait, PushNotices.opening("group:g1", emptyList(), null), "the groups aren't read yet")
+        assertEquals(PushNotices.Opening.GroupChat("g1", "Dev"), PushNotices.opening("group:g1", emptyList(), groups))
+        assertEquals(PushNotices.Opening.LetGo, PushNotices.opening("group:gone", emptyList(), groups), "a group no longer there")
+        assertEquals(PushNotices.Opening.Unasked, PushNotices.opening(null, null, null))
+        assertEquals(PushNotices.Opening.LetGo, PushNotices.opening("room:r1", emptyList(), emptyList()))
+    }
 }
