@@ -77,7 +77,8 @@ class GroupChatTalkTest {
 
     private fun message(id: String, text: String, at: String, extra: String = "") = """{"type":"message","id":"$id","text":"$text","at":"$at"$extra}"""
 
-    private fun page(items: List<String>, working: String = "[]", asks: String = "null") = """{"items":[${items.joinToString(",")}],"more":false,"working":$working,"asks":$asks}"""
+    private fun page(items: List<String>, working: String = "[]", asks: String = "null", limit: String = "null") =
+        """{"items":[${items.joinToString(",")}],"more":false,"working":$working,"asks":$asks,"limit":$limit}"""
 
     @Test fun aMessageSentToTheGroupGoesToBotdotAndStandsInTheChat() = runTest {
         var sent = false
@@ -258,5 +259,87 @@ class GroupChatTalkTest {
         assertEquals(0, chat.state.value.noticeCount, "nothing is said over the chat, behind the panel")
         chat.panelOpened()
         assertNull(chat.state.value.panelError, "opened again: the old refusal is gone")
+    }
+
+    @Test fun goOnClearsTheLimitLineAndARefusalIsSaidOverTheChat() = runTest {
+        var stopped = true
+        var refuse = false
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "POST" && a.path == "/group-chats/g1/go-on" ->
+                    if (refuse) 409 to """{"error":"The group is not stopped."}""" else { stopped = false; 200 to """{"wentOn":true,"messages":[]}""" }
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList(), limit = if (stopped) """{"text":"Stopped after 20 replies."}""" else "null")
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("the limit line is drawn") { chat.state.value.limit == "Stopped after 20 replies." }
+        chat.goOn()
+        until("the line goes") { chat.state.value.limit == null }
+        refuse = true
+        chat.goOn()
+        until("the refusal is said") { chat.state.value.notice == "The group is not stopped." }
+        assertEquals(1, chat.state.value.noticeCount)
+    }
+
+    @Test fun aTakenBackMessageLeavesTheChatAndItsWordsComeBackInTheBox() = runTest {
+        var gone = false
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "DELETE" && a.path == "/group-chats/g1/messages/m1" -> { gone = true; 200 to """{"text":"Ship it?"}""" }
+                a.path == "/group-chats/g1/chat" -> 200 to page(if (gone) emptyList() else listOf(message("m1", "Ship it?", "2026-11-14T09:00:00Z", ""","canTakeBack":true""")))
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("the message is in the chat") { chat.state.value.rows.map { it.id } == listOf("m1") }
+        chat.takeBack(chat.state.value.rows.single().message!!.message)
+        until("it leaves the chat") { chat.state.value.rows.isEmpty() }
+        assertEquals("Ship it?", chat.takeFailed(), "its words are back in the box")
+    }
+
+    @Test fun takeOutAndAddSendTheMembersTheGroupIsLeftWith() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PUT" && a.path == "/group-chats/g1" -> 200 to """{"id":"g1","name":"Dev","members":["b1","b2"]}"""
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
+                a.path == "/group-chats" -> 200 to """[{"id":"g1","name":"Dev","members":["b1","b2"]}]"""
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake, features = listOf(GROUPS))
+        chat.start()
+        until("the chat is read") { chat.state.value.loaded }
+        chat.takeOut("b2")
+        until("the take-out is sent") { fake.asked().count { it.method == "PUT" } == 1 }
+        assertEquals("""{"members":["b1"]}""", fake.asked().single { it.method == "PUT" }.body)
+        chat.add(listOf("b2", "b3", "b1"))
+        until("the add is sent") { fake.asked().count { it.method == "PUT" } == 2 }
+        assertEquals("""{"members":["b1","b2","b3"]}""", fake.asked().filter { it.method == "PUT" }[1].body, "after its members, none twice")
+        assertNull(chat.state.value.panelError)
+    }
+
+    @Test fun aDeletedGroupLeavesTheStoreAndARefusedOneStays() = runTest {
+        var refuse = true
+        var deleted = false
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "DELETE" && a.path == "/group-chats/g1" -> if (refuse) 500 to """{"error":"Couldn't erase its chat."}""" else { deleted = true; 200 to "{}" }
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
+                a.path == "/group-chats" -> 200 to if (deleted) "[]" else """[{"id":"g1","name":"Dev","members":["b1","b2"]}]"""
+                else -> 404 to "{}"
+            }
+        }
+        val (store, chat) = chat(fake, features = listOf(GROUPS))
+        chat.start()
+        until("the chat is read") { chat.state.value.loaded }
+        assertFalse(chat.delete(), "refused")
+        assertEquals(listOf("g1"), store.groups.value.value?.map { it.id }, "a refused group stays")
+        refuse = false
+        assertTrue(chat.delete())
+        assertEquals(emptyList(), store.groups.value.value?.map { it.id }, "gone at once, before botdot's list is read again")
+        assertNull(chat.state.value.panelError)
     }
 }
