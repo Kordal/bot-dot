@@ -160,8 +160,10 @@ grep -v "^$1:" "${path.join(etc, 'passwd')}" > "${users}.new"; mv "${users}.new"
     else fs.writeFileSync(path.join(bin, name), body, { mode: 0o755 });
   }
   // Detached, so without a terminal: the answers come from `input`, never from the terminal the tests run in.
+  // The timeout only stops a hung installer. One run takes 1-6 s alone, but 25-95 s in a CI shard beside the other
+  // test files: at 60 s whole installer files failed at once there (#1386), so it is 3 minutes.
   const result = spawnSync('/bin/sh', [script, ...args], {
-    encoding: 'utf8', input, detached: true, timeout: 60_000,
+    encoding: 'utf8', input, detached: true, timeout: 180_000,
     env: { PATH: onlyStandIns ? bin : [bin, machineTools()].join(':'), HOME: top, STAND_IN_LOG: log, BOT_DOT_DIR: dir, BOT_DOT_ETC: etc, BOT_DOT_RUN: run, BOT_DOT_LOCAL_BIN: path.join(top, 'local-bin'), BOT_DOT_PROC: path.join(top, 'proc'), BOT_DOT_CGROUP: path.join(top, 'cgroup'), ...given },
   });
   const read = (f) => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '');

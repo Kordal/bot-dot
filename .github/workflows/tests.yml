@@ -24,8 +24,10 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # Which parts this run tests. A pull request tests what it changed: the server when a file outside android/
-  # changed (or any Markdown file, or Android's ui/Theme.kt, which tests/ compares), Android when a file in android/ or this workflow changed.
+  # Which parts this run tests. A pull request tests what it changed: the server when a file outside android/ and
+  # ios/ changed (or any Markdown file, or Android's ui/Theme.kt, which tests/ compares), Android when a file in android/ or this workflow changed.
+  # The phones' strings (the i18n test, which reads android/ and ios/) whenever either phone changed, also when the
+  # server is skipped. ios/ itself is built and tested by ios.yml.
   # A call from another workflow says which by its inputs; missing inputs enable both (toJSON keeps a missing input
   # from comparing loosely as false). A run by hand tests both. A job left out is skipped, which a required check counts as passed.
   changes:
@@ -33,6 +35,7 @@ jobs:
     outputs:
       server: ${{ steps.which.outputs.server }}
       android: ${{ steps.which.outputs.android }}
+      phones: ${{ steps.which.outputs.phones }}
     steps:
       # A pull request's checkout is its merge commit: the first parent is the base, so the diff is the change.
       - if: github.event_name == 'pull_request'
@@ -48,13 +51,17 @@ jobs:
           if [ "$EVENT" = pull_request ]; then
             FILES="$(git diff --name-only HEAD^1 HEAD)"
             printf '%s\n' "$FILES"
-            SERVER=false ANDROID=false
-            if printf '%s\n' "$FILES" | grep -qvE '^android/' || printf '%s\n' "$FILES" | grep -qE '(\.md|/ui/Theme\.kt)$'; then SERVER=true; fi
+            SERVER=false ANDROID=false PHONES=false
+            if printf '%s\n' "$FILES" | grep -qvE '^(android|ios)/' || printf '%s\n' "$FILES" | grep -qE '(\.md|/ui/Theme\.kt)$'; then SERVER=true; fi
             if printf '%s\n' "$FILES" | grep -qE '^(android/|\.github/workflows/tests\.yml$)'; then ANDROID=true; fi
+            if printf '%s\n' "$FILES" | grep -qE '^(android|ios)/'; then PHONES=true; fi
+          else
+            PHONES=true
           fi
           echo "server=$SERVER" >> "$GITHUB_OUTPUT"
           echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
-          echo "Testing: server $SERVER, Android $ANDROID"
+          echo "phones=$PHONES" >> "$GITHUB_OUTPUT"
+          echo "Testing: server $SERVER, Android $ANDROID, the phones' strings $PHONES"
 
   # The server tests, split over two machines by file (node --test --test-shard): on one they took 6 to 7.5 minutes,
   # the longest step of every pull request and of each image build.
@@ -72,6 +79,19 @@ jobs:
         with:
           node-version: 24
       - run: npm test -- --test-shard=${{ matrix.shard }}/2
+
+  # Every string the phones pass to tr() has its Polish (test/i18n.test.js reads android/ and ios/). The server
+  # tests run it too; this job is for a pull request that changes only the phones, where those are skipped.
+  phone-strings:
+    needs: changes
+    if: needs.changes.outputs.phones == 'true' && needs.changes.outputs.server != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: node --test test/i18n.test.js
 
   # The checks of make lint, beside the tests.
   server-lint:
