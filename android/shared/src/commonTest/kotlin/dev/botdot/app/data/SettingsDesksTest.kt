@@ -124,8 +124,8 @@ class SettingsDesksTest {
         desk.load()
         assertEquals("Mail", desk.state.value.bot?.name)
         assertTrue(desk.state.value.advanced)
-        desk.edit(desk.state.value.draft.copy(name = "Po"))
-        desk.edit(desk.state.value.draft.copy(name = "Post"))
+        desk.edit { it.copy(name = "Po") }
+        desk.edit { it.copy(name = "Post") }
         advanceTimeBy(BotSettings.SAVE_MS - 100)
         runCurrent()
         assertTrue(botdot.changes().isEmpty(), "not before the moment has passed")
@@ -146,24 +146,35 @@ class SettingsDesksTest {
         }
         val desk = BotSettingsDesk(botdot.api, "mail", store(), backgroundScope)
         desk.load()
-        desk.edit(desk.state.value.draft.copy(name = "Ops"))
+        desk.edit { it.copy(name = "Ops") }
         advanceTimeBy(BotSettings.SAVE_MS + 1)
         settle { desk.state.value.error != null }
         assertEquals("That name is taken.", desk.state.value.error)
         advanceTimeBy(BotSettings.SAVE_MS * 3)
         settle { false }
         assertEquals(1, botdot.changes().size, "said once")
-        desk.edit(desk.state.value.draft.copy(name = "Ops 2"))
+        desk.edit { it.copy(name = "Ops 2") }
         advanceTimeBy(BotSettings.SAVE_MS + 1)
         settle { botdot.changes().size == 2 }
         assertEquals(2, botdot.changes().size, "changed again: sent")
+    }
+
+    @Test fun twoChangesInOneMomentAreBothSent() = runTest {
+        val botdot = MockBotdot { r -> if (r.method == "GET" && r.path == "/bots") 200 to "[$mail]" else 200 to mail }
+        val desk = BotSettingsDesk(botdot.api, "mail", store(), backgroundScope)
+        desk.load()
+        desk.edit { it.withName("Post") }
+        desk.edit { it.withColor("#378add") }
+        advanceTimeBy(BotSettings.SAVE_MS + 1)
+        settle { botdot.changes().isNotEmpty() }
+        assertEquals("""{"color":"#378add","name":"Post"}""", botdot.changes().single().body)
     }
 
     @Test fun aBlankNameIsNotSaved() = runTest {
         val botdot = MockBotdot { r -> if (r.method == "GET" && r.path == "/bots") 200 to "[$mail]" else 404 to "{}" }
         val desk = BotSettingsDesk(botdot.api, "mail", store(), backgroundScope)
         desk.load()
-        desk.edit(desk.state.value.draft.copy(name = " "))
+        desk.edit { it.copy(name = " ") }
         advanceTimeBy(BotSettings.SAVE_MS * 2)
         settle { false }
         assertTrue(botdot.changes().isEmpty())

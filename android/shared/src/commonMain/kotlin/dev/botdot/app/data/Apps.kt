@@ -54,7 +54,7 @@ class AppsState(
     /** What every bot may do without asking ("Always allow" for all bots on a card, ADR 201). */
     val everyBot: List<AlwaysAllowed> = emptyList(),
     val found: List<CatalogApp> = emptyList(),
-    val advanced: Boolean = true,
+    val advanced: Boolean = false,
     /** What happened last, said for a moment; [noticeId] tells one from the next. */
     val notice: String? = null,
     val noticeId: Int = 0,
@@ -63,6 +63,7 @@ class AppsState(
     val keyLine: String? get() = info?.let(Apps::keyLine)
     val keyChanges: Boolean get() = info?.let { Apps.keyChanges(it, advanced) } == true
     fun line(c: Connection): String = Apps.line(c, bots)
+    fun warns(c: Connection): Boolean = Apps.warns(c)
     fun addsAccount(c: Connection): Boolean = Apps.addsAccount(c, info?.connections.orEmpty())
 
     internal fun copy(

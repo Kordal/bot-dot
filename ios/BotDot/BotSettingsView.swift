@@ -26,13 +26,16 @@ final class BotSettingsModel {
     func stop() {
         watching?.cancel(cause: nil)
         watching = nil
-        store.close()
     }
 
-    /// One change to the settings: kept, and saved by itself a moment after the last one.
-    func edit(_ change: (BotDraft) -> BotDraft) {
-        guard let draft = state?.draft else { return }
-        store.edit(draft: change(draft))
+    /// One change to the settings, made to them as the shared layer holds them now: kept, and saved by itself a
+    /// moment after the last one.
+    func edit(_ change: @escaping (BotDraft) -> BotDraft) {
+        store.edit(change: change)
+    }
+
+    deinit {
+        store.close() // the screen is gone for good
     }
 
     /// Delete, once the owner said yes: nil when it went, else botdot's sentence.
@@ -95,7 +98,6 @@ struct BotSettingsView: View {
                 model = made
             }
         }
-        .onDisappear { model?.stop(); model = nil }
         .onChange(of: model?.state?.bot?.id) { _, _ in seed() }
         .onChange(of: model?.state?.deleted) { _, gone in if gone == true { dismiss() } }
         .task(id: model?.state?.savedAt) {
@@ -125,7 +127,12 @@ struct BotSettingsView: View {
                 .accessibilityLabel(tr("Icon"))
                 .accessibilityIdentifier("icon")
                 TextField(tr("Name"), text: $name)
-                    .onChange(of: name) { _, v in model.edit { $0.withName(name: v) } }
+                    .onChange(of: name) { _, v in
+                        // The longest name a bot has: the field keeps no more than is saved.
+                        let most = Int(BotSettings.shared.NAME_LONGEST)
+                        if v.count > most { name = String(v.prefix(most)); return }
+                        model.edit { $0.withName(name: v) }
+                    }
             }
             BotColorPicker(selected: draft.color) { hex in model.edit { $0.withColor(color: hex) } }
             if picking, let figure, !figure.iconChoices.isEmpty {
@@ -136,7 +143,11 @@ struct BotSettingsView: View {
             TextField(tr("What it does"), text: $about, axis: .vertical)
                 .onChange(of: about) { _, v in model.edit { $0.withDescription(description: v) } }
             TextField(tr("Category"), text: $category)
-                .onChange(of: category) { _, v in model.edit { $0.withGroup(group: v) } }
+                .onChange(of: category) { _, v in
+                    let most = Int(BotSettings.shared.GROUP_LONGEST)
+                    if v.count > most { category = String(v.prefix(most)); return }
+                    model.edit { $0.withGroup(group: v) }
+                }
         }
         Section(tr("Its main assignment")) {
             TextField("", text: $task, axis: .vertical).lineLimit(4...)

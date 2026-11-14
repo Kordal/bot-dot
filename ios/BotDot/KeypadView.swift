@@ -13,13 +13,12 @@ struct KeypadView: View {
         ScrollView {
             if let state = home.state {
                 let pages = state.keypad
-                let digits = Keypad.shared.digits(pages: pages, shown: Keypad.shared.shownKeys(pages: pages, folded: []))
                 LazyVStack(alignment: .leading, spacing: 16) {
                     ForEach(Array(pages.enumerated()), id: \.offset) { _, page in
                         Text(page.name).font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
                             ForEach(page.keys, id: \.id) { key in
-                                KeyView(key: key, status: state.status(key: key), digit: Int(Keypad.shared.digitOf(digits: digits, key: key)), figure: home.figure) {
+                                KeyView(key: key, status: state.status(key: key), digit: Int(state.digitOf(key: key)), figure: home.figure) {
                                     if case .ofBot(let k) = onEnum(of: key) { open(k.bot.id) }
                                 }
                             }

@@ -26,7 +26,10 @@ final class AppsModel {
     func stop() {
         watching?.cancel(cause: nil)
         watching = nil
-        store.close()
+    }
+
+    deinit {
+        store.close() // the screen is gone for good; a screen pushed over it keeps it
     }
 
     func load() async { try? await store.load() }
@@ -96,7 +99,6 @@ struct AppsView: View {
                 model = made
             }
         }
-        .onDisappear { model?.stop(); model = nil }
         // Back from signing in to an app in Safari: the new connection shows.
         .onChange(of: phase) { _, now in if now == .active { Task { await model?.load() } } }
         .task(id: model?.state?.noticeId) {
@@ -142,7 +144,7 @@ struct AppsView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(c.app?.name ?? c.toolkit)
                             if let label = c.label { Text(label).font(.subheadline) }
-                            Text(state.line(c: c)).font(.caption).foregroundStyle(Apps.shared.warns(c: c) ? .orange : .secondary)
+                            Text(state.line(c: c)).font(.caption).foregroundStyle(state.warns(c: c) ? .orange : .secondary)
                         }
                         Spacer()
                         if state.addsAccount(c: c) {

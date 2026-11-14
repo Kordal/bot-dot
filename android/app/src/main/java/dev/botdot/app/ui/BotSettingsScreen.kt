@@ -157,8 +157,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     }
 
     // What differs from the bot as botdot has it: what a save sends.
-    fun changes(b: Bot) = BotSettings.changes(b, BotDraft(color, icon, name, description, group, pinned, task, model, effort, computer, computerOn, moveFiles, proxy,
-        useSkills, skills, disabled, connectors, accounts, mayMessage, othersMayAsk, rooms, hotkey), server?.features, others)
+    fun changes(b: Bot) = BotSettings.changes(b, BotDraft(color = color, icon = icon, name = name, description = description, group = group, pinned = pinned,
+        task = task, model = model, effort = effort, computer = computer, computerOn = computerOn, moveFiles = moveFiles, proxy = proxy, useSkills = useSkills,
+        skills = skills, disabled = disabled, connectors = connectors, accounts = accounts, mayMessage = mayMessage, othersMayAsk = othersMayAsk, rooms = rooms,
+        hotkey = hotkey), server?.features, others)
     // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top; its next run uses it.
     // Changed again while it saved: what is typed stays, and the next save sends it. Else botdot's answer is shown as
     // it keeps it (a name it trimmed), so a field it changed is not sent again and again.

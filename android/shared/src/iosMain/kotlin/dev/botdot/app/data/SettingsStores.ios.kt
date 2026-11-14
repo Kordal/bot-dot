@@ -20,7 +20,7 @@ class BotSettingsStore(home: HomeStore, botId: String) {
     suspend fun load() = desk.load()
 
     /** What the owner changed: saved by itself a moment after the last change. */
-    fun edit(draft: BotDraft) = desk.edit(draft)
+    fun edit(change: (BotDraft) -> BotDraft) = desk.edit(change)
 
     /** Delete, once the owner said yes. A refusal throws its sentence. */
     @Throws(Exception::class)

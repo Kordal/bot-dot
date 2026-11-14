@@ -26,7 +26,10 @@ final class SettingsModel {
     func stop() {
         watching?.cancel(cause: nil)
         watching = nil
-        store.close()
+    }
+
+    deinit {
+        store.close() // the screen is gone for good; a screen pushed over it keeps it
     }
 
     func setModel(_ id: String) async { try? await store.setModel(id: id) }
@@ -67,7 +70,6 @@ struct SettingsView: View {
                 model = made
             }
         }
-        .onDisappear { model?.stop(); model = nil }
         .task(id: model?.state?.savedAt) {
             guard (model?.state?.savedAt ?? 0) > 0 else { return }
             saved = true

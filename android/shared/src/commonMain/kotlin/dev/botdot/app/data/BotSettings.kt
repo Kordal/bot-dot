@@ -217,9 +217,13 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
         }
     }
 
-    /** What the owner changed: kept, and saved by itself a moment after the last change. Nothing before the bot is read. */
-    fun edit(draft: BotDraft) {
+    /**
+     * What the owner changed, applied to the settings as they are now (two changes in one moment both stay): kept, and
+     * saved by itself a moment after the last change. Nothing before the bot is read.
+     */
+    fun edit(change: (BotDraft) -> BotDraft) {
         if (_state.value.bot == null) return
+        val draft = change(_state.value.draft)
         val d = draft.copy(name = draft.name.take(BotSettings.NAME_LONGEST), group = draft.group.take(BotSettings.GROUP_LONGEST))
         _state.value = _state.value.copy(draft = d, error = null)
         later()
