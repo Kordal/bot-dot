@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -175,7 +176,7 @@ private fun TodoChip(t: Todo, bot: Bot?) {
     val (text, color) = when {
         repeat != null -> ProjectTodo.rhythmLabel(repeat, ::weekdayName) to p.muted
         !t.done && bot?.running == true -> tr("Working") to p.okText
-        t.due != null -> dueLabel(t.due) to if (!t.done && ProjectTodo.dueKind(t.due) == ProjectTodo.Due.LATE) p.warnText else p.muted
+        t.due != null -> dueLabel(t.due!!) to if (!t.done && ProjectTodo.dueKind(t.due) == ProjectTodo.Due.LATE) p.warnText else p.muted
         else -> return
     }
     Text(text, color = color, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -343,7 +344,7 @@ private fun DecisionRow(ui: CompanyUi, d: Decision) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             Text(text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20)
-            if (!d.why.isNullOrBlank()) Text(d.why, color = p.muted, fontSize = Type.s12, lineHeight = Type.line16)
+            if (!d.why.isNullOrBlank()) Text(d.why!!, color = p.muted, fontSize = Type.s12, lineHeight = Type.line16)
         }
         if (day != null) Text(dueLabel(day), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, modifier = Modifier.padding(start = Space.s8, top = Space.s4))
         RoundButton(Icons.Filled.Close, tr("Remove"), size = 32.dp, modifier = Modifier.padding(start = Space.s8)) { ui.call({ it.deleteDecision(d.id) }) }

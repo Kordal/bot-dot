@@ -1,0 +1,1149 @@
+package dev.botdot.app.data
+
+import io.ktor.client.HttpClient
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.timeout
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.header
+import io.ktor.client.request.prepareRequest
+import io.ktor.client.request.setBody
+import io.ktor.client.request.url
+import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
+import io.ktor.client.statement.bodyAsChannel
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
+import io.ktor.http.Url
+import io.ktor.http.content.OutgoingContent
+import io.ktor.http.content.TextContent
+import io.ktor.http.contentLength
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
+import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.ByteWriteChannel
+import io.ktor.utils.io.readAvailable
+import io.ktor.utils.io.readUTF8Line
+import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
+import kotlinx.io.IOException
+import kotlinx.io.RawSource
+import kotlinx.io.buffered
+import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.encodeToJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.add
+
+/**
+ * An error botdot explained in words ({ "error": "…" }), or a connection problem. [status]: the answer's, 0 without
+ * one. [said]: the message is botdot's own sentence. [sent]: without an answer, whether the request had gone out
+ * when the connection failed, so botdot may have taken it.
+ */
+class ApiException(message: String, val status: Int = 0, val said: Boolean = false, val sent: Boolean = false) : IOException(message)
+
+/** Set once a request is written to a connection: before that, botdot never saw it. */
+internal class Went { @kotlin.concurrent.Volatile var out = false }
+
+/** Marks [went] once this request has a connection (Android: OkHttp's network interceptor); returns its undoing. */
+internal expect fun HttpRequestBuilder.track(went: Went): () -> Unit
+
+/** Whether a request that failed with [e] had gone out, so botdot may have taken it. */
+internal expect fun sentOf(e: Throwable, went: Went): Boolean
+
+/** The phone's HTTP: OkHttp on Android (one connection pool with the pictures', Api.CLIENT), URLSession on iOS. */
+internal expect fun httpEngine(): io.ktor.client.engine.HttpClientEngine
+
+/**
+ * What the app calls itself on every request, or null for the phone's HTTP's own name. botdot tells the Android app
+ * by it (lib/activity.js: OkHttp's own `okhttp/…`), so Ktor's `ktor-client` must not take its place.
+ */
+internal expect val userAgent: String?
+
+/** An address as OkHttp's HttpUrl reads it ("https://host:8443/a"), and the same with only its root ("https://host:8443"). */
+internal class HttpAddress(val text: String, val root: String)
+
+internal expect fun parseHttpAddress(s: String): HttpAddress?
+
+/** A file the phone hands to botdot: its name, its size when known, and how to read it (null: it can't be opened). */
+class OutgoingFile(val name: String, val size: Long?, val open: () -> RawSource?)
+
+/** A request as the calls below write it; Ktor's is made from it when it is sent. */
+private class Req(val url: String) {
+    var method: HttpMethod = HttpMethod.Get; private set
+    val headers = mutableListOf<Pair<String, String>>()
+    var body: OutgoingContent? = null; private set
+    fun header(name: String, value: String) = apply { headers.removeAll { it.first.equals(name, ignoreCase = true) }; headers += name to value }
+    fun get() = apply { method = HttpMethod.Get; body = null }
+    fun post(b: OutgoingContent) = method("POST", b)
+    fun method(m: String, b: OutgoingContent?) = apply { method = HttpMethod.parse(m); body = b }
+    fun build() = this
+}
+
+/**
+ * botdot's API (docs/api.md). baseUrl is e.g. https://my-vm.my-tailnet.ts.net. [session]: the front door's session
+ * (ADR 028), which every request carries; none for a check of an address before it is used.
+ */
+class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUIET_MS) {
+    init { require(ReleaseManifest.secureURL(baseUrl)) { tr("Use HTTPS for a remote botdot server.") } }
+    val json = JSON
+
+    // How long a read may wait, by kind of request; null is the standard 60 s (Api.CLIENT on Android).
+    // Downloads and exports take as long as they take: no read timeout.
+    private val streamWait: Long = INFINITE
+    // Live streams (the feed, a run's, the Chief's, the rooms'): botdot says something every 15–25 s, so one quiet for
+    // [quietMs] is a dead socket that only looks open (the phone changed networks, woke from Doze), and fails (#1078).
+    private val liveWait: Long = quietMs
+    // "Delete account" (#1307): the front door waits up to 90 s for boat.dev before it deletes, so the answer may come later.
+    private val deleteWait: Long = DELETE_WAIT_S * 1000
+
+    /** The full address of an API path ("/files/…"), e.g. for a picture. */
+    fun url(path: String) = baseUrl.trimEnd('/') + "/api" + path
+    /** A JSON body, typed as OkHttp typed it: `application/json; charset=utf-8`. */
+    private fun jsonBody(text: String): OutgoingContent = TextContent(text, JSON_TYPE)
+
+    private fun request(path: String) = Req(url(path)).header("Accept", "application/json")
+
+    /**
+     * Sends [req] and hands its answer to [read]. The session ([Session]) is on every request: its cookie goes out, and
+     * what the answer says of it is read before [read] sees the answer. A 401's or 503's body is read first, for the
+     * session, and handed to [read] as [cached]. [wait]: how long a read may wait, null for the standard.
+     */
+    private suspend fun <T> exchange(req: Req, wait: Long?, went: Went, read: suspend (res: HttpResponse, cached: String?) -> T): T {
+        val u = Url(req.url)
+        val server = Session.originOf(u.protocol.name, u.host, u.port)
+        val token = session?.token(server)
+        var untrack: () -> Unit = {}
+        try {
+            return HTTP.prepareRequest {
+                url(req.url)
+                method = req.method
+                for ((k, v) in req.headers) header(k, v)
+                if (token != null) header(HttpHeaders.Cookie, "${Session.COOKIE}=$token")
+                userAgent?.let { header(HttpHeaders.UserAgent, it) }
+                req.body?.let { setBody(it) }
+                if (wait != null) timeout { socketTimeoutMillis = wait }
+                untrack = track(went)
+            }.execute { res ->
+                val code = res.status.value
+                val cached = if (session != null && (code == 401 || code == 503)) res.bodyAsBytes() else null
+                session?.answered(server, u.encodedPath.startsWith("/api/"), token, code, res.headers.getAll(HttpHeaders.SetCookie).orEmpty()) {
+                    cached?.let { it.copyOf(minOf(it.size, Session.PEEK)).decodeToString() }.orEmpty()
+                }
+                read(res, cached?.decodeToString())
+            }
+        } finally {
+            untrack()
+        }
+    }
+
+    private suspend fun call(req: Req, wait: Long? = null): String = withContext(Dispatchers.IO) {
+        val went = Went()
+        try {
+            exchange(req, wait, went) { res, cached ->
+                try {
+                    readOrThrow(res, cached)
+                } catch (e: ApiException) {
+                    throw e
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: IOException) {
+                    // The answer began and broke off: its status still says whether botdot took the request.
+                    throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to why(e)), res.status.value, sent = true)
+                }
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to why(e)), sent = sentOf(e, went))
+        }
+    }
+
+    private fun why(e: Throwable) = e.message ?: e::class.simpleName ?: "?"
+
+    private suspend fun readOrThrow(res: HttpResponse, cached: String? = null): String {
+        val body = cached ?: res.bodyAsText()
+        if (!res.status.isSuccess()) {
+            val code = res.status.value
+            val msg = runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonPrimitive?.takeIf { it.isString }?.content }.getOrNull()?.trim()?.ifEmpty { null }
+            throw ApiException(msg ?: statusWords(code), code, said = msg != null)
+        }
+        return body
+    }
+
+    private suspend fun get(path: String) = call(request(path).get().build())
+    private suspend fun send(method: String, path: String, body: JsonObject = JsonObject(emptyMap())) =
+        call(request(path).header("X-Bot-Dot", "1").method(method, body.toString().let(::jsonBody)).build())
+
+    // ---------- the front door: signing in ----------
+
+    /** One of the front door's own routes (not under /api), written to as its page writes to it. */
+    private suspend fun door(path: String, body: JsonObject = JsonObject(emptyMap())) =
+        call(Req(baseUrl.trimEnd('/') + path).header("Accept", "application/json").header("X-Bot-Dot", "1")
+            .post(body.toString().let(::jsonBody)).build())
+
+    /**
+     * Ends a sign-in in the browser ([BrowserSignIn]): the code the front door's page handed back and the secret whose
+     * SHA-256 that page carried. The session arrives as its cookie and is kept ([Session]). Returns the account's name;
+     * a code the front door did not take (spent, too old, or for another secret) throws its sentence.
+     */
+    suspend fun finishSignIn(code: String, verifier: String): String {
+        val answer = door("/sign-in/handoff", buildJsonObject { put("code", code); put("verifier", verifier) })
+        return json.parseToJsonElement(answer).jsonObject.str("account")
+    }
+
+    /** Signs this phone out (#466: a paused account's "Use another account"): the front door clears the session's cookie. */
+    suspend fun signOut() { door("/sign-out") }
+
+    /** "Sign out everywhere": the front door ends every session of the account, in every app, this one too. */
+    suspend fun signOutEverywhere() { door("/sign-out-everywhere") }
+
+    /**
+     * "Delete account" (#1307): the front door deletes this session's own account, after its [name] typed, and clears
+     * the session's cookie, so the phone signs in again. A refusal throws the front door's sentence.
+     */
+    suspend fun deleteAccount(name: String): AccountDeletion.Done {
+        val req = Req(baseUrl.trimEnd('/') + "/front-door/delete-account").header("Accept", "application/json").header("X-Bot-Dot", "1")
+            .post(AccountDeletion.body(name).toString().let(::jsonBody)).build()
+        val answer = try { call(req, deleteWait) } catch (e: ApiException) {
+            // Sent, and no answer came: the front door may still have deleted it.
+            if (e.sent && e.status == 0) throw ApiException(tr("Couldn't tell whether your account was deleted. Open botdot again: if it asks you to sign in, it was."), sent = true)
+            throw e
+        }
+        return AccountDeletion.done(runCatching { json.parseToJsonElement(answer).jsonObject }.getOrNull())
+    }
+
+    /**
+     * What the front door says of this session (`/front-door/session`): here, whether Feedback goes to an admin page
+     * ([Feedback.on]). An older front door leaves the field out, and the app shows no Feedback.
+     */
+    suspend fun frontDoorSession(): JsonObject = json.parseToJsonElement(
+        call(Req(baseUrl.trimEnd('/') + "/front-door/session").header("Accept", "application/json").get().build())).jsonObject
+
+    /**
+     * Feedback (#216): a bug or a feature request for the admin of this machine, with screenshots (#223) when the front
+     * door takes them. A refusal throws the front door's sentence.
+     */
+    suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()) { door("/front-door/feedback", Feedback.body(kind, text, shots)) }
+
+    /** When this account switches to a new version (#259, ADR 053): asked only where [OwnUpdate.on] says so. */
+    suspend fun ownUpdate(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(
+        call(Req(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)
+    /** The owner's "Update automatically". A refusal throws the front door's sentence. */
+    suspend fun setAutoUpdate(on: Boolean): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update", OwnUpdate.body(on))).jsonObject)
+    /** What's new in the version this account waits for (#303), newest first. Asked only while [OwnUpdate.ready]. */
+    suspend fun updateNotes(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(
+        call(Req(baseUrl.trimEnd('/') + "/front-door/update/notes").header("Accept", "application/json").get().build())))
+    /** "Update now": the machine switches this account alone to the version the admin installed. */
+    suspend fun updateNow(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(door("/front-door/update/now")).jsonObject)
+
+    // ---------- shared rooms (ADR 060, #318): the front door's own routes ----------
+
+    private suspend fun doorGet(path: String) =
+        call(Req(baseUrl.trimEnd('/') + path).header("Accept", "application/json").get().build())
+    private fun roomOf(answer: String): Room = json.decodeFromString<RoomAnswer>(answer).room ?: throw ApiException(tr("The front door sent no room."))
+    private fun roomPath(id: String) = "/front-door/rooms/${enc(id)}"
+
+    /** The rooms this account is in, and the invitations waiting for it. Asked only where [Rooms.on] says so. */
+    suspend fun rooms(): RoomsAnswer = json.decodeFromString(doorGet("/front-door/rooms"))
+    suspend fun room(id: String): Room = roomOf(doorGet(roomPath(id)))
+    /** A new room, made by this account. A refusal throws the front door's sentence. */
+    suspend fun makeRoom(name: String): Room = roomOf(door("/front-door/rooms", buildJsonObject { put("name", name) }))
+    suspend fun renameRoom(id: String, name: String): Room = roomOf(door("${roomPath(id)}/name", buildJsonObject { put("name", name) }))
+    suspend fun acceptRoom(id: String): Room = roomOf(door("${roomPath(id)}/accept"))
+    /** The room's invite link (ADR 068), for its maker only (others: 403); null for none. */
+    suspend fun roomLink(id: String): RoomLink? = json.decodeFromString<RoomLinkAnswer>(doorGet("${roomPath(id)}/link")).link
+    /** A new invite link for the room; the one before stops working. */
+    suspend fun makeRoomLink(id: String): RoomLink = json.decodeFromString<RoomLinkAnswer>(door("${roomPath(id)}/link")).link ?: throw ApiException(tr("The front door sent no link."))
+    /** Takes the room's invite link back: it no longer works. */
+    suspend fun dropRoomLink(id: String) { door("${roomPath(id)}/link/remove") }
+    /** What an invite link's [token] opens: the room's name and maker, and whether this account is in it already. */
+    suspend fun roomByLink(token: String): RoomLinkPreview = json.decodeFromString(doorGet("/front-door/rooms/join/${enc(token)}"))
+    /** Joins the room an invite link's [token] opens. */
+    suspend fun joinRoomByLink(token: String): Room = roomOf(door("/front-door/rooms/join/${enc(token)}"))
+    suspend fun declineRoom(id: String) { door("${roomPath(id)}/decline") }
+    /** Leaves the room; this account's bots leave with it. */
+    suspend fun leaveRoom(id: String) { door("${roomPath(id)}/leave") }
+    /** Deletes the room: only its maker may. */
+    suspend fun deleteRoom(id: String) { door("${roomPath(id)}/delete") }
+    /** Puts one of this account's own bots in the room (its id here). */
+    suspend fun addRoomBot(id: String, bot: String): Room = roomOf(door("${roomPath(id)}/bots", buildJsonObject { put("bot", bot) }))
+    suspend fun removeRoomBot(id: String, bot: String): Room = roomOf(door("${roomPath(id)}/bots/remove", buildJsonObject { put("bot", bot) }))
+    /** The newest [limit] messages, or the page before [before]; oldest first. */
+    suspend fun roomMessages(id: String, limit: Int = 50, before: String? = null): RoomPage =
+        json.decodeFromString(doorGet("${roomPath(id)}/messages?limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
+    /** Writes in the room. [key]: as [runBot]'s, a resend with the same key is the same message. */
+    suspend fun sendToRoom(id: String, text: String, key: String? = null): RoomMessage =
+        json.decodeFromString<RoomMessageAnswer>(door("${roomPath(id)}/messages", Rooms.messageBody(text, key))).message ?: throw ApiException(tr("The front door sent no message."))
+    /** Drops the turns of this room that wait. */
+    suspend fun stopRoom(id: String) { door("${roomPath(id)}/stop") }
+    /** The rooms' live events (`room`, `room_gone`, `invite`, `invite_gone`, `room_message`), as feed events. */
+    fun roomEvents(): Flow<FeedEvent> = sse(Req(baseUrl.trimEnd('/') + "/front-door/rooms/events")) { meta, data ->
+        val o = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: JsonObject(emptyMap())
+        meta.type?.let { FeedEvent(meta.id, it, o) }
+    }
+
+    // ---------- version, bots, runs ----------
+
+    /** What's new (#219): the notes this account has not seen, newest first, every one (#380). Asked only when `features` has `whats-new`. */
+    /** The account's language (#645): "en" or "pl", from `language` of GET /api/settings; "en" when it has none. */
+    suspend fun language(): String = ((json.parseToJsonElement(get("/settings")) as? JsonObject)?.get("settings") as? JsonObject)
+        ?.get("language")?.let { (it as? JsonPrimitive)?.content } ?: "en"
+    suspend fun setLanguage(language: String) { send("PUT", "/settings", buildJsonObject { put("language", language) }) }
+    /** The dictionary of [language] (GET /api/i18n/:language): English text to its translation. */
+    suspend fun dictionary(language: String): JsonObject = (json.parseToJsonElement(get("/i18n/${enc(language)}")) as JsonObject)["strings"] as? JsonObject ?: JsonObject(emptyMap())
+    suspend fun whatsNew(): List<WhatsNew.Entry> = WhatsNew.shown(json.decodeFromString<WhatsNew.Answer>(get("/whats-new")))
+    /** The What's new dialog was closed: these notes count as seen, here and on the web page. */
+    suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) { send("POST", "/whats-new/seen", WhatsNew.seenBody(entries)) }
+
+    /** Token usage for a range of the account's days (#301); without days, today. */
+    /** Storage (docs/api.md, Storage): the last check; a new one; the caches cleared. */
+    suspend fun storage(): Storage.Answer = json.decodeFromString(get("/storage"))
+    suspend fun checkStorage(): Storage.Answer = json.decodeFromString(send("POST", "/storage/check"))
+    suspend fun clearCaches(): Storage.Answer = json.decodeFromString(send("POST", "/storage/clear-caches"))
+    /** Deletes what a deleted bot left (Storage's own route: the Files routes take only a bot that is there). */
+    suspend fun deleteGone(w: Storage.Where) { send("DELETE", Storage.goneQuery(w) { enc(it) }) }
+    suspend fun usage(from: String? = null, to: String? = null): Usage.Answer = json.decodeFromString(get("/usage${Usage.query(from, to)}"))
+
+    suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
+    suspend fun bots(): List<Bot> = json.decodeFromString(get("/bots"))
+    suspend fun bot(id: String): Bot = json.decodeFromString(get("/bots/${enc(id)}"))
+    /** Says which chat this app shows now, in front ("bot:<id>", "chief:<chatId>"), or null for none: botdot takes it as read. */
+    suspend fun read(app: String, chat: String?): ReadAnswer = json.decodeFromString(send("POST", "/read", buildJsonObject { put("app", app); put("chat", chat) }))
+    /** The figure definition every bot is drawn from, as the server sent it (FigureDef.parse reads it). */
+    suspend fun figure(): String = get("/figure")
+    /** Its newest runs; before: the page older than that run (an older botdot ignores it and sends the newest). */
+    suspend fun runs(botId: String, limit: Int = 40, before: String? = null): List<Run> =
+        json.decodeFromString(get("/runs?botId=${enc(botId)}&limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
+    /** Notes other bots left for this bot, waiting for its next run. */
+    suspend fun inbox(botId: String): List<InboxNote> = json.decodeFromString(get("/bots/${enc(botId)}/inbox"))
+    /** "Run now" under the notes that wait (#225, feature `notes-wake`): the bot starts with them now, or once it is free. */
+    suspend fun runNotes(botId: String): NotesRun = json.decodeFromString(send("POST", "/bots/${enc(botId)}/inbox/run"))
+    /**
+     * What waits for the owner's yes, a switch of a saved login a bot asks for (`vault-switch=1`), a Vault entry a bot
+     * asks to remove (`vault-remove=1`), secrets a bot asks to keep in a file (`vault-file=1`) and what the Chief asked to do after it read the web (`chief-action=1`)
+     * and an irreversible step on a bot's computer (`computer-step=1`, ADR 107) and a missing connected app
+     * (`connect-app=1`, ADR 168) too: this app draws those cards.
+     */
+    suspend fun asks(): List<Ask> = Ask.list(get("/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1"))
+    /** A missing app's sign-in page, through its card (docs/api.md "A missing connected app"); only with `connect-cards` in the features. */
+    suspend fun connectAsk(id: String): AskConnect = json.decodeFromString(send("POST", "/asks/${enc(id)}/connect"))
+    /** How the connection its Connect made stands, as the owner comes back from the sign-in page. */
+    suspend fun askConnectStatus(id: String): AskConnect = json.decodeFromString(get("/asks/${enc(id)}/connect"))
+    /** The secret a bot asks to save in the Vault (`vault-save`, ADR 153), read on the owner's Show only. */
+    suspend fun askSecret(id: String): String =
+        json.parseToJsonElement(get("/asks/${enc(id)}/secret")).jsonObject["value"]?.jsonPrimitive?.contentOrNull.orEmpty()
+    /** The owner's answer to an ask. What the server says of it ([Answered]): what a yes started (`carriesOn`, docs/api.md "What follows a yes"), and its own words for the answered card. */
+    suspend fun answerAsk(id: String, yes: Boolean, always: Boolean = false, all: Boolean = false): Answered =
+        Answered.of(send("POST", "/asks/${enc(id)}", buildJsonObject { put("yes", yes); if (always && all) put("always", "all") else put("always", always) }))
+    /** What every bot may do without asking ("Always allow" for all bots, ADR 201), for the Connectors screen; only with `every-bot-always`. */
+    suspend fun everyBotGrants(): List<AlwaysAllowed> = json.decodeFromString<GrantList>(get("/connector-actions")).grants
+    /** Revoke one of them: the next such action asks again. */
+    suspend fun revokeEveryBotGrant(action: String): List<AlwaysAllowed> =
+        json.decodeFromString<GrantList>(send("DELETE", "/connector-actions", buildJsonObject { put("action", action) })).grants
+    /** "Allow all" or "Decline all" on the card of everything one run waits on (`ask-batches`): each ask answered as its own card would. */
+    suspend fun answerAskBatch(id: String, yes: Boolean, ids: List<String>): BatchAnswered =
+        BatchAnswered.of(send("POST", "/asks/batch/${enc(id)}", buildJsonObject { put("yes", yes); putJsonArray("ids") { ids.forEach { add(it) } } }))
+    /** Every bot's latest runs, newest first. */
+    suspend fun search(q: String): List<ChatHit> = json.decodeFromString(get("/search?q=${enc(q)}"))
+    suspend fun recentRuns(limit: Int = 200): List<Run> = json.decodeFromString(get("/runs?limit=$limit"))
+
+    /**
+     * [key]: the message's key (docs/api.md, "A message sent twice"): botdot takes a key once, so the message can be
+     * sent again after a send that got no answer. An older botdot ignores it. The answer to a key botdot had already
+     * is the run the first send started.
+     * The answer is a run, or, from a busy bot with `message-waits`, the message that waits its turn: the same
+     * fields with `status: "queued"` ([Run.isQueued]). Both are a message that went.
+     */
+    suspend fun runBot(botId: String, prompt: String, attachments: List<Attachment>, key: String? = null, replyTo: String? = null): Run = json.decodeFromString(
+        send("POST", "/bots/${enc(botId)}/run", buildJsonObject {
+            if (prompt.isNotBlank()) put("prompt", prompt)
+            put("attachments", json.encodeToJsonElement(attachments))
+            if (key != null) put("key", key)
+            if (replyTo != null) put("replyTo", replyTo) // a run the owner picked Reply on (#627)
+        }),
+    )
+
+    suspend fun run(runId: String): Run = json.decodeFromString(get("/runs/${enc(runId)}"))
+
+    suspend fun stopRun(runId: String) { send("POST", "/runs/${enc(runId)}/stop") }
+
+    /** "Take back" on a message that waits for a bot: it is gone from the server, and its text and files come back. 409 once it has started. */
+    suspend fun takeBack(botId: String, queuedId: String): TakenBack = TakenBack.of(send("DELETE", "/bots/${enc(botId)}/queued/${enc(queuedId)}"))
+
+    /**
+     * "Steer" on a message that waits for a bot (`steer`, ADR 040): the run that is going reads it at its next tool
+     * call. Answers the bot's waiting messages as they are now, that one with `steering`. 409 with the server's
+     * sentence when it started, or the run can't take it.
+     */
+    suspend fun steer(botId: String, queuedId: String): List<Queued> {
+        val answer = send("POST", "/bots/${enc(botId)}/queued/${enc(queuedId)}/steer")
+        return Queued.list(runCatching { JSON.parseToJsonElement(answer) as? JsonObject }.getOrNull()?.get("queued"))
+    }
+
+    /** A run as it happens: steps, text, and its end. Replays what already happened first. */
+    fun runStream(runId: String): Flow<RunEvent> = sse("/runs/${enc(runId)}/stream?simple") { _, data ->
+        val o = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return@sse null
+        RunEvent.of(o)
+    }
+
+    // ---------- groups ----------
+
+    /** Every group, with what its chat holds now. Only of a server that has groups ([hasGroups]). */
+    suspend fun groups(): List<Group> = Group.list(get("/group-chats"))
+    /** One group: asked when its chat comes on screen, for where its new replies begin. */
+    suspend fun group(id: String): Group = json.decodeFromString(get("/group-chats/${enc(id)}"))
+    /** A new group of these bots, in their order. A refusal is the server's sentence for the owner. */
+    suspend fun makeGroup(name: String, members: List<String>): Group = json.decodeFromString(
+        send("POST", "/group-chats", buildJsonObject { put("name", name); put("members", strings(members)) }))
+    /** A change to a group: any of `name`, `members` (the whole list as it is to be), `category`, `order`, `pinned`. */
+    suspend fun updateGroup(id: String, changes: JsonObject): Group = json.decodeFromString(send("PUT", "/group-chats/${enc(id)}", changes))
+    fun membersOf(ids: List<String>): JsonObject = buildJsonObject { put("members", strings(ids)) }
+    /** Deletes the group and its chat. No bot and no run is deleted. */
+    suspend fun deleteGroup(id: String) { send("DELETE", "/group-chats/${enc(id)}") }
+    /** A group's notes (ADR 139), and the notes as they stand after a change to them. */
+    suspend fun groupNotes(id: String): List<GroupNote> = GroupNotes.of(json.parseToJsonElement(get("/group-chats/${enc(id)}/notes")))
+    suspend fun addGroupNote(id: String, kind: String, text: String): List<GroupNote> =
+        GroupNotes.of(json.parseToJsonElement(send("POST", "/group-chats/${enc(id)}/notes", buildJsonObject { put("kind", kind); put("text", text) })))
+    suspend fun changeGroupNote(id: String, noteId: String, kind: String? = null, text: String? = null): List<GroupNote> =
+        GroupNotes.of(json.parseToJsonElement(send("PUT", "/group-chats/${enc(id)}/notes/${enc(noteId)}", buildJsonObject { kind?.let { put("kind", it) }; text?.let { put("text", it) } })))
+    suspend fun removeGroupNote(id: String, noteId: String): List<GroupNote> =
+        GroupNotes.of(json.parseToJsonElement(send("DELETE", "/group-chats/${enc(id)}/notes/${enc(noteId)}")))
+    /** The newest [limit] items of a group's chat, or the page [before] the item with that id. */
+    suspend fun groupChat(id: String, limit: Int, before: String? = null): GroupChatPage =
+        GroupChatPage.of(get("/group-chats/${enc(id)}/chat?limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
+    /** The owner writes in a group: one message, and the server gives the turns. [key]: as [runBot]'s. */
+    suspend fun sendToGroup(id: String, text: String, attachments: List<Attachment>, key: String? = null): GroupSent = GroupSent.of(
+        send("POST", "/group-chats/${enc(id)}/messages", buildJsonObject {
+            put("text", text)
+            put("attachments", json.encodeToJsonElement(attachments))
+            if (key != null) put("key", key)
+        }))
+    /** "Take back" on a message none of whose turns has started, as [takeBack]. 409 once one has. */
+    suspend fun takeBackFromGroup(id: String, messageId: String): TakenBack = TakenBack.of(send("DELETE", "/group-chats/${enc(id)}/messages/${enc(messageId)}"))
+    /** "Stop all": every run of the group at work ends, and the turns behind them never start. */
+    suspend fun stopGroup(id: String) { send("POST", "/group-chats/${enc(id)}/stop") }
+    /** "Go on": every line of the group that stopped at the limit goes on. 409 when none is stopped. */
+    suspend fun goOn(id: String): GroupSent = GroupSent.of(send("POST", "/group-chats/${enc(id)}/go-on"))
+
+    // ---------- scheduled jobs ----------
+
+    suspend fun setJobEnabled(botId: String, jobId: String, on: Boolean): Job = json.decodeFromString(
+        send("PUT", "/bots/${enc(botId)}/jobs/${enc(jobId)}", buildJsonObject { put("enabled", on) }))
+    /** "Run now": whether it started, waits for the bot, or was skipped and why ([RunNow]). */
+    suspend fun runJob(botId: String, jobId: String): RunNow = RunNow.of(send("POST", "/bots/${enc(botId)}/jobs/${enc(jobId)}/run"))
+    /** always: approve it and trust its later changes too (until you take that back). What the server says of the answer, as [answerAsk]. */
+    suspend fun approveJob(botId: String, jobId: String, approve: Boolean, always: Boolean = false): Answered =
+        Answered.of(send("POST", "/bots/${enc(botId)}/jobs/${enc(jobId)}/approve", buildJsonObject { put("approve", approve); put("always", always) }))
+    /** Takes back a rule the owner lifted for a bot (`override`, #253): it asks again on a card. */
+    /** Undoes the change a card made to a bot's main assignment or rules (`undo`, #596). */
+    suspend fun undoChange(botId: String, changeId: String) { send("POST", "/bots/${enc(botId)}/learning/undo", buildJsonObject { put("changeId", changeId) }) }
+    suspend fun revokeOverride(botId: String, id: String): Bot = json.decodeFromString(send("DELETE", "/bots/${enc(botId)}/overrides/${enc(id)}"))
+    /** Revokes a bot's lasting grant in a connected app (#474): its next call of that action waits for the owner again. */
+    suspend fun revokeAlwaysAllowed(botId: String, action: String) { send("DELETE", "/bots/${enc(botId)}/connector-actions", buildJsonObject { put("action", action) }) }
+    suspend fun setJobAlwaysApprove(botId: String, jobId: String, on: Boolean): Job = json.decodeFromString(
+        send("PUT", "/bots/${enc(botId)}/jobs/${enc(jobId)}", buildJsonObject { put("alwaysApprove", on) }))
+
+    // ---------- the Board ----------
+
+    /** quiet reads cached tiles; an owner POST refreshes stale values and pictures, with all every tile (the refresh button, #452). */
+    suspend fun dashboard(quiet: Boolean = false, all: Boolean = false): Dashboard =
+        json.decodeFromString(if (quiet) get("/dashboard?quiet") else send("POST", "/dashboard/refresh", buildJsonObject { if (all) put("all", true) }))
+    /** on: what a switch should become. */
+    suspend fun tapTile(id: String, on: Boolean? = null): TileTap = TileTap.of(
+        send("POST", "/dashboard/tiles/${enc(id)}/tap", buildJsonObject { if (on != null) put("on", on) }))
+    /** One of a tile's controls (a switch, button, slider, colour or choice; block: its key) was used. */
+    suspend fun actTile(id: String, block: String, value: kotlinx.serialization.json.JsonElement?): TileTap = TileTap.of(
+        send("POST", "/dashboard/tiles/${enc(id)}/act", buildJsonObject { put("block", block); if (value != null) put("value", value) }))
+    /** withTiles: a group goes with the tiles in it (otherwise they stay, loose). */
+    /** Asks the Chief to change this tile (#430, with `tile-change`): a new Chief chat whose message names the tile. */
+    suspend fun askTileChange(id: String, text: String) { send("POST", "/dashboard/tiles/${enc(id)}/change", buildJsonObject { put("text", text) }) }
+    suspend fun removeTile(id: String, withTiles: Boolean = false) { send("DELETE", "/dashboard/tiles/${enc(id)}${if (withTiles) "?all" else ""}") }
+    /** Dragged: under this heading, or into this group (parent), before this tile (null: at the end there). */
+    suspend fun moveTile(id: String, section: String?, parent: String?, before: String?) {
+        send("POST", "/dashboard/tiles/${enc(id)}/move", buildJsonObject { if (section != null) put("section", section); put("parent", parent); put("before", before) })
+    }
+    /** The tiles on home, in order (#447, with `home-tiles`): the whole list. */
+    suspend fun setHomeTiles(ids: List<String>) {
+        send("PUT", "/dashboard/layout", buildJsonObject { put("home", JsonArray(ids.map { JsonPrimitive(it) })) })
+    }
+    /** A bot's suggestion: Add (true) or ✕ (false; that bot won't suggest it again). */
+    suspend fun answerSuggestion(id: String, add: Boolean): Answered =
+        Answered.of(send("POST", "/dashboard/suggestions/${enc(id)}", buildJsonObject { put("add", add) }))
+    /** What the server says of the answer, as [answerAsk]. */
+    suspend fun approveTile(id: String, approve: Boolean): Answered =
+        Answered.of(send("POST", "/dashboard/tiles/${enc(id)}/approve", buildJsonObject { put("approve", approve) }))
+
+    // ---------- things that need you ----------
+
+    suspend fun loginRequests(): List<LoginRequest> = json.decodeFromString(get("/vault/requests"))
+
+    /** Answer a login request: { action: save | allow | approve | decline, … } (see docs/api.md). */
+    suspend fun answerRequest(id: String, body: JsonObject) { send("POST", "/vault/requests/${enc(id)}", body) }
+
+    // ---------- the vault (Settings → Vault) ----------
+
+    suspend fun vault(): List<VaultItem> = json.decodeFromString(get("/vault"))
+
+    /**
+     * Adds a login-kind item (id null) or changes one. An empty password keeps the saved one. [type] and
+     * [username] are sent when given (VaultTypes.sent): without a type a new item is a login and a saved one
+     * keeps its type; without a username a saved item keeps its own. A self-signed certificate and use in the account's
+     * computer are on for every login (ADR 177), so neither is sent. [bots] null keeps the bots it has: the login editor
+     * shows none, and a bot gets a login by asking for it (request_login) or through the Chief.
+     */
+    suspend fun saveVaultLogin(id: String?, name: String, site: String, username: String?, password: String, bots: List<String>?, allowedHosts: List<String>, type: String? = null, category: String? = null) {
+        val body = buildJsonObject {
+            if (type != null) put("type", type)
+            if (category != null) put("category", category)
+            put("name", name); put("site", site); if (username != null) put("username", username)
+            if (bots != null) put("allowedBots", strings(bots))
+            put("allowedHosts", strings(allowedHosts))
+            if (password.isNotEmpty()) put("password", password)
+        }
+        if (id == null) send("POST", "/vault", body) else send("PUT", "/vault/${enc(id)}", body)
+    }
+
+    /** Which bots may use a card or an identity (their details are changed in Bitwarden), and its category (`vault-categories`) when given. */
+    suspend fun setVaultBots(id: String, bots: List<String>, category: String? = null) { send("PUT", "/vault/${enc(id)}", buildJsonObject { put("allowedBots", strings(bots)); if (category != null) put("category", category) }) }
+    suspend fun deleteVaultItem(id: String) { send("DELETE", "/vault/${enc(id)}") }
+    /**
+     * "Remove the file" (`vault-file`, #253): a secret kept in a file goes from where botdot wrote it. Returns the
+     * server's `say` when botdot could not reach the file and the owner must delete it by hand, else null.
+     */
+    suspend fun removeSecretFile(id: String): String? =
+        (json.parseToJsonElement(send("DELETE", "/vault/secret-files/${enc(id)}")) as? JsonObject)?.get("say")?.let { (it as? JsonPrimitive)?.contentOrNull }
+
+    /**
+     * Adds an SSH key to Bitwarden's bot-dot folder (`vault-ssh-key-add`): an OpenSSH private key, pasted or read from
+     * its file, or a new one botdot makes when [privateKey] is null. The answer has its public key, never the private one.
+     */
+    suspend fun addSshKey(name: String, privateKey: String?, bots: List<String>): VaultItem = json.decodeFromString(send("POST", "/vault/ssh-keys", buildJsonObject {
+        put("name", name)
+        if (privateKey != null) put("privateKey", privateKey) else put("generate", true)
+        put("allowedBots", strings(bots))
+    }))
+
+    /**
+     * Adds a file to Bitwarden's bot-dot folder (`vault-files`, #157): its name and its bytes, sent once as base64. The
+     * answer has its file name and size, never its content.
+     */
+    suspend fun addFile(name: String, fileName: String, bytes: ByteArray, bots: List<String>): VaultItem = json.decodeFromString(send("POST", "/vault/files", buildJsonObject {
+        put("name", name)
+        put("fileName", fileName)
+        put("content", kotlin.io.encoding.Base64.encode(bytes))
+        put("allowedBots", strings(bots))
+    }))
+
+    /** Connects Bitwarden with its API key (server: us, eu, or custom with its address). */
+    suspend fun setUpBitwarden(server: String, serverUrl: String, clientId: String, clientSecret: String) {
+        send("POST", "/vault/bitwarden/setup", buildJsonObject { put("server", server); put("serverUrl", serverUrl); put("clientId", clientId); put("clientSecret", clientSecret) })
+    }
+    suspend fun lockBitwarden() { send("POST", "/vault/bitwarden/lock") }
+    suspend fun syncBitwarden() { send("POST", "/vault/bitwarden/sync") }
+    private fun strings(xs: List<String>) = JsonArray(xs.map { kotlinx.serialization.json.JsonPrimitive(it) })
+
+    suspend fun bitwarden(): BitwardenStatus = json.decodeFromString(get("/vault/bitwarden"))
+    suspend fun unlockBitwarden(masterPassword: String) {
+        send("POST", "/vault/bitwarden/unlock", buildJsonObject { put("password", masterPassword) })
+    }
+
+    /**
+     * The memory changes that wait, the guarded ones too (`guarded=1`): this app draws each of those as a card of
+     * its own and keeps it out of "Approve all". A server from before them ignores the question and lists what it has.
+     */
+    suspend fun memoryChanges(): List<MemoryChange> = json.decodeFromString(get("/memory/pending?guarded=1"))
+    /** Answers a waiting memory change. What it returns has the server's words for the answered card (`text`), where it sends them. */
+    suspend fun settleMemoryChange(id: String, approve: Boolean): Answered =
+        Answered.of(send("POST", "/memory/pending/${enc(id)}", buildJsonObject { put("approve", approve) }))
+
+    // ---------- a bot's settings and computer ----------
+
+    suspend fun updateBot(botId: String, changes: JsonObject): Bot = json.decodeFromString(send("PUT", "/bots/${enc(botId)}", changes))
+    /** A copy of its files to its new computer that failed, again (#556). */
+    suspend fun retryComputerMove(botId: String) { send("POST", "/bots/${enc(botId)}/computer/move") }
+    suspend fun deleteBot(botId: String) { send("DELETE", "/bots/${enc(botId)}") }
+    /** What a copy of the bot would get (#227). Only with `duplicate-bot` in its features. */
+    suspend fun copyPlan(botId: String): CopyPlan = json.decodeFromString(get("/bots/${enc(botId)}/duplicate"))
+    /** Makes the copy, with [name] or the suggested one when blank. A refusal throws the server's sentence. */
+    suspend fun duplicateBot(botId: String, name: String): Bot =
+        json.decodeFromString(send("POST", "/bots/${enc(botId)}/duplicate", buildJsonObject { if (name.isNotBlank()) put("name", name.trim()) }))
+    /** The addresses of the products saved from a bot's replies (#685): lines of its Saved-products file. */
+    suspend fun savedProducts(botId: String): Set<String> =
+        (json.parseToJsonElement(get("/bots/${enc(botId)}/saved-products")).jsonObject["urls"]?.jsonArray ?: JsonArray(emptyList())).map { it.jsonPrimitive.content }.toSet()
+    /** Saves a product of a product card in the bot's Saved-products file, or takes it out ([saved] false). */
+    suspend fun saveProduct(botId: String, name: String, url: String, price: String, store: String, saved: Boolean) {
+        send("POST", "/bots/${enc(botId)}/saved-products", buildJsonObject {
+            put("product", buildJsonObject { put("name", name); put("url", url); put("price", price); put("store", store) })
+            put("saved", saved)
+        })
+    }
+    /** A bot's files (#235), newest first. Only with `bot-files` in its features. */
+    suspend fun botFiles(botId: String): UploadedFileList = json.decodeFromString(get(UploadedFiles.owner(botId) + "/files"))
+    /** Keeps one of its files in mind, or stops; answers the list as it is now. */
+    suspend fun pinBotFile(botId: String, file: String, pinned: Boolean): UploadedFileList =
+        json.decodeFromString(send("PUT", UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}", buildJsonObject { put("pinned", pinned) }))
+    /** Deletes one of its files and its readable copy; answers the list as it is now. */
+    suspend fun deleteBotFile(botId: String, file: String): UploadedFileList =
+        json.decodeFromString(send("DELETE", UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}"))
+    suspend fun downloadBotFile(botId: String, file: String, dest: Path) = download(UploadedFiles.owner(botId) + "/files/${enc(file.substringAfterLast('/'))}", dest)
+    /** A folder of a bot's workspace (#296): [root] is "server" or "computer", [path] relative to it. Only with `workspace-files`. */
+    suspend fun workspace(botId: String, root: String, path: String): WorkspaceListing = json.decodeFromString(get(WorkspaceFiles.list(botId, root, path)))
+    /** The bot's files and folders whose name holds [q], in all its places, best first (#604). */
+    suspend fun searchFiles(botId: String, q: String): FileSearch = json.decodeFromString(get(WorkspaceFiles.search(botId, q)))
+    /** What deleting [path] takes, for its confirmation. */
+    suspend fun workspaceCount(botId: String, root: String, path: String): WorkspaceCount = json.decodeFromString(get(WorkspaceFiles.count(botId, root, path)))
+    suspend fun deleteFromWorkspace(botId: String, root: String, path: String) { send("DELETE", WorkspaceFiles.list(botId, root, path)) }
+    /** Makes a folder and answers its path; [free] (#576): a name that is taken becomes "name (2)". */
+    suspend fun makeWorkspaceFolder(botId: String, path: String, name: String, root: String = WorkspaceFiles.SERVER, free: Boolean = false): String =
+        json.decodeFromString<WorkspaceMade>(send("POST", WorkspaceFiles.folder(botId, root), buildJsonObject { put("path", path); put("name", name); if (free) put("free", true) })).path
+    /** Rename or move, in one root: [to] is the new path. */
+    suspend fun moveInWorkspace(botId: String, from: String, to: String, root: String = WorkspaceFiles.SERVER) { send("POST", WorkspaceFiles.move(botId, root), buildJsonObject { put("from", from); put("to", to) }) }
+    /**
+     * Files (#603): copies ([move] false) or moves [from] into the folder [into], in [root] or, when [to] is another
+     * root of the bot, there. Never over anything: a name that is taken becomes "name (2)".
+     */
+    suspend fun carryInWorkspace(botId: String, from: String, into: String, root: String, to: String = root, move: Boolean = false): WorkspaceCarried =
+        json.decodeFromString(send("POST", if (move) WorkspaceFiles.move(botId, root) else WorkspaceFiles.copy(botId, root), buildJsonObject {
+            put("from", from); put("into", into)
+            if (to != root) put("place", buildJsonObject {
+                val project = WorkspaceFiles.projectOf(to)
+                put("root", if (project != null) Projects.ROOT else to)
+                if (project != null) put("project", project)
+            })
+        }))
+    /** Keeps a file on botdot in mind (#603): one the owner gave the bot as it is, any other as a copy in uploads/. */
+    suspend fun keepFromWorkspace(botId: String, path: String) { send("POST", WorkspaceFiles.keep(botId), buildJsonObject { put("path", path) }) }
+    /** Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first. */
+    suspend fun uploadToWorkspace(file: OutgoingFile, botId: String, path: String, root: String = WorkspaceFiles.SERVER, made: Boolean = false) = withContext(Dispatchers.IO) {
+        val name = file.name
+        if (file.size != null && file.size > WorkspaceFiles.MAX_BYTES) throw ApiException(tr("{name} is over 25 MB.", "name" to name))
+        call(request(WorkspaceFiles.upload(botId, path, root, made)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(streamOf(file)).build())
+        Unit
+    }
+    /** Shared projects (#578, `projects`): every one, and the bots in each. */
+    suspend fun projects(): List<Project> = json.decodeFromString<ProjectList>(get("/projects")).projects
+    suspend fun createProject(name: String, bots: List<String>): Project =
+        json.decodeFromString(send("POST", "/projects", buildJsonObject { put("name", name); put("bots", JsonArray(bots.map { JsonPrimitive(it) })) }))
+    suspend fun setProjectBots(name: String, bots: List<String>): Project =
+        json.decodeFromString(send("PUT", "/projects/${enc(name)}", buildJsonObject { put("bots", JsonArray(bots.map { JsonPrimitive(it) })) }))
+    /** Deletes the project with its folder; the computer must run (else 409). */
+    suspend fun deleteProject(name: String) { send("DELETE", "/projects/${enc(name)}") }
+    suspend fun computer(botId: String): ComputerInfo = json.decodeFromString(get("/bots/${enc(botId)}/computer"))
+    suspend fun startComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "start") }) }
+    /**
+     * Erases a bot's old computer of its own, made before the account's computer (#104). A server from before that
+     * erases the bot's computer itself (apps, files, browser logins).
+     */
+    suspend fun resetComputer(botId: String) { send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "reset") }) }
+    /** Erases the account's computer for every bot that works on it (#107). Only with `computer-reset` in its features. */
+    suspend fun resetAccountComputer(): ComputerChanged = json.decodeFromString(send("POST", "/computer/reset"))
+    /** Makes the account's computer again from the newer desktop, keeping /home/box, /workspace and the logins (#107). */
+    suspend fun updateAccountComputer(): ComputerChanged = json.decodeFromString(send("POST", "/computer/update"))
+    /** Copies the home of a bot's old computer into its folder on the account's computer (#107, `old-computer-copy`). */
+    suspend fun copyOldComputer(botId: String): OldCopied =
+        json.decodeFromString(send("POST", "/bots/${enc(botId)}/computer", buildJsonObject { put("action", "copy-old") }))
+    /** A new address of the desktop of a bot's machine on boat.dev (#564, `boat-desktop`); each ask keeps it on. */
+    suspend fun computerDone(botId: String): ScreenDone = json.decodeFromString(send("POST", "/bots/${enc(botId)}/computer/done"))
+    suspend fun boatDesktop(botId: String): BoatDesktop = json.decodeFromString(send("POST", "/bots/${enc(botId)}/computer/desktop"))
+    /** The page that shows a bot's desktop (noVNC, relayed by botdot). control = mouse and keyboard, not just watching. */
+    fun screenUrl(botId: String, control: Boolean): String {
+        val id = enc(botId)
+        return baseUrl.trimEnd('/') + "/computer/$id/vnc.html?autoconnect=1&reconnect=1&resize=scale&show_dot=1&view_only=${if (control) 0 else 1}&path=" + enc("computer/$botId/websockify")
+    }
+
+    // ---------- settings, setup, updates ----------
+
+    suspend fun settings(): SettingsInfo = json.decodeFromString(get("/settings"))
+    suspend fun saveSettings(s: AppSettings): SettingsInfo = json.decodeFromString(send("PUT", "/settings", json.encodeToJsonElement(s) as JsonObject))
+    /** The Chief's checkup; null from a server that answered without it. Only with `checkup` in its features. */
+    suspend fun checkup(): Checkup? = Checkup.answer(get("/settings/checkup"))
+    /** The Chief's lasting grants of one kind (ChiefGrant), and Revoke of one: a refusal throws the server's words. */
+    /** The Chief's own jobs (#408): only with `chief-jobs` in the server's features. */
+    suspend fun chiefJobs(): List<ChiefJob> = json.decodeFromString<ChiefJobList>(get("/chief/jobs")).jobs
+    suspend fun setChiefJobOn(id: String, on: Boolean): ChiefJob = json.decodeFromString(send("PUT", "/chief/jobs/${enc(id)}", buildJsonObject { put("on", on) }))
+    suspend fun removeChiefJob(id: String) { send("DELETE", "/chief/jobs/${enc(id)}") }
+    /** Runs one of them now: its message goes where its runs report (docs/api.md, "The Chief's own jobs"). */
+    suspend fun runChiefJob(id: String) { send("POST", "/chief/jobs/${enc(id)}/run") }
+    suspend fun chiefGrants(kind: ChiefGrant.Kind): List<ChiefGrant> = ChiefGrant.of(kind, get(kind.path))
+    suspend fun revokeChiefGrant(g: ChiefGrant): List<ChiefGrant> = ChiefGrant.of(g.kind, send("DELETE", g.kind.path, buildJsonObject { put(g.kind.key, g.id) }))
+    /** Switches one of the checkup's two switches ([field]: "on" or "webSearch"); a refusal throws the server's words. */
+    suspend fun setCheckup(field: String, value: Boolean): Checkup? = Checkup.answer(send("PUT", "/settings/checkup", buildJsonObject { put(field, value) }))
+    suspend fun setup(): SetupInfo = json.decodeFromString(get("/setup?fresh"))
+    /** The owner's answer to the question for the Chief's name (ChiefName): "" keeps "Chief of Staff". A refusal throws the server's words. */
+    /** This device's time zone for a botdot with none of its own (#756): it takes it once, so bots say times in the owner's time. */
+    suspend fun deviceTimezone(zone: String) { send("PUT", "/setup", buildJsonObject { put("deviceTimezone", zone) }) }
+    suspend fun nameChief(name: String): SetupInfo = json.decodeFromString(send("PUT", "/setup", buildJsonObject { put("chiefName", name) }))
+    /** Renames the Chief from its settings (ChiefName): "" gives back "Chief of Staff". Returns the name it now has; a refusal throws the server's words. */
+    suspend fun renameChief(name: String): String = json.parseToJsonElement(send("PUT", "/settings/chief-name", buildJsonObject { put("name", name) })).jsonObject["name"]?.jsonPrimitive?.content ?: ChiefName.ROLE
+    suspend fun claudeLogin(): LoginLink = json.decodeFromString(send("POST", "/setup/claude/login"))
+    suspend fun claudeLogout() { send("DELETE", "/setup/claude") }
+    /** Signs in with the code. The status after it, which may be a check that could not tell (claudeCouldNotTell); null when the server sent none. */
+    suspend fun claudeCode(code: String): ClaudeStatus? = claudeOfAnswer(send("POST", "/setup/claude/code", buildJsonObject { put("code", code) }))
+    /** Saves an Anthropic API key, which bots then run on (#35); a key Anthropic refuses throws the server's words. Only with `claude-api-key` in its features. */
+    suspend fun claudeSaveKey(key: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/key", buildJsonObject { put("key", key) }))
+    /** Which one bots run on: "api-key" or "subscription". */
+    suspend fun claudeUse(use: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/use", buildJsonObject { put("use", use) }))
+    suspend fun claudeRemoveKey(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/key"))
+    suspend fun backups(): BackupInfo = json.decodeFromString(get("/backups"))
+    /** Where the account's computer is (#579); a switch moves every bot with a computer, its files along with [moveFiles]. */
+    suspend fun computerPlace(): ComputerPlace = json.decodeFromString(get("/settings/computer"))
+    suspend fun setComputerPlace(place: String, moveFiles: Boolean): ComputerPlace = json.decodeFromString(send("PUT", "/settings/computer", buildJsonObject { put("place", place); put("moveFiles", moveFiles) }))
+    suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
+
+    // ---------- the account's proxies (ADR 171) ----------
+
+    suspend fun proxies(): ProxyList = json.decodeFromString(get("/proxies"))
+    suspend fun setDefaultProxy(id: String): ProxyList = json.decodeFromString(send("PUT", "/proxies/default", buildJsonObject { put("proxy", id) }))
+    suspend fun testProxy(id: String): ProxyTest = json.decodeFromString(send("POST", "/proxies/${enc(id)}/test"))
+    private fun proxyBody(f: ProxyForm, id: String? = null) = buildJsonObject {
+        put("name", f.name.trim()); put("type", f.type); put("host", f.host.trim()); put("port", f.port.trim().toIntOrNull() ?: 0)
+        put("username", f.username.trim()); put("password", f.password)
+        if (id != null) put("id", id)
+    }
+    /** A form's test before it is saved: an empty password is the saved one's, when [id] names it. */
+    suspend fun testProxyForm(f: ProxyForm, id: String?): ProxyTest = json.decodeFromString(send("POST", "/proxies/test", proxyBody(f, id)))
+    suspend fun addProxy(f: ProxyForm): Proxy = json.decodeFromString<ProxySaved>(send("POST", "/proxies", proxyBody(f))).proxy
+    suspend fun saveProxy(id: String, f: ProxyForm): Proxy = json.decodeFromString<ProxySaved>(send("PUT", "/proxies/${enc(id)}", proxyBody(f))).proxy
+    suspend fun removeProxy(id: String): ProxyList = json.decodeFromString(send("DELETE", "/proxies/${enc(id)}"))
+    suspend fun setBoatSize(size: String): BoatSizes = json.decodeFromString(send("PUT", "/settings/boat-size", buildJsonObject { put("size", size) }))
+    /** A backup of the account made now (ADR 158), encrypted with [passphrase]: where to fetch it, once. Only with `backup-download` in its features. */
+    suspend fun backupDownload(passphrase: String): BackupDownloadAsked = json.decodeFromString(send("POST", "/backups/download", buildJsonObject { put("passphrase", passphrase) }))
+    /** The address of a download asked for ([BackupDownloadAsked.url], which starts with /api). */
+    fun backupUrl(asked: BackupDownloadAsked) = baseUrl.trimEnd('/') + asked.url
+    /** The session's cookie, for a download Android makes itself (a backup): the front door lets in nothing without it. */
+    fun sessionCookie(): String? = session?.token(baseUrl.trimEnd('/'))?.let { "${Session.COOKIE}=$it" }
+
+    /** Downloads the app update botdot hands out into [dest], reporting 0..1 as it goes. */
+    /** A file a bot attached to its reply ("<runId>/<name>"), saved to [dest]. */
+    suspend fun downloadFile(file: String, dest: Path) = download("/files/" + file.split('/').joinToString("/") { enc(it) }, dest)
+
+    /**
+     * A file for the document viewer (#251), [src] its API path (DocumentView): its start as JSON. A file that is gone
+     * throws with status 404, a file on the account's computer while it is off with 409. Only with `document-viewer`.
+     */
+    suspend fun viewFile(src: String): FileView = json.decodeFromString(get(DocumentView.withQuery(src, "view=1")))
+    /** A page's blocks filled in anew (#395). */
+    suspend fun pageBlocks(src: String): PageBlocks = json.decodeFromString(get(Pages.blocksSrc(src)))
+
+    /** An interactive page's live values (#399): the values of the tiles it reads, for its frame. */
+    suspend fun pageValues(src: String): PageValues = json.decodeFromString(get(DocumentView.withQuery(src, "values=1")))
+    /** Rolls an interactive page back (#399): a version still kept becomes the one it shows. */
+    suspend fun setPageVersion(botId: String, slug: String, version: Int): PageInfo? = json.decodeFromString<PageKept>(send("POST", "${Pages.src(botId, slug)}/versions/$version")).page
+
+    /** A bot's pages (#346), newest first. */
+    suspend fun pages(botId: String): List<PageInfo> = json.decodeFromString<PageList>(get("/bots/${enc(botId)}/pages")).pages
+    /** A page on the Board or off it (#451); the page as it is then. Only with `pages-board`. */
+    suspend fun setPageOnBoard(botId: String, slug: String, on: Boolean): PageInfo? =
+        json.decodeFromString<PageKept>(send("PUT", "${Pages.src(botId, slug)}/board", buildJsonObject { put("on", on) })).page
+    /** Every bot's pages (#361), newest first, each with its bot. Only with `pages-all`. */
+    suspend fun allPages(): List<PageInfo> = json.decodeFromString<PageList>(get("/pages")).pages
+    /** Keeps a page up to date: how often ("hour", "day", "monday"), at what time, whether to hear of every update, what to check. The tap is the consent: no card. */
+    suspend fun keepPage(botId: String, slug: String, every: String, time: String, notify: String, check: String): PageInfo? =
+        json.decodeFromString<PageKept>(send("POST", "${Pages.src(botId, slug)}/keep", buildJsonObject { put("every", every); put("time", time); put("notify", notify); put("check", check) })).page
+    /** Stops keeping it up to date: its job goes. */
+    suspend fun stopKeepingPage(botId: String, slug: String): PageInfo? = json.decodeFromString<PageKept>(send("DELETE", "${Pages.src(botId, slug)}/keep")).page
+    /** The viewer's file itself, saved to [dest]. */
+    suspend fun downloadTo(src: String, dest: Path) = download(src, dest)
+
+    /** The screenshots a run's tools took, in order: addresses under /api ("/runs/<id>/images/<name>"). */
+    suspend fun runImages(runId: String): List<String> =
+        (json.parseToJsonElement(get("/runs/${enc(runId)}/images")).jsonObject["images"]?.jsonArray ?: JsonArray(emptyList()))
+            .mapNotNull { it.jsonPrimitive.contentOrNull?.removePrefix("/api") }
+
+    private suspend fun download(path: String, dest: Path) = withContext(Dispatchers.IO) {
+        val req = request(path).header("Accept", "*/*").get().build()
+        val part = Path("$dest.part")
+        try {
+            exchange(req, streamWait, Went()) { res, cached ->
+                if (!res.status.isSuccess()) readOrThrow(res, cached)
+                dest.parent?.let { SystemFileSystem.createDirectories(it) }
+                res.bodyAsChannel().saveTo(part)
+            }
+            if (runCatching { SystemFileSystem.atomicMove(part, dest) }.isFailure) throw ApiException(tr("Couldn't save the file."))
+        } catch (e: ApiException) {
+            gone(part); throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            gone(part); throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to why(e)))
+        }
+    }
+
+    private fun gone(p: Path) { runCatching { SystemFileSystem.delete(p, mustExist = false) } }
+
+    /** The rest of the answer written to the file [to], [onBytes] told of each piece. */
+    private suspend fun ByteReadChannel.saveTo(to: Path, onBytes: (Int) -> Unit = {}) {
+        SystemFileSystem.sink(to).buffered().use { out ->
+            val buf = ByteArray(64 * 1024)
+            while (true) {
+                val n = readAvailable(buf, 0, buf.size)
+                // The end: a broken stream also ends here, with its cause; it is no whole file.
+                if (n < 0) { closedCause?.let { throw it }; break }
+                if (n > 0) { out.write(buf, 0, n); onBytes(n) }
+            }
+        }
+    }
+
+    /** A file's bytes as a request's body, read as they are sent. */
+    private fun streamOf(f: OutgoingFile): OutgoingContent = object : OutgoingContent.WriteChannelContent() {
+        override val contentType = ContentType.Application.OctetStream
+        override val contentLength = f.size
+        override suspend fun writeTo(channel: ByteWriteChannel) {
+            val source = f.open() ?: throw IOException(tr("Can't open {name}", "name" to f.name))
+            source.buffered().use { input ->
+                val buf = ByteArray(64 * 1024)
+                while (true) {
+                    val n = input.readAtMostTo(buf)
+                    if (n < 0) break
+                    channel.writeFully(buf, 0, n)
+                }
+            }
+        }
+    }
+
+    /** Whether Google Docs is connected now, and whether connected apps are set up at all (#351, #378, GET /api/export/google-docs). */
+    suspend fun googleDocsStatus(): DocumentExport.GoogleDocsStatus = json.parseToJsonElement(get("/export/google-docs")).jsonObject.let { o ->
+        DocumentExport.GoogleDocsStatus(configured = o["configured"]?.jsonPrimitive?.booleanOrNull != false, connected = o["connected"]?.jsonPrimitive?.booleanOrNull == true)
+    }
+
+    /** [text] saved as a new Google Doc (#351): its address on docs.google.com. */
+    suspend fun saveToGoogleDocs(title: String, text: String): String =
+        json.parseToJsonElement(send("POST", "/export/google-docs", buildJsonObject { put("title", title); put("text", text) })).jsonObject["url"]?.jsonPrimitive?.contentOrNull
+            ?.takeIf { DocumentExport.isGoogleDoc(it) } ?: throw ApiException(tr("Google Docs saved nothing to open."))
+
+    /** A document made from [text] (#348, POST /api/export): Word, PDF or Markdown, written to [dir] under the name the
+     *  server gives it. Returns the file. */
+    suspend fun exportDocument(title: String, text: String, format: String, dir: Path): Path = withContext(Dispatchers.IO) {
+        val body = buildJsonObject { put("title", title); put("text", text); put("format", format) }
+        val req = request("/export").header("Accept", "*/*").header("X-Bot-Dot", "1").post(body.toString().let(::jsonBody)).build()
+        try {
+            exchange(req, streamWait, Went()) { res, cached ->
+                if (!res.status.isSuccess()) readOrThrow(res, cached)
+                val name = DocumentExport.fileName(res.headers["Content-Disposition"], format)
+                SystemFileSystem.createDirectories(dir)
+                val dest = Path(dir, name)
+                res.bodyAsChannel().saveTo(dest)
+                dest
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to why(e)))
+        }
+    }
+
+    suspend fun downloadApp(dest: Path, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
+        val req = request("/app/android.apk").header("Accept", "application/vnd.android.package-archive").get().build()
+        try {
+            exchange(req, streamWait, Went()) { res, cached ->
+                if (!res.status.isSuccess()) readOrThrow(res, cached)
+                val total = res.contentLength()?.takeIf { it > 0 } ?: -1L
+                dest.parent?.let { SystemFileSystem.createDirectories(it) }
+                var done = 0L
+                res.bodyAsChannel().saveTo(dest) { n ->
+                    done += n
+                    if (total > 0) onProgress(done.toFloat() / total)
+                }
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: IOException) {
+            throw ApiException(tr("Can't reach botdot. Is Tailscale on? ({why})", "why" to why(e)))
+        }
+    }
+
+    // ---------- the Company (#669, #674; docs/api.md "The Company") ----------
+
+    /**
+     * The project the Company's calls act on (#689, #703): the one shown, from a botdot with `projects-many`; null for
+     * the first (an older botdot's one company) or while a new one is started.
+     */
+    @kotlin.concurrent.Volatile var project: String? = null
+    private fun co(path: String) = ManyProjects.at(path, project)
+    /** Every project (#689): `GET /api/company/list`. */
+    suspend fun companyList(): List<Company> = ManyProjects.list(get("/company/list"))
+    /** Deletes a project, the one shown unless [id] names another (#701, #791); with [dropFolder] its folder (#702) goes with what it holds. */
+    suspend fun deleteCompany(dropFolder: Boolean, id: String? = project) { send("DELETE", ManyProjects.at(ManyProjects.deletePath(dropFolder), id)) }
+    /** A team changed in the project's settings (#701): its name, bots and lead; or deleted. */
+    suspend fun editTeam(team: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), body))
+    suspend fun addTeam(body: JsonObject): Company = CompanySetup.of(send("POST", co("/company/teams"), body))
+    suspend fun deleteTeam(team: String): Company = CompanySetup.of(send("DELETE", co("/company/teams/${enc(team)}")))
+    /** The morning standup (#698): on or off, or its time. */
+    suspend fun setProjectUpdates(every: String): Company = CompanySetup.of(send("PUT", co("/company/updates"), buildJsonObject { put("every", every) }))
+    suspend fun setStandup(body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/standup"), body))
+    /** An objective's other fields (#699, #701): `{ source }` and the like, as given. */
+    suspend fun putObjective(id: String, body: JsonObject): Company = CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), body))
+
+    suspend fun company(): CompanyHeld = CompanySetup.held(get(co("/company")))
+    /** The project's own Chief chat (`project-chief`), made when there is none: its id. */
+    suspend fun projectChiefChat(id: String? = project): String = json.parseToJsonElement(send("POST", ManyProjects.at("/company/chief-chat", id))).jsonObject["chatId"]?.jsonPrimitive?.content.orEmpty()
+    /** Tidy up (`board-tidy`): the project's Chief is asked in its chat to arrange the whole board; that chat's id. */
+    suspend fun tidyBoard(): String = json.parseToJsonElement(send("POST", co("/company/layout/tidy"), buildJsonObject { })).jsonObject["chatId"]?.jsonPrimitive?.content.orEmpty()
+    /** The account's projects a mention can name (#700): every one from a botdot with `projects-many`, else its one company. */
+    suspend fun projectRefs(features: Collection<String>): List<Mentions.ProjectRef> {
+        fun ref(o: JsonElement?): Mentions.ProjectRef? = (o as? JsonObject)?.let { c ->
+            Mentions.ProjectRef(c.str("id"), c.str("name"), c.str("color").ifEmpty { null }).takeIf { it.id.isNotEmpty() }
+        }
+        if (CompanySetup.MANY in features) return (JSON.parseToJsonElement(get("/company/list")) as? JsonObject)?.get("projects")?.let { it as? JsonArray }?.mapNotNull(::ref).orEmpty()
+        return listOfNotNull(ref((JSON.parseToJsonElement(get("/company")) as? JsonObject)?.get("company")))
+    }
+    suspend fun startCompany(start: String, sources: List<SourceDraft>, creationKey: String? = null): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.startBody(start, sources, creationKey)))
+    suspend fun startEmptyProject(name: String, sources: List<SourceDraft> = emptyList()): Company = CompanySetup.of(send("POST", co("/company"), CompanySetup.emptyBody(name, sources)))
+    /** The board's layout, all of it (#784). */
+    suspend fun setLayout(layout: Map<String, List<Int>>): Company = CompanySetup.of(send("PUT", co("/company/layout"),
+        buildJsonObject { put("layout", buildJsonObject { layout.forEach { (k, v) -> put(k, JsonArray(v.map { JsonPrimitive(it) })) } }) }))
+    suspend fun patchCompany(fields: JsonObject): Company = CompanySetup.of(send("PATCH", co("/company"), fields))
+    /** The Chief reads the site or names the idea: the company with its About cards. */
+    suspend fun readCompany(): Company = CompanySetup.of(send("POST", co("/company/read")))
+    /** Chips for one question (an About card's key, or goal, never, time). */
+    suspend fun suggestForCompany(key: String): Company = CompanySetup.of(send("POST", co("/company/suggest"), buildJsonObject { put("key", key) }))
+    suspend fun companySwot(): Company = CompanySetup.of(send("POST", co("/company/swot")))
+    suspend fun storyIdeas(who: String): StoryIdeas = json.decodeFromString(send("POST", co("/company/stories/suggest"), buildJsonObject { put("who", who) }))
+    /** The Team step: the Chief's proposal, "Change the team…", "Add existing bot", Undo, and "Create N bots". */
+    suspend fun proposeTeam(): Company = CompanySetup.of(send("POST", co("/company/proposal")))
+    suspend fun changeTeam(text: String): Company = CompanySetup.of(send("POST", co("/company/proposal/chat"), buildJsonObject { put("text", text) }))
+    suspend fun duplicateIntoTeam(bot: String): Company = CompanySetup.of(send("POST", co("/company/proposal/duplicate"), buildJsonObject { put("bot", bot) }))
+    suspend fun undoTeam(): Company = CompanySetup.of(send("POST", co("/company/proposal/undo")))
+    suspend fun createTeam(review: String? = null): Company = CompanySetup.of(send("POST", co("/company/start"), buildJsonObject { if (review != null) put("review", review) }))
+    /** The office floor (#672, #675): a new team, "Make lead", the owner's tasks. */
+    suspend fun newCompanyTeam(name: String, bots: List<String>): Company =
+        CompanySetup.of(send("POST", co("/company/teams"), buildJsonObject { put("name", name); put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
+    /** A team's bots: all of them, those added at the end; a bot stays in the project's other teams (ADR 199). */
+    suspend fun setTeamBots(team: String, bots: List<String>): Company =
+        CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
+    /** The project's own bots in no team (ADR 233): the whole list. */
+    suspend fun setProjectBots(bots: List<String>): Company =
+        CompanySetup.of(send("PUT", co("/company/bots"), buildJsonObject { put("bots", JsonArray(bots.map(::JsonPrimitive))) }))
+    suspend fun makeLead(team: String, bot: String): Company = CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("lead", bot) }))
+    /** How often a team's lead reports (#696): daily, twice-weekly, weekly, or "" for none. */
+    suspend fun setReportRhythm(team: String, every: String): Company =
+        CompanySetup.of(send("PUT", co("/company/teams/${enc(team)}"), buildJsonObject { put("report", every.ifEmpty { null }) }))
+    /** An objective's display, steps or tick (#690): only what is given is sent. */
+    suspend fun setObjective(id: String, display: String? = null, steps: List<ObjectiveStep>? = null, done: Boolean? = null): Company =
+        CompanySetup.of(send("PUT", co("/company/objectives/${enc(id)}"), CompanyFloor.objectiveBody(display, steps, done)))
+    /** Removes a goal (feature `objective-remove`): the company without it. */
+    suspend fun removeObjective(id: String): Company = CompanySetup.of(send("DELETE", co("/company/objectives/${enc(id)}")))
+    /** Asks the Chief to change a goal (#820): the id of the Chief chat it started. */
+    suspend fun askObjectiveChange(id: String, text: String): String =
+        json.parseToJsonElement(send("POST", co("/company/objectives/${enc(id)}/change"), buildJsonObject { put("text", text) })).jsonObject.str("chatId")
+    suspend fun addTodo(text: String, bot: String?): Company =
+        CompanySetup.of(send("POST", co("/company/todos"), buildJsonObject { put("text", text); if (bot != null) put("bot", bot) }))
+    suspend fun tickTodo(id: String, done: Boolean): Company = CompanySetup.of(send("PUT", co("/company/todos/${enc(id)}"), buildJsonObject { put("done", done) }))
+    /** The project's To-do (#692): an item with whom it is for, its due day and how it repeats; Delete is the owner's. */
+    suspend fun addTodo(text: String, bot: String?, due: String?, repeat: Repeat?): Company =
+        CompanySetup.of(send("POST", co("/company/todos"), ProjectTodo.addBody(text, bot, due, repeat)))
+    suspend fun deleteTodo(id: String): Company = CompanySetup.of(send("DELETE", co("/company/todos/${enc(id)}")))
+    /** The Files tile (project-files): the newest files of the project's folder; `off`, none, while the computer is off. */
+    suspend fun projectFiles(id: String? = project): RecentFiles = json.decodeFromString(RecentFiles.serializer(), get(ManyProjects.at("/company/files", id)))
+    suspend fun projectOverview(id: String): ProjectOverview = json.decodeFromString(ProjectOverview.serializer(), get(ManyProjects.at("/company/overview", id)))
+    /** The project's calendar (#695): what falls on each day from [from] to [to], both included (at most 62 days). */
+    suspend fun projectCalendar(from: String, to: String): List<CalendarItem> =
+        json.decodeFromString(CalendarAnswer.serializer(), get(co("/company/calendar?from=${enc(from)}&to=${enc(to)}"))).items
+    suspend fun addEvent(title: String, day: String, time: String): Company =
+        CompanySetup.of(send("POST", co("/company/events"), ProjectCalendar.eventBody(title, day, time.ifEmpty { null })))
+    suspend fun changeEvent(id: String, title: String, day: String, time: String): Company =
+        CompanySetup.of(send("PUT", co("/company/events/${enc(id)}"), ProjectCalendar.eventBody(title, day, time)))
+    suspend fun deleteEvent(id: String): Company = CompanySetup.of(send("DELETE", co("/company/events/${enc(id)}")))
+    /** The owner's decisions (#694). */
+    suspend fun addDecision(typed: ProjectDecisions.Typed): Company = CompanySetup.of(send("POST", co("/company/decisions"), ProjectDecisions.addBody(typed)))
+    suspend fun deleteDecision(id: String): Company = CompanySetup.of(send("DELETE", co("/company/decisions/${enc(id)}")))
+    /** The 90 days (#673): the check-in's answer, the week's plan, the bot the Chief suggests. */
+    suspend fun answerCheckin(day: Int, decision: String): CheckinAnswer =
+        json.decodeFromString(CheckinAnswer.serializer(), send("POST", co("/company/checkins"), buildJsonObject { put("day", day); put("decision", decision) }))
+    suspend fun approvePlan(): Company = CompanySetup.of(send("POST", co("/company/plan/approve")))
+    suspend fun changePlan(text: String): Company = CompanySetup.of(send("POST", co("/company/plan/change"), buildJsonObject { put("text", text) }))
+    suspend fun addSuggested(): Company = CompanySetup.of(send("POST", co("/company/suggestion/add")))
+    suspend fun dismissSuggested(): Company = CompanySetup.of(send("DELETE", co("/company/suggestion")))
+    /** The cards made by Claude on the project's board (#776): add, answer the next question, Change, close its questions, Refresh, Remove. */
+    suspend fun addCard(ask: String): Company = CompanySetup.of(send("POST", co("/company/cards"), ProjectCards.askBody(ask)))
+    suspend fun answerCard(id: String, text: String): Company = CompanySetup.of(send("POST", co("/company/cards/${enc(id)}/answer"), ProjectCards.answerBody(text)))
+    suspend fun changeCard(id: String, ask: String): Company = CompanySetup.of(send("PUT", co("/company/cards/${enc(id)}"), ProjectCards.askBody(ask)))
+    suspend fun cancelCard(id: String): Company = CompanySetup.of(send("POST", co("/company/cards/${enc(id)}/cancel")))
+    suspend fun refreshCard(id: String): Company = CompanySetup.of(send("POST", co("/company/cards/${enc(id)}/refresh")))
+    suspend fun removeCard(id: String): Company = CompanySetup.of(send("DELETE", co("/company/cards/${enc(id)}")))
+
+    // ---------- skills and connectors ----------
+
+    suspend fun skills(): SkillsInfo = json.decodeFromString(get("/skills"))
+    suspend fun connectors(): ConnectorsInfo = json.decodeFromString(get("/connectors"))
+    suspend fun catalog(search: String): Catalog = json.decodeFromString(get("/connectors/catalog?search=${enc(search)}"))
+    /** another: one more account of an app that is connected (ADR 174). */
+    suspend fun connectApp(slug: String, another: Boolean = false): ConnectLink = json.decodeFromString(send("POST", "/connectors/connect", buildJsonObject { put("app", slug); if (another) put("another", true) }))
+    /** What was left behind, in a sentence, or null (docs/api.md). */
+    suspend fun disconnect(connectionId: String): String? = json.decodeFromString<Disconnected>(send("DELETE", "/connectors/connections/${enc(connectionId)}")).note
+    suspend fun setComposioKey(key: String) { send("PUT", "/connectors/key", buildJsonObject { put("key", key) }) }
+    suspend fun removeComposioKey() { send("DELETE", "/connectors/key") }
+    suspend fun forgetReconnect(slug: String) { send("DELETE", "/connectors/reconnect/${enc(slug)}") }
+
+    // ---------- the Chief of Staff ----------
+
+    suspend fun chief(): ChiefOverview = json.decodeFromString(get("/chief"))
+    /** limit: only its last N messages; offset: from message I on (see ChiefChat.offset). An older botdot sends them all. */
+    suspend fun chiefChat(id: String, offset: Int? = null, limit: Int? = null): ChiefChat = json.decodeFromString(
+        get("/chief/chats/${enc(id)}" + listOfNotNull(offset?.let { "offset=$it" }, limit?.let { "limit=$it" }).joinToString("&").let { if (it.isEmpty()) "" else "?$it" }))
+    suspend fun newChiefChat(): ChiefChat = json.decodeFromString(send("POST", "/chief/chats"))
+    /**
+     * [key]: as [runBot]'s. An answer with `again` is a message that went: botdot had it already. The answer is the
+     * chat: with `message-waits` and a reply going on, the message is in its `queued` and not yet in its messages.
+     * null when the answer is not a chat this app can read: the message went all the same.
+     */
+    suspend fun sendToChief(chatId: String, text: String, attachments: List<Attachment>, key: String? = null): ChiefChat? {
+        val answer = send("POST", "/chief/chats/${enc(chatId)}/messages", buildJsonObject {
+            put("text", text)
+            put("attachments", json.encodeToJsonElement(attachments))
+            if (key != null) put("key", key)
+        })
+        return runCatching { json.decodeFromString<ChiefChat>(answer) }.getOrNull()
+    }
+    suspend fun stopChief(chatId: String) { send("POST", "/chief/chats/${enc(chatId)}/stop") }
+    /** "Take back" on a message that waits in a Chief chat, as [takeBack]. */
+    suspend fun takeBackFromChief(chatId: String, queuedId: String): TakenBack = TakenBack.of(send("DELETE", "/chief/chats/${enc(chatId)}/queued/${enc(queuedId)}"))
+
+    /** As [steer], for a message that waits in a Chief chat (`chief-steer`): the reply that is going reads it. */
+    suspend fun steerChief(chatId: String, queuedId: String): List<Queued> {
+        val answer = send("POST", "/chief/chats/${enc(chatId)}/queued/${enc(queuedId)}/steer")
+        return Queued.list(runCatching { JSON.parseToJsonElement(answer) as? JsonObject }.getOrNull()?.get("queued"))
+    }
+    suspend fun dismissSuggestion(chatId: String) { send("POST", "/chief/chats/${enc(chatId)}/dismiss") }
+    /** Rate the unasked message at [index] of the whole chat: "up", "down", or null to clear it (Ratings). */
+    suspend fun rate(chatId: String, index: Int, rating: String?) {
+        send("PUT", "/chief/chats/${enc(chatId)}/messages/$index/rating", buildJsonObject { put("rating", rating) })
+    }
+
+    /** What the Chief is doing ("activity") until it's "done". */
+    fun chiefStream(chatId: String): Flow<Pair<String, JsonObject>> = sse("/chief/chats/${enc(chatId)}/stream") { _, data ->
+        val o = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: return@sse null
+        (o["type"]?.jsonPrimitive?.contentOrNull ?: return@sse null) to o
+    }
+
+    // ---------- files ----------
+
+    /** Upload one file for a message. to = "bot:<id>", "chief" or "group:<id>". */
+    suspend fun upload(file: OutgoingFile, to: String): Attachment = withContext(Dispatchers.IO) {
+        val req = request("/uploads?to=${enc(to)}")
+            .header("X-Bot-Dot", "1")
+            .header("X-File-Name", enc(file.name))
+            .post(streamOf(file))
+            .build()
+        json.decodeFromString<Attachment>(call(req)).copy(name = file.name)
+    }
+
+    // ---------- the live feed ----------
+
+    /**
+     * The live feed. lastEventId: resume after it (botdot replays what was missed). Asked with `guarded=1`: what
+     * waits then lists the guarded memory changes too, which have a card and a notification of their own.
+     */
+    fun feed(lastEventId: String?, onOpen: () -> Unit = {}): Flow<FeedEvent> = sse(
+        "/events?guarded=1" + (lastEventId?.let { "&since=${enc(it)}" } ?: ""),
+        onOpen = onOpen,
+    ) { meta, data ->
+        val o = runCatching { json.parseToJsonElement(data).jsonObject }.getOrNull() ?: JsonObject(emptyMap())
+        FeedEvent(meta.id, meta.type ?: "message", o)
+    }
+
+    private data class SseMeta(val id: String?, val type: String?)
+
+    private fun <T : Any> sse(path: String, onOpen: () -> Unit = {}, parse: (SseMeta, String) -> T?): Flow<T> = sse(request(path), onOpen, parse)
+
+    private fun <T : Any> sse(to: Req, onOpen: () -> Unit = {}, parse: (SseMeta, String) -> T?): Flow<T> = channelFlow {
+        val req = to.header("Accept", "text/event-stream").build()
+        var status = 0
+        try {
+            exchange(req, liveWait, Went()) { res, cached ->
+                status = res.status.value
+                val type = res.contentType()
+                if (!res.status.isSuccess() || type == null || !type.match(ContentType.Text.EventStream)) {
+                    val msg = runCatching { cached ?: res.bodyAsText() }.getOrNull()?.take(200)
+                    val why = if (res.status.isSuccess()) "Invalid content-type: ${res.headers[HttpHeaders.ContentType]}" else null
+                    throw ApiException(msg?.takeIf { it.isNotBlank() } ?: why ?: tr("The connection dropped"), status)
+                }
+                onOpen()
+                // Waits for room rather than dropping the event (#1079): a slow listener only slows the reading. A
+                // dropped event was never replayed, as later ones moved lastId on.
+                Sse.read(res.bodyAsChannel()) { id, event, data -> parse(SseMeta(id, event), data)?.let { send(it) } }
+            }
+        } catch (e: ApiException) {
+            throw e
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw ApiException(e.message ?: tr("The connection dropped"), status)
+        }
+    }.flowOn(Dispatchers.IO)
+
+    companion object {
+        val JSON = Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }
+
+        /** How long a live stream may say nothing before it counts as dead: two of botdot's pings missed, and some. */
+        const val QUIET_MS = 50_000L
+
+        /** Debug builds: each request in Logcat (tag botdot-http), so too many of them show. The app sets it at its start. */
+        var logRequests = false
+
+        /** How long "Delete account" waits for its answer: longer than the front door's 90 s for boat.dev. */
+        const val DELETE_WAIT_S = 120L
+
+        private const val INFINITE = Long.MAX_VALUE // HttpTimeoutConfig.INFINITE_TIMEOUT_MS
+        private val JSON_TYPE = ContentType.parse("application/json; charset=utf-8")
+
+        /** One client for the whole app: a new Api doesn't mean new connections. Redirects are not followed. */
+        private val HTTP: HttpClient by lazy {
+            HttpClient(httpEngine()) {
+                followRedirects = false
+                expectSuccess = false
+                install(HttpTimeout)
+            }
+        }
+
+        fun enc(s: String): String = formEncode(s).replace("+", "%20")
+
+        /** "my-vm.tail1234.ts.net" -> "https://my-vm.tail1234.ts.net"; null if it can't be an address. */
+        fun normalize(input: String): String? {
+            var s = input.trim().trimEnd('/')
+            if (s.isEmpty()) return null
+            if (!s.startsWith("http://") && !s.startsWith("https://")) s = "https://$s"
+            val u = parseHttpAddress(s) ?: return null
+            if (!ReleaseManifest.secureURL(u.text)) return null
+            return u.root.trimEnd('/')
+        }
+    }
+}
+
+fun JsonObject.str(key: String): String = this[key]?.let { runCatching { it.jsonPrimitive.contentOrNull }.getOrNull() } ?: ""
+fun JsonObject.arr(key: String): JsonArray? = this[key] as? JsonArray
+
+/** A status with no sentence of botdot's, in words for someone who does not know HTTP (ADR 205): never the number. */
+fun statusWords(code: Int): String = when {
+    code == 401 -> tr("Sign in again, then try once more.")
+    code == 403 -> tr("botdot doesn't allow that here.")
+    code == 413 -> tr("That is too big for botdot.")
+    code >= 500 -> tr("botdot didn't finish that. Try again in a moment.")
+    else -> tr("botdot couldn't do that. Try again.")
+}

@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.locale
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow

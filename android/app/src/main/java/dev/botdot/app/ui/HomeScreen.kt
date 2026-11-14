@@ -40,7 +40,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import dev.botdot.app.feed.plainText
+import dev.botdot.app.data.plainText
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text

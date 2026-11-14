@@ -32,8 +32,8 @@ android-build: android-tools ## Build the Android app
 	cd android && ./gradlew assembleDebug --console=plain
 
 .PHONY: android-test
-android-test: android-tools ## Run the Android app's unit tests
-	cd android && ./gradlew testDebugUnitTest --console=plain
+android-test: android-tools ## Run the Android app's unit tests and the shared data layer's (ADR 242)
+	cd android && ./gradlew testDebugUnitTest :shared:testAndroidHostTest --console=plain
 
 .PHONY: android-lint
 android-lint: android-tools ## Lint the Android app; known problems are in app/lint-baseline.xml

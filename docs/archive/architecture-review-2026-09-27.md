@@ -102,7 +102,7 @@ Authorization has useful existing checks, but adding an operation requires under
 
 ### 6. P2 — Four clients duplicate contracts and workflow state
 
-The [API guide](../api.md), server response objects, MCP tool schemas, [Android models](../../android/app/src/main/java/dev/botdot/app/data/Models.kt), [Swift models](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/macos/BotDot/Data/Models.swift#L10), and [Rust models](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/models.rs#L21) are maintained separately. There is no checked-in machine-readable HTTP contract in the inspected source inventory.
+The [API guide](../api.md), server response objects, MCP tool schemas, [Android models](../../android/shared/src/commonMain/kotlin/dev/botdot/app/data/Models.kt), [Swift models](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/macos/BotDot/Data/Models.swift#L10), and [Rust models](https://github.com/Kordal/bot-dot/blob/88fe2710a3c063f1ec301bbe2c8158b3070bbc38/linux/src/models.rs#L21) are maintained separately. There is no checked-in machine-readable HTTP contract in the inspected source inventory.
 
 Swift and Rust wrap raw JSON and default many missing or unexpected values to empty strings, zero, or false. That tolerates additive changes, but it also hides broken required fields. The problem is already visible at the feature level: web and Android have Dashboard, while the inspected Mac and Linux route enums have no Dashboard route. That may be an intentional release gap; it needs an explicit capability/parity decision.
 

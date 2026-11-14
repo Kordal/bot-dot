@@ -31,8 +31,8 @@ test('a tap sends the board as seen and opens the chat the server names', () => 
 test('Android draws it from the same feature and calls the same route', () => {
   const kt = read('android/app/src/main/java/dev/botdot/app/ui/ProjectTree.kt');
   assert.match(kt, /ManyProjects\.TIDY in features/);
-  assert.match(read('android/app/src/main/java/dev/botdot/app/data/ManyProjects.kt'), /TIDY = "board-tidy"/);
-  assert.match(read('android/app/src/main/java/dev/botdot/app/data/Api.kt'), /\/company\/layout\/tidy/);
+  assert.match(read('android/shared/src/commonMain/kotlin/dev/botdot/app/data/ManyProjects.kt'), /TIDY = "board-tidy"/);
+  assert.match(read('android/shared/src/commonMain/kotlin/dev/botdot/app/data/Api.kt'), /\/company\/layout\/tidy/);
 });
 
 test('the Chief is told how to tidy: the whole board at once, and back', () => {

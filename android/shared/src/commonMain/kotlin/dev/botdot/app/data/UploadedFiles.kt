@@ -1,0 +1,61 @@
+package dev.botdot.app.data
+
+import kotlinx.serialization.Serializable
+
+/**
+ * A bot's files (#235): what the owner (or a teammate) gave it, kept in its uploads/ until the owner deletes them.
+ * Every run of the bot is told which there are; a file kept in mind (pinned) comes with every task. In the bot's
+ * settings the owner opens, pins and deletes them. Only from a server whose `features` name `bot-files`.
+ */
+object UploadedFiles {
+    const val FEATURE = "bot-files"
+    /** The Chief's own files (#383), under /api/chief/files: what the owner attached in its chats. No bot's id starts with _. */
+    const val CHIEF = "_chief"
+    const val CHIEF_FEATURE = "chief-files"
+
+    /** A project's folder (#702, #703) as the owner of what Files shows: "project:<its folder's name>". No bot's id has a colon. */
+    const val FOLDER = "project:"
+    fun folderOf(id: String): String? = id.takeIf { it.startsWith(FOLDER) }?.removePrefix(FOLDER)?.takeIf { it.isNotEmpty() }
+
+    /** The API path of whose files they are: a bot's, the Chief's, or a project's folder (/api/projects/<name>, its one place). */
+    fun owner(id: String): String = when {
+        id == CHIEF -> "/chief"
+        folderOf(id) != null -> "/projects/${Api.enc(folderOf(id)!!)}"
+        else -> "/bots/${Api.enc(id)}"
+    }
+
+    /** Whether the Chief's settings show its Files and Workspace. */
+    fun chiefShows(features: Collection<String>?): Boolean = features != null && CHIEF_FEATURE in features
+
+    /** Whether the botdot this app talks to keeps a bot's files. While its features are not known yet: no. */
+    fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
+
+    fun size(n: Long): String = when {
+        n >= 1024 * 1024 -> formatIn("", "%.1f MB", n / 1024.0 / 1024.0)
+        n >= 1024 -> "${jround(n / 1024.0)} KB"
+        else -> "$n B"
+    }
+
+    /** The line under a file's name: its size and the day it came. */
+    fun detail(f: UploadedFile): String = "${size(f.size)} · ${f.at.take(10)}"
+
+    /** The folded section's summary: how many, and how many are kept in mind. */
+    fun summary(files: List<UploadedFile>): String = when {
+        files.isEmpty() -> tr("None")
+        else -> trn(files.size, "{n} file", "{n} files") + files.count { it.pinned }.let { if (it > 0) ", " + tr("{n} kept in mind", "n" to it) else "" }
+    }
+}
+
+/** One of a bot's files (`GET /api/bots/:id/files`). [file] is its path in the bot's folder, "uploads/…". */
+@Serializable
+data class UploadedFile(
+    val file: String,
+    val name: String = "",
+    val size: Long = 0,
+    val at: String = "",
+    val readable: String? = null,
+    val pinned: Boolean = false,
+)
+
+@Serializable
+data class UploadedFileList(val files: List<UploadedFile> = emptyList(), val maxPinned: Int = 5)

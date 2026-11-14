@@ -323,7 +323,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         library.sortedBy { it.name !in b.skills }.forEach { k ->
                             val from = when {
                                 k.source == "github" -> tr("Installed by you from {source}", "source" to (k.sourceUrl ?: "GitHub"))
-                                k.createdBy?.startsWith("bot:") == true -> tr("Written by {name}", "name" to botName(k.createdBy.removePrefix("bot:")))
+                                k.createdBy?.startsWith("bot:") == true -> tr("Written by {name}", "name" to botName(k.createdBy!!.removePrefix("bot:")))
                                 k.createdBy == "chief" -> tr("Written by the Chief")
                                 else -> tr("Written by you")
                             }
