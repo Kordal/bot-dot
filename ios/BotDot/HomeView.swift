@@ -8,7 +8,6 @@ import BotdotShared
 struct HomeView: View {
     let model: AppModel
     let server: String
-    @State private var path = NavigationPath()
     @State private var home: HomeModel
     /// The bot whose computer screen is open, from the ⋯ menu.
     @State private var screen: ScreenOpen?
@@ -19,7 +18,7 @@ struct HomeView: View {
     }
     @Environment(\.scenePhase) private var phase
     @State private var vault = false
-    /// What is open over Home: a chat (ChatRoute) or what the menu opens (Route).
+    /// What is open over Home: a chat (ChatRoute, ChiefRoute, GroupRoute), Files, or what the menu opens (Route).
     @State private var path = NavigationPath()
 
     /// What Home's menu opens.
