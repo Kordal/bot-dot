@@ -221,28 +221,33 @@ class NeedsDesk(private val store: Store, private val api: Api, scope: Coroutine
     /** The type picked on a login's card: its fields follow it. */
     fun choose(key: String, type: String) = local.update { it.copy(types = it.types + (key to type)) }
 
-    /** A login's new fields saved (VaultTypes): the card is taken down while it saves, and comes back as it was left when it failed. */
+    /**
+     * A login's new fields saved (VaultTypes): the card is taken down while it saves, and comes back as it was left when it
+     * failed. Returns whether it was saved: until then the phone keeps what was typed, so a failed save loses nothing.
+     */
     @Throws(Exception::class)
-    suspend fun saveLogin(key: String, type: String, username: String, secret: String, master: String) {
-        val r = store.needs.value.value?.requests?.firstOrNull { "r:${it.id}" == key } ?: return
-        if (r.id in local.value.saving) return
+    suspend fun saveLogin(key: String, type: String, username: String, secret: String, master: String): Boolean {
+        val r = store.needs.value.value?.requests?.firstOrNull { "r:${it.id}" == key } ?: return false
+        if (r.id in local.value.saving) return false
         val features = store.version.value.value?.features
         local.update { it.copy(saving = it.saving + r.id, types = it.types + (key to type), typed = it.typed + (key to username)) }
         val error = runCatching { api.answerRequest(r.id, VaultTypes.requestSave(VaultTypes.sent(type, username, features), secret, master)) }.exceptionOrNull()
         runCatching { store.needs.refresh() }
         local.update { it.copy(saving = it.saving - r.id) }
         tell(error?.let(::loginNotSaved) ?: tr("Saved. {botName} will continue.", "botName" to (r.bot?.name ?: tr("The bot"))))
+        return error == null
     }
 
-    /** Bitwarden's master password: unlocked, the bots can use the saved logins. */
+    /** Bitwarden's master password: unlocked, the bots can use the saved logins. Returns whether it unlocked: a wrong one stays typed. */
     @Throws(Exception::class)
-    suspend fun unlock(master: String) {
-        if (local.value.unlocking) return
+    suspend fun unlock(master: String): Boolean {
+        if (local.value.unlocking) return false
         local.update { it.copy(unlocking = true, unlockError = null) }
         val error = runCatching { api.unlockBitwarden(master) }.exceptionOrNull()?.let(::unlockFailed)
         local.update { it.copy(unlocking = false, unlockError = error) }
         tell(error ?: tr("Bitwarden is unlocked"))
         runCatching { load() }
+        return error == null
     }
 
     /** The answers typed on a question's card ([NeedsAnswerForm]) go to its bot as one message, as the chat sends them. */

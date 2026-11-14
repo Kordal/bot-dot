@@ -1,6 +1,7 @@
 package dev.botdot.app.data
 
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.timeout
 import io.ktor.client.request.HttpRequestBuilder
@@ -105,6 +106,10 @@ private class Req(val url: String) {
  */
 class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUIET_MS) {
     init { require(ReleaseManifest.secureURL(baseUrl)) { tr("Use HTTPS for a remote botdot server.") } }
+
+    /** An Api on its own [engine] in place of the app's one client: a test's fake botdot (commonTest, Ktor's MockEngine). */
+    internal constructor(baseUrl: String, engine: HttpClientEngine) : this(baseUrl) { own = client(engine) }
+    private var own: HttpClient? = null
     val json = JSON
 
     // How long a read may wait, by kind of request; null is the standard 60 s (Api.CLIENT on Android).
@@ -134,7 +139,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         val token = session?.token(server)
         var untrack: () -> Unit = {}
         try {
-            return HTTP.prepareRequest {
+            return (own ?: HTTP).prepareRequest {
                 url(req.url)
                 method = req.method
                 for ((k, v) in req.headers) header(k, v)
@@ -1123,12 +1128,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         private val JSON_TYPE = ContentType.parse("application/json; charset=utf-8")
 
         /** One client for the whole app: a new Api doesn't mean new connections. Redirects are not followed. */
-        private val HTTP: HttpClient by lazy {
-            HttpClient(httpEngine()) {
-                followRedirects = false
-                expectSuccess = false
-                install(HttpTimeout)
-            }
+        private val HTTP: HttpClient by lazy { client(httpEngine()) }
+
+        private fun client(engine: HttpClientEngine) = HttpClient(engine) {
+            followRedirects = false
+            expectSuccess = false
+            install(HttpTimeout)
         }
 
         fun enc(s: String): String = formEncode(s).replace("+", "%20")

@@ -232,18 +232,18 @@ struct UnlockForm: View {
     let key: String
     let form: NeedsUnlockForm
     let model: NeedsYouModel
-    @State private var master = ""
 
     var body: some View {
-        SecureField(form.label, text: $master).textContentType(.password).textFieldStyle(.roundedBorder)
+        // Kept by the model until it unlocks: a wrong master password stays typed.
+        let master = Binding(get: { model.typed[key]?.master ?? "" }, set: { model.typed[key, default: .init()].master = $0 })
+        SecureField(form.label, text: master).textContentType(.password).textFieldStyle(.roundedBorder)
         HStack {
             Spacer()
             Button(form.button) {
-                let typed = master
-                master = ""
-                Task { await model.unlock(typed) }
+                let typed = master.wrappedValue
+                Task { await model.unlock(key, typed) }
             }
-            .buttonStyle(.borderedProminent).disabled(master.isEmpty)
+            .buttonStyle(.borderedProminent).disabled(master.wrappedValue.isEmpty)
         }
     }
 }
@@ -256,10 +256,11 @@ struct LoginForm: View {
     let model: NeedsYouModel
     let tap: (String, NeedsButton) -> Void
     @State private var username: String?
-    @State private var secret = ""
-    @State private var master = ""
 
     var body: some View {
+        // The secret and the master password are kept by the model until the login is saved: a failed save loses neither.
+        let secret = Binding(get: { model.typed[key]?.secret ?? "" }, set: { model.typed[key, default: .init()].secret = $0 })
+        let master = Binding(get: { model.typed[key]?.master ?? "" }, set: { model.typed[key, default: .init()].master = $0 })
         NeedsButtons(key: key, buttons: wide, tap: tap)
         if !form.types.isEmpty {
             Picker(form.typeLabel, selection: Binding(get: { form.type }, set: { model.choose(key, $0) })) {
@@ -271,27 +272,25 @@ struct LoginForm: View {
                 .textContentType(.username).textInputAutocapitalization(.never).autocorrectionDisabled().textFieldStyle(.roundedBorder)
         }
         if form.multiline {
-            TextEditor(text: $secret).font(.footnote.monospaced()).frame(minHeight: 72)
-                .overlay(alignment: .topLeading) { if secret.isEmpty { Text(form.secret).foregroundStyle(.tertiary).padding(6).allowsHitTesting(false) } }
+            TextEditor(text: secret).font(.footnote.monospaced()).frame(minHeight: 72)
+                .overlay(alignment: .topLeading) { if secret.wrappedValue.isEmpty { Text(form.secret).foregroundStyle(.tertiary).padding(6).allowsHitTesting(false) } }
                 .background(.quaternary, in: .rect(cornerRadius: 8))
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
         } else {
-            SecureField(form.secret, text: $secret).textContentType(.password).textFieldStyle(.roundedBorder)
+            SecureField(form.secret, text: secret).textContentType(.password).textFieldStyle(.roundedBorder)
         }
         if let label = form.master {
-            SecureField(label, text: $master).textContentType(.password).textFieldStyle(.roundedBorder)
+            SecureField(label, text: master).textContentType(.password).textFieldStyle(.roundedBorder)
         }
         HStack(spacing: 8) {
             Spacer()
             Button(form.decline) { Task { _ = await model.press(key, NeedsDesk.companion.NO) } }
                 .buttonStyle(.bordered).disabled(form.busy)
             Button(form.save) {
-                let (u, s, m) = (username ?? form.typed, secret, master)
-                secret = ""
-                master = ""
+                let (u, s, m) = (username ?? form.typed, secret.wrappedValue, master.wrappedValue)
                 Task { await model.saveLogin(key, type: form.type, username: u, secret: s, master: m) }
             }
-            .buttonStyle(.borderedProminent).disabled(secret.isEmpty || form.busy)
+            .buttonStyle(.borderedProminent).disabled(secret.wrappedValue.isEmpty || form.busy)
         }
     }
 }

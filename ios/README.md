@@ -8,6 +8,8 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 
 **Calling Kotlin from Swift.** A shared `suspend` function the app calls carries `@Throws(Exception::class)`: Kotlin/Native hands Swift only the exceptions a function declares, and any other ends the app (a sign-out without a network did). Add it to each one the app starts calling. A shared type the app hands to its own async calls is marked `@unchecked Sendable` in `BotDot/SharedSendable.swift`.
 
+**A fake botdot for the shared tests.** `Api` takes a Ktor engine of its own (an `internal` constructor), so a test in `android/shared/src/commonTest` answers its requests with Ktor's `MockEngine` (`io.ktor:ktor-client-mock`), on Android's host and in the iOS simulator alike: `NeedsDeskTest` does. It also unblocks the fake-server tests that were skipped earlier.
+
 ## Layout
 
 ```

@@ -53,13 +53,13 @@ class NeedsYouStore(home: HomeStore) {
     /** The type picked on a login's card. */
     fun choose(key: String, type: String) = desk.choose(key, type)
 
-    /** A login's new fields, saved in the Vault. */
+    /** A login's new fields, saved in the Vault: whether it was saved. */
     @Throws(Exception::class)
-    suspend fun saveLogin(key: String, type: String, username: String, secret: String, master: String) = desk.saveLogin(key, type, username, secret, master)
+    suspend fun saveLogin(key: String, type: String, username: String, secret: String, master: String): Boolean = desk.saveLogin(key, type, username, secret, master)
 
-    /** Bitwarden's master password. */
+    /** Bitwarden's master password: whether it unlocked. */
     @Throws(Exception::class)
-    suspend fun unlock(master: String) = desk.unlock(master)
+    suspend fun unlock(master: String): Boolean = desk.unlock(master)
 
     /** The answers typed on a question's card. */
     @Throws(Exception::class)

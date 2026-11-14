@@ -39,11 +39,21 @@ final class NeedsYouModel {
     func approveAll() async { try? await store.approveAll() }
     func choose(_ key: String, _ type: String) { store.choose(key: key, type: type) }
 
+    /// What was typed in a card's secret fields: a login's secret and Bitwarden's master password. It is kept while the
+    /// card saves or unlocks, when its fields are not drawn, and after a failure, so a failed save or a wrong master
+    /// password loses nothing; it is cleared once the save or the unlock went through.
+    struct Typed { var secret = ""; var master = "" }
+    var typed: [String: Typed] = [:]
+
     func saveLogin(_ key: String, type: String, username: String, secret: String, master: String) async {
-        try? await store.saveLogin(key: key, type: type, username: username, secret: secret, master: master)
+        let saved = (try? await store.saveLogin(key: key, type: type, username: username, secret: secret, master: master))?.boolValue ?? false
+        if saved { typed[key] = nil }
     }
 
-    func unlock(_ master: String) async { try? await store.unlock(master: master) }
+    func unlock(_ key: String, _ master: String) async {
+        let unlocked = (try? await store.unlock(master: master))?.boolValue ?? false
+        if unlocked { typed[key] = nil }
+    }
     func answer(_ key: String, _ answers: [String]) async { try? await store.answer(key: key, answers: answers) }
     func back() async { try? await store.back() }
 }
