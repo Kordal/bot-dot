@@ -41,6 +41,7 @@ jobs:
           prompt: |
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
+            HEAD SHA: ${{ github.event.pull_request.head.sha }}
 
             Review this pull request's diff (`gh pr diff`). Read AGENTS.md first and hold the change to its rules,
             and read the code around the change where you need it to judge.
@@ -50,7 +51,8 @@ jobs:
             AGENTS.md. No style nits, no praise, no restating the change.
 
             Put each finding as an inline comment on its line (mcp__github_inline_comment__create_inline_comment):
-            what is wrong, the concrete case that breaks, and the fix.
+            what is wrong, the concrete case that breaks, and the fix. Pass HEAD SHA as its commit_id, so a
+            finding never lands on a newer push.
 
             Then post exactly one summary comment with `gh pr comment`. Its first line is "Claude review", then a
             short numbered list of the findings (file:line and one sentence each). When there is nothing to fix,
