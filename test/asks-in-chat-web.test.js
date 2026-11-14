@@ -127,3 +127,14 @@ test('web: a card of questions names the reply it answers (#1380)', () => {
   assert.match(ctx.questionsHTML(['Which calendar?'], null, 'r7'), /<div class="ask-card card" data-of="r7">/);
   assert.match(ctx.questionsHTML(['Which calendar?']), /<div class="ask-card card">/);
 });
+
+test('web: a "New" line whose run the page does not hold is read first, then the chat reads on to an older question (#1380)', async () => {
+  const ctx = page();
+  const asks = { text: 'Which calendar?', runId: 'q1', at: at(5), open: [{ runId: 'q1', startedAt: at(1) }] };
+  const bot = { id: 'iw', asks };
+  assert.equal(ctx.chatBack(bot, 'n9'), 'n9', 'its start unknown: the "New" line first');
+  ctx.pages.push([run('n9', 30)]);
+  ctx.reachNew('iw', 'n9');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(ctx.chatBack(bot, 'n9'), 'q1', 'read: it started after the question, so the chat reads on to it');
+});
