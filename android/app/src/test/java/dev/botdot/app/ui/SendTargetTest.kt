@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.Outbox
 import android.app.Application
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue

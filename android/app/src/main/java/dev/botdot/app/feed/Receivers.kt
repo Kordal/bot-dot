@@ -15,7 +15,8 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.tr
-import dev.botdot.app.ui.replyFromNotification
+import dev.botdot.app.data.PLAN_APPROVAL
+import dev.botdot.app.data.replyFromNotification
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch

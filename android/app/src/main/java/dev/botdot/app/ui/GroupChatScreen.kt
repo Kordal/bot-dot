@@ -1,5 +1,11 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.takesOnce
+import dev.botdot.app.data.lineWith
+import dev.botdot.app.data.isGoOn
+import dev.botdot.app.data.SentMessage
+import dev.botdot.app.data.Outbox
+import dev.botdot.app.markdown.draftSource
 import dev.botdot.app.data.CHIEF_COLOR
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
