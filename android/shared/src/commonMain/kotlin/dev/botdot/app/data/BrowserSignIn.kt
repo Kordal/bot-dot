@@ -107,6 +107,7 @@ class BrowserSignIn(private val keep: Keep, private val now: () -> Long = { kotl
      * The browser came back with [uri]. The kept secret is used once, whatever comes of it; a code for no waiting
      * sign-in, an old one, or one for another botdot signs nothing in.
      */
+    @Throws(Exception::class)
     suspend fun back(uri: String?) {
         val code = Handoff.codeOf(uri)
         val waiting = Handoff.parse(keep.read())

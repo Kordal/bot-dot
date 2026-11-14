@@ -25,7 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import dev.botdot.app.data.Api
 import dev.botdot.app.data.Connect
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
@@ -40,7 +39,10 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
     var checking by remember { mutableStateOf(false) }
 
     fun connect() {
-        val url = Api.normalize(address) ?: run { error = tr("That doesn't look like an address."); return }
+        // As on the iPhone: a botdot on a computer itself, plain HTTP and nonsense are said at once, not asked.
+        val typed = Connect.address(address)
+        Connect.words(typed)?.let { error = it; return }
+        val url = (typed as Connect.Address.Remote).url
         checking = true
         error = null
         scope.launch {

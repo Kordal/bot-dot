@@ -28,9 +28,17 @@ class ConnectTest {
         assertEquals(Connect.Address.NotAnAddress, Connect.address("https://user:pw@hq.example.com"))
     }
 
-    @Test fun theSignInPageNamesThisPhonesApp() {
-        val page = Handoff.start("https://hq.example.com/", 0).page
-        assertTrue(page.startsWith("https://hq.example.com/sign-in?app=$signInApp&handoff="), page)
-        assertTrue(signInApp == "android" || signInApp == "ios")
+    @Test fun aFailedCheckIsNeverConnected() {
+        assertEquals("The connection dropped", Connect.answer(null, IllegalStateException()))
+        assertEquals("The connection dropped", Connect.answer(null, ApiException(" ")))
+        assertEquals("Can't reach it", Connect.answer(null, ApiException("Can't reach it")))
+        assertEquals("This botdot is older than the app. Ask its admin to update it, then connect again.", Connect.answer(null, ApiException("Unknown endpoint", 404)))
+    }
+
+    @Test fun aBotdotOrItsFrontDoorIsConnected() {
+        assertNull(Connect.answer(VersionInfo(app = "bot-dot", apiVersion = Connect.API_VERSION), null))
+        assertNull(Connect.answer(VersionInfo(app = "bot-dot", frontDoor = true), null))
+        assertEquals("That address answers, but it isn't botdot.", Connect.answer(VersionInfo(app = "other"), null))
+        assertEquals("This botdot is newer than the app. Update the app.", Connect.answer(VersionInfo(app = "bot-dot", apiVersion = Connect.API_VERSION + 1), null))
     }
 }

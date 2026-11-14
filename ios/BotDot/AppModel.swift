@@ -1,3 +1,4 @@
+import AuthenticationServices
 import Foundation
 import Observation
 import BotdotShared
@@ -18,10 +19,13 @@ final class AppModel {
     var error: String?
     private(set) var busy = false
 
-    let session = Session(keep: KeychainSessions())
+    let session: Session
+    private let sessions: KeychainSessions
     private let settings: Settings
 
-    init(directory: URL? = nil) {
+    init(directory: URL? = nil, sessions: KeychainSessions = KeychainSessions()) {
+        self.sessions = sessions
+        session = Session(keep: sessions)
         let dir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         settings = settingsIn(directory: dir.path)
@@ -35,6 +39,7 @@ final class AppModel {
 
     /// An address typed in: refused at once, asked whether it is a botdot, then kept.
     func connect(_ typed: String) async {
+        guard !busy else { return } // one check at a time: a second tap waits for the first
         error = nil
         let address = Connect.shared.address(input: typed)
         if let words = Connect.shared.words(address: address) {
@@ -58,6 +63,9 @@ final class AppModel {
 
     /// The front door's sign-in page in [open] (the Safari sheet), and its code turned into this phone's session.
     func signIn(_ server: String, open: (URL) async throws -> URL) async {
+        guard !busy else { return } // one sign-in at a time
+        busy = true
+        defer { busy = false }
         error = nil
         let api = Api(baseUrl: server, session: session, quietMs: Api.companion.QUIET_MS)
         let flow = BrowserSignIn(keep: WaitingSignIn(), now: { KotlinLong(value: Int64(Date().timeIntervalSince1970 * 1000)) }, api: { api })
@@ -65,12 +73,16 @@ final class AppModel {
         let back: URL
         do {
             back = try await open(url)
-        } catch {
+        } catch let e as ASWebAuthenticationSessionError where e.code == .canceledLogin {
             flow.couldNotOpen(words: "") // closed by the owner: nothing to say
             return
+        } catch {
+            // The sheet couldn't open, or ended otherwise: said, and Sign in can be tapped again.
+            let words = tr("The sign-in didn't come back from the browser. Sign in again.")
+            flow.couldNotOpen(words: words)
+            self.error = words
+            return
         }
-        busy = true
-        defer { busy = false }
         do {
             try await flow.back(uri: back.absoluteString)
         } catch {
@@ -88,8 +100,9 @@ final class AppModel {
     func signOut(_ server: String) async {
         let api = Api(baseUrl: server, session: session, quietMs: Api.companion.QUIET_MS)
         try? await api.signOut()
-        KeychainSessions().write(server: server, token: nil)
-        screen = .signIn(server)
+        sessions.write(server: server, token: nil)
+        // Another address may have been chosen meanwhile: its screen stays.
+        if screen == .signedIn(server) { screen = .signIn(server) }
     }
 
     /// Another address: this one's session stays for when the phone comes back to it.

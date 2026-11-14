@@ -41,15 +41,20 @@ object Connect {
      * Asks [url] whether it is a botdot this app can talk to: null when it is, else what to tell the owner. A front
      * door (ADR 028) is botdot, and which botdot is behind it is known once signed in.
      */
+    @Throws(Exception::class)
     suspend fun check(url: String): String? {
         val r = runCatching { Api(url).version() }
-        val v = r.getOrNull()
-        val failure = r.exceptionOrNull()
+        r.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
+        return answer(r.getOrNull(), r.exceptionOrNull())
+    }
+
+    /** What [check] says of the version [v] an address answered, or of the [failure] it answered with instead. */
+    internal fun answer(v: VersionInfo?, failure: Throwable?): String? {
         return when {
-            failure is kotlinx.coroutines.CancellationException -> throw failure
             // Before botdot had /api/version (it answers "Unknown endpoint").
             failure is ApiException && failure.status == 404 -> tr("This botdot is older than the app. Ask its admin to update it, then connect again.")
-            failure != null -> failure.message
+            // A failure is never "connected": one without words says the connection dropped.
+            failure != null -> failure.message?.ifBlank { null } ?: tr("The connection dropped")
             v == null || v.app != "bot-dot" -> tr("That address answers, but it isn't botdot.")
             v.frontDoor -> null
             v.apiVersion > API_VERSION -> tr("This botdot is newer than the app. Update the app.")
