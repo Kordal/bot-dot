@@ -375,14 +375,15 @@ const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length
   ? `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${of && answered.get(of) === 'sending' ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}</div>`
   : '');
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question, and under a box
-// the question's choices (`picks`, the reply's questionChoices), each a button that fills it.
-const questionsHTML = (questions, picks) => (questions?.length
-  ? `<div class="ask-card card">${questions.map((q, i) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea>${picks?.[i]?.length ? `<span class="ask-picks">${picks[i].map((c) => `<button type="button" class="btn" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</span>` : ''}</label>`).join('')}<button class="btn primary sm" data-send disabled>${tr('Send')}</button></div>`
+// the question's choices (`picks`, the reply's questionChoices), each a button that fills it. of: the reply's id, so
+// that what the card sends answers that reply (#1380).
+const questionsHTML = (questions, picks, of = '') => (questions?.length
+  ? `<div class="ask-card card"${of ? ` data-of="${esc(of)}"` : ''}>${questions.map((q, i) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea>${picks?.[i]?.length ? `<span class="ask-picks">${picks[i].map((c) => `<button type="button" class="btn" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</span>` : ''}</label>`).join('')}<button class="btn primary sm" data-send disabled>${tr('Send')}</button></div>`
   : '');
 // send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
 // as long as the page is open (answerKey), or without `of` for as long as it is drawn; a card for as long as its
-// answers are the same.
+// answers are the same. send(text, key, of): `of` is the reply it answers, when it was drawn with one.
 function wireChoices(root, send) {
   $$('[data-choice]', root).forEach((b) => {
     const of = b.closest('.choices')?.dataset.of || '';
@@ -394,7 +395,7 @@ function wireChoices(root, send) {
       const all = $$('[data-choice]', row);
       all.forEach((x) => { x.disabled = true; }); // one tap, one message
       if (of) { answered.set(of, 'sending'); if (row) row.hidden = true; }
-      if (await send(b.dataset.choice, key)) {
+      if (await send(b.dataset.choice, key, of || null)) {
         if (of) { if (answered.size > 500) answered.clear(); answered.set(of, 'sent'); }
         rows().forEach((r) => r.remove());
       } else {
@@ -428,7 +429,7 @@ function wireChoices(root, send) {
       // Each question with its answer (see lib/choices.js). The answers stay in their boxes until it went.
       const text = boxes.map((b) => `${b.dataset.q}\n→ ${b.value.trim() || '–'}`).join('\n\n');
       if (last?.text !== text) last = { text, key: messageKey() }; // changed answers are a new message
-      if (await send(text, last.key)) card.remove();
+      if (await send(text, last.key, card.dataset.of || null)) card.remove();
       else btn.disabled = false;
     };
   });

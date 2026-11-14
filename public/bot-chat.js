@@ -3,10 +3,10 @@
 // and Details. The blocks stand in the order their replies ended (Unread.order): a run at work at the bottom.
 
 // newFirst: the run the "New" line goes above (the server's firstUnread when the chat was opened), or null.
-// The answers of a reply stand under the reply that is last in the chat, and under the run its open question is from (bot.asks) when
-// newer runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
-// A reply that asked (r.asks) keeps its answers only while it is the bot's open question: answered in another chat,
-// in a group the bot is in, they go (ADR 211).
+// The answers of a reply stand under the reply that is last in the chat, and under each run an open question is from (bot.asks) when
+// newer runs came after it: what asks the owner can be answered where it stands. Two runs that went at once and both
+// asked keep both their answers (#1380). A reply that asked (r.asks) keeps its answers only while it is one of the
+// bot's open questions: answered in another chat, in a group the bot is in, they go (ADR 211).
 function botThreadHTML(bot, runs, newFirst = null) {
   if (!runs.length) {
     return `
@@ -240,7 +240,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
-        ${(r.id === bot.asks?.runId || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}
+        ${((Array.isArray(bot.asks?.open) ? bot.asks.open.some((x) => x.runId === r.id) : r.id === bot.asks?.runId) || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }
@@ -269,7 +269,27 @@ function loadInbox(botId) {
 
 // The run a bot's chat reaches back to: its "New" line's, else the one its open question is from (docs/api.md, "A bot
 // that asks"), else none. The question is the newest reply that counts, so the "New" line is never below it.
-const chatBack = (bot, newFirst) => newFirst ?? bot?.asks?.runId ?? null;
+// The runs of a bot's open questions (docs/api.md, "A bot that asks"), newest first: every one of them (`open`, #1380),
+// or from a server without it the one of `runId`. A function declaration, so that it is there before this file runs.
+function asksOpen(asks) { return Array.isArray(asks?.open) ? asks.open.map((x) => x.runId) : asks?.runId ? [asks.runId] : []; }
+// The chat lists runs by their start, so it reads back to whichever of the "New" line's run and the open questions
+// started first: all of them are drawn (#1380). While the page does not know when the "New" line's run started it reads
+// back to that run first; once read (the runs reached back), the next draw knows and reads on to the question if it is older.
+const lineStarts = new Map(); // "New" line's run → its start
+function chatBack(bot, newFirst) {
+  const open = Array.isArray(bot?.asks?.open) ? bot.asks.open.filter((x) => x?.runId) : bot?.asks?.runId ? [bot.asks] : [];
+  // Without the starts (an older server): the oldest reply, the last of `open`.
+  const firstAsked = open.length && open.every((x) => x.startedAt) ? open.reduce((a, x) => (x.startedAt < a.startedAt ? x : a)) : open.at(-1);
+  if (!firstAsked) return newFirst ?? null;
+  if (!newFirst) return firstAsked.runId;
+  // Kept once known: reading on to the question replaces the runs that held the "New" line's, and a draw meanwhile
+  // must not turn back to the line.
+  const lineStart = [...state.runs, ...(own?.runs || []), ...(reached?.runs || [])].find((r) => r?.id === newFirst)?.startedAt
+    || lineStarts.get(newFirst);
+  if (lineStart) lineStarts.set(newFirst, lineStart);
+  if (lineStarts.size > 50) lineStarts.delete(lineStarts.keys().next().value);
+  return lineStart && firstAsked.startedAt && firstAsked.startedAt < lineStart ? firstAsked.runId : newFirst;
+}
 
 // The open chat's own newest runs, read for it: state.runs is the newest 200 of all bots, and on an account whose
 // other bots run often (their jobs, quiet ones too) a bot's own runs fall out of it. Its chat then lost what the
@@ -427,7 +447,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes. A step of a running
   // run is no change: its step line grows in place (drawBlockLines).
   const waiting = state.inbox[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${bot.asks?.runId ?? ''}`;
+  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${asksOpen(bot.asks).join(',')}`;
   const thread = part('chat-thread');
   holdChatEnd(thread, () => botFigure(bot.color, 'idle', '', bot.outfit, bot.id));
   if (root.dataset.sig !== sig) {
@@ -445,7 +465,8 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
-    wireChoices(thread, (t, key) => sendFrom($('form.composer', root), () => runBot(bot.id, t, [], key)));
+    // An answer names the reply it answers: with two questions open, it ends that one alone (#1380).
+    wireChoices(thread, (t, key, of) => sendFrom($('form.composer', root), () => runBot(bot.id, t, [], key, null, of)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));
     // What it learned: a job opens its jobs, a change to its task, rules or skills its settings. A note opens nothing.
     $$('[data-learned]', thread).forEach((el) => (el.onclick = () => openLearned(el, bot.id)));
@@ -508,13 +529,13 @@ function redrawBotChat(botId) {
 // before. A task botdot had already (again) answers the run it has, which the chat holds once.
 // To a working bot the answer is a run that waits (`status: "queued"`): it is no run yet, so nothing is followed
 // or opened for its id. It is drawn among the bot's `queued`, as every waiting message is.
-async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null) {
+async function runBot(botId, text, attachments = [], key = messageKey(), replyTo = null, answers = null) {
   const at = `bot:${botId}`;
   sentAtOnce(at, { key, text, attachments });
   showSent(botThread(botId));
   let took;
   try {
-    took = await api(`/bots/${botId}/run`, { method: 'POST', body: { prompt: text || undefined, attachments, key, ...(replyTo ? { replyTo } : {}) } });
+    took = await api(`/bots/${botId}/run`, { method: 'POST', body: { prompt: text || undefined, attachments, key, ...(replyTo ? { replyTo } : {}), ...(answers ? { answers } : {}) } });
   } catch (e) {
     sentOver(at, key, false); // it did not go: nothing of it stays in the chat
     placeStatusLines();

@@ -107,10 +107,12 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         opened = opened + runId
         listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting
     }
-    // The run its open question is from (docs/api.md, "A bot that asks"), however far back: older pages until it is
-    // in the chat, so "Needs you" on its key points at something to answer.
-    val askedIn = bot?.asks?.runId
-    LaunchedEffect(loaded, askedIn) { if (loaded && askedIn != null) vm.reach(askedIn) }
+    // The runs its open questions are from (docs/api.md, "A bot that asks"), however far back: older pages until the
+    // oldest is in the chat, so "Needs you" on its key points at something to answer. Two runs that went at once and
+    // both asked keep both questions (#1380).
+    val askedIn = bot?.asks?.runs.orEmpty()
+    val oldestAsked = bot?.asks?.reachBack
+    LaunchedEffect(loaded, oldestAsked) { if (loaded && oldestAsked != null) vm.reach(oldestAsked) }
     LaunchedEffect(botId) { vm.addShared(shared) }
     // Near the top (the list is upside down: near its end): the page before.
     LaunchedEffect(listState) {
@@ -181,7 +183,8 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // Reply on a block (#627), against a botdot that takes it: the chip above the box names the block's first request.
     val replies = "reply-to" in features.orEmpty()
     // From a quick answer or a question card: whether it went. What was tapped stays until it did.
-    suspend fun sendFrom(text: String, key: String): Boolean = vm.send(text, emptyList(), box = false, key = key).await()
+    // answers: the reply whose question it answers, so that with two questions open it ends that one alone (#1380).
+    suspend fun sendFrom(text: String, key: String, answers: String? = null): Boolean = vm.send(text, emptyList(), box = false, key = key, answers = answers).await()
 
     // What "@" mentions in this chat are matched against: the composer's suggestions, your bubbles. And where Quote
     // puts text selected in a message: this chat's message box (QuoteUi.kt).
@@ -280,9 +283,9 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                     // Under the reply that is last in the chat, and under the run its open question is from when newer
                                     // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
                                     // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).
-                                    if ((r.id == askedIn || (r.id == lastReply && !r.asks)) && r.status == "success") {
-                                        Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key) }
-                                        Questions(r.questions, r.questionChoices) { text, key -> sendFrom(text, key) }
+                                    if ((r.id in askedIn || (r.id == lastReply && !r.asks)) && r.status == "success") {
+                                        Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key, r.id) }
+                                        Questions(r.questions, r.questionChoices) { text, key -> sendFrom(text, key, r.id) }
                                     }
                                 }
                                 // Its reply, once the run ended: it arrives when it is new in this open chat, and what

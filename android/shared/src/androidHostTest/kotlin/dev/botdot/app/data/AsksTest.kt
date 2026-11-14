@@ -45,6 +45,21 @@ class AsksTest {
         assertNull("the owner answered, here or in another app", ended[0].asks)
     }
 
+    @Test fun twoRunsThatAskKeepBothQuestions() {
+        // #1380: the newest is `runId`, as an older app reads it; `open` lists every open question, newest first.
+        val two = bots("""[{"id":"mail","name":"Mail Sorter","asks":{"text":"Which calendar?","runId":"r10","at":"2026-11-14T13:00:00Z","open":[{"text":"Which calendar?","runId":"r10"},{"text":"$question","runId":"r9"}]}}]""").single()
+        assertEquals(listOf("r10", "r9"), two.asks?.runs)
+        assertEquals("one question: the run of runId", listOf("r9"), bots(list).first().asks?.runs)
+        val odd = bots("""[{"id":"mail","name":"Mail Sorter","asks":{"text":"Which calendar?","runId":"r10","open":[7,{"runId":"r10"},{"text":"x"},{"runId":"r9"},{"runId":"r9"}]}}]""").single()
+        assertEquals("what is no run is left out, and each run once", listOf("r10", "r9"), odd.asks?.runs)
+        // The run that started first asked last: the chat reads back to it.
+        val started = bots("""[{"id":"mail","name":"Mail Sorter","asks":{"text":"Which calendar?","runId":"r10","open":[{"runId":"r10","startedAt":"2026-11-14T13:00:00Z"},{"runId":"r9","startedAt":"2026-11-14T13:05:00Z"}]}}]""").single()
+        assertEquals("r10", started.asks?.reachBack)
+        assertEquals("no starts: the oldest reply", "r9", two.asks?.reachBack)
+        val fed = Asks.on(bots(list), event("""{"botId":"mail","asks":{"text":"Which calendar?","runId":"r10","open":[{"runId":"r10"},{"runId":"r9"}]}}"""))
+        assertEquals(listOf("r10", "r9"), fed[0].asks?.runs)
+    }
+
     @Test fun otherEventsChangeNothing() {
         val asked = bots(list)
         // The event of the same name about what waits for the owner's OK names no bot.

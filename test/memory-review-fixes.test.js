@@ -297,7 +297,8 @@ test('the Chief is handed the open question of a left-out run without its words;
 
   assert.equal((await leaveOut(h.run.id)).status, 200);
   for (const got of [(await srv.asChief(`/bots/${b.id}`)).data, (await srv.asChief('/bots')).data.find((x) => x.id === b.id)]) {
-    assert.deepEqual(got.asks, { runId: h.run.id, at: asks.at, leftOut: true });
+    const hidden = { runId: h.run.id, at: asks.at, leftOut: true };
+    assert.deepEqual(got.asks, { ...hidden, open: [hidden] }, 'each open one without its words too');
     assert.equal(got.state, 'needs_you', 'that the bot waits for the owner is no text of the run');
     assert.doesNotMatch(JSON.stringify(got), /therapist/);
   }

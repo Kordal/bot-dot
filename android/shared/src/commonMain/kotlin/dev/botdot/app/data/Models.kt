@@ -218,13 +218,30 @@ data class Bot(
     val rooms: BotRooms? get() = BotRooms.of(roomsValue)
 }
 
-/** A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked. */
-data class Asks(val text: String, val runId: String? = null, val at: String? = null) {
+/**
+ * A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked, the
+ * newest. [others]: the runs of its other open questions, newest first (`asks.open`, #1380): two runs of the bot that
+ * went at once and both asked keep both questions.
+ */
+data class Asks(val text: String, val runId: String? = null, val at: String? = null, val others: List<String> = emptyList(), val firstStarted: String? = null) {
+    /** The runs of every open question of the bot, newest first: under each of them its answers are drawn. */
+    val runs: List<String> get() = listOfNotNull(runId) + others
+
+    /**
+     * The run the chat reads back to: of the open questions, the one whose run started first, as the chat lists runs
+     * by their start ([firstStarted], from each one's `startedAt`); from a server that sends no starts, the oldest reply.
+     */
+    val reachBack: String? get() = firstStarted ?: runs.lastOrNull()
+
     companion object {
         /** `asks` as the server sent it; null without a question to show. */
         fun of(v: JsonElement?): Asks? {
             val o = v as? JsonObject ?: return null
-            return Asks(o["text"].textOrNull() ?: return null, o["runId"].textOrNull(), o["at"].textOrNull())
+            val runId = o["runId"].textOrNull()
+            val open = (o["open"] as? JsonArray).orEmpty().mapNotNull { e -> (e as? JsonObject)?.let { x -> x["runId"].textOrNull()?.let { it to x["startedAt"].textOrNull() } } }
+            val others = open.map { it.first }.filter { it != runId }.distinct()
+            val firstStarted = open.takeIf { l -> l.isNotEmpty() && l.all { it.second != null } }?.minByOrNull { it.second!! }?.first
+            return Asks(o["text"].textOrNull() ?: return null, runId, o["at"].textOrNull(), others, firstStarted)
         }
 
         /**
