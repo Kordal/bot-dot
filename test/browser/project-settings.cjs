@@ -1,6 +1,5 @@
 // Optional browser check of Project settings (#701): node test/browser/project-settings.cjs [shots dir]
-// The gear beside the project's name opens them; each field saves as it is changed (name, colour, an objective, a
-// rule, a lead's report rhythm, the standup, a team's name); a change from elsewhere shows at once; Archive moves the
+// The gear beside the project's name opens them; each field saves as it is changed (name, colour, a rule, a lead's report rhythm, the standup, a team's name); a change from elsewhere shows at once; Archive moves the
 // project under Archived in the list and Unarchive back; Delete asks first, whether its folder stays too, and removes it. Wide and phone. Scratch data.
 const assert = require('node:assert/strict');
 const path = require('node:path');
@@ -37,34 +36,19 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await page.locator('.cf-top [data-project-settings]').click();
     const ps = page.locator('.ps-page');
     await ps.locator('.ps-top h1', { hasText: 'Botdot' }).waitFor();
-    assert.deepEqual(await ps.locator('.ps-nav button').allInnerTexts(), ['General', 'Goal', 'Team', 'Project updates', 'Rules', 'Archive or delete']);
+    assert.deepEqual(await ps.locator('.ps-nav button').allInnerTexts(), ['General', 'Team', 'Project updates', 'Rules', 'Archive or delete']);
+    // No Board row and no Goal section: the board is changed on the board, the goal by chat.
+    assert.equal(await ps.locator('#ps-goal, [data-ps-piece], [data-ps-objective], [data-ps-deliver], [data-ps-startday]').count(), 0);
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-top.png') });
 
     // Name: saved on Enter, the tree follows.
     await ps.locator('[data-ps-field="name"]').fill('Botdot HQ');
     await ps.locator('[data-ps-field="name"]').press('Enter');
-    await page.locator('#company-side [data-project="p1"] .ct-name', { hasText: 'Botdot HQ' }).waitFor();
+    await page.locator('#company-side [data-project="p1"] .ct-name', { hasText: 'Botdot HQ' }).waitFor({ state: 'attached' });
     // Colour.
     await ps.locator('[data-ps-color="#8e7cff"]').click();
     await until(async () => (await get('p1')).color === '#8e7cff', 'colour');
-    // An objective's number, a new objective, a rule.
-    await ps.locator('[data-ps-objective="o1"] [data-ps-o="current"]').fill('12');
-    await ps.locator('[data-ps-objective="o1"] [data-ps-o="current"]').press('Enter');
-    await until(async () => (await get('p1')).objectives[0].current === 12, 'objective');
-    await ps.locator('[data-ps-objective-form] input').fill('Paying teams');
-    await ps.locator('[data-ps-objective-form] input').press('Enter');
-    await until(async () => (await get('p1')).objectives.length === 2, 'new objective');
-    // Show as, per objective (#690).
-    await ps.locator('[data-ps-objective]').nth(1).waitFor();
-    await ps.locator('.ps-show').nth(1).waitFor();
-    await ps.locator('[data-ps-objective-id="o1"][data-ps-display="bar"]').click();
-    await until(async () => (await get('p1')).objectives[0].display === 'bar', 'show as');
-    // A number read from an app (#699): weekly, then stopped.
-    await srv.api('/company/objectives/o1?project=p1', { method: 'PUT', body: { source: { app: 'stripe', what: 'active subscriptions' } } });
-    await ps.locator('[data-ps-objective-id="o1"][data-ps-every="weekly"]').click();
-    await until(async () => (await get('p1')).objectives[0].source?.every === 'weekly', 'weekly source');
-    await ps.locator('[data-ps-source-stop="o1"]').click();
-    await until(async () => !(await get('p1')).objectives[0].source, 'source stopped');
+    // A rule.
     await ps.locator('[data-ps-never-form] input').fill('Email customers');
     await ps.locator('[data-ps-never-form] input').press('Enter');
     await until(async () => (await get('p1')).never.join('|') === 'Spend money|Email customers', 'rule');
@@ -80,27 +64,27 @@ const { startServer, makeBot, writeData } = require('../helpers');
     await until(async () => { const t = (await get('p1')).teams[0]; return t.name === 'Growth' && t.lead === b.id; }, 'team');
     await ps.locator('.ps-team .ps-label', { hasText: 'Growth' }).waitFor(); // the page has the save's own answer
     // A change from elsewhere shows at once.
-    await srv.api('/company?project=p1', { method: 'PATCH', body: { goal: 'Reach 200 active users' } });
-    await until(async () => (await ps.locator('[data-ps-field="goal"]').inputValue()) === 'Reach 200 active users', 'live goal');
+    await srv.api('/company?project=p1', { method: 'PATCH', body: { start: 'botdot.app/pricing' } });
+    await until(async () => (await ps.locator('[data-ps-field="start"]').inputValue()) === 'botdot.app/pricing', 'live site');
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-settings.png'), fullPage: true });
 
     // Archive: under Archived in the list; Unarchive brings it back.
     await ps.locator('[data-ps-archive]').click();
     await until(async () => (await get('p1')).archived === true, 'archived');
     const side = page.locator('#company-side');
-    await side.locator('.ct-archived').waitFor();
+    await side.locator('.ct-archived').waitFor({ state: 'attached' });
     assert.equal(await side.locator('.ct-tree > .ct-branch:not(.ct-archived) [data-project="p1"]').count(), 0);
     if (shots) await page.screenshot({ path: path.join(shots, 'wide-archived.png') });
     await ps.locator('[data-ps-archive]', { hasText: 'Unarchive' }).click();
     await side.locator('.ct-archived').waitFor({ state: 'detached' });
 
     // Delete Mealwise: it asks first, then it is gone and the first project is shown.
-    await side.locator('[data-project="p2"]').click();
+    await page.locator('#rail .rail-sq[data-space="p2"]').click();
     await page.locator('.cf-top h1', { hasText: 'Mealwise' }).waitFor();
     await page.locator('.cf-top [data-project-settings]').click();
     await ps.locator('[data-ps-delete]').click();
     await page.locator('dialog [data-confirm-delete]').click(); // its folder stays (#702)
-    await page.locator('.cf-top h1', { hasText: 'Botdot HQ' }).waitFor();
+    await until(async () => (await srv.api('/company/list')).data.projects.length === 1, 'deleted');
     assert.deepEqual((await srv.api('/company/list')).data.projects.map((p) => p.id), ['p1']);
     assert.deepEqual(errors, []);
 

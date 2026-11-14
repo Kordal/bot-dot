@@ -1,6 +1,6 @@
 // Project settings (#701): the gear beside a project's name opens them, from a server with `project-settings`. One
 // page of rows, each a label and the field that changes it, saved as it is changed: General (name, colour, the site or
-// idea it started from, its sources, its folder: #702), Goal (the goal, the objectives and how each is shown, the day its 90 days start, the check-ins), Team
+// idea it started from, its sources, its folder: #702), Team
 // (each team's name, bots and lead; a new team), Reports (each lead's rhythm, the morning standup), Rules (what the
 // team never does without asking, the owner's time) and Archive or delete. A wide window has the sections listed on
 // the left; a phone has them as a row of tabs. A change from elsewhere (the Chief, another window) shows at once,
@@ -12,12 +12,8 @@
   const CROWN = '<svg class="ps-crown" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17 3 7l5 4 4-6 4 6 5-4-1 10z"/></svg>';
   // lib/company.js PROJECT_COLORS.
   const COLORS = ['#ff6b35', '#34c759', '#3aa0ff', '#8e7cff', '#ffb020', '#ff5c8a', '#2ec4b6', '#b07cff'];
-  const SECTIONS = [['general', () => tr('General')], ['goal', () => tr('Goal')], ['team', () => tr('Team')], ['reports', () => (state.features || []).includes('project-updates') ? tr('Project updates') : tr('Reports')], ['rules', () => tr('Rules')], ['archive', () => tr('Archive or delete')]];
+  const SECTIONS = [['general', () => tr('General')], ['team', () => tr('Team')], ['reports', () => (state.features || []).includes('project-updates') ? tr('Project updates') : tr('Reports')], ['rules', () => tr('Rules')], ['archive', () => tr('Archive or delete')]];
   const RHYTHMS = [['', () => tr('Off')], ['daily', () => tr('Daily')], ['twice-weekly', () => tr('Twice a week')], ['weekly', () => tr('Weekly')]];
-  // How the floor draws an objective (#690, company-floor.js displayOf): lib/company.js DISPLAYS.
-  const DISPLAYS = [['pace', () => tr('Pace chart')], ['bar', () => tr('Bar')], ['status', () => tr('Status')]];
-  const EVERY = [['daily', () => tr('Daily')], ['weekly', () => tr('Weekly')]];
-  const DECIDED = { keep: () => tr('Keep going'), change: () => tr('Change direction'), stop: () => tr('Stop') };
   // The team being edited: its id, 'new' for a new one, or null; and what its editor holds.
   const botWrites = new Set();
   let editing = null;
@@ -48,7 +44,6 @@
       + row(tr('Color'), swatches)
       + row(tr('Site or idea'), field('start', c.start, 500, tr('Site or idea')))
       + row(tr('Sources'), sources, 'top')
-      + boardHTML(c)
       + (c.folder ? row(tr('Folder'), `<span class="ps-path" title="${esc(c.folder.path)}">${esc(c.folder.path)}</span><button type="button" class="btn sm" data-ps-folder>${tr('Open')}</button>`) : '')
       + loginsHTML(c));
   }
@@ -64,40 +59,6 @@
     const list = `<ul class="ps-list">${mine.map((l) => `<li><span class="ps-item" title="${esc(l.site || '')}">${esc(l.name || l.id)}</span><button type="button" class="icon-btn" data-ps-unlogin="${esc(l.id)}" aria-label="${tr('Remove')}">${X}</button></li>`).join('')}</ul>
       <div class="ps-adds ps-login-add"><button type="button" class="btn sm" data-ps-add-login aria-expanded="${loginMenu}">${PLUS}${tr('Add')}</button>${menu}</div>`;
     return `<div id="ps-logins">${row(tr('Logins'), list, 'top')}</div>`;
-  }
-
-  // The pieces on its board (#780), each on or off; a project made before has them all on.
-  function boardHTML(c) {
-    if (!(state.features || []).includes('project-board')) return '';
-    const pieces = (Company.piecesOf ? Company.piecesOf(c) : Company.PIECES).map((k) => { const on = Company.onBoard(c, k); return `<button type="button" data-ps-piece="${k}" aria-pressed="${on}" class="${on ? 'on' : ''}">${esc(Company.pieceLabel(k))}</button>`; }).join('');
-    return row(tr('Board'), `<div class="ps-seg ps-pieces" role="group">${pieces}</div>`);
-  }
-
-  function goalHTML(c) {
-    const objectives = `<ul class="ps-list ps-objectives">${c.objectives.map((o) => `<li data-ps-objective="${esc(o.id)}" style="--c:${esc(o.color)}"><i class="ps-dot"></i>
-      <input class="ps-input" data-ps-o="name" value="${esc(o.name)}" maxlength="80" aria-label="${tr('Objective')}" />
-      <input class="ps-input ps-num" data-ps-o="current" type="number" step="any" value="${esc(String(o.current))}" aria-label="${tr('Now')}" /><span class="ps-of">/</span>
-      <input class="ps-input ps-num" data-ps-o="target" type="number" step="any" value="${esc(String(o.target))}" aria-label="${tr('Target')}" />
-      <button type="button" class="icon-btn" data-ps-unobjective="${esc(o.id)}" aria-label="${tr('Remove')}">${X}</button></li>`).join('')}</ul>
-      ${c.objectives.length < 6 ? `<form class="ps-add" data-ps-objective-form><input class="ps-input" name="text" autocomplete="off" maxlength="80" placeholder="${tr('New objective')}" aria-label="${tr('New objective')}" /></form>` : ''}`;
-    const started = c.startedAt ? c.startedAt.slice(0, 10) : '';
-    const checkins = `<div class="ps-chips">${[30, 60, 90].map((d) => {
-      const k = c.checkins.find((x) => x.day === d);
-      return `<span class="ps-chip${k ? ` ${k.decision}` : ''}${c.checkin?.day === d ? ' due' : ''}"${k ? ` title="${esc(DECIDED[k.decision]())}"` : ''}>${tr('Day {n}', { n: d })}</span>`;
-    }).join('')}</div>`;
-    const many = c.objectives.length > 1;
-    const show = c.objectives.length && typeof CompanyFloor !== 'undefined' && CompanyFloor.displayOf
-      ? row(tr('Show as'), c.objectives.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}">${many ? `<span class="ps-show-name"><i class="ps-dot"></i>${esc(o.name)}</span>` : ''}${seg('data-ps-display', DISPLAYS, CompanyFloor.displayOf(o), ` data-ps-objective-id="${esc(o.id)}"`)}</div>`).join(''), many ? 'top' : '')
-      : '';
-    // Where a number comes from (#699): each objective read from a connected app, how often, and Stop updating.
-    // A source is added from the goal card, where the connected apps are listed.
-    const fed = c.objectives.filter((o) => o.source);
-    const sources = fed.length ? row(tr('Update from an app'), fed.map((o) => `<div class="ps-show" style="--c:${esc(o.color)}"><span class="ps-show-name"><i class="ps-dot"></i>${esc(`${o.name} · ${o.source.app} · ${o.source.what}`)}</span>${seg('data-ps-every', EVERY, o.source.every || 'daily', ` data-ps-objective-id="${esc(o.id)}"`)}<button type="button" class="btn sm" data-ps-source-stop="${esc(o.id)}">${tr('Stop updating')}</button></div>`).join(''), 'top') : '';
-    return section('goal', tr('Goal'), row(tr('Goal'), field('goal', c.goal, 300, tr('Goal')))
-      + row(tr('Objectives'), objectives, 'top') + show + sources
-      // An ongoing project (#925) has no delivery date and no check-ins: its monthly review comes on its own.
-      + (c.ongoing ? '' : row(tr('Delivery'), `<input class="ps-input ps-date" type="date" data-ps-deliver value="${/^\d{4}-\d{2}-\d{2}$/.test(c.deliverBy || '') ? esc(c.deliverBy) : ''}" aria-label="${tr('Delivery')}" /><button type="button" class="btn sm${c.deliverBy === 'none' ? '' : ' ghost'}" data-ps-deliver-none aria-pressed="${c.deliverBy === 'none'}">${tr('Indefinite')}</button>`))
-      + (c.phase === 'running' ? row(tr('Start'), `<input class="ps-input ps-date" type="date" data-ps-startday value="${esc(started)}" aria-label="${tr('Start')}" />`) + (c.ongoing ? '' : row(tr('Check-ins'), checkins)) : ''));
   }
 
   function teamHTML(c) {
@@ -174,7 +135,7 @@
     root.innerHTML = `<div class="ps-page">
       <header class="ps-top"><button type="button" class="icon-btn" data-ps-back aria-label="${tr('Back')}">${BACK}</button><h1>${esc(nameOf(c))}</h1></header>
       <nav class="ps-nav" aria-label="${tr('Project settings')}">${SECTIONS.map(([k, label]) => `<button type="button" data-ps-go="${k}">${label()}</button>`).join('')}</nav>
-      <div class="ps-main">${generalHTML(c)}${goalHTML(c)}${teamHTML(c)}${reportsHTML(c)}${rulesHTML(c)}${archiveHTML(c)}</div>
+      <div class="ps-main">${generalHTML(c)}${teamHTML(c)}${reportsHTML(c)}${rulesHTML(c)}${archiveHTML(c)}</div>
     </div>`;
     const main = $('.ps-main', root);
     if (main) main.scrollTop = scroll;
@@ -188,13 +149,6 @@
   }
   const patch = (body) => call('/company', 'PATCH', body);
 
-  function objectivesFrom(root, c) {
-    return $$('[data-ps-objective]', root).map((li) => {
-      const o = c.objectives.find((x) => x.id === li.dataset.psObjective) || {};
-      return { ...o, name: $('[data-ps-o="name"]', li).value.trim(), current: Number($('[data-ps-o="current"]', li).value) || 0, target: Number($('[data-ps-o="target"]', li).value) || 0 };
-    }).filter((o) => o.name);
-  }
-
   function wire(root, c) {
     $('[data-ps-back]', root).onclick = () => Company.closeSettings();
     $$('[data-ps-go]', root).forEach((b) => (b.onclick = () => $(`#ps-${b.dataset.psGo}`, root)?.scrollIntoView({ block: 'start', behavior: 'smooth' })));
@@ -205,11 +159,6 @@
       el.onchange = () => { const v = el.value.trim(); if (el.dataset.psField === 'start' && !v) { el.value = c.start; return; } patch({ [el.dataset.psField]: v }); };
     });
     $$('[data-ps-color]', root).forEach((b) => (b.onclick = () => patch({ color: b.dataset.psColor })));
-    $$('[data-ps-piece]', root).forEach((b) => (b.onclick = () => {
-      const k = b.dataset.psPiece;
-      const list = Array.isArray(c.board) ? c.board : (Company.piecesOf ? Company.piecesOf(c) : Company.PIECES);
-      patch({ board: list.includes(k) ? list.filter((x) => x !== k) : [...list, k] });
-    }));
     // Sources.
     $$('[data-ps-unsource]', root).forEach((b) => (b.onclick = () => patch({ sources: c.sources.filter((s) => s.id !== b.dataset.psUnsource) })));
     const files = $('[data-ps-files]', root);
@@ -242,23 +191,6 @@
       added(linkForm.url, '[data-ps-link-form] input');
       if (url) patch({ sources: [...c.sources, { kind: 'link', url, name: url.replace(/^https?:\/\//i, '') }] });
     };
-    // Objectives.
-    $$('[data-ps-o]', root).forEach((el) => { enter(el); el.onchange = () => patch({ objectives: objectivesFrom(root, c) }); });
-    $$('[data-ps-unobjective]', root).forEach((b) => (b.onclick = () => patch({ objectives: c.objectives.filter((o) => o.id !== b.dataset.psUnobjective) })));
-    const objForm = $('[data-ps-objective-form]', root);
-    if (objForm) objForm.onsubmit = (e) => { e.preventDefault(); const name = objForm.text.value.trim(); added(objForm.text, '[data-ps-objective-form] input'); if (name) patch({ objectives: [...c.objectives, { name, current: 0, target: 0 }] }); };
-    $$('[data-ps-display]', root).forEach((b) => (b.onclick = () => call(`/company/objectives/${encodeURIComponent(b.dataset.psObjectiveId)}`, 'PUT', { display: b.dataset.psDisplay })));
-    const objective = (id, body) => call(`/company/objectives/${encodeURIComponent(id)}`, 'PUT', body);
-    $$('[data-ps-every]', root).forEach((b) => (b.onclick = () => { const o = c.objectives.find((x) => x.id === b.dataset.psObjectiveId); if (o?.source) objective(o.id, { source: { app: o.source.app, what: o.source.what, every: b.dataset.psEvery } }); }));
-    $$('[data-ps-source-stop]', root).forEach((b) => (b.onclick = () => objective(b.dataset.psSourceStop, { source: null })));
-    const startDay = $('[data-ps-startday]', root);
-    if (startDay) startDay.onchange = () => { if (startDay.value) patch({ startDay: startDay.value }); };
-    // The target delivery date (#792): a day, or No date; clearing the day leaves it unanswered.
-    const deliver = $('[data-ps-deliver]', root);
-    if (deliver) {
-      deliver.onchange = () => patch({ deliverBy: deliver.value || '' });
-      $('[data-ps-deliver-none]', root).onclick = () => patch({ deliverBy: c.deliverBy === 'none' ? '' : 'none' });
-    }
     wireTeam(root, c);
     $('[data-ps-updates]', root)?.addEventListener('change', (e) => call('/company/updates', 'PUT', { every: e.target.value }));
     // Legacy reports and the standup.

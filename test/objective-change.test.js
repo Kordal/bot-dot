@@ -61,3 +61,34 @@ test('the Chief moves the start day and the delivery date; nothing else goes thr
   assert.equal((await srv.asChief('/company/dates', { method: 'PUT', body: {} })).status, 400);
   assert.equal((await srv.asChief('/company/dates', { method: 'PUT', body: { deliverBy: 'none' } })).data.deliverBy, 'none');
 });
+
+test('the Chief changes the goal sentence and adds an objective with set_project_goal', async (t) => {
+  const { rpcClient } = require('./memory-helpers');
+  srv.reply('Done.');
+  const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Change the goal.' } });
+  const turn = await srv.nextRun((r) => !!r.botdot, "the Chief's turn");
+  await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { what: 'the Chief to reply' });
+  const tools = rpcClient(t, 'mcp-server.js', turn.botdot.env);
+  let c = await tools.json('set_project_goal', { goal: 'Help 500 lifters log every set' });
+  assert.equal(c.goal, 'Help 500 lifters log every set');
+  c = await tools.json('set_project_goal', { add: { name: 'Weekly lifters', target: 500 } });
+  assert.deepEqual(c.objectives.map((o) => [o.name, o.current, o.target]), [['Sets logged', 0, 150], ['Weekly lifters', 0, 500]]);
+  assert.equal(c.objectives[0].id, goal.id, 'the goals there were keep their ids');
+  assert.equal(c.goal, 'Help 500 lifters log every set');
+  const none = await tools.call('set_project_goal', {});
+  assert.ok(none.isError && /Say goal or add/.test(JSON.stringify(none.content)), JSON.stringify(none));
+});
+
+test('PUT /api/company/goal: the goal sentence and one new objective, nothing else', async () => {
+  assert.equal((await srv.asChief('/company/goal', { method: 'PUT', body: {} })).status, 400);
+  assert.equal((await srv.asChief('/company/goal', { method: 'PUT', body: { add: { name: ' ' } } })).status, 400);
+  const r = await srv.asChief('/company/goal', { method: 'PUT', body: { goal: 'Help 600 lifters', name: 'Renamed' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.goal, 'Help 600 lifters');
+  assert.equal(r.data.name, 'My Gym Advisor', 'only the goal changes');
+  for (let i = r.data.objectives.length; i < 6; i++) await srv.asChief('/company/goal', { method: 'PUT', body: { add: { name: `Goal ${i}` } } });
+  const full = await srv.asChief('/company/goal', { method: 'PUT', body: { add: { name: 'One more' } } });
+  assert.equal(full.status, 409);
+  assert.equal(full.data.state, 'full');
+});

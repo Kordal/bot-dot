@@ -1,6 +1,6 @@
 // Optional browser check of the board's pieces (#780): node test/browser/project-board.cjs [shots dir]
 // A new project's home is its title, its gear and New card; a pick under the ask of a new card puts a piece on the
-// board (To-do: the panel; the teams are rows under it, no piece, #838); Project settings take one off again. A project made before shows every
+// board (To-do: the panel; the teams are rows under it, no piece, #838); Project settings have no Board row. A project made before shows every
 // piece. Wide and phone. Scratch data only.
 const { openProjectBoard } = require('../space-helpers');
 const assert = require('node:assert/strict');
@@ -50,15 +50,11 @@ const { startServer, makeBot, writeData, waitFor } = require('../helpers');
       if (shots) await page.screenshot({ path: path.join(shots, `${name}-todo.png`), fullPage: true });
 
       if (name === 'wide') {
-        // Settings: To-do off again.
+        // Settings have no Board row: the saved pieces stay as they are.
         await page.locator('[data-project-settings]').first().click();
-        const todo = page.locator('[data-ps-piece="todo"]');
-        await todo.waitFor({ timeout: 10000 });
-        assert.equal(await todo.getAttribute('aria-pressed'), 'true');
-        assert.equal(await page.locator('[data-ps-piece="teams"]').count(), 0, 'no Teams piece');
-        if (shots) await page.screenshot({ path: path.join(shots, `${name}-settings.png`) });
-        await todo.click();
-        await waitFor(async () => JSON.stringify(await board()) === '[]', { what: 'to-do off' });
+        await page.locator('.ps-page').waitFor({ timeout: 10000 });
+        assert.equal(await page.locator('[data-ps-piece]').count(), 0, 'no Board row');
+        assert.deepEqual(await board(), ['todo']);
       }
 
       // A project made before #780 has no board: every piece, as it always had.
