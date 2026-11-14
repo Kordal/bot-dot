@@ -86,6 +86,7 @@ Keep the interview, the spec and the tickets in one session; start each `/implem
 
 - **One ticket, one branch.** Branch from `main`; never commit to `main`.
 - **One pull request per ticket,** opened against `main`, with `Closes #N` for its ticket in the body (the word, not only the number, or the issue stays open). The owner merges it. A parent issue closes by itself when its last sub-issue does (`.github/workflows/close-parent.yml`).
+- **Claude reviews every pull request** from a branch here (`.github/workflows/claude-review.yml`): inline comments and one summary comment that starts with "Claude review" ("No issues found." when clean). Fix the valid findings before merging. `@claude` in a comment on a pull request runs Claude there and lets it push to the branch (`.github/workflows/claude.yml`).
 - **The issue is the plan.** A ticket's scope, its acceptance criteria and what blocks it live in its GitHub issue, not in a file of this repository.
 
 ## Agent skills
