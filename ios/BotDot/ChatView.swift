@@ -5,6 +5,10 @@ import BotdotShared
 /// Markdown; what waits until the bot is free; the message on its way; the message box (Composer).
 struct ChatView: View {
     let name: String
+    let home: HomeStore
+    let botId: String
+    /// A file path tapped in a reply: opened in the viewer.
+    @State private var opening: DocumentView.Opening?
     @State private var model: ChatModel
     @State private var atBottom = true
     @State private var sentAt = 0
@@ -12,6 +16,8 @@ struct ChatView: View {
 
     init(home: HomeStore, botId: String, name: String) {
         self.name = name
+        self.home = home
+        self.botId = botId
         _model = State(initialValue: ChatModel(home: home, botId: botId))
     }
 
@@ -21,7 +27,7 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) }) }
+                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) }) }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
                             VStack(alignment: .trailing, spacing: 4) {
@@ -63,6 +69,13 @@ struct ChatView: View {
             .safeAreaInset(edge: .bottom) { Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 } }
         }
         .navigationTitle(name)
+        // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.
+        .environment(\.openURL, OpenURLAction { url in
+            guard let path = MarkdownKt.filePathOf(link: url.absoluteString.removingPercentEncoding ?? url.absoluteString) else { return .systemAction }
+            opening = DocumentView.shared.ofPath(botId: botId, path: path, from: name, name: (path as NSString).lastPathComponent)
+            return .handled
+        })
+        .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .navigationBarTitleDisplayMode(.inline)
         .modifier(NoticeOverlay(notice: model.state?.notice, count: Int(model.state?.noticeCount ?? 0)))
         .task { model.start() }
@@ -87,6 +100,8 @@ struct ChatView: View {
 /// One run: what started it on the owner's side, and what came of it on the bot's.
 struct RunRow: View {
     let view: RunView
+    /// File paths in its reply open in the viewer.
+    var paths = false
     /** Its working line has Stop (Send stays in the box while it works). */
     let stops: Bool
     let onStop: () -> Void
@@ -96,14 +111,14 @@ struct RunRow: View {
             if let asked = view.asked { Mine(text: asked, files: view.askedFiles, waiting: false) }
             if let chip = view.chip { Text(chip).font(.caption).foregroundStyle(.secondary) }
             if view.working {
-                if let draft = view.draft, !draft.isEmpty { MarkdownView(text: draft) }
+                if let draft = view.draft, !draft.isEmpty { MarkdownView(text: draft, paths: paths) }
                 HStack {
                     ProgressView().controlSize(.small)
                     Text(view.line).font(.callout).foregroundStyle(.secondary).lineLimit(2)
                     if stops { Spacer(); Button(tr("Stop"), action: onStop).font(.callout) }
                 }
             } else if let reply = view.reply, !reply.isEmpty {
-                MarkdownView(text: reply)
+                MarkdownView(text: reply, paths: paths)
             } else if let ended = view.ended {
                 Text(ended).foregroundStyle(view.problem ? .red : .secondary)
             }

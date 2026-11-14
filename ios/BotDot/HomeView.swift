@@ -3,7 +3,8 @@ import BotdotShared
 
 /// Home on the iPhone, as the Android app's on a phone: what went wrong, Needs you, the Board's numbers under it, then
 /// the bots and groups in the owner's order: the pinned ones first, then each category. Press and hold a row to drag
-/// it to its place; pull down to refresh. Its ⋯ menu opens Passwords (VaultView).
+/// it to its place; pull down to refresh. The ⋯ menu opens Passwords (VaultView) and the Chief's and each bot's
+/// Files (on Android from their chats, which the iPhone doesn't have yet).
 struct HomeView: View {
     let model: AppModel
     let server: String
@@ -55,12 +56,23 @@ struct HomeView: View {
                 }
             }
             .listStyle(.plain)
+            .navigationDestination(for: FilesPlace.self) { FilesView(api: home.home.api, at: $0) }
+            .navigationDestination(for: DocumentView.Opening.self) { ViewerView(api: home.home.api, opening: $0) }
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
             .navigationDestination(for: ChiefRoute.self) { r in ChiefView(home: home.home, chatId: r.chatId) }
             .toolbar {
                 Menu {
+                    let owners = filesOwners
+                    if !owners.isEmpty {
+                        Menu {
+                            ForEach(owners, id: \.owner) { o in Button(o.name) { path.append(o) } }
+                        } label: {
+                            Label(tr("Files"), systemImage: "folder")
+                        }
+                        .accessibilityIdentifier("files")
+                    }
                     Button(tr("Passwords")) { vault = true }
                     Button(tr("Change botdot's address")) { model.otherAddress() }
                     Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
@@ -98,6 +110,16 @@ struct HomeView: View {
             return
         }
         model.chatOpened()
+    }
+
+    /// Whose Files open from here: the Chief's, then each bot's in the list's order (FilesExplorer.opensFor).
+    private var filesOwners: [FilesPlace] {
+        guard let state = home.state else { return [] }
+        let features = state.version?.features
+        let chief = UploadedFiles.shared.CHIEF
+        let bots = (state.bots ?? []).filter { FilesExplorer.shared.opensFor(ownerId: $0.id, features: features) }
+        return (FilesExplorer.shared.opensFor(ownerId: chief, features: features) ? [FilesPlace(owner: chief, name: home.home.store.chiefName.value)] : [])
+            + bots.map { FilesPlace(owner: $0.id, name: $0.name) }
     }
 
     @ViewBuilder

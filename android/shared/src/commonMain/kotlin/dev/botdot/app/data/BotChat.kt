@@ -42,6 +42,8 @@ class RunView(
 /** Everything a bot's chat draws, at one moment. */
 class BotChatState(
     val bot: Bot?,
+    /** A file path in its replies opens in the viewer (`document-viewer` and chat files, [DocumentView.opensChatFiles]). */
+    val opensFiles: Boolean = false,
     /** Newest first. */
     val runs: List<RunView>,
     /** The owner's messages that wait until the bot is free, oldest first (with the "Take back" and "Steer" buttons). */
@@ -329,6 +331,7 @@ class BotChat(
         val line = store.lines.lines.value["bot:$botId"]
         return BotChatState(
             bot = store.bots.value.value?.firstOrNull { it.id == botId },
+            opensFiles = DocumentView.opensChatFiles(features),
             runs = runs.map { view(it, features, line) },
             queued = queued,
             started = stillStarting(starting, all),
