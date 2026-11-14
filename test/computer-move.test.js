@@ -292,6 +292,45 @@ test("while its files are copied, a bot's computer tools say so and reach no com
   copying = false;
 });
 
+test("a copy whose account computer was made again under it (an Update) starts over once by itself, then says it failed", async () => {
+  const bytes = Buffer.from('files on boat.dev, copied while the computer is updated');
+  const boat = side(bytes);
+  const linux = side(Buffer.alloc(0));
+  const write = linux.moveFiles;
+  let gone = 1;
+  linux.moveFiles = async (id, step) => {
+    if (step.op === 'write' && step.offset > 0 && gone > 0) { gone--; return { code: 1, stderr: 'Error response from daemon: No such container: botdot-kordal.account.computer' }; }
+    return write(id, step);
+  };
+  const moves = moveLib.create(dir(), { sides: { linux, boat }, pieces });
+  await moves.start('coder', 'boat', 'linux');
+  assert.equal(moves.of('coder'), null, 'it finished on its second go');
+  assert.deepEqual(linux.unpacked, bytes);
+
+  const never = side(Buffer.alloc(0));
+  never.moveFiles = async (id, step) => (step.op === 'write' ? { code: 1, stderr: 'Error response from daemon: No such container: botdot-kordal.account.computer' } : side(Buffer.alloc(0)).moveFiles(id, step));
+  const failing = moveLib.create(dir(), { sides: { linux: never, boat: side(bytes) }, pieces });
+  await failing.start('coder', 'boat', 'linux');
+  assert.equal(failing.of('coder').state, 'failed', 'once only');
+  assert.match(failing.of('coder').error, /No such container/, 'the API keeps why, for the Chief and the bots');
+});
+
+test("a failed copy's line says so plainly, without Docker's words, and wraps in the panel", () => {
+  const { cut, words } = require('./web-page');
+  const vm = require('node:vm');
+  const ctx = vm.createContext({ ...words, esc: (x) => String(x) });
+  vm.runInContext(`${cut("// Its copy's line under Computer", 'function openRunDialog(')}this.computerMoveLine = computerMoveLine;`, ctx);
+  const html = ctx.computerMoveLine({ computerMove: { state: 'failed', from: 'boat', to: 'linux', error: 'No such container: botdot-kordal.account.computer' } });
+  assert.match(html, /<span class="danger-text">Files not copied<\/span>/);
+  assert.match(html, /<button type="button" class="link-btn" data-bs-move-retry>Try again<\/button>/);
+  assert.doesNotMatch(html, /container/, "Docker's words stay in the API");
+  const css = fs.readFileSync(path.join(__dirname, '..', 'public/style.css'), 'utf8');
+  assert.match(css, /\.bs-note \{ display: block;[^}]*overflow-wrap: anywhere; \}/);
+  const kt = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/main/java/dev/botdot/app/ui/BotSettingsScreen.kt'), 'utf8');
+  assert.match(kt, /Text\(tr\("Files not copied"\), color = p\.err/);
+  assert.doesNotMatch(kt, /move\.error/);
+});
+
 test('web and Android ask "Copy files" or "Start empty" between this machine and boat.dev, and show a copy that failed', () => {
   const { app, cut, words } = require('./web-page');
   const vm = require('node:vm');

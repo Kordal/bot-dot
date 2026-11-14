@@ -70,12 +70,13 @@ function askMoveFiles(to) {
   });
 }
 const isComputerMove = (from, to) => from !== to && !!COMPUTER_PLACE[from] && !!COMPUTER_PLACE[to];
-// Its copy's line under Computer: how far it is, or why it failed, with Try again.
+// Its copy's line under Computer: how far it is, or that it failed, with Try again. Why it failed stays in the API
+// (`computerMove.error`), for the Chief and the bots: its words are Docker's and the machines' names.
 function computerMoveLine(b) {
   const mv = b.computerMove;
   if (!mv) return '';
   if (mv.state === 'copying') return mv.total ? tr('Copying files · {pct}%', { pct: Math.floor((mv.done / mv.total) * 100) }) : tr('Copying files…');
-  return `<span class="danger-text">${tr('Files not copied: {why}', { why: esc(mv.error || tr('it failed')) })}</span> <button type="button" class="link-btn" data-bs-move-retry>${tr('Try again')}</button>`;
+  return `<span class="danger-text">${tr('Files not copied')}</span> <button type="button" class="link-btn" data-bs-move-retry>${tr('Try again')}</button>`;
 }
 
 function openRunDialog(botId) {
