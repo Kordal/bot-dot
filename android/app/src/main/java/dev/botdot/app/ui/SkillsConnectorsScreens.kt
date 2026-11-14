@@ -213,7 +213,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                     }
                 }
             }
-            if (!i.error.isNullOrBlank()) item { Text(i.error, color = p.err) }
+            if (!i.error.isNullOrBlank()) item { Text(i.error!!, color = p.err) }
             item { Text(tr("Connected"), color = p.text, style = MaterialTheme.typography.titleMedium) }
             if (i.connections.isEmpty() && i.reconnect.isEmpty()) item { Hint(tr("No apps yet. Search for one below.")) }
             items(i.reconnect, key = { "r:${it.slug}" }) { a ->
@@ -260,7 +260,7 @@ fun ConnectorsScreen(app: BotDotApp, onBack: () -> Unit) {
                 Row(Modifier.fillMaxWidth().clickable { connect(a.slug) }.padding(vertical = Space.s12, horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text(a.name.ifBlank { a.slug }, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                        if (!a.description.isNullOrBlank()) Text(a.description, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                        if (!a.description.isNullOrBlank()) Text(a.description!!, color = p.muted, style = MaterialTheme.typography.bodySmall, maxLines = 2)
                     }
                     Text(tr("Connect"), color = p.okText, style = MaterialTheme.typography.labelMedium)
                 }

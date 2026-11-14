@@ -158,7 +158,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
         }
         val on = if (how == "toggle") t.look?.dot?.filled != true else null
         if (!asked && tileAsksFirst(t.confirm, how, on)) { sure = t to on; return }
-        if (on != null) replace(t.copy(value = JsonPrimitive(on), look = t.look?.copy(dot = t.look.dot?.copy(filled = on)))) // at once; the read after it says whether it took
+        if (on != null) replace(t.copy(value = JsonPrimitive(on), look = t.look?.let { l -> l.copy(dot = l.dot?.copy(filled = on)) })) // at once; the read after it says whether it took
         val asked = bots.firstOrNull { it.id == t.bot }?.name
         if (t.asks) blink(t, tileAsked(asked, queued = false))
         scope.launch {
@@ -502,7 +502,7 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
                 }
                 if (t.kind == "note" && t.at != null) Text("  " + shortTime(t.at), color = p.faint, fontSize = Type.s12, maxLines = 1)
                 Spacer(Modifier.weight(1f).size(1.dp))
-                if (t.kind == "page" && t.at != null) Text(dev.botdot.app.data.Pages.age(t.at, java.time.Instant.ofEpochMilli(now)), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
+                if (t.kind == "page" && t.at != null) Text(dev.botdot.app.data.Pages.age(t.at, kotlin.time.Instant.fromEpochMilliseconds(now)), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.padding(start = Space.s8))
                 if (t.ai && BoardKit.hasMarkdown(look?.face.orEmpty())) {
                     Text(BoardWords.WRITTEN_BY_AI, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1,
                         modifier = Modifier.padding(start = Space.s8).background(p.fill, Radius.pill).padding(horizontal = Space.s8, vertical = 1.dp))

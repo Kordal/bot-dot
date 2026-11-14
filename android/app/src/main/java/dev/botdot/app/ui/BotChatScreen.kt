@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.plainText
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -268,7 +269,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                 val asked = drawsAsked(r)
                                 if (new && !mine && asked) NewLine(bot?.color)
                                 if (asked) YourSide(r, open = r.id in opened)
-                                r.steered.forEach { if (it.fromBot != null) SteeredFromBot(it, it.fromBot) else SteeredMessage(it) }
+                                r.steered.forEach { s -> s.fromBot?.let { SteeredFromBot(s, it) } ?: SteeredMessage(s) }
                                 if (new && (mine || !asked)) NewLine(bot?.color)
                                 val steps = RunSteps.shows(r)
                                 if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
@@ -439,7 +440,7 @@ private fun ExchangeFold(r: Run, to: List<SentTo>, footer: String, startOpen: Bo
 }
 
 /** The first words of a folded message between bots: its text as one plain line. */
-internal fun foldPeek(text: String?): String = dev.botdot.app.feed.plainText(text.orEmpty()).replace(Regex("\\s+"), " ").trim().take(160)
+internal fun foldPeek(text: String?): String = plainText(text.orEmpty()).replace(Regex("\\s+"), " ").trim().take(160)
 
 /** Notes other bots left: one folded line, "Read notes from Web Surfer, Coder" (each with its small head), that opens to what each said. */
 @Composable
@@ -514,7 +515,7 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
         val line = buildAnnotatedString {
             append(tr("Message from") + " ")
             when {
-                r.fromBot != null -> bot(named(w?.bot(r.fromBot.id), r.fromBot.name, r.fromBot.color))
+                r.fromBot != null -> r.fromBot!!.let { f -> bot(named(w?.bot(f.id), f.name, f.color)) }
                 r.startedBy == "chief" -> bot(chief)
                 else -> append(tr("a bot"))
             }
@@ -526,7 +527,7 @@ private fun FromBotBubble(r: Run, startOpen: Boolean = false) {
             modifier = Modifier.padding(start = Space.s48).clip(Radius.small).clickable { open = !open }.padding(horizontal = Space.s8, vertical = Space.s4))
         Unfold(open) { Column(Modifier.padding(start = Space.s48).raised(Radius.mine).holdToCopy(r.prompt).padding(horizontal = Space.s16, vertical = Space.s12)) {
             Text(SearchMarks.mark(linkedChatText(androidx.compose.ui.text.AnnotatedString(r.prompt), p.text)), color = p.text, style = MaterialTheme.typography.bodyLarge)
-            if (!r.attachments.isNullOrEmpty()) FilesRow(r.attachments, onDark = false)
+            if (!r.attachments.isNullOrEmpty()) FilesRow(r.attachments!!, onDark = false)
         } }
     }
 }

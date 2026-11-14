@@ -110,7 +110,7 @@ private fun PageRow(page: PageInfo, board: ((PageInfo, Boolean) -> Unit)?) {
         if (page.keep != null) Box(Modifier.size(7.dp).background(p.ok, CircleShape))
         if (board != null && page.onBoard != null) {
             Spacer(Modifier.size(10.dp))
-            Switch(checked = page.onBoard, onCheckedChange = { board(page, it) }, colors = switchColors(), modifier = Modifier.semantics { contentDescription = tr("On the Board") })
+            Switch(checked = page.onBoard!!, onCheckedChange = { board(page, it) }, colors = switchColors(), modifier = Modifier.semantics { contentDescription = tr("On the Board") })
         }
     }
 }

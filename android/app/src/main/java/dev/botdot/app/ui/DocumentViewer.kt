@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.exportDocument
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -184,7 +185,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     suspend fun reblock() {
         val v = view ?: return
         if (v.interactive != null) {
-            if (v.interactive.tiles.isNotEmpty()) api?.let { a -> runCatching { a.pageValues(src) }.onSuccess { r -> if (view === v) values = r.values } }
+            if (v.interactive!!.tiles.isNotEmpty()) api?.let { a -> runCatching { a.pageValues(src) }.onSuccess { r -> if (view === v) values = r.values } }
             return
         }
         if (v.parts == null || v.tiles.isEmpty()) return
@@ -304,7 +305,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 it.keepPage(req.page.botId, page.slug, draft.every, draft.time, draft.notify, draft.check); changed++
             }
         }
-        if (exporting && v?.text != null) ExportSheet(req.name, v.plain ?: v.text) { exporting = false }
+        if (exporting && v?.text != null) ExportSheet(req.name, v.plain ?: v.text!!) { exporting = false }
         val noPreview: @Composable () -> Unit = { ViewerState(tr("No preview for this kind of file"), tr("The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.")) {
             Button(onClick = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, req.src, req.name); tell(tr("Saving {name} to Downloads", "name" to req.name)) } },
                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
@@ -347,7 +348,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 val text = v.text.orEmpty()
                 when {
                     v.kind == "markdown" && mode == "rendered" -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s12)) {
-                        if (v.parts != null) PageParts(v.parts) else MarkdownText(text, onWeb = null, paths = null)
+                        if (v.parts != null) PageParts(v.parts!!) else MarkdownText(text, onWeb = null, paths = null)
                         Spacer(Modifier.height(Space.s32))
                     }
                     v.kind == "csv" && mode == "table" -> CsvTable(text, DocumentView.sepOf(req.name))

@@ -62,7 +62,7 @@ object KitTable {
                 // An empty cell goes last either way.
                 if (a.text.isEmpty() != c.text.isEmpty()) return@sortedWith if (a.text.isNotEmpty()) -1 else 1
                 val d = when {
-                    a.n != null && c.n != null -> a.n.compareTo(c.n)
+                    a.n != null && c.n != null -> a.n!!.compareTo(c.n!!)
                     (a.n != null) != (c.n != null) -> if (a.n != null) -1 else 1
                     else -> String.CASE_INSENSITIVE_ORDER.compare(a.text, c.text)
                 }

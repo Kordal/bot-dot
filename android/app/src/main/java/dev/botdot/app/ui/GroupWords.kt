@@ -10,7 +10,7 @@ import dev.botdot.app.data.TurnLine
 import dev.botdot.app.data.TurnLines
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
-import dev.botdot.app.feed.plainText
+import dev.botdot.app.data.plainText
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put

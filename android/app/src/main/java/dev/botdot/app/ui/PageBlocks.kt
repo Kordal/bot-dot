@@ -34,8 +34,8 @@ fun PageParts(parts: List<PagePart>) {
     Column(verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         parts.forEach { part ->
             when {
-                part.md != null -> MarkdownText(part.md, onWeb = null, paths = null)
-                part.block != null -> PageBlock(part.block)
+                part.md != null -> MarkdownText(part.md!!, onWeb = null, paths = null)
+                part.block != null -> PageBlock(part.block!!)
             }
         }
     }
