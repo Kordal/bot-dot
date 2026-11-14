@@ -61,7 +61,11 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
         }
-        .task { home.start(); home.home.live(on: true) }
+        .task {
+            home.start()
+            home.home.live(on: true)
+            await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
+        }
         .onDisappear { home.stop() }
         // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
         .onChange(of: phase) { _, now in home.home.live(on: now == .active) }

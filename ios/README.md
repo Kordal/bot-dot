@@ -20,8 +20,16 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box),
                   Passwords (VaultView, from Home's ⋯ menu: the entries in their categories, which fold, a search over a
                   list longer than eight, a login's editor, Bitwarden's unlock), bots drawn by FigureView, and tr()
-BotDotNotify/     the notification service extension (app.botdot.notify), empty for now
-BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers
+BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
+                  key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
+BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads
+                  the seals the server made (test/fixtures/push-seals.json)
 ```
 
 The app and its extension share the App Group `group.app.botdot` and a Keychain access group, for the session and what a push needs.
+
+## Notifications
+
+ADR 150: a botdot that announces `apns-push` (its push relay is set) gets this phone's APNs token and a 32-byte key the app makes and keeps in the shared Keychain group (`POST /api/push/apns`, after the permission, asked when Home first shows such a botdot). Each push comes through the project's relay as "botdot" / "New notification" with a seal; the extension opens it and shows the real title and body, with the buttons the server named (`buttons`: Reply on a chat's, Decline and Approve on a card's), registered as a category of their own. A tap or a button goes to `Notifications.swift`, which asks the shared layer (`PushNotices`) what it opens and sends: a chat (the hook `AppModel.chatToOpen`, for the chat screen), else Home, where Needs you is. Opening the app clears what was delivered. Signing out removes the device.
+
+A simulator gets no push from Apple without the team's key. `xcrun simctl push <udid> app.botdot <payload.json>` delivers one as the relay sends it (`{ "aps": { "alert": …, "mutable-content": 1, "thread-id": … }, "sealed": … }`), and the extension opens it when the seal was made with this simulator's key. A real device build needs the App ID `app.botdot` with Push Notifications and a provisioning profile with `aps-environment` (relay/README.md).

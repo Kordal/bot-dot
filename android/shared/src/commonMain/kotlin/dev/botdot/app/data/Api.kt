@@ -337,6 +337,18 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     @Throws(Exception::class)
     suspend fun version(): VersionInfo = json.decodeFromString(get("/version"))
+
+    /** This iPhone's notifications (ADR 150): its APNs device token and the key they are sealed with ([PushNotices.registration]). */
+    @Throws(Exception::class)
+    suspend fun addApnsDevice(token: String, key: String, environment: String, device: String?) {
+        send("POST", "/push/apns", PushNotices.registration(token, key, environment, device))
+    }
+
+    /** The iPhone signs out: botdot sends its device nothing more. */
+    @Throws(Exception::class)
+    suspend fun removeApnsDevice(token: String) {
+        send("DELETE", "/push/apns", buildJsonObject { put("token", token.trim().lowercase()) })
+    }
     suspend fun bots(): List<Bot> = json.decodeFromString(get("/bots"))
     suspend fun bot(id: String): Bot = json.decodeFromString(get("/bots/${enc(id)}"))
     /** Says which chat this app shows now, in front ("bot:<id>", "chief:<chatId>"), or null for none: botdot takes it as read. */

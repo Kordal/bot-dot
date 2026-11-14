@@ -69,7 +69,10 @@ class GroupNotifierTest {
         assertTrue(notifier.contains("\"group_run_finished\" -> {") && notifier.contains("if (!groupNotifies(ev, chat, standing().watching)) return"))
         assertTrue(notifier.contains("\"group_unread\", \"group_asks\" -> groupSettled(ev)?.let { c -> cancelWhere { it == c } }"))
         for (need in listOf("login:", "job:", "tile:", "memory:", "ask:")) assertTrue(need, Regex("Need\\(\"$need[^\\n]*open = place\\.open\\)").containsMatchIn(notifier))
-        assertTrue(File(src, "feed/Receivers.kt").readText().contains("chat.startsWith(\"group:\") -> { a.sendToGroup(chat.removePrefix(\"group:\"), text, emptyList(), k) }"))
+        // Reply goes through the shared layer (PushNotices, the iPhone's too): a group's chat is a message to the group.
+        assertTrue(File(src, "feed/Receivers.kt").readText().contains("PushNotices.reply(a, chat, text, k)"))
+        val shared = File(src, "../../../../../../../shared/src/commonMain/kotlin/dev/botdot/app/data/PushNotices.kt").readText()
+        assertTrue(shared.contains("is ReplyTo.Group -> api.sendToGroup(to.id, words, emptyList(), key)"))
         assertTrue("a tapped notification opens the group", File(src, "MainActivity.kt").readText().contains("t.startsWith(\"group:\") -> nav.navigate(\"group/\${t.removePrefix(\"group:\")}\")"))
     }
 }

@@ -98,6 +98,7 @@ final class AppModel {
         busy = true
         defer { busy = false }
         let api = Api(baseUrl: server, session: session, quietMs: Api.companion.QUIET_MS)
+        await Notifications.shared.signOut(api) // while the session still lets it in
         try? await api.signOut()
         sessions.write(server: server, token: nil)
         // Another address may have been chosen meanwhile: its screen stays.
@@ -118,6 +119,31 @@ final class AppModel {
     func otherAddress() {
         error = nil
         screen = .address
+    }
+
+    /// The API of the botdot this phone is set to, also when the app was started just for a notification's button.
+    func apiNow() async -> Api? {
+        guard let server = (try? await settings.serverNow()) ?? nil else { return nil }
+        return api(server)
+    }
+
+    /// The chat a notification's tap asked for (`"bot:<id>"`, `"chief:<chatId>"`, `"group:<id>"`), until a chat
+    /// screen takes it. The hook for the bot chat (#1390): it opens this chat when it is set and calls [chatOpened].
+    /// Until then a tap opens Home, where the chat's bot is in the list.
+    private(set) var chatToOpen: String?
+
+    /// A tap on a notification (PushNotices.opens): a chat, Needs you or the app. Needs you is at the top of Home,
+    /// so it and the app open Home: the screen signed in to shows it; a sign-in or the address shows as it is.
+    func open(_ opens: PushNotices.Opens) {
+        switch onEnum(of: opens) {
+        case .chat(let chat): chatToOpen = chat.chat
+        case .needsYou, .app: chatToOpen = nil
+        }
+    }
+
+    /// The chat screen showed [chatToOpen].
+    func chatOpened() {
+        chatToOpen = nil
     }
 
 }
