@@ -20,11 +20,16 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box; a file
                   path in a reply opens in the viewer, MarkdownView(paths:)), the Chief's chat (ChiefView: one
                   conversation, what each message is about, 👍/👎 under the Chief's unasked messages), one message box
-                  for both (Composer), Passwords (VaultView, from Home's ⋯ menu: the entries in their categories, which
-                  fold, a search over a list longer than eight, a login's editor, Bitwarden's unlock), Files (FilesView,
-                  from Home's ⋯ menu: a bot's or the Chief's places and folders, sort, search, upload from Photos or
-                  Files, a new folder, rename, keep in mind, share, delete), the document viewer (ViewerView: text and
-                  code with line numbers, a CSV as a table, the rest in QuickLook), bots drawn by FigureView, and tr()
+                  for both (Composer), a group's chat (GroupChatView: each member's reply under its own name, a tapped
+                  answer with its question above it, the members at work with Stop all, who is next, Go on, waiting
+                  messages; its title opens the members panel, GroupPanelView: name, members, notes, delete),
+                  Passwords (VaultView, from Home's ⋯ menu: the entries in their categories, which fold, a search over
+                  a list longer than eight, a login's editor, Bitwarden's unlock), Files (FilesView, from Home's ⋯
+                  menu: a bot's or the Chief's places and folders, sort, search, upload from Photos or Files, a new
+                  folder, rename, keep in mind, share, delete), the document viewer (ViewerView: text and code with line
+                  numbers, a CSV as a table, the rest in QuickLook), a bot's computer screen (ScreenView: the shared
+                  layer's ScreenStore, noVNC in a WKWebView with the session's cookie, Take control and I'm done, opened
+                  from Home's ⋯ menu), bots drawn by FigureView, and tr()
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads

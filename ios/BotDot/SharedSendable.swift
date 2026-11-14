@@ -18,6 +18,8 @@ extension DocumentView.Opening: @retroactive @unchecked Sendable {}
 extension FigureDef: @retroactive @unchecked Sendable {}
 extension NeedsYouStore: @retroactive @unchecked Sendable {}
 extension NeedsState: @retroactive @unchecked Sendable {}
+extension ScreenStore: @retroactive @unchecked Sendable {}
+extension ScreenState: @retroactive @unchecked Sendable {}
 extension BotChat: @retroactive @unchecked Sendable {}
 extension VersionInfo: @retroactive @unchecked Sendable {}
 extension VaultStore: @retroactive @unchecked Sendable {}
@@ -25,3 +27,5 @@ extension VaultState: @retroactive @unchecked Sendable {}
 extension VaultItem: @retroactive @unchecked Sendable {}
 extension VaultLogin: @retroactive @unchecked Sendable {}
 extension ChiefDesk: @retroactive @unchecked Sendable {}
+extension GroupChat: @retroactive @unchecked Sendable {}
+extension GroupChatState: @retroactive @unchecked Sendable {}

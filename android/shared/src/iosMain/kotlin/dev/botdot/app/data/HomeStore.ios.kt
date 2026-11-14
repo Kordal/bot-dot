@@ -43,6 +43,8 @@ class HomeState(
     fun sub(b: Bot): String = botSub(b, lastRun[b.id], lines["bot:${b.id}"])
     /** Its row reads "Asks: …", with the mark. */
     fun asks(b: Bot): Boolean = botAsks(b, lastRun[b.id]) != null
+    /** The bots whose computer screen opens from Home's ⋯ menu ([ComputerScreen.opens]). */
+    val screens: List<Bot> get() = bots.orEmpty().filter { ComputerScreen.opens(it) }
     /** The Board's cards under Needs you: null before the Board has loaded ([stripTiles]). */
     val board: List<Tile>? get() = stripTiles(dashboard)
 }
@@ -85,6 +87,9 @@ class HomeStore(val api: Api) {
 
     /** The Chief's chat, following this botdot's feed. [ChiefDesk.stop] it when it is left. */
     fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId)
+
+    /** The chat of the group [groupId], following this botdot's feed. [GroupChat.stop] it when it is left. */
+    fun groupChat(groupId: String): GroupChat = GroupChat(scope, api, store, feed.events, groupId)
 
     /** Calls [onChange] with Home's state now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {

@@ -10,6 +10,13 @@ struct HomeView: View {
     let server: String
     @State private var path = NavigationPath()
     @State private var home: HomeModel
+    /// The bot whose computer screen is open, from the ⋯ menu.
+    @State private var screen: ScreenOpen?
+
+    struct ScreenOpen: Hashable {
+        let id: String
+        let name: String
+    }
     @Environment(\.scenePhase) private var phase
     @State private var vault = false
 
@@ -60,10 +67,23 @@ struct HomeView: View {
             .navigationDestination(for: DocumentView.Opening.self) { ViewerView(api: home.home.api, opening: $0) }
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
+            .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) }
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
             .navigationDestination(for: ChiefRoute.self) { r in ChiefView(home: home.home, chatId: r.chatId) }
+            .navigationDestination(for: GroupRoute.self) { r in GroupChatView(home: home.home, groupId: r.groupId, name: r.name, figure: home.figure) }
             .toolbar {
                 Menu {
+                    // Each bot's computer screen (as Android's "Its screen" in a bot's chat), until the iPhone has the chat.
+                    if let bots = home.state?.screens, !bots.isEmpty {
+                        Section(tr("Its screen")) {
+                            ForEach(bots, id: \.id) { b in
+                                Button { screen = ScreenOpen(id: b.id, name: ComputerScreen.shared.title(bot: b)) } label: {
+                                    Label(b.name, systemImage: "desktopcomputer")
+                                }
+                                .accessibilityIdentifier("screen-\(b.id)")
+                            }
+                        }
+                    }
                     let owners = filesOwners
                     if !owners.isEmpty {
                         Menu {
@@ -87,26 +107,29 @@ struct HomeView: View {
             home.home.live(on: true)
             await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
         }
-        // A notification's tap: its chat, once Home knows its bots (AppModel.chatToOpen).
+        // A notification's tap: its chat, once Home knows its bots and groups (AppModel.chatToOpen).
         .onChange(of: model.chatToOpen, initial: true) { openAsked() } // a cold start's tap too
         .onChange(of: home.state?.bots?.count) { openAsked() }
+        .onChange(of: home.state?.groups?.count) { openAsked() }
         .onDisappear { home.stop() }
         // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
         .onChange(of: phase) { _, now in home.home.live(on: now == .active) }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
     }
 
-    /// Opens the chat a notification asked for, as the shared layer decides (PushNotices.opening): a bot's once Home
-    /// has read its bots, a Chief conversation at once; what can't be opened is let go, so the same tap works again.
+    /// Opens the chat a notification asked for, as the shared layer decides (PushNotices.opening): a bot's or a group's
+    /// once Home has read them, a Chief conversation at once; what can't be opened is let go, so the same tap works again.
     private func openAsked() {
-        switch onEnum(of: PushNotices.shared.opening(chat: model.chatToOpen, bots: home.state?.bots, groups: false)) {
+        switch onEnum(of: PushNotices.shared.opening(chat: model.chatToOpen, bots: home.state?.bots, groups: home.state?.groups)) {
         case .unasked, .wait:
             return
         case .botChat(let b):
             path.append(ChatRoute(botId: b.id, name: b.name))
         case .chiefChat(let c):
             path.append(ChiefRoute(chatId: c.chatId))
-        case .groupChat, .letGo:
+        case .groupChat(let g):
+            path.append(GroupRoute(groupId: g.id, name: g.name))
+        case .letGo:
             break
         }
         model.chatOpened()
@@ -133,8 +156,11 @@ struct HomeView: View {
                 .font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
                 .listRowSeparator(.hidden)
         } else if let g = state.group(key: key) {
-            ContactRow(name: g.name, sub: g.last?.text ?? "", unread: Int(g.unread), color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, asks: false,
-                       drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, state: "idle", outfit: nil, dark: true) })
+            NavigationLink(value: GroupRoute(groupId: g.id, name: g.name)) {
+                ContactRow(name: g.name, sub: g.last?.text ?? "", unread: Int(g.unread), color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, asks: false,
+                           drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, state: "idle", outfit: nil, dark: true) })
+            }
+            .navigationLinkIndicatorVisibility(.hidden)
         } else if let b = state.bot(id: key) {
             NavigationLink(value: ChatRoute(botId: b.id, name: b.name)) { ContactRow(name: b.name, sub: state.sub(b: b), unread: Int(b.unread), color: b.color, asks: state.asks(b: b),
                        drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: b.color, state: b.state, outfit: b.outfit, dark: true) }) }
