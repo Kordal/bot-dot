@@ -23,7 +23,7 @@ class ReleaseManifestTest {
     }
     @Test fun transport() {
         for (url in listOf("https://example.com", "http://127.0.0.1:4747", "http://[::1]:4747")) assertTrue(ReleaseManifest.secureURL(url))
-        for (url in listOf("http://example.com", "http://10.0.0.1", "http://127.0.0.1.evil.example")) assertFalse(ReleaseManifest.secureURL(url))
+        for (url in listOf("http://example.com", "http://10.0.0.1", "http://127.0.0.1.evil.example", "http://app.localhost", "http://localhost.evil.com")) assertFalse(ReleaseManifest.secureURL(url))
     }
     @Test fun anOldPlainHttpAddressIsAskedForAgainNotUsed() {
         assertEquals("https://vm.tailnet.ts.net", usableServer("https://vm.tailnet.ts.net"))

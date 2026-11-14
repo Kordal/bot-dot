@@ -19,12 +19,15 @@ class ConnectTest {
         assertEquals(Connect.Address.Local("https://127.0.0.1:4747"), Connect.address("127.0.0.1:4747"))
         assertEquals(Connect.Address.Local("http://[::1]:4747"), Connect.address("http://[::1]:4747"))
         assertEquals(Connect.Address.Local("https://app.localhost"), Connect.address("app.localhost"))
-        assertNotNull(Connect.words(Connect.Address.Local("http://localhost:4747")), "explained when nothing answers there")
+        // Plain HTTP only to localhost itself and loopback addresses: a phone's resolver may send another .localhost name
+        // to DNS, and the session's cookie would go out unencrypted (ReleaseManifest.secureURL).
+        assertEquals(Connect.Address.Insecure, Connect.address("http://app.localhost:4747"))
+        assertEquals(Connect.Address.Insecure, Connect.address("http://app.example.com"), "remote plain HTTP stays refused")
     }
 
     @Test fun nothingAnsweringOnTheDeviceIsExplainedAsSo() = kotlinx.coroutines.test.runTest {
         val o = Connect.connect("http://127.0.0.1:1") // nothing listens on port 1
-        assertEquals(Connect.Outcome.Refused(Connect.words(Connect.Address.Local("http://127.0.0.1:1"))!!), o)
+        assertEquals(Connect.Outcome.Refused("That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone."), o)
     }
 
     @Test fun plainHttpIsRefusedBeforeAnythingIsAsked() = kotlinx.coroutines.test.runTest {

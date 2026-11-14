@@ -7,6 +7,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Everything Home draws, at one moment: the shared [Store]'s parts as they are now. null: not loaded yet. The rows
@@ -53,12 +55,15 @@ class HomeStore(val api: Api) {
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
         val parts = combine(store.bots.value, store.groups.value, store.recent.value, store.dashboard.value, store.version.value) { b, g, r, d, v -> listOf(b, g, r, d, v) }
         val signIn = api.session?.signInNeeded ?: MutableStateFlow(null)
+        // What Android's Home says went wrong: reading the bots.
         combine(parts, store.waiting, store.lines.lines, store.bots.error, signIn) { p, w, l, e, s ->
             @Suppress("UNCHECKED_CAST")
             HomeState(p[0] as List<Bot>?, p[1] as List<Group>?, p[2] as List<Run>?, p[3] as Dashboard?, p[4] as VersionInfo?, w, l, e,
                 signInNeeded = s != null && s == api.baseUrl.trimEnd('/'))
         }.collect { onChange(it) }
     }
+
+    private val moveLock = Mutex()
 
     /** Pull to refresh, or after a change here: everything Home shows, at once (as Android's Home loads it). */
     @Throws(Exception::class)
@@ -71,12 +76,16 @@ class HomeStore(val api: Api) {
      * sent when it stays where it was. A refusal throws its sentence.
      */
     @Throws(Exception::class)
-    suspend fun move(state: HomeState, order: List<String>, key: String) {
-        val m = ListLayout.moved(order, key, state.bots.orEmpty(), state.groups.orEmpty(), state.shared)
+    suspend fun move(order: List<String>, key: String) = moveLock.withLock {
+        // One drag's save and the read after it before the next: two quick drags land in the order they were made, and
+        // each is read against the list as the one before left it.
+        val m = ListLayout.moved(order, key, store.bots.value.value.orEmpty(), store.groups.value.value.orEmpty(), hasPinsShared(store.version.value.value?.features))
         try {
             if (m?.group != null) api.updateGroup(m.group, m.change) else if (m?.bot != null) api.updateBot(m.bot, m.change)
         } finally {
-            refresh()
+            // What the next drag is read against, before it is let in; the rest of Home after.
+            coroutineScope { listOf(store.bots, store.groups, store.version).forEach { launch { it.refresh() } } }
+            scope.launch { listOf(store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } } }
         }
     }
 

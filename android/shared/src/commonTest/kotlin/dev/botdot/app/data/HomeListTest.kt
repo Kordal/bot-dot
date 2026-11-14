@@ -54,21 +54,25 @@ class FigurePaintTest {
     }
 
     @Test fun aTileIsItsMutedSquareItsIconAndItsStatesSignal() {
-        val tile = def.tile!!
         val working = FigurePaint.figure(def, "#1d9e75", "working", null)
-        val square = working.ops.first() as FigurePaint.Op.RoundRect
-        assertEquals(tile.muted(0x1D9E75), square.color)
-        assertEquals(def.signal("working")?.ring != null, working.ops.any { it is FigurePaint.Op.Arc })
+        // lib/figure.json mutes a tile 25% towards #3d3c38: #1d9e75 is #258666.
+        assertEquals(0x258666, (working.ops.first() as FigurePaint.Op.RoundRect).color)
+        assertTrue(working.ops.none { it is FigurePaint.Op.Arc }, "lib/figure.json gives working no ring")
+        assertEquals(listOf(0f, 0f, 24f, 24f), working.view, "lib/figure.json's box")
+        assertTrue(working.ops.none { it is FigurePaint.Op.Circle && it.cut }, "working has no dot")
+        // lib/figure.json: needs_you's dot is #e0a23a, cut out of the tile.
         val needs = FigurePaint.figure(def, "#1d9e75", "needs_you", null)
-        assertEquals(def.signal("needs_you")?.dot != null, needs.ops.any { it is FigurePaint.Op.Circle && it.cut })
-        assertEquals(listOf(0f, 0f, def.box.first, def.box.second), working.view)
+        assertTrue(needs.ops.any { it is FigurePaint.Op.Circle && it.cut })
+        assertTrue(needs.ops.any { it is FigurePaint.Op.Circle && !it.cut && it.color == 0xE0A23A })
+        val failed = FigurePaint.figure(def, "#1d9e75", "failed", null)
+        assertTrue(failed.ops.any { it is FigurePaint.Op.Circle && !it.cut && it.color == 0xD9534F })
     }
 
     @Test fun theSmallMarkShowsNoState() {
         val small = FigurePaint.small(def, null, null)
-        assertEquals(def.small.toList(), small.view)
+        assertEquals(listOf(-1f, -1f, 26f, 26f), small.view, "lib/figure.json's tile.small.view")
         assertTrue(small.ops.none { it is FigurePaint.Op.Arc || (it is FigurePaint.Op.Circle && it.cut) })
-        assertEquals(def.tile!!.muted(FigureDef.GREY), (small.ops.first() as FigurePaint.Op.RoundRect).color, "a bot without a colour is grey")
+        assertEquals(0x75746E, (small.ops.first() as FigurePaint.Op.RoundRect).color, "a bot without a colour is grey (#888780), muted")
     }
 
     @Test fun withoutATileABareHeadIsItsCircle() {

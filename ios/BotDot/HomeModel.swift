@@ -16,6 +16,7 @@ final class HomeModel {
     let home: HomeStore
     private var watching: Kotlinx_coroutines_coreJob?
     private var figureKey: String??
+    private var figureTask: Task<Void, Never>?
 
     init(api: Api, bundled: FigureDef? = HomeModel.bundledFigure) {
         home = HomeStore(api: api)
@@ -33,7 +34,13 @@ final class HomeModel {
     func stop() {
         watching?.cancel(cause: nil)
         watching = nil
-        home.close()
+        figureTask?.cancel()
+        figureTask = nil
+        figureKey = nil
+    }
+
+    deinit {
+        home.close() // Home left for good: another botdot, or signed out
     }
 
     /// Pull to refresh: everything Home shows, at once.
@@ -43,17 +50,18 @@ final class HomeModel {
 
     /// A row was let go at its new place: saved as Android's list saves it, then the list is read again.
     func move(from: IndexSet, to: Int) {
-        guard let state, let first = from.first else { return }
+        guard state != nil, let first = from.first else { return }
         let key = order[first]
         order.move(fromOffsets: from, toOffset: to)
         let now = order
         Task {
             do {
-                try await home.move(state: state, order: now, key: key)
+                try await home.move(order: now, key: key)
             } catch {
                 self.error = error.localizedDescription
-                if let s = self.state { self.order = Self.order(s) } // didn't save: back where it was
             }
+            // The list as read again; as it was when nothing was saved or nothing changed.
+            if let s = self.state { self.order = Self.order(s) }
         }
     }
 
@@ -62,10 +70,15 @@ final class HomeModel {
         order = Self.order(s)
         let key = s.version?.figureKey
         if s.version != nil, figureKey != .some(key) {
+            // Another server version: the definition is asked anew, and an answer for the one before is dropped.
             figureKey = .some(key)
+            figureTask?.cancel()
             let bundled = Self.bundledFigure
-            Task { [home] in
-                if let def = try? await Figures.shared.of(api: home.api, key: key, bundled: bundled) { self.figure = def }
+            figureTask = Task { [home] in
+                let def = try? await Figures.shared.of(api: home.api, key: key, bundled: bundled)
+                guard !Task.isCancelled, self.figureKey == .some(key) else { return }
+                guard let def else { self.figureKey = nil; return } // asked again on the next change
+                self.figure = def
             }
         }
     }

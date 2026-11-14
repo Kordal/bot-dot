@@ -28,7 +28,10 @@ object Connect {
         if (s.isEmpty()) return Address.NotAnAddress
         val withScheme = if (s.startsWith("http://") || s.startsWith("https://")) s else "https://$s"
         val host = parseUri(withScheme)?.host?.lowercase()?.removePrefix("[")?.removeSuffix("]")
-        if (host != null && isLoopback(host)) return Api.normalize(s)?.let { Address.Local(it) } ?: Address.NotAnAddress
+        if (host != null && isLoopback(host)) {
+            // Api.normalize keeps plain HTTP to localhost and loopback addresses only (ReleaseManifest.secureURL).
+            return Api.normalize(s)?.let { Address.Local(it) } ?: if (s.startsWith("http://")) Address.Insecure else Address.NotAnAddress
+        }
         if (s.startsWith("http://")) return Address.Insecure
         return Api.normalize(s)?.let { Address.Remote(it) } ?: Address.NotAnAddress
     }
