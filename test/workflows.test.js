@@ -121,12 +121,20 @@ test('no workflow uses a self-hosted runner', () => {
   }
 });
 
+// The one exception, chosen by the owner: Claude's review (claude-review.yml) holds its sign-in secret, and only for a
+// pull request from a branch of this repository, which only someone with write access can open. GitHub gives a
+// fork's pull request no secrets anyway; the condition says the job is not meant for one.
+const SAME_REPOSITORY = 'github.event.pull_request.head.repo.full_name == github.repository';
+const sameRepositoryOnly = (job) => typeof job.if === 'string' && job.if.includes(SAME_REPOSITORY) && !/\|\|/.test(job.if)
+  && !job.environment && job.permissions?.contents === 'read';
+
 test('no job a pull request starts holds a secret or the release environment', () => {
   const workflows = readWorkflows(WORKFLOWS);
   const found = [];
   for (const [name, wf] of Object.entries(workflows)) {
     if (!triggersOf(workflows, name).some((t) => PULL_REQUEST.includes(t.event))) continue;
     for (const [id, job] of Object.entries(wf.jobs || {})) {
+      if (name === 'claude-review.yml' && id === 'review' && sameRepositoryOnly(job)) continue;
       if (/\$\{\{[^}]*\bsecrets\./.test(JSON.stringify(job)) || job.environment) found.push(`${name} ${id}`);
     }
   }
@@ -328,4 +336,18 @@ test('build-all.sh finds the run it started and fails when it failed', () => {
   assert.equal(fs.readFileSync(path.join(dir, 'summary'), 'utf8'),
     '- Android: [success](https://github.com/o/r/actions/runs/42)\n- Images: [failure](https://github.com/o/r/actions/runs/7)\n');
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+// Claude reviews every pull request from this repository's branches and answers @claude on a pull request.
+test("Claude's review runs only for non-draft pull requests from this repository, with read-only tools", () => {
+  const { on, jobs: { review } } = workflow('claude-review.yml');
+  assert.deepEqual([...on.pull_request.types].sort(), ['opened', 'ready_for_review', 'reopened', 'synchronize']);
+  assert.ok(sameRepositoryOnly(review), 'no fork, no environment, nothing pushed');
+  assert.match(review.if, /!github\.event\.pull_request\.draft/);
+  const step = review.steps.find((st) => /^anthropics\/claude-code-action@[0-9a-f]{40} /.test(`${st.uses} `));
+  assert.ok(step, 'the action is pinned to a commit');
+  assert.match(step.with.prompt, /No issues found\./, 'a clean review says so in words a thread can look for');
+  assert.doesNotMatch(step.with.claude_args, /Bash\((?!gh pr (comment|diff|view):)/, 'no shell beyond gh pr');
+  // @claude (claude.yml) starts only from comments and reviews, never from a pull request event.
+  assert.deepEqual(Object.keys(workflow('claude.yml').on).sort(), ['issue_comment', 'pull_request_review', 'pull_request_review_comment']);
 });
