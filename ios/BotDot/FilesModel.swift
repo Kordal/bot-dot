@@ -59,9 +59,10 @@ final class FilesModel {
         }
     }
 
-    func upload(_ picked: [(URL, String)]) async {
-        guard !picked.isEmpty else { return }
-        await run { try await $0.upload(paths: picked.map { $0.0.path }, names: picked.map { $0.1 }) }
+    /// Uploads [picked] (where each copy is, its name); [unread]: the names of those the phone couldn't read, said too.
+    func upload(_ picked: [(URL, String)], unread: [String] = []) async {
+        guard !picked.isEmpty || !unread.isEmpty else { return }
+        await run { try await $0.upload(paths: picked.map { $0.0.path }, names: picked.map { $0.1 }, unread: unread) }
         for (url, _) in picked { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
     }
 

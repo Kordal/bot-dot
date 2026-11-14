@@ -59,7 +59,10 @@ struct FilesView: View {
             // A picker presented from the menu's button: one placed in a Menu doesn't open reliably.
             .photosPicker(isPresented: $picking, selection: $photos, matching: .any(of: [.images, .videos]))
             .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-                if case .success(let urls) = result { Task { await model.upload(urls.compactMap(Self.copied)) } }
+                if case .success(let urls) = result {
+                    let copies = urls.map { ($0.lastPathComponent, Self.copied($0)) }
+                    Task { await model.upload(copies.compactMap(\.1), unread: copies.filter { $0.1 == nil }.map(\.0)) }
+                }
             }
             .task { model.start() }
             .onDisappear { model.stop() }
@@ -185,15 +188,21 @@ struct FilesView: View {
         photos = []
         Task {
             var picked: [(URL, String)] = []
+            var unread: [String] = [] // said, not dropped: the owner would think it went
             for item in items {
-                guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
                 let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+                let name = "photo.\(ext)"
+                guard let data = try? await item.loadTransferable(type: Data.self) else { unread.append(name); continue }
                 let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-                let url = dir.appendingPathComponent("photo.\(ext)")
-                guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil, (try? data.write(to: url)) != nil else { continue }
-                picked.append((url, "photo.\(ext)"))
+                let url = dir.appendingPathComponent(name)
+                guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil, (try? data.write(to: url)) != nil else {
+                    try? FileManager.default.removeItem(at: dir)
+                    unread.append(name)
+                    continue
+                }
+                picked.append((url, name))
             }
-            await model.upload(picked)
+            await model.upload(picked, unread: unread)
         }
     }
 
@@ -203,7 +212,10 @@ struct FilesView: View {
         defer { url.stopAccessingSecurityScopedResource() }
         let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent(url.lastPathComponent)
         guard (try? FileManager.default.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)) != nil,
-              (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return nil }
+              (try? FileManager.default.copyItem(at: url, to: copy)) != nil else {
+            try? FileManager.default.removeItem(at: copy.deletingLastPathComponent())
+            return nil
+        }
         return (copy, url.lastPathComponent)
     }
 

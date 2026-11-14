@@ -122,12 +122,15 @@ class FilesStore(val api: Api, val ownerId: String, val name: String, place: Str
 
     /**
      * Uploads the files picked on the phone (Photos, Files) into this folder: [paths] where each is in the app's
-     * storage, [names] what each is called. At most [WorkspaceFiles.MAX_FILES]; answers what went wrong, or null.
+     * storage, [names] what each is called; [unread]: the names of those the phone couldn't read or copy, each said
+     * as a failed upload is ("name: why"), so none is dropped without a word. At most [WorkspaceFiles.MAX_FILES];
+     * answers what went wrong, or null.
      */
     @Throws(Exception::class)
-    suspend fun upload(paths: List<String>, names: List<String>): String? {
+    suspend fun upload(paths: List<String>, names: List<String>, unread: List<String>): String? {
         val s = state.value
-        val said = mutableListOf<String>()
+        val said = unread.map { "$it: ${tr("Couldn't read that file.")}" }.toMutableList()
+        if (paths.isEmpty()) return said.joinToString("\n").ifEmpty { null }
         if (paths.size > WorkspaceFiles.MAX_FILES) said += tr("Upload at most {n} files at a time.", "n" to WorkspaceFiles.MAX_FILES)
         paths.zip(names).take(WorkspaceFiles.MAX_FILES).forEach { (p, n) ->
             try {
