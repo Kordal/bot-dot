@@ -32,17 +32,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,7 +60,6 @@ import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -77,9 +72,7 @@ import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.CompanyFloor
 import dev.botdot.app.data.CompanySetup
 import dev.botdot.app.data.CompanyTeam
-import dev.botdot.app.data.Objective
 import dev.botdot.app.data.ManyProjects
-import dev.botdot.app.data.ProjectBoard
 import dev.botdot.app.data.ProjectLogins
 import dev.botdot.app.data.VaultItem
 import dev.botdot.app.data.ProjectStandup
@@ -87,24 +80,18 @@ import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
 
-private val SECTIONS = listOf("general", "goal", "team", "reports", "rules", "archive")
+private val SECTIONS = listOf("general", "team", "reports", "rules", "archive")
 private fun sectionName(k: String) = when (k) {
-    "general" -> tr("General"); "goal" -> tr("Goal"); "team" -> tr("Team"); "reports" -> tr("Reports"); "rules" -> tr("Rules"); else -> tr("Archive or delete")
+    "general" -> tr("General"); "team" -> tr("Team"); "reports" -> tr("Reports"); "rules" -> tr("Rules"); else -> tr("Archive or delete")
 }
 
 /**
  * A project's settings on Android (#703; web: public/company-settings.js, #701): behind the gear beside its name. One
  * page of rows, each saved as it changes: General (name, colour, the site or idea, its sources, its folder: #702),
- * Goal (the goal, the objectives and how each is shown, where a number is read from, the day its 90 days start, the
- * check-ins), Team (each team's name, bots and lead; a new team), Reports (each lead's rhythm, the morning standup),
+ * Team (each team's name, bots and lead; a new team), Reports (each lead's rhythm, the morning standup),
  * Rules (never without asking, the owner's time) and Archive or delete. The sections are a row of tabs over it. A
  * change from elsewhere shows at once, except in a field that has the focus.
  */
@@ -138,8 +125,7 @@ internal fun ProjectSettings(ui: CompanyUi, c: Company, wide: Boolean, ways: Com
                         content()
                     } }
                 }
-                Card("general") { General(ui, c, ways, ::patch); if (ProjectBoard.FEATURE in features) BoardRow(c, features, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
-                Card("goal") { GoalRows(ui, c, features, ::patch) }
+                Card("general") { General(ui, c, ways, ::patch); if (ProjectLogins.FEATURE in features) LoginRows(ui, c, ::patch) }
                 Card("team") { ProjectTeamSettings(ui, c, bots, features) }
                 Card("reports") { ReportRows(ui, c, features) }
                 Card("rules") { RuleRows(c, ::patch) }
@@ -225,24 +211,6 @@ private fun LoginRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) {
     }
 }
 
-/** The pieces on its board (#780), each on or off; a project made before has them all on. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun BoardRow(c: Company, features: List<String>, patch: (JsonObject) -> Unit) {
-    val p = LocalPaper.current
-    Labeled(tr("Board")) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            ProjectBoard.piecesOf(c, features).forEach { k ->
-                val on = ProjectBoard.shows(c, k)
-                Text(ProjectBoard.label(k), color = if (on) p.inkText else p.text, fontSize = Type.s14,
-                    modifier = Modifier.clip(Radius.pill).background(if (on) p.ink else p.fill)
-                        .clickable { patch(buildJsonObject { putJsonArray("board") { ProjectBoard.toggled(c, k, features).forEach { add(it) } } }) }
-                        .semantics { selected = on }.padding(horizontal = Space.s12, vertical = Space.s8))
-            }
-        }
-    }
-}
-
 /** Files added as sources: uploaded for the Chief as the start screen does, then saved with the others. */
 private fun addSources(ui: CompanyUi, context: android.content.Context, c: Company, uris: List<android.net.Uri>, patch: (JsonObject) -> Unit) {
     val a = ui.api ?: return ui.tell(tr("Can't reach botdot."))
@@ -256,91 +224,6 @@ private fun addSources(ui: CompanyUi, context: android.content.Context, c: Compa
         }
         // The sources as they are now: another change may have come while the files went up.
         if (added.isNotEmpty()) patch(CompanySetup.patchSources((ui.company()?.takeIf { it.id == c.id } ?: c).sources, added))
-    }
-}
-
-// ---------- Goal ----------
-
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun GoalRows(ui: CompanyUi, c: Company, features: List<String>, patch: (JsonObject) -> Unit) {
-    val p = LocalPaper.current
-    Labeled(tr("Goal")) { SaveField(c.goal, tr("Goal"), 300) { patch(CompanySetup.patchText("goal", it)) } }
-    Labeled(tr("Objectives")) {
-        c.objectives.forEach { o ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Box(Modifier.size(8.dp).clip(CircleShape).background(parseColor(o.color, p.muted)))
-                SaveField(o.name, tr("Objective"), 80, Modifier.weight(1f)) { patch(CompanySetup.patchObjectives(ManyProjects.objectivesAfter(c.objectives, o.id, name = it))) }
-                SaveField(ManyProjects.shownNumber(o.current), tr("Now"), 16, Modifier.width(72.dp), number = true) { t ->
-                    ManyProjects.number(t)?.let { patch(CompanySetup.patchObjectives(ManyProjects.objectivesAfter(c.objectives, o.id, current = it))) }
-                }
-                Text("/", color = p.faint)
-                SaveField(ManyProjects.shownNumber(o.target), tr("Target"), 16, Modifier.width(72.dp), number = true) { t ->
-                    ManyProjects.number(t)?.let { patch(CompanySetup.patchObjectives(ManyProjects.objectivesAfter(c.objectives, o.id, target = it))) }
-                }
-                RoundButton(Icons.Filled.Close, tr("Remove"), size = 36.dp) { patch(CompanySetup.patchObjectives(c.objectives.filter { it.id != o.id })) }
-            }
-        }
-        if (c.objectives.size < ManyProjects.MAX_OBJECTIVES) AddField(tr("New objective"), tr("New objective"), 80) { name ->
-            patch(CompanySetup.patchObjectives(c.objectives + Objective(name = name)))
-        }
-    }
-    if (c.objectives.isNotEmpty() && CompanyFloor.DISPLAY in features) Labeled(tr("Show as")) {
-        c.objectives.forEach { o ->
-            Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                if (c.objectives.size > 1) Dotted(o.name, o.color)
-                Chips(CompanyFloor.DISPLAYS.map { it to displayName(it) }, CompanyFloor.displayOf(o)) { d -> ui.call({ it.setObjective(o.id, display = d) }) }
-            }
-        }
-    }
-    // Where a number comes from (#699): read from a connected app, how often, and Stop updating. One is added from the goal card.
-    c.objectives.filter { it.source != null }.takeIf { it.isNotEmpty() }?.let { fed ->
-        Labeled(tr("Update from an app")) {
-            fed.forEach { o ->
-                val s = o.source!!
-                Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                    Dotted("${o.name} · ${s.app} · ${s.what}", o.color)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.weight(1f)) {
-                            Chips(listOf("daily" to tr("Daily"), "weekly" to tr("Weekly")), s.every) { every ->
-                                ui.call({ it.putObjective(o.id, buildJsonObject { put("source", buildJsonObject { put("app", s.app); put("what", s.what); put("every", every) }) }) })
-                            }
-                        }
-                        SmallButton(tr("Stop updating")) { ui.call({ it.putObjective(o.id, buildJsonObject { put("source", JsonNull) }) }) }
-                    }
-                }
-            }
-        }
-    }
-    // An ongoing project (#925) has no delivery date and no check-ins: its monthly review comes on its own.
-    if (CompanySetup.DELIVERY in features && !c.ongoing) Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(tr("Delivery"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
-        DeliveryChips(c.deliverBy) { v -> patch(buildJsonObject { put("deliverBy", v) }) }
-    }
-    if (c.running) {
-        var picking by remember { mutableStateOf(false) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(tr("Start"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
-            SmallButton(ManyProjects.startDay(c).ifEmpty { "—" }) { picking = true }
-        }
-        if (picking) {
-            val day = runCatching { LocalDate.parse(ManyProjects.startDay(c)) }.getOrNull() ?: LocalDate.now()
-            val state = rememberDatePickerState(initialSelectedDateMillis = day.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
-            DatePickerDialog(onDismissRequest = { picking = false },
-                confirmButton = { TextButton({ state.selectedDateMillis?.let { ms -> patch(buildJsonObject { put("startDay", Instant.ofEpochMilli(ms).atZone(ZoneOffset.UTC).toLocalDate().toString()) }) }; picking = false }) { Text(tr("Save")) } },
-                dismissButton = { TextButton({ picking = false }) { Text(tr("Cancel")) } }) { DatePicker(state) }
-        }
-        if (!c.ongoing) Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(tr("Check-ins"), color = p.muted, fontSize = Type.s14, modifier = Modifier.weight(1f))
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                CompanyFloor.DAYS.forEach { d ->
-                    val k = c.checkins.firstOrNull { it.day == d }
-                    val color = when { k?.decision == "keep" -> p.ok; k?.decision == "stop" -> p.err; k != null -> p.warn; c.checkin?.day == d -> p.warn; else -> p.line2 }
-                    Text(tr("Day {n}", "n" to d), color = if (k != null || c.checkin?.day == d) color else p.muted, fontSize = Type.s12, fontFamily = GeistMono,
-                        modifier = Modifier.clip(Radius.pill).background(p.fill).padding(horizontal = Space.s8, vertical = Space.s4))
-                }
-            }
-        }
     }
 }
 

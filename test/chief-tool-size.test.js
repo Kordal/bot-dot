@@ -24,5 +24,6 @@ test('a tool that changes another one\'s thing takes its fields without their wo
 test("the Chief's tools are about 25k characters shorter", () => {
   const size = TOOLS.reduce((n, x) => n + JSON.stringify(x).length, 0);
   // 111k: set_company_team's proposal lists its bots' fields (a bare object refused every field as unknown).
-  assert.ok(size < 111_000, `${size} characters`);
+  // 111.2k: set_project_goal, the goal's sentence and a new objective, which project settings no longer show.
+  assert.ok(size < 111_200, `${size} characters`);
 });
