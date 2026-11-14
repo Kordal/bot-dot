@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.withFailed
+import dev.botdot.app.data.Outbox
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

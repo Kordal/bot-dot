@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-/** What the app remembers: which botdot to talk to, the groups you folded in the list, and how wide you made the list. */
+/** What the app remembers: which botdot to talk to, the groups you folded in the list (and the Vault's categories), and how wide you made the list. */
 class Settings(private val store: DataStore<Preferences>) {
     private val SERVER = stringPreferencesKey("server")
 
@@ -26,6 +26,12 @@ class Settings(private val store: DataStore<Preferences>) {
     val foldedGroups: Flow<Set<String>> = store.data.map { it[FOLDED].orEmpty() }.distinctUntilChanged()
     @Throws(Exception::class)
     suspend fun toggleFolded(group: String) = store.edit { val now = it[FOLDED].orEmpty(); it[FOLDED] = if (group in now) now - group else now + group }
+
+    // The Vault's categories folded (ADR 213), on the iPhone; Android keeps its own in its preferences "vault-folded".
+    private val VAULT_FOLDED = stringSetPreferencesKey("vault_folded")
+    val foldedVault: Flow<Set<String>> = store.data.map { it[VAULT_FOLDED].orEmpty() }.distinctUntilChanged()
+    @Throws(Exception::class)
+    suspend fun toggleVaultFolded(category: String) = store.edit { it[VAULT_FOLDED] = Vault.toggled(it[VAULT_FOLDED].orEmpty(), category) }
 
     private val LIST_WIDTH = intPreferencesKey("list_width") // dp, beside the chat on a wide screen; none: the standard one
     @Throws(Exception::class)

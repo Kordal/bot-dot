@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import dev.botdot.app.feed.Feed
+import dev.botdot.app.data.Feed
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import org.junit.After

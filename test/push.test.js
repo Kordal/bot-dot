@@ -40,7 +40,7 @@ test("a reply notifies when the server says it is new, in the bot's or the Chief
   const f = push.follower({ rung: new Set(), chiefName: () => 'Ada' });
   assert.deepEqual(take(f, ev('run_finished', { botId: 'b1', botName: 'News', status: 'success', result: '## Today\nFound **3** articles.' })), [], 'not new: read already, quiet or held');
   assert.deepEqual(take(f, ev('run_finished', { botId: 'b1', botName: 'News', status: 'success', result: '## Today\nFound **3** articles.', new: true })),
-    [{ title: 'News', body: 'Today\nFound 3 articles.', target: 'bot:b1', tag: 'bot:b1', urgency: undefined }]);
+    [{ title: 'News', body: 'Today\nFound 3 articles.', target: 'bot:b1', tag: 'bot:b1', urgency: undefined, buttons: { reply: 'Reply' } }]);
   const [failed] = take(f, ev('run_finished', { botId: 'b1', botName: 'News', status: 'error', jobName: 'Morning paper', problem: 'The site did not answer.', new: true }));
   assert.equal(failed.body, 'Morning paper\nThe site did not answer.');
   const [asks] = take(f, ev('run_finished', { botId: 'b2', botName: 'Mail Sorter', status: 'success', result: 'A long reply…', asks: true, title: 'Mail Sorter asks', question: 'Archive the 40 old ones?', new: true }));
@@ -67,7 +67,7 @@ test('what needs the owner rings once, not while the web page is in use, and aga
   const job = { botId: 'b1', botName: 'News', jobId: 'j1', jobName: 'Digest', text: 'Wants to run “Digest” every morning' };
   const tile = { tileId: 't1', title: 'Weather', botId: null, botName: null, text: 'Waiting for your OK: “Weather” on your Board', yesOn: 'card' };
   const one = take(f, ev('approvals', { jobs: [job], tiles: [], memoryChanges: [] }));
-  assert.deepEqual(one, [{ title: 'News', body: job.text, target: 'needs', tag: 'job:b1/j1', urgency: 'high' }]);
+  assert.deepEqual(one, [{ title: 'News', body: job.text, target: 'needs', tag: 'job:b1/j1', urgency: 'high', buttons: { no: 'Decline', yes: 'Approve' } }]);
   assert.deepEqual(take(f, ev('approvals', { jobs: [job], tiles: [tile], memoryChanges: [] })).map((n) => [n.title, n.tag]), [['Ada', 'tile:t1']], 'the job rang already; the tile is the Chief’s');
   assert.deepEqual(take(f, ev('approvals', { jobs: [], tiles: [tile], memoryChanges: [] })), []);
   assert.ok(!rung.has('job:b1/j1'), 'answered: forgotten');
@@ -85,6 +85,32 @@ test('what needs the owner rings once, not while the web page is in use, and aga
   assert.deepEqual(take(f, ev('login_request', { id: 'l1', kind: 'card', botName: 'Shopper', site: 'shop.example' })), []);
   take(f, ev('login_request_closed', { id: 'l1' }));
   assert.equal(take(f, ev('login_request', { id: 'l1', kind: 'login', botName: 'Shopper', site: 'shop.example' }))[0].body, 'Asks for the shop.example login');
+});
+
+test("each notification says the iPhone's buttons, as the Android app draws them: Reply on a chat, Decline and Approve on a card", () => {
+  const buttons = (type, data, lang = 'en') => push.follower({ rung: new Set(), language: () => lang }).take(ev(type, data)).notices.map((n) => n.buttons ?? null);
+  assert.deepEqual(buttons('run_finished', { botId: 'b1', botName: 'News', status: 'success', result: 'r', new: true }), [{ reply: 'Reply' }]);
+  assert.deepEqual(buttons('chief_reply', { chatId: 'c1', status: 'success', text: 'Booked.', new: true }, 'pl'), [{ reply: 'Odpowiedz' }]);
+  assert.deepEqual(buttons('group_run_finished', { groupId: 'g1', botName: 'Coder', result: 'r', asks: true, question: 'Ship it?', notify: true }), [{ reply: 'Reply' }]);
+  const job = { botId: 'b1', botName: 'News', jobId: 'j1', jobName: 'Digest', text: 'Wants to run “Digest”' };
+  assert.deepEqual(buttons('approvals', { jobs: [job] }), [{ no: 'Decline', yes: 'Approve' }]);
+  assert.deepEqual(buttons('approvals', { jobs: [{ ...job, no: 'Decline and remove' }] }), [{ no: 'Decline and remove', yes: 'Approve' }], "the server's own words");
+  assert.deepEqual(buttons('approvals', { jobs: [{ ...job, change: true }] }), [{ no: 'Keep as it is', yes: 'Approve the change' }]);
+  assert.deepEqual(buttons('approvals', { jobs: [{ ...job, yesOn: 'card' }] }), [{ no: 'Decline' }], 'a script: its yes is on the card');
+  assert.deepEqual(buttons('approvals', { tiles: [{ tileId: 't1', title: 'Weather', text: 'Waiting', yesOn: 'card' }] }), [{ no: 'Decline' }]);
+  assert.deepEqual(buttons('approvals', { memoryChanges: [{ id: 'm1', botName: 'News', title: 'Keep a note', yes: 'Keep it', no: 'Drop it' }] }), [{ no: 'Drop it', yes: 'Keep it' }]);
+  assert.deepEqual(buttons('approvals', { memoryChanges: [{ id: 'm1', botName: 'News', title: 'Forget it', guarded: true }] }), [null], 'a guarded change is answered on its card');
+  const ask = (o) => buttons('asks', { waiting: 1, list: [{ id: 'a1', botName: 'Scout', text: 'Asks to do it', ...o }] });
+  assert.deepEqual(ask({ kind: 'permission' }), [{ no: 'Decline', yes: 'Allow' }]);
+  assert.deepEqual(ask({ kind: 'tool' }), [{ no: 'Decline', yes: 'Install' }]);
+  assert.deepEqual(ask({ kind: 'skill' }), [{ no: 'Decline', yes: 'Install' }]);
+  assert.deepEqual(ask({ kind: 'connector-action', yesOn: 'card' }), [{ no: 'Decline' }]);
+  assert.deepEqual(ask({ kind: 'bot-change' }), [{ no: 'Decline', yes: 'Approve' }]);
+  assert.deepEqual(ask({ kind: 'tool', text: '' }), [null], 'nothing answered blind');
+  assert.deepEqual(ask({ kind: 'permission', batch: { id: 'r1', title: 'Scout wants 2 things' } }), [null], 'a card of several');
+  assert.deepEqual(buttons('chief_suggestion', { chatId: 'c1', title: 'A digest', from: { id: 'b1', name: 'News' } }, 'pl'), [{ no: 'Odrzuć', yes: 'Zatwierdź' }]);
+  assert.deepEqual(buttons('login_request', { id: 'l1', kind: 'login', botName: 'Shopper', site: 'shop.example' }), [null]);
+  assert.deepEqual(buttons('claude', { loggedIn: false }), [null]);
 });
 
 test('what one run waits on rings once, as its card of several, also when an ask joins it or one is answered on its own', () => {

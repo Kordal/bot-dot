@@ -20,3 +20,9 @@ extension AppSettingsState: @retroactive @unchecked Sendable {}
 extension AppsStore: @retroactive @unchecked Sendable {}
 extension AppsState: @retroactive @unchecked Sendable {}
 extension WhatsNew.Entry: @retroactive @unchecked Sendable {}
+extension BotChat: @retroactive @unchecked Sendable {}
+extension VersionInfo: @retroactive @unchecked Sendable {}
+extension VaultStore: @retroactive @unchecked Sendable {}
+extension VaultState: @retroactive @unchecked Sendable {}
+extension VaultItem: @retroactive @unchecked Sendable {}
+extension VaultLogin: @retroactive @unchecked Sendable {}

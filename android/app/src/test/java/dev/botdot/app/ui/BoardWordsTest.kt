@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.markdown.Block
 import dev.botdot.app.data.stripTiles
 import dev.botdot.app.data.stripKpi
 import dev.botdot.app.data.Dashboard

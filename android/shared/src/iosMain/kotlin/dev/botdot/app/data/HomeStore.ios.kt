@@ -66,6 +66,33 @@ class HomeStore(val api: Api) {
     private val scope = MainScope()
     val store = Store(scope, MutableStateFlow(api))
 
+    /** The live feed (docs/api.md): the Store and an open chat follow it while the app is in front. */
+    val feed = Feed(scope, LastEvent())
+
+    /** Where the feed was, while the app runs: it resumes after the last event it saw when the app comes to front. */
+    private class LastEvent : Feed.Keep {
+        private var server: String? = null
+        private var id: String? = null
+        override fun server() = server
+        override fun lastId() = id
+        override fun write(server: String, lastId: String?) { this.server = server; id = lastId }
+    }
+
+    init {
+        scope.launch { feed.events.collect { store.handle(it) } }
+    }
+
+    /**
+     * The app came to front ([on]) or went behind: the feed connects, resuming after the last event it saw, or drops
+     * its connection. A connection that may be half-open after the phone slept is opened anew.
+     */
+    fun live(on: Boolean) {
+        if (on) { feed.connect(api); feed.reconnect() } else feed.connect(null)
+    }
+
+    /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
+    fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
+
     /** Calls [onChange] with Home's state now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
         val parts = combine(store.bots.value, store.groups.value, store.recent.value, store.dashboard.value, store.version.value) { b, g, r, d, v -> listOf(b, g, r, d, v) }
@@ -124,5 +151,8 @@ class HomeStore(val api: Api) {
         try { api.whatsNewSeen(entries) } catch (e: CancellationException) { throw e } catch (_: Exception) { } // shown again next time
     }
 
-    fun close() = scope.cancel()
+    fun close() {
+        feed.connect(null)
+        scope.cancel()
+    }
 }

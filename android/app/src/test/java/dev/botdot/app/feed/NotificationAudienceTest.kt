@@ -1,5 +1,6 @@
 package dev.botdot.app.feed
 
+import dev.botdot.app.data.delivered
 import dev.botdot.app.data.FeedEvent
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject

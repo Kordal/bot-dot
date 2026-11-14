@@ -3,7 +3,8 @@ import AuthenticationServices
 
 /// The app's screens: the address, the sign-in, and Home once signed in. Dark, as the Android app (#14).
 struct RootView: View {
-    @State private var model = AppModel()
+    let model: AppModel
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         Group {
@@ -16,6 +17,7 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .task { await model.start() }
+        .onChange(of: phase, initial: true) { _, now in if now == .active { Notifications.shared.appOpened() } }
     }
 }
 
