@@ -3,6 +3,8 @@
 > [ADR 008](008-the-mac-app-is-no-longer-developed.md) stopped the Mac app on 2026-10-04; [ADR 022](022-the-mac-app-is-developed-again.md) restored this decision on 2026-10-11: features go to the web page, Android and the Mac together. [ADR 031](031-the-mac-app-is-stopped-again.md) stopped the Mac app again. [ADR 137](137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md) makes an exception for the desktop: a Tauri window onto the front door's web page, on Windows and Mac.
 >
 > [ADR 142](142-the-mac-apps-code-is-removed.md) removed the native Mac app's code on 2026-11-03: features go to the web page and Android, and the desktop app shows the web page.
+>
+> [ADR 242](242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md) makes the iOS app native SwiftUI on the Android app's shared Kotlin data layer (2026-11-14): features go to the web page, Android and iOS.
 
 The Mac app (and the iOS app to come) is built natively in SwiftUI, screen for screen like the web page, rather than as a WKWebView shell that loads the botdot server's web UI. We chose this for a real Mac feel, including Apple's Liquid Glass design, and accepted the cost: every web feature has to be built again in Swift. To keep that cost from turning into drift again (the old Mac app fell weeks behind when it was updated in batches), each new feature now goes to the web, Android and the Mac together. The old `macos/` app was removed and rewritten from scratch rather than caught up.
 

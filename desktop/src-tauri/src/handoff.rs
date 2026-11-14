@@ -5,10 +5,7 @@ use sha2::{Digest, Sha256};
 use tauri::Url;
 use ureq::tls::{RootCerts, TlsConfig};
 
-/// The app the front door makes the session for (docs/api.md): the iOS app's own, for its feedback and its sessions.
-#[cfg(target_os = "ios")]
-const APP: &str = "ios";
-#[cfg(not(target_os = "ios"))]
+/// The app the front door makes the session for (docs/api.md).
 const APP: &str = "desktop";
 
 /// Forgotten once its code has brought a session.

@@ -1,6 +1,6 @@
 # ADR-151: The iOS app is the desktop app's window, on the iPhone
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 242](242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md) (2026-11-14)
 - **Owning task:** [#962](https://github.com/Kordal/bot-dot/issues/962), spec [#961](https://github.com/Kordal/bot-dot/issues/961)
 - **Amends:** [ADR 0001](0001-native-apps-per-platform.md), [ADR 137](137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md)
 
