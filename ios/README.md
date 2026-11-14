@@ -16,7 +16,14 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
-                  layer's cards, NeedsDesk, with their buttons), bots drawn by FigureView, and tr()
+                  layer's cards, NeedsDesk, with their buttons), a bot's settings (BotSettingsView: icon, colour, name,
+                  assignment, pinned, its key, with Advanced its model; BotSettingsDesk saves each change by itself),
+                  Settings (SettingsView: Apps, models, language, Usage, Claude, Updates with What's new, the
+                  Subscription of a managed account, Advanced, the address; AppSettingsDesk), Apps (AppsView: the
+                  Composio key, the connected apps and who uses them, search, Connect opening the sign-in in Safari;
+                  AppsDesk), the status keypad (KeypadView: the shared Keypad's pages, digits and pills), What's new
+                  once after an update (WhatsNewSheet), bots drawn by FigureView, and tr(). Home's ⋯ menu opens
+                  Settings, Apps, the keypad and each bot's settings
 BotDotNotify/     the notification service extension (app.botdot.notify), empty for now
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers
 ```

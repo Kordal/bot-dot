@@ -41,6 +41,15 @@ class HomeState(
     fun asks(b: Bot): Boolean = botAsks(b, lastRun[b.id]) != null
     /** The Board's cards under Needs you: null before the Board has loaded ([stripTiles]). */
     val board: List<Tile>? get() = stripTiles(dashboard)
+    /** The status keypad (#1370): the list's own order cut into pages ([Keypad.pages]). */
+    val keypad: List<Keypad.Page> get() = Keypad.pages(bots.orEmpty(), groups.orEmpty(), shared)
+    /** The bots a card in Needs you waits for: their keys say Needs you (#397). */
+    private val waitingBots: Set<String> by lazy { waiting.mapNotNull { it.bot?.takeIf(String::isNotEmpty) }.toSet() }
+    /** A key's pill, as Android's keypad says it ([Keypad.botStatus]); a group's without its members' turns, not read here yet. */
+    fun status(key: Keypad.Key): Keypad.Status = when (key) {
+        is Keypad.Key.OfBot -> Keypad.botStatus(key.bot, lastRun[key.bot.id], key.bot.id in waitingBots)
+        is Keypad.Key.OfGroup -> Keypad.groupStatus(key.group)
+    }
 }
 
 /**
@@ -95,6 +104,17 @@ class HomeStore(val api: Api) {
             coroutineScope { listOf(store.bots, store.groups, store.version).forEach { launch { it.refresh() } } }
             scope.launch { listOf(store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } } }
         }
+    }
+
+    /** What's new (#219): the notes of the releases not seen yet, from a server that keeps them; none before its features are known. */
+    @Throws(Exception::class)
+    suspend fun whatsNew(): List<WhatsNew.Entry> =
+        if (WhatsNew.asks(store.version.value.value?.features)) runCatching { api.whatsNew() }.getOrDefault(emptyList()) else emptyList()
+
+    /** The What's new dialog closed, any way: everything up to its newest note is seen, here and on the web page. */
+    @Throws(Exception::class)
+    suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) {
+        if (entries.isNotEmpty()) runCatching { api.whatsNewSeen(entries) }
     }
 
     fun close() = scope.cancel()

@@ -1,19 +1,14 @@
-package dev.botdot.app.ui
-
-import dev.botdot.app.data.ListLayout
-import dev.botdot.app.data.Bot
-import dev.botdot.app.data.Group
-import dev.botdot.app.data.tr
-import dev.botdot.app.data.trn
+package dev.botdot.app.data
 
 /**
  * The keypad: the home of a window from 840 dp wide (#494). Its pages are the list's own order ([ListLayout.rows])
  * cut where a category begins, so the list and the keypad never disagree: the pinned bots and groups (in one order
  * where the server shares it, #276, else the bots first), each category A to Z with its bots and then its groups,
  * and Other last. Its keys answer a hardware keyboard. The
- * web page and the Mac draw the same rule. Nothing here asks the botdot server anything.
+ * web page and the Mac draw the same rule, and the iPhone draws its keypad from it (#1370). Nothing here asks the
+ * botdot server anything.
  */
-internal object Keypad {
+object Keypad {
     /** The narrowest window, in dp, whose home is the keypad: three keys and a chat fit. Narrower ones keep the list. */
     const val WIDE = 840
     /** The narrowest window, in dp, that shows the list beside the chat. */
@@ -104,12 +99,13 @@ internal object Keypad {
      * has the same rule.
      */
     fun digits(pages: List<Page>, shown: List<Key>): Map<Int, Key> {
-        val map = sortedMapOf<Int, Key>()
+        val map = mutableMapOf<Int, Key>()
         for (k in pages.flatMap { it.keys }) if (k is Key.OfBot) k.bot.hotkey?.takeIf { it in 1..9 && it !in map }?.let { map[it] = k }
         val held = map.values.map { it.id }.toSet()
         val free = (1..9).filter { it !in map }.iterator()
         for (k in shown) { if (!free.hasNext()) break; if (k.id !in held) map[free.next()] = k }
-        return map
+        // In the digits' order, as a sorted map hands them out.
+        return map.entries.sortedBy { it.key }.associate { it.key to it.value }
     }
 
     /** The digit on [key] in [digits]; 0: none. */
@@ -195,6 +191,20 @@ internal object Keypad {
         else -> idle
         }
     }
+
+    /**
+     * A bot's key's pill, as the list's row reads it (Android's Home, #397): [last] is its newest run that said something,
+     * [waiting] whether a card in Needs you waits for it. Asking, or a card for it, is Needs you.
+     */
+    fun botStatus(b: Bot, last: Run?, waiting: Boolean): Status = status(
+        b.running || last?.isRunning == true, needs = botAsks(b, last) != null || waiting, unread = b.unread, last = last?.status,
+        runs = b.runningCount, seen = seen(b.readAt, last?.endedAt), watching = !b.nextRunAt.isNullOrEmpty(),
+    )
+
+    /** A group's key's pill: [working] while a member answers in it, [asks] while one of them asks the owner there. */
+    fun groupStatus(g: Group, working: Boolean = false, asks: Boolean = false): Status = status(
+        working, needs = asks, unread = g.unread, last = g.last?.status?.ifEmpty { null }, seen = seen(g.readAt, g.last?.at),
+    )
 
     /**
      * Whether the owner read a chat after its last run ended (the web page's keypad.js, seen): [readAt] is the chat's read

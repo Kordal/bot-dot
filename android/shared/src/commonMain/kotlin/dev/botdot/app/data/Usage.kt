@@ -77,4 +77,23 @@ object Usage {
 
     /** "16 Oct", for the chart's ends. */
     fun dayLabel(s: String): String = day(s)?.let { "${it.day} ${monthShort(it.month.number, I18n.language)}" } ?: s
+
+    /** The days an answer covers, in words: "16 Oct", or "10 Oct to 16 Oct". */
+    fun range(a: Answer): String = if (a.from == a.to) dayLabel(a.from) else tr("{from} to {to}", "from" to dayLabel(a.from), "to" to dayLabel(a.to))
+
+    /** One bot's row under "By bot": its name, its bar as a share of the busiest bot's (0 to 1), and its amount. */
+    data class Row(val name: String, val share: Float, val amount: String)
+
+    /** The rows of [a]'s bots: with Advanced on (ADR 205) their tokens, else only each one's share of the whole. */
+    fun rows(a: Answer, advanced: Boolean): List<Row> {
+        val top = a.bots.maxOfOrNull { it.totalTokens }?.coerceAtLeast(1L) ?: 1L
+        val all = a.bots.sumOf { it.totalTokens }.coerceAtLeast(1L)
+        return a.bots.map { b ->
+            Row(if (b.gone) tr("{name} (deleted)", "name" to b.name) else b.name, b.totalTokens.toFloat() / top,
+                if (advanced) tokens(b.totalTokens) else "${b.totalTokens * 100 / all}%")
+        }
+    }
+
+    /** What "By bot" says with no bot in the timeframe. */
+    fun none(advanced: Boolean): String = if (advanced) tr("No tokens used in this timeframe.") else tr("Nothing in this timeframe.")
 }

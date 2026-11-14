@@ -1,0 +1,241 @@
+import SwiftUI
+import Observation
+import BotdotShared
+
+/// A bot's settings for one signed-in botdot: the shared layer's BotSettingsStore on Home's Store, and the state it
+/// pushes. What a change sends and when it is saved are the shared layer's (BotSettings), as on Android.
+@MainActor
+@Observable
+final class BotSettingsModel {
+    private(set) var state: BotSettingsState?
+    let store: BotSettingsStore
+    private var watching: Kotlinx_coroutines_coreJob?
+
+    init(home: HomeStore, botId: String) {
+        store = BotSettingsStore(home: home, botId: botId)
+    }
+
+    func start() {
+        guard watching == nil else { return }
+        watching = store.watch { [weak self] state in
+            MainActor.assumeIsolated { self?.state = state }
+        }
+        Task { try? await store.load() }
+    }
+
+    func stop() {
+        watching?.cancel(cause: nil)
+        watching = nil
+        store.close()
+    }
+
+    /// One change to the settings: kept, and saved by itself a moment after the last one.
+    func edit(_ change: (BotDraft) -> BotDraft) {
+        guard let draft = state?.draft else { return }
+        store.edit(draft: change(draft))
+    }
+
+    /// Delete, once the owner said yes: nil when it went, else botdot's sentence.
+    func delete() async -> String? {
+        do {
+            try await store.delete()
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+}
+
+/// A bot's settings, as Android's: its figure (a tap opens its icons), name, colour, what it does, its category and
+/// main assignment, pinned, its key on the keypad, and with Advanced on its model and reasoning. Each change saves by
+/// itself, and "Saved" says so at the top.
+struct BotSettingsView: View {
+    let home: HomeStore
+    let botId: String
+    let figure: FigureDef?
+    @State private var model: BotSettingsModel?
+    @State private var picking = false
+    @State private var askDelete = false
+    @State private var deleting = false
+    @State private var saved = false
+    @State private var failed: String?
+    // What is typed stays as typed: the shared draft follows it.
+    @State private var name = ""
+    @State private var about = ""
+    @State private var category = ""
+    @State private var task = ""
+    @State private var seeded = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        Form {
+            if let model, let state = model.state, let bot = state.bot {
+                form(model, state, bot)
+            } else if let error = model?.state?.error {
+                Text(error).foregroundStyle(.red)
+            } else {
+                ProgressView().frame(maxWidth: .infinity)
+            }
+        }
+        .navigationTitle(model?.state?.bot?.name ?? "")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if saved { Text(tr("Saved")).font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("saved") }
+        }
+        .alert(tr("Delete {name}?", ["name": model?.state?.bot?.name ?? ""]), isPresented: $askDelete) {
+            Button(tr("Delete"), role: .destructive) { remove() }
+            Button(tr("Keep"), role: .cancel) {}
+        } message: {
+            Text(model?.store.deleteText() ?? "")
+        }
+        .task {
+            if model == nil {
+                let made = BotSettingsModel(home: home, botId: botId)
+                made.start()
+                model = made
+            }
+        }
+        .onDisappear { model?.stop(); model = nil }
+        .onChange(of: model?.state?.bot?.id) { _, _ in seed() }
+        .onChange(of: model?.state?.deleted) { _, gone in if gone == true { dismiss() } }
+        .task(id: model?.state?.savedAt) {
+            guard (model?.state?.savedAt ?? 0) > 0 else { return }
+            saved = true
+            try? await Task.sleep(for: .seconds(2))
+            saved = false
+        }
+    }
+
+    @ViewBuilder
+    private func form(_ model: BotSettingsModel, _ state: BotSettingsState, _ bot: Bot) -> some View {
+        let draft = state.draft
+        if let error = failed ?? state.error {
+            Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
+        }
+        Section(tr("Who it is")) {
+            HStack(spacing: 12) {
+                Button { picking.toggle() } label: {
+                    if let figure {
+                        FigureView(drawing: FigurePaint.shared.figure(def: figure, color: draft.color, state: bot.state, outfit: BotSettingsKt.withIcon(outfit: bot.outfit, icon: draft.icon), dark: true))
+                            .frame(width: 56, height: 56)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(figure?.iconChoices.isEmpty ?? true)
+                .accessibilityLabel(tr("Icon"))
+                .accessibilityIdentifier("icon")
+                TextField(tr("Name"), text: $name)
+                    .onChange(of: name) { _, v in model.edit { $0.withName(name: v) } }
+            }
+            BotColorPicker(selected: draft.color) { hex in model.edit { $0.withColor(color: hex) } }
+            if picking, let figure, !figure.iconChoices.isEmpty {
+                BotIconPicker(figure: figure, icons: figure.iconChoices, selected: draft.icon, color: draft.color) { icon in
+                    model.edit { $0.withIconNamed(icon: icon) }
+                }
+            }
+            TextField(tr("What it does"), text: $about, axis: .vertical)
+                .onChange(of: about) { _, v in model.edit { $0.withDescription(description: v) } }
+            TextField(tr("Category"), text: $category)
+                .onChange(of: category) { _, v in model.edit { $0.withGroup(group: v) } }
+        }
+        Section(tr("Its main assignment")) {
+            TextField("", text: $task, axis: .vertical).lineLimit(4...)
+                .onChange(of: task) { _, v in model.edit { $0.withTask(task: v) } }
+        }
+        Section {
+            Toggle(tr("Pinned below the Chief"), isOn: Binding(get: { draft.pinned }, set: { on in model.edit { $0.withPinned(pinned: on) } }))
+            if state.showsHotkey {
+                Picker(tr("Key on the keypad"), selection: Binding(get: { "\(draft.hotkey)" }, set: { v in model.edit { $0.withHotkey(hotkey: Int32(v) ?? 0) } })) {
+                    ForEach(state.hotkeys, id: \.id) { Text($0.label).tag($0.id) }
+                }
+            }
+            // Advanced (ADR 205): without it, its model is left as it is and not shown.
+            if state.advanced {
+                Picker(tr("Model"), selection: Binding(get: { draft.model }, set: { v in model.edit { $0.withModel(model: v) } })) {
+                    ForEach(state.models, id: \.id) { Text($0.label).tag($0.id) }
+                }
+            }
+            if state.showsEffort {
+                Picker(tr("Reasoning"), selection: Binding(get: { draft.effort }, set: { v in model.edit { $0.withEffort(effort: v) } })) {
+                    ForEach(state.efforts, id: \.id) { Text($0.label).tag($0.id) }
+                }
+            }
+        }
+        Section {
+            Button(role: .destructive) { askDelete = true } label: {
+                Text(deleting ? tr("Deleting…") : tr("Delete {name}", ["name": bot.name]))
+            }
+            .disabled(deleting)
+        }
+    }
+
+    /// The fields start as botdot has the bot, once it is read.
+    private func seed() {
+        guard !seeded, let d = model?.state?.draft, model?.state?.bot != nil else { return }
+        seeded = true
+        name = d.name
+        about = d.description_
+        category = d.group
+        task = d.task
+    }
+
+    private func remove() {
+        guard let model else { return }
+        deleting = true
+        Task {
+            failed = await model.delete()
+            deleting = false
+        }
+    }
+}
+
+/// The colour of a bot's figure: one of the shared BotColors, the picked one ringed.
+private struct BotColorPicker: View {
+    let selected: String
+    let pick: (String) -> Void
+
+    var body: some View {
+        HStack {
+            ForEach(BotSettingsKt.BotColors, id: \.first) { pair in
+                let hex = pair.first as String? ?? ""
+                let on = hex.caseInsensitiveCompare(selected) == .orderedSame
+                Button { pick(hex) } label: {
+                    Circle().fill(ContactRow.tint(hex)).frame(width: 26, height: 26)
+                        .padding(3)
+                        .overlay(Circle().strokeBorder(on ? Color.primary : .clear, lineWidth: 2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(pair.second as String? ?? hex)
+                .accessibilityAddTraits(on ? .isSelected : [])
+                if hex != (BotSettingsKt.BotColors.last?.first as String?) { Spacer(minLength: 0) }
+            }
+        }
+    }
+}
+
+/// A bot's icon (ADR 169): every icon of the kit on a tile in its colour, the picked one ringed.
+private struct BotIconPicker: View {
+    let figure: FigureDef
+    let icons: [KotlinPair<NSString, NSString>]
+    let selected: String
+    let color: String
+    let pick: (String) -> Void
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 48), spacing: 4)], spacing: 4) {
+            ForEach(icons, id: \.first) { pair in
+                let name = pair.first as String? ?? ""
+                let on = name == selected
+                Button { pick(name) } label: {
+                    FigureView(drawing: FigurePaint.shared.figure(def: figure, color: color, state: "idle", outfit: BotSettingsKt.withIcon(outfit: nil, icon: name), dark: true))
+                        .frame(width: 40, height: 40)
+                        .padding(4)
+                        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(on ? Color.primary : .clear, lineWidth: 2))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(pair.second as String? ?? name)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+    }
+}

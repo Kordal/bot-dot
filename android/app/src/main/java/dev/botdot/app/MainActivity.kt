@@ -44,7 +44,7 @@ import dev.botdot.app.ui.rememberSpaceWays
 import dev.botdot.app.data.Spaces
 import dev.botdot.app.ui.HomePanes
 import dev.botdot.app.ui.KeyRelay
-import dev.botdot.app.ui.Keypad
+import dev.botdot.app.data.Keypad
 import dev.botdot.app.ui.openBeside
 import dev.botdot.app.ui.LocalListToggle
 import dev.botdot.app.ui.ListGrip

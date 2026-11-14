@@ -3,11 +3,21 @@ import BotdotShared
 
 /// Home on the iPhone, as the Android app's on a phone: what went wrong, Needs you, the Board's numbers under it, then
 /// the bots and groups in the owner's order: the pinned ones first, then each category. Press and hold a row to drag
-/// it to its place; pull down to refresh.
+/// it to its place; pull down to refresh. Its ⋯ menu opens Settings, Apps, the keypad and each bot's settings: the bot
+/// chat's bar opens a bot's settings once the chat is on the iPhone.
 struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
+    @State private var path: [Route] = []
+
+    /// What Home's menu opens.
+    enum Route: Hashable {
+        case settings
+        case apps
+        case keypad
+        case bot(String)
+    }
 
     init(model: AppModel, server: String, api: Api) {
         self.model = model
@@ -16,7 +26,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 if let error = home.state?.error ?? home.error {
                     Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
@@ -47,14 +57,34 @@ struct HomeView: View {
             .listStyle(.plain)
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case .settings: SettingsView(app: model, home: home.home)
+                case .apps: AppsView(home: home.home)
+                case .keypad: KeypadView(home: home) { path.append(.bot($0)) }
+                case .bot(let id): BotSettingsView(home: home.home, botId: id, figure: home.figure)
+                }
+            }
             .toolbar {
                 Menu {
+                    Button(tr("Settings")) { path.append(.settings) }
+                    Button(tr("Apps")) { path.append(.apps) }
+                    Button(tr("Keypad")) { path.append(.keypad) }
+                    if let bots = home.state?.bots, !bots.isEmpty {
+                        Menu(tr("Bots")) {
+                            ForEach(bots, id: \.id) { b in Button(b.name) { path.append(.bot(b.id)) } }
+                        }
+                    }
+                    Divider()
                     Button(tr("Change botdot's address")) { model.otherAddress() }
                     Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
                 } label: {
                     Image(systemName: "ellipsis.circle").accessibilityLabel(tr("More"))
                 }
             }
+        }
+        .sheet(isPresented: Binding(get: { !home.whatsNew.isEmpty }, set: { if !$0 { home.whatsNewClosed() } })) {
+            WhatsNewSheet(entries: home.whatsNew) { home.whatsNewClosed() }
         }
         .task { home.start() }
         .onDisappear { home.stop() }
@@ -171,5 +201,22 @@ struct BoardCards: View {
             }
         }
         .listRowSeparator(.hidden)
+    }
+}
+
+/// What's new (#219), once after an update, as Android's dialog: the notes not seen yet and one button. Closed any way,
+/// they are seen, here and on the web page.
+struct WhatsNewSheet: View {
+    let entries: [WhatsNew.Entry]
+    let close: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            ScrollView { WhatsNewNotes(entries: entries).padding().frame(maxWidth: .infinity, alignment: .leading) }
+                .navigationTitle(WhatsNew.shared.TITLE)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { Button(WhatsNew.shared.GOT_IT, action: close).accessibilityIdentifier("got-it") }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
