@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.stripTiles
+import dev.botdot.app.data.stripKpi
 import dev.botdot.app.data.Dashboard
 import dev.botdot.app.data.Tile
 import org.junit.Assert.assertEquals

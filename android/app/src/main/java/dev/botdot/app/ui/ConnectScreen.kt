@@ -39,16 +39,16 @@ fun ConnectScreen(current: String?, onConnected: (String) -> Unit) {
     var checking by remember { mutableStateOf(false) }
 
     fun connect() {
-        // As on the iPhone: a botdot on a computer itself, plain HTTP and nonsense are said at once, not asked.
-        val typed = Connect.address(address)
-        Connect.words(typed)?.let { error = it; return }
-        val url = (typed as Connect.Address.Remote).url
         checking = true
         error = null
         scope.launch {
-            error = Connect.check(url)
+            // As on the iPhone: plain HTTP and nonsense are said at once; an address on the phone is tried, and
+            // explained when nothing answers there (Connect.connect).
+            when (val o = Connect.connect(address)) {
+                is Connect.Outcome.Connected -> onConnected(o.url)
+                is Connect.Outcome.Refused -> error = o.words
+            }
             checking = false
-            if (error == null) onConnected(url)
         }
     }
 

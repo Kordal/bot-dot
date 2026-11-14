@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.CHIEF_COLOR
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background

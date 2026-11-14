@@ -1,6 +1,6 @@
 package dev.botdot.app.data
 
-import dev.botdot.app.ui.botSub
+import dev.botdot.app.data.botSub
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals

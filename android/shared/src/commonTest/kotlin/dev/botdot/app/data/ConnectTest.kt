@@ -14,11 +14,21 @@ class ConnectTest {
         assertNull(Connect.words(Connect.address("hq.example.com")))
     }
 
-    @Test fun aBotdotOnTheComputerItselfIsExplainedNotChecked() {
-        for (a in listOf("localhost", "http://localhost:4747", "127.0.0.1:4747", "https://127.0.0.2", "http://[::1]:4747", "app.localhost")) {
-            assertEquals(Connect.Address.Local, Connect.address(a), a)
-        }
-        assertNotNull(Connect.words(Connect.Address.Local))
+    @Test fun anAddressOnTheDeviceIsTriedAsTheAndroidAppAlwaysDid() {
+        assertEquals(Connect.Address.Local("http://localhost:4747"), Connect.address("http://localhost:4747"))
+        assertEquals(Connect.Address.Local("https://127.0.0.1:4747"), Connect.address("127.0.0.1:4747"))
+        assertEquals(Connect.Address.Local("http://[::1]:4747"), Connect.address("http://[::1]:4747"))
+        assertEquals(Connect.Address.Local("https://app.localhost"), Connect.address("app.localhost"))
+        assertNotNull(Connect.words(Connect.Address.Local("http://localhost:4747")), "explained when nothing answers there")
+    }
+
+    @Test fun nothingAnsweringOnTheDeviceIsExplainedAsSo() = kotlinx.coroutines.test.runTest {
+        val o = Connect.connect("http://127.0.0.1:1") // nothing listens on port 1
+        assertEquals(Connect.Outcome.Refused(Connect.words(Connect.Address.Local("http://127.0.0.1:1"))!!), o)
+    }
+
+    @Test fun plainHttpIsRefusedBeforeAnythingIsAsked() = kotlinx.coroutines.test.runTest {
+        assertEquals(Connect.Outcome.Refused("Use HTTPS for a remote botdot server."), Connect.connect("http://hq.example.com"))
     }
 
     @Test fun plainHttpToAnotherComputerAndNonsenseAreRefused() {

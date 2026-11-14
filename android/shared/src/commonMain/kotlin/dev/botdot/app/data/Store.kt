@@ -82,6 +82,7 @@ class Store(
         private var queued: CompletableDeferred<Unit>? = null
 
         /** Get it again now, and wait for it (pull to refresh, after you changed something). The read starts after the call. */
+        @Throws(Exception::class)
         suspend fun refresh() {
             val a = api.value ?: return
             val (mine, leads) = synchronized(this) {

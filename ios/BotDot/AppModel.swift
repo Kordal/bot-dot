@@ -31,31 +31,27 @@ final class AppModel {
         settings = settingsIn(directory: dir.path)
     }
 
-    /// The botdot this phone was set to, signed in or not.
+    /// The botdot this phone was set to: Home, until its front door asks for a sign-in ([signInNeeded]), as on Android.
     func start() async {
         let server = (try? await settings.serverNow()) ?? nil
-        screen = server.map(screenFor) ?? .address
+        screen = server.map { .signedIn($0) } ?? .address
     }
 
     /// An address typed in: refused at once, asked whether it is a botdot, then kept.
     func connect(_ typed: String) async {
         guard !busy else { return } // one check at a time: a second tap waits for the first
         error = nil
-        let address = Connect.shared.address(input: typed)
-        if let words = Connect.shared.words(address: address) {
-            error = words
-            return
-        }
-        guard case .remote(let remote) = onEnum(of: address) else { return }
         busy = true
         defer { busy = false }
         do {
-            if let words = try await Connect.shared.check(url: remote.url) {
-                error = words
-                return
+            switch onEnum(of: try await Connect.shared.connect(typed: typed)) {
+            case .refused(let refused):
+                error = refused.words
+            case .connected(let connected):
+                _ = try await settings.setServer(url: connected.url)
+                // A front door without this phone's session asks for the sign-in first; a botdot without one doesn't.
+                screen = connected.frontDoor && session.token(server: connected.url) == nil ? .signIn(connected.url) : .signedIn(connected.url)
             }
-            _ = try await settings.setServer(url: remote.url)
-            screen = screenFor(remote.url)
         } catch {
             self.error = error.localizedDescription
         }
@@ -108,13 +104,20 @@ final class AppModel {
         if screen == .signedIn(server) { screen = .signIn(server) }
     }
 
+    /// The front door of [server] ended this phone's session (signed out everywhere, or never signed in): its sign-in.
+    func signInNeeded(_ server: String) {
+        if screen == .signedIn(server) { screen = .signIn(server) }
+    }
+
+    /// This phone's API for [server], with its session.
+    func api(_ server: String) -> Api {
+        Api(baseUrl: server, session: session, quietMs: Api.companion.QUIET_MS)
+    }
+
     /// Another address: this one's session stays for when the phone comes back to it.
     func otherAddress() {
         error = nil
         screen = .address
     }
 
-    private func screenFor(_ server: String) -> Screen {
-        session.token(server: server) != nil ? .signedIn(server) : .signIn(server)
-    }
 }

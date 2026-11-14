@@ -34,7 +34,6 @@ val BotColors: List<Pair<String, String>> get() = listOf(
     "#1d9e75" to tr("Teal"), "#378add" to tr("Blue"), "#7f77dd" to tr("Purple"), "#d4537e" to tr("Pink"),
     "#e24b4a" to tr("Red"), "#ef9f27" to tr("Amber"), "#639922" to tr("Green"), "#888780" to tr("Grey"),
 )
-const val CHIEF_COLOR = "#d85a30"
 
 private const val LOOP = 36f // seconds; every period below divides it, so the loop has no jump
 

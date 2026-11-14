@@ -1,7 +1,7 @@
 import SwiftUI
 import AuthenticationServices
 
-/// The app's screens until Home comes (phase 1): the address, the sign-in, and signed in.
+/// The app's screens: the address, the sign-in, and Home once signed in. Dark, as the Android app (#14).
 struct RootView: View {
     @State private var model = AppModel()
 
@@ -11,9 +11,10 @@ struct RootView: View {
             case .starting: ProgressView()
             case .address: AddressView(model: model)
             case .signIn(let server): SignInView(model: model, server: server)
-            case .signedIn(let server): SignedInView(model: model, server: server)
+            case .signedIn(let server): HomeView(model: model, server: server, api: model.api(server)).id(server)
             }
         }
+        .preferredColorScheme(.dark)
         .task { await model.start() }
     }
 }
@@ -84,22 +85,6 @@ struct SignInView: View {
             .controlSize(.large)
             .disabled(model.busy)
             Button(tr("Change botdot's address")) { model.otherAddress() }
-        }
-        .padding(24)
-    }
-}
-
-/// Signed in: the botdot this phone talks to. Home takes this place in phase 1.
-struct SignedInView: View {
-    let model: AppModel
-    let server: String
-
-    var body: some View {
-        VStack(spacing: 16) {
-            Text(tr("Signed in")).font(.title.bold())
-            Text(server).font(.body.monospaced()).foregroundStyle(.secondary)
-            Button(tr("Change botdot's address")) { model.otherAddress() }
-            Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
         }
         .padding(24)
     }

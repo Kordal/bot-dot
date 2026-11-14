@@ -11,9 +11,6 @@ import dev.botdot.app.data.TurnLines
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
 import dev.botdot.app.data.plainText
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 // What the app says of a group, in the words the web page uses for the same thing (public/groups.js), and where
 // a group and a bot stand in the list. Nothing here asks the botdot server anything.
@@ -109,89 +106,3 @@ internal fun addHint(n: Int, members: Int, name: String): String = if (n > 0) tr
 /** A card's bot as Needs you names it when the card was asked in a group: "Coder in Dev". */
 internal fun Named.inGroup(group: String?): Named = if (group.isNullOrBlank()) this else copy(name = tr("{name} in {group}", "name" to name, "group" to group))
 
-/** The list: the big figures on top, then each category's heading, its bots and, after them, its groups (ADR 018). */
-internal object ListLayout {
-    const val PINS = "pins" // the row of big figures: drag a bot or a group above it to pin it
-    private const val HEADING = "g:"
-    private const val GROUP = "group:"
-
-    fun heading(category: String) = "$HEADING$category"
-    fun isHeading(key: String) = key.startsWith(HEADING)
-    fun categoryOf(key: String) = key.removePrefix(HEADING)
-    fun groupRow(id: String) = "$GROUP$id"
-    fun isGroup(key: String) = key.startsWith(GROUP)
-    fun groupOf(key: String) = key.removePrefix(GROUP)
-
-    /** [pins]: the pinned bots' ids and the pinned groups' rows, in their order. [layout]: every row's key, top to bottom. */
-    class Rows(val pins: List<String>, val layout: List<String>)
-
-    /**
-     * The rows as the server's places say them. A category is one of the bots' or of the groups': it can hold groups
-     * and no bot. Bots never placed show A to Z. [folded]: the categories whose heading alone shows. [shared]: the
-     * server counts the pinned bots and groups in one order (`pins-shared`, #276); else the pinned bots come first.
-     */
-    fun rows(bots: List<Bot>, groups: List<Group>, folded: Set<String>, shared: Boolean = false): Rows {
-        val (pinned, rest) = bots.partition { it.pinned > 0 }
-        val loose = groups.filter { it.pinned <= 0 }
-        val categories = (rest.map { it.group } + loose.map { it.category }).distinct().sortedWith(compareBy<String> { it.isEmpty() }.thenBy { it.lowercase() })
-        val layout = buildList {
-            add(PINS)
-            for (category in categories) {
-                val named = categories.size > 1 || category.isNotEmpty()
-                if (named) add(heading(category))
-                if (named && category in folded) continue // dropped on its heading, a bot still lands in it
-                addAll(rest.filter { it.group == category }.sortedWith(compareBy<Bot> { if (it.order > 0) it.order else Int.MAX_VALUE }.thenBy { it.name.lowercase() }).map { it.id })
-                addAll(Groups.inCategory(groups, category).map { groupRow(it.id) })
-            }
-        }
-        val pins = if (!shared) pinned.sortedBy { it.pinned }.map { it.id } + Groups.pinned(groups).map { groupRow(it.id) }
-        // One order; a bot and a group on the same place (kept from before it): the bot first, as the server sorts them.
-        else (pinned.map { Triple(it.pinned, 0, it.id) } + Groups.pinned(groups).map { Triple(it.pinned, 1, groupRow(it.id)) })
-            .sortedWith(compareBy({ it.first }, { it.second })).map { it.third }
-        return Rows(pins, layout)
-    }
-
-    /** Where a dragged row was let go: pinned at a place, or in a category at a place. Both count from 1, among its own
-     *  kind, except a pinned place where the server shares one order: among the pinned bots and groups together. */
-    sealed interface Place {
-        data class Pinned(val at: Int) : Place
-        data class In(val category: String, val at: Int) : Place
-    }
-
-    /**
-     * The place of the row [key] in the list as it is drawn while dragging. A bot's place is among the bots and a
-     * group's among the groups (docs/api.md, Groups): a group let go between two bots is the first group of that
-     * category, and a bot let go under a group is the last bot there. Among the big figures, with [shared] (one order
-     * for the pinned bots and groups, #276), either kind is counted among all of them. null for a row that is not in
-     * the list.
-     */
-    fun dropped(layout: List<String>, pins: List<String>, key: String, shared: Boolean = false): Place? {
-        val group = isGroup(key)
-        val same = { k: String -> k != PINS && !isHeading(k) && isGroup(k) == group }
-        val pinned = { k: String -> shared || same(k) }
-        val pin = pins.indexOf(key)
-        if (pin >= 0) return Place.Pinned(pins.take(pin).count(pinned) + 1) // a big figure, moved among the others
-        val at = layout.indexOf(key)
-        val line = layout.indexOf(PINS)
-        if (at < 0) return null
-        if (at < line) return Place.Pinned(pins.count(pinned) + 1) // above the big figures: the last of the pinned ones
-        val head = (at - 1 downTo line + 1).firstOrNull { isHeading(layout[it]) }
-        return Place.In(head?.let { categoryOf(layout[it]) }.orEmpty(), layout.subList((head ?: line) + 1, at).count(same) + 1)
-    }
-
-    /**
-     * The update that puts a bot ([group] false) or a group at [place], as the list's drag and the keypad's send it:
-     * `pinned` for a place among the pinned ones, else its category (a bot's `group`, a group's `category`) and its
-     * `order` there, and `pinned: 0` when it was [pinned] and leaves the pinned ones.
-     */
-    fun change(place: Place, group: Boolean, pinned: Boolean): JsonObject = buildJsonObject {
-        when (place) {
-            is Place.Pinned -> put("pinned", place.at)
-            is Place.In -> {
-                put(if (group) "category" else "group", place.category)
-                put("order", place.at)
-                if (pinned) put("pinned", 0)
-            }
-        }
-    }
-}

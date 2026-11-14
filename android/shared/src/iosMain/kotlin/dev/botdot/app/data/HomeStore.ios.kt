@@ -1,0 +1,84 @@
+package dev.botdot.app.data
+
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
+
+/**
+ * Everything Home draws, at one moment: the shared [Store]'s parts as they are now. null: not loaded yet. The rows
+ * come from [ListLayout] and what each says from [botSub], as on Android.
+ */
+class HomeState(
+    val bots: List<Bot>?,
+    val groups: List<Group>?,
+    val recent: List<Run>?,
+    val dashboard: Dashboard?,
+    val version: VersionInfo?,
+    val waiting: List<Waiting>,
+    val lines: Map<String, String>,
+    val error: String?,
+    /** The front door asks this phone to sign in to this botdot (ADR 028): Home gives way to the sign-in. */
+    val signInNeeded: Boolean = false,
+) {
+    /** The pinned bots and groups in one order (`pins-shared`). */
+    val shared: Boolean get() = hasPinsShared(version?.features)
+    /** The rows, in the owner's order: [ListLayout.Rows]; no category is folded on the iPhone yet. */
+    val rows: ListLayout.Rows get() = ListLayout.rows(bots.orEmpty(), groups.orEmpty(), emptySet(), shared)
+    /** Each bot's last run that said something: its row shows that. */
+    private val lastRun: Map<String, Run> by lazy { recent.orEmpty().filterNot { it.quiet }.groupBy { it.botId }.mapValues { it.value.first() } }
+    fun bot(id: String): Bot? = bots?.firstOrNull { it.id == id }
+    fun group(key: String): Group? = if (ListLayout.isGroup(key)) groups?.firstOrNull { it.id == ListLayout.groupOf(key) } else null
+    /** What a bot's row says under its name ([botSub]). */
+    fun sub(b: Bot): String = botSub(b, lastRun[b.id], lines["bot:${b.id}"])
+    /** Its row reads "Asks: …", with the mark. */
+    fun asks(b: Bot): Boolean = botAsks(b, lastRun[b.id]) != null
+    /** The Board's cards under Needs you: null before the Board has loaded ([stripTiles]). */
+    val board: List<Tile>? get() = stripTiles(dashboard)
+}
+
+/**
+ * What the iPhone app keeps for one signed-in botdot: the shared [Store] on its own coroutine scope, as the Android
+ * app keeps it for the whole app. [watch] hands Home a new [HomeState] whenever a part changes, on the main thread;
+ * looking loads each part, as on Android. [close] it when the phone leaves that botdot.
+ */
+class HomeStore(val api: Api) {
+    private val scope = MainScope()
+    val store = Store(scope, MutableStateFlow(api))
+
+    /** Calls [onChange] with Home's state now and after every change, until the returned job is cancelled or [close]. */
+    fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
+        val parts = combine(store.bots.value, store.groups.value, store.recent.value, store.dashboard.value, store.version.value) { b, g, r, d, v -> listOf(b, g, r, d, v) }
+        val signIn = api.session?.signInNeeded ?: MutableStateFlow(null)
+        combine(parts, store.waiting, store.lines.lines, store.bots.error, signIn) { p, w, l, e, s ->
+            @Suppress("UNCHECKED_CAST")
+            HomeState(p[0] as List<Bot>?, p[1] as List<Group>?, p[2] as List<Run>?, p[3] as Dashboard?, p[4] as VersionInfo?, w, l, e,
+                signInNeeded = s != null && s == api.baseUrl.trimEnd('/'))
+        }.collect { onChange(it) }
+    }
+
+    /** Pull to refresh, or after a change here: everything Home shows, at once (as Android's Home loads it). */
+    @Throws(Exception::class)
+    suspend fun refresh() = coroutineScope {
+        listOf(store.bots, store.groups, store.chief, store.recent, store.needs, store.dashboard, store.version).forEach { launch { it.refresh() } }
+    }
+
+    /**
+     * Saves where the row [key] was let go in [order] ([ListLayout.moved]), then reads the list again. Nothing is
+     * sent when it stays where it was. A refusal throws its sentence.
+     */
+    @Throws(Exception::class)
+    suspend fun move(state: HomeState, order: List<String>, key: String) {
+        val m = ListLayout.moved(order, key, state.bots.orEmpty(), state.groups.orEmpty(), state.shared)
+        try {
+            if (m?.group != null) api.updateGroup(m.group, m.change) else if (m?.bot != null) api.updateBot(m.bot, m.change)
+        } finally {
+            refresh()
+        }
+    }
+
+    fun close() = scope.cancel()
+}
