@@ -7,6 +7,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -87,6 +88,7 @@ class ComputerScreenTest {
         val botdot = FakeBotdot { r -> if (r.method == "GET") 200 to """{"state":"stopped"}""" else 409 to """{"error":"No free computer."}""" }
         val s = desk(botdot).settled()
         assertEquals(ComputerScreen.ERROR, s.state)
+        assertTrue(s.failed)
         assertEquals("No free computer.", s.errorLine)
         assertNull(s.url)
         assertEquals("Couldn't start its computer.", ComputerScreen.errorLine(null))
@@ -98,6 +100,8 @@ class ComputerScreenTest {
         val desk = desk(botdot)
         val s = desk.settled()
         assertEquals(ComputerScreen.OFF, s.state)
+        assertTrue(s.off)
+        assertFalse(s.canControl)
         assertEquals("Its screen is off.", s.offLine)
         assertEquals("Turn it on", s.startLabel)
         assertTrue(botdot.posts().isEmpty())
@@ -117,6 +121,18 @@ class ComputerScreenTest {
         assertTrue(desk.done())
         assertTrue(desk.state.first { it.closed }.closed)
         assertEquals(listOf(Sent("POST", "/bots/b/computer/done", "{}")), botdot.posts())
+    }
+
+    @Test fun doneTappedTwiceIsSentOnce() = runTest {
+        val botdot = FakeBotdot { r -> if (r.method == "POST") 200 to """{"ok":true}""" else 200 to running }
+        val desk = desk(botdot)
+        desk.settled()
+        desk.control()
+        desk.state.first { it.control }
+        val first = async { desk.done() }
+        val second = async { desk.done() }
+        assertEquals(1, listOf(first.await(), second.await()).count { it })
+        assertEquals(1, botdot.posts().size)
     }
 
     @Test fun doneRefusedSaysWhyAndStays() = runTest {

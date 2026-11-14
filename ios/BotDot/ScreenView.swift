@@ -21,15 +21,15 @@ struct ScreenView: View {
                 ProgressView().tint(.white)
             }
         }
-        .navigationTitle(name.isEmpty ? tr("Its screen") : name)
+        .navigationTitle(name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if let model, let state = model.state {
                 if state.handBack {
-                    Button(state.doneLabel) { Task { if await model.done() { dismiss() } } }
+                    Button(state.doneLabel) { Task { _ = await model.done() } }
                         .accessibilityIdentifier("screen-done")
                 }
-                if state.state == ComputerScreen.shared.RUNNING {
+                if state.canControl {
                     Button(state.controlLabel) { model.control() }
                         .tint(state.control ? .red : nil)
                         .accessibilityIdentifier("screen-control")
@@ -50,6 +50,8 @@ struct ScreenView: View {
             }
         }
         .onDisappear { model?.stop(); model = nil }
+        // Handed back to the bot: the screen closes (ADR 225).
+        .onChange(of: model?.state?.closed) { _, closed in if closed == true { dismiss() } }
         .task(id: model?.state?.noticeId) {
             guard let text = model?.state?.notice else { return }
             notice = text
@@ -62,13 +64,13 @@ struct ScreenView: View {
     private func content(_ model: ScreenModel, _ state: ScreenState) -> some View {
         if let page = state.url.flatMap(URL.init(string:)) {
             ScreenPage(url: page, cookie: model.cookie(for: page)).ignoresSafeArea(edges: .bottom)
-        } else if state.state == ComputerScreen.shared.OFF {
+        } else if state.off {
             VStack(spacing: 12) {
                 Text(state.offLine).foregroundStyle(.white).multilineTextAlignment(.center)
                 Button(state.startLabel) { model.startScreen() }.tint(.white)
             }
             .padding(24)
-        } else if state.state == ComputerScreen.shared.ERROR {
+        } else if state.failed {
             Text(state.errorLine).foregroundStyle(.white).padding(24).accessibilityIdentifier("screen-error")
         } else {
             VStack(spacing: 12) {
@@ -103,8 +105,11 @@ struct ScreenPage: UIViewRepresentable {
         guard view.url != url, context.coordinator.loading != url else { return }
         context.coordinator.loading = url
         let request = URLRequest(url: url)
-        Task { @MainActor in
+        // Only the latest address loads: a quick second toggle cancels the first before its page loads.
+        context.coordinator.task?.cancel()
+        context.coordinator.task = Task { @MainActor in
             if let cookie { await view.configuration.websiteDataStore.httpCookieStore.setCookie(cookie) }
+            guard !Task.isCancelled else { return }
             view.load(request)
         }
     }
@@ -113,5 +118,6 @@ struct ScreenPage: UIViewRepresentable {
 
     final class Coordinator {
         var loading: URL?
+        var task: Task<Void, Never>?
     }
 }

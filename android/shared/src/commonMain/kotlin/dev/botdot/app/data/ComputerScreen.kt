@@ -106,22 +106,26 @@ object ComputerScreen {
     /** What the button that starts its own screen reads: the server's word, or the app's. */
     fun startLabel(info: ComputerInfo?): String = info?.screenOff?.start?.ifBlank { null } ?: tr("Start its screen")
 
-    private suspend fun <T> quietly(read: suspend () -> T): T? = try {
-        read()
-    } catch (e: CancellationException) {
-        throw e
-    } catch (_: Exception) {
-        null
-    }
+}
+
+/** [read]'s answer, or null when it failed; a cancellation goes on. */
+private suspend fun <T> quietly(read: suspend () -> T): T? = try {
+    read()
+} catch (e: CancellationException) {
+    throw e
+} catch (_: Exception) {
+    null
 }
 
 /**
  * One bot's screen while it is open, on the iPhone: what it shows ([ScreenState]), from the same rules as Android's
  * LiveScreen ([ComputerScreen]). [features] are the botdot's, for "I'm done".
  */
-class ScreenDesk(private val api: Api, val botId: String, private val scope: CoroutineScope, features: StateFlow<VersionInfo?>) {
+class ScreenDesk(private val api: Api, val botId: String, private val scope: CoroutineScope, private val features: StateFlow<VersionInfo?>) {
     private data class Own(val state: String = ComputerScreen.CHECKING, val control: Boolean = false, val info: ComputerInfo? = null,
-        val error: String? = null, val notice: String? = null, val noticeId: Int = 0, val closed: Boolean = false)
+        val error: String? = null, val notice: String? = null, val noticeId: Int = 0, val closed: Boolean = false,
+        /** "I'm done" is on its way: not sent twice. */
+        val handing: Boolean = false)
 
     private val own = MutableStateFlow(Own())
 
@@ -131,7 +135,7 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
     private fun of(o: Own, features: List<String>?) = ScreenState(
         o.state, o.control, o.info, o.error,
         url = if (o.state == ComputerScreen.RUNNING) ComputerScreen.url(api, botId, o.control) else null,
-        handBack = ComputerScreen.canHandBack(o.state, o.control, features),
+        handBack = ComputerScreen.canHandBack(o.state, o.control, features) && !o.handing,
         notice = o.notice, noticeId = o.noticeId, closed = o.closed,
     )
 
@@ -152,7 +156,7 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
             own.update { it.copy(state = o.state, error = o.error) }
             // The server's words read again, as Android's: kept as they were when that read fails.
             if (o.state == ComputerScreen.RUNNING) {
-                val info = try { api.computer(botId) } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                val info = quietly { api.computer(botId) }
                 if (info != null) own.update { it.copy(info = info) }
             }
         }
@@ -166,8 +170,10 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
     /** "I'm done": whether the screen went back to the bot. If not, the notice says why. */
     @Throws(Exception::class)
     suspend fun done(): Boolean {
-        if (!state.value.handBack) return false
-        val failed = ComputerScreen.handBack(api, botId)
+        val o = own.value
+        if (o.handing || !ComputerScreen.canHandBack(o.state, o.control, features.value?.features)) return false
+        own.update { it.copy(handing = true) }
+        val failed = try { ComputerScreen.handBack(api, botId) } finally { own.update { it.copy(handing = false) } }
         own.update { if (failed == null) it.copy(closed = true) else it.copy(notice = failed, noticeId = it.noticeId + 1) }
         return failed == null
     }
@@ -193,6 +199,11 @@ data class ScreenState(
     val closed: Boolean,
 ) {
     val waiting: Boolean get() = state == ComputerScreen.CHECKING || state == ComputerScreen.STARTING
+    /** Take control and Stop controlling show only on a running screen. */
+    val canControl: Boolean get() = state == ComputerScreen.RUNNING
+    /** Its own screen is off: the server's line and a start button. */
+    val off: Boolean get() = state == ComputerScreen.OFF
+    val failed: Boolean get() = state == ComputerScreen.ERROR
     val waitLine: String get() = ComputerScreen.waitLine(state)
     val errorLine: String get() = ComputerScreen.errorLine(error)
     /** The server's line when its own screen is off, and its start button. */
