@@ -98,6 +98,9 @@ final class AppModel {
 
     /// Signs this phone out of [server]: the front door clears its session, and the Keychain forgets it.
     func signOut(_ server: String) async {
+        guard !busy else { return } // nothing else starts while it signs out
+        busy = true
+        defer { busy = false }
         let api = Api(baseUrl: server, session: session, quietMs: Api.companion.QUIET_MS)
         try? await api.signOut()
         sessions.write(server: server, token: nil)

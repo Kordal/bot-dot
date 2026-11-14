@@ -58,6 +58,19 @@ final class AppModelTests: XCTestCase {
         m.otherAddress()
         await m.signOut("https://hq.example.com")
         XCTAssertEqual(m.screen, .address)
-        XCTAssertNil(sessions.read(server: "https://hq.example.com"), "its session is forgotten all the same")
+        XCTAssertNil(m.session.token(server: "https://hq.example.com"), "its session is forgotten all the same")
+    }
+
+    func testWhileASignOutWaitsNothingElseStarts() async {
+        let m = model()
+        let server = "https://192.0.2.1" // TEST-NET: the sign-out waits for an answer while the test runs
+        let first = Task { await m.signOut(server) }
+        while !m.busy { await Task.yield() }
+        await m.signOut(server) // returns at once: it did nothing
+        var opened = false
+        await m.signIn(server) { _ in opened = true; return URL(string: "botdot://signed-in")! }
+        XCTAssertFalse(opened, "no sign-in starts while signing out")
+        XCTAssertTrue(m.busy, "the first sign-out is still waiting")
+        first.cancel()
     }
 }
