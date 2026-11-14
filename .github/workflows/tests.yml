@@ -145,9 +145,10 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
-      # No assembleDebug: the unit tests and lint compile the app, and android.yml's release build packages it.
+      # No assembleDebug: the unit tests and lint compile the app, and android.yml's release build packages it. The
+      # shared data layer's tests (android/shared, ADR 242) run on the JVM here, and in the iOS simulator in ios-shared.yml.
       - name: Unit tests
-        run: ./gradlew testDebugUnitTest --console=plain
+        run: ./gradlew testDebugUnitTest :shared:testAndroidHostTest --console=plain
 
   # Lint on a machine of its own, beside the unit tests: one after the other they took twice as long.
   android-lint:

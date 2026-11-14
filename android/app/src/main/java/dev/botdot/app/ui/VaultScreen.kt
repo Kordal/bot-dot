@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.describe
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -143,7 +144,7 @@ fun VaultScreen(app: BotDotApp, onBack: () -> Unit) {
                     }
                 }
             }
-            if (!b.error.isNullOrBlank() && b.configured) item { Text(b.error, color = p.err, style = MaterialTheme.typography.bodySmall) }
+            if (!b.error.isNullOrBlank() && b.configured) item { Text(b.error!!, color = p.err, style = MaterialTheme.typography.bodySmall) }
             if (!locked) {
                 val searches = items.size > VaultTypes.SEARCH_AFTER
                 if (searches) item(key = "search") { VaultSearch(query) { query = it } }
