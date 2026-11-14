@@ -16,7 +16,9 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
-                  layer's cards, NeedsDesk, with their buttons), bots drawn by FigureView, and tr()
+                  layer's cards, NeedsDesk, with their buttons), Passwords (VaultView, from Home's ⋯ menu: the entries
+                  in their categories, which fold, a search over a list longer than eight, a login's editor,
+                  Bitwarden's unlock), bots drawn by FigureView, and tr()
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads
