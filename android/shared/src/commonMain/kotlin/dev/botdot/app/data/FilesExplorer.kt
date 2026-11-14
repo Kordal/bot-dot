@@ -209,17 +209,35 @@ object FilesExplorer {
         DocumentView.Opening(WorkspaceFiles.file(ownerId, at, e.path), e.name, from, botId = if (at != WorkspaceFiles.SERVER && UploadedFiles.folderOf(ownerId) == null) ownerId else null)
 
     /** What the folder's space shows: what went wrong reading it, that it is still coming, that it is empty, or its entries. */
-    enum class Pane { COMPUTER_OFF, GONE, FAILED, LOADING, EMPTY, ENTRIES }
+    enum class Pane { COMPUTER_OFF, GONE, FAILED, LOADING, EMPTY, ENTRIES, SEARCH_FAILED }
 
-    fun pane(found: List<FoundFile>?, place: String, failed: Throwable?, listing: WorkspaceListing?, shown: List<WorkspaceEntry>): Pane {
+    /** [searchFailed]: the search couldn't be made (offline, a server error): said, with Try again, never "Nothing by that name". */
+    fun pane(found: List<FoundFile>?, place: String, failed: Throwable?, listing: WorkspaceListing?, shown: List<WorkspaceEntry>, searchFailed: Throwable? = null): Pane {
         val read = found == null && place != KEPT
         return when {
+            searchFailed != null -> Pane.SEARCH_FAILED
             read && failed != null -> when ((failed as? ApiException)?.status) { 409 -> Pane.COMPUTER_OFF; 404 -> Pane.GONE; else -> Pane.FAILED }
             read && listing == null -> Pane.LOADING
             shown.isEmpty() -> Pane.EMPTY
             else -> Pane.ENTRIES
         }
     }
+
+    /** What a search came to: what it found, or why it couldn't be made (then [found] is null). */
+    data class Searched(val found: List<FoundFile>?, val failed: Throwable?)
+
+    /** Searches [ownerId]'s files for [query], for both phones: a failure is kept, not turned into "found nothing". */
+    @Throws(Exception::class)
+    suspend fun search(api: Api, ownerId: String, query: String): Searched = try {
+        Searched(api.searchFiles(ownerId, query.trim()).results, null)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Searched(null, e)
+    }
+
+    /** What a failed search says: its reason, else "Couldn't search". */
+    fun searchFailedWords(e: Throwable?): String = e?.message?.ifBlank { null } ?: tr("Couldn't search")
 
     /** What an empty list says: a search found nothing, or the folder holds nothing. */
     fun emptyWords(found: List<FoundFile>?): String = if (found != null) tr("Nothing by that name.") else tr("Empty.")

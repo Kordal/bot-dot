@@ -86,6 +86,12 @@ struct FilesView: View {
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
             case .empty:
                 ContentUnavailableView(s.emptyWords, systemImage: "folder")
+            case .searchFailed:
+                ContentUnavailableView {
+                    Label(s.searchFailedWords, systemImage: "exclamationmark.triangle")
+                } actions: {
+                    Button(tr("Try again")) { model.files.retrySearch() }
+                }
             case .entries:
                 List {
                     // Keyed by place and path: a search finds the same path in more than one place.

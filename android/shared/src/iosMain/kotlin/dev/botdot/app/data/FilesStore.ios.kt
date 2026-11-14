@@ -28,6 +28,8 @@ data class FilesState(
     val query: String,
     val found: List<FoundFile>?,
     val sort: FilesExplorer.Sort,
+    /** Why the search couldn't be made; null when it was, or when nothing is searched. */
+    val searchFailed: Throwable? = null,
 ) {
     /** The folder's name, or whose files at the top. */
     val title: String get() = path.substringAfterLast('/').ifEmpty { name }
@@ -38,7 +40,8 @@ data class FilesState(
     /** The entries as shown, and where each is (a search finds them in every place). */
     val shown: List<WorkspaceEntry> by lazy { FilesExplorer.shown(found, place, kept, listing, sort) }
     val shownAt: List<String> by lazy { FilesExplorer.shownAt(found, shown, place) }
-    val pane: FilesExplorer.Pane get() = FilesExplorer.pane(found, place, failed, listing, shown)
+    val pane: FilesExplorer.Pane get() = FilesExplorer.pane(found, place, failed, listing, shown, searchFailed)
+    val searchFailedWords: String get() = FilesExplorer.searchFailedWords(searchFailed)
     val failedWords: String get() = failed?.message ?: tr("Couldn't load it.")
     val emptyWords: String get() = FilesExplorer.emptyWords(found)
     val writesHere: Boolean get() = FilesExplorer.writesHere(found, place, listing)
@@ -101,7 +104,7 @@ class FilesStore(val api: Api, val ownerId: String, val name: String, place: Str
 
     /** Another place, at its top (the place menu). */
     fun go(place: String) {
-        state.update { it.copy(place = place, path = "", listing = null, failed = null, query = "", found = null) }
+        state.update { it.copy(place = place, path = "", listing = null, failed = null, query = "", found = null, searchFailed = null) }
         start()
     }
 
@@ -110,15 +113,18 @@ class FilesStore(val api: Api, val ownerId: String, val name: String, place: Str
     /** A search as it is typed, a moment after the last key; an empty one shows the folder again. */
     fun search(query: String) {
         val q = query.take(100)
-        state.update { it.copy(query = q, found = if (q.isBlank()) null else it.found) }
+        state.update { it.copy(query = q, found = if (q.isBlank()) null else it.found, searchFailed = if (q.isBlank()) null else it.searchFailed) }
         searching?.cancel()
         if (q.isBlank()) return
         searching = scope.launch {
             delay(250)
-            val found = runCatching { api.searchFiles(ownerId, q.trim()).results }.getOrDefault(emptyList())
-            state.update { if (it.query == q) it.copy(found = found) else it }
+            val s = FilesExplorer.search(api, ownerId, q)
+            state.update { if (it.query == q) it.copy(found = s.found, searchFailed = s.failed) else it }
         }
     }
+
+    /** Try again, on a search that couldn't be made. */
+    fun retrySearch() = search(state.value.query)
 
     /**
      * Uploads the files picked on the phone (Photos, Files) into this folder: [paths] where each is in the app's

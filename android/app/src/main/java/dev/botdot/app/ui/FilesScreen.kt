@@ -184,6 +184,9 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
     var selected by remember(place, path) { mutableStateOf<Set<String>>(emptySet()) }
     var query by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<dev.botdot.app.data.FoundFile>?>(null) }
+    // Why the search couldn't be made (offline, a server error): said with Try again, not as "Nothing by that name".
+    var searchFailed by remember { mutableStateOf<Throwable?>(null) }
+    var searchTries by remember { mutableIntStateOf(0) }
     var sheet by remember { mutableStateOf<FxSheet?>(null) }
     var ask by remember { mutableStateOf<FxAsk?>(null) }
     var answer by remember { mutableStateOf("") }
@@ -213,11 +216,12 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
         runCatching { a.bots() }.onSuccess { allBots = it }
     }
     // A search as it is typed, a moment after the last key.
-    if (searches) LaunchedEffect(api, query) {
+    if (searches) LaunchedEffect(api, query, searchTries) {
         val a = api ?: return@LaunchedEffect
-        if (query.isBlank()) { found = null; return@LaunchedEffect }
+        if (query.isBlank()) { found = null; searchFailed = null; return@LaunchedEffect }
         delay(250)
-        runCatching { a.searchFiles(ownerId, query.trim()) }.onSuccess { found = it.results }.onError { found = emptyList() }
+        val s = FilesExplorer.search(a, ownerId, query)
+        found = s.found; searchFailed = s.failed
     }
 
     val places = FilesExplorer.placesOf(ownerId, computer, projects)
@@ -364,7 +368,11 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
         Box(Modifier.padding(pad).fillMaxSize()) {
             val e = failed
             // What the folder's space shows is the shared layer's (FilesExplorer.pane), as on the iPhone.
-            when (FilesExplorer.pane(found, place, e, listing, shown)) {
+            when (FilesExplorer.pane(found, place, e, listing, shown, searchFailed)) {
+                FilesExplorer.Pane.SEARCH_FAILED -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(FilesExplorer.searchFailedWords(searchFailed), color = p.muted, modifier = Modifier.padding(horizontal = Space.s24))
+                    TextButton(onClick = { searchTries++ }) { Text(tr("Try again")) }
+                }
                 FilesExplorer.Pane.COMPUTER_OFF -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("The computer is off."), color = p.muted)
                     Button(onClick = { act(tr("start it")) { if (folder == null) it.startComputer(ownerId) } }, modifier = Modifier.padding(top = Space.s12), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
