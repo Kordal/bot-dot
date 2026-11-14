@@ -164,12 +164,12 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     LaunchedEffect(api, asksWhatsNew) {
         whatsNew = emptyList()
         val a = api ?: return@LaunchedEffect
-        if (asksWhatsNew) whatsNew = runCatching { a.whatsNew() }.getOrDefault(emptyList())
+        whatsNew = WhatsNew.unseen(a, server?.features)
     }
     if (whatsNew.isNotEmpty() && !feedbackOpen) WhatsNewDialog(whatsNew, onClose = {
         val shown = whatsNew
         whatsNew = emptyList()
-        scope.launch { runCatching { api?.whatsNewSeen(shown) } }
+        scope.launch { api?.let { WhatsNew.seen(it, shown) } }
     })
     if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, send = { kind, text, shots -> (api ?: throw ApiException(tr("Can't reach botdot."))).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current

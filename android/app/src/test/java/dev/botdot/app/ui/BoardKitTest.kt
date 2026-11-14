@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.BoardKit
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.Block
 import dev.botdot.app.data.BlockDelta

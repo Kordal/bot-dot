@@ -1,5 +1,12 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.BoardKit
+import dev.botdot.app.data.BoardTap
+import dev.botdot.app.data.BoardWords
+import dev.botdot.app.data.refreshLine
+import dev.botdot.app.data.tileAsked
+import dev.botdot.app.data.tileAsksFirst
+import dev.botdot.app.data.tileColor
 import dev.botdot.app.data.CHIEF_COLOR
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -147,18 +154,18 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     // What a tap does comes with the tile (look.tap): its pop-up, switch it, run it, read it again, or its bot's chat.
     var sure by remember { mutableStateOf<Pair<Tile, Boolean?>?>(null) } // a tile that asks first (its confirm), and the state the tap would set
     fun tap(t: Tile, waiting: Boolean, asked: Boolean = false) {
-        // A page on the Board (#451) opens in the viewer.
-        if (t.kind == "page") { t.page?.let { pg -> DocViewer.open = DocViewer.page(pg.bot, dev.botdot.app.data.PageRef(pg.slug, t.title), if (pg.bot == dev.botdot.app.data.Pages.CHIEF) chiefName else bots.firstOrNull { it.id == pg.bot }?.name.orEmpty()) }; return }
-        val how = t.look?.tap ?: if (t.kind == "group") "group" else "none"
-        if (how == "group") { if (open[t.id] == true) open.remove(t.id) else open[t.id] = true; return }
-        if (waiting) return onNeeds()
-        when (how) {
-            "panel" -> { panel = t.id to null; return }
-            "chat" -> { if (bots.any { it.id == t.bot }) onBot(t.bot!!); return }
-            "none" -> return
+        val on = when (val a = BoardTap.of(t, waiting, bots.map { it.id }, asked)) {
+            // A page on the Board (#451) opens in the viewer.
+            is BoardTap.Page -> { t.page?.let { pg -> DocViewer.open = DocViewer.page(pg.bot, dev.botdot.app.data.PageRef(pg.slug, t.title), if (pg.bot == dev.botdot.app.data.Pages.CHIEF) chiefName else bots.firstOrNull { it.id == pg.bot }?.name.orEmpty()) }; return }
+            BoardTap.Group -> { if (open[t.id] == true) open.remove(t.id) else open[t.id] = true; return }
+            BoardTap.Needs -> return onNeeds()
+            BoardTap.Panel -> { panel = t.id to null; return }
+            is BoardTap.Chat -> { onBot(a.bot); return }
+            BoardTap.Quiet -> return
+            is BoardTap.Ask -> { sure = t to a.on; return }
+            is BoardTap.Send -> a.on
         }
-        val on = if (how == "toggle") t.look?.dot?.filled != true else null
-        if (!asked && tileAsksFirst(t.confirm, how, on)) { sure = t to on; return }
+        val how = t.look?.tap
         if (on != null) replace(t.copy(value = JsonPrimitive(on), look = t.look?.let { l -> l.copy(dot = l.dot?.copy(filled = on)) })) // at once; the read after it says whether it took
         val asked = bots.firstOrNull { it.id == t.bot }?.name
         if (t.asks) blink(t, tileAsked(asked, queued = false))
@@ -172,8 +179,8 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
     sure?.let { (t, on) ->
         AlertDialog(
             onDismissRequest = { sure = null },
-            title = { Text(when (on) { true -> tr("Turn on “{title}”?", "title" to t.title); false -> tr("Turn off “{title}”?", "title" to t.title); null -> "${t.title}?" }) },
-            confirmButton = { TextButton(onClick = { sure = null; tap(t, waiting = false, asked = true) }) { Text(when (on) { true -> tr("Turn on"); false -> tr("Turn off"); null -> "OK" }, color = if (on == false) p.err else p.text) } },
+            title = { Text(BoardKit.askTitle(t, on)) },
+            confirmButton = { TextButton(onClick = { sure = null; tap(t, waiting = false, asked = true) }) { Text(BoardKit.askYes(on), color = if (on == false) p.err else p.text) } },
             dismissButton = { TextButton(onClick = { sure = null }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
@@ -306,20 +313,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             val tilesById = d?.tiles.orEmpty().associateBy { it.id }
             // The grid as a list of keys: "h:<heading>", tile ids, and around an open group's tiles "in:<group>" … "out:<group>".
             // While you drag, this is the order you see; letting go saves where the tile ended up.
-            fun layoutOf(): List<String> {
-                val all = d?.tiles.orEmpty()
-                val loose = all.filter { it.parent == null }
-                val out = mutableListOf<String>()
-                for ((name, ts) in listOf("" to loose.filter { it.section.isEmpty() }) + d?.sections.orEmpty().map { s -> s to loose.filter { it.section == s } }) {
-                    if (ts.isEmpty() || (filter.isNotEmpty() && name != filter)) continue
-                    if (name.isNotEmpty()) out += "h:$name"
-                    for (t in ts) {
-                        out += t.id
-                        if (t.kind == "group" && open[t.id] == true) { out += "in:${t.id}"; out += all.filter { it.parent == t.id }.map { it.id }; out += "out:${t.id}" }
-                    }
-                }
-                return out
-            }
+            fun layoutOf(): List<String> = BoardKit.layout(d, filter, open.filterValues { it }.keys)
             val rows = remember { androidx.compose.runtime.mutableStateListOf<String>() }
             var dragged by remember { mutableStateOf<String?>(null) }
             var moved by remember { mutableStateOf(false) }
@@ -367,7 +361,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 }
             }
             // The headings there are, for the filter; a heading's tiles, for its bots and where their values come from.
-            val named = d?.sections.orEmpty().filter { s -> d?.tiles.orEmpty().any { it.parent == null && it.section == s } }
+            val named = BoardKit.headings(d)
             if (filter.isNotEmpty() && filter !in named) filter = ""
             fun under(name: String) = d?.tiles.orEmpty().filter { it.parent == null && it.section == name }
             // A switch or button row of a Controls box: whether the rows before and after it are of the same box.
@@ -416,7 +410,7 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                                     else TileCard(t, colorOf(t), t.id in waiting, flash[t.id], controlsFor(t), handle, now,
                                         inside = d?.tiles.orEmpty().filter { it.parent == t.id }.map { it to colorOf(it) },
                                         open = inGroup || open[t.id] == true,
-                                        where = when { t.size != "small" || t.wide -> "wide"; cols <= 2 && BoardKit.isKpiTile(t) -> "compact"; else -> "face" },
+                                        where = BoardKit.where(t, cols),
                                         sourced = !inGroup && BoardKit.sectionSource(under(t.section)).isNotEmpty() && t.section.isNotEmpty())
                                 }
                             }
@@ -511,7 +505,7 @@ private fun TileCard(t: Tile, color: String, waiting: Boolean, flash: String?, c
             }
         }
         if (t.kind != "group" && look != null) Blocks(look.face, c, where, ctl)
-        val note = if (waiting) tr("Waiting for your OK") else flash ?: if (t.error != null) tr("Couldn't update") else null
+        val note = BoardKit.note(t, waiting, flash)
         if (note != null) Text(note, color = p.muted, fontSize = Type.s12)
     }
 }
@@ -540,7 +534,7 @@ private fun ControlRow(t: Tile, waiting: Boolean, flash: String?, click: Modifie
     val p = LocalPaper.current
     val r = Radius.r14
     val shape = RoundedCornerShape(topStart = if (first) r else 0.dp, topEnd = if (first) r else 0.dp, bottomStart = if (last) r else 0.dp, bottomEnd = if (last) r else 0.dp)
-    val note = if (waiting) tr("Waiting for your OK") else flash ?: if (t.error != null) tr("Couldn't update") else null
+    val note = BoardKit.note(t, waiting, flash)
     Column(Modifier.fillMaxWidth().alpha(if (waiting) 0.55f else 1f).clip(shape).background(p.panel).padding(horizontal = Space.s16)) {
         if (first) Text(BoardWords.CONTROLS, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = Space.s16, bottom = Space.s4))
         else Box(Modifier.fillMaxWidth().size(1.dp).background(p.line))
@@ -595,17 +589,3 @@ fun SuggestedCard(x: dev.botdot.app.data.TileSuggestion, bot: Bot?, onAnswer: (B
 @Composable
 private fun Title(text: String, lines: Int = 1) =
     Text(text, color = LocalPaper.current.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = lines, overflow = TextOverflow.Ellipsis)
-
-/** A tile's dot colour: its own, else its bot's. A group has no bot: it takes the one whose tiles are in it (the Chief's when they're mixed). */
-internal fun tileColor(t: Tile, tiles: List<Tile>, bots: List<Bot>): String {
-    val owner = t.bot ?: tiles.filter { it.parent == t.id }.mapNotNull { it.bot }.toSet().singleOrNull().takeIf { t.kind == "group" }
-    return t.color ?: bots.firstOrNull { it.id == owner }?.color ?: CHIEF_COLOR
-}
-
-/** Whether a tap on a tile asks "are you sure" first (its confirm, docs/api.md "A tile that asks first"). */
-internal fun tileAsksFirst(confirm: String?, tap: String, on: Boolean?): Boolean = when {
-    confirm.isNullOrEmpty() -> false
-    tap == "toggle" -> confirm == "always" || confirm == (if (on == true) "on" else "off")
-    tap == "act" -> confirm == "always"
-    else -> false
-}

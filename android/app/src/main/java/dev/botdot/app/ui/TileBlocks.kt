@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.BoardKit
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -129,12 +130,11 @@ fun Blocks(list: List<Block>, color: Color, where: String, ctl: TileControls, mo
 @Composable
 private fun Faint() = Text("·", color = LocalPaper.current.faint)
 
-private fun JsonElement?.num(): Double? = (this as? JsonPrimitive)?.takeIf { it !is JsonNull }?.doubleOrNull
-private fun JsonElement?.str(): String? = (this as? JsonPrimitive)?.takeIf { it !is JsonNull }?.contentOrNull
-private fun fmt(n: Double): String = ((n * 100).roundToInt() / 100.0).let { if (it == it.toLong().toDouble()) it.toLong().toString() else it.toString() }
-private fun sliderText(b: Block, v: Double) = if (b.percent) "${(((v - b.min) / (b.max - b.min)) * 100).roundToInt()} %" else fmt(v) + (b.unit?.let { " $it" } ?: "")
+private fun JsonElement?.num(): Double? = BoardKit.number(this)
+private fun JsonElement?.str(): String? = BoardKit.text(this)
+private fun sliderText(b: Block, v: Double) = BoardKit.sliderText(b, v)
 /** Markdown, flattened for a few lines on a tile. */
-private fun plain(md: String) = md.replace("**", "").replace(Regex("(?m)^\\s*[-*#]+\\s+"), "").replace(Regex("\\n\\s*\\n+"), "\n").trim()
+private fun plain(md: String) = BoardKit.plain(md)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -219,7 +219,7 @@ fun BlockView(b: Block, color: Color, where: String, ctl: TileControls) {
             Slider(
                 value = v, valueRange = b.min.toFloat()..b.max.toFloat(),
                 onValueChange = { v = it; touched = true },
-                onValueChangeFinished = { ctl.act(b.key!!, JsonPrimitive(((v - b.min) / b.step).roundToInt() * b.step + b.min), true) },
+                onValueChangeFinished = { ctl.act(b.key!!, JsonPrimitive(BoardKit.snap(b, v.toDouble())), true) },
                 colors = SliderDefaults.colors(thumbColor = p.text, activeTrackColor = p.text, inactiveTrackColor = p.line2),
                 modifier = Modifier.alpha(if (touched) 1f else 0.5f),
             )

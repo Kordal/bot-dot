@@ -35,11 +35,8 @@ fun ChiefNameQuestion(app: BotDotApp) {
     LaunchedEffect(api, version?.features) {
         val a = api ?: return@LaunchedEffect
         val features = version?.features ?: return@LaunchedEffect
-        if (ChiefName.FEATURE !in features) return@LaunchedEffect // a botdot from before the name: nothing to ask
-        val setup = runCatching { a.setup() }.getOrNull()
         // No time zone of its own yet (#756): the botdot takes this device's, once.
-        if (setup != null && setup.savedTimezone == null) runCatching { a.deviceTimezone(java.util.TimeZone.getDefault().id) }
-        asking = ChiefName.ask(features, setup)
+        asking = ChiefName.firstRun(a, features, java.util.TimeZone.getDefault().id)
     }
     if (!asking) return
     var name by remember { mutableStateOf("") }
@@ -49,19 +46,19 @@ fun ChiefNameQuestion(app: BotDotApp) {
     val answer = { given: String ->
         saving = true
         scope.launch {
-            runCatching { api!!.nameChief(given) }
-                .onSuccess { asking = false; app.store.chief.refresh() }
-                .onError { error = it.message ?: tr("Couldn't save the name") } // a bot's name, or botdot away: the question stays
+            // A bot's name, or botdot away: the question stays, saying why.
+            val failed = api?.let { ChiefName.answer(it, given) } ?: tr("Couldn't save the name")
+            if (failed == null) { asking = false; app.store.chief.refresh() } else error = failed
             saving = false
         }
         Unit
     }
     AlertDialog(
         onDismissRequest = {}, // answered with Save or Skip
-        title = { Text(tr("Name your Chief of Staff")) },
+        title = { Text(ChiefName.question) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Text(tr("It runs your team of bots and talks with you. Leave it empty to keep “Chief of Staff”. You can ask it for another name any time."))
+                Text(ChiefName.explain)
                 Field(name, { name = it.take(ChiefName.MAX); error = null }, placeholder = { Text(ChiefName.role) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 error?.let { Text(it, color = p.err) }
             }

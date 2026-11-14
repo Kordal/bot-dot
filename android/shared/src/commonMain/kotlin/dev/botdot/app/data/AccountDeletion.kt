@@ -41,6 +41,33 @@ object AccountDeletion {
     /** Whether Delete works: the account's name typed exactly, no more and no less. */
     fun matches(typed: String, account: String): Boolean = account.isNotEmpty() && typed == account
 
+    /** What the confirmation says the deletion does: a request on a managed machine, else at once and for good. */
+    fun warning(session: JsonObject?): String = if (request(session)) tr("Your account is paused and you are signed out at once. Your subscription is cancelled, and the account, its bots, chats, files, notes and Board are erased within 7 days. This can't be undone.")
+        else tr("This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback.")
+
+    /** The line under it, on the off-site backups. */
+    val backups: String get() = tr("Off-site backups of the account are kept for 14 days, then removed.")
+
+    /** The confirmation's field, which takes the account's name. */
+    fun typeToConfirm(account: String): String = tr("Type your account name, {name}, to confirm", "name" to account)
+
+    /**
+     * What an app offers for deleting this account, as Android's Settings does: Delete with its confirmation ([Delete]),
+     * the page of botdot.app that says how ([Page]), or why the admin's account can't be ([AdminNote]); null: nothing.
+     */
+    sealed class Offer {
+        data class Delete(val account: String, val warning: String) : Offer()
+        data class Page(val url: String) : Offer() { val text: String get() = tr("Your account is deleted on botdot.app: the page says how.") }
+        data object AdminNote : Offer() { val text: String get() = tr("This is the admin's account of this machine, so it can't be deleted here. The machine is removed by its admin instead.") }
+    }
+
+    fun offer(features: List<String>?, session: JsonObject?): Offer? = when {
+        on(features, session) -> Offer.Delete(account(session), warning(session))
+        page(features, session) != null -> Offer.Page(page(features, session)!!)
+        adminNote(features, session) -> Offer.AdminNote
+        else -> null
+    }
+
     fun body(name: String): JsonObject = buildJsonObject { put("name", name) }
 
     /**
