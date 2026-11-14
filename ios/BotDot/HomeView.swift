@@ -37,6 +37,13 @@ struct HomeView: View {
                     BoardCards(tiles: board)
                 }
                 if let state = home.state {
+                    // The Chief first, as on Android: its chat is one conversation.
+                    NavigationLink(value: ChiefRoute()) {
+                        ContactRow(name: state.chiefName, sub: "", unread: Int(state.chiefUnread), color: ChiefColorKt.CHIEF_COLOR, asks: false,
+                                   drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: ChiefColorKt.CHIEF_COLOR, state: state.chiefBusy ? "working" : "idle", outfit: FigureDef.companion.CHIEF, dark: true) })
+                    }
+                    .navigationLinkIndicatorVisibility(.hidden)
+                    .moveDisabled(true)
                     ForEach(home.order, id: \.self) { key in
                         row(key, state)
                             .moveDisabled(key == ListLayout.shared.PINS || ListLayout.shared.isHeading(key: key))
@@ -50,6 +57,7 @@ struct HomeView: View {
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
+            .navigationDestination(for: ChiefRoute.self) { _ in ChiefView(home: home.home) }
             .toolbar {
                 Menu {
                     Button(tr("Passwords")) { vault = true }
@@ -92,6 +100,9 @@ struct HomeView: View {
         }
     }
 }
+
+/// The Chief's chat: one conversation, its latest.
+struct ChiefRoute: Hashable {}
 
 /// A bot's chat, opened from its row.
 struct ChatRoute: Hashable {

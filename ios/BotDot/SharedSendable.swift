@@ -18,3 +18,4 @@ extension VaultStore: @retroactive @unchecked Sendable {}
 extension VaultState: @retroactive @unchecked Sendable {}
 extension VaultItem: @retroactive @unchecked Sendable {}
 extension VaultLogin: @retroactive @unchecked Sendable {}
+extension ChiefDesk: @retroactive @unchecked Sendable {}
