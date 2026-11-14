@@ -181,14 +181,11 @@ struct ChatView: View {
         photos = []
         for item in items {
             Task {
-                let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
-                let name = "photo.\(ext)"
-                // A photo that can't be read or kept says so: the owner would send thinking it went along.
-                guard let data = try? await item.loadTransferable(type: Data.self) else { return model.attachFailed(name) }
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).\(ext)")
-                defer { try? FileManager.default.removeItem(at: url) } // uploaded or not, the copy goes
-                guard (try? data.write(to: url)) != nil else { return model.attachFailed(name) }
-                await model.attach(url, name: name)
+                let name = PickedFile.name(of: item.supportedContentTypes.first)
+                // A photo or video that can't be read or kept says so: the owner would send thinking it went along.
+                guard let picked = try? await item.loadTransferable(type: PickedFile.self) else { return model.attachFailed(name) }
+                defer { try? FileManager.default.removeItem(at: picked.folder) } // uploaded or not, the copy goes
+                await model.attach(picked.url, name: name)
             }
         }
     }
