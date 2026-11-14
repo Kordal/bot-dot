@@ -569,7 +569,7 @@ class MainActivity : ComponentActivity() {
                         val id = e.arguments?.getString("id") ?: ""
                         val bots by app.store.bots.value.collectAsState()
                         val bot = bots?.firstOrNull { it.id == id }
-                        val name = bot?.let { "${it.emoji} ${it.name}" }.orEmpty()
+                        val name = bot?.let { dev.botdot.app.data.ComputerScreen.title(it) }.orEmpty()
                         if (bot?.computer == "boat") BoatScreen(app, id, name) { nav.popBackStack() } else LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {

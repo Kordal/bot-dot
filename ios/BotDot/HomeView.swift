@@ -8,6 +8,13 @@ struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
+    /// The bot whose computer screen is open, from the ⋯ menu.
+    @State private var screen: ScreenOpen?
+
+    struct ScreenOpen: Hashable {
+        let id: String
+        let name: String
+    }
 
     init(model: AppModel, server: String, api: Api) {
         self.model = model
@@ -47,8 +54,20 @@ struct HomeView: View {
             .listStyle(.plain)
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
+            .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) }
             .toolbar {
                 Menu {
+                    // Each bot's computer screen (as Android's "Its screen" in a bot's chat), until the iPhone has the chat.
+                    if let bots = home.state?.screens, !bots.isEmpty {
+                        Section(tr("Its screen")) {
+                            ForEach(bots, id: \.id) { b in
+                                Button { screen = ScreenOpen(id: b.id, name: ComputerScreen.shared.title(bot: b)) } label: {
+                                    Label(b.name, systemImage: "desktopcomputer")
+                                }
+                                .accessibilityIdentifier("screen-\(b.id)")
+                            }
+                        }
+                    }
                     Button(tr("Change botdot's address")) { model.otherAddress() }
                     Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
                 } label: {
