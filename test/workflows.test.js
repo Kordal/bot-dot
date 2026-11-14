@@ -126,6 +126,7 @@ test('no workflow uses a self-hosted runner', () => {
 // fork's pull request no secrets anyway; the condition says the job is not meant for one.
 const SAME_REPOSITORY = 'github.event.pull_request.head.repo.full_name == github.repository';
 const sameRepositoryOnly = (job) => typeof job.if === 'string' && job.if.includes(SAME_REPOSITORY) && !/\|\|/.test(job.if)
+  && !/!\s*\(?\s*github\.event\.pull_request\.head\.repo\.full_name/.test(job.if)
   && !job.environment && job.permissions?.contents === 'read';
 
 test('no job a pull request starts holds a secret or the release environment', () => {
@@ -350,4 +351,8 @@ test("Claude's review runs only for non-draft pull requests from this repository
   assert.doesNotMatch(step.with.claude_args, /Bash\((?!gh pr (comment|diff|view):)/, 'no shell beyond gh pr');
   // @claude (claude.yml) starts only from comments and reviews, never from a pull request event.
   assert.deepEqual(Object.keys(workflow('claude.yml').on).sort(), ['issue_comment', 'pull_request_review', 'pull_request_review_comment']);
+  // And never for a fork's pull request: every step after the lookup runs only when it is not one.
+  const [lookup, ...rest] = workflow('claude.yml').jobs.mention.steps;
+  assert.match(lookup.run, /isCrossRepository/);
+  for (const st of rest) assert.equal(st.if, "steps.pr.outputs.fork == 'false'", st.uses);
 });
