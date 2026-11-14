@@ -1,10 +1,6 @@
-//! What the app keeps between starts: its botdot addresses, each with its own session, and the one shown last. On iOS
-//! the sessions' cookies are in the Keychain, not in the file (#965).
+//! What the app keeps between starts: its botdot addresses, each with its own session, and the one shown last.
 
-#[cfg(target_os = "ios")]
-use crate::keychain;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -97,28 +93,7 @@ impl Kept {
         }
     }
 
-    /// What is kept without its cookies, and the cookie of each address, apart: for a Keychain.
-    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
-    pub fn cookies_apart(&self) -> (Kept, BTreeMap<String, String>) {
-        let mut bare = self.clone();
-        let cookies = bare.botdots.iter_mut().filter_map(|b| Some((b.address.clone(), b.cookie.take()?))).collect();
-        (bare, cookies)
-    }
-
-    /// The cookies of a Keychain back with their addresses. An address that has none there keeps the one it has (a file
-    /// from before the Keychain), and a cookie whose address is gone stays out.
-    #[cfg_attr(not(target_os = "ios"), allow(dead_code))]
-    pub fn with_cookies(mut self, mut cookies: BTreeMap<String, String>) -> Kept {
-        for b in &mut self.botdots {
-            if let Some(cookie) = cookies.remove(&b.address) {
-                b.cookie = Some(cookie);
-            }
-        }
-        self
-    }
-
     /// The address and its session go. When it was the one shown, the first that is left is shown.
-    #[cfg_attr(mobile, allow(dead_code))]
     pub fn remove(&mut self, address: &str) {
         self.botdots.retain(|b| b.address != address);
         if self.last.as_deref() == Some(address) {
@@ -134,22 +109,11 @@ pub fn load(file: &Path) -> Kept {
         kept.botdots.push(Botdot { address: address.clone(), cookie: stored.cookie });
         kept.last = Some(address);
     }
-    #[cfg(target_os = "ios")]
-    let kept = kept.with_cookies(keychain::read());
     kept
 }
 
 /// Whole or not at all, readable only by this user: by the file's mode on the Mac, by the user's own AppData on Windows.
-/// On iOS the cookies go to the Keychain first, and the file holds none.
 pub fn save(file: &Path, kept: &Kept) -> std::io::Result<()> {
-    #[cfg(target_os = "ios")]
-    let bare = {
-        let (bare, cookies) = kept.cookies_apart();
-        keychain::write(&cookies)?;
-        bare
-    };
-    #[cfg(target_os = "ios")]
-    let kept = &bare;
     if let Some(folder) = file.parent() {
         fs::create_dir_all(folder)?;
     }
@@ -165,29 +129,6 @@ pub fn save(file: &Path, kept: &Kept) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_cookies_go_apart_for_the_keychain_and_come_back_to_their_addresses() {
-        let mut kept = Kept::default();
-        kept.signed_in("https://a.example/", "botdot_session=a");
-        kept.signed_in("https://b.example/", "botdot_session=b");
-        kept.session_over("https://b.example/");
-        let (bare, cookies) = kept.cookies_apart();
-        assert!(bare.botdots.iter().all(|b| b.cookie.is_none()), "the file holds no session");
-        assert_eq!(bare.botdots.len(), 2);
-        assert_eq!(cookies, BTreeMap::from([("https://a.example/".to_string(), "botdot_session=a".to_string())]));
-        assert!(!serde_json::to_string(&bare).unwrap().contains("botdot_session"));
-        assert_eq!(bare.with_cookies(cookies), kept);
-    }
-
-    #[test]
-    fn a_cookie_kept_in_the_file_before_stays_and_one_of_a_gone_address_stays_out() {
-        let mut kept = Kept::default();
-        kept.signed_in("https://a.example/", "botdot_session=old");
-        let back = kept.with_cookies(BTreeMap::from([("https://gone.example/".to_string(), "botdot_session=x".to_string())]));
-        assert_eq!(back.get("https://a.example/").and_then(|b| b.cookie.as_deref()), Some("botdot_session=old"));
-        assert!(back.get("https://gone.example/").is_none());
-    }
 
     #[test]
     fn the_botdot_on_this_computer_is_set_up_once_it_has_had_a_session() {

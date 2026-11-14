@@ -1,4 +1,4 @@
-# The Rust release the desktop and iOS apps are built and linted with, in CI and on a developer's machine alike, so a
+# The Rust release the desktop app is built and linted with, in CI and on a developer's machine alike, so a
 # new Rust (and its new clippy lints) arrives by a pull request, not overnight. Bump it with docs/external-tools.md.
 [toolchain]
 channel = "1.99.1"

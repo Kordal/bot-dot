@@ -1,4 +1,4 @@
-// The front door and the iOS app's sign-in (#965, ADR 151): the app opens the front door's own sign-in page in an
+// The front door and the iOS app's sign-in (#965, ADR 242): the app opens the front door's own sign-in page in an
 // ASWebAuthenticationSession sheet with `app=ios`, so iCloud Keychain answers the passkey, and takes the sign-in back at
 // botdot://signed-in?code=…, as the desktop app does. Only the app holding the secret gets the session.
 const { test, before, after } = require('node:test');

@@ -1,6 +1,5 @@
-// The app: a window onto a front door's web page (ADR 137), on Windows, the Mac, Linux (ADR 170) and the iPhone
-// (ADR 151). The one screen of its own, ui/, asks for an address; on a desktop the tray icon's menu (the menu bar's on
-// the Mac) holds the rest. On iOS there is no tray, menu, start at login, updater or botdot on the device: only the window.
+// The app: a window onto a front door's web page (ADR 137), on Windows, the Mac and Linux (ADR 170). The one screen of
+// its own, ui/, asks for an address; the tray icon's menu (the menu bar's on the Mac) holds the rest.
 
 mod address;
 #[cfg(target_os = "macos")]
@@ -10,20 +9,13 @@ mod handoff;
 mod keep;
 #[cfg(local)]
 mod local;
-#[cfg(desktop)]
 mod menu;
 mod notify;
-#[cfg(target_os = "ios")]
-mod keychain;
 mod route;
-#[cfg(target_os = "ios")]
-mod sheet;
-#[cfg(desktop)]
 mod update;
 
 use handoff::Secret;
 use keep::Kept;
-#[cfg(desktop)]
 use menu::Asked;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -31,22 +23,17 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
 use tauri::webview::{cookie::Cookie, NewWindowResponse, PageLoadEvent};
-#[cfg(desktop)]
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
-#[cfg(desktop)]
 use tauri::WindowEvent;
-#[cfg(desktop)]
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_deep_link::DeepLinkExt;
 #[cfg(local)]
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use tauri_plugin_opener::OpenerExt;
-#[cfg(desktop)]
 use tauri_plugin_window_state::StateFlags;
 
 /// How a start at login starts: in the tray, with no window.
-#[cfg(desktop)]
 const HIDDEN: &str = "--hidden";
 /// The seconds a VM's front door has to answer once the VM is up.
 #[cfg(local)]
@@ -95,7 +82,6 @@ fn main_window(app: &AppHandle) -> Option<WebviewWindow> {
 fn bring_forward(app: &AppHandle) {
     if let Some(window) = main_window(app) {
         let _ = window.show();
-        #[cfg(desktop)]
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
@@ -215,12 +201,7 @@ fn to_screen(app: &AppHandle, adding: bool) {
     }
 }
 
-// The menus again, after the list, "Open at login" or the system's notification setting changed. iOS has none.
-#[cfg(mobile)]
-fn refresh_menus(_: &AppHandle) {}
-
 // The menus again, after the list, "Open at login" or the system's notification setting changed.
-#[cfg(desktop)]
 fn refresh_menus(app: &AppHandle) {
     let shown = menu::Shown { login: app.autolaunch().is_enabled().unwrap_or(false), notifications_off: notify::off() };
     let state = app.state::<App>();
@@ -234,7 +215,6 @@ fn refresh_menus(app: &AppHandle) {
     }
 }
 
-#[cfg(desktop)]
 fn on_menu(app: &AppHandle, id: &str) {
     match menu::asked(id) {
         Asked::Show(address) => {
@@ -289,7 +269,6 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
     let (on_load, on_new_window) = (app.clone(), app.clone());
     // The page's own drag and drop (a bot's key to another place, a file onto a chat): Tauri's handler, on by
     // default, takes every drag for itself on macOS and Windows, and the page never sees it.
-    #[cfg(desktop)]
     let builder = builder.disable_drag_drop_handler();
     builder
         .on_page_load(move |window, load| {
@@ -300,7 +279,7 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
             if route::session_over(&door, load.url()) {
                 let app = on_load.clone();
                 tauri::async_runtime::spawn(async move { session_over(&app, &door) });
-            } else if route::left_door(&door, load.url()) || (cfg!(mobile) && route::sign_up(&door, load.url())) {
+            } else if route::left_door(&door, load.url()) {
                 open_in_browser(&on_load, load.url());
                 let _ = if window.label() == "main" { window.eval("history.back()") } else { window.close() };
             } else if window.label() != "main" && route::shows_in_app(&door, load.url()) {
@@ -316,14 +295,11 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
                     let number = on_new_window.state::<App>().windows.fetch_add(1, Ordering::Relaxed);
                     let blank = route::opens_blank(&to);
                     let builder = WebviewWindowBuilder::new(&on_new_window, format!("page-{number}"), WebviewUrl::External(to)).title("botdot");
-                    #[cfg(desktop)]
                     let builder = builder.window_features(features);
                     // `window.open('about:blank')` on a press, given its address once botdot answers (a sign-in page
                     // of an app, a Google Doc): hidden until then, so another site goes to the browser with no empty
                     // window of the app in between, and a page that never gets an address shows nothing.
                     let builder = builder.visible(!blank);
-                    #[cfg(mobile)]
-                    let _ = features;
                     match guarded(&on_new_window, builder).build() {
                         Ok(window) => {
                             #[cfg(target_os = "macos")]
@@ -341,7 +317,6 @@ fn guarded<'a>(app: &AppHandle, builder: WebviewWindowBuilder<'a, Wry, AppHandle
             }
         })
         .on_download(|_, _| true)
-        .initialization_script(route::NEW_WINDOWS_IN_PLACE)
 }
 
 async fn answers(address: &Url) -> bool {
@@ -608,34 +583,9 @@ async fn connect(app: AppHandle, address: String) -> Result<(), &'static str> {
 }
 
 // The sign-in page in the system browser, which hands the code back on botdot://.
-#[cfg(not(target_os = "ios"))]
 fn sign_in_page(app: &AppHandle, page: Url) -> Result<(), &'static str> {
     open_in_browser(app, &page);
     Ok(())
-}
-
-// On iOS in a sheet of the app's own (#965), which gives back botdot://signed-in?code=… itself. Closed with no link, the
-// screen asks again.
-#[cfg(target_os = "ios")]
-fn sign_in_page(app: &AppHandle, page: Url) -> Result<(), &'static str> {
-    let window = main_window(app).ok_or("failed")?;
-    let app = app.clone();
-    window
-        .with_webview(move |webview| {
-            let ended = app.clone();
-            let done: sheet::Done = Box::new(move |link| match link.as_deref().and_then(|l| Url::parse(l).ok()) {
-                Some(link) => signed_in(&ended, &link),
-                None => {
-                    *ended.state::<App>().waiting.lock().unwrap() = None;
-                    let _ = ended.emit("sign-in-closed", ());
-                }
-            });
-            // SAFETY: wry's WKWebView of the main window, on the main thread.
-            if !unsafe { sheet::show(webview.inner(), page.as_str(), done) } {
-                let _ = app.emit("sign-in-failed", ());
-            }
-        })
-        .map_err(|_| "failed")
 }
 
 // The browser came back with `botdot://signed-in?code=…`. A link nobody waits for is nothing. The sign-in waits on
@@ -666,7 +616,6 @@ fn signed_in(app: &AppHandle, link: &Url) {
 }
 
 // Only on a desktop: one app at a time, a start at login, the updater and the window's size and place.
-#[cfg(desktop)]
 fn desktop_plugins(builder: tauri::Builder<Wry>) -> tauri::Builder<Wry> {
     builder
         .plugin(tauri_plugin_single_instance::init(|app, _, _| bring_forward(app)))
@@ -675,16 +624,11 @@ fn desktop_plugins(builder: tauri::Builder<Wry>) -> tauri::Builder<Wry> {
         .plugin(tauri_plugin_window_state::Builder::new().with_state_flags(StateFlags::SIZE | StateFlags::POSITION | StateFlags::MAXIMIZED).with_filter(|label| label == "main").build())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
     webkit_on_nvidia();
-    #[cfg(desktop)]
     let hidden = std::env::args().any(|arg| arg == HIDDEN);
-    #[cfg(mobile)]
-    let hidden = false;
     let builder = tauri::Builder::default();
-    #[cfg(desktop)]
     let builder = desktop_plugins(builder);
     let app = builder
         .plugin(tauri_plugin_deep_link::init())
@@ -729,9 +673,7 @@ pub fn run() {
             let builder = WebviewWindowBuilder::new(&handle, "main", WebviewUrl::App("index.html".into())).title("botdot").inner_size(1200.0, 800.0).min_inner_size(420.0, 500.0).visible(!hidden);
             let window = guarded(&handle, builder).build()?;
             // Closing the window keeps the app in the tray: Quit ends it.
-            #[cfg(desktop)]
             let hide = window.clone();
-            #[cfg(desktop)]
             window.on_window_event(move |event| {
                 match event {
                     WindowEvent::CloseRequested { api, .. } => {
@@ -746,7 +688,6 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             dialogs::add(&window);
             *app.state::<App>().screen.lock().unwrap() = Some(window.url()?);
-            #[cfg(desktop)]
             update::start(handle.clone());
             // An AppImage has no package that tells the desktop it opens botdot:// links: it says so itself.
             #[cfg(target_os = "linux")]
@@ -759,11 +700,9 @@ pub fn run() {
                     signed_in(&links, &link);
                 }
             });
-            #[cfg(desktop)]
             desktop_setup(app, &handle)?;
             Ok(())
         });
-    #[cfg(desktop)]
     let app = app.on_menu_event(|app, event| on_menu(app, event.id().as_ref()));
     let app = app
         .build(tauri::generate_context!())
@@ -779,7 +718,6 @@ pub fn run() {
 }
 
 // What only a desktop has: "Open at login", the tray and the menus, and a setup that carries on after a restart.
-#[cfg(desktop)]
 fn desktop_setup(app: &mut tauri::App, handle: &AppHandle) -> tauri::Result<()> {
     // "Open at login" is on from the first start of a built app, and the owner's after that.
     if cfg!(not(debug_assertions)) && !app.state::<App>().kept.lock().unwrap().login_set_up {
