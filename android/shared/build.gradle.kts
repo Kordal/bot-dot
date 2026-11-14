@@ -78,6 +78,7 @@ val fixtures = mapOf(
     "vaultSearch" to "test/fixtures/vault-search.json",
     "chatOrder" to "test/fixtures/chat-order.json",
     "figureCases" to "test/fixtures/figure-cases.json",
+    "pushSeals" to "test/fixtures/push-seals.json",
     "figureDefinition" to "lib/figure.json",
 ).mapValues { rootProject.file("../${it.value}") }
 
