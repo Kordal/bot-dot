@@ -181,22 +181,28 @@ struct ChatView: View {
         photos = []
         for item in items {
             Task {
-                guard let data = try? await item.loadTransferable(type: Data.self) else { return }
                 let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
+                let name = "photo.\(ext)"
+                // A photo that can't be read or kept says so: the owner would send thinking it went along.
+                guard let data = try? await item.loadTransferable(type: Data.self) else { return model.attachFailed(name) }
                 let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).\(ext)")
-                guard (try? data.write(to: url)) != nil else { return }
-                await model.attach(url, name: "photo.\(ext)")
+                defer { try? FileManager.default.removeItem(at: url) } // uploaded or not, the copy goes
+                guard (try? data.write(to: url)) != nil else { return model.attachFailed(name) }
+                await model.attach(url, name: name)
             }
         }
     }
 
     private func importFile(_ url: URL) async {
-        guard url.startAccessingSecurityScopedResource() else { return }
+        let name = url.lastPathComponent
+        guard url.startAccessingSecurityScopedResource() else { return model.attachFailed(name) }
         defer { url.stopAccessingSecurityScopedResource() }
-        let copy = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathComponent(url.lastPathComponent)
-        try? FileManager.default.createDirectory(at: copy.deletingLastPathComponent(), withIntermediateDirectories: true)
-        guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return }
-        await model.attach(copy, name: url.lastPathComponent)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) } // uploaded or not, the copy goes
+        let copy = folder.appendingPathComponent(name)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { return model.attachFailed(name) }
+        await model.attach(copy, name: name)
     }
 }
 

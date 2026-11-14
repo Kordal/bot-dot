@@ -51,4 +51,11 @@ class BotChatTest {
         chat.takeFailed()
         assertEquals(listOf(sent, later), chat.state.value.files, "the message's file in front, the later one kept")
     }
+
+    @Test fun aFileThePhoneCouldNotReadIsSaid() = runTest {
+        val chat = offline()
+        chat.attachFailed("photo.heic")
+        assertEquals("photo.heic: Couldn't read that file.", chat.state.value.notice)
+        assertEquals(emptyList(), chat.state.value.files)
+    }
 }

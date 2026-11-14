@@ -39,6 +39,8 @@ final class ChatModel {
     /// What was typed and not sent when the chat was last left, once.
     func takeUnsent() -> String { chat.takeUnsent() }
     func drop(_ file: Attachment) { chat.drop(file: file) }
+    /// A picked file that couldn't be read or copied: the chat says so.
+    func attachFailed(_ name: String) { chat.attachFailed(name: name) }
 
     /// Sends what is typed; false when it didn't go (it comes back to the box with the line saying why).
     func send(_ text: String) async -> Bool {

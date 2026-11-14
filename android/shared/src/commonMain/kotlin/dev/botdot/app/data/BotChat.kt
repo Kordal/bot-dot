@@ -245,6 +245,9 @@ class BotChat(
     /** A file uploaded for the next message. */
     internal fun pick(file: Attachment) { files = files + file; publish() }
 
+    /** A picked file the phone couldn't read or copy ([name]): said as an upload that failed is ("name: why"). */
+    fun attachFailed(name: String) = say("$name: ${tr("Couldn't read that file.")}")
+
     /** A picked file the owner took off the message before sending. */
     fun drop(file: Attachment) { files = files - file; publish() }
 
