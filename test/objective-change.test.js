@@ -76,6 +76,8 @@ test('the Chief changes the goal sentence and adds an objective with set_project
   assert.deepEqual(c.objectives.map((o) => [o.name, o.current, o.target]), [['Sets logged', 0, 150], ['Weekly lifters', 0, 500]]);
   assert.equal(c.objectives[0].id, goal.id, 'the goals there were keep their ids');
   assert.equal(c.goal, 'Help 500 lifters log every set');
+  // Its answer is the project, cards read from the web and the apps included: the turn has read the web.
+  assert.equal(require('../lib/chief-tools').readKind('set_project_goal'), 'web');
   const none = await tools.call('set_project_goal', {});
   assert.ok(none.isError && /Say goal or add/.test(JSON.stringify(none.content)), JSON.stringify(none));
 });
