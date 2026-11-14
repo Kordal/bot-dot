@@ -60,4 +60,12 @@ class WireTest {
         // Data lines are one text, joined by a newline; one space after the colon is dropped, and none is needed.
         assertEquals("2", events[1].data["b"].toString())
     }
+
+    @Test fun aLiveStreamsLinesEndAtCrlfLfOrCr() = runBlocking {
+        botdot.enqueue(MockResponse.Builder().addHeader("Content-Type", "text/event-stream")
+            .body("id: 1\r\nevent: a\r\ndata: {\"x\":1}\r\n\r\nevent: b\rdata: {\"y\":2}\r\rdata: {\"z\":3}\n\n").build())
+        val events = api.feed(null).toList()
+        assertEquals(listOf("1" to "a", "1" to "b", "1" to "message"), events.map { it.id to it.type })
+        assertEquals(listOf("1", "2", "3"), events.map { it.data.values.single().toString() })
+    }
 }
