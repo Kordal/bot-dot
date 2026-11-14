@@ -102,7 +102,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Api
-import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.DocumentView
@@ -162,16 +161,16 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
     // A project's folder (#703), opened from its settings: its one place, nothing kept in mind, no search.
     val folder = UploadedFiles.folderOf(ownerId)
     val name = if (chief) chiefName else folder ?: bot?.name.orEmpty()
-    val computer = if (chief) "none" else if (folder != null) "linux" else bot?.computer ?: "none"
+    val computer = FilesExplorer.computerOf(ownerId, bot)
     val viewer = DocumentView.shows(features)
-    val withProjects = !chief && folder == null && computer == "linux" && Projects.shows(features)
-    val searches = folder == null && FilesExplorer.searches(features)
+    val withProjects = FilesExplorer.makesProjects(ownerId, computer, features)
+    val searches = FilesExplorer.searchesFor(ownerId, features)
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snack = remember { SnackbarHostState() }
     fun tell(s: String) { scope.launch { snack.showSnackbar(s) } }
 
-    var place by rememberSaveable(ownerId) { mutableStateOf(startRoot.ifEmpty { null } ?: folder?.let(WorkspaceFiles::projectRoot) ?: WorkspaceFiles.SERVER) }
+    var place by rememberSaveable(ownerId) { mutableStateOf(FilesExplorer.firstPlace(ownerId, startRoot)) }
     var path by rememberSaveable(ownerId) { mutableStateOf(startPath) }
     var sortName by rememberSaveable { mutableStateOf(FilesExplorer.Sort.NAME.name) }
     val sort = FilesExplorer.Sort.valueOf(sortName)
@@ -185,6 +184,9 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
     var selected by remember(place, path) { mutableStateOf<Set<String>>(emptySet()) }
     var query by rememberSaveable { mutableStateOf("") }
     var found by remember { mutableStateOf<List<dev.botdot.app.data.FoundFile>?>(null) }
+    // Why the search couldn't be made (offline, a server error): said with Try again, not as "Nothing by that name".
+    var searchFailed by remember { mutableStateOf<Throwable?>(null) }
+    var searchTries by remember { mutableIntStateOf(0) }
     var sheet by remember { mutableStateOf<FxSheet?>(null) }
     var ask by remember { mutableStateOf<FxAsk?>(null) }
     var answer by remember { mutableStateOf("") }
@@ -214,23 +216,20 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
         runCatching { a.bots() }.onSuccess { allBots = it }
     }
     // A search as it is typed, a moment after the last key.
-    if (searches) LaunchedEffect(api, query) {
+    if (searches) LaunchedEffect(api, query, searchTries) {
         val a = api ?: return@LaunchedEffect
-        if (query.isBlank()) { found = null; return@LaunchedEffect }
+        if (query.isBlank()) { found = null; searchFailed = null; return@LaunchedEffect }
         delay(250)
-        runCatching { a.searchFiles(ownerId, query.trim()) }.onSuccess { found = it.results }.onError { found = emptyList() }
+        val s = FilesExplorer.search(a, ownerId, query)
+        found = s.found; searchFailed = s.failed
     }
 
-    val places = folder?.let { listOf(WorkspaceFiles.projectRoot(it)) } ?: FilesExplorer.places(ownerId, computer, projects)
+    val places = FilesExplorer.placesOf(ownerId, computer, projects)
     val hits = found
-    val shown: List<WorkspaceEntry> = when {
-        hits != null -> hits.map { WorkspaceEntry(it.name, it.path, it.type, it.size, at = it.at) }
-        place == FilesExplorer.KEPT -> FilesExplorer.keptEntries(kept)
-        else -> FilesExplorer.sorted(listing?.entries.orEmpty(), sort)
-    }
+    val shown: List<WorkspaceEntry> = FilesExplorer.shown(hits, place, kept, listing, sort)
     // Where each shown entry is: a search finds them in every place.
-    val shownAt: List<String> = hits?.map { FilesExplorer.placeOf(it) } ?: shown.map { root }
-    val writesHere = found == null && place != FilesExplorer.KEPT && listing?.readOnly == false
+    val shownAt: List<String> = FilesExplorer.shownAt(hits, shown, place)
+    val writesHere = FilesExplorer.writesHere(found, place, listing)
     val selecting = selected.isNotEmpty()
     val chosen = shown.filter { it.path in selected }
     fun can(e: WorkspaceEntry) = FilesExplorer.can(place, listing, e, pinned)
@@ -270,9 +269,9 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
     fun open(e: WorkspaceEntry, at: String = root) {
         if (e.type == "folder") return go(at, e.path)
         if (e.type != "file") return
-        val src = WorkspaceFiles.file(ownerId, at, e.path)
-        if (viewer) DocViewer.open = DocViewer.Request(src, e.name, name, botId = if (at != WorkspaceFiles.SERVER && folder == null) ownerId else null)
-        else act(tr("open it")) { BotFiles.openElsewhere(context, it, src, e.name) }
+        val o = FilesExplorer.opening(ownerId, at, e, name)
+        if (viewer) DocViewer.open = DocViewer.Request(o.src, o.name, o.from, botId = o.botId)
+        else act(tr("open it")) { BotFiles.openElsewhere(context, it, o.src, e.name) }
     }
     // A file asked for on the way in (the board's Files tile): opened once, over its folder.
     var fileOpened by rememberSaveable(ownerId) { mutableStateOf(startFile.isEmpty()) }
@@ -368,26 +367,31 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize()) {
             val e = failed
-            when {
-                found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 409 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+            // What the folder's space shows is the shared layer's (FilesExplorer.pane), as on the iPhone.
+            when (FilesExplorer.pane(found, place, e, listing, shown, searchFailed)) {
+                FilesExplorer.Pane.SEARCH_FAILED -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(FilesExplorer.searchFailedWords(searchFailed), color = p.muted, modifier = Modifier.padding(horizontal = Space.s24))
+                    TextButton(onClick = { searchTries++ }) { Text(tr("Try again")) }
+                }
+                FilesExplorer.Pane.COMPUTER_OFF -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("The computer is off."), color = p.muted)
                     Button(onClick = { act(tr("start it")) { if (folder == null) it.startComputer(ownerId) } }, modifier = Modifier.padding(top = Space.s12), colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                 }
-                found == null && place != FilesExplorer.KEPT && e != null && (e as? ApiException)?.status == 404 -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                FilesExplorer.Pane.GONE -> Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text(tr("This folder is gone."), color = p.muted)
                     SecondaryButton(onClick = { path = "" }, modifier = Modifier.padding(top = Space.s12)) { Text(tr("Back to the top"), color = p.text) }
                 }
-                found == null && place != FilesExplorer.KEPT && e != null -> Text(e.message ?: tr("Couldn't load it."), color = p.muted, modifier = Modifier.align(Alignment.Center).padding(Space.s24))
-                found == null && place != FilesExplorer.KEPT && listing == null -> Text(tr("Loading…"), color = p.faint, modifier = Modifier.align(Alignment.Center))
-                shown.isEmpty() -> Text(if (found != null) tr("Nothing by that name.") else tr("Empty."), color = p.faint, modifier = Modifier.align(Alignment.Center))
-                grid -> LazyVerticalGrid(GridCells.Adaptive(108.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.s12, Space.s8, Space.s12, 96.dp),
+                FilesExplorer.Pane.FAILED -> Text(e?.message ?: tr("Couldn't load it."), color = p.muted, modifier = Modifier.align(Alignment.Center).padding(Space.s24))
+                FilesExplorer.Pane.LOADING -> Text(tr("Loading…"), color = p.faint, modifier = Modifier.align(Alignment.Center))
+                FilesExplorer.Pane.EMPTY -> Text(FilesExplorer.emptyWords(found), color = p.faint, modifier = Modifier.align(Alignment.Center))
+                FilesExplorer.Pane.ENTRIES -> if (grid) LazyVerticalGrid(GridCells.Adaptive(108.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(Space.s12, Space.s8, Space.s12, 96.dp),
                     horizontalArrangement = Arrangement.spacedBy(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                     itemsIndexed(shown, key = { i, x -> shownAt[i] + "\u0000" + x.path }) { i, entry ->
                         val thumb = if (FilesExplorer.thumbs(entry)) api?.url(WorkspaceFiles.thumb(ownerId, shownAt[i], entry.path)) else null
                         FileCard(entry, thumb, entry.path in selected, onTap = { tap(entry, shownAt[i]) }, onHold = { if (hits == null) selected = selected + entry.path })
                     }
                 }
-                else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
+                else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 96.dp)) {
                     busy?.let { b -> item { Text(b, color = p.muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = Space.s16, vertical = Space.s8)) } }
                     itemsIndexed(shown, key = { i, x -> shownAt[i] + "\u0000" + x.path }) { i, entry ->
                         val detail = if (hits != null) listOf(FilesExplorer.placeName(shownAt[i]), WorkspaceFiles.parentOf(entry.path)).filter { it.isNotEmpty() }.joinToString(" / ") else FilesExplorer.detail(entry)

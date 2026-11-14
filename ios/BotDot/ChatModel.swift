@@ -6,7 +6,7 @@ import BotdotShared
 /// is the shared layer's, as Android's bot chat.
 @MainActor
 @Observable
-final class ChatModel {
+final class ChatModel: MessageBox {
     private(set) var state: BotChatState?
     private let chat: BotChat
     private var watching: Kotlinx_coroutines_coreJob?
@@ -33,14 +33,19 @@ final class ChatModel {
     func loadOlder() { chat.loadOlder() }
     func stopRun(_ runId: String? = nil) { chat.stopRun(runId: runId) }
     func takeBack(_ q: Queued) { chat.takeBack(q: q) }
+
+    // The message box (Composer).
+    var note: String? { state?.note }
+    var files: [Attachment] { state?.files ?? [] }
+    var uploading: Bool { state?.uploading == true }
+    var boxStops: Bool { state?.boxStops == true }
+    var back: FailedSend? { state?.back }
     func edited() { chat.edited() }
-    /// Left with [typed] not sent: kept for when the chat opens again (#1068).
-    func leave(_ typed: String) { chat.leave(typed: typed) }
-    /// What was typed and not sent when the chat was last left, once.
-    func takeUnsent() -> String { chat.takeUnsent() }
     func drop(_ file: Attachment) { chat.drop(file: file) }
-    /// A picked file that couldn't be read or copied: the chat says so.
     func attachFailed(_ name: String) { chat.attachFailed(name: name) }
+    func leave(_ typed: String) { chat.leave(typed: typed) }
+    func takeUnsent() -> String { chat.takeUnsent() }
+    func stopFromBox() { chat.stopRun(runId: nil) }
 
     /// Sends what is typed; false when it didn't go (it comes back to the box with the line saying why).
     func send(_ text: String) async -> Bool {

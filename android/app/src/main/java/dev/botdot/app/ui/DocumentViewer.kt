@@ -101,7 +101,7 @@ fun rememberPathActions(botId: String, from: String): PathActions? {
     val server by app.store.version.value.collectAsState()
     if (!DocumentView.shows(server?.features)) return null
     return remember(botId, from) {
-        val of = { path: String, name: String -> DocViewer.Request(DocumentView.pathFile(botId, path), name, from, botId, path) }
+        val of = { path: String, name: String -> DocumentView.ofPath(botId, path, from, name).let { DocViewer.Request(it.src, it.name, it.from, it.botId, it.path) } }
         PathActions(from, open = { path, name -> DocViewer.open = of(path, name) }, menu = { DocViewer.held = of(it, it.substringAfterLast('/')) })
     }
 }
@@ -167,7 +167,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (req.text != null) { view = FileView(name = req.name, kind = "markdown", text = req.text); mode = "rendered"; return@LaunchedEffect }
         val a = api ?: return@LaunchedEffect
         runCatching { a.viewFile(src) }
-            .onSuccess { v -> view = v; values = v.interactive?.values; mode = when (v.kind) { "markdown" -> "rendered"; "csv" -> "table"; else -> "source" } }
+            .onSuccess { v -> view = v; values = v.interactive?.values; mode = DocumentView.modeOf(v.kind) }
             .onFailure { error = it }
     }
     // A page (#346) is read again when its bot saves it (the feed's `page`) or its job changes, as it is shown now.
@@ -312,35 +312,32 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save to Downloads")) }
             SecondaryButton(onClick = { withApi(tr("open it")) { BotFiles.openElsewhere(context, it, req.src, req.name) } }) { Text(tr("Open in another app"), color = p.text) }
         } }
-        when {
-            e != null -> {
-                val status = (e as? ApiException)?.status
-                when (status) {
-                    404 -> ViewerState(tr("File not found"), tr("Nothing is at this path. It may not be made yet, or it was moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
-                    409 -> ViewerState(tr("The computer is off"), tr("This file is on the account's computer, which is stopped. Start it to open the file.")) {
-                        req.botId?.let { botId ->
-                            Button(onClick = { withApi(tr("start it")) { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
-                        }
-                        SecondaryButton(onClick = onBack) { Text(tr("Not now"), color = p.text) }
-                    }
-                    else -> ViewerState(tr("Couldn't open it"), e.message.orEmpty()) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+        // What the body shows is the shared layer's (DocumentView.pane), as on the iPhone.
+        when (DocumentView.pane(v, e, req.page != null)) {
+            DocumentView.Pane.NOT_FOUND -> ViewerState(tr("File not found"), tr("Nothing is at this path. It may not be made yet, or it was moved or deleted.")) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+            DocumentView.Pane.COMPUTER_OFF -> ViewerState(tr("The computer is off"), tr("This file is on the account's computer, which is stopped. Start it to open the file.")) {
+                req.botId?.let { botId ->
+                    Button(onClick = { withApi(tr("start it")) { it.startComputer(botId); tries++ } }, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Start the computer")) }
                 }
+                SecondaryButton(onClick = onBack) { Text(tr("Not now"), color = p.text) }
             }
-            v == null -> Column(Modifier.padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+            DocumentView.Pane.FAILED -> ViewerState(tr("Couldn't open it"), e?.message.orEmpty()) { SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) } }
+            DocumentView.Pane.LOADING -> Column(Modifier.padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 listOf(0.6f, 0.92f, 0.84f, 0.7f, 0.88f).forEach { w -> Box(Modifier.fillMaxWidth(w).height(12.dp).clip(Radius.small).background(p.sunk)) }
             }
-            !v.downloadable && v.kind == "none" -> ViewerState(tr("Too large to bring out of the computer"), tr("Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.")) {
+            DocumentView.Pane.TOO_LARGE -> ViewerState(tr("Too large to bring out of the computer"), tr("Files on the computer open here up to 1 MB. Ask the bot to put it in its folder or to make it smaller.")) {
                 SecondaryButton(onClick = onBack) { Text(tr("Back to the chat"), color = p.text) }
             }
-            site != null && req.page != null -> InteractiveFrame(site, values, onDownload = download)
-            DocumentView.isPdf(v) -> PdfPages(req.src, req.name, noPreview)
-            v.kind == "none" -> noPreview()
-            v.kind == "image" -> Box(Modifier.fillMaxSize().padding(Space.s12), contentAlignment = Alignment.Center) {
+            DocumentView.Pane.INTERACTIVE -> InteractiveFrame(site!!, values, onDownload = download)
+            DocumentView.Pane.PDF -> PdfPages(req.src, req.name, noPreview)
+            DocumentView.Pane.NO_PREVIEW -> noPreview()
+            DocumentView.Pane.IMAGE -> Box(Modifier.fillMaxSize().padding(Space.s12), contentAlignment = Alignment.Center) {
                 api?.let { AsyncImage(it.url(req.src), contentDescription = req.name, contentScale = ContentScale.Fit, modifier = Modifier.fillMaxSize()) }
             }
-            else -> Column(Modifier.fillMaxSize()) {
-                if (v.kind == "markdown" || v.kind == "csv") Row(Modifier.padding(horizontal = Space.s16, vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
-                    val modes = if (v.kind == "markdown") listOf("rendered" to tr("Rendered"), "source" to tr("Source")) else listOf("table" to tr("Table"), "source" to tr("Source"))
+            DocumentView.Pane.TEXT -> Column(Modifier.fillMaxSize()) {
+                v!!
+                val modes = DocumentView.modes(v.kind)
+                if (modes.isNotEmpty()) Row(Modifier.padding(horizontal = Space.s16, vertical = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     modes.forEach { (m, label) -> ModeChip(label, mode == m) { mode = m } }
                 }
                 if (v.truncated) Text(tr("Too large to show whole. Showing its start (up to 1 MB or 1,000 lines).") + if (v.downloadable) " " + tr("Save it to see everything.") else "",

@@ -5,6 +5,8 @@ import BotdotShared
 /// with SwiftUI: headings, paragraphs, lists and tasks, quotes, code and tables; links open in the browser.
 struct MarkdownView: View {
     let text: String
+    /// File paths in it are links the chat opens in the viewer (a bot's reply, on a botdot that shows them).
+    var paths = false
 
     var body: some View {
         let blocks = MarkdownKt.parseBlocks(src: text)
@@ -20,18 +22,18 @@ struct MarkdownView: View {
     private func view(_ block: any Block_) -> some View { // Block_: the Markdown package's Block, beside the Board's
         switch onEnum(of: block) {
         case .heading(let h):
-            Text(Self.inline(h.text)).font(h.level == 1 ? .title3.bold() : .headline)
+            Text(Self.inline(paths: paths, h.text)).font(h.level == 1 ? .title3.bold() : .headline)
         case .para(let p):
-            Text(Self.inline(p.text))
+            Text(Self.inline(paths: paths, p.text))
         case .item(let i):
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(i.task == "done" ? "☑︎" : i.task == "todo" ? "☐" : i.number.map { "\($0)." } ?? "•")
                     .foregroundStyle(.secondary)
-                Text(Self.inline(i.text))
+                Text(Self.inline(paths: paths, i.text))
             }
             .padding(.leading, CGFloat(i.indent) * 18)
         case .quote(let q):
-            Text(Self.inline(q.text)).foregroundStyle(.secondary)
+            Text(Self.inline(paths: paths, q.text)).foregroundStyle(.secondary)
                 .padding(.leading, 10)
                 .overlay(alignment: .leading) { Rectangle().fill(.secondary).frame(width: 3) }
         case .code(let c):
@@ -45,7 +47,7 @@ struct MarkdownView: View {
                     ForEach(Array(t.rows.enumerated()), id: \.offset) { n, row in
                         GridRow {
                             ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
-                                Text(Self.inline(cell)).font(n == 0 ? .callout.bold() : .callout)
+                                Text(Self.inline(paths: paths, cell)).font(n == 0 ? .callout.bold() : .callout)
                             }
                         }
                     }
@@ -57,9 +59,9 @@ struct MarkdownView: View {
     }
 
     /// A line's runs of marked text (inlineRuns) as one attributed string.
-    static func inline(_ text: String) -> AttributedString {
+    static func inline(paths: Bool = false, _ text: String) -> AttributedString {
         var out = AttributedString()
-        for run in MarkdownKt.inlineRuns(s: text, bold: false, italic: false, strike: false) {
+        for run in MarkdownKt.inlineRuns(s: text, bold: false, italic: false, strike: false, paths: paths) {
             var piece = AttributedString(run.text)
             var intent: InlinePresentationIntent = []
             if run.bold { intent.insert(.stronglyEmphasized) }
