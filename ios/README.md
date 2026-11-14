@@ -17,6 +17,9 @@ project.yml       the Xcode project: the app, its notification extension and its
 BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
                   layer's cards, NeedsDesk, with their buttons), bots drawn by FigureView, and tr()
+                  Files (FilesView, from Home's ⋯ menu: a bot's or the Chief's places and folders, sort, search, upload
+                  from Photos or Files, a new folder, rename, keep in mind, share, delete) and the document viewer
+                  (ViewerView: text and code with line numbers, a CSV as a table, the rest in QuickLook)
 BotDotNotify/     the notification service extension (app.botdot.notify), empty for now
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers
 ```
