@@ -28,6 +28,7 @@ import platform.CoreFoundation.kCFTypeDictionaryKeyCallBacks
 import platform.CoreFoundation.kCFTypeDictionaryValueCallBacks
 import platform.Foundation.NSDate
 import platform.Foundation.NSDateFormatter
+import platform.Foundation.NSCharacterSet
 import platform.Foundation.NSLocale
 import platform.Foundation.NSURLErrorAppTransportSecurityRequiresSecureConnection
 import platform.Foundation.NSURLErrorCannotConnectToHost
@@ -176,4 +177,21 @@ internal actual fun parseHttpAddress(s: String): HttpAddress? {
     val u = runCatching { Url(s) }.getOrNull()?.takeIf { it.host.isNotEmpty() && (it.protocol.name == "http" || it.protocol.name == "https") } ?: return null
     val root = URLBuilder(u).apply { encodedPath = "/"; encodedParameters.clear(); fragment = "" }.buildString()
     return HttpAddress(u.toString(), root)
+}
+
+internal actual fun nameChars(s: String): String = buildString {
+    var i = 0
+    while (i < s.length) {
+        val c = s[i]
+        // A letter or number past the first 65 536 (two chars) is asked of Foundation; one within them, of its category.
+        if (c.isHighSurrogate() && i + 1 < s.length && s[i + 1].isLowSurrogate()) {
+            val cp = 0x10000 + ((c.code - 0xD800) shl 10) + (s[i + 1].code - 0xDC00)
+            if (NSCharacterSet.letterCharacterSet.longCharacterIsMember(cp.toUInt()) && !NSCharacterSet.nonBaseCharacterSet.longCharacterIsMember(cp.toUInt()) ||
+                NSCharacterSet.decimalDigitCharacterSet.longCharacterIsMember(cp.toUInt())) append(c).append(s[i + 1])
+            i += 2
+            continue
+        }
+        if (c == '_' || c == '-' || c.isLetter() || c.category.code.startsWith("N")) append(c)
+        i++
+    }
 }

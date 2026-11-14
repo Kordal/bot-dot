@@ -40,7 +40,6 @@ object Mentions {
     private val TYPING = Regex("(?<![\\p{L}\\p{N}_])@($NAME*)(?:/($NAME*))?\\z")
     private val WORD_REST = Regex("^[\\p{L}\\p{N}_/-]*") // the rest of a mention's word after the cursor
     private val SPACES = Regex("\\s+") // no (?U): Android's ICU regex rejects it, and its \s is Unicode already
-    private val NOT_NAME = Regex("[^\\p{L}\\p{N}_-]")
     /** "@all" in a group ([World.all], #124): every member at once, and no member's mention. */
     private const val ALL = "all"
     /** The feature of a botdot that runs a skill sent as "/" and its name (#237). */
@@ -111,7 +110,7 @@ object Mentions {
 
     /** "Fleet Doctor" → "FleetDoctor", "Chief of Staff" → "ChiefOfStaff", "Morning check" → "MorningCheck". */
     fun shortName(name: String): String =
-        name.trim().split(SPACES).joinToString("") { w -> w.take(1).uppercase() + w.drop(1) }.replace(NOT_NAME, "")
+        name.trim().split(SPACES).joinToString("") { w -> w.take(1).uppercase() + w.drop(1) }.let(::nameChars)
 
     private fun same(a: String, b: String) = a.lowercase() == b.lowercase()
 

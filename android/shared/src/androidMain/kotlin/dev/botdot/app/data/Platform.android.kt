@@ -41,6 +41,9 @@ internal actual fun parseUri(value: String): UriParts? =
 
 internal actual fun formEncode(s: String): String = URLEncoder.encode(s, "UTF-8")
 
+private val NOT_NAME = Regex("[^\\p{L}\\p{N}_-]")
+internal actual fun nameChars(s: String): String = s.replace(NOT_NAME, "")
+
 internal actual fun formDecode(s: String): String = URLDecoder.decode(s, "UTF-8")
 
 /** The JVM's locale for a language tag: "" is Locale.ROOT, null the phone's own. */

@@ -42,6 +42,12 @@ expect fun formatDate(at: Instant, pattern: String, locale: String?, zone: TimeZ
 /** The short name of [month] (1 to 12) in [locale]: "Jan", "sty". */
 expect fun monthShort(month: Int, locale: String): String
 
+/**
+ * [s] with only the letters, numbers, "_" and "-" (Unicode's L and N), as `[^\p{L}\p{N}_-]` removes the rest on the
+ * JVM. Kotlin/Native's regex reads that class otherwise (it drops "_" and "-", and keeps an emoji).
+ */
+internal expect fun nameChars(s: String): String
+
 /** Math.round: the nearest whole number, halves up, and 0 for NaN. */
 internal fun jround(v: Double): Long = if (v.isNaN()) 0L else v.roundToLong()
 
