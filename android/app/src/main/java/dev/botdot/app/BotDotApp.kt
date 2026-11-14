@@ -20,6 +20,7 @@ import dev.botdot.app.data.isTrue
 import dev.botdot.app.data.ReadReport
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.Session
+import dev.botdot.app.data.Vault
 import dev.botdot.app.data.Settings
 import dev.botdot.app.data.Store
 import dev.botdot.app.data.Feed

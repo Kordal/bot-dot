@@ -3,12 +3,13 @@ import BotdotShared
 
 /// Home on the iPhone, as the Android app's on a phone: what went wrong, Needs you, the Board's numbers under it, then
 /// the bots and groups in the owner's order: the pinned ones first, then each category. Press and hold a row to drag
-/// it to its place; pull down to refresh.
+/// it to its place; pull down to refresh. Its ⋯ menu opens Passwords (VaultView).
 struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
     @Environment(\.scenePhase) private var phase
+    @State private var vault = false
 
     init(model: AppModel, server: String, api: Api) {
         self.model = model
@@ -51,12 +52,14 @@ struct HomeView: View {
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
             .toolbar {
                 Menu {
+                    Button(tr("Passwords")) { vault = true }
                     Button(tr("Change botdot's address")) { model.otherAddress() }
                     Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
                 } label: {
                     Image(systemName: "ellipsis.circle").accessibilityLabel(tr("More"))
                 }
             }
+            .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
         }
         .task { home.start(); home.home.live(on: true) }
         .onDisappear { home.stop() }
