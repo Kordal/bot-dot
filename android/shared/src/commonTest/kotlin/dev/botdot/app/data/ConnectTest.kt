@@ -54,4 +54,13 @@ class ConnectTest {
         assertEquals("That address answers, but it isn't botdot.", Connect.answer(VersionInfo(app = "other"), null))
         assertEquals("This botdot is newer than the app. Update the app.", Connect.answer(VersionInfo(app = "bot-dot", apiVersion = Connect.API_VERSION + 1), null))
     }
+
+    @Test fun aLocalBotdotThatAnswersSaysWhatItAnswered() {
+        val local = Connect.Address.Local("http://localhost:4747")
+        val older = ApiException("Unknown endpoint", 404)
+        assertEquals("This botdot is older than the app. Ask its admin to update it, then connect again.",
+            Connect.refusal(local, older, Connect.answer(null, older)!!))
+        val nothing = ApiException("Can't reach botdot. Is Tailscale on? (Connection refused)")
+        assertEquals(Connect.words(local), Connect.refusal(local, nothing, Connect.answer(null, nothing)!!))
+    }
 }

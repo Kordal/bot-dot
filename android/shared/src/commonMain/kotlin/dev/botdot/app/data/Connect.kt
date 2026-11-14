@@ -66,7 +66,16 @@ object Connect {
         val r = runCatching { Api(url).version() }
         r.exceptionOrNull()?.let { if (it is kotlinx.coroutines.CancellationException) throw it }
         val failed = answer(r.getOrNull(), r.exceptionOrNull()) ?: return Outcome.Connected(url, r.getOrNull()?.frontDoor == true)
-        return Outcome.Refused(if (a is Address.Local && r.isFailure) words(a)!! else failed)
+        return Outcome.Refused(refusal(a, r.exceptionOrNull(), failed))
+    }
+
+    /**
+     * What a refused [address] says: one on the device that nothing answered is explained as one ([words]); an
+     * answer, an HTTP error among them (an older botdot's 404), says its own [failed].
+     */
+    internal fun refusal(address: Address, failure: Throwable?, failed: String): String {
+        val answered = failure is ApiException && failure.status != 0
+        return if (address is Address.Local && failure != null && !answered) words(address)!! else failed
     }
 
     /** What [connect] says of the version [v] an address answered, or of the [failure] it answered with instead. */

@@ -2,6 +2,7 @@ package dev.botdot.app.data
 
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,8 +79,15 @@ class HomeStore(val api: Api) {
     @Throws(Exception::class)
     suspend fun move(order: List<String>, key: String) = moveLock.withLock {
         // One drag's save and the read after it before the next: two quick drags land in the order they were made, and
-        // each is read against the list as the one before left it.
-        val m = ListLayout.moved(order, key, store.bots.value.value.orEmpty(), store.groups.value.value.orEmpty(), hasPinsShared(store.version.value.value?.features))
+        // each is read against the list as the server holds it now. Asked here, not through the Store, whose parts
+        // keep what they held when a read fails: a failed read throws its sentence instead of "nothing changed".
+        val (bots, groups, features) = coroutineScope {
+            val version = async { api.version() }
+            val bots = async { api.bots() }
+            val features = version.await().features
+            Triple(bots.await(), api.groupsOf(features), features)
+        }
+        val m = ListLayout.moved(order, key, bots, groups, hasPinsShared(features))
         try {
             if (m?.group != null) api.updateGroup(m.group, m.change) else if (m?.bot != null) api.updateBot(m.bot, m.change)
         } finally {
