@@ -61,6 +61,10 @@ class ConnectTest {
         assertEquals("This botdot is older than the app. Ask its admin to update it, then connect again.",
             Connect.refusal(local, older, Connect.answer(null, older)!!))
         val nothing = ApiException("Can't reach botdot. Is Tailscale on? (Connection refused)")
-        assertEquals(Connect.words(local), Connect.refusal(local, nothing, Connect.answer(null, nothing)!!))
+        assertEquals("That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.",
+            Connect.refusal(local, nothing, Connect.answer(null, nothing)!!))
+        // It answered 200 with something that isn't botdot's JSON: what failed to read says so.
+        val notJson = kotlinx.serialization.SerializationException("Unexpected JSON token at offset 0")
+        assertEquals("Unexpected JSON token at offset 0", Connect.refusal(local, notJson, Connect.answer(null, notJson)!!))
     }
 }

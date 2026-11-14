@@ -70,12 +70,14 @@ object Connect {
     }
 
     /**
-     * What a refused [address] says: one on the device that nothing answered is explained as one ([words]); an
-     * answer, an HTTP error among them (an older botdot's 404), says its own [failed].
+     * What a refused [address] says: one on the device that nothing answered is explained as one ([words]). Api
+     * reports every failure before an answer as an [ApiException] of status 0 (both engines' transport errors are
+     * I/O errors); anything else answered, an HTTP error (an older botdot's 404) or a body that isn't botdot's among
+     * them, and says its own [failed].
      */
     internal fun refusal(address: Address, failure: Throwable?, failed: String): String {
-        val answered = failure is ApiException && failure.status != 0
-        return if (address is Address.Local && failure != null && !answered) words(address)!! else failed
+        val unanswered = failure is ApiException && failure.status == 0
+        return if (address is Address.Local && unanswered) words(address)!! else failed
     }
 
     /** What [connect] says of the version [v] an address answered, or of the [failure] it answered with instead. */
