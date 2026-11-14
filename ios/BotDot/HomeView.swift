@@ -59,7 +59,10 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
         }
-        .task { home.start() }
+        .task {
+            home.start()
+            await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
+        }
         .onDisappear { home.stop() }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
     }

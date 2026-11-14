@@ -27,6 +27,20 @@ test('a seal opens with its key only, and says what a Web Push says', () => {
   assert.throws(() => apns.open(tampered.toString('base64url'), d.key));
 });
 
+test('the seals the iOS app is tested against (test/fixtures/push-seals.json) are what this server writes, and open to their payload', () => {
+  const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'push-seals.json'), 'utf8'));
+  assert.ok(fixture.cases.length >= 5);
+  for (const c of fixture.cases) {
+    assert.deepEqual(apns.open(c.sealed, fixture.seed), c.payload, c.what);
+    // The same notice sealed again makes the same request, but for its fresh nonce.
+    const again = apns.relayRequest({ token: 'a1'.repeat(32), environment: 'development', key: fixture.seed }, c.payload);
+    assert.deepEqual(apns.open(again.sealed, fixture.seed), c.payload, c.what);
+    assert.deepEqual([again.collapseId, again.threadId ?? null], [c.collapseId, c.threadId], c.what);
+    assert.deepEqual(Object.keys(c.payload).filter((k) => !['title', 'body', 'target', 'tag', 'buttons'].includes(k)), [], c.what);
+  }
+  for (const r of fixture.refused) assert.throws(() => apns.open(r.sealed, fixture.seed), r.what);
+});
+
 test("the relay gets the token, the seal, the tag as collapse id and the target as thread, and nothing it could read", () => {
   const d = apns.checkDevice(device());
   const req = apns.relayRequest(d, { title: 'Mail Sorter asks', body: 'Archive the 40 old ones?', target: 'needs', tag: 'ask:a1', urgency: 'high' });
@@ -106,7 +120,7 @@ test("a bot's reply reaches the iPhone sealed through the relay, and a device th
   const got = await waitFor(() => relay.got.find((g) => g.body.token === d.token), { what: 'the relay request' });
   assert.equal(got.path, '/v1/push');
   assert.deepEqual([got.body.collapseId, got.body.threadId, got.body.environment], [`bot:${bot.id}`, `bot:${bot.id}`, 'development']);
-  assert.deepEqual(apns.open(got.body.sealed, d.key), { title: 'News', body: 'Found 3 articles.', target: `bot:${bot.id}`, tag: `bot:${bot.id}` });
+  assert.deepEqual(apns.open(got.body.sealed, d.key), { title: 'News', body: 'Found 3 articles.', target: `bot:${bot.id}`, tag: `bot:${bot.id}`, buttons: { reply: 'Reply' } });
   // The relay says Apple dropped the token: botdot forgets the device and sends it nothing more.
   relay.answers.push(410);
   const count = relay.got.length;

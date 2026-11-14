@@ -14,6 +14,7 @@ import androidx.core.app.RemoteInput
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ApiException
+import dev.botdot.app.data.PushNotices
 import dev.botdot.app.data.tr
 import dev.botdot.app.ui.replyFromNotification
 import kotlinx.coroutines.flow.filterNotNull
@@ -57,28 +58,16 @@ class NotificationActions : BroadcastReceiver() {
         // in that box with the line that says why (#1069).
         val notSent = replyFromNotification(chat, text, app.store.version.value.value?.features) { k ->
             val a = api ?: throw ApiException(tr("Not connected to botdot"))
-            when {
-                chat.startsWith("chief:") -> { a.sendToChief(chat.removePrefix("chief:"), text, emptyList(), k) }
-                chat.startsWith("bot:") -> { a.runBot(chat.removePrefix("bot:"), text, emptyList(), k) }
-                // An answer to a group's question is a message to the group: the member that asked has the first turn.
-                chat.startsWith("group:") -> { a.sendToGroup(chat.removePrefix("group:"), text, emptyList(), k) }
-            }
+            PushNotices.reply(a, chat, text, k) // the chat's own send, as the iPhone's Reply (shared)
         }
         withContext(app.notifying) { app.notifier.replied(chat, text.takeIf { notSent == null }) }
         notSent?.let { Toast.makeText(context, it, Toast.LENGTH_LONG).show() }
     }
 
     private suspend fun answer(context: Context, app: BotDotApp, api: Api?, key: String, yes: Boolean) {
-        val id = key.substringAfter(':')
         runCatching {
             val a = api ?: error(tr("Not connected to botdot"))
-            when (key.substringBefore(':')) {
-                "job" -> a.approveJob(id.substringBefore('/'), id.substringAfter('/'), yes)
-                "ask" -> a.answerAsk(id, yes)
-                "tile" -> a.approveTile(id, yes)
-                "memory" -> a.settleMemoryChange(id, yes)
-                "plan" -> if (yes) a.sendToChief(id, PLAN_APPROVAL, emptyList()) else a.dismissSuggestion(id)
-            }
+            PushNotices.answer(a, key, yes) // what each card's answer sends, as the iPhone's (shared)
         }.onSuccess { withContext(app.notifying) { app.notifier.take(key) } }
             .onFailure { Toast.makeText(context, tr("That didn't work: {why}", "why" to it.message), Toast.LENGTH_LONG).show() }
     }

@@ -24,6 +24,9 @@ targets:
     platform: iOS
     sources:
       - BotDot
+      # The seal and the key the notification extension opens pushes with: the app makes the key and draws nothing.
+      - BotDotNotify/Seal.swift
+      - BotDotNotify/PushKey.swift
       # The figure definition every app draws its bots from (ADR 003), the server's own file: a copy in the app, until
       # the server hands out its own.
       - path: ../lib/figure.json
@@ -53,7 +56,10 @@ targets:
       properties:
         com.apple.security.application-groups: [group.app.botdot]
         keychain-access-groups: [$(AppIdentifierPrefix)app.botdot]
-  # The notification extension, empty for now: it will read a push's content from the shared data layer (phase 1).
+        # Apple's push service (ADR 150). An archive for TestFlight and the App Store is exported with "production".
+        aps-environment: development
+  # The notification extension (ADR 150): it opens a push's seal with the key the app keeps in their shared Keychain
+  # group and shows botdot's words and buttons. Swift alone, without the shared data layer (BotDotNotify/Seal.swift).
   BotDotNotify:
     type: app-extension
     platform: iOS
@@ -77,7 +83,11 @@ targets:
   BotDotTests:
     type: bundle.unit-test
     platform: iOS
-    sources: [BotDotTests]
+    sources:
+      - BotDotTests
+      # Seals the server made (lib/apns.js), which the extension's opener is tested against.
+      - path: ../test/fixtures/push-seals.json
+        buildPhase: resources
     dependencies:
       - target: BotDot
     settings:
