@@ -190,13 +190,13 @@ struct FilesView: View {
             var picked: [(URL, String)] = []
             var unread: [String] = [] // said, not dropped: the owner would think it went
             for item in items {
-                let ext = item.supportedContentTypes.first?.preferredFilenameExtension ?? "jpg"
-                let name = "photo.\(ext)"
-                guard let data = try? await item.loadTransferable(type: Data.self) else { unread.append(name); continue }
-                let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-                let url = dir.appendingPathComponent(name)
-                guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil, (try? data.write(to: url)) != nil else {
-                    try? FileManager.default.removeItem(at: dir)
+                let name = PickedFile.name(of: item.supportedContentTypes.first)
+                // Copied as a file (PickedFile): a long video's bytes never sit in memory.
+                guard let file = try? await item.loadTransferable(type: PickedFile.self) else { unread.append(name); continue }
+                // Under the name it is sent as, in its own folder: the upload deletes that folder after.
+                let url = file.folder.appendingPathComponent(name)
+                if file.url != url, (try? FileManager.default.moveItem(at: file.url, to: url)) == nil {
+                    try? FileManager.default.removeItem(at: file.folder)
                     unread.append(name)
                     continue
                 }
