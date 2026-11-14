@@ -164,6 +164,7 @@ composeCompiler {
 }
 
 dependencies {
+    implementation(project(":shared")) // the data layer (ADR 242)
     implementation(libs.androidx.core)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
