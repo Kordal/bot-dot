@@ -1,0 +1,85 @@
+# The iOS app (ADR 242): native SwiftUI on the Android app's shared data layer (android/shared, BotdotShared.xcframework).
+# `make ios` builds the framework, makes BotDot.xcodeproj from this file with XcodeGen (the project is not in git) and
+# builds and tests it in the simulator. No signing team here: CI and the simulator build unsigned.
+name: BotDot
+options:
+  bundleIdPrefix: app.botdot
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    DEVELOPMENT_TEAM: ""
+    ENABLE_USER_SCRIPT_SANDBOXING: "YES"
+targets:
+  BotDot:
+    type: application
+    platform: iOS
+    sources: [BotDot]
+    dependencies:
+      # Built by `make ios` (./gradlew :shared:assembleBotdotSharedReleaseXCFramework); static, so nothing is embedded.
+      - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework
+        embed: false
+      - target: BotDotNotify
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.botdot
+        PRODUCT_NAME: BotDot
+        OTHER_LDFLAGS: [-lc++]
+    info:
+      path: BotDot/Info.plist
+      properties:
+        CFBundleDisplayName: botdot
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+    entitlements:
+      path: BotDot/BotDot.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.botdot]
+        keychain-access-groups: [$(AppIdentifierPrefix)app.botdot]
+  # The notification extension, empty for now: it will read a push's content from the shared data layer (phase 1).
+  BotDotNotify:
+    type: app-extension
+    platform: iOS
+    sources: [BotDotNotify]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.botdot.notify
+        PRODUCT_NAME: BotDotNotify
+    info:
+      path: BotDotNotify/Info.plist
+      properties:
+        CFBundleDisplayName: botdot
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
+    entitlements:
+      path: BotDotNotify/BotDotNotify.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.botdot]
+        keychain-access-groups: [$(AppIdentifierPrefix)app.botdot]
+  BotDotTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [BotDotTests]
+    dependencies:
+      - target: BotDot
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.botdot.tests
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/BotDot.app/BotDot
+        BUNDLE_LOADER: $(TEST_HOST)
+schemes:
+  BotDot:
+    build:
+      targets:
+        BotDot: all
+        BotDotTests: [test]
+    test:
+      targets: [BotDotTests]

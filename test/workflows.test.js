@@ -252,19 +252,22 @@ test('every layer of both images is scanned for secrets before evidence, signing
   assert.ok([].concat(jobs.evidence.needs).includes('build'));
 });
 
-// A Mac runs only the desktop app's Tauri builds (ADR 137) and the Android app's shared data layer for the iPhone
+// A Mac runs only the desktop app's Tauri builds (ADR 137) and the iOS app with the Android app's shared data layer
 // (ADR 242), never the stopped native Mac app.
 test("the Android release builds on GitHub's machines, and no workflow builds or tests the Mac app (ADR 031)", () => {
   assert.equal(workflow('android.yml').jobs.build['runs-on'], 'ubuntu-latest');
   const tests = workflow('tests.yml').jobs;
   assert.equal(tests.mac, undefined);
   assert.equal(tests.changes.outputs.mac, undefined);
-  // The Android app's shared data layer, built for the iPhone and tested in the simulator (ADR 242): Gradle on android/shared only.
-  const shared = workflow('ios-shared.yml').jobs.shared;
-  assert.equal(shared.defaults.run['working-directory'], 'android');
-  assert.deepEqual(shared.steps.filter((st) => st.run).map((st) => st.run), ['./gradlew :shared:compileKotlinIosArm64 :shared:iosSimulatorArm64Test --console=plain']);
+  // The iOS app (ADR 242): the shared data layer tested in the simulator, then the app from ios/ by make ios. Unsigned.
+  const ios = workflow('ios.yml').jobs.app;
+  const runs = ios.steps.filter((st) => st.run).map((st) => st.run).join('\n');
+  assert.match(runs, /\.\/gradlew :shared:compileKotlinIosArm64 :shared:iosSimulatorArm64Test/);
+  assert.match(runs, /^make ios$/m);
+  assert.doesNotMatch(runs, /make mac-|working-directory: macos|codesign|CODE_SIGN_IDENTITY=[^"]/, 'nothing is signed');
+  assert.equal(fs.readFileSync(path.join(WORKFLOWS, 'ios.yml'), 'utf8').includes('secrets.'), false, 'no secret');
   for (const name of fs.readdirSync(WORKFLOWS)) {
-    if (name === 'ios-shared.yml') continue;
+    if (name === 'ios.yml') continue;
     const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
     assert.doesNotMatch(text, /make mac-|runs-on: macos|xcodebuild|swift (build|test)|working-directory: macos/, name);
     if (name !== 'desktop.yml') assert.doesNotMatch(text, /\bmacos-(latest|\d)/, name);
