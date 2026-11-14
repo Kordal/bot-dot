@@ -19,11 +19,14 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   layer's cards, NeedsDesk, with their buttons), a bot's chat (ChatView: its replies' Markdown, the live
                   feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box),
                   Passwords (VaultView, from Home's ⋯ menu: the entries in their categories, which fold, a search over a
-                  list longer than eight, a login's editor, Bitwarden's unlock), bots drawn by FigureView, and tr()
+                  list longer than eight, a login's editor, Bitwarden's unlock), projects (ProjectView, from Home's switch of
+                  spaces: a project's page with its board, its cards, Tidy, its teams with the lead first and their panel,
+                  its own bots with Add bot, the Files tile and its default chat; ProjectSettingsView behind the gear:
+                  name, colour, Project Manager, ✕ and Add bot, Archive), bots drawn by FigureView, and tr()
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
-BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads
-                  the seals the server made (test/fixtures/push-seals.json)
+BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers, a project's board draws; the
+                  extension's opener reads the seals the server made (test/fixtures/push-seals.json)
 ```
 
 The app and its extension share the App Group `group.app.botdot` and a Keychain access group, for the session and what a push needs.

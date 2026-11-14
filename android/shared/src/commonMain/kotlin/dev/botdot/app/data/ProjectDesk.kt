@@ -67,6 +67,9 @@ object ProjectRules {
         }
     }
 
+    /** When a file of the Files tile changed, in this phone's zone ([ProjectFiles.whenOf]). */
+    fun fileWhen(at: Long): String = ProjectFiles.whenOf(at)
+
     /** A team's chat (#697): the group of team [teamId], on a botdot that has team chats; null otherwise. */
     fun teamChat(features: Collection<String>?, groups: List<Group>, teamId: String): String? =
         if (features != null && Groups.TEAM_CHATS in features) Groups.teamChat(groups, teamId)?.id else null

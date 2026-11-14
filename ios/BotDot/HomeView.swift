@@ -60,6 +60,7 @@ struct HomeView: View {
                 }
             }
             .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
+            .projectSpaces(home: home.home, figure: home.figure) // the switch of spaces, on a botdot with projects (#1366)
         }
         .task {
             home.start()
