@@ -218,13 +218,22 @@ data class Bot(
     val rooms: BotRooms? get() = BotRooms.of(roomsValue)
 }
 
-/** A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked. */
-data class Asks(val text: String, val runId: String? = null, val at: String? = null) {
+/**
+ * A bot's open question to the owner (`asks` on a bot, docs/api.md): [text] in one line, and the run that asked, the
+ * newest. [others]: the runs of its other open questions, newest first (`asks.open`, #1377): two runs of the bot that
+ * went at once and both asked keep both questions.
+ */
+data class Asks(val text: String, val runId: String? = null, val at: String? = null, val others: List<String> = emptyList()) {
+    /** The runs of every open question of the bot, newest first: under each of them its answers are drawn. */
+    val runs: List<String> get() = listOfNotNull(runId) + others
+
     companion object {
         /** `asks` as the server sent it; null without a question to show. */
         fun of(v: JsonElement?): Asks? {
             val o = v as? JsonObject ?: return null
-            return Asks(o["text"].textOrNull() ?: return null, o["runId"].textOrNull(), o["at"].textOrNull())
+            val runId = o["runId"].textOrNull()
+            val others = (o["open"] as? JsonArray).orEmpty().mapNotNull { (it as? JsonObject)?.get("runId").textOrNull() }.filter { it != runId }.distinct()
+            return Asks(o["text"].textOrNull() ?: return null, runId, o["at"].textOrNull(), others)
         }
 
         /**
