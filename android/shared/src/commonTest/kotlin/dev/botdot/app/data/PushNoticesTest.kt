@@ -91,4 +91,19 @@ class PushNoticesTest {
         assertFalse(PushNotices.sendsToPhones(listOf("web-push")))
         assertFalse(PushNotices.sendsToPhones(null))
     }
+
+    @Test fun aTapOpensAKnownBotsChatWaitsForTheBotsAndLetsGoOfAnUnknownOne() {
+        val bots = listOf(Bot(id = "b1", name = "News"))
+        assertEquals(PushNotices.Opening.Wait, PushNotices.opening("bot:b1", null), "a cold start: the bots aren't read yet")
+        assertEquals(PushNotices.Opening.BotChat("b1", "News"), PushNotices.opening("bot:b1", bots))
+        assertEquals(PushNotices.Opening.LetGo, PushNotices.opening("bot:gone", bots), "a bot no longer there")
+    }
+
+    @Test fun aChiefConversationOpensAtOnceAndAGroupWaitsForItsScreen() {
+        assertEquals(PushNotices.Opening.ChiefChat("c7"), PushNotices.opening("chief:c7", null))
+        assertEquals(PushNotices.Opening.LetGo, PushNotices.opening("group:g1", emptyList()), "no group screen on this phone yet")
+        assertEquals(PushNotices.Opening.GroupChat("g1"), PushNotices.opening("group:g1", emptyList(), groups = true))
+        assertEquals(PushNotices.Opening.Unasked, PushNotices.opening(null, null))
+        assertEquals(PushNotices.Opening.LetGo, PushNotices.opening("room:r1", emptyList()))
+    }
 }

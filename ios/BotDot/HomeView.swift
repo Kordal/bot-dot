@@ -88,7 +88,7 @@ struct HomeView: View {
             await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
         }
         // A notification's tap: its chat, once Home knows its bots (AppModel.chatToOpen).
-        .onChange(of: model.chatToOpen) { openAsked() }
+        .onChange(of: model.chatToOpen, initial: true) { openAsked() } // a cold start's tap too
         .onChange(of: home.state?.bots?.count) { openAsked() }
         .onDisappear { home.stop() }
         // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
@@ -96,18 +96,18 @@ struct HomeView: View {
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
     }
 
-    /// Opens the chat a notification asked for ([PushNotices.replyTo] says which): a bot's or a Chief conversation.
-    /// A group's waits for the group chat (#1367), Home showing meanwhile.
+    /// Opens the chat a notification asked for, as the shared layer decides (PushNotices.opening): a bot's once Home
+    /// has read its bots, a Chief conversation at once; what can't be opened is let go, so the same tap works again.
     private func openAsked() {
-        guard let chat = model.chatToOpen, let to = PushNotices.shared.replyTo(chat: chat) else { return }
-        switch onEnum(of: to) {
-        case .bot(let b):
-            guard let bot = home.state?.bot(id: b.id) else { return } // its name once Home has read the bots
-            path.append(ChatRoute(botId: bot.id, name: bot.name))
-        case .chief(let c):
-            path.append(ChiefRoute(chatId: c.chatId))
-        case .group:
+        switch onEnum(of: PushNotices.shared.opening(chat: model.chatToOpen, bots: home.state?.bots, groups: false)) {
+        case .unasked, .wait:
             return
+        case .botChat(let b):
+            path.append(ChatRoute(botId: b.id, name: b.name))
+        case .chiefChat(let c):
+            path.append(ChiefRoute(chatId: c.chatId))
+        case .groupChat, .letGo:
+            break
         }
         model.chatOpened()
     }
