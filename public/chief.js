@@ -915,3 +915,5 @@ function followChief(id) {
   // EventSource reconnects after transport errors; the server replays current activity.
   es.onerror = () => { if (state.chatId !== id) es.close(); };
 }
+
+// openbranch preview test: no functional change

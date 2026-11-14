@@ -785,3 +785,5 @@ const Company = (() => {
 
   return { init, render, redraw, drawSide, drawRail, enter, railOn, projects, onProjectPage, changed, projectChanged, put, load, choose, go, steps, ICON, place: () => place, stepBar, sourcesHTML, at, pickHTML, toolsHTML, wirePick, show, startNew, gearHTML, chiefHTML, tidyHTML, openProjectChief, openSettings, closeSettings, removed, deleteProject, PIECES, piecesOf, onBoard, pieceLabel, missing };
 })();
+
+// openbranch preview test: no functional change

@@ -786,3 +786,5 @@ function openGroupMenu(group) {
   $('#group-form', m).onsubmit = (e) => { e.preventDefault(); const to = e.target.name.value.trim(); if (to && to !== group) rename(to, tr('Renamed to {name}', { name: to })); else m.close(); };
   $('#group-remove', m).onclick = () => rename('', tr('Category removed')); // no question: its bots and groups move to Other, and a category is made again by naming it
 }
+
+// openbranch preview test: no functional change
