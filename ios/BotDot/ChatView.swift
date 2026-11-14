@@ -17,6 +17,7 @@ struct ChatView: View {
     @State private var atBottom = true
     @State private var sentAt = 0
     @State private var restored: String?
+    @State private var noticeTimer: Task<Void, Never>?
     @State private var notice: String?
     @FocusState private var focused: Bool
     @Environment(\.scenePhase) private var phase
@@ -32,7 +33,7 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, onStop: model.stopRun) }
+                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) }) }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
                             VStack(alignment: .trailing, spacing: 4) {
@@ -80,7 +81,8 @@ struct ChatView: View {
         }
         .onChange(of: model.state?.noticeCount) {
             notice = model.state?.notice
-            Task { try? await Task.sleep(for: .seconds(3)); notice = nil }
+            noticeTimer?.cancel() // each notice shows its full 3 seconds
+            noticeTimer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { notice = nil } }
         }
         .onChange(of: model.state?.back) { take() }
         .onChange(of: photos) { pick(photos) }
@@ -122,8 +124,8 @@ struct ChatView: View {
                     .onChange(of: typed) { _, now in
                         if now == restored { restored = nil } else { model.edited() } // the box taking a message back is no edit
                     }
-                if model.state?.running == true && typed.isEmpty && (model.state?.files.isEmpty ?? true) {
-                    Button(action: model.stopRun) { Image(systemName: "stop.fill").frame(width: 36, height: 36) }
+                if model.state?.boxStops == true {
+                    Button { model.stopRun() } label: { Image(systemName: "stop.fill").frame(width: 36, height: 36) }
                         .accessibilityLabel(tr("Stop"))
                 } else {
                     Button(action: send) { Image(systemName: "arrow.up").frame(width: 36, height: 36) }
@@ -154,6 +156,7 @@ struct ChatView: View {
 
     private func send() {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typed.isEmpty { restored = "" } // emptied by Send, not edited: a retry keeps the failed message's key
         typed = ""
         sentAt += 1
         Task { _ = await model.send(text) } // a failed one comes back through `back`
@@ -191,6 +194,8 @@ struct ChatView: View {
 /// One run: what started it on the owner's side, and what came of it on the bot's.
 struct RunRow: View {
     let view: RunView
+    /** Its working line has Stop (Send stays in the box while it works). */
+    let stops: Bool
     let onStop: () -> Void
 
     var body: some View {
@@ -202,6 +207,7 @@ struct RunRow: View {
                 HStack {
                     ProgressView().controlSize(.small)
                     Text(view.line).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                    if stops { Spacer(); Button(tr("Stop"), action: onStop).font(.callout) }
                 }
             } else if let reply = view.reply, !reply.isEmpty {
                 MarkdownView(text: reply)

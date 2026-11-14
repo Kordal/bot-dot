@@ -31,7 +31,7 @@ final class ChatModel {
 
     func refresh() async { try? await chat.refresh() }
     func loadOlder() { chat.loadOlder() }
-    func stopRun() { chat.stopRun() }
+    func stopRun(_ runId: String? = nil) { chat.stopRun(runId: runId) }
     func takeBack(_ q: Queued) { chat.takeBack(q: q) }
     func edited() { chat.edited() }
     func drop(_ file: Attachment) { chat.drop(file: file) }

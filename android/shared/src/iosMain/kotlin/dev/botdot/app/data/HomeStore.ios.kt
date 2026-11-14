@@ -53,7 +53,16 @@ class HomeStore(val api: Api) {
     val store = Store(scope, MutableStateFlow(api))
 
     /** The live feed (docs/api.md): the Store and an open chat follow it while the app is in front. */
-    val feed = Feed(scope)
+    val feed = Feed(scope, LastEvent())
+
+    /** Where the feed was, while the app runs: it resumes after the last event it saw when the app comes to front. */
+    private class LastEvent : Feed.Keep {
+        private var server: String? = null
+        private var id: String? = null
+        override fun server() = server
+        override fun lastId() = id
+        override fun write(server: String, lastId: String?) { this.server = server; id = lastId }
+    }
 
     init {
         scope.launch { feed.events.collect { store.handle(it) } }

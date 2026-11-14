@@ -51,6 +51,11 @@ class BotChatState(
     val loaded: Boolean,
     /** A run is going: Stop is offered. */
     val running: Boolean,
+    /**
+     * Stop takes Send's place in the message box ([boxStops]): this botdot takes no message while one works. Else
+     * Send stays and each working line has its own Stop, as on Android.
+     */
+    val boxStops: Boolean,
     /** The owner's message on its way, drawn until the server's version of it is in the chat. */
     val sent: SentMessage?,
     val sending: Boolean,
@@ -170,7 +175,7 @@ class BotChat(
                 // An older botdot sends the newest again: nothing older to show then.
                 if (page.isEmpty() || page.first().id in known) noOlder = true
                 else { all = all + page.filter { it.id !in known }; noOlder = page.size < PAGE }
-            }
+            }.onFailure { say(it.message ?: tr("The connection dropped")) } // scrolling back up asks again
             loadingOlder = false
             publish()
         }
@@ -243,9 +248,9 @@ class BotChat(
         }
     }
 
-    /** Stop the run that is going. */
-    fun stopRun() {
-        val r = all.firstOrNull { it.isRunning } ?: return
+    /** Stop the run [runId] (its working line's Stop), or the one that is going (the message box's). */
+    fun stopRun(runId: String? = null) {
+        val r = all.firstOrNull { it.isRunning && (runId == null || it.id == runId) } ?: return
         scope.launch {
             say(stopNote(runCatching { api.stopRun(r.id) }))
             refresh()
@@ -310,6 +315,7 @@ class BotChat(
             started = stillStarting(starting, all),
             loaded = loaded,
             running = runs.any { it.isRunning },
+            boxStops = boxStops(runs.any { it.isRunning }, features),
             sent = outbox.sent?.unlessIn(ownWords(all, queued)),
             sending = outbox.sending,
             note = outbox.note,
