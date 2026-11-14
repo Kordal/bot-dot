@@ -79,6 +79,9 @@ class HomeStore(val api: Api) {
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
 
+    /** The chat of the group [groupId], following this botdot's feed. [GroupChat.stop] it when it is left. */
+    fun groupChat(groupId: String): GroupChat = GroupChat(scope, api, store, feed.events, groupId)
+
     /** Calls [onChange] with Home's state now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
         val parts = combine(store.bots.value, store.groups.value, store.recent.value, store.dashboard.value, store.version.value) { b, g, r, d, v -> listOf(b, g, r, d, v) }
