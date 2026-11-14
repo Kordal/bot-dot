@@ -400,3 +400,18 @@ class Outbox {
         private val lock = SynchronizedObject()
     }
 }
+
+/**
+ * The newest runs ([fresh], a look at the [limit] newest) put in place of those in [had] (both newest first).
+ * null when they don't meet: more runs came than one look brings, so the chat should start over.
+ */
+fun mergeNewest(had: List<Run>, fresh: List<Run>, limit: Int): List<Run>? {
+    if (fresh.isEmpty()) return if (had.isEmpty()) had else null
+    val at = had.indexOfFirst { it.id == fresh.last().id }
+    return when {
+        at >= 0 -> fresh + had.drop(at + 1)
+        fresh.size < limit -> fresh // that's all it has
+        had.isEmpty() -> fresh
+        else -> null
+    }
+}

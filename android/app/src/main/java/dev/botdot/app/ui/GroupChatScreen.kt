@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.Ended
+import dev.botdot.app.data.endedWords
 import dev.botdot.app.data.takesOnce
 import dev.botdot.app.data.lineWith
 import dev.botdot.app.data.isGoOn

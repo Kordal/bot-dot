@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.Ended
+import dev.botdot.app.data.endedWords
 import dev.botdot.app.data.without
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ChiefChat
