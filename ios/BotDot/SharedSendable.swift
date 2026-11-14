@@ -18,3 +18,5 @@ extension VaultStore: @retroactive @unchecked Sendable {}
 extension VaultState: @retroactive @unchecked Sendable {}
 extension VaultItem: @retroactive @unchecked Sendable {}
 extension VaultLogin: @retroactive @unchecked Sendable {}
+extension GroupChat: @retroactive @unchecked Sendable {}
+extension GroupChatState: @retroactive @unchecked Sendable {}

@@ -50,6 +50,7 @@ struct HomeView: View {
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
+            .navigationDestination(for: GroupRoute.self) { r in GroupChatView(home: home.home, groupId: r.groupId, name: r.name, figure: home.figure) }
             .toolbar {
                 Menu {
                     Button(tr("Passwords")) { vault = true }
@@ -83,8 +84,11 @@ struct HomeView: View {
                 .font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
                 .listRowSeparator(.hidden)
         } else if let g = state.group(key: key) {
-            ContactRow(name: g.name, sub: g.last?.text ?? "", unread: Int(g.unread), color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, asks: false,
-                       drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, state: "idle", outfit: nil, dark: true) })
+            NavigationLink(value: GroupRoute(groupId: g.id, name: g.name)) {
+                ContactRow(name: g.name, sub: g.last?.text ?? "", unread: Int(g.unread), color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, asks: false,
+                           drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, state: "idle", outfit: nil, dark: true) })
+            }
+            .navigationLinkIndicatorVisibility(.hidden)
         } else if let b = state.bot(id: key) {
             NavigationLink(value: ChatRoute(botId: b.id, name: b.name)) { ContactRow(name: b.name, sub: state.sub(b: b), unread: Int(b.unread), color: b.color, asks: state.asks(b: b),
                        drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: b.color, state: b.state, outfit: b.outfit, dark: true) }) }
