@@ -3,7 +3,7 @@ import BotdotShared
 
 /// A group's members panel, opened from its chat's title, as Android's group settings: its name, its members each
 /// with a way to take it out, "Add a bot", its notes (ADR 139), and "Delete this group", which deletes no bot. Every
-/// change saves by itself; what botdot refuses is said in its words, over the chat.
+/// change saves by itself; what botdot refuses is said in its words, here.
 struct GroupPanelView: View {
     let model: GroupChatModel
     let figure: FigureDef?
@@ -22,6 +22,9 @@ struct GroupPanelView: View {
         NavigationStack {
             Form {
                 if let s = model.state, let g = s.group {
+                    if let error = s.panelError {
+                        Text(error).foregroundStyle(.red).accessibilityIdentifier("panel-error")
+                    }
                     if s.renames {
                         TextField(tr("Name"), text: $name)
                             .focused($naming)
@@ -65,7 +68,10 @@ struct GroupPanelView: View {
                                 kindMenu(noteKind) { noteKind = $0 }
                                 TextField(tr("Add a note"), text: $noteText)
                                     .submitLabel(.done)
-                                    .onSubmit { model.addNote(kind: noteKind, noteText); noteText = "" }
+                                    .onSubmit {
+                                        let typed = noteText
+                                        Task { if await model.addNote(kind: noteKind, typed), noteText == typed { noteText = "" } }
+                                    }
                             }
                         }
                     }
@@ -89,7 +95,7 @@ struct GroupPanelView: View {
                 Button(tr("Cancel"), role: .cancel) { editing = nil }
             }
         }
-        .onAppear { name = model.state?.group?.name ?? "" }
+        .onAppear { name = model.state?.group?.name ?? ""; model.panelOpened() }
         // Renamed elsewhere: shown, unless a name is being typed here.
         .onChange(of: model.state?.group?.name) { _, now in if !typing, let now { name = now } }
         .onDisappear { if typing { model.rename(name) } } // closed with the name still typed: saved all the same

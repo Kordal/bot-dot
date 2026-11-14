@@ -64,7 +64,9 @@ final class GroupChatModel {
     func takeOut(_ botId: String) { chat.takeOut(botId: botId) }
     func add(_ botIds: [String]) { chat.add(botIds: botIds) }
     func delete() async -> Bool { (try? await chat.delete())?.boolValue ?? false }
-    func addNote(kind: String, _ typed: String) { chat.addNote(kind: kind, typed: typed) }
+    /// True once saved: the box keeps what was typed until then.
+    func addNote(kind: String, _ typed: String) async -> Bool { (try? await chat.addNote(kind: kind, typed: typed))?.boolValue ?? false }
+    func panelOpened() { chat.panelOpened() }
     func setNoteKind(_ note: GroupNote, _ kind: String) { chat.setNoteKind(note: note, kind: kind) }
     func setNoteText(_ note: GroupNote, _ typed: String) { chat.setNoteText(note: note, typed: typed) }
     func removeNote(_ note: GroupNote) { chat.removeNote(note: note) }

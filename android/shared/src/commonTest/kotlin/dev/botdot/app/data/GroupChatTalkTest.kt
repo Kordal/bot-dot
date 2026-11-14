@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
+import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -176,7 +177,7 @@ class GroupChatTalkTest {
         val (_, chat) = chat(fake, features = listOf(GroupNotes.FEATURE))
         chat.start()
         until("the notes are read") { chat.state.value.notes?.map { it.id } == listOf("n1") }
-        chat.addNote("decision", "  Ship   on Monday ")
+        assertTrue(chat.addNote("decision", "  Ship   on Monday "), "saved")
         until("the new note is in") { chat.state.value.notes?.map { it.id } == listOf("n2", "n1") } // decisions first
         assertTrue("\"text\":\"Ship on Monday\"" in fake.asked().single { it.method == "POST" }.body)
     }
@@ -231,5 +232,31 @@ class GroupChatTalkTest {
         chat.start()
         until("its stream is followed") { fake.asked().any { it.path == "/runs/r1/stream" } }
         chat.stop()
+    }
+
+    @Test fun whatBotdotRefusesInThePanelIsSaidThereAndATypedNoteIsKept() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "POST" && a.path == "/group-chats/g1/notes" -> 400 to """{"error":"That note is too long."}"""
+                a.method == "PUT" && a.path == "/group-chats/g1" -> 409 to """{"error":"A group with that name already exists."}"""
+                a.method == "DELETE" && a.path == "/group-chats/g1" -> 500 to """{"error":"Couldn't erase its chat."}"""
+                a.path == "/group-chats/g1/notes" -> 200 to """{"items":[]}"""
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
+                a.path == "/group-chats" -> 200 to """[{"id":"g1","name":"Dev","members":["b1","b2"]}]"""
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake, features = listOf(GroupNotes.FEATURE))
+        chat.start()
+        until("the notes are read") { chat.state.value.notes != null }
+        assertFalse(chat.addNote("decision", "Too long"), "not saved: the box keeps it")
+        assertEquals("That note is too long.", chat.state.value.panelError)
+        chat.rename("Dev team")
+        until("the rename is refused") { chat.state.value.panelError == "A group with that name already exists." }
+        assertFalse(chat.delete())
+        assertEquals("Couldn't erase its chat.", chat.state.value.panelError)
+        assertEquals(0, chat.state.value.noticeCount, "nothing is said over the chat, behind the panel")
+        chat.panelOpened()
+        assertNull(chat.state.value.panelError, "opened again: the old refusal is gone")
     }
 }

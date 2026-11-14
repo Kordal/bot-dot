@@ -107,6 +107,8 @@ class GroupChatState(
     val showsEmpty: Boolean,
     val notice: String?,
     val noticeCount: Int,
+    /** What the members panel's last change came to when botdot refused it, said in the panel; null for none. */
+    val panelError: String? = null,
     /** Its notes (ADR 139); null from a botdot without them, or before they are read. */
     val notes: List<GroupNote>?,
     /** The members panel: the bots that can be added, and what it can change. */
@@ -146,6 +148,7 @@ class GroupChat(
     private var files: List<Attachment> = emptyList()
     private var uploading = false
     private var notice: String? = null
+    private var panelError: String? = null
     private var noticeCount = 0
     private var notes: List<GroupNote>? = null
     private var notesAsked = false
@@ -380,18 +383,32 @@ class GroupChat(
     /** "Delete this group": the group and its chat go, no bot. True once it is gone. */
     @Throws(Exception::class)
     suspend fun delete(): Boolean {
+        panelError = null; publish()
         val r = runCatching { api.deleteGroup(groupId) }
-        r.exceptionOrNull()?.let { if (it is CancellationException) throw it; say(it.message ?: tr("Couldn't delete")); return false }
+        r.exceptionOrNull()?.let { if (it is CancellationException) throw it; failedInPanel(it.message ?: tr("Couldn't delete")); return false }
         store.groups.update { all -> all.filterNot { it.id == groupId } }
         scope.launch { store.groups.refresh() }
         return true
     }
 
-    /** A new note of [kind] ("decision", "open", "fact"). */
-    fun addNote(kind: String, typed: String) {
+    /** A new note of [kind] ("decision", "open", "fact"): true once it is saved, so the box keeps what was typed until then. */
+    @Throws(Exception::class)
+    suspend fun addNote(kind: String, typed: String): Boolean {
         val t = GroupNotes.clean(typed)
-        if (t.isNotEmpty()) noteCall { api.addGroupNote(groupId, kind, t) }
+        if (t.isEmpty()) return false
+        panelError = null; publish()
+        val r = runCatching { api.addGroupNote(groupId, kind, t) }
+        r.exceptionOrNull()?.let { if (it is CancellationException) throw it; failedInPanel(it.message ?: tr("Couldn't save")); return false }
+        notes = r.getOrNull()
+        publish()
+        return true
     }
+
+    /** The panel was opened: what an earlier change came to is not said again. */
+    fun panelOpened() { if (panelError != null) { panelError = null; publish() } }
+
+    // What botdot refused in the panel is said there, over which the chat can't be seen (Android's panel says it too).
+    private fun failedInPanel(words: String) { panelError = words; publish() }
 
     fun setNoteKind(note: GroupNote, kind: String) { if (kind != note.kind) noteCall { api.changeGroupNote(groupId, note.id, kind = kind) } }
 
@@ -405,7 +422,8 @@ class GroupChat(
 
     private fun noteCall(block: suspend () -> List<GroupNote>) {
         scope.launch {
-            runCatching { block() }.onSuccess { notes = it }.onFailure { if (it is CancellationException) throw it; say(it.message ?: tr("Couldn't save")) }
+            panelError = null
+            runCatching { block() }.onSuccess { notes = it }.onFailure { if (it is CancellationException) throw it; panelError = it.message ?: tr("Couldn't save") }
             publish()
         }
     }
@@ -416,7 +434,9 @@ class GroupChat(
 
     private fun change(block: suspend () -> Unit) {
         scope.launch {
-            runCatching { block() }.onFailure { if (it is CancellationException) throw it; say(it.message ?: tr("Couldn't save")) }
+            panelError = null
+            runCatching { block() }.onFailure { if (it is CancellationException) throw it; panelError = it.message ?: tr("Couldn't save") }
+            publish()
             store.groups.refresh()
         }
     }
@@ -501,6 +521,7 @@ class GroupChat(
             empty = if (members.isEmpty()) tr("Its bots are all gone. Add one, or delete the group.") else tr("{names}. What you write here, all of them read.", "names" to namesList(members.map { it.name })),
             notice = notice,
             noticeCount = noticeCount,
+            panelError = panelError,
             notes = notes?.takeIf { GroupNotes.FEATURE in features.orEmpty() },
             addable = g?.let { Groups.addable(it, bots).sortedBy { b -> b.name.lowercase() } }.orEmpty(),
             room = g?.let { Groups.maxOf(it) - it.members.size }?.coerceAtLeast(0) ?: 0,
