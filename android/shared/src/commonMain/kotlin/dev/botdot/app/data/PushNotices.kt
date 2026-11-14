@@ -77,13 +77,15 @@ object PushNotices {
         data class PlanDismissed(val chatId: String) : Answer()
     }
 
-    /** Sends a reply typed in the notification of [chat], with the message key [key], as its message box sends it. */
+    /** Sends a reply typed in the notification of [chat], with the message key [key], as its message box sends it. Blank: nothing. */
     @Throws(Exception::class)
     suspend fun reply(api: Api, chat: String, text: String, key: String?) {
+        val words = text.trim()
+        if (words.isEmpty()) return
         when (val to = replyTo(chat)) {
-            is ReplyTo.Chief -> api.sendToChief(to.chatId, text, emptyList(), key)
-            is ReplyTo.Bot -> api.runBot(to.id, text, emptyList(), key)
-            is ReplyTo.Group -> api.sendToGroup(to.id, text, emptyList(), key)
+            is ReplyTo.Chief -> api.sendToChief(to.chatId, words, emptyList(), key)
+            is ReplyTo.Bot -> api.runBot(to.id, words, emptyList(), key)
+            is ReplyTo.Group -> api.sendToGroup(to.id, words, emptyList(), key)
             null -> Unit
         }
     }

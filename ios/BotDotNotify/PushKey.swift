@@ -9,19 +9,27 @@ enum PushKey {
     static let service = "app.botdot.push"
     static let account = "seal-key"
 
-    /// The key, or nil before the app made one.
+    /// The key, or nil before the app made one (or while the Keychain can't be read).
     static func read() -> Data? {
+        lookUp().key
+    }
+
+    private static func lookUp() -> (key: Data?, status: OSStatus) {
         var query = item()
         query[kSecReturnData] = true
         query[kSecMatchLimit] = kSecMatchLimitOne
         var found: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &found) == errSecSuccess, let data = found as? Data, data.count == 32 else { return nil }
-        return data
+        let status = SecItemCopyMatching(query as CFDictionary, &found)
+        guard status == errSecSuccess, let data = found as? Data, data.count == 32 else { return (nil, status) }
+        return (data, status)
     }
 
-    /// The key, made now when there is none yet. nil when the Keychain refused it.
+    /// The key, made now when there is none yet. nil when the Keychain refused it: a key it only could not read now
+    /// (a locked phone) is never replaced, or the botdots that have it could no longer reach this phone.
     static func readOrMake() -> Data? {
-        if let key = read() { return key }
+        let (key, status) = lookUp()
+        if let key { return key }
+        guard status == errSecItemNotFound || status == errSecSuccess else { return nil }
         var bytes = [UInt8](repeating: 0, count: 32)
         guard SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes) == errSecSuccess else { return nil }
         var add = item()

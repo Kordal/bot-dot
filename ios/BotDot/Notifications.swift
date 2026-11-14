@@ -44,8 +44,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         self.api = api
         guard let features = try? await api.version().features, PushNotices.shared.sendsToPhones(features: features) else { return }
         guard (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) == true else { return }
-        if token != nil { await send() } // another botdot, the same token
-        UIApplication.shared.registerForRemoteNotifications()
+        UIApplication.shared.registerForRemoteNotifications() // iOS hands the token again each time: registered(token:) sends it
     }
 
     /// The token iOS gave (it may change, so it is sent on every start), or nil when it gave none.
@@ -63,7 +62,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
     /// Signing out of [api]'s botdot: it sends this phone nothing more.
     func signOut(_ api: Api) async {
         if let token { try? await api.removeApnsDevice(token: token) }
-        if self.api === api { self.api = nil }
+        if self.api?.baseUrl == api.baseUrl { self.api = nil } // a token that comes later goes nowhere
     }
 
     /// A build from Xcode has a token of Apple's development environment; TestFlight and the App Store, production.
@@ -128,9 +127,7 @@ final class Notifications: NSObject, UNUserNotificationCenterDelegate {
         guard let tag = t.tag, let api = await model?.apiNow() else { return say(tr("Not connected to botdot"), t) }
         do {
             if t.action == PushNotices.shared.REPLY {
-                let text = (t.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !text.isEmpty else { return }
-                try await PushNotices.shared.reply(api: api, chat: tag, text: text, key: UUID().uuidString.lowercased())
+                try await PushNotices.shared.reply(api: api, chat: tag, text: t.text ?? "", key: UUID().uuidString.lowercased())
             } else {
                 try await PushNotices.shared.answer(api: api, tag: tag, yes: t.action == PushNotices.shared.YES)
             }
