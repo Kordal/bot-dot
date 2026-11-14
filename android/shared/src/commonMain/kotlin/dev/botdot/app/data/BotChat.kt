@@ -187,7 +187,10 @@ class BotChat(
      */
     @Throws(Exception::class)
     suspend fun send(text: String): Boolean {
+        // Out of the box with the message, as Android's box takes them: a failed send gives them back (takeFailed),
+        // and a file picked meanwhile stays for the next message.
         val attachments = files
+        files = emptyList()
         val known = ownWords(all, queued).mapTo(HashSet()) { it.id }
         var waits = false
         val went = outbox.send(text, attachments, box = true, once = takesOnce(store.version.value.value?.features), known = known) { k ->
@@ -196,7 +199,6 @@ class BotChat(
             waits = run.isQueued
             took(run, text, attachments)
         }
-        if (went) files = emptyList()
         publish()
         refresh()
         if (waits) store.bots.refresh()
@@ -206,7 +208,7 @@ class BotChat(
     /** The box took the failed message back: its text is returned, its files are picked again. */
     fun takeFailed(): String? {
         val back = outbox.take() ?: return null
-        files = back.attachments + files
+        files = back.attachments + files.filterNot { it in back.attachments }
         publish()
         return back.text
     }
@@ -220,7 +222,7 @@ class BotChat(
         uploading = true
         publish()
         try {
-            files = files + api.upload(file, "bot:$botId")
+            pick(api.upload(file, "bot:$botId"))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -230,6 +232,9 @@ class BotChat(
             publish()
         }
     }
+
+    /** A file uploaded for the next message. */
+    internal fun pick(file: Attachment) { files = files + file; publish() }
 
     /** A picked file the owner took off the message before sending. */
     fun drop(file: Attachment) { files = files - file; publish() }
