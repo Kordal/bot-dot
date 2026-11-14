@@ -71,6 +71,8 @@ test('android: the figure opens the icons, and a pick is sent as outfit.icon', (
   assert.match(figure, /if \(tile == null\) return@lazy emptyList\(\)/);
   assert.match(screen, /clickable\(onClickLabel = tr\("Icon"\)\) \{ picking = !picking \}/);
   assert.match(screen, /if \(picking && icons\.isNotEmpty\(\)\) IconPicker\(icons, icon, color\) \{ icon = it \}/);
-  assert.match(screen, /if \(icon\.isNotEmpty\(\) && icon != iconOf\(b\.outfit\)\) put\("outfit", buildJsonObject \{ put\("icon", icon\) \}\)/);
+  // What a save sends is the phones' shared layer's (ADR 242, BotSettings.changes), which the screen calls.
+  const shared = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'BotSettings.kt'), 'utf8');
+  assert.match(shared, /if \(d\.icon\.isNotEmpty\(\) && d\.icon != iconOf\(b\.outfit\)\) put\("outfit", buildJsonObject \{ put\("icon", d\.icon\) \}\)/);
   assert.match(screen, /LaunchedEffect\(color, icon, name,/);
 });

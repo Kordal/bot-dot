@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.without
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
@@ -24,16 +25,9 @@ import androidx.compose.ui.graphics.drawscope.translate
 import dev.botdot.app.data.FigureDef
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
 import kotlin.math.PI
 import kotlin.math.sin
-
-/** The colours a bot can have (= COLORS in lib/bots.js). The Chief is coral, like the logo's dot. */
-val BotColors: List<Pair<String, String>> get() = listOf(
-    "#1d9e75" to tr("Teal"), "#378add" to tr("Blue"), "#7f77dd" to tr("Purple"), "#d4537e" to tr("Pink"),
-    "#e24b4a" to tr("Red"), "#ef9f27" to tr("Amber"), "#639922" to tr("Green"), "#888780" to tr("Grey"),
-)
 
 private const val LOOP = 36f // seconds; every period below divides it, so the loop has no jump
 

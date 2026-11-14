@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.Keypad
+import dev.botdot.app.data.without
 import dev.botdot.app.data.CHIEF_COLOR
 import dev.botdot.app.data.botAsks
 import dev.botdot.app.data.botSub
@@ -93,7 +95,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import dev.botdot.app.data.tr
-import dev.botdot.app.feed.Feed
+import dev.botdot.app.data.Feed
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonObject
@@ -354,7 +356,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         is Keypad.Key.OfBot -> k.bot.let { b ->
             val r = lastRun[b.id]
             val running = b.running || r?.isRunning == true
-            val status = Keypad.status(running, needs = asks(b) || b.id in waitingBots, unread = b.unread, last = r?.status, runs = b.runningCount, seen = Keypad.seen(b.readAt, r?.endedAt), watching = !b.nextRunAt.isNullOrEmpty())
+            val status = Keypad.botStatus(b, r, waiting = b.id in waitingBots)
             // How long it has worked, from the run that is going; a run not in the list yet: no time. Else when its last run
             // started, which stands beside "Watching" as its "last" (ADR 187).
             val time = when {
@@ -368,7 +370,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         is Keypad.Key.OfGroup -> {
             val line = groupLine(k.group, bots.orEmpty(), turnLines)
             KeyLook(k.group.name, line.text, line.color, if (line.working) "working" else "idle", who = line.who, unread = k.group.unread, asks = line.asks, members = Groups.members(k.group, bots.orEmpty()),
-                status = Keypad.status(line.working, needs = line.asks, unread = k.group.unread, last = k.group.last?.status?.ifEmpty { null }, seen = Keypad.seen(k.group.readAt, k.group.last?.at)), time = listTime(k.group.last?.at))
+                status = Keypad.groupStatus(k.group, working = line.working, asks = line.asks), time = listTime(k.group.last?.at))
         }
     }
     val openKey = { k: Keypad.Key -> when (k) { is Keypad.Key.OfBot -> onBot(k.bot.id); is Keypad.Key.OfGroup -> onGroup(k.group.id) } }

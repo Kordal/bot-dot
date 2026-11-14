@@ -155,35 +155,6 @@ struct FeedbackView: View {
     private func bytes(_ data: Data) -> KotlinByteArray { bytesOf(data: data) }
 }
 
-/// What's new after an update: the notes this person has not seen, newest first; the newest few in full, the rest as
-/// titles that open. Closing it, any way, marks them seen.
-struct WhatsNewView: View {
-    let entries: [WhatsNew.Entry]
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if let line = WhatsNew.shared.countLine(entries: entries) { Text(line).font(.subheadline).foregroundStyle(.secondary) }
-                ForEach(Array(entries.enumerated()), id: \.offset) { i, e in
-                    if WhatsNew.shared.openAtFirst(index: Int32(i)) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(e.title).font(.headline)
-                            ForEach(e.points, id: \.self) { Text("• " + $0) }
-                        }
-                    } else {
-                        DisclosureGroup(e.title) { ForEach(e.points, id: \.self) { Text("• " + $0) } }
-                    }
-                }
-            }
-            .navigationTitle(WhatsNew.shared.TITLE)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button(WhatsNew.shared.GOT_IT) { dismiss() }.accessibilityIdentifier("got-it") }
-        }
-        .presentationDetents([.medium, .large])
-    }
-}
-
 /// An account the admin paused: the front door's one sentence and its one way out. "Use another account" signs this
 /// phone out, and the sign-in follows. botdot is asked again every minute, so a resumed account opens by itself.
 struct PausedView: View {

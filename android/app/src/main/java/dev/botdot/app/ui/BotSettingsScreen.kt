@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
 import dev.botdot.app.data.scheduleWords
+import dev.botdot.app.data.without
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.clickable
@@ -52,6 +53,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Bot
+import dev.botdot.app.data.BotColors
+import dev.botdot.app.data.BotDraft
+import dev.botdot.app.data.BotSettings
+import dev.botdot.app.data.iconOf
+import dev.botdot.app.data.withIcon
 import dev.botdot.app.data.Connection
 import dev.botdot.app.data.Job
 import dev.botdot.app.data.SettingsInfo
@@ -61,12 +67,8 @@ import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 
 /**
  * A bot's settings: who it is and its main assignment, then its computer, jobs, skills, apps and teammates. Its model shows only with Advanced on (ADR 205).
@@ -124,13 +126,15 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var hotkey by remember { mutableStateOf(0) }
     var others by remember { mutableStateOf<List<Bot>>(emptyList()) }
 
+    // The settings as botdot has them, and what a save sends: the shared rules (BotSettings), the iPhone's too.
     fun fill(b: Bot) {
-        bot = b; color = b.color.orEmpty(); icon = iconOf(b.outfit); name = b.name; description = b.description; group = b.group; pinned = b.pinned > 0; task = b.prompt
-        model = b.model.orEmpty(); effort = b.effort.orEmpty(); computer = b.computer == "linux" || b.computer == "boat"; computerOn = if (b.computer == "boat") "boat" else "linux"; proxy = b.proxy
-        useSkills = b.useSkills; skills = b.skills.toSet(); disabled = b.disabledSkills.toSet(); connectors = b.connectors.toSet(); accounts = b.accounts; mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet()
-        othersMayAsk = b.othersMayAsk != false
-        rooms = b.rooms ?: dev.botdot.app.data.BotRooms()
-        hotkey = b.hotkey ?: 0
+        val d = BotSettings.draft(b, others)
+        bot = b; color = d.color; icon = d.icon; name = d.name; description = d.description; group = d.group; pinned = d.pinned; task = d.task
+        model = d.model; effort = d.effort; computer = d.computer; computerOn = d.computerOn; proxy = d.proxy
+        useSkills = d.useSkills; skills = d.skills; disabled = d.disabled; connectors = d.connectors; accounts = d.accounts; mayMessage = d.mayMessage
+        othersMayAsk = d.othersMayAsk
+        rooms = d.rooms
+        hotkey = d.hotkey
     }
 
     LaunchedEffect(api) {
@@ -154,35 +158,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     }
 
     // What differs from the bot as botdot has it: what a save sends.
-    fun changes(b: Bot) = buildJsonObject {
-            if (color != b.color.orEmpty()) put("color", color)
-            if (icon.isNotEmpty() && icon != iconOf(b.outfit)) put("outfit", buildJsonObject { put("icon", icon) }) // its hat stays
-            if (name != b.name) put("name", name)
-            if (description != b.description) put("description", description)
-            if (group != b.group) put("group", group)
-            if (pinned != (b.pinned > 0)) put("pinned", pinned) // pinning puts it last; drag it on the home screen to move it
-            if (task != b.prompt) put("prompt", task)
-            if (model != b.model.orEmpty()) put("model", model)
-            if (effort != b.effort.orEmpty()) put("effort", effort)
-            val nextComputer = if (computer) computerOn else "none"
-            if (nextComputer != b.computer) put("computer", nextComputer)
-            if (nextComputer != b.computer && moveFiles) put("moveFiles", true)
-            if (proxy != b.proxy) put("proxy", proxy)
-            if (useSkills != b.useSkills) put("useSkills", useSkills)
-            if (skills != b.skills.toSet()) put("skills", JsonArray(skills.map { JsonPrimitive(it) }))
-            if (disabled != b.disabledSkills.toSet()) put("disabledSkills", JsonArray(disabled.map { JsonPrimitive(it) }))
-            if (connectors != b.connectors.toSet()) put("connectors", JsonArray(connectors.map { JsonPrimitive(it) }))
-            if (accounts != b.accounts) put("accounts", JsonObject(accounts.mapValues { JsonPrimitive(it.value) }))
-            // Every bot may message every other since ADR 192: only a server from before limits it.
-            if ("everything-allowed" !in server?.features.orEmpty()) {
-                val everyone = others.all { it.id in mayMessage }
-                if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
-                if (!everyone && (b.mayMessageAll || mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(mayMessage.map { JsonPrimitive(it) }))
-                if (b.othersMayAsk != null && othersMayAsk != b.othersMayAsk) put("othersMayAsk", othersMayAsk)
-            }
-            b.rooms?.let { was -> dev.botdot.app.data.BotRooms.change(was, rooms)?.let { put("rooms", it) } }
-            if (b.hotkey != null && hotkey != b.hotkey) put("hotkey", hotkey)
-        }
+    fun changes(b: Bot) = BotSettings.changes(b, BotDraft(color = color, icon = icon, name = name, description = description, group = group, pinned = pinned,
+        task = task, model = model, effort = effort, computer = computer, computerOn = computerOn, moveFiles = moveFiles, proxy = proxy, useSkills = useSkills,
+        skills = skills, disabled = disabled, connectors = connectors, accounts = accounts, mayMessage = mayMessage, othersMayAsk = othersMayAsk, rooms = rooms,
+        hotkey = hotkey), server?.features, others)
     // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top; its next run uses it.
     // Changed again while it saved: what is typed stays, and the next save sends it. Else botdot's answer is shown as
     // it keeps it (a name it trimmed), so a field it changed is not sent again and again.
@@ -201,7 +180,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         val b = bot ?: return@LaunchedEffect
         val now = changes(b)
         if (name.isBlank() || now.isEmpty() || now == refused) return@LaunchedEffect
-        delay(800)
+        delay(BotSettings.SAVE_MS)
         save()
     }
 
@@ -257,7 +236,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 // Advanced (ADR 205): without it, its model is left as it is and not shown.
                 val adv by dev.botdot.app.data.Advanced.on.collectAsState()
                 if (adv) Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
-                val canThink = choices.models.firstOrNull { it.id == model }?.effort ?: true
+                val canThink = BotSettings.canThink(choices.models, model)
                 if (adv && canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
             }
             SettingsGroup {
@@ -525,13 +504,6 @@ internal fun CheckRow(label: String, sub: String?, checked: Boolean, onChange: (
         }
     }
 }
-
-/** The name of an outfit's icon, or "" when it has none. */
-internal fun iconOf(outfit: JsonElement?): String = (((outfit as? JsonObject)?.get("icon") as? JsonPrimitive)?.takeIf { it.isString }?.content).orEmpty()
-
-/** The outfit with [icon] on it (none: as it is), for drawing what a pick will look like. */
-private fun withIcon(outfit: JsonElement?, icon: String): JsonElement? =
-    if (icon.isEmpty()) outfit else JsonObject(((outfit as? JsonObject) ?: JsonObject(emptyMap())) + ("icon" to JsonPrimitive(icon)))
 
 /** A bot's icon (ADR 169): every icon of the kit on a tile in its [color], the picked one ringed. */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

@@ -458,6 +458,7 @@
   "May be in shared rooms": "Może być we wspólnych pokojach",
   "Who may mention it": "Kto może go wspominać",
   "Key on the keypad": "Klawisz na klawiaturze",
+  "Keypad": "Klawiatura",
   "By its place": "Według miejsca",
   "Now {name}'s": "Teraz {name}",
   "a script, no AI": "skrypt, bez AI",
@@ -1362,5 +1363,6 @@
   "Main assignment": "Główne zadanie",
   "Allowed tools": "Dozwolone narzędzia",
   "Schedule": "Harmonogram",
-  "That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.": "Ten adres jest na komputerze i tylko ten komputer go osiąga: telefon nie. Użyj adresu twojego botdota w twoim tailnecie, tego, który otwierasz w przeglądarce na telefonie."
+  "That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.": "Ten adres jest na komputerze i tylko ten komputer go osiąga: telefon nie. Użyj adresu twojego botdota w twoim tailnecie, tego, który otwierasz w przeglądarce na telefonie.",
+  "Photos": "Zdjęcia"
 }

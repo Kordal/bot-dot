@@ -1,5 +1,6 @@
 package dev.botdot.app
 
+import dev.botdot.app.data.without
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
@@ -44,7 +45,7 @@ import dev.botdot.app.ui.rememberSpaceWays
 import dev.botdot.app.data.Spaces
 import dev.botdot.app.ui.HomePanes
 import dev.botdot.app.ui.KeyRelay
-import dev.botdot.app.ui.Keypad
+import dev.botdot.app.data.Keypad
 import dev.botdot.app.ui.openBeside
 import dev.botdot.app.ui.LocalListToggle
 import dev.botdot.app.ui.ListGrip
@@ -569,7 +570,7 @@ class MainActivity : ComponentActivity() {
                         val id = e.arguments?.getString("id") ?: ""
                         val bots by app.store.bots.value.collectAsState()
                         val bot = bots?.firstOrNull { it.id == id }
-                        val name = bot?.let { "${it.emoji} ${it.name}" }.orEmpty()
+                        val name = bot?.let { dev.botdot.app.data.ComputerScreen.title(it) }.orEmpty()
                         if (bot?.computer == "boat") BoatScreen(app, id, name) { nav.popBackStack() } else LiveScreen(app, id, name) { nav.popBackStack() }
                     }
                     composable("settings") {

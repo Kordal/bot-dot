@@ -15,7 +15,7 @@ final class HomeModel {
     /// What the front door offers this account (deleting it, Feedback), read once its features are known.
     private(set) var offers: FrontDoorOffers?
     /// The notes of the releases this person has not seen (What's new), shown once.
-    var whatsNew: [WhatsNew.Entry] = []
+    private(set) var whatsNew: [WhatsNew.Entry] = []
     /// The first run's question for the Chief's name (ChiefName.firstRun).
     var askName = false
 
@@ -76,6 +76,7 @@ final class HomeModel {
         }
     }
 
+
     private func show(_ s: HomeState) {
         state = s
         order = Self.order(s)
@@ -109,7 +110,7 @@ final class HomeModel {
     }
 
     /// What's new closed, any way: its notes are seen, here and in every other app.
-    func whatsNewSeen() {
+    func whatsNewClosed() {
         let shown = whatsNew
         whatsNew = []
         Task { [home] in try? await WhatsNew.shared.seen(api: home.api, entries: shown) }

@@ -90,8 +90,9 @@ test("a bot changes its own tile with change_tile, in a run the owner started, a
 test('web and Android ask before a tap of a tile with confirm', () => {
   const web = fs.readFileSync(path.join(ROOT, 'public/board.js'), 'utf8');
   assert.match(web, /const sure = tileAsksFirst\(t, tap, on\);\n  if \(sure && !\(await askFirst\(sure\.question, sure\.yes, \{ danger: sure\.danger \}\)\)\) return;\n  if \(tap === 'toggle'\)/, 'asked before the switch moves');
-  const kt = fs.readFileSync(path.join(ROOT, 'android/app/src/main/java/dev/botdot/app/ui/DashboardScreen.kt'), 'utf8');
-  assert.match(kt, /if \(!asked && tileAsksFirst\(t\.confirm, how, on\)\) \{ sure = t to on; return \}/);
+  // Whether a tap asks first is the phones' shared layer's (ADR 242, BoardTap.of); Android's Board asks on its Ask.
+  const kt = fs.readFileSync(path.join(ROOT, 'android/shared/src/commonMain/kotlin/dev/botdot/app/data/Board.kt'), 'utf8');
+  assert.match(kt, /return if \(!asked && tileAsksFirst\(t\.confirm, how, on\)\) Ask\(on\) else Send\(on\)/);
   // The question as the web page asks it.
   const vm = require('vm');
   const fn = web.slice(web.indexOf('function tileAsksFirst'), web.indexOf('async function tapTile'));
