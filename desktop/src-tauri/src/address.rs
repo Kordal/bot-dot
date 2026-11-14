@@ -3,13 +3,12 @@
 use tauri::Url;
 
 /// The origin of what was typed: `https` unless it says otherwise, and `http` only on this computer, since a passkey
-/// needs a secure page and the session's cookie must not cross a network in the clear (ADR 137). A phone runs no
-/// botdot, so on iOS it is `https` only (ADR 151).
+/// needs a secure page and the session's cookie must not cross a network in the clear (ADR 137).
 pub fn parse(text: &str) -> Option<Url> {
     let text = text.trim();
     let with_scheme = if text.contains("://") { text.to_string() } else { format!("https://{text}") };
     let url = Url::parse(&with_scheme).ok()?;
-    let loopback = cfg!(desktop) && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
+    let loopback = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
     let allowed = url.scheme() == "https" || (url.scheme() == "http" && loopback);
     if !allowed || !url.has_host() || !url.username().is_empty() || url.password().is_some() {
         return None;

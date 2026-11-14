@@ -127,7 +127,7 @@ The server itself has no npm dependencies.
 | Java | 17 bytecode, JDK 21 in CI | `android/app/build.gradle.kts:129`, `.github/workflows/android.yml:76` | n/a | ok |
 | Emulator API in CI | 35 | `.github/workflows/tests.yml:200` | n/a | ok |
 
-## Desktop and iOS (Tauri 2, `desktop/`)
+## Desktop (Tauri 2, `desktop/`)
 
 Versions from `desktop/src-tauri/Cargo.lock`; `Cargo.toml` holds semver ranges.
 
@@ -150,7 +150,7 @@ Versions from `desktop/src-tauri/Cargo.lock`; `Cargo.toml` holds semver ranges.
 | base64 | 0.22.1 (`"0.22"`) | 0.23.1 | behind (minor, breaking) |
 | getrandom | 0.3.4 (`"0.3"`) | 0.4.3 | behind (minor, breaking) |
 | sys-locale | 0.3.2 | 0.3.2 | ok |
-| Tauri CLI | `@tauri-apps/cli@2.12.4` (`.github/workflows/desktop.yml:30`, `ios.yml:20`, `desktop-release.yml:103`) | 2.12.4 | ok |
+| Tauri CLI | `@tauri-apps/cli@2.12.4` (`.github/workflows/desktop.yml:30`, `desktop-release.yml:103`) | 2.12.4 | ok |
 | Lima (local Mac server) | 2.2.1 (`desktop/lima.sh:6`) | 2.2.1 | ok |
 | Rust toolchain | 1.99.1 (`desktop/src-tauri/rust-toolchain.toml`, CI and local builds) | 1.99.1 | ok |
 

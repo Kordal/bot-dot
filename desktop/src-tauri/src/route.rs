@@ -31,12 +31,6 @@ pub fn left_door(door: &Url, shown: &Url) -> bool {
     web(shown) && !same_origin(door, shown) && shown.host_str() != Some("tauri.localhost")
 }
 
-/// A sign-up link of the front door in the window: on iOS it opens in Safari, not in the app (#965), so a new account
-/// is made there and not in the window of the account signed in.
-pub fn sign_up(door: &Url, shown: &Url) -> bool {
-    same_origin(door, shown) && shown.path().starts_with("/sign-up/")
-}
-
 /// What a link that opens a new window does. `about:blank` is a window too: the page opens one and then gives it an
 /// address, and `left_door` closes it if that is another site.
 pub fn new_window(door: &Url, to: &Url) -> Window {
@@ -60,29 +54,6 @@ pub fn shows_in_app(door: &Url, shown: &Url) -> bool {
     web(shown) && same_origin(door, shown)
 }
 
-/// On iOS a page can't open a window of its own: wry has no new windows there. A link that would open one, or
-/// `window.open` with an address, goes in this window instead, where `left_door` sends another site to Safari.
-/// `window.open('about:blank')` gives `null`, and the page's own code then goes itself. Only the window's own page,
-/// not its frames. A desktop opens windows (`new_window`) and needs nothing.
-#[cfg(mobile)]
-pub const NEW_WINDOWS_IN_PLACE: &str = r#"(() => {
-  const go = (to) => {
-    try {
-      const url = new URL(to, location.href);
-      if (url.protocol === 'https:' || url.protocol === 'http:') location.assign(url.href);
-    } catch {}
-  };
-  window.open = (to) => { if (to && String(to) !== 'about:blank') go(String(to)); return null; };
-  addEventListener('click', (event) => {
-    const link = event.target instanceof Element && event.target.closest('a[target="_blank"]');
-    if (!link || !link.href || event.defaultPrevented || link.hasAttribute('download')) return;
-    event.preventDefault();
-    go(link.href);
-  });
-})();"#;
-#[cfg(desktop)]
-pub const NEW_WINDOWS_IN_PLACE: &str = "";
-
 /// Where a notification's target opens on a page loaded for it, as the service worker opens it (`public/sw.js`).
 pub fn fragment_of(target: &str) -> String {
     let id_ok = |id: &str| !id.is_empty() && id.len() <= 80 && id.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-'));
@@ -97,16 +68,6 @@ pub fn fragment_of(target: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn only_the_front_doors_own_sign_up_links_are_sign_ups() {
-        let door = Url::parse("https://botdot.example.com/").unwrap();
-        let is = |to: &str| sign_up(&door, &Url::parse(to).unwrap());
-        assert!(is("https://botdot.example.com/sign-up/abc"));
-        assert!(!is("https://botdot.example.com/sign-in"));
-        assert!(!is("https://botdot.example.com/sign-up"));
-        assert!(!is("https://other.example.com/sign-up/abc"));
-    }
 
     #[test]
     fn a_target_opens_where_a_push_opens_it() {
