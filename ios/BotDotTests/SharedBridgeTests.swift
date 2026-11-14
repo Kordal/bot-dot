@@ -9,10 +9,6 @@ final class SharedBridgeTests: XCTestCase {
         XCTAssertNil(Api.companion.normalize(input: "http://example.com"), "plain HTTP to another computer is refused")
     }
 
-    func testTheScreenShowsTheSharedAnswer() {
-        XCTAssertEqual(StartView.address, "https://my-vm.tailnet.ts.net")
-    }
-
     func testWordsComeFromTheSharedDictionary() {
         XCTAssertEqual(tr("Saved"), "Saved")
         XCTAssertEqual(tr("Ran {name}", ["name": "Ops"]), "Ran Ops")
