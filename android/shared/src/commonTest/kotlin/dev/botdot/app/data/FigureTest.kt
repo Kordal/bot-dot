@@ -8,21 +8,19 @@ import kotlinx.serialization.json.double
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertArrayEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
-import org.junit.Test
-import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
+import kotlin.test.assertFailsWith
 
 /**
  * A bot drawn from the definition the app bundles, the server's own lib/figure.json (ADR 003, ADR 004, ADR 169): the
  * head, as apps from before the tile read it (the definition without `tile`), and the tile.
  */
 class FigureTest {
-    private val text = File(System.getProperty("figureDefinition") ?: "../../lib/figure.json").readText()
+    private val text = fixture("figureDefinition")
     private val full = Json.parseToJsonElement(text).jsonObject
     private val raw = JsonObject(full - "tile")
     private val def = FigureDef.parse(raw.toString())
@@ -50,7 +48,7 @@ class FigureTest {
         return p
     }
 
-    @Test fun `a bot's picture holds its head, and its hat whole, inside the circle a notification crops it to`() {
+    @Test fun `a bot's picture holds its head and its hat whole inside the circle a notification crops it to`() {
         // Each point of a mark, with the room its stroke takes.
         fun reach(marks: List<Mark>) = marks.flatMap { m ->
             when (m) {
@@ -59,9 +57,9 @@ class FigureTest {
             }
         }
         fun holds(view: FloatArray, marks: List<Mark>) {
-            assertEquals("a square", view[2], view[3], 0.001f)
+            assertEquals(view[2], view[3], 0.001f, "a square")
             val (cx, cy, r) = Triple(view[0] + view[2] / 2, view[1] + view[3] / 2, view[2] / 2)
-            for ((x, y, room) in reach(marks)) assertTrue("($x, $y) is inside", kotlin.math.hypot(x - cx, y - cy) + room <= r + 0.001f)
+            for ((x, y, room) in reach(marks)) assertTrue(kotlin.math.hypot(x - cx, y - cy) + room <= r + 0.001f, "($x, $y) is inside")
         }
         // Without a hat (never given one, taken off, or one this app can't draw): the bare head fills the picture.
         for (outfit in listOf(null, json("""{"hat":""}"""), json("""{"hat":"no-such-hat"}"""))) {
@@ -72,18 +70,18 @@ class FigureTest {
             val hat = def.hat(json("""{"hat":"$name"}"""))
             val view = def.portrait(hat)
             holds(view, listOf<Mark>(def.head) + hat)
-            assertTrue(name, view[2] >= 15f)
+            assertTrue(view[2] >= 15f, name)
         }
         val chief = def.portrait(def.hat(FigureDef.CHIEF))
         holds(chief, listOf<Mark>(def.head) + def.hat(FigureDef.CHIEF))
-        assertTrue("the top hat reaches above the head", chief[1] < 9f && chief[2] > 15f)
+        assertTrue(chief[1] < 9f && chief[2] > 15f, "the top hat reaches above the head")
         // A hat the Chief drew, and the built-in bare head.
         val drawn = def.hat(json("""{"hat":{"shapes":[{"shape":"line","x1":1,"y1":1,"x2":9,"y2":1,"stroke":"deep","width":2}]}}"""))
         holds(def.portrait(drawn), listOf<Mark>(def.head) + drawn)
         assertArrayEquals(floatArrayOf(4.5f, 9f, 15f, 15f), FigureDef.BARE.portrait(emptyList()), 0.001f)
     }
 
-    @Test fun `the bundled definition parses - the head, the tones, the six states, every kit hat and the Chief's`() {
+    @Test fun `the bundled definition parses - the head the tones the six states every kit hat and the Chief's`() {
         assertEquals(24f to 24f, def.box)
         assertEquals(Mark.Disc(12f, 16.5f, 7.5f, Tone.MAIN, null, 0f), def.head)
         assertEquals(0xffffff, def.white)
@@ -93,18 +91,18 @@ class FigureTest {
         for (s in six) assertEquals(s, def.stateName(s))
         // Every kit hat can be drawn by this app, shape for shape.
         assertTrue(hats().size >= 20)
-        for ((name, piece) in hats()) assertEquals(name, piece.jsonObject["shapes"]!!.jsonArray.size, def.hat(json("""{"hat":"$name"}""")).size)
+        for ((name, piece) in hats()) assertEquals(piece.jsonObject["shapes"]!!.jsonArray.size, def.hat(json("""{"hat":"$name"}""")).size, name)
         // The Chief of Staff wears the hat the definition gives it.
         val chief = raw["chief"]!!.jsonObject["outfit"]!!
         assertTrue(def.hat(FigureDef.CHIEF).isNotEmpty())
         assertEquals(def.hat(chief).size, def.hat(FigureDef.CHIEF).size)
     }
 
-    @Test fun `each state's face is the definition's, shape for shape`() {
+    @Test fun `each state's face is the definition's shape for shape`() {
         for (s in six) {
             val face = def.face(s)
-            assertEquals(s, state(s)["eyes"]!!.jsonArray.size, face.eyes.size)
-            assertEquals(s, state(s)["pupils"]!!.jsonArray.size, face.pupils.size)
+            assertEquals(state(s)["eyes"]!!.jsonArray.size, face.eyes.size, s)
+            assertEquals(state(s)["pupils"]!!.jsonArray.size, face.pupils.size, s)
         }
         // Idle: two white eyes, two ink pupils in their middle.
         assertEquals(listOf(Mark.Disc(8.8f, 17.1f, 2.2f, Tone.WHITE, null, 0f), Mark.Disc(15.2f, 17.1f, 2.2f, Tone.WHITE, null, 0f)), def.face("idle").eyes)
@@ -126,16 +124,16 @@ class FigureTest {
         assertEquals(6, six.map { s -> (def.face(s).eyes + def.face(s).pupils).joinToString(transform = ::key) }.toSet().size)
     }
 
-    @Test fun `the still pose of each state is the definition's, and what a pose leaves out rests`() {
+    @Test fun `the still pose of each state is the definition's and what a pose leaves out rests`() {
         val rest = Place()
         assertEquals(Place(0.0, 0.0, 0.0, 1.0, 1.0), rest)
-        for (s in listOf("idle", "needs_you", "paused")) def.layers(s).let { l -> assertEquals(s, listOf(rest, rest, rest), listOf(l.head, l.eyes, l.pupils)) }
+        for (s in listOf("idle", "needs_you", "paused")) def.layers(s).let { l -> assertEquals(listOf(rest, rest, rest), listOf(l.head, l.eyes, l.pupils), s) }
         def.layers("working").let { l -> assertEquals(listOf(rest, rest, Place(moveX = -1.1)), listOf(l.head, l.eyes, l.pupils)) }
         def.layers("waiting").let { l -> assertEquals(listOf(Place(turn = -6.0), Place(2.0, -0.5), Place(1.0, -0.5)), listOf(l.head, l.eyes, l.pupils)) }
         def.layers("failed").let { l -> assertEquals(listOf(Place(turn = 12.0), rest, rest), listOf(l.head, l.eyes, l.pupils)) }
     }
 
-    @Test fun `a layer puts a point at move + pivot + R(turn) S(scale) (p - pivot)`() {
+    @Test fun `a layer puts a point at move + pivot + Rturn Sscale p - pivot`() {
         assertArrayEquals(floatArrayOf(1f, 0f, 0f, 1f, 0f, 0f), Place().matrix(12.0, 16.5), 0f)
         assertArrayEquals(floatArrayOf(1f, 0f, 0f, 1f, 3f, -2f), Place(3.0, -2.0).matrix(12.0, 16.5), 0f)
         // A blink: the eyes close to a tenth of their height about the middle between them.
@@ -148,13 +146,13 @@ class FigureTest {
         assertEquals(16.5 + 2.0 + 3.0, m[1] * 15.0 + m[3] * 16.5 + m[5], 1e-5)
         // A pupil goes through all three: waiting moves it with the pupils, then with the eyes, then the head leans.
         val (x, y) = through(def.layers("waiting"), 8.7, 17.1)
-        val lean = Math.toRadians(-6.0)
+        val lean = -6.0 * kotlin.math.PI / 180
         val (dx, dy) = (8.7 + 1 + 2 - 12) to (17.1 - 0.5 - 0.5 - 16.5)
-        assertEquals(12 + dx * Math.cos(lean) - dy * Math.sin(lean), x, 1e-5)
-        assertEquals(16.5 + dx * Math.sin(lean) + dy * Math.cos(lean), y, 1e-5)
+        assertEquals(12 + dx * kotlin.math.cos(lean) - dy * kotlin.math.sin(lean), x, 1e-5)
+        assertEquals(16.5 + dx * kotlin.math.sin(lean) + dy * kotlin.math.cos(lean), y, 1e-5)
     }
 
-    @Test fun `a movement goes from key to key with the web page's easing, each number on its own, and loops`() {
+    @Test fun `a movement goes from key to key with the web page's easing each number on its own and loops`() {
         assertEquals(0.0, FigureDef.easeInOut(0.0), 0.0)
         assertEquals(0.5, FigureDef.easeInOut(0.5), 1e-6)
         assertEquals(1.0, FigureDef.easeInOut(1.0), 0.0)
@@ -187,10 +185,10 @@ class FigureTest {
         assertEquals(def.layers("paused").eyes, def.layers("paused", 3.3).eyes)
     }
 
-    @Test fun `an idle head asks for frames only while it blinks, a paused one for none`() {
+    @Test fun `an idle head asks for frames only while it blinks a paused one for none`() {
         assertNull(def.nextMove("paused", 12.0))
         // Idle holds from 0 to 4.5 s of its 5 s, then closes its eyes (0.2 s) and opens them (0.3 s).
-        fun near(wait: Double, run: Double, at: Double) = def.nextMove("idle", at)!!.let { (w, r) -> assertEquals("wait at $at", wait, w, 1e-9); assertEquals("run at $at", run, r, 1e-9) }
+        fun near(wait: Double, run: Double, at: Double) = def.nextMove("idle", at)!!.let { (w, r) -> assertEquals(wait, w, 1e-9, "wait at $at"); assertEquals(run, r, 1e-9, "run at $at") }
         near(4.5, 0.2, 0.0)
         near(1.5, 0.2, 3.0)
         near(1.5, 0.2, 103.0) // twenty loops on
@@ -216,7 +214,7 @@ class FigureTest {
         assertEquals(1f, def.opacity("dancing"))
     }
 
-    @Test fun `a hat sits with its origin on the top of the head, drawn as large as the definition says`() {
+    @Test fun `a hat sits with its origin on the top of the head drawn as large as the definition says`() {
         // A point q of a hat lands at at + scale × (q − origin): at (12, 9), 2.6 times, origin (5, 3.5).
         val hat = def.hat(json("""{"hat":"top-hat"}"""))
         assertEquals(listOf(Tone.DEEP, Tone.DEEP, Tone.MAIN), hat.map { it.fill })
@@ -229,7 +227,7 @@ class FigureTest {
         same(dot.x, 12.0); same(dot.y, 9 + 2.6 * (3 - 3.5)); same(dot.r, 2.6 * 0.65)
     }
 
-    @Test fun `a hat the definition lacks is skipped, and so is one with a shape or a tone this app doesn't know`() {
+    @Test fun `a hat the definition lacks is skipped and so is one with a shape or a tone this app doesn't know`() {
         for (none in listOf("null", """{"hat":""}""", "{}", """"cap"""", """{"hat":7}""", """{"hat":["cap"]}""", """{"hat":"no-such-hat"}""", """{"hat":null}""", """{"hat":{"shapes":"M0 0"}}""",
             """{"hat":{"shapes":[{"shape":"path","d":"M0 0L1 1","fill":"main"}]}}""", """{"hat":{"shapes":[{"shape":"circle","cx":"5","cy":3,"r":1,"fill":"main"}]}}""",
             """{"hat":{"shapes":[{"shape":"circle","cx":5,"cy":3,"r":1}]}}""", """{"hat":{"shapes":[{"shape":"path","d":[["M",1,1],["A",1,1]],"fill":"main"}]}}""",
@@ -238,12 +236,12 @@ class FigureTest {
             // The white and the ink are the face's: a hat is in the bot's two tones. One tone it knows and one it doesn't is still not drawn.
             """{"hat":{"shapes":[{"shape":"circle","cx":5,"cy":3,"r":1,"fill":"white"}]}}""",
             """{"hat":{"shapes":[{"shape":"circle","cx":5,"cy":3,"r":1,"fill":"main","stroke":"gold","width":1}]}}""")) {
-            assertEquals(none, emptyList<Mark>(), def.hat(json(none)))
+            assertEquals(emptyList<Mark>(), def.hat(json(none)), none)
         }
         assertEquals(emptyList<Mark>(), def.hat(null))
     }
 
-    @Test fun `a hat the Chief drew is drawn like a kit hat, shape for shape`() {
+    @Test fun `a hat the Chief drew is drawn like a kit hat shape for shape`() {
         val inline = json("""{"hat":{"shapes":[
             {"shape":"circle","cx":5,"cy":3.5,"r":1,"fill":"deep"},
             {"shape":"rect","x":1,"y":1,"w":4,"h":2,"fill":"main"},
@@ -268,8 +266,8 @@ class FigureTest {
         assertEquals(listOf("MQQZ", "MQZ"), straw.map(::ops))
     }
 
-    @Test fun `a definition this app can't draw from is refused, so the app keeps the copy it has`() {
-        fun refused(why: String, change: (MutableMap<String, JsonElement>) -> Unit) = assertThrows(why, IllegalArgumentException::class.java) { FigureDef.parse(changed(change)) }
+    @Test fun `a definition this app can't draw from is refused so the app keeps the copy it has`() {
+        fun refused(why: String, change: (MutableMap<String, JsonElement>) -> Unit) = assertFailsWith<IllegalArgumentException>(why) { FigureDef.parse(changed(change)) }
         fun states(extra: String) = JsonObject(raw["states"]!!.jsonObject + ("extra" to json(extra)))
         refused("the stick figure's version") { it["version"] = json("1") }
         refused("a later version") { it["version"] = json("3") }
@@ -296,7 +294,7 @@ class FigureTest {
         refused("a loop that jumps") { it["states"] = states("""{"eyes":[],"pupils":[],"move":{"seconds":1,"easing":"linear","keys":[{"at":0},{"at":1,"head":{"turn":4}}]}}""") }
         refused("keys go up") { it["states"] = states("""{"eyes":[],"pupils":[],"move":{"seconds":1,"easing":"linear","keys":[{"at":0},{"at":0.6},{"at":0.4},{"at":1}]}}""") }
         refused("opacity") { it["states"] = states("""{"eyes":[],"pupils":[],"opacity":2}""") }
-        assertThrows(Exception::class.java) { FigureDef.parse("<html>") }
+        assertFailsWith<Exception> { FigureDef.parse("<html>") }
         // Keys it doesn't know are ignored; without a kit, an attachment and a Chief's outfit, bots are heads without hats.
         val hatless = FigureDef.parse(changed { it.remove("kit"); it.remove("chief"); it.remove("attach"); it["later"] = json("""{"anything":[1,2]}""") })
         assertEquals(emptyList<Mark>(), hatless.hat(json("""{"hat":"cap"}""")))
@@ -309,30 +307,30 @@ class FigureTest {
 
     /** The table the web page and the Mac are checked against too (test/fixtures/figure-cases.json). */
     @Test fun `the definitions every app must take alike are taken so here`() {
-        val cases = Json.parseToJsonElement(File(System.getProperty("figureCases") ?: "../../test/fixtures/figure-cases.json").readText()).jsonObject["cases"]!!.jsonArray
+        val cases = Json.parseToJsonElement(fixture("figureCases")).jsonObject["cases"]!!.jsonArray
         assertTrue(cases.size >= 15)
         for (c in cases.map { it.jsonObject }) {
             val what = c["what"]!!.jsonPrimitive.content
             // The state as it is written in the table: 0.0 and 1e0 reach the app as they stand.
             val text = changed { it["states"] = JsonObject(raw["states"]!!.jsonObject + ("extra" to c["state"]!!)) }
             if (!c["accepted"]!!.jsonPrimitive.boolean) {
-                assertThrows(what, IllegalArgumentException::class.java) { FigureDef.parse(text) }
+                assertFailsWith<IllegalArgumentException>(what) { FigureDef.parse(text) }
                 continue
             }
             val read = try { FigureDef.parse(text) } catch (e: IllegalArgumentException) { throw AssertionError("$what: ${e.message}") }
-            assertEquals(what, "extra", read.stateName("extra"))
-            assertEquals(what, c["moves"]!!.jsonPrimitive.boolean, read.nextMove("extra", 0.0) != null)
+            assertEquals("extra", read.stateName("extra"), what)
+            assertEquals(c["moves"]!!.jsonPrimitive.boolean, read.nextMove("extra", 0.0) != null, what)
         }
     }
 
-    @Test fun `the deep tone is the colour mixed 45 percent towards black, or towards white on a dark background`() {
+    @Test fun `the deep tone is the colour mixed 45 percent towards black or towards white on a dark background`() {
         assertEquals(0x1e4c7a, FigureDef.deep(0x378add, dark = false))
         assertEquals(0x91bfec, FigureDef.deep(0x378add, dark = true))
         assertEquals(0x000000, FigureDef.deep(0x000000, dark = false))
         assertEquals(0xffffff, FigureDef.deep(0xffffff, dark = true))
     }
 
-    @Test fun `no definition at all - one bare head looking ahead, with no states, no movement and no hat`() {
+    @Test fun `no definition at all - one bare head looking ahead with no states no movement and no hat`() {
         val bare = FigureDef.BARE
         // The numbers ADR 003 fixes for every app; the same head as the web page's built-in one (BARE in public/figure.js).
         assertEquals(24f to 24f, bare.box)
@@ -350,7 +348,7 @@ class FigureTest {
         assertEquals(listOf(0f, 0f, 24f, 24f), bare.small.toList())
     }
 
-    @Test fun `the small mark shows the part of the box the definition says, or the whole box`() {
+    @Test fun `the small mark shows the part of the box the definition says or the whole box`() {
         assertEquals(raw["small"]!!.jsonObject["view"]!!.jsonArray.map { it.jsonPrimitive.double.toFloat() }, def.small.toList())
         same(def.smallAspect, 1.0)
         val old = FigureDef.parse(changed { it.remove("small") })
@@ -359,11 +357,11 @@ class FigureTest {
         assertEquals(listOf(6f, 2f, 12f, 20f), told.small.toList())
         same(told.smallAspect, 0.6)
         for (bad in listOf("null", "{}", """{"view":[0,0,0,1]}""", """{"view":[0,0,1]}""", """{"view":"0 0 1 1"}""")) {
-            assertThrows(bad, IllegalArgumentException::class.java) { FigureDef.parse(changed { it["small"] = json(bad) }) }
+            assertFailsWith<IllegalArgumentException>(bad) { FigureDef.parse(changed { it["small"] = json(bad) }) }
         }
     }
 
-    @Test fun `a bot's outfit comes with the bot - a server that sends none leaves a bare head, and a held object is ignored`() {
+    @Test fun `a bot's outfit comes with the bot - a server that sends none leaves a bare head and a held object is ignored`() {
         val bots = Api.JSON.decodeFromString<List<Bot>>("""[
             {"id":"a","name":"Old server"},
             {"id":"b","name":"Never dressed","outfit":null},
@@ -378,7 +376,7 @@ class FigureTest {
         assertNotNull(bots[2].outfit)
     }
 
-    @Test fun `with a tile a bot is its icon on a tile in its muted colour, and its state a ring or a dot`() {
+    @Test fun `with a tile a bot is its icon on a tile in its muted colour and its state a ring or a dot`() {
         val t = tiled.tile!!
         assertArrayEquals(floatArrayOf(2f, 2f, 20f, 20f, 6f), t.rect, 0.001f)
         assertEquals(0x258666, t.muted(0x1d9e75))
@@ -387,15 +385,15 @@ class FigureTest {
         fun size(name: String) = icons()[name]!!.jsonObject["shapes"]!!.jsonArray.size
         assertEquals(size("news"), tiled.icon(json("""{"icon":"news","hat":"cap"}""")).size)
         assertEquals(size("food"), tiled.icon(json("""{"hat":"chef"}""")).size)
-        for (none in listOf("""{"hat":""}""", """{"icon":"unicorn"}""", "null")) assertEquals(none, size("spark"), tiled.icon(json(none)).size)
+        for (none in listOf("""{"hat":""}""", """{"icon":"unicorn"}""", "null")) assertEquals(size("spark"), tiled.icon(json(none)).size, none)
         assertEquals(size("spark"), tiled.icon(null).size)
         assertEquals(size("compass"), tiled.icon(FigureDef.CHIEF).size)
         assertEquals(size("news"), tiled.wears(json("""{"icon":"news"}""")).size)
-        assertEquals("without a tile a bot wears its hat", def.hat(json("""{"hat":"cap"}""")).size, def.wears(json("""{"hat":"cap"}""")).size)
+        assertEquals(def.hat(json("""{"hat":"cap"}""")).size, def.wears(json("""{"hat":"cap"}""")).size, "without a tile a bot wears its hat")
         // The icon is placed in the middle of the tile, half as large as its own box.
         val xs = tiled.icon(json("""{"icon":"server"}""")).flatMap { m -> if (m is Mark.Outline) m.steps.flatMap { s -> s.at.filterIndexed { i, _ -> i % 2 == 0 }.toList() } else listOf((m as Mark.Disc).x) }
         assertTrue(xs.all { it in 6f..18f })
-        assertNull("a working bot says so in words, not with a ring", tiled.signal("working"))
+        assertNull(tiled.signal("working"), "a working bot says so in words, not with a ring")
         assertEquals(Signal(0x5fb98f, null), ringed.signal("working"))
         assertEquals(Signal(null, 0xe0a23a), tiled.signal("needs_you"))
         assertEquals(Signal(null, 0xd9534f), tiled.signal("failed"))
@@ -409,22 +407,22 @@ class FigureTest {
         fun with(key: String, v: String) = JsonObject(full + ("tile" to JsonObject(tile + (key to json(v))))).toString()
         for ((key, bad) in listOf("rect" to """{"x":2,"y":2,"w":0,"h":20,"r":6}""", "mute" to """{"toward":"grey","by":0.2}""", "ink" to "\"white\"",
                 "ring" to """{"r":12,"width":1,"arc":0.2,"seconds":0}""", "states" to """{"working":{"ring":"url(#x)"}}""", "states" to """{"working":{"glow":"#ffffff"}}""", "small" to """{"view":[0,0]}""")) {
-            assertThrows("$key $bad", IllegalArgumentException::class.java) { FigureDef.parse(with(key, bad)) }
+            assertFailsWith<IllegalArgumentException>("$key $bad") { FigureDef.parse(with(key, bad)) }
         }
     }
 
-    @Test fun `a tile moves once for a change of state, as the web page does, and then holds still`() {
+    @Test fun `a tile moves once for a change of state as the web page does and then holds still`() {
         val m = tiled.tile!!.motion!!
         // The ring comes in eased from nothing, and the old one goes when the run ends.
-        assertNull("the first state is just drawn", tiled.moment("idle", "idle", 0.0, false))
+        assertNull(tiled.moment("idle", "idle", 0.0, false), "the first state is just drawn")
         same(ringed.moment("idle", "working", 0.0, false)!!.ring, 0.0)
         assertTrue(ringed.moment("idle", "working", 0.13, false)!!.ring in 0.5f..1f)
-        assertNull("after the move, drawn still", ringed.moment("idle", "working", m.longest, false))
-        assertNull("with no ring for working, starting work moves nothing", tiled.moment("idle", "working", 0.13, false))
+        assertNull(ringed.moment("idle", "working", m.longest, false), "after the move, drawn still")
+        assertNull(tiled.moment("idle", "working", 0.13, false), "with no ring for working, starting work moves nothing")
         val gone = ringed.moment("working", "paused", 0.05, false)!!
         assertEquals(0x5fb98f, gone.ringWasColor)
         assertTrue(gone.ringWas in 0f..1f)
-        assertTrue("paused fades in", gone.opacity!! < 1f && gone.opacity!! > 0.4f)
+        assertTrue(gone.opacity!! < 1f && gone.opacity!! > 0.4f, "paused fades in")
         // A run that ended well: the icon gives way to a check drawn once, then comes back.
         val f = { t: Double -> tiled.moment("working", "idle", t * 1.14, false)!! }
         same(f(0.0).icon, 1.0)
@@ -433,13 +431,13 @@ class FigureTest {
         same(f(0.6).check, 1.0)
         same(f(0.6).checkAlpha, 1.0)
         assertTrue(f(0.99).icon > 0.9f)
-        assertNull("a run that stopped otherwise draws no check", tiled.moment("working", "waiting", 0.5, false)?.takeIf { it.check > 0f })
+        assertNull(tiled.moment("working", "waiting", 0.5, false)?.takeIf { it.check > 0f }, "a run that stopped otherwise draws no check")
         // A dot grows in, past its size and back; needs you sends one pulse after it.
         val dot = tiled.moment("idle", "needs_you", 0.2, false)!!
         assertTrue(dot.dot > 1f)
-        assertEquals("the pulse waits for the dot", 0f, tiled.moment("idle", "needs_you", 0.1, false)!!.pulse)
+        assertEquals(0f, tiled.moment("idle", "needs_you", 0.1, false)!!.pulse, "the pulse waits for the dot")
         assertTrue(tiled.moment("idle", "needs_you", 0.5, false)!!.pulse!! in 0f..1f)
-        assertNull("waiting sends none", tiled.moment("idle", "waiting", 0.5, false)?.pulse)
+        assertNull(tiled.moment("idle", "waiting", 0.5, false)?.pulse, "waiting sends none")
         // Animations off: what comes or goes only fades, quickly, and nothing pulses.
         val calm = tiled.moment("idle", "needs_you", 0.06, true)!!
         assertTrue(calm.dotFades)
@@ -456,7 +454,7 @@ class FigureTest {
         val motion = tile["motion"]!!.jsonObject
         fun with(key: String, v: String) = JsonObject(full + ("tile" to JsonObject(tile + ("motion" to JsonObject(motion + (key to json(v))))))).toString()
         for ((key, bad) in listOf("easing" to """{"out":[0,0,1]}""", "done" to """{"from":"working","to":"dancing"}""", "press" to "2", "ring" to """{"in":0}""")) {
-            assertThrows("$key $bad", IllegalArgumentException::class.java) { FigureDef.parse(with(key, bad)) }
+            assertFailsWith<IllegalArgumentException>("$key $bad") { FigureDef.parse(with(key, bad)) }
         }
     }
 }

@@ -3,11 +3,11 @@ package dev.botdot.app.data
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
-import org.junit.Test
-import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /** The Mention rules, from the table every app is checked against (test/fixtures/mentions.json; see its "about"). */
 class MentionsTest {
@@ -90,7 +90,7 @@ class MentionsTest {
 
     private val table: Table = Json { ignoreUnknownKeys = true }.decodeFromString(
         Table.serializer(),
-        File(System.getProperty("mentionsTable") ?: "../../test/fixtures/mentions.json").readText(),
+        fixture("mentionsTable"),
     )
 
     private fun world(name: String, chat: String) = worldOf(table.worlds.getValue(name), chat)
@@ -104,91 +104,91 @@ class MentionsTest {
 
     @Test fun maxRows() = assertEquals(table.maxRows, Mentions.MAX_ROWS)
 
-    @Test fun shortNames() = table.shortNames.forEach { (name, short) -> assertEquals(name, short, Mentions.shortName(name)) }
+    @Test fun shortNames() = table.shortNames.forEach { (name, short) -> assertEquals(short, Mentions.shortName(name), name) }
 
     @Test fun matches() {
         val cases = table.cases.filter { it.text != null }
-        assert(cases.isNotEmpty())
+        assertTrue(cases.isNotEmpty())
         cases.forEach { c ->
             val found = Mentions.find(c.text!!, world(c)).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile, it.project) }
-            assertEquals(c.name, c.matches, found)
+            assertEquals(c.matches, found, c.name)
             // Where each one is: its text, at its place in the message.
-            Mentions.find(c.text, world(c)).forEach { assertEquals(c.name, it.text, c.text.substring(it.start, it.end)) }
+            Mentions.find(c.text, world(c)).forEach { assertEquals(it.text, c.text.substring(it.start, it.end), c.name) }
         }
     }
 
     @Test fun suggestions() {
         val cases = table.cases.filter { it.typed != null }
-        assert(cases.isNotEmpty())
-        cases.forEach { c -> assertEquals(c.name, c.suggestions, Mentions.suggest(c.typed!!, world(c)).map { it.text }) }
+        assertTrue(cases.isNotEmpty())
+        cases.forEach { c -> assertEquals(c.suggestions, Mentions.suggest(c.typed!!, world(c)).map { it.text }, c.name) }
     }
 
     @Test fun picks() {
-        assert(table.picks.isNotEmpty())
+        assertTrue(table.picks.isNotEmpty())
         table.picks.forEach { c ->
             val text = c.before.replace("|", "")
             val at = c.before.indexOf('|')
             val row = Mentions.suggest(text.substring(0, at), world(c.world, c.chat)).firstOrNull { it.text == c.pick }
-            assertNotNull("${c.name}: ${c.pick} is offered", row)
+            assertNotNull(row, "${c.name}: ${c.pick} is offered")
             val done = Mentions.pick(text, at, row!!)!!
-            assertEquals(c.name, c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor))
-            assertEquals(c.name, c.jobsNext, done.jobsNext)
+            assertEquals(c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor), c.name)
+            assertEquals(c.jobsNext, done.jobsNext, c.name)
         }
     }
 
     @Test fun commands() {
-        assert(table.commands.isNotEmpty())
+        assertTrue(table.commands.isNotEmpty())
         table.commands.forEach { c ->
-            assertEquals(c.name, c.command, Mentions.command(c.text, world(c.world, c.chat))?.let { Command(it.skill, it.args) })
+            assertEquals(c.command, Mentions.command(c.text, world(c.world, c.chat))?.let { Command(it.skill, it.args) }, c.name)
         }
     }
 
     @Test fun marks() {
-        assert(table.marks.isNotEmpty())
+        assertTrue(table.marks.isNotEmpty())
         table.marks.forEach { c ->
             val got = Mentions.mark(c.text, world(c.world, c.chat))?.let { MarkWant(if (it.skill != null) "skill" else "btw", it.skill, it.text, it.start, it.end) }
-            assertEquals(c.name, c.mark, got)
+            assertEquals(c.mark, got, c.name)
         }
     }
 
     // Files (#604).
     @Test fun filesFound() = table.files.found.forEach { c ->
-        assertEquals(c.text, c.files, Mentions.findFiles(c.text).map { f ->
+        assertEquals(c.files, Mentions.findFiles(c.text).map { f ->
             assertEquals(f.text, c.text.substring(f.start, f.end))
             FileWant(f.text, f.file!!.root, f.file!!.path, f.file!!.project, f.file!!.name)
-        })
+        }, c.text)
     }
 
-    @Test fun fileTexts() = table.files.texts.forEach { c -> assertEquals(c.ref.toString(), c.text, Mentions.fileText(Mentions.FileRef(c.ref.root, c.ref.path, c.ref.project))) }
+    @Test fun fileTexts() = table.files.texts.forEach { c -> assertEquals(c.text, Mentions.fileText(Mentions.FileRef(c.ref.root, c.ref.path, c.ref.project)), c.ref.toString()) }
 
     @Test fun fileTyping() = table.files.typing.forEach { c ->
-        assertEquals(c.typed, c.want, Mentions.fileTyping(c.typed)?.let { Typing(it.start, it.folders, it.q) })
+        assertEquals(c.want, Mentions.fileTyping(c.typed)?.let { Typing(it.start, it.folders, it.q) }, c.typed)
     }
 
     @Test fun filePicks() = table.files.picks.forEach { c ->
         val text = c.before.replace("|", "")
         val at = c.before.indexOf('|')
         val done = Mentions.putAt(text, Mentions.fileTyping(text.substring(0, at))!!.start, at, Mentions.fileText(Mentions.FileRef(c.ref.root, c.ref.path, c.ref.project))!!)
-        assertEquals(c.before, c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor))
+        assertEquals(c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor), c.before)
     }
 
     // Projects (#700).
     @Test fun projects() {
         val t = table.projects
-        assert(t.cases.isNotEmpty() && t.picks.isNotEmpty())
+        assertTrue(t.cases.isNotEmpty() && t.picks.isNotEmpty())
         t.cases.forEach { c ->
             val w = worldOf(t.world, c.chat)
-            if (c.text != null) assertEquals(c.name, c.matches, Mentions.find(c.text, w).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile, it.project) })
-            if (c.typed != null) assertEquals(c.name, c.suggestions, Mentions.suggest(c.typed, w).map { it.text })
+            if (c.text != null) assertEquals(c.matches, Mentions.find(c.text, w).map { Match(it.kind.name.lowercase(), it.text, it.bot, it.job, it.skill, it.page, it.tile, it.project) }, c.name)
+            if (c.typed != null) assertEquals(c.suggestions, Mentions.suggest(c.typed, w).map { it.text }, c.name)
         }
         t.picks.forEach { c ->
             val text = c.before.replace("|", "")
             val at = c.before.indexOf('|')
             val row = Mentions.suggest(text.substring(0, at), worldOf(t.world, c.chat)).firstOrNull { it.text == c.pick }
-            assertNotNull("${c.name}: ${c.pick} is offered", row)
+            assertNotNull(row, "${c.name}: ${c.pick} is offered")
             val done = Mentions.pick(text, at, row!!)!!
-            assertEquals(c.name, c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor))
-            assertEquals(c.name, c.jobsNext, done.jobsNext)
+            assertEquals(c.after, done.text.substring(0, done.cursor) + "|" + done.text.substring(done.cursor), c.name)
+            assertEquals(c.jobsNext, done.jobsNext, c.name)
         }
     }
 

@@ -56,24 +56,33 @@ kotlin {
 }
 
 // The rules every app is checked against, in the repository's test/fixtures (the web page's tests read the same files),
-// and the figure definition the app bundles (FigureTest).
+// and the figure definition the app bundles (FigureTest). commonTest reads them by key (TestFiles.kt fixture()): the
+// build writes where each one is, on Android's host and in the iOS simulator alike.
 val fixtures = mapOf(
     "mentionsTable" to "test/fixtures/mentions.json",
     "releaseVectors" to "test/fixtures/release-signing/vectors.json",
     "quoteCases" to "test/fixtures/quote-cases.json",
-    "cronWords" to "test/fixtures/cron-words.json",
-    "markdownCases" to "test/fixtures/markdown-cases.json",
-    "chatLinks" to "test/fixtures/chat-links.json",
-    "siteHosts" to "test/fixtures/site-hosts.json",
-    "productsCases" to "test/fixtures/products-cases.json",
-    "documentCases" to "test/fixtures/document-cases.json",
-    "filePaths" to "test/fixtures/file-paths.json",
     "vaultTypes" to "test/fixtures/vault-types.json",
     "vaultSearch" to "test/fixtures/vault-search.json",
     "chatOrder" to "test/fixtures/chat-order.json",
     "figureCases" to "test/fixtures/figure-cases.json",
     "figureDefinition" to "lib/figure.json",
 ).mapValues { rootProject.file("../${it.value}") }
-tasks.withType<Test>().configureEach {
-    for ((key, file) in fixtures) { systemProperty(key, file.path); inputs.file(file) }
+
+abstract class WriteFixtures : DefaultTask() {
+    @get:Input abstract val paths: MapProperty<String, String>
+    @get:OutputDirectory abstract val out: DirectoryProperty
+
+    @TaskAction
+    fun write() {
+        val entries = paths.get().entries.joinToString(",\n") { (k, v) -> "    \"$k\" to \"${v.replace("\\", "\\\\").replace("\"", "\\\"")}\"" }
+        out.get().file("dev/botdot/app/data/Fixtures.kt").asFile.apply { parentFile.mkdirs() }
+            .writeText("package dev.botdot.app.data\n\n/** Where each shared fixture is (the build writes it). */\ninternal val FIXTURES = mapOf(\n$entries,\n)\n")
+    }
 }
+val writeFixtures = tasks.register<WriteFixtures>("writeFixtures") {
+    paths.set(fixtures.mapValues { it.value.absolutePath })
+    out.set(layout.buildDirectory.dir("generated/fixtures/kotlin"))
+}
+kotlin.sourceSets.commonTest { kotlin.srcDir(writeFixtures) }
+tasks.withType<AbstractTestTask>().configureEach { inputs.files(fixtures.values).withPropertyName("fixtures") }

@@ -1,10 +1,9 @@
 package dev.botdot.app.data
 
-import java.io.File
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.Test
 
 /** Passwords' search in the Android app: the cases of test/fixtures/vault-search.json, which the web page checks too. */
 class VaultSearchTest {
@@ -18,11 +17,11 @@ class VaultSearchTest {
     data class Table(val items: List<VaultItem>, val cases: List<Case>, val groups: List<Group> = emptyList())
 
     private val table = Json { ignoreUnknownKeys = true }.decodeFromString(Table.serializer(),
-        File(System.getProperty("vaultSearch") ?: "../../test/fixtures/vault-search.json").readText())
+        fixture("vaultSearch"))
 
     @Test
     fun aSearchFindsAnItemByAnyWordOfWhatItHolds() {
-        for (c in table.cases) assertEquals("\"${c.query}\"", c.found, table.items.filter { VaultTypes.matches(it, c.query) }.map { it.id })
+        for (c in table.cases) assertEquals(c.found, table.items.filter { VaultTypes.matches(it, c.query) }.map { it.id }, "\"${c.query}\"")
     }
 
     @Test

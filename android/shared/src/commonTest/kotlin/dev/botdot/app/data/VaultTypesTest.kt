@@ -1,13 +1,12 @@
 package dev.botdot.app.data
 
-import java.io.File
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.Test
 
 /**
  * The Vault's item types in the Android app (docs/api.md "The Vault's items"): `type` is read on an item and on a
@@ -31,14 +30,14 @@ class VaultTypesTest {
     /** The words every app shows alike (its "about"); `test/vault-types-web.test.js` holds the web page to it too. */
     private val table: Table = Json { ignoreUnknownKeys = true }.decodeFromString(
         Table.serializer(),
-        File(System.getProperty("vaultTypes") ?: "../../test/fixtures/vault-types.json").readText(),
+        fixture("vaultTypes"),
     )
 
     @Test fun theTypesHaveTheWordsOfTheSharedTableAndAnItemItsTwoLines() {
         assertEquals(table.types, VaultTypes.ALL.map { Words(it.id, it.label, it.username, it.optional, it.secret, it.icon, it.none, it.saved, it.multiline) })
         assertEquals(table.feature, VaultTypes.FEATURE)
         assertEquals(table.control, VaultTypes.CONTROL)
-        for (shown in table.items) assertEquals(shown.item.name, shown.rows, VaultTypes.rows(shown.item, types))
+        for (shown in table.items) assertEquals(shown.rows, VaultTypes.rows(shown.item, types), shown.item.name)
     }
 
     private fun items(json: String): List<VaultItem> = Api.JSON.decodeFromString(json)
@@ -63,7 +62,7 @@ class VaultTypesTest {
         assertTrue(VaultTypes.shows(types))
         assertFalse(VaultTypes.shows(before))
         assertFalse(VaultTypes.shows(emptyList()))
-        assertFalse("the server has not answered yet", VaultTypes.shows(null))
+        assertFalse(VaultTypes.shows(null), "the server has not answered yet")
     }
 
     @Test fun theTypeIsReadOnItemsWithItWithoutItAndWithOneThisAppDoesNotKnow() {
@@ -74,7 +73,7 @@ class VaultTypesTest {
                 {"id":"d","name":"Visa","kind":"card","last4":"4242"}]""",
         )
         assertEquals(listOf("api-token", "login", "ssh-key", "login"), list.map { it.type })
-        assertEquals("the unknown one is drawn as a login, and the rest is still read", listOf("api-token", "login", "login"), list.take(3).map { VaultTypes.of(it.type).id })
+        assertEquals(listOf("api-token", "login", "login"), list.take(3).map { VaultTypes.of(it.type).id }, "the unknown one is drawn as a login, and the rest is still read")
         assertEquals("card", list[3].kind)
     }
 
@@ -95,7 +94,7 @@ class VaultTypesTest {
         // Other shows no username, also one it still keeps from its time as a login.
         val other = VaultItem(id = "3", name = "NAS key", type = "other", site = "nas.example.net", username = "kept", hasTotp = true)
         assertEquals(listOf("Other · nas.example.net", "🔒 secret saved · two-step code"), VaultTypes.rows(other, types))
-        assertEquals("an unknown type reads as a login", "Login · odd.example.org", VaultTypes.rows(VaultItem(id = "4", name = "Odd", type = "ssh-key", site = "odd.example.org"), types)[0])
+        assertEquals("Login · odd.example.org", VaultTypes.rows(VaultItem(id = "4", name = "Odd", type = "ssh-key", site = "odd.example.org"), types)[0], "an unknown type reads as a login")
     }
 
     @Test fun onAServerBeforeTheTypesAnItemIsTheOneLineItAlwaysWas() {
@@ -112,7 +111,7 @@ class VaultTypesTest {
         assertEquals("New password (empty keeps it)", VaultTypes.editorFields("login", types, isNew = false).secret)
         assertEquals("New token (empty keeps it)", VaultTypes.editorFields("api-token", types, isNew = false).secret)
         assertEquals("New secret (empty keeps it)", VaultTypes.editorFields("other", types, isNew = false).secret)
-        assertEquals("an unknown type asks as a login", VaultTypes.Fields("Username or email", "Password"), VaultTypes.editorFields("ssh-key", types, isNew = true))
+        assertEquals(VaultTypes.Fields("Username or email", "Password"), VaultTypes.editorFields("ssh-key", types, isNew = true), "an unknown type asks as a login")
     }
 
     @Test fun theRequestsCardAsksForWhatTheTypeNeeds() {
@@ -134,22 +133,22 @@ class VaultTypesTest {
         assertEquals(VaultTypes.Sent("api-token", ""), VaultTypes.sent("api-token", "", types))
         val other = VaultTypes.sent("other", "kept", types)
         assertEquals("other", other.type)
-        assertNull("no username is sent: the saved one stays", other.username)
+        assertNull(other.username, "no username is sent: the saved one stays")
     }
 
     @Test fun anItemOfATypeThisAppDoesNotKnowKeepsItUntilTheOwnerPicksAnother() {
         // Drawn as a login, so the control stands on Login: saving its bots must not make it one.
         assertEquals(VaultTypes.Sent(null, "u"), VaultTypes.sent("login", "u", types, saved = "ssh-key"))
-        assertEquals("the owner picked a type", VaultTypes.Sent("api-token", "u"), VaultTypes.sent("api-token", "u", types, saved = "ssh-key"))
-        assertEquals("a known type is sent as chosen", VaultTypes.Sent("login", "u"), VaultTypes.sent("login", "u", types, saved = "api-token"))
-        assertEquals("a new item", VaultTypes.Sent("login", "u"), VaultTypes.sent("login", "u", types, saved = null))
+        assertEquals(VaultTypes.Sent("api-token", "u"), VaultTypes.sent("api-token", "u", types, saved = "ssh-key"), "the owner picked a type")
+        assertEquals(VaultTypes.Sent("login", "u"), VaultTypes.sent("login", "u", types, saved = "api-token"), "a known type is sent as chosen")
+        assertEquals(VaultTypes.Sent("login", "u"), VaultTypes.sent("login", "u", types, saved = null), "a new item")
     }
 
     @Test fun theRequestsSaveCarriesTheChosenTypeAndForOtherNoUsername() {
         assertEquals("""{"action":"save","type":"api-token","username":"id","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("api-token", "id", types), "p").toString())
         assertEquals("""{"action":"save","type":"other","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("other", "kept", types), "p").toString())
-        assertEquals("Bitwarden is locked: its master password goes along", """{"action":"save","type":"login","username":"alice","password":"p","unlockPassword":"m"}""", VaultTypes.requestSave(VaultTypes.sent("login", "alice", types), "p", "m").toString())
-        assertEquals("a server from before the types", """{"action":"save","username":"alice","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("api-token", "alice", before), "p").toString())
+        assertEquals("""{"action":"save","type":"login","username":"alice","password":"p","unlockPassword":"m"}""", VaultTypes.requestSave(VaultTypes.sent("login", "alice", types), "p", "m").toString(), "Bitwarden is locked: its master password goes along")
+        assertEquals("""{"action":"save","username":"alice","password":"p"}""", VaultTypes.requestSave(VaultTypes.sent("api-token", "alice", before), "p").toString(), "a server from before the types")
     }
 
     @Test fun aSaveToAServerBeforeTheTypesSendsNoTypeAndTheUsernameAsTyped() {
@@ -180,7 +179,7 @@ class VaultTypesTest {
         assertEquals("vault-github-app", VaultTypes.GITHUB_APP_FEATURE)
         assertFalse(VaultTypes.options(types).any { it.first == "github-app" })
         assertFalse(VaultTypes.options(null).any { it.first == "github-app" })
-        assertTrue("its own item is still drawn as one", VaultTypes.options(types, current = "github-app").any { it.first == "github-app" })
+        assertTrue(VaultTypes.options(types, current = "github-app").any { it.first == "github-app" }, "its own item is still drawn as one")
         assertEquals("api.github.com", VaultTypes.of("github-app").site)
         assertNull(VaultTypes.of("login").site)
     }
@@ -192,7 +191,7 @@ class VaultTypesTest {
         assertEquals(VaultTypes.Fields("App ID", "Private key (.pem)", multiline = true), VaultTypes.requestFields("github-app", types))
         assertFalse(VaultTypes.editorFields("login", types, isNew = true).multiline)
         assertFalse(VaultTypes.editorFields("api-token", types, isNew = true).multiline)
-        assertFalse("a server before the types: one line", VaultTypes.editorFields("other", null, isNew = true).multiline)
+        assertFalse(VaultTypes.editorFields("other", null, isNew = true).multiline, "a server before the types: one line")
         assertEquals(64 * 1024, VaultTypes.SECRET_FILE_MAX)
     }
 

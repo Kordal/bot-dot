@@ -3,10 +3,10 @@ package dev.botdot.app.data
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
-import java.io.File
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
+import kotlin.test.Test
+import kotlin.test.assertTrue
 
 /** Quote's rules, from the table every app is checked against (test/fixtures/quote-cases.json; see its "about"). */
 class QuoteTest {
@@ -21,20 +21,20 @@ class QuoteTest {
 
     private val table: Table = Json { ignoreUnknownKeys = true }.decodeFromString(
         Table.serializer(),
-        File(System.getProperty("quoteCases") ?: "../../test/fixtures/quote-cases.json").readText(),
+        fixture("quoteCases"),
     )
 
     @Test fun blocks() {
-        assert(table.blocks.isNotEmpty())
-        table.blocks.forEach { c -> assertEquals(c.name, c.quote, Quote.block(c.selected)) }
+        assertTrue(table.blocks.isNotEmpty())
+        table.blocks.forEach { c -> assertEquals(c.quote, Quote.block(c.selected), c.name) }
     }
 
     @Test fun adds() {
-        assert(table.adds.isNotEmpty())
+        assertTrue(table.adds.isNotEmpty())
         table.adds.forEach { c ->
             val done = Quote.add(c.draft, c.selected)
-            if (c.text == null) assertNull(c.name, done)
-            else assertEquals(c.name, Quote.Added(c.text, c.text.length), done)
+            if (c.text == null) assertNull(done, c.name)
+            else assertEquals(Quote.Added(c.text, c.text.length), done, c.name)
         }
     }
 }
