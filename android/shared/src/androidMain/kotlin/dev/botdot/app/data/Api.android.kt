@@ -69,7 +69,7 @@ internal actual val userAgent: String? = "okhttp/${okhttp3.OkHttp.VERSION}"
 
 internal actual fun parseHttpAddress(s: String): HttpAddress? {
     val u = s.toHttpUrlOrNull() ?: return null
-    return HttpAddress(u.toString(), u.newBuilder().encodedPath("/").query(null).build().toString())
+    return HttpAddress(u.toString(), u.newBuilder().encodedPath("/").query(null).fragment(null).build().toString())
 }
 
 // The phone's files, as the screens hand them over: a picked file by its Uri, a file in the app's cache.

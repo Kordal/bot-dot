@@ -68,9 +68,14 @@ class Session(private val keep: Keep) {
         /** How much of a 401's or 503's answer is read for what it says. */
         const val PEEK = 4096
 
-        /** "https://my-vm.ts.net" for a request's address: what a session belongs to, as Api's baseUrl writes it. */
-        fun originOf(scheme: String, host: String, port: Int): String =
-            "$scheme://$host" + if (port == defaultPort(scheme)) "" else ":$port"
+        /**
+         * "https://my-vm.ts.net" for a request's address: what a session belongs to, as Api's baseUrl writes it. An
+         * IPv6 host is always in brackets ("http://[::1]:4747"), whether the client handed it with them or without.
+         */
+        fun originOf(scheme: String, host: String, port: Int): String {
+            val h = host.lowercase().removePrefix("[").removeSuffix("]").let { if (':' in it) "[$it]" else it }
+            return "$scheme://$h" + if (port == defaultPort(scheme)) "" else ":$port"
+        }
 
         private fun defaultPort(scheme: String) = when (scheme) { "http" -> 80; "https" -> 443; else -> -1 }
 

@@ -799,7 +799,8 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
             val buf = ByteArray(64 * 1024)
             while (true) {
                 val n = readAvailable(buf, 0, buf.size)
-                if (n < 0) break
+                // The end: a broken stream also ends here, with its cause; it is no whole file.
+                if (n < 0) { closedCause?.let { throw it }; break }
                 if (n > 0) { out.write(buf, 0, n); onBytes(n) }
             }
         }

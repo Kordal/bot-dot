@@ -1,6 +1,7 @@
 package dev.botdot.app.data
 
 import io.ktor.utils.io.ByteReadChannel
+import io.ktor.utils.io.LineEnding
 import io.ktor.utils.io.readLine
 
 /**
@@ -15,7 +16,7 @@ internal object Sse {
         var type: String? = null
         val data = StringBuilder()
         while (true) {
-            val line = from.readLine() ?: return
+            val line = from.readLine(LineEnding.Lenient) ?: return // a line ends at CRLF, LF or CR, as the spec says
             when {
                 line.isEmpty() -> {
                     if (data.isNotEmpty()) { lastId = id; event(id, type, data.substring(1)) }

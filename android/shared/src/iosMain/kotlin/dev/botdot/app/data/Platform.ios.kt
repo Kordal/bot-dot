@@ -42,7 +42,9 @@ import platform.Foundation.currentLocale
 import platform.Foundation.dateWithTimeIntervalSince1970
 import platform.Foundation.decimalSeparator
 import platform.Foundation.groupingSeparator
+import platform.Foundation.timeZoneForSecondsFromGMT
 import platform.Foundation.timeZoneWithName
+import kotlinx.datetime.offsetAt
 import platform.Security.SecKeyCreateWithData
 import platform.Security.SecKeyVerifySignature
 import platform.Security.SecRandomCopyBytes
@@ -144,7 +146,8 @@ actual fun formatDate(at: Instant, pattern: String, locale: String?, zone: TimeZ
     val f = NSDateFormatter()
     f.locale = nsLocale(locale)
     f.dateFormat = pattern
-    NSTimeZone.timeZoneWithName(zone.id)?.let { f.timeZone = it }
+    // A zone Foundation has no name for (a fixed offset, "UTC+02:00") is its offset at that moment, not the phone's zone.
+    f.timeZone = NSTimeZone.timeZoneWithName(zone.id) ?: NSTimeZone.timeZoneForSecondsFromGMT(zone.offsetAt(at).totalSeconds.toLong())
     return f.stringFromDate(NSDate.dateWithTimeIntervalSince1970(at.toEpochMilliseconds() / 1000.0))
 }
 
