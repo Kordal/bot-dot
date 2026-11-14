@@ -144,3 +144,28 @@ test('an answer that names a question no longer open is no answer to another wit
     await srv.finished(again.id);
   } finally { srv.unhold(); await srv.stop(); }
 });
+
+test('typed words that are one of the buttons answer the newest question, whichever run started first', async () => {
+  const srv = await startServer();
+  try {
+    const bot = await makeBot(srv, { name: 'Office Helper', emoji: '🗂️' });
+    srv.hold();
+    const a = await post(srv, bot, { prompt: 'make the invoice' });
+    const aRec = await srv.nextRun(isRunOf(bot, 'make the invoice'));
+    const b = await post(srv, bot, { prompt: 'make the receipt' });
+    const bRec = await srv.nextRun(isRunOf(bot, 'make the receipt'));
+    // The later run asks first; the one that started first asks last: its question is the newest.
+    srv.reply(BUTTONS);
+    srv.release(bRec);
+    await srv.finished(b.id);
+    srv.release(aRec);
+    await srv.finished(a.id);
+    assert.deepEqual(await open(srv, bot), [a.id, b.id]);
+    srv.unhold();
+    srv.reply('Sent.');
+    const typed = await post(srv, bot, { prompt: 'yes' });
+    assert.equal(typed.answers, a.id);
+    await srv.finished(typed.id);
+    assert.deepEqual(await open(srv, bot), [b.id]);
+  } finally { srv.unhold(); await srv.stop(); }
+});
