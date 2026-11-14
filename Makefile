@@ -32,12 +32,25 @@ android-build: android-tools ## Build the Android app
 	cd android && ./gradlew assembleDebug --console=plain
 
 .PHONY: android-test
-android-test: android-tools ## Run the Android app's unit tests
-	cd android && ./gradlew testDebugUnitTest --console=plain
+android-test: android-tools ## Run the Android app's unit tests and the shared data layer's (ADR 242)
+	cd android && ./gradlew testDebugUnitTest :shared:testAndroidHostTest --console=plain
 
 .PHONY: android-lint
 android-lint: android-tools ## Lint the Android app; known problems are in app/lint-baseline.xml
 	cd android && ./gradlew lintDebug --console=plain
+
+# The iOS app (ADR 242), on a Mac with Xcode and XcodeGen: the shared data layer as BotdotShared.xcframework, the
+# Xcode project made from ios/project.yml, then built and tested in a simulator (IOS_SIMULATOR is its UDID, else the
+# first iPhone on iOS 26 or later: scripts/ios-simulator.sh). Unsigned: no Apple account needed.
+.PHONY: ios
+ios: android-tools ## Build the iOS app and run its tests in the simulator
+	@command -v xcodegen >/dev/null || { echo "XcodeGen is missing: the iOS target needs it (brew install xcodegen)"; exit 1; }
+	@command -v xcodebuild >/dev/null || { echo "Xcode is missing: the iOS target needs it"; exit 1; }
+	$(eval IOS_SIMULATOR := $(shell bash scripts/ios-simulator.sh))
+	@[ -n "$(IOS_SIMULATOR)" ] || { echo "No iPhone simulator: add one in Xcode (Settings, Components)"; exit 1; }
+	cd android && ./gradlew :shared:assembleBotdotSharedReleaseXCFramework --console=plain
+	cd ios && xcodegen generate --quiet
+	cd ios && xcodebuild test -project BotDot.xcodeproj -scheme BotDot -destination 'platform=iOS Simulator,id=$(IOS_SIMULATOR)' -derivedDataPath build CODE_SIGNING_ALLOWED=NO
 
 # The desktop app (ADR 137). A target whose tool is missing fails saying which one.
 .PHONY: desktop-tools

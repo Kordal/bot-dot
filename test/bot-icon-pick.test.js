@@ -66,7 +66,7 @@ test('server: the owner\'s pick changes the icon and keeps the hat; the Chief\'s
 test('android: the figure opens the icons, and a pick is sent as outfit.icon', () => {
   const app = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app');
   const screen = fs.readFileSync(path.join(app, 'ui', 'BotSettingsScreen.kt'), 'utf8');
-  const figure = fs.readFileSync(path.join(app, 'data', 'Figure.kt'), 'utf8');
+  const figure = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'Figure.kt'), 'utf8');
   assert.match(figure, /val iconChoices: List<Pair<String, String>>/);
   assert.match(figure, /if \(tile == null\) return@lazy emptyList\(\)/);
   assert.match(screen, /clickable\(onClickLabel = tr\("Icon"\)\) \{ picking = !picking \}/);

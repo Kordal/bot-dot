@@ -423,8 +423,7 @@
   "Undo last change": "Cofnij ostatnią zmianę",
   "Browser": "Przeglądarka",
   "Copying files": "Kopiowanie plików",
-  "Files not copied: {why}": "Pliki nie zostały skopiowane: {why}",
-  "it failed": "nie udało się",
+  "Files not copied": "Pliki nie zostały skopiowane",
   "Couldn't try again": "Nie udało się spróbować ponownie",
   "See its screen": "Zobacz jego ekran",
   "{n} waiting for your OK": {

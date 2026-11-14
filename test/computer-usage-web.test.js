@@ -58,7 +58,7 @@ test('Android: a bot\'s settings have no "Keep its computer on" and send no comp
 
 test("Android: its screen lists no bot's memory or CPU", () => {
   assert.doesNotMatch(kt('ui/LiveScreen.kt'), /\.usage/);
-  assert.doesNotMatch(kt('data/Models.kt'), /ComputerUsage/);
+  assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'Models.kt'), 'utf8'), /ComputerUsage/);
 });
 
 test("web: a bot on boat.dev opens its own machine's desktop and line, with nothing of the account's computer (#564)", () => {

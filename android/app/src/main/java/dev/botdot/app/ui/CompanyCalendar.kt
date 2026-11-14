@@ -1,5 +1,9 @@
 package dev.botdot.app.ui
 
+import kotlinx.datetime.toKotlinYearMonth
+import kotlinx.datetime.toKotlinLocalDate
+import kotlinx.datetime.toJavaLocalDate
+import dev.botdot.app.data.locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -125,7 +129,7 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
     var items by remember { mutableStateOf<List<CalendarItem>>(emptyList()) }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     LaunchedEffect(key) {
-        val from = ProjectCalendar.monday(today)
+        val from = ProjectCalendar.monday(today.toKotlinLocalDate()).toJavaLocalDate()
         runCatching { ui.api?.projectCalendar(from.toString(), from.plusDays(13).toString()) }.getOrNull()?.let { items = it }
     }
     val days = ProjectCalendar.byDay(items)
@@ -137,7 +141,7 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
             Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-            ProjectCalendar.week(today).forEach { d ->
+            ProjectCalendar.week(today.toKotlinLocalDate()).map { it.toJavaLocalDate() }.forEach { d ->
                 val on = days[d.toString()].orEmpty()
                 val isToday = d == today
                 Column(Modifier.weight(1f).clip(Radius.small).background(if (isToday) p.ink else p.sunk).clickable(onClickLabel = short(d, "EEE d")) { open = d.toString() }
@@ -177,7 +181,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
     var items by remember { mutableStateOf<List<CalendarItem>>(emptyList()) }
     val month = YearMonth.parse(ym)
-    val cells = ProjectCalendar.month(month)
+    val cells = ProjectCalendar.month(month.toKotlinYearMonth()).map { it.toJavaLocalDate() }
     LaunchedEffect(ym, key) {
         runCatching { ui.api?.projectCalendar(cells.first().toString(), cells.last().toString()) }.onSuccess { it?.let { got -> items = got } }.onFailure { ui.tell(it.message) }
     }
@@ -192,7 +196,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
                 RoundButton(Icons.Filled.Close, tr("Close"), size = 36.dp, onClick = onClose)
             }
             Row(Modifier.fillMaxWidth()) {
-                ProjectCalendar.week(today).forEach { d ->
+                ProjectCalendar.week(today.toKotlinLocalDate()).map { it.toJavaLocalDate() }.forEach { d ->
                     Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = Space.s8))
                 }
             }
@@ -224,7 +228,7 @@ private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalD
                 Text(short(day, "EEE, d MMM").replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                 list.forEach { x ->
                     if (ProjectCalendar.editable(x) && x.id != null) ItemRow(x, bots, x.time.orEmpty(), picked = editing == x.id,
-                        onEdit = { editing = if (editing == x.id) null else x.id }, onDelete = { ui.call({ it.deleteEvent(x.id) }) { ok -> if (ok && editing == x.id) editing = null } })
+                        onEdit = { editing = if (editing == x.id) null else x.id }, onDelete = { ui.call({ it.deleteEvent(x.id!!) }) { ok -> if (ok && editing == x.id) editing = null } })
                     else ItemRow(x, bots, x.time.orEmpty())
                 }
                 val event = editing?.let { id -> list.firstOrNull { it.kind == "event" && it.id == id } }
@@ -250,7 +254,7 @@ private fun EventForm(ui: CompanyUi, day: LocalDate, event: CalendarItem?, onSav
         if (!ready) return
         busy = true
         val t = title.trim()
-        ui.call({ a -> if (event?.id != null) a.changeEvent(event.id, t, moveTo ?: day.toString(), hhmm.orEmpty()) else a.addEvent(t, day.toString(), hhmm.orEmpty()) }) { ok ->
+        ui.call({ a -> if (event?.id != null) a.changeEvent(event.id!!, t, moveTo ?: day.toString(), hhmm.orEmpty()) else a.addEvent(t, day.toString(), hhmm.orEmpty()) }) { ok ->
             busy = false
             if (ok) { title = ""; time = ""; onSaved() }
         }

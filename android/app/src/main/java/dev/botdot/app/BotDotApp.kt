@@ -1,5 +1,8 @@
 package dev.botdot.app
 
+import dev.botdot.app.data.interceptor
+import dev.botdot.app.data.CLIENT
+import dev.botdot.app.data.onPhone
 import android.app.Application
 import android.content.Context
 import android.net.ConnectivityManager
@@ -195,6 +198,7 @@ class BotDotApp : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        Api.logRequests = BuildConfig.DEBUG // each request in Logcat (tag botdot-http)
         settings = Settings(this)
         val words = getSharedPreferences("i18n", MODE_PRIVATE) // the interface's language and its dictionary (#645)
         dev.botdot.app.data.I18n.start(object : dev.botdot.app.data.I18n.Keep {

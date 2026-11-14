@@ -41,6 +41,7 @@ import dev.botdot.app.data.claudeSignedOut
 import dev.botdot.app.data.isTrue
 import dev.botdot.app.data.saysSignedOut
 import dev.botdot.app.data.isReplayOf
+import dev.botdot.app.data.plainText
 import dev.botdot.app.data.str
 import dev.botdot.app.data.textOrNull
 import dev.botdot.app.data.tr
@@ -652,24 +653,6 @@ class Notifier(
     /** Replies are Markdown; a notification shows plain text ("## This week" -> "This week"). */
     private fun plain(md: String): String = plainText(md)
 }
-
-// Made once: plain() runs for every notification.
-private val MD_HEADING = Regex("^#{1,6}\\s+")
-private val MD_ITEM = Regex("^[-*+]\\s+")
-private val MD_LINK = Regex("\\[([^\\]]+)]\\([^)]*\\)")
-private val MD_BOLD = Regex("\\*\\*(.+?)\\*\\*|__(.+?)__")
-private val MD_ITALIC = Regex("(?<![*\\w])\\*([^*]+)\\*(?!\\w)")
-
-/** Replies are Markdown; a notification shows plain text ("## This week" -> "This week"). */
-internal fun plainText(md: String): String = md.lineSequence().map { line ->
-    line.trim()
-        .replace(MD_HEADING, "")
-        .replace(MD_ITEM, "• ")
-        .replace(MD_LINK, "$1")
-        .replace(MD_BOLD, "$1$2")
-        .replace(MD_ITALIC, "$1")
-        .replace("`", "")
-}.filter { it.isNotBlank() && it != "---" && !it.startsWith("|---") }.joinToString("\n")
 
 /**
  * What an ask's notification says under its bot's name, the label of its yes button (null: none), and whether it has

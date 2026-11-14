@@ -344,7 +344,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
                     val who = whoOf(from.id, from.name)
                     val title = tr("A plan for the Chief: {title}", "title" to c.title)
                     Card(who, title, expandable = true) {
-                        Body(c.waiting.text.replace("**", "").replace(Regex("""(?m)^\s*[-*#]+\s+"""), ""))
+                        Body(c.waiting!!.text.replace("**", "").replace(Regex("""(?m)^\s*[-*#]+\s+"""), ""))
                         Text(tr("Open chat"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { onChat(c.id) }.padding(Space.s8))
                         Buttons(tr("Approve"), { decide("p:${c.id}", who, title, true, tr("Approved · the Chief is on it")) { api!!.sendToChief(c.id, PLAN_APPROVAL, emptyList()); null } },
                             tr("Decline"), { decide("p:${c.id}", who, title, false) { api!!.dismissSuggestion(c.id); null } })
@@ -1119,9 +1119,9 @@ private fun TileApproval(who: Named?, t: Tile, onApprove: () -> Unit, onDecline:
 @Composable
 private fun MemoryApproval(card: MemoryCard, who: Named?, onApprove: () -> Unit, onDecline: () -> Unit) {
     Card(who, card.title, card.meta, expandable = true) {
-        if (card.was != null && card.now.isNotEmpty() && card.oneBlock) WasNow(card.was, card.now)
+        if (card.was != null && card.now.isNotEmpty() && card.oneBlock) WasNow(card.was!!, card.now)
         else {
-            if (card.was != null) Body(card.was)
+            if (card.was != null) Body(card.was!!)
             if (card.now.isNotEmpty()) Body(card.now)
         }
         Buttons(card.yes, onApprove, card.no, onDecline)
@@ -1236,7 +1236,7 @@ private fun ChangedParts(parts: List<ChangedPart>) {
         if (t.was == null) Facts(group.map { ToolCard.Fact(it.label, it.now) }, whole = open)
         else Column(Modifier.fillMaxWidth().background(p.sunk, Radius.small).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
             if (parts.size > 1) Text(t.label, color = p.faint, fontSize = Type.s12)
-            if (t.was.isNotEmpty()) Text(t.was, color = p.muted, fontSize = Type.s14, textDecoration = TextDecoration.LineThrough,
+            if (!t.was.isNullOrEmpty()) Text(t.was!!, color = p.muted, fontSize = Type.s14, textDecoration = TextDecoration.LineThrough,
                 maxLines = if (open) Int.MAX_VALUE else 2, overflow = TextOverflow.Ellipsis)
             if (t.now.isNotEmpty()) Text(t.now, color = p.text, fontSize = Type.s14, maxLines = if (open) Int.MAX_VALUE else 3, overflow = TextOverflow.Ellipsis)
         }
@@ -1273,7 +1273,7 @@ private fun answerAll(scope: CoroutineScope, api: Api, card: AskCard.Several, ye
         .onSuccess { r ->
             for (d in r.done) {
                 val a = card.asks.firstOrNull { it.id == d.id } ?: continue
-                if (d.error != null) tell(d.error) else record(a, answeredLabel(answeredWord(null, d.answered, yes), d.answered?.carriesOn.takeIf { yes }))
+                if (d.error != null) tell(d.error!!) else record(a, answeredLabel(answeredWord(null, d.answered, yes), d.answered?.carriesOn.takeIf { yes }))
             }
         }
         .onError { tell(it.message ?: tr("That didn't work")) }
