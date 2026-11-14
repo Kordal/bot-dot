@@ -7,6 +7,7 @@ import BotdotShared
 struct HomeView: View {
     let model: AppModel
     let server: String
+    @State private var path = NavigationPath()
     @State private var home: HomeModel
     @Environment(\.scenePhase) private var phase
     @State private var vault = false
@@ -18,7 +19,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             List {
                 if let error = home.state?.error ?? home.error {
                     Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
@@ -57,7 +58,7 @@ struct HomeView: View {
             .refreshable { await home.refresh() }
             .navigationTitle("botdot")
             .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
-            .navigationDestination(for: ChiefRoute.self) { _ in ChiefView(home: home.home) }
+            .navigationDestination(for: ChiefRoute.self) { r in ChiefView(home: home.home, chatId: r.chatId) }
             .toolbar {
                 Menu {
                     Button(tr("Passwords")) { vault = true }
@@ -74,10 +75,29 @@ struct HomeView: View {
             home.home.live(on: true)
             await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
         }
+        // A notification's tap: its chat, once Home knows its bots (AppModel.chatToOpen).
+        .onChange(of: model.chatToOpen) { openAsked() }
+        .onChange(of: home.state?.bots?.count) { openAsked() }
         .onDisappear { home.stop() }
         // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
         .onChange(of: phase) { _, now in home.home.live(on: now == .active) }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
+    }
+
+    /// Opens the chat a notification asked for ([PushNotices.replyTo] says which): a bot's or a Chief conversation.
+    /// A group's waits for the group chat (#1367), Home showing meanwhile.
+    private func openAsked() {
+        guard let chat = model.chatToOpen, let to = PushNotices.shared.replyTo(chat: chat) else { return }
+        switch onEnum(of: to) {
+        case .bot(let b):
+            guard let bot = home.state?.bot(id: b.id) else { return } // its name once Home has read the bots
+            path.append(ChatRoute(botId: bot.id, name: bot.name))
+        case .chief(let c):
+            path.append(ChiefRoute(chatId: c.chatId))
+        case .group:
+            return
+        }
+        model.chatOpened()
     }
 
     @ViewBuilder
@@ -102,7 +122,10 @@ struct HomeView: View {
 }
 
 /// The Chief's chat: one conversation, its latest.
-struct ChiefRoute: Hashable {}
+struct ChiefRoute: Hashable {
+    /// A notification's conversation; nil, the latest.
+    var chatId: String? = nil
+}
 
 /// A bot's chat, opened from its row.
 struct ChatRoute: Hashable {

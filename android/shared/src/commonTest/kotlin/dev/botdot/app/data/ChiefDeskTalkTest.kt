@@ -73,4 +73,23 @@ class ChiefDeskTalkTest {
         withContext(Dispatchers.Default) { delay(100) }
         assertTrue(fake.asked().none { it.endsWith("/stream") }, "no reply's stream is opened for a chat that was left: ${fake.asked()}")
     }
+
+    @Test fun aNotificationsConversationOpensNotTheLatest() = runTest {
+        val fake = FakeBotdot { _, path ->
+            when (path) {
+                "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Latest"},{"id":"c2","title":"Older"}]}"""
+                "/chief/chats/c2" -> 200 to """{"id":"c2","messages":[{"role":"chief","text":"From the notification"}],"total":1}"""
+                "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[],"total":0}"""
+                else -> 404 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        store.version.set(VersionInfo(features = emptyList()))
+        val desk = ChiefDesk(backgroundScope, fake.api, store, emptyFlow(), startChat = "c2")
+        desk.start()
+        until("its conversation is read") { desk.state.value.loaded }
+        assertTrue(desk.state.value.chatId == "c2", "the notification's conversation")
+        assertTrue(desk.state.value.messages.single().text == "From the notification")
+        assertTrue(fake.asked().none { it.endsWith("/chief/chats/c1") }, "the latest is not read: ${fake.asked()}")
+    }
 }

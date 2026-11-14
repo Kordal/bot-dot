@@ -6,6 +6,8 @@ import BotdotShared
 /// while it replies, with Stop; what waits for its reply to end; the message box (Composer).
 struct ChiefView: View {
     let home: HomeStore
+    /// The conversation a notification asked for; nil, the latest.
+    var chatId: String? = nil
     /// Made once the screen is there: SwiftUI makes a destination's view more than once.
     @State private var model: ChiefModel?
 
@@ -14,7 +16,7 @@ struct ChiefView: View {
             if let model { ChiefChat(model: model) } else { Color.clear }
         }
         .task {
-            if model == nil { model = ChiefModel(home: home) }
+            if model == nil { model = ChiefModel(home: home, chatId: chatId) }
             model?.start()
         }
         .onDisappear { model?.stop() }

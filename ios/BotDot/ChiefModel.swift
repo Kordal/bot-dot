@@ -11,8 +11,9 @@ final class ChiefModel: MessageBox {
     private let desk: ChiefDesk
     private var watching: Kotlinx_coroutines_coreJob?
 
-    init(home: HomeStore) {
-        desk = home.chief()
+    /// [chatId]: the conversation a notification asked for; nil, the latest.
+    init(home: HomeStore, chatId: String? = nil) {
+        desk = home.chief(chatId: chatId)
     }
 
     func start() {

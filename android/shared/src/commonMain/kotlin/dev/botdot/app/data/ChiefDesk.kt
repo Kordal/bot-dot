@@ -83,8 +83,10 @@ class ChiefDesk(
     private val api: Api,
     private val store: Store,
     private val events: Flow<FeedEvent>,
+    /** The conversation to open (a notification's `"chief:<chatId>"`); null: the latest. */
+    startChat: String? = null,
 ) {
-    private var chatId: String? = null
+    private var chatId: String? = startChat
     private var chat: ChiefChat? = null
     private var loaded = false
     private var failed: String? = null

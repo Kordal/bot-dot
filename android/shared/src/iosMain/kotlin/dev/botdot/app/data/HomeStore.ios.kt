@@ -84,7 +84,7 @@ class HomeStore(val api: Api) {
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
 
     /** The Chief's chat, following this botdot's feed. [ChiefDesk.stop] it when it is left. */
-    fun chief(): ChiefDesk = ChiefDesk(scope, api, store, feed.events)
+    fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId)
 
     /** Calls [onChange] with Home's state now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
