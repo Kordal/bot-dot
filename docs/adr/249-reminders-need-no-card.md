@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** the owner's request of 15 November 2026 ("no need to ask for the approval for reminders")
-- **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (a reminder waited after the web), [ADR 055](055-always-allow-on-more-cards.md) ("Always allow reminders"), [ADR 247](247-a-projects-own-changes-after-the-web-need-no-card.md) (a reminder's deletion waited)
+- **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (a reminder waited after the web), [ADR 055](055-always-allow-on-more-cards.md) ("Always allow reminders"), [ADR 247](247-a-projects-own-changes-after-the-web-need-no-card.md) (a reminder's deletion waited), [ADR 067](067-the-owners-mention-in-a-room-runs-the-bot-with-every-step-on-a-card.md) (every tool of a room run waited on a card)
 
 ## Context
 
