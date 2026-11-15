@@ -72,10 +72,12 @@ struct BotSettingsView: View {
     @State private var deleting = false
     @State private var saved = false
     @State private var failed: String?
+    /// The computer a switch asks about first: whether its files go along (#556).
+    @State private var askMove: String?
     /// Duplicate's confirmation, while it is open; then the copy's chat.
     @State private var duplicating: DuplicateDesk?
     @State private var copy: ChatRoute?
-    /// What Duplicate said, for a moment at the top.
+    /// What Duplicate or a Revoke said, for a moment at the top.
     @State private var said: (text: String, count: Int) = ("", 0)
     // What is typed stays as typed: the shared draft follows it.
     @State private var name = ""
@@ -111,6 +113,13 @@ struct BotSettingsView: View {
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
         .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
+        .confirmationDialog(askMove.map { model?.state?.moveQuestion(to: $0) ?? "" } ?? "", isPresented: Binding(get: { askMove != nil }, set: { if !$0 { askMove = nil } }), titleVisibility: .visible) {
+            if let to = askMove {
+                Button(tr("Copy files")) { model?.edit { $0.withComputerOn(to: to, move: true) }; askMove = nil }
+                Button(tr("Start empty")) { model?.edit { $0.withComputerOn(to: to, move: false) }; askMove = nil }
+            }
+            Button(tr("Cancel"), role: .cancel) { askMove = nil }
+        }
         .navigationDestination(item: $copy) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
         .sheet(isPresented: Binding(get: { duplicating != nil }, set: { if !$0 { duplicating = nil } })) {
@@ -218,9 +227,28 @@ struct BotSettingsView: View {
             }
         }
         // A server from before every bot has a computer (ADR 192): whether it has one, as Android's "Browser".
-        if state.showsBrowser {
+        // Where its computer is, with Advanced on (ADR 088), else Browser; its proxy (ADR 171) on this machine.
+        if let computers = state.computers {
+            Section {
+                Picker(tr("Computer"), selection: Binding(get: { state.computerValue }, set: { to in
+                    if state.asksMove(to: to) { askMove = to } else { model.edit { $0.withComputerOn(to: to, move: false) } }
+                })) {
+                    ForEach(computers, id: \.id) { Text($0.label).tag($0.id) }
+                }
+                if let proxies = state.proxies {
+                    proxyPicker(proxies, draft, model)
+                }
+            }
+        } else if state.showsBrowser {
             Section {
                 Toggle(tr("Browser"), isOn: Binding(get: { draft.computer }, set: { on in model.edit { $0.withComputer(on: on) } }))
+                if let proxies = state.proxies {
+                    proxyPicker(proxies, draft, model)
+                }
+            }
+        } else if let proxies = state.proxies {
+            Section {
+                proxyPicker(proxies, draft, model)
             }
         }
         Section(tr("Skills")) {
@@ -256,6 +284,27 @@ struct BotSettingsView: View {
                         }
                     }
                     .tint(.primary)
+                }
+            }
+        }
+        // Always approved (#474): the jobs whose later changes need no OK and its lasting grants in connected apps;
+        // Revoke takes one off at once.
+        if !state.trusted.isEmpty || !state.grants.isEmpty {
+            Section(tr("Always approved")) {
+                ForEach(state.trusted, id: \.id) { j in
+                    revokeRow(j.name, state.trustedLine(j: j)) { try await model.store.revokeJob(jobId: j.id) }
+                }
+                // One row per grant, as on Android: several may share an action under different labels.
+                ForEach(state.grants, id: \.rowId) { g in
+                    revokeRow(state.grantName(g: g), nil) { try await model.store.revokeGrant(action: g.action) }
+                }
+            }
+        }
+        // The rules you lifted for it with "Allow always for this bot" (#253).
+        if !state.overrides.isEmpty {
+            Section(tr("Rules you lifted")) {
+                ForEach(state.overrides, id: \.id) { o in
+                    revokeRow(o.action, state.overrideLine(o: o)) { try await model.store.revokeOverride(id: o.id) }
                 }
             }
         }
@@ -309,6 +358,28 @@ struct BotSettingsView: View {
             deleting = false
         }
     }
+
+    /// Its proxy (ADR 171): the account's, none, or one of the account's (BotSettings.proxyChoices).
+    private func proxyPicker(_ proxies: [Option], _ draft: BotDraft, _ model: BotSettingsModel) -> some View {
+        Picker(tr("Proxy"), selection: Binding(get: { draft.proxy }, set: { p in model.edit { $0.withProxy(proxy: p) } })) {
+            ForEach(proxies, id: \.id) { Text($0.label).tag($0.id) }
+        }
+    }
+
+    /// A row with Revoke (Always approved, Rules you lifted): its name, its line, and the button, which says what happened.
+    private func revokeRow(_ name: String, _ line: String?, _ revoke: @escaping () async throws -> String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if let line { Text(line).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            Button(tr("Revoke")) {
+                Task { if let words = try? await revoke(), !words.isEmpty { said = (words, said.count + 1) } }
+            }
+            .buttonStyle(.bordered)
+        }
+    }
 }
 
 /// The colour of a bot's figure: one of the shared BotColors, the picked one ringed.
@@ -360,4 +431,9 @@ private struct BotIconPicker: View {
             }
         }
     }
+}
+
+private extension AlwaysAllowed {
+    /// A grant's row: its action and label, since one action may have several labels.
+    var rowId: String { "\(action)\u{0}\(label)" }
 }
