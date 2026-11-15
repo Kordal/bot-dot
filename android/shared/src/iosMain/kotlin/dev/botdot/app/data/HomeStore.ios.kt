@@ -133,6 +133,8 @@ class HomeStore(val api: Api) {
 
     /** Every bot's pages, the Pages list (PagesDesk). */
     fun pages(): PagesDesk = PagesDesk(scope, api, store)
+    /** The tiles-on-home sheet (#447): a long press on Home's Board cards. */
+    fun homeTiles(): HomeTilesDesk = HomeTilesDesk(scope, api, store)
 
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId, plans)

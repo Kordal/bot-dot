@@ -27,6 +27,8 @@ struct HomeView: View {
     }
     @Environment(\.scenePhase) private var phase
     @State private var vault = false
+    /// The tiles-on-home sheet, from a long press on the Board's cards.
+    @State private var choosingTiles = false
     /// What is open over Home: a chat (ChatRoute, ChiefRoute, GroupRoute), Files, or what the menu opens (Route).
     @State private var path = NavigationPath()
 
@@ -148,6 +150,10 @@ struct HomeView: View {
                 } label: {
                     BoardCards(tiles: board)
                 }
+                // A long press picks the tiles on home (#447), on a botdot with home-tiles.
+                .simultaneousGesture(LongPressGesture().onEnded { _ in
+                    if HomeTiles.shared.shows(features: state.version?.features) { choosingTiles = true }
+                })
                 .accessibilityIdentifier("board")
                 .listRowSeparator(.hidden)
             }
@@ -275,6 +281,7 @@ struct HomeView: View {
                 AccountDeletionView(offer: offer, api: home.home.api) { words in model.accountDeleted(server, words) }
             }
         }
+        .sheet(isPresented: $choosingTiles) { HomeTilesView(home: home.home) }
         .sheet(isPresented: $feedback) {
             FeedbackView(api: home.home.api, shotsOn: home.offers?.shots == true) { sent = tr("Sent") }
         }
