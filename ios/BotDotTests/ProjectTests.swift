@@ -88,4 +88,46 @@ final class ProjectTests: XCTestCase {
         let saved = await model.saveTeam(nil, name: "Crew", bots: [], lead: nil)
         XCTAssertFalse(saved)
     }
+
+    /// A project loaded as botdot would send it (one team, Crew, and one own bot, Cy), on a botdot with [features].
+    private func loaded(_ features: [String]) async throws -> (ProjectModel, ProjectState) {
+        let home = HomeStore(api: unreachableApi())
+        let store = home.store
+        func bot(_ json: String) -> Bot { Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: json) as! Bot }
+        let model = ProjectModel(home: home)
+        model.start()
+        // The store's parts start again once it takes its botdot: what the test sets comes after.
+        try await Task.sleep(for: .milliseconds(300))
+        store.version.set(v: VersionInfo(app: "", version: "", revision: nil, short: nil, apiVersion: 0, features: features,
+                                         frontDoor: false, docker: false, boat: false, android: nil))
+        store.bots.set(v: [bot(#"{"id":"b1","name":"Ada"}"#), bot(#"{"id":"b3","name":"Cy"}"#)])
+        store.company.set(v: CompanyHeld(company: CompanySetup.shared.of(answer: #"{"id":"p1","name":"Kitchen","phase":"running","teams":[{"id":"t1","name":"Crew","bots":["b1"]}],"bots":["b3"]}"#)))
+        for _ in 0..<250 where model.state?.teams.isEmpty != false || model.state?.own.isEmpty != false { try await Task.sleep(for: .milliseconds(20)) }
+        return (model, try XCTUnwrap(model.state))
+    }
+
+    /// With overview-board the teams are behind Team (ADR 238): the board hides a loaded project's teams and own bots
+    /// (teamsOnBoard), Team stands beside the gear (teamEntry), and its page draws them with the board's own rows.
+    func testWithOverviewBoardTheTeamPageListsTheTeamsAndOwnBotsTheBoardHides() async throws {
+        let (model, s) = try await loaded(["company", "project-bots", "project-overview", "overview-board"])
+        defer { model.stop() }
+        XCTAssertTrue(s.board)
+        XCTAssertFalse(s.teamsOnBoard, "the board hides its teams and own bots")
+        XCTAssertTrue(s.teamEntry, "Team is beside the gear")
+        var unfolded: Set<String> = ["t1"]
+        let rows = TeamKeysView(model: model, state: s, figure: nil, unfolded: Binding(get: { unfolded }, set: { unfolded = $0 }),
+                                routes: TeamRoutes.Routes(picking: .constant(nil), panel: .constant(nil), chat: .constant(nil), group: .constant(nil)))
+        XCTAssertEqual(rows.state.teams.map { $0.team.name }, ["Crew"], "the Team page's rows are the team")
+        XCTAssertEqual(rows.state.own.map { $0.bot.name }, ["Cy"], "and the own bot")
+        XCTAssertNotNil(ImageRenderer(content: VStack { rows }.frame(width: 320)).cgImage)
+    }
+
+    /// Without overview-board the teams stay on the board and there is no Team entry.
+    func testWithoutOverviewBoardTheTeamsStayOnTheBoard() async throws {
+        let (model, s) = try await loaded(["company", "project-bots", "project-overview"])
+        defer { model.stop() }
+        XCTAssertFalse(s.board)
+        XCTAssertTrue(s.teamsOnBoard)
+        XCTAssertFalse(s.teamEntry)
+    }
 }

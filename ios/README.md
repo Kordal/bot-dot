@@ -45,7 +45,8 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   rooms (RoomsView: RoomsDesk's list, a room's chat and its settings), the account's parts (AccountViews:
                   Delete account, Feedback, the paused account), What's new once after an update (WhatsNewSheet),
                   projects (ProjectView, from Home's switch of spaces: a project's page with its board (with overview-board
-                  also Needs you, Current work, Blockers and Latest replies as its tiles, ADR 245), its cards, Tidy,
+                  also Needs you, Current work, Blockers and Latest replies as its tiles, ADR 245, and its teams behind
+                  Team, ADR 238), its cards, Tidy,
                   its teams with the lead first and their panel and chat, its own bots with Add bot, the Files tile and
                   its default chat; ProjectSettingsView behind the gear: name, colour, site or idea, sources (a link
                   or files added, one taken off), the folder with Open, the Vault logins, Project Manager, the teams
@@ -78,7 +79,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `ConnectScreen` (`connect`) | first run, ⋯ | `AddressView` |
 | `SignInScreen` (`sign-in`) | the front door asks | `SignInView` |
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
-| `HomeScreen` (`home`), `HomeParts` | start | `HomeView` (left: search, picking the Board's tiles shown on Home) |
+| `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search (left: picking the Board's tiles shown on Home) |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
 | `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks) |
 | `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`) (left: a chat's page links, page blocks) |
@@ -89,14 +90,14 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
 | `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
-| `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | `ProjectView` (with overview-board the Overview's tiles on its board), its Overview page (`ProjectOverviewView`, without it), `ProjectSettingsView`, `CompanySetupView` (left: in its settings the site or idea and sources, folder, logins, the teams editor, reports and standup, rules, Delete project) |
-| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` (left: Reply to a task and its steps, "@" mentions and Quote, page chips, Steer, "Learned" chips) |
-| `PlanDock` | a chat at work | `PlanDock` in `GroupChatView` (left: in a bot's chat and the Chief's) |
-| `ChiefScreen` (`chief/{id}`) | Home | `ChiefView` (left: the mail draft card, action chips, quick-answer choices) |
+| `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | `ProjectView` (with overview-board the Overview's tiles on its board and the teams under Team, `ProjectTeamView`, ADR 238), its Overview page (`ProjectOverviewView`, without it), `ProjectSettingsView`, `CompanySetupView` (left: the board canvas) |
+| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView`: Reply to a task, "@" mentions and Quote, Steer (left: a task's steps, page chips, "Learned" chips) |
+| `PlanDock` | a chat at work | `ChatPlanDock` in a bot's chat and the Chief's, `PlanDock` in `GroupChatView` |
+| `ChiefScreen` (`chief/{id}`) | Home | `ChiefView`, with the mail draft card and its action chips (`MailCardView`) and the questions' quick answers |
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView`; a new group from a bot's chat, its "+" (`NewGroupSheet`) |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings, Home's ⋯ | `FilesView`, `ViewerView` (left: Move or Copy, Export, Keep it up to date, On Board) |
 | `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
 | `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView`, a bot's scheduled jobs (`JobsView`), every bot's pages (`PagesView`) (left: the Chief's settings, Skills, Storage; in a bot's settings its apps, where its computer is and its proxy, always-approved rules, Duplicate and its pages) |
 | `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings, Home's ⋯ | `ScreenView` |
-| `ShareScreen` (`share`) | another app's Share | #1373 |
+| `ShareScreen` (`share`) | another app's Share | `BotDotShare`, the share extension |
 | `AppUpdateRow` | Home, Settings | none: the App Store updates the iPhone app |
