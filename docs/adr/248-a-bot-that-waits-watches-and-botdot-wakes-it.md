@@ -1,4 +1,4 @@
-# ADR-247: A bot that waits watches, and botdot wakes it
+# ADR-248: A bot that waits watches, and botdot wakes it
 
 - **Status:** Accepted (2026-11-15, the owner asked for bots that set up their own monitoring while they wait)
 - **Keeps:** [ADR 175](175-botdot-notices-between-the-looks-and-starts-one-when-it-cannot-wait.md) (a Chief's check starts a look; the look is the Chief's only unasked voice), [ADR 026](026-a-call-is-let-in-on-the-jobs-key-alone.md) and jobs as they are, [ADR 178](178-cards-that-guarded-nothing-are-gone.md) (no card for what reaches no one)

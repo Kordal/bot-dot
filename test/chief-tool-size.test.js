@@ -27,6 +27,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   // 111.2k: set_project_goal, the goal's sentence and a new objective, which project settings no longer show.
   // 111.3k: arrange_project_board hides and shows pieces, the overview's four among them (ADR 245).
   // 111.4k: update_bot's disabledSkills names the kit's always-on writing style (ADR 246).
-  // 113.1k: watch, list_watches and stop_watch, the Chief's waits that botdot reads without AI (ADR 247).
+  // 113.1k: watch, list_watches and stop_watch, the Chief's waits that botdot reads without AI (ADR 248).
   assert.ok(size < 113_100, `${size} characters`);
 });

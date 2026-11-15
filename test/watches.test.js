@@ -1,4 +1,4 @@
-// Watches (ADR 247): what a bot or the Chief waits for, read by botdot without a model (lib/watches.js). These tests
+// Watches (ADR 248): what a bot or the Chief waits for, read by botdot without a model (lib/watches.js). These tests
 // hand the module its reads, so no address is reached.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');

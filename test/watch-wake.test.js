@@ -1,5 +1,5 @@
 // A bot sets a watch in its run (watch, lib/self-mcp.js); botdot reads it without a model, and its end starts the bot
-// with what it planned (trigger "watch", ADR 247). The owner sees it in the bot's chat and stops it there. The
+// with what it planned (trigger "watch", ADR 248). The owner sees it in the bot's chat and stops it there. The
 // Chief's ends as a check that starts a look (ADR 175, P3). GitHub here is a stand-in on this machine.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
