@@ -27,7 +27,7 @@ test('it ships with its MIT licence and is named in NOTICE', () => {
 });
 
 test('it is the kit\'s one always-on skill: its rules are the style note, not a line in the skills list', () => {
-  assert.deepEqual(kitSkills().filter((k) => k.always).map((k) => k.name), ['i-have-adhd']);
+  assert.deepEqual(kitSkills().filter((k) => k.alwaysOn).map((k) => k.name), ['i-have-adhd']);
   const note = kitStyleNote();
   assert.match(note, /^How you write to the owner\./);
   assert.match(note, /### 1\. Lead with the next action/);

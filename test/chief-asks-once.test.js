@@ -4,6 +4,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { JOB_GUIDE } = require('../lib/jobs');
+const { kitStyleNote } = require('../lib/skills');
 const { startServer, makeBot, heldRun, waitFor } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
@@ -57,7 +58,8 @@ test('a late result and a wait that the owner ends (BUSY-002): botdot tells the 
 
 test('no cost words: never what a run costs, and what a job checks instead of whether it is a script', () => {
   const told = standing();
-  assert.doesNotMatch(told, /(?<!feel )\bfree\b/i); // "Feel free to ask" is a closer the always-on style forbids (ADR 245)
+  // The always-on style (ADR 245) names "Feel free to ask" as a closer it forbids: the guard reads botdot's own words.
+  assert.doesNotMatch(told.replace(kitStyleNote(), ''), /\bfree\b/i);
   assert.doesNotMatch(told, /unless they ask/);
   assert.doesNotMatch(told, /cheap/i);
   assert.match(told, /Never tell the user what a run or a reply costs\./);
