@@ -20,91 +20,123 @@ struct RoomsView: View {
     @State private var seen: RoomsJoin?
     @State private var notice: String?
 
+    // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
+        asked
+            .overlay(alignment: .bottom) { noticeLine }
+            .task { await rooms.refresh() }
+    }
+
+    private var list: some View {
         List {
             if let state = rooms.state {
-                ForEach(state.invites, id: \.id) { i in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(i.name).font(.headline)
-                        Text(i.line).font(.subheadline).foregroundStyle(.secondary)
-                        HStack {
-                            Button(tr("Accept")) { act { await rooms.accept(i.id) } }.buttonStyle(.bordered)
-                            Button(tr("Decline")) { act { await rooms.decline(i.id) } }.buttonStyle(.borderless)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
+                ForEach(state.invites, id: \.id) { (i: RoomInviteView) in invite(i) }
                 if state.empty {
                     Text(tr("No rooms yet")).foregroundStyle(.secondary).listRowSeparator(.hidden)
                 }
-                ForEach(state.rooms, id: \.id) { r in
-                    Button { open = .chat(r.id) } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(r.name).lineLimit(1)
-                                Text(r.line).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                            }
-                            Spacer(minLength: 8)
-                            Text(r.time).font(.caption).foregroundStyle(.tertiary)
-                        }
-                        .contentShape(.rect)
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("room-" + r.id)
-                }
+                ForEach(state.rooms, id: \.id) { (r: RoomRowView) in room(r) }
             } else {
                 ProgressView().frame(maxWidth: .infinity).listRowSeparator(.hidden)
             }
         }
         .listStyle(.plain)
-        .refreshable { await rooms.refresh() }
-        .navigationTitle(RoomWords.shared.TITLE)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if rooms.state?.links == true { Button(tr("Join")) { link = ""; joining = true } }
-            if rooms.state?.on == true { Button(tr("New room")) { name = ""; making = true }.accessibilityIdentifier("new-room") }
-        }
-        .navigationDestination(item: $open) { route in
-            switch route {
-            case .chat(let id): RoomChatView(rooms: rooms, id: id, figure: figure)
-            case .settings(let id): RoomSettingsView(rooms: rooms, id: id, figure: figure)
+    }
+
+    private func invite(_ i: RoomInviteView) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(i.name).font(.headline)
+            Text(i.line).font(.subheadline).foregroundStyle(.secondary)
+            HStack {
+                Button(tr("Accept")) { act { await rooms.accept(i.id) } }.buttonStyle(.bordered)
+                Button(tr("Decline")) { act { await rooms.decline(i.id) } }.buttonStyle(.borderless)
             }
         }
-        .alert(tr("New room"), isPresented: $making) {
-            TextField(tr("Name"), text: $name).onChange(of: name) { _, n in name = Self.capped(n) }
-            Button(tr("Make")) {
-                let typed = name
-                Task {
-                    guard !typed.trimmingCharacters(in: .whitespaces).isEmpty, let done = await rooms.make(typed) else { return }
-                    if let id = done.room { open = .settings(id) } else { notice = done.failed }
+        .padding(.vertical, 4)
+    }
+
+    private func room(_ r: RoomRowView) -> some View {
+        Button { open = .chat(r.id) } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(r.name).lineLimit(1)
+                    Text(r.line).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
+                Spacer(minLength: 8)
+                Text(r.time).font(.caption).foregroundStyle(.tertiary)
             }
-            Button(tr("Cancel"), role: .cancel) {}
+            .contentShape(.rect)
         }
-        .alert(tr("Join a room"), isPresented: $joining) {
-            TextField(tr("Invite link"), text: $link).textInputAutocapitalization(.never).autocorrectionDisabled()
-            Button(tr("Next")) {
-                let typed = link
-                Task {
-                    guard let got = await rooms.look(typed) else { return }
-                    if let id = got.open { open = .chat(id) } else if got.token != nil { seen = got } else { notice = got.failed }
-                }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("room-" + r.id)
+    }
+
+    private var routed: some View {
+        list
+            .refreshable { await rooms.refresh() }
+            .navigationTitle(RoomWords.shared.TITLE)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbar }
+            .navigationDestination(item: $open) { (route: RoomRoute) in destination(route) }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        if rooms.state?.links == true { ToolbarItem(placement: .topBarTrailing) { Button(tr("Join")) { link = ""; joining = true } } }
+        if rooms.state?.on == true { ToolbarItem(placement: .topBarTrailing) { Button(tr("New room")) { name = ""; making = true }.accessibilityIdentifier("new-room") } }
+    }
+
+    @ViewBuilder
+    private func destination(_ route: RoomRoute) -> some View {
+        switch route {
+        case .chat(let id): RoomChatView(rooms: rooms, id: id, figure: figure)
+        case .settings(let id): RoomSettingsView(rooms: rooms, id: id, figure: figure)
+        }
+    }
+
+    private var seenShown: Binding<Bool> { Binding(get: { seen != nil }, set: { if !$0 { seen = nil } }) }
+
+    private var asked: some View {
+        routed
+            .alert(tr("New room"), isPresented: $making) {
+                TextField(tr("Name"), text: $name).onChange(of: name) { _, n in name = Self.capped(n) }
+                Button(tr("Make")) { make(name) }
+                Button(tr("Cancel"), role: .cancel) {}
             }
-            Button(tr("Cancel"), role: .cancel) {}
-        }
-        .alert(seen?.title ?? "", isPresented: Binding(get: { seen != nil }, set: { if !$0 { seen = nil } }), presenting: seen) { s in
-            Button(tr("Join")) { if let token = s.token { act { await rooms.join(token) } } }
-            Button(tr("Cancel"), role: .cancel) {}
-        } message: { s in
-            Text(s.says)
-        }
-        .overlay(alignment: .bottom) {
-            if let notice {
-                Text(notice).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16).accessibilityIdentifier("notice")
-                    .task { try? await Task.sleep(for: .seconds(3)); self.notice = nil }
+            .alert(tr("Join a room"), isPresented: $joining) {
+                TextField(tr("Invite link"), text: $link).textInputAutocapitalization(.never).autocorrectionDisabled()
+                Button(tr("Next")) { look(link) }
+                Button(tr("Cancel"), role: .cancel) {}
             }
+            .alert(seen?.title ?? "", isPresented: seenShown, presenting: seen) { (s: RoomsJoin) in
+                Button(tr("Join")) { if let token = s.token { act { await rooms.join(token) } } }
+                Button(tr("Cancel"), role: .cancel) {}
+            } message: { (s: RoomsJoin) in
+                Text(s.says)
+            }
+    }
+
+    @ViewBuilder
+    private var noticeLine: some View {
+        if let notice {
+            Text(notice).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16).accessibilityIdentifier("notice")
+                .task { try? await Task.sleep(for: .seconds(3)); self.notice = nil }
         }
-        .task { await rooms.refresh() }
+    }
+
+    /// Make, with the name typed: the new room opens on its settings, to share its link.
+    private func make(_ typed: String) {
+        Task {
+            guard !typed.trimmingCharacters(in: .whitespaces).isEmpty, let done = await rooms.make(typed) else { return }
+            if let id = done.room { open = .settings(id) } else { notice = done.failed }
+        }
+    }
+
+    /// Next, with the invite link typed: a room already joined opens, another asks first.
+    private func look(_ typed: String) {
+        Task {
+            guard let got = await rooms.look(typed) else { return }
+            if let id = got.open { open = .chat(id) } else if got.token != nil { seen = got } else { notice = got.failed }
+        }
     }
 
     /// A room's name as typed, cut at the longest one the front door takes.
