@@ -68,6 +68,12 @@ final class FilesModel {
         for (url, _) in picked { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
     }
 
+    /// Move to… or Copy to… for [e]: the shared CarryDesk, its unread folders said here.
+    func carry(_ move: Bool, _ e: WorkspaceEntry) -> CarryDesk {
+        files.carry(move: move, e: e) { [weak self] said in MainActor.assumeIsolated { self?.notice = said } }
+    }
+    func carried(_ desk: CarryDesk) async { await run { try await $0.carried(desk: desk) } }
+
     func makeFolder(_ name: String) async { await run { try await $0.makeFolder(name: name); return nil } }
     func rename(_ e: WorkspaceEntry, to name: String) async { await run { try await $0.rename(e: e, name: name); return nil } }
     func keep(_ e: WorkspaceEntry, _ on: Bool) async { await run { try await $0.keep(e: e, on: on) } }

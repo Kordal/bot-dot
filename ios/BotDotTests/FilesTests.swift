@@ -101,6 +101,19 @@ final class FilesTests: XCTestCase {
         XCTAssertFalse(model.following)
     }
 
+    /// Move to… and Copy to…: the shared CarryDesk reaches Swift with the item's words and the place shown first.
+    func testMoveToStartsInThePlaceShownWithTheItemsWords() {
+        let store = FilesStore(api: unreachableApi(), ownerId: "b1", name: "Ada", place: "", path: "")
+        let e = Api.companion.JSON.decodeFromString(deserializer: WorkspaceEntry.companion.serializer(), string: #"{"name":"plan.md","path":"docs/plan.md"}"#) as! WorkspaceEntry
+        let move = store.carry(move: true, e: e) { _ in }
+        XCTAssertEqual(move.state.value.title, "Move plan.md")
+        XCTAssertEqual(move.state.value.goWords, "Move here")
+        XCTAssertNil(move.state.value.to, "nothing picked yet")
+        let copy = store.carry(move: false, e: e) { _ in }
+        XCTAssertEqual(copy.state.value.title, "Copy plan.md")
+        store.close()
+    }
+
     /// A page's bar: Keep up to date opens on the shared KeepDraft, and a page from a botdot with pages-board has Board.
     func testAPagesKeepSheetAndBoardAreTheSharedOnes() {
         let page = Api.companion.JSON.decodeFromString(deserializer: PageInfo.companion.serializer(), string: #"{"slug":"menu","title":"Menu","sources":"the menu file","onBoard":false}"#) as! PageInfo
