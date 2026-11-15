@@ -59,6 +59,7 @@
   const SIZES = [1, 1.25, 1.5, 2];
   const sizeOf = (c) => (SIZES.includes(c.textSize) ? c.textSize : 1);
   const sizing = () => (state.features || []).includes('card-text-size');
+  let sizeSent = 0;
   function sizeHTML(c) {
     const at = SIZES.indexOf(sizeOf(c));
     return `<div class="pc-size" role="group">
@@ -202,9 +203,15 @@
       const to = k && SIZES[SIZES.indexOf(sizeOf(k)) + Number(b.dataset.pcStep)];
       if (!to) return;
       const was = k.textSize;
+      const step = b.dataset.pcStep;
+      const mine = ++sizeSent;
       k.textSize = to;
       Company.redraw();
-      send(at(k.id), 'PUT', { textSize: to }).then((ok) => { if (!ok) { k.textSize = was; Company.redraw(); } });
+      // The focus stays on the A pressed (or the other, at the end), for a keyboard's next step.
+      const again = (sel) => $(`[data-pc-size="${CSS.escape(k.id)}"]${sel}:not(:disabled)`);
+      (again(`[data-pc-step="${step}"]`) || again(''))?.focus();
+      // Only the last step's refusal puts a size back: an earlier one is already overtaken.
+      send(at(k.id), 'PUT', { textSize: to }).then((ok) => { if (!ok && mine === sizeSent) { k.textSize = was; Company.redraw(); } });
     }));
     $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; leave(removing, b.dataset.pcRemove, at(b.dataset.pcRemove), 'DELETE'); }));
     if (menu) document.addEventListener('click', () => { if (menu) { menu = null; Company.redraw(); } }, { once: true });

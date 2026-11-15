@@ -371,7 +371,8 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas
                     // A card that needs one of the owner's servers no login of the project reaches (#804): which, and Add login.
                     val said = if (onLogin != null) tr("No login for {host}", "host" to k.needsLogin.orEmpty()) else k.error ?: tr("Could not build it")
                     if (k.failed) Text(said, color = if (body != null) p.faint else p.err, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    if (onLogin != null) SmallButton(tr("Add login"), onClick = onLogin)
+                    // A button keeps its size: only the card's text grows.
+                    if (onLogin != null) CompositionLocalProvider(LocalDensity provides d) { SmallButton(tr("Add login"), onClick = onLogin) }
                 }
             }
         }
