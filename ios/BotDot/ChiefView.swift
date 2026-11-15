@@ -40,6 +40,9 @@ private struct ChiefChat: View {
                             ChiefRow(line: m, onRate: { model.rate(m.index, $0) },
                                      onApprove: { await model.approve(m.index) }, onDecline: { await model.decline() },
                                      onAnswer: { await model.answer(m.index, $0) })
+                                // Its conversation in its identity: another conversation's row at the same place starts
+                                // anew (its card's Send and Approve), not with this one's taps.
+                                .id("\(s.chatId ?? "new")-\(m.index)")
                         }
                         if s.busy {
                             HStack {

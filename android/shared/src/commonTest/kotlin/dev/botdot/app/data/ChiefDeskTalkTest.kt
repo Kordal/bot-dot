@@ -180,4 +180,28 @@ class ChiefDeskTalkTest {
         val sent = fake.bodiesOf("/chief/chats/c1/messages").single()
         assertEquals("When?\n→ Mon\n\nWhere?\n→ –", Api.JSON.parseToJsonElement(sent).jsonObject.getValue("text").jsonPrimitive.content)
     }
+
+    @Test fun anotherConversationsCardsAreItsOwn() = runTest {
+        val suggestion = """{"role":"suggestion","text":"Add a cook","status":"pending","from":{"id":"b1","name":"Fleet Doctor"}}"""
+        val fake = FakeBotdot { method, path ->
+            when {
+                path == "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"},{"id":"c2","title":"Trip"}]}"""
+                method == "POST" && path.endsWith("/messages") -> 200 to """{"id":"x","messages":[],"total":0}"""
+                path == "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[$suggestion],"total":1}"""
+                path == "/chief/chats/c2" -> 200 to """{"id":"c2","messages":[$suggestion],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("c1's suggestion") { desk.state.value.chatId == "c1" && desk.state.value.messages.singleOrNull()?.suggests == true }
+        assertTrue(desk.approve(0))
+        desk.open("c2")
+        until("c2's suggestion") { desk.state.value.chatId == "c2" && desk.state.value.messages.singleOrNull()?.suggests == true }
+        assertTrue(desk.approve(0))
+        fun key(b: String) = Api.JSON.parseToJsonElement(b).jsonObject.getValue("key").jsonPrimitive.content
+        val k1 = key(fake.bodiesOf("/chief/chats/c1/messages").single())
+        val k2 = key(fake.bodiesOf("/chief/chats/c2/messages").single())
+        assertTrue(k1 != k2, "the same place in another conversation is another card: its own key")
+    }
 }
