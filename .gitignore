@@ -6,7 +6,6 @@
 # The scratch data of the one local test server (bot-dot-test in .claude/launch.json)
 /.test-data/
 node_modules/
-node_modules
 .DS_Store
 *.log
 .claude/settings.local.json
