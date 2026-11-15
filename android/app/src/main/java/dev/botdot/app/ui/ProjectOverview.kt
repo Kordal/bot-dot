@@ -70,7 +70,6 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
         snapshot?.let { Text(tr("Updated {when}", "when" to NotesWake.ago(it.at)), color = p.muted, fontSize = Type.s12) }
             ?: Text(if (error == null) tr("Loading…") else tr("Information unavailable"), color = p.muted)
         SmallButton(tr("Refresh")) { request++ }
-        OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
             OverviewSection(tr("Current work")) { OverviewRows(d.work, tr("No recorded work."), ::open) }
             OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, tr("No failed work or open questions."), ::open) }

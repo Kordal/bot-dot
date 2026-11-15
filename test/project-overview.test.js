@@ -17,7 +17,7 @@ test('the overview separates recorded work, blockers and replies without inventi
     asks: new Map([['writer', { text: 'Which headline?', runId: 'reply', at: '2026-11-13T12:00:00Z' }]]),
     now: '2026-11-13T16:00:00Z',
   });
-  assert.equal(result.goal, 'Launch the site');
+  assert.equal('goal' in result, false); // the overview has no Goal section (2026-11-15)
   assert.ok(result.work.some((x) => x.id === 'work' && x.state === 'working' && x.text === '')); // an original request is not a recorded action line
   assert.ok(result.work.some((x) => x.id === 'todo' && x.state === 'planned'));
   assert.ok(result.blockers.some((x) => x.id === 'bad' && x.state === 'failed'));
@@ -38,7 +38,7 @@ test('the owner reads the overview over the API without changing the saved Board
     const response = await srv.api('/company/overview?project=overview');
     assert.equal(response.status, 200, JSON.stringify(response.data));
     assert.equal(response.data.projectId, 'overview');
-    assert.equal(response.data.goal, 'Publish the site');
+    assert.equal('goal' in response.data, false);
     assert.deepEqual(response.data.work, []);
     assert.deepEqual(response.data.replies, []);
     assert.ok((await srv.api('/version')).data.features.includes('project-overview'));
