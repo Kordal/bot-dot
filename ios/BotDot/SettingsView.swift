@@ -88,6 +88,9 @@ struct SettingsView: View {
             if Pages.shared.shows(features: home.store.version.value.value?.features) {
                 NavigationLink(tr("Pages")) { PagesView(home: home) }
             }
+            if Storage.shared.shows(features: home.store.version.value.value?.features) {
+                NavigationLink(tr("Storage")) { StorageView(home: home) }
+            }
         }
         if state.advanced || state.showsLanguage {
             Section {

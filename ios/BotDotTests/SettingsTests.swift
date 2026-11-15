@@ -68,6 +68,16 @@ final class SettingsTests: XCTestCase {
         XCTAssertNil(desk.state.value.jobs, "the bots not read yet: nothing")
         XCTAssertEqual(Jobs.shared.CHANGE_WAITS, "A change waits for your OK")
     }
+    /// Settings → Storage: the shared StorageDesk reaches Swift, and its colours and sizes are Android's.
+    func testStorageIsTheSharedDesk() {
+        let model = StorageModel(home: home())
+        XCTAssertEqual(model.desk.state.value.title, "Storage")
+        XCTAssertNil(model.desk.state.value.answer, "not read yet")
+        XCTAssertFalse(model.desk.back(), "at the groups: the screen goes back")
+        XCTAssertEqual(Storage.shared.size(bytes: 1_500_000), "1.5 MB")
+        XCTAssertTrue(Storage.shared.shows(features: ["storage"]))
+    }
+
     /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
     func testTheChiefsSettingsAreTheSharedDesk() {
         let model = ChiefSettingsModel(home: home())

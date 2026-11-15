@@ -81,7 +81,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -130,14 +129,11 @@ private sealed interface FxSheet {
     data class Project(val name: String) : FxSheet
 }
 
-/** One folder of the Move to… tree, flattened: its place, path, name and depth. */
-private data class FxNode(val root: String, val path: String, val name: String, val depth: Int)
-
 /** A dialog: a name (a new folder or project, a rename), a project's bots, or a yes to a delete. */
 private data class FxAsk(val kind: String, val entries: List<WorkspaceEntry> = emptyList(), val words: String = "", val project: String = "")
 
 /** Move to… or Copy to…: what goes, from which place, and the folder picked so far. */
-private data class FxCarry(val move: Boolean, val from: String, val entries: List<WorkspaceEntry>, val to: String? = null, val folder: String = "")
+private data class FxCarry(val move: Boolean, val from: String, val entries: List<WorkspaceEntry>)
 
 /**
  * Files (#603): a bot's files, or the Chief's ([UploadedFiles.CHIEF]), full screen, as the phone mockups show them.
@@ -527,16 +523,16 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
         )
     }
 
-    carry?.let { c -> CarryDialog(api, ownerId, c, places, onPick = { to, folder -> carry = c.copy(to = to, folder = folder) }, onDismiss = { carry = null }, tell = ::tell) { to, folder ->
-        carry = null
-        selected = emptySet()
-        val from = FilesExplorer.rootOf(c.from)
-        act(if (c.move) tr("move it") else tr("copy it")) { a ->
-            var missed = 0
-            for (x in c.entries) runCatching { a.carryInWorkspace(ownerId, x.path, folder, from, to, c.move) }.onError { missed++; tell("${x.name}: ${it.message}") }
-            if (missed == 0) tell(FilesExplorer.carriedWords(c.move, c.entries.map { it.name }, to, folder))
+    carry?.let { c ->
+        val a = api ?: return@let
+        // The tree, the pick, New folder and the carry are the shared CarryDesk's (one copy with the iPhone's).
+        val desk = remember(c) { dev.botdot.app.data.CarryDesk(scope, a, ownerId, c.move, c.from, c.entries, places, ::tell) }
+        CarryDialog(desk, onDismiss = { carry = null }) {
+            carry = null
+            selected = emptySet()
+            scope.launch { runCatching { desk.go() }.onSuccess { if (it.isNotEmpty()) tell(it) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to if (c.move) tr("move it") else tr("copy it"))) }; tries++ }
         }
-    } }
+    }
 }
 
 /**
@@ -544,50 +540,26 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
  * are in, and the items themselves with what they hold, are not offered. New folder makes one in the folder picked.
  */
 @Composable
-private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<String>, onPick: (String, String) -> Unit, onDismiss: () -> Unit, tell: (String) -> Unit, onGo: (String, String) -> Unit) {
+private fun CarryDialog(desk: dev.botdot.app.data.CarryDesk, onDismiss: () -> Unit, onGo: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
-    // A folder's folders, by "<root>\u0000<path>"; a key that is there is opened.
-    val open = remember { mutableStateMapOf<String, List<WorkspaceEntry>?>() }
+    val c by desk.state.collectAsState()
     var naming by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
-    val paths = c.entries.map { it.path }
-    fun slot(root: String, path: String) = "$root\u0000$path"
-    fun load(root: String, path: String) {
-        val a = api ?: return
-        open[slot(root, path)] = null
-        scope.launch {
-            runCatching { a.workspace(ownerId, root, path) }
-                .onSuccess { l -> open[slot(root, path)] = FilesExplorer.sorted(l.entries.filter { it.type == "folder" && !it.kept }) }
-                .onError { open.remove(slot(root, path)); tell(it.message ?: tr("Couldn't load it")) }
-        }
-    }
-    fun toggle(root: String, path: String) { if (slot(root, path) in open) open.remove(slot(root, path)) else load(root, path) }
-    LaunchedEffect(Unit) { FilesExplorer.rootOf(c.from).let { load(it, "") } }
-
-    val nodes = buildList<FxNode> {
-        fun walk(root: String, path: String, depth: Int) {
-            open[slot(root, path)]?.forEach { f -> add(FxNode(root, f.path, f.name, depth)); walk(root, f.path, depth + 1) }
-        }
-        places.forEach { r -> add(FxNode(r, "", FilesExplorer.placeName(r), 0)); walk(r, "", 1) }
-    }
-    val what = if (c.entries.size == 1) c.entries[0].name else trn(c.entries.size, "{n} item", "{n} items")
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (c.move) tr("Move {what}", "what" to what) else tr("Copy {what}", "what" to what), maxLines = 2, overflow = TextOverflow.Ellipsis) },
+        title = { Text(c.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
         text = {
             Column {
                 Column(Modifier.fillMaxWidth().heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
-                    nodes.forEach { n -> key(slot(n.root, n.path)) {
-                        val ok = FilesExplorer.takes(c.from, paths, n.root, n.path)
-                        val here = c.to == n.root && c.folder == n.path
-                        Row(Modifier.fillMaxWidth().clip(Radius.small).background(if (here) p.sunk else Color.Transparent)
-                            .clickable(enabled = ok) { onPick(n.root, n.path) }.heightIn(min = 44.dp).padding(start = (n.depth * 18).dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { toggle(n.root, n.path) }, modifier = Modifier.size(36.dp)) {
-                                Icon(if (slot(n.root, n.path) in open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, contentDescription = tr("Open"), tint = p.muted)
+                    c.nodes.forEach { n -> key("${n.root}\u0000${n.path}") {
+                        Row(Modifier.fillMaxWidth().clip(Radius.small).background(if (n.picked) p.sunk else Color.Transparent)
+                            .clickable(enabled = n.takes) { desk.pick(n.root, n.path) }.heightIn(min = 44.dp).padding(start = (n.depth * 18).dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { desk.toggle(n.root, n.path) }, modifier = Modifier.size(36.dp)) {
+                                Icon(if (n.open) Icons.Outlined.ExpandMore else Icons.Outlined.ChevronRight, contentDescription = tr("Open"), tint = p.muted)
                             }
-                            Icon(if (n.depth == 0) placeIcon(n.root) else Icons.Outlined.Folder, contentDescription = null, tint = if (ok) p.text else p.faint, modifier = Modifier.size(20.dp))
-                            Text(n.name, color = if (ok) p.text else p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12))
+                            Icon(if (n.depth == 0) placeIcon(n.root) else Icons.Outlined.Folder, contentDescription = null, tint = if (n.takes) p.text else p.faint, modifier = Modifier.size(20.dp))
+                            Text(n.name, color = if (n.takes) p.text else p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12))
                         }
                     } }
                 }
@@ -598,16 +570,10 @@ private fun CarryDialog(api: Api?, ownerId: String, c: FxCarry, places: List<Str
             Row {
                 val to = c.to
                 if (naming) TextButton(enabled = to != null && newName.isNotBlank(), onClick = {
-                    val a = api ?: return@TextButton
-                    val r = to ?: return@TextButton
-                    scope.launch {
-                        runCatching { a.makeWorkspaceFolder(ownerId, c.folder, newName.trim(), r) }
-                            .onSuccess { made -> naming = false; newName = ""; load(r, c.folder); onPick(r, made) }
-                            .onError { tell(it.message ?: tr("Couldn't make it")) }
-                    }
+                    scope.launch { if (desk.makeFolder(newName)) { naming = false; newName = "" } }
                 }) { Text(tr("Make"), color = p.text) }
                 else TextButton(enabled = to != null, onClick = { naming = true }) { Text(tr("New folder"), color = p.text) }
-                TextButton(enabled = to != null && !naming, onClick = { to?.let { onGo(it, c.folder) } }) { Text(if (c.move) tr("Move here") else tr("Copy here"), color = p.text) }
+                TextButton(enabled = to != null && !naming, onClick = onGo) { Text(c.goWords, color = p.text) }
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(tr("Cancel"), color = p.text) } },
