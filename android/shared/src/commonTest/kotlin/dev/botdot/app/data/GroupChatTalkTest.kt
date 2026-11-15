@@ -415,26 +415,30 @@ class GroupChatTalkTest {
     }
 
     @Test fun aTeamChatsPanelPinsItBelowTheChiefAndUnpinsIt() = runTest {
+        // botdot as it is: a pin or an unpin is kept, and the group list it answers (which the chat reads again after
+        // each change) says so. The botdot has groups: without that feature the Store's read gives no groups at all,
+        // and that read, landing after a set of the test, emptied the list (the flake on CI).
+        var pinned = 0
+        fun list() = """[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":$pinned}]"""
         val fake = FakeBotdot { a ->
             when {
-                a.method == "PUT" && a.path == "/group-chats/g1" -> 200 to """{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":1}"""
+                a.method == "PUT" && a.path == "/group-chats/g1" -> { pinned = if ("true" in a.body) 1 else 0; 200 to list().removeSurrounding("[", "]") }
+                a.path == "/group-chats" -> 200 to list()
                 a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
                 else -> 404 to "{}"
             }
         }
-        val (store, chat) = chat(fake)
-        store.groups.set(Group.list("""[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":0}]"""))
+        val (store, chat) = chat(fake, features = listOf(GROUPS))
+        store.groups.set(Group.list(list()))
         chat.start()
         until("the chat is read") { chat.state.value.loaded }
         assertFalse(chat.state.value.pinned)
         chat.pin(false) // not pinned already: nothing sent
         chat.pin(true)
-        until("sent") { fake.asked().any { it.method == "PUT" } }
+        until("the switch follows botdot's list") { chat.state.value.pinned }
         assertEquals("""{"pinned":true}""", fake.asked().single { it.method == "PUT" }.body, "last among the pinned ones")
-        store.groups.set(Group.list("""[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":1}]"""))
-        until("the switch follows it") { chat.state.value.pinned }
         chat.pin(false)
-        until("unpin sent") { fake.asked().count { it.method == "PUT" } == 2 }
+        until("unpinned") { fake.asked().count { it.method == "PUT" } == 2 && !chat.state.value.pinned }
         assertEquals("""{"pinned":0}""", fake.asked().filter { it.method == "PUT" }[1].body)
     }
 
