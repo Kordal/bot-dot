@@ -536,7 +536,7 @@ struct Kpi: View {
 }
 
 /// A sparkline: the line, and the area under it, faint.
-struct Spark: View {
+private struct Spark: View {
     let points: [Double]
     let color: Color
 
