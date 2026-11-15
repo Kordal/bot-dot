@@ -280,7 +280,11 @@ struct ProjectSettingsView: View {
                 Section(tr("Name")) {
                     TextField(tr("Name"), text: $name)
                         .submitLabel(.done)
-                        .onSubmit { Task { await model.rename(name) } }
+                        .onSubmit {
+                            let typed = name
+                            // Refused: the name botdot keeps comes back in the field, and the notice says why.
+                            Task { if !(await model.rename(typed)) { name = model.state?.project?.name ?? "" } }
+                        }
                         .accessibilityIdentifier("project-name")
                 }
                 Section(tr("Color")) {
@@ -330,8 +334,10 @@ struct ProjectSettingsView: View {
         .navigationTitle(tr("Project settings"))
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { name = model.state?.project?.name ?? "" }
+        .modifier(ProjectNotice(model: model))
         .sheet(isPresented: $adding) {
             BotPickerView(title: tr("Add bot"), bots: model.state?.addable ?? [], figure: figure) { ids in Task { await model.addOwn(ids) } }
+                .modifier(ProjectNotice(model: model))
         }
     }
 }
