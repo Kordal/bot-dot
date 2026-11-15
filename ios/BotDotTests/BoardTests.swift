@@ -62,6 +62,19 @@ final class BoardTests: XCTestCase {
         XCTAssertFalse(HomeTiles.shared.shows(features: []), "a botdot without home-tiles: no long press")
         XCTAssertTrue(HomeTiles.shared.shows(features: ["home-tiles"]))
     }
+
+    /// The colour wheel: the shared BoardKit's colours and marks, and a swatch's own block found on a tile's face.
+    func testTheColourWheelIsTheSharedOne() {
+        XCTAssertEqual(BoardKit.shared.wheelHex(x: 1, y: 0.5), "#ff0000")
+        XCTAssertEqual(BoardKit.shared.wheelHex(x: 0.5, y: 0.5), "#ffffff")
+        XCTAssertEqual(BoardKit.shared.wheelAt(hex: "#ff0000")?.first?.doubleValue ?? 0, 1, accuracy: 1e-9)
+        XCTAssertNil(BoardKit.shared.wheelAt(hex: "warm"))
+        let json = """
+        {"id":"l","kind":"light","title":"Lamp","look":{"face":[{"type":"row","blocks":[{"type":"color","key":"c","value":"#00ff00"}]}]}}
+        """
+        let t = Api.companion.JSON.decodeFromString(deserializer: Tile.companion.serializer(), string: json) as! Tile
+        XCTAssertEqual(BoardKit.shared.faceBlock(look: t.look, key: "c")?.type, "color")
+    }
 }
 
 /// The account's parts on the iPhone: what the front door offers, What's new, the paused account.

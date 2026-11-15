@@ -198,15 +198,22 @@ class BoardDesk(
         act(key, block, b.options.getOrNull(option)?.value ?: return)
     }
 
+    /**
+     * The colour wheel at [hex]: while it is still dragged ([done] false) the tile isn't drawn again from botdot's
+     * answer, so the mark stays under the finger.
+     */
+    @Throws(Exception::class)
+    suspend fun setColor(key: String, block: String, hex: String, done: Boolean) = act(key, block, JsonPrimitive(hex), redraw = done)
+
     /** A button of a tile's blocks. */
     @Throws(Exception::class)
     suspend fun press(key: String, block: String) = act(key, block, null)
 
-    private suspend fun act(key: String, block: String, value: JsonElement?) {
+    private suspend fun act(key: String, block: String, value: JsonElement?, redraw: Boolean = true) {
         val bot = store.dashboard.value.value?.tiles?.firstOrNull { it.id == key }?.bot?.let { b -> store.bots.value.value?.firstOrNull { it.id == b }?.name }
         try {
             val a = api.actTile(key, block, value)
-            a.tile?.let { replace(it) }
+            if (redraw) a.tile?.let { replace(it) }
             if (a.queued) flash(key, tileAsked(bot, queued = true))
         } catch (e: CancellationException) {
             throw e
