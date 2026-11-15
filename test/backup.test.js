@@ -392,12 +392,14 @@ test("a download is asked for in seconds while the computer's files are still pa
   await withBackup(t, computer, async (backup, dataDir) => {
     const r = await backup.prepare(PASS);
     assert.deepEqual(computer.calls, [], 'answered before the pack ended');
+    // Data that doesn't compress, so the account's files reach the file past gzip's buffer, not only its header.
+    fs.writeFileSync(path.join(dataDir, 'notes.bin'), require('crypto').randomBytes(256 * 1024));
     const file = path.join(dataDir, '..', r.name);
     const out = fs.createWriteStream(file);
     const down = backup.download(r.token, out);
-    // The pack is held until packDone(), so bytes on disk now came before it ended. Waited for, not slept on: the
-    // file's open and first write go through libuv's thread pool, which a loaded machine keeps busy past any sleep.
-    await waitFor(() => fs.existsSync(file) && fs.statSync(file).size > 0, { timeout: 5_000, every: 10, what: 'the file to start before the pack ended' });
+    // The pack is held until packDone(), so what is on disk now came before it ended. Waited for, not slept on: on a
+    // busy machine the file takes longer than any fixed sleep to open and write.
+    await waitFor(() => fs.statSync(file, { throwIfNoEntry: false })?.size > 128 * 1024, { what: "the account's files before the pack ended" });
     assert.deepEqual(computer.calls, [], 'still packing');
     packDone();
     assert.equal(await down, true);
