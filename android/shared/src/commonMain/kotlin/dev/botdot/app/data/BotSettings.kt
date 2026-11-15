@@ -78,6 +78,20 @@ data class BotDraft(
     fun withModel(model: String) = copy(model = model)
     fun withEffort(effort: String) = copy(effort = effort)
     fun withHotkey(hotkey: Int) = copy(hotkey = hotkey)
+    fun withComputer(on: Boolean) = copy(computer = on)
+    fun withUseSkills(on: Boolean) = copy(useSkills = on)
+    /** One skill of the library given to it, or taken back. */
+    fun withSkill(name: String, on: Boolean) = copy(skills = if (on) skills + name else skills - name)
+    fun withOthersMayAsk(on: Boolean) = copy(othersMayAsk = on)
+    /** May be in shared rooms (#316). */
+    fun withAllowRooms(on: Boolean) = copy(rooms = rooms.copy(allowRooms = on))
+    /** Who may mention it there: [BotRooms.OWNER] or [BotRooms.MEMBERS]. */
+    fun withWhoMayMention(who: String) = copy(rooms = rooms.copy(whoMayMention = who))
+
+    companion object {
+        /** A draft with nothing in it, for Swift, which sees no default arguments. */
+        fun empty() = BotDraft()
+    }
 }
 
 /** The rules of a bot's settings (#636, ADR 205), drawn by Android's BotSettingsScreen and the iPhone's BotSettingsView. */
@@ -120,7 +134,7 @@ object BotSettings {
         if (d.connectors != b.connectors.toSet()) put("connectors", JsonArray(d.connectors.map { JsonPrimitive(it) }))
         if (d.accounts != b.accounts) put("accounts", JsonObject(d.accounts.mapValues { JsonPrimitive(it.value) }))
         // Every bot may message every other since ADR 192: only a server from before limits it.
-        if ("everything-allowed" !in features.orEmpty()) {
+        if (limits(features)) {
             val everyone = others.all { it.id in d.mayMessage }
             if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
             if (!everyone && (b.mayMessageAll || d.mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(d.mayMessage.map { JsonPrimitive(it) }))
@@ -138,6 +152,26 @@ object BotSettings {
 
     /** The choices of a bot's Reasoning, its own default first. */
     fun efforts(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.efforts.map { Option(it.id, it.label) }
+
+    /** A server from before every bot may message every other (ADR 192): it still limits who may. */
+    fun limits(features: Collection<String>?): Boolean = "everything-allowed" !in features.orEmpty()
+
+    /**
+     * "Browser", whether it has a computer: a server from before every bot has one; on one since, it shows not. While
+     * the server's features are not known, neither: a current server would show a row it has no use for.
+     */
+    fun showsBrowser(features: Collection<String>?): Boolean = features != null && limits(features)
+
+    /** "Other bots may ask it": a server known to limit it that says so, and another bot to ask it. */
+    fun showsOthersMayAsk(b: Bot, others: List<Bot>, features: Collection<String>?): Boolean =
+        features != null && limits(features) && others.isNotEmpty() && b.othersMayAsk != null
+
+    /** Its shared-room settings: a server that keeps them (`room-settings`) and has them for this bot. */
+    fun showsRooms(b: Bot, features: Collection<String>?): Boolean = BotRooms.shows(features) && b.rooms != null
+
+    /** Undo last change (#596): the card's change [change] undone on botdot, and the bot as it is now. */
+    @Throws(Exception::class)
+    suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
 
     /** The choices of its key on the keypad (#366): by its place, or a digit, saying which bot holds it now. */
     fun hotkeys(others: List<Bot>): List<Option> = listOf(Option("0", tr("By its place"))) +
@@ -158,6 +192,10 @@ class BotSettingsState(
     val saving: Boolean = false,
     /** Counts the saves that went through: "Saved" shows a moment after each. */
     val savedAt: Int = 0,
+    /** The skill library's skills, one switch each while its skills are on. */
+    val library: List<String> = emptyList(),
+    /** The server's features; null until they are known. */
+    val features: List<String>? = null,
     val error: String? = null,
     /** It was deleted: the screen leaves. */
     val deleted: Boolean = false,
@@ -169,12 +207,22 @@ class BotSettingsState(
     val showsEffort: Boolean get() = advanced && BotSettings.canThink(info.models, draft.model)
     /** Its key on the keypad shows only from a server that has hotkeys. */
     val showsHotkey: Boolean get() = bot?.hotkey != null
+    /** "Other bots may ask it": a server from before every bot may message every other (ADR 192) that says so. */
+    val showsOthersMayAsk: Boolean get() = bot?.let { BotSettings.showsOthersMayAsk(it, others, features) } == true
+    /** Its "Browser" switch: a server from before every bot has a computer. */
+    val showsBrowser: Boolean get() = BotSettings.showsBrowser(features)
+    /** Its shared-room settings, from a server that keeps them (`room-settings`). */
+    val showsRooms: Boolean get() = bot?.let { BotSettings.showsRooms(it, features) } == true
+    /** Who may mention it in a room: the owner, or anyone in it. */
+    val whoMayMention: List<Option> get() = BotRooms.WHO.map { (id, label) -> Option(id, label) }
+    /** Undo last change: a change a card made to its assignment or rules that one tap undoes (#596). */
+    val undoes: Boolean get() = bot?.undo != null
 
     internal fun copy(
         bot: Bot? = this.bot, draft: BotDraft = this.draft, others: List<Bot> = this.others, info: SettingsInfo = this.info,
         advanced: Boolean = this.advanced, saving: Boolean = this.saving, savedAt: Int = this.savedAt, error: String? = this.error,
-        deleted: Boolean = this.deleted,
-    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, error, deleted)
+        deleted: Boolean = this.deleted, library: List<String> = this.library, features: List<String>? = this.features,
+    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted)
 }
 
 /**
@@ -209,10 +257,16 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
             }
             launch {
                 val version = store.version.value.value ?: runCatching { api.version() }.getOrNull()?.also { store.version.set(it) }
+                version?.let { _state.value = _state.value.copy(features = it.features) }
                 runCatching { api.settings() }.onSuccess { info ->
                     Advanced.take(version?.features, info.settings)
                     _state.value = _state.value.copy(info = info, advanced = Advanced.on.value)
                 }
+            }
+            launch {
+                // The library, for the skills it may use: as the store has it, else read once.
+                val skills = store.skills.value.value ?: try { store.skills.refresh(); store.skills.value.value } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+                _state.value = _state.value.copy(library = skills?.library.orEmpty().map { it.name })
             }
         }
     }
@@ -265,7 +319,23 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
         later()
     }
 
+    /** Undo last change: the change a card made, undone on botdot; the bot read again. Null once done, else why not. */
+    @Throws(Exception::class)
+    suspend fun undo(): String? {
+        val change = _state.value.bot?.undo ?: return null
+        return try {
+            val b = BotSettings.undo(api, botId, change)
+            _state.value = _state.value.copy(bot = b, draft = BotSettings.draft(b, _state.value.others))
+            null
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.message ?: tr("Couldn't undo")
+        }
+    }
+
     /** "Delete {name}", once the owner said yes: its settings and jobs go; the screen leaves. A refusal throws its sentence. */
+    @Throws(Exception::class)
     suspend fun delete() {
         api.deleteBot(botId)
         _state.value = _state.value.copy(deleted = true)

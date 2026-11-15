@@ -95,6 +95,52 @@ class SettingsDesksTest {
         assertTrue(BotSettings.changes(b, d, listOf("everything-allowed"), others).isEmpty(), "ADR 192: every bot may")
     }
 
+    @Test fun itsComputerSkillsAskingAndRoomsAreSentAsChanged() {
+        val b = bot("""{"id":"a","name":"A","computer":"none","useSkills":true,"skills":["notes"],"othersMayAsk":true,"rooms":{"allowRooms":false,"whoMayMention":"owner"}}""")
+        val d = BotSettings.draft(b, emptyList()).withComputer(on = true).withSkill(name = "mail", on = true).withSkill(name = "notes", on = false)
+            .withOthersMayAsk(on = false).withAllowRooms(on = true).withWhoMayMention(who = BotRooms.MEMBERS)
+        val sent = BotSettings.changes(b, d, emptyList(), emptyList())
+        assertEquals("linux", sent["computer"]?.jsonPrimitive?.content, "its own computer, on this machine")
+        assertEquals("""["mail"]""", sent["skills"].toString())
+        assertEquals("false", sent["othersMayAsk"].toString())
+        assertTrue(sent.containsKey("rooms"), sent.toString())
+        assertFalse(BotSettings.draft(b, emptyList()).withUseSkills(on = false).useSkills)
+    }
+
+    @Test fun whatShowsDependsOnWhatTheServerKeeps() {
+        val mate = listOf(bot("""{"id":"b","name":"B"}"""))
+        val old = BotSettingsState(bot = bot("""{"id":"a","name":"A","othersMayAsk":true,"rooms":{"allowRooms":true}}"""), others = mate, features = listOf(BotRooms.FEATURE))
+        assertTrue(old.showsOthersMayAsk && old.showsRooms)
+        assertFalse(BotSettingsState(bot = old.bot, others = mate, features = listOf("everything-allowed")).showsOthersMayAsk, "ADR 192: every bot may")
+        assertFalse(BotSettingsState(bot = old.bot, features = emptyList()).showsOthersMayAsk, "no other bot to ask it")
+        assertTrue(old.showsBrowser, "a server from before every bot has a computer")
+        val unknown = BotSettingsState(bot = old.bot, others = mate)
+        assertFalse(unknown.showsBrowser || unknown.showsOthersMayAsk || unknown.showsRooms, "the server's features not known yet: none of them")
+        assertFalse(BotSettingsState(bot = old.bot, features = listOf("everything-allowed")).showsBrowser)
+        val plain = BotSettingsState(bot = bot("""{"id":"a","name":"A"}"""))
+        assertFalse(plain.showsOthersMayAsk || plain.showsRooms || plain.undoes)
+        assertTrue(BotSettingsState(bot = bot("""{"id":"a","name":"A","undo":"c1"}""")).undoes)
+        assertEquals(listOf(BotRooms.OWNER, BotRooms.MEMBERS), plain.whoMayMention.map { it.id })
+    }
+
+    @Test fun undoUndoesTheCardsChangeAndReadsTheBotAgain() = runTest {
+        val botdot = MockBotdot { s ->
+            when {
+                s.method == "POST" && s.path == "/bots/a/learning/undo" -> 200 to "{}"
+                s.path == "/bots/a" -> 200 to """{"id":"a","name":"A","prompt":"As it was"}"""
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"A","prompt":"Changed","undo":"c1"}]"""
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        desk.load()
+        assertTrue(desk.state.value.undoes)
+        assertNull(desk.undo())
+        assertTrue(botdot.changes().any { it.path == "/bots/a/learning/undo" && "\"c1\"" in it.body })
+        assertEquals("As it was", desk.state.value.draft.task)
+        assertFalse(desk.state.value.undoes)
+    }
+
     @Test fun reasoningShowsForAModelThatThinks() {
         val models = listOf(ModelChoice("fast", effort = false), ModelChoice("deep"))
         assertFalse(BotSettings.canThink(models, "fast"))
