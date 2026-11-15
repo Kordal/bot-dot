@@ -174,14 +174,24 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     private data class Local(
         val open: String? = null, val refused: String? = null, val closing: Set<String> = emptySet(), val removing: Set<String> = emptySet(),
         val fresh: Set<String> = emptySet(), val files: List<RecentFile> = emptyList(), val tidying: Boolean = false, val ownSaving: Boolean = false,
+        /** The projects whose Chief chat is being made: a second tap meanwhile asks nothing. */
+        val openingChief: Set<String> = emptySet(),
         val notice: String? = null, val noticeCount: Int = 0,
     )
     private val local = MutableStateFlow(Local())
+
+    /**
+     * Checks a flag and sets it in one compare-and-set of [local]: of two taps at once, from any thread, only the one
+     * that gets true goes on.
+     */
+    private inline fun claim(crossinline taken: (Local) -> Boolean, crossinline set: (Local) -> Local): Boolean {
+        var won = false
+        local.update { if (taken(it)) { won = false; it } else { won = true; set(it) } }
+        return won
+    }
     private var cardsBefore: List<ProjectCard> = emptyList()
     private var cardsOf: String? = null
     private var filesJob: Job? = null
-    /** The projects whose Chief chat is being made: a second tap meanwhile asks nothing. */
-    private val openingChief = mutableSetOf<String>()
     private val _state = MutableStateFlow(stateOf(null, emptyList(), null, null, null, emptyList(), null, null, null, emptyMap(), ChiefName.role, Local()))
     /** Everything the page draws; each change of the Store or of a tap here sends a new one. */
     val state: StateFlow<ProjectState> = _state
@@ -316,8 +326,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     /** Tidy up (web: Company.tidyHTML): the project's Chief arranges the board, asked in its chat, whose id comes back ("" for none). */
     @Throws(Exception::class)
     suspend fun tidy(): String {
-        if (local.value.tidying) return ""
-        local.update { it.copy(tidying = true) }
+        if (!claim({ it.tidying }) { it.copy(tidying = true) }) return ""
         return try {
             api.tidyBoard().also { if (it.isNotEmpty()) store.company.refresh() }
         } catch (e: CancellationException) {
@@ -337,7 +346,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     suspend fun chiefChat(): String {
         val c = company() ?: return ""
         c.chiefChat?.takeIf { it.isNotEmpty() && (!c.conversation || c.creationSent) }?.let { return it }
-        if (!openingChief.add(c.id)) return ""
+        if (!claim({ c.id in it.openingChief }) { it.copy(openingChief = it.openingChief + c.id) }) return ""
         return try {
             val chat = api.projectChiefChat(c.id)
             if (company()?.id == c.id && chat.isNotEmpty()) { store.company.refresh(); chat } else ""
@@ -346,7 +355,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         } catch (e: Exception) {
             say(e.message ?: tr("Couldn't open the chat")); ""
         } finally {
-            openingChief.remove(c.id)
+            local.update { it.copy(openingChief = it.openingChief - c.id) }
         }
     }
 
@@ -412,8 +421,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
      */
     @Throws(Exception::class)
     suspend fun setOwnBots(ids: List<String>): Boolean {
-        if (local.value.ownSaving) return false
-        local.update { it.copy(ownSaving = true) }
+        if (!claim({ it.ownSaving }) { it.copy(ownSaving = true) }) return false
         return try { call { it.setProjectBots(ids) } } finally {
             local.update { it.copy(ownSaving = false) }
         }

@@ -10,6 +10,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -249,6 +250,31 @@ class ProjectDeskTest {
         assertEquals(2, ProjectRules.workingCount(info, listOf(idle, running)))
         assertEquals(1, ProjectRules.workingCount(CompanyFloor.Info(asks = { 0 }, working = { false }), listOf(idle, running)))
     }
+
+    /**
+     * Two taps at once, on two threads, [rounds] times: [tap] answers whether it went, and botdot is asked [path] once a
+     * round, held until both taps are in.
+     */
+    private fun twoTapsAtOnce(path: String, answer: String, tap: suspend (ProjectDesk) -> Boolean) = runTest {
+        repeat(20) { round ->
+            val held = CompletableDeferred<Unit>()
+            val fake = FakeBotdot { a -> if (a.method != "GET" && a.path.endsWith(path)) { held.await(); 200 to answer } else 200 to "{}" }
+            val (_, desk) = desk(fake)
+            runCurrent()
+            val taps = List(2) { async(Dispatchers.Default) { tap(desk) } }
+            withContext(Dispatchers.Default) { while (fake.asked().none { it.path.endsWith(path) }) delay(1) }
+            withContext(Dispatchers.Default) { delay(20) } // the other tap has had its go
+            held.complete(Unit)
+            assertEquals(1, taps.awaitAll().count { it }, "round $round: one tap goes")
+            assertEquals(1, fake.asked().count { it.method != "GET" && it.path.endsWith(path) }, "round $round: botdot is asked once")
+        }
+    }
+
+    @Test fun twoTidyTapsAtOnceAskOnce() = twoTapsAtOnce("/company/layout/tidy", """{"chatId":"c1"}""") { it.tidy().isNotEmpty() }
+
+    @Test fun twoChiefChatTapsAtOnceMakeOneChat() = twoTapsAtOnce("/company/chief-chat", """{"chatId":"c1"}""") { it.chiefChat().isNotEmpty() }
+
+    @Test fun twoOwnBotsChangesAtOnceSendOneList() = twoTapsAtOnce("/company/bots", kitchen) { it.setOwnBots(listOf("b3", "b4")) }
 
     @Test fun theFilesTileAsksForTheNewestFilesWhileFollowed() = runTest {
         val fake = FakeBotdot { a -> if (a.path == "/company/files") 200 to """{"state":"on","files":[{"name":"plan.md","path":"plan.md","at":1}]}""" else 200 to "{}" }
