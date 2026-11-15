@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
-import dev.botdot.app.data.chiefText
+import dev.botdot.app.data.chiefCardAt
+import dev.botdot.app.data.withClosedCards
 import dev.botdot.app.data.MailCard
 import dev.botdot.app.data.PLAN_APPROVAL
 import dev.botdot.app.data.without
@@ -215,6 +216,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             val messages = chat?.messages.orEmpty()
             val first = chat?.offset ?: 0 // where the loaded messages start in the whole chat
             val newestFirst = remember(messages) { messages.asReversed() }
+            // As the chat draws them (withClosedCards), and where the card of questions stands, newest first.
+            val shownNewestFirst = remember(messages) { withClosedCards(messages).asReversed() }
+            val cardAt = remember(messages) { chiefCardAt(messages)?.let { messages.lastIndex - it } }
             val botById = remember(bots) { bots.associateBy { it.id } }
             // The "New" line: above the message the server named, or the next one that is loaded.
             val newFirst = vm.newFirst
@@ -274,9 +278,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
                             if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
                             if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam) }
-                            // Its card stands under the newest reply only: an older one's questions are part of its text (chiefText).
-                            val cardOpen = m.projectUpdate == null && newestFirst.take(i).all { it.projectUpdate != null } && m.role == "chief" && !m.pending
-                            Message(if (m.questions.isNullOrEmpty()) m else m.copy(text = chiefText(m, cardOpen)), if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
+                            val cardOpen = i == cardAt
+                            Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
                                 plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
                                 onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                                 onDismiss = { vm.dismiss() },
