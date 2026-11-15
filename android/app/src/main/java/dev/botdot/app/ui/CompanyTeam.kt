@@ -113,16 +113,18 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
                 onRemove = { save(CompanySetup.removed(raw, b.key)) },
                 onChange = { change -> save(CompanySetup.edited(raw, b.key, change)) })
         }
-        // "Add a bot": the owner's bots to tick, each joining as it is (ADR 244); "New bot" asks the Chief in "Change the team…".
+        // "Add a bot" in the conversational setup: the owner's bots to tick, each joining as it is (ADR 244); "New bot"
+        // asks the Chief in "Change the team…", as "Add a bot" does in the older setup, which has "Add existing bot".
         val version by ui.app.store.version.value.collectAsState()
         val bots by ui.bots.collectAsState()
-        val joinable = if (CompanySetup.EXISTING_FEATURE in version?.features.orEmpty()) CompanySetup.joinable(bots.orEmpty(), proposed) else emptyList()
+        val joinable = if (c.conversation && CompanySetup.EXISTING_FEATURE in version?.features.orEmpty()) CompanySetup.existing(bots.orEmpty(), proposed) else emptyList()
         var picking by remember { mutableStateOf(false) }
         CoChip(tr("Add a bot"), dashed = false, icon = Icons.Filled.Add) { if (joinable.isEmpty()) ui.draft = tr("Add a bot that ") else picking = true }
         if (picking) BotPicker(tr("Add a bot"), joinable, max = 10, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ui.draft = tr("Add a bot that ") }, onDismiss = { picking = false }) { picked, _ ->
             val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
             val now = ui.company()?.takeIf { it.id == c.id } ?: c
-            ui.took(a.patchCompany(CompanySetup.patch(CompanySetup.joined(now.proposal.orEmpty(), bots.orEmpty(), picked))))
+            ui.saving++ // Approve waits for it (docs/api.md)
+            try { ui.took(a.patchCompany(CompanySetup.patch(CompanySetup.joined(now.proposal.orEmpty(), bots.orEmpty(), picked)))) } finally { ui.saving-- }
         }
         CoPanel {
             if (!c.conversation) CoChip(tr("Add existing bot"), on = false, dashed = false, icon = Icons.Filled.Add) { ui.adding = !ui.adding }
@@ -204,18 +206,18 @@ private fun Existing(ui: CompanyUi, proposed: List<Proposed>) {
     }
 }
 
-/** One of the owner's bots that joins as it is (ADR 244): its own head, name and job, and Remove. */
+/** One of the owner's bots that joins as it is (ADR 244): its own head, name and description, and Remove. */
 @Composable
 private fun JoinedCard(ui: CompanyUi, b: Proposed, onRemove: () -> Unit) {
     val p = LocalPaper.current
     val bots by ui.bots.collectAsState()
     val bot = bots.orEmpty().firstOrNull { it.id == b.bot }
-    val job = bot?.description ?: b.description
+    val about = bot?.description ?: b.description
     Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalAlignment = Alignment.CenterVertically) {
         BotFigure(bot?.color ?: b.color, "idle", 40, bot?.outfit)
         Column(Modifier.weight(1f).padding(horizontal = Space.s12)) {
             Text(bot?.name ?: b.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
-            if (job.isNotEmpty()) Text(job, color = p.muted, fontSize = Type.s12)
+            if (about.isNotEmpty()) Text(about, color = p.muted, fontSize = Type.s12)
         }
         RoundButton(Icons.Outlined.Delete, tr("Remove"), size = 36.dp, onClick = onRemove)
     }

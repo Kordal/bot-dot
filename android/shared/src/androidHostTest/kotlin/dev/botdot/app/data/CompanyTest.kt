@@ -295,6 +295,6 @@ class CompanyTest {
         assertEquals("in the proposal's first team", "Core", joined["team"]!!.jsonPrimitive.content)
         val proposed = next.map { Api.JSON.decodeFromJsonElement(Proposed.serializer(), it) }
         assertTrue(proposed[1].existing)
-        assertEquals("a bot in the proposal is offered once", listOf("b2"), CompanySetup.joinable(bots, proposed).map { it.id })
+        assertEquals("a bot in the proposal is offered once", listOf("b2"), CompanySetup.existing(bots, proposed).map { it.id })
     }
 }

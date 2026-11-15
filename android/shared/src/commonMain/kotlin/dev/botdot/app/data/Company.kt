@@ -529,9 +529,6 @@ object CompanySetup {
     /** The server takes the owner's bots into the proposal as they are (ADR 244). */
     const val EXISTING_FEATURE = "setup-existing-bots"
 
-    /** The owner's bots "Add a bot" offers to join as they are: those not in the proposal yet. */
-    fun joinable(bots: List<Bot>, proposal: List<Proposed>): List<Bot> = bots.filter { b -> proposal.none { it.bot == b.id } }
-
     /** The proposal with [picked] bots joining as they are, in the proposal's first team. */
     fun joined(proposal: List<JsonObject>, bots: List<Bot>, picked: List<String>): List<JsonObject> {
         val team = proposal.firstNotNullOfOrNull { (it["team"] as? JsonPrimitive)?.content?.takeIf(String::isNotEmpty) }.orEmpty()
@@ -540,7 +537,7 @@ object CompanySetup {
         }
     }
 
-    /** The account's bots "Add existing bot" lists: not the ones Create made of this proposal. */
+    /** The account's bots "Add existing bot" (Duplicate) and "Add a bot" (as they are, ADR 244) list: not those in the proposal. */
     fun existing(bots: List<Bot>, proposal: List<Proposed>): List<Bot> = bots.filter { b -> proposal.none { it.bot == b.id } }
 
     private val APP_NAMES = mapOf("gmail" to "Gmail", "googlecalendar" to "Google Calendar", "github" to "GitHub", "slack" to "Slack", "notion" to "Notion",

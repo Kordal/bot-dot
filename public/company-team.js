@@ -142,7 +142,7 @@
     </article>`;
   }
 
-  // One of the owner's bots that joins as it is (ADR 244): its own head, name and job, and Remove; nothing to set.
+  // One of the owner's bots that joins as it is (ADR 244): its own head, name and description, and Remove; nothing to set.
   function joined(p) {
     const b = (state.bots || []).find((x) => x.id === p.bot);
     return `<article class="co-card co-joined" data-key="${esc(p.key)}" data-existing-bot="${esc(p.bot)}">
@@ -150,11 +150,12 @@
     </article>`;
   }
 
-  // "Add a bot": the account's bots not in the proposal, to tick, each joining as it is; "New bot" asks the Chief
-  // for one, in "Change the team…". With no bot to offer it goes there straight away.
+  // "Add a bot" in the conversational setup: the account's bots not in the proposal, to tick, each joining as it is;
+  // "New bot" asks the Chief for one, in "Change the team…". With no bot to offer (or in the older setup, which has
+  // "Add existing bot") it goes there straight away.
   function addBot(c) {
     const askChief = () => { ui.draft = tr('Add a bot that '); const input = $('#co-change input'); if (input) { input.value = ui.draft; input.focus(); } };
-    const bots = (state.bots || []).filter((b) => !c.proposal.some((p) => p.bot === b.id));
+    const bots = c.conversation ? (state.bots || []).filter((b) => !c.proposal.some((p) => p.bot === b.id)) : [];
     if (!bots.length) return askChief();
     const team = c.proposal.find((p) => p.team)?.team || '';
     openBotPicker({
