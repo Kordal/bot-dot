@@ -278,7 +278,7 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             c.running -> {
                 ui.follow(c)
                 // With overview-board (ADR 245) the board is the one page: no separate overview, Team stays.
-                val fixed = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty() && dev.botdot.app.data.ProjectOverview.BOARD !in server?.features.orEmpty()
+                val fixed = dev.botdot.app.data.Overviews.page(server?.features)
                 val teamSecondary = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty()
                 var board by androidx.compose.runtime.saveable.rememberSaveable(c.id) { mutableStateOf(false) }
                 val teamView = teamSecondary && ui.teamFor == c.id

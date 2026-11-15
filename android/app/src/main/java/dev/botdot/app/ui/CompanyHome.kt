@@ -181,28 +181,26 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         if (!overview && !one) rows()
         // Needs you as a tile: its cards, and the questions bots and the Chief ask in this project's chats, only when something waits.
         val boardNeeds by ui.app.store.needs.value.collectAsState()
-        val askedHere = boardNeeds?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in dev.botdot.app.data.Spaces.teamBots(listOf(c)) }
-        val questionsHere = feed?.snapshot?.questions()?.let { dev.botdot.app.data.ProjectOverview.withoutCarded(it, boardNeeds?.asks.orEmpty().mapNotNull { a -> a.chatId }.toSet()) }.orEmpty()
-        val needsTile = one && on("needs") && dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + askedHere.size, questionsHere.size)
+        val needsYou = if (one && on("needs")) dev.botdot.app.data.Overviews.needsYou(c, here, boardNeeds, feed?.snapshot?.questions().orEmpty()) else null
+        val needsTile = needsYou != null
         val needsBox: @Composable (Modifier) -> Unit = { m ->
             Column(m.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Text(tr("Needs you"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
-                if (questionsHere.isNotEmpty()) OverviewRows(questionsHere, openEntry)
-                askedHere.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
+                needsYou?.let { n ->
+                    if (n.questions.isNotEmpty()) OverviewRows(n.questions, openEntry)
+                    n.asks.forEach { ask -> Text(dev.botdot.app.data.Overviews.askText(ask), color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
+                }
                 rows()
             }
         }
         if (overview) {
             val needs by ui.app.store.needs.value.collectAsState()
-            val projectBots = dev.botdot.app.data.Spaces.teamBots(listOf(c))
-            val chiefAsks = needs?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in projectBots }
             // Needs you holds what waits: its cards, and the questions bots and the Chief ask in this project's chats.
             FixedProjectOverview(ui, c, ways) { asked, open ->
-                val questions = dev.botdot.app.data.ProjectOverview.withoutCarded(asked, needs?.asks.orEmpty().mapNotNull { it.chatId }.toSet()) // as the web page: any card in that chat
-                if (dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + chiefAsks.size, questions.size)) {
+                dev.botdot.app.data.Overviews.needsYou(c, here, needs, asked)?.let { n ->
                     Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
-                    if (questions.isNotEmpty()) OverviewRows(questions, open, sites = sitesShown(features))
-                    chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
+                    if (n.questions.isNotEmpty()) OverviewRows(n.questions, open, sites = sitesShown(features))
+                    n.asks.forEach { ask -> Text(dev.botdot.app.data.Overviews.askText(ask), color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
                     rows()
                 }
             }
