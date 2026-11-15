@@ -32,7 +32,6 @@ const ProjectOverview = (() => {
     const files = !s.files ? `<p>${s.filesError ? tr('Information unavailable') : tr('Loading…')}</p>` : s.files.state === 'off' ? `<p>${tr('Files are unavailable while the computer is off.')}</p>`
       : (s.files.files || []).length ? s.files.files.map((f) => `<button type="button" class="po-row" data-po-file="${esc(f.path)}"><span class="po-text">${esc(f.name)}</span><span class="po-stamp">${esc(Files.whenOf(f.at, true))}</span></button>`).join('') : `<p>${tr('No files yet.')}</p>`;
     return `<div data-po-root class="po-overview">${notice}${updated}<button type="button" class="btn sm" data-po-refresh${s.busy ? ' disabled' : ''}>${tr('Refresh')}</button>
-      ${section(tr('Goal'), `<p class="po-goal">${esc(c.goal || tr('No goal set.'))}</p>`)}
       ${d ? section(tr('Current work'), rows(d.work, tr('No recorded work.'))) + section(tr('Blockers'), rows(d.blockers.filter((x) => x.state !== 'asks'), tr('No failed work.'))) + section(tr('Latest replies'), rows(d.replies, tr('No replies yet.'))) : ''}
       ${section(tr('Files'), fileState + files + (c.folder ? `<button type="button" class="btn sm" data-po-folder>${tr('Open folder')}</button>` : ''))}</div>`;
   }

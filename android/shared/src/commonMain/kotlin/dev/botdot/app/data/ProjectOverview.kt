@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 /** Recorded project activity from the server, with no inferred progress score (ADR 236). */
 @Serializable
-data class ProjectOverview(val projectId: String, val at: String, val goal: String = "", val work: List<OverviewEntry> = emptyList(), val blockers: List<OverviewEntry> = emptyList(), val replies: List<OverviewEntry> = emptyList()) {
+data class ProjectOverview(val projectId: String, val at: String, val work: List<OverviewEntry> = emptyList(), val blockers: List<OverviewEntry> = emptyList(), val replies: List<OverviewEntry> = emptyList()) {
     /** The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers. */
     fun questions(): List<OverviewEntry> = blockers.filter { it.state == ASKS }
     /** What Blockers shows: failed work, not the questions Needs you already holds. */
