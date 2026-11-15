@@ -242,14 +242,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             SettingsGroup {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
                 // only whether. A server from before chose it per bot (ADR 088).
-                val accountComputer = "account-computer" in server?.features.orEmpty()
                 // Advanced (ADR 205): without it, where its computer is and its proxy are left as they are and not shown.
                 val advOn by dev.botdot.app.data.Advanced.on.collectAsState()
-                if (advOn && !accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
-                    val everyBot = !dev.botdot.app.data.BotSettings.limits(server?.features) // every bot has one (ADR 192)
-                    Choice(tr("Computer"), if (computer) computerOn else "none", (if (everyBot) emptyList() else listOf("none" to tr("None"))) + listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))) {
+                val computers = dev.botdot.app.data.BotSettings.computerChoices(advOn, server?.features, server?.boat == true, b)
+                if (computers != null) {
+                    Choice(tr("Computer"), if (computer) computerOn else "none", computers.map { it.id to it.label }) {
                         // Between this machine and boat.dev, its files go along or not: asked first (#556).
-                        if ("computer-move" in server?.features.orEmpty() && it != b.computer && it != "none" && b.computer != "none") { askMove = it; return@Choice }
+                        if (dev.botdot.app.data.BotSettings.asksMove(server?.features, b, it)) { askMove = it; return@Choice }
                         computer = it != "none"
                         if (computer) computerOn = it
                         moveFiles = false
@@ -465,7 +464,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         val choose = { copy: Boolean -> computer = true; computerOn = to; moveFiles = copy; askMove = null }
         AlertDialog(
             onDismissRequest = { askMove = null },
-            title = { Text(if (to == "boat") tr("Copy its files to the External Virtual PC?") else tr("Copy its files to this machine?")) },
+            title = { Text(dev.botdot.app.data.BotSettings.moveQuestion(to)) },
             confirmButton = { TextButton(onClick = { choose(true) }) { Text(tr("Copy files"), color = p.text) } },
             dismissButton = { TextButton(onClick = { choose(false) }) { Text(tr("Start empty"), color = p.text) } },
         )

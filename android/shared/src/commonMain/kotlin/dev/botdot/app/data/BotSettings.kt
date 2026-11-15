@@ -82,6 +82,9 @@ data class BotDraft(
     fun withUseSkills(on: Boolean) = copy(useSkills = on)
     /** One skill of the library given to it, or taken back. */
     fun withSkill(name: String, on: Boolean) = copy(skills = if (on) skills + name else skills - name)
+    /** Where its computer is now ("none", "linux", "boat"), its files copied along ([move]) or not. */
+    fun withComputerOn(to: String, move: Boolean) = copy(computer = to != "none", computerOn = if (to != "none") to else computerOn, moveFiles = move)
+    fun withProxy(proxy: String) = copy(proxy = proxy)
     fun withApp(c: Connection, on: Boolean) = BotSettings.appToggled(c, on, connectors, accounts).let { (k, a) -> copy(connectors = k, accounts = a) }
     fun withOthersMayAsk(on: Boolean) = copy(othersMayAsk = on)
     /** May be in shared rooms (#316). */
@@ -189,6 +192,39 @@ object BotSettings {
     @Throws(Exception::class)
     suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
 
+    /**
+     * Where its computer is (ADR 088), with Advanced on: None (unless every bot has one, ADR 192), this machine or the
+     * External Virtual PC; null where the account chooses it in Settings (account-computer, #579), on a botdot
+     * without boat.dev, or with Advanced off.
+     */
+    fun computerChoices(advanced: Boolean, features: Collection<String>?, boat: Boolean, b: Bot): List<Option>? {
+        val f = features.orEmpty()
+        if (!advanced || "account-computer" in f || "boat-computer" !in f || !(boat || b.computer == "boat")) return null
+        return (if (limits(features)) listOf(Option("none", tr("None"))) else emptyList()) +
+            listOf(Option("linux", tr("This machine")), Option("boat", tr("External Virtual PC")))
+    }
+
+    /** The computer's pick as it stands: where it is, or "none". */
+    fun computerValue(d: BotDraft): String = if (d.computer) d.computerOn else "none"
+
+    /** Between this machine and boat.dev its files go along or not: asked first (#556, computer-move). */
+    fun asksMove(features: Collection<String>?, b: Bot, to: String): Boolean =
+        "computer-move" in features.orEmpty() && to != b.computer && to != "none" && b.computer != "none"
+
+    /** The question before a move, and its two answers. */
+    fun moveQuestion(to: String): String = if (to == "boat") tr("Copy its files to the External Virtual PC?") else tr("Copy its files to this machine?")
+
+    /**
+     * Its proxy (ADR 171), with Advanced on: on the account's computer only (boat.dev's browser uses the account's);
+     * the account's, none, or one of the account's proxies. Null: no row.
+     */
+    fun proxyChoices(advanced: Boolean, features: List<String>?, b: Bot, list: ProxyList?): List<Option>? {
+        if (!advanced || b.computer != "linux" || !Proxies.shows(features) || list == null) return null
+        if (list.proxies.isEmpty() && b.proxy.isEmpty()) return null
+        val account = list.proxies.firstOrNull { it.id == list.default }?.name ?: tr("No proxy")
+        return listOf(Option("", tr("Account's ({name})", "name" to account)), Option("none", tr("No proxy"))) + list.proxies.map { Option(it.id, it.name) }
+    }
+
     /** Its jobs you said to always approve (#474): their later changes need no OK. */
     fun trusted(b: Bot): List<dev.botdot.app.data.Job> = b.jobs.filter { it.alwaysApprove }
 
@@ -237,7 +273,16 @@ class BotSettingsState(
     val apps: List<Connection> = emptyList(),
     /** Its pages (#346), from a botdot with pages; null: no section. */
     val pages: List<PageInfo>? = null,
+    /** The botdot has boat.dev (the admin set its key), and the account's proxies when read. */
+    val boat: Boolean = false,
+    val proxyList: ProxyList? = null,
 ) {
+    /** Computer and proxy pickers ([BotSettings.computerChoices], [BotSettings.proxyChoices]); null: no row. */
+    val computers: List<Option>? get() = bot?.let { BotSettings.computerChoices(advanced, features, boat, it) }
+    val computerValue: String get() = BotSettings.computerValue(draft)
+    fun asksMove(to: String): Boolean = bot?.let { BotSettings.asksMove(features, it, to) } == true
+    fun moveQuestion(to: String): String = BotSettings.moveQuestion(to)
+    val proxies: List<Option>? get() = bot?.let { BotSettings.proxyChoices(advanced, features, it, proxyList) }
     /** Whether it has app [c] as the draft stands. */
     fun hasApp(c: Connection): Boolean = BotSettings.appPicked(c, draft.connectors, draft.accounts, bot?.id)
     fun appName(c: Connection): String = BotSettings.appName(c)
@@ -275,8 +320,8 @@ class BotSettingsState(
         bot: Bot? = this.bot, draft: BotDraft = this.draft, others: List<Bot> = this.others, info: SettingsInfo = this.info,
         advanced: Boolean = this.advanced, saving: Boolean = this.saving, savedAt: Int = this.savedAt, error: String? = this.error,
         deleted: Boolean = this.deleted, library: List<String> = this.library, features: List<String>? = this.features,
-        apps: List<Connection> = this.apps, pages: List<PageInfo>? = this.pages,
-    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted, apps, pages)
+        apps: List<Connection> = this.apps, pages: List<PageInfo>? = this.pages, boat: Boolean = this.boat, proxyList: ProxyList? = this.proxyList,
+    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted, apps, pages, boat, proxyList)
 }
 
 /**
@@ -311,7 +356,8 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
             }
             launch {
                 val version = store.version.value.value ?: runCatching { api.version() }.getOrNull()?.also { store.version.set(it) }
-                version?.let { _state.value = _state.value.copy(features = it.features) }
+                version?.let { _state.value = _state.value.copy(features = it.features, boat = it.boat) }
+                if (Proxies.shows(version?.features)) runCatching { api.proxies() }.onSuccess { _state.value = _state.value.copy(proxyList = it) }
                 runCatching { api.settings() }.onSuccess { info ->
                     Advanced.take(version?.features, info.settings)
                     _state.value = _state.value.copy(info = info, advanced = Advanced.on.value)

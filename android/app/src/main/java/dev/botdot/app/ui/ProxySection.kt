@@ -210,8 +210,7 @@ private fun ProxyDialog(api: Api, x: Proxy?, tell: (String) -> Unit, onClose: ()
 fun BotProxyRow(api: Api, b: Bot, value: String, onChange: (String) -> Unit) {
     var list by remember { mutableStateOf<ProxyList?>(null) }
     LaunchedEffect(api) { runCatching { api.proxies() }.onSuccess { list = it } }
-    val l = list ?: return
-    if (l.proxies.isEmpty() && b.proxy.isEmpty()) return
-    val account = l.proxies.firstOrNull { it.id == l.default }?.name ?: tr("No proxy")
-    Choice(tr("Proxy"), value, listOf("" to tr("Account's ({name})", "name" to account), "none" to tr("No proxy")) + l.proxies.map { it.id to it.name }, onChange)
+    // Shown, and its choices, as the shared rule says (one copy with the iPhone's); Advanced and the computer are checked by the caller.
+    val choices = dev.botdot.app.data.BotSettings.proxyChoices(true, listOf(dev.botdot.app.data.Proxies.FEATURE), b, list) ?: return
+    Choice(tr("Proxy"), value, choices.map { it.id to it.label }, onChange)
 }
