@@ -78,4 +78,22 @@ class HomeTilesDeskTest {
         runCurrent()
         assertEquals(listOf("cpu"), desk.state.value.on.map { it.id }, "a new list from botdot takes its place")
     }
+    @Test fun aNewSessionOfTheSheetSaysNothingOfTheLastAndAClosedOneFollowsNoMore() = runTest {
+        val server = FakeServer { t -> if (t.method == "PUT") 500 to """{"error":"Nope"}""" else 200 to "{}" }
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.dashboard.set(Dashboard(tiles = tiles, home = listOf("led")))
+        val first = HomeTilesDesk(backgroundScope, server.api, store)
+        runCurrent()
+        first.toggle("g")
+        assertEquals("Nope", first.state.value.notice)
+        first.close()
+        val second = HomeTilesDesk(backgroundScope, server.api, store)
+        runCurrent()
+        assertNull(second.state.value.notice, "the sheet opened again says nothing of the last time")
+        assertEquals(0, second.state.value.noticeCount)
+        store.dashboard.set(Dashboard(tiles = tiles, home = listOf("g")))
+        runCurrent()
+        assertEquals(listOf("led"), first.state.value.on.map { it.id }, "closed: it follows no more")
+        assertEquals(listOf("g"), second.state.value.on.map { it.id })
+    }
 }

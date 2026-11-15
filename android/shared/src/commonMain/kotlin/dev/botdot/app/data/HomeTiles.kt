@@ -64,15 +64,17 @@ class HomeTilesDesk(private val scope: CoroutineScope, private val api: Api, pri
     private val _state = MutableStateFlow(HomeTilesState())
     val state: StateFlow<HomeTilesState> = _state.asStateFlow()
 
-    init {
-        scope.launch {
-            store.dashboard.value.collect { d ->
-                val home = d?.let { HomeTiles.rows(it).first }
-                if (home != seen) { seen = home; on = home }
-                publish() // the titles and the rest follow every read
-            }
+    /** It follows the Board's list from when it is made until [close]: one desk for each time the sheet opens. */
+    private val following: Job = scope.launch {
+        store.dashboard.value.collect { d ->
+            val home = d?.let { HomeTiles.rows(it).first }
+            if (home != seen) { seen = home; on = home }
+            publish() // the titles and the rest follow every read
         }
     }
+
+    /** The sheet closed: it follows the Board no more. */
+    fun close() = following.cancel()
 
     fun watch(onChange: (HomeTilesState) -> Unit): Job = scope.launch { state.collect { onChange(it) } }
 

@@ -16,7 +16,8 @@ final class HomeTilesModel {
         watching = desk.watch { [weak self] s in MainActor.assumeIsolated { self?.state = s } }
     }
 
-    func stop() { watching?.cancel(cause: nil); watching = nil }
+    /// The sheet closed: its desk goes with it, so the next opening starts afresh (no notice of this one's).
+    func stop() { watching?.cancel(cause: nil); watching = nil; desk.close() }
 
     func toggle(_ id: String) async { try? await desk.toggle(id: id) }
 
