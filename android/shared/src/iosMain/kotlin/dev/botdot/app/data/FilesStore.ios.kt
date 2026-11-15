@@ -75,6 +75,9 @@ class FilesStore(val api: Api, val ownerId: String, val name: String, place: Str
     /** Calls [onChange] with the state now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (FilesState) -> Unit): Job = scope.launch { state.collect { onChange(it) } }
 
+    /** The file at [path] in the place shown, as the viewer opens it: one asked for on the way in (the board's Files tile). */
+    fun openingOf(path: String): DocumentView.Opening = FilesExplorer.fileAt(ownerId, state.value.place, path, name)
+
     /** Reads it all once the screen shows it. */
     fun start() { scope.launch { runCatching { refresh() } } }
 

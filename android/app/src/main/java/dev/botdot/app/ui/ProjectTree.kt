@@ -98,8 +98,7 @@ private fun ProjectChiefButton(ui: CompanyUi, c: Company, open: (String) -> Unit
     val p = LocalPaper.current
     val chief by ui.app.store.chief.value.collectAsState()
     val needs by ui.app.store.needs.value.collectAsState()
-    val id = c.chiefChat
-    val waiting = if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
+    val waiting = dev.botdot.app.data.ProjectRules.chiefWaiting(c, chief, needs)
     // The project's own chat is always the Chief's (ADR 230).
     val name = LocalChiefName.current
     val tap = { ui.openChief(c, open) }

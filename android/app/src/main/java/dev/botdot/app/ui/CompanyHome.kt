@@ -131,13 +131,13 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
     // Each team's chat (#697): its name opens it, on a botdot that has them.
     val groups by ui.app.store.groups.value.collectAsState()
     val teamChat: (String) -> (() -> Unit)? = { id ->
-        ways.onTeam?.takeIf { Groups.TEAM_CHATS in features }?.let { open -> Groups.teamChat(groups.orEmpty(), id)?.let { g -> { open(g.id) } } }
+        ways.onTeam?.let { open -> dev.botdot.app.data.ProjectRules.teamChat(features, groups.orEmpty(), id)?.let { g -> { open(g) } } }
     }
-    fun lineOf(b: Bot): String = question(b) ?: if (b.running) OpeningLine.status(lines["bot:${b.id}"], working = true) else b.description
+    fun lineOf(b: Bot): String = dev.botdot.app.data.ProjectRules.lineOf(b, lines["bot:${b.id}"])
     var teamOpen by rememberSaveable { mutableStateOf<String?>(null) }
     // "+" at the end of a team's row: the team it adds to, while its picker is open.
     var adding by rememberSaveable { mutableStateOf<String?>(null) }
-    fun offered(t: CompanyTeam): List<Bot> = CompanyFloor.addable(c, t, bots).map { (b, other) -> if (other != null) b.copy(description = tr("In {team}", "team" to other)) else b }
+    fun offered(t: CompanyTeam): List<Bot> = dev.botdot.app.data.ProjectRules.offered(c, t, bots)
     // "Add bot" (ADR 233): the project's own bots in no team, on a botdot that has them; the account's bots not in the
     // project are offered, and with none the Chief is asked for a new one.
     val ownBots = dev.botdot.app.data.ProjectBots.FEATURE in features
@@ -267,7 +267,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
 }
 
 /** The words the project's "New bot" starts a Chief chat with (ADR 233). */
-private fun newBotWords(c: Company): String = tr("A new bot for {project}:", "project" to c.name.ifBlank { c.start }) + " "
+private fun newBotWords(c: Company): String = dev.botdot.app.data.ProjectRules.newBotWords(c)
 
 /**
  * The project's own bots in no team (ADR 233; web: company-home.js teamsHTML), as keys under its teams with "+" after
@@ -297,11 +297,10 @@ internal const val OWN_KEYS = "own-keys"
 internal const val OWN_ADD = "own-add"
 
 /** The words a team's "New bot" starts a Chief chat with. */
-private fun newBotWords(c: Company, t: CompanyTeam): String =
-    tr("A new bot for the {team} team in {project}:", "team" to t.name, "project" to c.name.ifBlank { c.start }) + " "
+private fun newBotWords(c: Company, t: CompanyTeam): String = dev.botdot.app.data.ProjectRules.newBotWords(c, t)
 
 /** A bot's open question, while it is not working: what its desk and its row say. */
-internal fun question(b: Bot): String? = b.asks?.text?.takeIf { !b.running }?.replace('\n', ' ')?.take(120)
+internal fun question(b: Bot): String? = dev.botdot.app.data.ProjectRules.question(b)
 
 // ---------- the 90 days (#673) ----------
 
@@ -621,10 +620,7 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
             val unfold = t.id in open
             // Who waits (ADR 205): its bots by name, then its chat; a bot on several teams only on its home team.
             val w = waits[t.id] ?: dev.botdot.app.data.Spaces.TeamWait()
-            val who = w.bots.mapNotNull { id -> bots.firstOrNull { it.id == id }?.name } + if (w.chat > 0) listOf(tr("Team chat")) else emptyList()
-            val asks = who.size
-            val whoText = if (who.size > 2) "${who.take(2).joinToString(", ")} +${who.size - 2}" else who.joinToString(", ")
-            val working = branch.bots.count { info.working(it.id) || it.running }
+            val said = dev.botdot.app.data.ProjectRules.teamWord(w, bots, dev.botdot.app.data.ProjectRules.workingCount(info, branch.bots))
             Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).testTag(TEAM_KEYS)) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = Space.s4, end = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(44.dp).clip(Radius.small).clickable(onClickLabel = tr("Members")) {
@@ -638,14 +634,11 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
                         .padding(horizontal = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                         TeamPicture(branch.bots.take(3), if (branch.bots.size > 1) t.lead else null, 26)
                         Text(t.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = Space.s12))
-                        val (word, dot, ink) = when {
-                            asks > 0 -> Triple(tr("Needs you: {who}", "who" to whoText), p.warn, p.warnText)
-                            working > 0 -> Triple(trn(working, "{n} working", "{n} working"), p.ok, p.muted)
-                            else -> Triple("", p.ok, p.muted)
-                        }
+                        val word = said.text
+                        val (dot, ink) = if (said.asks) p.warn to p.warnText else p.ok to p.muted
                         if (word.isNotEmpty()) {
                             Box(Modifier.padding(start = Space.s8).size(7.dp).clip(CircleShape).background(dot))
-                            Text(word, color = ink, fontSize = Type.s14, fontWeight = if (asks > 0) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 200.dp))
+                            Text(word, color = ink, fontSize = Type.s14, fontWeight = if (said.asks) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 200.dp))
                         }
                     }
                 }

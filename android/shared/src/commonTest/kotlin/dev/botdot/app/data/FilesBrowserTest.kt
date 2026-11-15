@@ -36,6 +36,19 @@ class FilesBrowserTest {
         assertEquals("project/Website", FilesExplorer.firstPlace(UploadedFiles.FOLDER + "Website"))
     }
 
+    @Test fun aFileOfTheBoardsTileOpensOverItsFolderInTheProjectsFiles() {
+        val owner = ProjectFiles.owner("Website")
+        assertEquals("project:Website", owner)
+        val place = FilesExplorer.firstPlace(owner)
+        assertEquals("project/Website", place, "a project's folder has its one place")
+        assertEquals("docs", ProjectFiles.folderOf("docs/plan.md"), "the file's folder is shown under it")
+        val o = FilesExplorer.fileAt(owner, place, "docs/plan.md", "Website")
+        assertEquals("plan.md", o.name)
+        assertEquals("Website", o.from)
+        assertEquals(WorkspaceFiles.file(owner, place, "docs/plan.md"), o.src)
+        assertNull(o.botId, "a project's folder starts no computer")
+    }
+
     @Test fun newProjectsAndSearchOnlyWhereTheyBelong() {
         assertTrue(FilesExplorer.makesProjects("news", "linux", listOf(Projects.FEATURE)))
         assertFalse(FilesExplorer.makesProjects("news", "none", listOf(Projects.FEATURE)))
