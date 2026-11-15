@@ -62,8 +62,9 @@ final class ProjectTests: XCTestCase {
     }
     /// A team's editor, logins and files as sources: the shared rules reach Swift (what each sends is ProjectDeskTest's).
     func testTheTeamEditorAndLoginsReachSwift() async {
-        XCTAssertNil(ManyProjects.shared.teamBody(name: " ", bots: ["b1"], lead: nil), "no name: Save waits")
-        XCTAssertNotNil(ManyProjects.shared.teamBody(name: "Crew", bots: ["b1"], lead: nil))
+        XCTAssertFalse(ManyProjects.shared.canSaveTeam(name: " ", bots: ["b1"]), "no name: Save waits")
+        XCTAssertFalse(ManyProjects.shared.canSaveTeam(name: "Crew", bots: []), "no bot: Save waits")
+        XCTAssertTrue(ManyProjects.shared.canSaveTeam(name: "Crew", bots: ["b1"]))
         XCTAssertEqual(ManyProjects.shared.toggle(bots: ["b1"], id: "b1"), [])
         let c = CompanySetup.shared.of(answer: kitchen)
         XCTAssertEqual(ProjectSettingWords.shared.deleteTeamQuestion(t: c.teams[0]), "Delete the team Crew? Its bots stay.")

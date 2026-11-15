@@ -542,7 +542,7 @@ struct TeamEditorView: View {
                         let d = draft
                         Task { if await model.saveTeam(d.id, name: d.name, bots: d.bots, lead: d.lead) { dismiss() } }
                     }
-                    .disabled(ManyProjects.shared.teamBody(name: draft.name, bots: draft.bots, lead: draft.lead) == nil)
+                    .disabled(!ManyProjects.shared.canSaveTeam(name: draft.name, bots: draft.bots))
                 }
             }
             .confirmationDialog(deleteQuestion, isPresented: $deleting, titleVisibility: .visible) {

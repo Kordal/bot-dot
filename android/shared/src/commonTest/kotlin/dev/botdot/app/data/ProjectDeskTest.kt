@@ -452,6 +452,7 @@ class ProjectDeskTest {
         runCurrent()
         assertFalse(desk.saveTeam(null, "  ", listOf("b1"), null), "no name")
         assertFalse(desk.saveTeam("t1", "Crew", emptyList(), null), "no bot")
+        assertFalse(ManyProjects.canSaveTeam(" ", listOf("b1")) || ManyProjects.canSaveTeam("Crew", emptyList()), "Save waits for both")
         assertTrue(fake.changes().isEmpty())
         assertTrue(desk.saveTeam(null, "  New   crew ", listOf("b1", "b4"), "b4"))
         assertTrue(desk.saveTeam("t1", "Crew", listOf("b1"), "b2"))
