@@ -12,12 +12,24 @@ final class PagesModel {
 
     init(home: HomeStore) { desk = home.pages() }
 
+    /// It follows the list now.
+    var following: Bool { watching != nil }
+
     func start() {
         guard watching == nil else { return }
         watching = desk.watch { [weak self] s in MainActor.assumeIsolated { self?.state = s } }
     }
 
     func stop() { watching?.cancel(cause: nil); watching = nil }
+
+    /// Follows the list while the calling task runs: the view's own, which SwiftUI cancels when the list goes off
+    /// screen (a page opened over it) and starts again when it comes back, read anew then.
+    func follow() async {
+        start()
+        defer { stop() }
+        await load()
+        while !Task.isCancelled { try? await Task.sleep(for: .seconds(3600)) }
+    }
     func load() async { try? await desk.load() }
     func setOnBoard(_ page: PageInfo, _ on: Bool) async { try? await desk.setOnBoard(page: page, on: on) }
 }
@@ -51,11 +63,8 @@ struct PagesView: View {
         .navigationDestination(item: $open) { ViewerView(api: home.api, opening: $0) }
         .task {
             if model == nil { model = PagesModel(home: home) }
-            model?.start()
-            await model?.load()
+            await model?.follow()
         }
-        .onChange(of: open == nil) { _, closed in if closed { Task { await model?.load() } } }
-        .onDisappear { model?.stop() }
     }
 
     private func row(_ page: PageInfo, _ state: PagesState) -> some View {

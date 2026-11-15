@@ -81,6 +81,24 @@ final class FilesTests: XCTestCase {
                                    frame: nil, expires: nil, values: nil, tiles: [])
         XCTAssertEqual(InteractivePages.shared.versionTitle(v: site.versions[0], current: site.current), "Version 2 · on the page")
     }
+
+    /// The Pages list after a page was opened over it and closed: followed again, and read anew.
+    func testThePagesListIsFollowedAgainWhenItComesBack() async throws {
+        let model = PagesModel(home: HomeStore(api: unreachableApi()))
+        let first = Task { await model.follow() }
+        for _ in 0..<200 where model.state?.error == nil { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.state?.error, "Couldn't load the pages.", "read when it shows")
+        XCTAssertTrue(model.following)
+        first.cancel() // a page opened over it
+        _ = await first.value
+        XCTAssertFalse(model.following, "off screen: it follows nothing")
+        let again = Task { await model.follow() }
+        for _ in 0..<200 where !model.following { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(model.following, "back: it follows the list again")
+        again.cancel()
+        _ = await again.value
+        XCTAssertFalse(model.following)
+    }
 }
 
 /// True once, for the first call: a watch that hands over every state, checked for its first alone.
