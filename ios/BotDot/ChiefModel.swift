@@ -37,6 +37,11 @@ final class ChiefModel: MessageBox {
     func steer(_ q: Queued) { desk.steer(q: q) }
     func rate(_ index: Int32, _ tapped: String) { desk.rate(index: index, tapped: tapped) }
     func stopReply() { desk.stopReply() }
+    /// Another conversation, or a new one (nil), made by its first message.
+    func open(_ id: String?) { desk.open(id: id) }
+    func approve(_ index: Int32) async -> Bool { (try? await desk.approve(index: index))?.boolValue ?? false }
+    func decline() async { try? await desk.decline() }
+    func answer(_ index: Int32, _ answers: [String]) async -> Bool { (try? await desk.answer(index: index, answers: answers))?.boolValue ?? false }
 
     // The message box (Composer).
     var note: String? { state?.note }

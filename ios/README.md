@@ -34,14 +34,18 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   Apps, models, language, Usage, Claude, Updates with What's new, the Subscription of a managed account,
                   Advanced, the address; AppSettingsDesk), Apps (AppsView: the Composio key, the connected apps and who
                   uses them, search, Connect opening the sign-in in Safari; AppsDesk), the status keypad (KeypadView:
-                  the shared Keypad's pages, digits and pills), the Board (BoardView: BoardDesk's tiles and taps), the
-                  account's parts (AccountViews: Delete account, Feedback, the paused account), What's new once after an
-                  update (WhatsNewSheet), bots drawn by FigureView, and tr(). Home's ⋯ menu opens Settings, Apps, the
-                  keypad, each bot's settings, Feedback and Delete account
+                  the shared Keypad's pages, digits and pills), the Board (BoardView: BoardDesk's tiles and taps), shared
+                  rooms (RoomsView: RoomsDesk's list, a room's chat and its settings), the account's parts (AccountViews:
+                  Delete account, Feedback, the paused account), What's new once after an update (WhatsNewSheet),
+                  projects (ProjectView, from Home's switch of spaces: a project's page with its board, its cards, Tidy,
+                  its teams with the lead first and their panel and chat, its own bots with Add bot, the Files tile and
+                  its default chat; ProjectSettingsView behind the gear: name, colour, Project Manager, ✕ and Add bot,
+                  Archive), bots drawn by FigureView, and tr(). Home's ⋯ menu opens Settings, Apps, the keypad, each
+                  bot's settings, Feedback and Delete account
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
-BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers; the extension's opener reads
-                  the seals the server made (test/fixtures/push-seals.json)
+BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers, a project's board draws; the
+                  extension's opener reads the seals the server made (test/fixtures/push-seals.json)
 ```
 
 The app and its extension share the App Group `group.app.botdot` and a Keychain access group, for the session and what a push needs.
@@ -72,7 +76,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
 | `ChiefNameQuestion` | the first run | the alert in `HomeView` |
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
-| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | left (#1372) |
+| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` (left: the "@" picker of the room's bots, as "@Name" typed in the message still mentions; the button to the newest message; block Markdown, a message shows inline Markdown) |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
 | `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` |

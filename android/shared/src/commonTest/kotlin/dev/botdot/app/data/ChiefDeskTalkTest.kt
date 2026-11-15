@@ -5,7 +5,14 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -19,22 +26,23 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
-import kotlin.test.Test
-import kotlin.test.assertTrue
-import kotlin.test.fail
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /** The Chief's chat (ChiefDesk) talking to a fake botdot (Ktor's MockEngine, as BotChatTalkTest). */
 class ChiefDeskTalkTest {
     private class FakeBotdot(answer: suspend (method: String, path: String) -> Pair<Int, String>) {
         private val lock = Mutex()
         private val took = mutableListOf<String>()
+        private val bodies = mutableListOf<Pair<String, String>>()
         val api = Api("https://botdot.test", MockEngine { req ->
             val path = req.url.encodedPath.removePrefix("/api")
-            lock.withLock { took += "${req.method.value} $path" }
+            lock.withLock { took += "${req.method.value} $path"; bodies += path to ((req.body as? TextContent)?.text.orEmpty()) }
             val (status, body) = answer(req.method.value, path)
             respond(body, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
         })
         suspend fun asked(): List<String> = lock.withLock { took.toList() }
+        suspend fun bodiesOf(path: String): List<String> = lock.withLock { bodies.filter { it.first == path }.map { it.second } }
     }
 
     private suspend fun TestScope.until(what: String, done: suspend () -> Boolean) {
@@ -91,5 +99,109 @@ class ChiefDeskTalkTest {
         assertTrue(desk.state.value.chatId == "c2", "the notification's conversation")
         assertTrue(desk.state.value.messages.single().text == "From the notification")
         assertTrue(fake.asked().none { it.endsWith("/chief/chats/c1") }, "the latest is not read: ${fake.asked()}")
+    }
+
+    private fun TestScope.desk(fake: FakeBotdot): ChiefDesk {
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        store.version.set(VersionInfo(features = emptyList()))
+        return ChiefDesk(backgroundScope, fake.api, store, emptyFlow())
+    }
+
+    @Test fun theListIsItsConversationsAndNewChatOpensAnEmptyOne() = runTest {
+        val fake = FakeBotdot { _, path ->
+            when (path) {
+                "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"},{"id":"c2","title":"Trip"}]}"""
+                "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[{"role":"chief","text":"Your week"}],"total":1}"""
+                "/chief/chats/c2" -> 200 to """{"id":"c2","messages":[{"role":"chief","text":"Your trip"}],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("the latest is read") { desk.state.value.messages.singleOrNull()?.text == "Your week" }
+        assertEquals(listOf("Week", "Trip"), desk.state.value.chats.map { it.title })
+        desk.open("c2")
+        until("the other conversation") { desk.state.value.chatId == "c2" && desk.state.value.messages.singleOrNull()?.text == "Your trip" }
+        val asked = fake.asked().size
+        desk.open(null)
+        runCurrent()
+        val s = desk.state.value
+        assertNull(s.chatId, "New chat: none until the first message makes it")
+        assertTrue(s.loaded && s.messages.isEmpty())
+        assertEquals(asked, fake.asked().size, "nothing is read for a new chat")
+    }
+
+    @Test fun aSuggestionIsApprovedOnceOrDeclined() = runTest {
+        var declined = false
+        val fake = FakeBotdot { method, path ->
+            val status = if (declined) "dismissed" else "pending"
+            when {
+                path == "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"}]}"""
+                method == "POST" && path == "/chief/chats/c1/dismiss" -> { declined = true; 200 to "{}" }
+                method == "POST" && path == "/chief/chats/c1/messages" -> 200 to """{"id":"c1","messages":[],"total":0}"""
+                path == "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[{"role":"suggestion","text":"Add a cook","status":"$status","from":{"id":"b1","name":"Fleet Doctor"}}],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("the suggestion") { desk.state.value.messages.singleOrNull()?.suggests == true }
+        assertTrue(desk.approve(0))
+        assertTrue(desk.approve(0))
+        val approvals = fake.bodiesOf("/chief/chats/c1/messages")
+        assertEquals(2, approvals.size)
+        assertTrue(approvals.all { PLAN_APPROVAL in it }, "Approved. Go ahead.")
+        assertEquals(1, approvals.map { Api.JSON.parseToJsonElement(it).jsonObject.getValue("key").jsonPrimitive.content }.toSet().size, "the same card: one key, taken once")
+        desk.decline()
+        until("declined") { desk.state.value.messages.single().declined }
+        assertFalse(desk.state.value.messages.single().suggests)
+    }
+
+    @Test fun theNewestRepliesQuestionsAreAnsweredInOneMessage() = runTest {
+        val fake = FakeBotdot { method, path ->
+            when {
+                path == "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"}]}"""
+                method == "POST" && path == "/chief/chats/c1/messages" -> 200 to """{"id":"c1","messages":[],"total":0}"""
+                path == "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[
+                    {"role":"chief","text":"Earlier","questions":["Old?"]},
+                    {"role":"chief","text":"Two things","questions":["When?","Where?"],"questionChoices":[["Mon","Tue"],null]}],"total":2}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("the questions") { desk.state.value.messages.size == 2 }
+        val (older, newest) = desk.state.value.messages
+        assertTrue(older.questions.isEmpty(), "only the newest reply asks")
+        assertEquals(listOf("When?", "Where?"), newest.questions)
+        assertEquals(listOf(listOf("Mon", "Tue"), emptyList()), newest.choices)
+        assertFalse(desk.answer(newest.index, listOf(" ", "")), "every box empty: nothing sent")
+        assertTrue(desk.answer(newest.index, listOf("Mon", "")))
+        val sent = fake.bodiesOf("/chief/chats/c1/messages").single()
+        assertEquals("When?\n→ Mon\n\nWhere?\n→ –", Api.JSON.parseToJsonElement(sent).jsonObject.getValue("text").jsonPrimitive.content)
+    }
+
+    @Test fun anotherConversationsCardsAreItsOwn() = runTest {
+        val suggestion = """{"role":"suggestion","text":"Add a cook","status":"pending","from":{"id":"b1","name":"Fleet Doctor"}}"""
+        val fake = FakeBotdot { method, path ->
+            when {
+                path == "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"},{"id":"c2","title":"Trip"}]}"""
+                method == "POST" && path.endsWith("/messages") -> 200 to """{"id":"x","messages":[],"total":0}"""
+                path == "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[$suggestion],"total":1}"""
+                path == "/chief/chats/c2" -> 200 to """{"id":"c2","messages":[$suggestion],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("c1's suggestion") { desk.state.value.chatId == "c1" && desk.state.value.messages.singleOrNull()?.suggests == true }
+        assertTrue(desk.approve(0))
+        desk.open("c2")
+        until("c2's suggestion") { desk.state.value.chatId == "c2" && desk.state.value.messages.singleOrNull()?.suggests == true }
+        assertTrue(desk.approve(0))
+        fun key(b: String) = Api.JSON.parseToJsonElement(b).jsonObject.getValue("key").jsonPrimitive.content
+        val k1 = key(fake.bodiesOf("/chief/chats/c1/messages").single())
+        val k2 = key(fake.bodiesOf("/chief/chats/c2/messages").single())
+        assertTrue(k1 != k2, "the same place in another conversation is another card: its own key")
     }
 }

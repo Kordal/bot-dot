@@ -631,9 +631,7 @@ private fun DefaultChatField(ui: CompanyUi, c: Company, ways: CompanyWays) {
         SpaceChatField(manager.name, manager.unread, manager.color, onClick = { ways.onBot(manager.id) }) { BotFigure(manager.color ?: CHIEF_COLOR, manager.state, 28, manager.outfit) }
     } else {
         val name = LocalChiefName.current
-        val id = c.chiefChat
-        val waiting = if (route == dev.botdot.app.data.Spaces.CHIEF) chief?.unread ?: 0
-            else if (id == null) 0 else (chief?.chats?.firstOrNull { it.id == id }?.unread ?: 0) + needs?.asks.orEmpty().count { it.chatId == id }
+        val waiting = dev.botdot.app.data.ProjectRules.chatWaiting(route, c, chief, needs)
         val open = {
             if (route == dev.botdot.app.data.Spaces.CHIEF || ways.onChiefChat == null) ways.onChief()
             else ui.openChief(c, ways.onChiefChat)
