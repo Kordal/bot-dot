@@ -7,7 +7,7 @@ import kotlinx.coroutines.launch
 
 /**
  * A project's setup on the iPhone (#1366): a [CompanySetupDesk] on the same shared [Store] as Home, for the project the
- * Store shows ([newProject]: the start screen, for another one). [watch] hands the screen a new [SetupState] after
+ * Store shows ([startNew]: the start screen, for another one). [watch] hands the screen a new [SetupState] after
  * every change, on the main thread; [close] it when the screen goes.
  */
 class CompanySetupStore(private val home: HomeStore) {
@@ -20,7 +20,7 @@ class CompanySetupStore(private val home: HomeStore) {
     fun start() = desk.start()
 
     /** "New project": the start screen, for another project. */
-    fun newProject() = home.store.newProject()
+    fun startNew() = home.store.newProject()
 
     fun addLink(typed: String): Boolean = desk.addLink(typed)
 

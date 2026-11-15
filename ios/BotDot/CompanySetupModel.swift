@@ -24,7 +24,7 @@ final class CompanySetupModel {
 
     func start(fresh: Bool) {
         guard watching == nil else { return }
-        if fresh { store.newProject() }
+        if fresh { store.startNew() }
         watching = store.watch { [weak self] state in
             MainActor.assumeIsolated { self?.state = state }
         }
