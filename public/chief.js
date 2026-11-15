@@ -541,8 +541,10 @@ const chiefQueued = new Map();
 // bubble as under a bot's own message, under the text and above the problem, and alone when the reply has no words.
 function chiefBubble(m, last = false, index = null) {
   // Its card stands under the newest reply only: an older reply's questions are part of its text (replyText).
-  const open = last && !m.pending && !m.draft;
-  if (!open && m.questions?.length) m = { ...m, text: replyText({ result: m.text, questions: m.questions }, false) };
+  // A mail draft's card takes the card's place, but the reply is still the newest: its questions stay off its text, as on the phone.
+  const newest = last && !m.pending;
+  const open = newest && !m.draft;
+  if (!newest && m.questions?.length) m = { ...m, text: replyText({ result: m.text, questions: m.questions }, false) };
   const files = !m.pending && Array.isArray(m.files) && m.files.length ? botFilesHTML(m.files) : '';
   // The pages it saved in this reply (#384, public/pages.js), as under a bot's reply, then those its bots saved for it.
   const pages = !m.pending && typeof Pages !== 'undefined' ? Pages.chipsHTML({ botId: 'chief', pages: [...(m.pages || []), ...(m.botPages || [])] }) : '';

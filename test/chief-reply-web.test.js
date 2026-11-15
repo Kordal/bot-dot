@@ -104,3 +104,9 @@ test("web: the card of questions stands under the newest reply only: an older re
   assert.match(text(older), /Two things first\. Which account\? Which day\?/);
   assert.match(older, /<li>Which account\?<\/li>\s*<li>Which day\?<\/li>/);
 });
+
+test('web: the newest reply with a mail draft keeps its questions off its text, as the phone does', () => {
+  const html = chiefBubble({ role: 'chief', text: 'Draft is ready.', questions: ['Send today?', 'From work?'], draft: { to: 'a@b.c', subject: 'Hi', body: 'Hi' }, at }, true);
+  assert.doesNotMatch(html, /<li>Send today\?/);
+  assert.doesNotMatch(html, /<questions>/, 'the mail card takes the card\'s place');
+});
