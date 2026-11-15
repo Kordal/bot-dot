@@ -1,6 +1,7 @@
 package dev.botdot.app.data
 
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancel
 import kotlinx.io.files.Path
 
 /** A file as the viewer read it: its start ([view]), what its body shows ([pane]) and, when it failed, why. */
@@ -72,6 +73,35 @@ class DocumentViewer(val api: Api, val opening: DocumentView.Opening) {
         api.downloadTo(opening.src, dest)
         return dest.toString()
     }
+
+    private val scope = kotlinx.coroutines.MainScope()
+    private var features: List<String>? = null
+
+    /** The botdot's features, read once: what the page's bar and Export offer. */
+    @Throws(Exception::class)
+    suspend fun features(): List<String>? = features ?: runCatching { api.version().features }.getOrNull().also { features = it }
+
+    /** A Markdown page's bar (PageDesk): Board, Keep up to date, Refresh now, Stop; null for a file that isn't a page. */
+    @Throws(Exception::class)
+    suspend fun pageDesk(): PageDesk? = pageDesk(features())
+
+    /** The bar on a botdot with [features] (read by [pageDesk]). */
+    fun pageDesk(features: List<String>?): PageDesk? {
+        val botId = opening.botId ?: return null
+        val slug = opening.slug ?: return null
+        return PageDesk(scope, api, botId, slug, opening.from, features)
+    }
+
+    /** Export… (#348), on a botdot with document-export: a Markdown file's words made a Word document, PDF or Markdown by botdot. */
+    @Throws(Exception::class)
+    suspend fun exports(view: FileView?): Boolean = view?.kind == "markdown" && view.text != null && DocumentExport.shows(features())
+
+    /** The export in [format] ([DocumentExport.FORMATS]) saved in the folder [dir]; answers where it is. */
+    @Throws(Exception::class)
+    suspend fun export(text: String, format: String, dir: String): String = api.exportDocument(opening.name, text, format, Path(dir)).toString()
+
+    /** The viewer went: its page's bar follows nothing more. */
+    fun close() = scope.cancel()
 
     /** The owner's tap on Start the computer, for a file on it. */
     @Throws(Exception::class)
