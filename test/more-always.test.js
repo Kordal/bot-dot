@@ -82,12 +82,15 @@ test('reminders need no card after the web (ADR 249); quiet hours offer "Always 
   const second = await turn.call('set_quiet_hours', { start: 23, end: 7 });
   assert.equal(second.held, undefined, JSON.stringify(second));
   // Other types still wait.
-  const first2 = await turn.call('writing_first', { perDay: 3 });
-  assert.equal(first2.held, true, JSON.stringify(first2));
-  assert.equal((await heldAsks()).find((a) => a.id === first2.id).always, 'Always allow changes to when the Chief writes first');
+  const writingFirst = await turn.call('writing_first', { perDay: 3 });
+  assert.equal(writingFirst.held, true, JSON.stringify(writingFirst));
+  assert.equal((await heldAsks()).find((a) => a.id === writingFirst.id).always, 'Always allow changes to when the Chief writes first');
   assert.deepEqual((await turn.call('after_web_grants')).types, [{ type: 'quiet-hours', label: 'changes to your quiet hours' }]);
   assert.deepEqual((await turn.call('remove_after_web_grant', { type: 'quiet-hours' })).types, []);
   assert.equal((await turn.call('set_quiet_hours', { start: 21, end: 7 })).held, true, 'it waits again');
+  const removal = await turn.call('remove_tile', { id: 'some-tile' });
+  assert.equal(removal.held, true, JSON.stringify(removal));
+  assert.equal((await heldAsks()).find((a) => a.id === removal.id).always, undefined, 'a removal is never always allowed');
   await turn.end();
 });
 

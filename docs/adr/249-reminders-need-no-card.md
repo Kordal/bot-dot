@@ -6,11 +6,12 @@
 
 ## Context
 
-A bot's own reminders never had a card (#343). The Chief's did, in a chat that had read the web: `remind_me` and `cancel_reminder` waited on a `chief-action` card, and "Always allow reminders" took one card first. The owner taps Approve on those cards because they are there. A reminder is a ⏰ message in the owner's own chat at a time: it changes nothing else, reaches nothing outside the account, and the owner sees it when it goes off.
+A bot's own reminders never had a card (#343). Outside a room run, that is: in a run the owner started in a shared room every tool waited on a `room-tool` card. The Chief's did, in a chat that had read the web: `remind_me` and `cancel_reminder` waited on a `chief-action` card, and "Always allow reminders" took one card first. The owner taps Approve on those cards because they are there. A reminder is a ⏰ message in the owner's own chat at a time: it changes nothing else, reaches nothing outside the account, and the owner sees it when it goes off.
 
 ## Decision
 
 - **The Chief's reminders are free after the web.** `POST /api/chief/reminders` and `DELETE /api/chief/reminders/:id` are in `FREE_AFTER_WEB` (`server.js`): set and cancelled at once, in any chat.
+- **A bot's own reminders in a room run go on too.** `remind_me`, `list_reminders` and `cancel_reminder` skip the `room-tool` card (`lib/room-runs.js`): the reminder goes off in the bot's own chat with the owner, never in the room.
 - **"Always allow reminders" is gone.** `reminders` leaves `AFTER_WEB_TYPES` (`lib/asks.js`). A grant of it saved before is ignored where grants are listed and read.
 - The Chief's prompt says reminders never wait, and to set only the one the user asked for.
 
