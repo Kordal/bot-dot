@@ -135,7 +135,7 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
     private fun of(o: Own, features: List<String>?) = ScreenState(
         o.state, o.control, o.info, o.error,
         url = if (o.state == ComputerScreen.RUNNING) ComputerScreen.url(api, botId, o.control) else null,
-        handBack = ComputerScreen.canHandBack(o.state, o.control, features) && !o.handing,
+        handBack = ComputerScreen.canHandBack(o.state, o.control, features) && !o.handing && !o.closed,
         notice = o.notice, noticeId = o.noticeId, closed = o.closed,
     )
 
@@ -173,7 +173,8 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
         // Checked and claimed in one step (a compare-and-set): of two taps at once, from any thread, one sends it.
         var claimed = false
         own.update {
-            claimed = !it.handing && ComputerScreen.canHandBack(it.state, it.control, features.value?.features)
+            // Not while one is on its way, nor once it went back: a tap that comes after the first one's answer sends nothing.
+            claimed = !it.handing && !it.closed && ComputerScreen.canHandBack(it.state, it.control, features.value?.features)
             if (claimed) it.copy(handing = true) else it
         }
         if (!claimed) return false
