@@ -119,3 +119,17 @@ test('after Claude Code compacts the session, the next turn gives the instructio
   assert.match(context(await say(chatId, 'and again')), /<instructions>\n[^]*writing_first[^]*<\/instructions>/, 'its summary may have left them out');
   assert.doesNotMatch(context(await say(chatId, 'last one')), /<instructions>/);
 });
+
+test("a resumed turn after the Chief's card of questions is told the card closed, unless the message is the card's answers", async (t) => {
+  const id = (await srv.api('/chief/chats', { method: 'POST' })).data.id;
+  const result = path.join(srv.out, 'result.txt');
+  t.after(() => fs.rmSync(result, { force: true }));
+  srv.reply('Two things.\n\n[[ask: Which account?]]\n[[ask: Which day?]]');
+  const first = await say(id, 'Plan the trip');
+  assert.doesNotMatch(first.stdin, /card of questions/, 'a new session has no card behind it');
+  assert.deepEqual((await chatOf(id)).messages.at(-1).questions, ['Which account?', 'Which day?']);
+  const asked = await say(id, 'status?');
+  assert.match(context(asked), /The card of questions under your previous reply \(Which account\? \| Which day\?\) is closed now: [^\n]*ask it again on a new card/);
+  const answered = await say(id, 'Which account?\n→ Work\n\nWhich day?\n→ –');
+  assert.doesNotMatch(context(answered) || '', /card of questions/, "the card's own answers close nothing");
+});

@@ -18,4 +18,20 @@ class ReplyTextTest {
     @Test fun aReplyWithoutQuestionsIsAsItWas() {
         assertEquals("Done.", replyText(Run(id = "r2", botId = "reviewer", status = "success", result = "Done."), open = false))
     }
+
+    @Test fun anOlderChiefReplysQuestionsArePartOfItsText() {
+        val m = ChiefMessage(role = "chief", text = "Two things first.", questions = listOf("Which account?", "Which day?"))
+        assertEquals("Two things first.", chiefText(m, open = true))
+        assertEquals("Two things first.\n\n- Which account?\n- Which day?", chiefText(m, open = false))
+    }
+
+    @Test fun onlyTheNewestChiefReplyKeepsItsCard() {
+        val asked = ChiefMessage(role = "chief", text = "First.", questions = listOf("Which account?"))
+        val again = ChiefMessage(role = "chief", text = "Second.", questions = listOf("Which day?"))
+        val update = ChiefMessage(role = "chief", text = "Project news.", projectUpdate = "p1")
+        val chat = listOf(asked, ChiefMessage(role = "user", text = "status?"), again, update)
+        assertEquals(2, chiefCardAt(chat))
+        assertEquals(listOf("First.\n\n- Which account?", "status?", "Second.", "Project news."), withClosedCards(chat).map { it.text })
+        assertEquals(null, chiefCardAt(chat + ChiefMessage(role = "user", text = "ok")))
+    }
 }
