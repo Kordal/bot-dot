@@ -36,6 +36,9 @@ final class CompanySetupModel {
         watching = nil
     }
 
+    /// The screen went: backed out of New project with none made, the project shown before shows again.
+    func leave() { store.leave() }
+
     func addLink(_ typed: String) -> Bool { store.addLink(typed: typed) }
 
     /// Files picked in Files: each copied where the app may read it, then uploaded for the Chief.

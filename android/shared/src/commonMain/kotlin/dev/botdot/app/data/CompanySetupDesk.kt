@@ -135,6 +135,11 @@ class CompanySetupDesk(private val store: Store, private val api: Api, private v
 
     fun removeSource(id: String) = local.update { l -> l.copy(sources = l.sources.filterNot { it.id == id }) }
 
+    /** The setup's screen closed: a start screen left with no project made gives back the project shown before. */
+    fun leave() {
+        if (company() == null) store.leaveNewProject()
+    }
+
     /** Go, with what was typed: the project is made, and its setup opens (with the Chief, where botdot has that). */
     @Throws(Exception::class)
     suspend fun go(typed: String): Boolean {

@@ -318,6 +318,24 @@ class CompanySetupDeskTest {
         assertTrue(talkingDesk.state.value.go)
     }
 
+    @Test fun aNewProjectLeftWithNoneMadeGivesBackTheProjectShownBefore() = runTest {
+        val many = talks + CompanySetup.MANY
+        val list = """[$talking,${talking.replace("\"p1\"", "\"p2\"").replace("Kitchen", "Garden")}]"""
+        val fake = FakeBotdot { a -> if (a.method == "GET" && a.path == "/company/list") 200 to """{"projects":$list}""" else 200 to "{}" }
+        val (store, desk) = desk(fake, features = many, reads = true)
+        desk.start() // as the screen opens: botdot's projects are read
+        until("the projects are read") { store.projectList.value.size == 2 }
+        store.showProject("p2")
+        until("Garden shows") { desk.state.value.company?.id == "p2" }
+        store.newProject()
+        until("the start screen") { desk.state.value.phase == SetupPhase.START }
+        desk.leave() // Back, nothing made
+        until("Garden again") { desk.state.value.company?.id == "p2" }
+        assertFalse(store.addingProject.value, "no longer adding one")
+        desk.leave()
+        assertEquals("p2", desk.state.value.company?.id, "with a project shown, leaving changes nothing")
+    }
+
     @Test fun deleteAsksWhetherTheFolderGoesAndTheStartScreenFollows() = runTest {
         val fake = FakeBotdot { 200 to "{}" }
         val (_, desk) = desk(fake, c = talking.replace("\"chiefChat\":\"c1\"", "\"chiefChat\":\"c1\",\"folder\":{\"name\":\"kitchen\",\"path\":\"/home/p/kitchen\"}"))

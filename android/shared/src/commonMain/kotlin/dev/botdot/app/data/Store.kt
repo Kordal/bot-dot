@@ -228,6 +228,17 @@ class Store(
     }
 
     /**
+     * The start screen closed with no project made (a phone's Back): the project shown before shows again, and the app
+     * is no longer adding one. Android's start screen stays until another space is picked, so it has no such Back.
+     */
+    fun leaveNewProject() {
+        if (!_addingProject.value) return
+        _addingProject.value = false
+        if (many && _projectList.value.isNotEmpty()) showProject(_shownProject.value)
+        else scope.launch { runCatching { company.refresh() } } // one project: botdot's again
+    }
+
+    /**
      * A project as botdot answered a change of it: shown when it is the one shown, kept in the list either way. [made]:
      * the answer to Go on the start screen, shown while that screen is still on, even when the feed's `project` event
      * put it in the list first (it is sent before the answer, so the start screen stayed on).

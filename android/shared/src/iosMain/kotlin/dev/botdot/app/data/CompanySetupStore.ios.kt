@@ -22,6 +22,9 @@ class CompanySetupStore(private val home: HomeStore) {
     /** "New project": the start screen, for another project. */
     fun startNew() = home.store.newProject()
 
+    /** The screen closed: backed out of New project with none made, the project shown before is shown again. */
+    fun leave() = desk.leave()
+
     fun addLink(typed: String): Boolean = desk.addLink(typed)
 
     /** A file picked on this phone, at [path] (a copy the app may read), uploaded for the Chief. */

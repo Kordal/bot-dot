@@ -23,6 +23,8 @@ struct CompanySetupView: View {
                 model = made
             }
         }
+        // Also when the Chief's chat is pushed over it: leaving is a no-op once a project exists.
+        .onDisappear { model?.leave() }
     }
 }
 
@@ -33,6 +35,7 @@ struct CompanySetupPage: View {
     let model: CompanySetupModel
     @State private var chief: ChiefRoute?
     @State private var deleting = false
+    @Environment(\.dismiss) private var dismiss
     @State private var notice: String?
 
     var body: some View {
@@ -112,7 +115,8 @@ struct CompanySetupPage: View {
         Button(tr("Cancel"), role: .cancel) {}
     }
 
-    private func delete(_ dropFolder: Bool) { Task { _ = await model.delete(dropFolder: dropFolder) } }
+    /// Deleted: the screen goes (the project's place in the stack goes with it), else the notice says why.
+    private func delete(_ dropFolder: Bool) { Task { if await model.delete(dropFolder: dropFolder) { dismiss() } } }
 
     @ViewBuilder
     private var noticeLine: some View {
