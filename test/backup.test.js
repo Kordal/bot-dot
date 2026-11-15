@@ -395,8 +395,10 @@ test("a download is asked for in seconds while the computer's files are still pa
     const file = path.join(dataDir, '..', r.name);
     const out = fs.createWriteStream(file);
     const down = backup.download(r.token, out);
-    await new Promise((res) => setTimeout(res, 50));
-    assert.ok(fs.statSync(file).size > 0, 'the file started before the pack ended');
+    // The pack is held until packDone(), so bytes on disk now came before it ended. Waited for, not slept on: the
+    // file's open and first write go through libuv's thread pool, which a loaded machine keeps busy past any sleep.
+    await waitFor(() => fs.existsSync(file) && fs.statSync(file).size > 0, { timeout: 5_000, every: 10, what: 'the file to start before the pack ended' });
+    assert.deepEqual(computer.calls, [], 'still packing');
     packDone();
     assert.equal(await down, true);
     assert.deepEqual(computer.calls, ['pack', 'read', 'drop']);
