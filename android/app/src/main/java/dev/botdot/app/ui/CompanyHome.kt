@@ -182,7 +182,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
                 val questions = dev.botdot.app.data.ProjectOverview.withoutCarded(asked, needs?.asks.orEmpty().mapNotNull { it.chatId }.toSet()) // as the web page: any card in that chat
                 if (dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + chiefAsks.size, questions.size)) {
                     Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
-                    if (questions.isNotEmpty()) OverviewRows(questions, open)
+                    if (questions.isNotEmpty()) OverviewRows(questions, open, sites = sitesShown(features))
                     chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
                     rows()
                 }

@@ -74,3 +74,24 @@ test('current team questions and file-only replies are visible, while internal o
   assert.deepEqual(result.replies.map((r) => r.text), ['report.pdf']);
   assert.ok(result.blockers.some((r) => r.groupId === 'g' && r.text === 'Publish it?'));
 });
+
+test('an entry keeps the Markdown and lines the bot wrote, cut at 600 characters never inside a link or an open code block', () => {
+  const { overview } = require('../lib/project-overview');
+  const at = '2026-11-13T12:00:00Z';
+  const of = (result) => overview({ id: 'p', bots: ['b'] }, { bots: [{ id: 'b', name: 'B' }], runs: [{ id: 'r', botId: 'b', status: 'success', result, endedAt: at }], now: at }).replies[0].text;
+  const list = 'Done:\r\n- close [#252](https://github.com/o/r/issues/252)   \n\n\n\n- review **PR #374**';
+  assert.equal(of(list), 'Done:\n- close [#252](https://github.com/o/r/issues/252)\n\n- review **PR #374**');
+  const link = `${'word '.repeat(115)}[#23](https://github.com/o/r/issues/23) after`;
+  assert.equal(of(link), `${'word '.repeat(114)}word…`, 'a link that does not fit is left out whole');
+  const fence = `${'word '.repeat(100)}\n\`\`\`\n${'code '.repeat(40)}\n\`\`\``;
+  assert.equal(of(fence), `${'word '.repeat(99)}word…`, 'a code block that does not fit is left out whole');
+  assert.equal(of(`${'word '.repeat(118)}**bold text here** end`), `${'word '.repeat(117)}word…`, 'an open bold is left out');
+  assert.equal(of(`${'word '.repeat(118)}\`code here\` end`), `${'word '.repeat(117)}word…`, 'an open code is left out');
+  const block = '```\nls src/**/*.js `x\n```';
+  assert.equal(of(`${block}\n${'word '.repeat(120)}`), `${block}\n${'word '.repeat(113)}word…`, 'a mark inside a closed code block is no open mark');
+  const log = `\`\`\`\n${'error at line 12\n'.repeat(60)}\`\`\``;
+  const cut = of(log);
+  assert.match(cut, /^```\nerror at line 12\n[\s\S]*error at line 12…\n```$/, 'a reply that opens with a long code block keeps its lines, closed');
+  assert.ok(cut.length <= 605);
+  assert.ok(of('x'.repeat(700)).length <= 601);
+});

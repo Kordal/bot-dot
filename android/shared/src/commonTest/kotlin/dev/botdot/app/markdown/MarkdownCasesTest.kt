@@ -40,6 +40,12 @@ class MarkdownCasesTest {
         for (c in stream) assertEquals(c.getValue("blocks").jsonArray.map { block(it.jsonObject) }, parseBlocks(draftSource(c.getValue("source").jsonPrimitive.content)), c.getValue("name").jsonPrimitive.content)
     }
 
+    @Test fun everyPreviewCaseOfTheSharedFixtureIsItsLines() {
+        val preview = markdown.getValue("preview").jsonArray.map { it.jsonObject }
+        assertTrue(preview.size >= 5)
+        for (c in preview) assertEquals(c.getValue("lines").jsonArray.map { it.jsonPrimitive.content }, previewLines(c.getValue("source").jsonPrimitive.content), c.getValue("name").jsonPrimitive.content)
+    }
+
     @Test fun everyAddressOfTheSharedFixtureIsLinkedAndLabelled() {
         val table = Json.parseToJsonElement(fixture("chatLinks")).jsonObject
         for (c in table.getValue("cases").jsonArray.map { it.jsonObject }) {

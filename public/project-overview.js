@@ -19,8 +19,8 @@ const ProjectOverview = (() => {
   }
   const label = (k) => ({ working: tr('Working'), planned: tr('Planned'), failed: tr('Failed'), asks: tr('Asks'), reply: tr('Reply') })[k] || '';
   function rows(items, empty = '') {
-    return items.length ? items.map((x) => `<button type="button" class="po-row" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>
-      <span class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></span><span class="po-text">${esc(x.text || label(x.state))}</span></button>`).join('') : empty ? `<p class="po-empty">${empty}</p>` : '';
+    return items.length ? items.map((x) => `<div class="po-row" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>
+      <button type="button" class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></button><span class="po-text md">${x.text ? mdPreview(x.text) : esc(label(x.state))}</span></div>`).join('') : empty ? `<p class="po-empty">${empty}</p>` : '';
   }
   function html(c) {
     refresh(c);
@@ -39,10 +39,13 @@ const ProjectOverview = (() => {
   function wire(root, c) {
     const folder = () => ({ folder: c.folder.name, name: c.name || c.start, color: c.color });
     root.querySelector('[data-po-refresh]')?.addEventListener('click', () => { refresh(c, true); Company.redraw(); });
-    root.querySelectorAll('[data-po-bot]').forEach((b) => b.onclick = () => setView('bot', b.dataset.poBot));
-    root.querySelectorAll('[data-po-group]').forEach((b) => b.onclick = () => setView('group', b.dataset.poGroup));
-    root.querySelectorAll('[data-po-chief]').forEach((b) => b.onclick = () => Dock.openChief(b.dataset.poChief));
-    root.querySelectorAll('[data-po-chat]').forEach((b) => b.onclick = () => Dock.openDefault());
+    // A row holds links, so it is no <button>: its name is the button, a tap anywhere else in it opens the chat as
+    // well, and a link opens only itself.
+    const open = (sel, go) => root.querySelectorAll(sel).forEach((b) => b.onclick = (e) => { if (!e.target.closest('a')) go(b); });
+    open('[data-po-bot]', (b) => setView('bot', b.dataset.poBot));
+    open('[data-po-group]', (b) => setView('group', b.dataset.poGroup));
+    open('[data-po-chief]', (b) => Dock.openChief(b.dataset.poChief));
+    open('[data-po-chat]', () => Dock.openDefault());
     root.querySelectorAll('[data-po-file]').forEach((b) => b.onclick = () => c.folder && Files.openFolderFile(folder(), b.dataset.poFile));
     root.querySelector('[data-po-folder]')?.addEventListener('click', () => Files.openFolder(folder()));
   }

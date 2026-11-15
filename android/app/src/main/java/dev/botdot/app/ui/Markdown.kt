@@ -6,6 +6,7 @@ import dev.botdot.app.markdown.INLINE
 import dev.botdot.app.markdown.linkLabel
 import dev.botdot.app.markdown.chatLinks
 import dev.botdot.app.markdown.parseBlocks
+import dev.botdot.app.markdown.previewLines
 import dev.botdot.app.markdown.Block
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -429,6 +430,11 @@ private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathAction
         }
         append(linkedChatText(AnnotatedString(s.substring(at)), color, sites))
     }
+}
+
+/** A reply in a few lines ([previewLines]), each styled as in a chat, its links shown as their site. */
+internal fun previewText(s: String, color: Color, p: Paper, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
+    previewLines(s).forEachIndexed { i, line -> if (i > 0) append("\n"); append(inlineText(line, color, p, sites = sites)) }
 }
 
 internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
