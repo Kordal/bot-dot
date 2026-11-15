@@ -25,10 +25,12 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.OverviewEntry
 import dev.botdot.app.data.ProjectFiles
+import dev.botdot.app.data.ProjectOverview
 import dev.botdot.app.data.tr
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** A fixed reading order; polls only while this overview is composed, never starts the computer. */
