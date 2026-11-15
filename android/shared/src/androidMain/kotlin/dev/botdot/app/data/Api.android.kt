@@ -88,7 +88,8 @@ fun Api.describe(resolver: ContentResolver, uri: Uri): Pair<String, Long?> {
     return name to size
 }
 
-private fun Api.outgoing(resolver: ContentResolver, uri: Uri): OutgoingFile {
+/** A picked file as the shared layer sends it: its name and size, its bytes read as it goes up. */
+fun Api.outgoing(resolver: ContentResolver, uri: Uri): OutgoingFile {
     val (name, size) = describe(resolver, uri)
     return OutgoingFile(name, size) { resolver.openInputStream(uri)?.asSource() }
 }

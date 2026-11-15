@@ -183,7 +183,8 @@ struct ProjectPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .safeAreaInset(edge: .bottom) { chatField }
-        .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure) { settings = false; dismiss() } }
+        .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure, onDeleted: { settings = false; dismiss() },
+                                onFolder: model.state?.project?.folder == nil ? nil : { if let c = model.state?.project { settings = false; file(c, nil) } }) }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }
