@@ -7,7 +7,7 @@ import BotdotShared
 /// chat's message box, for the shared Composer.
 @MainActor
 @Observable
-final class GroupChatModel {
+final class GroupChatModel: MessageBox {
     private(set) var state: GroupChatState?
     private let chat: GroupChat
     private var watching: Kotlinx_coroutines_coreJob?
@@ -55,6 +55,12 @@ final class GroupChatModel {
     func loadOlder() { chat.loadOlder() }
     /// An answer button under the group's open question.
     func answer(_ choice: String) { Task { _ = try? await chat.answer(choice: choice) } }
+    func makeLead(_ botId: String) { chat.makeLead(botId: botId) }
+    func answerQuestions(_ runId: String, _ answers: [String]) async -> Bool {
+        (try? await chat.answerQuestions(runId: runId, answers: answers))?.boolValue ?? false
+    }
+    /// A fold's row tapped: the members' replies it holds open, or close.
+    func toggleFold(_ messageId: String) { chat.toggleFold(messageId: messageId) }
     func takeBack(_ m: GroupMessage) { chat.takeBack(m: m) }
     func stopAll() { chat.stopAll() }
     func goOn() { chat.goOn() }

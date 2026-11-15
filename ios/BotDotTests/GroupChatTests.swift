@@ -26,14 +26,26 @@ final class GroupChatTests: XCTestCase {
         XCTAssertEqual(message.message.question?.text, "Ship it now or wait?")
 
         let view = GroupReplyView(id: reply.id, run: reply.run, bot: nil, name: "Coder", color: "#7f77dd", figureState: "idle", reply: reply.run.result, ended: nil, problem: false,
-                                  files: [], choices: reply.run.choices ?? [], yes: 0)
+                                  files: [], choices: reply.run.choices ?? [], yes: 0,
+                                  questions: ["When?", "Where?"], questionChoices: [["Mon", "Tue"], []])
         let figure = HomeModel.bundledFigure
         let drawn = ImageRenderer(content: GroupReplyRow(view: view, figure: figure, onAnswer: { _ in }).frame(width: 320))
-        XCTAssertNotNil(drawn.cgImage, "a reply under its name, with its answer buttons, draws")
+        XCTAssertNotNil(drawn.cgImage, "a reply under its name, with its answer buttons and its questions, draws")
 
         let asked = GroupMessageView(message: message.message, question: message.message.question, questionColor: "#7f77dd", questionBot: nil,
                                      byName: nil, byColor: nil, byBot: nil, byOutfit: nil, waits: "")
         let answer = ImageRenderer(content: GroupMessageRow(view: asked, figure: figure, onQuestion: { _ in }).frame(width: 320))
         XCTAssertNotNil(answer.cgImage, "a tapped answer with its question above it draws")
+    }
+
+    func testAFoldAndAPlanDraw() {
+        let figure = HomeModel.bundledFigure
+        let fold = GroupFoldView(messageId: "m1", heads: [GroupFoldHead(bot: nil, color: "#7f77dd"), GroupFoldHead(bot: nil, color: "#d4537e")],
+                                 words: "Coder and Reviewer · 2", open: false)
+        XCTAssertNotNil(ImageRenderer(content: FoldRow(fold: fold, figure: figure) {}.frame(width: 320)).cgImage)
+        let plan = GroupPlanView(name: "Coder", color: "#7f77dd", stepLine: "step 2 of 3", doneLine: "1 of 3", now: "Fixing the test",
+                                 steps: [Plan.Step(text: "Read the issue", status: Plan.companion.DONE, doing: ""),
+                                         Plan.Step(text: "Write the fix", status: Plan.companion.DOING, doing: "Fixing the test")])
+        XCTAssertNotNil(ImageRenderer(content: PlanDock(plan: plan).frame(width: 360)).cgImage)
     }
 }
