@@ -658,7 +658,8 @@ const FREE_AFTER_WEB = /^(company\/card-request|asks|chief\/pages|bots\/[^/]+\/r
 // its to-dos, cards, plan, goal, dates and calendar, and making or changing a group, are done at once after the web
 // too. They stay in the account, change no bot's own powers and are seen and undone where they are; a team's turns
 // from such a message start as runs that read the web. A deletion still waits.
-const FREE_PROJECT_AFTER_WEB = /^(company(\/.+)?|group-chats(\/[^/]+)?)$/;
+// Named one by one, so a project route added later is held until someone decides otherwise.
+const FREE_PROJECT_AFTER_WEB = /^(company\/(teams|todos|decisions|events|cards|plan|suggestion|standup|updates|layout|dates|goal|bots)|company\/(teams|objectives|todos|events|cards)\/[^/]+|company\/teams\/[^/]+\/message|group-chats(\/[^/]+)?)$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'))
   && !(method !== 'DELETE' && FREE_PROJECT_AFTER_WEB.test(parts.join('/')));
 // A bot's job the owner asked for in a turn their own message started (ADR 075): adding one, or changing one, is

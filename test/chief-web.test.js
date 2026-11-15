@@ -293,6 +293,10 @@ test("after a web page, a project's team, its lead and a message to the team are
   assert.deepEqual([ops.bots, ops.lead], [[quill.id, scout.id], quill.id]);
   const changed = await turn.call('set_company_team', { id: ops.id, lead: scout.id });
   assert.ok(!changed.held, JSON.stringify(changed));
+  const todo = await turn.call('add_project_todo', { text: 'Check staging' });
+  assert.ok(!todo.held && !todo.error, JSON.stringify(todo));
+  const group = await turn.call('create_group', { name: 'Pair', bots: [quill.id, scout.id] });
+  assert.ok(!group.held && !group.error, JSON.stringify(group));
   assert.ok(!(await heldAsks()).some((a) => a.chatId === turn.chat.id), 'no card');
 
   const g = await waitFor(async () => (await srv.api('/group-chats')).data.find((x) => x.team === ops.id), { what: "the team's chat" });
@@ -302,7 +306,7 @@ test("after a web page, a project's team, its lead and a message to the team are
   const meta = await waitFor(async () => (await srv.api(`/runs?group=${g.id}`)).data.find((x) => x.botId === scout.id && x.outside) || null, { what: "the lead's run" });
   assert.ok(meta.outside.includes('web'), JSON.stringify(meta.outside));
 
-  // A deletion still waits, and a card names a bot by its name, never its id.
+  // A deletion still waits.
   const removed = await turn.call('remove_project_card', { card: 'nope' });
   assert.equal(removed.held, true, JSON.stringify(removed));
   await turn.end();
@@ -310,7 +314,7 @@ test("after a web page, a project's team, its lead and a message to the team are
 
 test("a held card's rows name bots by their names; the yes keeps the ids", () => {
   const asksLib = require('../lib/asks');
-  const a = { kind: 'chief-action', title: 'Change something', method: 'PUT', path: 'vault/x', body: { bots: ['a5ef8c1d', 'zz'], lead: 'a5ef8c1d', text: 'hello' } };
+  const a = { kind: 'chief-action', title: 'Change something', method: 'PUT', path: 'skills/digest', body: { bots: ['a5ef8c1d', 'zz'], lead: 'a5ef8c1d', text: 'hello' } };
   const names = { a5ef8c1d: 'Issue Reviewer' };
   const view = asksLib.proposalView(a, null, { botNameOf: (id) => names[id] || null });
   assert.deepEqual(view.rows.map((r) => r.value), ['Issue Reviewer, zz', 'Issue Reviewer', 'hello']);
