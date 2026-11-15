@@ -81,7 +81,7 @@ struct ShareView: View {
             list
                 .navigationTitle(Share.shared.title(files: Int32(shared?.files.count ?? 0)))
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("Cancel"), action: cancel) } }
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button(tr("Cancel")) { forget(); cancel() } } }
         }
         .task { await load() }
     }
@@ -112,6 +112,9 @@ struct ShareView: View {
         .accessibilityIdentifier("share-\(p.id)")
     }
 
+    /// The copies of what was shared, gone once it went or the share was cancelled.
+    private func forget() { try? FileManager.default.removeItem(at: dir) }
+
     private var api: Api? {
         server.map { Api(baseUrl: $0, session: Session(keep: KeychainSessions()), quietMs: Api.companion.QUIET_MS) }
     }
@@ -135,8 +138,8 @@ struct ShareView: View {
             let failed: String?
             do { failed = try await Share.shared.send(api: api, to: to, text: text, files: files, key: key) } catch { failed = error.localizedDescription }
             sending = nil
-            try? FileManager.default.removeItem(at: dir)
-            if let failed { error = failed } else { done() }
+            // A failure keeps the files where they are, for a tap again from the picker still open.
+            if let failed { error = failed } else { forget(); done() }
         }
     }
 }
