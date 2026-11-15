@@ -80,6 +80,8 @@ test("a bot's run the owner did not start shows a piece but takes none off", asy
   const r = await self(srv, token, 'board', { hide: 'needs' });
   assert.equal(r.status, 403, JSON.stringify(r.data));
   assert.ok((await board()).includes('needs'));
+  assert.equal((await self(srv, token, 'board', { hide: '' })).status, 403, 'any hide is the owner\'s');
+  assert.equal((await self(srv, token, 'board', { hide: 'needs', show: 'files' })).status, 400, 'not both');
   assert.equal((await self(srv, token, 'board', { show: 'files' })).data.ok, true);
   srv.release(rec);
   await srv.finished(ran.run.id);

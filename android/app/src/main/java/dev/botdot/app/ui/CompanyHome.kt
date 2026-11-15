@@ -57,6 +57,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -185,7 +186,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         val needsTile = one && on("needs") && dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + askedHere.size, questionsHere.size)
         val needsBox: @Composable (Modifier) -> Unit = { m ->
             Column(m.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                Text(tr("Needs you"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { androidx.compose.ui.semantics.heading() })
+                Text(tr("Needs you"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                 if (questionsHere.isNotEmpty()) OverviewRows(questionsHere, openEntry)
                 askedHere.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
                 rows()
