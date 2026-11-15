@@ -15,7 +15,7 @@ struct ChatView: View {
     @State private var group: GroupRoute?
     /// A "Learned" chip's tap: the bot's scheduled jobs, or its settings.
     @State private var learnedJobs = false
-    @State private var learnedSettings = false
+    @State private var learnedSkill: SkillFocus?
     @State private var atBottom = true
     @State private var sentAt = 0
     @FocusState private var focused: Bool
@@ -38,10 +38,10 @@ struct ChatView: View {
                                    color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
                                    onAnswers: { await model.answerQuestions(r.run.id, $0) },
                                    onLearned: { chip in
-                                       switch chip.opens {
+                                       guard let to = LearnedChips.shared.open(c: chip) else { return }
+                                       switch onEnum(of: to) {
                                        case .jobs: learnedJobs = true
-                                       case .settings: learnedSettings = true
-                                       default: break
+                                       case .settings(let s): learnedSkill = SkillFocus(skill: s.skill)
                                        }
                                    },
                                    onPage: { page in opening = DocumentView.shared.ofPage(botId: page.botId.isEmpty ? botId : page.botId, slug: page.slug, title: page.title, from: name) })
@@ -116,7 +116,7 @@ struct ChatView: View {
         }
         .navigationDestination(item: $group) { g in GroupChatView(home: home, groupId: g.groupId, name: g.name, figure: nil) }
         .navigationDestination(isPresented: $learnedJobs) { JobsView(home: home, botId: botId, figure: nil) }
-        .navigationDestination(isPresented: $learnedSettings) { BotSettingsView(home: home, botId: botId, figure: nil) }
+        .navigationDestination(item: $learnedSkill) { f in BotSettingsView(home: home, botId: botId, figure: nil, focusSkill: f.skill ?? "") }
         // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.
         .environment(\.openURL, OpenURLAction { url in
             guard let path = MarkdownKt.filePathOf(link: url.absoluteString.removingPercentEncoding ?? url.absoluteString) else { return .systemAction }
@@ -414,4 +414,10 @@ struct LearnedChipLabel: View {
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(.quaternary.opacity(0.5), in: .capsule)
     }
+}
+
+/// A "Learned" chip's way to the bot's settings: its Skills, on [skill] when it names one ("" or nil for the section).
+struct SkillFocus: Hashable, Identifiable {
+    let skill: String?
+    var id: String { skill ?? "" }
 }

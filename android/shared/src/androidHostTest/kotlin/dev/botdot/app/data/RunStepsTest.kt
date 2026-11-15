@@ -101,4 +101,10 @@ class RunStepsTest {
         assertEquals(LearnedChips.CHARS, before[1].text.length)
         assertTrue(before[1].text.endsWith("…"))
     }
+    @Test fun aLearnedChipsTapGoesToJobsToTheSkillsSettingsOrNowhere() {
+        assertEquals(LearnedChips.Open.Jobs, LearnedChips.open(LearnedChip("Made a job", Learned.Opens.JOBS, null)))
+        assertEquals(LearnedChips.Open.Settings("deploy"), LearnedChips.open(LearnedChip("Changed deploy", Learned.Opens.SETTINGS, "deploy")))
+        assertEquals(LearnedChips.Open.Settings(null), LearnedChips.open(LearnedChip("Instructions", Learned.Opens.SETTINGS, null)))
+        assertNull("a note opens nothing", LearnedChips.open(LearnedChip("Remembered", null, null)))
+    }
 }

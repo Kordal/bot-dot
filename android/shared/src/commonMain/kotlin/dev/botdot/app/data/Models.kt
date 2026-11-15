@@ -558,6 +558,19 @@ object LearnedChips {
         return r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> LearnedChip(shown(x.line(features), whole), x.opens, x.opensSkill) }
     }
 
+    /** Where a chip's tap goes: a job's to the bot's scheduled jobs, a skill's, its instructions' or an app's to its settings (on that skill); a note's nowhere. */
+    sealed class Open {
+        data object Jobs : Open()
+        /** The bot's settings, its Skills open on [skill] when the chip names one. */
+        data class Settings(val skill: String?) : Open()
+    }
+
+    fun open(c: LearnedChip): Open? = when (c.opens) {
+        Learned.Opens.JOBS -> Open.Jobs
+        Learned.Opens.SETTINGS -> Open.Settings(c.skill)
+        null -> null
+    }
+
     /** A chip's words: whole from a server that writes them, else cut to [CHARS] with "…". */
     fun shown(text: String, whole: Boolean): String = if (!whole && text.length > CHARS) text.take(CHARS - 1) + "…" else text
 }
