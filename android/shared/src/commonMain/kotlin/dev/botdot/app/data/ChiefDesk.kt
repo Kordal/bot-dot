@@ -210,7 +210,8 @@ class ChiefDesk(
     @Throws(Exception::class)
     suspend fun approve(index: Int): Boolean = sendFrom("approve:$index", PLAN_APPROVAL)
 
-    private val planChat get() = "chief:${chatId.orEmpty()}"
+    // The chat drawn: the latest one has no id picked (chatId) until it is read, and its fold is kept under its own.
+    private val planChat get() = "chief:${chat?.id ?: chatId.orEmpty()}"
 
     /** The dock folded to its one line, or open: kept for this chat. */
     fun foldPlan(folded: Boolean) { plans.setFolded(planChat, folded); publish() }

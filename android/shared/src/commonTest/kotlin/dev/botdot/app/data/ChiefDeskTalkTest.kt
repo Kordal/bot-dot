@@ -222,4 +222,32 @@ class ChiefDeskTalkTest {
         desk.foldPlan(false)
         assertFalse(desk.state.value.plan!!.folded)
     }
+
+    @Test fun theLatestChatsPlanFoldIsKeptUnderItsOwnId() = runTest {
+        val plan = """{"steps":[{"text":"Look","status":"doing","doing":"Reading"},{"text":"Answer","status":"todo"}]}"""
+        val fake = FakeBotdot { _, path ->
+            when (path) {
+                "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"}]}"""
+                "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[{"role":"chief","text":"","pending":true,"plan":$plan}],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val plans = PlanMemory()
+        fun desk(chat: String?): ChiefDesk {
+            val store = Store(backgroundScope, MutableStateFlow(fake.api))
+            store.version.set(VersionInfo(features = emptyList()))
+            return ChiefDesk(backgroundScope, fake.api, store, emptyFlow(), chat, plans)
+        }
+        val latest = desk(null)
+        latest.start()
+        until("the latest chat's plan") { latest.state.value.plan != null }
+        latest.foldPlan(false)
+        latest.stop()
+        assertFalse(plans.folded("chief:c1"), "kept under the chat's id, not \"chief:\"")
+        val again = desk("c1")
+        again.start()
+        until("the same chat by its id") { again.state.value.plan != null }
+        assertFalse(again.state.value.plan!!.folded, "open, as it was left")
+        again.stop()
+    }
 }
