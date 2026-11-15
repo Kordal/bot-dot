@@ -370,4 +370,25 @@ class SettingsDesksTest {
         assertEquals(listOf(1, 2, 3, 4), digits.keys.toList())
         assertEquals(listOf("h", "p", "w", "o"), digits.values.map { it.id })
     }
+    @Test fun aBotsAppsAndPagesAreReadWithItsSettings() = runTest {
+        val botdot = MockBotdot { s ->
+            when {
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"A","connectors":["gmail"]}]"""
+                s.path == "/connectors" -> 200 to """{"connections":[{"id":"c1","toolkit":"gmail","status":"ACTIVE","app":{"name":"Gmail"}},{"id":"c2","toolkit":"notion","status":"ACTIVE","app":{"name":"Notion"}}]}"""
+                s.path == "/bots/a/pages" -> 200 to """{"pages":[{"slug":"menu","title":"Menu"}]}"""
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(listOf(Pages.FEATURE, DocumentView.FEATURE)), backgroundScope)
+        desk.load()
+        with(desk.state.value) {
+            assertEquals(listOf("Gmail", "Notion"), apps.map { appName(it) })
+            assertEquals(listOf(true, false), apps.map { hasApp(it) })
+            assertEquals("Gmail", appsLine)
+            assertEquals(listOf("Menu"), pages?.map { it.title })
+        }
+        val none = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        none.load()
+        assertNull(none.state.value.pages, "a botdot without pages: no section")
+    }
 }

@@ -66,6 +66,8 @@ struct BotSettingsView: View {
     var focusSkill: String? = nil
     @State private var model: BotSettingsModel?
     @State private var picking = false
+    /// One of its pages, open in the viewer.
+    @State private var page: DocumentView.Opening?
     @State private var askDelete = false
     @State private var deleting = false
     @State private var saved = false
@@ -108,6 +110,7 @@ struct BotSettingsView: View {
         }
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
+        .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
         .navigationDestination(item: $copy) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
         .sheet(isPresented: Binding(get: { duplicating != nil }, set: { if !$0 { duplicating = nil } })) {
@@ -231,6 +234,31 @@ struct BotSettingsView: View {
             }
         }
         .id("skills")
+        // Its apps (Android's Apps): one row per connected app, and per account of an app with two or more (ADR 174).
+        if !state.apps.isEmpty {
+            Section(tr("Apps")) {
+                ForEach(state.apps, id: \.id) { c in
+                    Toggle(state.appName(c: c), isOn: Binding(get: { state.hasApp(c: c) }, set: { on in model.edit { $0.withApp(c: c, on: on) } }))
+                }
+            }
+        }
+        // Its pages (#346): what it made for you, each opening in the viewer, kept up to date from there.
+        if let pages = state.pages {
+            Section(tr("Pages")) {
+                if pages.isEmpty { Text(tr("None yet")).foregroundStyle(.secondary) }
+                ForEach(pages, id: \.slug) { pg in
+                    Button {
+                        page = DocumentView.shared.ofPage(botId: botId, slug: pg.slug, title: pg.title, from: state.bot?.name ?? "")
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pg.title)
+                            Text(state.pageLine(page: pg)).font(.caption).foregroundStyle(pg.keep != nil ? .green : .secondary)
+                        }
+                    }
+                    .tint(.primary)
+                }
+            }
+        }
         if state.showsOthersMayAsk || state.showsRooms {
             Section {
                 if state.showsOthersMayAsk {

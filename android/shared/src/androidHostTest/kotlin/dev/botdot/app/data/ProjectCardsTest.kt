@@ -87,6 +87,25 @@ class ProjectCardsTest {
         assertEquals(4, after.cards.size)
     }
 
+    @Test fun aCardsTextSizeStepsThroughBotdotsSizesAndIsSentAlone() = runBlocking {
+        assertEquals(listOf(1.0, 1.25, 1.5, 2.0), ProjectCards.TEXT_SIZES)
+        assertEquals(1.25, ProjectCards.stepSize(1.0, 1))
+        assertNull(ProjectCards.stepSize(1.0, -1))
+        assertEquals(1.5, ProjectCards.stepSize(2.0, -1))
+        assertNull(ProjectCards.stepSize(2.0, 1))
+        assertEquals("a size botdot does not know counts as 1", 1.25, ProjectCards.stepSize(7.0, 1))
+        val k = ProjectCard(id = "k1", ask = "Stars", state = "ready", body = CardBody(value = "7"))
+        assertEquals(1.0, k.textSize, 0.0)
+        assertFalse(ProjectCards.Slot.Card(k).wide)
+        assertTrue("larger text takes the whole line", ProjectCards.Slot.Card(k.copy(textSize = 1.5)).wide)
+        server.enqueue(json(project))
+        api.project = "c1"
+        api.sizeCard("k1", 1.5)
+        val r = server.takeRequest()
+        assertEquals("PUT" to ManyProjects.at("/company/cards/k1", "c1").let { "/api$it" }, r.method to r.target)
+        assertEquals("""{"textSize":1.5}""", r.body?.utf8())
+    }
+
     @Test fun theRowIsTwoToALineAndTheWideOnesTakeALineOfTheirOwn() {
         val c = CompanySetup.of(project)
         val slots = ProjectCards.slots(c.cards, open = null)
