@@ -57,5 +57,3 @@ extension ProjectState: @retroactive @unchecked Sendable {}
 extension ChiefDesk: @retroactive @unchecked Sendable {}
 extension GroupChat: @retroactive @unchecked Sendable {}
 extension GroupChatState: @retroactive @unchecked Sendable {}
-/// Called from the main actor only (NoticeGate).
-extension AiNotice.Gate: @retroactive @unchecked Sendable {}

@@ -22,6 +22,15 @@ final class AppModel {
     /// What the sign-in says without it being wrong: that the account was deleted.
     var notice: String?
     private(set) var busy = false
+    /// The notice that what is sent goes to Anthropic was accepted on this phone (AiNotice): until it is, the
+    /// signed-in screen is the notice.
+    private(set) var noticeSeen = false
+
+    /// Signed in, and the notice not accepted yet: the notice in Home's place.
+    var showsNotice: Bool {
+        if case .signedIn = screen { return !noticeSeen }
+        return false
+    }
 
     let session: Session
     private let sessions: KeychainSessions
@@ -54,8 +63,15 @@ final class AppModel {
 
     /// The botdot this phone was set to: Home, until its front door asks for a sign-in ([signInNeeded]), as on Android.
     func start() async {
+        noticeSeen = !((try? await AiNotice.shared.asks(settings: settings))?.boolValue ?? true)
         let server = (try? await settings.serverNow()) ?? nil
         screen = server.map { home($0) } ?? .address
+    }
+
+    /// Continue on the notice: kept, so it shows never again, and Home shows.
+    func acceptNotice() async {
+        try? await settings.setAiNoticeSeen()
+        noticeSeen = true
     }
 
     /// An address typed in: refused at once, asked whether it is a botdot, then kept.

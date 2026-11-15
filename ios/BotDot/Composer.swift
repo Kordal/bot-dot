@@ -44,9 +44,6 @@ struct Composer<Box: MessageBox>: View {
     @State private var photos: [PhotosPickerItem] = []
     @State private var importing = false
     @State private var picking = false
-    /// The device's settings, for the notice before the first message (AiNotice); nil where none is given (the tests).
-    @Environment(\.aiNoticeSettings) private var noticeSettings
-    @State private var notice = NoticeGate()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -83,7 +80,7 @@ struct Composer<Box: MessageBox>: View {
                 } else {
                     Button(action: send) { Image(systemName: "arrow.up").frame(width: 36, height: 36) }
                         .buttonStyle(.borderedProminent).clipShape(Circle())
-                        .disabled(notice.checking || (typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && box.files.isEmpty))
+                        .disabled(typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && box.files.isEmpty)
                         .accessibilityLabel(tr("Send"))
                 }
             }
@@ -97,18 +94,12 @@ struct Composer<Box: MessageBox>: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { Task { await importFile(url) } } }
         }
-        .task { notice.setUp(noticeSettings); take(); unsent() }
+        .task { take(); unsent() }
         .onDisappear { box.leave(typed) }
-        .aiNotice(notice)
     }
 
-    /// Send: the first message on this device waits for the notice that it goes to Anthropic (AiNotice.Gate), once;
-    /// swiped away, nothing goes and the words stay in the box.
     private func send() {
-        notice.send(typed.trimmingCharacters(in: .whitespacesAndNewlines)) { go($0) }
-    }
-
-    private func go(_ text: String) {
+        let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if !typed.isEmpty { restored = "" } // emptied by Send, not edited: a retry keeps the failed message's key
         typed = ""
         onSent()
@@ -173,81 +164,5 @@ struct NoticeOverlay: ViewModifier {
                 timer?.cancel()
                 timer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { shown = nil } }
             }
-    }
-}
-
-/// A message box's Send held for the notice before the first message: the shared AiNotice.Gate decides, and this
-/// draws it. Send is off while a send is checked; the sheet shows while the words are held; Continue sends them,
-/// swiping it away sends nothing.
-@MainActor
-@Observable
-final class NoticeGate {
-    private var gate: AiNotice.Gate?
-    private(set) var checking = false
-    var showing = false
-    private var accepted = false
-    private var go: ((String) -> Void)?
-
-    func setUp(_ settings: Settings?) { if gate == nil { gate = AiNotice.Gate(settings: settings) } }
-
-    func send(_ text: String, _ go: @escaping (String) -> Void) {
-        guard let gate, !checking else { return }
-        checking = true
-        Task {
-            let now = try? await gate.send(text: text)
-            checking = false
-            if let now { go(now) } else if gate.asking { self.go = go; showing = true }
-        }
-    }
-
-    func accept() {
-        accepted = true
-        showing = false
-        let go = self.go
-        self.go = nil
-        Task { if let words = try? await gate?.accept() { go?(words) } }
-    }
-
-    /// The sheet went: swiped away, nothing goes.
-    func closed() {
-        if !accepted { gate?.dismiss(); go = nil }
-        accepted = false
-    }
-}
-
-extension View {
-    /// The notice before the first message, over this box (NoticeGate).
-    func aiNotice(_ notice: NoticeGate) -> some View {
-        sheet(isPresented: Binding(get: { notice.showing }, set: { notice.showing = $0 }), onDismiss: notice.closed) {
-            AiNoticeSheet(onContinue: notice.accept).presentationDetents([.medium])
-        }
-    }
-}
-
-/// The notice before the first message (App Store guideline 5.1.2(i)): the bots run on Claude by Anthropic, so what is
-/// sent to them goes to Anthropic; Continue accepts it once on this device, and the message goes.
-struct AiNoticeSheet: View {
-    let onContinue: () -> Void
-
-    var body: some View {
-        VStack(spacing: 24) {
-            Text(AiNotice.shared.text).font(.title3).multilineTextAlignment(.center)
-            Button(action: onContinue) { Text(AiNotice.shared.go).frame(maxWidth: .infinity) }
-                .buttonStyle(.borderedProminent).controlSize(.large)
-                .accessibilityIdentifier("ai-notice-continue")
-        }
-        .padding(24)
-    }
-}
-
-private struct AiNoticeSettingsKey: EnvironmentKey {
-    static let defaultValue: Settings? = nil
-}
-
-extension EnvironmentValues {
-    /// The settings the notice before the first message is kept in.
-    var aiNoticeSettings: Settings? {
-        get { self[AiNoticeSettingsKey.self] }
-        set { self[AiNoticeSettingsKey.self] = newValue }
     }
 }

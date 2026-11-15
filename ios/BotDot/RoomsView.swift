@@ -160,8 +160,6 @@ struct RoomChatView: View {
     let figure: FigureDef?
     @State private var model: RoomChatModel?
     @State private var typed = ""
-    @State private var notice = NoticeGate()
-    @Environment(\.aiNoticeSettings) private var noticeSettings
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -213,12 +211,10 @@ struct RoomChatView: View {
         }
         .onChange(of: model?.state?.gone) { _, gone in if gone == true { dismiss() } }
         .task {
-            notice.setUp(noticeSettings)
             if model == nil { model = RoomChatModel(rooms: rooms, id: id) }
             model?.start()
         }
         .onDisappear { model?.stop() }
-        .aiNotice(notice)
     }
 
     private var composer: some View {
@@ -234,15 +230,12 @@ struct RoomChatView: View {
                 Button {
                     let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !text.isEmpty else { return }
-                    // Held for the notice the first time, as every message box (NoticeGate).
-                    notice.send(text) { words in
-                        typed = ""
-                        Task { _ = await model?.send(words) }
-                    }
+                    typed = ""
+                    Task { _ = await model?.send(text) }
                 } label: {
                     Image(systemName: "arrow.up.circle.fill").font(.title)
                 }
-                .disabled(notice.checking || typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 .accessibilityLabel(tr("Send"))
             }
         }

@@ -12,14 +12,36 @@ struct RootView: View {
             case .starting: ProgressView()
             case .address: AddressView(model: model)
             case .signIn(let server): SignInView(model: model, server: server)
-            case .signedIn(let server): HomeView(model: model, server: server, api: model.api(server)).id(server)
+            case .signedIn(let server):
+                // Nothing goes to the bots before the notice that it goes to Anthropic was accepted (AiNotice).
+                if model.showsNotice {
+                    AiNoticeView { Task { await model.acceptNotice() } }
+                } else {
+                    HomeView(model: model, server: server, api: model.api(server)).id(server)
+                }
             case .paused(let server): PausedView(model: model, server: server)
             }
         }
         .preferredColorScheme(.dark)
-        .environment(\.aiNoticeSettings, model.settings) // the notice before the first message (AiNotice)
         .task { await model.start() }
         .onChange(of: phase, initial: true) { _, now in if now == .active { Notifications.shared.appOpened() } }
+    }
+}
+
+/// The notice before anything goes to the bots (App Store guideline 5.1.2(i)): the whole screen, until Continue.
+struct AiNoticeView: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Text(AiNotice.shared.text).font(.title3).multilineTextAlignment(.center)
+            Spacer()
+            Button(action: onContinue) { Text(AiNotice.shared.go).frame(maxWidth: .infinity) }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .accessibilityIdentifier("ai-notice-continue")
+        }
+        .padding(24)
     }
 }
 
