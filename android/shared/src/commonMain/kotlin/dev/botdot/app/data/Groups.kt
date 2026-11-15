@@ -403,6 +403,10 @@ object Groups {
     /** Whether the panel of [g] deletes it: any group, a team's chat (and so its team) on a server that does it. */
     fun deletes(g: Group, features: Collection<String>?): Boolean = g.team == null || features?.contains(TEAM_CHAT_DELETE) == true
 
+    /** The change that pins a group below the Chief on Home (last among the pinned ones), or unpins it; null: it is so already. */
+    fun pinChange(g: Group, on: Boolean): JsonObject? =
+        if ((g.pinned > 0) == on) null else JsonObject(mapOf("pinned" to if (on) JsonPrimitive(true) else JsonPrimitive(0)))
+
     /** Whether [g]'s member can be taken out in its panel: a group goes down to none and is deleted, a team keeps its last bot. */
     fun canTakeOut(g: Group, features: Collection<String>?): Boolean = changesMembers(g, features) && (g.team == null || g.members.size > 1)
 

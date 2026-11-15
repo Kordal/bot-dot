@@ -103,15 +103,17 @@ async function placeGroup(g, body, said = '') {
   try {
     await api(`/group-chats/${encodeURIComponent(g.id)}`, { method: 'PUT', body });
     if (said) toast(said);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { toast(e.message, true); refresh(); return false; }
   refresh();
+  return true;
 }
 // Pin a group at a place among the pinned bots and groups (1 = first; one order, #276), the others making room.
+// 0 unpins it: last among the groups of its category, as the server puts it.
 function pinGroup(g, at) {
-  if (g.pinned === at) return renderContacts();
+  if ((g.pinned || 0) === at) return renderContacts();
   const from = g.category || '';
   Keypad.pin(state.bots, state.groups, g, at);
-  g.order = 0;
+  g.order = at > 0 ? 0 : Infinity;
   groupsIn(from).forEach((x, i) => { x.order = i + 1; });
   return placeGroup(g, { pinned: at });
 }
@@ -248,6 +250,10 @@ function renderGroupSettings() {
           <div class="bs-group" id="gs-members"></div>
           <button type="button" class="bs-row bs-link" id="gs-add"><b>${tr('Add a bot')}</b><span class="bs-chev" aria-hidden="true">›</span></button>
         </div>
+        <div class="set-list">
+          <label class="bs-row"><b>${tr('Pinned')}</b>
+            <span class="switch"><input type="checkbox" id="gs-pinned" aria-label="${esc(tr('Pinned below the Chief'))}"><span></span></span></label>
+        </div>
         <div class="set-list gs-team hidden" id="gs-team"></div>
         <div class="set-list notes-list" aria-label="${esc(tr('Notes'))}">
           <div class="bs-group" id="gs-notes"></div>
@@ -288,6 +294,12 @@ function renderGroupSettings() {
         done: async (picked) => { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'PUT', body: { members: [...now.members, ...picked] } }); await refresh(); },
       });
     };
+    // Pinned below the Chief on Home, last there, as a bot's switch; dragged on Home to move it.
+    $('#gs-pinned', root).onchange = async (e) => {
+      const now = groupById(root.dataset.group);
+      if (!now) return;
+      if (await pinGroup(now, e.target.checked ? [...state.bots, ...state.groups].filter((x) => x.pinned > 0 && x !== now).length + 1 : 0)) flashSaved(root);
+    };
     const add = $('#gs-note-text', root);
     add.onkeydown = async (e) => {
       if (e.key !== 'Enter') return;
@@ -314,6 +326,7 @@ function renderGroupSettings() {
   const members = groupMembers(g);
   const team = g.team && typeof Company !== 'undefined' && Company.teamPanel?.team(g.team) ? Company.teamPanel : null; // a team of the project on screen (ADR 205)
   const sig = JSON.stringify([members.map((b) => [b.id, b.name, b.color, b.state, b.outfit || null]), state.bots.length, g.team || null, g.lead || null, team ? team.sig(g.team) : '', state.features || []]); // features read late redraw it
+  $('#gs-pinned', root).checked = g.pinned > 0; // also when pinned or unpinned by a drag on Home
   if (root.dataset.sig === sig) return;
   root.dataset.sig = sig;
   $('#gs-pic', root).innerHTML = groupPicture(g, 'lg');
