@@ -35,6 +35,6 @@ final class ProjectTests: XCTestCase {
             XCTAssertNotNil(ImageRenderer(content: view).cgImage, "card \(card.id) draws")
         }
         XCTAssertNotNil(ImageRenderer(content: Goals(goals: c.objectives).frame(width: 320)).cgImage)
-        XCTAssertNotNil(ImageRenderer(content: QuestionsCard(card: c.cards[1], figure: nil, onClose: {}, onAnswer: { _ in }).frame(width: 320)).cgImage)
+        XCTAssertNotNil(ImageRenderer(content: QuestionsCard(card: c.cards[1], figure: nil, onClose: {}, onAnswer: { _ in true }).frame(width: 320)).cgImage)
     }
 }
