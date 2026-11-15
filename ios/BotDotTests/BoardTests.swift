@@ -62,6 +62,14 @@ final class BoardTests: XCTestCase {
         XCTAssertFalse(HomeTiles.shared.shows(features: []), "a botdot without home-tiles: no long press")
         XCTAssertTrue(HomeTiles.shared.shows(features: ["home-tiles"]))
     }
+
+    /// Drag to move: where a tile let go lands is the shared BoardKit's rule.
+    func testWhereADroppedTileGoesIsTheSharedRule() {
+        let rows = ["h:Home", "t1", "t2", "h:Garden", "t3"]
+        let next = BoardKit.shared.moved(rows: rows, from: "t3", to: "t1", tiles: [])
+        XCTAssertEqual(next, ["h:Home", "t3", "t1", "t2", "h:Garden"])
+        XCTAssertEqual(BoardKit.shared.placeOf(rows: next ?? [], id: "t3"), TilePlace(section: "Home", parent: nil, before: "t1"))
+    }
 }
 
 /// The account's parts on the iPhone: what the front door offers, What's new, the paused account.

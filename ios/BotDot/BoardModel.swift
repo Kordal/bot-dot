@@ -52,6 +52,8 @@ final class BoardModel {
     func setNumber(_ key: String, _ block: String, _ value: Double) async { try? await store.setNumber(key: key, block: block, value: value) }
     func choose(_ key: String, _ block: String, _ option: Int) async { try? await store.choose(key: key, block: block, option: Int32(option)) }
     func press(_ key: String, _ block: String) async { try? await store.press(key: key, block: block) }
+    /// Drag to move: [from] let go on [onto]; false when it can't go there.
+    @discardableResult func drop(_ from: String, _ onto: String) async -> Bool { (try? await store.drop(from: from, onto: onto))?.boolValue ?? false }
     func remove(_ key: String, withTiles: Bool) async { try? await store.remove(key: key, withTiles: withTiles) }
     func askChange(_ key: String, _ text: String) async -> Bool { (try? await store.askChange(key: key, text: text))?.boolValue ?? false }
     func answer(_ suggestion: String, add: Bool) async { try? await store.answer(suggestion: suggestion, add: add) }
