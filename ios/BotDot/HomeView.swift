@@ -429,10 +429,17 @@ struct NeedsYou: View {
     let figure: FigureDef?
     /// Allow or No on a row that asks for a permission, answered here as on Android; the rest open Needs you.
     var onAnswer: (String, Bool) -> Void = { _, _ in }
+    /// On a project's board (overview-board, ADR 245): the questions in its chats, each opening its chat, and the cards
+    /// asked in its Chief chat ([Overviews.needsYou]).
+    var questions: [OverviewEntry] = []
+    var asks: [Ask] = []
+    var onQuestion: (OverviewEntry) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(tr("Needs you")).font(.headline)
+            if !questions.isEmpty { OverviewRows(items: questions, empty: nil, onOpen: onQuestion) }
+            ForEach(asks, id: \.id) { a in Text(Overviews.shared.askText(a: a)).font(.subheadline).lineLimit(2) }
             ForEach(Array(waiting.enumerated()), id: \.offset) { _, w in
                 HStack(spacing: 8) {
                     if let figure {

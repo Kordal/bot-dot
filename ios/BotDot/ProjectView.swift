@@ -262,7 +262,18 @@ struct ProjectPage: View {
                 .padding(.horizontal, 12).padding(.vertical, 4).background(.quaternary, in: .capsule)
                 .listRowSeparator(.hidden)
         }
-        if !s.needs.isEmpty {
+        if s.board {
+            // The overview is the board (overview-board, ADR 245): Needs you when something waits, then its tiles.
+            if let n = s.needsYou {
+                NavigationLink { NeedsYouView(home: home, figure: figure) } label: {
+                    NeedsYou(waiting: n.waiting, figure: figure, questions: n.questions, asks: n.asks, onQuestion: { open($0, c) })
+                }
+                .listRowSeparator(.hidden)
+            }
+            ForEach(s.overviewTop, id: \.self) { k in
+                OverviewTile(key: k, state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
+            }
+        } else if !s.needs.isEmpty {
             NavigationLink { NeedsYouView(home: home, figure: figure) } label: { NeedsYou(waiting: s.needs, figure: figure) }
                 .listRowSeparator(.hidden)
         }
@@ -290,6 +301,9 @@ struct ProjectPage: View {
                 picking = Picking(team: nil, title: tr("Add bot"), bots: s.addable)
             }
             .listRowSeparator(.hidden)
+        }
+        if s.replies {
+            OverviewTile(key: "replies", state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
         }
     }
 

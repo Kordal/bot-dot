@@ -59,4 +59,16 @@ final class ProjectTests: XCTestCase {
         XCTAssertNotNil(Overviews.shared.open(destination: "bot/b1"))
         XCTAssertEqual(OverviewState(snapshot: nil, files: nil, error: nil, filesError: nil).status, "Loading…")
     }
+    /// With overview-board (ADR 245) the Overview is the board's tiles, not a page: the shared rules and the tile reach Swift.
+    func testTheOverviewIsTheBoardsTilesOnABotdotWithOverviewBoard() {
+        XCTAssertTrue(Overviews.shared.page(features: ["project-overview"]))
+        XCTAssertFalse(Overviews.shared.page(features: ["project-overview", "overview-board"]))
+        let work = OverviewEntry(id: "w1", botId: "b1", chatId: nil, groupId: nil, name: "Coder", state: "working", text: "Writing **the page**", at: "")
+        let d = ProjectOverview(projectId: "p1", at: "2026-11-15T09:00:00Z", work: [work], blockers: [], replies: [])
+        let s = OverviewState(snapshot: d, files: nil, error: nil, filesError: nil)
+        for k in ["work", "blockers", "replies"] {
+            XCTAssertNotNil(ImageRenderer(content: OverviewTile(key: k, state: s, onOpen: { _ in }).frame(width: 320)).cgImage, "\(k) draws")
+        }
+        XCTAssertEqual(ProjectBoard.shared.label(k: "replies"), "Latest replies")
+    }
 }

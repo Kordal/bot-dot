@@ -32,8 +32,11 @@ test('web: the overview rows draw nothing for an empty list without an empty lin
 // The Android logic is tested in shared/src/commonTest (ProjectOverviewNeedsYouTest); this only checks the screen uses it.
 test('Android: the overview screen uses the shared Needs you rule', () => {
   const dir = ['android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui'];
-  assert.ok(read(...dir, 'CompanyHome.kt').includes('ProjectOverview.needsYouShows('));
-  assert.ok(read(...dir, 'CompanyHome.kt').includes('ProjectOverview.withoutCarded('));
+  // Overviews.needsYou (shared) holds needsYouShows and withoutCarded; both the board and the overview page call it.
+  assert.equal(read(...dir, 'CompanyHome.kt').split('Overviews.needsYou(').length - 1, 2);
+  const shared = read('android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'ProjectOverview.kt');
+  const rule = shared.slice(shared.indexOf('fun needsYou('), shared.indexOf('fun askText('));
+  assert.ok(rule.includes('ProjectOverview.needsYouShows(') && rule.includes('ProjectOverview.withoutCarded('));
   const po = read(...dir, 'ProjectOverview.kt');
   assert.ok(po.includes('questions()') && po.includes('failures()'));
   assert.ok(!read(...dir, 'CompanyHome.kt').includes('SmallButton(tr("Review"), onClick = ways.onNeeds)'));

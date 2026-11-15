@@ -444,4 +444,25 @@ class ProjectDeskTest {
         assertFalse(ProjectSettingWords.isTime("24:00"))
         assertEquals("Delete the project Kitchen? Its bots stay.", ProjectSettingWords.deleteQuestion(company(kitchen)))
     }
+    @Test fun withOverviewBoardTheOverviewIsTheBoardsTilesReadWhileFollowed() = runTest {
+        val snapshot = """{"projectId":"p1","at":"2026-11-15T09:00:00Z","work":[{"id":"w1","botId":"b1","name":"Ada","state":"working"}],
+            "blockers":[{"id":"q1","botId":"b1","name":"Ada","state":"asks","text":"Which tiles?"}],"replies":[]}"""
+        val fake = FakeBotdot { a -> if (a.path == "/company/overview") 200 to snapshot else 200 to "{}" }
+        val (_, desk) = desk(fake, all + listOf(ProjectOverview.FEATURE, ProjectOverview.BOARD))
+        runCurrent()
+        with(desk.state.value) {
+            assertTrue(board)
+            assertFalse(overview, "no Overview page: the board is it")
+            assertEquals(listOf("work", "blockers"), overviewTop)
+            assertTrue(replies)
+            assertNull(needsYou, "nothing read yet, nothing waits")
+        }
+        desk.follow(true)
+        until("the recorded work") { desk.state.value.recorded.snapshot?.work?.size == 1 }
+        assertEquals(listOf("q1"), desk.state.value.needsYou?.questions?.map { it.id }, "the question stands in Needs you")
+        desk.follow(false)
+        val (_, page) = desk(FakeBotdot { 200 to "{}" }, all + ProjectOverview.FEATURE)
+        runCurrent()
+        with(page.state.value) { assertTrue(overview); assertFalse(board); assertTrue(overviewTop.isEmpty()); assertFalse(replies) }
+    }
 }
