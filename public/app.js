@@ -842,20 +842,21 @@ function mdInline(t) {
 }
 // A reply shown in a few lines (the project overview): one line per paragraph, title, quote or item ("• " or its
 // number), without code blocks, tables and rules; a reply that is only code is its first code block as one `code`
-// line (the `preview` cases of test/fixtures/markdown-cases.json; previewLines in Android's Markdown.kt, the same
-// rules). Its blocks hold escaped text.
-function previewLines(blocks) {
+// line, and one of only a table or a rule its words (the `preview` cases of test/fixtures/markdown-cases.json;
+// previewLines in Android's Markdown.kt, the same rules). Its lines are escaped.
+function previewLines(src) {
+  const blocks = mdBlocks(src);
   const flat = (t) => t.replace(/\s*\n\s*/g, ' ').trim();
   const lines = blocks.flatMap((b) => b.type === 'item' ? [`${b.number == null ? '•' : `${b.number}.`} ${flat(b.text)}`]
     : ['para', 'heading', 'quote'].includes(b.type) ? [flat(b.text)] : []);
   const code = blocks.find((b) => b.type === 'code' && flat(b.text));
-  return lines.length || !code ? lines : [`\`${flat(code.text)}\``];
+  if (lines.length) return lines;
+  if (code) return [`\`${flat(code.text)}\``];
+  const words = esc(String(src || '').replace(/\s+/g, ' ').trim());
+  return words ? [words] : [];
 }
-// Its HTML, links shortened as in a chat; text of only a table or a rule is its words.
-function mdPreview(src) {
-  const lines = previewLines(mdBlocks(src));
-  return lines.length ? lines.map(mdInline).join('<br>') : esc(String(src || '').replace(/\s+/g, ' ').trim());
-}
+// Its HTML, links shortened as in a chat.
+function mdPreview(src) { return previewLines(src).map(mdInline).join('<br>'); }
 // The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
 function mdParts(blocks, botId) {
   const text = (t) => t.split('\n').map(mdInline).join('<br>');

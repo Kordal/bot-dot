@@ -183,8 +183,8 @@ test('web: every preview case of the shared fixture is drawn as its lines (proje
   const { preview } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
   assert.ok(preview.length >= 5);
   for (const c of preview) {
-    const lines = previewLines(mdBlocks(c.source));
-    assert.deepEqual(plain(lines.length ? lines : [esc(c.source.replace(/\s+/g, ' ').trim())]), c.lines.map(esc), c.name);
+    assert.deepEqual(plain(previewLines(c.source)), c.lines.map(esc), c.name);
+    assert.equal(mdPreview(c.source).split('<br>').length, c.lines.length, c.name);
   }
   // Links show their words with the site's chip, bold is bold, and nothing a bot writes is markup.
   const html = mdPreview(preview[0].source);

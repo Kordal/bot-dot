@@ -1470,6 +1470,20 @@
       "lines": [
         "Done: see **PR #374** and the plan…"
       ]
+    },
+    {
+      "name": "a reply of only a table is its words on one line",
+      "source": "| a | b |\n|---|---|\n| 1 | 2 |",
+      "lines": [
+        "| a | b | |---|---| | 1 | 2 |"
+      ]
+    },
+    {
+      "name": "a reply of only a rule is the rule as written",
+      "source": "---",
+      "lines": [
+        "---"
+      ]
     }
   ]
 }
