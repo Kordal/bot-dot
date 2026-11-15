@@ -68,4 +68,18 @@ class PagesDeskTest {
         assertEquals(Pages.src("b1", "news"), o.src)
         assertEquals("news", o.slug)
     }
+
+    @Test fun theBoardSwitchesShowOnceTheFeaturesComeAfterTheList() = runTest {
+        val server = FakeServer { 200 to pages }
+        val store = Store(backgroundScope, MutableStateFlow(server.api))
+        runCurrent()
+        val desk = PagesDesk(backgroundScope, server.api, store)
+        desk.load()
+        runCurrent()
+        assertFalse(desk.state.value.board, "the features not known yet")
+        store.version.set(VersionInfo(features = listOf(Pages.FEATURE, DocumentView.FEATURE, Pages.FEATURE_BOARD)))
+        runCurrent()
+        assertTrue(desk.state.value.board, "they came: the switches show")
+        assertEquals(listOf("news"), desk.state.value.kept.map { it.slug }, "the list as it was")
+    }
 }

@@ -25,18 +25,26 @@ class PagesState(
     /** The heading over the pages not kept up to date. */
     val otherTitle: String get() = if (kept.isEmpty()) tr("All pages") else tr("Other pages")
 
+    internal fun withBoard(on: Boolean) = if (on == board) this else PagesState(kept, other, loaded, error, on)
+
     /** Each page's line under its title ([Pages.allLine]). */
     fun line(page: PageInfo): String = Pages.allLine(page)
 }
 
 /**
  * The Pages list: read from botdot, again when a bot saves a page (the feed's `page`) or the viewer closes ([load]);
- * a row's On the Board switch shown at once and put back when botdot says no.
+ * a row's On the Board switch shown at once and put back when botdot says no. Whether rows have that switch follows
+ * the botdot's features as they come (also after the list was read).
  */
 class PagesDesk(private val scope: CoroutineScope, private val api: Api, private val store: Store) {
     private val _state = MutableStateFlow(PagesState())
     val state: StateFlow<PagesState> = _state.asStateFlow()
     private var all: List<PageInfo> = emptyList()
+
+    init {
+        // The features may come after the list: its rows get their switches then.
+        scope.launch { store.version.value.collect { v -> _state.value = _state.value.withBoard(Pages.showsBoard(v?.features)) } }
+    }
 
     fun watch(onChange: (PagesState) -> Unit): Job = scope.launch { state.collect { onChange(it) } }
 
@@ -49,7 +57,8 @@ class PagesDesk(private val scope: CoroutineScope, private val api: Api, private
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            _state.value = PagesState(_state.value.kept, _state.value.other, loaded = _state.value.loaded, error = tr("Couldn't load the pages."), board = board())
+            val s = _state.value
+            _state.value = PagesState(s.kept, s.other, loaded = s.loaded, error = tr("Couldn't load the pages."), board = board())
         }
     }
 
