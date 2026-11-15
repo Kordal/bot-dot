@@ -54,4 +54,14 @@ class OverviewDeskTest {
         assertEquals("Information unavailable", fresh.state.value.status)
         assertEquals("Information unavailable", fresh.state.value.filesLine)
     }
+    @Test fun theBoardsTilesReadWhatWasRecordedAndNoFiles() = runTest {
+        val paths = mutableListOf<String>()
+        val server = FakeServer { t -> paths += t.path; 200 to overview }
+        val desk = OverviewDesk(server.api, "p1")
+        desk.readRecorded()
+        assertEquals(1, paths.size, "one ask: the overview, not the folder")
+        assertTrue(paths.single().contains("overview"), paths.single())
+        assertEquals("Coder", desk.state.value.snapshot?.work?.single()?.name)
+        assertEquals("Loading…", desk.state.value.filesLine, "no files read")
+    }
 }
