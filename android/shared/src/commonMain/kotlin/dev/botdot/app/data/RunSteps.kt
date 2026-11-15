@@ -100,11 +100,12 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
 
         /**
          * A long reply folded: its first paragraph and every paragraph that holds a link (a link is never folded), or null
-         * when it is not long, has one paragraph, or holds code (a code block is never cut).
+         * when it is not long, has one paragraph, holds code (a code block is never cut), or [asks]: its quick answers or
+         * card stand under it, or a closed card's questions at its end, and no button answers a question the fold hides.
          */
-        fun folded(text: String?): String? {
+        fun folded(text: String?, asks: Boolean = false): String? {
             val t = text.orEmpty().trim()
-            if (t.length < LONG_REPLY || "```" in t) return null
+            if (asks || t.length < LONG_REPLY || "```" in t) return null
             val parts = t.split(Regex("\n\\s*\n")).filter { it.isNotBlank() }
             if (parts.size < 2) return null
             val kept = parts.filterIndexed { i, x -> i == 0 || LINK.containsMatchIn(x) }
