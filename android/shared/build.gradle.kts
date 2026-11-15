@@ -19,8 +19,8 @@ kotlin {
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         withHostTest { isReturnDefaultValues = true } // android.util.Log and the like do nothing in unit tests
     }
-    // BotdotShared.xcframework, for the iPhone and its simulator: ./gradlew :shared:assembleBotdotSharedReleaseXCFramework
-    // (or Debug), in build/XCFrameworks; ios/project.yml links it.
+    // BotdotShared.xcframework, for the iPhone and its simulator: ./gradlew :shared:assembleBotdotSharedDebugXCFramework
+    // (or Release, for an archive: #1409), in build/XCFrameworks; ios/project.yml links the Debug one.
     val xcf = XCFramework("BotdotShared")
     listOf(iosArm64(), iosSimulatorArm64()).forEach {
         it.binaries.framework {

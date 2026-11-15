@@ -54,13 +54,17 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
-      # Kotlin/Native's compiler, LLVM and sysroot (about a minute to download and unpack), which setup-gradle leaves out.
+      # Kotlin/Native's compiler, LLVM and sysroot (about a minute to download and unpack), which setup-gradle leaves out,
+      # one cache per Kotlin version: no older toolchain is carried into a newer key.
+      - name: Kotlin version
+        id: kotlin
+        run: echo "version=$(sed -n 's/^kotlin = "\(.*\)"$/\1/p' android/gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
       - name: Restore Kotlin/Native
+        id: konan
         uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('android/gradle/libs.versions.toml') }}
-          restore-keys: konan-${{ runner.os }}-${{ runner.arch }}-
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ steps.kotlin.outputs.version }}
       - name: XcodeGen
         run: brew install xcodegen && xcodegen --version && xcodebuild -version
       # The shared fixtures' tests in the simulator (the iOS side of every rule, against the files the web page and
@@ -70,11 +74,11 @@ jobs:
         working-directory: android
         run: ./gradlew :shared:compileKotlinIosArm64 :shared:iosSimulatorArm64Test :shared:assembleBotdotSharedDebugXCFramework --console=plain
       - name: Save Kotlin/Native
-        if: github.event_name == 'push'
+        if: github.event_name == 'push' && steps.konan.outputs.cache-hit != 'true'
         uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.konan
-          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('android/gradle/libs.versions.toml') }}
+          key: ${{ steps.konan.outputs.cache-primary-key }}
       - name: Build and test the app
         run: make ios
       - name: Screenshot in the simulator
@@ -84,6 +88,9 @@ jobs:
           xcrun simctl launch "$IOS_SIMULATOR" app.botdot
           sleep 5
           xcrun simctl io "$IOS_SIMULATOR" screenshot ios-skeleton.png
+      - name: Simulator boot log
+        if: failure()
+        run: cat "$RUNNER_TEMP/simctl-boot.log" || true
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ios-screenshot-${{ github.sha }}
