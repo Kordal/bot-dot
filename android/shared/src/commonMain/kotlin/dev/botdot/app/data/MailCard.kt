@@ -28,6 +28,9 @@ object MailCard {
         else -> Opens.RUN
     }
 
+    /** The draft [m] shows as a card: under the Chief's finished reply; none while it is written. */
+    fun card(m: ChiefMessage): MailDraft? = m.draft?.takeIf { m.role == "chief" && !m.pending }
+
     /** A chip of the run that wrote the draft: the card's footer takes its place. */
     fun takesChip(d: MailDraft?, a: ChiefAction) = d?.botId != null && (a.kind == "run" || a.kind == "from") && a.botId == d.botId
 }

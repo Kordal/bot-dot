@@ -608,7 +608,7 @@ internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Col
     val team = m.about?.team?.takeIf { it.name.isNotBlank() }
     fun bot(id: String?) = id?.let { bots.firstOrNull { b -> b.id == it } }
     // The mail draft's card: under the Chief's finished reply.
-    val card = m.draft?.takeIf { m.role == "chief" && !m.pending }
+    val card = MailCard.card(m)
     return ChiefLine(
         index = index,
         role = m.role,
