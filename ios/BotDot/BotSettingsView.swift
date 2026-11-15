@@ -61,6 +61,9 @@ struct BotSettingsView: View {
     let home: HomeStore
     let botId: String
     let figure: FigureDef?
+    /// Opened from a "Learned" chip (Android's focusSkill): the Skills section in view, on that skill's row when it
+    /// has one ("" for the section); nil from anywhere else.
+    var focusSkill: String? = nil
     @State private var model: BotSettingsModel?
     @State private var picking = false
     @State private var askDelete = false
@@ -75,7 +78,13 @@ struct BotSettingsView: View {
     @State private var seeded = false
     @Environment(\.dismiss) private var dismiss
 
+    /// The row a "Learned" chip's skill scrolls to: its row in the library, else nil (the Skills section), as Android's focusRow.
+    static func focusRow(_ skill: String, library: [String]) -> String? {
+        skill.isEmpty || !library.contains(skill) ? nil : "skill-\(skill)"
+    }
+
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
             if let model, let state = model.state, let bot = state.bot {
                 form(model, state, bot)
@@ -84,6 +93,14 @@ struct BotSettingsView: View {
             } else {
                 ProgressView().frame(maxWidth: .infinity)
             }
+        }
+        // From a "Learned" chip: once the bot is read, its Skills in view, on the skill's row when it is there.
+        .task(id: model?.state?.bot?.id) {
+            guard let f = focusSkill, let state = model?.state, state.bot != nil else { return }
+            let row = state.draft.useSkills ? BotSettingsView.focusRow(f, library: state.library) : nil
+            try? await Task.sleep(for: .milliseconds(350))
+            withAnimation { proxy.scrollTo(row ?? "skills", anchor: .center) }
+        }
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
@@ -193,9 +210,12 @@ struct BotSettingsView: View {
             if draft.useSkills {
                 ForEach(state.library, id: \.self) { name in
                     Toggle(name, isOn: Binding(get: { draft.skills.contains(name) }, set: { on in model.edit { $0.withSkill(name: name, on: on) } }))
+                        .id("skill-\(name)")
+                        .listRowBackground(name == focusSkill ? Color.accentColor.opacity(0.12) : nil)
                 }
             }
         }
+        .id("skills")
         if state.showsOthersMayAsk || state.showsRooms {
             Section {
                 if state.showsOthersMayAsk {

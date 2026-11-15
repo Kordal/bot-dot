@@ -690,7 +690,7 @@ fun ActionChips(chips: List<Pair<CharSequence, (() -> Unit)?>>, whole: Boolean =
 }
 
 /** The most a chip that is cut shows. */
-internal const val CHIP_CHARS = 90
+internal const val CHIP_CHARS = dev.botdot.app.data.LearnedChips.CHARS
 
 /** What a chip draws of its [text]: all of it when [whole], else its first [CHIP_CHARS], the last of them "…". */
 internal fun chipShown(text: CharSequence, whole: Boolean): AnnotatedString =
