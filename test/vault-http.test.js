@@ -79,6 +79,13 @@ test('a saved login goes to a public address only over https, on its own port, w
   const nas = { name: 'NAS', site: 'nas.lan', username: 'root', password: 'fixture-secret' };
   await apiRequest(nas, { url: 'https://nas.lan:5001/api', headers: { Authorization: 'Bearer {{password}}' } });
   assert.deepEqual([made.at(-1).host, made.at(-1).rejectUnauthorized], ['nas.lan', false]);
+  // An internal-looking name that resolves to a public machine is public: http refused, the certificate checked.
+  const fake = { name: 'Fake', site: 'fake.lan', username: 'root', password: 'fixture-secret' };
+  dns.promises.lookup.mock.mockImplementation(async () => [{ address: '93.184.216.34', family: 4 }]);
+  await assert.rejects(apiRequest(fake, { url: 'http://fake.lan/', headers: { Authorization: 'Bearer {{password}}' } }), /fake\.lan resolves to a public address/);
+  await apiRequest(fake, { url: 'https://fake.lan/', headers: { Authorization: 'Bearer {{password}}' } });
+  assert.deepEqual([made.at(-1).host, made.at(-1).rejectUnauthorized], ['fake.lan', true]);
+  dns.promises.lookup.mock.mockImplementation(async (host) => [{ address: host === 'nas.lan' ? '192.168.1.5' : '93.184.216.34', family: 4 }]);
   // A public login with an internal additional host the owner saved: that host is internal.
   await apiRequest({ ...creds, allowedHosts: ['nas.lan'] }, { url: 'https://nas.lan:5001/', headers: { Authorization: 'Bearer {{password}}' } });
   assert.equal(made.at(-1).rejectUnauthorized, false);

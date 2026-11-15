@@ -11,7 +11,7 @@
 ## Decision
 
 - **A public address takes a saved login over https only, on port 443, with its certificate checked.** "Public" is what `internalHost` (`lib/network-address.js`) does not call internal: an IP of a private range (the LAN, the tailnet), or a name without a dot or under `.local`, `.localhost`, `.lan`, `.internal` or `.home.arpa`.
-- **An internal host keeps ADR 177:** http or https, any port, a self-signed certificate accepted.
+- **An internal host keeps ADR 177:** http or https, any port, a self-signed certificate accepted. An internal-looking name counts as internal only while every address it resolves to is private: one that resolves to a public machine gets the public rule.
 - **What a bot is told:** `http://` to a public host and another port are refused before anything is sent; a certificate that does not verify ends the request with that reason and "nothing was sent" (the TLS handshake fails before the headers go).
 - `run_with_login` is unchanged: the command in the bot's computer gets the values, as ADR 177 says.
 
