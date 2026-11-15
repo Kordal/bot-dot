@@ -41,10 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.data.InteractivePages
 import dev.botdot.app.data.InteractiveView
-import dev.botdot.app.data.NotesWake
-import dev.botdot.app.data.UploadedFiles
 import dev.botdot.app.data.tr
-import dev.botdot.app.data.trn
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -68,7 +65,7 @@ fun InteractiveBar(site: InteractiveView, full: Boolean, onFull: () -> Unit, onV
             SecondaryButton(onClick = onDownload) { Text(tr("Download"), color = p.text, fontSize = Type.s14) }
         }
         if (site.shown != site.current) Column(Modifier.fillMaxWidth().background(p.warnSoft).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            Text(tr("You are looking at version {shown}. The page shows version {current}.", "shown" to site.shown, "current" to site.current), color = p.text, fontSize = Type.s14)
+            Text(InteractivePages.olderShown(site.shown, site.current), color = p.text, fontSize = Type.s14)
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Button(onClick = onRollBack, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Go back to this version"), fontSize = Type.s14) }
                 TextButton(onClick = onCurrent) { Text(tr("Show the current one"), color = p.text, fontSize = Type.s14) }
@@ -160,8 +157,8 @@ fun VersionsSheet(title: String, site: InteractiveView, onShow: (Int) -> Unit, o
             site.versions.forEach { v ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
                     Column(Modifier.weight(1f)) {
-                        Text(tr("Version {n}", "n" to v.n) + if (v.n == site.current) " · " + tr("on the page") else "", color = if (v.n == site.current) p.okText else p.text, fontSize = Type.s14)
-                        Text("${NotesWake.ago(v.at)} · ${UploadedFiles.size(v.bytes)} · " + trn(v.files, "{n} file", "{n} files"), color = p.faint, fontSize = Type.s12)
+                        Text(InteractivePages.versionTitle(v, site.current), color = if (v.n == site.current) p.okText else p.text, fontSize = Type.s14)
+                        Text(InteractivePages.versionLine(v), color = p.faint, fontSize = Type.s12)
                     }
                     TextButton(onClick = { onShow(v.n) }) { Text(tr("Show"), color = p.text) }
                     if (v.n != site.current) SecondaryButton(onClick = { onCurrent(v.n) }) { Text(tr("Go back to it"), color = p.text, fontSize = Type.s14) }

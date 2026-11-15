@@ -169,6 +169,16 @@ object InteractivePages {
     const val LISTENER = "(function(){if(window.__botdotOpen)return;window.__botdotOpen=1;window.addEventListener('message',function(e){var d=e.data;" +
         "if(d&&d.botdot==='open'&&typeof d.url==='string')location.href='$OPEN_SCHEME:'+encodeURIComponent(d.url.slice(0,2000));});})();"
 
+    /** A version's line in the versions list: "Version 3 · on the page", then when, its size and its files. */
+    fun versionTitle(v: SiteVersion, current: Int): String = tr("Version {n}", "n" to v.n) + if (v.n == current) " · " + tr("on the page") else ""
+    fun versionLine(v: SiteVersion): String = "${NotesWake.ago(v.at)} · ${UploadedFiles.size(v.bytes)} · " + trn(v.files, "{n} file", "{n} files")
+
+    /** Once a version was made what the page shows again. */
+    fun shownAgain(n: Int): String = tr("The page shows version {n} again", "n" to n)
+
+    /** Above an older version shown: which one, and which the page shows. */
+    fun olderShown(shown: Int, current: Int): String = tr("You are looking at version {shown}. The page shows version {current}.", "shown" to shown, "current" to current)
+
     /** The live values handed to the page: the message it listens for, { botdot: "values", values }. */
     fun valuesScript(values: JsonObject): String = "window.postMessage({\"botdot\":\"values\",\"values\":$values},'*');"
 }

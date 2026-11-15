@@ -28,7 +28,9 @@ object DocumentView {
      * A file to open in the viewer: [src] its API path, [name] its title, [from] who it is from, [botId] whose computer
      * the viewer may start for it, [path] the path as a reply wrote it.
      */
-    data class Opening(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null)
+    data class Opening(val src: String, val name: String, val from: String = "", val botId: String? = null, val path: String? = null,
+                       /** A bot's page (#346): its slug, beside [botId]; null for a file. */
+                       val slug: String? = null)
 
     /**
      * A file path in [botId]'s reply ([FilePaths]) as a tap opens it (#251): the file it names, relative to the bot's
@@ -36,6 +38,10 @@ object DocumentView {
      */
     fun ofPath(botId: String, path: String, from: String = "", name: String = path.substringAfterLast('/')): Opening =
         Opening(pathFile(botId, path), name, from, botId, path)
+
+    /** A bot's page (#346) as a tap opens it: its address, its title, from [from]. */
+    fun ofPage(botId: String, slug: String, title: String, from: String = ""): Opening =
+        Opening(Pages.src(botId, slug), title, from, botId, null, slug)
 
     /** What the viewer's body shows, in the order it is decided: what went wrong, the file still coming, then its kind. */
     enum class Pane { NOT_FOUND, COMPUTER_OFF, FAILED, LOADING, TOO_LARGE, INTERACTIVE, PDF, NO_PREVIEW, IMAGE, TEXT }
