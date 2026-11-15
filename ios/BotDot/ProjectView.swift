@@ -24,6 +24,7 @@ private struct ProjectSpaces: ViewModifier {
     @State private var model: ProjectModel?
     @State private var sheet = false
     @State private var open: ProjectRoute?
+    @State private var starting = false
 
     func body(content: Content) -> some View {
         content
@@ -38,13 +39,14 @@ private struct ProjectSpaces: ViewModifier {
                 }
             }
             .sheet(isPresented: $sheet) {
-                SpaceSheet(spaces: model?.state?.spaces ?? []) { id in
+                SpaceSheet(spaces: model?.state?.spaces ?? [], onNew: { sheet = false; starting = true }) { id in
                     sheet = false
                     if let id { open = ProjectRoute(id: id) }
                 }
                 .presentationDetents([.medium, .large])
             }
             .navigationDestination(item: $open) { r in ProjectView(home: home, id: r.id, figure: figure) }
+            .navigationDestination(isPresented: $starting) { CompanySetupView(home: home, figure: figure, fresh: true) }
             .task {
                 if model == nil { model = ProjectModel(home: home) }
                 model?.start()
@@ -56,6 +58,8 @@ private struct ProjectSpaces: ViewModifier {
 /// The sheet of spaces: Home, then each project with its square and what waits in it.
 struct SpaceSheet: View {
     let spaces: [Spaces.Space]
+    /// "New project": the start screen, for another one.
+    let onNew: () -> Void
     /// A project's id, or nil for Home.
     let pick: (String?) -> Void
 
@@ -79,6 +83,8 @@ struct SpaceSheet: View {
                 }
                 .accessibilityIdentifier("space-\(s.id)")
             }
+            Button(action: onNew) { Label(tr("New project"), systemImage: "plus") }
+                .accessibilityIdentifier("new-project")
         }
         .tint(.primary)
     }
@@ -118,7 +124,10 @@ struct ProjectView: View {
 
     var body: some View {
         Group {
-            if let model { ProjectPage(home: home, id: id, figure: figure, model: model) }
+            // A project not running yet is still being set up: its setup's screens, as Android's Company screen.
+            if let model, let c = model.state?.project, c.id == id,
+               CompanySetupDesk.companion.opensSetup(c: c, features: home.store.version.value.value?.features) { CompanySetupView(home: home, figure: figure) }
+            else if let model { ProjectPage(home: home, id: id, figure: figure, model: model) }
             else { ProgressView() }
         }
         .task { if model == nil { model = ProjectModel(home: home) } }
