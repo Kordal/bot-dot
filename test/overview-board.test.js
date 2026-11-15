@@ -57,6 +57,9 @@ test('the Chief hides and shows a piece and places an overview tile', async () =
   let r = await ownerTurn('Hide Blockers on the board', (headers) => srv.asChief('/company/layout', { method: 'PUT', headers, body: { hide: 'blockers' } }));
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo']);
+  r = await ownerTurn('Hide Needs you', (headers) => srv.asChief('/company/layout', { method: 'PUT', headers, body: { hide: 'needs' } }));
+  assert.equal(r.status, 400, 'Needs you is never hidden (ADR 249)');
+  assert.ok((await board()).includes('needs'));
   r = await srv.asChief('/company/layout', { method: 'PUT', body: { show: 'blockers' } });
   assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo', 'blockers']);
   assert.equal((await srv.api('/company/layout', { method: 'PUT', body: { hide: 'goal' } })).status, 400);
@@ -108,4 +111,17 @@ test('a board kept from before moves its tiles once, and a later move or hide st
   assert.equal(r.data.layout.needs[1], 1400);
   assert.deepEqual(r.data.layout.todo, todo, 'nothing slid down a second time');
   assert.deepEqual((await srv.api('/company')).data.company.layout, r.data.layout);
+});
+
+test('web: Needs you stands first whenever something waits, above the arranged tiles, and is no piece to add (ADR 249)', () => {
+  const read = (f) => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', f), 'utf8');
+  const home = read('company-home.js');
+  const tile = home.slice(home.indexOf('function needsTileHTML(c) {'), home.indexOf('function overviewHome('));
+  assert.doesNotMatch(tile, /onBoard\(c, 'needs'\)/, 'not gated by the board');
+  assert.match(tile, /<section class="cf-ov cf-needs" data-cf-needs>/);
+  assert.doesNotMatch(tile, /data-cf-ov=/, 'no tile of the canvas');
+  const canvas = read('board-canvas-view.js');
+  assert.match(canvas, /if \(!ch\.matches\('\.cf-top, \.sp-needs, \.cf-needs, \.sp-teams'\)\) ch\.remove\(\);/, 'kept above the canvas');
+  assert.match(canvas, /target\.closest\('\.cf-top, \.sp-needs, \.cf-needs, \.sp-teams'\)/, 'and never dragged');
+  assert.match(read('company.js'), /const OVERVIEW = \['work', 'blockers', 'replies'\];/, 'not offered as a piece');
 });
