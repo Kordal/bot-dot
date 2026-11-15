@@ -414,6 +414,7 @@ data class Run(
     val problem: String? = null, // the error said plainly, for showing (the raw error stays in error)
     val trigger: String? = null,
     val jobName: String? = null,
+    val watchName: String? = null, // the watch whose end started it (trigger "watch", ADR 247)
     val kind: String? = null,
     val startedAt: String = "",
     val endedAt: String? = null,
@@ -544,6 +545,37 @@ data class Learned(val kind: String = "", val text: String = "", @SerialName("ch
     enum class Opens { JOBS, SETTINGS }
 }
 
+/** What a run learned, a chip under its reply ([LearnedChips]): its words, and what a tap opens (a skill's settings on [skill]). */
+class LearnedChip(val text: String, val opens: Learned.Opens?, val skill: String?)
+
+/** The "Learned" chips under a reply in a bot's chat, for both phones (#625; Android's TheirBubble chips). */
+object LearnedChips {
+    /** A chip from a server before `memory-chips` is cut to this many characters. */
+    const val CHARS = 90
+
+    /** What [r] learned, but the skills it used (those are on its step line, [RunSteps.skills]), in [Learned.line]'s words. */
+    fun of(r: Run, features: Collection<String>?): List<LearnedChip> {
+        val whole = announces(features, MEMORY_CHIPS)
+        return r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> LearnedChip(shown(x.line(features), whole), x.opens, x.opensSkill) }
+    }
+
+    /** Where a chip's tap goes: a job's to the bot's scheduled jobs, a skill's, its instructions' or an app's to its settings (on that skill); a note's nowhere. */
+    sealed class Open {
+        data object Jobs : Open()
+        /** The bot's settings, its Skills open on [skill] when the chip names one. */
+        data class Settings(val skill: String?) : Open()
+    }
+
+    fun open(c: LearnedChip): Open? = when (c.opens) {
+        Learned.Opens.JOBS -> Open.Jobs
+        Learned.Opens.SETTINGS -> Open.Settings(c.skill)
+        null -> null
+    }
+
+    /** A chip's words: whole from a server that writes them, else cut to [CHARS] with "…". */
+    fun shown(text: String, whole: Boolean): String = if (!whole && text.length > CHARS) text.take(CHARS - 1) + "…" else text
+}
+
 /** The server's features that say it writes the words of a chip and of a waiting memory change's card. */
 const val MEMORY_CHIPS = "memory-chips"
 const val MEMORY_CARDS = "memory-cards"
@@ -592,6 +624,10 @@ data class MailDraft(
 data class AskedBot(val id: String = "", val name: String = "", val color: String? = null, val text: String = "", val reply: String? = null, val at: String? = null)
 @Serializable
 data class SentTo(val id: String = "", val name: String = "", val emoji: String = "🤖", val color: String? = null, val delivered: String? = null, val text: String? = null, val at: String? = null) // text: the latest it sent that bot; at: when (its row among the run's steps)
+
+/** What a bot watches (ADR 247): botdot reads it without AI, and its end starts the bot. state: what it read last. */
+@Serializable
+data class Watch(val id: String = "", val name: String = "", val until: String = "", val state: String = "", val error: String? = null)
 
 @Serializable
 data class InboxNote(val fromId: String? = null, val from: String = "", val emoji: String? = null, val color: String? = null, val text: String = "", val at: String? = null, val call: Boolean = false, val later: Boolean = false) // call: a job's call, `from` its job; later: the wake gate held it for the next run (ADR 083)

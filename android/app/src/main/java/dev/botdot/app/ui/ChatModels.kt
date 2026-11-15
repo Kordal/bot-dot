@@ -93,6 +93,8 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
     private val taking = HashSet<String>() // being taken back now
     var waiting by mutableStateOf<List<InboxNote>>(emptyList()) // notes for its next run
         private set
+    var watches by mutableStateOf<List<dev.botdot.app.data.Watch>>(emptyList()) // what it watches (ADR 247)
+        private set
     var loaded by mutableStateOf(false)
         private set
     private var noOlder = false
@@ -166,6 +168,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
                     ev.type.startsWith("run_") && ev.data.str("botId") == botId -> kicks.tryEmit(Unit)
                     ev.type == "bot_message" && (ev.data["to"] as? JsonObject)?.str("id") == botId -> kicks.tryEmit(Unit)
                     ev.type == "notes_held" && ev.data.str("botId") == botId -> kicks.tryEmit(Unit) // the wake gate held a note (ADR 083)
+                    ev.type == "watches" && ev.data.str("botId") == botId -> viewModelScope.launch { readWatches() } // set, read, ended or stopped (ADR 247)
                     // While it works, a card came, went or changed: an action in a connected app may have begun or
                     // ended its wait for the owner's OK, which the run says in this list (`waitingFor`).
                     ev.type == "asks" && all.any { it.isRunning } -> kicks.tryEmit(Unit)
@@ -193,6 +196,22 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         val (r, w) = coroutineScope { async { runCatching { a.runs(botId, PAGE) } } to async { runCatching { a.inbox(botId) } } }
         r.await().onSuccess { all = it; noOlder = it.size < PAGE; loaded = true; follow() }.onError { _notes.tryEmit(it.message ?: tr("Couldn't load")) }
         w.await().onSuccess { waiting = it } // an older botdot has no inbox to show
+        readWatches()
+    }
+
+    /** What it watches (ADR 247); an older botdot has none to show. */
+    private suspend fun readWatches() {
+        val a = app.api.value ?: return
+        if (app.store.version.value.value?.features?.contains("watches") != true) return // an older botdot has none
+        runCatching { a.watches(botId) }.onSuccess { watches = it }
+    }
+
+    /** Stop on a watch: gone at once here, and on the server. */
+    fun stopWatch(id: String) {
+        watches = watches.filterNot { it.id == id }
+        viewModelScope.launch {
+            try { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopWatch(botId, id) } catch (e: CancellationException) { throw e } catch (e: Exception) { _notes.tryEmit(e.message ?: tr("Couldn't stop it")); readWatches() } // as the server has them
+        }
     }
 
     /** Only its newest runs, put in place of what the chat had. */
@@ -201,6 +220,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         if (!loaded) return load()
         val (r, w) = coroutineScope { async { runCatching { a.runs(botId, NEWEST) } } to async { runCatching { a.inbox(botId) } } }
         w.await().onSuccess { waiting = it }
+        readWatches()
         val fresh = r.await().getOrNull() ?: return
         val merged = mergeNewest(all, fresh, NEWEST) ?: return load() // more new runs than one look brings: start over
         all = merged

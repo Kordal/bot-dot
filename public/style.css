@@ -1611,6 +1611,15 @@ a.file-chip.link:hover { background: var(--fill); }
 .bubble.from-other-bot.suggestion-msg, .bubble.from-other-bot.report-msg { white-space: normal; }
 /* As wide as its column at most: a code block or a long line scrolls or wraps inside it, not off to the left under the bot list. */
 .from-bot-msg > .bubble.from-other-bot { max-width: 100%; }
+/* What a bot watches (ADR 247): one quiet chip each on its side of the chat, with Stop. */
+.watch-chip { max-width: 76%; padding-right: var(--sp-4); }
+.chip > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.watch-name { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.watch-until { white-space: nowrap; }
+.watch-stop { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--r-pill); background: none; color: var(--muted); cursor: pointer; }
+.watch-stop svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.watch-stop:hover { background: var(--line); color: var(--text); }
+.watch-stop:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 /* Notes other bots left: one folded line on your side of the chat, opening to each note. */
 .notes-fold { display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-8); max-width: 76%; }
 .notes-wait { display: flex; flex-direction: column; align-items: flex-end; max-width: 76%; }

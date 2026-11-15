@@ -362,6 +362,10 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         json.decodeFromString(get("/runs?botId=${enc(botId)}&limit=$limit${before?.let { "&before=${enc(it)}" } ?: ""}"))
     /** Notes other bots left for this bot, waiting for its next run. */
     suspend fun inbox(botId: String): List<InboxNote> = json.decodeFromString(get("/bots/${enc(botId)}/inbox"))
+    /** What it watches (ADR 247, feature `watches`). */
+    suspend fun watches(botId: String): List<Watch> = json.decodeFromString(get("/bots/${enc(botId)}/watches"))
+    /** Stop one of its watches: it is gone, waking nobody. */
+    suspend fun stopWatch(botId: String, id: String) { send("DELETE", "/bots/${enc(botId)}/watches/${enc(id)}") }
     /** "Run now" under the notes that wait (#225, feature `notes-wake`): the bot starts with them now, or once it is free. */
     suspend fun runNotes(botId: String): NotesRun = json.decodeFromString(send("POST", "/bots/${enc(botId)}/inbox/run"))
     /**

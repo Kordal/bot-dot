@@ -119,4 +119,25 @@ final class ChatTests: XCTestCase {
         XCTAssertEqual(opening.slug, "menu")
         XCTAssertNotNil(ImageRenderer(content: PageChip(page: page) {}.frame(width: 320)).cgImage)
     }
+
+    /// A reply's "Learned" chips: the shared words, cut to Android's length from a server before memory-chips.
+    func testALearnedChipIsCutAsAndroidsBeforeMemoryChips() {
+        let long = String(repeating: "x", count: 120)
+        XCTAssertEqual(LearnedChips.shared.shown(text: long, whole: false).count, Int(LearnedChips.shared.CHARS))
+        XCTAssertEqual(LearnedChips.shared.shown(text: long, whole: true), long)
+        XCTAssertNotNil(ImageRenderer(content: LearnedChipLabel(text: "🧠 Remembered: tiles").frame(width: 320)).cgImage)
+    }
+
+    /// A "Learned" chip's tap: a job's to the bot's jobs, a skill's to its settings on that skill, a note's nowhere.
+    func testALearnedChipsTapGoesWhereAndroidsDoes() {
+        let job = LearnedChips.shared.open(c: LearnedChip(text: "Made a job", opens: .jobs, skill: nil))
+        XCTAssertTrue(job is LearnedChips.OpenJobs)
+        let skill = LearnedChips.shared.open(c: LearnedChip(text: "Changed deploy", opens: .settings, skill: "deploy"))
+        XCTAssertEqual((skill as? LearnedChips.OpenSettings)?.skill, "deploy")
+        XCTAssertNil(LearnedChips.shared.open(c: LearnedChip(text: "Remembered", opens: nil, skill: nil)))
+        // The settings scroll to the skill's row when it is in the library, else to the Skills section.
+        XCTAssertEqual(BotSettingsView.focusRow("deploy", library: ["deploy", "review"]), "skill-deploy")
+        XCTAssertNil(BotSettingsView.focusRow("gone", library: ["deploy"]))
+        XCTAssertNil(BotSettingsView.focusRow("", library: ["deploy"]))
+    }
 }

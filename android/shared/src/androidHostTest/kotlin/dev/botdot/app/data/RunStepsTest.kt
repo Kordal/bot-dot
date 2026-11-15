@@ -84,4 +84,27 @@ class RunStepsTest {
         )
         assertEquals("23 steps, the skill backup-check, Reviewer, ${RunSteps.took(done.startedAt, done.endedAt)}", RunSteps.label(done, null, 23, held = false))
     }
+
+    @Test fun aRepliesLearnedChipsLeaveTheSkillsToTheStepLineAndSayWhatTheyOpen() {
+        val r = run(
+            """{"id":"r1","botId":"b","prompt":"Ship it","status":"done","result":"Done",
+               "learned":[{"kind":"skill","skill":"deploy","text":"Used deploy"},{"kind":"job","text":"Every morning","chip":"Made a job: every morning"},
+                          {"kind":"memory","text":"${"x".repeat(120)}"}]}""",
+        )
+        val chips = LearnedChips.of(r, listOf(MEMORY_CHIPS))
+        assertEquals(2, chips.size)
+        assertTrue(chips[0].text.endsWith("Made a job: every morning"))
+        assertEquals(Learned.Opens.JOBS, chips[0].opens)
+        assertNull("a note opens nothing", chips[1].opens)
+        assertTrue("whole from a server that writes them", chips[1].text.length > LearnedChips.CHARS)
+        val before = LearnedChips.of(r, listOf("pages"))
+        assertEquals(LearnedChips.CHARS, before[1].text.length)
+        assertTrue(before[1].text.endsWith("…"))
+    }
+    @Test fun aLearnedChipsTapGoesToJobsToTheSkillsSettingsOrNowhere() {
+        assertEquals(LearnedChips.Open.Jobs, LearnedChips.open(LearnedChip("Made a job", Learned.Opens.JOBS, null)))
+        assertEquals(LearnedChips.Open.Settings("deploy"), LearnedChips.open(LearnedChip("Changed deploy", Learned.Opens.SETTINGS, "deploy")))
+        assertEquals(LearnedChips.Open.Settings(null), LearnedChips.open(LearnedChip("Instructions", Learned.Opens.SETTINGS, null)))
+        assertNull("a note opens nothing", LearnedChips.open(LearnedChip("Remembered", null, null)))
+    }
 }

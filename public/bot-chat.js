@@ -200,6 +200,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     : r.trigger === 'schedule'
     ? `<div class="bubble-row from-me"><span class="chip">⏰ ${tr('Scheduled run · {time}', { time: esc(msgTime(r.startedAt)) })}</span></div>`
     : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
+    : r.trigger === 'watch' ? `<div class="bubble-row from-me"><span class="chip">${ICON.watch} ${esc(r.watchName || '')} · ${esc(msgTime(r.startedAt))}</span></div>` // a watch it set ended (ADR 247)
     : r.trigger === 'project' ? '' // a lead's work for its project that botdot started (#696): you asked nothing
     : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
     : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
@@ -267,6 +268,25 @@ function loadInbox(botId) {
     state.inbox[botId] = notes;
     if (before !== JSON.stringify(notes)) redrawBotChat(botId);
   }).catch(() => {});
+}
+
+// What a bot watches (ADR 247), at the end of its chat on its side: what, until when, and Stop. The last read is its title.
+function loadWatches(botId) {
+  if (!state.features.includes('watches')) return;
+  api(`/bots/${encodeURIComponent(botId)}/watches`).then((list) => {
+    const before = JSON.stringify(state.watches[botId] || []);
+    state.watches[botId] = Array.isArray(list) ? list : [];
+    if (before !== JSON.stringify(state.watches[botId])) redrawBotChat(botId);
+  }).catch(() => {});
+}
+function watchesHTML(botId, list) {
+  return (list || []).map((w) => `<div class="bubble-row from-bot watch-row"><span class="chip watch-chip" title="${esc(w.error || w.state || '')}">${ICON.watch}<span class="watch-name">${esc(w.name)}</span><span class="watch-until">${esc(tr('until {time}', { time: shortTime(w.until) }))}</span><button type="button" class="watch-stop" data-stop-watch="${esc(w.id)}" data-bot="${esc(botId)}" aria-label="${esc(tr('Stop watching {name}', { name: w.name }))}">${ICON.x}</button></span></div>`).join('');
+}
+async function stopWatch(botId, id, btn) {
+  btn.disabled = true;
+  try { await api(`/bots/${encodeURIComponent(botId)}/watches/${encodeURIComponent(id)}`, { method: 'DELETE' }); } catch (e) { toast(e.message, true); btn.disabled = false; return; }
+  state.watches[botId] = (state.watches[botId] || []).filter((w) => w.id !== id);
+  redrawBotChat(botId);
 }
 
 // The run a bot's chat reaches back to: its "New" line's, else the one its open question is from (docs/api.md, "A bot
@@ -433,6 +453,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     part('bot-screen').onclick = () => openScreen(bot.id);
     part('bot-files').onclick = () => { const b = botById(bot.id); if (b) Files.open(b); }; // files.js (#603)
     loadInbox(bot.id);
+    loadWatches(bot.id);
     if (!docked) readOwnRuns(bot.id);
   }
   const av = part('bot-avatar');
@@ -449,13 +470,14 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   // Re-render the thread only when something changed, so live bits and scroll survive refreshes. A step of a running
   // run is no change: its step line grows in place (drawBlockLines).
   const waiting = state.inbox[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${asksOpen(bot.asks).join(',')}`;
+  const watching = state.watches[bot.id] || [];
+  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${asksOpen(bot.asks).join(',')}|watches:${watching.map((w) => `${w.id}:${w.state}:${w.error || ''}`).join(',')}`;
   const thread = part('chat-thread');
   holdChatEnd(thread, () => botFigure(bot.color, 'idle', '', bot.outfit, bot.id));
   if (root.dataset.sig !== sig) {
     const atBottom = !root.dataset.sig || thread.scrollHeight - thread.scrollTop - thread.clientHeight < 120;
     root.dataset.sig = sig;
-    thread.innerHTML = botThreadHTML(bot, runs, newFirst) + waitingNotesHTML(bot.id, waiting);
+    thread.innerHTML = botThreadHTML(bot, runs, newFirst) + waitingNotesHTML(bot.id, waiting) + watchesHTML(bot.id, watching);
     if (atBottom) thread.scrollTop = thread.scrollHeight;
     if (!docked) scrollToNew(thread);
     $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
@@ -467,6 +489,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
+    $$('[data-stop-watch]', thread).forEach((el) => (el.onclick = () => stopWatch(el.dataset.bot, el.dataset.stopWatch, el)));
     // An answer names the reply it answers: with two questions open, it ends that one alone (#1380).
     wireChoices(thread, (t, key, of) => sendFrom($('form.composer', root), () => runBot(bot.id, t, [], key, null, of)));
     $$('[data-screen-open]', thread).forEach((el) => (el.onclick = () => openScreen(el.dataset.screenOpen)));

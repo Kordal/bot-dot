@@ -50,6 +50,8 @@ class RunView(
     val steps: StepLine? = null,
     /** The pages it made or changed, a chip each under its reply that opens it ([Pages.chips]). */
     val pages: List<PageRef> = emptyList(),
+    /** What it learned, a chip each under its reply ([LearnedChips]). */
+    val learned: List<LearnedChip> = emptyList(),
 )
 
 /** A run's step line (#625, #636): [label] in words, [count] steps so far, [held] while it waits for an OK, its [timeline]. */
@@ -485,6 +487,7 @@ class BotChat(
                 StepLine(RunSteps.label(r, at, count, held), RunSteps.now(at, held), count, held, RunSteps.timeline(r))
             },
             pages = if (r.status == "success") Pages.chips(r.botId, r.pages, features) else emptyList(),
+            learned = if (r.isRunning) emptyList() else LearnedChips.of(r, features),
         )
     }
 

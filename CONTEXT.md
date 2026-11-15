@@ -58,6 +58,10 @@ _Avoid_: hand off (a bot hands off work with `message_bot`, outside a group), de
 A run of a bot (AI or script) on a schedule, repeating or run once, or when called.
 _Avoid_: cron, task, schedule
 
+**Watch**:
+Something outside a bot or the Chief waits for (a pull request, a page, a mail), read by botdot without AI until it happens or its deadline passes; its end starts whoever set it, once, and it is gone.
+_Avoid_: monitor, poll, subscription
+
 **Call**:
 A request from a device or service with the job's key, that runs a job now: from wherever the front door can be reached, the internet included on a public install. A run it starts has the trigger `call`. "Webhook" appears only in `docs/api.md`.
 _Avoid_: webhook, trigger, ping
