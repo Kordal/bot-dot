@@ -7,6 +7,18 @@ import BotdotShared
 /// message that failed comes back into the box in front of what was typed since.
 @MainActor
 final class ChatTests: XCTestCase {
+    /// A reply's files: its picture drawn as itself, its other file a chip that opens it in the viewer.
+    func testAReplysFilesOpenInTheViewerAndItsPicturesShow() {
+        let photo = Attachment(name: "chart.png", file: "run-1/chart.png", size: 0, readable: nil)
+        let report = Attachment(name: "report.pdf", file: "run-1/report.pdf", size: 0, readable: nil)
+        XCTAssertEqual(ReplyFiles.shared.pictures(files: [photo, report]), [photo])
+        let opening = ReplyFiles.shared.opening(f: report, from: "Scout")
+        XCTAssertEqual(opening.src, "/files/run-1/report.pdf")
+        let renderer = ImageRenderer(content: ReplyFilesView(files: [photo, report])
+            .replyFiles(api: unreachableApi(), from: "Scout", opening: .constant(nil)).frame(width: 300))
+        XCTAssertNotNil(renderer.cgImage)
+    }
+
     func testAReplysMarkdownIsReadAsOnAndroidAndDrawn() {
         let reply = "# Good morning\n\n1. **Rail strike** called off\n- [x] done\n\n> quoted\n\n```\ncode\n```"
         let blocks = MarkdownKt.parseBlocks(src: reply)

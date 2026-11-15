@@ -77,6 +77,7 @@ struct ChatView: View {
             opening = DocumentView.shared.ofPath(botId: botId, path: path, from: name, name: (path as NSString).lastPathComponent)
             return .handled
         })
+        .replyFiles(api: home.api, from: name, opening: $opening)
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .navigationBarTitleDisplayMode(.inline)
         .modifier(NoticeOverlay(notice: model.state?.notice, count: Int(model.state?.noticeCount ?? 0)))
@@ -128,7 +129,7 @@ struct RunRow: View {
             } else if let ended = view.ended {
                 Text(ended).foregroundStyle(view.problem ? .red : .secondary)
             }
-            ForEach(view.files, id: \.file) { f in Label(f.name, systemImage: "doc").font(.callout) }
+            ReplyFilesView(files: view.files)
             if !view.choices.isEmpty { Choices(choices: view.choices, yes: Int(view.yes), color: color, onAnswer: onAnswer) }
             if !view.questions.isEmpty {
                 QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)

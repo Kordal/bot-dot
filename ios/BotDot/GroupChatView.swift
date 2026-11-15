@@ -8,7 +8,10 @@ import BotdotShared
 struct GroupChatView: View {
     let name: String
     let figure: FigureDef?
+    private let home: HomeStore
     @State private var model: GroupChatModel
+    /// A file under a reply, opened in the viewer.
+    @State private var opening: DocumentView.Opening?
     @State private var atBottom = true
     @State private var sentAt = 0
     @State private var panel = false
@@ -20,6 +23,7 @@ struct GroupChatView: View {
     init(home: HomeStore, groupId: String, name: String, figure: FigureDef?) {
         self.name = name
         self.figure = figure
+        self.home = home
         _model = State(initialValue: GroupChatModel(home: home, groupId: groupId))
     }
 
@@ -76,6 +80,8 @@ struct GroupChatView: View {
             noticeTimer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { notice = nil } }
         }
         .onChange(of: model.state?.gone) { _, gone in if gone == true { panel = false; dismiss() } } // deleted, here or elsewhere
+        .replyFiles(api: home.api, from: name, opening: $opening)
+        .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .task { model.start() }
         .onDisappear { model.stop() }
     }
@@ -181,7 +187,7 @@ struct GroupReplyRow: View {
             } else if let ended = view.ended {
                 Text(ended).foregroundStyle(view.problem ? .red : .secondary)
             }
-            ForEach(view.files, id: \.file) { f in Label(f.name, systemImage: "doc").font(.callout) }
+            ReplyFilesView(files: view.files)
             if !view.choices.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
