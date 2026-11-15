@@ -607,6 +607,8 @@ class ChiefDesk(
 internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Collection<String>?, bots: List<Bot> = emptyList()): ChiefLine {
     val team = m.about?.team?.takeIf { it.name.isNotBlank() }
     fun bot(id: String?) = id?.let { bots.firstOrNull { b -> b.id == it } }
+    // The mail draft's card: under the Chief's finished reply.
+    val card = m.draft?.takeIf { m.role == "chief" && !m.pending }
     return ChiefLine(
         index = index,
         role = m.role,
@@ -627,11 +629,12 @@ internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Col
         time = if (m.role == "user" || m.pending) "" else chatClock(m.endedAt ?: m.at),
         suggests = m.role == "suggestion" && m.status == "pending",
         declined = m.role == "suggestion" && m.status == "dismissed",
-        chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a ->
+        // The draft's bot is in its card's footer only while the card shows: a reply still being written keeps its chip.
+        chips = m.actions.orEmpty().filterNot { MailCard.takesChip(card, it) }.map { a ->
             val screen = a.kind == "run" && bot(a.botId)?.computer == "linux"
             ChiefChip(a.label, a.waits, if (screen) " · " + tr("View live screen") else "", a.kind, a.botId, a.runId)
         },
-        mail = m.draft?.takeIf { m.role == "chief" && !m.pending }?.let { d ->
+        mail = card?.let { d ->
             val by = bot(d.botId)
             MailView(
                 to = d.to, subject = d.subject, text = d.text, sent = d.state == "sent",

@@ -145,4 +145,14 @@ class ChiefDeskTest {
         assertTrue(earlier.mail!!.earlier && earlier.mail!!.actions.isEmpty())
         assertNull(chiefLine(ChiefMessage("user", text = "x", draft = MailDraft()), 0, "", emptyList()).mail, "only under the Chief's reply")
     }
+
+    @Test fun aReplyStillWrittenWithADraftKeepsItsBotsChip() {
+        val m = ChiefMessage("chief", text = "", pending = true,
+            actions = listOf(ChiefAction("run", "Started Mailer", botId = "b3")), draft = MailDraft(to = "ann@example.test", botId = "b3"))
+        val line = chiefLine(m, 0, "Drafting", emptyList(), listOf(bot("b3", "Mailer")))
+        assertNull(line.mail, "no card while it is written")
+        assertEquals(listOf("→ Started Mailer"), line.chips.map { it.text }, "so its bot stays a chip")
+        val done = chiefLine(m.copy(pending = false), 0, "", emptyList(), listOf(bot("b3", "Mailer")))
+        assertTrue(done.chips.isEmpty() && done.mail?.bot == "Mailer", "finished: the card names it")
+    }
 }
