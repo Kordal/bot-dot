@@ -33,4 +33,26 @@ class MentionBoxTest {
     }
 
     private fun unreachable() = Api("https://127.0.0.1:9")
+
+    @Test fun loadReadsWhatTheFeaturesHandToTheRunFromEmptyStores() = runTest {
+        val server = FakeServer { t ->
+            when (t.path) {
+                "/api/version" -> 200 to """{"features":["page-mentions","project-mentions"]}"""
+                "/api/bots" -> 200 to """[{"id":"b1","name":"Fleet Doctor"}]"""
+                "/api/skills" -> 500 to """{"error":"no skills here"}"""
+                "/api/pages" -> 200 to """{"pages":[{"botId":"b1","slug":"issues","title":"Issue List"}]}"""
+                "/api/dashboard" -> 200 to """{"tiles":[{"id":"t1","kind":"value","title":"Living Room"}]}"""
+                "/api/company" -> 200 to """{"company":{"id":"p1","name":"Botdot"}}"""
+                else -> 404 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(server.api))
+        runCurrent()
+        val box = MentionBox(store, "b1")
+        box.load()
+        val w = box.world()!!
+        assertEquals(listOf("issues"), w.pages.map { it.slug }, "pages, the skills' failure notwithstanding")
+        assertEquals(listOf("t1"), w.tiles.map { it.id })
+        assertEquals(listOf("p1"), w.projects.map { it.id })
+    }
 }

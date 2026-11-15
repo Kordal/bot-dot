@@ -34,10 +34,22 @@ class MentionBox(private val store: Store, private val chat: String) {
     /** [text] with [row] picked in place of the "@…" before [cursor] and the rest of its word, the cursor after its space; null when none is typed there. */
     fun pick(text: String, cursor: Int, row: Mentions.Row): Mentions.Picked? = Mentions.pick(text, cursor.coerceIn(0, text.length), row)
 
-    /** What the suggestions need, read once when nothing has yet: the bots and the skills. */
+    /**
+     * What the suggestions need, each read once when nothing has yet: the botdot's features, the bots and the skills,
+     * and the pages, tiles and projects where the features say a mention hands them to the run. One that can't be
+     * read leaves the others to be read.
+     */
     @Throws(Exception::class)
     suspend fun load() {
-        if (store.bots.value.value == null) store.bots.refresh()
-        if (store.skills.value.value == null) store.skills.refresh()
+        suspend fun read(part: Store.Part<*>) {
+            if (part.value.value != null) return
+            try { part.refresh() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
+        }
+        read(store.version)
+        read(store.bots)
+        read(store.skills)
+        val features = store.version.value.value?.features.orEmpty()
+        if (Mentions.PAGE_MENTIONS in features) { read(store.pages); read(store.dashboard) }
+        if (Mentions.PROJECT_MENTIONS in features) read(store.projects)
     }
 }
