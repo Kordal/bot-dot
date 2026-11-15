@@ -52,17 +52,26 @@ class HomeTilesState(val on: List<HomeTileRow> = emptyList(), val rest: List<Hom
 /**
  * The tiles-on-home sheet for both phones (#447; Android's HomeTilesSheet): [toggle] and a [drop] after [move]s save
  * the whole list at once, shown at once and put back, with botdot's words, when it says no. While it is open, a
- * change of the Board's list from elsewhere (a save of ours coming back, the Chief's) takes the place of the rows.
+ * change of the Board's list from elsewhere (a save of ours coming back, the Chief's) takes the place of the rows;
+ * a read that brings the same list (Home's minute) leaves a drag or a save on its way as it is.
  */
 class HomeTilesDesk(private val scope: CoroutineScope, private val api: Api, private val store: Store) {
     private var on: List<String>? = null
+    /** The server's list last seen: the rows take a new one only, so a refresh of the same keeps a drag or a save on its way. */
+    private var seen: List<String>? = null
     private var notice: String? = null
     private var noticeCount = 0
     private val _state = MutableStateFlow(HomeTilesState())
     val state: StateFlow<HomeTilesState> = _state.asStateFlow()
 
     init {
-        scope.launch { store.dashboard.value.collect { d -> on = d?.let { HomeTiles.rows(it).first }; publish() } }
+        scope.launch {
+            store.dashboard.value.collect { d ->
+                val home = d?.let { HomeTiles.rows(it).first }
+                if (home != seen) { seen = home; on = home }
+                publish() // the titles and the rest follow every read
+            }
+        }
     }
 
     fun watch(onChange: (HomeTilesState) -> Unit): Job = scope.launch { state.collect { onChange(it) } }

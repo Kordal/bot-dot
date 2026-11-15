@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -49,5 +50,32 @@ class HomeTilesDeskTest {
         assertEquals(listOf("led", "g"), desk.state.value.on.map { it.id }, "a whole new order of the same tiles")
         desk.order(listOf("led"))
         assertEquals(listOf("led", "g"), desk.state.value.on.map { it.id }, "not the same tiles: ignored")
+    }
+    @Test fun aReadOfTheSameListKeepsADragAndASaveOnItsWay() = runTest {
+        val held = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val server = FakeServer { t -> if (t.method == "PUT") { held.await(); 200 to "{}" } else 200 to "{}" }
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.dashboard.set(Dashboard(tiles = tiles, home = listOf("led", "g")))
+        val desk = HomeTilesDesk(backgroundScope, server.api, store)
+        runCurrent()
+        desk.move("g", "led")
+        store.dashboard.set(Dashboard(tiles = tiles, home = listOf("led", "g"))) // Home's minute
+        runCurrent()
+        assertEquals(listOf("g", "led"), desk.state.value.on.map { it.id }, "the drag stays")
+        val renamed = tiles.map { if (it.id == "led") it.copy(title = "LEDs") else it }
+        store.dashboard.set(Dashboard(tiles = renamed, home = listOf("led", "g")))
+        runCurrent()
+        assertEquals("LEDs", desk.state.value.on.first { it.id == "led" }.title, "but the titles follow")
+        val toggling = async { desk.toggle("cpu") }
+        runCurrent()
+        assertEquals(listOf("g", "led", "cpu"), desk.state.value.on.map { it.id })
+        store.dashboard.set(Dashboard(tiles = renamed, home = listOf("led", "g")))
+        runCurrent()
+        assertEquals(listOf("g", "led", "cpu"), desk.state.value.on.map { it.id }, "a save on its way stays")
+        held.complete(Unit)
+        toggling.await()
+        store.dashboard.set(Dashboard(tiles = renamed, home = listOf("cpu")))
+        runCurrent()
+        assertEquals(listOf("cpu"), desk.state.value.on.map { it.id }, "a new list from botdot takes its place")
     }
 }
