@@ -24,11 +24,15 @@ class MentionBox(private val store: Store, private val chat: String) {
             pages = pages, tiles = tiles, projects = projects)
     }
 
-    /** The suggestions for [typed], the box's text with the cursor at its end: none when no "@" or "/" is being typed. */
-    fun suggest(typed: String): List<Mentions.Row> = world()?.let { Mentions.suggest(typed, it) }.orEmpty()
+    /**
+     * The suggestions for the box's [text] with the cursor at [cursor] (UTF-16, as Kotlin's strings count): none when
+     * no "@" or "/" is being typed just before it.
+     */
+    fun suggest(text: String, cursor: Int): List<Mentions.Row> =
+        world()?.let { Mentions.suggest(text.substring(0, cursor.coerceIn(0, text.length)), it) }.orEmpty()
 
-    /** [typed] with [row] picked in place of the "@…" being typed at its end, and a space after it. */
-    fun pick(typed: String, row: Mentions.Row): String = Mentions.pick(typed, typed.length, row)?.text ?: typed
+    /** [text] with [row] picked in place of the "@…" before [cursor] and the rest of its word, the cursor after its space; null when none is typed there. */
+    fun pick(text: String, cursor: Int, row: Mentions.Row): Mentions.Picked? = Mentions.pick(text, cursor.coerceIn(0, text.length), row)
 
     /** What the suggestions need, read once when nothing has yet: the bots and the skills. */
     @Throws(Exception::class)

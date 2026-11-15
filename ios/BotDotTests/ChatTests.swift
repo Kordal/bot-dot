@@ -41,4 +41,14 @@ final class ChatTests: XCTestCase {
         XCTAssertNotNil(ChatModel(home: home, botId: "b1").mentions)
         XCTAssertNotNil(ChiefModel(home: home).mentions)
     }
+
+    /// The mention cursor: a cursor in the middle of the text is where the "@" is read, counted as the shared layer counts.
+    func testTheMentionCursorIsWhereTheCaretIs() {
+        let text = "Ask @we today 👋"
+        let caret = text.index(text.startIndex, offsetBy: 7)
+        XCTAssertEqual(Cursor.offset(of: TextSelection(insertionPoint: caret), in: text), 7)
+        XCTAssertEqual(Cursor.offset(of: nil, in: text), text.utf16.count, "none known: the end")
+        XCTAssertEqual(Cursor.offset(of: Cursor.at(15, in: text), in: text), 15)
+        XCTAssertEqual(Cursor.offset(of: Cursor.at(99, in: text), in: text), text.utf16.count, "past the end: the end")
+    }
 }

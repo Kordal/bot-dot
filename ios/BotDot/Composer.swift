@@ -39,6 +39,21 @@ extension MessageBox {
     var quoted: (text: String, count: Int)? { nil }
 }
 
+/// The message box's cursor as the shared layer counts it (UTF-16, as Kotlin's strings), and back.
+enum Cursor {
+    /// The cursor's place in [text]: the end of a selection; the text's end when none is known.
+    static func offset(of selection: TextSelection?, in text: String) -> Int {
+        guard let selection, case .selection(let range) = selection.indices, range.upperBound <= text.endIndex else { return text.utf16.count }
+        return text.utf16.distance(from: text.startIndex, to: range.upperBound)
+    }
+
+    /// A cursor at [offset] (UTF-16) in [text].
+    static func at(_ offset: Int, in text: String) -> TextSelection {
+        let i = text.utf16.index(text.startIndex, offsetBy: min(max(offset, 0), text.utf16.count))
+        return TextSelection(insertionPoint: i)
+    }
+}
+
 /// What a chat quotes into its box: the words, and a count that tells a new quote of the same words.
 @MainActor
 @Observable
@@ -57,6 +72,8 @@ struct Composer<Box: MessageBox>: View {
     /// One's own message left: the chat goes to its end.
     let onSent: () -> Void
     @State private var typed = ""
+    /// Where the cursor is: the "@" suggestions are for the word before it.
+    @State private var selection: TextSelection?
     @State private var restored: String?
     @State private var photos: [PhotosPickerItem] = []
     @State private var importing = false
@@ -84,7 +101,7 @@ struct Composer<Box: MessageBox>: View {
                     Image(systemName: box.uploading ? "hourglass" : "paperclip").frame(width: 36, height: 36)
                 }
                 .accessibilityLabel(tr("Attach"))
-                TextField(placeholder, text: $typed, axis: .vertical)
+                TextField(placeholder, text: $typed, selection: $selection, axis: .vertical)
                     .lineLimit(1...6)
                     .focused($focused)
                     .padding(.horizontal, 12).padding(.vertical, 8)
@@ -121,11 +138,16 @@ struct Composer<Box: MessageBox>: View {
     /// The "@" suggestions for what is typed (MentionBox): a tap puts the mention in place of the "@…".
     @ViewBuilder
     private var suggestions: some View {
-        let rows = box.mentions?.suggest(typed: typed) ?? []
+        let cursor = Cursor.offset(of: selection, in: typed)
+        let rows = box.mentions?.suggest(text: typed, cursor: Int32(cursor)) ?? []
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                    Button { if let m = box.mentions { typed = m.pick(typed: typed, row: row) } } label: {
+                    Button {
+                        guard let picked = box.mentions?.pick(text: typed, cursor: Int32(cursor), row: row) else { return }
+                        typed = picked.text
+                        selection = Cursor.at(Int(picked.cursor), in: picked.text)
+                    } label: {
                         HStack(spacing: 8) {
                             Text(row.text).font(.subheadline.monospaced())
                             Text(row.label).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
