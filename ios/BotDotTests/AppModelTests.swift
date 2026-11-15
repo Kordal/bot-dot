@@ -69,7 +69,7 @@ final class AppModelTests: XCTestCase {
     }
 
     func testHomeAsksNothingAndShowsNothingBeforeBotdotAnswers() {
-        let home = HomeModel(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000), bundled: nil)
+        let home = HomeModel(api: unreachableApi(), bundled: nil)
         XCTAssertNil(home.offers, "not read: Feedback and Delete account wait")
         XCTAssertFalse(home.askName)
         XCTAssertFalse(home.showsWhatsNew)
