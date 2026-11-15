@@ -101,3 +101,30 @@ class PlanMemory(private val keep: Keep? = null) {
         keep?.write("dismissed", gone.joinToString("\n"))
     }
 }
+
+/**
+ * The dock above a bot's or the Chief's message box as a phone draws it (Android's PlanDock): the plan of the work
+ * going on, folded to its step and what it does now ([folded], kept per chat in [PlanMemory]) or open to every step;
+ * or one that was stopped, what was done, the step it stopped at and what was not started, with Dismiss.
+ */
+class DockPlan(val view: PlanView, val folded: Boolean) {
+    private val plan get() = view.plan
+    val stopped: Boolean get() = view.stopped
+    val steps: List<Plan.Step> get() = plan.steps
+    /** Folded: "step 2 of 5". */
+    val stepLine: String get() = tr("step {step} of {total}", "step" to plan.step, "total" to plan.total)
+    /** Open: "1 of 5". */
+    val doneLine: String get() = tr("{done} of {total}", "done" to plan.done, "total" to plan.total)
+    /** What it does now. */
+    val now: String get() = plan.now?.let { it.doing.ifEmpty { it.text } }.orEmpty()
+    /** How much is done, 0 to 1: the folded bar. */
+    val progress: Float get() = if (plan.total == 0) 0f else plan.done.toFloat() / plan.total
+    /** Stopped: "Stopped at step 2 of 5". */
+    val stoppedLine: String get() = tr("Stopped at step {step} of {total}", "step" to plan.step, "total" to plan.total)
+    /** Stopped: "2 steps done"; null for none. */
+    val doneSteps: String? get() = plan.done.takeIf { it > 0 }?.let { trn(it, "{n} step done", "{n} steps done") }
+    /** Stopped: the step it stopped at; null when that one was done. */
+    val stoppedAt: String? get() = plan.now?.takeIf { it.status != Plan.DONE }?.text
+    /** Stopped: "3 steps not started"; null for none. */
+    val notStarted: String? get() = plan.left.takeIf { it > 0 }?.let { trn(it, "{n} step not started", "{n} steps not started") }
+}

@@ -33,6 +33,7 @@ final class HomeModel {
 
     init(api: Api, bundled: FigureDef? = HomeModel.bundledFigure) {
         home = HomeStore(api: api)
+        home.plans = PlanMemory(keep: PlanKeep())
         rooms = RoomsModel(home: home)
         firstRunDesk = home.firstRun(zone: TimeZone.current.identifier)
         figure = bundled
