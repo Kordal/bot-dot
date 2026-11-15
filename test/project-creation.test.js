@@ -130,11 +130,16 @@ test('an existing bot joins the proposed team as it is: reviewed, not copied, an
     const without = staged.data.proposal.filter((p) => !p.existing);
     const removed = await owner({ proposal: without });
     assert.notEqual(removed.data.creationReview, staged.data.creationReview, 'the review covers who joins');
-    assert.equal((await owner({ proposal: [...without, { existing: true, bot: 'nobody', name: 'X' }] })).status, 400);
+    const unknown = await owner({ proposal: [...without, { existing: true, bot: 'nobody', name: 'X' }] });
+    assert.equal(unknown.data.proposal.some((p) => p.existing), false, 'an id that is not a bot is left out');
     // Another bot of the same name is another review: the id is what the owner approves.
     const twin = (await srv.api('/bots', { method: 'POST', body: { name: 'Claude Coder', prompt: 'Write code.' } })).data;
     const asTwin = await owner({ proposal: [...without, { existing: true, bot: twin.id, name: 'Claude Coder', team: 'Core' }] });
     await srv.api(`/bots/${twin.id}`, { method: 'DELETE' });
+    // Deleted since it was staged: editing another card still saves, and the gone bot is left out.
+    const edited = await owner({ proposal: asTwin.data.proposal.map((p) => (p.existing ? p : { ...p, name: 'Issue Triage' })) });
+    assert.equal(edited.status, 200, JSON.stringify(edited.data));
+    assert.equal(edited.data.proposal.some((p) => p.existing), false);
     const back = await owner({ proposal: [...without, { existing: true, bot: coder.id, name: 'Made up', team: 'Core' }, { existing: true, bot: coder.id, team: 'Core' }] });
     assert.equal(back.status, 200, JSON.stringify(back.data));
     assert.notEqual(back.data.creationReview, asTwin.data.creationReview);
