@@ -79,11 +79,11 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `ConnectScreen` (`connect`) | first run, ⋯ | `AddressView` |
 | `SignInScreen` (`sign-in`) | the front door asks | `SignInView` |
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
-| `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search (left: picking the Board's tiles shown on Home) |
+| `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
 | `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks) |
 | `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`) (left: a chat's page links, page blocks) |
-| `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
+| `HomeTilesSheet` | holding Home's Board cards | `HomeTilesView` |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
 | `ChiefNameQuestion` | the first run | the alert in `HomeView` |

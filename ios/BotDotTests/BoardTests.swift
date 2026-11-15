@@ -45,6 +45,23 @@ final class BoardTests: XCTestCase {
         XCTAssertEqual(Board.tint(nil, .gray), .gray)
         XCTAssertEqual(Board.tint("not a colour", .gray), .gray)
     }
+
+    /// The tiles on home (#447): the shared HomeTilesDesk's rows reach Swift.
+    func testTheTilesOnHomeSheetReachesSwift() async throws {
+        let home = HomeStore(api: unreachableApi())
+        let model = HomeTilesModel(home: home)
+        model.start()
+        defer { model.stop() }
+        try await Task.sleep(for: .milliseconds(300))
+        let json = #"{"tiles":[{"id":"led","title":"LED strip"},{"id":"g","title":"Servers"},{"id":"w","title":"Disk","approved":false}],"home":["led"]}"#
+        let dash = Api.companion.JSON.decodeFromString(deserializer: Dashboard.companion.serializer(), string: json) as! Dashboard
+        home.store.dashboard.set(v: dash)
+        for _ in 0..<250 where model.state?.on.isEmpty != false { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(model.state?.on.map(\.title), ["LED strip"], "on home first, in their order")
+        XCTAssertEqual(model.state?.rest.map(\.title), ["Servers"], "then the other approved tiles")
+        XCTAssertFalse(HomeTiles.shared.shows(features: []), "a botdot without home-tiles: no long press")
+        XCTAssertTrue(HomeTiles.shared.shows(features: ["home-tiles"]))
+    }
 }
 
 /// The account's parts on the iPhone: what the front door offers, What's new, the paused account.
