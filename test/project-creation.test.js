@@ -108,3 +108,43 @@ test("the Chief's own set_company_team tool stages a proposal: its bots' fields 
     assert.match(wrong.content[0].text, /unknown field "salary" in proposal\[0\]/, 'a field the review has no place for is still refused, by name');
   } finally { await srv.stop(); }
 });
+
+test('an existing bot joins the proposed team as it is: reviewed, not copied, and put in the team at approval (ADR 244)', async (t) => {
+  const srv = await startServer();
+  try {
+    const coder = (await srv.api('/bots', { method: 'POST', body: { name: 'Claude Coder', description: 'Writes code', prompt: 'Write code.' } })).data;
+    const c = (await srv.api('/company', { method: 'POST', body: { start: 'Ship the backlog', conversation: true, key: 'creation-test-existing' } })).data;
+    const asChief = (body) => srv.asChief(`/company/teams?project=${c.id}`, { method: 'POST', headers: { 'X-Chief-Chat': c.chiefChat }, body });
+    const reviewer = { name: 'Issue Reviewer', prompt: 'Review issues. Never close one.', tools: ['Read'], team: 'Core' };
+    assert.equal((await asChief({ firstStep: 'Review open issues', proposal: [reviewer, { existing: 'nobody', team: 'Core' }] })).status, 400, 'an unknown bot is refused');
+    const staged = await asChief({ firstStep: 'Review open issues', proposal: [reviewer, { existing: coder.id, team: 'Core', name: 'Renamed', prompt: 'Ignored' }, { existing: coder.id }] });
+    assert.equal(staged.status, 200, JSON.stringify(staged.data));
+    const joined = staged.data.proposal.filter((p) => p.existing);
+    assert.equal(joined.length, 1, 'the same bot once');
+    assert.equal(joined[0].bot, coder.id);
+    assert.equal(joined[0].name, 'Claude Coder', 'its own name, not one the Chief made up');
+    assert.equal(joined[0].prompt, '');
+    // The owner removes it and puts it back from the picker: a PATCH keeps its id, an unknown id is refused.
+    const owner = (body) => srv.api(`/company?project=${c.id}`, { method: 'PATCH', body });
+    const without = staged.data.proposal.filter((p) => !p.existing);
+    const removed = await owner({ proposal: without });
+    assert.notEqual(removed.data.creationReview, staged.data.creationReview, 'the review covers who joins');
+    assert.equal((await owner({ proposal: [...without, { existing: true, bot: 'nobody', name: 'X' }] })).status, 400);
+    const back = await owner({ proposal: [...without, { existing: true, bot: coder.id, name: 'Claude Coder', team: 'Core' }] });
+    assert.equal(back.data.proposal.find((p) => p.existing)?.bot, coder.id);
+    const started = await srv.api(`/company/start?project=${c.id}`, { method: 'POST', body: { review: back.data.creationReview } });
+    assert.equal(started.status, 200, JSON.stringify(started.data));
+    const bots = (await srv.api('/bots')).data;
+    assert.equal(bots.length, 2, 'one new bot, no copy of the existing one');
+    assert.equal(bots.filter((b) => b.name.startsWith('Claude Coder')).length, 1);
+    assert.equal(started.data.teams.length, 1);
+    assert.deepEqual(started.data.teams[0].bots.length, 2);
+    assert.ok(started.data.teams[0].bots.includes(coder.id));
+    // And the Chief's own tool takes it.
+    const c2 = (await srv.api('/company', { method: 'POST', body: { start: 'Second project', conversation: true, key: 'creation-test-existing-2' } })).data;
+    const client = rpcClient(t, 'mcp-server.js', { BOT_DOT_URL: srv.base, BOT_DOT_CHIEF_KEY: srv.chiefKey, CHIEF_CHAT_ID: c2.chiefChat });
+    const res = await client.request('tools/call', { name: 'set_company_team', arguments: { project: c2.id, firstStep: 'Fix one bug', proposal: [{ existing: coder.id, team: 'Dev' }] } });
+    assert.notEqual(res.isError, true, res.content?.[0]?.text);
+    assert.equal(JSON.parse(res.content[0].text).proposal[0].bot, coder.id);
+  } finally { await srv.stop(); }
+});

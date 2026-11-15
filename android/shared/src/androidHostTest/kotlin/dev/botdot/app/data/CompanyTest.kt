@@ -282,4 +282,19 @@ class CompanyTest {
         assertTrue(CompanySetup.added(proposed, "b1"))
         assertFalse(CompanySetup.added(proposed, "b2"))
     }
+
+    @Test fun anExistingBotJoinsAsItIs() {
+        val bots = listOf(Bot(id = "coder", name = "Claude Coder", description = "Writes code"), Bot(id = "b2", name = "Two"))
+        val raw = listOf(JsonObject(mapOf("key" to JsonPrimitive("k1"), "name" to JsonPrimitive("Reviewer"), "team" to JsonPrimitive("Core"))))
+        val next = CompanySetup.joined(raw, bots, listOf("coder"))
+        assertEquals(2, next.size)
+        val joined = next[1]
+        assertTrue(joined["existing"]!!.jsonPrimitive.boolean)
+        assertEquals("coder", joined["bot"]!!.jsonPrimitive.content)
+        assertEquals("Claude Coder", joined["name"]!!.jsonPrimitive.content)
+        assertEquals("in the proposal's first team", "Core", joined["team"]!!.jsonPrimitive.content)
+        val proposed = next.map { Api.JSON.decodeFromJsonElement(Proposed.serializer(), it) }
+        assertTrue(proposed[1].existing)
+        assertEquals("a bot in the proposal is offered once", listOf("b2"), CompanySetup.joinable(bots, proposed).map { it.id })
+    }
 }
