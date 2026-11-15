@@ -82,6 +82,7 @@ data class BotDraft(
     fun withUseSkills(on: Boolean) = copy(useSkills = on)
     /** One skill of the library given to it, or taken back. */
     fun withSkill(name: String, on: Boolean) = copy(skills = if (on) skills + name else skills - name)
+    fun withApp(c: Connection, on: Boolean) = BotSettings.appToggled(c, on, connectors, accounts).let { (k, a) -> copy(connectors = k, accounts = a) }
     fun withOthersMayAsk(on: Boolean) = copy(othersMayAsk = on)
     /** May be in shared rooms (#316). */
     fun withAllowRooms(on: Boolean) = copy(rooms = rooms.copy(allowRooms = on))
@@ -96,6 +97,21 @@ data class BotDraft(
 
 /** The rules of a bot's settings (#636, ADR 205), drawn by Android's BotSettingsScreen and the iPhone's BotSettingsView. */
 object BotSettings {
+    /** The apps a bot can be given (Apps): each connected app once, its live connection, and one row per account of an app with two or more (ADR 174). */
+    fun appChoices(all: List<Connection>): List<Connection> =
+        all.filter { c -> c.status == "ACTIVE" || all.none { x -> x.toolkit == c.toolkit && x.status == "ACTIVE" } }.distinctBy { c -> if (c.accounts > 1) c.id else c.toolkit }
+
+    /** Whether the bot [botId] has app [c]: its app, and for an app with two or more accounts, this account. */
+    fun appPicked(c: Connection, connectors: Set<String>, accounts: Map<String, String>, botId: String?): Boolean =
+        c.toolkit in connectors && (c.accounts < 2 || accounts[c.toolkit]?.let { it == c.id } ?: (botId in c.usedBy))
+
+    /** An app's row: its name, and which account for an app with two or more. */
+    fun appName(c: Connection): String = (c.app?.name ?: c.toolkit) + if (c.accounts > 1) " · " + (c.label ?: c.id) else ""
+
+    /** An app ticked ([on]) or not: its toolkit, and the account for an app with two or more. */
+    fun appToggled(c: Connection, on: Boolean, connectors: Set<String>, accounts: Map<String, String>): Pair<Set<String>, Map<String, String>> =
+        (if (on) connectors + c.toolkit else connectors - c.toolkit) to (if (on && c.accounts > 1) accounts + (c.toolkit to c.id) else accounts - c.toolkit)
+
     /** A change is saved by itself this long after the last one (#636). */
     const val SAVE_MS = 800L
     /** The longest name and category a bot has. */
@@ -199,7 +215,19 @@ class BotSettingsState(
     val error: String? = null,
     /** It was deleted: the screen leaves. */
     val deleted: Boolean = false,
+    /** Its apps to pick from ([BotSettings.appChoices]); empty from a botdot without connected apps. */
+    val apps: List<Connection> = emptyList(),
+    /** Its pages (#346), from a botdot with pages; null: no section. */
+    val pages: List<PageInfo>? = null,
 ) {
+    /** Whether it has app [c] as the draft stands. */
+    fun hasApp(c: Connection): Boolean = BotSettings.appPicked(c, draft.connectors, draft.accounts, bot?.id)
+    fun appName(c: Connection): String = BotSettings.appName(c)
+    /** The Apps section's summary: the apps it has, or None. */
+    val appsLine: String get() = apps.filter(::hasApp).joinToString(", ", transform = BotSettings::appName).ifBlank { tr("None") }
+    /** A page's line ([Pages.line]). */
+    fun pageLine(page: PageInfo): String = Pages.line(page)
+
     val models: List<Option> get() = BotSettings.models(info)
     val efforts: List<Option> get() = BotSettings.efforts(info)
     val hotkeys: List<Option> get() = BotSettings.hotkeys(others)
@@ -222,7 +250,8 @@ class BotSettingsState(
         bot: Bot? = this.bot, draft: BotDraft = this.draft, others: List<Bot> = this.others, info: SettingsInfo = this.info,
         advanced: Boolean = this.advanced, saving: Boolean = this.saving, savedAt: Int = this.savedAt, error: String? = this.error,
         deleted: Boolean = this.deleted, library: List<String> = this.library, features: List<String>? = this.features,
-    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted)
+        apps: List<Connection> = this.apps, pages: List<PageInfo>? = this.pages,
+    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted, apps, pages)
 }
 
 /**
@@ -267,6 +296,11 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
                 // The library, for the skills it may use: as the store has it, else read once.
                 val skills = store.skills.value.value ?: try { store.skills.refresh(); store.skills.value.value } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
                 _state.value = _state.value.copy(library = skills?.library.orEmpty().map { it.name })
+            }
+            launch { runCatching { api.connectors() }.onSuccess { _state.value = _state.value.copy(apps = BotSettings.appChoices(it.connections)) } }
+            launch {
+                val version = store.version.value.value ?: runCatching { api.version() }.getOrNull()
+                if (Pages.shows(version?.features)) runCatching { api.pages(botId) }.onSuccess { _state.value = _state.value.copy(pages = it) }
             }
         }
     }

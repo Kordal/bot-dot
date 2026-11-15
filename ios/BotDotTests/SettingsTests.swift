@@ -86,6 +86,19 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(model.desk.madeBy(k: k), "Made by the Chief")
     }
 
+    /// A bot's Apps: one row per app and per account of one with two or more, ticked as the shared rules say.
+    func testABotsAppsAreTheSharedRows() {
+        func conn(_ json: String) -> Connection { Api.companion.JSON.decodeFromString(deserializer: Connection.companion.serializer(), string: json) as! Connection }
+        let gmail = conn(#"{"id":"c1","toolkit":"gmail","status":"ACTIVE","app":{"name":"Gmail"}}"#)
+        let work = conn(#"{"id":"c2","toolkit":"slack","status":"ACTIVE","accounts":2,"label":"Work","app":{"name":"Slack"}}"#)
+        XCTAssertEqual(BotSettings.shared.appName(c: work), "Slack · Work")
+        let on = BotSettings.shared.appToggled(c: work, on: true, connectors: [], accounts: [:])
+        let connectors = on.first as? Set<String> ?? []
+        let accounts = on.second as? [String: String] ?? [:]
+        XCTAssertEqual(accounts["slack"], "c2", "the account of an app with two")
+        XCTAssertTrue(BotSettings.shared.appPicked(c: work, connectors: connectors, accounts: accounts, botId: "b1"))
+        XCTAssertFalse(BotSettings.shared.appPicked(c: gmail, connectors: connectors, accounts: accounts, botId: "b1"), "not ticked")
+    }
 
     /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
     func testTheChiefsSettingsAreTheSharedDesk() {
