@@ -47,6 +47,10 @@ final class ChiefModel: MessageBox {
     func open(_ id: String?) { desk.open(id: id) }
     func approve(_ index: Int32) async -> Bool { (try? await desk.approve(index: index))?.boolValue ?? false }
     func decline() async { try? await desk.decline() }
+    func mail(_ index: Int32, _ words: String) async -> Bool { (try? await desk.mail(index: index, words: words))?.boolValue ?? false }
+    func chipBot(_ chip: ChiefChip) async -> ChiefDesk.ChipBot? { (try? await desk.chipBot(chip: chip)) ?? nil }
+    func mailBot(_ index: Int32) async -> ChiefDesk.ChipBot? { (try? await desk.mailBot(index: index)) ?? nil }
+    func mailFile(_ f: Attachment) -> DocumentView.Opening? { desk.mailFile(f: f) }
     func foldPlan(_ folded: Bool) { desk.foldPlan(folded: folded) }
     func dismissPlan() { desk.dismissPlan() }
     func answer(_ index: Int32, _ answers: [String]) async -> Bool { (try? await desk.answer(index: index, answers: answers))?.boolValue ?? false }
