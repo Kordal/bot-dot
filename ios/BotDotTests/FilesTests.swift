@@ -99,12 +99,6 @@ final class FilesTests: XCTestCase {
         _ = await again.value
         XCTAssertFalse(model.following)
     }
-}
-
-/// True once, for the first call: a watch that hands over every state, checked for its first alone.
-private final class FirstOnly: @unchecked Sendable {
-    private var taken = false
-    func take() -> Bool { if taken { return false }; taken = true; return true }
 
     /// Move to… and Copy to…: the shared CarryDesk reaches Swift with the item's words and the place shown first.
     func testMoveToStartsInThePlaceShownWithTheItemsWords() {
@@ -118,4 +112,10 @@ private final class FirstOnly: @unchecked Sendable {
         XCTAssertEqual(copy.state.value.title, "Copy plan.md")
         store.close()
     }
+}
+
+/// True once, for the first call: a watch that hands over every state, checked for its first alone.
+private final class FirstOnly: @unchecked Sendable {
+    private var taken = false
+    func take() -> Bool { if taken { return false }; taken = true; return true }
 }
