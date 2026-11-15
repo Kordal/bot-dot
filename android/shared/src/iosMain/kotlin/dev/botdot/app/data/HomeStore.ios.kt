@@ -30,11 +30,17 @@ class HomeState(
     val chiefName: String = "",
     val chiefUnread: Int = 0,
     val chiefBusy: Boolean = false,
+    /** The categories folded to their heading (Settings.foldedGroups, "" for Other). */
+    val folded: Set<String> = emptySet(),
 ) {
     /** The pinned bots and groups in one order (`pins-shared`). */
     val shared: Boolean get() = hasPinsShared(version?.features)
-    /** The rows, in the owner's order: [ListLayout.Rows]; no category is folded on the iPhone yet. */
-    val rows: ListLayout.Rows get() = ListLayout.rows(bots.orEmpty(), groups.orEmpty(), emptySet(), shared)
+    /** The rows, in the owner's order: [ListLayout.Rows]; a folded category shows its heading alone. */
+    val rows: ListLayout.Rows get() = ListLayout.rows(bots.orEmpty(), groups.orEmpty(), folded, shared)
+    /** The category [category] is folded. */
+    fun isFolded(category: String): Boolean = category in folded
+    /** Folded, one of its bots works: a green dot on its heading, as on Android. */
+    fun foldedWorks(category: String): Boolean = category in folded && bots.orEmpty().any { it.pinned == 0 && it.group == category && it.running }
     /** Each bot's last run that said something: its row shows that. */
     private val lastRun: Map<String, Run> by lazy { recent.orEmpty().filterNot { it.quiet }.groupBy { it.botId }.mapValues { it.value.first() } }
     fun bot(id: String): Bot? = bots?.firstOrNull { it.id == id }
@@ -70,6 +76,19 @@ class HomeState(
 class HomeStore(val api: Api) {
     private val scope = MainScope()
     val store = Store(scope, MutableStateFlow(api))
+    private val folded = MutableStateFlow<Set<String>>(emptySet())
+    private var settings: Settings? = null
+
+    /** The phone's settings, where the folded categories are kept: Home follows them. */
+    fun keep(settings: Settings) {
+        if (this.settings != null) return
+        this.settings = settings
+        scope.launch { settings.foldedGroups.collect { folded.value = it } }
+    }
+
+    /** A category's heading tapped: folded, or open again (kept on the phone). */
+    @Throws(Exception::class)
+    suspend fun toggleFolded(category: String) { settings?.toggleFolded(category) }
 
     /** The live feed (docs/api.md): the Store and an open chat follow it while the app is in front. */
     val feed = Feed(scope, LastEvent())
@@ -97,6 +116,16 @@ class HomeStore(val api: Api) {
 
     /** Each chat's plan fold and the stopped plans dismissed (PlanMemory): the app gives one kept on the phone. */
     var plans: PlanMemory = PlanMemory()
+    /**
+     * Allow or No on a Needs you row that asks for a permission ([Waiting.permission]), as Android's Home: answered on
+     * botdot, then what waits read again. Null once it went, else why not.
+     */
+    @Throws(Exception::class)
+    suspend fun answer(permission: String, yes: Boolean): String? {
+        val failed = try { api.answerAsk(permission, yes); null } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { e.message ?: tr("Couldn't answer") }
+        try { store.needs.refresh() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
+        return failed
+    }
     /** The scheduled jobs of the bot [botId] (JobsDesk), from the bots as the feed keeps them. */
     fun jobs(botId: String): JobsDesk = JobsDesk(scope, api, store, botId)
 
@@ -116,12 +145,12 @@ class HomeStore(val api: Api) {
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
         val parts = combine(store.bots.value, store.groups.value, store.recent.value, store.dashboard.value, store.version.value) { b, g, r, d, v -> listOf(b, g, r, d, v) }
         val signIn = api.session?.signInNeeded ?: MutableStateFlow(null)
-        val chief = combine(store.chief.value, store.chiefName) { c, n -> c to n }
+        val chief = combine(store.chief.value, store.chiefName, folded) { c, n, f -> Triple(c, n, f) }
         // What Android's Home says went wrong: reading the bots.
-        combine(parts, store.waiting, store.lines.lines, combine(store.bots.error, signIn) { e, s -> e to s }, chief) { p, w, l, (e, s), (c, n) ->
+        combine(parts, store.waiting, store.lines.lines, combine(store.bots.error, signIn) { e, s -> e to s }, chief) { p, w, l, (e, s), (c, n, f) ->
             @Suppress("UNCHECKED_CAST")
             HomeState(p[0] as List<Bot>?, p[1] as List<Group>?, p[2] as List<Run>?, p[3] as Dashboard?, p[4] as VersionInfo?, w, l, e,
-                signInNeeded = s != null && s == api.baseUrl.trimEnd('/'), chiefName = n, chiefUnread = c?.unread ?: 0, chiefBusy = c?.busy == true)
+                signInNeeded = s != null && s == api.baseUrl.trimEnd('/'), chiefName = n, chiefUnread = c?.unread ?: 0, chiefBusy = c?.busy == true, folded = f)
         }.collect { onChange(it) }
     }
 

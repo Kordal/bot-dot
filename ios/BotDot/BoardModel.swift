@@ -40,6 +40,9 @@ final class BoardModel {
     func filter(_ name: String) { store.filter(name: name) }
     func refresh() async { try? await store.refresh() }
 
+    /// The name of the bot [id], for the chat a chat tile opens.
+    func botName(_ id: String) -> String? { store.botName(id: id) }
+
     /// A tap on a tile: what is left for the screen to do; nil when the tap did all it does here.
     func tap(_ key: String, asked: Bool = false) async -> BoardTap? {
         try? await store.tap(key: key, asked: asked)
