@@ -114,6 +114,8 @@ class SettingsDesksTest {
         assertFalse(BotSettingsState(bot = old.bot, others = mate, features = listOf("everything-allowed")).showsOthersMayAsk, "ADR 192: every bot may")
         assertFalse(BotSettingsState(bot = old.bot, features = emptyList()).showsOthersMayAsk, "no other bot to ask it")
         assertTrue(old.showsBrowser, "a server from before every bot has a computer")
+        val unknown = BotSettingsState(bot = old.bot, others = mate)
+        assertFalse(unknown.showsBrowser || unknown.showsOthersMayAsk || unknown.showsRooms, "the server's features not known yet: none of them")
         assertFalse(BotSettingsState(bot = old.bot, features = listOf("everything-allowed")).showsBrowser)
         val plain = BotSettingsState(bot = bot("""{"id":"a","name":"A"}"""))
         assertFalse(plain.showsOthersMayAsk || plain.showsRooms || plain.undoes)

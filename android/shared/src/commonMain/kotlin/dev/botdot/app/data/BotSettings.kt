@@ -156,11 +156,15 @@ object BotSettings {
     /** A server from before every bot may message every other (ADR 192): it still limits who may. */
     fun limits(features: Collection<String>?): Boolean = "everything-allowed" !in features.orEmpty()
 
-    /** "Browser", whether it has a computer: a server from before every bot has one; on one since, it shows not. */
-    fun showsBrowser(features: Collection<String>?): Boolean = limits(features)
+    /**
+     * "Browser", whether it has a computer: a server from before every bot has one; on one since, it shows not. While
+     * the server's features are not known, neither: a current server would show a row it has no use for.
+     */
+    fun showsBrowser(features: Collection<String>?): Boolean = features != null && limits(features)
 
-    /** "Other bots may ask it": a server that limits it and says so, and another bot to ask it. */
-    fun showsOthersMayAsk(b: Bot, others: List<Bot>, features: Collection<String>?): Boolean = limits(features) && others.isNotEmpty() && b.othersMayAsk != null
+    /** "Other bots may ask it": a server known to limit it that says so, and another bot to ask it. */
+    fun showsOthersMayAsk(b: Bot, others: List<Bot>, features: Collection<String>?): Boolean =
+        features != null && limits(features) && others.isNotEmpty() && b.othersMayAsk != null
 
     /** Its shared-room settings: a server that keeps them (`room-settings`) and has them for this bot. */
     fun showsRooms(b: Bot, features: Collection<String>?): Boolean = BotRooms.shows(features) && b.rooms != null
@@ -190,8 +194,8 @@ class BotSettingsState(
     val savedAt: Int = 0,
     /** The skill library's skills, one switch each while its skills are on. */
     val library: List<String> = emptyList(),
-    /** The server's features. */
-    val features: List<String> = emptyList(),
+    /** The server's features; null until they are known. */
+    val features: List<String>? = null,
     val error: String? = null,
     /** It was deleted: the screen leaves. */
     val deleted: Boolean = false,
@@ -217,7 +221,7 @@ class BotSettingsState(
     internal fun copy(
         bot: Bot? = this.bot, draft: BotDraft = this.draft, others: List<Bot> = this.others, info: SettingsInfo = this.info,
         advanced: Boolean = this.advanced, saving: Boolean = this.saving, savedAt: Int = this.savedAt, error: String? = this.error,
-        deleted: Boolean = this.deleted, library: List<String> = this.library, features: List<String> = this.features,
+        deleted: Boolean = this.deleted, library: List<String> = this.library, features: List<String>? = this.features,
     ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted)
 }
 
