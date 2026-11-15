@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.NotesWake
@@ -45,6 +46,8 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
     var error by remember(c.id, api) { mutableStateOf<String?>(null) }
     var filesError by remember(c.id, api) { mutableStateOf<String?>(null) }
     var request by remember(c.id) { mutableStateOf(0) }
+    val server by ui.app.store.version.value.collectAsState() // its features: whether links show their site's icon
+    val sites = sitesShown(server?.features)
     LaunchedEffect(c.id, api, request, life) {
         val a = api ?: return@LaunchedEffect
         life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -73,9 +76,9 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
             ?: Text(if (error == null) tr("Loading…") else tr("Information unavailable"), color = p.muted)
         SmallButton(tr("Refresh")) { request++ }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, tr("No recorded work.")) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, tr("No failed work.")) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, tr("No replies yet.")) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, tr("No recorded work."), sites) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, tr("No failed work."), sites) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, tr("No replies yet."), sites) }
         }
         OverviewSection(tr("Files")) {
             filesError?.let { Text("${tr("Couldn't load files")}: $it" + if (files != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
@@ -105,7 +108,7 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null) {
+internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null, sites: Boolean = false) {
     val p = LocalPaper.current
     if (items.isEmpty() && empty != null) Text(empty, color = p.muted)
     items.forEach { x ->
@@ -113,7 +116,12 @@ internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> U
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
             Text(label + if (x.at.isNotBlank()) " · ${NotesWake.ago(x.at)}" else "", color = p.muted, fontSize = Type.s12)
-            Text(x.text.ifBlank { label }, color = p.text)
+            // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
+            if (x.text.isBlank()) Text(label, color = p.text)
+            else {
+                val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
+                Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
+            }
         }
     }
 }

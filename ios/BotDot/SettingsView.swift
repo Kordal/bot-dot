@@ -85,6 +85,9 @@ struct SettingsView: View {
         }
         Section {
             NavigationLink(tr("Apps")) { AppsView(home: home) }
+            if Pages.shared.shows(features: home.store.version.value.value?.features) {
+                NavigationLink(tr("Pages")) { PagesView(home: home) }
+            }
         }
         if state.advanced || state.showsLanguage {
             Section {

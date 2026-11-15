@@ -12,8 +12,8 @@ const { cases } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'm
 const css = read('style.css');
 const page = vm.createContext({ ...words, esc });
 vm.runInContext(`${cut('function md(src, botId)', '// Link bare web addresses after rendering')}
-  this.md = md; this.mdBlocks = mdBlocks;`, page);
-const { md, mdBlocks } = page;
+  this.md = md; this.mdBlocks = mdBlocks; this.previewLines = previewLines; this.mdPreview = mdPreview;`, page);
+const { md, mdBlocks, previewLines, mdPreview } = page;
 // A reply's HTML without the Copy buttons of its code blocks and their boxes (#285, test/code-copy-web.test.js).
 const noCopy = (html) => html.replace(/<div class="code-block">(<pre[\s\S]*?<\/pre>)<button [^>]*code-copy[\s\S]*?<\/button><\/div>/g, '$1');
 const plain = (v) => JSON.parse(JSON.stringify(v));
@@ -177,4 +177,21 @@ test('web: a mermaid block is its escaped code, marked for the page to draw (#17
   assert.equal(noCopy(md('```mermaid\nflowchart LR\n  A["<b>x</b>"] --> B\n```')),
     '<pre class="mermaid-src"><code>flowchart LR\n  A[&quot;&lt;b&gt;x&lt;/b&gt;&quot;] --&gt; B</code></pre>');
   assert.equal(noCopy(md('```\nplain\n```\n\n```Mermaid\nx\n```')), '<pre><code>plain</code></pre>\n<pre><code>x</code></pre>', 'only the word mermaid, as written');
+});
+
+test('web: every preview case of the shared fixture is drawn as its lines (project overview)', () => {
+  const { preview } = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'markdown-cases.json'), 'utf8'));
+  assert.ok(preview.length >= 5);
+  for (const c of preview) {
+    assert.deepEqual(plain(previewLines(c.source)), c.lines.map(esc), c.name);
+    assert.equal(mdPreview(c.source).split('<br>').length, c.lines.length, c.name);
+  }
+  // Links show their words with the site's chip, bold is bold, and nothing a bot writes is markup.
+  const html = mdPreview(preview[0].source);
+  assert.match(html, /<a href="https:\/\/github.com\/o\/r\/issues\/252" target="_blank" rel="noopener">#252<\/a>/);
+  assert.match(html, /<strong>PR #374<\/strong>/);
+  assert.equal(html.split('<br>').length, 3);
+  assert.equal(mdPreview('<b>x</b> [a](https://x.dev/a)'), '&lt;b&gt;x&lt;/b&gt; <a href="https://x.dev/a" target="_blank" rel="noopener">a</a>');
+  assert.equal(mdPreview('```\nnpm test\n```'), '<code>npm test</code>');
+  assert.equal(mdPreview('see https://www.example.com/a/b'), 'see https://www.example.com/a/b', 'a bare address is linked by the page, as in a chat');
 });

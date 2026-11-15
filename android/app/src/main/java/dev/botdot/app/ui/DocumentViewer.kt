@@ -66,6 +66,7 @@ import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.FileView
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
+import dev.botdot.app.data.InteractivePages
 import dev.botdot.app.data.Pages
 import dev.botdot.app.data.tr
 import dev.botdot.app.data.trn
@@ -287,10 +288,10 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         if (req.page != null && site != null) {
             if (board != null) Row(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4)) { BoardButton(onBoard == true, board) }
             InteractiveBar(site, siteFull, onFull = { siteFull = true }, onVersions = { versions = true }, onDownload = download,
-                onRollBack = { withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell(tr("The page shows version {n} again", "n" to site.shown)); version = null; tries++ } },
+                onRollBack = { withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, site.shown); tell(InteractivePages.shownAgain(site.shown)); version = null; tries++ } },
                 onCurrent = { version = null })
             if (versions) VersionsSheet(req.name, site, onShow = { n -> versions = false; version = if (n == site.current) null else n },
-                onCurrent = { n -> versions = false; withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, n); tell(tr("The page shows version {n} again", "n" to n)); version = null; tries++ } },
+                onCurrent = { n -> versions = false; withApi(tr("go back to it")) { it.setPageVersion(req.page.botId, req.page.slug, n); tell(InteractivePages.shownAgain(n)); version = null; tries++ } },
                 onDismiss = { versions = false })
         }
         if (req.page != null && page != null && site == null) {
