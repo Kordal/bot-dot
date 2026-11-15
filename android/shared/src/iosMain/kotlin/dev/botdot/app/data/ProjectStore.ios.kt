@@ -47,6 +47,17 @@ class ProjectStore(home: HomeStore) {
     @Throws(Exception::class) suspend fun setColor(color: String): Boolean = desk.setColor(color)
     @Throws(Exception::class) suspend fun setLead(bot: String?): Boolean = desk.setLead(bot)
     @Throws(Exception::class) suspend fun setArchived(on: Boolean): Boolean = desk.setArchived(on)
+    @Throws(Exception::class) suspend fun setStart(text: String): Boolean = desk.setStart(text)
+    @Throws(Exception::class) suspend fun addLink(typed: String): Boolean = desk.addLink(typed)
+    @Throws(Exception::class) suspend fun removeSource(id: String): Boolean = desk.removeSource(id)
+    @Throws(Exception::class) suspend fun addNever(text: String): Boolean = desk.addNever(text)
+    @Throws(Exception::class) suspend fun removeNever(index: Int): Boolean = desk.removeNever(index)
+    @Throws(Exception::class) suspend fun setTime(text: String): Boolean = desk.setTime(text)
+    @Throws(Exception::class) suspend fun setUpdates(every: String): Boolean = desk.setUpdates(every)
+    @Throws(Exception::class) suspend fun setReportRhythm(team: String, every: String): Boolean = desk.setReportRhythm(team, every)
+    @Throws(Exception::class) suspend fun setStandupOn(on: Boolean): Boolean = desk.setStandupOn(on)
+    @Throws(Exception::class) suspend fun setStandupTime(time: String): Boolean = desk.setStandupTime(time)
+    @Throws(Exception::class) suspend fun delete(dropFolder: Boolean): Boolean = desk.delete(dropFolder)
 
     fun close() {
         desk.close()

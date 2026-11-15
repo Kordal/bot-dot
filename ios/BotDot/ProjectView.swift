@@ -142,6 +142,7 @@ struct ProjectPage: View {
     let id: String
     let figure: FigureDef?
     let model: ProjectModel
+    @Environment(\.dismiss) private var dismiss
     @State private var settings = false
     @State private var picking: Picking?
     @State private var panel: TeamRoute?
@@ -182,7 +183,7 @@ struct ProjectPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { toolbar }
         .safeAreaInset(edge: .bottom) { chatField }
-        .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure) }
+        .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure) { settings = false; dismiss() } }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }

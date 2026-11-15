@@ -289,10 +289,8 @@ class CompanySetupDesk(private val store: Store, private val api: Api, private v
     suspend fun delete(dropFolder: Boolean): Boolean {
         val c = company() ?: return false
         return try {
-            api.deleteCompany(dropFolder, c.id)
+            ManyProjects.delete(api, store, c.id, dropFolder)
             local.update { it.copy(step = null) }
-            store.projectGone(c.id)
-            if (!ManyProjects.many(store.version.value.value?.features)) store.company.set(CompanyHeld(null))
             true
         } catch (e: CancellationException) {
             throw e

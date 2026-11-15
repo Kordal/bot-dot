@@ -37,6 +37,19 @@ final class ProjectTests: XCTestCase {
         XCTAssertNotNil(ImageRenderer(content: Goals(goals: c.objectives).frame(width: 320)).cgImage)
         XCTAssertNotNil(ImageRenderer(content: QuestionsCard(card: c.cards[1], figure: nil, onClose: {}, onAnswer: { _ in true }).frame(width: 320)).cgImage)
     }
+    /// A project's settings: the shared words and rules reach Swift (what each sends is the shared ProjectDeskTest's).
+    func testTheSettingsWordsAndRulesReachSwift() async {
+        XCTAssertEqual(ProjectSettingWords.shared.rhythms.map { $0.label }, ["Off", "Daily", "Twice a week", "Weekly"])
+        XCTAssertTrue(ProjectSettingWords.shared.isTime(t: "07:45"))
+        XCTAssertFalse(ProjectSettingWords.shared.isTime(t: "7:45"))
+        let c = CompanySetup.shared.of(answer: kitchen)
+        XCTAssertEqual(ProjectSettingWords.shared.deleteQuestion(c: c), "Delete the project Kitchen? Its bots stay.")
+        let model = ProjectModel(home: HomeStore(api: unreachableApi()))
+        let deleted = await model.delete(dropFolder: false)
+        XCTAssertFalse(deleted, "no project shown: nothing deleted")
+        let saved = await model.setStandupTime("25:00")
+        XCTAssertFalse(saved)
+    }
 
     /// A project's Overview: its words and where an entry opens come from the shared layer.
     func testTheOverviewSaysEachEntryAndWhereItOpens() {

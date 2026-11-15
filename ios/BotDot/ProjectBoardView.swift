@@ -271,8 +271,16 @@ private struct Spark: Shape {
 struct ProjectSettingsView: View {
     let model: ProjectModel
     let figure: FigureDef?
+    /// Once the project is deleted: off its page.
+    var onDeleted: () -> Void = {}
     @State private var name = ""
+    @State private var start = ""
+    @State private var link = ""
+    @State private var never = ""
+    @State private var time = ""
+    @State private var standupTime = ""
     @State private var adding = false
+    @State private var deleting = false
 
     var body: some View {
         Form {
@@ -301,6 +309,27 @@ struct ProjectSettingsView: View {
                         }
                     }
                 }
+                Section(tr("Site or idea")) {
+                    TextField(tr("Site or idea"), text: $start, axis: .vertical)
+                        .submitLabel(.done)
+                        .onSubmit { let typed = start; Task { if !(await model.setStart(typed)) { start = model.state?.project?.start ?? "" } } }
+                        .accessibilityIdentifier("project-start")
+                }
+                Section(tr("Sources")) {
+                    ForEach(c.sources, id: \.id) { src in
+                        HStack {
+                            Text(src.name).lineLimit(1)
+                            Spacer()
+                            Button { Task { await model.removeSource(src.id) } } label: { Image(systemName: "xmark") }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(tr("Remove"))
+                        }
+                    }
+                    TextField(tr("Add a link"), text: $link)
+                        .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                        .submitLabel(.done)
+                        .onSubmit { let typed = link; Task { if await model.addLink(typed) { link = "" } } }
+                }
                 Section(tr("Team")) {
                     Picker(tr("Project Manager"), selection: Binding(get: { c.lead ?? "" }, set: { v in Task { await model.setLead(v.isEmpty ? nil : v) } })) {
                         Text(s.chiefName).tag("")
@@ -326,18 +355,88 @@ struct ProjectSettingsView: View {
                         Button(tr("Add bot")) { adding = true }.disabled(s.ownSaving)
                     }
                 }
+                if s.updates {
+                    Section(tr("Project updates")) {
+                        Picker(tr("Project updates"), selection: Binding(get: { c.updates?.every ?? "existing" }, set: { v in Task { await model.setUpdates(v) } })) {
+                            ForEach(ProjectSettingWords.shared.updateChoices(setting: c.updates), id: \.id) { o in Text(o.label).tag(o.id) }
+                        }
+                        ForEach(c.updates?.schedules ?? [], id: \.self) { Text($0).font(.caption).foregroundStyle(.secondary) }
+                    }
+                } else if s.rhythms || s.standup {
+                    Section(tr("Reports")) {
+                        if s.rhythms {
+                            ForEach(c.teams, id: \.id) { t in
+                                Picker(t.name, selection: Binding(get: { t.report ?? "" }, set: { v in Task { await model.setReportRhythm(t.id, v) } })) {
+                                    ForEach(ProjectSettingWords.shared.rhythms, id: \.id) { o in Text(o.label).tag(o.id) }
+                                }
+                            }
+                        }
+                        if s.standup {
+                            let st = c.standup ?? StandupSetting(on: true, time: "09:00")
+                            Toggle(tr("Morning standup"), isOn: Binding(get: { st.on }, set: { on in Task { await model.setStandupOn(on) } }))
+                            if st.on {
+                                TextField(tr("Standup time"), text: $standupTime)
+                                    .keyboardType(.numbersAndPunctuation)
+                                    .submitLabel(.done)
+                                    .onSubmit { let typed = standupTime; Task { if !(await model.setStandupTime(typed)) { standupTime = model.state?.project?.standup?.time ?? st.time } } }
+                                    .accessibilityIdentifier("project-standup-time")
+                            }
+                        }
+                    }
+                }
+                Section(tr("Never without asking")) {
+                    ForEach(Array(c.never.enumerated()), id: \.offset) { i, n in
+                        HStack {
+                            Text(n)
+                            Spacer()
+                            Button { Task { await model.removeNever(i) } } label: { Image(systemName: "xmark") }
+                                .buttonStyle(.borderless)
+                                .accessibilityLabel(tr("Remove"))
+                        }
+                    }
+                    if c.never.count < Int(ManyProjects.shared.MAX_NEVER) {
+                        TextField(tr("Never without asking"), text: $never)
+                            .submitLabel(.done)
+                            .onSubmit { let typed = never; Task { if await model.addNever(typed) { never = "" } } }
+                    }
+                }
+                Section(tr("Time")) {
+                    TextField(tr("Time"), text: $time)
+                        .submitLabel(.done)
+                        .onSubmit { let typed = time; Task { if !(await model.setTime(typed)) { time = model.state?.project?.time ?? "" } } }
+                }
                 Section {
                     Button(c.archived ? tr("Unarchive") : tr("Archive")) { Task { await model.setArchived(!c.archived) } }
+                    Button(tr("Delete project"), role: .destructive) { deleting = true }
+                }
+                .confirmationDialog(ProjectSettingWords.shared.deleteQuestion(c: c), isPresented: $deleting, titleVisibility: .visible) {
+                    if c.folder != nil {
+                        Button(tr("Delete its folder too"), role: .destructive) { delete(true) }
+                        Button(tr("Keep its folder")) { delete(false) }
+                    } else {
+                        Button(tr("Delete"), role: .destructive) { delete(false) }
+                    }
+                    Button(tr("Cancel"), role: .cancel) {}
                 }
             }
         }
         .navigationTitle(tr("Project settings"))
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { name = model.state?.project?.name ?? "" }
+        .onAppear {
+            let c = model.state?.project
+            name = c?.name ?? ""
+            start = c?.start ?? ""
+            time = c?.time ?? ""
+            standupTime = c?.standup?.time ?? "09:00"
+        }
         .modifier(ProjectNotice(model: model))
         .sheet(isPresented: $adding) {
             BotPickerView(title: tr("Add bot"), bots: model.state?.addable ?? [], figure: figure) { ids in Task { await model.addOwn(ids) } }
                 .modifier(ProjectNotice(model: model))
         }
+    }
+
+    private func delete(_ dropFolder: Bool) {
+        Task { if await model.delete(dropFolder: dropFolder) { onDeleted() } }
     }
 }
