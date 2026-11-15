@@ -108,7 +108,9 @@ final class AppModel {
             return
         }
         switch onEnum(of: flow.state.value) {
-        case .done: screen = home(server)
+        case .done:
+            ReplyPictures.forgetAll() // another account may be signing in: none of the last one's pictures
+            screen = home(server)
         case .failed(let failed): error = failed.words
         default: break
         }
@@ -123,6 +125,7 @@ final class AppModel {
         await Notifications.shared.signOut(api) // while the session still lets it in
         try? await api.signOut()
         sessions.write(server: server, token: nil)
+        ReplyPictures.forgetAll() // signed out: none of this account's pictures stay
         // Another address may have been chosen meanwhile: its screen stays.
         if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }
@@ -135,6 +138,7 @@ final class AppModel {
     /// The account was deleted: the sign-in, saying so, from Home or from its paused screen.
     func accountDeleted(_ server: String, _ words: String) {
         sessions.write(server: server, token: nil)
+        ReplyPictures.forgetAll() // signed out: none of this account's pictures stay
         notice = words
         if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }

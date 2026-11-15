@@ -41,7 +41,31 @@ class ReplyFilesTest {
         assertEquals("picture", SystemFileSystem.source(Path(first)).buffered().use { it.readString() })
         assertEquals(first, pictures.picture(photo))
         assertEquals(listOf("/api/files/run-1/Chart.PNG"), server.sent().map { it.path })
-        SystemFileSystem.delete(Path(first))
-        SystemFileSystem.delete(Path(dir))
+        ReplyPictures.forget(dir)
+        assertFalse(SystemFileSystem.exists(Path(dir)))
+    }
+
+    /** A session kept in memory, as the Keychain keeps it. */
+    private class Kept(var token: String?) : Session.Keep {
+        override fun read(server: String) = token
+        override fun write(server: String, token: String?) { this.token = token }
+    }
+
+    @Test fun anotherAccountsPictureIsItsOwnAndSigningOutEmptiesTheCache() = runTest {
+        val dir = Path(SystemTemporaryDirectory, "reply-pictures-" + newMessageKey()).toString()
+        val kept = Kept("first-account")
+        var answer = "first"
+        val first = FakeServer(Session(kept)) { 200 to answer }
+        val mine = ReplyPictures(first.api, dir).picture(photo)
+        kept.token = "second-account"
+        answer = "second"
+        val theirs = ReplyPictures(first.api, dir).picture(photo)
+        assertTrue(mine != theirs, "the same run and name, another account: another file")
+        assertEquals("second", SystemFileSystem.source(Path(theirs)).buffered().use { it.readString() }, "downloaded, not the first account's")
+        assertEquals("first", SystemFileSystem.source(Path(mine)).buffered().use { it.readString() })
+        val other = FakeServer(Session(kept), base = "https://other.test") { 200 to "third" }
+        assertTrue(ReplyPictures(other.api, dir).picture(photo) !in listOf(mine, theirs), "another botdot: its own folder")
+        ReplyPictures.forget(dir)
+        assertFalse(SystemFileSystem.exists(Path(mine)) || SystemFileSystem.exists(Path(theirs)), "signed out: none left")
     }
 }

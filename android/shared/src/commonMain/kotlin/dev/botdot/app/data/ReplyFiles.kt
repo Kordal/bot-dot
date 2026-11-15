@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import io.ktor.http.Url
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 
@@ -23,16 +24,37 @@ object ReplyFiles {
 }
 
 /**
- * The pictures under replies, saved in [dir] (the app's caches) to be drawn: each downloaded once, then read from
- * there, so scrolling back doesn't fetch it again.
+ * The pictures under replies, saved under [root] (the app's caches) to be drawn: each downloaded once, then read from
+ * there, so scrolling back doesn't fetch it again. Each botdot and session has a folder of its own ([place]), so
+ * another account or server never reads this one's pictures; signing out or in empties [root] ([forget]).
  */
-class ReplyPictures(private val api: Api, private val dir: String) {
+class ReplyPictures(private val api: Api, private val root: String) {
     /** Where [f] is saved: downloaded the first time. Throws when it couldn't be. */
     @Throws(Exception::class)
     suspend fun picture(f: Attachment): String {
         val name = f.file.split('/').filter { it.isNotBlank() && it != "." && it != ".." }.joinToString("_").ifEmpty { "file" }
-        val dest = Path(dir, name)
+        val server = Url(api.baseUrl).let { Session.originOf(it.protocol.name, it.host, it.port) }
+        val dest = Path(root, place(server, api.session?.token(server)), name)
         if (!SystemFileSystem.exists(dest)) api.downloadTo(DocumentView.runFile(f.file), dest)
         return dest.toString()
+    }
+
+    companion object {
+        /** The folder of one botdot's [server] and one session ([account], the session's token, never written itself). */
+        internal fun place(server: String, account: String?): String {
+            // FNV-1a, 64 bits: a name for the folder, not a secret; the token is not in it.
+            var h = -0x340d631b7bdddcdbL
+            for (c in "$server\n${account.orEmpty()}") { h = (h xor c.code.toLong()) * 0x100000001b3L }
+            return h.toULong().toString(16).padStart(16, '0')
+        }
+
+        /** Every picture under [root] gone: on signing out, and on signing in (another account may be next). */
+        fun forget(root: String) = gone(Path(root))
+
+        private fun gone(p: Path) {
+            if (!SystemFileSystem.exists(p)) return
+            if (SystemFileSystem.metadataOrNull(p)?.isDirectory == true) SystemFileSystem.list(p).forEach { gone(it) }
+            runCatching { SystemFileSystem.delete(p, mustExist = false) }
+        }
     }
 }

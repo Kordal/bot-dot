@@ -32,4 +32,16 @@ final class ChatTests: XCTestCase {
         XCTAssertEqual(OutboxKt.withFailed(failed: "Remind me in March", typedSince: "and April"), "Remind me in March\nand April")
         XCTAssertEqual(OutboxKt.withFailed(failed: "", typedSince: "and April"), "and April")
     }
+
+    /// Signed out (here, the account deleted): no picture of the account stays in the caches.
+    func testSigningOutEmptiesTheReplyPictures() throws {
+        let kept = ReplyPictures.cache.appendingPathComponent("0123456789abcdef")
+        try FileManager.default.createDirectory(at: kept, withIntermediateDirectories: true)
+        try Data("picture".utf8).write(to: kept.appendingPathComponent("run-1_chart.png"))
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let model = AppModel(directory: dir, sessions: KeychainSessions(service: "test-\(UUID().uuidString)"))
+        model.accountDeleted("https://botdot.test", "Deleted")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: ReplyPictures.cache.path))
+    }
 }

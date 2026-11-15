@@ -109,6 +109,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     /** An Api on its own [engine] in place of the app's one client: a test's fake botdot (commonTest, Ktor's MockEngine). */
     internal constructor(baseUrl: String, engine: HttpClientEngine) : this(baseUrl) { own = client(engine) }
+    internal constructor(baseUrl: String, session: Session?, engine: HttpClientEngine) : this(baseUrl, session) { own = client(engine) }
     private var own: HttpClient? = null
     val json = JSON
 

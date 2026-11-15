@@ -12,10 +12,17 @@ extension EnvironmentValues {
 extension View {
     /// The chat's files under replies: pictures saved in the app's caches, a tap opens one in the viewer ([opening]).
     func replyFiles(api: Api, from: String, opening: Binding<DocumentView.Opening?>) -> some View {
-        let dir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("reply-pictures")
-        return environment(\.replyPictures, ReplyPictures(api: api, dir: dir.path))
+        environment(\.replyPictures, ReplyPictures(api: api, root: ReplyPictures.cache.path))
             .environment(\.openReplyFile) { opening.wrappedValue = ReplyFiles.shared.opening(f: $0, from: from) }
     }
+}
+
+extension ReplyPictures {
+    /// Where the pictures under replies are kept: a folder per botdot and session inside (ReplyPictures.place).
+    static let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("reply-pictures")
+
+    /// Signed out, or in (another account may be next): every picture gone.
+    static func forgetAll() { ReplyPictures.companion.forget(root: cache.path) }
 }
 
 /// The files under a reply (ReplyFiles): pictures as themselves, the rest as chips; a tap opens one in the viewer.
