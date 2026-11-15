@@ -16,6 +16,8 @@ struct ChiefView: View {
     @State private var screen: HomeView.ScreenOpen?
     /// A file under a reply or one a mail carries, opened in the viewer.
     @State private var opening: DocumentView.Opening?
+    /// Its settings (Android's ChiefSettingsScreen), behind the gear.
+    @State private var settings = false
 
     var body: some View {
         Group {
@@ -29,6 +31,12 @@ struct ChiefView: View {
         .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .navigationDestination(item: $screen) { s in ScreenView(home: home, botId: s.id, name: s.name) }
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
+        .navigationDestination(isPresented: $settings) { ChiefSettingsView(home: home) { id in settings = false; model?.open(id) } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel(tr("Settings"))
+            }
+        }
         .task {
             if model == nil { model = ChiefModel(home: home, chatId: chatId) }
             model?.start()

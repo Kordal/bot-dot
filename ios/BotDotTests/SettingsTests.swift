@@ -99,4 +99,16 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(BotSettings.shared.appPicked(c: work, connectors: connectors, accounts: accounts, botId: "b1"))
         XCTAssertFalse(BotSettings.shared.appPicked(c: gmail, connectors: connectors, accounts: accounts, botId: "b1"), "not ticked")
     }
+
+    /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
+    func testTheChiefsSettingsAreTheSharedDesk() {
+        let model = ChiefSettingsModel(home: home())
+        let s = model.desk.state.value
+        XCTAssertFalse(s.loaded)
+        XCTAssertNil(s.name, "no chief-name read yet: no Name field")
+        XCTAssertNil(s.skills)
+        XCTAssertNil(s.jobs)
+        XCTAssertEqual(ChiefSettingsDesk.companion.SAVE_MS, 800)
+        model.stop()
+    }
 }
