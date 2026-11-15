@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 import BotdotShared
 @testable import BotDot
@@ -111,6 +112,23 @@ final class FilesTests: XCTestCase {
         let copy = store.carry(move: false, e: e) { _ in }
         XCTAssertEqual(copy.state.value.title, "Copy plan.md")
         store.close()
+    }
+
+    /// A page's bar: Keep up to date opens on the shared KeepDraft, and a page from a botdot with pages-board has Board.
+    func testAPagesKeepSheetAndBoardAreTheSharedOnes() {
+        let page = Api.companion.JSON.decodeFromString(deserializer: PageInfo.companion.serializer(), string: #"{"slug":"menu","title":"Menu","sources":"the menu file","onBoard":false}"#) as! PageInfo
+        let draft = KeepDraft.companion.of(page: page)
+        XCTAssertEqual([draft.every, draft.time, draft.notify, draft.check], ["day", "07:00", "report-only", "the menu file"])
+        let viewer = DocumentViewer(api: unreachableApi(), opening: DocumentView.shared.ofPage(botId: "b1", slug: "menu", title: "Menu", from: "Ada"))
+        let desk = try! XCTUnwrap(viewer.pageDesk(features: ["pages", "document-viewer", "pages-board"]))
+        defer { viewer.close() }
+        desk.show(p: page)
+        XCTAssertEqual(desk.draft()?.every, "day", "Change opens on what keeps the page now (here: nothing yet)")
+        XCTAssertTrue(desk.state.value.board)
+        XCTAssertFalse(desk.state.value.busy, "nothing on its way: the bar's actions can be tapped")
+        XCTAssertEqual(desk.state.value.onBoard?.boolValue, false)
+        XCTAssertNotNil(ImageRenderer(content: PageBarView(bar: desk.state.value, desk: desk) {}.frame(width: 360)).cgImage)
+        XCTAssertEqual(DocumentExport.shared.FORMATS.map { $0.first as String? ?? "" }, ["docx", "pdf", "md"])
     }
 }
 

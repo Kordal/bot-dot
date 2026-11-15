@@ -71,7 +71,10 @@ class PagesDeskTest {
 
     @Test fun theBoardSwitchesShowOnceTheFeaturesComeAfterTheList() = runTest {
         val server = FakeServer { 200 to pages }
-        val store = Store(backgroundScope, MutableStateFlow(server.api))
+        // The Store has no botdot of its own: the features come only when the test sets them. Given the fake, it read
+        // GET /version from it as soon as the desk watched the version, and that answer (the page list: no features),
+        // resumed in a runCurrent after the set below, could put the features back to none.
+        val store = Store(backgroundScope, MutableStateFlow(null))
         runCurrent()
         val desk = PagesDesk(backgroundScope, server.api, store)
         desk.load()

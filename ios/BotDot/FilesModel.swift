@@ -114,6 +114,34 @@ final class ViewerModel {
         guard let v = try? await viewer.load() else { return }
         viewed = v
         mode = v.mode
+        exports = (try? await viewer.exports(view: v.view))?.boolValue ?? false
+        // A Markdown page's bar (#346, #451): the shared PageDesk, told the page as it was read.
+        if v.site == nil, v.view?.page != nil {
+            if pageDesk == nil, let desk = try? await viewer.pageDesk() {
+                pageDesk = desk
+                watching = desk.watch { [weak self] s in MainActor.assumeIsolated { self?.bar = s } }
+            }
+            pageDesk?.show(p: v.view?.page)
+        }
+    }
+
+    /// A Markdown page's bar, and its desk; nil for any other file.
+    private(set) var bar: PageBarState?
+    private(set) var pageDesk: PageDesk?
+    private var watching: Kotlinx_coroutines_coreJob?
+    /// Export… is offered: a Markdown file on a botdot with document-export.
+    private(set) var exports = false
+
+    /// Export… in [format]: botdot makes the file, saved for the share sheet; nil (said) when it couldn't.
+    func export(_ format: String) async -> URL? {
+        guard let v = viewed?.view, let text = v.plain ?? v.text else { return nil }
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            return URL(fileURLWithPath: try await viewer.export(text: text, format: format, dir: dir.path))
+        } catch {
+            notice = error.localizedDescription
+            return nil
+        }
     }
 
     private var fetching: Task<URL?, Never>?
@@ -146,6 +174,8 @@ final class ViewerModel {
     }
 
     deinit {
+        // The page's bar follows in the viewer's own scope: closing it ends the watch too.
+        viewer.close()
         try? FileManager.default.removeItem(at: dir)
     }
 
