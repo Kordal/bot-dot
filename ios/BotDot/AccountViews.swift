@@ -131,10 +131,11 @@ struct FeedbackView: View {
     private func read(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
         var refused: [String] = []
+        let before = shots.count // numbered from the ones held before this pick: those accepted now count once
         for (i, item) in items.enumerated() {
             if shots.count >= Int(Feedback.shared.SHOTS_MAX) { refused.append(Feedback.shared.TOO_MANY); break }
             let data = try? await item.loadTransferable(type: Data.self)
-            let name = tr("Screenshot {n}", ["n": String(shots.count + i + 1)])
+            let name = Feedback.shared.shotName(existing: Int32(before), index: Int32(i))
             if let no = Feedback.shared.refusal(name: name, bytes: data.map(bytes)) { refused.append(no) } else if let data { shots.append(data) }
         }
         picks = []

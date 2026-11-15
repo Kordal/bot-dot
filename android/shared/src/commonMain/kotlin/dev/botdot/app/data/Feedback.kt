@@ -51,6 +51,12 @@ object Feedback {
         else -> null
     }
 
+    /**
+     * The name a picked screenshot goes by in the form's sentences: numbered after the [existing] ones the form holds
+     * from before this pick, then by its place ([index]) among the pictures picked at once.
+     */
+    fun shotName(existing: Int, index: Int): String = tr("Screenshot {n}", "n" to (existing + index + 1).toString())
+
     /** Why a picked file can't go in, in a sentence the form shows, or null when it can. [name]: the file's name. */
     fun refusal(name: String, bytes: ByteArray?): String? = when {
         bytes == null -> tr("Couldn't read {name}.", "name" to name)

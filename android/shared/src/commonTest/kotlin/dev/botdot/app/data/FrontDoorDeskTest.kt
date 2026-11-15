@@ -63,6 +63,15 @@ class FrontDoorDeskTest {
         assertTrue(o?.deletion is AccountDeletion.Offer.Delete)
     }
 
+    @Test fun aPickedScreenshotIsNumberedByItsPlaceAmongThosePickedTogether() {
+        // Two picked at once with none before: the first is taken, the second is too big.
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+        assertNull(Feedback.refusal(Feedback.shotName(existing = 0, index = 0), png))
+        val big = png + ByteArray(Feedback.SHOT_BYTES.toInt())
+        assertEquals("Screenshot 2 is 5.0 MB: each screenshot can be at most 5 MB.", Feedback.refusal(Feedback.shotName(existing = 0, index = 1), big))
+        assertEquals("Screenshot 4", Feedback.shotName(existing = 2, index = 1), "after two held before")
+    }
+
     @Test fun deleteSendsNothingUntilTheNameIsTypedExactly() = runTest {
         val f = door("{}")
         val d = FrontDoorDesk(f.api).delete("ann", "Ann")
