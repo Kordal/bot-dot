@@ -82,7 +82,7 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
             val added = mutableListOf<String>()
             val before = shots
             for (uri in uris) {
-                if (before.size + added.size >= Feedback.SHOTS_MAX) { refused += tr("At most {max} screenshots go in one report.", "max" to Feedback.SHOTS_MAX); break }
+                if (before.size + added.size >= Feedback.SHOTS_MAX) { refused += Feedback.TOO_MANY; break }
                 val (name, bytes) = withContext(Dispatchers.IO) { readShot(context, uri) }
                 val no = Feedback.refusal(name, bytes)
                 if (no == null && bytes != null) { added += uri.toString(); ready[uri.toString()] = bytes } else refused += no.orEmpty()
@@ -94,11 +94,10 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
     }
     AlertDialog(
         onDismissRequest = { if (!sending) onClose() },
-        title = { Text(tr("Feedback")) },
+        title = { Text(Feedback.TITLE) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Text(if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
-                     else tr("The admin of this machine reads it. Only what you write here is sent."))
+                Text(Feedback.intro(shotsOn))
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
                     for (k in Feedback.Kind.entries) Row(
                         Modifier.selectable(selected = kind == k, role = Role.RadioButton) { kind = k },
@@ -108,7 +107,7 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
                         Text(k.label)
                     }
                 }
-                Field(text, { text = it; error = null }, placeholder = { Text(tr("What happened, or what you would like")) },
+                Field(text, { text = it; error = null }, placeholder = { Text(Feedback.PLACEHOLDER) },
                     modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp))
                 if (shotsOn) {
                     if (shots.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(Space.s8)) {

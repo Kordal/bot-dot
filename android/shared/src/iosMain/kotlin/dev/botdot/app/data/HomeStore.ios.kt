@@ -1,6 +1,5 @@
 package dev.botdot.app.data
 
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
@@ -102,6 +101,9 @@ class HomeStore(val api: Api) {
     /** The Chief's chat, following this botdot's feed. [ChiefDesk.stop] it when it is left. */
     fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId)
 
+    /** Home's first reads (FirstRunDesk): the front door's offers, What's new and the Chief's name, in this phone's [zone]. */
+    fun firstRun(zone: String): FirstRunDesk = FirstRunDesk(api, scope, zone)
+
     /** The chat of the group [groupId], following this botdot's feed. [GroupChat.stop] it when it is left. */
     fun groupChat(groupId: String): GroupChat = GroupChat(scope, api, store, feed.events, groupId)
 
@@ -149,19 +151,6 @@ class HomeStore(val api: Api) {
             coroutineScope { listOf(store.bots, store.groups, store.version).forEach { launch { it.refresh() } } }
             scope.launch { listOf(store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } } }
         }
-    }
-
-    /** What's new (#219): the notes of the releases not seen yet, from a server that keeps them; none before its features are known. */
-    @Throws(Exception::class)
-    suspend fun whatsNew(): List<WhatsNew.Entry> =
-        if (!WhatsNew.asks(store.version.value.value?.features)) emptyList()
-        else try { api.whatsNew() } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() } // an older server: none
-
-    /** The What's new dialog closed, any way: everything up to its newest note is seen, here and on the web page. */
-    @Throws(Exception::class)
-    suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) {
-        if (entries.isEmpty()) return
-        try { api.whatsNewSeen(entries) } catch (e: CancellationException) { throw e } catch (_: Exception) { } // shown again next time
     }
 
     fun close() {

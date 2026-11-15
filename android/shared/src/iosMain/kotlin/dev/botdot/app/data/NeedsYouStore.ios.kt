@@ -1,10 +1,8 @@
 package dev.botdot.app.data
 
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -20,19 +18,8 @@ class NeedsYouStore(home: HomeStore) {
     private val desk = NeedsDesk(store, api, scope) { shortClock(it) }
 
     init {
-        // The live feed: each event refreshes what it changed. A dropped connection tries again after a moment.
-        scope.launch {
-            var last: String? = null
-            while (true) {
-                try {
-                    api.feed(last).collect { ev -> ev.id?.let { last = it }; store.handle(ev) }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                }
-                delay(RETRY_MS)
-            }
-        }
+        // The live feed: a card answered elsewhere, or withdrawn by its bot, goes from the list.
+        scope.followFeed(api, store)
     }
 
     /** Calls [onChange] with Needs you now and after every change, until the returned job is cancelled or [close]. */
@@ -72,9 +59,5 @@ class NeedsYouStore(home: HomeStore) {
     fun close() {
         desk.close()
         scope.cancel()
-    }
-
-    private companion object {
-        const val RETRY_MS = 3_000L
     }
 }

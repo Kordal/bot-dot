@@ -9,6 +9,12 @@ struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
+    @State private var deleting = false
+    @State private var feedback = false
+    @State private var sent: String?
+    @State private var name = ""
+    @State private var nameError: String?
+    @State private var asking = false
     /// The bot whose computer screen is open, from the ⋯ menu.
     @State private var screen: ScreenOpen?
 
@@ -38,6 +44,15 @@ struct HomeView: View {
     // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
         withSheets
+        // The first run's question for the Chief's name: Save, or Skip to keep "Chief of Staff".
+        .alert(ChiefName.shared.question, isPresented: $asking) {
+            TextField(ChiefName.shared.role, text: $name).onChange(of: name) { _, n in if n.count > Int(ChiefName.shared.MAX) { name = String(n.prefix(Int(ChiefName.shared.MAX))) } }
+            Button(tr("Save")) { answerName(name) }
+            Button(tr("Skip"), role: .cancel) { answerName("") }
+        } message: {
+            Text(nameError.map { ChiefName.shared.explain + "\n\n" + $0 } ?? ChiefName.shared.explain)
+        }
+        .onChange(of: home.askName) { _, ask in asking = ask }
         // A notification's tap: its chat, once Home knows its bots and groups (AppModel.chatToOpen).
         .onChange(of: model.chatToOpen, initial: true) { openAsked() } // a cold start's tap too
         .onChange(of: home.state?.bots?.count) { openAsked() }
@@ -64,7 +79,14 @@ struct HomeView: View {
                 .listRowSeparator(.hidden)
             }
             if let state = home.state, let board = state.board {
-                BoardCards(tiles: board)
+                // A tap opens the Board, where each tile does its thing.
+                NavigationLink {
+                    BoardView(home: home.home, figure: home.figure)
+                } label: {
+                    BoardCards(tiles: board)
+                }
+                .accessibilityIdentifier("board")
+                .listRowSeparator(.hidden)
             }
             if let state = home.state {
                 // The Chief first, as on Android: its chat is one conversation.
@@ -149,6 +171,8 @@ struct HomeView: View {
                 ForEach(bots, id: \.id) { b in Button(b.name) { path.append(Route.bot(b.id)) } }
             }
         }
+        if home.offers?.feedback == true { Button(Feedback.shared.TITLE) { feedback = true } }
+        if home.offers?.deletion != nil { Button(tr("Delete account"), role: .destructive) { deleting = true } }
         Button(tr("Passwords")) { vault = true }
         Divider()
         Button(tr("Change botdot's address")) { model.otherAddress() }
@@ -156,7 +180,7 @@ struct HomeView: View {
     }
 
     private var whatsNewShown: Binding<Bool> {
-        Binding(get: { !home.whatsNew.isEmpty }, set: { if !$0 { home.whatsNewClosed() } })
+        Binding(get: { home.showsWhatsNew && !feedback }, set: { if !$0 { home.whatsNewClosed() } })
     }
 
     private var withSheets: some View {
@@ -166,8 +190,32 @@ struct HomeView: View {
             home.home.live(on: true)
             await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
         }
+        .overlay(alignment: .bottom) {
+            if let sent {
+                Text(sent).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16).accessibilityIdentifier("notice")
+                    .task { try? await Task.sleep(for: .seconds(3)); self.sent = nil }
+            }
+        }
+        .sheet(isPresented: $deleting) {
+            if let offer = home.offers?.deletion {
+                AccountDeletionView(offer: offer, api: home.home.api) { words in model.accountDeleted(server, words) }
+            }
+        }
+        .sheet(isPresented: $feedback) {
+            FeedbackView(api: home.home.api, shotsOn: home.offers?.shots == true) { sent = tr("Sent") }
+        }
+        // What's new after an update, once, after the Chief's name; closed any way, its notes are seen.
         .sheet(isPresented: whatsNewShown) {
             WhatsNewSheet(entries: home.whatsNew) { home.whatsNewClosed() }
+        }
+    }
+
+    /// The Chief's name, saved or skipped; a refusal keeps the question, saying why.
+    private func answerName(_ given: String) {
+        Task {
+            nameError = await home.nameChief(given)
+            // The alert closed with the tap: it asks again, saying why.
+            if nameError != nil { asking = true }
         }
     }
 
