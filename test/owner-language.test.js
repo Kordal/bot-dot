@@ -22,7 +22,7 @@ test("the note asks for all the owner reads in the account's language, and lets 
 
 test("a bot's own rules come after the note in its prompt, so a language they name is read last", () => {
   const src = read('lib/bots.js');
-  const i = src.indexOf('REPLY_STYLE, languageNote(settings.get().language), VAULT_PROMPT');
+  const i = src.indexOf('REPLY_STYLE, languageNote(settings.get().language), styleNote, VAULT_PROMPT');
   assert.ok(i > 0 && src.indexOf('fillTemplate(bot.systemPrompt, vars)', i) > i);
 });
 

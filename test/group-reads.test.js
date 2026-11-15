@@ -723,7 +723,7 @@ test("a file the owner attaches in a group is kept once and handed to each membe
 // 200 characters, with every other part of a member's prompt at its cap: 30 pinned notes of its own and 30 shared
 // ones with twelve topics each, a full lookup and a main assignment of 2,000 characters. The five members before
 // the reader answer this message at the 6,000 characters a reply to it may have.
-test("a turn's appended prompt stays under 100,000 characters with a group chat of 500 replies and every other cap hit", async () => {
+test("a turn's appended prompt stays under 108,000 characters with a group chat of 500 replies and every other cap hit", async () => {
   const fill = (n, c) => c.repeat(n);
   const topic = (i) => `${String(i).padStart(2, '0')} ${fill(37, 't')}`;
   const names = ['Bound Alfa', 'Bound Bravo', 'Bound Carlo', 'Bound Delta', 'Bound Echo', 'Bound Last'];
@@ -769,7 +769,8 @@ test("a turn's appended prompt stays under 100,000 characters with a group chat 
   assert.ok(between(sys, 'possibly-relevant').length > 1100, `the lookup is full (${between(sys, 'possibly-relevant').length})`);
   assert.equal(count(sys, fill(200, 'd').slice(0, 199)) >= 5, true, 'the other members are described');
   assert.ok(sys.length > 60_000, `the caps are really hit (${sys.length})`);
-  assert.ok(sys.length < 100_000, `the prompt has ${sys.length} characters`);
+  assert.ok(sys.length < 108_000, // 100,000 until the always-on style of the kit (ADR 246), about 7,000
+    `the prompt has ${sys.length} characters`);
   if (process.env.SHOW_BOUND) console.log(`bound: prompt ${sys.length}, block ${block.length}`);
 });
 
