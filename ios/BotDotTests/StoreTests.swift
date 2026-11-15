@@ -25,6 +25,9 @@ final class StoreTests: XCTestCase {
 
     /// Signed in on a phone that never accepted the notice: the notice in Home's place until Continue, then Home.
     func testTheSignedInScreenIsTheNoticeUntilContinueThenHome() async throws {
+        let before = SharedAddress.noticeSeen
+        defer { SharedAddress.noticeSeen = before }
+        SharedAddress.noticeSeen = false // never accepted, in the app or a share
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
         let model = AppModel(directory: dir, sessions: KeychainSessions(service: "test-\(UUID().uuidString)"))
@@ -36,6 +39,44 @@ final class StoreTests: XCTestCase {
         XCTAssertFalse(model.showsNotice, "Home")
         let seen = try await model.settings.aiNoticeSeenNow()
         XCTAssertTrue(seen.boolValue, "kept: never again on this phone")
+    }
+
+    /// The share extension sends nothing before the notice: it reads the flag from the App Group, which the app keeps
+    /// there; accepted in a share, the app knows it too, and shows Home.
+    func testTheNoticeAcceptedInTheAppOrAShareIsKnownToBoth() async throws {
+        let before = SharedAddress.noticeSeen
+        defer { SharedAddress.noticeSeen = before }
+        SharedAddress.noticeSeen = false
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let app = AppModel(directory: dir, sessions: KeychainSessions(service: "test-\(UUID().uuidString)"))
+        _ = try await app.settings.setServer(url: "https://botdot.test")
+        await app.start()
+        XCTAssertTrue(app.showsNotice)
+        XCTAssertFalse(SharedAddress.noticeSeen, "a share would show the notice first")
+        await app.acceptNotice()
+        XCTAssertTrue(SharedAddress.noticeSeen, "accepted in the app: a share sends at once")
+
+        // Accepted in a share, on a phone whose app never showed it.
+        SharedAddress.noticeSeen = true
+        let other = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: other) }
+        let fresh = AppModel(directory: other, sessions: KeychainSessions(service: "test-\(UUID().uuidString)"))
+        _ = try await fresh.settings.setServer(url: "https://botdot.test")
+        await fresh.start()
+        XCTAssertFalse(fresh.showsNotice, "Home, not the notice again")
+        let kept = try await fresh.settings.aiNoticeSeenNow()
+        XCTAssertTrue(kept.boolValue)
+    }
+
+    func testTheShareExtensionCarriesItsPrivacyManifest() throws {
+        let share = try XCTUnwrap(Bundle.main.builtInPlugInsURL?.appendingPathComponent("BotDotShare.appex"))
+        let url = share.appendingPathComponent("PrivacyInfo.xcprivacy")
+        let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: Any])
+        XCTAssertEqual(manifest["NSPrivacyTracking"] as? Bool, false)
+        let apis = (manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]]) ?? []
+        let defaults = apis.first { $0["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategoryUserDefaults" }
+        XCTAssertEqual(defaults?["NSPrivacyAccessedAPITypeReasons"] as? [String], ["1C8F.1"], "the App Group it shares with the app")
     }
 
     func testTheNoticeBeforeTheFirstMessageSaysWhereItGoes() {

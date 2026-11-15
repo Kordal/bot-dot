@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- What this target collects and why (App Store privacy manifest, #1374). It tracks nobody. The messages, files and pictures sent to its bots go to the owner's botdot, under its account; the shared layer reads the times of the files in its own container (fstat, lstat). -->
+<!-- What this target collects and why (App Store privacy manifest, #1374). It tracks nobody. The messages, files and pictures sent to its bots go to the owner's botdot, under its account; the shared layer reads the times of the files in its own container (fstat, lstat), and it keeps the address and the notice in the App Group it shares with its share extension (UserDefaults, 1C8F.1). -->
 <plist version="1.0">
 <dict>
 	<key>NSPrivacyTracking</key>
@@ -42,6 +42,12 @@
 	</array>
 	<key>NSPrivacyAccessedAPITypes</key>
 	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array><string>1C8F.1</string></array>
+		</dict>
 		<dict>
 			<key>NSPrivacyAccessedAPIType</key>
 			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>

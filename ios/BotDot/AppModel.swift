@@ -73,7 +73,9 @@ final class AppModel {
 
     /// The botdot this phone was set to: Home, until its front door asks for a sign-in ([signInNeeded]), as on Android.
     func start() async {
+        // Accepted in the app or in a share: both know, so it shows never again.
         noticeSeen = !((try? await AiNotice.shared.asks(settings: settings))?.boolValue ?? true)
+        if noticeSeen { SharedAddress.noticeSeen = true } else if SharedAddress.noticeSeen { await acceptNotice() }
         let server = (try? await settings.serverNow()) ?? nil
         screen = server.map { home($0) } ?? .address
     }
@@ -81,6 +83,7 @@ final class AppModel {
     /// Continue on the notice: kept, so it shows never again, and Home shows.
     func acceptNotice() async {
         try? await settings.setAiNoticeSeen()
+        SharedAddress.noticeSeen = true
         noticeSeen = true
     }
 

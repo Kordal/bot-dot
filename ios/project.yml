@@ -29,6 +29,7 @@ targets:
       - BotDotNotify/PushKey.swift
       # The address the share extension sends through, written where it can read it.
       - BotDotShare/SharedAddress.swift
+      - BotDotShare/AiNoticeView.swift
       # The figure definition every app draws its bots from (ADR 003), the server's own file: a copy in the app, until
       # the server hands out its own.
       - path: ../lib/figure.json
@@ -97,7 +98,7 @@ targets:
       - BotDot/I18n.swift
       - BotDot/SharedSendable.swift
     dependencies:
-      - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework
+      - framework: ../android/shared/build/XCFrameworks/debug/BotdotShared.xcframework
         embed: false
     settings:
       base:
