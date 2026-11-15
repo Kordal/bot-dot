@@ -142,8 +142,8 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
-    /** The board as the owner arranged it on the canvas (#784, ADR 147): its tiles in reading order; null: the usual flow. */
-    val order: List<String>? = null,
+    /** The board as the owner arranged it on the canvas (#784): each tile where it stands; null: the usual flow. */
+    val canvas: Map<String, BoardCanvas.R>? = null,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -189,6 +189,10 @@ class ProjectState(
     val noticeCount: Int,
 ) {
     val running: Boolean get() = project?.running == true
+    /** On a phone (ADR 147): the arranged board's tiles in the order its column reads them. */
+    val order: List<String>? get() = canvas?.let(BoardCanvas::order)
+    /** How tall the arranged board's canvas is, in its units. */
+    val canvasHeight: Int get() = canvas?.let(BoardCanvas::height) ?: 0
 }
 
 /**
@@ -308,7 +312,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             needsYou = needsYou,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
-            order = c?.let { BoardCanvas.readOrder(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
+            canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
@@ -439,6 +443,10 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     @Throws(Exception::class)
     suspend fun refreshCard(card: String) { call { it.refreshCard(card) } }
+
+    /** The arranged board after a tile was moved or resized ([BoardCanvas.drag]): saved whole, so every app shows the same. */
+    @Throws(Exception::class)
+    suspend fun arrange(layout: Map<String, BoardCanvas.R>) { call { it.setLayout(BoardCanvas.raw(layout)) } }
 
     /** A card's Remove: off the row at once; a refusal puts it back. */
     @Throws(Exception::class)
