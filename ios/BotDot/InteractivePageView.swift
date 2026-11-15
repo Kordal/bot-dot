@@ -52,7 +52,7 @@ extension ViewerView {
 /// the app. Its own files load; a link out, or the page's own request for one, asks first and opens in the browser.
 struct InteractiveFrame: UIViewRepresentable {
     let frame: String
-    let values: Kotlinx_serialization_jsonJsonObject?
+    let values: [String: Kotlinx_serialization_jsonJsonElement]?
     let go: (String) -> InteractivePagesGo
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -75,9 +75,13 @@ struct InteractiveFrame: UIViewRepresentable {
         if context.coordinator.loaded != frame, let url = URL(string: frame) {
             context.coordinator.loaded = frame
             web.load(URLRequest(url: url))
-        } else if let values, context.coordinator.sent !== values {
-            context.coordinator.sent = values
-            web.evaluateJavaScript(InteractivePages.shared.valuesScript(values: values))
+        } else if let values {
+            // The page's live values, handed to it once each time they change.
+            let script = InteractivePages.shared.valuesScript(values: values)
+            if context.coordinator.sent != script {
+                context.coordinator.sent = script
+                web.evaluateJavaScript(script)
+            }
         }
     }
 
@@ -85,7 +89,7 @@ struct InteractiveFrame: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate {
         var parent: InteractiveFrame
         var loaded: String?
-        var sent: Kotlinx_serialization_jsonJsonObject?
+        var sent: String?
         init(_ parent: InteractiveFrame) { self.parent = parent }
 
         func webView(_ web: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void) {
@@ -102,8 +106,9 @@ struct InteractiveFrame: UIViewRepresentable {
         func webView(_ web: WKWebView, didFinish navigation: WKNavigation!) {
             web.evaluateJavaScript(InteractivePages.shared.LISTENER)
             if let values = parent.values {
-                sent = values
-                web.evaluateJavaScript(InteractivePages.shared.valuesScript(values: values))
+                let script = InteractivePages.shared.valuesScript(values: values)
+                sent = script
+                web.evaluateJavaScript(script)
             }
         }
 
