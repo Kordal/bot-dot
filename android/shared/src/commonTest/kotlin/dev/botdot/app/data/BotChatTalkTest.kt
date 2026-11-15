@@ -24,6 +24,7 @@ import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -202,6 +203,61 @@ class BotChatTalkTest {
         advanceTimeBy(1_000); runCurrent()
         withContext(Dispatchers.Default) { delay(100) }
         assertTrue(fake.asked().none { it.path.endsWith("/stream") }, "no run's stream is opened for a chat that was left: ${fake.asked().map { it.path }}")
+    }
+
+    private val steps = """{"steps":[{"text":"Read the brief","status":"done"},{"text":"Draft it","status":"doing","doing":"Writing the intro"},{"text":"Send it","status":"todo"}]}"""
+
+    /** A plan memory kept in a map, as the phone keeps it in its defaults. */
+    private class Kept : PlanMemory.Keep {
+        val map = HashMap<String, String>()
+        override fun read(key: String) = map[key]
+        override fun write(key: String, value: String) { map[key] = value }
+    }
+
+    @Test fun theRunAtWorksPlanIsDockedFoldedAndItsFoldIsKept() = runTest {
+        val fake = FakeBotdot { a ->
+            if (a.path == "/runs") 200 to """[{"id":"r1","botId":"b1","status":"running","prompt":"hi","startedAt":"2026-11-14T09:00:00Z","plan":$steps}]"""
+            else 404 to "{}"
+        }
+        val keep = Kept()
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        store.version.set(VersionInfo(features = emptyList()))
+        val chat = BotChat(backgroundScope, fake.api, store, events, "b1", PlanMemory(keep))
+        chat.start()
+        until("the plan") { chat.state.value.plan != null }
+        val dock = chat.state.value.plan!!
+        assertFalse(dock.stopped)
+        assertTrue(dock.folded, "folded by default: the phone's one line")
+        assertEquals("step 2 of 3", dock.stepLine)
+        assertEquals("1 of 3", dock.doneLine)
+        assertEquals("Writing the intro", dock.now)
+        chat.foldPlan(false)
+        assertFalse(chat.state.value.plan!!.folded)
+        assertFalse(PlanMemory(keep).folded("bot:b1"), "kept: open again next time")
+        chat.stop()
+    }
+
+    @Test fun aPlanStoppedBeforeItWasDoneSaysWhereAndIsDismissedForGood() = runTest {
+        val fake = FakeBotdot { a ->
+            if (a.path == "/runs") 200 to """[{"id":"r2","botId":"b1","status":"error","prompt":"hi","startedAt":"2026-11-14T09:00:00Z","plan":$steps}]"""
+            else 404 to "{}"
+        }
+        val keep = Kept()
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        store.version.set(VersionInfo(features = emptyList()))
+        val chat = BotChat(backgroundScope, fake.api, store, events, "b1", PlanMemory(keep))
+        chat.start()
+        until("the plan") { chat.state.value.plan != null }
+        val dock = chat.state.value.plan!!
+        assertTrue(dock.stopped)
+        assertEquals("Stopped at step 2 of 3", dock.stoppedLine)
+        assertEquals("1 step done", dock.doneSteps)
+        assertEquals("Draft it", dock.stoppedAt)
+        assertEquals("1 step not started", dock.notStarted)
+        chat.dismissPlan()
+        assertNull(chat.state.value.plan)
+        assertTrue(PlanMemory(keep).dismissed("r2"), "kept: gone next time too")
+        chat.stop()
     }
 
     @Test fun theNewestRepliesChoicesAndQuestionsAreAnsweredToItsRun() = runTest {

@@ -114,6 +114,8 @@ class HomeStore(val api: Api) {
         if (on) { feed.connect(api); feed.reconnect() } else feed.connect(null)
     }
 
+    /** Each chat's plan fold and the stopped plans dismissed (PlanMemory): the app gives one kept on the phone. */
+    var plans: PlanMemory = PlanMemory()
     /**
      * Allow or No on a Needs you row that asks for a permission ([Waiting.permission]), as Android's Home: answered on
      * botdot, then what waits read again. Null once it went, else why not.
@@ -126,10 +128,10 @@ class HomeStore(val api: Api) {
     }
 
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
-    fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
+    fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId, plans)
 
     /** The Chief's chat, following this botdot's feed. [ChiefDesk.stop] it when it is left. */
-    fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId)
+    fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId, plans)
 
     /** Home's first reads (FirstRunDesk): the front door's offers, What's new and the Chief's name, in this phone's [zone]. */
     fun firstRun(zone: String): FirstRunDesk = FirstRunDesk(api, scope, zone)
