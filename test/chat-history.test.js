@@ -298,3 +298,12 @@ test('an answer that stopped for the OK carries on as an answer', async () => {
   assert.ok(rec.system.includes(`their answer to the question at the end of your reply in run ${first.run.id}`));
   assert.ok(rec.system.includes('(under it the owner saw these answers as buttons: Open it | Leave it)'));
 });
+
+test('a card of questions is said as open or as closed: a closed one is never pointed back to', () => {
+  const asked = run({ id: 'q1', result: 'I need two things.', questions: ['Which account?', 'Which day?'] }, 2);
+  const open = build([asked], { open: (id) => id === 'q1' });
+  assert.match(open, /\(under it the owner sees a card with these questions, still open for the answers: Which account\? \| Which day\?\)/);
+  const closed = build([asked], { open: () => false });
+  assert.match(closed, /\(under it the owner was shown a card with these questions: Which account\? \| Which day\?\. That card is closed now: the owner can no longer answer on it/);
+  assert.match(closed, /ask it again on a new card, and never point the owner back to this one\)/);
+});

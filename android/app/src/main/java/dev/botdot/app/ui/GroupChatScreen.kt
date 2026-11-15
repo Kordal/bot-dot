@@ -2,6 +2,7 @@ package dev.botdot.app.ui
 
 import dev.botdot.app.data.Ended
 import dev.botdot.app.data.endedWords
+import dev.botdot.app.data.replyText
 import dev.botdot.app.data.takesOnce
 import dev.botdot.app.data.lineWith
 import dev.botdot.app.data.isGoOn
@@ -636,10 +637,10 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             Text(bot?.name ?: r.botName.ifBlank { tr("A bot") }, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             r.asked.orEmpty().filter { it.text.isNotBlank() }.forEach { AskedFold(it) }
             when (r.status) {
-                "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
+                "success" -> TheirBubble(footer, copyText = replyText(r, asks), chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
                     CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName), LocalProductSaver provides r.botId) {
-                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
+                        Column { MarkdownText(replyText(r, asks).ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
                     }
                 }
                 else -> when (val ended = endedWords(r, features)) {

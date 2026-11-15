@@ -772,3 +772,15 @@ test("a turn's appended prompt stays under 100,000 characters with a group chat 
   assert.ok(sys.length < 100_000, `the prompt has ${sys.length} characters`);
   if (process.env.SHOW_BOUND) console.log(`bound: prompt ${sys.length}, block ${block.length}`);
 });
+
+test("a member's card of questions is said as the group's open question, or as closed once the owner wrote anything else", () => {
+  const lines = [
+    wrote('m2', 'status?', 1),
+    turnOf('r1', 'r', { result: '18 issues wait for your yes or no.', questions: ['#542: close it?', '#541: close it?'] }, 3),
+    wrote('m1', 'Review the open issues', 5),
+  ];
+  const closed = groupBlock(lines, { reader: 'r', current: 'm2', now: AT, mark: fixed, open: () => false });
+  assert.match(closed, /\(under it the owner was shown a card with these questions: #542: close it\? \| #541: close it\?\. That card is closed now/);
+  const open = groupBlock(lines, { reader: 'r', current: 'm2', now: AT, mark: fixed, open: (id) => id === 'r1' });
+  assert.match(open, /\(under it the owner sees a card with these questions, still open for the answers: #542: close it\? \| #541: close it\?\)/);
+});

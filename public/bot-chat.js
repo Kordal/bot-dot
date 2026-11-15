@@ -221,7 +221,9 @@ function runParts(bot, r, last, newest, canReply = false) {
     stop = `<button type="button" class="block-stop" data-stop-run="${esc(r.id)}">${tr('Stop')}</button>`;
   } else {
     const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
-    const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || tr('Done. (No written reply.)');
+    // Its question is open while the owner can still answer it here: its card stands under it, else it is text.
+    const open = ((Array.isArray(bot.asks?.open) ? bot.asks.open.some((x) => x.runId === r.id) : r.id === bot.asks?.runId) || (last && !r.asks)) && !failed;
+    const body = failed ? r.problem || friendlyProblem(r, r.result) : open || !r.questions?.length ? r.result || tr('Done. (No written reply.)') : withAsked(r.result || '', r.questions).trim();
     const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
     // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
     // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
@@ -240,7 +242,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
-        ${((Array.isArray(bot.asks?.open) ? bot.asks.open.some((x) => x.runId === r.id) : r.id === bot.asks?.runId) || (last && !r.asks)) && !failed ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
+        ${open ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }

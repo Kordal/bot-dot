@@ -1622,3 +1622,15 @@ test("web: the Project Manager's message in a team's chat has the Chief's head a
   assert.doesNotMatch(rows, /from-me/);
   assert.doesNotMatch(p.ctx.groupTailHTML(p.group(), c), /data-take-back/);
 });
+
+test("web: a card of questions that closed stays in the chat: its questions stand at the end of the reply that asked them", () => {
+  const p = page();
+  const asked = reply('r1', REVIEWER, 'Three issues wait for your yes or no.', { questions: ['#542: close it?', '#541: close it?'], questionChoices: [['Tak', 'Nie'], ['Tak', 'Nie']] });
+  const open = p.ctx.groupThreadHTML(p.group(), p.chat([asked], { asks: { botId: 'reviewer', botName: 'Reviewer', text: '#542: close it? (+1 more)', runId: 'r1', at: at(2) } }));
+  assert.doesNotMatch(open, /- #542: close it\?/, 'open: the questions are on its card, not twice');
+  assert.match(open, /<p>Three issues wait for your yes or no\.<\/p>/);
+  // The owner wrote something else ("status?"): the card is gone, and its questions are part of the reply.
+  const closed = p.ctx.groupThreadHTML(p.group(), p.chat([asked]));
+  assert.match(closed, /<p>Three issues wait for your yes or no\.\n\n- #542: close it\?\n- #541: close it\?<\/p>/);
+  assert.doesNotMatch(closed, /data-pick=/, 'nothing to tap on a closed card');
+});
