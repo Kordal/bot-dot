@@ -74,7 +74,7 @@ internal fun groupName(typed: String): String = typed.replace(SPACES, " ").trim(
  * faces, its name, which renames the team with it, its members and its notes; on a server with `team-chat-members` its
  * members are added and taken out there too, never its last one. With `team-chat-lead` its lead is picked there: the
  * lead's row says Lead, each other's has Make lead. With `team-chat-delete` it has "Delete team", which deletes the
- * team in its project with its chat; its bots stay.
+ * team in its project with its chat; its bots stay. Pinned puts it below the Chief on Home, as a bot's switch does.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -131,11 +131,12 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                 // Nothing to add: the group is full, or every bot is in it. A team's chat adds to its team where the server does it.
                 if (Groups.changesMembers(g, versionNow?.features) && Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
-            // Pinned below the Chief on Home, as a bot's switch: a team's chat too. Pinned last; dragged on Home to move it.
-            SwitchRow(tr("Pinned below the Chief"), checked = g.pinned > 0) { on ->
-                change(g, buildJsonObject { if (on) put("pinned", true) else put("pinned", 0) }).invokeOnCompletion {
-                    scope.launch { app.store.bots.refresh() } // the pinned bots after it move up when it leaves: one order (#276)
-                }
+            // Pinned below the Chief on Home, as a bot's switch; held here until the list is read again.
+            var pinned by remember(g.pinned) { mutableStateOf(g.pinned > 0) }
+            SwitchRow(tr("Pinned below the Chief"), checked = pinned) { on ->
+                val body = Groups.pinChange(g, on) ?: return@SwitchRow
+                pinned = on
+                change(g, body).invokeOnCompletion { scope.launch { app.store.bots.refresh() } } // the pinned bots after it move up: one order (#276)
             }
             if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
             // A team's chat deletes its team with it, on a server that does it (`team-chat-delete`).

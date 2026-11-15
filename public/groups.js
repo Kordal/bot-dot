@@ -103,25 +103,19 @@ async function placeGroup(g, body, said = '') {
   try {
     await api(`/group-chats/${encodeURIComponent(g.id)}`, { method: 'PUT', body });
     if (said) toast(said);
-  } catch (e) { toast(e.message, true); }
+  } catch (e) { toast(e.message, true); refresh(); return false; }
   refresh();
+  return true;
 }
 // Pin a group at a place among the pinned bots and groups (1 = first; one order, #276), the others making room.
+// 0 unpins it: last among the groups of its category, as the server puts it.
 function pinGroup(g, at) {
-  if (g.pinned === at) return renderContacts();
+  if ((g.pinned || 0) === at) return renderContacts();
   const from = g.category || '';
   Keypad.pin(state.bots, state.groups, g, at);
-  g.order = 0;
+  g.order = at > 0 ? 0 : Infinity;
   groupsIn(from).forEach((x, i) => { x.order = i + 1; });
   return placeGroup(g, { pinned: at });
-}
-// Unpin a group: last among the groups of its category, as the server puts it.
-function unpinGroup(g) {
-  if (!(g.pinned > 0)) return renderContacts();
-  Keypad.pin(state.bots, state.groups, g, 0);
-  g.order = Infinity;
-  groupsIn(g.category || '').forEach((x, i) => { x.order = i + 1; });
-  return placeGroup(g, { pinned: 0 });
 }
 // Put a group at a place among the groups of a category (1 = first), from another category or from the pinned ones.
 function moveGroup(g, category, at) {
@@ -300,12 +294,11 @@ function renderGroupSettings() {
         done: async (picked) => { await api(`/group-chats/${encodeURIComponent(now.id)}`, { method: 'PUT', body: { members: [...now.members, ...picked] } }); await refresh(); },
       });
     };
-    // Pinned below the Chief on Home, as a bot's switch: a team's chat too. Pinned last; dragged on Home to move it.
+    // Pinned below the Chief on Home, last there, as a bot's switch; dragged on Home to move it.
     $('#gs-pinned', root).onchange = async (e) => {
       const now = groupById(root.dataset.group);
       if (!now) return;
-      await (e.target.checked ? pinGroup(now, [...state.bots, ...state.groups].filter((x) => x.pinned > 0 && x !== now).length + 1) : unpinGroup(now));
-      flashSaved(root);
+      if (await pinGroup(now, e.target.checked ? [...state.bots, ...state.groups].filter((x) => x.pinned > 0 && x !== now).length + 1 : 0)) flashSaved(root);
     };
     const add = $('#gs-note-text', root);
     add.onkeydown = async (e) => {

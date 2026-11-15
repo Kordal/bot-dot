@@ -426,10 +426,9 @@ class GroupChat(
 
     /** Pinned below the Chief on Home, last among the pinned ones (dragged on Home to move it); off: back in its category. */
     fun pin(on: Boolean) {
-        val g = group() ?: return
-        if ((g.pinned > 0) == on) return
+        val body = Groups.pinChange(group() ?: return, on) ?: return
         change {
-            api.updateGroup(groupId, buildJsonObject { put("pinned", if (on) JsonPrimitive(true) else JsonPrimitive(0)) })
+            api.updateGroup(groupId, body)
             store.bots.refresh() // the pinned bots after it move up when it leaves: one order (#276)
         }
     }
