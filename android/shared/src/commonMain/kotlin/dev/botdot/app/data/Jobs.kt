@@ -119,15 +119,30 @@ class JobsDesk(scope: CoroutineScope, private val api: Api, private val store: S
     @Throws(Exception::class)
     suspend fun refresh() { try { store.bots.refresh() } catch (e: CancellationException) { throw e } catch (_: Exception) {} }
 
-    /** Paused or resumed at once on screen, then as botdot has it; what to say after. */
+    /**
+     * Paused or resumed at once on screen, then as botdot has it; what to say after. Refused or not sent, the job is
+     * put back as it was, also when the bots can't be read again (offline).
+     */
     @Throws(Exception::class)
     suspend fun setOn(jobId: String, on: Boolean): String? {
-        store.bots.update { list -> list.map { b -> if (b.id != botId) b else b.copy(jobs = b.jobs.map { if (it.id == jobId) it.copy(enabled = on, nextRunAt = if (on) it.nextRunAt else null) else it }) } }
-        val said = try { api.setJobEnabled(botId, jobId, on); if (on) tr("Resumed") else tr("Paused. It won't run until you turn it back on.") }
-            catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: tr("Couldn't change it") }
+        val before = store.bots.value.value?.firstOrNull { it.id == botId }?.jobs?.firstOrNull { it.id == jobId }
+        put(jobId) { it.copy(enabled = on, nextRunAt = if (on) it.nextRunAt else null) }
+        val said = try {
+            api.setJobEnabled(botId, jobId, on)
+            if (on) tr("Resumed") else tr("Paused. It won't run until you turn it back on.")
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            before?.let { was -> put(jobId) { was } }
+            e.message ?: tr("Couldn't change it")
+        }
         refresh()
         return said
     }
+
+    /** The job [jobId] of this bot, changed by [change], in the store's bots (and so on screen). */
+    private fun put(jobId: String, change: (Job) -> Job) =
+        store.bots.update { list -> list.map { b -> if (b.id != botId) b else b.copy(jobs = b.jobs.map { if (it.id == jobId) change(it) else it }) } }
 
     /** Run now; what to say after, null for nothing (a skip botdot gave no words for). */
     @Throws(Exception::class)

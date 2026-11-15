@@ -90,4 +90,19 @@ class JobsDeskTest {
             Advanced.take(null, null)
         }
     }
+
+    @Test fun aPauseThatDidNotGoPutsTheSwitchBackEvenOffline() = runTest {
+        val server = FakeServer { t -> if (t.method == "PUT") 503 to """{"error":"botdot is busy"}""" else 503 to """{"error":"offline"}""" }
+        val store = Store(backgroundScope, MutableStateFlow(server.api))
+        runCurrent()
+        store.bots.set(listOf(Api.JSON.decodeFromString(Bot.serializer(), bot)))
+        val desk = JobsDesk(backgroundScope, server.api, store, "b1") { "T" }
+        runCurrent()
+        assertTrue(desk.state.value.jobs!!.first().enabled)
+        assertEquals("botdot is busy", desk.setOn("j1", false))
+        runCurrent()
+        val news = desk.state.value.jobs!!.first()
+        assertTrue(news.enabled, "put back as it was, the bots not read again")
+        assertEquals("Every day at 08:00 · Next: T", news.line)
+    }
 }
