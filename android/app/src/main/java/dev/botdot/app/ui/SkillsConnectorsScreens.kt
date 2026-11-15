@@ -52,11 +52,9 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.AlwaysAllowed
 import dev.botdot.app.data.BuiltinSkill
 import dev.botdot.app.data.CatalogApp
-import dev.botdot.app.data.ChiefSkills
 import dev.botdot.app.data.ConnectorsInfo
 import dev.botdot.app.data.Skill
 import dev.botdot.app.data.tr
-import dev.botdot.app.data.trn
 import kotlinx.coroutines.launch
 
 // ---------- skills ----------
@@ -87,9 +85,8 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
         if (o != null) {
             Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Hint(o.description)
-                val users = ChiefSkills.usedBy(o.usedBy, botNames)
-                Hint(if (users.isEmpty()) tr("No bot uses it yet. Turn it on in a bot's settings.") else tr("Used by {names}", "names" to users.joinToString(", ")))
-                o.createdBy?.let { Hint(if (it.startsWith("bot:")) tr("Made by {name}", "name" to (botNames[it.removePrefix("bot:")] ?: tr("a bot"))) else if (it == "chief") tr("Made by the Chief") else tr("Made by you")) }
+                Hint(dev.botdot.app.data.SkillWords.users(o, botNames))
+                dev.botdot.app.data.SkillWords.madeBy(o, botNames)?.let { Hint(it) }
                 Section(tr("What it tells the bot")) { MarkdownText(o.instructions.ifBlank { tr("(empty)") }) }
             }
             return@Scaffold
@@ -102,10 +99,7 @@ fun SkillsScreen(app: BotDotApp, onBack: () -> Unit) {
                 Column(Modifier.fillMaxWidth().raised(Radius.card).clickable { open = k }.padding(Space.s12)) {
                     Text(k.name, color = p.text, style = MaterialTheme.typography.titleMedium)
                     Text(k.description, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 3)
-                    val chief = ChiefSkills.CHIEF_ID in k.usedBy
-                    val n = k.usedBy.size - if (chief) 1 else 0
-                    val bots = if (n == 0) "" else trn(n, "{n} bot", "{n} bots")
-                    Text(if (n == 0 && !chief) tr("Not used yet") else tr("Used by {names}", "names" to listOf(if (chief) tr("the Chief") else "", bots).filter { it.isNotEmpty() }.joinToString(" " + tr("and") + " ")), color = p.faint, fontSize = Type.s12)
+                    Text(dev.botdot.app.data.SkillWords.usedLine(k), color = p.faint, fontSize = Type.s12)
                 }
             }
             if (builtin.isNotEmpty()) {
