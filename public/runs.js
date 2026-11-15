@@ -11,7 +11,7 @@ function renderRuns() {
         <div class="card run-list" id="run-list"></div>
         <div class="card run-view" id="run-view"><div class="empty">${tr('Pick a run, or message a bot to start one.')}</div></div>
       </div>`;
-    $('#run-filter').onchange = renderRunList;
+    $('#run-filter').onchange = () => { state.runsEarlier = false; renderRunList(); };
   }
   const f = $('#run-filter');
   const cur = f.value;
@@ -29,25 +29,26 @@ function activityRuns() {
 }
 
 // Activity's rows: first what needs a look (a run at work or waiting its turn, and today the newest run of a
-// bot in a place when it failed or asks the owner), then the rest of today, then the days before behind "Show
-// earlier". The runs of one bot in one place on one day are one row, at its newest run, that opens to them all.
+// bot in its chat or a group when it failed or asks the owner), then the rest of today, then the days before behind
+// "Show earlier". A bot's runs in its own chat, or its turns in one group, on one day are one row at its newest run,
+// opening to them all.
 function activityRows(runs, now = Date.now()) {
   const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
   const at = (r) => new Date(r.startedAt || 0);
   const today = (r) => at(r) >= midnight;
-  const place = (r) => `${r.botId}|${r.groupId || ''}`;
+  const chatOf = (r) => `${r.botId}|${r.groupId || ''}`;
   const newest = new Map();
-  for (const r of runs) if (!newest.has(place(r))) newest.set(place(r), r.id); // the runs come newest first
+  for (const r of runs) if (!newest.has(chatOf(r))) newest.set(chatOf(r), r.id); // the runs come newest first
   const pinned = (r) => r.status === 'running' || r.status === 'queued'
-    || (today(r) && newest.get(place(r)) === r.id && (r.status === 'error' || !!r.asks));
+    || (today(r) && newest.get(chatOf(r)) === r.id && (r.status === 'error' || r.status === 'interrupted' || !!r.asks));
   const first = [];
   const top = [];
   const earlier = [];
   const rows = new Map();
   for (const r of runs) {
     if (pinned(r)) { first.push({ key: `run|${r.id}`, runs: [r] }); continue; }
-    const key = `${place(r)}|${at(r).toDateString()}`;
+    const key = `${chatOf(r)}|${at(r).toDateString()}`;
     if (!rows.has(key)) {
       rows.set(key, { key, runs: [] });
       (today(r) ? top : earlier).push(rows.get(key));
@@ -71,17 +72,17 @@ function runItem(r) {
       </button>`;
 }
 
-// A row of several runs opens to them in place; the one open in the run view keeps its row open.
+// A row of several runs opens to them where it stands; the one holding the run in the view starts open.
 function runRow(row) {
   if (row.runs.length === 1) return runItem(row.runs[0]);
   const [r] = row.runs;
-  const open = state.runsOpen.has(row.key) || row.runs.some((x) => x.id === state.selectedRun);
+  const open = state.runsOpen.get(row.key) ?? row.runs.some((x) => x.id === state.selectedRun);
   return `
       <button class="run-item run-group" data-key="${esc(row.key)}" aria-expanded="${open}" style="--bot-color:${esc(r.botColor || '#6c7cff')}">
         ${runFigure(r)}
         <div class="grow">
           <div class="title">${runTitle(r)}</div>
-          <div class="sub">${ago(r.startedAt)} · ${trn(row.runs.length, '{n} runs', '{n} runs')}</div>
+          <div class="sub">${ago(r.startedAt)} · ${trn(row.runs.length, '{n} run', '{n} runs')}</div>
         </div>
         ${CHEV}
       </button>${open ? `<div class="run-sub">${row.runs.map(runItem).join('')}</div>` : ''}`;
@@ -97,7 +98,7 @@ function renderRunList() {
     : `<div class="empty" style="padding:30px">${tr('No runs yet')}</div>`;
   $$('.run-item[data-id]').forEach((el) => (el.onclick = () => openRun(el.dataset.id)));
   $$('.run-group').forEach((el) => (el.onclick = () => {
-    if (!state.runsOpen.delete(el.dataset.key)) state.runsOpen.add(el.dataset.key);
+    state.runsOpen.set(el.dataset.key, el.getAttribute('aria-expanded') !== 'true');
     renderRunList();
   }));
   const more = $('.run-more');

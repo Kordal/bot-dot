@@ -29,7 +29,7 @@ const state = {
   runs: [],
   status: null,
   selectedRun: null,
-  runsOpen: new Set(), // the rows of several runs opened in Activity
+  runsOpen: new Map(), // the rows of several runs in Activity the owner opened (true) or closed (false)
   runsEarlier: false, // "Show earlier" pressed in Activity
   runStream: null,
 };

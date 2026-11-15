@@ -60,7 +60,7 @@ function page(runs, extra = {}) {
   const buttons = [];
   const ctx = vm.createContext({
     ...words,
-    state: { runs, activity: [], selectedRun: null, runsOpen: new Set(), runsEarlier: false, ...extra },
+    state: { runs, activity: [], selectedRun: null, runsOpen: new Map(), runsEarlier: false, ...extra },
     $: (sel) => (sel === '#run-list' ? list : null),
     $$: () => buttons,
     esc: (s) => String(s ?? ''),
@@ -71,15 +71,15 @@ function page(runs, extra = {}) {
     statusPill: (s) => `<span class="pill">${s}</span>`,
     CHEV: '<span class="bs-chev">›</span>',
   });
-  vm.runInContext(`${cut("// Activity's runs (#294)", 'function openRun(id)')} Object.assign(this, { renderRunList });`, ctx);
+  vm.runInContext(`Date.now = () => ${NOW}; ${cut("// Activity's runs (#294)", 'function openRun(id)')} Object.assign(this, { renderRunList });`, ctx);
   ctx.renderRunList();
   return list.innerHTML;
 }
 
 test('web: a folded row says how many runs it holds and opens in place; earlier days wait behind a button', () => {
   const runs = [
-    { id: 'a2', botId: 'a', botName: 'Reviewer', startedAt: new Date(Date.now() - 60_000).toISOString(), status: 'success' },
-    { id: 'a1', botId: 'a', botName: 'Reviewer', startedAt: new Date(Date.now() - 120_000).toISOString(), status: 'success' },
+    { id: 'a2', botId: 'a', botName: 'Reviewer', startedAt: at(14, 59), status: 'success' },
+    { id: 'a1', botId: 'a', botName: 'Reviewer', startedAt: at(14, 58), status: 'success' },
     { id: 'old', botId: 'a', botName: 'Reviewer', startedAt: '2020-01-01T10:00:00Z', status: 'success' },
   ];
   const html = page(runs);
@@ -89,8 +89,19 @@ test('web: a folded row says how many runs it holds and opens in place; earlier 
   assert.match(html, /class="run-more">Show earlier</);
   assert.doesNotMatch(html, /data-id="old"/);
   const open = page(runs, { selectedRun: 'a1', runsEarlier: true });
-  assert.match(open, /aria-expanded="true"/, 'the run open in the view keeps its row open');
+  assert.match(open, /aria-expanded="true"/, 'the row of the run in the view starts open');
   assert.match(open, /data-id="a1"/);
   assert.match(open, /data-id="old"/);
   assert.doesNotMatch(open, /run-more/);
+  const key = /data-key="([^"]+)"/.exec(open)[1];
+  const closed = page(runs, { selectedRun: 'a1', runsOpen: new Map([[key, false]]) });
+  assert.match(closed, /aria-expanded="false"/, 'and closes when the owner closes it');
+});
+
+test('web: an interrupted run of today comes first, as a failed one does', () => {
+  const { top } = rows([
+    { id: 'ok', botId: 'a', startedAt: at(14), status: 'success' },
+    { id: 'cut', botId: 'b', startedAt: at(13), status: 'interrupted' },
+  ]);
+  assert.deepEqual(top, [['cut'], ['ok']]);
 });
