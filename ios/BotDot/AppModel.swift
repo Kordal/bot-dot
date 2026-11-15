@@ -15,7 +15,10 @@ final class AppModel {
         case signedIn(String)
     }
 
-    private(set) var screen: Screen = .starting
+    private(set) var screen: Screen = .starting {
+        // The share extension sends through the botdot signed in to, and none once there is none.
+        didSet { if case .signedIn(let server) = screen { SharedAddress.write(server) } else if screen != .starting { SharedAddress.write(nil) } }
+    }
     var error: String?
     private(set) var busy = false
 

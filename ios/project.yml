@@ -27,6 +27,8 @@ targets:
       # The seal and the key the notification extension opens pushes with: the app makes the key and draws nothing.
       - BotDotNotify/Seal.swift
       - BotDotNotify/PushKey.swift
+      # The address the share extension sends through, written where it can read it.
+      - BotDotShare/SharedAddress.swift
       # The figure definition every app draws its bots from (ADR 003), the server's own file: a copy in the app, until
       # the server hands out its own.
       - path: ../lib/figure.json
@@ -36,6 +38,7 @@ targets:
       - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework
         embed: false
       - target: BotDotNotify
+      - target: BotDotShare
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.botdot
@@ -77,6 +80,44 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).NotificationService
     entitlements:
       path: BotDotNotify/BotDotNotify.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.botdot]
+        keychain-access-groups: [$(AppIdentifierPrefix)app.botdot]
+  # The share extension (#1373): Share → botdot in another app sends files, a link or words to a bot or the Chief,
+  # through the botdot the app is signed in to (its address in the App Group, its session in their Keychain group),
+  # with the shared data layer's rules (Share), linked here as in the app.
+  BotDotShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - BotDotShare
+      - BotDot/KeychainSessions.swift
+      - BotDot/I18n.swift
+      - BotDot/SharedSendable.swift
+    dependencies:
+      - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.botdot.share
+        PRODUCT_NAME: BotDotShare
+        OTHER_LDFLAGS: [-lc++]
+    info:
+      path: BotDotShare/Info.plist
+      properties:
+        CFBundleDisplayName: botdot
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ShareViewController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsFileWithMaxCount: 10
+              NSExtensionActivationSupportsImageWithMaxCount: 10
+              NSExtensionActivationSupportsMovieWithMaxCount: 10
+              NSExtensionActivationSupportsWebURLWithMaxCount: 1
+              NSExtensionActivationSupportsText: true
+    entitlements:
+      path: BotDotShare/BotDotShare.entitlements
       properties:
         com.apple.security.application-groups: [group.app.botdot]
         keychain-access-groups: [$(AppIdentifierPrefix)app.botdot]

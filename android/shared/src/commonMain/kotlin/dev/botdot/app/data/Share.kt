@@ -14,6 +14,9 @@ object Share {
     /** One row of the picker: the Chief first, then each bot by its name. */
     data class Pick(val id: String, val name: String, val line: String, val color: String?)
 
+    /** A share's message key: kept while it is tried again, so botdot takes it once. */
+    fun key(): String = newMessageKey()
+
     /** The picker's title: the files it carries, or the words when it carries none. */
     fun title(files: Int): String = when {
         files > 1 -> trn(files, "Send {n} file to…", "Send {n} files to…")
@@ -31,7 +34,7 @@ object Share {
      * botdot's. Nothing is sent when there is nothing to send. One key for the message, so a retry is taken once.
      */
     @Throws(Exception::class)
-    suspend fun send(api: Api, to: String, text: String, files: List<OutgoingFile>, key: String = newMessageKey()): String? {
+    suspend fun send(api: Api, to: String, text: String, files: List<OutgoingFile>, key: String = key()): String? {
         val words = text.trim()
         if (words.isEmpty() && files.isEmpty()) return tr("Nothing to send")
         return try {
