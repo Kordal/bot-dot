@@ -50,16 +50,25 @@ struct CompanySetupPage: View {
     private var content: some View {
         if let s = model.state {
             switch s.phase {
+            case .loading: loading(s)
             case .start: SetupStart(model: model, state: s)
             case .conversation: SetupConversation(state: s, chief: chiefName, onChief: openChief, onReview: model.review)
             case .review: SetupReview(model: model, state: s, figure: figure)
             case .creating: SetupCreating(state: s, figure: figure)
-            case .loading: loading(s)
-            default: SetupConversation(state: s, chief: chiefName, onChief: openChief, onReview: nil)
+            // A setup started without the conversation: its About and Team steps aren't on the iPhone yet; its start
+            // and the Chief's chat are.
+            case .steps: SetupConversation(state: s, chief: chiefName, onChief: openChief, onReview: nil)
+            // Approved and running: the project's own page, also on the New project path (no ProjectView around it).
+            case .running: running(s)
             }
         } else {
             ProgressView()
         }
+    }
+
+    @ViewBuilder
+    private func running(_ s: SetupState) -> some View {
+        if let c = s.company { ProjectView(home: home, id: c.id, figure: figure) } else { ProgressView() }
     }
 
     @ViewBuilder

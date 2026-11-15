@@ -57,8 +57,9 @@ class CompanySetupDeskTest {
         "starter":{"goals":[{"key":"g1","name":"Menu","target":10,"on":true}],"cards":[{"key":"k1","ask":"Orders","on":true}]},
         "proposal":[{"key":"a","name":"Ada","description":"Writes the menu","color":"#7f77dd"},{"key":"b","name":"Bo","description":"Checks prices"}]}"""
 
-    private fun TestScope.desk(fake: FakeBotdot, features: List<String> = talks, c: String? = null): Pair<Store, CompanySetupDesk> {
-        val store = Store(backgroundScope, MutableStateFlow(null))
+    /** [reads]: the Store reads botdot itself too (a refused save reads the project back). */
+    private fun TestScope.desk(fake: FakeBotdot, features: List<String> = talks, c: String? = null, reads: Boolean = false): Pair<Store, CompanySetupDesk> {
+        val store = Store(backgroundScope, MutableStateFlow(if (reads) fake.api else null))
         store.version.set(VersionInfo(features = features))
         store.bots.set(emptyList())
         store.company.set(CompanyHeld(c?.let(CompanySetup::of)))
@@ -186,6 +187,104 @@ class CompanySetupDeskTest {
         assertFalse(desk.approve())
         until("refused: back on the review, saying why") { desk.state.value.phase == SetupPhase.REVIEW && desk.state.value.notice == "The proposal changed." }
         assertEquals("p1", store.company.value.value?.company?.id)
+    }
+
+    @Test fun twoChiefTapsAtOnceOpenOneChat() = runTest {
+        // A project whose first message is not sent yet: its Chief chat is opened (made) by the first tap.
+        val opening = talking.replace("\"creationSent\":true", "\"creationSent\":false")
+        repeat(20) { round ->
+            val held = CompletableDeferred<Unit>()
+            val fake = FakeBotdot { a -> if (a.method == "POST" && a.path == "/company/chief-chat") { held.await(); 200 to """{"chatId":"c1"}""" } else 200 to "{}" }
+            val (_, desk) = desk(fake, c = opening)
+            runCurrent()
+            val taps = List(2) { async(Dispatchers.Default) { desk.chiefChat() } }
+            withContext(Dispatchers.Default) { while (fake.asked().none { it.path == "/company/chief-chat" }) delay(1); delay(20) }
+            held.complete(Unit)
+            assertEquals(1, taps.awaitAll().count { it == "c1" }, "round $round: one tap opens it")
+            assertEquals(1, fake.asked().count { it.path == "/company/chief-chat" }, "round $round: one chat is made")
+        }
+    }
+
+    @Test fun startFromScratchMakesAnEmptyProjectNamedAsTyped() = runTest {
+        val fake = FakeBotdot { a -> if (a.method == "POST" && a.path == "/company") 200 to talking.replace("\"conversation\":true", "\"conversation\":false") else 200 to "{}" }
+        val (_, desk) = desk(fake, features = listOf(CompanySetup.FEATURE, CompanySetup.EMPTY))
+        runCurrent()
+        assertTrue(desk.state.value.scratch, "offered without the conversation")
+        assertFalse(desk.scratch("   "), "no name: nothing made")
+        assertTrue(desk.scratch("  Kitchen "))
+        val body = Api.JSON.parseToJsonElement(fake.asked().single { it.method == "POST" }.body).jsonObject
+        assertEquals("Kitchen", body.getValue("name").jsonPrimitive.content)
+        assertEquals("true", body.getValue("empty").jsonPrimitive.content)
+    }
+
+    @Test fun changeTheTeamSendsWhatWasTypedAndUndoTakesItBack() = runTest {
+        val fake = FakeBotdot { a ->
+            when (a.path) {
+                "/company/proposal/chat" -> 200 to proposed.replace("Checks prices", "Checks prices daily")
+                "/company/proposal/undo" -> 200 to proposed
+                else -> 200 to "{}"
+            }
+        }
+        val (_, desk) = desk(fake, c = proposed)
+        runCurrent()
+        desk.review()
+        assertFalse(desk.changeTeam("  "), "nothing typed: nothing sent")
+        assertTrue(desk.changeTeam(" Bo checks prices daily "))
+        assertEquals("""{"text":"Bo checks prices daily"}""", fake.asked().single { it.path == "/company/proposal/chat" }.body)
+        until("the change is drawn") { desk.state.value.proposed.last().description == "Checks prices daily" }
+        desk.undo()
+        until("undone") { desk.state.value.proposed.last().description == "Checks prices" }
+        assertEquals(1, fake.asked().count { it.path == "/company/proposal/undo" })
+    }
+
+    @Test fun aChangeOnItsWayHoldsApprove() = runTest {
+        val held = CompletableDeferred<Unit>()
+        val fake = FakeBotdot { a -> if (a.path == "/company/proposal/chat") { held.await(); 200 to proposed } else 200 to proposed }
+        val (_, desk) = desk(fake, c = proposed)
+        runCurrent()
+        desk.review()
+        val change = async(Dispatchers.Default) { desk.changeTeam("Add a cook") }
+        until("the change is on its way") { desk.state.value.sending }
+        assertFalse(desk.state.value.approveOn)
+        assertFalse(desk.approve(), "not while the Chief changes the team")
+        assertTrue(fake.asked().none { it.path == "/company/start" })
+        held.complete(Unit)
+        assertTrue(change.await())
+        until("Approve is on again") { desk.state.value.approveOn }
+    }
+
+    @Test fun aStarterTickAndANeverRemovedAreSavedAndARefusalPutsTheProjectBack() = runTest {
+        var refuse = false
+        var now = proposed // botdot's project, as its saves change it
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PATCH" && refuse -> 409 to """{"error":"The setup moved on."}"""
+                a.method == "PATCH" -> {
+                    if ("starter" in a.body) now = now.replace(""""ask":"Orders","on":true""", """"ask":"Orders","on":false""")
+                    if ("never" in a.body) now = now.replace(""""never":["Pay","Post"]""", """"never":["Post"]""")
+                    200 to now
+                }
+                a.method == "GET" && a.path == "/company" -> 200 to """{"company":$now}"""
+                a.method == "GET" && a.path == "/version" -> 200 to """{"features":${talks.joinToString(",", "[", "]") { "\"$it\"" }}}"""
+                else -> 200 to "{}"
+            }
+        }
+        val (_, desk) = desk(fake, c = proposed, reads = true)
+        runCurrent()
+        desk.review()
+        desk.tick("k1", false)
+        until("unticked at once") { desk.state.value.starter.single { it.key == "k1" }.on.not() }
+        until("saved") { fake.asked().any { it.method == "PATCH" } }
+        assertTrue(fake.asked().first { it.method == "PATCH" }.body.contains("\"starter\""))
+        desk.removeNever(0)
+        until("gone at once") { desk.state.value.never == listOf("Post") }
+        until("saved") { fake.asked().count { it.method == "PATCH" } == 2 }
+        assertEquals("""{"never":["Post"]}""", fake.asked().last { it.method == "PATCH" }.body)
+
+        refuse = true
+        desk.removeNever(0)
+        until("refused: botdot's project is back") { desk.state.value.never == listOf("Post") && desk.state.value.notice == "The setup moved on." }
+        assertFalse(desk.state.value.starter.single { it.key == "k1" }.on, "and what was saved before stays")
     }
 
     @Test fun deleteAsksWhetherTheFolderGoesAndTheStartScreenFollows() = runTest {
