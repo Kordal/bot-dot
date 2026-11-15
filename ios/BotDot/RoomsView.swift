@@ -279,13 +279,14 @@ struct RoomLineView: View {
     }
 }
 
-/// A message's bubble: Markdown as the server's text has it, selectable; this account's own tinted.
+/// A message's bubble: its inline Markdown through the shared parser (MarkdownView.inline, as the other chats: only the
+/// links it allows are tappable), selectable; this account's own tinted.
 struct Bubble: View {
     let text: String
     let mine: Bool
 
     var body: some View {
-        Text((try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(text))
+        Text(MarkdownView.inline(text))
             .textSelection(.enabled)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
