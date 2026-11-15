@@ -177,14 +177,15 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
             if (claimed) it.copy(handing = true) else it
         }
         if (!claimed) return false
-        var failed: String? = tr("Couldn't hand it back")
-        try {
-            failed = ComputerScreen.handBack(api, botId)
-        } finally {
-            // Let go together with what it came to: no moment when it is neither on its way nor closed.
-            val f = failed
-            own.update { if (f == null) it.copy(handing = false, closed = true) else it.copy(handing = false, notice = f, noticeId = it.noticeId + 1) }
+        val failed = try {
+            ComputerScreen.handBack(api, botId)
+        } catch (e: CancellationException) {
+            // Cancelled (the screen left): let go, saying nothing went wrong.
+            own.update { it.copy(handing = false) }
+            throw e
         }
+        // Let go together with what it came to: no moment when it is neither on its way nor closed.
+        own.update { if (failed == null) it.copy(handing = false, closed = true) else it.copy(handing = false, notice = failed, noticeId = it.noticeId + 1) }
         return failed == null
     }
 
