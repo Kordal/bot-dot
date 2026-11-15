@@ -11,11 +11,10 @@ test('web: Needs you on the overview holds the cards and the questions, and is g
   const home = read('public', 'company-home.js');
   const body = home.slice(home.indexOf('function overviewHome('), home.indexOf('function teamHome('));
   assert.match(body, /\$\{items\.length \|\| questions\.length \? `<section class="po-section"><h2>\$\{tr\('Needs you'\)\}<\/h2>\$\{ProjectOverview\.rows\(questions\)\}\$\{needsHTML\(c, items\)\}<\/section>` : ''\}/);
-  assert.ok(body.indexOf('ProjectOverview.html(c)') < body.indexOf('ProjectOverview.questions(c)')); // the snapshot is asked for first
-  assert.ok(body.includes("ProjectOverview.questions(c).filter((q) => !q.chatId || !items.some((x) => x.a?.chatId === q.chatId))")); // a carded chat's question once
+  assert.ok(body.indexOf('ProjectOverview.html(c)') < body.indexOf('ProjectOverview.questions(c, items)')); // the snapshot is asked for first
+  assert.ok(body.includes('ProjectOverview.questions(c, items)')); // a carded chat's question once
   const po = read('public', 'project-overview.js');
   assert.match(po, /rows\(d\.blockers\.filter\(\(x\) => x\.state !== 'asks'\), tr\('No failed work\.'\)\)/); // not shown twice
-  assert.match(po, /const questions = \(c\) => \(stateOf\(c\.id\)\.data\?\.blockers \|\| \[\]\)\.filter\(\(x\) => x\.state === 'asks'\)/);
 });
 
 test('web: the overview rows draw nothing for an empty list without an empty line', () => {
@@ -30,7 +29,7 @@ test('web: the overview rows draw nothing for an empty list without an empty lin
   assert.equal(PO.questions({ id: 'none' }).length, 0);
 });
 
-// The Android logic is tested in shared/src/commonTest (ProjectOverviewTest); this only checks the screen uses it.
+// The Android logic is tested in shared/src/commonTest (ProjectOverviewNeedsYouTest); this only checks the screen uses it.
 test('Android: the overview screen uses the shared Needs you rule', () => {
   const dir = ['android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui'];
   assert.ok(read(...dir, 'CompanyHome.kt').includes('ProjectOverview.needsYouShows('));
@@ -60,4 +59,8 @@ test('web: a waiting question comes out of Blockers into the questions Needs you
   assert.match(blockers, /Build broke/);
   assert.doesNotMatch(blockers, /Go ahead with the fix\?/); // not under Blockers too
   assert.equal(html.split('Go ahead with the fix?').length - 1, 0); // the overview itself does not draw it: Needs you does
+  // The Chief's question in a chat that has a card there is the card's; without the card it is drawn.
+  snapshot.blockers.push({ id: 'chief', chatId: 'c1', name: 'Chief', state: 'asks', text: 'Approve the team?', at: 'x' });
+  assert.deepEqual(PO.questions(c, [{ a: { chatId: 'c1' } }]).map((x) => x.id), ['r1']);
+  assert.deepEqual(PO.questions(c, [{ a: { chatId: 'other' } }]).map((x) => x.id), ['r1', 'chief']);
 });

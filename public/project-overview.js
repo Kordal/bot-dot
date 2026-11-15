@@ -48,6 +48,7 @@ const ProjectOverview = (() => {
   }
   setInterval(() => { if (!document.hidden && state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);
   // The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers.
-  const questions = (c) => (stateOf(c.id).data?.blockers || []).filter((x) => x.state === 'asks');
+  // A question in a chat that already has a card in Needs you (the Chief's) is that card's: shown once, as the card.
+  const questions = (c, cards = []) => (stateOf(c.id).data?.blockers || []).filter((x) => x.state === 'asks' && (!x.chatId || !cards.some((k) => k.a?.chatId === x.chatId)));
   return { html, wire, rows, questions, sig: (id) => snapshots.get(id) || null };
 })();
