@@ -253,6 +253,12 @@ test('a new week is due once a plan of it was neither drafted nor asked for', ()
   assert.match(s.promptNote(), /This week's plan \(waits for the owner\): y/);
   assert.match(s.promptNote(), /The day 30 check-in waits for the owner\./);
   assert.match(s.promptNote(), /suggest_company_bot/);
+  // One item per thing: ten are kept, eleven are refused, not cut, so the Chief knows.
+  const ten = Array.from({ length: 10 }, (_, i) => ({ text: `item ${i + 1}` }));
+  s.setPlan({ items: ten });
+  assert.deepEqual(s.read().plan.items.map((x) => x.text), ten.map((x) => x.text));
+  assert.throws(() => s.setPlan({ items: [...ten, { text: 'item 11' }] }), /At most 10 items: one thing each/);
+  assert.equal(s.read().plan.items.length, 10, 'a refused plan leaves the one there was');
   fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z' }));
   assert.equal(s.planDue(), null, 'not for a project with no team (#1085)');
   fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'setup' }));

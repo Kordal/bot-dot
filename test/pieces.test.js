@@ -271,6 +271,12 @@ test("every object a Chief's tool takes lists its fields, or a call with any fie
   assert.deepEqual(bare, []);
 });
 
+test("the week's plan: one item per thing, up to 10, as the store keeps", async (t) => {
+  const plan = (await chiefTools(t).list()).find((x) => x.name === 'set_company_plan');
+  assert.match(plan.description, /one item per thing \(never two in one\), up to 10/);
+  assert.equal(plan.inputSchema.properties.items.maxItems, 10);
+});
+
 test("the Chief's tools speak of an icon and a hat: the kit is listed to choose from, a hat is set and changed, a wrong name comes back with the right ones", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
