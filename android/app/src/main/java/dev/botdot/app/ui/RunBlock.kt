@@ -138,9 +138,8 @@ fun StepLine(r: Run, line: String?, count: Int, held: Boolean, color: String?, o
     val skills = remember(r) { RunSteps.skills(r) }
     val bots = remember(r) { RunSteps.messaged(r) }
     val took = if (r.isRunning) "" else RunSteps.took(r.startedAt, r.endedAt)
-    val now = when { held -> OpeningLine.WAITING_FOR_OK; !line.isNullOrBlank() -> line; else -> tr("Working") }
-    val label = if (r.isRunning) listOf(now, RunSteps.countWords(count)).filter { it.isNotEmpty() }.joinToString(", ")
-    else (listOf(RunSteps.countWords(count)) + skills.map { tr("the skill {name}", "name" to it) } + bots.map { it.name } + took).filter { it.isNotEmpty() }.joinToString(", ")
+    val now = RunSteps.now(line, held)
+    val label = RunSteps.label(r, line, count, held)
     Column {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 32.dp),

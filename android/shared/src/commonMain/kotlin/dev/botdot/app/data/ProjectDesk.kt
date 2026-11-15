@@ -126,8 +126,17 @@ class ProjectState(
     val standup: Boolean = false,
     /** Its settings' Vault logins (`project-logins`). */
     val logins: Boolean = false,
-    /** Its Overview (ADR 236), from a botdot with `project-overview`: drawn again when the features come. */
+    /** Its Overview as a page (ADR 236), from a botdot with `project-overview` but not `overview-board`: drawn again when the features come. */
     val overview: Boolean = false,
+    /**
+     * The overview is the board (`overview-board`, ADR 245): Needs you at the top when something waits ([needsYou]),
+     * then Current work and Blockers ([overviewTop]), and Latest replies at the end ([replies]), from [recorded].
+     */
+    val board: Boolean = false,
+    val recorded: OverviewState = OverviewState(),
+    val needsYou: NeedsYou? = null,
+    val overviewTop: List<String> = emptyList(),
+    val replies: Boolean = false,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -188,6 +197,8 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         /** The projects whose Chief chat is being made: a second tap meanwhile asks nothing. */
         val openingChief: Set<String> = emptySet(),
         val notice: String? = null, val noticeCount: Int = 0,
+        /** The board's overview tiles' snapshot (overview-board), read while the page is followed. */
+        val recorded: OverviewState = OverviewState(),
     )
     private val local = MutableStateFlow(Local())
 
@@ -203,6 +214,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     private var cardsBefore: List<ProjectCard> = emptyList()
     private var cardsOf: String? = null
     private var filesJob: Job? = null
+    private var overviewJob: Job? = null
     private val _state = MutableStateFlow(stateOf(null, emptyList(), null, null, null, emptyList(), null, null, null, emptyMap(), ChiefName.role, Local()))
     /** Everything the page draws; each change of the Store or of a tap here sends a new one. */
     val state: StateFlow<ProjectState> = _state
@@ -264,6 +276,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             else ProjectChat(route, null, chiefName, ProjectRules.chatWaiting(route, c, chief, needs))
         }
         val ownBots = ProjectBots.FEATURE in f
+        val board = c != null && ProjectOverview.BOARD in f
         return ProjectState(
             shows = CompanySetup.shows(features),
             spaces = Spaces.list(projects, bots, waiting),
@@ -277,7 +290,12 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             updates = ProjectUpdates.FEATURE in f,
             rhythms = ProjectUpdates.FEATURE !in f && CompanyFloor.LEADS in f,
             standup = ProjectUpdates.FEATURE !in f && ProjectStandup.FEATURE in f,
-            overview = c != null && Overviews.shows(f),
+            overview = c != null && Overviews.page(f),
+            board = board,
+            recorded = x.recorded,
+            needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
+            overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
+            replies = board && on("replies"),
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
@@ -637,13 +655,29 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     // ---------- the Files tile ----------
 
     /**
-     * The Files tile's newest files, asked when the page shows and each minute while it does ([ProjectFiles.AGAIN_MS]);
-     * [on] false stops it. Nothing is asked of a botdot or a project without the tile.
+     * The Files tile's newest files, asked when the page shows and each minute while it does ([ProjectFiles.AGAIN_MS]),
+     * and on a botdot with overview-board the board's overview tiles ([ProjectState.recorded]); [on] false stops both.
+     * Nothing is asked of a botdot or a project without them.
      */
     fun follow(on: Boolean) {
         filesJob?.cancel()
         filesJob = null
+        overviewJob?.cancel()
+        overviewJob = null
         if (!on) return
+        // The board's overview tiles (overview-board): what botdot recorded, every [OverviewDesk.everyMs], no files.
+        overviewJob = scope.launch {
+            state.map { s -> s.project?.id?.takeIf { s.board } }.distinctUntilChanged().collectLatest { id ->
+                local.update { it.copy(recorded = OverviewState()) }
+                if (id == null) return@collectLatest
+                val desk = OverviewDesk(api, id)
+                while (true) {
+                    desk.readRecorded()
+                    if (company()?.id == id) local.update { it.copy(recorded = desk.state.value) }
+                    delay(desk.everyMs)
+                }
+            }
+        }
         filesJob = scope.launch {
             state.map { s -> s.project?.id?.takeIf { s.filesTile } }.distinctUntilChanged().collectLatest { id ->
                 local.update { it.copy(files = emptyList()) }

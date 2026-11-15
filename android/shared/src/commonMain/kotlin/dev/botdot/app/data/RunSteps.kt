@@ -54,6 +54,17 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
         /** What the line says of a finished run's count: "23 steps", or "" for none. */
         fun countWords(n: Int): String = if (n <= 0) "" else trn(n, "{n} step", "{n} steps")
 
+        /** What a run at work says it does on its step line: waiting for an OK, its [line], else Working. */
+        fun now(line: String?, held: Boolean): String = when { held -> OpeningLine.WAITING_FOR_OK; !line.isNullOrBlank() -> line; else -> tr("Working") }
+
+        /**
+         * A run's step line in words (#625, #636): at work, what it does and its [count] of steps; finished, its
+         * steps, the skills it used, the bots it messaged and how long it took ("23 steps, backup-check, Infra Admin, 7 min").
+         */
+        fun label(r: Run, line: String?, count: Int, held: Boolean): String =
+            if (r.isRunning) listOf(now(line, held), countWords(count)).filter { it.isNotEmpty() }.joinToString(", ")
+            else (listOf(countWords(count)) + skills(r).map { tr("the skill {name}", "name" to it) } + messaged(r).map { it.name } + took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(", ")
+
         /** A message's first line, as one plain line of at most 160 characters. */
         fun firstLine(text: String?): String = plainText(text.orEmpty().lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()).trim().take(160)
 
