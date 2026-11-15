@@ -11,7 +11,7 @@ A project had two pages: the fixed overview (Needs you, Goal, Current work, Bloc
 
 - On a server with `overview-board`, the board is the project's one page. Needs you, Current work, Blockers and Latest replies are board pieces and tiles (`needs`, `work`, `blockers`, `replies`), drawn from the same overview snapshot. Goal is gone; the overview's Files is the board's Files tile.
 - The four are put once at the top of every board (`overviewOn`), as Files was (`filesOn`). Needs you shows only when something waits.
-- The Chief's `arrange_project_board` and a team bot's `arrange_project_board` hide and show any piece, besides placing tiles. The owner puts a piece back with New card's picks; taking one off is by chat, as AGENTS rule 5 asks.
+- The Chief's `arrange_project_board` and a team bot's `arrange_project_board` hide and show any piece, besides placing tiles. Taking one off (Needs you among them, where what waits for the owner shows) is the Chief's only in a turn the owner started by asking, and a bot's only in a run the owner started that read nothing from outside, so read content never hides what waits. The owner puts a piece back with New card's picks; taking one off is by chat, as AGENTS rule 5 asks.
 - Team stays the secondary entry (ADR 238): the team rows leave the board for it.
 - Older servers keep the overview with its Board entry; the overview endpoint is unchanged but for its dropped `goal`.
 
