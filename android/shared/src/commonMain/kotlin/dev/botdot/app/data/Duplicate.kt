@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 /**
@@ -48,9 +49,12 @@ class DuplicateState(val plan: CopyPlan? = null, val name: String = "", val busy
  * "Duplicate" for both phones (#227, #478; Android's settings): [ask] reads what the copy gets, the name can be
  * changed, and [go] makes the copy, saying "Duplicating…", then the copy's id (its chat opens) or botdot's sentence.
  */
-class DuplicateDesk(private val api: Api, private val botId: String, private val botName: String) {
+class DuplicateDesk(private val api: Api, private val botId: String, private val botName: String, private val scope: kotlinx.coroutines.CoroutineScope) {
     private val _state = kotlinx.coroutines.flow.MutableStateFlow(DuplicateState())
     val state: kotlinx.coroutines.flow.StateFlow<DuplicateState> = _state
+
+    /** Calls [onChange] with the state now and after every change (Duplicating… while the copy is made), until the job is cancelled. */
+    fun watch(onChange: (DuplicateState) -> Unit): kotlinx.coroutines.Job = scope.launch { state.collect { onChange(it) } }
 
     private fun say(text: String) { val s = _state.value; _state.value = DuplicateState(s.plan, s.name, false, text, s.noticeCount + 1) }
 

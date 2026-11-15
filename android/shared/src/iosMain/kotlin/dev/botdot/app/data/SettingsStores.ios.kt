@@ -34,7 +34,7 @@ class BotSettingsStore(home: HomeStore, private val botId: String) {
     fun deleteText(): String = desk.deleteText()
 
     /** Duplicate (#227): what the copy gets, its name, the copy made. */
-    fun duplicate(name: String): DuplicateDesk = DuplicateDesk(api, botId, name)
+    fun duplicate(name: String): DuplicateDesk = DuplicateDesk(api, botId, name, scope)
 
     fun close() = scope.cancel()
 }

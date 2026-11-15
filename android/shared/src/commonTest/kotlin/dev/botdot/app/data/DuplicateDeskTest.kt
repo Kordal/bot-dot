@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,7 +19,7 @@ class DuplicateDeskTest {
                 else -> 200 to """{"id":"b9","name":"Coder 3"}"""
             }
         }
-        val desk = DuplicateDesk(server.api, "b1", "Coder")
+        val desk = DuplicateDesk(server.api, "b1", "Coder", backgroundScope)
         assertTrue(desk.ask())
         with(desk.state.value) {
             assertEquals("Coder 2", name)
@@ -34,18 +35,23 @@ class DuplicateDeskTest {
         assertEquals("Too many bots", desk.state.value.notice)
         assertTrue(desk.state.value.plan != null, "refused: the confirmation stays, as it was")
         refuse = false
+        val seen = mutableListOf<Boolean>()
+        desk.watch { seen += it.busy }
+        runCurrent()
         assertEquals("b9", desk.go())
+        runCurrent()
+        assertTrue(true in seen, "busy shows while the copy is made")
         assertEquals("Coder 3 made", desk.state.value.notice)
         assertNull(desk.state.value.plan)
         assertTrue("\"name\":\"Coder 3\"" in server.posts().last().body)
     }
 
     @Test fun aLockedVaultWaitsAndAFailedReadSaysWhy() = runTest {
-        val locked = DuplicateDesk(FakeServer { 200 to """{"name":"Coder 2","vaultLocked":true}""" }.api, "b1", "Coder")
+        val locked = DuplicateDesk(FakeServer { 200 to """{"name":"Coder 2","vaultLocked":true}""" }.api, "b1", "Coder", backgroundScope)
         locked.ask()
         assertFalse(locked.state.value.canGo, "Bitwarden locked: unlock it first")
         assertTrue(locked.state.value.text.contains("Bitwarden is locked"))
-        val down = DuplicateDesk(FakeServer { 503 to """{"error":"botdot is restarting"}""" }.api, "b1", "Coder")
+        val down = DuplicateDesk(FakeServer { 503 to """{"error":"botdot is restarting"}""" }.api, "b1", "Coder", backgroundScope)
         assertFalse(down.ask())
         assertEquals("botdot is restarting", down.state.value.notice)
     }
