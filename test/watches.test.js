@@ -16,6 +16,7 @@ function github(state) {
     if (/\/pulls\/\d+$/.test(url)) return state.pr ? res(state.pr) : res({ message: 'Not Found' }, 404);
     if (/\/reviews/.test(url)) return res(state.reviews || []);
     if (/\/check-runs/.test(url)) return res({ total_count: (state.checks || []).length, check_runs: state.checks || [] });
+    if (/\/status$/.test(url)) return res({ state: 'success', statuses: [] });
     return res('?', 404);
   };
 }
@@ -86,6 +87,8 @@ test('checks wait for every check run of the newest commit; review for a new rev
   assert.match(r.watch.state, /1 of 2 checks done/);
   gh.checks[1] = { name: 'test', status: 'completed', conclusion: 'failure' };
   await w.tick(later(6));
+  assert.equal(fired.length, 0, 'all done once: one more read, as more runs may come');
+  await w.tick(later(12));
   assert.equal(fired.length, 1);
   assert.match(fired[0].read, /2 of 2 checks done, failed: test/);
 
@@ -98,6 +101,30 @@ test('checks wait for every check run of the newest commit; review for a new rev
   await w.tick(later(12));
   assert.equal(fired.length, 2);
   assert.match(fired[1].read, /last review by y: APPROVED/);
+});
+
+test('checks right after a push: a run made later, and a commit status, keep it waiting', async () => {
+  const gh = { pr: { title: 'X', state: 'open', merged: false, head: { sha: 'bbb' } }, checks: [{ name: 'lint', status: 'completed', conclusion: 'success' }] };
+  const base = github(gh);
+  let statuses = [];
+  const get = async (w2, url) => (/\/status$/.test(url) ? res({ state: statuses.some((x) => x.state === 'pending') ? 'pending' : 'success', statuses }) : base(w2, url));
+  const { w, fired } = harness(get);
+  await w.add({ repo: 'a/b', number: 2, until: 'checks', then: 'x' }, { botId: 'b1' });
+  gh.checks.push({ name: 'test', status: 'queued' }); // made after the first read
+  await w.tick(later(6));
+  await w.tick(later(12));
+  assert.equal(fired.length, 0, 'test is still queued');
+  gh.checks[1] = { name: 'test', status: 'completed', conclusion: 'success' };
+  statuses = [{ context: 'deploy/preview', state: 'pending' }];
+  await w.tick(later(18));
+  await w.tick(later(24));
+  assert.equal(fired.length, 0, 'a commit status is still pending');
+  statuses = [{ context: 'deploy/preview', state: 'success' }];
+  await w.tick(later(30));
+  assert.equal(fired.length, 0, 'done once');
+  await w.tick(later(36));
+  assert.equal(fired.length, 1);
+  assert.match(fired[0].read, /3 of 3 checks done/);
 });
 
 test("something that is already so is said instead of watched, and one that can't be read is refused", async () => {
