@@ -314,8 +314,12 @@ struct ShareSheet: UIViewControllerRepresentable {
 /// the phone's own previewer (QuickLook). The ⋯ menu copies its text and shares the file.
 struct ViewerView: View {
     let opening: DocumentView.Opening
-    @State private var model: ViewerModel
-    @State private var sharing: SharedFile?
+    // Not private: the interactive page's part of the view is in InteractivePageView.swift.
+    @State var model: ViewerModel
+    @State var sharing: SharedFile?
+    /// An interactive page: its frame alone, the bars hidden; its versions' sheet.
+    @State var full = false
+    @State var versions = false
 
     init(api: Api, opening: DocumentView.Opening) {
         self.opening = opening
@@ -341,6 +345,14 @@ struct ViewerView: View {
             }
             .overlay(alignment: .bottom) { Notice(text: $model.notice) }
             .sheet(item: $sharing) { ShareSheet(url: $0.url) }
+            .sheet(isPresented: $versions) {
+                if let site = model.viewed?.site {
+                    VersionsSheet(title: opening.name, site: site,
+                                  onShow: { n in versions = false; Task { await model.show(version: n == Int(site.current) ? nil : n) } },
+                                  onCurrent: { n in versions = false; Task { await model.setVersion(n) } })
+                }
+            }
+            .toolbar(full ? .hidden : .visible, for: .navigationBar)
             .task { await model.load() }
     }
 
@@ -358,7 +370,9 @@ struct ViewerView: View {
                         Button(tr("Start the computer")) { Task { await model.startComputer() } }.buttonStyle(.borderedProminent)
                     }
                 }
-            case .failed, .interactive:
+            case .interactive:
+                if let site = viewed.site { interactive(site) }
+            case .failed:
                 ContentUnavailableView(tr("Couldn't open it"), systemImage: "exclamationmark.triangle", description: Text(viewed.failed ?? ""))
             case .loading:
                 ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -391,6 +405,8 @@ struct ViewerView: View {
             }
             if viewed.table(mode: model.mode) {
                 CsvTable(viewer: model.viewer, text: v.text ?? "")
+            } else if viewed.rendered(mode: model.mode) {
+                ScrollView { MarkdownView(text: v.text ?? "").textSelection(.enabled).padding() }
             } else {
                 Lines(lines: model.viewer.lines(text: v.text ?? ""))
             }

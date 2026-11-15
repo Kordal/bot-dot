@@ -74,4 +74,14 @@ final class FilesTests: XCTestCase {
 private final class FirstOnly: @unchecked Sendable {
     private var taken = false
     func take() -> Bool { if taken { return false }; taken = true; return true }
+
+    /// A bot's page: opened as a page (its slug), its versions said with the shared words.
+    func testAPageOpensAsAPageAndItsVersionsDraw() {
+        let o = DocumentView.shared.ofPage(botId: "b1", slug: "news", title: "News", from: "Scout")
+        XCTAssertEqual(o.slug, "news")
+        XCTAssertTrue(DocumentViewer(api: unreachableApi(), opening: o).page)
+        let site = InteractiveView(current: 2, shown: 2, versions: [SiteVersion(n: 2, at: nil, bytes: 10, files: 1), SiteVersion(n: 1, at: nil, bytes: 9, files: 1)],
+                                   frame: nil, expires: nil, values: nil, tiles: [])
+        XCTAssertEqual(InteractivePages.shared.versionTitle(v: site.versions[0], current: site.current), "Version 2 · on the page")
+    }
 }

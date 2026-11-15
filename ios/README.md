@@ -74,8 +74,8 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView` (left: search, picking the Board's tiles shown on Home) |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
-| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile opens nothing yet) |
-| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | left (#1372): the viewer shows files, not pages |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks) |
+| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`) (left: a chat's page links, page blocks) |
 | `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
@@ -90,7 +90,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView`; a new group from a bot's chat, its "+" (`NewGroupSheet`) |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings, Home's ⋯ | `FilesView`, `ViewerView` (left: Move or Copy, Export, Keep it up to date, On Board) |
 | `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
-| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView`, a bot's scheduled jobs (`JobsView`) (left: the Chief's settings, Skills, Pages, Storage, most of a bot's settings) |
+| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView`, a bot's scheduled jobs (`JobsView`) , every bot's pages (`PagesView`) (left: the Chief's settings, Skills, Storage, most of a bot's settings) |
 | `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings, Home's ⋯ | `ScreenView` |
 | `ShareScreen` (`share`) | another app's Share | #1373 |
 | `AppUpdateRow` | Home, Settings | none: the App Store updates the iPhone app |
