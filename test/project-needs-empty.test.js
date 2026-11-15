@@ -38,3 +38,25 @@ test('Android: Needs you on the overview holds the cards and the questions, and 
   assert.match(po, /val \(questions, blockers\) = snapshot\?\.blockers\.orEmpty\(\)\.partition \{ it\.state == "asks" \}/);
   assert.match(po, /OverviewRows\(blockers, ::open, tr\("No failed work\."\)\)/);
 });
+
+test('web: a waiting question comes out of Blockers into the questions Needs you shows, once', async () => {
+  const vm = require('node:vm');
+  const snapshot = { projectId: 'p1', at: 'x', work: [], replies: [], blockers: [
+    { id: 'r1', botId: 'b1', name: 'Issue Reviewer', state: 'asks', text: 'Go ahead with the fix?', at: 'x' },
+    { id: 'r2', botId: 'b2', name: 'Coder', state: 'failed', text: 'Build broke', at: 'x' },
+  ] };
+  const ctx = { state: { company: null }, tr: (s) => s, esc: (s) => String(s), ago: () => 'now', setInterval: () => 0, document: {}, Company: { place: () => '' }, Dock: { docked: () => false }, Files: {},
+    api: (p) => Promise.resolve(p.startsWith('/company/overview') ? snapshot : { files: [] }) };
+  vm.createContext(ctx);
+  vm.runInContext(`${read('public', 'project-overview.js')}\nthis.ProjectOverview = ProjectOverview;`, ctx);
+  const PO = ctx.ProjectOverview;
+  const c = { id: 'p1', goal: '' };
+  PO.html(c);
+  await new Promise((r) => setTimeout(r, 10));
+  assert.deepEqual(PO.questions(c).map((x) => x.id), ['r1']);
+  const html = PO.html(c);
+  const blockers = html.slice(html.indexOf('<h2>Blockers</h2>'), html.indexOf('<h2>Latest replies</h2>'));
+  assert.match(blockers, /Build broke/);
+  assert.doesNotMatch(blockers, /Go ahead with the fix\?/); // not under Blockers too
+  assert.equal(html.split('Go ahead with the fix?').length - 1, 0); // the overview itself does not draw it: Needs you does
+});
