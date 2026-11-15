@@ -516,8 +516,12 @@ struct BlockView: View {
             }
         case "column":
             Blocks(list: b.blocks, color: color, where: `where`, key: key, model: model)
+        case "table":
+            TableBlock(b: b)
+        case "image":
+            PictureBlock(b: b, model: model)
         default:
-            // A block this phone doesn't draw yet (a table, a picture, a colour wheel, a chat link): the tile stays readable.
+            // A block this phone doesn't draw yet (a colour wheel, a chat link): the tile stays readable.
             EmptyView()
         }
     }
