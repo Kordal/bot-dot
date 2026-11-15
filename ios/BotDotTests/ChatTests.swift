@@ -109,4 +109,14 @@ final class ChatTests: XCTestCase {
         XCTAssertEqual(RunSteps.companion.now(line: nil, held: false), "Working")
         XCTAssertEqual(RunSteps.companion.now(line: "Reading a.js", held: false), "Reading a.js")
     }
+
+    /// A reply's page chips: shown on a botdot that opens pages (Pages.chips), a tap opens the page in the viewer.
+    func testAReplysPageChipOpensItsPage() {
+        let page = PageRef(slug: "menu", title: "Menu", botId: "b1", bot: "Ada")
+        XCTAssertEqual(Pages.shared.chips(botId: "b1", pages: [page], features: ["pages", "document-viewer"]).map(\.slug), ["menu"])
+        XCTAssertTrue(Pages.shared.chips(botId: "b1", pages: [page], features: ["pages"]).isEmpty)
+        let opening = DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title, from: "Ada")
+        XCTAssertEqual(opening.slug, "menu")
+        XCTAssertNotNil(ImageRenderer(content: PageChip(page: page) {}.frame(width: 320)).cgImage)
+    }
 }

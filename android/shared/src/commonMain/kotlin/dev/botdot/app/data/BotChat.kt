@@ -48,6 +48,8 @@ class RunView(
     val questionChoices: List<List<String>> = emptyList(),
     /** Its step line ([RunSteps.shows]; Android's StepLine), with its steps to unfold; null where it has none. */
     val steps: StepLine? = null,
+    /** The pages it made or changed, a chip each under its reply that opens it ([Pages.chips]). */
+    val pages: List<PageRef> = emptyList(),
 )
 
 /** A run's step line (#625, #636): [label] in words, [count] steps so far, [held] while it waits for an OK, its [timeline]. */
@@ -482,6 +484,7 @@ class BotChat(
                 val at = store.lines.runLines.value[r.id]
                 StepLine(RunSteps.label(r, at, count, held), RunSteps.now(at, held), count, held, RunSteps.timeline(r))
             },
+            pages = if (r.status == "success") Pages.chips(r.botId, r.pages, features) else emptyList(),
         )
     }
 
