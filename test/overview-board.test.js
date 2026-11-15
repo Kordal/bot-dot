@@ -41,16 +41,25 @@ before(async () => {
 after(() => { srv.unhold(); return srv.stop(); });
 
 const board = async () => (await srv.api('/company')).data.company.board;
+// A Chief turn the owner started by asking: what the Chief takes off the board needs one.
+async function ownerTurn(text, fn) {
+  const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  srv.hold();
+  await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text } });
+  const turn = await srv.nextRun((x) => x.stdin.includes(text), "the Chief's turn");
+  try { return await fn({ 'X-Chief-Chat': chat.id }); } finally { srv.unhold(); srv.release(turn); }
+}
 
 test('the Chief hides and shows a piece and places an overview tile', async () => {
   assert.ok((await srv.api('/version')).data.features.includes('overview-board'));
   assert.deepEqual(await board(), ['needs', 'work', 'blockers', 'replies', 'todo']);
-  let r = await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'blockers' } });
+  assert.equal((await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'needs' } })).status, 403, 'not in a turn the owner did not start');
+  let r = await ownerTurn('Hide Blockers on the board', (headers) => srv.asChief('/company/layout', { method: 'PUT', headers, body: { hide: 'blockers' } }));
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo']);
   r = await srv.asChief('/company/layout', { method: 'PUT', body: { show: 'blockers' } });
   assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo', 'blockers']);
-  assert.equal((await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'goal' } })).status, 400);
+  assert.equal((await srv.api('/company/layout', { method: 'PUT', body: { hide: 'goal' } })).status, 400);
   r = await srv.asChief('/company/layout', { method: 'PUT', body: { tile: 'replies', x: 0, y: 0, w: 1200, h: 300 } });
   assert.deepEqual(r.data.layout.replies, [0, 0, 1200, 300]);
 });
@@ -95,7 +104,7 @@ test('a board kept from before moves its tiles once, and a later move or hide st
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.equal(r.data.layout.needs[1], 1400, 'the move is kept, not put back at the top');
   const todo = r.data.layout.todo;
-  r = await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'blockers' } });
+  r = await srv.api('/company/layout', { method: 'PUT', body: { hide: 'blockers' } });
   assert.equal(r.data.layout.needs[1], 1400);
   assert.deepEqual(r.data.layout.todo, todo, 'nothing slid down a second time');
   assert.deepEqual((await srv.api('/company')).data.company.layout, r.data.layout);
