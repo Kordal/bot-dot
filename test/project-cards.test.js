@@ -272,3 +272,29 @@ test('an ask with no questions is built at once; Change asks anew; Remove takes 
   assert.equal(await card(id), undefined);
   assert.equal((await srv.api(`/company/cards/${id}`, { method: 'DELETE' })).status, 404);
 });
+
+test("a card's text size (card-text-size): the owner's on its menu, the Chief's for them; nothing else on it changes", async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('card-text-size'));
+  fs.writeFileSync(path.join(srv.out, 'card-questions.txt'), JSON.stringify({ title: 'Signups', questions: [] }));
+  srv.reply('```card\n{"title":"Signups","show":"number","value":"42","sub":"today"}\n```');
+  const id = (await srv.api('/company/cards', { method: 'POST', body: { ask: 'Signups today' } })).data.cards.at(-1).id;
+  const built = await waitFor(async () => { const c = await card(id); return c.state === 'ready' ? c : null; }, { what: 'the card built' });
+  assert.equal(built.textSize, undefined, 'its normal size is not kept');
+  const runs = srv.runs().length;
+  assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: 1.5 } })).status, 200);
+  const big = await card(id);
+  assert.equal(big.textSize, 1.5);
+  assert.equal(big.state, 'ready', 'not asked or built again');
+  assert.deepEqual(big.body, built.body);
+  assert.equal(srv.runs().length, runs, "no run");
+  assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: 3 } })).status, 400);
+  assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: '2' } })).status, 400);
+  assert.equal((await card(id)).textSize, 1.5);
+  // The Chief, by the card's title, from a chat.
+  assert.equal((await srv.asChief(`/company/cards/${encodeURIComponent('Signups')}`, { method: 'PUT', body: { textSize: 2 } })).status, 200);
+  assert.equal((await card(id)).textSize, 2);
+  assert.match(cards.cardLine(await card(id)), /text 2x/);
+  assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: 1 } })).status, 200);
+  assert.equal((await card(id)).textSize, undefined);
+  await srv.api(`/company/cards/${id}`, { method: 'DELETE' });
+});

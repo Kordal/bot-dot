@@ -35,6 +35,11 @@ test("a bot of the project sees the board's cards, and changes the one the owner
   assert.match(r.error, /No card on the board is called "nothing like it"\. Its cards: card c1/);
   r = (await self(srv, token, 'cards', { action: 'change', card: 'buildr', change: '' })).data;
   assert.equal(r.ok, false, 'a change says what');
+  r = (await self(srv, token, 'cards', { action: 'change', card: 'calls', textSize: 1.25 })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.text, /^Now card c2 "Customer calls" \(ready.*text 1\.25x/, 'textSize alone: only its text, nothing asked again');
+  r = (await self(srv, token, 'cards', { action: 'change', card: 'calls', textSize: 5 })).data;
+  assert.equal(r.ok, false);
   r = (await self(srv, token, 'cards', { action: 'change', card: 'buildr', change: 'add a graph' })).data;
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.text, /^Changing card c1 "Buildr Open Issues"/);

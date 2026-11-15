@@ -44,6 +44,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
@@ -62,6 +63,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -72,6 +74,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.Placeable
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.CardBody
@@ -96,7 +99,7 @@ import kotlinx.serialization.json.putJsonArray
  */
 /** What the cards share while drawn (#776): the one open (a Change, or [ProjectCards.NEW]), refused words, fresh cards. */
 internal class CardsState(
-    val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>, val logins: Boolean = false,
+    val ui: CompanyUi, val c: Company, openState: MutableState<String?>, refusedState: MutableState<String?>, val fresh: List<String>, val logins: Boolean = false, val sizes: Boolean = false,
     /** Cards closed or removed whose answer has not come yet: off the row at once ([ProjectCards.slots]). */
     val closing: MutableList<String> = mutableListOf(), val removing: MutableList<String> = mutableListOf(),
 ) {
@@ -138,7 +141,7 @@ internal fun rememberCards(ui: CompanyUi, c: Company): CardsState {
     val server by ui.app.store.version.value.collectAsState()
     val closing = remember(c.id) { mutableStateListOf<String>() }
     val removing = remember(c.id) { mutableStateListOf<String>() }
-    val st = CardsState(ui, c, open, refused, fresh, logins = ProjectLogins.FEATURE in server?.features.orEmpty(), closing = closing, removing = removing)
+    val st = CardsState(ui, c, open, refused, fresh, logins = ProjectLogins.FEATURE in server?.features.orEmpty(), sizes = ProjectCards.TEXT_SIZE in server?.features.orEmpty(), closing = closing, removing = removing)
     // Back on Close: the ask field closes, nothing is sent.
     BackHandler(enabled = st.shown != null) { st.open = null }
     return st
@@ -161,6 +164,7 @@ internal fun CardSlot(st: CardsState, s: ProjectCards.Slot, m: Modifier, canvas:
             onRefresh = { st.send({ it.refreshCard(s.card.id) }) },
             onChange = { st.refused = null; st.open = s.card.id },
             onRemove = { st.leave(st.removing, s.card.id) { it.removeCard(s.card.id) } },
+            onSize = if (st.sizes) ({ to, done -> st.send({ it.sizeCard(s.card.id, to) }, done) }) else null,
             onLogin = if (st.logins && s.card.failed && s.card.needsLogin != null) ({ st.ui.settingsOpen = true }) else null)
     }
 }
@@ -335,33 +339,55 @@ private fun CardIcon(icon: ImageVector, label: String, onClick: () -> Unit) {
 
 /** A card: its title, refresh and the menu; then what it shows, or while it is built for the first time its shimmer, line and bar. */
 @Composable
-private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas: Boolean = false, onRefresh: () -> Unit, onChange: () -> Unit, onRemove: () -> Unit, onLogin: (() -> Unit)? = null) {
+private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas: Boolean = false, onRefresh: () -> Unit, onChange: () -> Unit, onRemove: () -> Unit, onLogin: (() -> Unit)? = null, onSize: ((Double, (Boolean) -> Unit) -> Unit)? = null) {
     val p = LocalPaper.current
     var menu by remember(k.id) { mutableStateOf(false) }
+    // Its text size (card-text-size): drawn at once from the menu, back to botdot's if botdot refuses it.
+    var size by remember(k.id, k.textSize) { mutableStateOf(k.textSize) }
+    val d = LocalDensity.current
+    val scaled = Density(d.density, d.fontScale * size.toFloat())
     Column(modifier.heightIn(min = 148.dp).cardBox(p, if (fresh) p.ok else null).padding(start = Space.s16, end = Space.s8, top = Space.s8, bottom = Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(k.name, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            CompositionLocalProvider(LocalDensity provides scaled) { Text(k.name, color = p.muted, fontSize = Type.s14, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)) }
             val spin by rememberInfiniteTransition(label = "refresh").animateFloat(0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing)), label = "r")
             Box(Modifier.rotate(if (k.building) spin else 0f)) { CardIcon(Icons.Filled.Refresh, tr("Refresh")) { if (!k.building) onRefresh() } }
             Box {
                 CardIcon(Icons.Filled.MoreHoriz, tr("More")) { menu = true }
                 DropdownMenu(menu, { menu = false }) {
+                    if (onSize != null) TextSizeRow(size) { to -> val was = size; size = to; onSize(to) { ok -> if (!ok) size = was } }
                     MenuRow(Icons.Outlined.Edit, tr("Change"), p.text) { menu = false; onChange() }
                     MenuRow(Icons.Filled.Refresh, tr("Refresh"), p.text) { menu = false; if (!k.building) onRefresh() }
                     MenuRow(Icons.Outlined.Delete, tr("Remove"), p.err) { menu = false; onRemove() }
                 }
             }
         }
-        Column(Modifier.padding(end = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            val body = k.body
-            if (k.building && body == null) Building(k)
-            else {
-                if (body != null) Body(body, canvas)
-                // A card that needs one of the owner's servers no login of the project reaches (#804): which, and Add login.
-                val said = if (onLogin != null) tr("No login for {host}", "host" to k.needsLogin.orEmpty()) else k.error ?: tr("Could not build it")
-                if (k.failed) Text(said, color = if (body != null) p.faint else p.err, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                if (onLogin != null) SmallButton(tr("Add login"), onClick = onLogin)
+        CompositionLocalProvider(LocalDensity provides scaled) {
+            Column(Modifier.padding(end = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+                val body = k.body
+                if (k.building && body == null) Building(k)
+                else {
+                    if (body != null) Body(body, canvas)
+                    // A card that needs one of the owner's servers no login of the project reaches (#804): which, and Add login.
+                    val said = if (onLogin != null) tr("No login for {host}", "host" to k.needsLogin.orEmpty()) else k.error ?: tr("Could not build it")
+                    if (k.failed) Text(said, color = if (body != null) p.faint else p.err, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (onLogin != null) SmallButton(tr("Add login"), onClick = onLogin)
+                }
+            }
+        }
+    }
+}
+
+/** A small A and a large A at the top of a card's menu: its text a step smaller or larger; the menu stays open. */
+@Composable
+private fun TextSizeRow(now: Double, onSize: (Double) -> Unit) {
+    val p = LocalPaper.current
+    Row(Modifier.widthIn(min = 160.dp).padding(horizontal = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
+        for ((by, label, fs) in listOf(Triple(-1, tr("Smaller text"), Type.s12), Triple(1, tr("Larger text"), Type.s20))) {
+            val to = ProjectCards.stepSize(now, by)
+            Box(Modifier.weight(1f).height(44.dp).clip(Radius.small).clickable(enabled = to != null, onClickLabel = label) { to?.let(onSize) }
+                .semantics { contentDescription = label }, contentAlignment = Alignment.Center) {
+                Text("A", color = if (to != null) p.text else p.faint, fontSize = fs, fontWeight = FontWeight.SemiBold)
             }
         }
     }

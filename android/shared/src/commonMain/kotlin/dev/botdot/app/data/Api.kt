@@ -1015,6 +1015,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun addCard(ask: String): Company = CompanySetup.of(send("POST", co("/company/cards"), ProjectCards.askBody(ask)))
     suspend fun answerCard(id: String, text: String): Company = CompanySetup.of(send("POST", co("/company/cards/${enc(id)}/answer"), ProjectCards.answerBody(text)))
     suspend fun changeCard(id: String, ask: String): Company = CompanySetup.of(send("PUT", co("/company/cards/${enc(id)}"), ProjectCards.askBody(ask)))
+    suspend fun sizeCard(id: String, size: Double): Company = CompanySetup.of(send("PUT", co("/company/cards/${enc(id)}"), ProjectCards.textSizeBody(size)))
     suspend fun cancelCard(id: String): Company = CompanySetup.of(send("POST", co("/company/cards/${enc(id)}/cancel")))
     suspend fun refreshCard(id: String): Company = CompanySetup.of(send("POST", co("/company/cards/${enc(id)}/refresh")))
     suspend fun removeCard(id: String): Company = CompanySetup.of(send("DELETE", co("/company/cards/${enc(id)}")))

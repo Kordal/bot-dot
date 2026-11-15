@@ -1826,5 +1826,7 @@
   "Existing report times stay combined until you choose a new rhythm.": "Dotychczasowe terminy raportów są łączone, dopóki nie wybierzesz nowej częstotliwości.",
   "The last project update could not be delivered.": "Nie udało się dostarczyć ostatniej aktualizacji projektu.",
   "until {time}": "do {time}",
-  "Stop watching {name}": "Przestań obserwować: {name}"
+  "Stop watching {name}": "Przestań obserwować: {name}",
+  "Smaller text": "Mniejszy tekst",
+  "Larger text": "Większy tekst"
 }
