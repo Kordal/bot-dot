@@ -35,7 +35,7 @@ class PageBarState(
  * with what was entered, [PageBarState.reopen]). One action at a time.
  */
 class PageDesk(private val scope: CoroutineScope, private val api: Api, private val botId: String, private val slug: String, private val from: String, features: Collection<String>?) {
-    private val board = Pages.showsBoard(features)
+    private var board = Pages.showsBoard(features)
     private var page: PageInfo? = null
     private var onBoard: Boolean? = null
     private var boarding = false
@@ -47,6 +47,9 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
     val state: StateFlow<PageBarState> = _state.asStateFlow()
 
     fun watch(onChange: (PageBarState) -> Unit): Job = scope.launch { state.collect { onChange(it) } }
+
+    /** The botdot's features, when they come or change after the desk was made (a cold start, a reconnect): Board shows once they say pages-board. */
+    fun setFeatures(features: Collection<String>?) { val now = Pages.showsBoard(features); if (now != board) { board = now; publish() } }
 
     /** The page as the viewer read it: its keep and whether it is on the Board. */
     fun show(p: PageInfo?) { page = p; onBoard = p?.onBoard; publish() }

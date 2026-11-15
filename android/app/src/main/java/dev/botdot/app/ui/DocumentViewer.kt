@@ -214,7 +214,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     // shared PageDesk's (one copy with the iPhone's).
     val pageDesk = remember(req, api) { val a = api; val pg = req.page; if (a != null && pg != null) dev.botdot.app.data.PageDesk(scope, a, pg.botId, pg.slug, req.from, server?.features) else null }
     val bar = pageDesk?.state?.collectAsState()?.value
-    LaunchedEffect(bar?.reopen) { bar?.reopen?.let { keepDraft = it; keeping = true; pageDesk.reopened() } }
+    // The features may come after the desk was made (a cold start, a reconnect): Board follows them.
+    LaunchedEffect(pageDesk, server?.features) { pageDesk?.setFeatures(server?.features) }
+    LaunchedEffect(bar?.reopen) { val desk = pageDesk; val draft = bar?.reopen; if (desk != null && draft != null) { keepDraft = draft; keeping = true; desk.reopened() } }
     // A save or Stop changed what keeps the page: read it again (Refresh now changes nothing here).
     LaunchedEffect(bar?.pageChanged) { if ((bar?.pageChanged ?: 0) > 0) changed++ }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
@@ -276,7 +278,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             PageBar(page, if (pageDesk != null) bar?.keep ?: page.keep.takeIf { bar == null } else page.keep, onBoard == true, board, onKeep = { if (bar?.work?.kind != "busy") { keepDraft = pageDesk?.draft(); keeping = true } },
                 onRefresh = { pageDesk?.refresh() }, onStop = { pageDesk?.stop() })
         }
-        if (req.page != null) bar?.work?.let { w -> WorkLine(Work(w.kind, w.text, retry = { pageDesk.retry() }), Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { pageDesk.dismissWork() } }
+        val desk = pageDesk
+        val w = bar?.work
+        if (req.page != null && desk != null && w != null) WorkLine(Work(w.kind, w.text, retry = { desk.retry() }), Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { desk.dismissWork() }
         // The sheet closes at once and the save runs on (#475); its error opens the sheet again with what was entered.
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, keepDraft, onDismiss = { keeping = false }) { draft ->
             keeping = false

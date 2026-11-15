@@ -106,4 +106,13 @@ class PageDeskTest {
         until("stopped") { stopped && desk.state.value.keep == null }
         assertEquals(KeepDraft("day", "07:00", "report-only", "the menu file"), desk.draft(), "stopped: the defaults again")
     }
+    @Test fun boardShowsOnceTheFeaturesComeAfterTheDeskWasMade() {
+        val desk = PageDesk(kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined), FakeServer { 200 to "{}" }.api, "b1", "menu", "Ada", null)
+        desk.show(page)
+        assertFalse(desk.state.value.board, "the features not known yet")
+        desk.setFeatures(on)
+        assertTrue(desk.state.value.board, "they came: Board shows")
+        desk.setFeatures(listOf(Pages.FEATURE))
+        assertFalse(desk.state.value.board, "a botdot without pages-board: none")
+    }
 }
