@@ -137,3 +137,26 @@ test('Create makes the bots, their teams with the first bot the lead and plan it
   assert.equal((await srv.api('/company/proposal/undo', { method: 'POST' })).status, 409);
   assert.ok((await srv.api('/version')).data.features.includes('company-team'));
 });
+
+test('"Change the team…" in the conversational setup adds an existing bot by its id, keeps it by its key and once (ADR 244)', async () => {
+  const mine = { coder: { id: 'coder', name: 'Claude Coder', description: 'Writes code' } };
+  let c = { id: 'p1', conversation: true, phase: 'setup', start: 'Ship it', about: [], stories: [], never: [], teamChat: [], proposal: [{ key: 'k1', name: 'Reviewer', prompt: 'Review.', team: 'Core' }] };
+  let answer;
+  const store = { read: () => c, setProposal: (next) => { c = { ...c, proposal: next.map((p, i) => ({ ...p, key: p.key || `n${i}` })) }; return c; } };
+  const team = teamLib.create({ store, ask: async () => JSON.stringify(answer), bots: { get: (id) => mine[id], list: () => Object.values(mine) } });
+  answer = { say: 'Added Claude Coder.', bots: [{ key: 'k1', name: 'Reviewer', prompt: 'Review.', team: 'Core' }, { existing: 'coder', team: 'Core', name: 'Made up' }, { existing: 'coder' }, { existing: 'nobody' }] };
+  await team.chat('Add my Claude Coder');
+  const joined = c.proposal.filter((p) => p.existing);
+  assert.equal(joined.length, 1, 'once; an unknown id is left out');
+  assert.deepEqual([joined[0].bot, joined[0].name, joined[0].team], ['coder', 'Claude Coder', 'Core']);
+  const key = joined[0].key;
+  // The Chief sends it back by its key, moved to another team, without "existing": the same bot, the same key.
+  answer = { say: 'Moved it.', bots: [c.proposal[0], { key, name: 'Claude Coder', team: 'Dev' }] };
+  await team.chat('Move Claude Coder to Dev');
+  assert.deepEqual(c.proposal.filter((p) => p.existing).map((p) => [p.key, p.bot, p.team]), [[key, 'coder', 'Dev']]);
+  // The older setup has no existing bots: its "Add existing bot" makes a copy.
+  c = { ...c, conversation: false, proposal: [c.proposal[0]] };
+  answer = { say: 'Added.', bots: [c.proposal[0], { existing: 'coder', name: 'Claude Coder', prompt: 'x' }] };
+  await team.chat('Add my Claude Coder');
+  assert.equal(c.proposal.some((p) => p.existing), false);
+});
