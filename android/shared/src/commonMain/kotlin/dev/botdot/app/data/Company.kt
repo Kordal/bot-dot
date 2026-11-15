@@ -247,6 +247,8 @@ data class Proposed(
     val color: String? = null,
     val from: String? = null,
     val bot: String? = null,
+    /** [bot] is one of the owner's bots that joins as it is (ADR 244): nothing is made or set of it. */
+    val existing: Boolean = false,
     val computer: Boolean = false,
     val logins: List<Need> = emptyList(),
     val ssh: List<Need> = emptyList(),
@@ -524,7 +526,18 @@ object CompanySetup {
     /** A bot's copy is in the team already ("Added"). */
     fun added(proposal: List<Proposed>, bot: String): Boolean = proposal.any { it.from == bot }
 
-    /** The account's bots "Add existing bot" lists: not the ones Create made of this proposal. */
+    /** The server takes the owner's bots into the proposal as they are (ADR 244). */
+    const val EXISTING_FEATURE = "setup-existing-bots"
+
+    /** The proposal with [picked] bots joining as they are, in the proposal's first team. */
+    fun joined(proposal: List<JsonObject>, bots: List<Bot>, picked: List<String>): List<JsonObject> {
+        val team = proposal.firstNotNullOfOrNull { (it["team"] as? JsonPrimitive)?.content?.takeIf(String::isNotEmpty) }.orEmpty()
+        return proposal + picked.mapNotNull { id -> bots.firstOrNull { it.id == id } }.map { b ->
+            buildJsonObject { put("existing", true); put("bot", b.id); put("name", b.name); put("description", b.description); put("team", team) }
+        }
+    }
+
+    /** The account's bots "Add existing bot" (Duplicate) and "Add a bot" (as they are, ADR 244) list: not those in the proposal. */
     fun existing(bots: List<Bot>, proposal: List<Proposed>): List<Bot> = bots.filter { b -> proposal.none { it.bot == b.id } }
 
     private val APP_NAMES = mapOf("gmail" to "Gmail", "googlecalendar" to "Google Calendar", "github" to "GitHub", "slack" to "Slack", "notion" to "Notion",
