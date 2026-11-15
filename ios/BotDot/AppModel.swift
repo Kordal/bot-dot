@@ -19,7 +19,15 @@ final class AppModel {
 
     private(set) var screen: Screen = .starting {
         // The share extension sends through the botdot signed in to, and none once there is none.
-        didSet { if case .signedIn(let server) = screen { SharedAddress.write(server) } else if screen != .starting { SharedAddress.write(nil) } }
+        // The share extension sends through the botdot signed in to; paused, it still does, and botdot says it is
+        // paused. Another address, or a sign-in: none.
+        didSet {
+            switch screen {
+            case .signedIn(let server), .paused(let server): SharedAddress.write(server)
+            case .address, .signIn: SharedAddress.write(nil)
+            case .starting: break
+            }
+        }
     }
     var error: String?
     /// What the sign-in says without it being wrong: that the account was deleted.

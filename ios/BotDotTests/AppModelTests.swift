@@ -62,8 +62,10 @@ final class AppModelTests: XCTestCase {
         m.session.answered(server: server, api: true, sent: nil, code: 503, setCookies: [], body: { #"{"error":"Paused.","paused":true}"# })
         for _ in 0..<50 where m.screen != .paused(server) { try await Task.sleep(for: .milliseconds(20)) }
         XCTAssertEqual(m.screen, .paused(server))
+        XCTAssertEqual(SharedAddress.read(), server, "paused, a share still goes to botdot, which says it is paused")
         m.accountDeleted(server, "Your account was deleted.")
         XCTAssertEqual(m.screen, .signIn(server), "no session: the paused screen's watch stops with it")
+        XCTAssertNil(SharedAddress.read(), "signed out: a share says so")
         XCTAssertEqual(m.notice, "Your account was deleted.")
         XCTAssertNil(sessions.read(server: server))
     }
