@@ -62,8 +62,8 @@
   function sizeHTML(c) {
     const at = SIZES.indexOf(sizeOf(c));
     return `<div class="pc-size" role="group">
-      <button type="button" data-pc-size="${esc(c.id)}" data-pc-step="-1" aria-label="${tr('Smaller text')}" title="${tr('Smaller text')}"${at <= 0 ? ' disabled' : ''}>A</button>
-      <button type="button" data-pc-size="${esc(c.id)}" data-pc-step="1" aria-label="${tr('Larger text')}" title="${tr('Larger text')}"${at >= SIZES.length - 1 ? ' disabled' : ''}>A</button>
+      <button type="button" role="menuitem" data-pc-size="${esc(c.id)}" data-pc-step="-1" aria-label="${tr('Smaller text')}" title="${tr('Smaller text')}"${at <= 0 ? ' disabled' : ''}>A</button>
+      <button type="button" role="menuitem" data-pc-size="${esc(c.id)}" data-pc-step="1" aria-label="${tr('Larger text')}" title="${tr('Larger text')}"${at >= SIZES.length - 1 ? ' disabled' : ''}>A</button>
     </div>`;
   }
   function menuHTML(c) {

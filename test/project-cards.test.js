@@ -290,6 +290,8 @@ test("a card's text size (card-text-size): the owner's on its menu, the Chief's 
   assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: 3 } })).status, 400);
   assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: '2' } })).status, 400);
   assert.equal((await card(id)).textSize, 1.5);
+  assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: 2, ask: '' } })).status, 400);
+  assert.equal((await card(id)).textSize, 1.5, 'a refused change keeps its size too');
   // The Chief, by the card's title, from a chat.
   assert.equal((await srv.asChief(`/company/cards/${encodeURIComponent('Signups')}`, { method: 'PUT', body: { textSize: 2 } })).status, 200);
   assert.equal((await card(id)).textSize, 2);
