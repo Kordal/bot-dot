@@ -24,4 +24,6 @@ A card stood at the end of the chat it was asked in, and on the Needs you page. 
 ## Consequences
 
 - A bot that names a card it was not told of draws nothing: only ids of cards that wait are drawn.
+- The board's `board` list may still name `needs` (`lib/company.js` keeps old layouts as they are); every app ignores it, and none offers it to add or hide.
+- The Chief is told of the asks that wait, not of login and card payment requests: those are named by the bot that asked, whose prompt lists them.
 - `cards` is new on runs and Chief messages (docs/api.md, "A card in the chat").

@@ -396,6 +396,15 @@ fun NamedCards(app: BotDotApp, scope: String, ids: List<String>?) {
     if (set.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(top = Space.s8)) { ChatNeeds(app, scope, only = set) }
 }
 
+/**
+ * Which cards each message of a chat shows, by its key: a card named by several messages stands under the newest
+ * alone, as on the web page (ADR 249). [named]: each message's key and `cards`, oldest first.
+ */
+fun newestNames(named: List<Pair<String, List<String>?>>): Map<String, List<String>> {
+    val seen = mutableSetOf<String>()
+    return named.asReversed().associate { (k, ids) -> k to ids.orEmpty().filter { NAMED_CARD.matches(it) && seen.add(it) } }
+}
+
 /** The ids of the cards that the messages of a chat name: at its end these cards are left out, as they stand under their message. */
 fun namedCards(lists: List<List<String>?>): Set<String> = lists.flatMap { it.orEmpty() }.filter { NAMED_CARD.matches(it) }.toSet()
 

@@ -98,6 +98,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     var makingGroup by remember { mutableStateOf(false) }
     val runs = vm.runs
     // Its newest reply, for the button to it (ToLatestButton): the run, and how far it got.
+    val namedHere = remember(runs) { newestNames(runs.sortedBy { it.startedAt }.map { it.id to it.cards }) }
     val newestRun = remember(runs) { ChatOrder.rounds(runs).lastOrNull()?.lastOrNull()?.let { "${it.id}:${it.status}" } }
     val waiting = vm.waiting
     val loaded = vm.loaded
@@ -294,7 +295,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                     val asksHere = (r.id in askedIn || (r.id == lastReply && !r.asks)) && r.status == "success"
                                     TheirSide(r, open = r.id in opened, asksOpen = asksHere, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                         learned = dev.botdot.app.data.LearnedChips.of(r, features).map { x -> x.text to when (val to = dev.botdot.app.data.LearnedChips.open(x)) { dev.botdot.app.data.LearnedChips.Open.Jobs -> onJobs; is dev.botdot.app.data.LearnedChips.Open.Settings -> ({ onLearned(to.skill) }); null -> null } })
-                                    if (r.status == "success") NamedCards(app, botId, r.cards) // the cards it names, to answer here (ADR 249)
+                                    if (r.status == "success") NamedCards(app, botId, namedHere[r.id]) // the cards it names, to answer here (ADR 249)
                                     // Under the reply that is last in the chat, and under the run its open question is from when newer
                                     // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
                                     // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).

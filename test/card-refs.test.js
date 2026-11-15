@@ -11,7 +11,7 @@ const { element } = require('./web-page');
 test('take: the ids leave the text, each once, at most four; a word in brackets stays', () => {
   assert.deepEqual(cardRefs.take('In Needs you a card waits, "Needs Stripe reconnected" [card 1a2b3c4d]. Connect it there.'),
     { text: 'In Needs you a card waits, "Needs Stripe reconnected". Connect it there.', cards: ['1a2b3c4d'] });
-  assert.deepEqual(cardRefs.take('Two: [[card: aaaaaaa1]] and [card BBBBBBB2] [card aaaaaaa1]').cards, ['aaaaaaa1', 'BBBBBBB2']);
+  assert.deepEqual(cardRefs.take('Two: [[card: aaaaaaa1]] and [card BBBBBBB2] [card aaaaaaa1]').cards, ['aaaaaaa1', 'bbbbbbb2']);
   assert.deepEqual(cardRefs.take('Pay with the [card payment] form.'), { text: 'Pay with the [card payment] form.', cards: null });
   assert.equal(cardRefs.take('[card 00000001] [card 00000002] [card 00000003] [card 00000004] [card 00000005]').cards.length, 4);
   assert.deepEqual(cardRefs.take(null), { text: null, cards: null });

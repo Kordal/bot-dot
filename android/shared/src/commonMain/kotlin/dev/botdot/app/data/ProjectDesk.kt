@@ -300,7 +300,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             teamsOnBoard = !board,
             teamEntry = board,
             recorded = x.recorded,
-            needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
+            needsYou = if (board && c != null) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
             logins = c != null && ProjectLogins.FEATURE in f,
