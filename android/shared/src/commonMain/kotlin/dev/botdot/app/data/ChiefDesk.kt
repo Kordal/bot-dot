@@ -568,12 +568,15 @@ class ChiefDesk(
         val line = OpeningLine.chiefLine(store.lines.lines.value["chief:${chatId.orEmpty()}"], activity, busy)
         // The questions' card: under the newest message, past the project updates after it, a finished reply of the Chief's.
         // A mail draft's card has its own buttons in their place.
-        val asking = messages.indexOfLast { it.projectUpdate == null }.takeIf { i -> i >= 0 && messages[i].role == "chief" && !messages[i].pending && !busy && messages[i].draft == null }
+        val newest = messages.indexOfLast { it.projectUpdate == null }.takeIf { i -> i >= 0 && messages[i].role == "chief" && !messages[i].pending }
+        val asking = newest?.takeIf { i -> !busy && messages[i].draft == null }
         val bots = store.bots.value.value.orEmpty()
         return ChiefState(
             chatId = chatId,
             messages = messages.mapIndexed { i, m ->
-                val l = chiefLine(m, c!!.offset + i, if (i == last) draft else "", features, bots)
+                // An older reply's card is closed: its questions are part of its text (chiefText).
+                val shown = if (i == newest || m.questions.isNullOrEmpty()) m else m.copy(text = chiefText(m, open = false))
+                val l = chiefLine(shown, c!!.offset + i, if (i == last) draft else "", features, bots)
                 if (i != asking || m.questions.isNullOrEmpty()) l
                 else l.copy(questions = m.questions.orEmpty(), choices = m.questions.orEmpty().indices.map { q -> m.questionChoices?.getOrNull(q).orEmpty() })
             },

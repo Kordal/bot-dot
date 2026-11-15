@@ -831,6 +831,8 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
       thread._from = 0;
       syncRead(); // the new chat is on screen: its reply is read as it arrives
     }
+    // An open card's questions become part of its reply's text: the chat as botdot has it, drawn when the reply comes.
+    if ($('.ask-card', thread)) state.chatReload = true;
     $$('.choices, .ask-card', thread).forEach((c) => c.remove()); // answered
     sentOver(at, key); // the message as botdot took it stands where the page's own stood
     thread.insertAdjacentHTML('beforeend', userBubble({ text: text || 'Have a look at the attached files.', attachments }) + chiefBubble({ pending: true }));
