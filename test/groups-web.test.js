@@ -238,7 +238,7 @@ test("web: the group's title opens its panel, and the panel is the group's own",
 
 // The panel's page as renderGroupSettings fills it.
 function panelPage(p) {
-  const parts = { '#gs-name': element(), '#gs-pic': element(), '#gs-members': element(), '#gs-add': element(), '#gs-delete': element(), '#gs-note-text': element(), '#gs-note-kind': element({}, { value: 'decision' }) };
+  const parts = { '#gs-name': element(), '#gs-pic': element(), '#gs-members': element(), '#gs-add': element(), '#gs-delete': element(), '#gs-pinned': element(), '#gs-note-text': element(), '#gs-note-kind': element({}, { value: 'decision' }) };
   // The notes' rows (ADR 139): each with its select, its box and its ✕, by the note's id.
   const noteRow = (id) => (parts[`note:${id}`] ||= element({ select: element(), textarea: element(), '[data-note-off]': element() }, { dataset: { note: id } }));
   parts['#gs-notes'] = element({}, { querySelectorAll: (sel) => (sel === '[data-note]' ? [...parts['#gs-notes'].innerHTML.matchAll(/data-note="([^"]*)"/g)].map(([, id]) => noteRow(id)) : []) });
@@ -289,6 +289,31 @@ test("web: a team's chat opens the same panel: its members and notes, with nothi
   assert.equal(parts['#gs-add'].classList.contains('hidden'), true);
   assert.equal(parts['#gs-delete'].classList.contains('hidden'), true);
   assert.deepEqual(p.said.calls, [['GET', '/group-chats/g1/notes']], 'its notes are read as any group\'s');
+});
+
+test("web: a team's chat is pinned below the Chief from its panel, as a bot is, and unpinned there (one order, #276)", async () => {
+  const pinnedBot = { ...WEATHER, pinned: 1, order: 0 };
+  const p = page({ features: ['groups', 'unread', 'team-chats'], bots: [CODER, REVIEWER, WRITER, pinnedBot, SHOPPER] });
+  Object.assign(p.state.groups[0], { team: 't1', lead: 'coder', color: '#3b82f6', category: '' });
+  const { root, parts } = panelPage(p);
+  p.ctx.renderGroupSettings();
+  await new Promise((r) => setImmediate(r));
+  assert.match(root.innerHTML, /<label class="bs-row"><b>Pinned<\/b>\s*<span class="switch"><input type="checkbox" id="gs-pinned" aria-label="Pinned below the Chief">/);
+  assert.equal(parts['#gs-pinned'].checked, false);
+  p.said.calls.length = 0;
+  parts['#gs-pinned'].checked = true;
+  await parts['#gs-pinned'].onchange({ target: parts['#gs-pinned'] });
+  assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { pinned: 2 }]], 'last, after the pinned bot');
+  assert.equal(p.state.groups[0].pinned, 2);
+  assert.equal(p.ctx.Keypad.pages(p.state.bots, p.state.groups)[0].keys.map((k) => k.id).join(), 'weather,g1', 'on Pinned, after the bot');
+  p.ctx.renderGroupSettings();
+  assert.equal(parts['#gs-pinned'].checked, true, 'the switch follows it');
+  p.said.calls.length = 0;
+  parts['#gs-pinned'].checked = false;
+  await parts['#gs-pinned'].onchange({ target: parts['#gs-pinned'] });
+  assert.deepEqual(p.said.calls, [['PUT', '/group-chats/g1', { pinned: 0 }]]);
+  assert.equal(p.state.groups[0].pinned, 0);
+  assert.equal(p.said.saved, 2, 'each says "Saved"');
 });
 
 test("web: with `team-chat-delete` a team's chat has \"Delete team\": it asks first, and the server deletes the team with its chat", async () => {

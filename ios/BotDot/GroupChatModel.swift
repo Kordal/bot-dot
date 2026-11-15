@@ -68,6 +68,7 @@ final class GroupChatModel: MessageBox {
     // The members panel.
     func rename(_ typed: String) { chat.rename(typed: typed) }
     func takeOut(_ botId: String) { chat.takeOut(botId: botId) }
+    func pin(_ on: Bool) { chat.pin(on: on) }
     func add(_ botIds: [String]) { chat.add(botIds: botIds) }
     func delete() async -> Bool { (try? await chat.delete())?.boolValue ?? false }
     /// True once saved: the box keeps what was typed until then.

@@ -112,13 +112,21 @@ class OverviewDesk(private val api: Api, val projectId: String) {
 
     @Throws(Exception::class)
     suspend fun read() {
+        readRecorded()
+        val s = _state.value
+        val (files, filesError) = try { api.projectFiles(projectId) to null }
+            catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { s.files to (e.message ?: tr("Couldn't load files")) }
+        _state.value = OverviewState(s.snapshot, files, s.error, filesError)
+    }
+
+    /** What botdot recorded only, not the files: for the board's Overview tiles (overview-board, ADR 245). */
+    @Throws(Exception::class)
+    suspend fun readRecorded() {
         val s = _state.value
         val (snapshot, error) = try {
             api.projectOverview(projectId).takeIf { it.projectId == projectId }.let { (it ?: s.snapshot) to null }
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { s.snapshot to (e.message ?: tr("Couldn't refresh")) }
-        val (files, filesError) = try { api.projectFiles(projectId) to null }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { s.files to (e.message ?: tr("Couldn't load files")) }
-        _state.value = OverviewState(snapshot, files, error, filesError)
+        _state.value = OverviewState(snapshot, s.files, error, s.filesError)
     }
 
     fun watch(scope: kotlinx.coroutines.CoroutineScope, onChange: (OverviewState) -> Unit): kotlinx.coroutines.Job = scope.launch { state.collect { onChange(it) } }
