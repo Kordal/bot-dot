@@ -35,7 +35,14 @@ struct BoardView: View {
                 }
                 .padding(16)
             }
-            .onAppear { model?.width(geo.size.width) }
+            // Made where its width is known: at first and when it shows again (back from Needs you).
+            .task {
+                if model == nil {
+                    let made = BoardModel(home: home)
+                    made.start(width: geo.size.width)
+                    model = made
+                }
+            }
             .onChange(of: geo.size.width) { _, w in model?.width(w) }
         }
         .refreshable { await model?.refresh() }
@@ -75,13 +82,6 @@ struct BoardView: View {
         }
         .sheet(item: Binding(get: { changing.map(Key.init) }, set: { changing = $0?.id })) { key in
             if let model { AskChangeSheet(title: model.state?.rows.flatMap({ $0 }).first(where: { $0.key == key.id })?.tile?.title ?? "", key: key.id, model: model) }
-        }
-        .task {
-            if model == nil {
-                let made = BoardModel(home: home)
-                made.start()
-                model = made
-            }
         }
         .onDisappear { model?.stop(); model = nil }
         .task(id: model?.state?.noticeId) {

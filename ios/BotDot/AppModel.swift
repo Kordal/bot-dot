@@ -132,11 +132,11 @@ final class AppModel {
         if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }
 
-    /// The account was deleted: the sign-in, saying so.
+    /// The account was deleted: the sign-in, saying so, from Home or from its paused screen.
     func accountDeleted(_ server: String, _ words: String) {
         sessions.write(server: server, token: nil)
         notice = words
-        if screen == .signedIn(server) { screen = .signIn(server) }
+        if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }
 
     /// This phone's API for [server], with its session.
