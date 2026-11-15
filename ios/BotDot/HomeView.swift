@@ -142,40 +142,40 @@ struct HomeView: View {
     /// Home's ⋯ menu.
     @ViewBuilder
     private var menu: some View {
-            // Each bot's computer screen (as Android's "Its screen" in a bot's chat), until the iPhone has the chat.
-            if let bots = home.state?.screens, !bots.isEmpty {
-                Section(tr("Its screen")) {
-                    ForEach(bots, id: \.id) { b in
-                        Button { screen = ScreenOpen(id: b.id, name: ComputerScreen.shared.title(bot: b)) } label: {
-                            Label(b.name, systemImage: "desktopcomputer")
-                        }
-                        .accessibilityIdentifier("screen-\(b.id)")
+        // Each bot's computer screen (as Android's "Its screen" in a bot's chat), until the iPhone has the chat.
+        if let bots = home.state?.screens, !bots.isEmpty {
+            Section(tr("Its screen")) {
+                ForEach(bots, id: \.id) { b in
+                    Button { screen = ScreenOpen(id: b.id, name: ComputerScreen.shared.title(bot: b)) } label: {
+                        Label(b.name, systemImage: "desktopcomputer")
                     }
+                    .accessibilityIdentifier("screen-\(b.id)")
                 }
             }
-            let owners = filesOwners
-            if !owners.isEmpty {
-                Menu {
-                    ForEach(owners, id: \.owner) { o in Button(o.name) { path.append(o) } }
-                } label: {
-                    Label(tr("Files"), systemImage: "folder")
-                }
-                .accessibilityIdentifier("files")
+        }
+        let owners = filesOwners
+        if !owners.isEmpty {
+            Menu {
+                ForEach(owners, id: \.owner) { o in Button(o.name) { path.append(o) } }
+            } label: {
+                Label(tr("Files"), systemImage: "folder")
             }
-            Button(tr("Settings")) { path.append(Route.settings) }
-            Button(tr("Apps")) { path.append(Route.apps) }
-            Button(tr("Keypad")) { path.append(Route.keypad) }
-            if let bots = home.state?.bots, !bots.isEmpty {
-                Menu(tr("Bots")) {
-                    ForEach(bots, id: \.id) { b in Button(b.name) { path.append(Route.bot(b.id)) } }
-                }
+            .accessibilityIdentifier("files")
+        }
+        Button(tr("Settings")) { path.append(Route.settings) }
+        Button(tr("Apps")) { path.append(Route.apps) }
+        Button(tr("Keypad")) { path.append(Route.keypad) }
+        if let bots = home.state?.bots, !bots.isEmpty {
+            Menu(tr("Bots")) {
+                ForEach(bots, id: \.id) { b in Button(b.name) { path.append(Route.bot(b.id)) } }
             }
-            if home.offers?.feedback == true { Button(Feedback.shared.TITLE) { feedback = true } }
-            if home.offers?.deletion != nil { Button(tr("Delete account"), role: .destructive) { deleting = true } }
-            Button(tr("Passwords")) { vault = true }
-            Divider()
-            Button(tr("Change botdot's address")) { model.otherAddress() }
-            Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
+        }
+        if home.offers?.feedback == true { Button(Feedback.shared.TITLE) { feedback = true } }
+        if home.offers?.deletion != nil { Button(tr("Delete account"), role: .destructive) { deleting = true } }
+        Button(tr("Passwords")) { vault = true }
+        Divider()
+        Button(tr("Change botdot's address")) { model.otherAddress() }
+        Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
     }
 
     private var whatsNewShown: Binding<Bool> {
