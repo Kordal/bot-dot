@@ -296,7 +296,8 @@ struct SetupReview: View {
         HStack(alignment: .top, spacing: 12) {
             BotHead(figure: figure, color: b.color, size: 32)
             VStack(alignment: .leading, spacing: 4) {
-                Button(b.name) { newName = b.name; renaming = b }.font(.headline).buttonStyle(.plain)
+                if b.existing { Text(b.name).font(.headline) } // one of the owner's bots, as it is (ADR 244)
+                else { Button(b.name) { newName = b.name; renaming = b }.font(.headline).buttonStyle(.plain) }
                 if !b.description_.isEmpty { Text(b.description_).font(.subheadline).foregroundStyle(.secondary) }
                 if !b.routines.isEmpty { Text(b.routines).font(.caption).foregroundStyle(.secondary) }
             }
