@@ -275,7 +275,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
             PageBar(page, if (pageDesk != null) bar?.keep ?: page.keep.takeIf { bar == null } else page.keep, onBoard == true, board, onKeep = { if (bar?.work?.kind != "busy") { keepDraft = pageDesk?.draft(); keeping = true } },
                 onRefresh = { pageDesk?.refresh() }, onStop = { pageDesk?.stop() })
         }
-        if (req.page != null) bar?.work?.let { w -> WorkLine(Work(w.kind, w.text, retry = { pageDesk?.retry() }), Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { pageDesk?.dismissWork() } }
+        if (req.page != null) bar?.work?.let { w -> WorkLine(Work(w.kind, w.text, retry = { pageDesk.retry() }), Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { pageDesk.dismissWork() } }
         // The sheet closes at once and the save runs on (#475); its error opens the sheet again with what was entered.
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, keepDraft, onDismiss = { keeping = false }) { draft ->
             keeping = false
