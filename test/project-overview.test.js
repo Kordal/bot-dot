@@ -89,5 +89,9 @@ test('an entry keeps the Markdown and lines the bot wrote, cut at 600 characters
   assert.equal(of(`${'word '.repeat(118)}\`code here\` end`), `${'word '.repeat(117)}word…`, 'an open code is left out');
   const block = '```\nls src/**/*.js `x\n```';
   assert.equal(of(`${block}\n${'word '.repeat(120)}`), `${block}\n${'word '.repeat(113)}word…`, 'a mark inside a closed code block is no open mark');
+  const log = `\`\`\`\n${'error at line 12\n'.repeat(60)}\`\`\``;
+  const cut = of(log);
+  assert.match(cut, /^```\nerror at line 12\n[\s\S]*error at line 12…\n```$/, 'a reply that opens with a long code block keeps its lines, closed');
+  assert.ok(cut.length <= 605);
   assert.ok(of('x'.repeat(700)).length <= 601);
 });
