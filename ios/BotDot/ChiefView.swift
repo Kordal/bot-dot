@@ -1,7 +1,8 @@
 import SwiftUI
 import BotdotShared
 
-/// The Chief of Staff's chat, as Android's: one conversation, its latest. Each message with the team and project it
+/// The Chief of Staff's chat, as Android's: its latest conversation, another from the list or a new one (the toolbar's
+/// menu). Each message with the team and project it
 /// is about above it; the Chief's replies in Markdown, 👍 and 👎 under the ones it wrote unasked; what it is doing
 /// while it replies, with Stop; what waits for its reply to end; the message box (Composer).
 struct ChiefView: View {
@@ -36,7 +37,9 @@ private struct ChiefChat: View {
                     if let s = model.state, s.loaded {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
                         ForEach(s.messages, id: \.index) { m in
-                            ChiefRow(line: m) { model.rate(m.index, $0) }
+                            ChiefRow(line: m, onRate: { model.rate(m.index, $0) },
+                                     onApprove: { await model.approve(m.index) }, onDecline: { await model.decline() },
+                                     onAnswer: { await model.answer(m.index, $0) })
                         }
                         if s.busy {
                             HStack {
@@ -99,7 +102,30 @@ private struct ChiefChat: View {
         }
         .navigationTitle(model.state?.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) { chats } }
         .modifier(NoticeOverlay(notice: model.state?.notice, count: Int(model.state?.noticeCount ?? 0)))
+    }
+
+    /// The Chief's conversations, newest first, and New chat (made by its first message).
+    private var chats: some View {
+        Menu {
+            Button { model.open(nil) } label: { Label(tr("New chat"), systemImage: "square.and.pencil") }
+            if let list = model.state?.chats, !list.isEmpty {
+                Section {
+                    ForEach(list, id: \.id) { (c: ChiefChatSummary) in
+                        Button { model.open(c.id) } label: {
+                            if c.id == model.state?.chatId { Label(c.title, systemImage: "checkmark") }
+                            else if c.unread > 0 { Text("\(c.title) · \(c.unread)") }
+                            else { Text(c.title) }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "bubble.left.and.bubble.right")
+        }
+        .accessibilityLabel(tr("Chats"))
+        .accessibilityIdentifier("chief-chats")
     }
 
     private func toEnd(_ scroll: ScrollViewProxy, after: Duration = .zero) {
@@ -122,6 +148,9 @@ private struct ChiefChat: View {
 struct ChiefRow: View {
     let line: ChiefLine
     let onRate: (String) -> Void
+    var onApprove: () async -> Bool = { false }
+    var onDecline: () async -> Void = {}
+    var onAnswer: ([String]) async -> Bool = { _ in false }
 
     var body: some View {
         VStack(alignment: line.role == "user" ? .trailing : .leading, spacing: 6) {
@@ -136,6 +165,9 @@ struct ChiefRow: View {
                 if !line.text.isEmpty { MarkdownView(text: line.text) }
                 if let error = line.error { Text(error).foregroundStyle(.red) }
                 ForEach(line.files, id: \.file) { f in Label(f.name, systemImage: "doc").font(.callout) }
+                if line.suggests { SuggestionButtons(onApprove: onApprove, onDecline: onDecline) }
+                if line.declined { Text(tr("You declined it")).font(.footnote).foregroundStyle(.secondary) }
+                if !line.questions.isEmpty { QuestionsBox(questions: line.questions, choices: line.choices, onSend: onAnswer) }
                 if !line.time.isEmpty || line.rates {
                     HStack(spacing: 12) {
                         if !line.time.isEmpty { Text(line.time).font(.caption2).foregroundStyle(.tertiary) }
@@ -184,6 +216,85 @@ struct Thumbs: View {
                 .accessibilityLabel(label)
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
+        }
+    }
+}
+
+/// A bot's suggestion that waits: nothing happens until Approve (or an answer in the owner's own words); Decline drops it.
+struct SuggestionButtons: View {
+    let onApprove: () async -> Bool
+    let onDecline: () async -> Void
+    @State private var busy = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button(tr("Decline")) { act { await onDecline() } }.buttonStyle(.bordered)
+            Button(tr("Approve")) { act { _ = await onApprove() } }.buttonStyle(.borderedProminent)
+        }
+        .disabled(busy)
+    }
+
+    private func act(_ go: @escaping () async -> Void) {
+        busy = true
+        Task { await go(); busy = false }
+    }
+}
+
+/// Several questions of the Chief's at once: a box under each, its choices under it to fill it, and one Send for all.
+/// Sent, it goes; refused, what was typed stays for Send again.
+struct QuestionsBox: View {
+    let questions: [String]
+    let choices: [[String]]
+    let onSend: ([String]) async -> Bool
+    @State private var answers: [String] = []
+    @State private var sending = false
+    @State private var sent = false
+
+    var body: some View {
+        if !sent {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(Array(questions.enumerated()), id: \.offset) { (i, q: String) in question(i, q) }
+                HStack {
+                    Spacer()
+                    Button(tr("Send"), action: send).buttonStyle(.borderedProminent)
+                        .disabled(sending || !answers.contains { !$0.trimmingCharacters(in: .whitespaces).isEmpty })
+                }
+            }
+            .padding(14)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 14))
+            .onAppear { if answers.count != questions.count { answers = Array(repeating: "", count: questions.count) } }
+        }
+    }
+
+    private func question(_ i: Int, _ q: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(q).font(.subheadline)
+            TextField("", text: binding(i), axis: .vertical).lineLimit(1...6).textFieldStyle(.roundedBorder)
+            if i < choices.count, !choices[i].isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(choices[i], id: \.self) { (c: String) in
+                            Button(c) { answers[i] = c }
+                                .buttonStyle(.bordered).tint(answer(i) == c ? .accentColor : .secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func answer(_ i: Int) -> String { i < answers.count ? answers[i].trimmingCharacters(in: .whitespaces) : "" }
+
+    private func binding(_ i: Int) -> Binding<String> {
+        Binding(get: { i < answers.count ? answers[i] : "" }, set: { v in if i < answers.count { answers[i] = v } })
+    }
+
+    private func send() {
+        sending = true
+        let all = answers
+        Task {
+            if await onSend(all) { sent = true }
+            sending = false
         }
     }
 }
