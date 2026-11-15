@@ -126,6 +126,8 @@ class HomeStore(val api: Api) {
         try { store.needs.refresh() } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) {}
         return failed
     }
+    /** The "@" of a chat's message box: [chat] a bot's id, or Mentions.CHIEF for the Chief's (MentionBox). */
+    fun mentions(chat: String): MentionBox = MentionBox(store, chat)
     /** The scheduled jobs of the bot [botId] (JobsDesk), from the bots as the feed keeps them. */
     fun jobs(botId: String): JobsDesk = JobsDesk(scope, api, store, botId)
 

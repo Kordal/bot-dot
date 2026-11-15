@@ -38,6 +38,32 @@ final class ChatTests: XCTestCase {
         XCTAssertNotNil(ImageRenderer(content: ReplyChip(text: "Reply to: Plan my week", onClear: {}).frame(width: 360)).cgImage)
     }
 
+    /// Quote: the same words quoted twice come twice; the box takes them as Markdown after what is typed.
+    func testAQuoteGoesIntoTheBoxAfterWhatIsTyped() {
+        let inbox = QuoteInbox()
+        inbox.quote("Ship it")
+        inbox.quote("Ship it")
+        XCTAssertEqual(inbox.quoted?.count, 2)
+        XCTAssertEqual(Quote.shared.add(draft: "Yes", selected: "Ship it")?.text, "Yes\n\n> Ship it\n\n")
+    }
+
+    /// A bot's chat and the Chief's offer "@" (MentionBox); the group's box offers none yet.
+    func testTheBotAndChiefBoxesOfferMentions() {
+        let home = HomeStore(api: unreachableApi())
+        XCTAssertNotNil(ChatModel(home: home, botId: "b1").mentions)
+        XCTAssertNotNil(ChiefModel(home: home).mentions)
+    }
+
+    /// The mention cursor: a cursor in the middle of the text is where the "@" is read, counted as the shared layer counts.
+    func testTheMentionCursorIsWhereTheCaretIs() {
+        let text = "Ask @we today 👋"
+        let caret = text.index(text.startIndex, offsetBy: 7)
+        XCTAssertEqual(Cursor.offset(of: TextSelection(insertionPoint: caret), in: text), 7)
+        XCTAssertEqual(Cursor.offset(of: nil, in: text), text.utf16.count, "none known: the end")
+        XCTAssertEqual(Cursor.offset(of: Cursor.at(15, in: text), in: text), 15)
+        XCTAssertEqual(Cursor.offset(of: Cursor.at(99, in: text), in: text), text.utf16.count, "past the end: the end")
+    }
+
     /// The plan dock: folded, open and stopped, each drawn; the fold kept in the app's defaults.
     func testThePlanDockIsDrawnFoldedOpenAndStopped() {
         let plan = Plan(steps: [Plan.Step(text: "Read", status: Plan.companion.DONE, doing: ""),
@@ -63,5 +89,16 @@ final class ChatTests: XCTestCase {
         let model = AppModel(directory: dir, sessions: KeychainSessions(service: "test-\(UUID().uuidString)"))
         model.accountDeleted("https://botdot.test", "Deleted")
         XCTAssertFalse(FileManager.default.fileExists(atPath: ReplyPictures.cache.path))
+    }
+
+    /// Quote after "Ask @we": the cursor goes to the quote's end, where no "@" is being typed.
+    func testAQuoteMovesTheCursorToItsEnd() throws {
+        let (text, cursor) = try XCTUnwrap(Cursor.quoting("Ship it", into: "Ask @we"))
+        XCTAssertEqual(text, "Ask @we\n\n> Ship it\n\n")
+        let at = Cursor.offset(of: cursor, in: text)
+        XCTAssertEqual(at, text.utf16.count)
+        let before = String(text.utf16.prefix(at)) ?? ""
+        XCTAssertFalse(before.hasSuffix("@we"), "no mention is being typed at the cursor")
+        XCTAssertNil(Cursor.quoting("  ", into: "Ask"), "nothing to quote")
     }
 }

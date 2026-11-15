@@ -66,6 +66,8 @@ extension GroupChatState: @retroactive @unchecked Sendable {}
 extension ReplyPictures: @retroactive @unchecked Sendable {}
 /// An immutable value from the shared layer.
 extension Attachment: @retroactive @unchecked Sendable {}
+/// Read on the main actor; load only refreshes the store.
+extension MentionBox: @retroactive @unchecked Sendable {}
 /// Called from the main actor (JobsModel).
 extension JobsDesk: @retroactive @unchecked Sendable {}
 /// Immutable values from the shared layer, read on the main actor.

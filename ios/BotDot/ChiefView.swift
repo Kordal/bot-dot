@@ -65,6 +65,13 @@ private struct ChiefChat: View {
                                          }
                                      },
                                      mailFile: { model.mailFile($0) }, onFile: onFile)
+                                .contextMenu {
+                                    // Quote and Copy a message's words (Quote), as a bot's reply has them.
+                                    if !m.text.isEmpty && !m.pending {
+                                        Button { model.quote(m.text) } label: { Label(tr("Quote"), systemImage: "text.quote") }
+                                        Button { UIPasteboard.general.string = m.text } label: { Label(tr("Copy"), systemImage: "doc.on.doc") }
+                                    }
+                                }
                                 // Its conversation in its identity: another conversation's row at the same place starts
                                 // anew (its card's Send and Approve), not with this one's taps.
                                 .id("\(s.chatId ?? "new")-\(m.index)")

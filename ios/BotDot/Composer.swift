@@ -28,6 +28,44 @@ protocol MessageBox: AnyObject, Observable {
     /// A picked file that couldn't be read or copied: the chat says so.
     func attachFailed(_ name: String)
     func stopFromBox()
+    /// The "@" of this box (MentionBox): nil where the chat offers no mentions.
+    var mentions: MentionBox? { get }
+    /// Text quoted from the chat for the box, once (Quote); counted, so the same words quoted again come again.
+    var quoted: (text: String, count: Int)? { get }
+}
+
+extension MessageBox {
+    var mentions: MentionBox? { nil }
+    var quoted: (text: String, count: Int)? { nil }
+}
+
+/// The message box's cursor as the shared layer counts it (UTF-16, as Kotlin's strings), and back.
+enum Cursor {
+    /// The cursor's place in [text]: the end of a selection; the text's end when none is known.
+    static func offset(of selection: TextSelection?, in text: String) -> Int {
+        guard let selection, case .selection(let range) = selection.indices, range.upperBound <= text.endIndex else { return text.utf16.count }
+        return text.utf16.distance(from: text.startIndex, to: range.upperBound)
+    }
+
+    /// [draft] with the quote of [words] after it (Quote), and the cursor at its end; nil when there is nothing to quote.
+    static func quoting(_ words: String, into draft: String) -> (String, TextSelection)? {
+        guard let added = Quote.shared.add(draft: draft, selected: words) else { return nil }
+        return (added.text, at(added.text.utf16.count, in: added.text))
+    }
+
+    /// A cursor at [offset] (UTF-16) in [text].
+    static func at(_ offset: Int, in text: String) -> TextSelection {
+        let i = text.utf16.index(text.startIndex, offsetBy: min(max(offset, 0), text.utf16.count))
+        return TextSelection(insertionPoint: i)
+    }
+}
+
+/// What a chat quotes into its box: the words, and a count that tells a new quote of the same words.
+@MainActor
+@Observable
+final class QuoteInbox {
+    private(set) var quoted: (text: String, count: Int)?
+    func quote(_ text: String) { quoted = (text, (quoted?.count ?? 0) + 1) }
 }
 
 /// A chat's message box, as Android's: the system's text input (dictation, the keyboard's own behaviour), files from
@@ -40,6 +78,8 @@ struct Composer<Box: MessageBox>: View {
     /// One's own message left: the chat goes to its end.
     let onSent: () -> Void
     @State private var typed = ""
+    /// Where the cursor is: the "@" suggestions are for the word before it.
+    @State private var selection: TextSelection?
     @State private var restored: String?
     @State private var photos: [PhotosPickerItem] = []
     @State private var importing = false
@@ -48,6 +88,7 @@ struct Composer<Box: MessageBox>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let note = box.note { Text(note).font(.footnote).foregroundStyle(.red) }
+            suggestions
             if !box.files.isEmpty {
                 ScrollView(.horizontal) {
                     HStack {
@@ -66,7 +107,7 @@ struct Composer<Box: MessageBox>: View {
                     Image(systemName: box.uploading ? "hourglass" : "paperclip").frame(width: 36, height: 36)
                 }
                 .accessibilityLabel(tr("Attach"))
-                TextField(placeholder, text: $typed, axis: .vertical)
+                TextField(placeholder, text: $typed, selection: $selection, axis: .vertical)
                     .lineLimit(1...6)
                     .focused($focused)
                     .padding(.horizontal, 12).padding(.vertical, 8)
@@ -88,6 +129,8 @@ struct Composer<Box: MessageBox>: View {
         .padding(.horizontal).padding(.vertical, 8)
         .background(.bar)
         .onChange(of: box.back) { take() }
+        .onChange(of: box.quoted?.count) { quote() }
+        .task { try? await box.mentions?.load() }
         .onChange(of: photos) { pick(photos) }
         // A picker presented from the menu's button: one placed in a Menu doesn't open reliably.
         .photosPicker(isPresented: $picking, selection: $photos, matching: .any(of: [.images, .videos]))
@@ -96,6 +139,43 @@ struct Composer<Box: MessageBox>: View {
         }
         .task { take(); unsent() }
         .onDisappear { box.leave(typed) }
+    }
+
+    /// The "@" suggestions for what is typed (MentionBox): a tap puts the mention in place of the "@…".
+    @ViewBuilder
+    private var suggestions: some View {
+        let cursor = Cursor.offset(of: selection, in: typed)
+        let rows = box.mentions?.suggest(text: typed, cursor: Int32(cursor)) ?? []
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    Button {
+                        guard let picked = box.mentions?.pick(text: typed, cursor: Int32(cursor), row: row) else { return }
+                        typed = picked.text
+                        selection = Cursor.at(Int(picked.cursor), in: picked.text)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(row.text).font(.subheadline.monospaced())
+                            Text(row.label).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 8).contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .background(.quaternary, in: .rect(cornerRadius: 12))
+            .accessibilityIdentifier("mention-suggestions")
+        }
+    }
+
+    /// A quote from the chat: after what is typed, as Markdown, the cursor in the box (Quote).
+    private func quote() {
+        guard let words = box.quoted?.text, let quoted = Cursor.quoting(words, into: typed) else { return }
+        typed = quoted.0
+        selection = quoted.1 // the cursor after the quote: an "@" before it is no longer being typed
+        focused = true
     }
 
     private func send() {
