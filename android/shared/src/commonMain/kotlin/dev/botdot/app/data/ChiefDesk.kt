@@ -17,7 +17,7 @@ import dev.botdot.app.markdown.draftSource
 import kotlinx.serialization.json.JsonNull
 
 /** One message of the Chief's chat as a phone draws it. */
-class ChiefLine(
+data class ChiefLine(
     /** Its place in the whole chat (what a rating names). */
     val index: Int,
     /** "user", "chief", "suggestion" (a bot's for the Chief) or "report" (a bot's answer to the Chief). */
@@ -41,6 +41,14 @@ class ChiefLine(
     val pending: Boolean,
     /** "13:52", or "5 Oct, 13:52" another day; "" for the owner's own and a reply still being written. */
     val time: String,
+    /** A bot's suggestion that waits: Approve and Decline under it. */
+    val suggests: Boolean = false,
+    /** A bot's suggestion the owner declined: it says so in place of the buttons. */
+    val declined: Boolean = false,
+    /** Several questions at once, a box under each ([ChiefDesk.answer]); only under the newest finished reply. */
+    val questions: List<String> = emptyList(),
+    /** Each question's choices, drawn under its box (empty for one without). */
+    val choices: List<List<String>> = emptyList(),
 )
 
 /** The Chief's chat as the phone shows it, for one draw ([ChiefDesk.state]). */
@@ -69,6 +77,8 @@ data class ChiefState(
     val noticeCount: Int,
     /** The Chief's name (ChiefName): the chat's title. */
     val name: String,
+    /** Its conversations, newest first ([ChiefDesk.open] one; null: a new one). */
+    val chats: List<ChiefChatSummary> = emptyList(),
 )
 
 /**
@@ -87,6 +97,10 @@ class ChiefDesk(
     startChat: String? = null,
 ) {
     private var chatId: String? = startChat
+    // Opening on the latest conversation, until one is picked or a new one asked for ([open]).
+    private var pickLatest = startChat == null
+    // One key per card while it is shown: a second tap on the same answer is taken once.
+    private val cardKeys = HashMap<String, Pair<String, String>>()
     private var chat: ChiefChat? = null
     private var loaded = false
     private var failed: String? = null
@@ -135,6 +149,7 @@ class ChiefDesk(
         jobs += scope.launch { kicks.debounce(250).collect { val whole = wholeDue; wholeDue = false; refresh(whole) } }
         jobs += scope.launch { store.lines.lines.map { it["chief:${chatId.orEmpty()}"] }.distinctUntilChanged().collect { publish() } }
         jobs += scope.launch { store.chiefName.collect { publish() } }
+        jobs += scope.launch { store.chief.value.collect { publish() } } // its conversations, as the list draws them
     }
 
     /** The chat was left: what it follows stops (a send under way goes on). */
@@ -152,18 +167,80 @@ class ChiefDesk(
     /** Its last page, from scratch: the latest conversation's when none is open yet. */
     @Throws(Exception::class)
     suspend fun load() {
-        if (chatId == null) {
+        if (chatId == null && pickLatest) {
             val chats = store.chief.value.value ?: run { store.chief.refresh(); store.chief.value.value }
             // Its list unread: not a botdot without conversations. Nothing is drawn as new, so a message can't start one.
             if (chats == null) { failed = store.chief.error.value ?: tr("Couldn't load"); publish(); return }
             // A first message may have made a conversation meanwhile: that one stays.
             if (chatId == null) chatId = chats.chats.firstOrNull()?.id
+            pickLatest = false
         }
         val id = chatId ?: run { loaded = true; failed = null; publish(); return }
         val r = runCatching { api.chiefChat(id, limit = PAGE) }
         r.exceptionOrNull()?.let { if (it is CancellationException) throw it }
         r.onSuccess { if (id == chatId) { chat = it; loaded = true; failed = null; follow() } }.onFailure { if (!loaded) failed = it.message ?: tr("Couldn't load") else say(it.message ?: tr("Couldn't load")) }
         publish()
+    }
+
+    /**
+     * Another of the Chief's conversations ([id]), or a new one (null), made when the first message goes, as Android's
+     * list and New chat open them. What the last one followed stops; the new one is read from its end.
+     */
+    fun open(id: String?) {
+        pickLatest = false
+        if (id == chatId && chat != null) return
+        chatId = id
+        chat = null
+        loaded = id == null
+        failed = null
+        cardKeys.clear()
+        follow()
+        publish()
+        if (id != null) scope.launch { load() }
+    }
+
+    /**
+     * A bot's suggestion approved: the Chief is told to go ahead ([PLAN_APPROVAL]), once for each tap on the same card.
+     * Whether it went.
+     */
+    @Throws(Exception::class)
+    suspend fun approve(index: Int): Boolean = sendFrom("approve:$index", PLAN_APPROVAL)
+
+    /** A bot's suggestion declined: botdot is told, and the chat is read again with it so. */
+    @Throws(Exception::class)
+    suspend fun decline() {
+        val id = chatId ?: return
+        try { api.dismissSuggestion(id) } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("That didn't work")) }
+        refresh(whole = true)
+    }
+
+    /**
+     * Several questions answered at once, in one message ([questionsAnswer]): each box's words, "–" for one left empty.
+     * Nothing is sent with every box empty. The same answers tapped again keep their key. Whether it went.
+     */
+    @Throws(Exception::class)
+    suspend fun answer(index: Int, answers: List<String>): Boolean {
+        val line = state.value.messages.firstOrNull { it.index == index } ?: return false
+        if (line.questions.isEmpty() || answers.none { it.isNotBlank() }) return false
+        return sendFrom("questions:$index", questionsAnswer(line.questions, answers))
+    }
+
+    /** A card's words sent as a message of their own (not the box's), with its card's key while the words stay the same. */
+    private suspend fun sendFrom(card: String, text: String): Boolean {
+        val key = (cardKeys[card]?.takeIf { it.first == text } ?: (text to newMessageKey()).also { cardKeys[card] = it }).second
+        val known = ownWords(chat).mapTo(HashSet()) { it.id }
+        val went = outbox.send(text, emptyList(), box = false, key = key, once = takesOnce(store.version.value.value?.features), chat = chatId, known = known) { k ->
+            publish()
+            val id = chatId ?: try {
+                api.newChiefChat().id.also { chatId = it; outbox.sentIn(it) }
+            } catch (e: CancellationException) { throw e } catch (e: Exception) { throw notSent(e) }
+            api.sendToChief(id, text, emptyList(), k)?.takeIf { it.id == chatId }?.let { now ->
+                withAnswer(chat?.takeIf { it.id == now.id }, now)?.let { chat = it; follow() }
+            }
+        }
+        publish()
+        if (chat == null) load() else refresh()
+        return went
     }
 
     /** Its end again (or all of the loaded part: [whole]), put in place. */
@@ -379,9 +456,15 @@ class ChiefDesk(
         val last = messages.lastIndex
         val sent = outbox.sent?.takeIf { it.chat == chatId }?.unlessIn(ownWords(c))
         val line = OpeningLine.chiefLine(store.lines.lines.value["chief:${chatId.orEmpty()}"], activity, busy)
+        // The questions' card: under the newest message, past the project updates after it, a finished reply of the Chief's.
+        val asking = messages.indexOfLast { it.projectUpdate == null }.takeIf { i -> i >= 0 && messages[i].role == "chief" && !messages[i].pending && !busy }
         return ChiefState(
             chatId = chatId,
-            messages = messages.mapIndexed { i, m -> chiefLine(m, c!!.offset + i, if (i == last) draft else "", features) },
+            messages = messages.mapIndexed { i, m ->
+                val l = chiefLine(m, c!!.offset + i, if (i == last) draft else "", features)
+                if (i != asking || m.questions.isNullOrEmpty()) l
+                else l.copy(questions = m.questions.orEmpty(), choices = m.questions.orEmpty().indices.map { q -> m.questionChoices?.getOrNull(q).orEmpty() })
+            },
             loaded = loaded,
             failed = failed,
             busy = busy,
@@ -397,6 +480,7 @@ class ChiefDesk(
             notice = notice,
             noticeCount = noticeCount,
             name = store.chiefName.value,
+            chats = store.chief.value.value?.chats.orEmpty(),
         )
     }
 
@@ -427,5 +511,7 @@ internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Col
         rating = Ratings.value(m.rating),
         pending = m.pending,
         time = if (m.role == "user" || m.pending) "" else chatClock(m.endedAt ?: m.at),
+        suggests = m.role == "suggestion" && m.status == "pending",
+        declined = m.role == "suggestion" && m.status == "dismissed",
     )
 }
