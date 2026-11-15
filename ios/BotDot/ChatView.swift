@@ -10,6 +10,9 @@ struct ChatView: View {
     /// A file path tapped in a reply: opened in the viewer.
     @State private var opening: DocumentView.Opening?
     @State private var model: ChatModel
+    /// The "+" beside the name: a new group of this bot and others (GroupMaker), then its chat.
+    @State private var makingGroup = false
+    @State private var group: GroupRoute?
     @State private var atBottom = true
     @State private var sentAt = 0
     @FocusState private var focused: Bool
@@ -27,9 +30,12 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
-                                                                                   color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
-                                                                                   onAnswers: { await model.answerQuestions(r.run.id, $0) }) }
+                        ForEach(s.runs.reversed(), id: \.run.id) { r in
+                            RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
+                                   color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
+                                   onAnswers: { await model.answerQuestions(r.run.id, $0) })
+                                .contextMenu { RunMenu(view: r, replies: model.replies(r.run.id)) { model.replyTo(r.run.id); focused = true } }
+                        }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
                             VStack(alignment: .trailing, spacing: 4) {
@@ -74,11 +80,27 @@ struct ChatView: View {
                         ChatPlanDock(plan: plan, color: model.state?.bot?.color, onFold: model.foldPlan, onDismiss: model.dismissPlan)
                             .padding(.horizontal).padding(.top, 6)
                     }
+                    if let replying = model.state?.replying { ReplyChip(text: replying, onClear: model.clearReply).padding(.horizontal) }
                     Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 }
                 }
             }
         }
         .navigationTitle(name)
+        .toolbar {
+            if model.state?.bot != nil, canMakeGroup {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { makingGroup = true } label: { Image(systemName: "plus") }.accessibilityLabel(tr("New group"))
+                }
+            }
+        }
+        .sheet(isPresented: $makingGroup) {
+            if let bot = model.state?.bot {
+                NewGroupSheet(home: home, bot: bot, others: GroupMaker.shared.others(bots: allBots, bot: bot)) {
+                    group = GroupRoute(groupId: $0.id, name: $0.name)
+                }
+            }
+        }
+        .navigationDestination(item: $group) { g in GroupChatView(home: home, groupId: g.groupId, name: g.name, figure: nil) }
         // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.
         .environment(\.openURL, OpenURLAction { url in
             guard let path = MarkdownKt.filePathOf(link: url.absoluteString.removingPercentEncoding ?? url.absoluteString) else { return .systemAction }
@@ -92,6 +114,14 @@ struct ChatView: View {
         .task { model.start() }
         .onDisappear { model.stop() }
     }
+    /// Every bot, as the store last read them.
+    private var allBots: [Bot] { (home.store.bots.value.value as? [Bot]) ?? [] }
+
+    /// A group can be made here: the botdot has groups, and there is another bot.
+    private var canMakeGroup: Bool {
+        GroupMaker.shared.canMake(features: home.store.version.value.value?.features, otherBots: Int32(max(allBots.count - 1, 0)))
+    }
+
     /// To the chat's end once what changed is laid out ([after]: once the keyboard is up).
     private func toEnd(_ scroll: ScrollViewProxy, after: Duration = .zero) {
         Task {
@@ -105,6 +135,38 @@ struct ChatView: View {
         guard let s = model.state else { return "" }
         let r = s.runs.first
         return "\(r?.run.id ?? "")|\(r?.reply?.count ?? 0)|\(r?.draft?.count ?? 0)|\(s.started.count)|\(s.queued.count)|\(s.sent?.text ?? "")"
+    }
+}
+
+/// A run's long press (Android's RunBlock): Reply to this task, where the botdot takes replies, and Copy its reply.
+struct RunMenu: View {
+    let view: RunView
+    let replies: Bool
+    let onReply: () -> Void
+
+    var body: some View {
+        if replies { Button(action: onReply) { Label(tr("Reply to this task"), systemImage: "arrowshape.turn.up.left") } }
+        if let reply = view.reply, !reply.isEmpty {
+            Button { UIPasteboard.general.string = reply } label: { Label(tr("Copy"), systemImage: "doc.on.doc") }
+        }
+    }
+}
+
+/// Above the message box while a reply is picked: what it replies to, and ✕.
+struct ReplyChip: View {
+    let text: String
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(text).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 0)
+            Button(action: onClear) { Image(systemName: "xmark").font(.caption) }
+                .accessibilityLabel(tr("Don't reply to it"))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.bar, in: .rect(cornerRadius: 12))
+        .accessibilityIdentifier("reply-chip")
     }
 }
 

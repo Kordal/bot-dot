@@ -33,6 +33,11 @@ final class ChatTests: XCTestCase {
         XCTAssertEqual(OutboxKt.withFailed(failed: "", typedSince: "and April"), "and April")
     }
 
+    /// "Reply to this task": the chip above the box says what the next message replies to, and draws.
+    func testTheReplyChipDraws() {
+        XCTAssertNotNil(ImageRenderer(content: ReplyChip(text: "Reply to: Plan my week", onClear: {}).frame(width: 360)).cgImage)
+    }
+
     /// The plan dock: folded, open and stopped, each drawn; the fold kept in the app's defaults.
     func testThePlanDockIsDrawnFoldedOpenAndStopped() {
         let plan = Plan(steps: [Plan.Step(text: "Read", status: Plan.companion.DONE, doing: ""),

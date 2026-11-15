@@ -87,7 +87,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` (left: Reply to a task and its steps, "@" mentions and Quote, page chips, Steer, "Learned" chips) |
 | `PlanDock` | a chat at work | `PlanDock` in `GroupChatView` (left: in a bot's chat and the Chief's) |
 | `ChiefScreen` (`chief/{id}`) | Home | `ChiefView` (left: the mail draft card, action chips, quick-answer choices) |
-| `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView` (left: making a group) |
+| `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView`; a new group from a bot's chat, its "+" (`NewGroupSheet`) |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings, Home's ⋯ | `FilesView`, `ViewerView` (left: Move or Copy, Export, Keep it up to date, On Board) |
 | `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
 | `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView` (left: the Chief's settings, Jobs, Skills, Pages, Storage; in a bot's settings its apps, browser and proxy, always-approved rules, Duplicate and its pages) |

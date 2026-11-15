@@ -205,6 +205,69 @@ class BotChatTalkTest {
         assertTrue(fake.asked().none { it.path.endsWith("/stream") }, "no run's stream is opened for a chat that was left: ${fake.asked().map { it.path }}")
     }
 
+    @Test fun aReplyToATaskGoesWithTheNextMessageAndThenIsGone() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.path == "/runs" -> 200 to """[${run("r1", prompt = "Plan my week\\nwith care")},""" +
+                    """{"id":"s1","botId":"b1","kind":"script","status":"success","prompt":"tidy","startedAt":"2026-11-14T08:00:00Z"}]"""
+                a.method == "POST" && a.path == "/bots/b1/run" -> 200 to run("r2", status = "running", prompt = "And Friday")
+                else -> 404 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        runCurrent() // the store reads its botdot afresh once it runs: what is set comes after
+        store.version.set(VersionInfo(features = listOf("reply-to")))
+        val chat = BotChat(backgroundScope, fake.api, store, events, "b1")
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == 2 }
+        assertTrue(chat.replies("r1"))
+        assertFalse(chat.replies("s1"), "a script's run takes no reply")
+        chat.replyTo("r1")
+        assertEquals("Reply to: Plan my week", chat.state.value.replying)
+        assertTrue(chat.send("And Friday"))
+        val post = fake.asked().single { it.method == "POST" }
+        assertTrue("\"replyTo\":\"r1\"" in post.body, post.body)
+        assertNull(chat.state.value.replying, "sent: the next message is a new one")
+        chat.replyTo("r1")
+        chat.clearReply()
+        assertNull(chat.state.value.replying)
+        chat.stop()
+    }
+
+    @Test fun aBotdotWithoutRepliesOffersNone() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to "[${run("r1")}]" else 404 to "{}" }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("its run") { chat.state.value.runs.size == 1 }
+        assertFalse(chat.replies("r1"))
+        chat.replyTo("r1")
+        assertNull(chat.state.value.replying)
+        chat.stop()
+    }
+
+    @Test fun aReplyOnAnEarlierRoundRepliesToTheNewestWithTheFirstRequest() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.path == "/runs" -> 200 to """[
+                    {"id":"r2","botId":"b1","status":"success","prompt":"And Friday?","result":"Friday too","replyTo":"r1","startedAt":"2026-11-14T09:05:00Z"},
+                    {"id":"r1","botId":"b1","status":"success","prompt":"Plan my week","result":"Planned","startedAt":"2026-11-14T09:00:00Z"}]"""
+                a.method == "POST" && a.path == "/bots/b1/run" -> 200 to run("r3", status = "running", prompt = "And Saturday")
+                else -> 404 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        runCurrent()
+        store.version.set(VersionInfo(features = listOf("reply-to")))
+        val chat = BotChat(backgroundScope, fake.api, store, events, "b1")
+        chat.start()
+        until("its rounds") { chat.state.value.runs.size == 2 }
+        chat.replyTo("r1") // the block's earlier round, pressed
+        assertEquals("Reply to: Plan my week", chat.state.value.replying, "the block's first request")
+        assertTrue(chat.send("And Saturday"))
+        val post = fake.asked().single { it.method == "POST" }
+        assertTrue("\"replyTo\":\"r2\"" in post.body, "to the newest round: ${post.body}")
+    }
+
     private val steps = """{"steps":[{"text":"Read the brief","status":"done"},{"text":"Draft it","status":"doing","doing":"Writing the intro"},{"text":"Send it","status":"todo"}]}"""
 
     /** A plan memory kept in a map, as the phone keeps it in its defaults. */
