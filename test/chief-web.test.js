@@ -306,9 +306,11 @@ test("after a web page, a project's team, its lead and a message to the team are
   const meta = await waitFor(async () => (await srv.api(`/runs?group=${g.id}`)).data.find((x) => x.botId === scout.id && x.outside) || null, { what: "the lead's run" });
   assert.ok(meta.outside.includes('web'), JSON.stringify(meta.outside));
 
-  // A deletion still waits.
+  // A deletion still waits, and so does a board card (its build reaches outside with the project's logins).
   const removed = await turn.call('remove_project_card', { card: 'nope' });
   assert.equal(removed.held, true, JSON.stringify(removed));
+  const card = await turn.call('add_project_card', { ask: 'Show the staging status' });
+  assert.equal(card.held, true, JSON.stringify(card));
   await turn.end();
 });
 

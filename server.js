@@ -655,11 +655,12 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // with its project's logins (company/card-request, #804) only reads, by the key of that card's run alone.
 const FREE_AFTER_WEB = /^(company\/card-request|asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 // A project's own changes and a group's (ADR 247): its teams, their bots and lead, its own bots, a message to a team,
-// its to-dos, cards, plan, goal, dates and calendar, and making or changing a group, are done at once after the web
-// too. They stay in the account, change no bot's own powers and are seen and undone where they are; a team's turns
-// from such a message start as runs that read the web. A deletion still waits.
+// its to-dos, plan, goal, dates and calendar, and making or changing a group, are done at once after the web too.
+// They stay in the account, change no bot's own powers and are seen and undone where they are; a team's turns from
+// such a message start as runs that read the web. A deletion still waits, and so does a board card: its build is a
+// Chief run on a schedule with the project's logins and apps, so it reaches outside.
 // Named one by one, so a project route added later is held until someone decides otherwise.
-const FREE_PROJECT_AFTER_WEB = /^(company\/(teams|todos|decisions|events|cards|plan|suggestion|standup|updates|layout|dates|goal|bots)|company\/(teams|objectives|todos|events|cards)\/[^/]+|company\/teams\/[^/]+\/message|group-chats(\/[^/]+)?)$/;
+const FREE_PROJECT_AFTER_WEB = /^(company\/(teams|todos|decisions|events|plan|suggestion|standup|updates|layout|dates|goal|bots)|company\/(teams|objectives|todos|events)\/[^/]+|company\/teams\/[^/]+\/message|group-chats(\/[^/]+)?)$/;
 const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'))
   && !(method !== 'DELETE' && FREE_PROJECT_AFTER_WEB.test(parts.join('/')));
 // A bot's job the owner asked for in a turn their own message started (ADR 075): adding one, or changing one, is
