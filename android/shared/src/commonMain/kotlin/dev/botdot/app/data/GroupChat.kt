@@ -81,6 +81,12 @@ class GroupFoldHead(val bot: Bot?, val color: String)
 /** A member at work in the group: its line, "Name · what it does…", in the server's words. */
 class GroupTurnView(val runId: String, val botId: String, val bot: Bot?, val name: String, val color: String, val line: String, val held: Boolean)
 
+/**
+ * The plan of a member at work, above the message box (docs/api.md, "The plan"; Android's PlanDock): whose it is, the
+ * step it is at in words ("step 2 of 4"), what that step does, and every step with its status (Plan.DONE, DOING, TODO).
+ */
+class GroupPlanView(val name: String, val color: String, val stepLine: String, val doneLine: String, val now: String, val steps: List<Plan.Step>)
+
 /** A member's reply as it is written (ReplyDraft), in the bubble its reply will have. */
 class GroupDraftView(val runId: String, val bot: Bot?, val name: String, val color: String, val text: String)
 
@@ -99,6 +105,8 @@ class GroupChatState(
     /** The members at work, in the order they started: one line each, the last with "Stop all". */
     val turns: List<GroupTurnView>,
     val drafts: List<GroupDraftView>,
+    /** The plan of the member at work that has one; null for none. */
+    val plan: GroupPlanView? = null,
     /** Who is next: the members whose turn has not come, in that order, and what a screen reader says of them. */
     val next: List<Bot>,
     val nextWords: String,
@@ -552,6 +560,13 @@ class GroupChat(
             gone = groups != null && g == null,
             members = members,
             rows = drawn,
+            plan = GroupWorking.planOf(working)?.let { (w, view) ->
+                val p = view.plan
+                GroupPlanView(memberName(bots, w.botId), memberColor(bots, w.botId),
+                    tr("step {step} of {total}", "step" to p.step.toString(), "total" to p.total.toString()),
+                    tr("{done} of {total}", "done" to p.done.toString(), "total" to p.total.toString()),
+                    p.now?.let { it.doing.ifEmpty { it.text } }.orEmpty(), p.steps)
+            },
             turns = working.map { w ->
                 val line = lines[w.runId]
                 GroupTurnView(w.runId, w.botId, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId),

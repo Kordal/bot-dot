@@ -125,7 +125,10 @@ struct GroupChatView: View {
 
     /// The group's message box: the shared Composer, as a bot's chat and the Chief's have it, with files.
     private var box: some View {
-        Composer(box: model, placeholder: tr("Message {name}…", ["name": model.state?.group?.name ?? name]), focused: $focused) { sentAt += 1 }
+        VStack(spacing: 0) {
+            if let plan = model.state?.plan { PlanDock(plan: plan).padding(.horizontal).padding(.top, 6) }
+            Composer(box: model, placeholder: tr("Message {name}…", ["name": model.state?.group?.name ?? name]), focused: $focused) { sentAt += 1 }
+        }
     }
 
     private var tailKey: String {
@@ -267,5 +270,43 @@ struct FoldRow: View {
         .buttonStyle(.plain)
         .padding(.leading, 34)
         .accessibilityIdentifier("fold-\(fold.messageId)")
+    }
+}
+
+/// The plan of a member at work, above the message box (Android's PlanDock): folded to its step and what it does now,
+/// a tap shows every step with what is done.
+struct PlanDock: View {
+    let plan: GroupPlanView
+    @State private var open = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { withAnimation { open.toggle() } } label: {
+                HStack(spacing: 8) {
+                    Circle().fill(ContactRow.tint(plan.color)).frame(width: 8, height: 8)
+                    Text(tr("Plan")).font(.subheadline.weight(.semibold))
+                    Text(open ? plan.doneLine : plan.stepLine).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    if !open { Text(plan.now).font(.subheadline).lineLimit(1) }
+                    Spacer(minLength: 0)
+                    Image(systemName: open ? "chevron.down" : "chevron.up").font(.caption).foregroundStyle(.secondary)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("plan-dock")
+            if open {
+                ForEach(Array(plan.steps.enumerated()), id: \.offset) { (_, step: Plan.Step) in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: step.status == Plan.companion.DONE ? "checkmark.circle.fill" : step.status == Plan.companion.DOING ? "circle.dotted" : "circle")
+                            .foregroundStyle(step.status == Plan.companion.DONE ? ContactRow.tint(plan.color) : .secondary)
+                        Text(step.status == Plan.companion.DOING && !step.doing.isEmpty ? step.doing : step.text)
+                            .font(.subheadline)
+                            .foregroundStyle(step.status == Plan.companion.DONE ? .secondary : .primary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(.bar, in: .rect(cornerRadius: 14))
     }
 }

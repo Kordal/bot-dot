@@ -420,4 +420,21 @@ class GroupChatTalkTest {
         until("the chat is read") { chat.state.value.loaded }
         assertFalse(chat.state.value.picksLead, "a group of bots, no team: no lead")
     }
+
+    @Test fun theMemberAtWorksPlanStandsAboveTheBox() = runTest {
+        val plan = """{"steps":[{"text":"Read the issue","status":"done"},{"text":"Write the fix","status":"doing","doing":"Fixing the test"},{"text":"Open the PR","status":"todo"}]}"""
+        val fake = FakeBotdot { a ->
+            if (a.path == "/group-chats/g1/chat") 200 to page(emptyList(), working = """[{"botId":"b1","runId":"r1","plan":$plan}]""") else 404 to "{}"
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("its plan") { chat.state.value.plan != null }
+        val p = chat.state.value.plan!!
+        assertEquals("Coder", p.name)
+        assertEquals("#7f77dd", p.color)
+        assertEquals("step 2 of 3", p.stepLine)
+        assertEquals("1 of 3", p.doneLine)
+        assertEquals("Fixing the test", p.now)
+        assertEquals(listOf(Plan.DONE, Plan.DOING, Plan.TODO), p.steps.map { it.status })
+    }
 }
