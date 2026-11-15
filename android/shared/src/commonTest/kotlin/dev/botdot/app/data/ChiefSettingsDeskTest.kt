@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -85,5 +86,37 @@ class ChiefSettingsDeskTest {
         desk.removeJob("j1")
         assertTrue(desk.state.value.jobs.orEmpty().isEmpty())
         assertEquals("Removed.", desk.state.value.notice)
+    }
+    @Test fun featuresThatComeAfterTheSettingsOpenedBringTheirSections() = runTest {
+        val s = server()
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        val desk = ChiefSettingsDesk(backgroundScope, s.api, store, MutableSharedFlow())
+        desk.load()
+        with(desk.state.value) { assertNull(name); assertNull(skills); assertNull(jobs); assertNull(checkup) }
+        store.version.set(VersionInfo(features = all))
+        until("the sections") { desk.state.value.jobs != null && desk.state.value.checkup != null }
+        with(desk.state.value) {
+            assertEquals("", name)
+            assertEquals(listOf("deploy", "review"), skills?.map { it.name })
+            assertEquals("Digest", jobs?.single()?.name)
+        }
+        desk.close()
+    }
+
+    @Test fun aRenameFromElsewhereTakesTheFieldUnlessANameTypedHereWaits() = runTest {
+        val s = server()
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.version.set(VersionInfo(features = all))
+        val desk = ChiefSettingsDesk(backgroundScope, s.api, store, MutableSharedFlow())
+        desk.load()
+        store.handle(FeedEvent(null, "chief_name", kotlinx.serialization.json.buildJsonObject { put("name", "Max") }))
+        until("the field follows") { desk.state.value.name == "Max" }
+        advanceTimeBy(ChiefSettingsDesk.SAVE_MS + 1); runCurrent()
+        assertTrue(s.posts().none { it.path == "/api/settings/chief-name" }, "a rename from elsewhere sends no rename")
+        desk.setName("Ada")
+        store.handle(FeedEvent(null, "chief_name", kotlinx.serialization.json.buildJsonObject { put("name", "Zed") }))
+        runCurrent()
+        assertEquals("Ada", desk.state.value.name, "a name typed here waits to be saved: it stays")
+        desk.close()
     }
 }

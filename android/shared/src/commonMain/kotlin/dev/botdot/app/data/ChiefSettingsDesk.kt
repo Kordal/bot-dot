@@ -65,6 +65,10 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     private var notice: String? = null
     private var noticeCount = 0
     private var saving: Job? = null
+    /** The features last read for: a change of them reads what they bring. */
+    private var seenFeatures: List<String>? = null
+    /** A name typed here that waits to be saved: a rename from elsewhere doesn't take its place. */
+    private var nameEdited = false
     private val following = mutableListOf<Job>()
     private val _state = MutableStateFlow(ChiefSettingsState())
     val state: StateFlow<ChiefSettingsState> = _state.asStateFlow()
@@ -76,18 +80,17 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     /** Everything it shows, then what the feed and the store bring while it is open. */
     @Throws(Exception::class)
     suspend fun load() {
-        val f = features
         try { info = api.settings(); edit = info.settings } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't load")) }
-        if (ChiefName.FEATURE in f.orEmpty()) name = ChiefName.field(store.chiefName.value)
-        if (ChiefSkills.shows(f)) library = runCatching { api.skills().library }.getOrElse { say(it.message ?: tr("Couldn't load")); emptyList() }
-        grants = ChiefGrant.kinds(f).flatMap { k -> runCatching { api.chiefGrants(k) }.getOrNull().orEmpty() }
-        jobs = if (ChiefJobs.shows(f)) runCatching { api.chiefJobs() }.getOrNull() else null
-        checkup = if (Checkup.shows(f)) runCatching { api.checkup() }.getOrElse { say(it.message ?: tr("Couldn't load")); null } else null
-        readPages()
+        val f = features
+        readFeatured(f)
         val first = !loaded
         loaded = true
         publish()
         if (!first) return
+        // The features may come after the settings opened (a cold start, a reconnect): what they bring is read then.
+        following += scope.launch { store.version.value.collect { v -> val now = v?.features; if (now != seenFeatures) { readFeatured(now); publish() } } }
+        // The name renamed elsewhere (the feed, another phone): the field follows, unless a name typed here waits to be saved.
+        following += scope.launch { store.chiefName.collect { n -> if (name != null && !nameEdited) { name = ChiefName.field(n); publish() } } }
         following += scope.launch { events.collect { ev -> Checkup.event(ev)?.let { checkup = it; publish() }; ChiefJobs.event(ev)?.let { jobs = it; publish() } } }
         following += scope.launch { store.pageSaves.value.collect { readPages(); publish() } }
         following += scope.launch { store.chief.value.collect { publish() } }
@@ -96,13 +99,24 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     /** The settings went: they follow the feed and the store no more. A change on its way is still saved. */
     fun close() { following.forEach { it.cancel() }; following.clear() }
 
+    /** What only a botdot with its feature has: the name, the skills, what you always approved, its jobs, the checkup and its pages. */
+    private suspend fun readFeatured(f: List<String>?) {
+        seenFeatures = f
+        name = if (ChiefName.FEATURE in f.orEmpty()) (if (nameEdited) name else ChiefName.field(store.chiefName.value)) else null
+        library = if (ChiefSkills.shows(f)) runCatching { api.skills().library }.getOrElse { say(it.message ?: tr("Couldn't load")); emptyList() } else null
+        grants = ChiefGrant.kinds(f).flatMap { k -> runCatching { api.chiefGrants(k) }.getOrNull().orEmpty() }
+        jobs = if (ChiefJobs.shows(f)) runCatching { api.chiefJobs() }.getOrNull() else null
+        checkup = if (Checkup.shows(f)) runCatching { api.checkup() }.getOrElse { say(it.message ?: tr("Couldn't load")); null } else null
+        readPages()
+    }
+
     private suspend fun readPages() { pages = if (Pages.showsChief(features)) runCatching { api.pages(Pages.CHIEF) }.getOrNull() else null }
 
     /** The viewer closed: its pages read again (their keeping may have changed there). */
     @Throws(Exception::class)
     suspend fun pagesAgain() { readPages(); publish() }
 
-    fun setName(text: String) { if (name != null) { name = text.take(ChiefName.MAX); changed() } }
+    fun setName(text: String) { if (name != null) { name = text.take(ChiefName.MAX); nameEdited = true; changed() } }
     fun setRules(text: String) { edit = edit.copy(chiefRules = text.take(4000)); changed() }
     fun setModel(id: String) { edit = edit.copy(chiefModel = id); changed() }
     fun setEffort(id: String) { edit = edit.copy(chiefEffort = id); changed() }
@@ -122,6 +136,7 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
             try { renamed = n!!.trim(); name = ChiefName.field(api.renameChief(n.trim())); savedAt++ }
             catch (e: CancellationException) { throw e } catch (e: Exception) { name = ChiefName.field(store.chiefName.value); say(e.message ?: tr("Couldn't rename")) }
         }
+        nameEdited = false // saved, or the same as botdot's: a rename from elsewhere may take its place again
         if (edit != info.settings && edit != refused) {
             val sent = edit
             try { info = api.saveSettings(sent); if (edit == sent) edit = info.settings; savedAt++ }
