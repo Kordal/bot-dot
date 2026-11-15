@@ -162,25 +162,32 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
                 modifier = Modifier.padding(start = Space.s12).clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
         if (!teamView) {
-        if (overview) {
-            Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
-            SmallButton(tr("Review"), onClick = ways.onNeeds)
-        }
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
         val here = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()).let { dev.botdot.app.data.Spaces.underLeads(c, it, bots) }.sortedBy { if (it.act != null) 0 else 1 } } // what stops its bots' work first: a missing app
+        val rows: @Composable () -> Unit = {
+            if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group!!) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
+                ui.scope.launch {
+                    runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
+                    ui.app.store.needs.refresh()
+                }
+            })
+        }
+        if (!overview) rows()
         if (overview) {
             val needs by ui.app.store.needs.value.collectAsState()
             val projectBots = dev.botdot.app.data.Spaces.teamBots(listOf(c))
             val chiefAsks = needs?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in projectBots }
-            chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
-        }
-        if (here.isNotEmpty()) NeedsRows(here, onReview = ways.onNeeds, onChat = { w -> if (w.group != null) ways.onTeam?.invoke(w.group!!) ?: ways.onNeeds() else w.bot?.let(ways.onBot) ?: ways.onNeeds() }, onAnswer = { id, yes ->
-            ui.scope.launch {
-                runCatching { (ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))).answerAsk(id, yes) }.onFailure { ui.tell(it.message ?: tr("Couldn't answer")) }
-                ui.app.store.needs.refresh()
+            // Needs you holds what waits: its cards, and the questions bots and the Chief ask in this project's chats.
+            FixedProjectOverview(ui, c, ways) { asked, open ->
+                val questions = dev.botdot.app.data.ProjectOverview.withoutCarded(asked, needs?.asks.orEmpty().mapNotNull { it.chatId }.toSet()) // as the web page: any card in that chat
+                if (dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + chiefAsks.size, questions.size)) {
+                    Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
+                    if (questions.isNotEmpty()) OverviewRows(questions, open, sites = sitesShown(features))
+                    chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
+                    rows()
+                }
             }
-        })
-        if (overview) FixedProjectOverview(ui, c, ways) else {
+        } else {
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)

@@ -62,7 +62,8 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * The Team step (#671; web: public/company-team.js): the Chief's proposed bots as cards the owner edits (rename,
- * remove, Routines, Asks first, Connect), "Add existing bot" (Duplicate), "Change the team…" with Undo, the starter
+ * remove, Routines, Asks first, Connect), "Add a bot" (one of the owner's bots as it is, ADR 244, or a new one through
+ * the Chief), "Add existing bot" (Duplicate), "Change the team…" with Undo, the starter
  * board's objectives and cards to untick (#810), and "Create N bots", which goes on to Start.
  */
 @Composable
@@ -106,12 +107,25 @@ internal fun TeamStep(ui: CompanyUi, c: Company) {
     }) {
         if (c.conversation && c.firstStep.isNotBlank()) { Text(tr("First step")); Text(c.firstStep) }
         proposed.forEach { b ->
-            BotCard(ui, c, b,
+            if (b.existing) JoinedCard(ui, b) { save(CompanySetup.removed(raw, b.key)) }
+            else BotCard(ui, c, b,
                 onRename = { name -> save(CompanySetup.edited(raw, b.key, mapOf("name" to JsonPrimitive(name)))) },
                 onRemove = { save(CompanySetup.removed(raw, b.key)) },
                 onChange = { change -> save(CompanySetup.edited(raw, b.key, change)) })
         }
-        CoChip(tr("Add a bot"), dashed = false, icon = Icons.Filled.Add) { ui.draft = tr("Add a bot that ") }
+        // "Add a bot" in the conversational setup: the owner's bots to tick, each joining as it is (ADR 244); "New bot"
+        // asks the Chief in "Change the team…", as "Add a bot" does in the older setup, which has "Add existing bot".
+        val version by ui.app.store.version.value.collectAsState()
+        val bots by ui.bots.collectAsState()
+        val joinable = if (c.conversation && CompanySetup.EXISTING_FEATURE in version?.features.orEmpty()) CompanySetup.existing(bots.orEmpty(), proposed) else emptyList()
+        var picking by remember { mutableStateOf(false) }
+        CoChip(tr("Add a bot"), dashed = false, icon = Icons.Filled.Add) { if (joinable.isEmpty()) ui.draft = tr("Add a bot that ") else picking = true }
+        if (picking) BotPicker(tr("Add a bot"), joinable, max = 10, action = tr("Add"), hint = { "" }, more = tr("New bot") to { ui.draft = tr("Add a bot that ") }, onDismiss = { picking = false }) { picked, _ ->
+            val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
+            val now = ui.company()?.takeIf { it.id == c.id } ?: c
+            ui.saving++ // Approve waits for it (docs/api.md)
+            try { ui.took(a.patchCompany(CompanySetup.patch(CompanySetup.joined(now.proposal.orEmpty(), bots.orEmpty(), picked)))) } finally { ui.saving-- }
+        }
         CoPanel {
             if (!c.conversation) CoChip(tr("Add existing bot"), on = false, dashed = false, icon = Icons.Filled.Add) { ui.adding = !ui.adding }
             if (ui.adding && !c.conversation) Existing(ui, proposed)
@@ -189,6 +203,23 @@ private fun Existing(ui: CompanyUi, proposed: List<Proposed>) {
             if (added) Text(tr("Added"), color = p.muted, fontSize = Type.s12)
             else WordsButton(tr("Duplicate")) { ui.call({ it.duplicateIntoTeam(b.id) }) }
         }
+    }
+}
+
+/** One of the owner's bots that joins as it is (ADR 244): its own head, name and description, and Remove. */
+@Composable
+private fun JoinedCard(ui: CompanyUi, b: Proposed, onRemove: () -> Unit) {
+    val p = LocalPaper.current
+    val bots by ui.bots.collectAsState()
+    val bot = bots.orEmpty().firstOrNull { it.id == b.bot }
+    val about = bot?.description ?: b.description
+    Row(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalAlignment = Alignment.CenterVertically) {
+        BotFigure(bot?.color ?: b.color, "idle", 40, bot?.outfit)
+        Column(Modifier.weight(1f).padding(horizontal = Space.s12)) {
+            Text(bot?.name ?: b.name, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
+            if (about.isNotEmpty()) Text(about, color = p.muted, fontSize = Type.s12)
+        }
+        RoundButton(Icons.Outlined.Delete, tr("Remove"), size = 36.dp, onClick = onRemove)
     }
 }
 

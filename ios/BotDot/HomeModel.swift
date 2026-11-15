@@ -114,7 +114,11 @@ final class HomeModel {
 
     /// Allow or No on a Needs you row that asks for a permission; why not, when it didn't go.
     func answer(_ permission: String, yes: Bool) async {
-        if let failed = (try? await home.answer(permission: permission, yes: yes)) ?? nil { error = failed }
+        do {
+            if let failed = try await home.answer(permission: permission, yes: yes) { error = failed }
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 
     /// Save or Skip on the Chief's name: nil once it was kept, else why not, and the question stays.

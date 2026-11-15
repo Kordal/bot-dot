@@ -1358,7 +1358,7 @@
   "Latest replies": "Ostatnie odpowiedzi",
   "No replies yet.": "Na razie brak odpowiedzi.",
   "Open folder": "Otwórz folder",
-  "No failed work or open questions.": "Brak nieudanej pracy i pytań czekających na odpowiedź.",
+  "No failed work.": "Brak nieudanej pracy.",
   "Discuss the first step with the Chief. Review the proposal before anything starts.": "Omów pierwszy krok z szefem personelu. Zatwierdź propozycję, zanim praca się zacznie.",
   "Review first step": "Sprawdź pierwszy krok",
   "Remove failed files or add them again.": "Usuń pliki, których nie udało się przesłać, lub dodaj je ponownie.",
@@ -1369,5 +1369,6 @@
   "Schedule": "Harmonogram",
   "That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.": "Ten adres jest na komputerze i tylko ten komputer go osiąga: telefon nie. Użyj adresu twojego botdota w twoim tailnecie, tego, który otwierasz w przeglądarce na telefonie.",
   "Photos": "Zdjęcia",
+  "Use skills": "Używa umiejętności",
   "Couldn't create the group": "Nie udało się utworzyć grupy"
 }

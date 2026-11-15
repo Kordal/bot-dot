@@ -53,6 +53,15 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(BotSettingsKt.BotColors.first?.first as String?, "#1d9e75")
     }
 
+    /// A bot's computer, skills, asking and rooms are edited through the shared draft.
+    func testABotsDraftTakesItsComputerSkillsAndRooms() {
+        let d = BotDraft.companion.empty().withComputer(on: true).withSkill(name: "mail", on: true).withAllowRooms(on: true)
+        XCTAssertTrue(d.computer)
+        XCTAssertTrue(d.skills.contains("mail"))
+        XCTAssertTrue(d.rooms.allowRooms)
+        XCTAssertFalse(d.withSkill(name: "mail", on: false).skills.contains("mail"))
+    }
+
     /// A bot's scheduled jobs: the shared desk and words reach Swift (its rules are the shared JobsDeskTest's).
     func testTheJobsDeskReachesSwift() {
         let desk = home().jobs(botId: "b1")
