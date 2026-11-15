@@ -23,7 +23,20 @@ struct BoardView: View {
         var id: String { tile.id }
     }
 
+    // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
+        sheets
+            .onDisappear { model?.stop(); model = nil }
+            .task(id: model?.state?.noticeId) {
+                guard let text = model?.state?.notice else { return }
+                notice = text
+                try? await Task.sleep(for: .seconds(3))
+                if notice == text { notice = nil }
+            }
+    }
+
+    /// The tiles, in a scroll view as wide as the screen; the model is made where that width is known.
+    private var scroller: some View {
         GeometryReader { geo in
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
@@ -35,7 +48,7 @@ struct BoardView: View {
                 }
                 .padding(16)
             }
-            // Made where its width is known: at first and when it shows again (back from Needs you).
+            // At first and when it shows again (back from Needs you).
             .task {
                 if model == nil {
                     let made = BoardModel(home: home)
@@ -45,51 +58,77 @@ struct BoardView: View {
             }
             .onChange(of: geo.size.width) { _, w in model?.width(w) }
         }
-        .refreshable { await model?.refresh() }
-        .navigationTitle(BoardWords.shared.NAME)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            if let model, let state = model.state, state.refreshable {
-                ToolbarItem(placement: .topBarTrailing) { RefreshButton(state: state) { Task { await model.refresh() } } }
+    }
+
+    private var framed: some View {
+        scroller
+            .refreshable { await model?.refresh() }
+            .navigationTitle(BoardWords.shared.NAME)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { toolbar }
+            .navigationDestination(isPresented: $needs) { NeedsYouView(home: home, figure: figure) }
+            .overlay(alignment: .bottom) { noticeLine }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        if let model, let state = model.state, state.refreshable {
+            ToolbarItem(placement: .topBarTrailing) { RefreshButton(state: state) { Task { await model.refresh() } } }
+        }
+    }
+
+    @ViewBuilder
+    private var noticeLine: some View {
+        if let notice {
+            Text(notice).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16)
+                .accessibilityIdentifier("notice")
+        }
+    }
+
+    private var askTitle: String { asking.map { BoardKit.shared.askTitle(t: $0.tile, on: $0.on) } ?? "" }
+    private var askShown: Binding<Bool> { Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }) }
+    private var removeTitle: String { removing.map { tr("Remove “{title}”?", ["title": $0.tile?.title ?? ""]) } ?? "" }
+    private var removeShown: Binding<Bool> { Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }) }
+
+    private var asked: some View {
+        framed
+            .alert(askTitle, isPresented: askShown, presenting: asking) { (a: Asking) in
+                Button(BoardKit.shared.askYes(on: a.on), role: a.on?.boolValue == false ? .destructive : nil) { tap(a.tile.id, asked: true) }
+                Button(tr("Cancel"), role: .cancel) {}
             }
-        }
-        .navigationDestination(isPresented: $needs) { NeedsYouView(home: home, figure: figure) }
-        .overlay(alignment: .bottom) {
-            if let notice {
-                Text(notice).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16)
-                    .accessibilityIdentifier("notice")
+            .confirmationDialog(removeTitle, isPresented: removeShown, titleVisibility: .visible, presenting: removing) { (cell: BoardCell) in
+                removeButtons(cell)
+            } message: { (cell: BoardCell) in
+                Text(cell.holds > 0 ? trn(Int(cell.holds), "It holds one tile.", "It holds {n} tiles.") : tr("It goes off your Board."))
             }
+    }
+
+    @ViewBuilder
+    private func removeButtons(_ cell: BoardCell) -> some View {
+        if cell.holds > 0 {
+            Button(tr("Only the group")) { remove(cell.key, withTiles: false) }
+            Button(tr("The group and its tiles"), role: .destructive) { remove(cell.key, withTiles: true) }
+        } else {
+            Button(tr("Remove"), role: .destructive) { remove(cell.key, withTiles: false) }
         }
-        .alert(asking.map { BoardKit.shared.askTitle(t: $0.tile, on: $0.on) } ?? "", isPresented: Binding(get: { asking != nil }, set: { if !$0 { asking = nil } }), presenting: asking) { a in
-            Button(BoardKit.shared.askYes(on: a.on), role: a.on?.boolValue == false ? .destructive : nil) { tap(a.tile.id, asked: true) }
-            Button(tr("Cancel"), role: .cancel) {}
-        }
-        .confirmationDialog(removing.map { tr("Remove “{title}”?", ["title": $0.tile?.title ?? ""]) } ?? "", isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }), titleVisibility: .visible, presenting: removing) { cell in
-            if cell.holds > 0 {
-                Button(tr("Only the group")) { remove(cell.key, withTiles: false) }
-                Button(tr("The group and its tiles"), role: .destructive) { remove(cell.key, withTiles: true) }
-            } else {
-                Button(tr("Remove"), role: .destructive) { remove(cell.key, withTiles: false) }
+        Button(tr("Cancel"), role: .cancel) {}
+    }
+
+    private var panelKey: Binding<Key?> { Binding(get: { panel.map(Key.init) }, set: { panel = $0?.id }) }
+    private var changingKey: Binding<Key?> { Binding(get: { changing.map(Key.init) }, set: { changing = $0?.id }) }
+
+    private func cellOf(_ key: String) -> BoardCell? { model?.state?.rows.flatMap({ $0 }).first(where: { $0.key == key }) }
+
+    private var sheets: some View {
+        asked
+            .sheet(item: panelKey) { (key: Key) in
+                if let model, let cell = cellOf(key.id), let tile = cell.tile {
+                    TilePanel(tile: tile, color: cell.color, model: model)
+                }
             }
-            Button(tr("Cancel"), role: .cancel) {}
-        } message: { cell in
-            Text(cell.holds > 0 ? trn(Int(cell.holds), "It holds one tile.", "It holds {n} tiles.") : tr("It goes off your Board."))
-        }
-        .sheet(item: Binding(get: { panel.map(Key.init) }, set: { panel = $0?.id })) { key in
-            if let model, let cell = model.state?.rows.flatMap({ $0 }).first(where: { $0.key == key.id }), let tile = cell.tile {
-                TilePanel(tile: tile, color: cell.color, model: model)
+            .sheet(item: changingKey) { (key: Key) in
+                if let model { AskChangeSheet(title: cellOf(key.id)?.tile?.title ?? "", key: key.id, model: model) }
             }
-        }
-        .sheet(item: Binding(get: { changing.map(Key.init) }, set: { changing = $0?.id })) { key in
-            if let model { AskChangeSheet(title: model.state?.rows.flatMap({ $0 }).first(where: { $0.key == key.id })?.tile?.title ?? "", key: key.id, model: model) }
-        }
-        .onDisappear { model?.stop(); model = nil }
-        .task(id: model?.state?.noticeId) {
-            guard let text = model?.state?.notice else { return }
-            notice = text
-            try? await Task.sleep(for: .seconds(3))
-            if notice == text { notice = nil }
-        }
     }
 
     struct Key: Identifiable { let id: String }
