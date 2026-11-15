@@ -53,7 +53,8 @@ final class AccountTests: XCTestCase {
     private let api = Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000)
 
     func testABotdotWithoutAFrontDoorOffersNothing() async throws {
-        let offers = try XCTUnwrap(try await FrontDoorDesk(api: api).read(features: ["whats-new"]))
+        let read = try await FrontDoorDesk(api: api).read(features: ["whats-new"])
+        let offers = try XCTUnwrap(read)
         XCTAssertNil(offers.deletion)
         XCTAssertFalse(offers.feedback)
     }
