@@ -47,7 +47,7 @@ class DuplicateState(val plan: CopyPlan? = null, val name: String = "", val busy
 
 /**
  * "Duplicate" for both phones (#227, #478; Android's settings): [ask] reads what the copy gets, the name can be
- * changed, and [go] makes the copy, saying "Duplicating…", then the copy's id (its chat opens) or botdot's sentence.
+ * changed, and [go] makes the copy, saying "Duplicating…", then the copy (its chat opens) or botdot's sentence.
  */
 class DuplicateDesk(private val api: Api, private val botId: String, private val botName: String, private val scope: kotlinx.coroutines.CoroutineScope) {
     private val _state = kotlinx.coroutines.flow.MutableStateFlow(DuplicateState())
@@ -69,16 +69,16 @@ class DuplicateDesk(private val api: Api, private val botId: String, private val
 
     fun cancel() { val s = _state.value; _state.value = DuplicateState(null, "", false, s.notice, s.noticeCount) }
 
-    /** Duplicate: the copy made, and its id (its chat opens); null when botdot said no (its sentence is said). */
+    /** Duplicate: the copy botdot made, under the name botdot gave it (its chat opens); null when botdot said no (its sentence is said). */
     @Throws(Exception::class)
-    suspend fun go(): String? {
+    suspend fun go(): Bot? {
         val s = _state.value
         if (!s.canGo) return null
         _state.value = DuplicateState(s.plan, s.name, true, Duplicate.duplicating(botName), s.noticeCount + 1)
         return try {
             val copy = api.duplicateBot(botId, s.name)
             _state.value = DuplicateState(null, "", false, Duplicate.made(copy.name), _state.value.noticeCount + 1)
-            copy.id
+            copy
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't save")); null }
     }
 }

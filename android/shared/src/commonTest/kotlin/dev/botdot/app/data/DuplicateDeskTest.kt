@@ -36,7 +36,7 @@ class DuplicateDeskTest {
         assertEquals("Too many bots", desk.state.value.notice)
         assertTrue(desk.state.value.plan != null, "refused: the confirmation stays, as it was")
         refuse = false
-        assertEquals("b9", desk.go())
+        assertEquals("b9", desk.go()?.id)
         assertEquals("Coder 3 made", desk.state.value.notice)
         assertNull(desk.state.value.plan)
         assertTrue("\"name\":\"Coder 3\"" in server.posts().last().body)
@@ -50,6 +50,17 @@ class DuplicateDeskTest {
         val down = DuplicateDesk(FakeServer { 503 to """{"error":"botdot is restarting"}""" }.api, "b1", "Coder", backgroundScope)
         assertFalse(down.ask())
         assertEquals("botdot is restarting", down.state.value.notice)
+    }
+    @Test fun theCopyHasTheNameBotdotGaveIt() = runTest {
+        // botdot may name the copy otherwise than typed (a name taken: Coder 3 (2)); the copy made says botdot's.
+        val server = FakeServer { t -> if (t.method == "GET") 200 to """{"name":"Coder 2"}""" else 200 to """{"id":"b9","name":"Coder 3 (2)"}""" }
+        val desk = DuplicateDesk(server.api, "b1", "Coder", backgroundScope)
+        desk.ask()
+        desk.setName("Coder 3")
+        val copy = desk.go()
+        assertEquals("b9", copy?.id)
+        assertEquals("Coder 3 (2)", copy?.name)
+        assertEquals("Coder 3 (2) made", desk.state.value.notice)
     }
     @Test fun whileTheCopyIsMadeItIsBusyAndAWatchSeesIt() = runTest {
         // botdot's answer is held, so the busy state is there to see for certain (a watch alone may see only the end:
@@ -69,7 +80,7 @@ class DuplicateDeskTest {
         runCurrent()
         assertTrue(seen.any { it.busy }, "the watch saw it busy")
         held.complete(Unit)
-        assertEquals("b9", going.await())
+        assertEquals("b9", going.await()?.id)
         runCurrent()
         assertFalse(seen.last().busy)
     }

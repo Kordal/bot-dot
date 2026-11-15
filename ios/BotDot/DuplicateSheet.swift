@@ -41,11 +41,10 @@ struct DuplicateSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button(tr("Cancel")) { desk.cancel(); dismiss() }.disabled(state?.busy == true) }
                 ToolbarItem(placement: .confirmationAction) {
                     Button(tr("Duplicate")) {
-                        let name = state?.name ?? ""
                         Task {
-                            guard let id = try? await desk.go() else { return } // refused: its sentence shows here
+                            guard let copy = try? await desk.go() else { return } // refused: its sentence shows here
                             if let made = desk.state.value.notice { onSaid(made) }
-                            onMade(id, name.trimmingCharacters(in: .whitespaces))
+                            onMade(copy.id, copy.name) // the name botdot gave the copy
                         }
                     }
                     .disabled(state?.canGo != true)

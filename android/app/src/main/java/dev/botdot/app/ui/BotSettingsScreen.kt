@@ -453,11 +453,12 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             confirmButton = {
                 TextButton(enabled = !work.busy && dup.canGo, onClick = {
                     aside = true
-                    val name = dup.name.trim()
-                    // The line under the settings says Duplicating…, then the copy made; a refusal brings the dialog back with botdot's sentence.
-                    work.run(dev.botdot.app.data.Duplicate.duplicating(bot?.name), { dev.botdot.app.data.Duplicate.made(name) }, refused = { aside = false; tell(it) }) {
-                        val id = dupDesk.go() ?: throw dev.botdot.app.data.ApiException(dupDesk.state.value.notice ?: tr("Couldn't save"))
-                        onCopied(id)
+                    var made = dup.name.trim()
+                    // The line under the settings says Duplicating…, then the copy made under botdot's name for it; a refusal brings the dialog back with botdot's sentence.
+                    work.run(dev.botdot.app.data.Duplicate.duplicating(bot?.name), { dev.botdot.app.data.Duplicate.made(made) }, refused = { aside = false; tell(it) }) {
+                        val copy = dupDesk.go() ?: throw dev.botdot.app.data.ApiException(dupDesk.state.value.notice ?: tr("Couldn't save"))
+                        made = copy.name
+                        onCopied(copy.id)
                     }
                 }) { Text(tr("Duplicate"), color = p.text) }
             },
