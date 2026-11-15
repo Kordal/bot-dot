@@ -14,7 +14,9 @@ struct MailCardView: View {
     var onFile: (DocumentView.Opening) -> Void = { _ in }
     @State private var unfolded = false
     @State private var textShown: Bool?
-    @State private var used = false
+    /// The buttons a tap went with: they go until the draft's buttons change (Not now leaves Send now), as Android's
+    /// remember(actions).
+    @State private var usedFor: [String]?
     @State private var busy = false
 
     var body: some View {
@@ -47,7 +49,7 @@ struct MailCardView: View {
             }
             if shown && !mail.text.isEmpty { Text(mail.text).font(.subheadline).textSelection(.enabled) }
             if shown || mail.text.isEmpty { files }
-            if !mail.actions.isEmpty && !used { buttons }
+            if Self.showsButtons(mail.actions, usedFor: usedFor) { buttons }
             if let bot = mail.bot { footer(bot) }
         }
         .padding(14)
@@ -88,11 +90,14 @@ struct MailCardView: View {
         .font(.caption).foregroundStyle(.secondary).buttonStyle(.plain)
     }
 
+    /// The card's buttons show while it has some and none of these was tapped yet.
+    static func showsButtons(_ actions: [String], usedFor: [String]?) -> Bool { !actions.isEmpty && usedFor != actions }
+
     private func pick(_ words: String) {
         guard !busy else { return }
         busy = true
         Task {
-            if await onPick(words) { used = true }
+            if await onPick(words) { usedFor = mail.actions }
             busy = false
         }
     }

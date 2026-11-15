@@ -48,4 +48,13 @@ final class ChiefTests: XCTestCase {
                             earlier: false, actions: [], files: [], bot: nil, botId: nil, runId: nil, screen: false)
         XCTAssertNotNil(ImageRenderer(content: MailCardView(mail: sent).frame(width: 360)).cgImage)
     }
+
+    /// Not now keeps the draft: its Send now comes back, as the card's buttons change from two to one.
+    func testAKeptDraftsSendNowComesBackAfterNotNow() {
+        let two = ["Send now", "Not now"]
+        XCTAssertTrue(MailCardView.showsButtons(two, usedFor: nil))
+        XCTAssertFalse(MailCardView.showsButtons(two, usedFor: two), "tapped: gone while the same buttons stand")
+        XCTAssertTrue(MailCardView.showsButtons(["Send now"], usedFor: two), "kept: Send now again")
+        XCTAssertFalse(MailCardView.showsButtons([], usedFor: nil), "sent: none")
+    }
 }
