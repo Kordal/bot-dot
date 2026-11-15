@@ -29,6 +29,14 @@ extension FrontDoorDesk.Deleted: @retroactive @unchecked Sendable {}
 extension WhatsNew.Entry: @retroactive @unchecked Sendable {}
 extension PausedWatch: @retroactive @unchecked Sendable {}
 extension KotlinByteArray: @retroactive @unchecked Sendable {}
+extension RoomsStore: @retroactive @unchecked Sendable {}
+extension RoomsState: @retroactive @unchecked Sendable {}
+extension RoomsDone: @retroactive @unchecked Sendable {}
+extension RoomsJoin: @retroactive @unchecked Sendable {}
+extension RoomChatDesk: @retroactive @unchecked Sendable {}
+extension RoomChatState: @retroactive @unchecked Sendable {}
+extension RoomSettingsDesk: @retroactive @unchecked Sendable {}
+extension RoomSettingsState: @retroactive @unchecked Sendable {}
 extension BotSettingsStore: @retroactive @unchecked Sendable {}
 extension BotSettingsState: @retroactive @unchecked Sendable {}
 extension BotDraft: @retroactive @unchecked Sendable {}

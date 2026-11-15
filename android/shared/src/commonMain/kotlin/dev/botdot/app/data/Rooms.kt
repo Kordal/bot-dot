@@ -215,6 +215,22 @@ object Rooms {
     /** Whether [account] made [r], and so may delete it. */
     fun mayDelete(r: Room, account: String?): Boolean = account != null && r.by == account
 
+    /** The longest name a room has (the front door takes 1 to 60 characters). */
+    const val LONGEST_NAME = 60
+
+    /** The new name [typed] in a room's settings, trimmed, when it is one to save (Save shows); null when blank or the same as [now]. */
+    fun renamed(typed: String, now: String): String? = typed.trim().takeIf { it.isNotEmpty() && it != now }
+
+    /** Whether the room's settings show its invite link: the front door makes them ([links]), and [account] made [r]. */
+    fun maker(r: Room?, account: String?, links: Boolean): Boolean = links && r != null && mayDelete(r, account)
+
+    /** Whether none of the owner's bots may be in shared rooms ([BotRooms.allowRooms]): the settings say where to switch it on. */
+    fun noneAllowed(mine: List<Bot>?): Boolean = mine.orEmpty().none { it.rooms?.allowRooms == true }
+
+    /** This account's own messages among [messages], for [SentMessage]'s look: a person's message by [mine]. */
+    fun own(messages: List<RoomMessage>, mine: String?): List<Queued> =
+        messages.filter { it.bot == null && !it.notice && it.account == mine }.map { Queued(it.id, it.text) }
+
     /** [a] with [room] in its place, or first when it is new; no longer an invitation. */
     fun withRoom(a: RoomsAnswer, room: Room): RoomsAnswer = a.copy(
         rooms = if (a.rooms.any { it.id == room.id }) a.rooms.map { if (it.id == room.id) room else it } else listOf(room) + a.rooms,
@@ -254,4 +270,51 @@ object Rooms {
         put("text", text)
         if (key != null) put("key", key)
     }
+}
+
+/** What the list's row and the Rooms screens say, in one place for their tests and both phones. */
+object RoomWords {
+    /** The rooms' name in the list and on their screen. */
+    val TITLE: String get() = tr("Shared rooms")
+
+    val NOT_CONNECTED: String get() = tr("Not connected to botdot")
+
+    /** What the row says after its name: only the invitations that wait (#493), nothing otherwise. */
+    fun rowLine(invites: Int): String? = if (invites > 0) trn(invites, "{n} invitation", "{n} invitations") else null
+
+    val NOT_A_LINK: String get() = tr("That isn't a room's invite link.")
+
+    /** What a failed action says: the front door's own sentence, or that it was not reached. */
+    fun failed(e: Throwable): String = if (e is ApiException && e.said) e.message.orEmpty() else e.message ?: tr("That didn't work")
+
+    /** Under an invitation's room name: who invites. */
+    fun invites(i: RoomInvitation): String = tr("{name} invites you", "name" to i.by)
+
+    /** A person of the room, "(you)" after this account. */
+    fun person(m: RoomMember, mine: String?): String = m.account + if (m.account == mine) " " + tr("(you)") else ""
+
+    /** An account still invited by name, and by whom. */
+    fun invited(i: RoomInvite): String = "${i.account} · " + tr("invited by {name}", "name" to i.by)
+
+    /** The question before Leave or Delete ([delete]) of the room [name]: its title, what it says, and its button. */
+    fun askTitle(delete: Boolean, name: String?): String = if (delete) tr("Delete {name}?", "name" to name) else tr("Leave {name}?", "name" to name)
+    fun askText(delete: Boolean): String = if (delete) tr("The room and its messages go, for everyone in it.") else tr("Your bots leave with you. The room stays with the others.")
+    fun askYes(delete: Boolean): String = if (delete) tr("Delete") else tr("Leave")
+
+    /** The join dialog's title: before the link was read, and once it shows the room. */
+    fun joinTitle(seen: RoomLinkPreview?): String = seen?.let { tr("Join {name}?", "name" to it.room.name) } ?: tr("Join a room")
+
+    /** What the join dialog says of the room a link opens: who made it. */
+    fun joinSays(seen: RoomLinkPreview): String = tr("{name} made this room and shared its invite link.", "name" to seen.room.by.ifBlank { tr("Someone") })
+}
+
+/** What a room's chat says, for its tests and both phones. */
+object RoomChat {
+    val EMPTY: String get() = tr("Nothing here yet. Mention a bot with @ and it answers; it only talks, it uses no tools.")
+
+    /** Whether [m] stands right, as this account's own: a person's message by [mine]. */
+    fun isMine(m: RoomMessage, mine: String?): Boolean = mine != null && m.bot == null && !m.notice && m.account == mine
+
+    /** The message box's placeholder in the room [name] (null: not known yet). */
+    fun placeholder(name: String?): String = name?.let { tr("Message {name}…", "name" to it) } ?: tr("Message the room…")
 }
