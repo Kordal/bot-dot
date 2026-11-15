@@ -92,8 +92,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var askDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) } // erasing its screen and logins can take a while: the button says so
     val server by app.store.version.value.collectAsState() // its features: whether it can duplicate a bot
-    var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
-    var copyName by remember { mutableStateOf("") }
+    // Duplicate (#227): what the copy gets, its name and the copy made are the shared DuplicateDesk's (one copy with the
+    // iPhone's), in the app's scope so a copy on its way outlives the dialog.
+    val dupDesk = remember(api, botId) { api?.let { dev.botdot.app.data.DuplicateDesk(it, botId, "", app.scope) } }
+    val dup = dupDesk?.state?.collectAsState()?.value
     var pages by remember { mutableStateOf<List<dev.botdot.app.data.PageInfo>?>(null) } // its pages (#346), once loaded
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -428,7 +430,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
             }
             if (dev.botdot.app.data.Duplicate.shows(server?.features)) SecondaryButton(onClick = {
-                scope.launch { runCatching { (api ?: error(tr("Not connected to botdot"))).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: tr("Couldn't load")) } }
+                val d = dupDesk ?: return@SecondaryButton tell(tr("Not connected to botdot"))
+                scope.launch { if (!d.ask()) d.state.value.notice?.let(::tell) }
             }, modifier = Modifier.fillMaxWidth()) { Text(tr("Duplicate {name}", "name" to b.name), color = p.text) }
             SecondaryButton(onClick = { askDelete = true }, enabled = !deleting, modifier = Modifier.fillMaxWidth()) { Text(if (deleting) tr("Deleting…") else tr("Delete {name}", "name" to b.name), color = p.err) }
         }
@@ -436,28 +439,29 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy's chat. It goes away
     // at once while the copy is made (#478), and comes back with the server's sentence when refused.
-    copyPlan?.let { plan ->
+    if (dup?.plan != null && dupDesk != null) {
         var aside by remember { mutableStateOf(false) }
         if (!aside) AlertDialog(
-            onDismissRequest = { copyPlan = null },
+            onDismissRequest = { dupDesk.cancel() },
             title = { Text(tr("Duplicate {name}?", "name" to bot?.name)) },
             text = {
                 Column {
-                    Field(copyName, { copyName = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Text(dev.botdot.app.data.Duplicate.text(plan), color = p.text, modifier = Modifier.padding(top = Space.s12))
+                    Field(dup.name, { dupDesk.setName(it) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text(dup.text, color = p.text, modifier = Modifier.padding(top = Space.s12))
                 }
             },
             confirmButton = {
-                TextButton(enabled = !work.busy && !plan.vaultLocked, onClick = {
+                TextButton(enabled = !work.busy && dup.canGo, onClick = {
                     aside = true
-                    var made = ""
-                    work.run(dev.botdot.app.data.Duplicate.duplicating(bot?.name), { dev.botdot.app.data.Duplicate.made(made) }, refused = { aside = false; tell(it) }) {
-                        val copy = (api ?: error(tr("Not connected to botdot"))).duplicateBot(botId, copyName)
-                        made = copy.name; copyPlan = null; onCopied(copy.id)
+                    val name = dup.name.trim()
+                    // The line under the settings says Duplicating…, then the copy made; a refusal brings the dialog back with botdot's sentence.
+                    work.run(dev.botdot.app.data.Duplicate.duplicating(bot?.name), { dev.botdot.app.data.Duplicate.made(name) }, refused = { aside = false; tell(it) }) {
+                        val id = dupDesk.go() ?: throw dev.botdot.app.data.ApiException(dupDesk.state.value.notice ?: tr("Couldn't save"))
+                        onCopied(id)
                     }
                 }) { Text(tr("Duplicate"), color = p.text) }
             },
-            dismissButton = { TextButton(onClick = { copyPlan = null }) { Text(tr("Cancel"), color = p.text) } },
+            dismissButton = { TextButton(onClick = { dupDesk.cancel() }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 
