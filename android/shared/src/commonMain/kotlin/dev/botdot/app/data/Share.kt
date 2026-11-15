@@ -23,7 +23,8 @@ object Share {
      */
     class Pending {
         internal var to: String? = null
-        internal var attachments: List<Attachment>? = null
+        /** Each file uploaded, by its place among those shared: a retry uploads only the ones that didn't go. */
+        internal val uploaded = mutableMapOf<Int, Attachment>()
         internal var chat: String? = null
     }
 
@@ -48,9 +49,9 @@ object Share {
         val words = text.trim()
         if (words.isEmpty() && files.isEmpty()) return tr("Nothing to send")
         // Another one picked after a failure: its files go up for it, and the Chief's conversation isn't it.
-        if (pending.to != to) { pending.to = to; pending.attachments = null; pending.chat = null }
+        if (pending.to != to) { pending.to = to; pending.uploaded.clear(); pending.chat = null }
         return try {
-            val attachments = pending.attachments ?: files.map { api.upload(it, to) }.also { pending.attachments = it }
+            val attachments = files.mapIndexed { i, f -> pending.uploaded[i] ?: api.upload(f, to).also { pending.uploaded[i] = it } }
             if (to == CHIEF) {
                 val chat = pending.chat ?: api.newChiefChat().id.also { pending.chat = it }
                 api.sendToChief(chat, words, attachments, key)

@@ -20,13 +20,13 @@ import kotlin.test.assertTrue
 
 /** Sharing from another app (Share, #1373): the picker as Android's, and what a share sends to a bot or the Chief. */
 class ShareTest {
-    private data class Asked(val method: String, val path: String, val query: String, val body: String)
+    private data class Asked(val method: String, val path: String, val query: String, val body: String, val name: String = "")
 
     private class FakeBotdot(answer: (Asked) -> Pair<Int, String>) {
         private val lock = Mutex()
         private val took = mutableListOf<Asked>()
         val api = Api("https://botdot.test", MockEngine { req ->
-            val asked = Asked(req.method.value, req.url.encodedPath.removePrefix("/api"), req.url.encodedQuery, (req.body as? TextContent)?.text.orEmpty())
+            val asked = Asked(req.method.value, req.url.encodedPath.removePrefix("/api"), req.url.encodedQuery, (req.body as? TextContent)?.text.orEmpty(), req.headers["X-File-Name"].orEmpty())
             lock.withLock { took += asked }
             val (status, body) = answer(asked)
             respond(body, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
@@ -96,6 +96,24 @@ class ShareTest {
         val sent = asked.filter { it.path == "/chief/chats/c9/messages" }
         assertEquals(2, sent.size)
         assertTrue(sent.all { "k1" in it.body }, "the same key, so botdot takes it once")
+    }
+
+    @Test fun aRetryUploadsOnlyTheFilesThatDidNotGo() = runTest {
+        var failSecond = true
+        val fake = FakeBotdot { a ->
+            when {
+                a.path.startsWith("/uploads") ->
+                    if (a.name == "b.pdf" && failSecond) { failSecond = false; 500 to """{"error":"Upload failed."}""" } else 200 to uploaded
+                a.path == "/bots/b1/run" -> 200 to """{"id":"r1"}"""
+                else -> 404 to "{}"
+            }
+        }
+        val pending = Share.Pending()
+        val three = listOf(file("a.pdf"), file("b.pdf"), file("c.pdf"))
+        assertEquals("Upload failed.", Share.send(fake.api, "b1", "", three, key = "k1", pending = pending))
+        assertNull(Share.send(fake.api, "b1", "", three, key = "k1", pending = pending))
+        val ups = fake.asked().filter { it.path.startsWith("/uploads") }.map { it.name }
+        assertEquals(listOf("a.pdf", "b.pdf", "b.pdf", "c.pdf"), ups, "the retry uploads the second and the third only")
     }
 
     @Test fun nothingIsSentWithoutWordsOrFilesAndARefusalSaysWhy() = runTest {
