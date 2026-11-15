@@ -119,6 +119,12 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(ChiefSettingsDesk.companion.SAVE_MS, 800)
         model.stop()
     }
+    /// Where its computer is and its proxy: the shared rules reach Swift.
+    func testComputerAndProxyAreTheSharedRules() {
+        XCTAssertEqual(BotSettings.shared.moveQuestion(to: "linux"), "Copy its files to this machine?")
+        XCTAssertNil(BotSettings.shared.proxyChoices(advanced: false, features: ["proxies"], b: Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"A","computer":"linux"}"#) as! Bot, list: nil))
+    }
+
     /// Duplicate: the shared desk and words reach Swift.
     func testDuplicateIsTheSharedDesk() {
         let desk = BotSettingsStore(home: home(), botId: "b1").duplicate(name: "Coder")

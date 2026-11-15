@@ -72,6 +72,8 @@ struct BotSettingsView: View {
     @State private var deleting = false
     @State private var saved = false
     @State private var failed: String?
+    /// The computer a switch asks about first: whether its files go along (#556).
+    @State private var askMove: String?
     /// Duplicate's confirmation, while it is open; then the copy's chat.
     @State private var duplicating: DuplicateDesk?
     @State private var copy: ChatRoute?
@@ -111,6 +113,13 @@ struct BotSettingsView: View {
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
         .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
+        .confirmationDialog(askMove.map { model?.state?.moveQuestion(to: $0) ?? "" } ?? "", isPresented: Binding(get: { askMove != nil }, set: { if !$0 { askMove = nil } }), titleVisibility: .visible) {
+            if let to = askMove {
+                Button(tr("Copy files")) { model?.edit { $0.withComputerOn(to: to, move: true) }; askMove = nil }
+                Button(tr("Start empty")) { model?.edit { $0.withComputerOn(to: to, move: false) }; askMove = nil }
+            }
+            Button(tr("Cancel"), role: .cancel) { askMove = nil }
+        }
         .navigationDestination(item: $copy) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
         .sheet(isPresented: Binding(get: { duplicating != nil }, set: { if !$0 { duplicating = nil } })) {
@@ -218,9 +227,28 @@ struct BotSettingsView: View {
             }
         }
         // A server from before every bot has a computer (ADR 192): whether it has one, as Android's "Browser".
-        if state.showsBrowser {
+        // Where its computer is, with Advanced on (ADR 088), else Browser; its proxy (ADR 171) on this machine.
+        if let computers = state.computers {
+            Section {
+                Picker(tr("Computer"), selection: Binding(get: { state.computerValue }, set: { to in
+                    if state.asksMove(to: to) { askMove = to } else { model.edit { $0.withComputerOn(to: to, move: false) } }
+                })) {
+                    ForEach(computers, id: \.id) { Text($0.label).tag($0.id) }
+                }
+                if let proxies = state.proxies {
+                    proxyPicker(proxies, draft, model)
+                }
+            }
+        } else if state.showsBrowser {
             Section {
                 Toggle(tr("Browser"), isOn: Binding(get: { draft.computer }, set: { on in model.edit { $0.withComputer(on: on) } }))
+                if let proxies = state.proxies {
+                    proxyPicker(proxies, draft, model)
+                }
+            }
+        } else if let proxies = state.proxies {
+            Section {
+                proxyPicker(proxies, draft, model)
             }
         }
         Section(tr("Skills")) {
@@ -328,6 +356,13 @@ struct BotSettingsView: View {
         Task {
             failed = await model.delete()
             deleting = false
+        }
+    }
+
+    /// Its proxy (ADR 171): the account's, none, or one of the account's (BotSettings.proxyChoices).
+    private func proxyPicker(_ proxies: [Option], _ draft: BotDraft, _ model: BotSettingsModel) -> some View {
+        Picker(tr("Proxy"), selection: Binding(get: { draft.proxy }, set: { p in model.edit { $0.withProxy(proxy: p) } })) {
+            ForEach(proxies, id: \.id) { Text($0.label).tag($0.id) }
         }
     }
 
