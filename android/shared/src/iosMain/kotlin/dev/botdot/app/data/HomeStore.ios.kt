@@ -133,6 +133,8 @@ class HomeStore(val api: Api) {
 
     /** Every bot's pages, the Pages list (PagesDesk). */
     fun pages(): PagesDesk = PagesDesk(scope, api, store)
+    /** The Chief's settings, following the feed while they are open. */
+    fun chiefSettings(): ChiefSettingsDesk = ChiefSettingsDesk(scope, api, store, feed.events)
 
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId, plans)

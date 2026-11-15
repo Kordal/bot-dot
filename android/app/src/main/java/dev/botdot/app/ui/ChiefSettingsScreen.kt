@@ -36,21 +36,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
-import dev.botdot.app.data.AppSettings
 import dev.botdot.app.data.Checkup
 import dev.botdot.app.data.ChiefGrant
-import dev.botdot.app.data.ChiefJob
 import dev.botdot.app.data.ChiefJobs
 import dev.botdot.app.data.ChiefName
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.UploadedFiles
 import dev.botdot.app.data.WorkspaceFiles
+import dev.botdot.app.data.ChiefSettingsDesk
+import dev.botdot.app.data.ChiefSettingsState
 import dev.botdot.app.data.ChiefSkills
-import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.Pages
-import dev.botdot.app.data.Skill
-import dev.botdot.app.data.SettingsInfo
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
@@ -63,64 +60,17 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
-    var info by remember { mutableStateOf(SettingsInfo()) }
-    var edit by remember { mutableStateOf(AppSettings()) }
-    LaunchedEffect(api) { runCatching { api?.settings() }.onSuccess { if (it != null) { info = it; edit = it.settings } }.onError { tell(it.message ?: tr("Couldn't load")) } }
-    val overview by app.store.chief.value.collectAsState()
-    val chats = overview?.chats.orEmpty()
-    val canThink = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
-    // The checkup's two switches, only from a server that has it. Each saves at once; the feed says when another
-    // app or the Chief changed them.
     val server by app.store.version.value.collectAsState()
-    val hasCheckup = Checkup.shows(server?.features)
-    var checkup by remember { mutableStateOf<Checkup?>(null) }
-    LaunchedEffect(api, hasCheckup) { if (hasCheckup) runCatching { api?.checkup() }.onSuccess { checkup = it }.onError { tell(it.message ?: tr("Couldn't load")) } else checkup = null }
-    LaunchedEffect(Unit) { app.feed.events.collect { ev -> Checkup.event(ev)?.let { checkup = it } } }
-    // Your library skills for it, ticked as a bot's are, only from a server that keeps them; saved with Save.
-    val hasSkills = ChiefSkills.shows(server?.features)
-    var library by remember { mutableStateOf<List<Skill>>(emptyList()) }
-    LaunchedEffect(api, hasSkills) { if (hasSkills) runCatching { api?.skills() }.onSuccess { if (it != null) library = it.library }.onError { tell(it.message ?: tr("Couldn't load")) } }
-    // Its lasting grants, "Always allow" on its cards (#381), of the kinds this server has; asked each time the settings open.
-    val grantKinds = ChiefGrant.kinds(server?.features)
-    var grants by remember { mutableStateOf<List<ChiefGrant>>(emptyList()) }
-    LaunchedEffect(api, grantKinds) { grants = grantKinds.flatMap { k -> runCatching { api?.chiefGrants(k) }.getOrNull().orEmpty() } }
-    // Its pages (#384): read again when one of them is saved (the feed's `page`) or the viewer closes (its keeping changed there).
-    // Its own jobs (#408): read when the settings open, and from the feed's `chief_jobs` when they change.
-    val hasJobs = ChiefJobs.shows(server?.features)
-    var jobs by remember { mutableStateOf<List<ChiefJob>?>(null) }
-    LaunchedEffect(api, hasJobs) { jobs = if (hasJobs) runCatching { api?.chiefJobs() }.getOrNull() else null }
-    LaunchedEffect(hasJobs) { if (hasJobs) app.feed.events.collect { ev -> ChiefJobs.event(ev)?.let { jobs = it } } }
-    val hasPages = Pages.showsChief(server?.features)
-    val pageSaves by app.store.pageSaves.value.collectAsState()
-    var pages by remember { mutableStateOf<List<PageInfo>?>(null) }
-    LaunchedEffect(api, hasPages, pageSaves, DocViewer.open == null) { if (hasPages) runCatching { api?.pages(Pages.CHIEF) }.onSuccess { pages = it } else pages = null }
-    // Its name, as a bot's is in its settings (#379), only from a server that has names; renamed with Save.
-    val hasName = ChiefName.FEATURE in server?.features.orEmpty()
-    val chiefName by app.store.chiefName.collectAsState()
-    var name by remember(chiefName) { mutableStateOf(ChiefName.field(chiefName)) }
-    val renames = hasName && ChiefName.changed(name, chiefName)
-    // A refused or failed change puts the switch back and says why.
-    fun switch(before: Checkup, field: String, now: Checkup) {
-        checkup = now
-        scope.launch { runCatching { api!!.setCheckup(field, if (field == "on") now.on else now.webSearch) }.onSuccess { if (it != null) checkup = it }.onError { if (checkup == now) checkup = before; tell(it.message ?: tr("Couldn't save")) } } // not over what the feed said meanwhile
-    }
-
-    // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top. A refused name (a bot's,
-    // say) is put back and the server's sentence shown; the rest still saves. A refused change is not sent again until
-    // it is changed.
-    var savedAt by remember { mutableStateOf(0) }
-    var refused by remember { mutableStateOf<AppSettings?>(null) }
-    var renamed by remember { mutableStateOf<String?>(null) } // the name sent last: sent once, while the feed brings it back
-    LaunchedEffect(edit, name) {
-        val rename = renames && name.trim() != renamed
-        if ((edit == info.settings || edit == refused) && !rename) return@LaunchedEffect
-        kotlinx.coroutines.delay(800)
-        if (rename) runCatching { renamed = name.trim(); api!!.renameChief(name.trim()) }.onSuccess { name = ChiefName.field(it); savedAt++ }.onError { name = ChiefName.field(chiefName); tell(it.message ?: tr("Couldn't rename")) }
-        if (edit != info.settings && edit != refused) {
-            val sent = edit
-            runCatching { api!!.saveSettings(sent) }.onSuccess { info = it; if (edit == sent) edit = it.settings; savedAt++ }.onError { refused = sent; tell(it.message ?: tr("Couldn't save")) }
-        }
-    }
+    // What it shows, the save a moment after the last change, and what acts at once are the shared ChiefSettingsDesk's
+    // (one copy with the iPhone's).
+    val desk = remember(api) { api?.let { ChiefSettingsDesk(scope, it, app.store, app.feed.events) } }
+    LaunchedEffect(desk) { desk?.load() }
+    val st = desk?.state?.collectAsState()?.value ?: ChiefSettingsState()
+    LaunchedEffect(st.noticeCount) { st.notice?.takeIf { st.noticeCount > 0 }?.let { snack.showSnackbar(it) } }
+    // Its pages are read again when the viewer closes (their keeping changed there).
+    LaunchedEffect(DocViewer.open == null) { if (DocViewer.open == null) desk?.pagesAgain() }
+    val savedAt = st.savedAt
+    val chats = st.chats
 
     Scaffold(
         containerColor = p.bg,
@@ -128,51 +78,45 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
         topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { SavedMark(savedAt); PanelClose() }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-            if (hasName) Section(tr("Name")) {
-                Field(name, { name = it.take(ChiefName.MAX) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
-            }
+            st.name?.let { name -> Section(tr("Name")) {
+                Field(name, { desk?.setName(it) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
+            } }
             // Advanced (ADR 205): without it, the Chief's model is left as it is and not shown.
             val adv by dev.botdot.app.data.Advanced.on.collectAsState()
             if (adv) Section(null) {
-                Choice(tr("Model"), edit.chiefModel, listOf("" to tr("Same as the default")) + info.models.map { it.id to it.label.ifBlank { it.id } }) { edit = edit.copy(chiefModel = it) }
-                if (canThink(edit.chiefModel.ifBlank { edit.defaultModel })) Choice(tr("Reasoning"), edit.chiefEffort, listOf("" to tr("Same as the default")) + info.efforts.map { it.id to it.label }) { edit = edit.copy(chiefEffort = it) }
+                Choice(tr("Model"), st.model, st.models.map { it.id to it.label }) { desk?.setModel(it) }
+                if (st.thinks) Choice(tr("Reasoning"), st.effort, st.efforts.map { it.id to it.label }) { desk?.setEffort(it) }
             }
             Section(tr("Your rules for it")) {
-                Field(edit.chiefRules, { edit = edit.copy(chiefRules = it.take(4000)) }, minLines = 3, modifier = Modifier.fillMaxWidth())
+                Field(st.rules, { desk?.setRules(it) }, minLines = 3, modifier = Modifier.fillMaxWidth())
             }
-            if (hasSkills) {
-                val picked = edit.chiefSkills.orEmpty()
+            st.skills?.let { library ->
+                val picked = st.picked
                 FoldSection(ChiefSkills.TITLE, picked.sorted().joinToString(", ").ifBlank { tr("None") }) {
                     if (library.isEmpty()) Hint(ChiefSkills.EMPTY)
                     // The ones it has come first (as saved, so rows don't jump while you tick them).
-                    library.sortedBy { it.name !in info.settings.chiefSkills.orEmpty() }.forEach { k ->
+                    library.forEach { k ->
                         val more = k.instructions.take(600) + if (k.instructions.length > 600) "…" else ""
-                        key(k.name) { SkillRow(k.name, k.description, more, k.name in picked) { on -> edit = edit.copy(chiefSkills = ChiefSkills.toggle(picked, k.name, on)) } }
+                        key(k.name) { SkillRow(k.name, k.description, more, k.name in picked) { on -> desk?.setSkill(k.name, on) } }
                     }
                 }
             }
             // Revoke takes one off at once; the Chief asks again next time.
-            if (grants.isNotEmpty()) FoldSection(ChiefGrant.TITLE, grants.joinToString(", ") { it.label }) {
-                grants.forEach { g ->
+            if (st.grants.isNotEmpty()) FoldSection(ChiefGrant.TITLE, st.grants.joinToString(", ") { it.label }) {
+                st.grants.forEach { g ->
                     key(g.kind, g.id) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(g.label, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                 Text(g.kind.hint, color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
-                            SecondaryButton(onClick = {
-                                scope.launch {
-                                    runCatching { api!!.revokeChiefGrant(g) }
-                                        .onSuccess { grants = grants - g; tell(ChiefGrant.REVOKED) }
-                                        .onError { tell(it.message ?: tr("Couldn't save")) }
-                                }
-                            }) { Text(tr("Revoke"), color = p.text) }
+                            SecondaryButton(onClick = { scope.launch { desk?.revoke(g) } }) { Text(tr("Revoke"), color = p.text) }
                         }
                     }
                 }
             }
             // Its own jobs: a switch pauses one, Remove takes it away; they are made by chat.
-            jobs?.let { list ->
+            st.jobs?.let { list ->
                 FoldSection(ChiefJobs.TITLE, if (list.isEmpty()) ChiefJobs.EMPTY else "${list.size}") {
                     list.forEach { j ->
                         key(j.id) {
@@ -180,20 +124,16 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                                 Column(Modifier.weight(1f).padding(end = Space.s8)) {
                                     Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
                                     Text(ChiefJobs.line(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
-                                    TextButton(onClick = {
-                                        scope.launch { runCatching { api!!.removeChiefJob(j.id) }.onSuccess { jobs = jobs.orEmpty().filter { it.id != j.id }; tell(tr("Removed.")) }.onError { tell(it.message ?: tr("Couldn't remove")) } }
-                                    }, contentPadding = PaddingValues(0.dp)) { Text(tr("Remove"), color = p.err) }
+                                    TextButton(onClick = { scope.launch { desk?.removeJob(j.id) } }, contentPadding = PaddingValues(0.dp)) { Text(tr("Remove"), color = p.err) }
                                 }
-                                Switch(checked = j.on, onCheckedChange = { on ->
-                                    scope.launch { runCatching { api!!.setChiefJobOn(j.id, on) }.onSuccess { now -> jobs = jobs.orEmpty().map { if (it.id == now.id) now else it } }.onError { tell(it.message ?: tr("Couldn't save")) } }
-                                }, colors = switchColors())
+                                Switch(checked = j.on, onCheckedChange = { on -> scope.launch { desk?.setJobOn(j.id, on) } }, colors = switchColors())
                             }
                         }
                     }
                 }
             }
             // Its pages: what it made for you. Tap one to open it, and keep it up to date from there.
-            pages?.let { list ->
+            st.pages?.let { list ->
                 val name = LocalChiefName.current
                 FoldSection(tr("Pages"), if (list.isEmpty()) tr("None yet") else "${list.size}") {
                     list.forEach { pg ->
@@ -215,10 +155,10 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
                     empty = tr("None yet."), tell = ::tell)
                 if (WorkspaceFiles.shows(server?.features)) WorkspaceSection(api, UploadedFiles.CHIEF, LocalChiefName.current, usesComputer = false, viewer = viewer, tell = ::tell, folders = WorkspaceFiles.folders(server?.features))
             }
-            checkup?.takeIf { hasCheckup }?.let { c ->
+            st.checkup?.let { c ->
                 Section(null) {
-                    SwitchRow(Checkup.LABEL, c.caption.ifEmpty { null }, c.on) { switch(c, "on", c.copy(on = it)) }
-                    SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { switch(c, "webSearch", c.copy(webSearch = it)) }
+                    SwitchRow(Checkup.LABEL, c.caption.ifEmpty { null }, c.on) { on -> scope.launch { desk?.setCheckup("on", on) } }
+                    SwitchRow(Checkup.WEB_SEARCH, checked = c.webSearch, enabled = c.webSearchUsable) { on -> scope.launch { desk?.setCheckup("webSearch", on) } }
                 }
             }
             Section(tr("Earlier chats")) {

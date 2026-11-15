@@ -68,4 +68,15 @@ final class SettingsTests: XCTestCase {
         XCTAssertNil(desk.state.value.jobs, "the bots not read yet: nothing")
         XCTAssertEqual(Jobs.shared.CHANGE_WAITS, "A change waits for your OK")
     }
+    /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
+    func testTheChiefsSettingsAreTheSharedDesk() {
+        let model = ChiefSettingsModel(home: home())
+        let s = model.desk.state.value
+        XCTAssertFalse(s.loaded)
+        XCTAssertNil(s.name, "no chief-name read yet: no Name field")
+        XCTAssertNil(s.skills)
+        XCTAssertNil(s.jobs)
+        XCTAssertEqual(ChiefSettingsDesk.companion.SAVE_MS, 800)
+        model.stop()
+    }
 }
