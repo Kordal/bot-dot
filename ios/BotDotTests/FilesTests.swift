@@ -44,7 +44,7 @@ final class FilesTests: XCTestCase {
     }
 
     func testACsvIsATableSortedByATapAndTextHasItsLines() {
-        let viewer = DocumentViewer(api: api, opening: DocumentView.Opening(src: "/files/r1/a.csv", name: "a.csv", from: "", botId: nil, path: nil))
+        let viewer = DocumentViewer(api: api, opening: DocumentView.Opening(src: "/files/r1/a.csv", name: "a.csv", from: "", botId: nil, path: nil, slug: nil))
         let t = viewer.table(text: "name,n\nb,10\na,9\n", sortCol: 1, ascending: true, find: "")
         XCTAssertEqual(t.head, ["name", "n"])
         XCTAssertEqual(viewer.rowCells(t: t, i: 0), ["a", "9"], "numbers sort as numbers")
