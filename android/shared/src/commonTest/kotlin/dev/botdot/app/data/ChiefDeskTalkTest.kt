@@ -204,4 +204,37 @@ class ChiefDeskTalkTest {
         val k2 = key(fake.bodiesOf("/chief/chats/c2/messages").single())
         assertTrue(k1 != k2, "the same place in another conversation is another card: its own key")
     }
+
+    @Test fun aMailCardsButtonIsSentOnceAndItsChipsOpenTheirBot() = runTest {
+        val fake = FakeBotdot { method, path ->
+            when {
+                path == "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"}]}"""
+                path == "/bots" -> 200 to """[{"id":"b1","name":"Coder","computer":"linux"}]"""
+                path == "/runs/r1" -> 200 to """{"id":"r1","botId":"b1","status":"success"}"""
+                method == "POST" && path == "/chief/chats/c1/messages" -> 200 to """{"id":"c1","messages":[],"total":0}"""
+                path == "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[{"role":"chief","text":"Drafted","questions":["Send it?"],
+                    "actions":[{"kind":"run","text":"Started Coder","runId":"r1"},{"kind":"created","text":"Created Gone","botId":"b9"}],
+                    "draft":{"to":"ann@example.test","subject":"Dinner","text":"Friday?"}}],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("the card") { desk.state.value.messages.singleOrNull()?.mail != null }
+        val line = desk.state.value.messages.single()
+        assertTrue(line.questions.isEmpty(), "the card's buttons in place of the answer boxes")
+        assertFalse(desk.mail(line.index, "Delete it"), "only the card's own buttons")
+        assertTrue(desk.mail(line.index, "Send now"))
+        assertTrue(desk.mail(line.index, "Send now"))
+        val sent = fake.bodiesOf("/chief/chats/c1/messages").map { Api.JSON.parseToJsonElement(it).jsonObject }
+        assertEquals(listOf("Send now", "Send now"), sent.map { it.getValue("text").jsonPrimitive.content })
+        assertEquals(1, sent.map { it.getValue("key").jsonPrimitive.content }.toSet().size, "one card: one key, taken once")
+
+        val (run, gone) = line.chips
+        assertEquals(ChiefDesk.ChipBot("b1", "Coder", screen = true), desk.chipBot(run), "by its run, to the screen of a Linux computer")
+        val notices = desk.state.value.noticeCount
+        assertNull(desk.chipBot(gone))
+        assertEquals("This bot is no longer available", desk.state.value.notice)
+        assertEquals(notices + 1, desk.state.value.noticeCount)
+    }
 }

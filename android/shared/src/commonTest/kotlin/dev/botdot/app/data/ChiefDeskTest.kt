@@ -108,4 +108,40 @@ class ChiefDeskTest {
         assertTrue(s.failed != null)
         assertNull(s.chatId)
     }
+
+    private fun bot(id: String, name: String, computer: String = "none") =
+        Api.JSON.decodeFromString(Bot.serializer(), """{"id":"$id","name":"$name","computer":"$computer"}""")
+
+    @Test fun whatTheChiefDidIsAChipEachAndAMailDraftsBotIsInItsCard() {
+        val m = ChiefMessage("chief", text = "Drafted it", at = "2026-11-14T09:00:00Z",
+            actions = listOf(
+                ChiefAction("run", "Started Coder", botId = "b1"),
+                ChiefAction("created", "Created Web Surfer", botId = "b2", waitsValue = JsonPrimitive("web access waits for your OK")),
+                ChiefAction("run", "Started Mailer", botId = "b3"),
+            ),
+            draft = MailDraft(to = "ann@example.test", subject = "Dinner", text = "Friday?", botId = "b3"))
+        val line = chiefLine(m, 4, "", emptyList(), listOf(bot("b1", "Coder", "linux"), bot("b2", "Web Surfer"), bot("b3", "Mailer")))
+        assertEquals(listOf("→ Started Coder", "✨ Created Web Surfer"), line.chips.map { it.text }, "the draft's bot is in its card")
+        assertEquals(" · View live screen", line.chips[0].after, "a run on a Linux computer")
+        assertEquals("web access waits for your OK", line.chips[1].waits)
+        assertTrue(line.chips.all { it.opens })
+        val mail = line.mail!!
+        assertEquals("ann@example.test", mail.to)
+        assertEquals("In Drafts · not sent", mail.state)
+        assertEquals(listOf("Send now", "Not now"), mail.actions)
+        assertEquals("Mailer", mail.bot)
+        assertFalse(mail.sent || mail.screen)
+    }
+
+    @Test fun aSentMailHasNoButtonsAndAnEarlierOneFolds() {
+        val sent = chiefLine(ChiefMessage("chief", text = "Sent", draft = MailDraft(to = "a@example.test", state = "sent", sentAt = "2026-11-14T09:30:00Z")), 0, "", emptyList())
+        assertTrue(sent.mail!!.sent)
+        assertTrue(sent.mail!!.state.startsWith("Sent "), sent.mail!!.state)
+        assertTrue(sent.mail!!.actions.isEmpty())
+        val kept = chiefLine(ChiefMessage("chief", text = "Kept", draft = MailDraft(to = "a@example.test", state = "kept")), 0, "", emptyList())
+        assertEquals(listOf("Send now"), kept.mail!!.actions)
+        val earlier = chiefLine(ChiefMessage("chief", text = "v1", draft = MailDraft(to = "a@example.test", earlier = true)), 0, "", emptyList())
+        assertTrue(earlier.mail!!.earlier && earlier.mail!!.actions.isEmpty())
+        assertNull(chiefLine(ChiefMessage("user", text = "x", draft = MailDraft()), 0, "", emptyList()).mail, "only under the Chief's reply")
+    }
 }

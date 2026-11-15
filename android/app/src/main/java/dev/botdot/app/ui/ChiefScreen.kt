@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.MailCard
 import dev.botdot.app.data.PLAN_APPROVAL
 import dev.botdot.app.data.without
 import dev.botdot.app.data.steered

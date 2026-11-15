@@ -7,10 +7,11 @@ import BotdotShared
 @MainActor
 final class ChiefTests: XCTestCase {
     private func line(role: String, text: String, team: String? = nil, rates: Bool = false, rating: String? = nil, from: String? = nil,
-                      suggests: Bool = false, declined: Bool = false, questions: [String] = [], choices: [[String]] = []) -> ChiefLine {
+                      suggests: Bool = false, declined: Bool = false, questions: [String] = [], choices: [[String]] = [],
+                      chips: [ChiefChip] = [], mail: MailView? = nil) -> ChiefLine {
         ChiefLine(index: 0, role: role, text: text, error: nil, files: [], from: from, team: team, teamColor: "#1d9e75",
                   project: team == nil ? nil : "Spring beds", rates: rates, rating: rating, pending: false, time: "09:00",
-                  suggests: suggests, declined: declined, questions: questions, choices: choices)
+                  suggests: suggests, declined: declined, questions: questions, choices: choices, chips: chips, mail: mail)
     }
 
     func testEveryKindOfMessageDraws() {
@@ -31,5 +32,20 @@ final class ChiefTests: XCTestCase {
         }
         XCTAssertEqual(NeedsDeskKt.questionsAnswer(questions: ["When?", "Where?"], answers: ["Mon", ""]), "When?\n→ Mon\n\nWhere?\n→ –",
                        "one message for all, as Android sends it")
+    }
+
+    /// A reply with what the Chief did as chips and a mail draft's card under it: drawn, the chips that name a bot tappable.
+    func testAMailDraftsCardAndTheChiefsChipsAreDrawn() {
+        let chips = [ChiefChip(text: "→ Started Coder", waits: nil, after: " · View live screen", kind: "run", botId: "b1", runId: nil),
+                     ChiefChip(text: "✦ Learned a skill", waits: "waits for your OK", after: "", kind: "skill", botId: nil, runId: nil)]
+        XCTAssertEqual(chips.map(\.opens), [true, false], "a chip opens only a bot")
+        let mail = MailView(to: "ann@example.test", subject: "Dinner", text: "Friday?", sent: false, state: "In Drafts · not sent",
+                            earlier: false, actions: ["Send now", "Not now"], files: [Attachment(name: "menu.pdf", file: "r1/menu.pdf", size: 0, readable: nil)],
+                            bot: "Mailer", botId: "b3", screen: true)
+        let l = line(role: "chief", text: "Drafted it", chips: chips, mail: mail)
+        XCTAssertNotNil(ImageRenderer(content: ChiefRow(line: l, onRate: { _ in }).frame(width: 360)).cgImage)
+        let sent = MailView(to: "ann@example.test", subject: "Dinner", text: "Friday?", sent: true, state: "Sent 09:30",
+                            earlier: false, actions: [], files: [], bot: nil, botId: nil, screen: false)
+        XCTAssertNotNil(ImageRenderer(content: MailCardView(mail: sent).frame(width: 360)).cgImage)
     }
 }

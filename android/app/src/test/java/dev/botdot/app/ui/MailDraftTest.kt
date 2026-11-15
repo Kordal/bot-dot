@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.MailCard
 import dev.botdot.app.data.Api
 import dev.botdot.app.data.ChiefChat
 import org.junit.Assert.assertEquals

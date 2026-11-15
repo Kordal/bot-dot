@@ -49,6 +49,39 @@ data class ChiefLine(
     val questions: List<String> = emptyList(),
     /** Each question's choices, drawn under its box (empty for one without). */
     val choices: List<List<String>> = emptyList(),
+    /** What it did while replying, a chip each; the bot whose run wrote a mail draft is in the draft's card instead. */
+    val chips: List<ChiefChip> = emptyList(),
+    /** A mail draft under the Chief's reply, its card; null for none. */
+    val mail: MailView? = null,
+)
+
+/**
+ * What the Chief did while replying, as its chip draws it: [text] ("→ Started Coder"), what still waits for the owner's
+ * OK in the warning colour ([waits]), then [after] (" · View live screen" for a run on a Linux computer).
+ */
+data class ChiefChip(val text: String, val waits: String?, val after: String, val kind: String, val botId: String?, val runId: String?) {
+    /** A tap opens its bot ([ChiefDesk.chipBot]): a chip that names a bot or one of its runs. */
+    val opens: Boolean get() = botId != null || runId != null
+}
+
+/**
+ * A mail draft's card (docs/api.md, "A mail draft", #415; Android's MailDraftCard): To and Subject, [state] ("Sent
+ * 13:52", "In Drafts · not sent"), the text, its files, its buttons ([actions], each sent as the owner's words with
+ * [ChiefDesk.mail]) and in its footer the bot whose run wrote it, with its screen for one on a Linux computer. An
+ * [earlier] version folds to one line; a sent mail's text folds under "Show the text".
+ */
+data class MailView(
+    val to: String,
+    val subject: String,
+    val text: String,
+    val sent: Boolean,
+    val state: String,
+    val earlier: Boolean,
+    val actions: List<String>,
+    val files: List<Attachment>,
+    val bot: String?,
+    val botId: String?,
+    val screen: Boolean,
 )
 
 /** The Chief's chat as the phone shows it, for one draw ([ChiefDesk.state]). */
@@ -223,6 +256,49 @@ class ChiefDesk(
         val line = state.value.messages.firstOrNull { it.index == index } ?: return false
         if (line.questions.isEmpty() || answers.none { it.isNotBlank() }) return false
         return sendFrom("questions:$index", questionsAnswer(line.questions, answers))
+    }
+
+    /**
+     * A mail card's button ([MailView.actions]: Send now, Not now) sent as the owner's words, with the card's key while
+     * it is shown: a second tap is taken once. Whether it went.
+     */
+    @Throws(Exception::class)
+    suspend fun mail(index: Int, words: String): Boolean {
+        val line = state.value.messages.firstOrNull { it.index == index } ?: return false
+        if (words !in line.mail?.actions.orEmpty()) return false
+        return sendFrom("mail:$index:$words", words)
+    }
+
+    /** Where a chip's tap goes: the bot, and whether to its screen (a run on a Linux computer). */
+    data class ChipBot(val id: String, val name: String, val screen: Boolean)
+
+    /**
+     * The bot a chip opens: the one it names, or the one whose run it names. Null when it is gone or couldn't be read:
+     * the chat says so.
+     */
+    @Throws(Exception::class)
+    suspend fun chipBot(chip: ChiefChip): ChipBot? = try {
+        val id = chip.botId ?: chip.runId?.let { api.run(it).botId }
+        fun known() = store.bots.value.value?.firstOrNull { it.id == id }
+        // Not in the list read so far (a bot made in this reply): read once more before it is said to be gone.
+        val bot = known() ?: id?.let { store.bots.refresh(); known() }
+        if (bot == null) { say(tr("This bot is no longer available")); null }
+        else ChipBot(bot.id, bot.name, chip.kind == "run" && bot.computer == "linux")
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        say(e.message ?: tr("Couldn't open bot")); null
+    }
+
+    /**
+     * Where a file the mail carries opens ([MailCard.opens]): the owner's upload in this chat, from a botdot that opens a
+     * chat's files; a bot's file as under its reply. Null for a file named only.
+     */
+    fun mailFile(f: Attachment): DocumentView.Opening? = when (MailCard.opens(f)) {
+        MailCard.Opens.OWN -> chatId?.takeIf { DocumentView.opensChatFiles(store.version.value.value?.features) }
+            ?.let { DocumentView.chiefUpload(it, f.file) }?.let { DocumentView.Opening(it, f.name) }
+        MailCard.Opens.RUN -> DocumentView.Opening(DocumentView.runFile(f.file), f.name)
+        MailCard.Opens.NONE -> null
     }
 
     /** A card's words sent as a message of their own (not the box's), with its card's key while the words stay the same. */
@@ -457,11 +533,13 @@ class ChiefDesk(
         val sent = outbox.sent?.takeIf { it.chat == chatId }?.unlessIn(ownWords(c))
         val line = OpeningLine.chiefLine(store.lines.lines.value["chief:${chatId.orEmpty()}"], activity, busy)
         // The questions' card: under the newest message, past the project updates after it, a finished reply of the Chief's.
-        val asking = messages.indexOfLast { it.projectUpdate == null }.takeIf { i -> i >= 0 && messages[i].role == "chief" && !messages[i].pending && !busy }
+        // A mail draft's card has its own buttons in their place.
+        val asking = messages.indexOfLast { it.projectUpdate == null }.takeIf { i -> i >= 0 && messages[i].role == "chief" && !messages[i].pending && !busy && messages[i].draft == null }
+        val bots = store.bots.value.value.orEmpty()
         return ChiefState(
             chatId = chatId,
             messages = messages.mapIndexed { i, m ->
-                val l = chiefLine(m, c!!.offset + i, if (i == last) draft else "", features)
+                val l = chiefLine(m, c!!.offset + i, if (i == last) draft else "", features, bots)
                 if (i != asking || m.questions.isNullOrEmpty()) l
                 else l.copy(questions = m.questions.orEmpty(), choices = m.questions.orEmpty().indices.map { q -> m.questionChoices?.getOrNull(q).orEmpty() })
             },
@@ -491,8 +569,9 @@ class ChiefDesk(
 }
 
 /** How the Chief's chat draws [m], the message at [index] of the whole chat ([draft]: a pending reply's so far). */
-internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Collection<String>?): ChiefLine {
+internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Collection<String>?, bots: List<Bot> = emptyList()): ChiefLine {
     val team = m.about?.team?.takeIf { it.name.isNotBlank() }
+    fun bot(id: String?) = id?.let { bots.firstOrNull { b -> b.id == it } }
     return ChiefLine(
         index = index,
         role = m.role,
@@ -513,5 +592,18 @@ internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Col
         time = if (m.role == "user" || m.pending) "" else chatClock(m.endedAt ?: m.at),
         suggests = m.role == "suggestion" && m.status == "pending",
         declined = m.role == "suggestion" && m.status == "dismissed",
+        chips = m.actions.orEmpty().filterNot { MailCard.takesChip(m.draft, it) }.map { a ->
+            val screen = a.kind == "run" && bot(a.botId)?.computer == "linux"
+            ChiefChip(a.label, a.waits, if (screen) " · " + tr("View live screen") else "", a.kind, a.botId, a.runId)
+        },
+        mail = m.draft?.takeIf { m.role == "chief" && !m.pending }?.let { d ->
+            val by = bot(d.botId)
+            MailView(
+                to = d.to, subject = d.subject, text = d.text, sent = d.state == "sent",
+                state = if (d.state == "sent") tr("Sent {time}", "time" to chatClock(d.sentAt)).trimEnd() else MailCard.state(d),
+                earlier = d.earlier, actions = MailCard.actions(d), files = d.attachments,
+                bot = d.bot ?: by?.name, botId = by?.id, screen = by?.computer == "linux",
+            )
+        },
     )
 }
