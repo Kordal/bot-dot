@@ -44,7 +44,7 @@ final class ProjectModel {
     func openCard(_ id: String) { store.openCard(id: id) }
     func closeCard() { store.closeCard() }
     func ask(_ text: String) async { try? await store.ask(text: text) }
-    func answer(_ card: String, _ text: String) async { try? await store.answer(card: card, text: text) }
+    func answer(_ card: String, _ text: String) async -> Bool { (try? await store.answer(card: card, text: text))?.boolValue ?? false }
     func closeQuestions(_ card: String) async { try? await store.closeQuestions(card: card) }
     func refreshCard(_ card: String) async { try? await store.refreshCard(card: card) }
     func removeCard(_ card: String) async { try? await store.removeCard(card: card) }

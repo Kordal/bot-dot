@@ -60,6 +60,12 @@ object ProjectRules {
      */
     data class TeamWord(val text: String, val asks: Boolean)
 
+    /** Whether [b] counts as working in its team's row ("2 working"): the page's [info] says so, or the bot is running. */
+    fun working(info: CompanyFloor.Info, b: Bot): Boolean = info.working(b.id) || b.running
+
+    /** How many of a team's [bots] are working, for [teamWord]. */
+    fun workingCount(info: CompanyFloor.Info, bots: List<Bot>): Int = bots.count { working(info, it) }
+
     fun teamWord(w: Spaces.TeamWait, bots: List<Bot>, working: Int): TeamWord {
         val who = w.bots.mapNotNull { id -> bots.firstOrNull { it.id == id }?.name } + if (w.chat > 0) listOf(tr("Team chat")) else emptyList()
         val whoText = if (who.size > 2) "${who.take(2).joinToString(", ")} +${who.size - 2}" else who.joinToString(", ")
@@ -221,12 +227,13 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         val c = held?.company
         fun on(k: String) = c != null && ProjectBoard.shows(c, k)
         val asks = { id: String -> (waiting.count { it.bot == id }) + if (bots.firstOrNull { it.id == id }?.let(ProjectRules::question) != null) 1 else 0 }
+        val info = CompanyFloor.Info(asks = asks, working = { id -> bots.firstOrNull { it.id == id }?.running == true }) // as Android's CompanyHome
         fun key(b: Bot, lead: Boolean, crown: Boolean = false) = ProjectKey(b, ProjectRules.lineOf(b, lines["bot:${b.id}"]), asks(b.id) > 0, lead, crown)
         val here = if (c == null) emptyList() else Spaces.underLeads(c, Spaces.needsIn(c, waiting, groups), bots).sortedBy { if (it.act != null) 0 else 1 }
         val waits = if (c == null) emptyMap() else Spaces.teamWaits(c, waiting, groups, bots.filter { ProjectRules.question(it) != null }.map { it.id })
         val teams = if (c == null) emptyList() else ManyProjects.branches(c, bots).map { br ->
             val t = br.team
-            val word = ProjectRules.teamWord(waits[t.id] ?: Spaces.TeamWait(), bots, br.bots.count { it.running })
+            val word = ProjectRules.teamWord(waits[t.id] ?: Spaces.TeamWait(), bots, ProjectRules.workingCount(info, br.bots))
             ProjectTeam(t, br.bots.mapIndexed { i, b -> key(b, b.id == t.lead || (t.lead == null && i == 0), b.id == t.lead && br.bots.size > 1) }, word.text, word.asks, ProjectRules.teamChat(features, groups, t.id), CompanyFloor.objectiveOf(t, c.objectives))
         }
         val route = Spaces.defaultChat(c, botsNow, features)
@@ -364,9 +371,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     /** An answer to a card's question: a choice, or the words typed under them. */
     @Throws(Exception::class)
-    suspend fun answer(card: String, text: String) {
-        if (text.isBlank()) return
-        call { it.answerCard(card, text.trim()) }
+    suspend fun answer(card: String, text: String): Boolean {
+        if (text.isBlank()) return false
+        return call { it.answerCard(card, text.trim()) }
     }
 
     /** X on a card's questions: it leaves the row at once, before the server answers. */

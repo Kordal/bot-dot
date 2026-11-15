@@ -45,7 +45,7 @@ struct CardsRow: View {
             }
         case .questions(let q):
             QuestionsCard(card: q.card, figure: figure, onClose: { Task { await model.closeQuestions(q.card.id) } }) { text in
-                Task { await model.answer(q.card.id, text) }
+                await model.answer(q.card.id, text)
             }
         case .card(let k):
             BoardCard(card: k.card, fresh: state.fresh.contains(k.card.id),
@@ -116,7 +116,7 @@ struct QuestionsCard: View {
     let card: ProjectCard
     let figure: FigureDef?
     let onClose: () -> Void
-    let onAnswer: (String) -> Void
+    let onAnswer: (String) async -> Bool
     @State private var other = ""
     @State private var sent = false
 
@@ -159,7 +159,11 @@ struct QuestionsCard: View {
     private func answer(_ text: String) {
         guard !sent, !text.trimmingCharacters(in: .whitespaces).isEmpty else { return }
         sent = true
-        onAnswer(text)
+        Task {
+            // Taken or refused (said on the page), the buttons work again; what was typed goes once it was taken.
+            if await onAnswer(text) { other = "" }
+            sent = false
+        }
     }
 }
 

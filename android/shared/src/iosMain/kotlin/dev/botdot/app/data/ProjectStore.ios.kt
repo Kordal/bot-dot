@@ -29,7 +29,8 @@ class ProjectStore(home: HomeStore) {
     fun openCard(id: String) = desk.openCard(id)
     fun closeCard() = desk.closeCard()
     @Throws(Exception::class) suspend fun ask(text: String) = desk.ask(text)
-    @Throws(Exception::class) suspend fun answer(card: String, text: String) = desk.answer(card, text)
+    /** True once botdot took the answer; false (said) when it didn't, so the card's buttons work again. */
+    @Throws(Exception::class) suspend fun answer(card: String, text: String): Boolean = desk.answer(card, text)
     @Throws(Exception::class) suspend fun closeQuestions(card: String) = desk.closeQuestions(card)
     @Throws(Exception::class) suspend fun refreshCard(card: String) = desk.refreshCard(card)
     @Throws(Exception::class) suspend fun removeCard(card: String) = desk.removeCard(card)

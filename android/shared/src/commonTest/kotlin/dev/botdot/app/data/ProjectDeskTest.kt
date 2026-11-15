@@ -225,6 +225,31 @@ class ProjectDeskTest {
         until("New card alone") { desk.state.value.cards == listOf(ProjectCards.Slot.New) }
     }
 
+    @Test fun aCardsAnswerSaysWhetherBotdotTookItSoTheButtonsWorkAgain() = runTest {
+        var refuse = true
+        val fake = FakeBotdot { a ->
+            if (a.method == "POST" && a.path.endsWith("/cards/k1/answer")) { if (refuse) 500 to """{"error":"The Chief is busy."}""" else 200 to kitchen } else 200 to "{}"
+        }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.answer("k1", "Weekly"), "refused: the card's choices and Send work again")
+        until("the refusal is said") { desk.state.value.notice == "The Chief is busy." }
+        refuse = false
+        assertTrue(desk.answer("k1", " Weekly "))
+        assertFalse(desk.answer("k1", "  "), "nothing typed: nothing sent")
+        assertEquals(2, fake.asked().count { it.path.endsWith("/cards/k1/answer") })
+    }
+
+    @Test fun aBotTheInfoSaysIsWorkingCountsAlsoWhileNotRunning() {
+        val idle = bot("""{"id":"a","name":"Ada"}""")
+        val running = bot("""{"id":"b","name":"Bo","running":true}""")
+        val info = CompanyFloor.Info(asks = { 0 }, working = { it == "a" })
+        assertTrue(ProjectRules.working(info, idle), "the page knows it works (a turn at work) though running is false")
+        assertTrue(ProjectRules.working(info, running))
+        assertEquals(2, ProjectRules.workingCount(info, listOf(idle, running)))
+        assertEquals(1, ProjectRules.workingCount(CompanyFloor.Info(asks = { 0 }, working = { false }), listOf(idle, running)))
+    }
+
     @Test fun theFilesTileAsksForTheNewestFilesWhileFollowed() = runTest {
         val fake = FakeBotdot { a -> if (a.path == "/company/files") 200 to """{"state":"on","files":[{"name":"plan.md","path":"plan.md","at":1}]}""" else 200 to "{}" }
         val (_, desk) = desk(fake)

@@ -620,7 +620,7 @@ internal fun TeamKeys(c: Company, bots: List<Bot>, info: CompanyFloor.Info, wide
             val unfold = t.id in open
             // Who waits (ADR 205): its bots by name, then its chat; a bot on several teams only on its home team.
             val w = waits[t.id] ?: dev.botdot.app.data.Spaces.TeamWait()
-            val said = dev.botdot.app.data.ProjectRules.teamWord(w, bots, branch.bots.count { info.working(it.id) || it.running })
+            val said = dev.botdot.app.data.ProjectRules.teamWord(w, bots, dev.botdot.app.data.ProjectRules.workingCount(info, branch.bots))
             Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.panel).testTag(TEAM_KEYS)) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = Space.s4, end = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(44.dp).clip(Radius.small).clickable(onClickLabel = tr("Members")) {
