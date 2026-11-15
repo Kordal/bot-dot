@@ -43,6 +43,7 @@ extension RoomSettingsState: @retroactive @unchecked Sendable {}
 extension BotSettingsStore: @retroactive @unchecked Sendable {}
 extension BotSettingsState: @retroactive @unchecked Sendable {}
 extension BotDraft: @retroactive @unchecked Sendable {}
+extension Bot: @retroactive @unchecked Sendable {}
 extension AppSettingsStore: @retroactive @unchecked Sendable {}
 extension AppSettingsState: @retroactive @unchecked Sendable {}
 extension AppsStore: @retroactive @unchecked Sendable {}
@@ -88,3 +89,4 @@ extension Storage.Group: @retroactive @unchecked Sendable {}
 extension SkillsDesk: @retroactive @unchecked Sendable {}
 extension ChiefSettingsDesk: @retroactive @unchecked Sendable {}
 extension ChiefGrant: @retroactive @unchecked Sendable {}
+extension DuplicateDesk: @retroactive @unchecked Sendable {}

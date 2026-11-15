@@ -9,7 +9,8 @@ import kotlinx.coroutines.launch
  * A bot's settings on the iPhone (#1370), for the botdot of [home]: its [BotSettingsDesk] on Home's Store. [watch] hands
  * the screen a new [BotSettingsState] after every change, on the main thread. [close] it when the screen goes.
  */
-class BotSettingsStore(home: HomeStore, botId: String) {
+class BotSettingsStore(home: HomeStore, private val botId: String) {
+    private val api = home.api
     private val scope = MainScope()
     private val desk = BotSettingsDesk(home.api, botId, home.store, scope)
 
@@ -36,6 +37,9 @@ class BotSettingsStore(home: HomeStore, botId: String) {
     @Throws(Exception::class) suspend fun revokeJob(jobId: String): String = desk.revokeJob(jobId)
     @Throws(Exception::class) suspend fun revokeGrant(action: String): String = desk.revokeGrant(action)
     @Throws(Exception::class) suspend fun revokeOverride(id: String): String = desk.revokeOverride(id)
+
+    /** Duplicate (#227): what the copy gets, its name, the copy made. */
+    fun duplicate(name: String): DuplicateDesk = DuplicateDesk(api, botId, name, scope)
 
     fun close() = scope.cancel()
 }
