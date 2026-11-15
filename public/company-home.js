@@ -470,7 +470,8 @@
   function overviewHome(root, c) {
     const items = projectNeeds(c);
     const overview = ProjectOverview.html(c); // first: it reads the snapshot the questions come from
-    const questions = ProjectOverview.questions(c);
+    // A question in a chat that already has a card here (the Chief's) is that card's: shown once, as the card.
+    const questions = ProjectOverview.questions(c).filter((q) => !q.chatId || !items.some((x) => x.a?.chatId === q.chatId));
     root.innerHTML = `<div class="cf-home po-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.chiefHTML()}<button type="button" class="btn sm" data-po-team>${tr('Team')}</button><button type="button" class="btn sm" data-po-board>${tr('Board')}</button>${Company.railOn() ? Company.toolsHTML() : ''}</header>
       ${items.length || questions.length ? `<section class="po-section"><h2>${tr('Needs you')}</h2>${ProjectOverview.rows(questions)}${needsHTML(c, items)}</section>` : ''}
       ${overview}</div>${Company.railOn() ? fieldHTML(c) : ''}`;

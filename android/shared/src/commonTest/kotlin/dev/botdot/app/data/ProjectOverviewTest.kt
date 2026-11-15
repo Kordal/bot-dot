@@ -23,4 +23,11 @@ class ProjectOverviewTest {
         assertTrue(ProjectOverview.needsYouShows(cards = 0, questions = 1))
         assertTrue(ProjectOverview.needsYouShows(cards = 2, questions = 0))
     }
+
+    @Test
+    fun aChiefQuestionWithACardInItsChatShowsOnce() {
+        val chief = OverviewEntry(id = "chief", chatId = "c1", name = "Chief", state = "asks", text = "Approve the team?")
+        assertEquals(listOf("r1"), ProjectOverview.withoutCarded(listOf(question, chief), setOf("c1")).map { it.id })
+        assertEquals(listOf("r1", "chief"), ProjectOverview.withoutCarded(listOf(question, chief), emptySet()).map { it.id })
+    }
 }

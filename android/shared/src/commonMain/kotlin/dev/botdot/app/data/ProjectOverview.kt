@@ -14,6 +14,8 @@ data class ProjectOverview(val projectId: String, val at: String, val goal: Stri
         const val ASKS = "asks"
         /** Needs you on the overview shows only when something waits: a card or a question. */
         fun needsYouShows(cards: Int, questions: Int): Boolean = cards > 0 || questions > 0
+        /** A question in a chat that already has a card in Needs you (the Chief's chat) is that card's: shown once, as the card. */
+        fun withoutCarded(questions: List<OverviewEntry>, cardChats: Set<String?>): List<OverviewEntry> = questions.filter { it.chatId == null || it.chatId !in cardChats }
     }
 }
 

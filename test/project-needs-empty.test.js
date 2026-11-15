@@ -12,6 +12,7 @@ test('web: Needs you on the overview holds the cards and the questions, and is g
   const body = home.slice(home.indexOf('function overviewHome('), home.indexOf('function teamHome('));
   assert.match(body, /\$\{items\.length \|\| questions\.length \? `<section class="po-section"><h2>\$\{tr\('Needs you'\)\}<\/h2>\$\{ProjectOverview\.rows\(questions\)\}\$\{needsHTML\(c, items\)\}<\/section>` : ''\}/);
   assert.ok(body.indexOf('ProjectOverview.html(c)') < body.indexOf('ProjectOverview.questions(c)')); // the snapshot is asked for first
+  assert.ok(body.includes("ProjectOverview.questions(c).filter((q) => !q.chatId || !items.some((x) => x.a?.chatId === q.chatId))")); // a carded chat's question once
   const po = read('public', 'project-overview.js');
   assert.match(po, /rows\(d\.blockers\.filter\(\(x\) => x\.state !== 'asks'\), tr\('No failed work\.'\)\)/); // not shown twice
   assert.match(po, /const questions = \(c\) => \(stateOf\(c\.id\)\.data\?\.blockers \|\| \[\]\)\.filter\(\(x\) => x\.state === 'asks'\)/);
@@ -33,6 +34,7 @@ test('web: the overview rows draw nothing for an empty list without an empty lin
 test('Android: the overview screen uses the shared Needs you rule', () => {
   const dir = ['android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui'];
   assert.ok(read(...dir, 'CompanyHome.kt').includes('ProjectOverview.needsYouShows('));
+  assert.ok(read(...dir, 'CompanyHome.kt').includes('ProjectOverview.withoutCarded('));
   const po = read(...dir, 'ProjectOverview.kt');
   assert.ok(po.includes('questions()') && po.includes('failures()'));
   assert.ok(!read(...dir, 'CompanyHome.kt').includes('SmallButton(tr("Review"), onClick = ways.onNeeds)'));
