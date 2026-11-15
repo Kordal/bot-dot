@@ -66,8 +66,7 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
         }
     }
     // The questions waiting for the owner stand in Needs you, above, not again under Blockers.
-    val (questions, blockers) = snapshot?.blockers.orEmpty().partition { it.state == "asks" }
-    needsYou(questions, ::open)
+    needsYou(snapshot?.questions().orEmpty(), ::open)
     Column(Modifier.fillMaxWidth().testTag("project-overview"), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         error?.let { Text("${tr("Couldn't refresh")}: $it" + if (snapshot != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
         snapshot?.let { Text(tr("Updated {when}", "when" to NotesWake.ago(it.at)), color = p.muted, fontSize = Type.s12) }
@@ -76,7 +75,7 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
         OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
             OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, tr("No recorded work.")) }
-            OverviewSection(tr("Blockers")) { OverviewRows(blockers, ::open, tr("No failed work.")) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, tr("No failed work.")) }
             OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, tr("No replies yet.")) }
         }
         OverviewSection(tr("Files")) {

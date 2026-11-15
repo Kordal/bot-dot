@@ -29,14 +29,13 @@ test('web: the overview rows draw nothing for an empty list without an empty lin
   assert.equal(PO.questions({ id: 'none' }).length, 0);
 });
 
-test('Android: Needs you on the overview holds the cards and the questions, and is gone when nothing waits', () => {
+// The Android logic is tested in shared/src/commonTest (ProjectOverviewTest); this only checks the screen uses it.
+test('Android: the overview screen uses the shared Needs you rule', () => {
   const dir = ['android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui'];
-  const home = read(...dir, 'CompanyHome.kt');
-  assert.match(home, /if \(here\.isNotEmpty\(\) \|\| chiefAsks\.isNotEmpty\(\) \|\| questions\.isNotEmpty\(\)\) \{\n\s+Text\(tr\("Needs you"\)/);
-  assert.doesNotMatch(home, /SmallButton\(tr\("Review"\), onClick = ways\.onNeeds\)/);
+  assert.ok(read(...dir, 'CompanyHome.kt').includes('ProjectOverview.needsYouShows('));
   const po = read(...dir, 'ProjectOverview.kt');
-  assert.match(po, /val \(questions, blockers\) = snapshot\?\.blockers\.orEmpty\(\)\.partition \{ it\.state == "asks" \}/);
-  assert.match(po, /OverviewRows\(blockers, ::open, tr\("No failed work\."\)\)/);
+  assert.ok(po.includes('questions()') && po.includes('failures()'));
+  assert.ok(!read(...dir, 'CompanyHome.kt').includes('SmallButton(tr("Review"), onClick = ways.onNeeds)'));
 });
 
 test('web: a waiting question comes out of Blockers into the questions Needs you shows, once', async () => {

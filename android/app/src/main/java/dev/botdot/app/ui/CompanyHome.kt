@@ -179,7 +179,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             val chiefAsks = needs?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in projectBots }
             // Needs you holds what waits: its cards, and the questions bots and the Chief ask in this project's chats.
             FixedProjectOverview(ui, c, ways) { questions, open ->
-                if (here.isNotEmpty() || chiefAsks.isNotEmpty() || questions.isNotEmpty()) {
+                if (dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + chiefAsks.size, questions.size)) {
                     Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
                     if (questions.isNotEmpty()) OverviewRows(questions, open)
                     chiefAsks.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }

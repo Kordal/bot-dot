@@ -5,7 +5,16 @@ import kotlinx.serialization.Serializable
 /** Recorded project activity from the server, with no inferred progress score (ADR 236). */
 @Serializable
 data class ProjectOverview(val projectId: String, val at: String, val goal: String = "", val work: List<OverviewEntry> = emptyList(), val blockers: List<OverviewEntry> = emptyList(), val replies: List<OverviewEntry> = emptyList()) {
-    companion object { const val FEATURE = "project-overview" }
+    /** The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers. */
+    fun questions(): List<OverviewEntry> = blockers.filter { it.state == ASKS }
+    /** What Blockers shows: failed work, not the questions Needs you already holds. */
+    fun failures(): List<OverviewEntry> = blockers.filter { it.state != ASKS }
+    companion object {
+        const val FEATURE = "project-overview"
+        const val ASKS = "asks"
+        /** Needs you on the overview shows only when something waits: a card or a question. */
+        fun needsYouShows(cards: Int, questions: Int): Boolean = cards > 0 || questions > 0
+    }
 }
 
 @Serializable
