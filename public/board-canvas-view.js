@@ -38,6 +38,7 @@
     ['.cf-cal', () => 'calendar'],
     ['.cf-panel', () => 'todo'],
     ['.cf-files', () => 'files'],
+    ['[data-cf-ov]', (el) => el.dataset.cfOv],
     ['[data-pc-card], [data-pc-asking]', (el) => `card:${el.dataset.pcCard || el.dataset.pcAsking}`],
     ['form.pc-ask', (el) => (el.dataset.pcFor ? `card:${el.dataset.pcFor}` : 'new-card')],
     ['.pc-new, .pc-picks', () => 'new-card'],

@@ -57,6 +57,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -153,10 +154,15 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
     // A long press on the flow puts the tiles on the canvas (#821): from then on a long press and a drag moves one.
     var started by rememberSaveable(c.id) { mutableStateOf(false) }
     val haptic = LocalHapticFeedback.current
+    // The overview is the board (overview-board, ADR 245): Needs you, Current work, Blockers and Latest replies are its tiles.
+    val one = dev.botdot.app.data.ProjectOverview.BOARD in features
+    val feed = if (one && !teamView) rememberOverviewFeed(ui, c) else null
+    val openEntry = remember(c, ways) { overviewOpener(ui, c, ways) }
     Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.runtime.key(c.id, overview, teamView) { rememberScrollState() }).padding(horizontal = Space.s16, vertical = Space.s12).navigationBarsPadding(), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         // Its name picks another project and its gear opens its settings (#703).
         ProjectTitle(ui, c, ways, boardTools = !overview && !teamView) {
             if (overview) { SmallButton(tr("Team"), onClick = onTeamView); SmallButton(tr("Board"), onClick = onBoard) }
+            else if (one) { if (teamView) SmallButton(tr("Board"), onClick = onOverview) else SmallButton(tr("Team"), onClick = onTeamView) }
             else if (dev.botdot.app.data.ProjectOverview.FEATURE in features) SmallButton(tr("Overview"), onClick = onOverview)
             c.day?.takeIf { !overview && !teamView }?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
@@ -172,7 +178,20 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
                 }
             })
         }
-        if (!overview) rows()
+        if (!overview && !one) rows()
+        // Needs you as a tile: its cards, and the questions bots and the Chief ask in this project's chats, only when something waits.
+        val boardNeeds by ui.app.store.needs.value.collectAsState()
+        val askedHere = boardNeeds?.asks.orEmpty().filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in dev.botdot.app.data.Spaces.teamBots(listOf(c)) }
+        val questionsHere = feed?.snapshot?.questions()?.let { dev.botdot.app.data.ProjectOverview.withoutCarded(it, boardNeeds?.asks.orEmpty().mapNotNull { a -> a.chatId }.toSet()) }.orEmpty()
+        val needsTile = one && on("needs") && dev.botdot.app.data.ProjectOverview.needsYouShows(here.size + askedHere.size, questionsHere.size)
+        val needsBox: @Composable (Modifier) -> Unit = { m ->
+            Column(m.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                Text(tr("Needs you"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
+                if (questionsHere.isNotEmpty()) OverviewRows(questionsHere, openEntry)
+                askedHere.forEach { ask -> Text(ask.title.ifBlank { ask.line }, color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
+                rows()
+            }
+        }
         if (overview) {
             val needs by ui.app.store.needs.value.collectAsState()
             val projectBots = dev.botdot.app.data.Spaces.teamBots(listOf(c))
@@ -192,6 +211,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
             val tiles = buildList {
+                if (needsTile) add(Tile("needs") { m, _ -> needsBox(m) })
+                feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> add(Tile(k) { m, _ -> OverviewTile(k, f, openEntry, m) }) } }
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } }) }
                 // An ongoing project's monthly review (#925) stands where the 90-day line would.
                 else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } }) }
@@ -213,6 +234,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
                 if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
                 if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
                 if (filesAt != null) add(Tile("files") { m, _ -> Box(m) { ProjectFilesTile(ui, c, filesAt, ways.onFolderFile) } })
+                if (feed != null && on("replies")) add(Tile("replies") { m, _ -> OverviewTile("replies", feed, openEntry, m) })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
@@ -222,6 +244,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         Column(Modifier.fillMaxWidth().then(if (canvas && roomy) Modifier.pointerInput(Unit) {
             holdAndDrag(onHold = { started = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); true })
         } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
+        if (needsTile) needsBox(Modifier)
+        feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> OverviewTile(k, f, openEntry) } }
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
             c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) }
@@ -242,6 +266,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             if (filesAt != null) ProjectFilesTile(ui, c, filesAt, ways.onFolderFile)
         }
         if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
+        if (feed != null && on("replies")) OverviewTile("replies", feed, openEntry)
         }
         }
         }
@@ -251,8 +276,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             ProjectTeamSettings(ui, c, bots, features)
             if (ownBots && c.bots.isEmpty() && !ui.projectBotsSaving) SmallButton(tr("Add bot"), onClick = addOwn)
         }
-        if (!overview) {
-        // Its teams' keys (#841), in place of the floor's rooms and desks.
+        if (!overview && !one) {
+        // Its teams' keys (#841), in place of the floor's rooms and desks; with overview-board they are under Team (ADR 238).
         val waits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
         TeamKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, chatOf = teamChat, onBot = ways.onBot, onAdd = { id -> c.teams.firstOrNull { it.id == id }?.let { t -> if (offered(t).isEmpty()) ways.onChiefSay(newBotWords(c, t)) else adding = id } }, waits = waits) { teamOpen = it }
         if (ownBots) OwnKeys(c, bots, info, wide = ui.railed, line = { lineOf(it) }, onBot = ways.onBot, onAdd = addOwn.takeUnless { ui.projectBotsSaving })
