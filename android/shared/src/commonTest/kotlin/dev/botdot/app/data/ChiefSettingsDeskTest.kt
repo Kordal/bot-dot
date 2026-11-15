@@ -119,4 +119,26 @@ class ChiefSettingsDeskTest {
         assertEquals("Ada", desk.state.value.name, "a name typed here waits to be saved: it stays")
         desk.close()
     }
+    @Test fun anEditWhileARenameIsOnItsWayDoesNotLoseTheRename() = runTest {
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val s = FakeServer { t ->
+            if (t.path == "/api/settings/chief-name") { gate.await(); 200 to """{"name":"Max"}""" }
+            else if (t.path == "/api/settings" && t.method == "PUT") 200 to """{"settings":${t.body},"models":[]}"""
+            else if (t.path == "/api/settings") 200 to settings
+            else 200 to "{}"
+        }
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.version.set(VersionInfo(features = listOf(ChiefName.FEATURE)))
+        val desk = ChiefSettingsDesk(backgroundScope, s.api, store, MutableSharedFlow())
+        desk.load()
+        desk.setName("Max")
+        advanceTimeBy(ChiefSettingsDesk.SAVE_MS + 1); runCurrent()
+        until("the rename is on its way") { s.posts().any { it.path == "/api/settings/chief-name" } }
+        desk.setRules("Typed meanwhile")
+        gate.complete(Unit)
+        until("both saved") { s.posts().any { it.path == "/api/settings" && "Typed meanwhile" in it.body } }
+        assertEquals("Max", desk.state.value.name, "the field keeps the saved name")
+        assertEquals(1, s.posts().count { it.path == "/api/settings/chief-name" }, "the rename went once, and was not cancelled")
+        desk.close()
+    }
 }

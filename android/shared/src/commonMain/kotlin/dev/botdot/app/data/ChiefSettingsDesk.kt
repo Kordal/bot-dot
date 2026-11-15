@@ -3,12 +3,15 @@ package dev.botdot.app.data
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /** The Chief's settings at one moment (Android's ChiefSettingsScreen): what each part shows, from a botdot that has it. */
 class ChiefSettingsState(
@@ -126,14 +129,20 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     private fun changed() {
         publish()
         saving?.cancel()
-        saving = scope.launch { delay(SAVE_MS); save() }
+        // Only the wait is put off by the next change: a save already on its way finishes (a cancelled rename would be lost).
+        saving = scope.launch { delay(SAVE_MS); withContext(NonCancellable) { save() } }
     }
 
-    private suspend fun save() {
+    /** One save at a time: the next waits for the one on its way, and sees what it sent. */
+    private val saveLock = kotlinx.coroutines.sync.Mutex()
+
+    private suspend fun save() = saveLock.withLock { saveNow() }
+
+    private suspend fun saveNow() {
         val n = name
         val rename = n != null && ChiefName.changed(n, store.chiefName.value) && n.trim() != renamed
         if (rename) {
-            try { renamed = n!!.trim(); name = ChiefName.field(api.renameChief(n.trim())); savedAt++ }
+            try { val sent = n!!.trim(); name = ChiefName.field(api.renameChief(sent)); renamed = sent; savedAt++ }
             catch (e: CancellationException) { throw e } catch (e: Exception) { name = ChiefName.field(store.chiefName.value); say(e.message ?: tr("Couldn't rename")) }
         }
         nameEdited = false // saved, or the same as botdot's: a rename from elsewhere may take its place again
