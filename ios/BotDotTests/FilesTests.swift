@@ -71,12 +71,6 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(FilesView.icon(.sheet), "tablecells")
         XCTAssertEqual(FilesView.icon(FilesExplorer.shared.kindOf(e: WorkspaceEntry(name: "a.png", path: "a.png", type: "file", size: nil, at: nil, kept: false, keepsName: false, items: nil))), "photo")
     }
-}
-
-/// True once, for the first call: a watch that hands over every state, checked for its first alone.
-private final class FirstOnly: @unchecked Sendable {
-    private var taken = false
-    func take() -> Bool { if taken { return false }; taken = true; return true }
 
     /// A bot's page: opened as a page (its slug), its versions said with the shared words.
     func testAPageOpensAsAPageAndItsVersionsDraw() {
@@ -87,4 +81,10 @@ private final class FirstOnly: @unchecked Sendable {
                                    frame: nil, expires: nil, values: nil, tiles: [])
         XCTAssertEqual(InteractivePages.shared.versionTitle(v: site.versions[0], current: site.current), "Version 2 · on the page")
     }
+}
+
+/// True once, for the first call: a watch that hands over every state, checked for its first alone.
+private final class FirstOnly: @unchecked Sendable {
+    private var taken = false
+    func take() -> Bool { if taken { return false }; taken = true; return true }
 }
