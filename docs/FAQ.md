@@ -19,7 +19,7 @@ A messenger for your own team of AI bots. Each bot is a Claude Code agent with o
 
 ### Is it a hosted service?
 
-No. botdot is software you install on a Linux server or VM of your own. Nobody runs it for you, and your bots, chats and logins stay on that machine.
+It is both. botdot is free, open source software you install on a Linux server or VM of your own, where your bots, chats and logins stay on that machine. Or we run it for you as a hosted service, for €29 a month, at [botdot.app](https://botdot.app).
 
 ### Which AI models does it use?
 
@@ -27,7 +27,7 @@ Claude only. Every bot and the Chief of Staff run as the official Claude Code CL
 
 ### What does it cost?
 
-botdot itself is free and open source under the [MIT licence](../LICENSE). What costs money is Claude: each account signs in with its own Claude subscription (Pro or Max), whose usage limits its bots' runs count against, or with an Anthropic API key, paid as you go. Runs that use the bots' computer cost more, because screenshots count as input. Plus the server you run it on.
+botdot itself is free and open source under the [MIT licence](../LICENSE) when you run it yourself; the hosted service costs €29 a month. What costs money besides is Claude: each account signs in with its own Claude subscription (Pro, Max or Ultra), whose usage limits its bots' runs count against, or with an Anthropic API key, paid as you go. Runs that use the bots' computer cost more, because screenshots count as input. Plus the server you run it on.
 
 ### Can I use my Claude subscription for bots that run unattended?
 
@@ -47,7 +47,7 @@ Yes. One machine holds several **accounts**, each with its own passkey, Claude s
 | **Access** | `sudo`: the installer runs as root, because it makes a Linux user for each account |
 | **Software** | Docker with Docker Compose, git and curl. The installer offers to install Docker, rootless Docker, gVisor and Tailscale when they are missing |
 | **A way in** | A public domain whose DNS points at the server, with ports 80, 443 and 8443 free (8443 carries interactive pages), or a [Tailscale](https://tailscale.com) tailnet, where nothing is on the internet |
-| **Claude** | A Claude subscription (Pro or Max) or an Anthropic API key, for each account |
+| **Claude** | A Claude subscription (Pro, Max or Ultra) or an Anthropic API key, for each account |
 
 SELinux in enforcing mode (Fedora, RHEL) is not tested yet ([Platforms](install-linux.md#platforms)).
 

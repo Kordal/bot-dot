@@ -37,7 +37,7 @@ The installer asks before it installs Docker, rootless Docker and gVisor, checks
 | --- | --- |
 | **Server** | Ubuntu 22.04+, Debian 12 or 13, Fedora, RHEL 9 or 10 and its rebuilds; Intel/AMD or ARM; a full VM, not LXC or OpenVZ |
 | **Size** | 4 CPUs, 8 GB RAM, 40 GB free disk for one account |
-| **Claude** | Pro, Max or an Anthropic API key, per account |
+| **Claude** | Pro, Max, Ultra or an Anthropic API key, per account |
 | **Access** | A domain pointed at the server (ports 80, 443, 8443), or Tailscale |
 
 botdot runs bots unattended: read [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) first. [Install on Linux](docs/install-linux.md) has the full requirements, the optional services (Composio, Bitwarden, OpenRouter, boat.dev), what the installer changes, updates, backups and uninstalling. Stuck? [Troubleshooting](docs/FAQ.md#troubleshooting).
