@@ -98,7 +98,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     var makingGroup by remember { mutableStateOf(false) }
     val runs = vm.runs
     // Its newest reply, for the button to it (ToLatestButton): the run, and how far it got.
-    val namedHere = remember(runs) { newestNames(runs.sortedBy { it.startedAt }.map { it.id to it.cards }) }
+    val namedHere = remember(runs) { newestNames(runs.sortedBy { it.startedAt }.map { it.id to it.cards.takeIf { _ -> it.status == "success" } }) }
     val newestRun = remember(runs) { ChatOrder.rounds(runs).lastOrNull()?.lastOrNull()?.let { "${it.id}:${it.status}" } }
     val waiting = vm.waiting
     val loaded = vm.loaded
@@ -261,7 +261,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             vm.started.forEach { q -> androidx.compose.runtime.key(q.id) { SentBubble(SentMessage(q.id, q.text, q.attachments), above = false) } } // its turn came: until its run is here
                             WaitingMessages(vm.queued, bot?.name ?: "it", onSteer = if (canSteer(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                             if (sent != null && running != null) SentBubble(sent, above = false, sentArrives)
-                            ChatNeeds(app, botId, except = namedCards(runs.map { it.cards }))
+                            ChatNeeds(app, botId, except = namedHere.values.flatten().toSet()) // what stands under a reply, not again here
                         }
                     }
                     if (vm.watches.isNotEmpty()) item(key = "watches") { WatchChips(vm.watches) { vm.stopWatch(it) } }

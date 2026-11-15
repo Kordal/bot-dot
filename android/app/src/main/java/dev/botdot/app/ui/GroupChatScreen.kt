@@ -396,7 +396,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
         BotFigure(memberColor(bots, r.botId, r.botColor), "idle", 20, bots.firstOrNull { it.id == r.botId }?.outfit)
     }
     // Who is next, of the one message the rule picks (Groups.next): its heads stand under the working lines.
-    val namedHere by remember { derivedStateOf { newestNames(vm.rows.filterIsInstance<GroupItem.Reply>().map { it.run.id to it.run.cards }) } }
+    val namedHere by remember { derivedStateOf { newestNames(vm.rows.filterIsInstance<GroupItem.Reply>().map { it.run.id to it.run.cards.takeIf { _ -> it.run.status == "success" } }) } }
     val next by remember { derivedStateOf { Groups.next(vm.rows.filterIsInstance<GroupItem.Message>().map { it.message }, vm.working) } }
     // New replies: the "New" line above the first of them, and the report that reads the group in every app.
     NewReplies(app, chatKey, group?.unread ?: 0, arrive = { vm.arrive() }, leave = { vm.leave() }) {
@@ -491,7 +491,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                 waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
                             }
                             if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
-                            ChatNeeds(app, chatKey, except = namedCards(vm.rows.filterIsInstance<GroupItem.Reply>().map { it.run.cards }))
+                            ChatNeeds(app, chatKey, except = namedHere.values.flatten().toSet()) // what stands under a reply, not again here
                         }
                     }
                     if (vm.loaded && vm.rows.isEmpty() && vm.sent == null) item {

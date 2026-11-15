@@ -216,7 +216,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
             val messages = chat?.messages.orEmpty()
             val first = chat?.offset ?: 0 // where the loaded messages start in the whole chat
             val newestFirst = remember(messages) { messages.asReversed() }
-            val namedHere = remember(messages) { newestNames(messages.mapIndexed { n, x -> "$n" to x.cards }) }
+            val namedHere = remember(messages) { newestNames(messages.mapIndexed { n, x -> "$n" to x.cards.takeIf { !x.pending && !x.failed && x.role in setOf("chief", "report") } }) }
             // As the chat draws them (withClosedCards), and where the card of questions stands, newest first.
             val shownNewestFirst = remember(messages) { withClosedCards(messages).asReversed() }
             val cardAt = remember(messages) { chiefCardAt(messages)?.let { messages.lastIndex - it } }
@@ -245,7 +245,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines["chief:$chatId"].takeIf { busy }, working = false), sent), CHIEF_COLOR)
                             WaitingMessages(vm.queued, tr("the Chief"), onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                             if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
-                            ChatNeeds(app, "chief", except = namedCards(messages.map { it.cards }))
+                            ChatNeeds(app, "chief", except = namedHere.values.flatten().toSet()) // what stands under a message, not again here
                         }
                     }
                     itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
