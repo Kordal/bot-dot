@@ -329,8 +329,16 @@ class RoomChatDesk(
     /** The box takes the message that did not go back. */
     fun takeFailed(): String? = back.also { back = null; publish() }
 
-    /** The owner edited the message: the line goes, and what is in the box is a new message. */
-    fun edited() { note = null; failed = null; publish() }
+    /**
+     * The box now holds [text]. Another message than the one that failed: the line goes, and it is sent with a new key.
+     * The same one (the box took it back) or an empty box (a send empties it first) is no edit, as on Android, whose
+     * box tells only the owner's typing: sent again, the failed one keeps its key, so the front door takes it once.
+     */
+    fun edited(text: String) {
+        val f = failed ?: return
+        if (text.isEmpty() || text == f.first) return
+        note = null; failed = null; publish()
+    }
 
     /** Stop beside who is writing: the turns of this room that wait are dropped. */
     @Throws(Exception::class)

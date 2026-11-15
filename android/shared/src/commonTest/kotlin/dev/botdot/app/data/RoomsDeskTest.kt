@@ -16,6 +16,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -169,6 +171,33 @@ class RoomsDeskTest {
         assertNull(st.sent)
         assertEquals(RoomLineKind.MINE, st.lines.last().kind)
         assertEquals("Yes", st.lines.last().text)
+        chat.stop()
+    }
+
+    @Test fun aFailedMessageTakenBackAndSentAsItWasKeepsItsKeyAndAnEditedOneGetsANewOne() = runTest {
+        var refuse = 2
+        val s = server { t -> if (t.method == "POST" && t.path == "/front-door/rooms/r1/messages" && refuse-- > 0) 503 to "{}" else null }
+        val hub = hub(s)
+        val chat = RoomChatDesk(backgroundScope, s.api, hub, "r1", MutableSharedFlow())
+        until { hub.account.value != null }
+        chat.start()
+        until { chat.state.value.loaded }
+        suspend fun keys() = s.posts().filter { it.path.endsWith("/messages") }.map { body(it).getValue("key").jsonPrimitive.content }
+
+        assertFalse(chat.send("Yes")) // "It may have been sent"
+        val back = chat.takeFailed()!!
+        chat.edited(back) // the box took it back: no edit
+        chat.edited("") // Send empties the box before it goes
+        assertNotNull(chat.state.value.note, "the line stays until the owner changes the message")
+        assertFalse(chat.send(back))
+        assertEquals(1, keys().toSet().size, "sent again as it was: the same key, so the front door takes it once")
+
+        chat.edited(chat.takeFailed()!! + "!") // the owner changed it: another message
+        assertNull(chat.state.value.note)
+        assertTrue(chat.send("Yes!"))
+        val k = keys()
+        assertEquals(3, k.size)
+        assertNotEquals(k[0], k[2], "edited: a new key")
         chat.stop()
     }
 

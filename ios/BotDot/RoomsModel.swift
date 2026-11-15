@@ -70,7 +70,7 @@ final class RoomChatModel {
     func loadOlder() { desk.loadOlder() }
     func send(_ text: String) async -> Bool { (try? await desk.send(text: text))?.boolValue ?? false }
     func takeFailed() -> String? { desk.takeFailed() }
-    func edited() { desk.edited() }
+    func edited(_ text: String) { desk.edited(text: text) }
     func stopTurns() async { try? await desk.stopTurns() }
 }
 

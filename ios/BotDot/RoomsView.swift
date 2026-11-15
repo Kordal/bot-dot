@@ -225,7 +225,7 @@ struct RoomChatView: View {
                     .lineLimit(1...5)
                     .padding(10)
                     .background(.quaternary, in: .rect(cornerRadius: 18))
-                    .onChange(of: typed) { _, _ in if model?.state?.note != nil { model?.edited() } }
+                    .onChange(of: typed) { _, now in model?.edited(now.trimmingCharacters(in: .whitespacesAndNewlines)) }
                     .accessibilityIdentifier("room-box")
                 Button {
                     let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
