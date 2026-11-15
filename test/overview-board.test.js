@@ -1,0 +1,81 @@
+// The project overview is the board (ADR 245): Needs you, Current work, Blockers and Latest replies are board tiles
+// the owner, the Chief and a team bot show, hide and place like the others.
+const { test, before, after } = require('node:test');
+const assert = require('node:assert/strict');
+const path = require('path');
+const { startServer, makeBot, writeData, heldRun, self } = require('./helpers');
+const { rpcClient } = require('./memory-helpers');
+const Canvas = require('../public/board-canvas');
+const { clean } = require('../lib/company');
+
+test('the overview pieces are tiles, and every board gets them once at its top', () => {
+  for (const k of ['needs', 'work', 'blockers', 'replies']) assert.equal(Canvas.kindOf(k), k);
+  assert.deepEqual(clean({ id: 'p', board: ['todo'], filesOn: true }).board, ['needs', 'work', 'blockers', 'replies', 'todo']);
+  assert.deepEqual(clean({ id: 'p', board: ['todo'], filesOn: true, overviewOn: true }).board, ['todo'], 'taken off stays off');
+  assert.equal(clean({ id: 'p' }).board, undefined, 'a board made before pieces shows them all');
+  // A board arranged before gets them at its top, everything else moved below.
+  const kept = clean({ id: 'p', board: ['todo'], filesOn: true, layout: { todo: [0, 0, 392, 560] } }).layout;
+  assert.deepEqual(kept.needs, [0, 0, 1200, 160]);
+  assert.ok(kept.todo[1] >= kept.replies[1] + kept.replies[3], 'the To-do slid below them');
+  assert.deepEqual(clean({ id: 'p', board: ['todo'], overviewOn: true, layout: { todo: [0, 0, 392, 560] } }).layout.todo, [0, 0, 392, 560]);
+});
+
+test('the web and Android draw the same tile kinds', () => {
+  const kt = require('fs').readFileSync(require('path').join(__dirname, '..', 'android/shared/src/commonMain/kotlin/dev/botdot/app/data/BoardCanvas.kt'), 'utf8');
+  for (const [k, v] of Object.entries(Canvas.KINDS)) assert.ok(kt.includes(`"${k}" to Kind(${v.min[0]}, ${v.min[1]}, ${v.size[0]}, ${v.size[1]}`), `${k} in BoardCanvas.kt`);
+});
+
+let srv; let a;
+before(async () => {
+  srv = await startServer();
+  a = await makeBot(srv, { name: 'Board Lead', emoji: '📣' });
+  writeData(path.join(srv.data, 'company.json'), { id: 'p1', name: 'Fernhill', start: 'A planner', phase: 'running', startedAt: new Date().toISOString(), board: ['todo'], filesOn: true,
+    teams: [{ id: 't1', name: 'Growth', bots: [a.id], lead: a.id }] });
+});
+after(() => { srv.unhold(); return srv.stop(); });
+
+const board = async () => (await srv.api('/company')).data.company.board;
+
+test('the Chief hides and shows a piece and places an overview tile', async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('overview-board'));
+  assert.deepEqual(await board(), ['needs', 'work', 'blockers', 'replies', 'todo']);
+  let r = await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'blockers' } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo']);
+  r = await srv.asChief('/company/layout', { method: 'PUT', body: { show: 'blockers' } });
+  assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo', 'blockers']);
+  assert.equal((await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'goal' } })).status, 400);
+  r = await srv.asChief('/company/layout', { method: 'PUT', body: { tile: 'replies', x: 0, y: 0, w: 1200, h: 300 } });
+  assert.deepEqual(r.data.layout.replies, [0, 0, 1200, 300]);
+});
+
+test('a bot of the project hides a piece and moves a tile when the owner asks', async (t) => {
+  const { run, rec, token } = await heldRun(srv, a, 'Hide Latest replies');
+  let r = (await self(srv, token, 'board', { hide: 'replies' })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal((await board()).includes('replies'), false);
+  r = (await self(srv, token, 'board', { tile: 'needs', x: 0, y: 0, w: 1200, h: 160 })).data;
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual((await srv.api('/company')).data.company.layout.needs, [0, 0, 1200, 160]);
+  const tools = rpcClient(t, 'self-mcp.js', rec.self.env);
+  assert.ok((await tools.request('tools/list')).tools.some((x) => x.name === 'arrange_project_board'));
+  assert.match(await tools.text('arrange_project_board', { show: 'replies' }), /The board shows .*replies/);
+  srv.release(rec);
+  await srv.finished(run.id);
+  srv.unhold();
+});
+
+test("a bot's run the owner did not start shows a piece but takes none off", async () => {
+  srv.hold();
+  const job = (await srv.api(`/bots/${a.id}/jobs`, { method: 'POST', body: { name: 'Check', kind: 'ai', cron: '0 4 1 1 *', prompt: 'Morning check.' } })).data;
+  const ran = (await srv.api(`/bots/${a.id}/jobs/${job.id}/run`, { method: 'POST' })).data;
+  const rec = await srv.nextRun((x) => x.self?.env && x.stdin.includes('Morning check.'), 'the job run');
+  const token = rec.self.env.RUN_TOKEN;
+  const r = await self(srv, token, 'board', { hide: 'needs' });
+  assert.equal(r.status, 403, JSON.stringify(r.data));
+  assert.ok((await board()).includes('needs'));
+  assert.equal((await self(srv, token, 'board', { show: 'files' })).data.ok, true);
+  srv.release(rec);
+  await srv.finished(ran.run.id);
+  srv.unhold();
+});

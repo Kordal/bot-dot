@@ -277,10 +277,12 @@ internal fun CompanyScreen(app: BotDotApp, wide: Boolean, ways: CompanyWays = Co
             // A running company: its home, the office floor (#675).
             c.running -> {
                 ui.follow(c)
-                val fixed = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty()
+                // With overview-board (ADR 245) the board is the one page: no separate overview, Team stays.
+                val fixed = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty() && dev.botdot.app.data.ProjectOverview.BOARD !in server?.features.orEmpty()
+                val teamSecondary = dev.botdot.app.data.ProjectOverview.FEATURE in server?.features.orEmpty()
                 var board by androidx.compose.runtime.saveable.rememberSaveable(c.id) { mutableStateOf(false) }
-                val teamView = fixed && ui.teamFor == c.id
-                BackHandler(fixed && (board || teamView)) { board = false; ui.teamFor = null }
+                val teamView = teamSecondary && ui.teamFor == c.id
+                BackHandler((fixed && board) || teamView) { board = false; ui.teamFor = null }
                 Box(Modifier.weight(1f)) { CompanyHome(ui, c, ways, overview = fixed && !board && !teamView, teamView = teamView, onTeamView = { ui.teamFor = c.id; board = false }, onBoard = { board = true }, onOverview = { board = false; ui.teamFor = null }) }
                 if (field) DefaultChatField(ui, c, ways)
             }

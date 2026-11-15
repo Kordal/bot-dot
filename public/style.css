@@ -3618,6 +3618,9 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .po-home .cf-top { flex-wrap: wrap; }
 .po-home .cf-top h1 { flex: 1; min-width: 0; }
 .po-overview { display: grid; gap: var(--sp-16); margin-bottom: var(--sp-24); }
+.cf-ov { display: flex; flex-direction: column; gap: var(--sp-8); padding: var(--sp-16); margin-bottom: var(--sp-16); background: var(--raise-2); border-radius: var(--r-14); box-shadow: var(--lift); min-width: 0; overflow: auto; }
+.cf-ov h2 { font-size: var(--fs-16); font-weight: 600; margin: 0; }
+.cf-ov .sp-needs { margin: 0; }
 .po-section { padding: var(--sp-16); margin-bottom: var(--sp-16); background: var(--raise-2); border-radius: var(--r-14); }
 .po-section h2 { font-size: var(--fs-16); font-weight: 600; margin: 0 0 var(--sp-12); }
 .po-section p { overflow-wrap: anywhere; }

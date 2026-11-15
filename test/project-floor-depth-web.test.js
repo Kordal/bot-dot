@@ -55,9 +55,9 @@ test('the team rows come before the objectives and the board', () => {
   const src = read('company-home.js');
   const home = src.slice(src.indexOf('root.innerHTML = `<div class="cf-home">'));
   const at = (s) => { const i = home.indexOf(s); assert.ok(i > 0, s); return i; };
-  assert.ok(at('${teamsHTML(c)}') < at('goalsHTML(c)'), 'teams before the objectives');
+  assert.ok(at('teamsHTML(c)}') < at('goalsHTML(c)'), 'teams before the objectives');
   assert.ok(at('goalsHTML(c)') < at('floorHTML(c, f)'), 'the objectives before the board');
-  assert.ok(at('checkinHTML(c.checkin)') < at('${teamsHTML(c)}'), 'a check-in that waits for the owner before the teams');
+  assert.ok(at('checkinHTML(c.checkin)') < at('teamsHTML(c)}'), 'a check-in that waits for the owner before the teams');
   // A saved layout keeps its tiles where they are; the rows stand above its canvas.
   const view = read('board-canvas-view.js');
   const build = view.slice(view.indexOf('function build('), view.indexOf('const scaleOf'));
