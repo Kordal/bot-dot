@@ -215,7 +215,8 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     val pageDesk = remember(req, api) { val a = api; val pg = req.page; if (a != null && pg != null) dev.botdot.app.data.PageDesk(scope, a, pg.botId, pg.slug, req.from, server?.features) else null }
     val bar = pageDesk?.state?.collectAsState()?.value
     LaunchedEffect(bar?.reopen) { bar?.reopen?.let { keepDraft = it; keeping = true; pageDesk.reopened() } }
-    LaunchedEffect(bar?.work) { if (bar?.work?.kind == "ok") changed++ }
+    // A save or Stop changed what keeps the page: read it again (Refresh now changes nothing here).
+    LaunchedEffect(bar?.pageChanged) { if ((bar?.pageChanged ?: 0) > 0) changed++ }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         menu = false

@@ -22,7 +22,11 @@ data class KeepDraft(val every: String, val time: String, val notify: String, va
 data class PageWork(val kind: String, val text: String)
 
 /** A Markdown page's bar at one moment: on the Board or not ([board] when the botdot has it), what keeps it up to date, the action that runs on. */
-class PageBarState(val onBoard: Boolean?, val board: Boolean, val keep: PageKeep?, val work: PageWork?, val reopen: KeepDraft? = null, val boarding: Boolean = false)
+class PageBarState(
+    val onBoard: Boolean?, val board: Boolean, val keep: PageKeep?, val work: PageWork?, val reopen: KeepDraft? = null, val boarding: Boolean = false,
+    /** Counts each save or Stop that changed what keeps the page: the viewer reads the page again then (Refresh now runs a job and changes nothing here). */
+    val pageChanged: Int = 0,
+)
 
 /**
  * A bot's page in the viewer, for both phones (#346, #451, #475; Android's PageBar): Board and On Board flip at once
@@ -38,6 +42,7 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
     private var work: PageWork? = null
     private var retrying: (() -> Unit)? = null
     private var reopen: KeepDraft? = null
+    private var pageChanged = 0
     private val _state = MutableStateFlow(PageBarState(null, false, null, null))
     val state: StateFlow<PageBarState> = _state.asStateFlow()
 
@@ -62,18 +67,22 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
     }
 
     /** "Keep it up to date": the schedule saved; a failure opens the sheet again with [draft]. */
-    fun keep(draft: KeepDraft) = inBackground(tr("Saving schedule…"), tr("It keeps up to date now"), { reopen = draft; publish() }) {
-        api.keepPage(botId, slug, draft.every, draft.time, draft.notify, draft.check)
+    fun keep(draft: KeepDraft) {
+        inBackground(tr("Saving schedule…"), tr("It keeps up to date now"), { reopen = draft; publish() }, changes = true) {
+            api.keepPage(botId, slug, draft.every, draft.time, draft.notify, draft.check)
+        }
     }
 
     /** Refresh now: its job run at once. */
     fun refresh() {
         val k = page?.keep ?: return
-        inBackground(tr("Starting the refresh…"), tr("{name} is refreshing it", "name" to from.ifBlank { tr("The bot") }), ::refresh) { api.runJob(botId, k.jobId); null }
+        inBackground(tr("Starting the refresh…"), tr("{name} is refreshing it", "name" to from.ifBlank { tr("The bot") }), ::refresh, changes = false) { api.runJob(botId, k.jobId); null }
     }
 
     /** Stop: it no longer keeps up to date. */
-    fun stop() = inBackground(tr("Stopping…"), tr("It no longer keeps up to date"), ::stop) { api.stopKeepingPage(botId, slug) }
+    fun stop() {
+        inBackground(tr("Stopping…"), tr("It no longer keeps up to date"), ::stop, changes = true) { api.stopKeepingPage(botId, slug) }
+    }
 
     /** The error's tap: the action again. */
     fun retry() { val r = retrying ?: return; work = null; retrying = null; publish(); r() }
@@ -82,12 +91,14 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
     fun dismissWork() { work = null; retrying = null; publish() }
     fun reopened() { reopen = null; publish() }
 
-    private fun inBackground(words: String, ok: String, again: () -> Unit, act: suspend () -> PageInfo?) {
+    /** [changes]: whether it changes what keeps the page ([PageBarState.pageChanged] then counts it). */
+    private fun inBackground(words: String, ok: String, again: () -> Unit, changes: Boolean, act: suspend () -> PageInfo?) {
         if (work?.kind == "busy") return
         work = PageWork("busy", words); retrying = null; publish()
         scope.launch {
             try {
                 act()?.let { page = it; onBoard = it.onBoard ?: onBoard }
+                if (changes) pageChanged++
                 val w = PageWork("ok", ok)
                 work = w; publish()
                 delay(OK_MS)
@@ -100,7 +111,7 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
         }
     }
 
-    private fun publish() { _state.value = PageBarState(onBoard, board && onBoard != null, page?.keep, work, reopen, boarding) }
+    private fun publish() { _state.value = PageBarState(onBoard, board && onBoard != null, page?.keep, work, reopen, boarding, pageChanged) }
 
     companion object {
         /** How long an action's ok stays under the bar. */

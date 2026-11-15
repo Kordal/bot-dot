@@ -61,6 +61,7 @@ class PageDeskTest {
         assertEquals("Saving schedule…", desk.state.value.work?.text, "one action at a time")
         held.complete(Unit)
         until("saved, and the ok gone by itself") { desk.state.value.work == null }
+        assertEquals(1, desk.state.value.pageChanged, "a save changed what keeps it")
         assertEquals("Every morning", desk.state.value.keep?.`when`)
         assertTrue("\"time\":\"08:00\"" in server.posts().single().body)
         ok = false
@@ -83,7 +84,9 @@ class PageDeskTest {
         assertTrue(server.posts().single().path.endsWith("/jobs/j1/run"))
         until("the ok gone") { desk.state.value.work == null }
         desk.stop()
+        assertEquals(0, desk.state.value.pageChanged, "Refresh now runs a job: the page is not read again for it")
         until("stopped") { "It no longer keeps up to date" in said }
+        until("Stop changed what keeps it") { desk.state.value.pageChanged == 1 }
         assertNull(desk.state.value.keep, "nothing keeps it now")
     }
     @Test fun changeOpensOnWhatKeepsItNowAfterASaveOrAStop() = runTest {
