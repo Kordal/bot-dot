@@ -40,8 +40,10 @@ struct ProjectOverviewView: View {
                 Text(s.status).font(.caption).foregroundStyle(.secondary)
                 Section(tr("Goal")) { Text(company.goal.isEmpty ? tr("No goal set.") : company.goal).font(.title3) }
                 if let d = s.snapshot {
+                    // The questions waiting for the owner, in Needs you, not again under Blockers (as Android's).
+                    if !d.questions().isEmpty { entries(tr("Needs you"), d.questions(), "") }
                     entries(tr("Current work"), d.work, Overviews.shared.noWork)
-                    entries(tr("Blockers"), d.blockers, Overviews.shared.noBlockers)
+                    entries(tr("Blockers"), d.failures(), Overviews.shared.noBlockers)
                     entries(tr("Latest replies"), d.replies, Overviews.shared.noReplies)
                 }
                 Section(tr("Files")) {

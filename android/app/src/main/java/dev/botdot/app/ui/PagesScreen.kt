@@ -26,10 +26,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.contentDescription
@@ -54,37 +52,28 @@ fun PagesScreen(app: BotDotApp, onBack: () -> Unit) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val pageSaves by app.store.pageSaves.value.collectAsState()
-    var pages by remember { mutableStateOf<List<PageInfo>?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    val server by app.store.version.value.collectAsState()
     val scope = rememberCoroutineScope()
-    // A row's switch (#451): the page on the Board or off it, shown at once and put back if the server says no.
-    val board: ((PageInfo, Boolean) -> Unit)? = if (Pages.showsBoard(server?.features)) { pg, on ->
-        fun set(v: Boolean?) { pages = pages?.map { if (it.botId == pg.botId && it.slug == pg.slug) it.copy(onBoard = v) else it } }
-        set(on)
-        scope.launch { runCatching { api!!.setPageOnBoard(pg.botId, pg.slug, on) }.onSuccess { set(it?.onBoard ?: on) }.onFailure { set(pg.onBoard); error = it.message } }
-    } else null
-    LaunchedEffect(api, pageSaves, DocViewer.open == null) {
-        val a = api ?: return@LaunchedEffect
-        runCatching { a.allPages() }.onSuccess { pages = it; error = null }.onFailure { error = tr("Couldn't load the pages.") }
-    }
+    // The list and its On the Board switches (#451): the shared layer's, as the iPhone's (PagesDesk).
+    val desk = remember(api) { api?.let { dev.botdot.app.data.PagesDesk(scope, it, app.store) } }
+    val state = desk?.state?.collectAsState()?.value ?: dev.botdot.app.data.PagesState()
+    val board: ((PageInfo, Boolean) -> Unit)? = if (state.board) { pg, on -> scope.launch { desk?.setOnBoard(pg, on) } } else null
+    LaunchedEffect(desk, pageSaves, DocViewer.open == null) { desk?.load() }
 
     Scaffold(
         containerColor = p.bg,
         topBar = { TopAppBar(navigationIcon = { BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
             title = { Column { Text(tr("Pages"), style = MaterialTheme.typography.titleMedium); Text(tr("Made by your bots"), color = p.muted, style = MaterialTheme.typography.bodySmall) } }) },
     ) { pad ->
-        val list = pages
-        val (kept, other) = Pages.split(list.orEmpty())
+        val (kept, other) = state.kept to state.other
         LazyColumn(Modifier.padding(pad).fillMaxSize(), contentPadding = PaddingValues(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-            error?.let { e -> item { Text(e, color = p.err) } }
-            if (list != null && list.isEmpty()) item { Hint(tr("No pages yet. Ask a bot for a page, a report or an overview: it shows here, and under the bot's reply.")) }
+            state.error?.let { e -> item { Text(e, color = p.err) } }
+            state.empty?.let { e -> item { Hint(e) } }
             if (kept.isNotEmpty()) {
                 item { SectionLabel(tr("Kept up to date")) }
                 items(kept, key = { "${it.botId}/${it.slug}" }) { PageRow(it, board) }
             }
             if (other.isNotEmpty()) {
-                item { SectionLabel(if (kept.isEmpty()) tr("All pages") else tr("Other pages")) }
+                item { SectionLabel(state.otherTitle) }
                 items(other, key = { "${it.botId}/${it.slug}" }) { PageRow(it, board) }
             }
         }

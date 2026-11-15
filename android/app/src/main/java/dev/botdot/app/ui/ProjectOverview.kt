@@ -32,7 +32,7 @@ import kotlinx.coroutines.delay
 
 /** A fixed reading order; polls only while this overview is composed, never starts the computer. */
 @Composable
-internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) {
+internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, needsYou: @Composable (questions: List<OverviewEntry>, open: (OverviewEntry) -> Unit) -> Unit = { _, _ -> }) {
     val p = LocalPaper.current
     val api by ui.app.api.collectAsState()
     val life = LocalLifecycleOwner.current
@@ -58,15 +58,17 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
             null -> Unit
         }
     }
+    // The questions waiting for the owner stand in Needs you, above, not again under Blockers.
+    needsYou(snapshot?.questions().orEmpty(), ::open)
     Column(Modifier.fillMaxWidth().testTag("project-overview"), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         state.problem?.let { Text(it, color = p.err) }
         Text(state.status, color = p.muted, fontSize = if (snapshot != null) Type.s12 else androidx.compose.ui.unit.TextUnit.Unspecified)
         SmallButton(tr("Refresh")) { request++ }
         OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, dev.botdot.app.data.Overviews.noWork, ::open) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, dev.botdot.app.data.Overviews.noBlockers, ::open) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, dev.botdot.app.data.Overviews.noReplies, ::open) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, dev.botdot.app.data.Overviews.noWork) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, dev.botdot.app.data.Overviews.noBlockers) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, dev.botdot.app.data.Overviews.noReplies) }
         }
         OverviewSection(tr("Files")) {
             state.filesProblem?.let { Text(it, color = p.err) }
@@ -94,9 +96,9 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun OverviewRows(items: List<OverviewEntry>, empty: String, open: (OverviewEntry) -> Unit) {
+internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null) {
     val p = LocalPaper.current
-    if (items.isEmpty()) Text(empty, color = p.muted)
+    if (items.isEmpty() && empty != null) Text(empty, color = p.muted)
     items.forEach { x ->
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }

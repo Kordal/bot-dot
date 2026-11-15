@@ -1,5 +1,6 @@
 // The Company's Team and Start steps (#671; docs/api.md, "The Company"): the Chief's proposed bots as cards the
-// owner edits (rename, remove, Routines, Asks first, Connect), "Add existing bot" (Duplicate), "Change the team…" with
+// owner edits (rename, remove, Routines, Asks first, Connect), "Add a bot" (one of the account's bots as it is, ADR 244,
+// or a new one through the Chief), "Add existing bot" (Duplicate), "Change the team…" with
 // Undo, the starter board's objectives and cards to untick (#810), and "Create N bots"; then the Start step while the bots are made. Drawn into Company.steps.team and .start.
 (() => {
   const I = {
@@ -68,7 +69,7 @@
     loadApps();
     const n = c.proposal.length;
     root.innerHTML = `<div class="co-team">
-      <div class="co-cards">${c.conversation ? `<section class="co-panel"><h2>${tr('First step')}</h2><p>${esc(c.firstStep)}</p></section>` : ''}${c.proposal.map((p) => card(c, p)).join('')}
+      <div class="co-cards">${c.conversation ? `<section class="co-panel"><h2>${tr('First step')}</h2><p>${esc(c.firstStep)}</p></section>` : ''}${c.proposal.map((p) => (p.existing ? joined(p) : card(c, p))).join('')}
         <button type="button" class="btn co-addbot" data-add-bot>${Company.ICON.plus}${tr('Add a bot')}</button>
       </div>
       <aside class="co-aside">
@@ -141,6 +142,38 @@
     </article>`;
   }
 
+  // One of the owner's bots that joins as it is (ADR 244): its own head, name and description, and Remove; nothing to set.
+  function joined(p) {
+    const b = (state.bots || []).find((x) => x.id === p.bot);
+    return `<article class="co-card co-joined" data-key="${esc(p.key)}" data-existing-bot="${esc(p.bot)}">
+      <div class="co-card-head">${botFigure(b?.color || p.color, 'idle', '', b?.outfit || null, p.bot)}<div class="co-card-title"><div class="co-card-name"><b>${esc(b?.name || p.name)}</b></div>${(b?.description ?? p.description) ? `<div class="co-card-job">${esc(b?.description ?? p.description)}</div>` : ''}</div><button type="button" class="icon-btn" data-remove aria-label="${tr('Remove')}">${I.trash}</button></div>
+    </article>`;
+  }
+
+  // "Add a bot" in the conversational setup: the account's bots not in the proposal, to tick, each joining as it is;
+  // "New bot" asks the Chief for one, in "Change the team…". With no bot to offer (or in the older setup, which has
+  // "Add existing bot") it goes there straight away.
+  function addBot(c) {
+    const askChief = () => { ui.draft = tr('Add a bot that '); const input = $('#co-change input'); if (input) { input.value = ui.draft; input.focus(); } };
+    const bots = c.conversation ? (state.bots || []).filter((b) => !c.proposal.some((p) => p.bot === b.id)) : [];
+    if (!bots.length) return askChief();
+    const team = c.proposal.find((p) => p.team)?.team || '';
+    openBotPicker({
+      title: tr('Add a bot'),
+      bots,
+      max: 10,
+      action: tr('Add'),
+      hint: () => '',
+      more: { label: tr('New bot'), run: askChief },
+      done: async (picked) => {
+        const now = state.company?.id === c.id ? state.company : c;
+        const add = picked.map((id) => state.bots.find((b) => b.id === id)).filter(Boolean)
+          .map((b) => ({ existing: true, bot: b.id, name: b.name, description: b.description || '', team }));
+        await save([...now.proposal, ...add]);
+      },
+    });
+  }
+
   // The account's bots, each with Duplicate, or Added when its copy is in the team.
   function existing(c) {
     const list = (state.bots || []).filter((b) => !c.proposal.some((p) => p.bot === b.id));
@@ -166,8 +199,7 @@
       Company.redraw();
       $('#co-change input')?.focus();
     };
-    // "Add a bot" is said to the Chief, who designs it.
-    $('[data-add-bot]', root).onclick = () => { ui.draft = tr('Add a bot that '); const input = $('#co-change input'); input.value = ui.draft; input.focus(); };
+    $('[data-add-bot]', root).onclick = () => addBot(c);
     $('[data-existing]', root)?.addEventListener('click', () => { ui.adding = !ui.adding; Company.redraw(); });
     $$('[data-duplicate]', root).forEach((b) => (b.onclick = () => { b.disabled = true; call('/company/proposal/duplicate', { bot: b.dataset.duplicate }); }));
     $$('[data-undo]', root).forEach((b) => (b.onclick = () => call('/company/proposal/undo')));

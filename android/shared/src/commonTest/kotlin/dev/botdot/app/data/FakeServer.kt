@@ -11,7 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** One request a [FakeServer] took: its method, its whole path (the front door's own, or /api/…), and its JSON body. */
-data class Took(val method: String, val path: String, val body: String)
+data class Took(val method: String, val path: String, val body: String, val query: String = "")
 
 /**
  * A fake botdot behind its front door, for the shared tests: Ktor's MockEngine under the shared Api, so they run on
@@ -21,7 +21,7 @@ class FakeServer(session: Session? = null, base: String = "https://botdot.test",
     private val lock = Mutex()
     private val took = mutableListOf<Took>()
     val api = Api(base, session, MockEngine { req ->
-        val t = Took(req.method.value, req.url.encodedPath, (req.body as? TextContent)?.text.orEmpty())
+        val t = Took(req.method.value, req.url.encodedPath, (req.body as? TextContent)?.text.orEmpty(), req.url.encodedQuery)
         lock.withLock { took += t }
         val (status, body) = answer(t)
         respond(body, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))

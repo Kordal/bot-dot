@@ -17,6 +17,8 @@ struct BoardView: View {
     @State private var needs = false
     /// A chat tile's bot, its chat opened.
     @State private var chat: ChatRoute?
+    /// A page tile's page, open in the viewer.
+    @State private var page: DocumentView.Opening?
     @Environment(\.scenePhase) private var phase
 
     /// A tile whose question is on screen before its tap goes.
@@ -73,6 +75,7 @@ struct BoardView: View {
             .toolbar { toolbar }
             .navigationDestination(isPresented: $needs) { NeedsYouView(home: home, figure: figure) }
             .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+            .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
             .overlay(alignment: .bottom) { noticeLine }
     }
 
@@ -214,7 +217,9 @@ struct BoardView: View {
             case .panel: panel = key
             case .needs: needs = true
             case .chat(let c): chat = ChatRoute(botId: c.bot, name: model.botName(c.bot) ?? "")
-            // A page opens once the iPhone has interactive pages (#1372).
+            case .page(let p):
+                let title = model.state?.rows.flatMap({ $0 }).first(where: { $0.key == key })?.tile?.title ?? p.slug
+                page = DocumentView.shared.ofPage(botId: p.bot, slug: p.slug, title: title, from: model.botName(p.bot) ?? "")
             default: break
             }
         }
