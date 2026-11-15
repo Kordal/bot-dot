@@ -470,13 +470,14 @@
   function overviewHome(root, c) {
     const items = projectNeeds(c);
     root.innerHTML = `<div class="cf-home po-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.chiefHTML()}<button type="button" class="btn sm" data-po-team>${tr('Team')}</button><button type="button" class="btn sm" data-po-board>${tr('Board')}</button>${Company.railOn() ? Company.toolsHTML() : ''}</header>
-      <section class="po-section"><h2>${tr('Needs you')}</h2>${needsHTML(c, items)}<button type="button" class="btn sm" data-po-needs>${tr('Review')}</button></section>
+      ${items.length ? `<section class="po-section"><h2>${tr('Needs you')}</h2>${needsHTML(c, items)}<button type="button" class="btn sm" data-po-needs>${tr('Review')}</button></section>` : ''}
       ${ProjectOverview.html(c)}</div>${Company.railOn() ? fieldHTML(c) : ''}`;
     wire(root, c);
     ProjectOverview.wire(root, c);
     $('[data-po-team]', root).onclick = () => { teamFor = c.id; root.scrollTop = 0; Company.redraw(); };
     $('[data-po-board]', root).onclick = () => { boardFor = c.id; root.scrollTop = 0; Company.redraw(); };
-    $('[data-po-needs]', root).onclick = () => setView('needs');
+    const review = $('[data-po-needs]', root); // Needs you shows only when something waits
+    if (review) review.onclick = () => setView('needs');
   }
 
   function teamHome(root, c) {
