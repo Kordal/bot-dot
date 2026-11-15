@@ -119,6 +119,10 @@ class ProjectState(
     val settings: Boolean,
     /** Tidy up the board, from a botdot with `board-tidy`, on a running project. */
     val tidy: Boolean,
+    /** Its settings' Project updates (`project-updates`), else each lead's report rhythm (`company-leads`); the morning standup (`project-standup`). */
+    val updates: Boolean = false,
+    val rhythms: Boolean = false,
+    val standup: Boolean = false,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -263,6 +267,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             color = c?.color ?: ManyProjects.DEFAULT_COLOR,
             settings = c != null && ManyProjects.SETTINGS in f,
             tidy = c != null && c.phase == "running" && ManyProjects.TIDY in f,
+            updates = ProjectUpdates.FEATURE in f,
+            rhythms = ProjectUpdates.FEATURE !in f && CompanyFloor.LEADS in f,
+            standup = ProjectUpdates.FEATURE !in f && ProjectStandup.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
             chiefName = chiefName,
@@ -494,6 +501,81 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     @Throws(Exception::class)
     suspend fun setArchived(on: Boolean): Boolean = call { it.patchCompany(buildJsonObject { put("archived", on) }) }
 
+    /** Its site or idea; an empty one is not sent. */
+    @Throws(Exception::class)
+    suspend fun setStart(text: String): Boolean {
+        val t = text.trim().take(500)
+        if (t.isEmpty() || t == company()?.start) return false
+        return call { it.patchCompany(CompanySetup.patchText("start", t)) }
+    }
+
+    /** A link added to its sources ([CompanySetup.linkSource]); false for an empty one. */
+    @Throws(Exception::class)
+    suspend fun addLink(typed: String): Boolean {
+        val c = company() ?: return false
+        val link = CompanySetup.linkSource(typed) ?: return false
+        return call { it.patchCompany(CompanySetup.patchSources(c.sources, listOf(link))) }
+    }
+
+    /** One of its sources taken off. */
+    @Throws(Exception::class)
+    suspend fun removeSource(id: String): Boolean {
+        val c = company() ?: return false
+        return call { it.patchCompany(CompanySetup.patchSources(c.sources.filter { s -> s.id != id })) }
+    }
+
+    /** "Never without asking": one more, up to [ManyProjects.MAX_NEVER]; an empty one is not sent. */
+    @Throws(Exception::class)
+    suspend fun addNever(text: String): Boolean {
+        val c = company() ?: return false
+        val t = text.trim().take(80)
+        if (t.isEmpty() || c.never.size >= ManyProjects.MAX_NEVER) return false
+        return call { it.patchCompany(CompanySetup.patchLines("never", c.never + t)) }
+    }
+
+    /** One of "Never without asking" taken off, by its place. */
+    @Throws(Exception::class)
+    suspend fun removeNever(index: Int): Boolean {
+        val c = company() ?: return false
+        if (index !in c.never.indices) return false
+        return call { it.patchCompany(CompanySetup.patchLines("never", c.never.filterIndexed { i, _ -> i != index })) }
+    }
+
+    /** The owner's time for it ("Time"). */
+    @Throws(Exception::class)
+    suspend fun setTime(text: String): Boolean {
+        val t = text.trim().take(80)
+        if (t == company()?.time) return false
+        return call { it.patchCompany(CompanySetup.patchText("time", t)) }
+    }
+
+    /** Its project updates' rhythm (`project-updates`): one of [ProjectUpdates.choices]. */
+    @Throws(Exception::class)
+    suspend fun setUpdates(every: String): Boolean = call { it.setProjectUpdates(every) }
+
+    /** A team lead's report rhythm (one of [ManyProjects.RHYTHMS]), from a botdot without project updates. */
+    @Throws(Exception::class)
+    suspend fun setReportRhythm(team: String, every: String): Boolean = call { it.setReportRhythm(team, every) }
+
+    /** Delete project, with its folder when [dropFolder]: the next project shows, or the start screen. */
+    @Throws(Exception::class)
+    suspend fun delete(dropFolder: Boolean): Boolean {
+        val c = company() ?: return false
+        return try { ManyProjects.delete(api, store, c.id, dropFolder); true }
+        catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message); false }
+    }
+
+    /** The morning standup on or off. */
+    @Throws(Exception::class)
+    suspend fun setStandupOn(on: Boolean): Boolean = call { it.setStandup(buildJsonObject { put("on", on) }) }
+
+    /** The morning standup's time, "HH:MM" ([ProjectSettingWords.isTime]); any other is not sent. */
+    @Throws(Exception::class)
+    suspend fun setStandupTime(time: String): Boolean {
+        if (!ProjectSettingWords.isTime(time)) return false
+        return call { it.setStandup(buildJsonObject { put("time", time) }) }
+    }
+
     // ---------- the Files tile ----------
 
     /**
@@ -527,4 +609,23 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     companion object {
         const val FRESH_MS = 4_000L
     }
+}
+
+/** How both phones word a project's settings (#701): the report rhythms, the update choices, the standup's time, Delete. */
+object ProjectSettingWords {
+    /** A report or update rhythm in words. */
+    fun rhythm(k: String): String = when (k) { "daily" -> tr("Daily"); "twice-weekly" -> tr("Twice a week"); "weekly" -> tr("Weekly"); else -> tr("Off") }
+
+    /** The project update choices ([ProjectUpdates.choices]), each with its words. */
+    fun updateChoices(setting: ProjectUpdateSetting?): List<Option> =
+        ProjectUpdates.choices(setting).map { Option(it, if (it == "existing") tr("Existing schedules") else rhythm(it)) }
+
+    /** A lead's report rhythms ([ManyProjects.RHYTHMS]), each with its words. */
+    val rhythms: List<Option> get() = ManyProjects.RHYTHMS.map { Option(it, rhythm(it)) }
+
+    /** The standup's time as botdot takes it: 00:00 to 23:59. */
+    fun isTime(t: String): Boolean = Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(t)
+
+    /** Delete's question. */
+    fun deleteQuestion(c: Company): String = tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))
 }

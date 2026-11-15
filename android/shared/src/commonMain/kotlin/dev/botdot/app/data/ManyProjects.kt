@@ -20,6 +20,17 @@ data class ProjectFolder(val name: String = "", val path: String = "")
  * The tree (project > teams > bots) is drawn from here: a team with none of its bots left is not shown.
  */
 object ManyProjects {
+    /**
+     * Deletes the project [id] (#701), with its folder when [dropFolder]: botdot first, then the store forgets it, and a
+     * botdot of one project shows none. For both phones and every place that deletes one.
+     */
+    @Throws(Exception::class)
+    suspend fun delete(api: Api, store: Store, id: String, dropFolder: Boolean) {
+        api.deleteCompany(dropFolder, id)
+        store.projectGone(id)
+        if (!many(store.version.value.value?.features)) store.company.set(CompanyHeld(null))
+    }
+
     const val SETTINGS = "project-settings"
     /** The Chief's head beside the gear: the project's own Chief chat. */
     const val CHIEF = "project-chief"

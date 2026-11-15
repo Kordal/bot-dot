@@ -60,4 +60,16 @@ final class ProjectModel {
     @discardableResult func setColor(_ color: String) async -> Bool { (try? await store.setColor(color: color))?.boolValue ?? false }
     @discardableResult func setLead(_ bot: String?) async -> Bool { (try? await store.setLead(bot: bot))?.boolValue ?? false }
     @discardableResult func setArchived(_ on: Bool) async -> Bool { (try? await store.setArchived(on: on))?.boolValue ?? false }
+    @discardableResult func setStart(_ text: String) async -> Bool { (try? await store.setStart(text: text))?.boolValue ?? false }
+    @discardableResult func addLink(_ typed: String) async -> Bool { (try? await store.addLink(typed: typed))?.boolValue ?? false }
+    @discardableResult func removeSource(_ id: String) async -> Bool { (try? await store.removeSource(id: id))?.boolValue ?? false }
+    @discardableResult func addNever(_ text: String) async -> Bool { (try? await store.addNever(text: text))?.boolValue ?? false }
+    @discardableResult func removeNever(_ index: Int) async -> Bool { (try? await store.removeNever(index: Int32(index)))?.boolValue ?? false }
+    @discardableResult func setTime(_ text: String) async -> Bool { (try? await store.setTime(text: text))?.boolValue ?? false }
+    @discardableResult func setUpdates(_ every: String) async -> Bool { (try? await store.setUpdates(every: every))?.boolValue ?? false }
+    @discardableResult func setReportRhythm(_ team: String, _ every: String) async -> Bool { (try? await store.setReportRhythm(team: team, every: every))?.boolValue ?? false }
+    @discardableResult func setStandupOn(_ on: Bool) async -> Bool { (try? await store.setStandupOn(on: on))?.boolValue ?? false }
+    @discardableResult func setStandupTime(_ time: String) async -> Bool { (try? await store.setStandupTime(time: time))?.boolValue ?? false }
+    /// Delete project, with its folder when asked: true once botdot took it and the store forgot it.
+    @discardableResult func delete(dropFolder: Bool) async -> Bool { (try? await store.delete(dropFolder: dropFolder))?.boolValue ?? false }
 }

@@ -366,7 +366,7 @@ private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
     }
     if (CompanyFloor.LEADS in features) c.teams.forEach { t ->
         Labeled(t.name) {
-            Chips(ManyProjects.RHYTHMS.map { it to rhythmName(it) }, t.report.orEmpty()) { every -> ui.call({ it.setReportRhythm(t.id, every) }) }
+            Chips(dev.botdot.app.data.ProjectSettingWords.rhythms.map { it.id to it.label }, t.report.orEmpty()) { every -> ui.call({ it.setReportRhythm(t.id, every) }) }
         }
     }
     if (ProjectStandup.FEATURE in features) {
@@ -374,7 +374,7 @@ private fun ReportRows(ui: CompanyUi, c: Company, features: List<String>) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(tr("Morning standup"), color = p.text, fontSize = Type.s14, modifier = Modifier.weight(1f))
             SaveField(s.time, tr("Standup time"), 5, Modifier.width(88.dp), enabled = s.on) { t ->
-                if (Regex("^([01]\\d|2[0-3]):[0-5]\\d$").matches(t)) ui.call({ it.setStandup(buildJsonObject { put("time", t) }) })
+                if (dev.botdot.app.data.ProjectSettingWords.isTime(t)) ui.call({ it.setStandup(buildJsonObject { put("time", t) }) })
             }
             Spacer(Modifier.width(Space.s12))
             Switch(checked = s.on, onCheckedChange = { on -> ui.call({ it.setStandup(buildJsonObject { put("on", on) }) }) }, colors = switchColors(),
@@ -389,7 +389,7 @@ internal fun ProjectUpdateRows(c: Company, onChange: suspend (String) -> Unit) {
     val scope = rememberCoroutineScope()
     var saving by remember(c.id) { mutableStateOf(false) }
     val every = c.updates?.every ?: "existing"
-    Chips(dev.botdot.app.data.ProjectUpdates.choices(c.updates).map { it to if (it == "existing") tr("Existing schedules") else rhythmName(it) }, every, enabled = !saving) { picked ->
+    Chips(dev.botdot.app.data.ProjectSettingWords.updateChoices(c.updates).map { it.id to it.label }, every, enabled = !saving) { picked ->
         if (!saving) {
             saving = true
             scope.launch { try { onChange(picked) } finally { saving = false } }
@@ -401,7 +401,6 @@ internal fun ProjectUpdateRows(c: Company, onChange: suspend (String) -> Unit) {
     if (c.lastUpdate?.error != null) Text(tr("The last project update could not be delivered."), color = p.err, fontSize = Type.s14)
 }
 
-private fun rhythmName(k: String) = when (k) { "daily" -> tr("Daily"); "twice-weekly" -> tr("Twice a week"); "weekly" -> tr("Weekly"); else -> tr("Off") }
 
 // ---------- Rules ----------
 
@@ -441,7 +440,7 @@ private fun ArchiveRows(ui: CompanyUi, c: Company, patch: (JsonObject) -> Unit) 
 internal fun deleteProject(ui: CompanyUi, c: Company, dropFolder: Boolean, onDeleted: () -> Unit = {}) {
     ui.scope.launch {
         val a = ui.api ?: return@launch ui.tell(tr("Can't reach botdot."))
-        runCatching { a.deleteCompany(dropFolder, c.id) }.onSuccess { onDeleted(); ui.app.store.projectGone(c.id) }.onError { ui.tell(it.message) }
+        runCatching { ManyProjects.delete(a, ui.app.store, c.id, dropFolder) }.onSuccess { onDeleted() }.onError { ui.tell(it.message) }
     }
 }
 
@@ -451,7 +450,7 @@ internal fun DeleteProjectDialog(ui: CompanyUi, c: Company, onDismiss: () -> Uni
     val p = LocalPaper.current
     fun delete(dropFolder: Boolean) { onDismiss(); deleteProject(ui, c, dropFolder, onDeleted) }
     AlertDialog(onDismissRequest = onDismiss,
-        title = { Text(tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))) },
+        title = { Text(dev.botdot.app.data.ProjectSettingWords.deleteQuestion(c)) },
         confirmButton = {
             if (c.folder != null) TextButton({ delete(true) }) { Text(tr("Delete its folder too"), color = p.err) }
             else TextButton({ delete(false) }) { Text(tr("Delete"), color = p.err) }

@@ -365,4 +365,75 @@ class ProjectDeskTest {
         val bots = listOf(bot("""{"id":"a","name":"Ada"}"""), bot("""{"id":"b","name":"Bo"}"""), bot("""{"id":"c","name":"Cy","description":"Free"}"""))
         assertEquals(listOf("Cy" to "Free", "Bo" to "In Shop"), ProjectRules.offered(c, c.teams[0], bots).map { it.name to it.description })
     }
+    @Test fun theReportsRowsFollowTheFeatures() = runTest {
+        val (_, a) = desk(FakeBotdot { 200 to kitchen }, all + listOf(ProjectUpdates.FEATURE, CompanyFloor.LEADS, ProjectStandup.FEATURE))
+        runCurrent()
+        with(a.state.value) { assertTrue(updates); assertFalse(rhythms, "project updates replace each lead's rhythm"); assertFalse(standup) }
+        val (_, b) = desk(FakeBotdot { 200 to kitchen }, all + listOf(CompanyFloor.LEADS, ProjectStandup.FEATURE))
+        runCurrent()
+        with(b.state.value) { assertFalse(updates); assertTrue(rhythms); assertTrue(standup) }
+    }
+
+    @Test fun theGeneralAndRulesSettingsSendWhatTheySayAndNothingEmpty() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.setStart("   "), "no site or idea")
+        assertFalse(desk.addNever("  "), "no rule")
+        assertFalse(desk.removeNever(3), "no rule there")
+        assertFalse(desk.setTime(""), "the same time")
+        assertFalse(desk.setStandupTime("9:00"), "not HH:MM")
+        assertFalse(desk.addLink("  "), "no link")
+        assertTrue(fake.changes().isEmpty())
+        assertTrue(desk.setStart(" A cafe "))
+        assertTrue(desk.addNever(" Spend money "))
+        assertTrue(desk.setTime("2 hours a week"))
+        assertTrue(desk.setStandupTime("09:30"))
+        assertTrue(desk.setStandupOn(false))
+        assertTrue(desk.setUpdates("weekly"))
+        assertTrue(desk.setReportRhythm("t1", "daily"))
+        assertEquals(listOf(
+            Triple("PATCH", "/company", """{"start":"A cafe"}"""),
+            Triple("PATCH", "/company", """{"never":["Spend money"]}"""),
+            Triple("PATCH", "/company", """{"time":"2 hours a week"}"""),
+            Triple("PUT", "/company/standup", """{"time":"09:30"}"""),
+            Triple("PUT", "/company/standup", """{"on":false}"""),
+            Triple("PUT", "/company/updates", """{"every":"weekly"}"""),
+            Triple("PUT", "/company/teams/t1", """{"report":"daily"}"""),
+        ), fake.changes())
+    }
+
+    @Test fun aLinkIsAddedToTheSourcesKeptAndOneIsTakenOff() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake, c = kitchen.replace("\"bots\":[\"b3\"]", "\"bots\":[\"b3\"],\"sources\":[{\"id\":\"s1\",\"kind\":\"link\",\"url\":\"https://a.test\",\"name\":\"a.test\"}]"))
+        runCurrent()
+        assertTrue(desk.addLink("menu.test/today"))
+        assertTrue(desk.removeSource("s1"))
+        val (added, gone) = fake.changes().map { it.third }
+        assertTrue("\"id\":\"s1\"" in added && "menu.test/today" in added, added)
+        assertEquals("""{"sources":[]}""", gone)
+    }
+
+    @Test fun deleteForgetsTheProjectAndARefusalSaysWhy() = runTest {
+        var status = 500
+        val fake = FakeBotdot { status to """{"error":"Busy"}""" }
+        val (store, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.delete(dropFolder = true))
+        runCurrent()
+        assertEquals("Busy", desk.state.value.notice)
+        assertNotNull(store.company.value.value?.company, "a refused delete keeps the project")
+        status = 200
+        assertTrue(desk.delete(dropFolder = false))
+        assertEquals(listOf("DELETE" to "/company", "DELETE" to "/company"), fake.changes().map { it.first to it.second })
+        assertEquals("folder=delete&project=p1", fake.asked().first { it.method == "DELETE" }.query, "this project, with its folder")
+        assertNull(store.company.value.value?.company, "one project's botdot: no project left")
+    }
+
+    @Test fun theSettingsWordsAreAndroids() {
+        assertEquals(listOf("Off", "Daily", "Twice a week", "Weekly"), ProjectSettingWords.rhythms.map { it.label })
+        assertTrue(ProjectSettingWords.isTime("23:59"))
+        assertFalse(ProjectSettingWords.isTime("24:00"))
+        assertEquals("Delete the project Kitchen? Its bots stay.", ProjectSettingWords.deleteQuestion(company(kitchen)))
+    }
 }
