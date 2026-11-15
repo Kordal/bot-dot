@@ -32,4 +32,13 @@ class ProjectOverviewTest {
         assertEquals("bot/manager", todo.destination(project.copy(lead = "manager"), listOf(Bot(id = "manager", name = "Manager")), features))
     }
 
+    @Test fun eachEntryShowsWhoseItIs() {
+        val writer = Bot(id = "writer", name = "Writer")
+        assertEquals(Overviews.Head.Of(writer), Overviews.head(OverviewEntry(id = "r", botId = "writer"), listOf(writer)))
+        assertEquals(Overviews.Head.Of(writer), Overviews.head(OverviewEntry(id = "g", botId = "writer", groupId = "g1"), listOf(writer)))
+        assertEquals(Overviews.Head.Chief, Overviews.head(OverviewEntry(id = "chief", chatId = "c1"), listOf(writer)))
+        assertEquals(Overviews.Head.You, Overviews.head(OverviewEntry(id = "todo", state = "planned"), listOf(writer)))
+        assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "r", botId = "gone"), listOf(writer)))
+        assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "r", botId = "writer"), null))
+    }
 }

@@ -51,6 +51,24 @@ object Overviews {
     /** Its words, or its state when it has none. */
     fun text(e: OverviewEntry): String = e.text.ifBlank { label(e.state) }
 
+    /** Whose head stands beside an entry (web: head in public/project-overview.js). */
+    sealed class Head {
+        /** Its bot, drawn as everywhere else. */
+        data class Of(val bot: Bot) : Head()
+        /** A Chief chat's. */
+        data object Chief : Head()
+        /** The owner's own to-do. */
+        data object You : Head()
+        /** A bot the app does not know yet: its place stays empty, so the rows stay aligned. */
+        data object Unknown : Head()
+    }
+
+    fun head(e: OverviewEntry, bots: List<Bot>?): Head = when {
+        e.chatId != null -> Head.Chief
+        e.botId == null -> Head.You
+        else -> bots?.firstOrNull { it.id == e.botId }?.let { Head.Of(it) } ?: Head.Unknown
+    }
+
     /** Where an entry opens ([OverviewEntry.destination]): a team's chat, a bot's, a Chief chat, the project's own Chief chat (made first), or the Chief. */
     sealed class Open {
         data class Team(val groupId: String) : Open()

@@ -18,8 +18,17 @@ const ProjectOverview = (() => {
     return Promise.all([data, files]).finally(() => { s.at = Date.now(); s.busy = false; repaint(); });
   }
   const label = (k) => ({ working: tr('Working'), planned: tr('Planned'), failed: tr('Failed'), asks: tr('Asks'), reply: tr('Reply') })[k] || '';
+  // Whose head stands beside an entry: its bot's as everywhere else, the Chief's for a Chief chat, the owner's for a
+  // to-do of theirs. A bot this page does not know yet keeps the place empty, so the rows stay aligned.
+  const YOU = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
+  function head(x) {
+    if (x.chatId) return chiefFigure('sm');
+    if (!x.botId) return `<span class="cf-you sm">${YOU}</span>`;
+    const b = botById(x.botId);
+    return b ? botFigure(b.color, b.state, 'sm', b.outfit, b.id) : '<span class="avatar sm" aria-hidden="true"></span>';
+  }
   function rows(items, empty = '') {
-    return items.length ? items.map((x) => `<div class="po-row" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>
+    return items.length ? items.map((x) => `<div class="po-row po-who" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>${head(x)}
       <button type="button" class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></button><span class="po-text md">${x.text ? mdPreview(x.text) : esc(label(x.state))}</span></div>`).join('') : empty ? `<p class="po-empty">${empty}</p>` : '';
   }
   function html(c) {
