@@ -30,9 +30,12 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
-                                                                                   color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
-                                                                                   onAnswers: { await model.answerQuestions(r.run.id, $0) }) }
+                        ForEach(s.runs.reversed(), id: \.run.id) { r in
+                            RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
+                                   color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
+                                   onAnswers: { await model.answerQuestions(r.run.id, $0) })
+                                .contextMenu { RunMenu(view: r, replies: model.replies(r.run.id)) { model.replyTo(r.run.id); focused = true } }
+                        }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
                             VStack(alignment: .trailing, spacing: 4) {
@@ -77,6 +80,7 @@ struct ChatView: View {
                         ChatPlanDock(plan: plan, color: model.state?.bot?.color, onFold: model.foldPlan, onDismiss: model.dismissPlan)
                             .padding(.horizontal).padding(.top, 6)
                     }
+                    if let replying = model.state?.replying { ReplyChip(text: replying, onClear: model.clearReply).padding(.horizontal) }
                     Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 }
                 }
             }
@@ -131,6 +135,38 @@ struct ChatView: View {
         guard let s = model.state else { return "" }
         let r = s.runs.first
         return "\(r?.run.id ?? "")|\(r?.reply?.count ?? 0)|\(r?.draft?.count ?? 0)|\(s.started.count)|\(s.queued.count)|\(s.sent?.text ?? "")"
+    }
+}
+
+/// A run's long press (Android's RunBlock): Reply to this task, where the botdot takes replies, and Copy its reply.
+struct RunMenu: View {
+    let view: RunView
+    let replies: Bool
+    let onReply: () -> Void
+
+    var body: some View {
+        if replies { Button(action: onReply) { Label(tr("Reply to this task"), systemImage: "arrowshape.turn.up.left") } }
+        if let reply = view.reply, !reply.isEmpty {
+            Button { UIPasteboard.general.string = reply } label: { Label(tr("Copy"), systemImage: "doc.on.doc") }
+        }
+    }
+}
+
+/// Above the message box while a reply is picked: what it replies to, and ✕.
+struct ReplyChip: View {
+    let text: String
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(text).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 0)
+            Button(action: onClear) { Image(systemName: "xmark").font(.caption) }
+                .accessibilityLabel(tr("Don't reply to it"))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.bar, in: .rect(cornerRadius: 12))
+        .accessibilityIdentifier("reply-chip")
     }
 }
 
