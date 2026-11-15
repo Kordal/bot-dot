@@ -244,7 +244,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             else StatusLine(lineWith(dev.botdot.app.data.OpeningLine.status(lines["chief:$chatId"].takeIf { busy }, working = false), sent), CHIEF_COLOR)
                             WaitingMessages(vm.queued, tr("the Chief"), onSteer = if (canSteerChief(features)) ({ vm.steer(it) }) else null) { vm.takeBack(it) }
                             if (sent != null && busy) SentBubble(sent, above = false, sentArrives)
-                            ChatNeeds(app, "chief")
+                            ChatNeeds(app, "chief", except = namedCards(messages.map { it.cards }))
                         }
                     }
                     itemsIndexed(newestFirst, key = { i, m -> "${first + messages.size - 1 - i}:${m.at}" }) { i, m ->
@@ -284,6 +284,8 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                 onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                                 onDismiss = { vm.dismiss() },
                                 thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
+                            // The cards it names, under it, to answer here (ADR 249).
+                            if (!m.pending && !m.failed && m.role in setOf("chief", "report")) NamedCards(app, "chief", m.cards)
                             // A mail draft (#415): its card under the reply, with its own buttons in place of the answer buttons.
                             val mail = MailCard.card(m)
                             if (mail != null) {

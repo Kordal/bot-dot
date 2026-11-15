@@ -22,7 +22,7 @@ const CODE = [
   cut('const needsDone = new Map();', '// The buttons on need cards'),
   cut('const chatDecided = new Map();', '// "Always approve" a script job'),
   cut('async function decide(x, yes', 'async function refreshNeeds() {'),
-  'this.page = { pressConnect, actNeed, actLabel, connecting, batched, decideBatch, needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, openNeedInChat, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
+  'this.page = { inlineCardsHTML, drawInlineCards, pressConnect, actNeed, actLabel, connecting, batched, decideBatch, needsItems, needCardHTML, renderNeeds, leaveNeeds, stayOnNeeds, chatNeeds, updateChatNeeds, decide, partsHTML, heldLine, msgTime, needsDone, needsOpen, chatDecided, answeredAway, drawChatCards, toHeldCard, openNeedInChat, jobCard, tileCard, approveAll, asksBeforeNo, answeredWord, changeOf, jobWaits, touchesScript };',
 ].join('\n');
 
 // The page with what the server sent. state: asks, bots (with their jobs), dash, approvals.

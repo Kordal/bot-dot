@@ -993,6 +993,9 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .chat-decided { font-size: var(--fs-12); color: var(--muted); }
 .chat-needs:not([data-scope="chief"]) .need-who { display: none; } /* it's this chat's bot */
 .chat-needs[data-scope^="group:"] .need-who { display: block; } /* in a group the card says which member's it is */
+/* A card under the message that names it (ADR 249): the same card, full width under the bubble. */
+.inline-needs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-12); max-width: 560px; width: 100%; margin-top: var(--sp-8); }
+.inline-needs:empty { display: none; }
 .need-in { color: var(--faint); } /* a card asked in a group: "in Dev", after its bot's name */
 .need-who { font-size: var(--fs-12); color: var(--muted); }
 .need-title { font-weight: 600; font-size: var(--fs-16); }

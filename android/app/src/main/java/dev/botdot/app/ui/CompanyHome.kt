@@ -179,9 +179,10 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             })
         }
         if (!overview && !one) rows()
-        // Needs you as a tile: its cards, and the questions bots and the Chief ask in this project's chats, only when something waits.
+        // Needs you: its cards, and the questions bots and the Chief ask in this project's chats, only when something waits,
+        // and then always, first, above the arranged tiles (ADR 249).
         val boardNeeds by ui.app.store.needs.value.collectAsState()
-        val needsYou = if (one && on("needs")) dev.botdot.app.data.Overviews.needsYou(c, here, boardNeeds, feed?.snapshot?.questions().orEmpty()) else null
+        val needsYou = if (one) dev.botdot.app.data.Overviews.needsYou(c, here, boardNeeds, feed?.snapshot?.questions().orEmpty()) else null
         val needsTile = needsYou != null
         val needsBox: @Composable (Modifier) -> Unit = { m ->
             Column(m.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -208,8 +209,8 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
+            if (needsTile) needsBox(Modifier)
             val tiles = buildList {
-                if (needsTile) add(Tile("needs") { m, _ -> needsBox(m) })
                 feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> add(Tile(k) { m, _ -> OverviewTile(k, f, openEntry, m) }) } }
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } }) }
                 // An ongoing project's monthly review (#925) stands where the 90-day line would.

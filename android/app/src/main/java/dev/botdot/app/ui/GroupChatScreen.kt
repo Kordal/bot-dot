@@ -490,7 +490,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                 waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
                             }
                             if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
-                            ChatNeeds(app, chatKey)
+                            ChatNeeds(app, chatKey, except = namedCards(vm.rows.filterIsInstance<GroupItem.Reply>().map { it.run.cards }))
                         }
                     }
                     if (vm.loaded && vm.rows.isEmpty() && vm.sent == null) item {
@@ -524,6 +524,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                 // The answer buttons of the group's open question stand under the reply that asked: an
                                 // answer is a message to the group, and the member that asked has the first turn.
                                 GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id) { text, key -> sendFrom(text, key) }
+                                if (x.run.status == "success") NamedCards(app, chatKey, x.run.cards)
                             }
                         }
                     }

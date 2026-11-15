@@ -430,6 +430,7 @@ data class Run(
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each
     val asked: List<AskedBot>? = null, // a turn in a group: the bots outside the group it asked, and what came back (ADR 219)
+    val cards: List<String>? = null, // the cards in Needs you it names, drawn under it while they wait (ADR 249)
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each
@@ -686,6 +687,7 @@ data class ChiefMessage(
     val from: BotRef? = null, // role "suggestion" or "report": the bot that sent it
     val files: List<Attachment>? = null, // report, and a Chief reply about a bot's result: files the bot attached to its reply
     val status: String? = null, // suggestion: pending | answered | dismissed
+    val cards: List<String>? = null, // the cards in Needs you it names, drawn under it while they wait (ADR 249)
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
     val questions: List<String>? = null, // several questions at once: a card with a box under each

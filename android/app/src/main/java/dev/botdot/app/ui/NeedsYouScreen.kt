@@ -389,6 +389,18 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
 
 // ---------- in the chat ----------
 
+/** The cards a message names (`cards`, ADR 249), drawn right under it while they wait; [scope] is its chat's. */
+@Composable
+fun NamedCards(app: BotDotApp, scope: String, ids: List<String>?) {
+    val set = ids.orEmpty().filter { NAMED_CARD.matches(it) }.toSet()
+    if (set.isNotEmpty()) Box(Modifier.fillMaxWidth().padding(top = Space.s8)) { ChatNeeds(app, scope, only = set) }
+}
+
+/** The ids of the cards that the messages of a chat name: at its end these cards are left out, as they stand under their message. */
+fun namedCards(lists: List<List<String>?>): Set<String> = lists.flatMap { it.orEmpty() }.filter { NAMED_CARD.matches(it) }.toSet()
+
+private val NAMED_CARD = Regex("^[0-9a-fA-F]{8}$")
+
 /**
  * What waits for your OK, at the bottom of the chat it belongs to: in a bot's chat, the jobs it set up,
  * the permissions and skills it asked for, its memory changes and its logins; in the Chief's
@@ -400,7 +412,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
  * stands in no bot's own chat and not in the Chief's ([chatCards]).
  */
 @Composable
-fun ChatNeeds(app: BotDotApp, scope: String) {
+fun ChatNeeds(app: BotDotApp, scope: String, only: Set<String>? = null, except: Set<String> = emptySet()) {
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val cs = rememberCoroutineScope()
@@ -452,14 +464,16 @@ fun ChatNeeds(app: BotDotApp, scope: String) {
     val whoOf = { b: Bot? -> if (chief || group != null) b?.named() else null }
     // A card asked in a group stands at the end of that group's chat, and in no other.
     val here = { asked: GroupRef? -> chatCards(scope, asked) }
-    val jobs = jobsLeft(bots.flatMap { b -> b.jobs.filter { it.waits }.map { b to it } }
+    val jobs = if (only != null) emptyList() else jobsLeft(bots.flatMap { b -> b.jobs.filter { it.waits }.map { b to it } }
         .filter { (b, j) -> here(cardGroups[CardGroups.jobKey(b.id, j.id)]) && (group != null || if (chief) j.askedBy == "chief" else b.id == scope && j.askedBy != "chief") }, decided.map { it.key })
-    val mems = if (chief) emptyList() else memory.filter { here(it.group) && (group != null || it.botId == scope) && decided.none { d -> d.key == "m:${it.id}" } }
-    val myAsks = asks.filter { a -> a.standsInChat(scope) && decided.none { it.key == "a:${a.id}" } }
-    val reqs = requests.filter { r -> here(r.group) && (group != null || if (chief) r.from == "chief" else r.bot?.id == scope && r.from != "chief") && decided.none { it.key == "r:${r.id}" } }
+    val mems = if (chief || only != null) emptyList() else memory.filter { here(it.group) && (group != null || it.botId == scope) && decided.none { d -> d.key == "m:${it.id}" } }
+    // Under a message that names cards (`only`, ADR 249): those cards alone, wherever they stand. At the end of the
+    // chat: none of the cards a message of it names (`except`), which stand under that message.
+    val myAsks = asks.filter { a -> (if (only != null) a.id in only else a.standsInChat(scope) && a.id !in except) && decided.none { it.key == "a:${a.id}" } }
+    val reqs = requests.filter { r -> (if (only != null) r.id in only else here(r.group) && (group != null || if (chief) r.from == "chief" else r.bot?.id == scope && r.from != "chief") && r.id !in except) && decided.none { it.key == "r:${r.id}" } }
     // A locked Bitwarden stands in the chat of the bot that waits for it, where it is unlocked.
     val locked = bw?.configured == true && bw.unlocked == false
-    val bwHere = locked && !chief && group == null && bw?.wantedBy?.id == scope
+    val bwHere = locked && only == null && !chief && group == null && bw?.wantedBy?.id == scope
     // A login's or a payment's answer, said in a faded line as the other cards' are.
     fun answerRequest(r: LoginRequest, done: String, block: suspend () -> Unit) = cs.launch {
         runCatching { block() }
@@ -468,8 +482,8 @@ fun ChatNeeds(app: BotDotApp, scope: String) {
         load()
         answered()
     }
-    val mySuggestions = if (chief || group != null) emptyList() else suggestions.filter { x -> x.bot == scope && decided.none { it.key == "s:${x.id}" } }
-    val myTiles = tilesLeft(tiles.filter { t -> here(cardGroups[CardGroups.tileKey(t.id)]) && (group != null || if (chief) t.askedBy != "bot" else t.bot == scope && t.askedBy == "bot") }, decided.map { it.key })
+    val mySuggestions = if (only != null || chief || group != null) emptyList() else suggestions.filter { x -> x.bot == scope && decided.none { it.key == "s:${x.id}" } }
+    val myTiles = if (only != null) emptyList() else tilesLeft(tiles.filter { t -> here(cardGroups[CardGroups.tileKey(t.id)]) && (group != null || if (chief) t.askedBy != "bot" else t.bot == scope && t.askedBy == "bot") }, decided.map { it.key })
     var scriptWarning by remember { mutableStateOf<Pair<Bot, Job>?>(null) }
     fun alwaysJob(b: Bot, j: Job) = decide(jobKey(b, j), jobCard(j).title, true, tr("Always approved")) { api!!.approveJob(b.id, j.id, true, always = true) }
     scriptWarning?.let { (b, j) ->

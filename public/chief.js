@@ -564,6 +564,7 @@ function chiefBubble(m, last = false, index = null) {
         ${m.pending ? '' : globalThis.aboutHTML?.(m) || ''}
         ${body ? `<div class="bubble from-bot ${m.error && !m.text ? 'problem' : ''}">${body}${plan}</div>` : m.pending ? draftHTML(replyDrafts.of(`chief:${state.chatId}`)) : ''}
         ${mail}
+        ${m.pending || m.error ? '' : inlineCardsHTML(m)}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta${Ratings.shows(m, state.features, index) ? '' : ' on-hover'}">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
         ${open ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions, m.questionChoices) : ''}
@@ -604,6 +605,7 @@ const reportBubble = (m, at = null) => `
     <div class="bot-msg-label">${tr('Message from {name}', { name: m.from ? botLabel(m.from) : tr('a bot') })}</div>
     ${m.text ? `<div class="bubble from-other-bot report-msg"><div class="md">${md(m.text)}</div>${at != null ? globalThis.docButton?.({ chat: state.chatId, at }, m.text) || '' : ''}${botFilesHTML(m.files)}</div>
     <div class="bubble-meta on-hover">${copyBtn(m.text)}</div>` : `<div class="bubble from-other-bot report-msg">${botFilesHTML(m.files)}</div>`}
+    ${m.error ? '' : inlineCardsHTML(m)}
   </div></div>`;
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
