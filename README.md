@@ -13,7 +13,7 @@
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with one job, its own tools, permissions, workspace and schedule. You tell the **Chief of Staff** what you need in a chat, and it makes the bots, runs them and reports back. Anything risky waits for your OK.
 
-It runs on your own Linux server, each account walled off under rootless Docker and gVisor, with the official Claude Code CLI signed in to your own Claude subscription or API key. No telemetry.
+It runs on your own Linux server, each account walled off under rootless Docker and gVisor, with the official Claude Code CLI signed in to your own Claude subscription or API key. No telemetry. Rather not run a server? We host it for you for €29 a month at [botdot.app](https://botdot.app) ([FAQ](docs/FAQ.md#is-it-a-hosted-service)).
 
 ## Install
 
