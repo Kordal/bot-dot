@@ -3,7 +3,7 @@
 // It runs in no gate: the repository does not carry Playwright. A finished run is one frame with what was asked,
 // one folded step line ("23 steps", a skill mark, a bot mark), the reply and its footer with Details; a tap on the
 // step line opens the timeline. A run at work has its own line with what it does now and Stop in its footer. On the
-// phone a long reply shows its first paragraph and More, and keeps a paragraph with a link. Nothing is cut.
+// phone a long reply shows its first paragraph and More, and keeps a paragraph with a link; a reply that asks is never folded. Nothing is cut.
 // The server's side is stood in for on /api/runs. Scratch data and fake Claude only.
 //   RUN_BLOCKS_SHOTS=<folder>  also save screenshots there
 const assert = require('node:assert/strict');
@@ -29,6 +29,8 @@ const LONG = [
     await srv.api('/setup', { method: 'PUT', body: { done: true } });
     const doctor = await makeBot(srv, { name: 'Fleet Doctor', color: '#c2473d', description: 'Looks after the servers' });
     const runs = [
+      { id: 'r0', botId: doctor.id, botName: 'Fleet Doctor', status: 'done', trigger: 'manual', prompt: 'Is the disk fine?', customPrompt: true,
+        startedAt: t(1), endedAt: t(1, 30), result: `${LONG} Should I add both?`, choices: ['Yes, add both', 'No'] },
       { id: 'r1', botId: doctor.id, botName: 'Fleet Doctor', status: 'done', trigger: 'manual', prompt: 'Check why the backup failed last night.', customPrompt: true,
         startedAt: t(0), endedAt: t(7, 37), result: LONG,
         steps: { count: 23, rows: [row(0, 'Reading the backup log'), row(1, 'Running a command', { n: 6 }), row(3, 'Using the skill backup-check', { kind: 'skill' }), row(5, 'Editing fstab'), row(6, 'Messaging Infra Admin', { kind: 'message' })] },
@@ -45,7 +47,7 @@ const LONG = [
       await context.route((url) => url.pathname === '/api/bots', async (r) => {
         if (r.request().method() !== 'GET') return r.fallback();
         const res = await r.fetch();
-        return r.fulfill({ response: res, json: (await res.json()).map((b) => (b.id === doctor.id ? { ...b, running: true, state: 'working' } : b)) });
+        return r.fulfill({ response: res, json: (await res.json()).map((b) => (b.id === doctor.id ? { ...b, running: true, state: 'working', asks: { runId: 'r0' } } : b)) });
       });
       await context.route((url) => url.pathname === '/api/runs', (r) => r.fulfill({ json: runs }));
       await context.route((url) => /^\/api\/runs\/[^/]+\/stream$/.test(url.pathname), (r) => r.fulfill({ status: 204 }));
@@ -55,9 +57,10 @@ const LONG = [
       await page.goto(`${srv.base}/#bot/${doctor.id}`);
       await page.reload();
       const thread = page.locator('#bot-thread');
-      await thread.locator('.run-block').nth(1).waitFor();
-      assert.equal(await thread.locator('.run-block').count(), 2, 'one block a run');
-      const done = thread.locator('.run-block').first();
+      await thread.locator('.run-block').nth(2).waitFor();
+      assert.equal(await thread.locator('.run-block').count(), 3, 'one block a run');
+      const done = thread.locator('.run-block', { hasText: 'Check why the backup failed' });
+      const asking = thread.locator('.run-block', { hasText: 'Is the disk fine?' });
       const live = thread.locator('.run-block.live');
       assert.match(await done.locator('.run-steps summary').innerText(), /23 steps/);
       assert.equal(await done.locator('[data-details]').count(), 1);
@@ -65,7 +68,9 @@ const LONG = [
       assert.equal(await live.locator('[data-stop-run]').innerText(), 'Stop');
       if (name === 'phone') {
         assert.equal(await done.locator('.reply-more').count(), 1, 'a long reply folds on the phone');
-        assert.ok(await done.getByText('pull/42').isVisible(), 'its link stays');
+        assert.ok(await done.getByText('The pull request with the fstab change').isVisible(), 'its link stays');
+        assert.ok(!(await done.getByText('fstab with nofail').isVisible()), 'the rest folds');
+        assert.equal(await asking.locator('.reply-more').count(), 0, 'a reply that asks never folds: no button answers a hidden question');
       }
       await page.waitForFunction(() => !document.querySelector('.main')?.getAnimations().length); // the chat's slide in
       const wide = await page.evaluate(() => [...document.querySelectorAll('#view-bot *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 0.5 && e.getClientRects().length).map((e) => e.className).slice(0, 6).join(' | '));

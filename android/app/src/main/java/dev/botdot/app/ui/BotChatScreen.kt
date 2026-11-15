@@ -363,7 +363,9 @@ private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features
     // A long reply folds to its first paragraph and "More" (#625); a paragraph with a link is never folded.
     // A closed card's questions stand at the end of the reply (replyText).
     val text = replyText(r, asksOpen)
-    val folded = remember(text) { RunSteps.folded(text) }
+    // A reply that asks never folds: its quick answers or card stand under it, or a closed card's questions at its end.
+    val asks = !r.questions.isNullOrEmpty() || (asksOpen && !r.choices.isNullOrEmpty())
+    val folded = remember(text, asks) { RunSteps.folded(text, asks) }
     var more by remember(r.id) { mutableStateOf(false) }
     val reply: @Composable () -> Unit = {
         TheirBubble(footer, copyText = text, chips = learned, wholeChips = whole, plain = true) {

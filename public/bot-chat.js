@@ -174,11 +174,12 @@ function drawBlockLines(thread) {
 }
 
 // On a phone a long reply folds to its first paragraph and "More" (the style draws the fold in a narrow chat only). What
-// links somewhere stays: a paragraph with a link is never folded, nor are its questions, which stand under it.
+// links somewhere stays: a paragraph with a link is never folded. A reply that asks (its quick answers or its card
+// under it, or a closed card's questions at its end) is never folded: no button answers a question the fold hides.
 const LONG_REPLY = 600;
 function foldLongReplies(thread) {
   $$('.run-block .bubble.from-bot:not(.problem) > .md', thread).forEach((el) => {
-    if (el.children.length < 2 || el.textContent.length < LONG_REPLY || el.classList.contains('long') || $('pre', el)) return; // a code block is never cut
+    if (el.children.length < 2 || el.textContent.length < LONG_REPLY || el.classList.contains('long') || $('pre', el) || el.hasAttribute('data-asks')) return; // a code block is never cut
     el.classList.add('long');
     [...el.children].forEach((c) => { if ($('a[href]', c) || /https?:\/\//.test(c.textContent)) c.classList.add('keep'); }); // a link is never folded
     el.insertAdjacentHTML('afterend', `<button type="button" class="reply-more">${tr('More')}</button>`);
@@ -231,7 +232,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
     const outgoing = sentTo(r).filter((t) => t.text);
     // What it learned stands under it, but the skills it changed: those are in its step line (stepLineHTML).
-    const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
+    const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md"${!failed && (r.questions?.length || (open && r.choices?.length)) ? ' data-asks' : ''}>${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
         ${learnedChips({ ...r, learned: (r.learned || []).filter((x) => !SKILL_KINDS.includes(x.kind)) })}`;
     const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
       ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
