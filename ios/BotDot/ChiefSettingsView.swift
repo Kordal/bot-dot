@@ -47,7 +47,8 @@ struct ChiefSettingsView: View {
             model?.start()
             try? await model?.desk.load()
         }
-        .onDisappear { model?.stop() }
+        // A page opened in the viewer hides this screen too: keep following then; stop only when it is left.
+        .onDisappear { if opening == nil { model?.stop(); model = nil } }
     }
 
     @ViewBuilder
