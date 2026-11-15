@@ -654,7 +654,13 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away. A card's GET
 // with its project's logins (company/card-request, #804) only reads, by the key of that card's run alone.
 const FREE_AFTER_WEB = /^(company\/card-request|asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
-const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'));
+// A project's own changes and a group's (ADR 247): its teams, their bots and lead, its own bots, a message to a team,
+// its to-dos, cards, plan, goal, dates and calendar, and making or changing a group, are done at once after the web
+// too. They stay in the account, change no bot's own powers and are seen and undone where they are; a team's turns
+// from such a message start as runs that read the web. A deletion still waits.
+const FREE_PROJECT_AFTER_WEB = /^(company(\/.+)?|group-chats(\/[^/]+)?)$/;
+const heldAfterWeb = (method, parts) => method !== 'GET' && !FREE_AFTER_WEB.test(parts.join('/'))
+  && !(method !== 'DELETE' && FREE_PROJECT_AFTER_WEB.test(parts.join('/')));
 // A bot's job the owner asked for in a turn their own message started (ADR 075): adding one, or changing one, is
 // not held. Its words may be a page's, so the job keeps the web mark and each of its runs starts as one that read
 // the web (lib/routes/jobs.js). A turn botdot started (a checkup, a look, a carry-on) still holds it.
