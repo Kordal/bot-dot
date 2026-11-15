@@ -136,7 +136,13 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
             SwitchRow(tr("Pinned below the Chief"), checked = pinned) { on ->
                 val body = Groups.pinChange(g, on) ?: return@SwitchRow
                 pinned = on
-                change(g, body).invokeOnCompletion { scope.launch { app.store.bots.refresh() } } // the pinned bots after it move up: one order (#276)
+                change(g, body).invokeOnCompletion {
+                    scope.launch {
+                        // As botdot has it now: a refused save takes the switch back.
+                        pinned = (app.store.groups.value.value?.firstOrNull { it.id == g.id }?.pinned ?: 0) > 0
+                        app.store.bots.refresh() // the pinned bots after it move up: one order (#276)
+                    }
+                }
             }
             if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
             // A team's chat deletes its team with it, on a server that does it (`team-chat-delete`).
