@@ -142,6 +142,8 @@ class GroupChatState(
     val deletes: Boolean,
     /** A team's chat of two bots or more picks its lead here ([GroupChat.makeLead]): its row says Lead, the others Make lead. */
     val picksLead: Boolean = false,
+    /** Pinned below the Chief on Home ([GroupChat.pin]), as a bot's switch: a team's chat too. */
+    val pinned: Boolean = false,
 )
 
 /**
@@ -422,6 +424,16 @@ class GroupChat(
         change { api.updateGroup(groupId, buildJsonObject { put("lead", JsonPrimitive(botId)) }) }
     }
 
+    /** Pinned below the Chief on Home, last among the pinned ones (dragged on Home to move it); off: back in its category. */
+    fun pin(on: Boolean) {
+        val g = group() ?: return
+        if ((g.pinned > 0) == on) return
+        change {
+            api.updateGroup(groupId, buildJsonObject { put("pinned", if (on) JsonPrimitive(true) else JsonPrimitive(0)) })
+            store.bots.refresh() // the pinned bots after it move up when it leaves: one order (#276)
+        }
+    }
+
     /** These bots join the group, after its members. */
     fun add(botIds: List<String>) {
         val g = group() ?: return
@@ -599,6 +611,7 @@ class GroupChat(
             renames = g != null && (g.team == null || features?.contains(Groups.TEAM_CHAT_RENAME) == true),
             deletes = g != null && Groups.deletes(g, features),
             picksLead = g != null && Groups.picksLead(g, features),
+            pinned = (g?.pinned ?: 0) > 0,
         )
     }
 

@@ -131,6 +131,12 @@ fun GroupSettingsScreen(app: BotDotApp, groupId: String, onDeleted: () -> Unit, 
                 // Nothing to add: the group is full, or every bot is in it. A team's chat adds to its team where the server does it.
                 if (Groups.changesMembers(g, versionNow?.features) && Groups.addable(g, bots).isNotEmpty()) SecondaryButton(onClick = { adding = true }) { Text("＋ " + tr("Add a bot"), color = p.text) }
             }
+            // Pinned below the Chief on Home, as a bot's switch: a team's chat too. Pinned last; dragged on Home to move it.
+            SwitchRow(tr("Pinned below the Chief"), checked = g.pinned > 0) { on ->
+                change(g, buildJsonObject { if (on) put("pinned", true) else put("pinned", 0) }).invokeOnCompletion {
+                    scope.launch { app.store.bots.refresh() } // the pinned bots after it move up when it leaves: one order (#276)
+                }
+            }
             if (versionNow?.features?.contains(GroupNotes.FEATURE) == true) GroupNotesSection(app, g.id, ::tell)
             // A team's chat deletes its team with it, on a server that does it (`team-chat-delete`).
             if (Groups.deletes(g, versionNow?.features)) SecondaryButton(onClick = { askDelete = true }, modifier = Modifier.fillMaxWidth()) { Text(if (team) tr("Delete team") else tr("Delete this group"), color = p.err) }
