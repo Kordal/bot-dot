@@ -18,6 +18,8 @@ struct FilesView: View {
     @State private var typed = ""
     @State private var deleting: (entry: WorkspaceEntry, words: String)?
     @State private var sharing: SharedFile?
+    /// Move to… or Copy to… on screen.
+    @State private var carrying: CarryDesk?
     /// The file asked for on the way in, opened once over the folder.
     @State private var opened: DocumentView.Opening?
     @State private var fileOpened = false
@@ -58,6 +60,11 @@ struct FilesView: View {
                 Text(deleting?.words ?? "")
             }
             .sheet(item: $sharing) { ShareSheet(url: $0.url) }
+            .sheet(isPresented: Binding(get: { carrying != nil }, set: { if !$0 { carrying = nil } })) {
+                if let desk = carrying {
+                    CarryView(desk: desk) { Task { await model.carried(desk) } }
+                }
+            }
             .onChange(of: photos) { pick(photos) }
             // A picker presented from the menu's button: one placed in a Menu doesn't open reliably.
             .photosPicker(isPresented: $picking, selection: $photos, matching: .any(of: [.images, .videos]))
@@ -137,6 +144,8 @@ struct FilesView: View {
                 Task { if let url = await model.saved(s.opening(i: Int32(i))) { sharing = SharedFile(url: url) } }
             } label: { Label(tr("Share…"), systemImage: "square.and.arrow.up") }
         }
+        if can.move { Button { carrying = model.carry(true, e) } label: { Label(tr("Move to…"), systemImage: "folder") } }
+        if can.copies { Button { carrying = model.carry(false, e) } label: { Label(tr("Copy to…"), systemImage: "doc.on.doc") } }
         if can.keep { Button { Task { await model.keep(e, true) } } label: { Label(tr("Keep in mind"), systemImage: "pin") } }
         if can.unpin { Button { Task { await model.keep(e, false) } } label: { Label(tr("Unpin"), systemImage: "pin.slash") } }
         if can.delete {
