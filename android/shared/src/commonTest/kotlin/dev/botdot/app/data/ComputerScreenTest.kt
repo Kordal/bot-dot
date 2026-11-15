@@ -8,6 +8,8 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -133,6 +135,19 @@ class ComputerScreenTest {
         val second = async { desk.done() }
         assertEquals(1, listOf(first.await(), second.await()).count { it })
         assertEquals(1, botdot.posts().size)
+    }
+
+    @Test fun doneTappedTwiceFromTwoThreadsAtOnceIsSentOnceEveryTime() = runTest {
+        repeat(20) { round ->
+            val botdot = FakeBotdot { r -> if (r.method == "POST") 200 to """{"ok":true}""" else 200 to running }
+            val desk = desk(botdot)
+            desk.settled()
+            desk.control()
+            desk.state.first { it.control }
+            val taps = List(2) { async(Dispatchers.Default) { desk.done() } }
+            assertEquals(1, taps.awaitAll().count { it }, "round $round: one tap hands it back")
+            assertEquals(1, botdot.posts().size, "round $round: sent once")
+        }
     }
 
     @Test fun doneRefusedSaysWhyAndStays() = runTest {
