@@ -19,7 +19,8 @@ final class CompanySetupTests: XCTestCase {
         XCTAssertFalse(s.going)
         let made = await model.go("   ")
         XCTAssertFalse(made, "nothing typed: nothing is made")
-        XCTAssertFalse(model.addLink("not a link"), "only a link is added as one")
+        XCTAssertFalse(model.addLink("   "), "nothing typed: no link")
+        XCTAssertTrue(model.addLink("kitchen.example"), "the rest is botdot's to read, as on Android")
     }
 
     func testASourceChipAndTheConversationDraw() throws {
