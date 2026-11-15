@@ -48,10 +48,11 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   also Needs you, Current work, Blockers and Latest replies as its tiles, ADR 245), its cards, Tidy,
                   its teams with the lead first and their panel and chat, its own bots with Add bot, the Files tile and
                   its default chat; ProjectSettingsView behind the gear: name, colour, site or idea, sources (a link
-                  added, one taken off), Project Manager, ✕ and Add bot, project updates or each lead's report rhythm
-                  and the morning standup, Never without asking, Time, Archive and Delete project; not yet: adding
-                  files as sources, the logins, the teams editor), bots drawn by FigureView, and tr(). Home's ⋯ menu
-                  opens Settings, Apps, the keypad, each bot's settings, Feedback and Delete account
+                  or files added, one taken off), the folder with Open, the Vault logins, Project Manager, the teams
+                  (New team; Edit: name, bots, lead, Delete team), ✕ and Add bot, project updates or each lead's
+                  report rhythm and the morning standup, Never without asking, Time, Archive and Delete project),
+                  bots drawn by FigureView, and tr(). Home's ⋯ menu opens Settings, Apps, the keypad, each bot's
+                  settings, Feedback and Delete account
 BotDotNotify/     the notification service extension (app.botdot.notify): opens a push's seal (Seal.swift, CryptoKit) with the
                   key in the shared Keychain group (PushKey.swift) and shows botdot's words and buttons; no shared layer
 BotDotTests/      XCTest: Swift reaches the shared layer and gets the Android app's answers, a project's board draws; the

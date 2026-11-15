@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -123,6 +124,8 @@ class ProjectState(
     val updates: Boolean = false,
     val rhythms: Boolean = false,
     val standup: Boolean = false,
+    /** Its settings' Vault logins (`project-logins`). */
+    val logins: Boolean = false,
     /** Its Overview as a page (ADR 236), from a botdot with `project-overview` but not `overview-board`: drawn again when the features come. */
     val overview: Boolean = false,
     /**
@@ -172,6 +175,8 @@ class ProjectState(
     val chat: ProjectChat?,
     /** Project Manager choices in the settings: the Chief (null) or one of the project's bots. */
     val leadChoices: List<Bot>,
+    /** The account's bots, for a team's editor in the settings (a bot may be in several teams, ADR 199). */
+    val bots: List<Bot> = emptyList(),
     /** What a failed tap said, once per [noticeCount]. */
     val notice: String?,
     val noticeCount: Int,
@@ -291,6 +296,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
             chiefName = chiefName,
@@ -315,6 +321,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             files = x.files,
             chat = chat,
             leadChoices = if (c == null) emptyList() else ManyProjects.leadChoices(c, bots),
+            bots = bots,
             notice = x.notice,
             noticeCount = x.noticeCount,
         )
@@ -597,6 +604,54 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         return call { it.setStandup(buildJsonObject { put("time", time) }) }
     }
 
+    /** A team saved from its editor: a new one when [team] is null. Without a name or a bot ([ManyProjects.teamBody]) nothing is sent. */
+    @Throws(Exception::class)
+    suspend fun saveTeam(team: String?, name: String, bots: List<String>, lead: String?): Boolean {
+        val body = ManyProjects.teamBody(name, bots, lead) ?: return false
+        return if (team == null) call { it.addTeam(body) } else call { it.editTeam(team, body) }
+    }
+
+    /** Delete team: its bots stay. */
+    @Throws(Exception::class)
+    suspend fun deleteTeam(team: String): Boolean = call { it.deleteTeam(team) }
+
+    /** The Vault's logins not yet the project's, for Add; null (said) when the Vault can't be read. */
+    @Throws(Exception::class)
+    suspend fun addableLogins(): List<VaultItem>? {
+        val c = company() ?: return null
+        return try { ProjectLogins.addable(api.vault(), c) }
+        catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Can't reach botdot.")); null }
+    }
+
+    /** One of the Vault's logins added, up to [ProjectLogins.MAX]. */
+    @Throws(Exception::class)
+    suspend fun addLogin(id: String): Boolean {
+        val c = company() ?: return false
+        if (c.logins.size >= ProjectLogins.MAX || c.logins.any { it.id == id }) return false
+        return call { it.patchCompany(ProjectLogins.added(c, id)) }
+    }
+
+    @Throws(Exception::class)
+    suspend fun removeLogin(id: String): Boolean {
+        val c = company() ?: return false
+        return call { it.patchCompany(ProjectLogins.removed(c, id)) }
+    }
+
+    /**
+     * Files added as sources ([ProjectSources.upload]), then saved with the sources as they are by then; [unread]: the
+     * names of those the phone couldn't read, said with what went wrong, so none is left out without a word.
+     */
+    @Throws(Exception::class)
+    suspend fun addFiles(files: List<OutgoingFile>, unread: List<String>): Boolean {
+        val c = company() ?: return false
+        val said = unread.map { "$it: ${tr("Couldn't read that file.")}" }.toMutableList()
+        val added = ProjectSources.upload(api, c.sources.size, files) { said += it }
+        if (said.isNotEmpty()) say(said.joinToString("\n"))
+        if (added.isEmpty()) return false
+        val now = company()?.takeIf { it.id == c.id } ?: c
+        return call { it.patchCompany(CompanySetup.patchSources(now.sources, added)) }
+    }
+
     // ---------- the Files tile ----------
 
     /**
@@ -665,4 +720,24 @@ object ProjectSettingWords {
 
     /** Delete's question. */
     fun deleteQuestion(c: Company): String = tr("Delete the project {name}? Its bots stay.", "name" to ManyProjects.nameOf(c))
+
+    /** Delete team's question. */
+    fun deleteTeamQuestion(t: CompanyTeam): String = tr("Delete the team {name}? Its bots stay.", "name" to t.name)
+}
+
+/** Files added to a project's sources in its settings (#701), as the start screen does: uploaded for the Chief. */
+object ProjectSources {
+    /**
+     * Uploads up to [CompanySetup.MAX_SOURCES] less the [have] ones; one over [CompanySetup.MAX_FILE] or refused is
+     * said and left out. The sources to add, `{ kind: file, name, upload }`.
+     */
+    suspend fun upload(api: Api, have: Int, files: List<OutgoingFile>, say: (String) -> Unit): List<JsonObject> {
+        val added = mutableListOf<JsonObject>()
+        for (f in files.take((CompanySetup.MAX_SOURCES - have).coerceAtLeast(0))) {
+            if ((f.size ?: 0) > CompanySetup.MAX_FILE) { say(tr("{name} is over 25 MB.", "name" to f.name)); continue }
+            try { added += CompanySetup.fileSource(f.name, api.upload(f, "chief")) }
+            catch (e: CancellationException) { throw e } catch (e: Exception) { say("${f.name}: ${e.message}") }
+        }
+        return added
+    }
 }

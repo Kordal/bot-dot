@@ -20,6 +20,8 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.io.Buffer
+import kotlinx.io.writeString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -444,6 +446,7 @@ class ProjectDeskTest {
         assertFalse(ProjectSettingWords.isTime("24:00"))
         assertEquals("Delete the project Kitchen? Its bots stay.", ProjectSettingWords.deleteQuestion(company(kitchen)))
     }
+
     @Test fun withOverviewBoardTheOverviewIsTheBoardsTilesReadWhileFollowed() = runTest {
         val snapshot = """{"projectId":"p1","at":"2026-11-15T09:00:00Z","work":[{"id":"w1","botId":"b1","name":"Ada","state":"working"}],
             "blockers":[{"id":"q1","botId":"b1","name":"Ada","state":"asks","text":"Which tiles?"}],"replies":[]}"""
@@ -464,5 +467,63 @@ class ProjectDeskTest {
         val (_, page) = desk(FakeBotdot { 200 to "{}" }, all + ProjectOverview.FEATURE)
         runCurrent()
         with(page.state.value) { assertTrue(overview); assertFalse(board); assertTrue(overviewTop.isEmpty()); assertFalse(replies) }
+    }
+
+    @Test fun aTeamIsSavedNewOrAsItIsAndDeletedAndNothingWithoutANameOrABot() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.saveTeam(null, "  ", listOf("b1"), null), "no name")
+        assertFalse(desk.saveTeam("t1", "Crew", emptyList(), null), "no bot")
+        assertFalse(ManyProjects.canSaveTeam(" ", listOf("b1")) || ManyProjects.canSaveTeam("Crew", emptyList()), "Save waits for both")
+        assertTrue(fake.changes().isEmpty())
+        assertTrue(desk.saveTeam(null, "  New   crew ", listOf("b1", "b4"), "b4"))
+        assertTrue(desk.saveTeam("t1", "Crew", listOf("b1"), "b2"))
+        assertTrue(desk.deleteTeam("t1"))
+        assertEquals(listOf(
+            Triple("POST", "/company/teams", """{"name":"New crew","bots":["b1","b4"],"lead":"b4"}"""),
+            Triple("PUT", "/company/teams/t1", """{"name":"Crew","bots":["b1"],"lead":"b1"}"""),
+            Triple("DELETE", "/company/teams/t1", "{}"),
+        ), fake.changes())
+        assertEquals("Delete the team Crew? Its bots stay.", ProjectSettingWords.deleteTeamQuestion(company(kitchen).teams[0]))
+    }
+
+    @Test fun theVaultsLoginsAreOfferedOnceAndAnUnreadVaultSaysWhy() = runTest {
+        var vault = 200
+        val fake = FakeBotdot { a ->
+            if (a.path == "/vault") vault to (if (vault == 200) """[{"id":"v1","name":"Shop","kind":"login"},{"id":"v2","name":"Card","kind":"card"},{"id":"v3","name":"Mail","kind":"login"}]""" else """{"error":"Locked"}""")
+            else 200 to kitchen
+        }
+        val (_, desk) = desk(fake, all + ProjectLogins.FEATURE, kitchen.replace("\"bots\":[\"b3\"]", "\"bots\":[\"b3\"],\"logins\":[{\"id\":\"v3\",\"name\":\"Mail\"}]"))
+        runCurrent()
+        assertTrue(desk.state.value.logins)
+        assertEquals(listOf("v1"), desk.addableLogins()?.map { it.id }, "a login not the project's yet")
+        assertFalse(desk.addLogin("v3"), "already the project's")
+        assertTrue(desk.addLogin("v1"))
+        assertTrue(desk.removeLogin("v3"))
+        assertEquals(listOf("""{"logins":["v3","v1"]}""", """{"logins":[]}"""), fake.changes().map { it.third })
+        vault = 500
+        assertNull(desk.addableLogins())
+        runCurrent()
+        assertEquals("Locked", desk.state.value.notice)
+        val (_, without) = desk(FakeBotdot { 200 to kitchen })
+        runCurrent()
+        assertFalse(without.state.value.logins)
+    }
+
+    @Test fun filesAreUploadedAsSourcesAndOneTooBigOrUnreadIsSaid() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/uploads") 200 to """{"name":"menu.pdf","file":"u1","size":4}""" else 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        val menu = OutgoingFile("menu.pdf", 4) { Buffer().apply { writeString("menu") } }
+        val big = OutgoingFile("big.mov", CompanySetup.MAX_FILE + 1) { null }
+        assertTrue(desk.addFiles(listOf(big, menu), listOf("lost.txt")))
+        runCurrent()
+        assertEquals("lost.txt: Couldn't read that file.\nbig.mov is over 25 MB.", desk.state.value.notice)
+        val sent = fake.asked().filter { it.method != "GET" }
+        assertEquals(listOf("/uploads", "/company"), sent.map { it.path }, "one upload, then the sources")
+        assertEquals("to=chief", sent[0].query.substringBefore('&'))
+        assertTrue("\"kind\":\"file\"" in sent[1].body && "\"file\":\"u1\"" in sent[1].body, sent[1].body)
+        assertFalse(desk.addFiles(emptyList(), emptyList()), "nothing picked: nothing sent")
     }
 }

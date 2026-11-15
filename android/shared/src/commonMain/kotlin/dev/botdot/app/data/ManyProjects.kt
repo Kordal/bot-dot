@@ -132,6 +132,9 @@ object ManyProjects {
         }
     }
 
+    /** A team's editor can be saved: a name and a bot ([teamBody]). For Swift, which can't read the JSON body. */
+    fun canSaveTeam(name: String, bots: List<String>): Boolean = teamBody(name, bots, null) != null
+
     /** A bot picked in a team's editor, or picked again (left out). */
     fun toggle(bots: List<String>, id: String): List<String> = if (id in bots) bots - id else bots + id
 
