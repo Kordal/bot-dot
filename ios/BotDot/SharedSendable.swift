@@ -88,3 +88,4 @@ extension Storage.Group: @retroactive @unchecked Sendable {}
 extension SkillsDesk: @retroactive @unchecked Sendable {}
 extension ChiefSettingsDesk: @retroactive @unchecked Sendable {}
 extension ChiefGrant: @retroactive @unchecked Sendable {}
+extension DuplicateDesk: @retroactive @unchecked Sendable {}

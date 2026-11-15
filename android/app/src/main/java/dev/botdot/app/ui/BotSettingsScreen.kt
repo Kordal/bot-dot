@@ -451,7 +451,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 TextButton(enabled = !work.busy && !plan.vaultLocked, onClick = {
                     aside = true
                     var made = ""
-                    work.run(tr("Duplicating {name}…", "name" to bot?.name), { tr("{name} made", "name" to made) }, refused = { aside = false; tell(it) }) {
+                    work.run(dev.botdot.app.data.Duplicate.duplicating(bot?.name), { dev.botdot.app.data.Duplicate.made(made) }, refused = { aside = false; tell(it) }) {
                         val copy = (api ?: error(tr("Not connected to botdot"))).duplicateBot(botId, copyName)
                         made = copy.name; copyPlan = null; onCopied(copy.id)
                     }
