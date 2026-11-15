@@ -6,7 +6,7 @@ import BotdotShared
 /// what a folder shows before it is read, how a file opens, and how the viewer draws a CSV and text.
 @MainActor
 final class FilesTests: XCTestCase {
-    private let api = Api(baseUrl: "https://192.0.2.1", session: nil, quietMs: Api.companion.QUIET_MS) // TEST-NET: answers nothing
+    private let api = unreachableApi()
 
     func testFilesOpenOnlyFromAServerWithThem() {
         XCTAssertTrue(FilesExplorer.shared.opensFor(ownerId: "news", features: ["files-explorer"]))

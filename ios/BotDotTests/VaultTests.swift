@@ -46,9 +46,8 @@ final class VaultTests: XCTestCase {
         dirs.append(dir)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let settings = settingsIn(directory: dir.path)
-        // A port nothing listens on: the Vault's read is refused at once, so nothing waits on a network's timeout.
-        // The folded categories are this phone's (Settings), drawn without any answer from botdot.
-        let api = Api(baseUrl: "https://127.0.0.1:9", session: nil, quietMs: Api.companion.QUIET_MS)
+        // The Vault's read is refused at once; the folded categories are this phone's (Settings), drawn without an answer.
+        let api = unreachableApi()
         let first = VaultModel(api: api, settings: settings)
         let started = Task { await first.start() }
         try await until { first.state != nil } // following the store before the tap
