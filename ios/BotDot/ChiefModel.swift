@@ -45,6 +45,8 @@ final class ChiefModel: MessageBox {
     func chipBot(_ chip: ChiefChip) async -> ChiefDesk.ChipBot? { (try? await desk.chipBot(chip: chip)) ?? nil }
     func mailBot(_ index: Int32) async -> ChiefDesk.ChipBot? { (try? await desk.mailBot(index: index)) ?? nil }
     func mailFile(_ f: Attachment) -> DocumentView.Opening? { desk.mailFile(f: f) }
+    func foldPlan(_ folded: Bool) { desk.foldPlan(folded: folded) }
+    func dismissPlan() { desk.dismissPlan() }
     func answer(_ index: Int32, _ answers: [String]) async -> Bool { (try? await desk.answer(index: index, answers: answers))?.boolValue ?? false }
 
     // The message box (Composer).
