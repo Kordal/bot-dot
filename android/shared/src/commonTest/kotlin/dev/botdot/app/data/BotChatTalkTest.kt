@@ -23,6 +23,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -201,5 +202,34 @@ class BotChatTalkTest {
         advanceTimeBy(1_000); runCurrent()
         withContext(Dispatchers.Default) { delay(100) }
         assertTrue(fake.asked().none { it.path.endsWith("/stream") }, "no run's stream is opened for a chat that was left: ${fake.asked().map { it.path }}")
+    }
+
+    @Test fun theNewestRepliesChoicesAndQuestionsAreAnsweredToItsRun() = runTest {
+        val asking = """{"id":"r2","botId":"b1","status":"success","prompt":"hi","result":"Ship now?","choices":["Now","Wait"],"yes":0,
+            "questions":["When?","Where?"],"questionChoices":[["Mon"],null],"startedAt":"2026-11-14T09:01:00Z"}"""
+        val fake = FakeBotdot { a ->
+            when {
+                a.path == "/runs" -> 200 to "[$asking,${run("r1", result = "Old")}]"
+                a.method == "POST" && a.path == "/bots/b1/run" -> 200 to run("r3", status = "running", prompt = "Now")
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == 2 }
+        val (newest, older) = chat.state.value.runs
+        assertEquals(listOf("Now", "Wait"), newest.choices)
+        assertEquals(0, newest.yes)
+        assertEquals(listOf("When?", "Where?"), newest.questions)
+        assertEquals(listOf(listOf("Mon"), emptyList()), newest.questionChoices)
+        assertTrue(older.choices.isEmpty() && older.questions.isEmpty(), "only the newest reply's")
+        assertTrue(chat.answer("r2", "Now"))
+        assertFalse(chat.answerQuestions("r2", listOf("", " ")), "every box empty: nothing sent")
+        assertTrue(chat.answerQuestions("r2", listOf("Mon", "")))
+        val posts = fake.asked().filter { it.method == "POST" }
+        assertEquals(2, posts.size)
+        assertTrue(posts.all { "\"answers\":\"r2\"" in it.body }, "each answers its run: ${posts.map { it.body }}")
+        assertTrue("\"prompt\":\"Now\"" in posts[0].body)
+        assertTrue("When?\\n→ Mon\\n\\nWhere?\\n→ –" in posts[1].body, posts[1].body)
     }
 }
