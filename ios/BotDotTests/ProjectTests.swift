@@ -111,6 +111,9 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(s.teams.map { $0.team.name }, ["Crew"], "the Team page lists the team")
         XCTAssertEqual(s.own.map { $0.bot.name }, ["Cy"], "and the own bot")
         // The page takes the board's rows ([keys]); a Form doesn't draw off screen, so its lines are the state's above.
-        _ = ProjectTeamView(model: model, figure: nil) { ForEach(s.teams, id: \.team.id) { Text($0.team.name) } }
+        let page = ProjectTeamView(home: home, model: model, figure: nil)
+        // Its rows' panel, picker and chats are its own routes, not the board's: they present from the Team page.
+        XCTAssertNil(page.routes.panel.wrappedValue)
+        XCTAssertNil(page.routes.chat.wrappedValue)
     }
 }

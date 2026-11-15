@@ -577,22 +577,34 @@ struct TeamSection: View {
     }
 }
 
-/// A project's Team page (ADR 238): with overview-board its team rows and own bots leave the board for here ([keys],
-/// the page's own, opening a team's panel and chat or a bot's chat), over the Team editor its settings have.
-struct ProjectTeamView<Keys: View>: View {
+/// A project's Team page (ADR 238): with overview-board its team rows and own bots leave the board for here, each
+/// opening a team's panel and chat or a bot's chat from this page, over the Team editor its settings have.
+struct ProjectTeamView: View {
+    let home: HomeStore
     let model: ProjectModel
     let figure: FigureDef?
-    @ViewBuilder let keys: () -> Keys
     @State private var team: TeamDraft?
     @State private var adding = false
+    // Its rows' routes are its own (TeamRoutes): a panel, a picker or a chat presents from this page, on top.
+    @State private var unfolded: Set<String> = []
+    @State private var picking: ProjectPage.Picking?
+    @State private var panel: ProjectPage.TeamRoute?
+    @State private var chat: ChatRoute?
+    @State private var group: GroupRoute?
+
+    /// Where its team rows and keys go: this page's own sheets and chats.
+    var routes: TeamRoutes.Routes { TeamRoutes.Routes(picking: $picking, panel: $panel, chat: $chat, group: $group) }
 
     var body: some View {
         Form {
             if let s = model.state, let c = s.project {
-                if !s.teams.isEmpty || !s.own.isEmpty { Section { keys() } }
+                if !s.teams.isEmpty || !s.own.isEmpty {
+                    Section { TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes) }
+                }
                 TeamSection(model: model, state: s, project: c, team: $team, adding: $adding)
             }
         }
+        .modifier(TeamRoutes(home: home, model: model, figure: figure, routes: routes))
         .navigationTitle(tr("Team"))
         .navigationBarTitleDisplayMode(.inline)
         .modifier(ProjectNotice(model: model))

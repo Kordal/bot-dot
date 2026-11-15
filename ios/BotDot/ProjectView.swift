@@ -155,6 +155,9 @@ struct ProjectPage: View {
     @State private var overview = false
     @State private var unfolded: Set<String> = []
 
+    /// Where its team rows and keys go: this page's own sheets and chats.
+    private var routes: TeamRoutes.Routes { TeamRoutes.Routes(picking: $picking, panel: $panel, chat: $chat, group: $group) }
+
     /// A team's panel on screen.
     struct TeamRoute: Identifiable {
         let id: String
@@ -186,27 +189,13 @@ struct ProjectPage: View {
         .safeAreaInset(edge: .bottom) { chatField }
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure, onDeleted: { settings = false; dismiss() },
                                 onFolder: model.state?.project?.folder == nil ? nil : { if let c = model.state?.project { settings = false; file(c, nil) } }) }
-        .navigationDestination(isPresented: $teamPage) {
-            ProjectTeamView(model: model, figure: figure) { if let s = model.state { teamKeys(s) } }
-        }
+        .navigationDestination(isPresented: $teamPage) { ProjectTeamView(home: home, model: model, figure: figure) }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }
-        .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .navigationDestination(item: $chief) { r in ChiefView(home: home, chatId: r.chatId) }
-        .navigationDestination(item: $group) { r in GroupChatView(home: home, groupId: r.groupId, name: r.name, figure: figure) }
         .navigationDestination(item: $files) { FilesView(api: home.api, at: $0) }
-        .sheet(item: $picking) { p in
-            BotPickerView(title: p.title, bots: p.bots, figure: figure) { ids in
-                Task { if let team = p.team { await model.addToTeam(team, ids) } else { await model.addOwn(ids) } }
-            }
-            .modifier(ProjectNotice(model: model))
-        }
-        .sheet(item: $panel) { t in
-            TeamPanel(model: model, teamId: t.id, figure: figure, onBot: { b in panel = nil; chat = ChatRoute(botId: b.id, name: b.name) })
-                .presentationDetents([.medium, .large])
-                .modifier(ProjectNotice(model: model))
-        }
+        .modifier(TeamRoutes(home: home, model: model, figure: figure, routes: routes))
         .modifier(ProjectNotice(model: model))
         // Followed while the page is in the stack, also under its settings or a chat it opened: the model closes it when it goes.
         .task { model.start(); model.show(id); model.follow(true) }
@@ -303,70 +292,12 @@ struct ProjectPage: View {
             .listRowSeparator(.hidden)
         }
         // With overview-board the teams are under Team (ADR 238), not on the board.
-        if s.teamsOnBoard { teamKeys(s) }
+        if s.teamsOnBoard {
+            TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)
+        }
         if s.replies {
             OverviewTile(key: "replies", state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
         }
-    }
-
-    /// Its teams' rows and its own bots' keys: on the board, or with overview-board on its Team page (ADR 238), where
-    /// each still opens its team's panel and chat or its bot's chat.
-    @ViewBuilder
-    private func teamKeys(_ s: ProjectState) -> some View {
-        ForEach(s.teams, id: \.team.id) { t in
-            teamRow(t).listRowSeparator(.hidden)
-        }
-        if s.ownBots {
-            OwnKeys(keys: s.own, figure: figure, busy: s.ownSaving, onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) }) {
-                picking = Picking(team: nil, title: tr("Add bot"), bots: s.addable)
-            }
-            .listRowSeparator(.hidden)
-        }
-    }
-
-    /// One row per team (Android's TeamKeys), folded at first: the faces, the name and what it is at. The chevron shows
-    /// its bots as keys with "+"; the name opens the team's panel, where Make lead is.
-    private func teamRow(_ t: ProjectTeam) -> some View {
-        let open = unfolded.contains(t.team.id)
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Button {
-                    if open { unfolded.remove(t.team.id) } else { unfolded.insert(t.team.id) }
-                } label: {
-                    Image(systemName: open ? "chevron.down" : "chevron.right").frame(width: 32, height: 32)
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel(tr("Members"))
-                // The team's name opens its chat (a group chat); with none, the team's panel.
-                Button {
-                    if let g = t.chat { group = GroupRoute(groupId: g, name: t.team.name) } else { panel = TeamRoute(id: t.team.id) }
-                } label: {
-                    HStack(spacing: 8) {
-                        HStack(spacing: -8) { ForEach(t.keys.prefix(3), id: \.bot.id) { k in head(k.bot, 26) } }
-                        Text(t.team.name).font(.headline).lineLimit(1)
-                        Spacer(minLength: 0)
-                        if !t.word.isEmpty {
-                            Circle().fill(t.asks ? .orange : .green).frame(width: 7, height: 7)
-                            Text(t.word).font(.subheadline.weight(t.asks ? .semibold : .regular)).foregroundStyle(t.asks ? .orange : .secondary).lineLimit(1)
-                        }
-                    }
-                }
-                .buttonStyle(.borderless)
-                .tint(.primary)
-                .accessibilityIdentifier("team-\(t.team.id)")
-            }
-            if open {
-                ForEach(t.keys, id: \.bot.id) { k in
-                    KeyRow(key: k, figure: figure) { chat = ChatRoute(botId: k.bot.id, name: k.bot.name) }
-                }
-                Button {
-                    picking = Picking(team: t.team.id, title: tr("Add bots to {team}", ["team": t.team.name]), bots: model.offered(t.team.id))
-                } label: { Label(tr("Add bots to {team}", ["team": t.team.name]), systemImage: "plus") }
-                .buttonStyle(.borderless).font(.subheadline)
-            }
-        }
-        .padding(10)
-        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
     }
 
     /// The default chat's field at the bottom (ADR 235): the Project Manager's chat, else the project's Chief chat.
@@ -394,13 +325,7 @@ struct ProjectPage: View {
         }
     }
 
-    private func head(_ b: Bot, _ size: CGFloat) -> some View {
-        Group {
-            if let figure { FigureView(drawing: FigurePaint.shared.figure(def: figure, color: b.color, state: b.state, outfit: b.outfit, dark: true)) }
-            else { Circle().fill(ContactRow.tint(b.color)) }
-        }
-        .frame(width: size, height: size)
-    }
+    private func head(_ b: Bot, _ size: CGFloat) -> some View { ProjectHead(bot: b, figure: figure, size: size) }
 }
 
 /// A bot's key in a team or among the project's own bots: its head, its name, its line, the crown on the lead.
@@ -604,5 +529,125 @@ struct ProjectNotice: ViewModifier {
                 timer?.cancel()
                 timer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { notice = nil } }
             }
+    }
+}
+
+/// A bot's head on a project's page and its Team page: its figure, else its colour.
+struct ProjectHead: View {
+    let bot: Bot
+    let figure: FigureDef?
+    let size: CGFloat
+
+    var body: some View {
+        Group {
+            if let figure { FigureView(drawing: FigurePaint.shared.figure(def: figure, color: bot.color, state: bot.state, outfit: bot.outfit, dark: true)) }
+            else { Circle().fill(ContactRow.tint(bot.color)) }
+        }
+        .frame(width: size, height: size)
+    }
+}
+
+/// Where a project's team rows and keys open (one copy for its page and its Team page, each with its own state, so
+/// each presents from the screen on top): a bot picker, a team's panel, a bot's chat, a team's chat.
+struct TeamRoutes: ViewModifier {
+    struct Routes {
+        var picking: Binding<ProjectPage.Picking?>
+        var panel: Binding<ProjectPage.TeamRoute?>
+        var chat: Binding<ChatRoute?>
+        var group: Binding<GroupRoute?>
+    }
+
+    let home: HomeStore
+    let model: ProjectModel
+    let figure: FigureDef?
+    let routes: Routes
+
+    func body(content: Content) -> some View {
+        content
+            .navigationDestination(item: routes.chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+            .navigationDestination(item: routes.group) { r in GroupChatView(home: home, groupId: r.groupId, name: r.name, figure: figure) }
+            .sheet(item: routes.picking) { p in
+                BotPickerView(title: p.title, bots: p.bots, figure: figure) { ids in
+                    Task { if let team = p.team { await model.addToTeam(team, ids) } else { await model.addOwn(ids) } }
+                }
+                .modifier(ProjectNotice(model: model))
+            }
+            .sheet(item: routes.panel) { t in
+                TeamPanel(model: model, teamId: t.id, figure: figure, onBot: { b in
+                    routes.panel.wrappedValue = nil
+                    routes.chat.wrappedValue = ChatRoute(botId: b.id, name: b.name)
+                })
+                .presentationDetents([.medium, .large])
+                .modifier(ProjectNotice(model: model))
+            }
+    }
+}
+
+/// A project's team rows and own bots' keys (Android's TeamKeys and OwnKeys): on its page, or with overview-board on
+/// its Team page (ADR 238). Each row folds open to its bots with "+"; its name opens its chat, or its panel.
+struct TeamKeysView: View {
+    let model: ProjectModel
+    let state: ProjectState
+    let figure: FigureDef?
+    @Binding var unfolded: Set<String>
+    let routes: TeamRoutes.Routes
+
+    var body: some View {
+        ForEach(state.teams, id: \.team.id) { t in
+            teamRow(t).listRowSeparator(.hidden)
+        }
+        if state.ownBots {
+            OwnKeys(keys: state.own, figure: figure, busy: state.ownSaving, onBot: { b in routes.chat.wrappedValue = ChatRoute(botId: b.id, name: b.name) }) {
+                routes.picking.wrappedValue = ProjectPage.Picking(team: nil, title: tr("Add bot"), bots: state.addable)
+            }
+            .listRowSeparator(.hidden)
+        }
+    }
+
+    private func head(_ b: Bot, _ size: CGFloat) -> some View { ProjectHead(bot: b, figure: figure, size: size) }
+
+    /// One row per team (Android's TeamKeys), folded at first: the faces, the name and what it is at. The chevron shows
+    /// its bots as keys with "+"; the name opens the team's panel, where Make lead is.
+    private func teamRow(_ t: ProjectTeam) -> some View {
+        let open = unfolded.contains(t.team.id)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button {
+                    if open { unfolded.remove(t.team.id) } else { unfolded.insert(t.team.id) }
+                } label: {
+                    Image(systemName: open ? "chevron.down" : "chevron.right").frame(width: 32, height: 32)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(tr("Members"))
+                // The team's name opens its chat (a group chat); with none, the team's panel.
+                Button {
+                    if let g = t.chat { routes.group.wrappedValue = GroupRoute(groupId: g, name: t.team.name) } else { routes.panel.wrappedValue = ProjectPage.TeamRoute(id: t.team.id) }
+                } label: {
+                    HStack(spacing: 8) {
+                        HStack(spacing: -8) { ForEach(t.keys.prefix(3), id: \.bot.id) { k in head(k.bot, 26) } }
+                        Text(t.team.name).font(.headline).lineLimit(1)
+                        Spacer(minLength: 0)
+                        if !t.word.isEmpty {
+                            Circle().fill(t.asks ? .orange : .green).frame(width: 7, height: 7)
+                            Text(t.word).font(.subheadline.weight(t.asks ? .semibold : .regular)).foregroundStyle(t.asks ? .orange : .secondary).lineLimit(1)
+                        }
+                    }
+                }
+                .buttonStyle(.borderless)
+                .tint(.primary)
+                .accessibilityIdentifier("team-\(t.team.id)")
+            }
+            if open {
+                ForEach(t.keys, id: \.bot.id) { k in
+                    KeyRow(key: k, figure: figure) { routes.chat.wrappedValue = ChatRoute(botId: k.bot.id, name: k.bot.name) }
+                }
+                Button {
+                    routes.picking.wrappedValue = ProjectPage.Picking(team: t.team.id, title: tr("Add bots to {team}", ["team": t.team.name]), bots: model.offered(t.team.id))
+                } label: { Label(tr("Add bots to {team}", ["team": t.team.name]), systemImage: "plus") }
+                .buttonStyle(.borderless).font(.subheadline)
+            }
+        }
+        .padding(10)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
     }
 }
