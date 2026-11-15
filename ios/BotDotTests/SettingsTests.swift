@@ -85,4 +85,17 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(SkillWords.shared.usedLine(k: k), "Used by the Chief")
         XCTAssertEqual(model.desk.madeBy(k: k), "Made by the Chief")
     }
+
+
+    /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
+    func testTheChiefsSettingsAreTheSharedDesk() {
+        let model = ChiefSettingsModel(home: home())
+        let s = model.desk.state.value
+        XCTAssertFalse(s.loaded)
+        XCTAssertNil(s.name, "no chief-name read yet: no Name field")
+        XCTAssertNil(s.skills)
+        XCTAssertNil(s.jobs)
+        XCTAssertEqual(ChiefSettingsDesk.companion.SAVE_MS, 800)
+        model.stop()
+    }
 }
