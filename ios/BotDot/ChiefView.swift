@@ -11,11 +11,15 @@ struct ChiefView: View {
     var chatId: String? = nil
     /// Made once the screen is there: SwiftUI makes a destination's view more than once.
     @State private var model: ChiefModel?
+    /// A file under a reply, opened in the viewer.
+    @State private var opening: DocumentView.Opening?
 
     var body: some View {
         Group {
             if let model { ChiefChat(model: model) } else { Color.clear }
         }
+        .replyFiles(api: home.api, from: model?.state?.name ?? "", opening: $opening)
+        .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .task {
             if model == nil { model = ChiefModel(home: home, chatId: chatId) }
             model?.start()
@@ -167,7 +171,7 @@ struct ChiefRow: View {
                 if let from = line.from { Text(from).font(.footnote).foregroundStyle(.secondary) }
                 if !line.text.isEmpty { MarkdownView(text: line.text) }
                 if let error = line.error { Text(error).foregroundStyle(.red) }
-                ForEach(line.files, id: \.file) { f in Label(f.name, systemImage: "doc").font(.callout) }
+                ReplyFilesView(files: line.files)
                 if line.suggests { SuggestionButtons(onApprove: onApprove, onDecline: onDecline) }
                 if line.declined { Text(tr("You declined it")).font(.footnote).foregroundStyle(.secondary) }
                 if !line.questions.isEmpty { QuestionsBox(questions: line.questions, choices: line.choices, onSend: onAnswer) }

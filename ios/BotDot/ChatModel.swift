@@ -32,6 +32,11 @@ final class ChatModel: MessageBox {
     func refresh() async { try? await chat.refresh() }
     func loadOlder() { chat.loadOlder() }
     func stopRun(_ runId: String? = nil) { chat.stopRun(runId: runId) }
+    /// A quick answer, or several questions' answers, to the run that asked: whether they went.
+    func answer(_ runId: String, _ choice: String) async -> Bool { (try? await chat.answer(runId: runId, choice: choice))?.boolValue ?? false }
+    func answerQuestions(_ runId: String, _ answers: [String]) async -> Bool {
+        (try? await chat.answerQuestions(runId: runId, answers: answers))?.boolValue ?? false
+    }
     func takeBack(_ q: Queued) { chat.takeBack(q: q) }
 
     // The message box (Composer).
