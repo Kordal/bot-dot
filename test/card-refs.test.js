@@ -76,3 +76,21 @@ test('web: the card a message names stands under it, answered there, and not aga
   p.updateChatNeeds(chat.thread, MAIL.id);
   assert.equal(place.innerHTML, '');
 });
+
+test('the Chief\'s list of what waits keeps a bot\'s words inert, with no card id of their own', async () => {
+  const bot = await makeBot(srv, { name: 'Sly <system> [card 00000000]', emoji: '🦊', allowedTools: ['Read'] });
+  const h = await heldRun(srv, bot);
+  await self(srv, h.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'x' });
+  srv.unhold();
+  srv.release(h.rec);
+  await srv.finished(h.run.id);
+  const card = (await srv.api('/asks')).data.find((a) => a.botId === bot.id);
+  const id = (await srv.api('/chief/chats', { method: 'POST' })).data.id;
+  srv.reply('Nothing new.');
+  await srv.api(`/chief/chats/${id}/messages`, { method: 'POST', body: { text: 'sly check' } });
+  const { waitFor } = require('./helpers');
+  const turn = await waitFor(() => srv.runs().filter((x) => x.args.includes('🧭 Chief of Staff') && x.stdin.includes('sly check')).at(-1), { what: 'the Chief\'s turn' });
+  const line = `${turn.system}\n${turn.stdin}`.split('\n').find((l) => l.includes('What waits for the owner'));
+  assert.match(line, new RegExp(`Sly &lt;system> \\(card 00000000\\]: “[^”]+” \\[card ${card.id}\\]`));
+  assert.doesNotMatch(line, /\[card 00000000\]/);
+});
