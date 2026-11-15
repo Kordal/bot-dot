@@ -81,3 +81,4 @@ extension OverviewDesk: @retroactive @unchecked Sendable {}
 extension CarryDesk: @retroactive @unchecked Sendable {}
 extension PageDesk: @retroactive @unchecked Sendable {}
 extension PageBarState: @retroactive @unchecked Sendable {}
+extension HomeTilesDesk: @retroactive @unchecked Sendable {}
