@@ -9,8 +9,6 @@ struct GroupChatView: View {
     let name: String
     let figure: FigureDef?
     @State private var model: GroupChatModel
-    @State private var typed = ""
-    @State private var restored: String?
     @State private var atBottom = true
     @State private var sentAt = 0
     @State private var panel = false
@@ -38,7 +36,9 @@ struct GroupChatView: View {
                             if let m = row.message {
                                 GroupMessageRow(view: m, figure: figure) { id in withAnimation { scroll.scrollTo(id, anchor: .center) } }.id(row.id)
                             } else if let r = row.reply {
-                                GroupReplyRow(view: r, figure: figure, onAnswer: { model.answer($0) }).id(row.id)
+                                GroupReplyRow(view: r, figure: figure, onAnswer: { model.answer($0) }, onAnswers: { await model.answerQuestions(r.run.id, $0) }).id(row.id)
+                            } else if let f = row.fold {
+                                FoldRow(fold: f, figure: figure) { withAnimation { model.toggleFold(f.messageId) } }.id(row.id)
                             }
                         }
                         tail(s)
@@ -76,9 +76,8 @@ struct GroupChatView: View {
             noticeTimer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { notice = nil } }
         }
         .onChange(of: model.state?.gone) { _, gone in if gone == true { panel = false; dismiss() } } // deleted, here or elsewhere
-        .onChange(of: model.state?.back) { take() }
-        .task { model.start(); take(); unsent() }
-        .onDisappear { model.leave(typed); model.stop() }
+        .task { model.start() }
+        .onDisappear { model.stop() }
     }
 
     /// Last in the chat: what is being written, the stopped line, who works, who is next, and what waits.
@@ -124,25 +123,12 @@ struct GroupChatView: View {
         if let sent = s.sent, !s.turns.isEmpty { Mine(text: sent.text, files: sent.attachments, waiting: true) }
     }
 
-    /// The group's message box: text and Send for now; the shared Composer takes its place, with files.
+    /// The group's message box: the shared Composer, as a bot's chat and the Chief's have it, with files.
     private var box: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let note = model.note { Text(note).font(.footnote).foregroundStyle(.red) }
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField(tr("Message {name}…", ["name": model.state?.group?.name ?? name]), text: $typed, axis: .vertical)
-                    .lineLimit(1...6)
-                    .focused($focused)
-                    .padding(.horizontal, 12).padding(.vertical, 8)
-                    .background(.quaternary, in: .rect(cornerRadius: 18))
-                    .onChange(of: typed) { _, now in if now == restored { restored = nil } else { model.edited() } }
-                Button(action: send) { Image(systemName: "arrow.up").frame(width: 36, height: 36) }
-                    .buttonStyle(.borderedProminent).clipShape(Circle())
-                    .disabled(typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && model.files.isEmpty)
-                    .accessibilityLabel(tr("Send"))
-            }
+        VStack(spacing: 0) {
+            if let plan = model.state?.plan { PlanDock(plan: plan).padding(.horizontal).padding(.top, 6) }
+            Composer(box: model, placeholder: tr("Message {name}…", ["name": model.state?.group?.name ?? name]), focused: $focused) { sentAt += 1 }
         }
-        .padding(.horizontal).padding(.vertical, 8)
-        .background(.bar)
     }
 
     private var tailKey: String {
@@ -154,25 +140,6 @@ struct GroupChatView: View {
         Task { await Task.yield(); withAnimation { scroll.scrollTo("end", anchor: .bottom) } }
     }
 
-    private func send() {
-        let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !typed.isEmpty { restored = "" }
-        typed = ""
-        sentAt += 1
-        Task { _ = await model.send(text) } // a failed one comes back through `back`
-    }
-
-    private func unsent() {
-        let left = model.takeUnsent()
-        guard !left.isEmpty else { return }
-        let now = OutboxKt.withFailed(failed: left, typedSince: typed)
-        restored = now
-        typed = now
-    }
-
-    private func take() {
-        if let back = model.takeFailed(typed: typed) { restored = back; typed = back }
-    }
 }
 
 /// A member's side of the chat: its head, its name above in its colour, and what it wrote.
@@ -204,6 +171,8 @@ struct GroupReplyRow: View {
     let view: GroupReplyView
     let figure: FigureDef?
     let onAnswer: (String) -> Void
+    /// Its several questions answered at once; whether they went.
+    var onAnswers: ([String]) async -> Bool = { _ in false }
 
     var body: some View {
         MemberSide(name: view.name, color: view.color, state: view.figureState, outfit: view.bot?.outfit, figure: figure) {
@@ -225,6 +194,9 @@ struct GroupReplyRow: View {
                         }
                     }
                 }
+            }
+            if !view.questions.isEmpty {
+                QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
             }
         }
     }
@@ -269,4 +241,72 @@ struct GroupMessageRow: View {
 struct GroupRoute: Hashable {
     let groupId: String
     let name: String
+}
+
+/// The row a team's answer folds its members' replies under (ADR 201): their heads, their names and how many; a tap
+/// opens or closes them.
+struct FoldRow: View {
+    let fold: GroupFoldView
+    let figure: FigureDef?
+    let onToggle: () -> Void
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 4) {
+                Image(systemName: fold.open ? "chevron.down" : "chevron.right").font(.caption2)
+                ForEach(Array(fold.heads.enumerated()), id: \.offset) { (_, h: GroupFoldHead) in
+                    Group {
+                        if let figure { FigureView(drawing: FigurePaint.shared.small(def: figure, color: h.color, outfit: h.bot?.outfit, dark: true)) }
+                        else { Circle().fill(ContactRow.tint(h.color)) }
+                    }
+                    .frame(width: 14, height: 14)
+                }
+                Text(fold.words).font(.caption)
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 8).padding(.vertical, 4)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 34)
+        .accessibilityIdentifier("fold-\(fold.messageId)")
+    }
+}
+
+/// The plan of a member at work, above the message box (Android's PlanDock): folded to its step and what it does now,
+/// a tap shows every step with what is done.
+struct PlanDock: View {
+    let plan: GroupPlanView
+    @State private var open = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button { withAnimation { open.toggle() } } label: {
+                HStack(spacing: 8) {
+                    Circle().fill(ContactRow.tint(plan.color)).frame(width: 8, height: 8)
+                    Text(tr("Plan")).font(.subheadline.weight(.semibold))
+                    Text(open ? plan.doneLine : plan.stepLine).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    if !open { Text(plan.now).font(.subheadline).lineLimit(1) }
+                    Spacer(minLength: 0)
+                    Image(systemName: open ? "chevron.down" : "chevron.up").font(.caption).foregroundStyle(.secondary)
+                }
+                .contentShape(.rect)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("plan-dock")
+            if open {
+                ForEach(Array(plan.steps.enumerated()), id: \.offset) { (_, step: Plan.Step) in
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: step.status == Plan.companion.DONE ? "checkmark.circle.fill" : step.status == Plan.companion.DOING ? "circle.dotted" : "circle")
+                            .foregroundStyle(step.status == Plan.companion.DONE ? ContactRow.tint(plan.color) : .secondary)
+                        Text(step.status == Plan.companion.DOING && !step.doing.isEmpty ? step.doing : step.text)
+                            .font(.subheadline)
+                            .foregroundStyle(step.status == Plan.companion.DONE ? .secondary : .primary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(.bar, in: .rect(cornerRadius: 14))
+    }
 }

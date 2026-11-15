@@ -7,6 +7,12 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -21,13 +27,8 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
-import kotlin.test.Test
-import kotlin.test.assertFalse
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
-import kotlin.test.fail
 
 /**
  * A group's chat (GroupChat) talking to a fake botdot (Ktor's MockEngine, as BotChatTalkTest): a send to the group,
@@ -341,5 +342,99 @@ class GroupChatTalkTest {
         assertTrue(chat.delete())
         assertEquals(emptyList(), store.groups.value.value?.map { it.id }, "gone at once, before botdot's list is read again")
         assertNull(chat.state.value.panelError)
+    }
+
+    @Test fun aTeamsAnswerFoldsItsMembersRepliesUnderOneRowThatOpens() = runTest {
+        val fake = FakeBotdot { a ->
+            if (a.path == "/group-chats/g1/chat") 200 to page(listOf(
+                message("m1", "Ship it?", "2026-11-14T09:00:00Z", ""","answer":"r3""""),
+                reply("r1", "b1", "Tests pass.", "2026-11-14T09:01:00Z"),
+                reply("r2", "b2", "Looks fine.", "2026-11-14T09:02:00Z"),
+                reply("r3", "b1", "Ship it.", "2026-11-14T09:03:00Z"),
+            )) else 404 to "{}"
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("the chat is read") { chat.state.value.rows.isNotEmpty() }
+        val folded = chat.state.value.rows
+        assertEquals(listOf("m1", "fold:m1", "r3"), folded.map { it.id }, "the members' replies under one row, the answer after it")
+        val f = folded[1].fold!!
+        assertEquals("Coder and Reviewer · 2", f.words)
+        assertEquals(listOf("#7f77dd", "#d4537e"), f.heads.map { it.color })
+        assertFalse(f.open)
+        chat.toggleFold("m1")
+        until("open") { chat.state.value.rows.size == 5 }
+        assertEquals(listOf("m1", "fold:m1", "r1", "r2", "r3"), chat.state.value.rows.map { it.id })
+        assertTrue(chat.state.value.rows[1].fold!!.open)
+        chat.toggleFold("m1")
+        until("closed again") { chat.state.value.rows.size == 3 }
+    }
+
+    @Test fun aMembersSeveralQuestionsAreAnsweredInOneMessage() = runTest {
+        val asking = reply("r1", "b1", "Two things", "2026-11-14T09:01:00Z", ""","questions":["When?","Where?"],"questionChoices":[["Mon","Tue"],null]""")
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "POST" && a.path == "/group-chats/g1/messages" -> 200 to message("m2", "x", "2026-11-14T09:02:00Z")
+                a.path == "/group-chats/g1/chat" -> 200 to page(listOf(asking), asks = """{"botId":"b1","botName":"Coder","text":"Two things","runId":"r1"}""")
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("its questions") { chat.state.value.rows.firstOrNull()?.reply?.questions?.isNotEmpty() == true }
+        val r = chat.state.value.rows.first().reply!!
+        assertEquals(listOf("When?", "Where?"), r.questions)
+        assertEquals(listOf(listOf("Mon", "Tue"), emptyList()), r.questionChoices)
+        assertFalse(chat.answerQuestions("r1", listOf("", " ")), "every box empty: nothing sent")
+        assertTrue(chat.answerQuestions("r1", listOf("Mon", "")))
+        assertTrue(chat.answerQuestions("r1", listOf("Mon", "")))
+        val posts = fake.asked().filter { it.method == "POST" }
+        assertEquals(2, posts.size)
+        assertTrue(posts.all { "When?\\n→ Mon\\n\\nWhere?\\n→ –" in it.body }, posts.first().body)
+        val keys = posts.map { Api.JSON.parseToJsonElement(it.body).jsonObject.getValue("key").toString() }
+        assertEquals(1, keys.toSet().size, "the same answers: one key, taken once")
+    }
+
+    @Test fun aTeamChatsPanelMakesAnotherBotItsLead() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PUT" && a.path == "/group-chats/g1" -> 200 to """{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","lead":"b2"}"""
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
+                else -> 404 to "{}"
+            }
+        }
+        val (store, chat) = chat(fake, features = listOf(Groups.TEAM_CHAT_LEAD))
+        store.groups.set(Group.list("""[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","lead":"b1"}]"""))
+        chat.start()
+        until("the panel picks its lead") { chat.state.value.picksLead }
+        chat.makeLead("b1") // the lead already
+        chat.makeLead("b9") // not a member
+        chat.makeLead("b2")
+        until("sent") { fake.asked().any { it.method == "PUT" } }
+        assertEquals("""{"lead":"b2"}""", fake.asked().single { it.method == "PUT" }.body)
+    }
+
+    @Test fun aGroupThatIsNoTeamPicksNoLead() = runTest {
+        val (_, chat) = chat(FakeBotdot { a -> if (a.path == "/group-chats/g1/chat") 200 to page(emptyList()) else 404 to "{}" }, features = listOf(Groups.TEAM_CHAT_LEAD))
+        chat.start()
+        until("the chat is read") { chat.state.value.loaded }
+        assertFalse(chat.state.value.picksLead, "a group of bots, no team: no lead")
+    }
+
+    @Test fun theMemberAtWorksPlanStandsAboveTheBox() = runTest {
+        val plan = """{"steps":[{"text":"Read the issue","status":"done"},{"text":"Write the fix","status":"doing","doing":"Fixing the test"},{"text":"Open the PR","status":"todo"}]}"""
+        val fake = FakeBotdot { a ->
+            if (a.path == "/group-chats/g1/chat") 200 to page(emptyList(), working = """[{"botId":"b1","runId":"r1","plan":$plan}]""") else 404 to "{}"
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("its plan") { chat.state.value.plan != null }
+        val p = chat.state.value.plan!!
+        assertEquals("Coder", p.name)
+        assertEquals("#7f77dd", p.color)
+        assertEquals("step 2 of 3", p.stepLine)
+        assertEquals("1 of 3", p.doneLine)
+        assertEquals("Fixing the test", p.now)
+        assertEquals(listOf(Plan.DONE, Plan.DOING, Plan.TODO), p.steps.map { it.status })
     }
 }

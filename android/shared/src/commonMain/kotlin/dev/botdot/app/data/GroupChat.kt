@@ -41,6 +41,10 @@ class GroupReplyView(
     val choices: List<String>,
     /** The index of the choice that says yes, filled with the member's colour; -1 for none. */
     val yes: Int,
+    /** Several questions at once, while it is the group's open question: a box under each ([GroupChat.answerQuestions]). */
+    val questions: List<String> = emptyList(),
+    /** Each question's choices, drawn under its box (empty for one without). */
+    val questionChoices: List<List<String>> = emptyList(),
 )
 
 /**
@@ -63,10 +67,25 @@ class GroupMessageView(
 )
 
 /** One row of a group's chat: the owner's message or a member's reply. */
-class GroupRow(val id: String, val message: GroupMessageView?, val reply: GroupReplyView?)
+class GroupRow(val id: String, val message: GroupMessageView?, val reply: GroupReplyView?, val fold: GroupFoldView? = null)
+
+/**
+ * The row a team's answer folds its members' replies under (ADR 201): who replied, in their colours, how many replies,
+ * and whether it is open ([GroupChat.toggleFold]). Android's FoldRow.
+ */
+class GroupFoldView(val messageId: String, val heads: List<GroupFoldHead>, val words: String, val open: Boolean)
+
+/** One member whose reply a fold holds. */
+class GroupFoldHead(val bot: Bot?, val color: String)
 
 /** A member at work in the group: its line, "Name · what it does…", in the server's words. */
 class GroupTurnView(val runId: String, val botId: String, val bot: Bot?, val name: String, val color: String, val line: String, val held: Boolean)
+
+/**
+ * The plan of a member at work, above the message box (docs/api.md, "The plan"; Android's PlanDock): whose it is, the
+ * step it is at in words ("step 2 of 4"), what that step does, and every step with its status (Plan.DONE, DOING, TODO).
+ */
+class GroupPlanView(val name: String, val color: String, val stepLine: String, val doneLine: String, val now: String, val steps: List<Plan.Step>)
 
 /** A member's reply as it is written (ReplyDraft), in the bubble its reply will have. */
 class GroupDraftView(val runId: String, val bot: Bot?, val name: String, val color: String, val text: String)
@@ -86,6 +105,8 @@ class GroupChatState(
     /** The members at work, in the order they started: one line each, the last with "Stop all". */
     val turns: List<GroupTurnView>,
     val drafts: List<GroupDraftView>,
+    /** The plan of the member at work that has one; null for none. */
+    val plan: GroupPlanView? = null,
     /** Who is next: the members whose turn has not come, in that order, and what a screen reader says of them. */
     val next: List<Bot>,
     val nextWords: String,
@@ -119,6 +140,8 @@ class GroupChatState(
     val canTakeOut: Boolean,
     val renames: Boolean,
     val deletes: Boolean,
+    /** A team's chat of two bots or more picks its lead here ([GroupChat.makeLead]): its row says Lead, the others Make lead. */
+    val picksLead: Boolean = false,
 )
 
 /**
@@ -146,6 +169,8 @@ class GroupChat(
     private var taken = 0
     private val heldDrafts = ReplyDraft.Group()
     private var files: List<Attachment> = emptyList()
+    // The messages whose folded replies the owner opened, while the chat is on screen.
+    private var openFolds: Set<String> = emptySet()
     private var uploading = false
     private var notice: String? = null
     private var panelError: String? = null
@@ -272,11 +297,27 @@ class GroupChat(
     @Throws(Exception::class)
     suspend fun answer(choice: String): Boolean = sendWith(choice, emptyList(), box = false)
 
-    private suspend fun sendWith(text: String, attachments: List<Attachment>, box: Boolean): Boolean {
+    /**
+     * A member's several questions answered at once, in one message to the group ([questionsAnswer]): nothing with every
+     * box empty; the same answers tapped again keep their key, so the group takes them once. Whether it went.
+     */
+    @Throws(Exception::class)
+    suspend fun answerQuestions(runId: String, answers: List<String>): Boolean {
+        val r = state.value.rows.firstNotNullOfOrNull { it.reply?.takeIf { v -> v.run.id == runId } } ?: return false
+        if (r.questions.isEmpty() || answers.none { it.isNotBlank() }) return false
+        val text = questionsAnswer(r.questions, answers)
+        val key = (cardKeys[runId]?.takeIf { it.first == text } ?: (text to newMessageKey()).also { cardKeys[runId] = it }).second
+        return sendWith(text, emptyList(), box = false, key = key)
+    }
+
+    // One key per question card while its answers stay the same.
+    private val cardKeys = HashMap<String, Pair<String, String>>()
+
+    private suspend fun sendWith(text: String, attachments: List<Attachment>, box: Boolean, key: String? = null): Boolean {
         val known = ownWords().mapTo(HashSet()) { it.id }
         // "Go on", typed while the group is stopped at the limit, is no message: nothing is drawn for it.
         val draw = !(limit != null && isGoOn(text))
-        val went = outbox.send(text, attachments, box, once = takesOnce(store.version.value.value?.features), known = known, draw = draw) { k ->
+        val went = outbox.send(text, attachments, box, key, once = takesOnce(store.version.value.value?.features), known = known, draw = draw) { k ->
             publish() // the message on its way is drawn at once
             took(api.sendToGroup(groupId, text, attachments, k))
         }
@@ -374,6 +415,13 @@ class GroupChat(
         change { api.updateGroup(groupId, api.membersOf(g.members - botId)) }
     }
 
+    /** Make lead, in a team chat's panel: that bot leads the team in its project. */
+    fun makeLead(botId: String) {
+        val g = group() ?: return
+        if (g.lead == botId || botId !in g.members) return
+        change { api.updateGroup(groupId, buildJsonObject { put("lead", JsonPrimitive(botId)) }) }
+    }
+
     /** These bots join the group, after its members. */
     fun add(botIds: List<String>) {
         val g = group() ?: return
@@ -402,6 +450,12 @@ class GroupChat(
         notes = r.getOrNull()
         publish()
         return true
+    }
+
+    /** A tap on a fold's row: the members' replies it holds open under it, or close again. */
+    fun toggleFold(messageId: String) {
+        openFolds = if (messageId in openFolds) openFolds - messageId else openFolds + messageId
+        publish()
     }
 
     /** The panel was opened: what an earlier change came to is not said again. */
@@ -486,10 +540,18 @@ class GroupChat(
         val messages = rows.filterIsInstance<GroupItem.Message>().map { it.message }
         val waits = messages.filter { waitsWhole(it, bots, signedOut) }
         val shown = rows.filterNot { it is GroupItem.Message && waitsWhole(it.message, bots, signedOut) }
-        val drawn = shown.mapIndexed { i, x ->
+        // A team's answer folds its members' replies under one row (Groups.shown), open while the owner keeps it open.
+        val laid = Groups.shown(shown, openFolds)
+        val drawn = laid.mapIndexed { i, x ->
             when (x) {
-                is GroupItem.Message -> GroupRow(x.id, messageView(x.message, shown.getOrNull(i - 1), bots), null)
+                is GroupItem.Message -> GroupRow(x.id, messageView(x.message, laid.getOrNull(i - 1) as? GroupItem, bots), null)
                 is GroupItem.Reply -> GroupRow(x.id, null, replyView(x, bots, features))
+                is Groups.Fold -> {
+                    val who = x.runs.distinctBy { it.botId }
+                    val words = "${namesList(who.map { r -> memberName(bots, r.botId).takeIf { bots.any { b -> b.id == r.botId } } ?: r.botName })} · ${x.runs.size}"
+                    GroupRow(x.id, null, null, GroupFoldView(x.messageId, who.map { r -> GroupFoldHead(bots.firstOrNull { it.id == r.botId }, bots.firstOrNull { it.id == r.botId }?.color ?: r.botColor ?: GONE_COLOR) }, words, x.open))
+                }
+                else -> error("a row of the chat: $x")
             }
         }
         val next = Groups.heads(Groups.next(messages, working), bots)
@@ -498,6 +560,13 @@ class GroupChat(
             gone = groups != null && g == null,
             members = members,
             rows = drawn,
+            plan = GroupWorking.planOf(working)?.let { (w, view) ->
+                val p = view.plan
+                GroupPlanView(memberName(bots, w.botId), memberColor(bots, w.botId),
+                    tr("step {step} of {total}", "step" to p.step.toString(), "total" to p.total.toString()),
+                    tr("{done} of {total}", "done" to p.done.toString(), "total" to p.total.toString()),
+                    p.now?.let { it.doing.ifEmpty { it.text } }.orEmpty(), p.steps)
+            },
             turns = working.map { w ->
                 val line = lines[w.runId]
                 GroupTurnView(w.runId, w.botId, bots.firstOrNull { it.id == w.botId }, memberName(bots, w.botId), memberColor(bots, w.botId),
@@ -529,6 +598,7 @@ class GroupChat(
             canTakeOut = g != null && Groups.canTakeOut(g, features),
             renames = g != null && (g.team == null || features?.contains(Groups.TEAM_CHAT_RENAME) == true),
             deletes = g != null && Groups.deletes(g, features),
+            picksLead = g != null && Groups.picksLead(g, features),
         )
     }
 
@@ -566,6 +636,8 @@ class GroupChat(
             files = r.files.orEmpty(),
             choices = if (asking) r.choices.orEmpty() else emptyList(),
             yes = if (asking) r.yes ?: -1 else -1,
+            questions = if (asking) r.questions.orEmpty() else emptyList(),
+            questionChoices = if (asking) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
         )
     }
 
