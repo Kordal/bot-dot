@@ -53,6 +53,11 @@ data class ChiefLine(
     val chips: List<ChiefChip> = emptyList(),
     /** A mail draft under the Chief's reply, its card; null for none. */
     val mail: MailView? = null,
+    /**
+     * The pages under a finished reply, a chip each that opens it (#384, [Pages.chips]): the Chief's own (its
+     * `botId` [Pages.CHIEF]), then those its bots saved for it, each with its bot's id and name.
+     */
+    val pages: List<PageRef> = emptyList(),
 )
 
 /**
@@ -644,5 +649,8 @@ internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Col
                 bot = d.bot ?: by?.name, botId = d.botId, runId = d.runId, screen = by?.computer == "linux",
             )
         },
+        pages = if (m.pending) emptyList() else
+            Pages.chips(Pages.CHIEF, m.pages, features).map { it.copy(botId = Pages.CHIEF) } +
+                m.botPages.flatMap { (botId, pages) -> Pages.chips(botId, pages, features) },
     )
 }

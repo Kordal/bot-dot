@@ -72,7 +72,7 @@ private struct ChiefChat: View {
                                              onBot(ChiefDesk.ChipBot(id: b.id, name: b.name, screen: screen && b.screen))
                                          }
                                      },
-                                     mailFile: { model.mailFile($0) }, onFile: onFile)
+                                     mailFile: { model.mailFile($0) }, onFile: onFile, chiefName: s.name)
                                 .contextMenu {
                                     // Quote and Copy a message's words (Quote), as a bot's reply has them.
                                     if !m.text.isEmpty && !m.pending {
@@ -208,6 +208,8 @@ struct ChiefRow: View {
     var onMailBot: (Bool) -> Void = { _ in }
     var mailFile: (Attachment) -> DocumentView.Opening? = { _ in nil }
     var onFile: (DocumentView.Opening) -> Void = { _ in }
+    /// Whose pages the Chief's own are, in the viewer's way back.
+    var chiefName: String = ""
 
     var body: some View {
         VStack(alignment: line.role == "user" ? .trailing : .leading, spacing: 6) {
@@ -222,6 +224,13 @@ struct ChiefRow: View {
                 if !line.text.isEmpty { MarkdownView(text: line.text) }
                 if let error = line.error { Text(error).foregroundStyle(.red) }
                 ReplyFilesView(files: line.files)
+                // The pages it saved, and those its bots saved for it (Android's PageChips): a tap opens one.
+                ForEach(line.pages, id: \.self) { page in
+                    PageChip(page: page) {
+                        onFile(DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title,
+                                                          from: page.botId == Pages.shared.CHIEF ? chiefName : page.bot))
+                    }
+                }
                 if !line.chips.isEmpty { ChiefChips(chips: line.chips, onTap: onChip) }
                 if let mail = line.mail {
                     MailCardView(mail: mail, onPick: onMail, onBot: { onMailBot(false) }, onScreen: { onMailBot(true) },
