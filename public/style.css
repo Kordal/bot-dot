@@ -1611,7 +1611,7 @@ a.file-chip.link:hover { background: var(--fill); }
 .bubble.from-other-bot.suggestion-msg, .bubble.from-other-bot.report-msg { white-space: normal; }
 /* As wide as its column at most: a code block or a long line scrolls or wraps inside it, not off to the left under the bot list. */
 .from-bot-msg > .bubble.from-other-bot { max-width: 100%; }
-/* What a bot watches (ADR 247): one quiet chip each on its side of the chat, with Stop. */
+/* What a bot watches (ADR 248): one quiet chip each on its side of the chat, with Stop. */
 .watch-chip { max-width: 76%; padding-right: var(--sp-4); }
 .chip > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .watch-name { color: var(--text); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

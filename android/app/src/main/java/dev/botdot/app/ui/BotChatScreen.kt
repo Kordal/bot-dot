@@ -472,7 +472,7 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
     }
 }
 
-/** What the bot watches (ADR 247), at the end of its chat on its side: what, until when, and Stop. */
+/** What the bot watches (ADR 248), at the end of its chat on its side: what, until when, and Stop. */
 @Composable
 private fun WatchChips(list: List<dev.botdot.app.data.Watch>, onStop: (String) -> Unit) {
     val p = LocalPaper.current

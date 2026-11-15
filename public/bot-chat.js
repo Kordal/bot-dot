@@ -200,7 +200,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     : r.trigger === 'schedule'
     ? `<div class="bubble-row from-me"><span class="chip">⏰ ${tr('Scheduled run · {time}', { time: esc(msgTime(r.startedAt)) })}</span></div>`
     : r.trigger === 'hello' ? '' // a new bot's first message (#511): you asked nothing
-    : r.trigger === 'watch' ? `<div class="bubble-row from-me"><span class="chip">${ICON.watch} ${esc(r.watchName || '')} · ${esc(msgTime(r.startedAt))}</span></div>` // a watch it set ended (ADR 247)
+    : r.trigger === 'watch' ? `<div class="bubble-row from-me"><span class="chip">${ICON.watch} ${esc(r.watchName || '')} · ${esc(msgTime(r.startedAt))}</span></div>` // a watch it set ended (ADR 248)
     : r.trigger === 'project' ? '' // a lead's work for its project that botdot started (#696): you asked nothing
     : r.kind === 'reminder' ? '' // a reminder it set went off (#343): botdot posted it, nobody asked
     : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
@@ -270,7 +270,7 @@ function loadInbox(botId) {
   }).catch(() => {});
 }
 
-// What a bot watches (ADR 247), at the end of its chat on its side: what, until when, and Stop. The last read is its title.
+// What a bot watches (ADR 248), at the end of its chat on its side: what, until when, and Stop. The last read is its title.
 function loadWatches(botId) {
   if (!state.features.includes('watches')) return;
   api(`/bots/${encodeURIComponent(botId)}/watches`).then((list) => {

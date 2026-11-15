@@ -796,7 +796,7 @@ function tellChiefOfHeld(a, { answer, error }) {
 // Storage (lib/storage.js): what the account's files take on the disk, for Settings and the Chief.
 const storage = require('./lib/storage').create({ dataDir: B.DATA_DIR, bots: () => B.bots.list(), projects: () => require('./lib/projects').list(), chiefName: () => B.settings.chiefName(), computers: B.computers, audit });
 require('./lib/routes/workspace').onDeleted((place, p) => storage.forget(place, p));
-// Watches (ADR 247): what a bot or the Chief waits for, read by botdot without a model; its end wakes whoever set it.
+// Watches (ADR 248): what a bot or the Chief waits for, read by botdot without a model; its end wakes whoever set it.
 const watches = (() => {
   const watchesLib = require('./lib/watches');
   const vaultHttp = require('./lib/vault-http');
