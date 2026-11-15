@@ -136,40 +136,32 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
 }
 
 /** Under a job that takes signed calls (`callMode`, docs/api.md "A signed call"): how a sender gets in; null for any other. */
-internal fun callModeLine(j: Job): String? =
-    if (j.call && j.callMode == "signed") tr("Takes signed calls: each one is signed with the secret in Passwords, and runs once.") else null
+internal fun callModeLine(j: Job): String? = dev.botdot.app.data.Jobs.callModeLine(j)
 
 /** Under a job with a notify address (`notifyUrl`, docs/api.md): where the end of each run goes. */
-internal fun notifyLine(url: String): String = tr("Tells {url} when a run ends, signed with the secret in Passwords.", "url" to url)
+internal fun notifyLine(url: String): String = dev.botdot.app.data.Jobs.notifyLine(url)
 
 /** Under an approved job that has a change beside it (`change`, docs/api.md): it runs as approved meanwhile. */
-internal val CHANGE_WAITS: String get() = tr("A change waits for your OK")
+internal val CHANGE_WAITS: String get() = dev.botdot.app.data.Jobs.CHANGE_WAITS
 
 /** Whether the jobs screen says [CHANGE_WAITS] under a job: it is approved, so it runs, and a change waits beside it. */
-internal fun changeWaits(j: Job): Boolean = j.approved && j.change != null
+internal fun changeWaits(j: Job): Boolean = dev.botdot.app.data.Jobs.changeWaits(j)
 
 /**
  * The line under a job. The server's own (`last.text`, with `job-line`: "Did not run at 08:00: botdot was off.") as
  * it is; from a server that sends none, the app's line as before: when it last ran ([time], in the phone's words) and
  * how that went.
  */
-internal fun jobLine(last: JobLast, time: String): String = last.text ?: run {
-    val what = mapOf("held" to tr("held till morning"), "quiet" to tr("nothing to report"), "success" to tr("done"), "error" to tr("failed"), "stopped" to tr("stopped"), "interrupted" to tr("cut off"))[last.status] ?: last.status
-    tr("Last run {time}: {what}", "time" to time, "what" to what)
-}
+internal fun jobLine(last: JobLast, time: String): String = dev.botdot.app.data.Jobs.lastLine(last, time)
 
 /** How the line under a job is coloured: its last run failed (also again and again), its time passed without a run, or neither. */
 internal enum class JobTone { FAILED, MISSED, FINE }
 
-internal fun jobLineTone(last: JobLast): JobTone = when {
-    last.status == "error" || last.failures > 0 -> JobTone.FAILED
-    last.status == "missed" -> JobTone.MISSED
-    else -> JobTone.FINE
+internal fun jobLineTone(last: JobLast): JobTone = when (dev.botdot.app.data.Jobs.tone(last)) {
+    dev.botdot.app.data.Jobs.Tone.FAILED -> JobTone.FAILED
+    dev.botdot.app.data.Jobs.Tone.MISSED -> JobTone.MISSED
+    dev.botdot.app.data.Jobs.Tone.FINE -> JobTone.FINE
 }
 
 /** What "Run now" says, from the server's answer: it started, it waits for the bot, or it was skipped and why. */
-internal fun runNowSays(answer: RunNow): String = when (answer) {
-    RunNow.Started -> tr("Started")
-    RunNow.Queued -> tr("It will run as soon as the bot is free")
-    is RunNow.Skipped -> answer.why
-}
+internal fun runNowSays(answer: RunNow): String = dev.botdot.app.data.Jobs.runNowSays(answer)

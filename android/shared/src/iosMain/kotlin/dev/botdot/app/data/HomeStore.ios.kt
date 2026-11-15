@@ -95,6 +95,9 @@ class HomeStore(val api: Api) {
         if (on) { feed.connect(api); feed.reconnect() } else feed.connect(null)
     }
 
+    /** The scheduled jobs of the bot [botId] (JobsDesk), from the bots as the feed keeps them. */
+    fun jobs(botId: String): JobsDesk = JobsDesk(scope, api, store, botId)
+
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
 

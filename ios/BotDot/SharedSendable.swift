@@ -66,3 +66,5 @@ extension GroupChatState: @retroactive @unchecked Sendable {}
 extension ReplyPictures: @retroactive @unchecked Sendable {}
 /// An immutable value from the shared layer.
 extension Attachment: @retroactive @unchecked Sendable {}
+/// Called from the main actor (JobsModel).
+extension JobsDesk: @retroactive @unchecked Sendable {}
