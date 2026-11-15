@@ -17,6 +17,7 @@ struct RootView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .environment(\.aiNoticeSettings, model.settings) // the notice before the first message (AiNotice)
         .task { await model.start() }
         .onChange(of: phase, initial: true) { _, now in if now == .active { Notifications.shared.appOpened() } }
     }

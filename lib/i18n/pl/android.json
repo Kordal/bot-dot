@@ -564,6 +564,8 @@
   "It goes off your Board.": "Zniknie z twojej Tablicy.",
   "Remove from Board": "Usuń z Tablicy",
   "Couldn't send": "Nie udało się wysłać",
+  "Continue": "Dalej",
+  "Your bots run on Claude by Anthropic. What you send them goes to Anthropic.": "Twoje boty działają na Claude od Anthropic. To, co im wysyłasz, trafia do Anthropic.",
   "Refresh": "Odśwież",
   "Couldn't move it": "Nie udało się przenieść",
   "All": "Wszystkie",

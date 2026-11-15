@@ -44,6 +44,9 @@ struct Composer<Box: MessageBox>: View {
     @State private var photos: [PhotosPickerItem] = []
     @State private var importing = false
     @State private var picking = false
+    /// The device's settings, for the notice before the first message (AiNotice); nil where none is given (the tests).
+    @Environment(\.aiNoticeSettings) private var noticeSettings
+    @State private var noticing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -96,9 +99,27 @@ struct Composer<Box: MessageBox>: View {
         }
         .task { take(); unsent() }
         .onDisappear { box.leave(typed) }
+        .sheet(isPresented: $noticing) {
+            AiNoticeSheet {
+                noticing = false
+                Task {
+                    try? await noticeSettings?.setAiNoticeSeen()
+                    go()
+                }
+            }
+            .presentationDetents([.medium])
+        }
     }
 
+    /// Send: the first message on this device waits for the notice that it goes to Anthropic (AiNotice), once.
     private func send() {
+        guard let settings = noticeSettings else { return go() }
+        Task {
+            if (try? await AiNotice.shared.asks(settings: settings))?.boolValue ?? true { noticing = true } else { go() }
+        }
+    }
+
+    private func go() {
         let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
         if !typed.isEmpty { restored = "" } // emptied by Send, not edited: a retry keeps the failed message's key
         typed = ""
@@ -164,5 +185,33 @@ struct NoticeOverlay: ViewModifier {
                 timer?.cancel()
                 timer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { shown = nil } }
             }
+    }
+}
+
+/// The notice before the first message (App Store guideline 5.1.2(i)): the bots run on Claude by Anthropic, so what is
+/// sent to them goes to Anthropic; Continue accepts it once on this device, and the message goes.
+struct AiNoticeSheet: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Text(AiNotice.shared.text).font(.title3).multilineTextAlignment(.center)
+            Button(action: onContinue) { Text(AiNotice.shared.go).frame(maxWidth: .infinity) }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                .accessibilityIdentifier("ai-notice-continue")
+        }
+        .padding(24)
+    }
+}
+
+private struct AiNoticeSettingsKey: EnvironmentKey {
+    static let defaultValue: Settings? = nil
+}
+
+extension EnvironmentValues {
+    /// The settings the notice before the first message is kept in.
+    var aiNoticeSettings: Settings? {
+        get { self[AiNoticeSettingsKey.self] }
+        set { self[AiNoticeSettingsKey.self] = newValue }
     }
 }

@@ -40,6 +40,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.botdot
         PRODUCT_NAME: BotDot
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         OTHER_LDFLAGS: [-lc++]
     info:
       path: BotDot/Info.plist

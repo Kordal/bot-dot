@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- What this target collects and why (App Store privacy manifest, #1374). It tracks nobody. It opens a notification's sealed words with a key kept in the Keychain, and reads nothing else. -->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array></array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array></array>
+</dict>
+</plist>
