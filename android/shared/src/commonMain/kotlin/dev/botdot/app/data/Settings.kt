@@ -3,6 +3,7 @@ package dev.botdot.app.data
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -21,6 +22,14 @@ class Settings(private val store: DataStore<Preferences>) {
     suspend fun serverNow(): String? = server.first()
     @Throws(Exception::class)
     suspend fun setServer(url: String?) = store.edit { if (url == null) it.remove(SERVER) else it[SERVER] = url }
+
+    // The notice that the bots run on Claude by Anthropic (AiNotice), seen and accepted on this device.
+    private val AI_NOTICE = booleanPreferencesKey("ai_notice")
+    val aiNoticeSeen: Flow<Boolean> = store.data.map { it[AI_NOTICE] == true }.distinctUntilChanged()
+    @Throws(Exception::class)
+    suspend fun aiNoticeSeenNow(): Boolean = aiNoticeSeen.first()
+    @Throws(Exception::class)
+    suspend fun setAiNoticeSeen() = store.edit { it[AI_NOTICE] = true }
 
     private val FOLDED = stringSetPreferencesKey("folded_groups") // "" is Other
     val foldedGroups: Flow<Set<String>> = store.data.map { it[FOLDED].orEmpty() }.distinctUntilChanged()

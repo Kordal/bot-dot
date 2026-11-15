@@ -1,5 +1,6 @@
 import SwiftUI
 import AuthenticationServices
+import BotdotShared
 
 /// The app's screens: the address, the sign-in, and Home once signed in. Dark, as the Android app (#14).
 struct RootView: View {
@@ -12,7 +13,13 @@ struct RootView: View {
             case .starting: ProgressView()
             case .address: AddressView(model: model)
             case .signIn(let server): SignInView(model: model, server: server)
-            case .signedIn(let server): HomeView(model: model, server: server, api: model.api(server)).id(server)
+            case .signedIn(let server):
+                // Nothing goes to the bots before the notice that it goes to Anthropic was accepted (AiNotice).
+                if model.showsNotice {
+                    AiNoticeView { Task { await model.acceptNotice() } }
+                } else {
+                    HomeView(model: model, server: server, api: model.api(server)).id(server)
+                }
             case .paused(let server): PausedView(model: model, server: server)
             }
         }

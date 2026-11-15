@@ -14,7 +14,7 @@ struct ChiefView: View {
     /// A bot a chip or a mail card opens: its chat, or its screen.
     @State private var chat: ChatRoute?
     @State private var screen: HomeView.ScreenOpen?
-    /// A file a mail carries, opened in the viewer.
+    /// A file under a reply or one a mail carries, opened in the viewer.
     @State private var opening: DocumentView.Opening?
 
     var body: some View {
@@ -25,6 +25,7 @@ struct ChiefView: View {
                 }, onFile: { opening = $0 })
             } else { Color.clear }
         }
+        .replyFiles(api: home.api, from: model?.state?.name ?? "", opening: $opening)
         .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .navigationDestination(item: $screen) { s in ScreenView(home: home, botId: s.id, name: s.name) }
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
@@ -197,7 +198,7 @@ struct ChiefRow: View {
                 if let from = line.from { Text(from).font(.footnote).foregroundStyle(.secondary) }
                 if !line.text.isEmpty { MarkdownView(text: line.text) }
                 if let error = line.error { Text(error).foregroundStyle(.red) }
-                ForEach(line.files, id: \.file) { f in Label(f.name, systemImage: "doc").font(.callout) }
+                ReplyFilesView(files: line.files)
                 if !line.chips.isEmpty { ChiefChips(chips: line.chips, onTap: onChip) }
                 if let mail = line.mail {
                     MailCardView(mail: mail, onPick: onMail, onBot: { onMailBot(false) }, onScreen: { onMailBot(true) },
