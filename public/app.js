@@ -15,7 +15,7 @@ const state = {
   groupId: null, // the group whose chat is open (view 'group')
   roomId: null, // the shared room whose chat is open (view 'rooms', rooms.js); none: the list of rooms
   inbox: {}, // bot id → notes waiting for its next run
-  watches: {}, // bot id → what it watches (ADR 247)
+  watches: {}, // bot id → what it watches (ADR 248)
   botStreams: [], // the streams of the bot's runs that are going (bot-chat.js followBotRuns)
   chatNew: false,
   chats: [],

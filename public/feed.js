@@ -36,7 +36,7 @@ function listenFeed(es) {
   es.addEventListener('notes_held', soon); // the wake gate held a note for a bot's next run (ADR 083): its inbox is read again
   es.addEventListener('run_steered', soon); // a run read a message the owner steered into it (ADR 040): the refresh draws it there
   es.addEventListener('bitwarden', () => pollBitwarden());
-  // A bot's watches changed (ADR 247): its open chat reads them again.
+  // A bot's watches changed (ADR 248): its open chat reads them again.
   es.addEventListener('watches', (e) => {
     let d = {};
     try { d = JSON.parse(e.data); } catch { /* not ours */ }
