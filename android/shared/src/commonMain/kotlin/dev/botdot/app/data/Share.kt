@@ -22,6 +22,9 @@ object Share {
      * with the files uploaded before and the Chief's conversation made before, so nothing is uploaded or made twice.
      */
     class Pending {
+        /** The message's key, for the words it was made for: words changed after a failure are a new message. */
+        internal var key: String? = null
+        internal var words: String? = null
         internal var to: String? = null
         /** Each file uploaded, by its place among those shared: a retry uploads only the ones that didn't go. */
         internal val uploaded = mutableMapOf<Int, Attachment>()
@@ -64,9 +67,13 @@ object Share {
      * botdot's. Nothing is sent when there is nothing to send. One key for the message, so a retry is taken once.
      */
     @Throws(Exception::class)
-    suspend fun send(api: Api, to: String, text: String, files: List<OutgoingFile>, key: String = key(), pending: Pending = Pending()): String? {
+    suspend fun send(api: Api, to: String, text: String, files: List<OutgoingFile>, pending: Pending = Pending()): String? {
         val words = text.trim()
         if (words.isEmpty() && files.isEmpty()) return tr("Nothing to send")
+        // The same words keep their key, so botdot takes them once; edited after a failure, they are another message
+        // and get a new one (its files, uploaded already for the same one, stay).
+        if (pending.key == null || pending.words != words) { pending.key = key(); pending.words = words }
+        val key = pending.key!!
         // Another one picked after a failure: its files go up for it, and the Chief's conversation isn't it.
         if (pending.to != to) { pending.to = to; pending.uploaded.clear(); pending.chat = null }
         return try {

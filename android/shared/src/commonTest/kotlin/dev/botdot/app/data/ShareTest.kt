@@ -55,12 +55,12 @@ class ShareTest {
                 else -> 404 to "{}"
             }
         }
-        assertNull(Share.send(fake.api, "b1", " https://kitchen.example ", listOf(file("menu.pdf")), key = "k1"))
+        assertNull(Share.send(fake.api, "b1", " https://kitchen.example ", listOf(file("menu.pdf"))))
         val up = fake.asked().first()
         assertEquals("to=b1", up.query, "uploaded for the bot it goes to")
         val run = Api.JSON.parseToJsonElement(fake.asked().last().body).jsonObject
         assertTrue(run.toString().contains("https://kitchen.example"))
-        assertTrue(run.toString().contains("k1"), "its message key")
+        assertTrue(run.getValue("key").toString().length > 8, "its message key")
         assertTrue(run.toString().contains("u1.pdf"), "the file goes with it")
     }
 
@@ -87,15 +87,15 @@ class ShareTest {
             }
         }
         val pending = Share.Pending()
-        assertEquals("It took too long.", Share.send(fake.api, Share.CHIEF, "Look", listOf(file("menu.pdf")), key = "k1", pending = pending))
+        assertEquals("It took too long.", Share.send(fake.api, Share.CHIEF, "Look", listOf(file("menu.pdf")), pending = pending))
         refuse = false
-        assertNull(Share.send(fake.api, Share.CHIEF, "Look", listOf(file("menu.pdf")), key = "k1", pending = pending))
+        assertNull(Share.send(fake.api, Share.CHIEF, "Look", listOf(file("menu.pdf")), pending = pending))
         val asked = fake.asked()
         assertEquals(1, asked.count { it.path.startsWith("/uploads") }, "uploaded once")
         assertEquals(1, asked.count { it.method == "POST" && it.path == "/chief/chats" }, "one conversation")
         val sent = asked.filter { it.path == "/chief/chats/c9/messages" }
         assertEquals(2, sent.size)
-        assertTrue(sent.all { "k1" in it.body }, "the same key, so botdot takes it once")
+        assertEquals(1, sent.map { keyOf(it.body) }.toSet().size, "the same key, so botdot takes it once")
     }
 
     @Test fun aRetryUploadsOnlyTheFilesThatDidNotGo() = runTest {
@@ -110,8 +110,8 @@ class ShareTest {
         }
         val pending = Share.Pending()
         val three = listOf(file("a.pdf"), file("b.pdf"), file("c.pdf"))
-        assertEquals("Upload failed.", Share.send(fake.api, "b1", "", three, key = "k1", pending = pending))
-        assertNull(Share.send(fake.api, "b1", "", three, key = "k1", pending = pending))
+        assertEquals("Upload failed.", Share.send(fake.api, "b1", "", three, pending = pending))
+        assertNull(Share.send(fake.api, "b1", "", three, pending = pending))
         val ups = fake.asked().filter { it.path.startsWith("/uploads") }.map { it.name }
         assertEquals(listOf("a.pdf", "b.pdf", "b.pdf", "c.pdf"), ups, "the retry uploads the second and the third only")
     }
@@ -126,6 +126,30 @@ class ShareTest {
         val q = Share.picker(fine.api)
         assertNull(q.failed)
         assertEquals(listOf("Max", "Ada"), q.picks.map { it.name })
+    }
+
+    private fun keyOf(body: String) = Api.JSON.parseToJsonElement(body).jsonObject.getValue("key").toString()
+
+    @Test fun wordsEditedAfterAFailureAreANewMessageAndTheSameWordsKeepTheirKey() = runTest {
+        var refuse = 1
+        val fake = FakeBotdot { a ->
+            when {
+                a.path.startsWith("/uploads") -> 200 to uploaded
+                a.path == "/bots/b1/run" -> if (refuse-- > 0) 504 to """{"error":"It took too long."}""" else 200 to """{"id":"r1"}"""
+                else -> 404 to "{}"
+            }
+        }
+        val pending = Share.Pending()
+        val menu = listOf(file("menu.pdf"))
+        assertEquals("It took too long.", Share.send(fake.api, "b1", "Look", menu, pending = pending))
+        assertNull(Share.send(fake.api, "b1", " Look at the menu ", menu, pending = pending), "edited, then sent")
+        assertNull(Share.send(fake.api, "b1", "Look at the menu", menu, pending = pending), "the same words again")
+        val runs = fake.asked().filter { it.path == "/bots/b1/run" }
+        val keys = runs.map { keyOf(it.body) }
+        assertTrue(keys[0] != keys[1], "edited after the failure: a new key, so botdot doesn't take it for the first")
+        assertEquals(keys[1], keys[2], "the same words: the same key")
+        assertTrue(runs[1].body.contains("Look at the menu"))
+        assertEquals(1, fake.asked().count { it.path.startsWith("/uploads") }, "its file uploaded once")
     }
 
     @Test fun nothingIsSentWithoutWordsOrFilesAndARefusalSaysWhy() = runTest {

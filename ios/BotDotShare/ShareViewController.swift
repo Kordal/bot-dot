@@ -71,9 +71,8 @@ struct ShareView: View {
     @State private var picks: [Share.Pick] = []
     @State private var sending: String?
     @State private var error: String?
-    /// One key for this share, also when it is sent again after a failure.
-    @State private var key = Share.shared.key()
-    /// What this share has sent so far: a tap again after a failure uploads and makes nothing twice.
+    /// What this share has sent so far, and its message's key: a tap again after a failure uploads and makes nothing
+    /// twice, and the same words keep their key (edited, they are a new message).
     @State private var pending = Share.Pending()
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("share").appendingPathComponent(UUID().uuidString)
     private let server = SharedAddress.read()
@@ -140,7 +139,7 @@ struct ShareView: View {
         let text = words
         Task {
             let failed: String?
-            do { failed = try await Share.shared.send(api: api, to: to, text: text, files: files, key: key, pending: pending) } catch { failed = error.localizedDescription }
+            do { failed = try await Share.shared.send(api: api, to: to, text: text, files: files, pending: pending) } catch { failed = error.localizedDescription }
             sending = nil
             // A failure keeps the files where they are, for a tap again from the picker still open.
             if let failed { error = failed } else { forget(); done() }
