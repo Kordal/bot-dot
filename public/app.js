@@ -29,6 +29,8 @@ const state = {
   runs: [],
   status: null,
   selectedRun: null,
+  runsOpen: new Set(), // the rows of several runs opened in Activity
+  runsEarlier: false, // "Show earlier" pressed in Activity
   runStream: null,
 };
 

@@ -28,21 +28,80 @@ function activityRuns() {
     .sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')));
 }
 
-function renderRunList() {
-  const filter = $('#run-filter')?.value;
-  const runs = activityRuns().filter((r) => !filter || r.botId === filter);
-  $('#run-list').innerHTML = runs.length
-    ? runs.map((r) => `
+// Activity's rows: first what needs a look (a run at work or waiting its turn, and today the newest run of a
+// bot in a place when it failed or asks the owner), then the rest of today, then the days before behind "Show
+// earlier". The runs of one bot in one place on one day are one row, at its newest run, that opens to them all.
+function activityRows(runs, now = Date.now()) {
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const at = (r) => new Date(r.startedAt || 0);
+  const today = (r) => at(r) >= midnight;
+  const place = (r) => `${r.botId}|${r.groupId || ''}`;
+  const newest = new Map();
+  for (const r of runs) if (!newest.has(place(r))) newest.set(place(r), r.id); // the runs come newest first
+  const pinned = (r) => r.status === 'running' || r.status === 'queued'
+    || (today(r) && newest.get(place(r)) === r.id && (r.status === 'error' || !!r.asks));
+  const first = [];
+  const top = [];
+  const earlier = [];
+  const rows = new Map();
+  for (const r of runs) {
+    if (pinned(r)) { first.push({ key: `run|${r.id}`, runs: [r] }); continue; }
+    const key = `${place(r)}|${at(r).toDateString()}`;
+    if (!rows.has(key)) {
+      rows.set(key, { key, runs: [] });
+      (today(r) ? top : earlier).push(rows.get(key));
+    }
+    rows.get(key).runs.push(r);
+  }
+  return { top: [...first, ...top], earlier };
+}
+
+const runTitle = (r) => `${esc(r.botName)}${r.groupId ? ` <span class="faint">${groupById(r.groupId)?.name ? tr('in {group}', { group: esc(groupById(r.groupId).name) }) : tr('in a group')}</span>` : ''}`;
+
+function runItem(r) {
+  return `
       <button class="run-item ${r.id === state.selectedRun ? 'active' : ''}" data-id="${esc(r.id)}" style="--bot-color:${esc(r.botColor || '#6c7cff')}">
         ${runFigure(r)}
         <div class="grow">
-          <div class="title">${esc(r.botName)}${r.groupId ? ` <span class="faint">${groupById(r.groupId)?.name ? tr('in {group}', { group: esc(groupById(r.groupId).name) }) : tr('in a group')}</span>` : ''}</div>
+          <div class="title">${runTitle(r)}</div>
           <div class="sub">${[ago(r.startedAt), r.jobName ? esc(r.jobName) : r.trigger === 'schedule' ? tr('scheduled') : null, r.kind === 'script' ? tr('no AI') : null, r.durationMs ? dur(r.durationMs) : null].filter(Boolean).join(' · ')}</div>
         </div>
         ${statusPill(r.reporting === 'held' ? 'held' : r.quiet ? 'quiet' : r.status)}
-      </button>`).join('')
+      </button>`;
+}
+
+// A row of several runs opens to them in place; the one open in the run view keeps its row open.
+function runRow(row) {
+  if (row.runs.length === 1) return runItem(row.runs[0]);
+  const [r] = row.runs;
+  const open = state.runsOpen.has(row.key) || row.runs.some((x) => x.id === state.selectedRun);
+  return `
+      <button class="run-item run-group" data-key="${esc(row.key)}" aria-expanded="${open}" style="--bot-color:${esc(r.botColor || '#6c7cff')}">
+        ${runFigure(r)}
+        <div class="grow">
+          <div class="title">${runTitle(r)}</div>
+          <div class="sub">${ago(r.startedAt)} · ${trn(row.runs.length, '{n} runs', '{n} runs')}</div>
+        </div>
+        ${CHEV}
+      </button>${open ? `<div class="run-sub">${row.runs.map(runItem).join('')}</div>` : ''}`;
+}
+
+function renderRunList() {
+  const filter = $('#run-filter')?.value;
+  const runs = activityRuns().filter((r) => !filter || r.botId === filter);
+  const { top, earlier } = activityRows(runs);
+  const showEarlier = state.runsEarlier || !top.length || earlier.some((row) => row.runs.some((r) => r.id === state.selectedRun));
+  $('#run-list').innerHTML = runs.length
+    ? top.map(runRow).join('') + (!earlier.length ? '' : showEarlier ? earlier.map(runRow).join('') : `<button type="button" class="run-more">${tr('Show earlier')}</button>`)
     : `<div class="empty" style="padding:30px">${tr('No runs yet')}</div>`;
-  $$('.run-item').forEach((el) => (el.onclick = () => openRun(el.dataset.id)));
+  $$('.run-item[data-id]').forEach((el) => (el.onclick = () => openRun(el.dataset.id)));
+  $$('.run-group').forEach((el) => (el.onclick = () => {
+    if (!state.runsOpen.delete(el.dataset.key)) state.runsOpen.add(el.dataset.key);
+    renderRunList();
+  }));
+  const more = $('.run-more');
+  if (more) more.onclick = () => { state.runsEarlier = true; renderRunList(); };
 }
 
 function openRun(id) {
