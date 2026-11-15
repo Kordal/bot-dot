@@ -46,7 +46,7 @@ struct Composer<Box: MessageBox>: View {
     @State private var picking = false
     /// The device's settings, for the notice before the first message (AiNotice); nil where none is given (the tests).
     @Environment(\.aiNoticeSettings) private var noticeSettings
-    @State private var noticing = false
+    @State private var notice = NoticeGate()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -83,7 +83,7 @@ struct Composer<Box: MessageBox>: View {
                 } else {
                     Button(action: send) { Image(systemName: "arrow.up").frame(width: 36, height: 36) }
                         .buttonStyle(.borderedProminent).clipShape(Circle())
-                        .disabled(typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && box.files.isEmpty)
+                        .disabled(notice.checking || (typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && box.files.isEmpty))
                         .accessibilityLabel(tr("Send"))
                 }
             }
@@ -97,30 +97,18 @@ struct Composer<Box: MessageBox>: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { Task { await importFile(url) } } }
         }
-        .task { take(); unsent() }
+        .task { notice.setUp(noticeSettings); take(); unsent() }
         .onDisappear { box.leave(typed) }
-        .sheet(isPresented: $noticing) {
-            AiNoticeSheet {
-                noticing = false
-                Task {
-                    try? await noticeSettings?.setAiNoticeSeen()
-                    go()
-                }
-            }
-            .presentationDetents([.medium])
-        }
+        .aiNotice(notice)
     }
 
-    /// Send: the first message on this device waits for the notice that it goes to Anthropic (AiNotice), once.
+    /// Send: the first message on this device waits for the notice that it goes to Anthropic (AiNotice.Gate), once;
+    /// swiped away, nothing goes and the words stay in the box.
     private func send() {
-        guard let settings = noticeSettings else { return go() }
-        Task {
-            if (try? await AiNotice.shared.asks(settings: settings))?.boolValue ?? true { noticing = true } else { go() }
-        }
+        notice.send(typed.trimmingCharacters(in: .whitespacesAndNewlines)) { go($0) }
     }
 
-    private func go() {
-        let text = typed.trimmingCharacters(in: .whitespacesAndNewlines)
+    private func go(_ text: String) {
         if !typed.isEmpty { restored = "" } // emptied by Send, not edited: a retry keeps the failed message's key
         typed = ""
         onSent()
@@ -185,6 +173,54 @@ struct NoticeOverlay: ViewModifier {
                 timer?.cancel()
                 timer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { shown = nil } }
             }
+    }
+}
+
+/// A message box's Send held for the notice before the first message: the shared AiNotice.Gate decides, and this
+/// draws it. Send is off while a send is checked; the sheet shows while the words are held; Continue sends them,
+/// swiping it away sends nothing.
+@MainActor
+@Observable
+final class NoticeGate {
+    private var gate: AiNotice.Gate?
+    private(set) var checking = false
+    var showing = false
+    private var accepted = false
+    private var go: ((String) -> Void)?
+
+    func setUp(_ settings: Settings?) { if gate == nil { gate = AiNotice.Gate(settings: settings) } }
+
+    func send(_ text: String, _ go: @escaping (String) -> Void) {
+        guard let gate, !checking else { return }
+        checking = true
+        Task {
+            let now = try? await gate.send(text: text)
+            checking = false
+            if let now { go(now) } else if gate.asking { self.go = go; showing = true }
+        }
+    }
+
+    func accept() {
+        accepted = true
+        showing = false
+        let go = self.go
+        self.go = nil
+        Task { if let words = try? await gate?.accept() { go?(words) } }
+    }
+
+    /// The sheet went: swiped away, nothing goes.
+    func closed() {
+        if !accepted { gate?.dismiss(); go = nil }
+        accepted = false
+    }
+}
+
+extension View {
+    /// The notice before the first message, over this box (NoticeGate).
+    func aiNotice(_ notice: NoticeGate) -> some View {
+        sheet(isPresented: Binding(get: { notice.showing }, set: { notice.showing = $0 }), onDismiss: notice.closed) {
+            AiNoticeSheet(onContinue: notice.accept).presentationDetents([.medium])
+        }
     }
 }
 
