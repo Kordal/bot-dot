@@ -72,6 +72,11 @@ struct BotSettingsView: View {
     @State private var deleting = false
     @State private var saved = false
     @State private var failed: String?
+    /// Duplicate's confirmation, while it is open; then the copy's chat.
+    @State private var duplicating: DuplicateDesk?
+    @State private var copy: ChatRoute?
+    /// What Duplicate said, for a moment at the top.
+    @State private var said: (text: String, count: Int) = ("", 0)
     // What is typed stays as typed: the shared draft follows it.
     @State private var name = ""
     @State private var about = ""
@@ -106,6 +111,16 @@ struct BotSettingsView: View {
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
         .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
+        .navigationDestination(item: $copy) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+        .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
+        .sheet(isPresented: Binding(get: { duplicating != nil }, set: { if !$0 { duplicating = nil } })) {
+            if let desk = duplicating {
+                DuplicateSheet(desk: desk, botName: model?.state?.bot?.name ?? "") { id, name in
+                    duplicating = nil
+                    copy = ChatRoute(botId: id, name: name)
+                } onSaid: { said = ($0, said.count + 1) }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if saved { Text(tr("Saved")).font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("saved") }
@@ -263,6 +278,12 @@ struct BotSettingsView: View {
             NavigationLink(tr("Scheduled jobs")) { JobsView(home: home, botId: bot.id, figure: figure) }
         }
         Section {
+            if Duplicate.shared.shows(features: state.features) {
+                Button(tr("Duplicate {name}", ["name": bot.name])) {
+                    let desk = model.store.duplicate(name: bot.name)
+                    Task { if (try? await desk.ask())?.boolValue == true { duplicating = desk } else { said = (desk.state.value.notice ?? "", said.count + 1) } }
+                }
+            }
             Button(role: .destructive) { askDelete = true } label: {
                 Text(deleting ? tr("Deleting…") : tr("Delete {name}", ["name": bot.name]))
             }

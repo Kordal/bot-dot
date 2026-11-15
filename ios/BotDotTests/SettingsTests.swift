@@ -111,4 +111,12 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(ChiefSettingsDesk.companion.SAVE_MS, 800)
         model.stop()
     }
+    /// Duplicate: the shared desk and words reach Swift.
+    func testDuplicateIsTheSharedDesk() {
+        let desk = BotSettingsStore(home: home(), botId: "b1").duplicate(name: "Coder")
+        XCTAssertNil(desk.state.value.plan, "not asked yet")
+        XCTAssertFalse(desk.state.value.canGo)
+        XCTAssertEqual(Duplicate.shared.made(name: "Coder 2"), "Coder 2 made")
+        XCTAssertTrue(Duplicate.shared.shows(features: ["duplicate-bot"]))
+    }
 }
