@@ -91,4 +91,15 @@ class ProjectBoardTest {
         assertEquals("""{"board":["teams"]}""", req.body?.utf8())
         assertEquals(listOf("teams"), c.board)
     }
+
+    /** With overview-board (ADR 245) the overview's sections are pieces too: shown when on the board, offered back once taken off. */
+    @Test fun theOverviewsSectionsArePiecesOnABoardThatHasThem() {
+        val features = listOf(ProjectBoard.FEATURE, ProjectOverview.BOARD)
+        val c = Company(id = "p", board = listOf("needs", "todo"))
+        assertTrue(ProjectBoard.shows(c, "needs"))
+        assertFalse(ProjectBoard.shows(c, "replies"))
+        assertTrue("replies" in ProjectBoard.missing(features, c))
+        assertFalse("replies" in ProjectBoard.missing(listOf(ProjectBoard.FEATURE), c))
+        assertEquals("needs", BoardCanvas.kindOf("needs"))
+    }
 }

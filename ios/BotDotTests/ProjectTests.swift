@@ -50,4 +50,13 @@ final class ProjectTests: XCTestCase {
         let saved = await model.setStandupTime("25:00")
         XCTAssertFalse(saved)
     }
+
+    /// A project's Overview: its words and where an entry opens come from the shared layer.
+    func testTheOverviewSaysEachEntryAndWhereItOpens() {
+        let e = OverviewEntry(id: "w1", botId: "b1", chatId: nil, groupId: nil, name: "Coder", state: "failed", text: "", at: "")
+        XCTAssertEqual(Overviews.shared.text(e: e), "Failed")
+        XCTAssertEqual(Overviews.shared.meta(e: e), "Failed")
+        XCTAssertNotNil(Overviews.shared.open(destination: "bot/b1"))
+        XCTAssertEqual(OverviewState(snapshot: nil, files: nil, error: nil, filesError: nil).status, "Loading…")
+    }
 }

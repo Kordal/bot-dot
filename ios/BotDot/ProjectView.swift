@@ -150,6 +150,8 @@ struct ProjectPage: View {
     @State private var chief: ChiefRoute?
     @State private var group: GroupRoute?
     @State private var files: FilesPlace?
+    /// The project's Overview (ADR 236), from the toolbar.
+    @State private var overview = false
     @State private var unfolded: Set<String> = []
 
     /// A team's panel on screen.
@@ -182,6 +184,9 @@ struct ProjectPage: View {
         .toolbar { toolbar }
         .safeAreaInset(edge: .bottom) { chatField }
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure) { settings = false; dismiss() } }
+        .navigationDestination(isPresented: $overview) {
+            if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
+        }
         .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .navigationDestination(item: $chief) { r in ChiefView(home: home, chatId: r.chatId) }
         .navigationDestination(item: $group) { r in GroupChatView(home: home, groupId: r.groupId, name: r.name, figure: figure) }
@@ -202,6 +207,27 @@ struct ProjectPage: View {
         .task { model.start(); model.show(id); model.follow(true) }
     }
 
+    /// An Overview entry's chat (Overviews.open): a team's, a bot's, a Chief chat, or the project's own Chief chat.
+    private func open(_ e: OverviewEntry, _ c: Company) {
+        let dest = e.destination(project: c, bots: home.store.bots.value.value as? [Bot], features: home.store.version.value.value?.features)
+        guard let to = Overviews.shared.open(destination: dest) else { return }
+        overview = false
+        switch onEnum(of: to) {
+        case .team(let t): group = GroupRoute(groupId: t.groupId, name: e.name)
+        case .bot(let b): chat = ChatRoute(botId: b.botId, name: e.name)
+        case .chiefChat(let ch): chief = ChiefRoute(chatId: ch.chatId)
+        case .chief: chief = ChiefRoute()
+        case .projectChief: Task { let id = await model.chiefChat(); if !id.isEmpty { chief = ChiefRoute(chatId: id) } }
+        }
+    }
+
+    /// A file of the project's folder from the Overview, or the folder (nil).
+    private func file(_ c: Company, _ path: String?) {
+        guard let folder = c.folder?.name else { return }
+        overview = false
+        files = FilesPlace(owner: ProjectFiles.shared.owner(folder: folder), name: folder, path: path.map { ProjectFiles.shared.folderOf(path: $0) } ?? "", file: path ?? "")
+    }
+
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         if let s = model.state, s.project?.id == id {
@@ -215,6 +241,10 @@ struct ProjectPage: View {
                     Button { Task { let id = await model.tidy(); if !id.isEmpty { chief = ChiefRoute(chatId: id) } } } label: { Image(systemName: s.tidying ? "hourglass" : "square.grid.3x3") }
                         .disabled(s.tidying)
                         .accessibilityLabel(tr("Tidy up the board"))
+                }
+                if s.overview {
+                    Button { overview = true } label: { Image(systemName: "list.bullet.rectangle") }
+                        .accessibilityLabel(tr("Overview"))
                 }
                 if s.settings {
                     Button { settings = true } label: { Image(systemName: "gearshape") }

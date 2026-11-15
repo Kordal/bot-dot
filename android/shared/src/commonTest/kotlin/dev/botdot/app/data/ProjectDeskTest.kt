@@ -95,6 +95,14 @@ class ProjectDeskTest {
         assertEquals(12, s.day)
     }
 
+    @Test fun itsOverviewShowsOnceTheFeaturesSaySo() = runTest {
+        val (store, desk) = desk(FakeBotdot { 200 to "{}" })
+        until("the project") { desk.state.value.project != null }
+        assertFalse(desk.state.value.overview, "a botdot without project-overview")
+        store.version.set(VersionInfo(features = all + ProjectOverview.FEATURE))
+        until("drawn again with the features") { desk.state.value.overview }
+    }
+
     @Test fun aTeamsLeadComesFirstWithTheCrownAndItsChat() = runTest {
         val (_, desk) = desk(FakeBotdot { 200 to "{}" })
         runCurrent()

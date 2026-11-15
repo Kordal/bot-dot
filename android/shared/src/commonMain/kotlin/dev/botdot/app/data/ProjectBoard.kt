@@ -2,7 +2,8 @@ package dev.botdot.app.data
 
 /**
  * The pieces botdot can put on a project's board (#780; web: public/company.js, docs/api.md "The board's pieces"):
- * the 90-day line with its check-in, the objectives, the team floor, the Calendar tile, the To-do panel and the Files tile. A project
+ * the 90-day line with its check-in, the objectives, the team floor, the Calendar tile, the To-do panel and the Files tile;
+ * with overview-board (ADR 245) also Needs you, Current work, Blockers and Latest replies. A project
  * made from now on starts with none and the owner adds them; one without `board` (made before) shows them all.
  */
 object ProjectBoard {
@@ -11,13 +12,14 @@ object ProjectBoard {
 
     /** The pieces [c] can have: an ongoing project (#925) has no 90 days, so no "days"; Files only where [features] has it. */
     fun piecesOf(c: Company, features: List<String>? = null): List<String> =
-        (if (c.ongoing) PIECES - "days" else PIECES).filter { it != ProjectFiles.PIECE || features == null || ProjectFiles.FEATURE in features }
+        (if (c.ongoing) PIECES - "days" else PIECES).filter { it != ProjectFiles.PIECE || features == null || ProjectFiles.FEATURE in features } +
+            (if (features != null && ProjectOverview.BOARD in features) ProjectOverview.PIECES else emptyList())
 
     /** Whether piece [k] is on the board of [c]. */
-    fun shows(c: Company, k: String): Boolean = k in piecesOf(c) && (c.board?.contains(k) ?: true)
+    fun shows(c: Company, k: String): Boolean = (k in piecesOf(c) || k in ProjectOverview.PIECES) && (c.board?.contains(k) ?: true)
 
     /** The pieces the owner can add: those not on it, from a botdot that has them. */
-    fun missing(features: List<String>, c: Company): List<String> = c.board?.takeIf { FEATURE in features }?.let { on -> piecesOf(c).filter { it !in on && (it != ProjectFiles.PIECE || ProjectFiles.FEATURE in features) } }.orEmpty()
+    fun missing(features: List<String>, c: Company): List<String> = c.board?.takeIf { FEATURE in features }?.let { on -> piecesOf(c, features).filter { it !in on && (it != ProjectFiles.PIECE || ProjectFiles.FEATURE in features) } }.orEmpty()
 
     /** The board with [k] added at its end, or taken off; a project made before starts from every piece. */
     fun toggled(c: Company, k: String, features: List<String>? = null): List<String> {
@@ -31,6 +33,10 @@ object ProjectBoard {
         "teams" -> tr("Teams")
         "calendar" -> tr("Calendar")
         "files" -> tr("Files")
+        "needs" -> tr("Needs you")
+        "work" -> tr("Current work")
+        "blockers" -> tr("Blockers")
+        "replies" -> tr("Latest replies")
         else -> tr("To-do")
     }
 }

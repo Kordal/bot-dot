@@ -123,6 +123,8 @@ class ProjectState(
     val updates: Boolean = false,
     val rhythms: Boolean = false,
     val standup: Boolean = false,
+    /** Its Overview (ADR 236), from a botdot with `project-overview`: drawn again when the features come. */
+    val overview: Boolean = false,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -270,6 +272,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             updates = ProjectUpdates.FEATURE in f,
             rhythms = ProjectUpdates.FEATURE !in f && CompanyFloor.LEADS in f,
             standup = ProjectUpdates.FEATURE !in f && ProjectStandup.FEATURE in f,
+            overview = c != null && Overviews.shows(f),
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
             chiefName = chiefName,

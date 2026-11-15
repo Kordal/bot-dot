@@ -28,9 +28,26 @@ fun endedWords(r: Run, features: Collection<String>?): Ended {
  * the end of the text as a list, so what the bot asked never goes from the chat. [open]: its card stands under it.
  * The web page's replyText has the same rule.
  */
-fun replyText(r: Run, open: Boolean): String {
-    val text = r.result.orEmpty()
-    val asked = r.questions.orEmpty().filter { it.isNotBlank() }
+fun replyText(r: Run, open: Boolean): String = withAsked(r.result.orEmpty(), r.questions, open)
+
+/** A Chief message's text as its bubble draws it, by the same rule as [replyText]: its card stands only under the newest. */
+fun chiefText(m: ChiefMessage, open: Boolean): String = withAsked(m.text, m.questions, open)
+
+/**
+ * Where the Chief's card of questions stands in [messages] (oldest first): the newest message past the project updates
+ * after it, when it is a finished reply of the Chief's. null for none. Every other reply's card is closed.
+ */
+fun chiefCardAt(messages: List<ChiefMessage>): Int? =
+    messages.indexOfLast { it.projectUpdate == null }.takeIf { i -> i >= 0 && messages[i].role == "chief" && !messages[i].pending }
+
+/** [messages] as the chat draws them: a reply whose card is closed has its questions at the end of its text ([chiefText]). */
+fun withClosedCards(messages: List<ChiefMessage>): List<ChiefMessage> {
+    val open = chiefCardAt(messages)
+    return messages.mapIndexed { i, m -> if (i == open || m.questions.isNullOrEmpty()) m else m.copy(text = chiefText(m, open = false)) }
+}
+
+private fun withAsked(text: String, questions: List<String>?, open: Boolean): String {
+    val asked = questions.orEmpty().filter { it.isNotBlank() }
     if (open || asked.isEmpty()) return text
     return (text.trimEnd() + "\n\n" + asked.joinToString("\n") { "- $it" }).trim()
 }

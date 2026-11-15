@@ -143,3 +143,12 @@ test('put sets the choices and their yes, and takes off a yes that no longer hol
 test('NOTE tells the bot its yes is drawn in its colour', () => {
   assert.match(NOTE, /starts with the word for yes/);
 });
+
+test("closedCardNote: a turn after a card of questions is told it closed, unless the message is the card's answers", () => {
+  const { closedCardNote } = require('../lib/choices');
+  const previous = { role: 'chief', text: 'Two things first.', questions: ['Which account?', 'Which day?'] };
+  assert.match(closedCardNote(previous, 'status?'), /^The card of questions under your previous reply \(Which account\? \| Which day\?\) is closed now: .*ask it again on a new card, and never point the owner back to the old one\.$/);
+  assert.equal(closedCardNote(previous, 'Which account?\n→ Work\n\nWhich day?\n→ –'), '', 'the card sent: answered');
+  assert.equal(closedCardNote({ role: 'chief', text: 'Done.' }, 'status?'), '', 'no card, nothing to say');
+  assert.equal(closedCardNote(undefined, 'Hi'), '');
+});
