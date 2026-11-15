@@ -15,6 +15,9 @@ test('take: the ids leave the text, each once, at most four; a word in brackets 
   assert.deepEqual(cardRefs.take('Pay with the [card payment] form.'), { text: 'Pay with the [card payment] form.', cards: null });
   assert.equal(cardRefs.take('[card 00000001] [card 00000002] [card 00000003] [card 00000004] [card 00000005]').cards.length, 4);
   assert.deepEqual(cardRefs.take(null), { text: null, cards: null });
+  // Only the id and the spaces before it go: the rest of the reply stays as written, code included.
+  const other = 'Done :)  \nOui !\n```sh\nfor (;;) ; [card cccccccc]\n```\nSee `[card dddddddd]` here [card eeeeeeee].';
+  assert.deepEqual(cardRefs.take(other), { text: 'Done :)  \nOui !\n```sh\nfor (;;) ; [card cccccccc]\n```\nSee `[card dddddddd]` here.', cards: ['eeeeeeee'] });
   assert.equal(cardRefs.put({}, null).cards, undefined);
 });
 
