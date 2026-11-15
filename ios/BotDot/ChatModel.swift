@@ -51,6 +51,9 @@ final class ChatModel: MessageBox {
     func leave(_ typed: String) { chat.leave(typed: typed) }
     func takeUnsent() -> String { chat.takeUnsent() }
     func stopFromBox() { chat.stopRun(runId: nil) }
+    func replies(_ runId: String) -> Bool { chat.replies(runId: runId) }
+    func replyTo(_ runId: String) { chat.replyTo(runId: runId) }
+    func clearReply() { chat.clearReply() }
     func foldPlan(_ folded: Bool) { chat.foldPlan(folded: folded) }
     func dismissPlan() { chat.dismissPlan() }
 

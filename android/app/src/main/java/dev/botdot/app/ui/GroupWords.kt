@@ -4,7 +4,6 @@ import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Group
 import dev.botdot.app.data.GroupMessage
 import dev.botdot.app.data.Groups
-import dev.botdot.app.data.hasGroups
 import dev.botdot.app.data.OpeningLine
 import dev.botdot.app.data.TurnLine
 import dev.botdot.app.data.TurnLines
@@ -58,7 +57,7 @@ internal fun groupLine(g: Group, bots: List<Bot>, lines: Map<String, TurnLine>):
 }
 
 /** What the search box finds a group by: its name, its category and its members' names. */
-internal fun groupSearchText(g: Group, bots: List<Bot>): String = "${g.name} ${g.category} ${Groups.members(g, bots).joinToString(" ") { it.name }}".lowercase()
+internal fun groupSearchText(g: Group, bots: List<Bot>): String = dev.botdot.app.data.HomeSearch.groupText(g, bots)
 
 /** Under a message of the owner's that waits for busy members: for whom. "" when it waits for nobody. */
 internal fun waitsLine(m: GroupMessage, bots: List<Bot>): String {
@@ -91,14 +90,13 @@ internal fun emptyGroupWords(names: List<String>): String =
     if (names.isEmpty()) tr("Its bots are all gone. Add one, or delete the group.") else tr("{names}. What you write here, all of them read.", "names" to namesList(names))
 
 /** Under the picker that makes a group from the chat of [bot]: how many are picked ([n]), with that bot. */
-internal fun makeHint(n: Int, bot: String): String =
-    if (n > 0) trn(n + 1, "{n} bot in the group, with {bot}.", "{n} bots in the group, with {bot}.", "bot" to bot) else tr("Pick one to five bots to join {bot}. Its own chat stays as it is.", "bot" to bot)
+internal fun makeHint(n: Int, bot: String): String = dev.botdot.app.data.GroupMaker.hint(n, bot)
 
 /** What a screen reader says of the small plus right of the name in a bot's chat. It has no words beside it. */
 internal val ADD_A_BOT: String get() = tr("Add a bot to this chat")
 
 /** Whether a group can be made from a bot's chat: the botdot server has groups, and there is another bot. */
-internal fun canMakeGroup(features: Collection<String>?, otherBots: Int): Boolean = hasGroups(features) && otherBots > 0
+internal fun canMakeGroup(features: Collection<String>?, otherBots: Int): Boolean = dev.botdot.app.data.GroupMaker.canMake(features, otherBots)
 
 /** Under the picker that adds bots to a group of [members] bots called [name]. */
 internal fun addHint(n: Int, members: Int, name: String): String = if (n > 0) trn(members + n, "{n} bot in {name}.", "{n} bots in {name}.", "name" to name) else tr("A group has two to six bots.")

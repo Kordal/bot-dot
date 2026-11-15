@@ -199,14 +199,14 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     // The search box: bots by name, and messages in every chat (fetched a moment after you stop typing).
     var query by rememberSaveable { mutableStateOf("") }
     var searching by rememberSaveable { mutableStateOf(false) } // the search box shows only once you ask for it
-    val q = if (figures) "" else query.trim().lowercase() // a list of figures has no search box
+    val q = if (figures) "" else dev.botdot.app.data.HomeSearch.query(query) // a list of figures has no search box
     var hits by remember { mutableStateOf<List<ChatHit>>(emptyList()) }
     LaunchedEffect(q, api) {
         SearchMarks.terms = SearchMarks.of(q) // marked in the chats you open from here
         hits = emptyList()
-        if (q.length < 2) return@LaunchedEffect
+        if (q.length < dev.botdot.app.data.HomeSearch.MIN) return@LaunchedEffect
         delay(250)
-        hits = runCatching { api?.search(q) }.getOrNull().orEmpty()
+        hits = api?.let { dev.botdot.app.data.HomeSearch.hits(it, q) }.orEmpty()
     }
     // The list, as keys: the big figures (PINS), then each category's heading ("g:<name>"), its bots' ids and its
     // groups' rows ("group:<id>"), in your order. While you drag, this is the order you see; letting go saves where
@@ -481,11 +481,11 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
                 val list = bots.orEmpty()
                 if (q.isNotEmpty()) {
                     // Searching: the bots that match, then the messages, instead of the usual list.
-                    if ("chief of staff".contains(q) || dev.botdot.app.data.ChiefName.role.lowercase().contains(q) || chiefName.lowercase().contains(q)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
-                    items(list.filter { "${it.name} ${it.description} ${it.group}".lowercase().contains(q) }, key = { it.id }) { b ->
+                    if (dev.botdot.app.data.HomeSearch.chief(q, chiefName)) item(key = "chief") { Contact(CHIEF_COLOR, if (chiefBusy) "working" else "idle", chiefName, "", outfit = FigureDef.CHIEF, unread = chief?.unread ?: 0, onClick = onChief) }
+                    items(dev.botdot.app.data.HomeSearch.bots(q, list), key = { it.id }) { b ->
                         Contact(b.color, b.state, b.name, sub(b), listTime(lastRun[b.id]?.startedAt), outfit = b.outfit, unread = b.unread, asks = asks(b)) { onBot(b.id) }
                     }
-                    items(groups.filter { groupSearchText(it, list).contains(q) }, key = { ListLayout.groupRow(it.id) }) { g -> GroupContact(g) }
+                    items(dev.botdot.app.data.HomeSearch.groups(q, groups, list), key = { ListLayout.groupRow(it.id) }) { g -> GroupContact(g) }
                     if (hits.isNotEmpty()) item(key = "hits") {
                         Text(tr("Messages"), color = p.muted, fontSize = Type.s14, fontWeight = FontWeight.Normal, modifier = Modifier.padding(start = Space.s16, top = Space.s12, bottom = Space.s4))
                     }
@@ -605,11 +605,8 @@ private fun Hit(h: ChatHit, bots: List<Bot>, onClick: () -> Unit) {
         }
     }
     val text = androidx.compose.ui.text.buildAnnotatedString {
-        h.snippet.split('«').forEachIndexed { i, part ->
-            if (i == 0) { append(part); return@forEachIndexed }
-            val (hit, rest) = part.split('»', limit = 2).let { it[0] to it.getOrElse(1) { "" } }
-            withStyle(androidx.compose.ui.text.SpanStyle(color = p.text, fontWeight = FontWeight.SemiBold)) { append(hit) }
-            append(rest)
+        dev.botdot.app.data.HomeSearch.snippet(h).forEach { piece ->
+            if (piece.hit) withStyle(androidx.compose.ui.text.SpanStyle(color = p.text, fontWeight = FontWeight.SemiBold)) { append(piece.text) } else append(piece.text)
         }
     }
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = Space.s16, vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
