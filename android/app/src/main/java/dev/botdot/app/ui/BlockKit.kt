@@ -46,81 +46,18 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Block
+import dev.botdot.app.data.BoardKit
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.Tile
 import dev.botdot.app.data.tr
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import kotlin.math.abs
-import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /*
- * The block kit (like the web page's public/blocks.js): a kpi (a number with its change, a sparkline and a bar), a
+ * The block kit (like the web page's public/blocks.js), drawn: a kpi (a number with its change, a sparkline and a bar), a
  * chart (line, area, bar, stacked, horizontal bars, with gridlines, a legend and a tooltip on tap), status pills and a
- * callout. lib/tile-blocks.js fills them in; this only draws them. And what the Board draws with them (#394).
+ * callout. lib/tile-blocks.js fills them in, and the rules are the shared layer's BoardKit.
  */
-object BoardKit {
-    private val CLOCK = DateTimeFormatter.ofPattern("HH:mm")
-
-    /** A time as the owner's clock shows it: "08:00". */
-    fun clock(ms: Long): String = Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).format(CLOCK)
-
-    fun num(n: Double): String = ((n * 100).roundToInt() / 100.0).let { if (it == floor(it)) it.toLong().toString() else it.toString() }
-
-    /** "3s ago", "2 min ago", "2 h ago": the age of a value, as the web page says it. */
-    fun ageWords(secs: Long): String {
-        val s = maxOf(0L, secs)
-        return tr("{age} ago", "age" to when { s < 60 -> "${s}s"; s < 3600 -> "${s / 60} min"; else -> "${s / 3600} h" })
-    }
-
-    /** When the newest value came, in epoch ms; 0 while none has. */
-    fun newestAt(tiles: List<Tile>): Long = tiles.maxOfOrNull { t -> t.at?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() } ?: 0L } ?: 0L
-
-    private val number = Regex("^[-+−]?[\$€£¥]?\\d[\\d\\s.,:/'%]*[\\p{L}°%]{0,3}$")
-
-    /** A value in words ("Eco until 17:00") rather than a number ("21.5", "−3", "62%", "17:00", "1.2k"): drawn at 20,
-     *  so it fits one line, while a number stays big. kitIsWords on the web page says the same. */
-    fun isWords(text: String?): Boolean = text.orEmpty().trim().let { it.isNotEmpty() && !number.matches(it) }
-
-    /** A tile whose face is one number (a value or a kpi): a kpi's head; a small one goes two across on a phone. */
-    fun isKpiTile(t: Tile): Boolean = t.kind != "group" && t.look?.face?.singleOrNull()?.type in setOf("value", "kpi")
-
-    /** A switch or a button as it comes (no blocks of its own): a row of a Controls box. */
-    fun isControlRow(t: Tile): Boolean = t.kind in setOf("switch", "button") && t.look?.face.orEmpty().isEmpty() && t.size == "small" && !t.wide
-
-    /** Beside a heading: the bots its tiles come from. */
-    fun sectionBots(tiles: List<Tile>, bots: List<Bot>): String = tiles.mapNotNull { t -> bots.firstOrNull { it.id == t.bot }?.name }.distinct().joinToString(", ")
-
-    /** Where a heading's tiles' values come from, when that is one for all of them (its end then says how long ago they read); else "". */
-    fun sectionSource(tiles: List<Tile>): String = tiles.mapNotNull { it.source }.distinct().singleOrNull() ?: ""
-
-    /** How a number changed: "▲ 0.8 since 08:00", or "" when it doesn't say. */
-    fun deltaLine(b: Block, clock: (Long) -> String = ::clock): String {
-        val d = b.delta ?: return ""
-        val arrow = when (d.dir) { "up" -> "▲"; "down" -> "▼"; else -> "–" }
-        val since = b.since?.let { runCatching { Instant.parse(it).toEpochMilli() }.getOrNull() }?.let { " " + tr("since {time}", "time" to clock(it)) } ?: ""
-        return "$arrow ${d.text}$since"
-    }
-
-    /** How many columns a tile takes in a grid of [cols]: a kpi two across on a phone, the rest one across there. */
-    fun span(t: Tile, cols: Int): Int = when {
-        t.size == "row" -> cols
-        t.size == "wide" || t.size == "big" || t.wide -> minOf(2, cols)
-        cols <= 2 && isKpiTile(t) -> 1
-        cols <= 2 -> cols
-        else -> 1
-    }
-
-    /** The columns of the Board at a width in dp: four wide, three on a tablet, two on a phone. */
-    fun columns(widthDp: Float): Int = when { widthDp >= 840 -> 4; widthDp >= 600 -> 3; else -> 2 }
-
-    /** Whether blocks have Markdown text in them (a note): a value a bot wrote shows "written by AI" there. */
-    fun hasMarkdown(list: List<Block>): Boolean = list.any { (it.type == "text" && it.markdown) || hasMarkdown(it.blocks) }
-
-    fun level(l: String?): String = if (l in setOf("ok", "warn", "err", "info", "plan")) l!! else "info"
-}
 
 private val VIOLET = Color(0xFF8B7CF6)
 

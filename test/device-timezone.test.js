@@ -40,5 +40,7 @@ test("the web page and the app send their device's zone while the botdot has non
   const path = require('path');
   const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
   assert.match(read('public/boot.js'), /if \(setupNow && !setupNow\.savedTimezone && deviceTimezone\(\)\) api\('\/setup', \{ method: 'PUT', body: \{ deviceTimezone: deviceTimezone\(\) \} \}\)/);
-  assert.match(read('android/app/src/main/java/dev/botdot/app/ui/ChiefNameQuestion.kt'), /if \(setup != null && setup\.savedTimezone == null\) runCatching \{ a\.deviceTimezone\(java\.util\.TimeZone\.getDefault\(\)\.id\) \}/);
+  // The rule is the phones' shared layer's (ADR 242, ChiefName.firstRun); Android hands it the device's zone.
+  assert.match(read('android/shared/src/commonMain/kotlin/dev/botdot/app/data/ChiefName.kt'), /if \(setup != null && setup\.savedTimezone == null\) try \{ api\.deviceTimezone\(zone\) \}/);
+  assert.match(read('android/app/src/main/java/dev/botdot/app/ui/ChiefNameQuestion.kt'), /ChiefName\.firstRun\(a, features, java\.util\.TimeZone\.getDefault\(\)\.id\)/);
 });

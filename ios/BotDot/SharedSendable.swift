@@ -19,6 +19,17 @@ extension DocumentView.Opening: @retroactive @unchecked Sendable {}
 extension FigureDef: @retroactive @unchecked Sendable {}
 extension NeedsYouStore: @retroactive @unchecked Sendable {}
 extension NeedsState: @retroactive @unchecked Sendable {}
+extension BoardStore: @retroactive @unchecked Sendable {}
+extension BoardState: @retroactive @unchecked Sendable {}
+extension BoardTap: @retroactive @unchecked Sendable {}
+extension FrontDoorOffers: @retroactive @unchecked Sendable {}
+extension FrontDoorDesk: @retroactive @unchecked Sendable {}
+extension FirstRunDesk: @retroactive @unchecked Sendable {}
+extension FirstRunState: @retroactive @unchecked Sendable {}
+extension FrontDoorDesk.Deleted: @retroactive @unchecked Sendable {}
+extension WhatsNew.Entry: @retroactive @unchecked Sendable {}
+extension PausedWatch: @retroactive @unchecked Sendable {}
+extension KotlinByteArray: @retroactive @unchecked Sendable {}
 extension BotSettingsStore: @retroactive @unchecked Sendable {}
 extension BotSettingsState: @retroactive @unchecked Sendable {}
 extension BotDraft: @retroactive @unchecked Sendable {}
@@ -26,7 +37,6 @@ extension AppSettingsStore: @retroactive @unchecked Sendable {}
 extension AppSettingsState: @retroactive @unchecked Sendable {}
 extension AppsStore: @retroactive @unchecked Sendable {}
 extension AppsState: @retroactive @unchecked Sendable {}
-extension WhatsNew.Entry: @retroactive @unchecked Sendable {}
 extension ScreenStore: @retroactive @unchecked Sendable {}
 extension ScreenState: @retroactive @unchecked Sendable {}
 extension BotChat: @retroactive @unchecked Sendable {}
