@@ -101,4 +101,14 @@ final class ChatTests: XCTestCase {
         XCTAssertFalse(before.hasSuffix("@we"), "no mention is being typed at the cursor")
         XCTAssertNil(Cursor.quoting("  ", into: "Ask"), "nothing to quote")
     }
+
+    /// A reply's page chips: shown on a botdot that opens pages (Pages.chips), a tap opens the page in the viewer.
+    func testAReplysPageChipOpensItsPage() {
+        let page = PageRef(slug: "menu", title: "Menu", botId: "b1", bot: "Ada")
+        XCTAssertEqual(Pages.shared.chips(botId: "b1", pages: [page], features: ["pages", "document-viewer"]).map(\.slug), ["menu"])
+        XCTAssertTrue(Pages.shared.chips(botId: "b1", pages: [page], features: ["pages"]).isEmpty)
+        let opening = DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title, from: "Ada")
+        XCTAssertEqual(opening.slug, "menu")
+        XCTAssertNotNil(ImageRenderer(content: PageChip(page: page) {}.frame(width: 320)).cgImage)
+    }
 }

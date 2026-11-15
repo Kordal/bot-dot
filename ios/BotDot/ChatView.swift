@@ -33,7 +33,8 @@ struct ChatView: View {
                         ForEach(s.runs.reversed(), id: \.run.id) { r in
                             RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
                                    color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
-                                   onAnswers: { await model.answerQuestions(r.run.id, $0) })
+                                   onAnswers: { await model.answerQuestions(r.run.id, $0) },
+                                   onPage: { page in opening = DocumentView.shared.ofPage(botId: page.botId.isEmpty ? botId : page.botId, slug: page.slug, title: page.title, from: name) })
                                 .contextMenu {
                                     RunMenu(view: r, replies: model.replies(r.run.id), onReply: { model.replyTo(r.run.id); focused = true },
                                             onQuote: { model.quote($0) })
@@ -188,6 +189,8 @@ struct RunRow: View {
     var color: String? = nil
     var onAnswer: (String) async -> Bool = { _ in false }
     var onAnswers: ([String]) async -> Bool = { _ in false }
+    /// A page chip under its reply opens that page in the viewer.
+    var onPage: (PageRef) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -206,6 +209,7 @@ struct RunRow: View {
                 Text(ended).foregroundStyle(view.problem ? .red : .secondary)
             }
             ReplyFilesView(files: view.files)
+            ForEach(view.pages, id: \.slug) { page in PageChip(page: page) { onPage(page) } }
             if !view.choices.isEmpty { Choices(choices: view.choices, yes: Int(view.yes), color: color, onAnswer: onAnswer) }
             if !view.questions.isEmpty {
                 QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
@@ -265,5 +269,27 @@ struct Mine: View {
         .background(Color.accentColor.opacity(waiting ? 0.25 : 0.4), in: .rect(cornerRadius: 16))
         .frame(maxWidth: .infinity, alignment: .trailing)
         .textSelection(.enabled)
+    }
+}
+
+/// A page a reply made or changed (Android's PageChips): its title, a tap opens it in the viewer.
+struct PageChip: View {
+    let page: PageRef
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.richtext").foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(page.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(tr("Page")).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .frame(maxWidth: 320, alignment: .leading)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
     }
 }

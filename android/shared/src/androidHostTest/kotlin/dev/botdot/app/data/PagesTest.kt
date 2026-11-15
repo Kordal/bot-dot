@@ -138,4 +138,12 @@ class PagesTest {
         assertEquals(listOf(PageRef("plan", "Plan", "lp", "Launch Planner")), m.botPages["lp"])
         assertEquals(emptyMap<String, List<PageRef>>(), Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Hi."}""").botPages)
     }
+    @Test fun aRepliesPageChipsShowOnABotdotThatOpensPages() {
+        val page = PageRef(slug = "menu", title = "Menu", botId = "b1")
+        val on = listOf(Pages.FEATURE, DocumentView.FEATURE)
+        assertEquals(listOf(page), Pages.chips("b1", listOf(page), on))
+        assertEquals("no viewer: no chip", emptyList<PageRef>(), Pages.chips("b1", listOf(page), listOf(Pages.FEATURE)))
+        assertEquals("the Chief's pages need chief-pages", emptyList<PageRef>(), Pages.chips(Pages.CHIEF, listOf(page), on))
+        assertEquals(listOf(page), Pages.chips(Pages.CHIEF, listOf(page), on + Pages.FEATURE_CHIEF))
+    }
 }

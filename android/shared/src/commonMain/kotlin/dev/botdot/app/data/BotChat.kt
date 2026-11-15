@@ -46,6 +46,8 @@ class RunView(
     /** Several questions at once there: a box and its choices under each ([BotChat.answerQuestions]). */
     val questions: List<String> = emptyList(),
     val questionChoices: List<List<String>> = emptyList(),
+    /** The pages it made or changed, a chip each under its reply that opens it ([Pages.chips]). */
+    val pages: List<PageRef> = emptyList(),
 )
 
 /** Everything a bot's chat draws, at one moment. */
@@ -467,6 +469,7 @@ class BotChat(
             yes = if (answerable) r.yes ?: -1 else -1,
             questions = if (answerable) r.questions.orEmpty() else emptyList(),
             questionChoices = if (answerable) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
+            pages = if (r.status == "success") Pages.chips(r.botId, r.pages, features) else emptyList(),
         )
     }
 
