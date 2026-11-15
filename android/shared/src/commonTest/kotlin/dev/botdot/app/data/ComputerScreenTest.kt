@@ -141,7 +141,7 @@ class ComputerScreenTest {
     }
 
     @Test fun doneTappedTwiceFromTwoThreadsAtOnceIsSentOnceEveryTime() = runTest {
-        repeat(20) { round ->
+        repeat(200) { round ->
             val botdot = FakeBotdot { r -> if (r.method == "POST") 200 to """{"ok":true}""" else 200 to running }
             val desk = desk(botdot)
             desk.settled()
@@ -167,6 +167,18 @@ class ComputerScreenTest {
         assertNull(after.notice, "cancelled is not a failure: no notice")
         assertFalse(after.closed)
         held.complete(Unit)
+    }
+
+    @Test fun aTapAfterTheScreenWentBackSendsNothing() = runTest {
+        val botdot = FakeBotdot { r -> if (r.method == "POST") 200 to """{"ok":true}""" else 200 to running }
+        val desk = desk(botdot)
+        desk.settled()
+        desk.control()
+        desk.state.first { it.control }
+        assertTrue(desk.done())
+        assertFalse(desk.done(), "it went back already: a late second tap does nothing")
+        assertFalse(desk.state.value.handBack, "and I'm done no longer shows")
+        assertEquals(1, botdot.posts().size)
     }
 
     @Test fun doneRefusedSaysWhyAndStays() = runTest {
