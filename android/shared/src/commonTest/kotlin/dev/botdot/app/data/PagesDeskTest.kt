@@ -75,6 +75,9 @@ class PagesDeskTest {
         runCurrent()
         val desk = PagesDesk(backgroundScope, server.api, store)
         desk.load()
+        // The desk's look at the features starts a read of them on the fake (a real thread, not this test's clock):
+        // wait for it, or its answer could land after the set below and take the features away again.
+        store.version.refresh()
         runCurrent()
         assertFalse(desk.state.value.board, "the features not known yet")
         store.version.set(VersionInfo(features = listOf(Pages.FEATURE, DocumentView.FEATURE, Pages.FEATURE_BOARD)))
