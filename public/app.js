@@ -15,6 +15,7 @@ const state = {
   groupId: null, // the group whose chat is open (view 'group')
   roomId: null, // the shared room whose chat is open (view 'rooms', rooms.js); none: the list of rooms
   inbox: {}, // bot id → notes waiting for its next run
+  watches: {}, // bot id → what it watches (ADR 247)
   botStreams: [], // the streams of the bot's runs that are going (bot-chat.js followBotRuns)
   chatNew: false,
   chats: [],
@@ -1208,7 +1209,7 @@ async function readAll() {
     api('/asks?vault-switch=1&vault-remove=1&vault-save=1&vault-file=1&override=1&chief-action=1&room-tool=1&room-post=1&computer-step=1&connect-app=1').then((a) => { if (!latest()) return; state.asks = a; showNeeds(); }).catch(() => {});
     api('/dashboard?quiet').then((d) => { if (!latest()) return; state.dash = d; renderContacts(); showNeeds(); if (state.view === 'dashboard') renderDashboard(); }).catch(() => {});
     if (cfg) Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog });
-    if (state.view === 'bot' && state.botId) { loadInbox(state.botId); readOwnRuns(state.botId); }
+    if (state.view === 'bot' && state.botId) { loadInbox(state.botId); loadWatches(state.botId); readOwnRuns(state.botId); }
     render();
     computersRead.then((c) => {
       if (!c || !latest() || JSON.stringify(c) === JSON.stringify(state.computers || {})) return;
@@ -1398,6 +1399,8 @@ const ICON = {
   screen: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>',
   folder: '<svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
   play: '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z" fill="currentColor" stroke="none"/></svg>',
+  watch: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+  x: '<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
 };
 const BACK_BTN = `<button class="icon-btn back-btn" data-back aria-label="${tr('Back')}">${ICON.back}</button>`;
 const PAGE_BACK = `<button class="btn sm page-back" data-back>${ICON.back} ${tr('Back')}</button>`;

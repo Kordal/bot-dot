@@ -32,7 +32,9 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopWindows
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -115,7 +117,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         val i = ChatOrder.rounds(vm.runs).asReversed().indexOfFirst { b -> b.any { it.id == runId } } // the chat's blocks, newest first
         if (i < 0) return@LaunchedEffect
         opened = opened + runId
-        listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting
+        listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + (if (vm.watches.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting, watches
     }
     // The runs its open questions are from (docs/api.md, "A bot that asks"), however far back: older pages until the
     // oldest is in the chat, so "Needs you" on its key points at something to answer. Two runs that went at once and
@@ -140,7 +142,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
         listState.showFromTop {
             val blocks = ChatOrder.rounds(vm.runs)
             val i = blocks.asReversed().indexOfFirst { b -> b.any { it.id == vm.newFirst } }
-            val below = 1 + (if (vm.waiting.isNotEmpty()) 1 else 0) // what waits for your OK, notes waiting
+            val below = 1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + (if (vm.watches.isNotEmpty()) 1 else 0) // what waits for your OK, notes waiting, watches
             (below + i).takeIf { i >= 0 && listState.layoutInfo.totalItemsCount == below + blocks.size }
         }
     }
@@ -261,6 +263,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                             ChatNeeds(app, botId)
                         }
                     }
+                    if (vm.watches.isNotEmpty()) item(key = "watches") { WatchChips(vm.watches) { vm.stopWatch(it) } }
                     if (waiting.isNotEmpty()) item(key = "waiting") { NotesFold(waiting, tr("Notes waiting:"), foot = NotesWake.line(waiting), onRunNow = if (announces(features, NotesWake.FEATURE)) ({ vm.runNotes() }) else null) }
                     // Each run is one block (#625), where its reply ended: below what came while its run worked (a "/btw",
                     // another run, #460), and a run at work at the bottom. A run that replies to another is a further round of
@@ -336,6 +339,7 @@ private fun YourSide(r: Run, open: Boolean = false) {
         Unread.Asked.SCHEDULE -> Chip("⏰ " + tr("Scheduled run") + " · ${shortTime(r.startedAt)}")
         Unread.Asked.HELLO -> {} // a new bot's first message: the owner asked nothing
         Unread.Asked.REMINDER -> {} // a reminder the bot set went off: botdot posted it, the owner asked nothing
+        Unread.Asked.WATCH -> Chip("${r.watchName.orEmpty()} · ${shortTime(r.startedAt)}")
         Unread.Asked.CARRIED_ON -> {} // it goes on after your OK: your request stands once, above the first reply
         Unread.Asked.USUAL -> Chip("▶ " + tr("Ran its main assignment"))
         Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
@@ -464,6 +468,24 @@ private fun NotesFold(notes: List<InboxNote>, heading: String, foot: String = ""
             if (notes.any { it.later }) LaterPill()
             if (onRunNow != null) Text(tr("Run now"), color = p.muted, fontSize = Type.s12, fontWeight = FontWeight.Normal,
                 modifier = Modifier.clip(Radius.small).clickable(onClick = onRunNow).padding(horizontal = Space.s4, vertical = Space.s4))
+        }
+    }
+}
+
+/** What the bot watches (ADR 247), at the end of its chat on its side: what, until when, and Stop. */
+@Composable
+private fun WatchChips(list: List<dev.botdot.app.data.Watch>, onStop: (String) -> Unit) {
+    val p = LocalPaper.current
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start, verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        list.forEach { w ->
+            Row(Modifier.clip(Radius.pill).background(p.sunk).padding(start = Space.s12, end = Space.s4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
+                androidx.compose.material3.Icon(Icons.Default.Visibility, contentDescription = null, tint = p.muted, modifier = Modifier.size(14.dp))
+                Text(w.name, color = p.text, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(tr("until {time}", "time" to shortTime(w.until)), color = p.muted, fontSize = Type.s12, maxLines = 1)
+                androidx.compose.material3.IconButton(onClick = { onStop(w.id) }, modifier = Modifier.size(32.dp)) {
+                    androidx.compose.material3.Icon(Icons.Default.Close, contentDescription = tr("Stop watching {name}", "name" to w.name), tint = p.muted, modifier = Modifier.size(16.dp))
+                }
+            }
         }
     }
 }

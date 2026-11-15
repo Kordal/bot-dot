@@ -226,6 +226,13 @@ class UnreadTest {
         assertFalse("the \"New\" line goes above its reply", Unread.mine(hello))
     }
 
+    @Test fun aWatchsRunIsNamedByItsWatch() {
+        // ADR 247: botdot started it when a watch the bot set ended; the owner wrote nothing above it.
+        val woken = Run(id = "r", trigger = "watch", customPrompt = true, prompt = "botdot started you: your watch…", watchName = "PR merged")
+        assertEquals(Unread.Asked.WATCH, Unread.asked(woken))
+        assertFalse("the \"New\" line goes above its reply", Unread.mine(woken))
+    }
+
     @Test fun openingAnotherChatTakesTheReportsPlace() = runTest {
         val server = Server()
         val report = ReadReport(backgroundScope, MutableStateFlow(true), MutableStateFlow(true), server::post)

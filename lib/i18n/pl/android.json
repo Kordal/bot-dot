@@ -1370,5 +1370,8 @@
   "Photos": "Zdjęcia",
   "Use skills": "Używa umiejętności",
   "Couldn't create the group": "Nie udało się utworzyć grupy",
-  "Couldn't go back to it": "Nie udało się do niej wrócić"
+  "Couldn't go back to it": "Nie udało się do niej wrócić",
+  "until {time}": "do {time}",
+  "Stop watching {name}": "Przestań obserwować: {name}",
+  "Couldn't stop it": "Nie udało się zatrzymać"
 }
