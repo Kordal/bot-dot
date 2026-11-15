@@ -13,15 +13,20 @@ final class AppModel {
         case address
         case signIn(String)
         case signedIn(String)
+        /// Its account is paused by the admin (Session.paused): the paused screen, until botdot answers otherwise.
+        case paused(String)
     }
 
     private(set) var screen: Screen = .starting
     var error: String?
+    /// What the sign-in says without it being wrong: that the account was deleted.
+    var notice: String?
     private(set) var busy = false
 
     let session: Session
     private let sessions: KeychainSessions
     let settings: Settings
+    private let paused: PausedWatch
 
     init(directory: URL? = nil, sessions: KeychainSessions = KeychainSessions()) {
         self.sessions = sessions
@@ -29,12 +34,28 @@ final class AppModel {
         let dir = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         settings = settingsIn(directory: dir.path)
+        paused = PausedWatch(session: session)
+        _ = paused.watch { [weak self] server in
+            MainActor.assumeIsolated { self?.pausedNow(server) }
+        }
+    }
+
+    /// The admin paused [server]'s account, or resumed it (nil, or another botdot's).
+    /// Home for [server], or its paused screen when its account is paused already.
+    private func home(_ server: String) -> Screen { paused.now() == server ? .paused(server) : .signedIn(server) }
+
+    private func pausedNow(_ server: String?) {
+        switch screen {
+        case .signedIn(let s) where s == server: screen = .paused(s)
+        case .paused(let s) where s != server: screen = .signedIn(s)
+        default: break
+        }
     }
 
     /// The botdot this phone was set to: Home, until its front door asks for a sign-in ([signInNeeded]), as on Android.
     func start() async {
         let server = (try? await settings.serverNow()) ?? nil
-        screen = server.map { .signedIn($0) } ?? .address
+        screen = server.map { home($0) } ?? .address
     }
 
     /// An address typed in: refused at once, asked whether it is a botdot, then kept.
@@ -50,7 +71,7 @@ final class AppModel {
             case .connected(let connected):
                 _ = try await settings.setServer(url: connected.url)
                 // A front door without this phone's session asks for the sign-in first; a botdot without one doesn't.
-                screen = connected.frontDoor && session.token(server: connected.url) == nil ? .signIn(connected.url) : .signedIn(connected.url)
+                screen = connected.frontDoor && session.token(server: connected.url) == nil ? .signIn(connected.url) : home(connected.url)
             }
         } catch {
             self.error = error.localizedDescription
@@ -63,6 +84,7 @@ final class AppModel {
         busy = true
         defer { busy = false }
         error = nil
+        notice = nil
         let api = Api(baseUrl: server, session: session, quietMs: Api.companion.QUIET_MS)
         let flow = BrowserSignIn(keep: WaitingSignIn(), now: { KotlinLong(value: Int64(Date().timeIntervalSince1970 * 1000)) }, api: { api })
         guard let page = flow.start(), let url = URL(string: page) else { return }
@@ -86,7 +108,7 @@ final class AppModel {
             return
         }
         switch onEnum(of: flow.state.value) {
-        case .done: screen = .signedIn(server)
+        case .done: screen = home(server)
         case .failed(let failed): error = failed.words
         default: break
         }
@@ -102,12 +124,19 @@ final class AppModel {
         try? await api.signOut()
         sessions.write(server: server, token: nil)
         // Another address may have been chosen meanwhile: its screen stays.
-        if screen == .signedIn(server) { screen = .signIn(server) }
+        if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }
 
     /// The front door of [server] ended this phone's session (signed out everywhere, or never signed in): its sign-in.
     func signInNeeded(_ server: String) {
-        if screen == .signedIn(server) { screen = .signIn(server) }
+        if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
+    }
+
+    /// The account was deleted: the sign-in, saying so, from Home or from its paused screen.
+    func accountDeleted(_ server: String, _ words: String) {
+        sessions.write(server: server, token: nil)
+        notice = words
+        if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }
 
     /// This phone's API for [server], with its session.
@@ -118,6 +147,7 @@ final class AppModel {
     /// Another address: this one's session stays for when the phone comes back to it.
     func otherAddress() {
         error = nil
+        notice = nil
         screen = .address
     }
 

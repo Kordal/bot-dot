@@ -20,6 +20,14 @@ object Feedback {
     const val SHOTS_MAX = 3
     const val SHOT_BYTES = 5 * 1024 * 1024
 
+    /** The form's own words: its title, what it says of who reads it ([shotsOn]: and the screenshots), its field's placeholder. */
+    val TITLE: String get() = tr("Feedback")
+    fun intro(shotsOn: Boolean): String = if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
+        else tr("The admin of this machine reads it. Only what you write here is sent.")
+    val PLACEHOLDER: String get() = tr("What happened, or what you would like")
+    /** Picked past [SHOTS_MAX]. */
+    val TOO_MANY: String get() = tr("At most {max} screenshots go in one report.", "max" to SHOTS_MAX)
+
     /** Whether to show Feedback: behind a front door (`accounts`) that says it goes to an admin page. */
     fun on(features: List<String>?, session: JsonObject?): Boolean =
         features?.contains("accounts") == true && flag(session, "feedback")
@@ -42,6 +50,12 @@ object Feedback {
         b.size >= 12 && latin1(b, 0, 4) == "RIFF" && latin1(b, 8, 4) == "WEBP" -> "image/webp"
         else -> null
     }
+
+    /**
+     * The name a picked screenshot goes by in the form's sentences: numbered after the [existing] ones the form holds
+     * from before this pick, then by its place ([index]) among the pictures picked at once.
+     */
+    fun shotName(existing: Int, index: Int): String = tr("Screenshot {n}", "n" to (existing + index + 1).toString())
 
     /** Why a picked file can't go in, in a sentence the form shows, or null when it can. [name]: the file's name. */
     fun refusal(name: String, bytes: ByteArray?): String? = when {

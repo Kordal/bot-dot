@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -32,6 +33,18 @@ object WhatsNew {
 
     /** Whether a note shows its points before a tap: the newest [OPEN] do. */
     fun openAtFirst(index: Int): Boolean = index < OPEN
+
+    /** The notes this person has not seen, when the server announces them; none when it doesn't, or isn't reached. */
+    @Throws(Exception::class)
+    suspend fun unseen(api: Api, features: Collection<String>?): List<Entry> =
+        if (!asks(features)) emptyList() else try { api.whatsNew() } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+
+    /** The dialog closed, any way: [entries] are seen, here and in every other app. A failure is let be: they show again. */
+    @Throws(Exception::class)
+    suspend fun seen(api: Api, entries: List<Entry>) {
+        if (entries.isEmpty()) return
+        try { api.whatsNewSeen(entries) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+    }
 
     /** What closing the dialog sends, any way it is closed: everything up to the newest note shown is seen. */
     fun seenBody(entries: List<Entry>): JsonObject = buildJsonObject { put("id", entries.first().id) }

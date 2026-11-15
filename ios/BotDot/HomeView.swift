@@ -9,6 +9,12 @@ struct HomeView: View {
     let model: AppModel
     let server: String
     @State private var home: HomeModel
+    @State private var deleting = false
+    @State private var feedback = false
+    @State private var sent: String?
+    @State private var name = ""
+    @State private var nameError: String?
+    @State private var asking = false
     /// The bot whose computer screen is open, from the ⋯ menu.
     @State private var screen: ScreenOpen?
 
@@ -35,107 +41,18 @@ struct HomeView: View {
         _home = State(initialValue: HomeModel(api: api))
     }
 
+    // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
-        NavigationStack(path: $path) {
-            List {
-                if let error = home.state?.error ?? home.error {
-                    Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
-                }
-                if let state = home.state, NeedsDeskKt.needsYouOpens(waiting: state.waiting, bots: state.bots) {
-                    // A tap opens Needs you, where each card is answered.
-                    NavigationLink {
-                        NeedsYouView(home: home.home, figure: home.figure)
-                    } label: {
-                        NeedsYou(waiting: state.waiting, figure: home.figure)
-                    }
-                    .accessibilityIdentifier("needs-you")
-                    .listRowSeparator(.hidden)
-                }
-                if let state = home.state, let board = state.board {
-                    BoardCards(tiles: board)
-                }
-                if let state = home.state {
-                    // The Chief first, as on Android: its chat is one conversation.
-                    NavigationLink(value: ChiefRoute()) {
-                        ContactRow(name: state.chiefName, sub: "", unread: Int(state.chiefUnread), color: ChiefColorKt.CHIEF_COLOR, asks: false,
-                                   drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: ChiefColorKt.CHIEF_COLOR, state: state.chiefBusy ? "working" : "idle", outfit: FigureDef.companion.CHIEF, dark: true) })
-                    }
-                    .navigationLinkIndicatorVisibility(.hidden)
-                    .moveDisabled(true)
-                    ForEach(home.order, id: \.self) { key in
-                        row(key, state)
-                            .moveDisabled(key == ListLayout.shared.PINS || ListLayout.shared.isHeading(key: key))
-                    }
-                    .onMove { from, to in home.move(from: from, to: to) }
-                } else {
-                    ProgressView().frame(maxWidth: .infinity)
-                }
-            }
-            .listStyle(.plain)
-            .navigationDestination(for: FilesPlace.self) { FilesView(api: home.home.api, at: $0) }
-            .navigationDestination(for: DocumentView.Opening.self) { ViewerView(api: home.home.api, opening: $0) }
-            .refreshable { await home.refresh() }
-            .navigationTitle("botdot")
-            .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) }
-            .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
-            .navigationDestination(for: Route.self) { route in
-                switch route {
-                case .settings: SettingsView(app: model, home: home.home)
-                case .apps: AppsView(home: home.home)
-                case .keypad: KeypadView(home: home) { path.append(Route.bot($0)) }
-                case .bot(let id): BotSettingsView(home: home.home, botId: id, figure: home.figure)
-                }
-            }
-            .navigationDestination(for: ChiefRoute.self) { r in ChiefView(home: home.home, chatId: r.chatId) }
-            .navigationDestination(for: GroupRoute.self) { r in GroupChatView(home: home.home, groupId: r.groupId, name: r.name, figure: home.figure) }
-            .toolbar {
-                Menu {
-                    // Each bot's computer screen (as Android's "Its screen" in a bot's chat), until the iPhone has the chat.
-                    if let bots = home.state?.screens, !bots.isEmpty {
-                        Section(tr("Its screen")) {
-                            ForEach(bots, id: \.id) { b in
-                                Button { screen = ScreenOpen(id: b.id, name: ComputerScreen.shared.title(bot: b)) } label: {
-                                    Label(b.name, systemImage: "desktopcomputer")
-                                }
-                                .accessibilityIdentifier("screen-\(b.id)")
-                            }
-                        }
-                    }
-                    let owners = filesOwners
-                    if !owners.isEmpty {
-                        Menu {
-                            ForEach(owners, id: \.owner) { o in Button(o.name) { path.append(o) } }
-                        } label: {
-                            Label(tr("Files"), systemImage: "folder")
-                        }
-                        .accessibilityIdentifier("files")
-                    }
-                    Button(tr("Settings")) { path.append(Route.settings) }
-                    Button(tr("Apps")) { path.append(Route.apps) }
-                    Button(tr("Keypad")) { path.append(Route.keypad) }
-                    if let bots = home.state?.bots, !bots.isEmpty {
-                        Menu(tr("Bots")) {
-                            ForEach(bots, id: \.id) { b in Button(b.name) { path.append(Route.bot(b.id)) } }
-                        }
-                    }
-                    Button(tr("Passwords")) { vault = true }
-                    Divider()
-                    Button(tr("Change botdot's address")) { model.otherAddress() }
-                    Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
-                } label: {
-                    Image(systemName: "ellipsis.circle").accessibilityLabel(tr("More"))
-                }
-            }
-            .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
+        withSheets
+        // The first run's question for the Chief's name: Save, or Skip to keep "Chief of Staff".
+        .alert(ChiefName.shared.question, isPresented: $asking) {
+            TextField(ChiefName.shared.role, text: $name).onChange(of: name) { _, n in if n.count > Int(ChiefName.shared.MAX) { name = String(n.prefix(Int(ChiefName.shared.MAX))) } }
+            Button(tr("Save")) { answerName(name) }
+            Button(tr("Skip"), role: .cancel) { answerName("") }
+        } message: {
+            Text(nameError.map { ChiefName.shared.explain + "\n\n" + $0 } ?? ChiefName.shared.explain)
         }
-        .task {
-            home.start()
-            home.home.live(on: true)
-            await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
-        }
-        .sheet(isPresented: Binding(get: { !home.whatsNew.isEmpty }, set: { if !$0 { home.whatsNewClosed() } })) {
-            WhatsNewSheet(entries: home.whatsNew) { home.whatsNewClosed() }
-        }
+        .onChange(of: home.askName) { _, ask in asking = ask }
         // A notification's tap: its chat, once Home knows its bots and groups (AppModel.chatToOpen).
         .onChange(of: model.chatToOpen, initial: true) { openAsked() } // a cold start's tap too
         .onChange(of: home.state?.bots?.count) { openAsked() }
@@ -144,6 +61,161 @@ struct HomeView: View {
         // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
         .onChange(of: phase) { _, now in home.home.live(on: now == .active) }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
+    }
+
+    private var list: some View {
+        List {
+            if let error = home.state?.error ?? home.error {
+                Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
+            }
+            if let state = home.state, NeedsDeskKt.needsYouOpens(waiting: state.waiting, bots: state.bots) {
+                // A tap opens Needs you, where each card is answered.
+                NavigationLink {
+                    NeedsYouView(home: home.home, figure: home.figure)
+                } label: {
+                    NeedsYou(waiting: state.waiting, figure: home.figure)
+                }
+                .accessibilityIdentifier("needs-you")
+                .listRowSeparator(.hidden)
+            }
+            if let state = home.state, let board = state.board {
+                // A tap opens the Board, where each tile does its thing.
+                NavigationLink {
+                    BoardView(home: home.home, figure: home.figure)
+                } label: {
+                    BoardCards(tiles: board)
+                }
+                .accessibilityIdentifier("board")
+                .listRowSeparator(.hidden)
+            }
+            if let state = home.state {
+                // The Chief first, as on Android: its chat is one conversation.
+                NavigationLink(value: ChiefRoute()) {
+                    ContactRow(name: state.chiefName, sub: "", unread: Int(state.chiefUnread), color: ChiefColorKt.CHIEF_COLOR, asks: false,
+                               drawing: home.figure.map { FigurePaint.shared.figure(def: $0, color: ChiefColorKt.CHIEF_COLOR, state: state.chiefBusy ? "working" : "idle", outfit: FigureDef.companion.CHIEF, dark: true) })
+                }
+                .navigationLinkIndicatorVisibility(.hidden)
+                .moveDisabled(true)
+                ForEach(home.order, id: \.self) { key in
+                    row(key, state)
+                        .moveDisabled(key == ListLayout.shared.PINS || ListLayout.shared.isHeading(key: key))
+                }
+                .onMove { from, to in home.move(from: from, to: to) }
+            } else {
+                ProgressView().frame(maxWidth: .infinity)
+            }
+        }
+        .listStyle(.plain)
+    }
+
+    private var routed: some View {
+        list
+        .navigationDestination(for: FilesPlace.self) { FilesView(api: home.home.api, at: $0) }
+        .navigationDestination(for: DocumentView.Opening.self) { ViewerView(api: home.home.api, opening: $0) }
+        .refreshable { await home.refresh() }
+        .navigationTitle("botdot")
+        .navigationDestination(item: $screen) { s in ScreenView(home: home.home, botId: s.id, name: s.name) }
+        .navigationDestination(for: ChatRoute.self) { r in ChatView(home: home.home, botId: r.botId, name: r.name) }
+        .navigationDestination(for: Route.self) { route in
+            switch route {
+            case .settings: SettingsView(app: model, home: home.home)
+            case .apps: AppsView(home: home.home)
+            case .keypad: KeypadView(home: home) { path.append(Route.bot($0)) }
+            case .bot(let id): BotSettingsView(home: home.home, botId: id, figure: home.figure)
+            }
+        }
+        .navigationDestination(for: ChiefRoute.self) { r in ChiefView(home: home.home, chatId: r.chatId) }
+        .navigationDestination(for: GroupRoute.self) { r in GroupChatView(home: home.home, groupId: r.groupId, name: r.name, figure: home.figure) }
+            .toolbar { toolbar }
+        .navigationDestination(isPresented: $vault) { VaultView(api: home.home.api, settings: model.settings) }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu { menu } label: {
+                Image(systemName: "ellipsis.circle").accessibilityLabel(tr("More"))
+            }
+        }
+    }
+
+    /// Home's ⋯ menu.
+    @ViewBuilder
+    private var menu: some View {
+        // Each bot's computer screen (as Android's "Its screen" in a bot's chat), until the iPhone has the chat.
+        if let bots = home.state?.screens, !bots.isEmpty {
+            Section(tr("Its screen")) {
+                ForEach(bots, id: \.id) { b in
+                    Button { screen = ScreenOpen(id: b.id, name: ComputerScreen.shared.title(bot: b)) } label: {
+                        Label(b.name, systemImage: "desktopcomputer")
+                    }
+                    .accessibilityIdentifier("screen-\(b.id)")
+                }
+            }
+        }
+        let owners = filesOwners
+        if !owners.isEmpty {
+            Menu {
+                ForEach(owners, id: \.owner) { o in Button(o.name) { path.append(o) } }
+            } label: {
+                Label(tr("Files"), systemImage: "folder")
+            }
+            .accessibilityIdentifier("files")
+        }
+        Button(tr("Settings")) { path.append(Route.settings) }
+        Button(tr("Apps")) { path.append(Route.apps) }
+        Button(tr("Keypad")) { path.append(Route.keypad) }
+        if let bots = home.state?.bots, !bots.isEmpty {
+            Menu(tr("Bots")) {
+                ForEach(bots, id: \.id) { b in Button(b.name) { path.append(Route.bot(b.id)) } }
+            }
+        }
+        if home.offers?.feedback == true { Button(Feedback.shared.TITLE) { feedback = true } }
+        if home.offers?.deletion != nil { Button(tr("Delete account"), role: .destructive) { deleting = true } }
+        Button(tr("Passwords")) { vault = true }
+        Divider()
+        Button(tr("Change botdot's address")) { model.otherAddress() }
+        Button(tr("Sign out"), role: .destructive) { Task { await model.signOut(server) } }
+    }
+
+    private var whatsNewShown: Binding<Bool> {
+        Binding(get: { home.showsWhatsNew && !feedback }, set: { if !$0 { home.whatsNewClosed() } })
+    }
+
+    private var withSheets: some View {
+        NavigationStack(path: $path) { routed }
+        .task {
+            home.start()
+            home.home.live(on: true)
+            await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
+        }
+        .overlay(alignment: .bottom) {
+            if let sent {
+                Text(sent).padding(12).background(.regularMaterial, in: .capsule).padding(.bottom, 16).accessibilityIdentifier("notice")
+                    .task { try? await Task.sleep(for: .seconds(3)); self.sent = nil }
+            }
+        }
+        .sheet(isPresented: $deleting) {
+            if let offer = home.offers?.deletion {
+                AccountDeletionView(offer: offer, api: home.home.api) { words in model.accountDeleted(server, words) }
+            }
+        }
+        .sheet(isPresented: $feedback) {
+            FeedbackView(api: home.home.api, shotsOn: home.offers?.shots == true) { sent = tr("Sent") }
+        }
+        // What's new after an update, once, after the Chief's name; closed any way, its notes are seen.
+        .sheet(isPresented: whatsNewShown) {
+            WhatsNewSheet(entries: home.whatsNew) { home.whatsNewClosed() }
+        }
+    }
+
+    /// The Chief's name, saved or skipped; a refusal keeps the question, saying why.
+    private func answerName(_ given: String) {
+        Task {
+            nameError = await home.nameChief(given)
+            // The alert closed with the tap: it asks again, saying why.
+            if nameError != nil { asking = true }
+        }
     }
 
     /// Opens the chat a notification asked for, as the shared layer decides (PushNotices.opening): a bot's or a group's

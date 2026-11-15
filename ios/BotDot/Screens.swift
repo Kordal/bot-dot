@@ -13,6 +13,7 @@ struct RootView: View {
             case .address: AddressView(model: model)
             case .signIn(let server): SignInView(model: model, server: server)
             case .signedIn(let server): HomeView(model: model, server: server, api: model.api(server)).id(server)
+            case .paused(let server): PausedView(model: model, server: server)
             }
         }
         .preferredColorScheme(.dark)
@@ -71,6 +72,9 @@ struct SignInView: View {
         VStack(spacing: 16) {
             Text("botdot").font(.largeTitle.bold())
             Text(server).font(.body.monospaced()).foregroundStyle(.secondary)
+            if let notice = model.notice {
+                Text(notice).foregroundStyle(.secondary).accessibilityIdentifier("notice")
+            }
             if let error = model.error {
                 Text(error).foregroundStyle(.red).accessibilityIdentifier("error")
             }
