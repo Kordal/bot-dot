@@ -58,8 +58,11 @@ struct HomeView: View {
         .onChange(of: home.state?.bots?.count) { openAsked() }
         .onChange(of: home.state?.groups?.count) { openAsked() }
         .onDisappear { home.stop() }
-        // The live feed while the app is in front; back to front, it reconnects after the last event it saw.
-        .onChange(of: phase) { _, now in home.home.live(on: now == .active) }
+        // The live feed and the rooms' while the app is in front; back to front, it reconnects after the last event it saw.
+        .onChange(of: phase) { _, now in
+            home.home.live(on: now == .active)
+            home.rooms.front(now == .active)
+        }
         .onChange(of: home.state?.signInNeeded) { _, needed in if needed == true { model.signInNeeded(server) } }
     }
 
@@ -86,6 +89,16 @@ struct HomeView: View {
                     BoardCards(tiles: board)
                 }
                 .accessibilityIdentifier("board")
+                .listRowSeparator(.hidden)
+            }
+            if let rooms = home.rooms.state, rooms.on {
+                // "Shared rooms" under Needs you and the Board, as on Android, with the invitations that wait.
+                NavigationLink {
+                    RoomsView(rooms: home.rooms, figure: home.figure)
+                } label: {
+                    Text("\(Text(RoomWords.shared.TITLE).bold())\(Text(rooms.row.map { " · " + $0 } ?? "").foregroundStyle(.orange))").lineLimit(1)
+                }
+                .accessibilityIdentifier("rooms")
                 .listRowSeparator(.hidden)
             }
             if let state = home.state {

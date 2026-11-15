@@ -5,7 +5,7 @@ import BotdotShared
 /// The Board on the iPhone draws the shared layer's cells (BoardDesk) and hands its taps back to it.
 @MainActor
 final class BoardTests: XCTestCase {
-    private func home() -> HomeStore { HomeStore(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000)) }
+    private func home() -> HomeStore { HomeStore(api: unreachableApi()) }
 
     func testTheScreenGetsTheSharedStateOnTheMainThread() async throws {
         let model = BoardModel(home: home())
@@ -50,7 +50,7 @@ final class BoardTests: XCTestCase {
 /// The account's parts on the iPhone: what the front door offers, What's new, the paused account.
 @MainActor
 final class AccountTests: XCTestCase {
-    private let api = Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000)
+    private let api = unreachableApi()
 
     func testABotdotWithoutAFrontDoorOffersNothing() async throws {
         let read = try await FrontDoorDesk(api: api).read(features: ["whats-new"])
