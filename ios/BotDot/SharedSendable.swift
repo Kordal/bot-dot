@@ -78,3 +78,5 @@ extension PagesDesk: @retroactive @unchecked Sendable {}
 extension PageInfo: @retroactive @unchecked Sendable {}
 /// Read from the main actor (OverviewModel).
 extension OverviewDesk: @retroactive @unchecked Sendable {}
+extension PageDesk: @retroactive @unchecked Sendable {}
+extension PageBarState: @retroactive @unchecked Sendable {}

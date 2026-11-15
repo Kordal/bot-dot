@@ -320,6 +320,9 @@ struct ViewerView: View {
     /// An interactive page: its frame alone, the bars hidden; its versions' sheet.
     @State var full = false
     @State var versions = false
+    /// Export…'s formats, and Keep up to date's sheet (with what was entered when a save failed).
+    @State var exporting = false
+    @State var keeping: KeepDraft?
 
     init(api: Api, opening: DocumentView.Opening) {
         self.opening = opening
@@ -338,12 +341,32 @@ struct ViewerView: View {
                         if v.downloadable {
                             Button { Task { if let url = await model.fetch() { sharing = SharedFile(url: url) } } } label: { Label(tr("Share…"), systemImage: "square.and.arrow.up") }
                         }
+                        if model.exports { Button { exporting = true } label: { Label(tr("Export…"), systemImage: "arrow.down.doc") } }
                     } label: {
                         Label(tr("More"), systemImage: "ellipsis.circle")
                     }
                 }
             }
             .overlay(alignment: .bottom) { Notice(text: $model.notice) }
+            .safeAreaInset(edge: .top) {
+                if let bar = model.bar, let page = model.viewed?.view?.page, let desk = model.pageDesk {
+                    PageBarView(bar: bar, desk: desk) { keeping = KeepDraft.companion.of(page: page) }
+                }
+            }
+            .onChange(of: model.bar?.reopen) { _, draft in
+                if let draft { keeping = draft; model.pageDesk?.reopened() }
+            }
+            .confirmationDialog(tr("Export…"), isPresented: $exporting) {
+                ForEach(DocumentExport.shared.FORMATS, id: \.first) { f in
+                    Button(f.second as String? ?? "") { Task { if let url = await model.export(f.first as String? ?? "") { sharing = SharedFile(url: url) } } }
+                }
+                Button(tr("Cancel"), role: .cancel) {}
+            }
+            .sheet(item: $keeping) { draft in
+                if let page = model.viewed?.view?.page {
+                    KeepSheet(page: page, from: opening.from, draft: draft) { d in model.pageDesk?.keep(draft: d) }
+                }
+            }
             .sheet(item: $sharing) { ShareSheet(url: $0.url) }
             .sheet(isPresented: $versions) {
                 if let site = model.viewed?.site {

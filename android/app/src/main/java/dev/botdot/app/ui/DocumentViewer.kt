@@ -64,6 +64,7 @@ import dev.botdot.app.data.ApiException
 import dev.botdot.app.data.BotFiles
 import dev.botdot.app.data.DocumentView
 import dev.botdot.app.data.FileView
+import dev.botdot.app.data.KeepDraft
 import dev.botdot.app.data.PageInfo
 import dev.botdot.app.data.PageRef
 import dev.botdot.app.data.InteractivePages
@@ -209,25 +210,17 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     var keeping by remember(req) { mutableStateOf(false) }
     // What was entered in "Keep up to date", opened again after a save that failed (#475).
     var keepDraft by remember(req) { mutableStateOf<KeepDraft?>(null) }
-    // A page's action that runs on after the tap (#475): the small line under its bar.
-    var work by remember(req) { mutableStateOf<Work?>(null) }
+    // A page's bar (#346, #451, #475): Board, Keep up to date, Refresh now, Stop and the line under it are the
+    // shared PageDesk's (one copy with the iPhone's).
+    val pageDesk = remember(req, api) { val a = api; val pg = req.page; if (a != null && pg != null) dev.botdot.app.data.PageDesk(scope, a, pg.botId, pg.slug, req.from, server?.features) else null }
+    val bar = pageDesk?.state?.collectAsState()?.value
+    LaunchedEffect(bar?.reopen) { bar?.reopen?.let { keepDraft = it; keeping = true; pageDesk.reopened() } }
+    LaunchedEffect(bar?.work) { if (bar?.work?.kind == "ok") changed++ }
     // The ⋯ menu's actions, with the file fetched as it is (not only its start).
     fun withApi(what: String, act: suspend (dev.botdot.app.data.Api) -> Unit) {
         menu = false
         val a = api ?: return tell(tr("Not connected to botdot"))
         scope.launch { runCatching { act(a) }.onError { tell(it.message ?: tr("Couldn't {what}", "what" to what)) } }
-    }
-    // A page's action, done at once (#475): `words` while it runs, then `ok` (gone by itself) or the error, whose tap
-    // tries again with `retry`. A second action waits until the first one ends.
-    fun inBackground(words: String, ok: String, retry: () -> Unit, act: suspend (dev.botdot.app.data.Api) -> Unit) {
-        if (work?.kind == "busy") return
-        val a = api ?: return tell(tr("Not connected to botdot"))
-        work = Work("busy", words)
-        scope.launch {
-            runCatching { act(a) }
-                .onSuccess { val w = Work("ok", ok); work = w; kotlinx.coroutines.delay(2500); if (work === w) work = null }
-                .onError { work = Work("err", it.message ?: tr("Couldn't do it"), retry) }
-        }
     }
     Column(Modifier.fillMaxSize().background(p.bg).systemBarsPadding()) {
         if (!siteFull) Row(Modifier.fillMaxWidth().padding(start = Space.s4, end = Space.s4, top = Space.s8, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
@@ -266,25 +259,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
         val site = v?.interactive
         val download = { withApi(tr("save it")) { BotFiles.saveToDownloads(context, it, src, fileName); tell(tr("Saving {name} to Downloads", "name" to fileName)) } }
         // On the Board or off it (#451): the button flips at once, and back if the server says no (#475).
-        var onBoard by remember(req, page) { mutableStateOf(page?.onBoard) }
-        var boarding by remember(req) { mutableStateOf(false) }
-        val board: (() -> Unit)? = if (req.page != null && onBoard != null && dev.botdot.app.data.Pages.showsBoard(server?.features)) {
-            {
-                val a = api
-                if (a == null) tell(tr("Not connected to botdot"))
-                else if (!boarding) {
-                    val was = onBoard
-                    onBoard = was != true
-                    boarding = true
-                    scope.launch {
-                        runCatching { a.setPageOnBoard(req.page.botId, req.page.slug, was != true) }
-                            .onSuccess { r -> onBoard = r?.onBoard ?: onBoard }
-                            .onError { onBoard = was; work = Work("err", it.message ?: tr("Couldn't change it")) }
-                        boarding = false
-                    }
-                }
-            }
-        } else null
+        LaunchedEffect(pageDesk, page) { pageDesk?.show(page) }
+        val onBoard = bar?.onBoard
+        val board: (() -> Unit)? = if (pageDesk != null && bar?.board == true) { { pageDesk.toggleBoard() } } else null
         if (req.page != null && site != null) {
             if (board != null) Row(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s4)) { BoardButton(onBoard == true, board) }
             InteractiveBar(site, siteFull, onFull = { siteFull = true }, onVersions = { versions = true }, onDownload = download,
@@ -295,17 +272,14 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 onDismiss = { versions = false })
         }
         if (req.page != null && page != null && site == null) {
-            fun refresh() { page.keep?.let { k -> inBackground(tr("Starting the refresh…"), tr("{name} is refreshing it", "name" to req.from.ifBlank { tr("The bot") }), ::refresh) { it.runJob(req.page.botId, k.jobId) } } }
-            fun stop() { inBackground(tr("Stopping…"), tr("It no longer keeps up to date"), ::stop) { it.stopKeepingPage(req.page.botId, page.slug); changed++ } }
-            PageBar(page, onBoard == true, board, onKeep = { if (work?.kind != "busy") { keepDraft = null; keeping = true } }, onRefresh = ::refresh, onStop = ::stop)
+            PageBar(page, if (pageDesk != null) bar?.keep ?: page.keep.takeIf { bar == null } else page.keep, onBoard == true, board, onKeep = { if (bar?.work?.kind != "busy") { keepDraft = null; keeping = true } },
+                onRefresh = { pageDesk?.refresh() }, onStop = { pageDesk?.stop() })
         }
-        if (req.page != null) work?.let { w -> WorkLine(w, Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { work = null } }
+        if (req.page != null) bar?.work?.let { w -> WorkLine(Work(w.kind, w.text, retry = { pageDesk?.retry() }), Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { pageDesk?.dismissWork() } }
         // The sheet closes at once and the save runs on (#475); its error opens the sheet again with what was entered.
         if (keeping && req.page != null && page != null) KeepSheet(page, req.from, keepDraft, onDismiss = { keeping = false }) { draft ->
             keeping = false
-            inBackground(tr("Saving schedule…"), tr("It keeps up to date now"), { keepDraft = draft; keeping = true }) {
-                it.keepPage(req.page.botId, page.slug, draft.every, draft.time, draft.notify, draft.check); changed++
-            }
+            pageDesk?.keep(draft)
         }
         if (exporting && v?.text != null) ExportSheet(req.name, v.plain ?: v.text!!) { exporting = false }
         val noPreview: @Composable () -> Unit = { ViewerState(tr("No preview for this kind of file"), tr("The app shows Markdown, text, code, CSV and pictures. Open this one on your phone.")) {
@@ -515,11 +489,10 @@ private fun CsvTable(text: String, sep: Char) {
 
 /** A page's bar (#346): what keeps it up to date, with Refresh now, Change and Stop, or the button that does. */
 @Composable
-private fun PageBar(page: PageInfo, onBoard: Boolean, board: (() -> Unit)?, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
+private fun PageBar(page: PageInfo, keep: dev.botdot.app.data.PageKeep?, onBoard: Boolean, board: (() -> Unit)?, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
     val p = LocalPaper.current
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8),
         horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        val keep = page.keep
         if (keep == null) SecondaryButton(onClick = onKeep) { Text(tr("Keep up to date"), color = p.text) }
         else {
             Text("↻ " + tr("Keeps up to date") + " · ${keep.`when`}", color = p.okText, fontSize = Type.s12,
@@ -544,18 +517,16 @@ private fun BoardButton(on: Boolean, onClick: () -> Unit) {
     }
 }
 
-/** What was entered in "Keep up to date". */
-private data class KeepDraft(val every: String, val time: String, val notify: String, val check: String)
-
 /** "Keep up to date" (#346): how often, at what time, whether to hear of every update, and what to check. The tap is the consent: no card follows. [draft]: what was entered before a save that failed. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun KeepSheet(page: PageInfo, from: String, draft: KeepDraft?, onDismiss: () -> Unit, onKeep: (KeepDraft) -> Unit) {
     val p = LocalPaper.current
-    var every by remember { mutableStateOf(draft?.every ?: page.keep?.every ?: "day") }
-    var time by remember { mutableStateOf(draft?.time ?: page.keep?.time ?: "07:00") }
-    var notify by remember { mutableStateOf(draft?.notify ?: page.keep?.notify ?: "report-only") }
-    var check by remember { mutableStateOf(draft?.check ?: page.keep?.check ?: page.sources) }
+    val start = draft ?: KeepDraft.of(page)
+    var every by remember { mutableStateOf(start.every) }
+    var time by remember { mutableStateOf(start.time) }
+    var notify by remember { mutableStateOf(start.notify) }
+    var check by remember { mutableStateOf(start.check) }
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = Space.s16, end = Space.s16, bottom = Space.s24), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
             Text(tr("Keep “{title}” up to date", "title" to page.title), color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16)
