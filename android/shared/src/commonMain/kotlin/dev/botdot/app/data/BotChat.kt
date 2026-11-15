@@ -46,7 +46,12 @@ class RunView(
     /** Several questions at once there: a box and its choices under each ([BotChat.answerQuestions]). */
     val questions: List<String> = emptyList(),
     val questionChoices: List<List<String>> = emptyList(),
+    /** Its step line ([RunSteps.shows]; Android's StepLine), with its steps to unfold; null where it has none. */
+    val steps: StepLine? = null,
 )
+
+/** A run's step line (#625, #636): [label] in words, [count] steps so far, [held] while it waits for an OK, its [timeline]. */
+class StepLine(val label: String, val now: String, val count: Int, val held: Boolean, val timeline: List<RunSteps.Row>)
 
 /** Everything a bot's chat draws, at one moment. */
 class BotChatState(
@@ -157,6 +162,10 @@ class BotChat(
             }
         }
         jobs += scope.launch { kicks.debounce(250).collect { refresh() } }
+        // A run's step line follows its line, its count of steps and whether it waits for an OK.
+        jobs += scope.launch {
+            kotlinx.coroutines.flow.combine(store.lines.runLines, store.lines.runSteps, store.lines.heldRuns) { _, _, _ -> }.collect { if (all.any { it.isRunning }) publish() }
+        }
     }
 
     /** The chat was left: what it follows stops (a send under way goes on). */
@@ -467,6 +476,12 @@ class BotChat(
             yes = if (answerable) r.yes ?: -1 else -1,
             questions = if (answerable) r.questions.orEmpty() else emptyList(),
             questionChoices = if (answerable) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
+            steps = if (!RunSteps.shows(r)) null else {
+                val count = maxOf(store.lines.runSteps.value[r.id] ?: 0, r.steps?.count ?: 0)
+                val held = r.waitsForOk || r.id in store.lines.heldRuns.value
+                val at = store.lines.runLines.value[r.id]
+                StepLine(RunSteps.label(r, at, count, held), RunSteps.now(at, held), count, held, RunSteps.timeline(r))
+            },
         )
     }
 

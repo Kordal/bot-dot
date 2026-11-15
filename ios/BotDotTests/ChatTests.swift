@@ -101,4 +101,12 @@ final class ChatTests: XCTestCase {
         XCTAssertFalse(before.hasSuffix("@we"), "no mention is being typed at the cursor")
         XCTAssertNil(Cursor.quoting("  ", into: "Ask"), "nothing to quote")
     }
+
+    /// A run's step line: its words are the shared RunSteps' (what it shows is RunStepsTest's).
+    func testAStepLinesWordsAreAndroids() {
+        XCTAssertEqual(RunSteps.companion.countWords(n: 3), "3 steps")
+        XCTAssertEqual(RunSteps.companion.countWords(n: 0), "")
+        XCTAssertEqual(RunSteps.companion.now(line: nil, held: false), "Working")
+        XCTAssertEqual(RunSteps.companion.now(line: "Reading a.js", held: false), "Reading a.js")
+    }
 }
