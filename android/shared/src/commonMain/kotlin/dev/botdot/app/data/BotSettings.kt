@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -189,6 +190,48 @@ object BotSettings {
     @Throws(Exception::class)
     suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
 
+    /** Its jobs you said to always approve (#474): their later changes need no OK. */
+    fun trusted(b: Bot): List<dev.botdot.app.data.Job> = b.jobs.filter { it.alwaysApprove }
+
+    /** Under a job always approved: when it runs, and whether it uses AI. */
+    fun trustedLine(j: dev.botdot.app.data.Job): String = "${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI")
+
+    /** A lasting grant in a connected app, in words: its label, else its action. */
+    fun grantName(g: AlwaysAllowed): String = g.label.ifBlank { g.action }
+
+    /** The "Always approved" summary: the jobs and the grants by name. */
+    fun alwaysLine(b: Bot): String = (trusted(b).map { it.name } + b.alwaysAllowed.map(::grantName)).joinToString(", ")
+
+    /** Under a rule lifted for it ("Allow always for this bot", #253): the rule. */
+    fun overrideLine(o: BotOverride): String = tr("Its rule: {rule}", "rule" to o.rule)
+
+    val JOB_REVOKED: String get() = tr("Revoked: its next change waits for your OK")
+    val REVOKED: String get() = tr("Revoked: it asks you again")
+
+    /** What botdot did for a Revoke: [step] makes the bot as it is when botdot answered say so, and what to [say]. */
+    class Revoked(val step: (Bot) -> Bot, val say: String)
+
+    /** Revoke a job always approved: its next change waits for the owner's OK. A refusal throws botdot's sentence. */
+    @Throws(Exception::class)
+    suspend fun revokeJob(api: Api, botId: String, jobId: String): Revoked {
+        val saved = api.setJobAlwaysApprove(botId, jobId, false)
+        return Revoked({ b -> b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }) }, JOB_REVOKED)
+    }
+
+    /** Revoke a lasting grant in a connected app: it asks again. Every grant of that action goes, whatever its label. */
+    @Throws(Exception::class)
+    suspend fun revokeGrant(api: Api, botId: String, action: String): Revoked {
+        api.revokeAlwaysAllowed(botId, action)
+        return Revoked({ b -> b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action }) }, REVOKED)
+    }
+
+    /** Revoke a rule lifted for it: it asks again; the rules left are botdot's. */
+    @Throws(Exception::class)
+    suspend fun revokeOverride(api: Api, botId: String, id: String): Revoked {
+        val left = api.revokeOverride(botId, id).overrides
+        return Revoked({ b -> b.copy(overrides = left) }, REVOKED)
+    }
+
     /** The choices of its key on the keypad (#366): by its place, or a digit, saying which bot holds it now. */
     fun hotkeys(others: List<Bot>): List<Option> = listOf(Option("0", tr("By its place"))) +
         (1..9).map { d -> Option("$d", others.firstOrNull { it.hotkey == d }?.let { "$d · " + tr("Now {name}'s", "name" to it.name) } ?: "$d") }
@@ -227,6 +270,13 @@ class BotSettingsState(
     val appsLine: String get() = apps.filter(::hasApp).joinToString(", ", transform = BotSettings::appName).ifBlank { tr("None") }
     /** A page's line ([Pages.line]). */
     fun pageLine(page: PageInfo): String = Pages.line(page)
+    /** Always approved: its jobs and its grants in connected apps; and the rules lifted for it. */
+    val trusted: List<dev.botdot.app.data.Job> get() = bot?.let(BotSettings::trusted).orEmpty()
+    val grants: List<AlwaysAllowed> get() = bot?.alwaysAllowed.orEmpty()
+    val overrides: List<BotOverride> get() = bot?.overrides.orEmpty()
+    fun trustedLine(j: dev.botdot.app.data.Job): String = BotSettings.trustedLine(j)
+    fun grantName(g: AlwaysAllowed): String = BotSettings.grantName(g)
+    fun overrideLine(o: BotOverride): String = BotSettings.overrideLine(o)
 
     val models: List<Option> get() = BotSettings.models(info)
     val efforts: List<Option> get() = BotSettings.efforts(info)
@@ -365,6 +415,32 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
             throw e
         } catch (e: Exception) {
             e.message ?: tr("Couldn't undo")
+        }
+    }
+
+    /** Revoke a job always approved: its next change waits for the owner's OK. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeJob(jobId: String): String = revoked { BotSettings.revokeJob(api, botId, jobId) }
+
+    /** Revoke a lasting grant in a connected app: it asks again. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeGrant(action: String): String = revoked { BotSettings.revokeGrant(api, botId, action) }
+
+    /** Revoke a rule lifted for it: it asks again. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeOverride(id: String): String = revoked { BotSettings.revokeOverride(api, botId, id) }
+
+    /** Asks botdot, then applies its answer to the bot as it is by then: a load or a save that landed meanwhile stays. */
+    private suspend fun revoked(call: suspend () -> BotSettings.Revoked): String {
+        if (_state.value.bot == null) return ""
+        return try {
+            val r = call()
+            _state.update { s -> s.copy(bot = s.bot?.let(r.step)) }
+            r.say
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.message ?: tr("Couldn't save")
         }
     }
 

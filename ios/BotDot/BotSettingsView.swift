@@ -75,7 +75,7 @@ struct BotSettingsView: View {
     /// Duplicate's confirmation, while it is open; then the copy's chat.
     @State private var duplicating: DuplicateDesk?
     @State private var copy: ChatRoute?
-    /// What Duplicate said, for a moment at the top.
+    /// What Duplicate or a Revoke said, for a moment at the top.
     @State private var said: (text: String, count: Int) = ("", 0)
     // What is typed stays as typed: the shared draft follows it.
     @State private var name = ""
@@ -259,6 +259,27 @@ struct BotSettingsView: View {
                 }
             }
         }
+        // Always approved (#474): the jobs whose later changes need no OK and its lasting grants in connected apps;
+        // Revoke takes one off at once.
+        if !state.trusted.isEmpty || !state.grants.isEmpty {
+            Section(tr("Always approved")) {
+                ForEach(state.trusted, id: \.id) { j in
+                    revokeRow(j.name, state.trustedLine(j: j)) { try await model.store.revokeJob(jobId: j.id) }
+                }
+                // One row per grant, as on Android: several may share an action under different labels.
+                ForEach(state.grants, id: \.rowId) { g in
+                    revokeRow(state.grantName(g: g), nil) { try await model.store.revokeGrant(action: g.action) }
+                }
+            }
+        }
+        // The rules you lifted for it with "Allow always for this bot" (#253).
+        if !state.overrides.isEmpty {
+            Section(tr("Rules you lifted")) {
+                ForEach(state.overrides, id: \.id) { o in
+                    revokeRow(o.action, state.overrideLine(o: o)) { try await model.store.revokeOverride(id: o.id) }
+                }
+            }
+        }
         if state.showsOthersMayAsk || state.showsRooms {
             Section {
                 if state.showsOthersMayAsk {
@@ -307,6 +328,21 @@ struct BotSettingsView: View {
         Task {
             failed = await model.delete()
             deleting = false
+        }
+    }
+
+    /// A row with Revoke (Always approved, Rules you lifted): its name, its line, and the button, which says what happened.
+    private func revokeRow(_ name: String, _ line: String?, _ revoke: @escaping () async throws -> String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if let line { Text(line).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            Button(tr("Revoke")) {
+                Task { if let words = try? await revoke(), !words.isEmpty { said = (words, said.count + 1) } }
+            }
+            .buttonStyle(.bordered)
         }
     }
 }
@@ -360,4 +396,9 @@ private struct BotIconPicker: View {
             }
         }
     }
+}
+
+private extension AlwaysAllowed {
+    /// A grant's row: its action and label, since one action may have several labels.
+    var rowId: String { "\(action)\u{0}\(label)" }
 }

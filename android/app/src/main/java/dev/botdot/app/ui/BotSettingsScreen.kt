@@ -361,7 +361,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (!explorer && dev.botdot.app.data.WorkspaceFiles.shows(server?.features)) {
                 WorkspaceSection(api, botId, b.name, usesComputer = b.computer == "linux", viewer = dev.botdot.app.data.DocumentView.shows(server?.features), tell = ::tell, folders = dev.botdot.app.data.WorkspaceFiles.folders(server?.features), projects = dev.botdot.app.data.Projects.shows(server?.features))
             }
-            val trusted = b.jobs.filter { it.alwaysApprove }
+            val trusted = dev.botdot.app.data.BotSettings.trusted(b)
             val grants = b.alwaysAllowed
             val roomsShown = dev.botdot.app.data.BotSettings.showsRooms(b, server?.features)
             if ((others.isNotEmpty() && dev.botdot.app.data.BotSettings.limits(server?.features)) || roomsShown || trusted.isNotEmpty() || grants.isNotEmpty() || b.overrides.isNotEmpty()) SettingsGroup {
@@ -381,17 +381,17 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
                 // (#474). Revoke takes one off (saved right away).
-                if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), (trusted.map { it.name } + grants.map { it.label.ifBlank { it.action } }).joinToString(", ")) {
+                if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), dev.botdot.app.data.BotSettings.alwaysLine(b)) {
                     trusted.forEach { j ->
                         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text("${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI"), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                Text(dev.botdot.app.data.BotSettings.trustedLine(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
-                                        .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell(tr("Revoked: its next change waits for your OK")) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeJob(api!!, botId, j.id) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -399,11 +399,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     }
                     grants.forEach { g ->
                         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(g.label.ifBlank { g.action }, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            Text(dev.botdot.app.data.BotSettings.grantName(g), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
-                                        .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell(tr("Revoked: it asks you again")) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeGrant(api!!, botId, g.action) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -416,12 +416,12 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(o.action, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text(tr("Its rule: {rule}", "rule" to o.rule), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                Text(dev.botdot.app.data.BotSettings.overrideLine(o), color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.revokeOverride(botId, o.id) }
-                                        .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell(tr("Revoked: it asks you again")) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeOverride(api!!, botId, o.id) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }

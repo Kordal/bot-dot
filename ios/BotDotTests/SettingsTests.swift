@@ -100,6 +100,14 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(BotSettings.shared.appPicked(c: gmail, connectors: connectors, accounts: accounts, botId: "b1"), "not ticked")
     }
 
+    /// Always approved and the rules lifted: the shared words reach Swift.
+    func testAlwaysApprovedIsTheSharedWords() {
+        XCTAssertEqual(BotSettings.shared.JOB_REVOKED, "Revoked: its next change waits for your OK")
+        XCTAssertEqual(BotSettings.shared.REVOKED, "Revoked: it asks you again")
+        XCTAssertEqual(BotSettings.shared.grantName(g: AlwaysAllowed(action: "post", label: "")), "post")
+        XCTAssertEqual(BotSettings.shared.overrideLine(o: BotOverride(id: "o1", rule: "ask first", action: "delete", at: "")), "Its rule: ask first")
+    }
+
     /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
     func testTheChiefsSettingsAreTheSharedDesk() {
         let model = ChiefSettingsModel(home: home())
