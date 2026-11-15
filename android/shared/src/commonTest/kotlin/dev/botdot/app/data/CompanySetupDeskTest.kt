@@ -288,6 +288,23 @@ class CompanySetupDeskTest {
         until("and what was saved before stays") { desk.state.value.starter.firstOrNull { it.key == "k1" }?.on == false }
     }
 
+    @Test fun onlyAConversationsSetupOpensOnThePhoneAndGoOnlyMakesOne() = runTest {
+        val talkingC = CompanySetup.of(talking)
+        assertTrue(CompanySetupDesk.opensSetup(talkingC, talks))
+        assertFalse(CompanySetupDesk.opensSetup(talkingC, listOf(CompanySetup.FEATURE)), "a botdot without the conversation")
+        assertFalse(CompanySetupDesk.opensSetup(CompanySetup.of(talking.replace("\"conversation\":true", "\"conversation\":false")), talks), "About and Team steps: its page")
+        assertFalse(CompanySetupDesk.opensSetup(CompanySetup.of(proposed.replace("\"phase\":\"setup\"", "\"phase\":\"running\"")), talks), "running: its page")
+        assertFalse(CompanySetupDesk.opensSetup(null, talks))
+
+        val (_, old) = desk(FakeBotdot { 200 to "{}" }, features = listOf(CompanySetup.FEATURE, CompanySetup.EMPTY))
+        runCurrent()
+        assertFalse(old.state.value.go, "without the conversation Go would make a setup the phone can't go on with")
+        assertTrue(old.state.value.scratch)
+        val (_, talkingDesk) = desk(FakeBotdot { 200 to "{}" })
+        runCurrent()
+        assertTrue(talkingDesk.state.value.go)
+    }
+
     @Test fun deleteAsksWhetherTheFolderGoesAndTheStartScreenFollows() = runTest {
         val fake = FakeBotdot { 200 to "{}" }
         val (_, desk) = desk(fake, c = talking.replace("\"chiefChat\":\"c1\"", "\"chiefChat\":\"c1\",\"folder\":{\"name\":\"kitchen\",\"path\":\"/home/p/kitchen\"}"))

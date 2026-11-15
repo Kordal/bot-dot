@@ -55,9 +55,9 @@ struct CompanySetupPage: View {
             case .conversation: SetupConversation(state: s, chief: chiefName, onChief: openChief, onReview: model.review)
             case .review: SetupReview(model: model, state: s, figure: figure)
             case .creating: SetupCreating(state: s, figure: figure)
-            // A setup started without the conversation: its About and Team steps aren't on the iPhone yet; its start
-            // and the Chief's chat are.
-            case .steps: SetupConversation(state: s, chief: chiefName, onChief: openChief, onReview: nil)
+            // A setup started without the conversation (About and Team steps, Android's and the web's): the project's
+            // page, as before (ProjectView opens it there, CompanySetupDesk.opensSetup).
+            case .steps: running(s)
             // Approved and running: the project's own page, also on the New project path (no ProjectView around it).
             case .running: running(s)
             }
@@ -138,8 +138,8 @@ struct SetupStart: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(naming ? tr("New project") : tr("What shall we take on?")).font(.largeTitle.bold())
-                if naming { nameField } else { whatField; sources; scratchButton }
+                Text(naming || !state.go ? tr("New project") : tr("What shall we take on?")).font(.largeTitle.bold())
+                if naming { nameField } else if state.go { whatField; sources; scratchButton } else { scratchButton }
             }
             .padding(16)
             .frame(maxWidth: 560, alignment: .leading)

@@ -125,7 +125,8 @@ struct ProjectView: View {
     var body: some View {
         Group {
             // A project not running yet is still being set up: its setup's screens, as Android's Company screen.
-            if let model, let c = model.state?.project, c.id == id, !c.running { CompanySetupView(home: home, figure: figure) }
+            if let model, let c = model.state?.project, c.id == id,
+               CompanySetupDesk.companion.opensSetup(c: c, features: home.store.version.value.value?.features) { CompanySetupView(home: home, figure: figure) }
             else if let model { ProjectPage(home: home, id: id, figure: figure, model: model) }
             else { ProgressView() }
         }

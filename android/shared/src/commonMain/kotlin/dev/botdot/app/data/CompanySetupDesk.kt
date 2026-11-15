@@ -35,6 +35,8 @@ data class SetupState(
     val name: String,
     val error: String?,
     val conversation: Boolean,
+    /** Go is offered: a project the iPhone can set up, with the Chief (its About and Team steps are Android's and the web's). */
+    val go: Boolean,
     val scratch: Boolean,
     val sources: List<SourceDraft>,
     val going: Boolean,
@@ -334,6 +336,7 @@ class CompanySetupDesk(private val store: Store, private val api: Api, private v
             name = c?.let(ManyProjects::nameOf).orEmpty(),
             error = error.takeIf { held == null },
             conversation = talks,
+            go = talks,
             scratch = CompanySetup.EMPTY in features && !talks,
             sources = l.sources,
             going = l.going,
@@ -360,6 +363,13 @@ class CompanySetupDesk(private val store: Store, private val api: Api, private v
     companion object {
         /** Conversational project creation (docs/api.md). */
         const val CONVERSATION = "project-conversation"
+
+        /**
+         * Whether [c] opens its setup on a phone that draws only the conversation's (the iPhone): a project not running
+         * yet, set up with the Chief on a botdot that has that. Another one (About and Team steps) opens its page.
+         */
+        fun opensSetup(c: Company?, features: List<String>?): Boolean =
+            c != null && !c.running && c.conversation && CONVERSATION in features.orEmpty()
 
         private fun newKey(): String = (1..16).map { "0123456789abcdef"[Random.nextInt(16)] }.joinToString("")
     }
