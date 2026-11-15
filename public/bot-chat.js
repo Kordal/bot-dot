@@ -233,7 +233,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     const outgoing = sentTo(r).filter((t) => t.text);
     // What it learned stands under it, but the skills it changed: those are in its step line (stepLineHTML).
     const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md"${!failed && (r.questions?.length || (open && r.choices?.length)) ? ' data-asks' : ''}>${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
-        ${failed ? '' : inlineCardsHTML(r)}
+        ${failed ? '' : globalThis.inlineCardsHTML?.(r) || ''}
         ${learnedChips({ ...r, learned: (r.learned || []).filter((x) => !SKILL_KINDS.includes(x.kind)) })}`;
     const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
       ? `<details class="notes-fold theirs" ${state.keepOpen === r.id ? 'open' : ''}>${foldSummary(exchangeLabel(r), body)}
