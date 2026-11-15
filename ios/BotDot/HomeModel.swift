@@ -12,9 +12,17 @@ final class HomeModel {
     /// The list as drawn: the pinned rows, the line under them (ListLayout.PINS), then each category and its rows.
     private(set) var order: [String] = []
     var error: String?
-    /// What's new since the last update (#219): shown once, then seen.
-    private(set) var whatsNew: [WhatsNew.Entry] = []
-    private var askedWhatsNew = false
+    /// Home's first reads, as the shared layer keeps them (FirstRunDesk): the front door's offers, What's new, the name.
+    private(set) var firstRun: FirstRunState?
+    /// What the front door offers this account (deleting it, Feedback); nil while not read.
+    var offers: FrontDoorOffers? { firstRun?.offers }
+    /// The notes of the releases this person has not seen (What's new), shown once.
+    var whatsNew: [WhatsNew.Entry] { firstRun?.whatsNew ?? [] }
+    /// The first run's question for the Chief's name (ChiefName.firstRun); What's new waits for it.
+    var askName: Bool { firstRun?.askName ?? false }
+    var showsWhatsNew: Bool { firstRun?.showsWhatsNew ?? false }
+    private let firstRunDesk: FirstRunDesk
+    private var firstRunWatch: Kotlinx_coroutines_coreJob?
 
     let home: HomeStore
     private var watching: Kotlinx_coroutines_coreJob?
@@ -23,6 +31,7 @@ final class HomeModel {
 
     init(api: Api, bundled: FigureDef? = HomeModel.bundledFigure) {
         home = HomeStore(api: api)
+        firstRunDesk = home.firstRun(zone: TimeZone.current.identifier)
         figure = bundled
     }
 
@@ -32,11 +41,16 @@ final class HomeModel {
         watching = home.watch { [weak self] state in
             MainActor.assumeIsolated { self?.show(state) }
         }
+        firstRunWatch = firstRunDesk.watch { [weak self] run in
+            MainActor.assumeIsolated { self?.firstRun = run }
+        }
     }
 
     func stop() {
         watching?.cancel(cause: nil)
         watching = nil
+        firstRunWatch?.cancel(cause: nil)
+        firstRunWatch = nil
         figureTask?.cancel()
         figureTask = nil
         figureKey = nil
@@ -46,8 +60,9 @@ final class HomeModel {
         home.close() // Home left for good: another botdot, or signed out
     }
 
-    /// Pull to refresh: everything Home shows, at once.
+    /// Pull to refresh: everything Home shows, at once, and what the front door offers if it wasn't read yet.
     func refresh() async {
+        firstRunDesk.refresh(features: state?.version?.features)
         try? await home.refresh()
     }
 
@@ -68,24 +83,12 @@ final class HomeModel {
         }
     }
 
-    /// The What's new sheet closed: its notes are seen, and it goes.
-    func whatsNewClosed() {
-        let seen = whatsNew
-        whatsNew = []
-        Task { [home] in try? await home.whatsNewSeen(entries: seen) }
-    }
 
     private func show(_ s: HomeState) {
         state = s
         order = Self.order(s)
-        if s.version != nil, !askedWhatsNew {
-            // Asked once its features are known, as Android's Home asks.
-            askedWhatsNew = true
-            Task { [home] in
-                let notes = (try? await home.whatsNew()) ?? []
-                self.whatsNew = notes
-            }
-        }
+        // Once the features are known, the first reads; a front door not reached yet is asked again (FirstRunDesk).
+        firstRunDesk.saw(features: s.version?.features)
         let key = s.version?.figureKey
         if s.version != nil, figureKey != .some(key) {
             // Another server version: the definition is asked anew, and an answer for the one before is dropped.
@@ -99,6 +102,17 @@ final class HomeModel {
                 self.figure = def
             }
         }
+    }
+
+    /// What's new closed, any way: its notes are seen, here and in every other app.
+    func whatsNewClosed() { firstRunDesk.whatsNewClosed() }
+
+    /// Save or Skip on the Chief's name: nil once it was kept, else why not, and the question stays.
+    func nameChief(_ given: String) async -> String? {
+        let failed: String?
+        do { failed = try await firstRunDesk.nameChief(given: given) } catch { failed = tr("Couldn't save the name") }
+        if failed == nil { await refresh() }
+        return failed
     }
 
     private static func order(_ s: HomeState) -> [String] {
