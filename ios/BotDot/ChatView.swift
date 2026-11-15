@@ -76,6 +76,10 @@ struct ChatView: View {
             }
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 6) {
+                    if let plan = model.state?.plan {
+                        ChatPlanDock(plan: plan, color: model.state?.bot?.color, onFold: model.foldPlan, onDismiss: model.dismissPlan)
+                            .padding(.horizontal).padding(.top, 6)
+                    }
                     if let replying = model.state?.replying { ReplyChip(text: replying, onClear: model.clearReply).padding(.horizontal) }
                     Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 }
                 }

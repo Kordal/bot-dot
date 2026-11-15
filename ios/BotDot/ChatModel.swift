@@ -60,6 +60,8 @@ final class ChatModel: MessageBox {
     func replies(_ runId: String) -> Bool { chat.replies(runId: runId) }
     func replyTo(_ runId: String) { chat.replyTo(runId: runId) }
     func clearReply() { chat.clearReply() }
+    func foldPlan(_ folded: Bool) { chat.foldPlan(folded: folded) }
+    func dismissPlan() { chat.dismissPlan() }
 
     /// Sends what is typed; false when it didn't go (it comes back to the box with the line saying why).
     func send(_ text: String) async -> Bool {
