@@ -25,12 +25,20 @@ const path = require('node:path');
       page.on('pageerror', (e) => errors.push(e.message));
       await page.route('**/api/company/files?*', (r) => r.fulfill({ json: { state: 'off', files: [] } }));
       await page.route('**/api/company/overview?project=p1', (r) => r.fulfill({ json: {
-        projectId: 'p1', at: new Date().toISOString(), work: [{ id: 'w', botId: bot.id, name: 'Writer', state: 'working', text: 'Drafting the launch post', at: new Date().toISOString() }],
+        projectId: 'p1', at: new Date().toISOString(), work: [{ id: 'w', botId: bot.id, name: 'Writer', state: 'working', text: 'Drafting the launch post', at: new Date().toISOString() },
+          { id: 'chief', chatId: 'c1', name: 'Chief', state: 'working', text: 'Planning the week' }, { id: 't', name: '', state: 'planned', text: 'Call the printer' }],
         blockers: [{ id: 'q', botId: bot.id, name: 'Writer', state: 'asks', text: 'Which headline?' }], replies: [{ id: 'r', botId: bot.id, name: 'Writer', state: 'reply', text: 'Draft ready', at: new Date().toISOString() }],
       } }));
       await page.goto(`${srv.base}/#company`);
       await page.locator('[data-cf-ov="work"]').waitFor();
       await page.getByText('Drafting the launch post').waitFor();
+      // Each row shows whose it is: the bot's own head, the Chief's for a Chief chat, the owner's for their to-do.
+      const work = page.locator('[data-cf-ov="work"] .po-row');
+      assert.equal(await work.nth(0).locator(`.avatar[data-bot="${bot.id}"]`).count(), 1, "the bot's head");
+      assert.equal(await work.nth(1).locator('.avatar').count(), 1, "the Chief's head");
+      assert.equal(await work.nth(2).locator('.cf-you').count(), 1, "the owner's head");
+      const headBox = await work.nth(0).locator('.avatar').boundingBox(), nameBox = await work.nth(0).locator('.po-meta').boundingBox();
+      assert.ok(headBox.x + headBox.width <= nameBox.x, 'the head stands left of the name');
       assert.equal(await page.locator('[data-po-root], [data-po-board], [data-po-back]').count(), 0, 'no separate overview');
       assert.ok(await page.locator('[data-cf-ov="needs"]').getByText('Which headline?').isVisible(), 'a question is in Needs you');
       assert.equal(await page.locator('[data-cf-ov="blockers"]').getByText('Which headline?').count(), 0, 'not twice');

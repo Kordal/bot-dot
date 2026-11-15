@@ -2,11 +2,13 @@ package dev.botdot.app.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -15,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
@@ -22,7 +25,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.botdot.app.data.Bot
+import dev.botdot.app.data.CHIEF_COLOR
 import dev.botdot.app.data.Company
+import dev.botdot.app.data.FigureDef
 import dev.botdot.app.data.OverviewDesk
 import dev.botdot.app.data.OverviewEntry
 import dev.botdot.app.data.OverviewState
@@ -50,6 +56,7 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
     var request by remember(c.id) { mutableStateOf(0) }
     val server by ui.app.store.version.value.collectAsState() // its features: whether links show their site's icon
     val sites = sitesShown(server?.features)
+    val bots by ui.bots.collectAsState() // each row's head
     LaunchedEffect(desk, request, life) {
         val d = desk ?: return@LaunchedEffect
         life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -64,9 +71,9 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
         Text(state.status, color = p.muted, fontSize = if (snapshot != null) Type.s12 else androidx.compose.ui.unit.TextUnit.Unspecified)
         SmallButton(tr("Refresh")) { request++ }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, open, dev.botdot.app.data.Overviews.noWork, sites) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), open, dev.botdot.app.data.Overviews.noBlockers, sites) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, open, dev.botdot.app.data.Overviews.noReplies, sites) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, bots, open, dev.botdot.app.data.Overviews.noWork, sites) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), bots, open, dev.botdot.app.data.Overviews.noBlockers, sites) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, bots, open, dev.botdot.app.data.Overviews.noReplies, sites) }
         }
         OverviewSection(tr("Files")) {
             state.filesProblem?.let { Text(it, color = p.err) }
@@ -94,18 +101,29 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null, sites: Boolean = false) {
+internal fun OverviewRows(items: List<OverviewEntry>, bots: List<Bot>?, open: (OverviewEntry) -> Unit, empty: String? = null, sites: Boolean = false) {
     val p = LocalPaper.current
     if (items.isEmpty() && empty != null) Text(empty, color = p.muted)
     items.forEach { x ->
-        Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-            Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
-            Text(dev.botdot.app.data.Overviews.meta(x), color = p.muted, fontSize = Type.s12)
-            // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
-            if (x.text.isBlank()) Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
-            else {
-                val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
-                Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
+        Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+            // Whose it is (web: head in public/project-overview.js): the bot's head, the Chief's, or the owner's.
+            Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
+                when (val h = Overviews.head(x, bots)) {
+                    is Overviews.Head.Of -> BotFigure(h.bot.color, h.bot.state, 28, h.bot.outfit)
+                    Overviews.Head.Chief -> BotFigure(CHIEF_COLOR, if (x.state == "working") "working" else "idle", 28, FigureDef.CHIEF)
+                    Overviews.Head.You -> YouHead(28)
+                    Overviews.Head.Unknown -> Unit
+                }
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
+                Text(dev.botdot.app.data.Overviews.meta(x), color = p.muted, fontSize = Type.s12)
+                // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
+                if (x.text.isBlank()) Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
+                else {
+                    val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
+                    Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
+                }
             }
         }
     }
@@ -144,7 +162,7 @@ internal fun overviewOpener(ui: CompanyUi, c: Company, ways: CompanyWays): (Over
 
 /** Current work, Blockers or Latest replies as a board tile. */
 @Composable
-internal fun OverviewTile(key: String, feed: OverviewState, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
+internal fun OverviewTile(key: String, feed: OverviewState, bots: List<Bot>?, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPaper.current
     val title = when (key) { "work" -> tr("Current work"); "blockers" -> tr("Blockers"); else -> tr("Latest replies") }
     Column(modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16).testTag("overview-$key"), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -153,9 +171,9 @@ internal fun OverviewTile(key: String, feed: OverviewState, open: (OverviewEntry
         val d = feed.snapshot
         when {
             d == null -> Text(feed.status, color = p.muted)
-            key == "work" -> OverviewRows(d.work, open, Overviews.noWork)
-            key == "blockers" -> OverviewRows(d.failures(), open, Overviews.noBlockers)
-            else -> OverviewRows(d.replies, open, Overviews.noReplies)
+            key == "work" -> OverviewRows(d.work, bots, open, Overviews.noWork)
+            key == "blockers" -> OverviewRows(d.failures(), bots, open, Overviews.noBlockers)
+            else -> OverviewRows(d.replies, bots, open, Overviews.noReplies)
         }
     }
 }
