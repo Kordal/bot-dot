@@ -41,6 +41,8 @@ final class BoardModel {
     func refresh() async { try? await store.refresh() }
 
     /// A tap on a tile: what is left for the screen to do; nil when the tap did all it does here.
+    func botName(_ id: String) -> String? { store.botName(id: id) }
+
     func tap(_ key: String, asked: Bool = false) async -> BoardTap? {
         try? await store.tap(key: key, asked: asked)
     }

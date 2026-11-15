@@ -209,6 +209,16 @@ class RoomChatDesk(
     /** Calls [onChange] with the chat now and after every change, on the scope's thread. */
     fun watch(onChange: (RoomChatState) -> Unit): Job = scope.launch { state.collect { onChange(it) } }
 
+    /**
+     * The "@" picker of the room's bots (Rooms.world, as Android's room chat): the rows for the box's [text] with the
+     * cursor at [cursor] (UTF-16), each a bot as "name · account".
+     */
+    fun suggest(text: String, cursor: Int): List<Mentions.Row> =
+        Rooms.world(hub.list.value?.rooms?.firstOrNull { it.id == roomId })?.let { Mentions.suggest(text.substring(0, cursor.coerceIn(0, text.length)), it) }.orEmpty()
+
+    /** [text] with [row] picked in place of the "@…" before [cursor]; null when none is typed there. */
+    fun pick(text: String, cursor: Int, row: Mentions.Row): Mentions.Picked? = Mentions.pick(text, cursor.coerceIn(0, text.length), row)
+
     /** The chat came on screen: its newest page, then the room's events; the room itself as the list has it. */
     fun start() {
         if (jobs.isNotEmpty()) return

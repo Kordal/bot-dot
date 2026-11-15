@@ -76,7 +76,7 @@ struct HomeView: View {
                 NavigationLink {
                     NeedsYouView(home: home.home, figure: home.figure)
                 } label: {
-                    NeedsYou(waiting: state.waiting, figure: home.figure)
+                    NeedsYou(waiting: state.waiting, figure: home.figure) { id, yes in Task { await home.answer(id, yes: yes) } }
                 }
                 .accessibilityIdentifier("needs-you")
                 .listRowSeparator(.hidden)
@@ -199,6 +199,7 @@ struct HomeView: View {
     private var withSheets: some View {
         NavigationStack(path: $path) { routed }
         .task {
+            home.home.keep(settings: model.settings) // the folded categories, kept on the phone
             home.start()
             home.home.live(on: true)
             await Notifications.shared.start(home.home.api) // asks and registers once this botdot sends to iPhones
@@ -267,9 +268,11 @@ struct HomeView: View {
             Rectangle().fill(.separator).frame(height: 1).frame(maxWidth: .infinity)
                 .listRowSeparator(.hidden).accessibilityHidden(true)
         } else if ListLayout.shared.isHeading(key: key) {
-            Text(ListLayout.shared.categoryOf(key: key).isEmpty ? tr("Other") : ListLayout.shared.categoryOf(key: key))
-                .font(.footnote.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
-                .listRowSeparator(.hidden)
+            CategoryHeading(category: ListLayout.shared.categoryOf(key: key), folded: state.isFolded(category: ListLayout.shared.categoryOf(key: key)),
+                            works: state.foldedWorks(category: ListLayout.shared.categoryOf(key: key))) {
+                Task { try? await home.home.toggleFolded(category: ListLayout.shared.categoryOf(key: key)) }
+            }
+            .listRowSeparator(.hidden)
         } else if let g = state.group(key: key) {
             NavigationLink(value: GroupRoute(groupId: g.id, name: g.name)) {
                 ContactRow(name: g.name, sub: g.last?.text ?? "", unread: Int(g.unread), color: Groups.shared.members(g: g, bots: state.bots ?? []).first?.color, asks: false,
@@ -336,10 +339,36 @@ struct ContactRow: View {
     }
 }
 
+/// A category's heading: a tap folds it to the heading alone, or opens it; folded, a green dot says one of its bots
+/// works (Android's Home).
+struct CategoryHeading: View {
+    let category: String
+    let folded: Bool
+    let works: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Text(category.isEmpty ? tr("Other") : category).font(.footnote.weight(.semibold)).textCase(.uppercase)
+                Image(systemName: "chevron.down").font(.caption2).rotationEffect(.degrees(folded ? -90 : 0))
+                if works { Circle().fill(.green).frame(width: 7, height: 7).accessibilityLabel(tr("Working")) }
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(.secondary)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(folded ? tr("Show this category") : tr("Hide this category"))
+    }
+}
+
 /// Needs you, above the Board: one line for each thing that waits, with the small mark of the bot it is about.
 struct NeedsYou: View {
     let waiting: [Waiting]
     let figure: FigureDef?
+    /// Allow or No on a row that asks for a permission, answered here as on Android; the rest open Needs you.
+    var onAnswer: (String, Bool) -> Void = { _, _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -351,6 +380,12 @@ struct NeedsYou: View {
                             .frame(width: 20, height: 20)
                     }
                     Text(w.text).font(.subheadline).lineLimit(2)
+                    if let id = w.permission {
+                        Spacer(minLength: 4)
+                        // Borderless: a tap on the button is the answer, not the row's link to Needs you.
+                        Button(tr("No")) { onAnswer(id, false) }.buttonStyle(.borderless).foregroundStyle(.secondary)
+                        Button(tr("Allow")) { onAnswer(id, true) }.buttonStyle(.borderedProminent).controlSize(.small)
+                    }
                 }
             }
         }
