@@ -345,8 +345,10 @@ test('web and Android ask "Copy files" or "Start empty" between this machine and
   assert.match(app, /moveFiles: true/);
   assert.match(app, /computer\/move`, \{ method: 'POST' \}/);
   const kt = fs.readFileSync(path.join(__dirname, '..', 'android/app/src/main/java/dev/botdot/app/ui/BotSettingsScreen.kt'), 'utf8');
+  // What a computer change sends lives in the phones' shared layer (ADR 242), which the screen calls.
+  const shared = fs.readFileSync(path.join(__dirname, '..', 'android/shared/src/commonMain/kotlin/dev/botdot/app/data/BotSettings.kt'), 'utf8');
   assert.match(kt, /"Copy files"/);
   assert.match(kt, /"Start empty"/);
-  assert.match(kt, /put\("moveFiles", true\)/);
+  assert.match(shared, /put\("moveFiles", true\)/);
   assert.match(kt, /retryComputerMove/);
 });

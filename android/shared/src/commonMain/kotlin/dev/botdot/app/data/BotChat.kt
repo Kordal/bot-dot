@@ -42,6 +42,8 @@ class RunView(
 /** Everything a bot's chat draws, at one moment. */
 class BotChatState(
     val bot: Bot?,
+    /** A file path in its replies opens in the viewer (`document-viewer` and chat files, [DocumentView.opensChatFiles]). */
+    val opensFiles: Boolean = false,
     /** Newest first. */
     val runs: List<RunView>,
     /** The owner's messages that wait until the bot is free, oldest first (with the "Take back" and "Steer" buttons). */
@@ -329,6 +331,7 @@ class BotChat(
         val line = store.lines.lines.value["bot:$botId"]
         return BotChatState(
             bot = store.bots.value.value?.firstOrNull { it.id == botId },
+            opensFiles = DocumentView.opensChatFiles(features),
             runs = runs.map { view(it, features, line) },
             queued = queued,
             started = stillStarting(starting, all),
@@ -349,8 +352,8 @@ class BotChat(
     private fun view(r: Run, features: Collection<String>?, line: String?): RunView {
         val asked = Unread.asked(r)
         val chip = when (asked) {
-            Unread.Asked.JOB -> "${Unread.jobChip(r)} · ${clock(r.startedAt)}"
-            Unread.Asked.SCHEDULE -> "⏰ " + tr("Scheduled run") + " · ${clock(r.startedAt)}"
+            Unread.Asked.JOB -> "${Unread.jobChip(r)} · ${chatClock(r.startedAt)}"
+            Unread.Asked.SCHEDULE -> "⏰ " + tr("Scheduled run") + " · ${chatClock(r.startedAt)}"
             Unread.Asked.USUAL -> "▶ " + tr("Ran its main assignment")
             else -> null
         }
@@ -371,14 +374,6 @@ class BotChat(
         )
     }
 
-    /** "07:30" today, "4 Nov, 07:30" on another day: the phone's clock, as Android's shortTime. */
-    private fun clock(iso: String?): String = runCatching {
-        val at = kotlin.time.Instant.parse(iso ?: return "")
-        val zone = kotlinx.datetime.TimeZone.currentSystemDefault()
-        val today = kotlin.time.Clock.System.now().toLocalDateTime(zone).date
-        if (at.toLocalDateTime(zone).date == today) formatDate(at, "HH:mm", null, zone) else formatDate(at, "d MMM, HH:mm", I18n.language, zone)
-    }.getOrDefault("")
-
     companion object {
         const val PAGE = 40
         const val NEWEST = 8
@@ -387,3 +382,11 @@ class BotChat(
 
 /** A draft as it can be drawn while it grows (the Markdown package's draftSource). */
 private fun markdownDraft(text: String): String = dev.botdot.app.markdown.draftSource(text)
+
+/** A message's time in a chat: "13:52" today, "5 Oct, 13:52" another day (Android's shortTime); "" for none. */
+fun chatClock(iso: String?): String = runCatching {
+    val at = kotlin.time.Instant.parse(iso ?: return "")
+    val zone = kotlinx.datetime.TimeZone.currentSystemDefault()
+    val today = kotlin.time.Clock.System.now().toLocalDateTime(zone).date
+    if (at.toLocalDateTime(zone).date == today) formatDate(at, "HH:mm", null, zone) else formatDate(at, "d MMM, HH:mm", I18n.language, zone)
+}.getOrDefault("")

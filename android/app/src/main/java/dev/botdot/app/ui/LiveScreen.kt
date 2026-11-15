@@ -36,7 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ComputerInfo
-import dev.botdot.app.data.SCREEN_DONE
+import dev.botdot.app.data.ComputerScreen
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 
@@ -54,7 +54,6 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
     val p = LocalPaper.current
     val api by app.api.collectAsState()
     val server by app.store.version.value.collectAsState()
-    val canHandBack = server?.features?.contains(SCREEN_DONE) == true
     var control by remember { mutableStateOf(false) }
     var state by remember { mutableStateOf("checking") } // checking | starting | running | off | error | resetting | reset | updating
     var error by remember { mutableStateOf<String?>(null) }
@@ -114,24 +113,21 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
 
     fun startScreen() {
         val a = api ?: return
-        state = "starting"
+        state = ComputerScreen.STARTING
         scope.launch {
-            runCatching { a.startComputer(botId) }
-                .onSuccess { state = "running"; describe() }
-                .onError { state = "error"; error = it.message }
+            val o = ComputerScreen.start(a, botId)
+            state = o.state
+            if (o.state == ComputerScreen.RUNNING) describe() else error = o.error
         }
     }
 
+    // Where it opens: the shared rules (ComputerScreen.open), as the iPhone's screen opens.
     LaunchedEffect(api) {
         val a = api ?: return@LaunchedEffect
-        val found = runCatching { a.computer(botId) }.getOrNull()
-        info = found
-        // Its own screen off (#134): say so, and start it only when asked, rather than a viewer that can't connect.
-        if (found?.state == "running") { state = if (found.screenOff != null) "off" else "running"; return@LaunchedEffect }
-        state = "starting"
-        runCatching { a.startComputer(botId) }
-            .onSuccess { state = "running" }
-            .onError { state = "error"; error = it.message }
+        val o = ComputerScreen.open(a, botId) { found -> info = found; state = ComputerScreen.STARTING }
+        info = o.info
+        state = o.state
+        if (o.state == ComputerScreen.ERROR) error = o.error
     }
 
     Scaffold(
@@ -141,12 +137,12 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                 title = { Text(botName.ifBlank { tr("Its screen") }, style = MaterialTheme.typography.titleMedium) },
                 actions = {
                     // "I'm done" (ADR 225): hands the screen back to the bot, whose last run carries on.
-                    if (state == "running" && control && canHandBack) TextButton(onClick = {
+                    if (ComputerScreen.canHandBack(state, control, server?.features)) TextButton(onClick = {
                         val a = api ?: return@TextButton
-                        scope.launch { runCatching { a.computerDone(botId) }.onSuccess { onBack() }.onError { snack.showError(it.message ?: tr("Couldn't hand it back")) } }
+                        scope.launch { val failed = ComputerScreen.handBack(a, botId); if (failed == null) onBack() else snack.showError(failed) }
                     }) { Text(tr("I'm done"), color = p.text) }
                     if (state == "running") TextButton(onClick = { control = !control }) {
-                        Text(if (control) tr("Stop controlling") else tr("Take control"), color = if (control) p.err else p.text)
+                        Text(ComputerScreen.controlLabel(control), color = if (control) p.err else p.text)
                     }
                     info?.update?.let { u -> if (state == "running") TextButton(onClick = { askUpdate = true }) { Text(u.yes.ifBlank { tr("Update") }, color = p.text) } }
                     if (state == "running" || state == "error") TextButton(onClick = { askReset = true }) { Text(tr("Reset"), color = p.err) }
@@ -168,7 +164,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 when (state) {
                     "running" -> {
-                        val url = api?.screenUrl(botId, control) ?: return@Box
+                        val url = api?.let { ComputerScreen.url(it, botId, control) } ?: return@Box
                         AndroidView(
                             factory = { ctx ->
                                 if (dev.botdot.app.BuildConfig.DEBUG) WebView.setWebContentsDebuggingEnabled(true)
@@ -185,9 +181,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                                 if (it.url != url) {
                                     // The page and its WebSocket go through the front door: they carry the app's session (ADR 028).
                                     val a = api
-                                    a?.session?.token(a.baseUrl)?.let { token ->
-                                        android.webkit.CookieManager.getInstance().setCookie(a.baseUrl, "${dev.botdot.app.data.Session.COOKIE}=$token; Path=/; Secure; HttpOnly")
-                                    }
+                                    a?.let { ComputerScreen.cookie(it) }?.let { c -> android.webkit.CookieManager.getInstance().setCookie(a.baseUrl, c.header) }
                                     it.loadUrl(url)
                                 }
                             },
@@ -197,9 +191,9 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     }
                     "off" -> Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(Space.s24)) {
                         Text(info?.screenOff?.text.orEmpty(), color = Color.White)
-                        TextButton(onClick = { startScreen() }) { Text(info?.screenOff?.start?.ifBlank { null } ?: tr("Start its screen"), color = Color.White) }
+                        TextButton(onClick = { startScreen() }) { Text(ComputerScreen.startLabel(info), color = Color.White) }
                     }
-                    "error" -> Text(error ?: tr("Couldn't start its computer."), color = Color.White, modifier = Modifier.padding(Space.s24))
+                    "error" -> Text(ComputerScreen.errorLine(error), color = Color.White, modifier = Modifier.padding(Space.s24))
                     "reset" -> Text(
                         if (info?.resetsAll == true) tr("The account's computer was erased. The next computer tool of any bot starts it again, fresh.")
                         else tr("Its computer was erased. The next run starts from a fresh desktop."),
@@ -207,7 +201,7 @@ fun LiveScreen(app: BotDotApp, botId: String, botName: String, onBack: () -> Uni
                     )
                     else -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         CircularProgressIndicator(color = Color.White)
-                        Text(when (state) { "starting" -> tr("Starting its computer…"); "resetting" -> tr("Resetting…"); "updating" -> tr("Updating…"); else -> "" }, color = Color.White, modifier = Modifier.padding(top = Space.s12))
+                        Text(ComputerScreen.waitLine(state), color = Color.White, modifier = Modifier.padding(top = Space.s12))
                     }
                 }
             }

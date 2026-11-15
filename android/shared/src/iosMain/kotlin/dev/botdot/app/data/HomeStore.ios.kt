@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
@@ -26,6 +27,10 @@ class HomeState(
     val error: String?,
     /** The front door asks this phone to sign in to this botdot (ADR 028): Home gives way to the sign-in. */
     val signInNeeded: Boolean = false,
+    /** The Chief's row, first on Home as on Android: its name (ChiefName), its new replies, whether it works. */
+    val chiefName: String = "",
+    val chiefUnread: Int = 0,
+    val chiefBusy: Boolean = false,
 ) {
     /** The pinned bots and groups in one order (`pins-shared`). */
     val shared: Boolean get() = hasPinsShared(version?.features)
@@ -39,8 +44,23 @@ class HomeState(
     fun sub(b: Bot): String = botSub(b, lastRun[b.id], lines["bot:${b.id}"])
     /** Its row reads "Asks: …", with the mark. */
     fun asks(b: Bot): Boolean = botAsks(b, lastRun[b.id]) != null
+    /** The bots whose computer screen opens from Home's ⋯ menu ([ComputerScreen.opens]). */
+    val screens: List<Bot> get() = bots.orEmpty().filter { ComputerScreen.opens(it) }
     /** The Board's cards under Needs you: null before the Board has loaded ([stripTiles]). */
     val board: List<Tile>? get() = stripTiles(dashboard)
+    /** The status keypad (#1370): the list's own order cut into pages ([Keypad.pages]). */
+    val keypad: List<Keypad.Page> get() = Keypad.pages(bots.orEmpty(), groups.orEmpty(), shared)
+    /** Which key each digit opens ([Keypad.digits]); no page is folded on the iPhone yet. */
+    val keypadDigits: Map<Int, Keypad.Key> get() = keypad.let { Keypad.digits(it, Keypad.shownKeys(it, emptySet())) }
+    /** The digit on [key]; 0: none. */
+    fun digitOf(key: Keypad.Key): Int = Keypad.digitOf(keypadDigits, key)
+    /** The bots a card in Needs you waits for: their keys say Needs you (#397). */
+    private val waitingBots: Set<String> by lazy { waiting.mapNotNull { it.bot?.takeIf(String::isNotEmpty) }.toSet() }
+    /** A key's pill, as Android's keypad says it ([Keypad.botStatus]); a group's without its members' turns, not read here yet. */
+    fun status(key: Keypad.Key): Keypad.Status = when (key) {
+        is Keypad.Key.OfBot -> Keypad.botStatus(key.bot, lastRun[key.bot.id], key.bot.id in waitingBots)
+        is Keypad.Key.OfGroup -> Keypad.groupStatus(key.group)
+    }
 }
 
 /**
@@ -79,15 +99,22 @@ class HomeStore(val api: Api) {
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
 
+    /** The Chief's chat, following this botdot's feed. [ChiefDesk.stop] it when it is left. */
+    fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId)
+
+    /** The chat of the group [groupId], following this botdot's feed. [GroupChat.stop] it when it is left. */
+    fun groupChat(groupId: String): GroupChat = GroupChat(scope, api, store, feed.events, groupId)
+
     /** Calls [onChange] with Home's state now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (HomeState) -> Unit): Job = scope.launch {
         val parts = combine(store.bots.value, store.groups.value, store.recent.value, store.dashboard.value, store.version.value) { b, g, r, d, v -> listOf(b, g, r, d, v) }
         val signIn = api.session?.signInNeeded ?: MutableStateFlow(null)
+        val chief = combine(store.chief.value, store.chiefName) { c, n -> c to n }
         // What Android's Home says went wrong: reading the bots.
-        combine(parts, store.waiting, store.lines.lines, store.bots.error, signIn) { p, w, l, e, s ->
+        combine(parts, store.waiting, store.lines.lines, combine(store.bots.error, signIn) { e, s -> e to s }, chief) { p, w, l, (e, s), (c, n) ->
             @Suppress("UNCHECKED_CAST")
             HomeState(p[0] as List<Bot>?, p[1] as List<Group>?, p[2] as List<Run>?, p[3] as Dashboard?, p[4] as VersionInfo?, w, l, e,
-                signInNeeded = s != null && s == api.baseUrl.trimEnd('/'))
+                signInNeeded = s != null && s == api.baseUrl.trimEnd('/'), chiefName = n, chiefUnread = c?.unread ?: 0, chiefBusy = c?.busy == true)
         }.collect { onChange(it) }
     }
 
@@ -122,6 +149,19 @@ class HomeStore(val api: Api) {
             coroutineScope { listOf(store.bots, store.groups, store.version).forEach { launch { it.refresh() } } }
             scope.launch { listOf(store.chief, store.recent, store.needs, store.dashboard).forEach { launch { it.refresh() } } }
         }
+    }
+
+    /** What's new (#219): the notes of the releases not seen yet, from a server that keeps them; none before its features are known. */
+    @Throws(Exception::class)
+    suspend fun whatsNew(): List<WhatsNew.Entry> =
+        if (!WhatsNew.asks(store.version.value.value?.features)) emptyList()
+        else try { api.whatsNew() } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() } // an older server: none
+
+    /** The What's new dialog closed, any way: everything up to its newest note is seen, here and on the web page. */
+    @Throws(Exception::class)
+    suspend fun whatsNewSeen(entries: List<WhatsNew.Entry>) {
+        if (entries.isEmpty()) return
+        try { api.whatsNewSeen(entries) } catch (e: CancellationException) { throw e } catch (_: Exception) { } // shown again next time
     }
 
     fun close() {

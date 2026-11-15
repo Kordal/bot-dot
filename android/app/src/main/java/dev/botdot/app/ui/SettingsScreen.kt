@@ -141,9 +141,9 @@ fun SettingsScreen(
     // Advanced (ADR 205): without it, the models and the proxy are left out.
     val adv = dev.botdot.app.data.Advanced.shows(server?.features, info.settings)
     LaunchedEffect(server, info) { if (server != null) dev.botdot.app.data.Advanced.take(server?.features, info.settings) }
-    val models = listOf("" to tr("Claude Code's default")) + info.models.map { it.id to it.label.ifBlank { it.id } }
-    val efforts = listOf("" to tr("Claude Code's default")) + info.efforts.map { it.id to it.label }
-    val canThink = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
+    val models = dev.botdot.app.data.AppSettingsRules.models(info).map { it.id to it.label }
+    val efforts = dev.botdot.app.data.AppSettingsRules.efforts(info).map { it.id to it.label }
+    val canThink = { m: String -> dev.botdot.app.data.BotSettings.canThink(info.models, m) }
 
     // Saved by itself (#636): the top says "Saved" for a moment, in place of a sentence.
     var savedAt by remember { mutableStateOf(0) }
@@ -225,7 +225,7 @@ fun SettingsScreen(
                         load()
                     }
                 }
-                FoldSection("Claude", claudeValue(s.claude)) {
+                FoldSection("Claude", dev.botdot.app.data.claudeValue(s.claude)) {
                     if (keys && keyOpen && loginUrl == null) {
                         Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
@@ -365,7 +365,7 @@ fun SettingsScreen(
                     scope.launch { runCatching { api!!.saveSettings(AppSettings(advanced = on)) }.onSuccess { info = it; edit = it.settings; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                 }
             }
-            Link(tr("botdot's address"), value = api?.baseUrl?.removePrefix("https://")?.removePrefix("http://")?.trimEnd('/'), onClick = onChangeServer)
+            Link(tr("botdot's address"), value = api?.baseUrl?.let(dev.botdot.app.data.AppSettingsRules::address), onClick = onChangeServer)
         }
     }
 
@@ -509,13 +509,6 @@ private fun Fact(text: String, value: String) {
         }
         Rule()
     }
-}
-
-/** Claude's row in a word or two: what bots run on, or that they can't. */
-internal fun claudeValue(c: dev.botdot.app.data.ClaudeStatus): String = when {
-    c.onApiKey -> tr("API key")
-    !c.loggedIn -> tr("Not signed in")
-    else -> c.email ?: tr("Signed in")
 }
 
 /** The Backups row's value: the off-site backup's state, or when the account's data last went off-site (ADR 158). */

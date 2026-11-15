@@ -1,0 +1,66 @@
+import Foundation
+import Observation
+import BotdotShared
+
+/// The Chief's chat on screen: the shared ChiefDesk's state, and what the message box does with it. Everything it
+/// decides is the shared layer's, as Android's Chief chat.
+@MainActor
+@Observable
+final class ChiefModel: MessageBox {
+    private(set) var state: ChiefState?
+    private let desk: ChiefDesk
+    private var watching: Kotlinx_coroutines_coreJob?
+
+    /// [chatId]: the conversation a notification asked for; nil, the latest.
+    init(home: HomeStore, chatId: String? = nil) {
+        desk = home.chief(chatId: chatId)
+    }
+
+    func start() {
+        guard watching == nil else { return }
+        desk.start()
+        watching = desk.watch { [weak self] state in
+            MainActor.assumeIsolated { self?.state = state }
+        }
+    }
+
+    func stop() {
+        watching?.cancel(cause: nil)
+        watching = nil
+        desk.stop()
+    }
+
+    func refresh() async { try? await desk.refresh(whole: false) }
+    func loadOlder() { desk.loadOlder() }
+    func reload() async { try? await desk.load() }
+    func takeBack(_ q: Queued) { desk.takeBack(q: q) }
+    func steer(_ q: Queued) { desk.steer(q: q) }
+    func rate(_ index: Int32, _ tapped: String) { desk.rate(index: index, tapped: tapped) }
+    func stopReply() { desk.stopReply() }
+
+    // The message box (Composer).
+    var note: String? { state?.note }
+    var files: [Attachment] { state?.files ?? [] }
+    var uploading: Bool { state?.uploading == true }
+    var boxStops: Bool { state?.boxStops == true }
+    var back: FailedSend? { state?.back }
+    func edited() { desk.edited() }
+    func drop(_ file: Attachment) { desk.drop(file: file) }
+    func attachFailed(_ name: String) { desk.attachFailed(name: name) }
+    func leave(_ typed: String) { desk.leave(typed: typed) }
+    func takeUnsent() -> String { desk.takeUnsent() }
+    func stopFromBox() { desk.stopReply() }
+
+    func send(_ text: String) async -> Bool {
+        (try? await desk.send(text: text))?.boolValue ?? false
+    }
+
+    func takeFailed(typed: String) -> String? {
+        guard let failed = desk.takeFailed() else { return nil }
+        return OutboxKt.withFailed(failed: failed, typedSince: typed)
+    }
+
+    func attach(_ url: URL, name: String) async {
+        try? await desk.attach(file: Files_iosKt.outgoingFile(path: url.path, name: name))
+    }
+}

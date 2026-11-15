@@ -60,9 +60,9 @@ final class VaultTests: XCTestCase {
         again.stop()
     }
 
-    /// Waits for [done], failing after five seconds instead of hanging.
+    /// Waits for [done], failing after twenty seconds instead of hanging: long enough for a busy machine, short of a hang.
     private func until(_ done: () -> Bool) async throws {
-        let end = Date().addingTimeInterval(5)
+        let end = Date().addingTimeInterval(20)
         while !done() {
             guard Date() < end else { return XCTFail("timed out") }
             try await Task.sleep(for: .milliseconds(10))

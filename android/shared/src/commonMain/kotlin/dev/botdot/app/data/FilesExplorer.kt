@@ -165,6 +165,83 @@ object FilesExplorer {
     /** The confirmation of a delete of several: folders go with what they hold. */
     fun deleteManyWords(n: Int): String = trn(n, "Delete {n} item? Folders go with what they hold. This can't be undone.", "Delete {n} items? Folders go with what they hold. This can't be undone.")
 
+    /** Whether the owner's Files opens: a bot's from a server with `files-explorer`, the Chief's also with `chief-files`. */
+    fun opensFor(ownerId: String, features: Collection<String>?): Boolean =
+        shows(features) && (ownerId != UploadedFiles.CHIEF || UploadedFiles.chiefShows(features))
+
+    /** The computer whose places Files lists: none for the Chief, a project's folder is on the computer, else the bot's. */
+    fun computerOf(ownerId: String, bot: Bot?): String = when {
+        ownerId == UploadedFiles.CHIEF -> "none"
+        UploadedFiles.folderOf(ownerId) != null -> "linux"
+        else -> bot?.computer ?: "none"
+    }
+
+    /** The places of [ownerId]'s Files: a project's folder (#703) has its one place, the others [places]. */
+    fun placesOf(ownerId: String, computer: String, projects: List<Project>): List<String> =
+        UploadedFiles.folderOf(ownerId)?.let { listOf(WorkspaceFiles.projectRoot(it)) } ?: places(ownerId, computer, projects)
+
+    /** The place Files opens on: the one asked for, a project folder's own, else on botdot. */
+    fun firstPlace(ownerId: String, start: String = ""): String =
+        start.ifEmpty { null } ?: UploadedFiles.folderOf(ownerId)?.let(WorkspaceFiles::projectRoot) ?: WorkspaceFiles.SERVER
+
+    /** Whether the place sheet offers New project: a bot that uses the computer, from a server with `projects`. */
+    fun makesProjects(ownerId: String, computer: String, features: Collection<String>?): Boolean =
+        ownerId != UploadedFiles.CHIEF && UploadedFiles.folderOf(ownerId) == null && computer == "linux" && Projects.shows(features)
+
+    /** Whether Files searches its places: not a project's folder. */
+    fun searchesFor(ownerId: String, features: Collection<String>?): Boolean = UploadedFiles.folderOf(ownerId) == null && searches(features)
+
+    /** The entries shown: a search's hits, what is kept in mind, or the folder [sorted]. */
+    fun shown(found: List<FoundFile>?, place: String, kept: List<UploadedFile>, listing: WorkspaceListing?, sort: Sort): List<WorkspaceEntry> = when {
+        found != null -> found.map { WorkspaceEntry(it.name, it.path, it.type, it.size, at = it.at) }
+        place == KEPT -> keptEntries(kept)
+        else -> sorted(listing?.entries.orEmpty(), sort)
+    }
+
+    /** Where each shown entry is: a search finds them in every place, the rest are in [place]'s root. */
+    fun shownAt(found: List<FoundFile>?, shown: List<WorkspaceEntry>, place: String): List<String> = found?.map { placeOf(it) } ?: shown.map { rootOf(place) }
+
+    /** Whether the folder shown takes uploads and new folders. */
+    fun writesHere(found: List<FoundFile>?, place: String, listing: WorkspaceListing?): Boolean = found == null && place != KEPT && listing?.readOnly == false
+
+    /** A file of [ownerId]'s, in [at], as the viewer opens it: a file on the computer can start it (not a project's folder). */
+    fun opening(ownerId: String, at: String, e: WorkspaceEntry, from: String): DocumentView.Opening =
+        DocumentView.Opening(WorkspaceFiles.file(ownerId, at, e.path), e.name, from, botId = if (at != WorkspaceFiles.SERVER && UploadedFiles.folderOf(ownerId) == null) ownerId else null)
+
+    /** What the folder's space shows: what went wrong reading it, that it is still coming, that it is empty, or its entries. */
+    enum class Pane { COMPUTER_OFF, GONE, FAILED, LOADING, EMPTY, ENTRIES, SEARCH_FAILED }
+
+    /** [searchFailed]: the search couldn't be made (offline, a server error): said, with Try again, never "Nothing by that name". */
+    fun pane(found: List<FoundFile>?, place: String, failed: Throwable?, listing: WorkspaceListing?, shown: List<WorkspaceEntry>, searchFailed: Throwable? = null): Pane {
+        val read = found == null && place != KEPT
+        return when {
+            searchFailed != null -> Pane.SEARCH_FAILED
+            read && failed != null -> when ((failed as? ApiException)?.status) { 409 -> Pane.COMPUTER_OFF; 404 -> Pane.GONE; else -> Pane.FAILED }
+            read && listing == null -> Pane.LOADING
+            shown.isEmpty() -> Pane.EMPTY
+            else -> Pane.ENTRIES
+        }
+    }
+
+    /** What a search came to: what it found, or why it couldn't be made (then [found] is null). */
+    data class Searched(val found: List<FoundFile>?, val failed: Throwable?)
+
+    /** Searches [ownerId]'s files for [query], for both phones: a failure is kept, not turned into "found nothing". */
+    @Throws(Exception::class)
+    suspend fun search(api: Api, ownerId: String, query: String): Searched = try {
+        Searched(api.searchFiles(ownerId, query.trim()).results, null)
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Searched(null, e)
+    }
+
+    /** What a failed search says: its reason, else "Couldn't search". */
+    fun searchFailedWords(e: Throwable?): String = e?.message?.ifBlank { null } ?: tr("Couldn't search")
+
+    /** What an empty list says: a search found nothing, or the folder holds nothing. */
+    fun emptyWords(found: List<FoundFile>?): String = if (found != null) tr("Nothing by that name.") else tr("Empty.")
+
     /** A search hit's place as a root string: "server", "computer" or "project/<name>". */
     fun placeOf(hit: FoundFile): String = if (hit.root == Projects.ROOT && hit.project != null) WorkspaceFiles.projectRoot(hit.project) else hit.root
 }
