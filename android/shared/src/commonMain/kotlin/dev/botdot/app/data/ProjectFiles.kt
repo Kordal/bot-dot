@@ -27,6 +27,9 @@ object ProjectFiles {
     /** Asked again at most this often while the board is on screen. */
     const val AGAIN_MS = 60_000L
 
+    /** Whose Files a project's folder [folder] (its name) is: Files opens it as that owner, at its one place. */
+    fun owner(folder: String): String = UploadedFiles.FOLDER + folder
+
     /** The folder a file is in, from the project's folder: "" at its top. */
     fun folderOf(path: String): String = path.substringBeforeLast('/', "")
 

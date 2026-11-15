@@ -1,0 +1,368 @@
+package dev.botdot.app.data
+
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
+import io.ktor.http.headersOf
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
+
+/**
+ * A project's page as both phones draw it (ProjectDesk, #1366): the Android app's Company rules, from the shared Store,
+ * and what each tap sends to a fake botdot (Ktor's MockEngine, as NeedsDeskTest), on Android's host and in the iOS
+ * simulator alike.
+ */
+class ProjectDeskTest {
+    private data class Asked(val method: String, val path: String, val query: String, val body: String)
+
+    private class FakeBotdot(answer: suspend (Asked) -> Pair<Int, String>) {
+        private val lock = Mutex()
+        private val took = mutableListOf<Asked>()
+        val api = Api("https://botdot.test", MockEngine { req ->
+            val asked = Asked(req.method.value, req.url.encodedPath.removePrefix("/api"), req.url.encodedQuery, (req.body as? TextContent)?.text.orEmpty())
+            lock.withLock { took += asked }
+            val (status, body) = answer(asked)
+            respond(body, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+        })
+        suspend fun asked(): List<Asked> = lock.withLock { took.toList() }
+    }
+
+    private val all = listOf(CompanySetup.FEATURE, ManyProjects.SETTINGS, ManyProjects.TIDY, ManyProjects.CHIEF, ManyProjects.MANAGER_BOT,
+        ProjectBots.FEATURE, ProjectCards.FEATURE, ProjectFiles.FEATURE, Groups.TEAM_CHATS)
+
+    private fun bot(json: String): Bot = Api.JSON.decodeFromString(Bot.serializer(), json)
+    private fun company(json: String): Company = CompanySetup.of(json)
+
+    private val kitchen = """{"id":"p1","name":"Kitchen","phase":"running","day":12,"color":"#34c759","folder":{"name":"kitchen","path":"/home/projects/kitchen"},
+        "teams":[{"id":"t1","name":"Crew","bots":["b1","b2"],"lead":"b2"}],"bots":["b3"],"cards":[{"id":"k1","ask":"Quotes","state":"ready"}]}"""
+
+    private fun TestScope.desk(fake: FakeBotdot, features: List<String> = all, c: String = kitchen): Pair<Store, ProjectDesk> {
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.version.set(VersionInfo(features = features))
+        store.bots.set(listOf(
+            bot("""{"id":"b1","name":"Ada","description":"Plans"}"""),
+            bot("""{"id":"b2","name":"Bo","running":true}"""),
+            bot("""{"id":"b3","name":"Cy","asks":{"text":"Which tiles?"}}"""),
+            bot("""{"id":"b4","name":"Di"}"""),
+        ))
+        store.groups.set(listOf(Api.JSON.decodeFromString(Group.serializer(), """{"id":"g1","name":"Crew","team":"t1"}""")))
+        store.chief.set(ChiefOverview())
+        store.needs.set(Needs())
+        store.dashboard.set(Dashboard())
+        store.company.set(CompanyHeld(company(c)))
+        return store to ProjectDesk(store, fake.api, backgroundScope)
+    }
+
+    private suspend fun TestScope.until(what: String, done: suspend () -> Boolean) {
+        repeat(400) {
+            if (done()) return
+            advanceTimeBy(50)
+            runCurrent()
+            withContext(Dispatchers.Default) { delay(5) }
+        }
+        fail("never: $what")
+    }
+
+    @Test fun theProjectIsOneSpaceWithWhatWaitsInIt() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" })
+        runCurrent()
+        val s = desk.state.value
+        assertTrue(s.shows)
+        assertEquals(listOf("Kitchen"), s.spaces.map { it.name })
+        assertEquals(1, s.spaces.single().asks) // Cy's question
+        assertEquals("Kitchen", s.name)
+        assertEquals(12, s.day)
+    }
+
+    @Test fun aTeamsLeadComesFirstWithTheCrownAndItsChat() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" })
+        runCurrent()
+        val t = desk.state.value.teams.single()
+        assertEquals(listOf("Bo", "Ada"), t.keys.map { it.bot.name })
+        assertEquals(listOf(true, false), t.keys.map { it.lead })
+        assertEquals(listOf(true, false), t.keys.map { it.crown })
+        assertEquals("g1", t.chat)
+        assertEquals("1 working", t.word)
+        assertEquals("Plans", t.keys[1].line)
+    }
+
+    @Test fun withNoLeadSetTheFirstMemberLeadsWithoutTheCrownWhenAlone() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" }, c = kitchen.replace(",\"lead\":\"b2\"", "").replace("[\"b1\",\"b2\"]", "[\"b1\"]"))
+        runCurrent()
+        val k = desk.state.value.teams.single().keys.single()
+        assertTrue(k.lead)
+        assertFalse(k.crown)
+    }
+
+    @Test fun aSecondTapWhileTheChiefChatIsMadeAsksNothing() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val fake = FakeBotdot { a -> if (a.path == "/company/chief-chat") { gate.await(); 200 to """{"chatId":"c7"}""" } else 200 to "{}" }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        val first = async(Dispatchers.Default) { desk.chiefChat() }
+        until("the first is asked") { fake.asked().any { it.path == "/company/chief-chat" } }
+        assertEquals("", desk.chiefChat())
+        gate.complete(Unit)
+        assertEquals("c7", first.await())
+        assertEquals(1, fake.asked().count { it.path == "/company/chief-chat" })
+    }
+
+    @Test fun theProjectsOwnBotsAreKeysAndAddBotOffersTheOthers() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" })
+        runCurrent()
+        val s = desk.state.value
+        assertEquals(listOf("Cy"), s.own.map { it.bot.name })
+        assertTrue(s.own.single().asks)
+        assertEquals("Which tiles?", s.own.single().line)
+        assertEquals(listOf("Di"), s.addable.map { it.name })
+    }
+
+    @Test fun withoutTheirFeaturesThereIsNoGearNoTidyNoCardsAndNoFilesTile() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" }, features = listOf(CompanySetup.FEATURE))
+        runCurrent()
+        val s = desk.state.value
+        assertFalse(s.settings)
+        assertFalse(s.tidy)
+        assertNull(s.cards)
+        assertFalse(s.filesTile)
+        assertFalse(s.ownBots)
+        assertNull(s.teams.single().chat)
+    }
+
+    @Test fun theProjectManagerIsTheDefaultChat() = runTest {
+        val (_, desk) = desk(FakeBotdot { 200 to "{}" }, c = kitchen.replace("\"day\":12", "\"day\":12,\"lead\":\"b1\""))
+        runCurrent()
+        val chat = assertNotNull(desk.state.value.chat)
+        assertEquals("bot/b1", chat.route)
+        assertEquals("Ada", chat.bot?.name)
+        assertEquals("Ada", desk.state.value.manager?.name)
+    }
+
+    @Test fun withoutAManagerTheDefaultChatIsTheProjectsChiefChat() = runTest {
+        val (store, desk) = desk(FakeBotdot { 200 to "{}" }, c = kitchen.replace("\"day\":12", "\"day\":12,\"chiefChat\":\"c9\""))
+        store.chief.set(ChiefOverview(chats = listOf(ChiefChatSummary("c9", unread = 2))))
+        runCurrent()
+        val chat = assertNotNull(desk.state.value.chat)
+        assertEquals("chief/c9", chat.route)
+        assertNull(chat.bot)
+        assertEquals(2, chat.waiting)
+        assertEquals(2, desk.state.value.chiefWaiting)
+    }
+
+    @Test fun theProjectsChiefChatIsMadeOnTheFirstTap() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/company/chief-chat") 200 to """{"chatId":"c7"}""" else 200 to "{}" }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertEquals("c7", desk.chiefChat())
+        assertEquals(1, fake.asked().count { it.path == "/company/chief-chat" && it.method == "POST" })
+    }
+
+    @Test fun oneChangeOfTheOwnBotsAtATime() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val fake = FakeBotdot { a ->
+            if (a.path == "/company/bots") { gate.await(); 200 to kitchen.replace("\"bots\":[\"b3\"]", "\"bots\":[\"b3\",\"b4\"]") } else 200 to "{}"
+        }
+        val (store, desk) = desk(fake)
+        runCurrent()
+        val first = async(Dispatchers.Default) { desk.addOwn(listOf("b4")) }
+        until("the first is on its way") { desk.state.value.ownSaving }
+        assertFalse(desk.removeOwn("b3")) // the second waits for nothing: it is not sent
+        gate.complete(Unit)
+        assertTrue(first.await())
+        until("the answer is taken") { store.company.value.value?.company?.bots == listOf("b3", "b4") }
+        val sent = fake.asked().filter { it.path == "/company/bots" }
+        assertEquals(1, sent.size)
+        assertEquals("""{"bots":["b3","b4"]}""", sent.single().body)
+        until("the next change is let in") { !desk.state.value.ownSaving }
+    }
+
+    @Test fun aRefusedNewCardOpensAgainWithItsWordsAndSaysWhy() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/company/cards") 400 to """{"error":"Too many cards"}""" else 200 to "{\"company\":null}" }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        desk.openCard(ProjectCards.NEW)
+        runCurrent()
+        assertTrue(desk.state.value.cards!!.last() is ProjectCards.Slot.Ask)
+        desk.ask("Open quotes")
+        runCurrent()
+        val s = desk.state.value
+        assertEquals("Open quotes", s.refused)
+        assertTrue(s.cards!!.last() is ProjectCards.Slot.Ask)
+        assertEquals("Too many cards", s.notice)
+        assertEquals(1, s.noticeCount)
+    }
+
+    @Test fun aRemovedCardLeavesTheRowBeforeBotdotAnswers() = runTest {
+        val gate = CompletableDeferred<Unit>()
+        val fake = FakeBotdot { a -> if (a.method == "DELETE") { gate.await(); 200 to kitchen.replace(""","cards":[{"id":"k1","ask":"Quotes","state":"ready"}]""", "") } else 200 to "{}" }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertEquals(2, desk.state.value.cards!!.size) // the card and New card
+        val removing = async(Dispatchers.Default) { desk.removeCard("k1") }
+        until("off the row") { desk.state.value.cards!!.size == 1 }
+        gate.complete(Unit)
+        removing.await()
+        until("New card alone") { desk.state.value.cards == listOf(ProjectCards.Slot.New) }
+    }
+
+    @Test fun aCardsAnswerSaysWhetherBotdotTookItSoTheButtonsWorkAgain() = runTest {
+        var refuse = true
+        val fake = FakeBotdot { a ->
+            if (a.method == "POST" && a.path.endsWith("/cards/k1/answer")) { if (refuse) 500 to """{"error":"The Chief is busy."}""" else 200 to kitchen } else 200 to "{}"
+        }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.answer("k1", "Weekly"), "refused: the card's choices and Send work again")
+        until("the refusal is said") { desk.state.value.notice == "The Chief is busy." }
+        refuse = false
+        assertTrue(desk.answer("k1", " Weekly "))
+        assertFalse(desk.answer("k1", "  "), "nothing typed: nothing sent")
+        assertEquals(2, fake.asked().count { it.path.endsWith("/cards/k1/answer") })
+    }
+
+    @Test fun aBotTheInfoSaysIsWorkingCountsAlsoWhileNotRunning() {
+        val idle = bot("""{"id":"a","name":"Ada"}""")
+        val running = bot("""{"id":"b","name":"Bo","running":true}""")
+        val info = CompanyFloor.Info(asks = { 0 }, working = { it == "a" })
+        assertTrue(ProjectRules.working(info, idle), "the page knows it works (a turn at work) though running is false")
+        assertTrue(ProjectRules.working(info, running))
+        assertEquals(2, ProjectRules.workingCount(info, listOf(idle, running)))
+        assertEquals(1, ProjectRules.workingCount(CompanyFloor.Info(asks = { 0 }, working = { false }), listOf(idle, running)))
+    }
+
+    /**
+     * Two taps at once, on two threads, [rounds] times: [tap] answers whether it went, and botdot is asked [path] once a
+     * round, held until both taps are in.
+     */
+    private fun twoTapsAtOnce(path: String, answer: String, tap: suspend (ProjectDesk) -> Boolean) = runTest {
+        repeat(20) { round ->
+            val held = CompletableDeferred<Unit>()
+            val fake = FakeBotdot { a -> if (a.method != "GET" && a.path.endsWith(path)) { held.await(); 200 to answer } else 200 to "{}" }
+            val (_, desk) = desk(fake)
+            runCurrent()
+            val taps = List(2) { async(Dispatchers.Default) { tap(desk) } }
+            withContext(Dispatchers.Default) { while (fake.asked().none { it.path.endsWith(path) }) delay(1) }
+            withContext(Dispatchers.Default) { delay(20) } // the other tap has had its go
+            held.complete(Unit)
+            assertEquals(1, taps.awaitAll().count { it }, "round $round: one tap goes")
+            assertEquals(1, fake.asked().count { it.method != "GET" && it.path.endsWith(path) }, "round $round: botdot is asked once")
+        }
+    }
+
+    @Test fun twoTidyTapsAtOnceAskOnce() = twoTapsAtOnce("/company/layout/tidy", """{"chatId":"c1"}""") { it.tidy().isNotEmpty() }
+
+    @Test fun twoChiefChatTapsAtOnceMakeOneChat() = twoTapsAtOnce("/company/chief-chat", """{"chatId":"c1"}""") { it.chiefChat().isNotEmpty() }
+
+    @Test fun twoOwnBotsChangesAtOnceSendOneList() = twoTapsAtOnce("/company/bots", kitchen) { it.setOwnBots(listOf("b3", "b4")) }
+
+    /** What the settings and the team panel sent, as botdot got it: method, path, body. */
+    private suspend fun FakeBotdot.changes(): List<Triple<String, String, String>> = asked().filter { it.method != "GET" }.map { Triple(it.method, it.path, it.body) }
+
+    @Test fun theSettingsSendNothingThatChangesNothing() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.rename(" Kitchen "), "the same name")
+        assertFalse(desk.rename("   "), "no name")
+        assertFalse(desk.setColor("#34C759"), "the same colour, in capitals")
+        assertFalse(desk.setLead(null), "the Chief is the Project Manager already")
+        assertTrue(fake.changes().isEmpty())
+        assertTrue(desk.rename("  Big kitchen "))
+        assertTrue(desk.setColor("#ff9500"))
+        assertEquals(listOf(
+            Triple("PATCH", "/company", """{"name":"Big kitchen"}"""),
+            Triple("PATCH", "/company", """{"color":"#ff9500"}"""),
+        ), fake.changes())
+    }
+
+    @Test fun theProjectManagerGoesBackToTheChiefAsJsonNull() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake, c = kitchen.replace("\"color\":\"#34c759\"", "\"color\":\"#34c759\",\"lead\":\"b3\""))
+        runCurrent()
+        assertTrue(desk.setLead(null))
+        assertEquals(Triple("PATCH", "/company", """{"lead":null}"""), fake.changes().single())
+    }
+
+    @Test fun aTeamsPlusSendsItsBotsAndOnlyTheNewOnes() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertTrue(desk.addToTeam("t1", listOf("b2", "b4")))
+        assertEquals(Triple("PUT", "/company/teams/t1", """{"bots":["b1","b2","b4"]}"""), fake.changes().single())
+        assertFalse(desk.addToTeam("gone", listOf("b4")), "a team that isn't there: nothing sent")
+        assertEquals(1, fake.changes().size)
+    }
+
+    @Test fun makeLeadArchiveAndABoardPieceSendWhatTheySay() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertTrue(desk.makeLead("t1", "b1"))
+        assertTrue(desk.setArchived(true))
+        desk.putPiece("calendar") // on the board: tapped, it goes
+        val c = fake.changes()
+        assertEquals(Triple("PUT", "/company/teams/t1", """{"lead":"b1"}"""), c[0])
+        assertEquals(Triple("PATCH", "/company", """{"archived":true}"""), c[1])
+        assertEquals(Triple("PATCH", "/company", """{"board":["days","goals","teams","todo","files"]}"""), c[2])
+    }
+
+    @Test fun aTeamsChatIsOnlyOnABotdotWithTeamChats() {
+        val groups = listOf(Api.JSON.decodeFromString(Group.serializer(), """{"id":"g1","name":"Crew","team":"t1"}"""))
+        assertEquals("g1", ProjectRules.teamChat(listOf(Groups.TEAM_CHATS), groups, "t1"))
+        assertNull(ProjectRules.teamChat(listOf("groups"), groups, "t1"), "without team-chats its name opens its panel")
+        assertNull(ProjectRules.teamChat(null, groups, "t1"))
+        assertNull(ProjectRules.teamChat(listOf(Groups.TEAM_CHATS), groups, "t2"))
+    }
+
+    @Test fun theFilesTileAsksForTheNewestFilesWhileFollowed() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/company/files") 200 to """{"state":"on","files":[{"name":"plan.md","path":"plan.md","at":1}]}""" else 200 to "{}" }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertTrue(desk.state.value.filesTile)
+        desk.follow(true)
+        until("the files") { desk.state.value.files.map { it.name } == listOf("plan.md") }
+        assertEquals("project=p1", fake.asked().first { it.path == "/company/files" }.query)
+        desk.follow(false)
+    }
+
+    @Test fun aTeamsWordNamesWhoWaitsThenHowManyWork() {
+        val bots = listOf(bot("""{"id":"a","name":"Ada"}"""), bot("""{"id":"b","name":"Bo"}"""), bot("""{"id":"c","name":"Cy"}"""))
+        assertEquals(ProjectRules.TeamWord("Needs you: Ada, Bo +2", true), ProjectRules.teamWord(Spaces.TeamWait(listOf("a", "b", "c"), chat = 1), bots, 0))
+        assertEquals(ProjectRules.TeamWord("Needs you: Team chat", true), ProjectRules.teamWord(Spaces.TeamWait(chat = 1), bots, 2))
+        assertEquals(ProjectRules.TeamWord("2 working", false), ProjectRules.teamWord(Spaces.TeamWait(), bots, 2))
+        assertEquals(ProjectRules.TeamWord("", false), ProjectRules.teamWord(Spaces.TeamWait(), bots, 0))
+    }
+
+    @Test fun aNewBotsWordsNameTheProjectAndTheTeam() {
+        val c = company(kitchen)
+        assertEquals("A new bot for Kitchen: ", ProjectRules.newBotWords(c))
+        assertEquals("A new bot for the Crew team in Kitchen: ", ProjectRules.newBotWords(c, c.teams.single()))
+    }
+
+    @Test fun aBotInAnotherTeamIsOfferedLastSayingWhichTeam() {
+        val c = company("""{"id":"p","teams":[{"id":"t1","name":"Crew","bots":["a"]},{"id":"t2","name":"Shop","bots":["b"]}]}""")
+        val bots = listOf(bot("""{"id":"a","name":"Ada"}"""), bot("""{"id":"b","name":"Bo"}"""), bot("""{"id":"c","name":"Cy","description":"Free"}"""))
+        assertEquals(listOf("Cy" to "Free", "Bo" to "In Shop"), ProjectRules.offered(c, c.teams[0], bots).map { it.name to it.description })
+    }
+}

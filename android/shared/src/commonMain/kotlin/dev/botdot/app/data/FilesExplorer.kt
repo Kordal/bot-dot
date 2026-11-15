@@ -204,6 +204,10 @@ object FilesExplorer {
     /** Whether the folder shown takes uploads and new folders. */
     fun writesHere(found: List<FoundFile>?, place: String, listing: WorkspaceListing?): Boolean = found == null && place != KEPT && listing?.readOnly == false
 
+    /** The file at [path] of [ownerId]'s, in [at], as the viewer opens it, from its path alone (the board's Files tile). */
+    fun fileAt(ownerId: String, at: String, path: String, from: String): DocumentView.Opening =
+        opening(ownerId, at, WorkspaceEntry(path.substringAfterLast('/'), path, "file"), from)
+
     /** A file of [ownerId]'s, in [at], as the viewer opens it: a file on the computer can start it (not a project's folder). */
     fun opening(ownerId: String, at: String, e: WorkspaceEntry, from: String): DocumentView.Opening =
         DocumentView.Opening(WorkspaceFiles.file(ownerId, at, e.path), e.name, from, botId = if (at != WorkspaceFiles.SERVER && UploadedFiles.folderOf(ownerId) == null) ownerId else null)

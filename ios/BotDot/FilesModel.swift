@@ -8,6 +8,8 @@ struct FilesPlace: Hashable {
     let name: String
     var place: String = ""
     var path: String = ""
+    /// A file to open over the folder once it shows (the board's Files tile).
+    var file: String = ""
 }
 
 /// One folder of a bot's, the Chief's or a project's files (FilesStore): what it shows and does is the shared layer's,
