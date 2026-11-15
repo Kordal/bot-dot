@@ -44,7 +44,7 @@ final class FilesTests: XCTestCase {
     }
 
     func testACsvIsATableSortedByATapAndTextHasItsLines() {
-        let viewer = DocumentViewer(api: api, opening: DocumentView.Opening(src: "/files/r1/a.csv", name: "a.csv", from: "", botId: nil, path: nil))
+        let viewer = DocumentViewer(api: api, opening: DocumentView.Opening(src: "/files/r1/a.csv", name: "a.csv", from: "", botId: nil, path: nil, slug: nil))
         let t = viewer.table(text: "name,n\nb,10\na,9\n", sortCol: 1, ascending: true, find: "")
         XCTAssertEqual(t.head, ["name", "n"])
         XCTAssertEqual(viewer.rowCells(t: t, i: 0), ["a", "9"], "numbers sort as numbers")
@@ -53,13 +53,16 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(viewer.lines(text: "one\ntwo\n"), ["one", "two"])
     }
 
-    func testACsvSwitchesBetweenItsTableAndItsTextAndMarkdownIsItsText() {
+    func testACsvSwitchesBetweenItsTableAndItsTextAndMarkdownIsRenderedOrItsSource() {
         let csv = Viewed(view: FileView(name: "a.csv", size: 1, at: nil, kind: "csv", type: "", text: "a", truncated: false, downloadable: true, page: nil, parts: nil, tiles: [], plain: nil, interactive: nil), pane: .text, failed: nil)
         XCTAssertEqual(csv.mode, "table")
         XCTAssertEqual(csv.switches, ["table", "source"])
         XCTAssertTrue(csv.table(mode: "table"))
         let md = Viewed(view: FileView(name: "a.md", size: 1, at: nil, kind: "markdown", type: "", text: "# a", truncated: false, downloadable: true, page: nil, parts: nil, tiles: [], plain: nil, interactive: nil), pane: .text, failed: nil)
-        XCTAssertTrue(md.switches.isEmpty)
+        XCTAssertEqual(md.switches, ["rendered", "source"], "Markdown is drawn, or its source")
+        XCTAssertEqual(md.mode, "rendered")
+        XCTAssertTrue(md.rendered(mode: md.mode))
+        XCTAssertFalse(md.rendered(mode: "source"))
         XCTAssertFalse(md.table(mode: md.mode))
     }
 
@@ -67,6 +70,34 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(FilesView.icon(.folder), "folder")
         XCTAssertEqual(FilesView.icon(.sheet), "tablecells")
         XCTAssertEqual(FilesView.icon(FilesExplorer.shared.kindOf(e: WorkspaceEntry(name: "a.png", path: "a.png", type: "file", size: nil, at: nil, kept: false, keepsName: false, items: nil))), "photo")
+    }
+
+    /// A bot's page: opened as a page (its slug), its versions said with the shared words.
+    func testAPageOpensAsAPageAndItsVersionsDraw() {
+        let o = DocumentView.shared.ofPage(botId: "b1", slug: "news", title: "News", from: "Scout")
+        XCTAssertEqual(o.slug, "news")
+        XCTAssertTrue(DocumentViewer(api: unreachableApi(), opening: o).page)
+        let site = InteractiveView(current: 2, shown: 2, versions: [SiteVersion(n: 2, at: nil, bytes: 10, files: 1), SiteVersion(n: 1, at: nil, bytes: 9, files: 1)],
+                                   frame: nil, expires: nil, values: nil, tiles: [])
+        XCTAssertEqual(InteractivePages.shared.versionTitle(v: site.versions[0], current: site.current), "Version 2 · on the page")
+    }
+
+    /// The Pages list after a page was opened over it and closed: followed again, and read anew.
+    func testThePagesListIsFollowedAgainWhenItComesBack() async throws {
+        let model = PagesModel(home: HomeStore(api: unreachableApi()))
+        let first = Task { await model.follow() }
+        for _ in 0..<200 where model.state?.error == nil { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertEqual(model.state?.error, "Couldn't load the pages.", "read when it shows")
+        XCTAssertTrue(model.following)
+        first.cancel() // a page opened over it
+        _ = await first.value
+        XCTAssertFalse(model.following, "off screen: it follows nothing")
+        let again = Task { await model.follow() }
+        for _ in 0..<200 where !model.following { try await Task.sleep(for: .milliseconds(10)) }
+        XCTAssertTrue(model.following, "back: it follows the list again")
+        again.cancel()
+        _ = await again.value
+        XCTAssertFalse(model.following)
     }
 }
 

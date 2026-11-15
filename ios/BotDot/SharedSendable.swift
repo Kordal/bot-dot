@@ -73,3 +73,6 @@ extension JobsDesk: @retroactive @unchecked Sendable {}
 /// Immutable values from the shared layer, read on the main actor.
 extension ChiefDesk.ChipBot: @retroactive @unchecked Sendable {}
 extension ChiefChip: @retroactive @unchecked Sendable {}
+/// Called from the main actor (PagesModel); an immutable value from the shared layer.
+extension PagesDesk: @retroactive @unchecked Sendable {}
+extension PageInfo: @retroactive @unchecked Sendable {}

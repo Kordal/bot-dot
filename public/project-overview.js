@@ -18,9 +18,9 @@ const ProjectOverview = (() => {
     return Promise.all([data, files]).finally(() => { s.at = Date.now(); s.busy = false; repaint(); });
   }
   const label = (k) => ({ working: tr('Working'), planned: tr('Planned'), failed: tr('Failed'), asks: tr('Asks'), reply: tr('Reply') })[k] || '';
-  function rows(items, empty) {
+  function rows(items, empty = '') {
     return items.length ? items.map((x) => `<button type="button" class="po-row" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>
-      <span class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></span><span class="po-text">${esc(x.text || label(x.state))}</span></button>`).join('') : `<p class="po-empty">${empty}</p>`;
+      <span class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></span><span class="po-text">${esc(x.text || label(x.state))}</span></button>`).join('') : empty ? `<p class="po-empty">${empty}</p>` : '';
   }
   function html(c) {
     refresh(c);
@@ -33,7 +33,7 @@ const ProjectOverview = (() => {
       : (s.files.files || []).length ? s.files.files.map((f) => `<button type="button" class="po-row" data-po-file="${esc(f.path)}"><span class="po-text">${esc(f.name)}</span><span class="po-stamp">${esc(Files.whenOf(f.at, true))}</span></button>`).join('') : `<p>${tr('No files yet.')}</p>`;
     return `<div data-po-root class="po-overview">${notice}${updated}<button type="button" class="btn sm" data-po-refresh${s.busy ? ' disabled' : ''}>${tr('Refresh')}</button>
       ${section(tr('Goal'), `<p class="po-goal">${esc(c.goal || tr('No goal set.'))}</p>`)}
-      ${d ? section(tr('Current work'), rows(d.work, tr('No recorded work.'))) + section(tr('Blockers'), rows(d.blockers, tr('No failed work or open questions.'))) + section(tr('Latest replies'), rows(d.replies, tr('No replies yet.'))) : ''}
+      ${d ? section(tr('Current work'), rows(d.work, tr('No recorded work.'))) + section(tr('Blockers'), rows(d.blockers.filter((x) => x.state !== 'asks'), tr('No failed work.'))) + section(tr('Latest replies'), rows(d.replies, tr('No replies yet.'))) : ''}
       ${section(tr('Files'), fileState + files + (c.folder ? `<button type="button" class="btn sm" data-po-folder>${tr('Open folder')}</button>` : ''))}</div>`;
   }
   function wire(root, c) {
@@ -47,5 +47,8 @@ const ProjectOverview = (() => {
     root.querySelector('[data-po-folder]')?.addEventListener('click', () => Files.openFolder(folder()));
   }
   setInterval(() => { if (!document.hidden && state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);
-  return { html, wire, sig: (id) => snapshots.get(id) || null };
+  // The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers.
+  // A question in a chat that already has a card in Needs you (the Chief's) is that card's: shown once, as the card.
+  const questions = (c, cards = []) => (stateOf(c.id).data?.blockers || []).filter((x) => x.state === 'asks' && (!x.chatId || !cards.some((k) => k.a?.chatId === x.chatId)));
+  return { html, wire, rows, questions, sig: (id) => snapshots.get(id) || null };
 })();

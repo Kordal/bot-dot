@@ -123,6 +123,18 @@ final class ViewerModel {
         return url
     }
 
+    /// An interactive page's version [n] shown (nil: the one the page shows), read again.
+    func show(version n: Int?) async {
+        viewer.version = n.map { KotlinInt(int: Int32($0)) }
+        await load()
+    }
+
+    /// Version [n] made what the page shows again; the page read again, and what happened said.
+    func setVersion(_ n: Int) async {
+        do { notice = try await viewer.setVersion(n: Int32(n)) } catch { notice = error.localizedDescription }
+        await load()
+    }
+
     func startComputer() async {
         do { try await viewer.startComputer(); await load() } catch { notice = error.localizedDescription }
     }
