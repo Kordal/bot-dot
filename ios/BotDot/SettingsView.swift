@@ -85,6 +85,7 @@ struct SettingsView: View {
         }
         Section {
             NavigationLink(tr("Apps")) { AppsView(home: home) }
+            NavigationLink(tr("Skills")) { SkillsView(home: home) }
             if Pages.shared.shows(features: home.store.version.value.value?.features) {
                 NavigationLink(tr("Pages")) { PagesView(home: home) }
             }
