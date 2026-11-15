@@ -76,6 +76,28 @@ class ShareTest {
         assertEquals(listOf("/chief/chats", "/chief/chats/c9/messages"), fake.asked().map { it.path })
     }
 
+    @Test fun aChiefShareTriedAgainMakesOneConversationAndUploadsOnce() = runTest {
+        var refuse = true
+        val fake = FakeBotdot { a ->
+            when {
+                a.path.startsWith("/uploads") -> 200 to uploaded
+                a.method == "POST" && a.path == "/chief/chats" -> 200 to """{"id":"c9"}"""
+                a.path == "/chief/chats/c9/messages" -> if (refuse) 504 to """{"error":"It took too long."}""" else 200 to """{"id":"c9"}"""
+                else -> 404 to "{}"
+            }
+        }
+        val pending = Share.Pending()
+        assertEquals("It took too long.", Share.send(fake.api, Share.CHIEF, "Look", listOf(file("menu.pdf")), key = "k1", pending = pending))
+        refuse = false
+        assertNull(Share.send(fake.api, Share.CHIEF, "Look", listOf(file("menu.pdf")), key = "k1", pending = pending))
+        val asked = fake.asked()
+        assertEquals(1, asked.count { it.path.startsWith("/uploads") }, "uploaded once")
+        assertEquals(1, asked.count { it.method == "POST" && it.path == "/chief/chats" }, "one conversation")
+        val sent = asked.filter { it.path == "/chief/chats/c9/messages" }
+        assertEquals(2, sent.size)
+        assertTrue(sent.all { "k1" in it.body }, "the same key, so botdot takes it once")
+    }
+
     @Test fun nothingIsSentWithoutWordsOrFilesAndARefusalSaysWhy() = runTest {
         val fake = FakeBotdot { 409 to """{"error":"The bot is paused."}""" }
         assertEquals("Nothing to send", Share.send(fake.api, "b1", "  ", emptyList()))

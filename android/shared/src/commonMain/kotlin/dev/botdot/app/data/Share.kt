@@ -17,6 +17,16 @@ object Share {
     /** A share's message key: kept while it is tried again, so botdot takes it once. */
     fun key(): String = newMessageKey()
 
+    /**
+     * What a share has done so far, kept by its caller beside its key: a retry after a failure sends what is left,
+     * with the files uploaded before and the Chief's conversation made before, so nothing is uploaded or made twice.
+     */
+    class Pending {
+        internal var to: String? = null
+        internal var attachments: List<Attachment>? = null
+        internal var chat: String? = null
+    }
+
     /** The picker's title: the files it carries, or the words when it carries none. */
     fun title(files: Int): String = when {
         files > 1 -> trn(files, "Send {n} file to…", "Send {n} files to…")
@@ -34,14 +44,16 @@ object Share {
      * botdot's. Nothing is sent when there is nothing to send. One key for the message, so a retry is taken once.
      */
     @Throws(Exception::class)
-    suspend fun send(api: Api, to: String, text: String, files: List<OutgoingFile>, key: String = key()): String? {
+    suspend fun send(api: Api, to: String, text: String, files: List<OutgoingFile>, key: String = key(), pending: Pending = Pending()): String? {
         val words = text.trim()
         if (words.isEmpty() && files.isEmpty()) return tr("Nothing to send")
+        // Another one picked after a failure: its files go up for it, and the Chief's conversation isn't it.
+        if (pending.to != to) { pending.to = to; pending.attachments = null; pending.chat = null }
         return try {
-            val attachments = files.map { api.upload(it, to) }
+            val attachments = pending.attachments ?: files.map { api.upload(it, to) }.also { pending.attachments = it }
             if (to == CHIEF) {
-                val chat = api.newChiefChat()
-                api.sendToChief(chat.id, words, attachments, key)
+                val chat = pending.chat ?: api.newChiefChat().id.also { pending.chat = it }
+                api.sendToChief(chat, words, attachments, key)
             } else {
                 api.runBot(to, words, attachments, key)
             }
