@@ -232,4 +232,37 @@ class BotChatTalkTest {
         assertTrue("\"prompt\":\"Now\"" in posts[0].body)
         assertTrue("When?\\n→ Mon\\n\\nWhere?\\n→ –" in posts[1].body, posts[1].body)
     }
+
+    /** A reply with choices and a question box, [asks] when it says it asks. */
+    private fun choosing(id: String, at: String, status: String = "success", asks: Boolean = false) =
+        """{"id":"$id","botId":"b1","status":"$status","prompt":"hi","result":"Ship?","choices":["Yes","No"],"yes":0,""" +
+            """"questions":["When?"],"asks":$asks,"startedAt":"2026-11-14T09:0$at:00Z"}"""
+
+    /** The chat's replies, newest first, each with whether its choices and boxes show. */
+    private suspend fun TestScope.answerable(runs: List<String>, asksRuns: List<String>): List<Pair<String, Boolean>> {
+        val open = asksRuns.drop(1).joinToString(",") { """{"runId":"$it"}""" }
+        val asks = asksRuns.firstOrNull()?.let { """{"text":"Ship?","runId":"$it","open":[$open]}""" } ?: "null"
+        val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to runs.joinToString(",", "[", "]") else 404 to "{}" }
+        val (store, chat) = chat(fake)
+        runCurrent()
+        store.bots.set(listOf(Api.JSON.decodeFromString(Bot.serializer(), """{"id":"b1","name":"Ops","queued":[],"asks":$asks}""")))
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == runs.size }
+        chat.stop()
+        return chat.state.value.runs.map { it.run.id to (it.choices.isNotEmpty() && it.questions.isNotEmpty()) }
+    }
+
+    @Test fun anOpenQuestionOlderThanTheNewestReplyIsStillAnswered() = runTest {
+        assertEquals(listOf("r3" to false, "r2" to true), answerable(listOf(choosing("r3", "3", asks = true), choosing("r2", "2")), listOf("r2")))
+    }
+
+    @Test fun theNewestReplyThatAsksIsAnsweredOnlyWhereTheBotKeepsItsQuestion() = runTest {
+        assertEquals(listOf("r3" to false), answerable(listOf(choosing("r3", "3", asks = true)), emptyList()), "asks, but not among the bot's questions")
+    }
+
+    @Test fun aNewestReplyStillRunningOrFailedIsNotAnswered() = runTest {
+        assertEquals(listOf("r5" to false), answerable(listOf(choosing("r5", "5", status = "running")), emptyList()))
+        assertEquals(listOf("r6" to false), answerable(listOf(choosing("r6", "6", status = "error")), emptyList()))
+        assertEquals(listOf("r7" to false), answerable(listOf(choosing("r7", "7", status = "error")), listOf("r7")), "a failed one, even asked in")
+    }
 }
