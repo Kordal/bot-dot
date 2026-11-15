@@ -101,6 +101,9 @@ class HomeStore(val api: Api) {
     /** The Chief's chat, following this botdot's feed. [ChiefDesk.stop] it when it is left. */
     fun chief(chatId: String? = null): ChiefDesk = ChiefDesk(scope, api, store, feed.events, chatId)
 
+    /** Home's first reads (FirstRunDesk): the front door's offers, What's new and the Chief's name, in this phone's [zone]. */
+    fun firstRun(zone: String): FirstRunDesk = FirstRunDesk(api, scope, zone)
+
     /** The chat of the group [groupId], following this botdot's feed. [GroupChat.stop] it when it is left. */
     fun groupChat(groupId: String): GroupChat = GroupChat(scope, api, store, feed.events, groupId)
 

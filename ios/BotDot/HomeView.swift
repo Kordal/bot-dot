@@ -179,7 +179,7 @@ struct HomeView: View {
     }
 
     private var whatsNewShown: Binding<Bool> {
-        Binding(get: { !home.whatsNew.isEmpty && !feedback && !home.askName }, set: { if !$0 { home.whatsNewClosed() } })
+        Binding(get: { home.showsWhatsNew && !feedback }, set: { if !$0 { home.whatsNewClosed() } })
     }
 
     private var withSheets: some View {
