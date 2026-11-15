@@ -36,7 +36,7 @@ struct GroupChatView: View {
                             if let m = row.message {
                                 GroupMessageRow(view: m, figure: figure) { id in withAnimation { scroll.scrollTo(id, anchor: .center) } }.id(row.id)
                             } else if let r = row.reply {
-                                GroupReplyRow(view: r, figure: figure, onAnswer: { model.answer($0) }).id(row.id)
+                                GroupReplyRow(view: r, figure: figure, onAnswer: { model.answer($0) }, onAnswers: { await model.answerQuestions(r.run.id, $0) }).id(row.id)
                             } else if let f = row.fold {
                                 FoldRow(fold: f, figure: figure) { withAnimation { model.toggleFold(f.messageId) } }.id(row.id)
                             }
@@ -168,6 +168,8 @@ struct GroupReplyRow: View {
     let view: GroupReplyView
     let figure: FigureDef?
     let onAnswer: (String) -> Void
+    /// Its several questions answered at once; whether they went.
+    var onAnswers: ([String]) async -> Bool = { _ in false }
 
     var body: some View {
         MemberSide(name: view.name, color: view.color, state: view.figureState, outfit: view.bot?.outfit, figure: figure) {
@@ -189,6 +191,9 @@ struct GroupReplyRow: View {
                         }
                     }
                 }
+            }
+            if !view.questions.isEmpty {
+                QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
             }
         }
     }

@@ -55,6 +55,9 @@ final class GroupChatModel: MessageBox {
     func loadOlder() { chat.loadOlder() }
     /// An answer button under the group's open question.
     func answer(_ choice: String) { Task { _ = try? await chat.answer(choice: choice) } }
+    func answerQuestions(_ runId: String, _ answers: [String]) async -> Bool {
+        (try? await chat.answerQuestions(runId: runId, answers: answers))?.boolValue ?? false
+    }
     /// A fold's row tapped: the members' replies it holds open, or close.
     func toggleFold(_ messageId: String) { chat.toggleFold(messageId: messageId) }
     func takeBack(_ m: GroupMessage) { chat.takeBack(m: m) }

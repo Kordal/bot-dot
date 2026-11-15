@@ -41,6 +41,10 @@ class GroupReplyView(
     val choices: List<String>,
     /** The index of the choice that says yes, filled with the member's colour; -1 for none. */
     val yes: Int,
+    /** Several questions at once, while it is the group's open question: a box under each ([GroupChat.answerQuestions]). */
+    val questions: List<String> = emptyList(),
+    /** Each question's choices, drawn under its box (empty for one without). */
+    val questionChoices: List<List<String>> = emptyList(),
 )
 
 /**
@@ -283,11 +287,27 @@ class GroupChat(
     @Throws(Exception::class)
     suspend fun answer(choice: String): Boolean = sendWith(choice, emptyList(), box = false)
 
-    private suspend fun sendWith(text: String, attachments: List<Attachment>, box: Boolean): Boolean {
+    /**
+     * A member's several questions answered at once, in one message to the group ([questionsAnswer]): nothing with every
+     * box empty; the same answers tapped again keep their key, so the group takes them once. Whether it went.
+     */
+    @Throws(Exception::class)
+    suspend fun answerQuestions(runId: String, answers: List<String>): Boolean {
+        val r = state.value.rows.firstNotNullOfOrNull { it.reply?.takeIf { v -> v.run.id == runId } } ?: return false
+        if (r.questions.isEmpty() || answers.none { it.isNotBlank() }) return false
+        val text = questionsAnswer(r.questions, answers)
+        val key = (cardKeys[runId]?.takeIf { it.first == text } ?: (text to newMessageKey()).also { cardKeys[runId] = it }).second
+        return sendWith(text, emptyList(), box = false, key = key)
+    }
+
+    // One key per question card while its answers stay the same.
+    private val cardKeys = HashMap<String, Pair<String, String>>()
+
+    private suspend fun sendWith(text: String, attachments: List<Attachment>, box: Boolean, key: String? = null): Boolean {
         val known = ownWords().mapTo(HashSet()) { it.id }
         // "Go on", typed while the group is stopped at the limit, is no message: nothing is drawn for it.
         val draw = !(limit != null && isGoOn(text))
-        val went = outbox.send(text, attachments, box, once = takesOnce(store.version.value.value?.features), known = known, draw = draw) { k ->
+        val went = outbox.send(text, attachments, box, key, once = takesOnce(store.version.value.value?.features), known = known, draw = draw) { k ->
             publish() // the message on its way is drawn at once
             took(api.sendToGroup(groupId, text, attachments, k))
         }
@@ -591,6 +611,8 @@ class GroupChat(
             files = r.files.orEmpty(),
             choices = if (asking) r.choices.orEmpty() else emptyList(),
             yes = if (asking) r.yes ?: -1 else -1,
+            questions = if (asking) r.questions.orEmpty() else emptyList(),
+            questionChoices = if (asking) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
         )
     }
 
