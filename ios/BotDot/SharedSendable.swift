@@ -81,3 +81,6 @@ extension OverviewDesk: @retroactive @unchecked Sendable {}
 extension CarryDesk: @retroactive @unchecked Sendable {}
 
 extension HomeTilesDesk: @retroactive @unchecked Sendable {}
+extension StorageDesk: @retroactive @unchecked Sendable {}
+extension StorageRow: @retroactive @unchecked Sendable {}
+extension Storage.Group: @retroactive @unchecked Sendable {}
