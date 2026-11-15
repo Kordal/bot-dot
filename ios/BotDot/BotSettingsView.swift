@@ -266,7 +266,8 @@ struct BotSettingsView: View {
                 ForEach(state.trusted, id: \.id) { j in
                     revokeRow(j.name, state.trustedLine(j: j)) { try await model.store.revokeJob(jobId: j.id) }
                 }
-                ForEach(state.grants, id: \.action) { g in
+                // One row per grant, as on Android: several may share an action under different labels.
+                ForEach(state.grants, id: \.rowId) { g in
                     revokeRow(state.grantName(g: g), nil) { try await model.store.revokeGrant(action: g.action) }
                 }
             }
@@ -395,4 +396,9 @@ private struct BotIconPicker: View {
             }
         }
     }
+}
+
+private extension AlwaysAllowed {
+    /// A grant's row: its action and label, since one action may have several labels.
+    var rowId: String { "\(action)\u{0}\(label)" }
 }
