@@ -87,3 +87,16 @@ test("a bot's run the owner did not start shows a piece but takes none off", asy
   await srv.finished(ran.run.id);
   srv.unhold();
 });
+
+test('a board kept from before moves its tiles once, and a later move or hide stays as made', async () => {
+  writeData(path.join(srv.data, 'company.json'), { id: 'p1', name: 'Fernhill', start: 'A planner', phase: 'running', startedAt: new Date().toISOString(),
+    layout: { todo: [0, 0, 392, 560] }, teams: [{ id: 't1', name: 'Growth', bots: [a.id], lead: a.id }] });
+  let r = await srv.asChief('/company/layout', { method: 'PUT', body: { tile: 'needs', x: 0, y: 1400, w: 1200, h: 160 } });
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.layout.needs[1], 1400, 'the move is kept, not put back at the top');
+  const todo = r.data.layout.todo;
+  r = await srv.asChief('/company/layout', { method: 'PUT', body: { hide: 'blockers' } });
+  assert.equal(r.data.layout.needs[1], 1400);
+  assert.deepEqual(r.data.layout.todo, todo, 'nothing slid down a second time');
+  assert.deepEqual((await srv.api('/company')).data.company.layout, r.data.layout);
+});
