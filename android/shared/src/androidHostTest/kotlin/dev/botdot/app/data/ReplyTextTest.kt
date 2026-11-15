@@ -18,4 +18,10 @@ class ReplyTextTest {
     @Test fun aReplyWithoutQuestionsIsAsItWas() {
         assertEquals("Done.", replyText(Run(id = "r2", botId = "reviewer", status = "success", result = "Done."), open = false))
     }
+
+    @Test fun anOlderChiefReplysQuestionsArePartOfItsText() {
+        val m = ChiefMessage(role = "chief", text = "Two things first.", questions = listOf("Which account?", "Which day?"))
+        assertEquals("Two things first.", chiefText(m, open = true))
+        assertEquals("Two things first.\n\n- Which account?\n- Which day?", chiefText(m, open = false))
+    }
 }

@@ -540,6 +540,9 @@ const chiefQueued = new Map();
 // A reply about a bot's result carries that run's `files` (docs/api.md, A late result): they are drawn in the
 // bubble as under a bot's own message, under the text and above the problem, and alone when the reply has no words.
 function chiefBubble(m, last = false, index = null) {
+  // Its card stands under the newest reply only: an older reply's questions are part of its text (replyText).
+  const open = last && !m.pending && !m.draft;
+  if (!open && m.questions?.length) m = { ...m, text: replyText({ result: m.text, questions: m.questions }, false) };
   const files = !m.pending && Array.isArray(m.files) && m.files.length ? botFilesHTML(m.files) : '';
   // The pages it saved in this reply (#384, public/pages.js), as under a bot's reply, then those its bots saved for it.
   const pages = !m.pending && typeof Pages !== 'undefined' ? Pages.chipsHTML({ botId: 'chief', pages: [...(m.pages || []), ...(m.botPages || [])] }) : '';
@@ -561,7 +564,7 @@ function chiefBubble(m, last = false, index = null) {
         ${mail}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta${Ratings.shows(m, state.features, index) ? '' : ' on-hover'}">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
-        ${last && !m.pending && !m.draft ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions, m.questionChoices) : ''}
+        ${open ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions, m.questionChoices) : ''}
       </div>
     </div>`;
 }

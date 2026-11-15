@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.chiefText
 import dev.botdot.app.data.MailCard
 import dev.botdot.app.data.PLAN_APPROVAL
 import dev.botdot.app.data.without
@@ -273,7 +274,9 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
                             if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
                             if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam) }
-                            Message(m, if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
+                            // Its card stands under the newest reply only: an older one's questions are part of its text (chiefText).
+                            val cardOpen = m.projectUpdate == null && newestFirst.take(i).all { it.projectUpdate != null } && m.role == "chief" && !m.pending
+                            Message(if (m.questions.isNullOrEmpty()) m else m.copy(text = chiefText(m, cardOpen)), if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
                                 plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
                                 onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                                 onDismiss = { vm.dismiss() },
@@ -285,7 +288,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                 MailDraftCard(mail, mail.bot ?: bot?.name, screen = bot?.computer == "linux",
                                     onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
                             }
-                            if (m.projectUpdate == null && newestFirst.take(i).all { it.projectUpdate != null } && m.role == "chief" && !m.pending && !busy && mail == null) {
+                            if (cardOpen && !busy && mail == null) {
                                 Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
                                 Questions(m.questions, m.questionChoices) { text, key -> sendFrom(text, key) }
                             }
