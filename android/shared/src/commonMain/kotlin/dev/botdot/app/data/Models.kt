@@ -544,6 +544,24 @@ data class Learned(val kind: String = "", val text: String = "", @SerialName("ch
     enum class Opens { JOBS, SETTINGS }
 }
 
+/** What a run learned, a chip under its reply ([LearnedChips]): its words, and what a tap opens (a skill's settings on [skill]). */
+class LearnedChip(val text: String, val opens: Learned.Opens?, val skill: String?)
+
+/** The "Learned" chips under a reply in a bot's chat, for both phones (#625; Android's TheirBubble chips). */
+object LearnedChips {
+    /** A chip from a server before `memory-chips` is cut to this many characters. */
+    const val CHARS = 90
+
+    /** What [r] learned, but the skills it used (those are on its step line, [RunSteps.skills]), in [Learned.line]'s words. */
+    fun of(r: Run, features: Collection<String>?): List<LearnedChip> {
+        val whole = announces(features, MEMORY_CHIPS)
+        return r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> LearnedChip(shown(x.line(features), whole), x.opens, x.opensSkill) }
+    }
+
+    /** A chip's words: whole from a server that writes them, else cut to [CHARS] with "…". */
+    fun shown(text: String, whole: Boolean): String = if (!whole && text.length > CHARS) text.take(CHARS - 1) + "…" else text
+}
+
 /** The server's features that say it writes the words of a chip and of a waiting memory change's card. */
 const val MEMORY_CHIPS = "memory-chips"
 const val MEMORY_CARDS = "memory-cards"

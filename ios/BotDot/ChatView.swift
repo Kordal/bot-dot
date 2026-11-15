@@ -13,6 +13,9 @@ struct ChatView: View {
     /// The "+" beside the name: a new group of this bot and others (GroupMaker), then its chat.
     @State private var makingGroup = false
     @State private var group: GroupRoute?
+    /// A "Learned" chip's tap: the bot's scheduled jobs, or its settings.
+    @State private var learnedJobs = false
+    @State private var learnedSettings = false
     @State private var atBottom = true
     @State private var sentAt = 0
     @FocusState private var focused: Bool
@@ -33,7 +36,14 @@ struct ChatView: View {
                         ForEach(s.runs.reversed(), id: \.run.id) { r in
                             RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
                                    color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
-                                   onAnswers: { await model.answerQuestions(r.run.id, $0) })
+                                   onAnswers: { await model.answerQuestions(r.run.id, $0) },
+                                   onLearned: { chip in
+                                       switch chip.opens {
+                                       case .jobs: learnedJobs = true
+                                       case .settings: learnedSettings = true
+                                       default: break
+                                       }
+                                   })
                                 .contextMenu {
                                     RunMenu(view: r, replies: model.replies(r.run.id), onReply: { model.replyTo(r.run.id); focused = true },
                                             onQuote: { model.quote($0) })
@@ -104,6 +114,8 @@ struct ChatView: View {
             }
         }
         .navigationDestination(item: $group) { g in GroupChatView(home: home, groupId: g.groupId, name: g.name, figure: nil) }
+        .navigationDestination(isPresented: $learnedJobs) { JobsView(home: home, botId: botId, figure: nil) }
+        .navigationDestination(isPresented: $learnedSettings) { BotSettingsView(home: home, botId: botId, figure: nil) }
         // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.
         .environment(\.openURL, OpenURLAction { url in
             guard let path = MarkdownKt.filePathOf(link: url.absoluteString.removingPercentEncoding ?? url.absoluteString) else { return .systemAction }
@@ -188,6 +200,8 @@ struct RunRow: View {
     var color: String? = nil
     var onAnswer: (String) async -> Bool = { _ in false }
     var onAnswers: ([String]) async -> Bool = { _ in false }
+    /// A "Learned" chip's tap, for one that opens something.
+    var onLearned: (LearnedChip) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -206,6 +220,13 @@ struct RunRow: View {
                 Text(ended).foregroundStyle(view.problem ? .red : .secondary)
             }
             ReplyFilesView(files: view.files)
+            ForEach(Array(view.learned.enumerated()), id: \.offset) { (_, chip: LearnedChip) in
+                if chip.opens != nil {
+                    Button { onLearned(chip) } label: { LearnedChipLabel(text: chip.text) }.buttonStyle(.plain)
+                } else {
+                    LearnedChipLabel(text: chip.text)
+                }
+            }
             if !view.choices.isEmpty { Choices(choices: view.choices, yes: Int(view.yes), color: color, onAnswer: onAnswer) }
             if !view.questions.isEmpty {
                 QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
@@ -265,5 +286,16 @@ struct Mine: View {
         .background(Color.accentColor.opacity(waiting ? 0.25 : 0.4), in: .rect(cornerRadius: 16))
         .frame(maxWidth: .infinity, alignment: .trailing)
         .textSelection(.enabled)
+    }
+}
+
+/// What a run learned, under its reply: the server's words, small and muted.
+struct LearnedChipLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text).font(.caption).foregroundStyle(.secondary)
+            .padding(.horizontal, 10).padding(.vertical, 4)
+            .background(.quaternary.opacity(0.5), in: .capsule)
     }
 }

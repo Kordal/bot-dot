@@ -101,4 +101,12 @@ final class ChatTests: XCTestCase {
         XCTAssertFalse(before.hasSuffix("@we"), "no mention is being typed at the cursor")
         XCTAssertNil(Cursor.quoting("  ", into: "Ask"), "nothing to quote")
     }
+
+    /// A reply's "Learned" chips: the shared words, cut to Android's length from a server before memory-chips.
+    func testALearnedChipIsCutAsAndroidsBeforeMemoryChips() {
+        let long = String(repeating: "x", count: 120)
+        XCTAssertEqual(LearnedChips.shared.shown(text: long, whole: false).count, Int(LearnedChips.shared.CHARS))
+        XCTAssertEqual(LearnedChips.shared.shown(text: long, whole: true), long)
+        XCTAssertNotNil(ImageRenderer(content: LearnedChipLabel(text: "🧠 Remembered: tiles").frame(width: 320)).cgImage)
+    }
 }

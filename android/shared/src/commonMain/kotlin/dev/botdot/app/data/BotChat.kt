@@ -46,6 +46,8 @@ class RunView(
     /** Several questions at once there: a box and its choices under each ([BotChat.answerQuestions]). */
     val questions: List<String> = emptyList(),
     val questionChoices: List<List<String>> = emptyList(),
+    /** What it learned, a chip each under its reply ([LearnedChips]). */
+    val learned: List<LearnedChip> = emptyList(),
 )
 
 /** Everything a bot's chat draws, at one moment. */
@@ -467,6 +469,7 @@ class BotChat(
             yes = if (answerable) r.yes ?: -1 else -1,
             questions = if (answerable) r.questions.orEmpty() else emptyList(),
             questionChoices = if (answerable) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
+            learned = if (r.isRunning) emptyList() else LearnedChips.of(r, features),
         )
     }
 

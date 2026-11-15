@@ -290,7 +290,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                 val theirs = @Composable {
                                     val asksHere = (r.id in askedIn || (r.id == lastReply && !r.asks)) && r.status == "success"
                                     TheirSide(r, open = r.id in opened, asksOpen = asksHere, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
-                                        learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
+                                        learned = dev.botdot.app.data.LearnedChips.of(r, features).map { x -> x.text to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.skill) }); null -> null } })
                                     // Under the reply that is last in the chat, and under the run its open question is from when newer
                                     // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
                                     // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).
