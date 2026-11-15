@@ -260,4 +260,24 @@ class ChiefDeskTalkTest {
         assertNull(desk.mailBot(gone.index))
         assertEquals("This bot is no longer available", desk.state.value.notice)
     }
+
+    @Test fun aChipGainsItsLiveScreenOnceTheBotsListComes() = runTest {
+        val bots = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val fake = FakeBotdot { _, path ->
+            when (path) {
+                "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"}]}"""
+                "/bots" -> { bots.await(); 200 to """[{"id":"b1","name":"Coder","computer":"linux"}]""" }
+                "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[{"role":"chief","text":"On it",
+                    "actions":[{"kind":"run","text":"Started Coder","botId":"b1"}]}],"total":1}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("the chat, before the bots") { desk.state.value.messages.singleOrNull()?.chips?.size == 1 }
+        assertEquals("", desk.state.value.messages.single().chips.single().after, "the bot's computer not known yet")
+        bots.complete(Unit)
+        until("drawn again with the bots") { desk.state.value.messages.single().chips.single().after.isNotEmpty() }
+        assertEquals(" · View live screen", desk.state.value.messages.single().chips.single().after)
+    }
 }

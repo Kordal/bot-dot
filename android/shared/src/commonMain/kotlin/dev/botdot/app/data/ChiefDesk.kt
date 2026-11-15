@@ -185,6 +185,12 @@ class ChiefDesk(
         jobs += scope.launch { store.lines.lines.map { it["chief:${chatId.orEmpty()}"] }.distinctUntilChanged().collect { publish() } }
         jobs += scope.launch { store.chiefName.collect { publish() } }
         jobs += scope.launch { store.chief.value.collect { publish() } } // its conversations, as the list draws them
+        // The bots, for the chips' live screen and a mail card's bot: drawn again when the list comes or changes, and
+        // read once when nothing has read it yet.
+        jobs += scope.launch { store.bots.value.collect { publish() } } // a StateFlow: only changes come
+        if (store.bots.value.value == null) jobs += scope.launch {
+            try { store.bots.refresh() } catch (e: CancellationException) { throw e } catch (_: Exception) {}
+        }
     }
 
     /** The chat was left: what it follows stops (a send under way goes on). */
