@@ -21,8 +21,12 @@ final class JobsModel {
     /// The screen was left: the desk follows nothing more (a new model comes with the next visit).
     func stop() { watching?.cancel(cause: nil); watching = nil; desk.stop() }
     func refresh() async { try? await desk.refresh() }
-    func setOn(_ id: String, _ on: Bool) async -> String? { (try? await desk.setOn(jobId: id, on: on)) ?? nil }
-    func run(_ id: String) async -> String? { (try? await desk.run(jobId: id)) ?? nil }
+    func setOn(_ id: String, _ on: Bool) async -> String? {
+        do { return try await desk.setOn(jobId: id, on: on) } catch { return error.localizedDescription }
+    }
+    func run(_ id: String) async -> String? {
+        do { return try await desk.run(jobId: id) } catch { return error.localizedDescription }
+    }
 }
 
 /// A bot's scheduled jobs (Android's JobsScreen): each with its schedule and status, the switch that pauses it, its last

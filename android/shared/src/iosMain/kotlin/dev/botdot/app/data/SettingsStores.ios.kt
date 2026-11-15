@@ -26,6 +26,10 @@ class BotSettingsStore(home: HomeStore, botId: String) {
     @Throws(Exception::class)
     suspend fun delete() = desk.delete()
 
+    /** Undo last change (#596): null once done, else why not. */
+    @Throws(Exception::class)
+    suspend fun undo(): String? = desk.undo()
+
     fun deleteText(): String = desk.deleteText()
 
     fun close() = scope.cancel()

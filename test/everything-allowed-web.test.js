@@ -24,8 +24,15 @@ test('web: no switch for messaging, being asked, the web, files or the computer,
 test('android: the switches for messaging and the computer show only for a server without everything-allowed', () => {
   const app = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app');
   const screen = fs.readFileSync(path.join(app, 'ui', 'BotSettingsScreen.kt'), 'utf8');
-  assert.match(screen, /val limits = "everything-allowed" !in server\?\.features\.orEmpty\(\)/);
+  // The rules are the shared layer's (BotSettings, for both phones): the screen asks them, and has no copy of its own.
+  assert.match(screen, /val limits = dev\.botdot\.app\.data\.BotSettings\.limits\(server\?\.features\)/);
   assert.match(screen, /if \(limits && others\.isNotEmpty\(\)\) FoldSection\(tr\("May message"\)/);
-  assert.match(screen, /if \(limits && others\.isNotEmpty\(\) && b\.othersMayAsk != null\) SwitchRow\(tr\("Other bots may ask it"\)/);
-  assert.match(screen, /else if \("everything-allowed" !in server\?\.features\.orEmpty\(\)\) SwitchRow\(tr\("Browser"\)/);
+  assert.match(screen, /if \(dev\.botdot\.app\.data\.BotSettings\.showsOthersMayAsk\(b, others, server\?\.features\)\) SwitchRow\(tr\("Other bots may ask it"\)/);
+  assert.match(screen, /else if \(dev\.botdot\.app\.data\.BotSettings\.showsBrowser\(server\?\.features\)\) SwitchRow\(tr\("Browser"\)/);
+  assert.ok(!screen.includes('"everything-allowed"'), 'no inline copy of the rule left in the screen');
+  // And the shared rules keep it: a server with everything-allowed limits nothing, and shows neither switch.
+  const shared = fs.readFileSync(path.join(__dirname, '..', 'android', 'shared', 'src', 'commonMain', 'kotlin', 'dev', 'botdot', 'app', 'data', 'BotSettings.kt'), 'utf8');
+  assert.match(shared, /fun limits\(features: Collection<String>\?\): Boolean = "everything-allowed" !in features\.orEmpty\(\)/);
+  assert.match(shared, /fun showsBrowser\(features: Collection<String>\?\): Boolean = features != null && limits\(features\)/);
+  assert.match(shared, /features != null && limits\(features\) && others\.isNotEmpty\(\) && b\.othersMayAsk != null/);
 });
