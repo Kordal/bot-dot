@@ -135,7 +135,7 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
     private fun of(o: Own, features: List<String>?) = ScreenState(
         o.state, o.control, o.info, o.error,
         url = if (o.state == ComputerScreen.RUNNING) ComputerScreen.url(api, botId, o.control) else null,
-        handBack = ComputerScreen.canHandBack(o.state, o.control, features) && !o.handing,
+        handBack = ComputerScreen.canHandBack(o.state, o.control, features) && !o.handing && !o.closed,
         notice = o.notice, noticeId = o.noticeId, closed = o.closed,
     )
 
@@ -170,11 +170,23 @@ class ScreenDesk(private val api: Api, val botId: String, private val scope: Cor
     /** "I'm done": whether the screen went back to the bot. If not, the notice says why. */
     @Throws(Exception::class)
     suspend fun done(): Boolean {
-        val o = own.value
-        if (o.handing || !ComputerScreen.canHandBack(o.state, o.control, features.value?.features)) return false
-        own.update { it.copy(handing = true) }
-        val failed = try { ComputerScreen.handBack(api, botId) } finally { own.update { it.copy(handing = false) } }
-        own.update { if (failed == null) it.copy(closed = true) else it.copy(notice = failed, noticeId = it.noticeId + 1) }
+        // Checked and claimed in one step (a compare-and-set): of two taps at once, from any thread, one sends it.
+        var claimed = false
+        own.update {
+            // Not while one is on its way, nor once it went back: a tap that comes after the first one's answer sends nothing.
+            claimed = !it.handing && !it.closed && ComputerScreen.canHandBack(it.state, it.control, features.value?.features)
+            if (claimed) it.copy(handing = true) else it
+        }
+        if (!claimed) return false
+        val failed = try {
+            ComputerScreen.handBack(api, botId)
+        } catch (e: CancellationException) {
+            // Cancelled (the screen left): let go, saying nothing went wrong.
+            own.update { it.copy(handing = false) }
+            throw e
+        }
+        // Let go together with what it came to: no moment when it is neither on its way nor closed.
+        own.update { if (failed == null) it.copy(handing = false, closed = true) else it.copy(handing = false, notice = failed, noticeId = it.noticeId + 1) }
         return failed == null
     }
 
