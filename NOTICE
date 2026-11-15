@@ -17,5 +17,7 @@ Third-party code in this repository keeps its own licence:
   SIL Open Font License 1.1 (see OFL.txt in each folder)
 - The desktop app's Mac bundle: Lima, Apache-2.0, Copyright The Lima Authors, fetched at build time by desktop/lima.sh
   (see share/doc/lima/LICENSE in the bundle)
+- bot-skills/skills/i-have-adhd: the skill i-have-adhd from ayghri/i-have-adhd, MIT, Copyright (c) 2026 Ayoub Ghriss
+  (see bot-skills/skills/i-have-adhd/LICENSE)
 - .claude/skills: agent skills from mattpocock/skills, MIT,
   Copyright (c) 2026 Matt Pocock (see .claude/skills/LICENSE)

@@ -57,7 +57,7 @@ test('a late result and a wait that the owner ends (BUSY-002): botdot tells the 
 
 test('no cost words: never what a run costs, and what a job checks instead of whether it is a script', () => {
   const told = standing();
-  assert.doesNotMatch(told, /\bfree\b/i);
+  assert.doesNotMatch(told, /(?<!feel )\bfree\b/i); // "Feel free to ask" is a closer the always-on style forbids (ADR 245)
   assert.doesNotMatch(told, /unless they ask/);
   assert.doesNotMatch(told, /cheap/i);
   assert.match(told, /Never tell the user what a run or a reply costs\./);
