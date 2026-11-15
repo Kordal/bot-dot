@@ -214,21 +214,25 @@ private val CODE_SPAN = Regex("""(`+)[\s\S]*?\1""")
 
 /**
  * A reply shown in a few lines (the project overview): one Markdown line per paragraph, title, quote or item ("• " or
- * its number), without code blocks, tables and rules, by the rules the web page shares (the `preview` cases of
- * test/fixtures/markdown-cases.json; previewLines in public/app.js). Text that is only code is shown as it is.
+ * its number), without code blocks, tables and rules; a reply that is only code is its first code block as one `code`
+ * line, and one of only a table or a rule its words (the `preview` cases of test/fixtures/markdown-cases.json;
+ * previewLines and mdPreview in public/app.js, the same rules).
  */
 fun previewLines(src: String): List<String> {
-    fun flat(t: String) = t.replace(PREVIEW_BREAK, " ")
-    return parseBlocks(src).mapNotNull { b ->
+    fun flat(t: String) = t.replace(PREVIEW_BREAK, " ").trim()
+    val blocks = parseBlocks(src)
+    val lines = blocks.mapNotNull { b ->
         when (b) {
             is Block.Item -> "${b.number?.let { "$it." } ?: "•"} ${flat(b.text)}"
-            is Block.Para -> flat(b.text)
-            is Block.Heading -> flat(b.text)
-            is Block.Quote -> flat(b.text)
+            is Block.Para, is Block.Heading, is Block.Quote -> flat(textOf(b))
             else -> null
         }
-    }.ifEmpty { listOfNotNull(src.replace(SPACES, " ").trim().ifEmpty { null }) }
+    }
+    if (lines.isNotEmpty()) return lines
+    val code = blocks.filterIsInstance<Block.Code>().map { flat(it.text) }.firstOrNull { it.isNotEmpty() }
+    return listOfNotNull(code?.let { "`$it`" } ?: src.replace(SPACES, " ").trim().ifEmpty { null })
 }
+private fun textOf(b: Block) = when (b) { is Block.Para -> b.text; is Block.Heading -> b.text; is Block.Quote -> b.text; else -> "" }
 private val PREVIEW_BREAK = Regex("""\s*\n\s*""")
 private val SPACES = Regex("""\s+""")
 

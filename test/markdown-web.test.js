@@ -192,5 +192,6 @@ test('web: every preview case of the shared fixture is drawn as its lines (proje
   assert.match(html, /<strong>PR #374<\/strong>/);
   assert.equal(html.split('<br>').length, 3);
   assert.equal(mdPreview('<b>x</b> [a](https://x.dev/a)'), '&lt;b&gt;x&lt;/b&gt; <a href="https://x.dev/a" target="_blank" rel="noopener">a</a>');
+  assert.equal(mdPreview('```\nnpm test\n```'), '<code>npm test</code>');
   assert.equal(mdPreview('see https://www.example.com/a/b'), 'see https://www.example.com/a/b', 'a bare address is linked by the page, as in a chat');
 });

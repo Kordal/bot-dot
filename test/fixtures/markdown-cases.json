@@ -1458,10 +1458,17 @@
       ]
     },
     {
-      "name": "text that is only code is shown as it is, on one line",
-      "source": "```\nnpm test\n```",
+      "name": "text that is only code is its first code block as one code line",
+      "source": "```\nnpm test\nnpm run lint\n```",
       "lines": [
-        "``` npm test ```"
+        "`npm test npm run lint`"
+      ]
+    },
+    {
+      "name": "a cut reply's last line keeps its words",
+      "source": "Done: see **PR #374** and the plan…",
+      "lines": [
+        "Done: see **PR #374** and the plan…"
       ]
     }
   ]

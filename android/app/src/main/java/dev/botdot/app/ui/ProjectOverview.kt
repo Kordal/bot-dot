@@ -46,6 +46,8 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
     var error by remember(c.id, api) { mutableStateOf<String?>(null) }
     var filesError by remember(c.id, api) { mutableStateOf<String?>(null) }
     var request by remember(c.id) { mutableStateOf(0) }
+    val server by ui.app.store.version.value.collectAsState() // its features: whether links show their site's icon
+    val sites = sitesShown(server?.features)
     LaunchedEffect(c.id, api, request, life) {
         val a = api ?: return@LaunchedEffect
         life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -73,7 +75,6 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
         SmallButton(tr("Refresh")) { request++ }
         OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
-            val sites = sitesShown(ui.app.store.version.value.value?.features)
             OverviewSection(tr("Current work")) { OverviewRows(d.work, tr("No recorded work."), sites, ::open) }
             OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, tr("No failed work or open questions."), sites, ::open) }
             OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, tr("No replies yet."), sites, ::open) }

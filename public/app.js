@@ -829,7 +829,6 @@ const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="$
 
 // [botId]: a bot's reply, whose product cards can be saved (products.js).
 function mdHTML(blocks, botId) { return mdParts(blocks, botId).join('\n'); }
-// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
 // A line of a block, its text escaped: code, struck, bold, italic and [words](address) links.
 function mdInline(t) {
   return t
@@ -842,21 +841,24 @@ function mdInline(t) {
       : `<a href="${href}" target="_blank" rel="noopener">${words}</a>`);
 }
 // A reply shown in a few lines (the project overview): one line per paragraph, title, quote or item ("• " or its
-// number), without code blocks, tables and rules, by the rules both apps share (the `preview` cases of
-// test/fixtures/markdown-cases.json; previewLines in Android's Markdown.kt). Its blocks hold escaped text.
+// number), without code blocks, tables and rules; a reply that is only code is its first code block as one `code`
+// line (the `preview` cases of test/fixtures/markdown-cases.json; previewLines in Android's Markdown.kt, the same
+// rules). Its blocks hold escaped text.
 function previewLines(blocks) {
-  const flat = (t) => t.replace(/\s*\n\s*/g, ' ');
-  return blocks.flatMap((b) => b.type === 'item' ? [`${b.number == null ? '•' : `${b.number}.`} ${flat(b.text)}`]
+  const flat = (t) => t.replace(/\s*\n\s*/g, ' ').trim();
+  const lines = blocks.flatMap((b) => b.type === 'item' ? [`${b.number == null ? '•' : `${b.number}.`} ${flat(b.text)}`]
     : ['para', 'heading', 'quote'].includes(b.type) ? [flat(b.text)] : []);
+  const code = blocks.find((b) => b.type === 'code' && flat(b.text));
+  return lines.length || !code ? lines : [`\`${flat(code.text)}\``];
 }
-// Its HTML, links shortened as in a chat; text that is only code is shown as it is.
+// Its HTML, links shortened as in a chat; text of only a table or a rule is its words.
 function mdPreview(src) {
   const lines = previewLines(mdBlocks(src));
   return lines.length ? lines.map(mdInline).join('<br>') : esc(String(src || '').replace(/\s+/g, ' ').trim());
 }
+// The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
 function mdParts(blocks, botId) {
-  const inline = mdInline;
-  const text = (t) => t.split('\n').map(inline).join('<br>');
+  const text = (t) => t.split('\n').map(mdInline).join('<br>');
   const isItem = (i) => i < blocks.length && blocks[i].type === 'item';
   // The list that starts at blocks[i], its sub-lists inside their items: its HTML and the block after it.
   const list = (i) => {
@@ -879,7 +881,7 @@ function mdParts(blocks, botId) {
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (b.type === 'item') { const l = list(i); out.push(l.html); i = l.next - 1; }
-    else if (b.type === 'heading') out.push(`<h${b.level}>${inline(b.text)}</h${b.level}>`);
+    else if (b.type === 'heading') out.push(`<h${b.level}>${mdInline(b.text)}</h${b.level}>`);
     else if (b.type === 'quote') out.push(`<blockquote>${text(b.text)}</blockquote>`);
     else if (b.type === 'rule') out.push('<hr>');
     // Shopping results are product cards (products.js), and their code when they can't be read.
@@ -887,7 +889,7 @@ function mdParts(blocks, botId) {
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
-    else if (b.type === 'table') out.push(tableHTML(b.rows, inline));
+    else if (b.type === 'table') out.push(tableHTML(b.rows, mdInline));
     else out.push(`<p>${text(b.text)}</p>`);
   }
   return out;

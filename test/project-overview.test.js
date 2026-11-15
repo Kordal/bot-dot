@@ -85,5 +85,7 @@ test('an entry keeps the Markdown and lines the bot wrote, cut at 600 characters
   assert.equal(of(link), `${'word '.repeat(114)}word…`, 'a link that does not fit is left out whole');
   const fence = `${'word '.repeat(100)}\n\`\`\`\n${'code '.repeat(40)}\n\`\`\``;
   assert.equal(of(fence), `${'word '.repeat(99)}word…`, 'a code block that does not fit is left out whole');
+  assert.equal(of(`${'word '.repeat(118)}**bold text here** end`), `${'word '.repeat(117)}word…`, 'an open bold is left out');
+  assert.equal(of(`${'word '.repeat(118)}\`code here\` end`), `${'word '.repeat(117)}word…`, 'an open code is left out');
   assert.ok(of('x'.repeat(700)).length <= 601);
 });
