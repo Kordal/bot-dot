@@ -60,6 +60,7 @@ final class ProjectTests: XCTestCase {
         XCTAssertNotNil(Overviews.shared.open(destination: "bot/b1"))
         XCTAssertEqual(OverviewState(snapshot: nil, files: nil, error: nil, filesError: nil).status, "Loading…")
     }
+
     /// A team's editor, logins and files as sources: the shared rules reach Swift (what each sends is ProjectDeskTest's).
     func testTheTeamEditorAndLoginsReachSwift() async {
         XCTAssertFalse(ManyProjects.shared.canSaveTeam(name: " ", bots: ["b1"]), "no name: Save waits")

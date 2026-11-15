@@ -35,6 +35,19 @@ const ProjectOverview = (() => {
       ${d ? section(tr('Current work'), rows(d.work, tr('No recorded work.'))) + section(tr('Blockers'), rows(d.blockers.filter((x) => x.state !== 'asks'), tr('No failed work.'))) + section(tr('Latest replies'), rows(d.replies, tr('No replies yet.'))) : ''}
       ${section(tr('Files'), fileState + files + (c.folder ? `<button type="button" class="btn sm" data-po-folder>${tr('Open folder')}</button>` : ''))}</div>`;
   }
+  // One of its sections as a board tile (overview-board, ADR 245): Current work, Blockers or Latest replies. It reads the
+  // same snapshot and keeps it fresh while a tile shows; a failed refresh says so in the tile.
+  function tile(c, key) {
+    refresh(c);
+    const s = stateOf(c.id), d = s.data;
+    const title = { work: tr('Current work'), blockers: tr('Blockers'), replies: tr('Latest replies') }[key];
+    const notice = s.error ? `<p role="alert" class="po-error">${tr("Couldn't refresh")}: ${esc(s.error)}</p>` : '';
+    const body = !d ? `<p class="po-empty">${s.error ? tr('Information unavailable') : tr('Loading…')}</p>`
+      : key === 'work' ? rows(d.work, tr('No recorded work.'))
+        : key === 'blockers' ? rows(d.blockers.filter((x) => x.state !== 'asks'), tr('No failed work.'))
+          : rows(d.replies, tr('No replies yet.'));
+    return `<section class="cf-ov" data-cf-ov="${key}"><h2>${title}</h2>${notice}${body}</section>`;
+  }
   function wire(root, c) {
     const folder = () => ({ folder: c.folder.name, name: c.name || c.start, color: c.color });
     root.querySelector('[data-po-refresh]')?.addEventListener('click', () => { refresh(c, true); Company.redraw(); });
@@ -48,9 +61,9 @@ const ProjectOverview = (() => {
     root.querySelectorAll('[data-po-file]').forEach((b) => b.onclick = () => c.folder && Files.openFolderFile(folder(), b.dataset.poFile));
     root.querySelector('[data-po-folder]')?.addEventListener('click', () => Files.openFolder(folder()));
   }
-  setInterval(() => { if (!document.hidden && state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);
+  setInterval(() => { if (!document.hidden && state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root], [data-cf-ov], [data-cf-ov-feed]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);
   // The questions waiting for the owner (a bot's, a team chat's, the Chief's): they stand in Needs you, not under Blockers.
   // A question in a chat that already has a card in Needs you (the Chief's) is that card's: shown once, as the card.
   const questions = (c, cards = []) => (stateOf(c.id).data?.blockers || []).filter((x) => x.state === 'asks' && (!x.chatId || !cards.some((k) => k.a?.chatId === x.chatId)));
-  return { html, wire, rows, questions, sig: (id) => snapshots.get(id) || null };
+  return { html, tile, refresh, wire, rows, questions, sig: (id) => snapshots.get(id) || null };
 })();

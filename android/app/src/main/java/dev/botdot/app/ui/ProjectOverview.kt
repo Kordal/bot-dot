@@ -114,3 +114,55 @@ internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> U
         }
     }
 }
+
+/** The overview's snapshot for its board tiles (overview-board, ADR 245): polled while a tile shows, never starting the computer. */
+internal class OverviewFeed(val snapshot: ProjectOverview?, val error: String?)
+
+@Composable
+internal fun rememberOverviewFeed(ui: CompanyUi, c: Company): OverviewFeed {
+    val api by ui.app.api.collectAsState()
+    val life = LocalLifecycleOwner.current
+    var snapshot by remember(c.id, api) { mutableStateOf<ProjectOverview?>(null) }
+    var error by remember(c.id, api) { mutableStateOf<String?>(null) }
+    LaunchedEffect(c.id, api, life) {
+        val a = api ?: return@LaunchedEffect
+        life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                runCatching { a.projectOverview(c.id) }.onSuccess { if (it.projectId == c.id) { snapshot = it; error = null } }.onFailure { if (it is CancellationException) throw it; error = it.message ?: tr("Couldn't refresh") }
+                delay(30_000)
+            }
+        }
+    }
+    return OverviewFeed(snapshot, error)
+}
+
+/** Where a row of the overview opens: its team chat, its bot, or the Chief's chat. */
+internal fun overviewOpener(ui: CompanyUi, c: Company, ways: CompanyWays): (OverviewEntry) -> Unit = { x ->
+    x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features)?.let { route ->
+        when {
+            route.startsWith("group/") -> ways.onTeam?.invoke(route.removePrefix("group/")) ?: ways.onNeeds()
+            route.startsWith("bot/") -> ways.onBot(route.removePrefix("bot/"))
+            route.startsWith(dev.botdot.app.data.Spaces.PROJECT_CHIEF) -> ways.onChiefChat?.let { ui.openChief(c, it) }
+            route == dev.botdot.app.data.Spaces.CHIEF -> ways.onChief()
+            route.startsWith("chief/") -> ways.onChiefChat?.invoke(route.removePrefix("chief/"))
+        }
+    }
+}
+
+/** Current work, Blockers or Latest replies as a board tile. */
+@Composable
+internal fun OverviewTile(key: String, feed: OverviewFeed, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
+    val p = LocalPaper.current
+    val title = when (key) { "work" -> tr("Current work"); "blockers" -> tr("Blockers"); else -> tr("Latest replies") }
+    Column(modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16).testTag("overview-$key"), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+        Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16, modifier = Modifier.semantics { heading() })
+        feed.error?.let { Text("${tr("Couldn't refresh")}: $it", color = p.err) }
+        val d = feed.snapshot
+        when {
+            d == null -> Text(if (feed.error == null) tr("Loading…") else tr("Information unavailable"), color = p.muted)
+            key == "work" -> OverviewRows(d.work, open, tr("No recorded work."))
+            key == "blockers" -> OverviewRows(d.failures(), open, tr("No failed work."))
+            else -> OverviewRows(d.replies, open, tr("No replies yet."))
+        }
+    }
+}

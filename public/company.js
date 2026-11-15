@@ -366,11 +366,14 @@ const Company = (() => {
   // The pieces on a project's board (#780), as lib/company.js keeps them: a project without `board` (made before) has
   // every one. `pieceLabel` is the name a pick and the settings give it.
   // The teams are no piece on the web since #838: each team is a row of keys under the board, always (ADR 132).
+  // What was the overview (ADR 245) is four more, from a server with `overview-board`.
   const PIECES = ['days', 'goals', 'calendar', 'todo', 'files'];
+  const OVERVIEW = ['needs', 'work', 'blockers', 'replies'];
+  const piecesNow = () => [...PIECES, ...((state.features || []).includes('overview-board') ? OVERVIEW : [])];
   // An ongoing project (#925) has no 90 days, so no "90 days" piece.
-  const piecesOf = (c) => (c?.ongoing ? PIECES.filter((k) => k !== 'days') : PIECES);
+  const piecesOf = (c) => (c?.ongoing ? piecesNow().filter((k) => k !== 'days') : piecesNow());
   const onBoard = (c, k) => !(c?.ongoing && k === 'days') && (!Array.isArray(c?.board) || c.board.includes(k));
-  const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do'), files: tr('Files') })[k];
+  const pieceLabel = (k) => ({ days: tr('90 days'), goals: tr('Goals'), teams: tr('Teams'), calendar: tr('Calendar'), todo: tr('To-do'), files: tr('Files'), needs: tr('Needs you'), work: tr('Current work'), blockers: tr('Blockers'), replies: tr('Latest replies') })[k];
   // The pieces the owner can add: the ones not on it, from a server that has them.
   const missing = (c) => ((state.features || []).includes('project-board') && Array.isArray(c?.board) ? piecesOf(c).filter((k) => !c.board.includes(k)) : []);
   const gearHTML = () => ((state.features || []).includes('project-settings') && state.company ? `<button type="button" class="icon-btn co-gear" data-project-settings aria-label="${tr('Project settings')}" title="${tr('Project settings')}">${ICON.gear}</button>` : '');

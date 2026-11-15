@@ -12,6 +12,10 @@ data class ProjectOverview(val projectId: String, val at: String, val work: List
     fun failures(): List<OverviewEntry> = blockers.filter { it.state != ASKS }
     companion object {
         const val FEATURE = "project-overview"
+        /** The overview is the board (ADR 245): its sections are board pieces, with no separate overview. */
+        const val BOARD = "overview-board"
+        /** Its sections as board pieces, in the order they first stand. */
+        val PIECES = listOf("needs", "work", "blockers", "replies")
         const val ASKS = "asks"
         /** Needs you on the overview shows only when something waits: a card or a question. */
         fun needsYouShows(cards: Int, questions: Int): Boolean = cards > 0 || questions > 0
