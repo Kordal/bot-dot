@@ -241,7 +241,7 @@ struct ProjectPage: View {
                         .disabled(s.tidying)
                         .accessibilityLabel(tr("Tidy up the board"))
                 }
-                if Overviews.shared.shows(features: home.store.version.value.value?.features) {
+                if s.overview {
                     Button { overview = true } label: { Image(systemName: "list.bullet.rectangle") }
                         .accessibilityLabel(tr("Overview"))
                 }
