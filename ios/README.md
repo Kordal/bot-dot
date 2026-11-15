@@ -85,7 +85,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
 | `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
-| `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
+| `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | `ProjectView`, its Overview (`ProjectOverviewView`), `ProjectSettingsView`, `CompanySetupView` (left: in its settings the site or idea and sources, folder, logins, the teams editor, reports and standup, rules, Delete project) |
 | `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` (left: Reply to a task and its steps, "@" mentions and Quote, page chips, Steer, "Learned" chips) |
 | `PlanDock` | a chat at work | `PlanDock` in `GroupChatView` (left: in a bot's chat and the Chief's) |
 | `ChiefScreen` (`chief/{id}`) | Home | `ChiefView` (left: the mail draft card, action chips, quick-answer choices) |

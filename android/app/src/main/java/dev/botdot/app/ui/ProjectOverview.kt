@@ -22,16 +22,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
-import dev.botdot.app.data.NotesWake
 import dev.botdot.app.data.OverviewEntry
-import dev.botdot.app.data.ProjectOverview
 import dev.botdot.app.data.ProjectFiles
-import dev.botdot.app.data.RecentFiles
 import dev.botdot.app.data.tr
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 /** A fixed reading order; polls only while this overview is composed, never starts the computer. */
@@ -40,50 +36,44 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
     val p = LocalPaper.current
     val api by ui.app.api.collectAsState()
     val life = LocalLifecycleOwner.current
-    var snapshot by remember(c.id, api) { mutableStateOf<ProjectOverview?>(null) }
-    var files by remember(c.id, api) { mutableStateOf<RecentFiles?>(null) }
-    var error by remember(c.id, api) { mutableStateOf<String?>(null) }
-    var filesError by remember(c.id, api) { mutableStateOf<String?>(null) }
+    // What botdot recorded and the newest files, read as the iPhone reads them (OverviewDesk); again every 30 seconds.
+    val desk = remember(c.id, api) { api?.let { dev.botdot.app.data.OverviewDesk(it, c.id) } }
+    val state = desk?.state?.collectAsState()?.value ?: dev.botdot.app.data.OverviewState()
+    val snapshot = state.snapshot
+    val files = state.files
     var request by remember(c.id) { mutableStateOf(0) }
-    LaunchedEffect(c.id, api, request, life) {
-        val a = api ?: return@LaunchedEffect
+    LaunchedEffect(desk, request, life) {
+        val d = desk ?: return@LaunchedEffect
         life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-        while (true) {
-            runCatching { a.projectOverview(c.id) }.onSuccess { if (it.projectId == c.id) { snapshot = it; error = null } }.onFailure { if (it is CancellationException) throw it; error = it.message ?: tr("Couldn't refresh") }
-            runCatching { a.projectFiles(c.id) }.onSuccess { files = it; filesError = null }.onFailure { if (it is CancellationException) throw it; filesError = it.message ?: tr("Couldn't load files") }
-            delay(30_000)
-        }
+            while (true) { d.read(); delay(d.everyMs) }
         }
     }
     fun open(x: OverviewEntry) {
-        val route = x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features) ?: return
-        when {
-            route.startsWith("group/") -> ways.onTeam?.invoke(route.removePrefix("group/")) ?: ways.onNeeds()
-            route.startsWith("bot/") -> ways.onBot(route.removePrefix("bot/"))
-            route.startsWith(dev.botdot.app.data.Spaces.PROJECT_CHIEF) -> ways.onChiefChat?.let { ui.openChief(c, it) }
-            route == dev.botdot.app.data.Spaces.CHIEF -> ways.onChief()
-            route.startsWith("chief/") -> ways.onChiefChat?.invoke(route.removePrefix("chief/"))
+        when (val to = dev.botdot.app.data.Overviews.open(x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features))) {
+            is dev.botdot.app.data.Overviews.Open.Team -> ways.onTeam?.invoke(to.groupId) ?: ways.onNeeds()
+            is dev.botdot.app.data.Overviews.Open.Bot -> ways.onBot(to.botId)
+            dev.botdot.app.data.Overviews.Open.ProjectChief -> ways.onChiefChat?.let { ui.openChief(c, it) }
+            dev.botdot.app.data.Overviews.Open.Chief -> ways.onChief()
+            is dev.botdot.app.data.Overviews.Open.ChiefChat -> ways.onChiefChat?.invoke(to.chatId)
+            null -> Unit
         }
     }
     Column(Modifier.fillMaxWidth().testTag("project-overview"), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
-        error?.let { Text("${tr("Couldn't refresh")}: $it" + if (snapshot != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
-        snapshot?.let { Text(tr("Updated {when}", "when" to NotesWake.ago(it.at)), color = p.muted, fontSize = Type.s12) }
-            ?: Text(if (error == null) tr("Loading…") else tr("Information unavailable"), color = p.muted)
+        state.problem?.let { Text(it, color = p.err) }
+        Text(state.status, color = p.muted, fontSize = if (snapshot != null) Type.s12 else androidx.compose.ui.unit.TextUnit.Unspecified)
         SmallButton(tr("Refresh")) { request++ }
         OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, tr("No recorded work."), ::open) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, tr("No failed work or open questions."), ::open) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, tr("No replies yet."), ::open) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, dev.botdot.app.data.Overviews.noWork, ::open) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, dev.botdot.app.data.Overviews.noBlockers, ::open) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, dev.botdot.app.data.Overviews.noReplies, ::open) }
         }
         OverviewSection(tr("Files")) {
-            filesError?.let { Text("${tr("Couldn't load files")}: $it" + if (files != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
-            val known = files
+            state.filesProblem?.let { Text(it, color = p.err) }
+            val line = state.filesLine
             when {
-                known == null -> Text(if (filesError == null) tr("Loading…") else tr("Information unavailable"), color = p.muted)
-                known.state == "off" -> Text(tr("Files are unavailable while the computer is off."), color = p.muted)
-                known.files.isEmpty() -> Text(tr("No files yet."), color = p.muted)
-                else -> known.files.forEach { f ->
+                line != null -> Text(line, color = p.muted)
+                else -> files!!.files.forEach { f ->
                     Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { c.folder?.let { ways.onFolderFile(it.name, f.path) } }.padding(vertical = Space.s8)) {
                         Text(f.name, color = p.text)
                         Text(ProjectFiles.whenOf(f.at), color = p.muted, fontSize = Type.s12)
@@ -108,11 +98,10 @@ private fun OverviewRows(items: List<OverviewEntry>, empty: String, open: (Overv
     val p = LocalPaper.current
     if (items.isEmpty()) Text(empty, color = p.muted)
     items.forEach { x ->
-        val label = when (x.state) { "working" -> tr("Working"); "planned" -> tr("Planned"); "failed" -> tr("Failed"); "asks" -> tr("Asks"); else -> tr("Reply") }
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
-            Text(label + if (x.at.isNotBlank()) " · ${NotesWake.ago(x.at)}" else "", color = p.muted, fontSize = Type.s12)
-            Text(x.text.ifBlank { label }, color = p.text)
+            Text(dev.botdot.app.data.Overviews.meta(x), color = p.muted, fontSize = Type.s12)
+            Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
         }
     }
 }
