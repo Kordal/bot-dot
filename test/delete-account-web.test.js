@@ -144,8 +144,8 @@ test('web: on a managed machine Delete asks for the account to be deleted, and s
 });
 
 test('web: the review demo says it is not deleted, and OK stays signed in', async () => {
-  const said = 'This is a demo account: it is not deleted. On your own account, this deletes it and erases its data.';
-  const { ctx, posts, went, m } = page({ post: async () => ({ ok: true, demo: true, said }) });
+  const said = 'This is a demo account: it is not deleted.';
+  const { ctx, posts, went, m } = page({ post: async () => ({ ok: true, demo: true, said: 'The server sentence, in English.' }) });
   ctx.openDeleteAccount('demo', true);
   m.parts['#delete-account-go'].classList = { remove() {} };
   type(m, 'demo');

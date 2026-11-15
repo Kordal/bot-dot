@@ -739,9 +739,9 @@ async function deleteAccount(m, account) {
     go.disabled = false;
     return;
   }
-  // The review demo is kept: the form says so, and OK leaves the account signed in.
+  // The review demo is kept: the form says so, in the page's own words, and OK leaves the account signed in.
   if (done.demo === true) {
-    said.textContent = typeof done.said === 'string' && done.said.trim() ? done.said : tr('This is a demo account: it is not deleted.');
+    said.textContent = tr('This is a demo account: it is not deleted.');
     said.classList.remove('hidden');
     go.textContent = tr('OK');
     go.classList.remove('red');

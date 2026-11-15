@@ -89,6 +89,12 @@ class FrontDoorDeskTest {
         assertEquals("Your account is being deleted.", FrontDoorDesk(asked.api).delete("ann", "ann").words)
     }
 
+    @Test fun theReviewDemoIsNotDeletedAndStaysSignedIn() = runTest {
+        val f = door("{}") { 200 to """{"ok":true,"demo":true,"said":"This is a demo account: it is not deleted."}""" }
+        assertEquals(FrontDoorDesk.Deleted("This is a demo account: it is not deleted.", false), FrontDoorDesk(f.api).delete("demo", "demo"))
+        assertEquals(1, f.posts().size)
+    }
+
     @Test fun aRefusedDeleteSaysTheFrontDoorsSentence() = runTest {
         val f = door("{}") { 403 to """{"error":"Not this account."}""" }
         assertEquals(FrontDoorDesk.Deleted("Not this account.", false), FrontDoorDesk(f.api).delete("ann", "ann"))
