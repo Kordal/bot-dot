@@ -349,7 +349,7 @@ private fun drawsAsked(r: Run): Boolean = !r.inbox.isNullOrEmpty() || when (Unre
 }
 
 @Composable
-private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean = true, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList(), timed: Boolean = false) {
+private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList(), timed: Boolean = false) {
     val p = LocalPaper.current
     // [timed]: its step line says how long it took (#636), and its reply has no footer.
     val footer = if (timed) "" else listOf(shortTime(r.endedAt ?: r.startedAt), RunSteps.took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(" · ")
@@ -366,7 +366,7 @@ private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean = true, f
             Column {
                 MarkdownText((if (folded != null && !more) folded else text).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
                 if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { more = true }.padding(top = Space.s8, bottom = Space.s4))
-                OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect, r.botId); PlanFold(plan)
+                OpenAsDocument(text, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect, r.botId); PlanFold(plan)
             }
         }
     }

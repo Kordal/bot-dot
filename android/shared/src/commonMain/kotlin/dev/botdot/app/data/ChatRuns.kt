@@ -26,7 +26,7 @@ fun endedWords(r: Run, features: Collection<String>?): Ended {
  * A reply's text as its bubble draws it. A reply that asked several questions at once had them taken off its text for
  * its card ([Run.questions]); once that card is closed (answered, or ended by another message) the questions stand at
  * the end of the text as a list, so what the bot asked never goes from the chat. [open]: its card stands under it.
- * The web page's withAsked has the same rule.
+ * The web page's replyText has the same rule.
  */
 fun replyText(r: Run, open: Boolean): String {
     val text = r.result.orEmpty()

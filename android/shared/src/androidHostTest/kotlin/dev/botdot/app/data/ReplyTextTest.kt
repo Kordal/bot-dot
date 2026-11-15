@@ -3,7 +3,7 @@ package dev.botdot.app.data
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** A reply's questions stay in the chat once its card is closed, as `public/app.js` withAsked has it. */
+/** A reply's questions stay in the chat once its card is closed, as `public/app.js` replyText has it. */
 class ReplyTextTest {
     private val asked = Run(id = "r1", botId = "reviewer", status = "success", result = "Two issues wait.", questions = listOf("#542: close it?", "#541: close it?"))
 

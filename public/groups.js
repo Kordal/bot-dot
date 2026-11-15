@@ -526,7 +526,7 @@ function groupWaitingHTML(m, chat) {
 function groupReplyHTML(r, asks = null) {
   const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
   const open = asks === r.id && !failed; // the group's one open question: its card stands under it
-  const body = failed ? r.problem || friendlyProblem(r, r.result) : open || !r.questions?.length ? r.result || tr('Done. (No written reply.)') : withAsked(r.result || '', r.questions).trim();
+  const body = failed ? r.problem || friendlyProblem(r, r.result) : !open && r.questions?.length ? replyText(r, false) : r.result || tr('Done. (No written reply.)'); // a closed card's questions stand at its end
   const color = memberColor(r.botId, r.botColor);
   const bot = botById(r.botId);
   const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);

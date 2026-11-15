@@ -150,7 +150,7 @@ test('web: a "New" line whose run the page does not hold is read first, then the
 
 test("web: a card of questions that closed stays in the bot's chat: its questions stand at the end of the reply", () => {
   const ctx = page();
-  vm.runInContext(`${cut('// A reply whose card of questions is closed', '// send(text, key) resolves')}\nthis.withAsked = withAsked;`, ctx);
+  vm.runInContext(cut('// A run\'s reply as its bubble draws it.', '// send(text, key) resolves'), ctx);
   const asked = run('r1', 1, { result: 'Two things first.', questions: ['Which account?', 'Which day?'] });
   const bot = { id: 'iw', name: 'Issue Writer', color: '#c46' };
   const open = ctx.botThreadHTML({ ...bot, asks: { text: 'Which account? (+1 more)', runId: 'r1', at: at(1), open: [{ runId: 'r1' }] } }, [asked, run('r2', 5, { startedBy: 'chief' })]);

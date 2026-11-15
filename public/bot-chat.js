@@ -223,7 +223,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
     // Its question is open while the owner can still answer it here: its card stands under it, else it is text.
     const open = ((Array.isArray(bot.asks?.open) ? bot.asks.open.some((x) => x.runId === r.id) : r.id === bot.asks?.runId) || (last && !r.asks)) && !failed;
-    const body = failed ? r.problem || friendlyProblem(r, r.result) : open || !r.questions?.length ? r.result || tr('Done. (No written reply.)') : withAsked(r.result || '', r.questions).trim();
+    const body = failed ? r.problem || friendlyProblem(r, r.result) : !open && r.questions?.length ? replyText(r, false) : r.result || tr('Done. (No written reply.)'); // a closed card's questions stand at its end
     const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
     // Between bots (a run another bot or the Chief started) the reply folds as the message above it does: one line,
     // whom it answered and its first words, that opens to what it sent its teammates and the reply. A problem stays open,
