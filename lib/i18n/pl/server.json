@@ -19,8 +19,6 @@
   "The secret stays on disk in this file on {target}: anyone who can read files there can read it. No bot ever sees it in its chat.": "Sekret zostaje na dysku w tym pliku na {target}: może go przeczytać każdy, kto czyta tam pliki. Żaden bot nie zobaczy go w swoim czacie.",
   "the account's computer": "komputer konta",
   "Always allow {what}": "Zezwalaj zawsze: {what}",
-  "reminders": "przypomnienia",
-  "set reminders": "ustawiać przypomnienia",
   "changes to your Board": "zmiany na twojej Tablicy",
   "arrange and change tiles on your Board": "układać i zmieniać kafelki na twojej Tablicy",
   "changes to your quiet hours": "zmiany godzin ciszy",

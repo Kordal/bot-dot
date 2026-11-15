@@ -59,34 +59,35 @@ async function ownerTurn(t, text) {
   return { call, read: async () => answered(await asks('WebSearch', { query: 'x' }), 'results'), end };
 }
 
-test('a reminder after the web offers "Always allow reminders"; after it, reminders go through and the Chief can take it back', async (t) => {
+test('reminders need no card after the web (ADR 249); quiet hours offer "Always allow", which the Chief can take back', async (t) => {
   const turn = await ownerTurn(t, 'Read the page and remind me');
   await turn.read();
-  const first = await turn.call('remind_me', { text: 'Water the plants', at: '2030-01-01T09:00' });
+  const set = await turn.call('remind_me', { text: 'Water the plants', at: '2030-01-01T09:00' });
+  assert.equal(set.held, undefined, JSON.stringify(set));
+  const reminder = (await srv.api('/chief/reminders')).data.find((r) => r.text === 'Water the plants');
+  assert.ok(reminder, 'set at once');
+  const cancel = await turn.call('cancel_reminder', { id: reminder.id });
+  assert.equal(cancel.held, undefined, JSON.stringify(cancel));
+  assert.ok(!(await srv.api('/chief/reminders')).data.some((r) => r.id === reminder.id), 'cancelled at once');
+  assert.equal((await heldAsks()).length, 0, 'no card for either');
+  const first = await turn.call('set_quiet_hours', { start: 22, end: 7 });
   assert.equal(first.held, true);
-  const card = (await heldAsks()).find((a) => /Water the plants/.test(a.title));
-  assert.equal(card.always, 'Always allow reminders');
-  assert.match(card.warning, /set reminders also after it read the web/);
-  // The feed's entry carries it too, for a card drawn in the Chief's chat.
+  const card = (await heldAsks()).find((a) => a.id === first.id);
+  assert.equal(card.always, 'Always allow changes to your quiet hours');
+  assert.match(card.warning, /change your quiet hours also after it read the web/);
   const yes = await srv.api(`/asks/${card.id}`, { method: 'POST', body: { yes: true, always: true } });
   assert.equal(yes.status, 200, JSON.stringify(yes.data));
   assert.equal(yes.data.done, true);
-  assert.equal(yes.data.always, 'reminders');
-  assert.ok((await srv.api('/chief/reminders')).data.some((r) => r.text === 'Water the plants'));
-  const second = await turn.call('remind_me', { text: 'Call the bank', at: '2030-01-02T09:00' });
+  assert.equal(yes.data.always, 'quiet-hours');
+  const second = await turn.call('set_quiet_hours', { start: 23, end: 7 });
   assert.equal(second.held, undefined, JSON.stringify(second));
-  assert.ok((await srv.api('/chief/reminders')).data.some((r) => r.text === 'Call the bank'), 'done at once');
-  // Other types still wait, and a cancel is never offered "always".
-  const quiet = await turn.call('set_quiet_hours', { start: 22, end: 7 });
-  assert.equal(quiet.held, true);
-  assert.equal((await heldAsks()).find((a) => a.id === quiet.id).always, 'Always allow changes to your quiet hours');
-  assert.deepEqual((await turn.call('after_web_grants')).types, [{ type: 'reminders', label: 'reminders' }]);
-  assert.deepEqual((await turn.call('remove_after_web_grant', { type: 'reminders' })).types, []);
-  assert.equal((await turn.call('remind_me', { text: 'Pay rent', at: '2030-01-03T09:00' })).held, true, 'it waits again');
-  const reminder = (await srv.api('/chief/reminders')).data.find((r) => r.text === 'Call the bank');
-  const cancel = await turn.call('cancel_reminder', { id: reminder.id });
-  assert.equal(cancel.held, true);
-  assert.equal((await heldAsks()).find((a) => a.id === cancel.id).always, undefined, 'a removal is never always allowed');
+  // Other types still wait.
+  const first2 = await turn.call('writing_first', { perDay: 3 });
+  assert.equal(first2.held, true, JSON.stringify(first2));
+  assert.equal((await heldAsks()).find((a) => a.id === first2.id).always, 'Always allow changes to when the Chief writes first');
+  assert.deepEqual((await turn.call('after_web_grants')).types, [{ type: 'quiet-hours', label: 'changes to your quiet hours' }]);
+  assert.deepEqual((await turn.call('remove_after_web_grant', { type: 'quiet-hours' })).types, []);
+  assert.equal((await turn.call('set_quiet_hours', { start: 21, end: 7 })).held, true, 'it waits again');
   await turn.end();
 });
 

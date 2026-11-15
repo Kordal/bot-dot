@@ -653,7 +653,8 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // A connected app's actions follow their own grants (ADR 047): a write waits on its own card, and an "Always allow"
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away. A card's GET
 // with its project's logins (company/card-request, #804) only reads, by the key of that card's run alone.
-const FREE_AFTER_WEB = /^(company\/card-request|asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+// The Chief's reminders, setting and cancelling one (ADR 249): a ⏰ message in the owner's own chat, seen where it is.
+const FREE_AFTER_WEB = /^(chief\/reminders(\/[^/]+)?|company\/card-request|asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 // A project's own changes and a group's (ADR 247): its teams, their bots and lead, its own bots, a message to a team,
 // its to-dos, plan, goal, dates and calendar, and making or changing a group, are done at once after the web too.
 // They stay in the account, change no bot's own powers and are seen and undone where they are; a team's turns from
