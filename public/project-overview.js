@@ -19,12 +19,12 @@ const ProjectOverview = (() => {
   }
   const label = (k) => ({ working: tr('Working'), planned: tr('Planned'), failed: tr('Failed'), asks: tr('Asks'), reply: tr('Reply') })[k] || '';
   // Whose head stands beside an entry: its bot's as everywhere else, the Chief's for a Chief chat, the owner's for a
-  // to-do of theirs. A bot this page does not know yet keeps the place empty, so the rows stay aligned.
+  // to-do of theirs. A bot this page does not know yet (or a team chat's entry without one) keeps the place empty, so the rows stay aligned.
   const YOU = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>';
   function head(x) {
-    if (x.chatId) return chiefFigure('sm');
-    if (!x.botId) return `<span class="cf-you sm">${YOU}</span>`;
-    const b = botById(x.botId);
+    if (x.chatId) return botFigure(CHIEF_COLOR, x.state === 'working' ? 'working' : 'idle', 'sm', Figure.CHIEF);
+    if (!x.botId && !x.groupId) return `<span class="cf-you sm">${YOU}</span>`;
+    const b = x.botId && botById(x.botId);
     return b ? botFigure(b.color, b.state, 'sm', b.outfit, b.id) : '<span class="avatar sm" aria-hidden="true"></span>';
   }
   function rows(items, empty = '') {

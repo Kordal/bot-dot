@@ -110,7 +110,7 @@ internal fun OverviewRows(items: List<OverviewEntry>, bots: List<Bot>?, open: (O
             Box(Modifier.size(28.dp), contentAlignment = Alignment.Center) {
                 when (val h = Overviews.head(x, bots)) {
                     is Overviews.Head.Of -> BotFigure(h.bot.color, h.bot.state, 28, h.bot.outfit)
-                    Overviews.Head.Chief -> BotFigure(CHIEF_COLOR, "idle", 28, FigureDef.CHIEF)
+                    Overviews.Head.Chief -> BotFigure(CHIEF_COLOR, if (x.state == "working") "working" else "idle", 28, FigureDef.CHIEF)
                     Overviews.Head.You -> YouHead(28)
                     Overviews.Head.Unknown -> Unit
                 }

@@ -40,5 +40,6 @@ class ProjectOverviewTest {
         assertEquals(Overviews.Head.You, Overviews.head(OverviewEntry(id = "todo", state = "planned"), listOf(writer)))
         assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "r", botId = "gone"), listOf(writer)))
         assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "r", botId = "writer"), null))
+        assertEquals(Overviews.Head.Unknown, Overviews.head(OverviewEntry(id = "g", groupId = "g1"), listOf(writer)))
     }
 }

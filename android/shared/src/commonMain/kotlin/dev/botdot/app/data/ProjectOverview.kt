@@ -55,17 +55,17 @@ object Overviews {
     sealed class Head {
         /** Its bot, drawn as everywhere else. */
         data class Of(val bot: Bot) : Head()
-        /** A Chief chat's. */
+        /** A Chief chat's, working while its entry is. */
         data object Chief : Head()
         /** The owner's own to-do. */
         data object You : Head()
-        /** A bot the app does not know yet: its place stays empty, so the rows stay aligned. */
+        /** A bot the app does not know yet, or a team chat's entry without one: its place stays empty, so the rows stay aligned. */
         data object Unknown : Head()
     }
 
     fun head(e: OverviewEntry, bots: List<Bot>?): Head = when {
         e.chatId != null -> Head.Chief
-        e.botId == null -> Head.You
+        e.botId == null && e.groupId == null -> Head.You
         else -> bots?.firstOrNull { it.id == e.botId }?.let { Head.Of(it) } ?: Head.Unknown
     }
 
