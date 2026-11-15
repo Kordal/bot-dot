@@ -67,4 +67,27 @@ class JobsDeskTest {
         assertTrue(desk.state.value.empty!!.startsWith("Scout has no scheduled jobs."))
         assertFalse(JobsDesk(backgroundScope, server.api, store, "gone").state.value.jobs != null, "a bot the list doesn't know: nothing yet")
     }
+
+    @Test fun turningAdvancedOnShowsHowAJobTakesCallsAndStopFollowsNothingMore() = runTest {
+        val job = """{"id":"b1","name":"Scout","jobs":[{"id":"j1","name":"Hook","call":true,"callMode":"signed","notifyUrl":"https://hooks.example.test/x"}]}"""
+        val server = FakeServer { 200 to "[$job]" }
+        val store = Store(backgroundScope, MutableStateFlow(server.api))
+        runCurrent()
+        store.bots.set(listOf(Api.JSON.decodeFromString(Bot.serializer(), job)))
+        try {
+            Advanced.take(listOf(Advanced.FEATURE), AppSettings(advanced = false))
+            val desk = JobsDesk(backgroundScope, server.api, store, "b1") { "T" }
+            runCurrent()
+            assertTrue(desk.state.value.jobs!!.single().advanced.isEmpty(), "Advanced off: none")
+            Advanced.take(listOf(Advanced.FEATURE), AppSettings(advanced = true))
+            runCurrent()
+            assertEquals(2, desk.state.value.jobs!!.single().advanced.size, "drawn again with Advanced on")
+            desk.stop()
+            Advanced.take(listOf(Advanced.FEATURE), AppSettings(advanced = false))
+            runCurrent()
+            assertEquals(2, desk.state.value.jobs!!.single().advanced.size, "stopped: it follows nothing more")
+        } finally {
+            Advanced.take(null, null)
+        }
+    }
 }

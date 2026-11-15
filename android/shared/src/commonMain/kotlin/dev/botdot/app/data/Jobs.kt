@@ -3,8 +3,10 @@ package dev.botdot.app.data
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job as Running
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
@@ -85,13 +87,20 @@ class JobView(
 class JobsState(val name: String, val jobs: List<JobView>?, val empty: String?)
 
 /**
- * The jobs of the bot [botId], from the store's bots as the live feed keeps them: pause or resume one, and Run now.
- * [time] says a time in the phone's words.
+ * The jobs of the bot [botId], from the store's bots as the live feed keeps them, drawn again when Advanced changes:
+ * pause or resume one, and Run now. [time] says a time in the phone's words. It follows them on a job of its own under
+ * [scope]: [stop] it when the screen is left.
  */
-class JobsDesk(private val scope: CoroutineScope, private val api: Api, private val store: Store, val botId: String, private val time: (String?) -> String = { chatClock(it) }) {
-    val state: StateFlow<JobsState> = store.bots.value.map { snapshot(it) }.stateIn(scope, SharingStarted.Eagerly, snapshot(store.bots.value.value))
+class JobsDesk(scope: CoroutineScope, private val api: Api, private val store: Store, val botId: String, private val time: (String?) -> String = { chatClock(it) }) {
+    private val own = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Running]))
 
-    fun watch(onChange: (JobsState) -> Unit): Running = scope.launch { state.collect { onChange(it) } }
+    val state: StateFlow<JobsState> = combine(store.bots.value, Advanced.on) { bots, _ -> snapshot(bots) }
+        .stateIn(own, SharingStarted.Eagerly, snapshot(store.bots.value.value))
+
+    fun watch(onChange: (JobsState) -> Unit): Running = own.launch { state.collect { onChange(it) } }
+
+    /** The screen was left: it follows nothing more. */
+    fun stop() = own.cancel()
 
     private fun snapshot(bots: List<Bot>?): JobsState {
         val bot = bots?.firstOrNull { it.id == botId } ?: return JobsState("", null, null)
@@ -112,7 +121,7 @@ class JobsDesk(private val scope: CoroutineScope, private val api: Api, private 
 
     /** Paused or resumed at once on screen, then as botdot has it; what to say after. */
     @Throws(Exception::class)
-    suspend fun setOn(jobId: String, on: Boolean): String {
+    suspend fun setOn(jobId: String, on: Boolean): String? {
         store.bots.update { list -> list.map { b -> if (b.id != botId) b else b.copy(jobs = b.jobs.map { if (it.id == jobId) it.copy(enabled = on, nextRunAt = if (on) it.nextRunAt else null) else it }) } }
         val said = try { api.setJobEnabled(botId, jobId, on); if (on) tr("Resumed") else tr("Paused. It won't run until you turn it back on.") }
             catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: tr("Couldn't change it") }
@@ -120,10 +129,10 @@ class JobsDesk(private val scope: CoroutineScope, private val api: Api, private 
         return said
     }
 
-    /** Run now; what to say after. */
+    /** Run now; what to say after, null for nothing (a skip botdot gave no words for). */
     @Throws(Exception::class)
-    suspend fun run(jobId: String): String {
-        val said = try { Jobs.runNowSays(api.runJob(botId, jobId)) } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: tr("Couldn't start it") }
+    suspend fun run(jobId: String): String? {
+        val said = try { Jobs.runNowSays(api.runJob(botId, jobId)).ifBlank { null } } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: tr("Couldn't start it") }
         refresh()
         return said
     }

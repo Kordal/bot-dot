@@ -18,10 +18,11 @@ final class JobsModel {
         Task { try? await desk.refresh() }
     }
 
-    func stop() { watching?.cancel(cause: nil); watching = nil }
+    /// The screen was left: the desk follows nothing more (a new model comes with the next visit).
+    func stop() { watching?.cancel(cause: nil); watching = nil; desk.stop() }
     func refresh() async { try? await desk.refresh() }
-    func setOn(_ id: String, _ on: Bool) async -> String { (try? await desk.setOn(jobId: id, on: on)) ?? "" }
-    func run(_ id: String) async -> String { (try? await desk.run(jobId: id)) ?? "" }
+    func setOn(_ id: String, _ on: Bool) async -> String? { (try? await desk.setOn(jobId: id, on: on)) ?? nil }
+    func run(_ id: String) async -> String? { (try? await desk.run(jobId: id)) ?? nil }
 }
 
 /// A bot's scheduled jobs (Android's JobsScreen): each with its schedule and status, the switch that pauses it, its last
@@ -57,7 +58,7 @@ struct JobsView: View {
             if model == nil { model = JobsModel(home: home, botId: botId) }
             model?.start()
         }
-        .onDisappear { model?.stop() }
+        .onDisappear { model?.stop(); model = nil }
     }
 
     private func row(_ j: JobView) -> some View {
@@ -68,7 +69,7 @@ struct JobsView: View {
                     if !j.line.isEmpty { Text(j.line).font(.subheadline).foregroundStyle(j.waits ? .orange : .secondary) }
                 }
                 Spacer()
-                Toggle("", isOn: Binding(get: { j.enabled }, set: { on in Task { notice = await model?.setOn(j.id, on) } }))
+                Toggle("", isOn: Binding(get: { j.enabled }, set: { on in Task { if let said = await model?.setOn(j.id, on), !said.isEmpty { notice = said } } }))
                     .labelsHidden()
                     .accessibilityLabel(j.name)
             }
@@ -81,7 +82,7 @@ struct JobsView: View {
                 if !j.approved {
                     Button(tr("Review and approve")) { reviewing = true }.buttonStyle(.bordered)
                 } else {
-                    Button(tr("Run now")) { Task { notice = await model?.run(j.id) } }.buttonStyle(.bordered)
+                    Button(tr("Run now")) { Task { if let said = await model?.run(j.id), !said.isEmpty { notice = said } } }.buttonStyle(.bordered)
                 }
                 if j.changeWaits { Button(tr("Review the change")) { reviewing = true }.buttonStyle(.bordered) }
             }

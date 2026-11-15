@@ -47,6 +47,7 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
     val snack = remember { SnackbarHostState() }
     // The pause and Run now, and what they say: the shared layer's, as the iPhone's (JobsDesk).
     val desk = remember(api, botId) { api?.let { dev.botdot.app.data.JobsDesk(scope, it, app.store, botId, ::shortTime) } }
+    androidx.compose.runtime.DisposableEffect(desk) { onDispose { desk?.stop() } }
     // The bot and its jobs as the app keeps them (Store), kept up to date from the live feed.
     val bots by app.store.bots.value.collectAsState()
     val bot = remember(bots, botId) { bots?.firstOrNull { it.id == botId } }
@@ -73,10 +74,10 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
                 JobRow(j,
                     onToggle = { on ->
                         // Shown right away; the server's answer (and next run) follows.
-                        scope.launch { desk?.let { tell(it.setOn(j.id, on)) } }
+                        scope.launch { desk?.setOn(j.id, on)?.let { tell(it) } }
                     },
                     onRun = {
-                        scope.launch { desk?.let { tell(it.run(j.id)) } }
+                        scope.launch { desk?.run(j.id)?.let { tell(it) } }
                     },
                     onApprove = onNeedsYou,
                 )
