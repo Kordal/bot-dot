@@ -35,8 +35,8 @@ class MentionBox(private val store: Store, private val chat: String) {
     fun pick(text: String, cursor: Int, row: Mentions.Row): Mentions.Picked? = Mentions.pick(text, cursor.coerceIn(0, text.length), row)
 
     /**
-     * What the suggestions need, each read once when nothing has yet: the botdot's features, the bots and the skills,
-     * and the pages, tiles and projects where the features say a mention hands them to the run. One that can't be
+     * What the suggestions need, each read once when nothing has yet: the botdot's features, the bots, the Chief (for
+     * its name, first among them) and the skills, and the pages, tiles and projects where the features say a mention hands them to the run. One that can't be
      * read leaves the others to be read.
      */
     @Throws(Exception::class)
@@ -47,6 +47,7 @@ class MentionBox(private val store: Store, private val chat: String) {
         }
         read(store.version)
         read(store.bots)
+        read(store.chief)
         read(store.skills)
         val features = store.version.value.value?.features.orEmpty()
         if (Mentions.PAGE_MENTIONS in features) { read(store.pages); read(store.dashboard) }

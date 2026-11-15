@@ -43,6 +43,7 @@ class MentionBoxTest {
                 "/api/pages" -> 200 to """{"pages":[{"botId":"b1","slug":"issues","title":"Issue List"}]}"""
                 "/api/dashboard" -> 200 to """{"tiles":[{"id":"t1","kind":"value","title":"Living Room"}]}"""
                 "/api/company" -> 200 to """{"company":{"id":"p1","name":"Botdot"}}"""
+                "/api/chief" -> 200 to """{"chief":{"name":"Alfred"},"chats":[]}"""
                 else -> 404 to "{}"
             }
         }
@@ -54,5 +55,6 @@ class MentionBoxTest {
         assertEquals(listOf("issues"), w.pages.map { it.slug }, "pages, the skills' failure notwithstanding")
         assertEquals(listOf("t1"), w.tiles.map { it.id })
         assertEquals(listOf("p1"), w.projects.map { it.id })
+        assertEquals("Alfred", w.bots.first { it.id == Mentions.CHIEF }.name, "the Chief by its name, read too")
     }
 }
