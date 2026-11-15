@@ -37,6 +37,7 @@ final class ProjectTests: XCTestCase {
         XCTAssertNotNil(ImageRenderer(content: Goals(goals: c.objectives).frame(width: 320)).cgImage)
         XCTAssertNotNil(ImageRenderer(content: QuestionsCard(card: c.cards[1], figure: nil, onClose: {}, onAnswer: { _ in true }).frame(width: 320)).cgImage)
     }
+
     /// A project's settings: the shared words and rules reach Swift (what each sends is the shared ProjectDeskTest's).
     func testTheSettingsWordsAndRulesReachSwift() async {
         XCTAssertEqual(ProjectSettingWords.shared.rhythms.map { $0.label }, ["Off", "Daily", "Twice a week", "Weekly"])
@@ -58,5 +59,33 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(Overviews.shared.meta(e: e), "Failed")
         XCTAssertNotNil(Overviews.shared.open(destination: "bot/b1"))
         XCTAssertEqual(OverviewState(snapshot: nil, files: nil, error: nil, filesError: nil).status, "Loading…")
+    }
+
+    /// With overview-board (ADR 245) the Overview is the board's tiles, not a page: the shared rules and the tile reach Swift.
+    func testTheOverviewIsTheBoardsTilesOnABotdotWithOverviewBoard() {
+        XCTAssertTrue(Overviews.shared.page(features: ["project-overview"]))
+        XCTAssertFalse(Overviews.shared.page(features: ["project-overview", "overview-board"]))
+        let work = OverviewEntry(id: "w1", botId: "b1", chatId: nil, groupId: nil, name: "Coder", state: "working", text: "Writing **the page**", at: "")
+        let d = ProjectOverview(projectId: "p1", at: "2026-11-15T09:00:00Z", work: [work], blockers: [], replies: [])
+        let s = OverviewState(snapshot: d, files: nil, error: nil, filesError: nil)
+        for k in ["work", "blockers", "replies"] {
+            XCTAssertNotNil(ImageRenderer(content: OverviewTile(key: k, state: s, onOpen: { _ in }).frame(width: 320)).cgImage, "\(k) draws")
+        }
+        XCTAssertEqual(ProjectBoard.shared.label(k: "replies"), "Latest replies")
+    }
+
+    /// A team's editor, logins and files as sources: the shared rules reach Swift (what each sends is ProjectDeskTest's).
+    func testTheTeamEditorAndLoginsReachSwift() async {
+        XCTAssertFalse(ManyProjects.shared.canSaveTeam(name: " ", bots: ["b1"]), "no name: Save waits")
+        XCTAssertFalse(ManyProjects.shared.canSaveTeam(name: "Crew", bots: []), "no bot: Save waits")
+        XCTAssertTrue(ManyProjects.shared.canSaveTeam(name: "Crew", bots: ["b1"]))
+        XCTAssertEqual(ManyProjects.shared.toggle(bots: ["b1"], id: "b1"), [])
+        let c = CompanySetup.shared.of(answer: kitchen)
+        XCTAssertEqual(ProjectSettingWords.shared.deleteTeamQuestion(t: c.teams[0]), "Delete the team Crew? Its bots stay.")
+        let model = ProjectModel(home: HomeStore(api: unreachableApi()))
+        let logins = await model.addableLogins()
+        XCTAssertNil(logins, "no project shown: no Vault read")
+        let saved = await model.saveTeam(nil, name: "Crew", bots: [], lead: nil)
+        XCTAssertFalse(saved)
     }
 }

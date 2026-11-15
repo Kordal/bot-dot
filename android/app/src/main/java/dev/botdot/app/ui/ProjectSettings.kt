@@ -3,8 +3,7 @@ package dev.botdot.app.ui
 import dev.botdot.app.data.without
 import dev.botdot.app.data.delivered
 import dev.botdot.app.data.CHIEF_COLOR
-import dev.botdot.app.data.upload
-import dev.botdot.app.data.describe
+import dev.botdot.app.data.outgoing
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -221,12 +220,10 @@ private fun addSources(ui: CompanyUi, context: android.content.Context, c: Compa
     val a = ui.api ?: return ui.tell(tr("Can't reach botdot."))
     if (uris.isEmpty()) return
     ui.scope.launch {
-        val added = mutableListOf<JsonObject>()
-        for (uri in uris.take((CompanySetup.MAX_SOURCES - c.sources.size).coerceAtLeast(0))) {
-            val (name, size) = a.describe(context.contentResolver, uri)
-            if ((size ?: 0) > CompanySetup.MAX_FILE) { ui.tell(tr("{name} is over 25 MB.", "name" to name)); continue }
-            runCatching { a.upload(context.contentResolver, uri, "chief") }.onSuccess { added += CompanySetup.fileSource(name, it) }.onError { ui.tell("$name: ${it.message}") }
+        val files = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            uris.map { a.outgoing(context.contentResolver, it) }
         }
+        val added = dev.botdot.app.data.ProjectSources.upload(a, c.sources.size, files) { ui.tell(it) }
         // The sources as they are now: another change may have come while the files went up.
         if (added.isNotEmpty()) patch(CompanySetup.patchSources((ui.company()?.takeIf { it.id == c.id } ?: c).sources, added))
     }
@@ -313,7 +310,7 @@ private fun TeamRows(ui: CompanyUi, c: Company, bots: List<Bot>) {
     else if (d == null) Row { CoChip(tr("New team"), dashed = false, icon = Icons.Filled.Add) { draft = TeamDraft(null, "", emptyList(), null) } }
     askDelete?.let { t ->
         AlertDialog(onDismissRequest = { askDelete = null },
-            title = { Text(tr("Delete the team {name}? Its bots stay.", "name" to t.name)) },
+            title = { Text(dev.botdot.app.data.ProjectSettingWords.deleteTeamQuestion(t)) },
             confirmButton = { TextButton({ askDelete = null; draft = null; ui.call({ it.deleteTeam(t.id) }) }) { Text(tr("Delete team"), color = p.err) } },
             dismissButton = { TextButton({ askDelete = null }) { Text(tr("Cancel")) } })
     }

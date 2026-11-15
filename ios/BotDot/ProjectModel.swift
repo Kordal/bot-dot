@@ -72,4 +72,32 @@ final class ProjectModel {
     @discardableResult func setStandupTime(_ time: String) async -> Bool { (try? await store.setStandupTime(time: time))?.boolValue ?? false }
     /// Delete project, with its folder when asked: true once botdot took it and the store forgot it.
     @discardableResult func delete(dropFolder: Bool) async -> Bool { (try? await store.delete(dropFolder: dropFolder))?.boolValue ?? false }
+    @discardableResult func saveTeam(_ team: String?, name: String, bots: [String], lead: String?) async -> Bool {
+        (try? await store.saveTeam(team: team, name: name, bots: bots, lead: lead))?.boolValue ?? false
+    }
+    @discardableResult func deleteTeam(_ team: String) async -> Bool { (try? await store.deleteTeam(team: team))?.boolValue ?? false }
+    /// The Vault's logins not yet the project's; nil when the Vault can't be read (the notice says why).
+    func addableLogins() async -> [VaultItem]? { (try? await store.addableLogins()) ?? nil }
+    @discardableResult func addLogin(_ id: String) async -> Bool { (try? await store.addLogin(id: id))?.boolValue ?? false }
+    @discardableResult func removeLogin(_ id: String) async -> Bool { (try? await store.removeLogin(id: id))?.boolValue ?? false }
+
+    /// Files picked in Files: each copied where the app may read it, then added as sources. One that can't be
+    /// read is said in the notice.
+    func addFiles(_ urls: [URL]) async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("sources", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        var paths: [String] = []
+        var names: [String] = []
+        var unread: [String] = []
+        for url in urls {
+            let open = url.startAccessingSecurityScopedResource()
+            defer { if open { url.stopAccessingSecurityScopedResource() } }
+            let copy = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
+            guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { unread.append(url.lastPathComponent); continue }
+            paths.append(copy.path)
+            names.append(url.lastPathComponent)
+        }
+        _ = try? await store.addFiles(paths: paths, names: names, unread: unread)
+        for p in paths { try? FileManager.default.removeItem(atPath: p) }
+    }
 }

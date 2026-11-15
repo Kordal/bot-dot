@@ -58,6 +58,14 @@ class ProjectStore(home: HomeStore) {
     @Throws(Exception::class) suspend fun setStandupOn(on: Boolean): Boolean = desk.setStandupOn(on)
     @Throws(Exception::class) suspend fun setStandupTime(time: String): Boolean = desk.setStandupTime(time)
     @Throws(Exception::class) suspend fun delete(dropFolder: Boolean): Boolean = desk.delete(dropFolder)
+    @Throws(Exception::class) suspend fun saveTeam(team: String?, name: String, bots: List<String>, lead: String?): Boolean = desk.saveTeam(team, name, bots, lead)
+    @Throws(Exception::class) suspend fun deleteTeam(team: String): Boolean = desk.deleteTeam(team)
+    @Throws(Exception::class) suspend fun addableLogins(): List<VaultItem>? = desk.addableLogins()
+    @Throws(Exception::class) suspend fun addLogin(id: String): Boolean = desk.addLogin(id)
+    @Throws(Exception::class) suspend fun removeLogin(id: String): Boolean = desk.removeLogin(id)
+    /** Files picked in Files, by their copies' [paths] and their [names], added as sources; [unread]: those not copied. */
+    @Throws(Exception::class) suspend fun addFiles(paths: List<String>, names: List<String>, unread: List<String>): Boolean =
+        desk.addFiles(paths.zip(names) { p, n -> outgoingFile(p, n) }, unread)
 
     fun close() {
         desk.close()
