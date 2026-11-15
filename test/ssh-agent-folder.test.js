@@ -1,4 +1,4 @@
-// A bot's ssh-agent folder where botdot runs as root itself (identity.agentDir without the broker, ADR 249): the
+// A bot's ssh-agent folder where botdot runs as root itself (identity.agentDir without the broker, ADR 251): the
 // server's, the bot's group (the Chief's for the Chief), 0710, so only that user reaches the socket in it. Needs Linux
 // and root, so it runs in CI's container (tests.yml) and is skipped elsewhere; the broker's own is in
 // privilege-broker.test.js.

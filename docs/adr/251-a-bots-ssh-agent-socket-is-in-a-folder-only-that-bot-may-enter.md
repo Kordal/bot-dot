@@ -1,4 +1,4 @@
-# ADR-249: A bot's ssh-agent socket is in a folder only that bot may enter
+# ADR-251: A bot's ssh-agent socket is in a folder only that bot may enter
 
 - **Status:** Accepted (2026-11-15)
 - **Owning task:** security review M1 (2026-11)
