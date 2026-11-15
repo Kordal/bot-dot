@@ -769,7 +769,7 @@ test("a turn's appended prompt stays under 108,000 characters with a group chat 
   assert.ok(between(sys, 'possibly-relevant').length > 1100, `the lookup is full (${between(sys, 'possibly-relevant').length})`);
   assert.equal(count(sys, fill(200, 'd').slice(0, 199)) >= 5, true, 'the other members are described');
   assert.ok(sys.length > 60_000, `the caps are really hit (${sys.length})`);
-  assert.ok(sys.length < 108_000, // 100,000 until the always-on style of the kit (ADR 245), about 7,000
+  assert.ok(sys.length < 108_000, // 100,000 until the always-on style of the kit (ADR 246), about 7,000
     `the prompt has ${sys.length} characters`);
   if (process.env.SHOW_BOUND) console.log(`bound: prompt ${sys.length}, block ${block.length}`);
 });

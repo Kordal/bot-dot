@@ -544,6 +544,6 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
   assert.ok(between(tags, 'conversation').length <= chat.length + 200, `the chat block is no larger (${between(tags, 'conversation').length})`);
   for (const tag of ['memory', 'shared-memory']) assert.ok(between(tags, tag).length < require('../lib/memory').PIN_LIMITS.chars + 3550, `the ${tag} block is bounded (${between(tags, tag).length})`);
   assert.ok(between(tags, 'possibly-relevant').length <= 1500 + '<possibly-relevant>\n'.length, `the lookup is bounded (${between(tags, 'possibly-relevant').length})`);
-  assert.ok(tags.length < 144_000, // 136,000 until the always-on style of the kit (ADR 245), about 7,000
+  assert.ok(tags.length < 144_000, // 136,000 until the always-on style of the kit (ADR 246), about 7,000
     `the prompt has ${tags.length} characters`);
 });

@@ -1,4 +1,4 @@
-# ADR-245: Every bot writes in the i-have-adhd style by default
+# ADR-246: Every bot writes in the i-have-adhd style by default
 
 - **Status:** Accepted (2026-11-15, the owner: "I would like the bots to use the i-have-adhd skill out of the box")
 - **Owning task:** [#1437](https://github.com/Kordal/bot-dot/issues/1437)
