@@ -114,13 +114,8 @@ internal class CardsState(
         list += id
         send(block) { list -= id }
     }
-    /** The board's tile of [s] (#784): its card's, or New card's. */
-    fun tileOf(s: ProjectCards.Slot): String = when (s) {
-        is ProjectCards.Slot.Card -> "card:${s.card.id}"
-        is ProjectCards.Slot.Questions -> "card:${s.card.id}"
-        is ProjectCards.Slot.Ask -> s.card?.let { "card:${it.id}" } ?: "new-card"
-        ProjectCards.Slot.New -> "new-card"
-    }
+    /** The board's tile of [s] (#784): its card's, or New card's ([ProjectCards.tileOf]). */
+    fun tileOf(s: ProjectCards.Slot): String = ProjectCards.tileOf(s)
 }
 
 @Composable

@@ -144,4 +144,30 @@ object BoardCanvas {
 
     /** The layout as botdot takes it. */
     fun raw(layout: Map<String, R>): Map<String, List<Int>> = layout.mapValues { (_, r) -> listOf(r.x, r.y, r.w, r.h) }
+
+    /**
+     * The board's tiles there are now, in the order they take free spots (CompanyHome's): Needs you when something
+     * waits, Current work and Blockers, the days line or an ongoing project's review, its goals, its cards (and New
+     * card), the suggested team and New team, the calendar, the to-dos, Files, and Latest replies.
+     */
+    fun tiles(f: Collection<String>, c: Company, needsYou: Boolean, overviewBoard: Boolean, cards: List<ProjectCards.Slot>?, files: Boolean): List<String> = buildList {
+        fun on(k: String) = ProjectBoard.shows(c, k)
+        if (needsYou) add("needs")
+        if (overviewBoard) listOf("work", "blockers").filter(::on).forEach(::add)
+        if ((on("days") && c.day != null) || (!on("days") && c.ongoing && c.checkin != null)) add("days")
+        if (CompanyFloor.DISPLAY in f && on("goals")) c.objectives.forEach { add("goal:${it.id}") }
+        cards?.forEach { add(ProjectCards.tileOf(it)) }
+        if (on("teams")) { if (c.suggestion != null) add("suggest"); add("new-team") }
+        if (ProjectCalendar.FEATURE in f && on("calendar")) add("calendar")
+        if (on("todo")) add("todo")
+        if (files) add("files")
+        if (overviewBoard && on("replies")) add("replies")
+    }
+
+    /** A board the owner arranged (#784, with [FEATURE]): its [tiles] in the order a phone's column reads them (ADR 147); null while never arranged. */
+    fun readOrder(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): List<String>? {
+        if (FEATURE !in f) return null
+        val saved = of(layout) ?: return null
+        return order(complete(saved, tiles))
+    }
 }

@@ -11,6 +11,8 @@ struct CardsRow: View {
     let state: ProjectState
     let slots: [ProjectCardsSlot]
     let figure: FigureDef?
+    /// The pieces to add under New card's ask: on an arranged board only under New card's own tile.
+    var pieces = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -20,7 +22,7 @@ struct CardsRow: View {
                     if line.count == 1, !(line[0].wide) { Color.clear.frame(maxWidth: .infinity, maxHeight: 1) }
                 }
             }
-            if !state.pieces.isEmpty {
+            if pieces, !state.pieces.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
                         ForEach(state.pieces, id: \.self) { k in
