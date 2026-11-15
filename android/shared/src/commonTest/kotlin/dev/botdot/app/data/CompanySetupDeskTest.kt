@@ -60,6 +60,7 @@ class CompanySetupDeskTest {
     /** [reads]: the Store reads botdot itself too (a refused save reads the project back). */
     private fun TestScope.desk(fake: FakeBotdot, features: List<String> = talks, c: String? = null, reads: Boolean = false): Pair<Store, CompanySetupDesk> {
         val store = Store(backgroundScope, MutableStateFlow(if (reads) fake.api else null))
+        runCurrent() // the Store takes its botdot first, and starts from nothing: what is set here comes after
         store.version.set(VersionInfo(features = features))
         store.bots.set(emptyList())
         store.company.set(CompanyHeld(c?.let(CompanySetup::of)))
@@ -273,7 +274,7 @@ class CompanySetupDeskTest {
         runCurrent()
         desk.review()
         desk.tick("k1", false)
-        until("unticked at once") { desk.state.value.starter.single { it.key == "k1" }.on.not() }
+        until("unticked at once") { desk.state.value.starter.firstOrNull { it.key == "k1" }?.on == false }
         until("saved") { fake.asked().any { it.method == "PATCH" } }
         assertTrue(fake.asked().first { it.method == "PATCH" }.body.contains("\"starter\""))
         desk.removeNever(0)
@@ -284,7 +285,7 @@ class CompanySetupDeskTest {
         refuse = true
         desk.removeNever(0)
         until("refused: botdot's project is back") { desk.state.value.never == listOf("Post") && desk.state.value.notice == "The setup moved on." }
-        assertFalse(desk.state.value.starter.single { it.key == "k1" }.on, "and what was saved before stays")
+        until("and what was saved before stays") { desk.state.value.starter.firstOrNull { it.key == "k1" }?.on == false }
     }
 
     @Test fun deleteAsksWhetherTheFolderGoesAndTheStartScreenFollows() = runTest {
