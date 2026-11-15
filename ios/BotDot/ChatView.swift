@@ -27,7 +27,10 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) }) }
+                        ForEach(s.runs.reversed(), id: \.run.id) { r in
+                            RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) })
+                                .contextMenu { RunMenu(view: r, replies: model.replies(r.run.id)) { model.replyTo(r.run.id); focused = true } }
+                        }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
                             VStack(alignment: .trailing, spacing: 4) {
@@ -66,7 +69,12 @@ struct ChatView: View {
                 guard on, atBottom else { return }
                 toEnd(scroll, after: .milliseconds(350))
             }
-            .safeAreaInset(edge: .bottom) { Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 } }
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 6) {
+                    if let replying = model.state?.replying { ReplyChip(text: replying, onClear: model.clearReply).padding(.horizontal) }
+                    Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 }
+                }
+            }
         }
         .navigationTitle(name)
         // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.
@@ -98,6 +106,38 @@ struct ChatView: View {
 }
 
 /// One run: what started it on the owner's side, and what came of it on the bot's.
+/// A run's long press (Android's RunBlock): Reply to this task, where the botdot takes replies, and Copy its reply.
+struct RunMenu: View {
+    let view: RunView
+    let replies: Bool
+    let onReply: () -> Void
+
+    var body: some View {
+        if replies { Button(action: onReply) { Label(tr("Reply to this task"), systemImage: "arrowshape.turn.up.left") } }
+        if let reply = view.reply, !reply.isEmpty {
+            Button { UIPasteboard.general.string = reply } label: { Label(tr("Copy"), systemImage: "doc.on.doc") }
+        }
+    }
+}
+
+/// Above the message box while a reply is picked: what it replies to, and ✕.
+struct ReplyChip: View {
+    let text: String
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(text).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            Spacer(minLength: 0)
+            Button(action: onClear) { Image(systemName: "xmark").font(.caption) }
+                .accessibilityLabel(tr("Don't reply to it"))
+        }
+        .padding(.horizontal, 12).padding(.vertical, 8)
+        .background(.bar, in: .rect(cornerRadius: 12))
+        .accessibilityIdentifier("reply-chip")
+    }
+}
+
 struct RunRow: View {
     let view: RunView
     /// File paths in its reply open in the viewer.

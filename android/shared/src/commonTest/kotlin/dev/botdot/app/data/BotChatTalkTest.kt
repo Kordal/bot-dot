@@ -23,6 +23,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
 
@@ -201,5 +203,45 @@ class BotChatTalkTest {
         advanceTimeBy(1_000); runCurrent()
         withContext(Dispatchers.Default) { delay(100) }
         assertTrue(fake.asked().none { it.path.endsWith("/stream") }, "no run's stream is opened for a chat that was left: ${fake.asked().map { it.path }}")
+    }
+
+    @Test fun aReplyToATaskGoesWithTheNextMessageAndThenIsGone() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.path == "/runs" -> 200 to """[${run("r1", prompt = "Plan my week\\nwith care")},""" +
+                    """{"id":"s1","botId":"b1","kind":"script","status":"success","prompt":"tidy","startedAt":"2026-11-14T08:00:00Z"}]"""
+                a.method == "POST" && a.path == "/bots/b1/run" -> 200 to run("r2", status = "running", prompt = "And Friday")
+                else -> 404 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        runCurrent() // the store reads its botdot afresh once it runs: what is set comes after
+        store.version.set(VersionInfo(features = listOf("reply-to")))
+        val chat = BotChat(backgroundScope, fake.api, store, events, "b1")
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == 2 }
+        assertTrue(chat.replies("r1"))
+        assertFalse(chat.replies("s1"), "a script's run takes no reply")
+        chat.replyTo("r1")
+        assertEquals("Reply to: Plan my week", chat.state.value.replying)
+        assertTrue(chat.send("And Friday"))
+        val post = fake.asked().single { it.method == "POST" }
+        assertTrue("\"replyTo\":\"r1\"" in post.body, post.body)
+        assertNull(chat.state.value.replying, "sent: the next message is a new one")
+        chat.replyTo("r1")
+        chat.clearReply()
+        assertNull(chat.state.value.replying)
+        chat.stop()
+    }
+
+    @Test fun aBotdotWithoutRepliesOffersNone() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to "[${run("r1")}]" else 404 to "{}" }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("its run") { chat.state.value.runs.size == 1 }
+        assertFalse(chat.replies("r1"))
+        chat.replyTo("r1")
+        assertNull(chat.state.value.replying)
+        chat.stop()
     }
 }

@@ -71,6 +71,8 @@ class BotChatState(
     /** Something to say once at the bottom of the screen ("Couldn't load", "Stopping…"), with a count that tells a new one. */
     val notice: String?,
     val noticeCount: Int,
+    /** Above the message box while a reply is picked ([BotChat.replyTo]): "Reply to: Plan my week"; null for none. */
+    val replying: String? = null,
 )
 
 /**
@@ -97,6 +99,8 @@ class BotChat(
     private var loadingOlder = false
     private var drafts: Map<String, String> = emptyMap()
     private var files: List<Attachment> = emptyList()
+    /** The run the next message replies to (#627), and its first line. */
+    private var replying: Pair<String, String>? = null
     private var uploading = false
     private var notice: String? = null
     private var noticeCount = 0
@@ -197,18 +201,41 @@ class BotChat(
         val attachments = files
         files = emptyList()
         val known = ownWords(all, queued).mapTo(HashSet()) { it.id }
+        val replyTo = replying?.first
         var waits = false
         val went = outbox.send(text, attachments, box = true, once = takesOnce(store.version.value.value?.features), known = known) { k ->
             publish() // the message on its way is drawn at once
-            val run = api.runBot(botId, text, attachments, k)
+            val run = api.runBot(botId, text, attachments, k, replyTo = replyTo)
             waits = run.isQueued
             took(run, text, attachments)
         }
+        if (went && replyTo != null && replying?.first == replyTo) replying = null
         publish()
         refresh()
         if (waits) store.bots.refresh()
         return went
     }
+
+    /**
+     * Whether [runId] takes a reply (#627, `reply-to`): a run of the bot's own work, not a script's, a side question or
+     * one still waiting.
+     */
+    fun replies(runId: String): Boolean {
+        if ("reply-to" !in store.version.value.value?.features.orEmpty()) return false
+        val r = all.firstOrNull { it.id == runId } ?: return false
+        return r.kind != "script" && !r.btw && !r.isQueued
+    }
+
+    /** "Reply to this task": the next message replies to [runId], its first line above the box until it is sent. */
+    fun replyTo(runId: String) {
+        if (!replies(runId)) return
+        val r = all.first { it.id == runId }
+        replying = runId to RunSteps.firstLine(r.prompt).ifEmpty { tr("this task") }
+        publish()
+    }
+
+    /** ✕ on the reply above the box: the next message is a new one. */
+    fun clearReply() { replying = null; publish() }
 
     /** The box took the failed message back: its text is returned, its files are picked again. */
     fun takeFailed(): String? {
@@ -346,6 +373,7 @@ class BotChat(
             uploading = uploading,
             notice = notice,
             noticeCount = noticeCount,
+            replying = replying?.let { tr("Reply to: {text}", "text" to it.second) },
         )
     }
 

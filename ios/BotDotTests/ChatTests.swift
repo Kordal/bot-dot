@@ -20,4 +20,9 @@ final class ChatTests: XCTestCase {
         XCTAssertEqual(OutboxKt.withFailed(failed: "Remind me in March", typedSince: "and April"), "Remind me in March\nand April")
         XCTAssertEqual(OutboxKt.withFailed(failed: "", typedSince: "and April"), "and April")
     }
+
+    /// "Reply to this task": the chip above the box says what the next message replies to, and draws.
+    func testTheReplyChipDraws() {
+        XCTAssertNotNil(ImageRenderer(content: ReplyChip(text: "Reply to: Plan my week", onClear: {}).frame(width: 360)).cgImage)
+    }
 }
