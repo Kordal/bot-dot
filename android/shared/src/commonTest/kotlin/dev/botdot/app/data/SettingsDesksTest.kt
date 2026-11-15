@@ -392,6 +392,16 @@ class SettingsDesksTest {
         none.load()
         assertNull(none.state.value.pages, "a botdot without pages: no section")
     }
+    @Test fun aRevokedGrantGoesByItsActionFromTheBotAsItIsThen() = runTest {
+        // The one rule for both phones: the step applies to the bot as botdot answered, and every grant of that action
+        // goes, though the bot was read again meanwhile with another label for it.
+        val botdot = MockBotdot { 200 to "{}" }
+        val r = BotSettings.revokeGrant(botdot.api, "a", "send")
+        assertEquals(BotSettings.REVOKED, r.say)
+        val now = Bot(id = "a", name = "A", alwaysAllowed = listOf(AlwaysAllowed("send", "Send mail (new)"), AlwaysAllowed("post", "")))
+        assertEquals(listOf("post"), r.step(now).alwaysAllowed.map { it.action })
+        assertEquals("DELETE", botdot.sent().single().method)
+    }
     @Test fun aChangeThatLandsWhileARevokeIsAnsweredStays() = runTest {
         // botdot answers the revoke late; meanwhile the bot is read again, renamed elsewhere. Both stay.
         val held = kotlinx.coroutines.CompletableDeferred<Unit>()

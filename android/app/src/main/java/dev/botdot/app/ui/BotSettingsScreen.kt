@@ -388,8 +388,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                             }
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
-                                        .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell(dev.botdot.app.data.BotSettings.JOB_REVOKED) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeJob(api!!, botId, j.id) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -400,8 +400,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                             Text(dev.botdot.app.data.BotSettings.grantName(g), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
-                                        .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell(dev.botdot.app.data.BotSettings.REVOKED) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeGrant(api!!, botId, g.action) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -418,8 +418,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                             }
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.revokeOverride(botId, o.id) }
-                                        .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell(dev.botdot.app.data.BotSettings.REVOKED) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeOverride(api!!, botId, o.id) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }

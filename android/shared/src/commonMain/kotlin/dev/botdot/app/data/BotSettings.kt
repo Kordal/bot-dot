@@ -208,6 +208,30 @@ object BotSettings {
     val JOB_REVOKED: String get() = tr("Revoked: its next change waits for your OK")
     val REVOKED: String get() = tr("Revoked: it asks you again")
 
+    /** What botdot did for a Revoke: [step] makes the bot as it is when botdot answered say so, and what to [say]. */
+    class Revoked(val step: (Bot) -> Bot, val say: String)
+
+    /** Revoke a job always approved: its next change waits for the owner's OK. A refusal throws botdot's sentence. */
+    @Throws(Exception::class)
+    suspend fun revokeJob(api: Api, botId: String, jobId: String): Revoked {
+        val saved = api.setJobAlwaysApprove(botId, jobId, false)
+        return Revoked({ b -> b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }) }, JOB_REVOKED)
+    }
+
+    /** Revoke a lasting grant in a connected app: it asks again. Every grant of that action goes, whatever its label. */
+    @Throws(Exception::class)
+    suspend fun revokeGrant(api: Api, botId: String, action: String): Revoked {
+        api.revokeAlwaysAllowed(botId, action)
+        return Revoked({ b -> b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action }) }, REVOKED)
+    }
+
+    /** Revoke a rule lifted for it: it asks again; the rules left are botdot's. */
+    @Throws(Exception::class)
+    suspend fun revokeOverride(api: Api, botId: String, id: String): Revoked {
+        val left = api.revokeOverride(botId, id).overrides
+        return Revoked({ b -> b.copy(overrides = left) }, REVOKED)
+    }
+
     /** The choices of its key on the keypad (#366): by its place, or a digit, saying which bot holds it now. */
     fun hotkeys(others: List<Bot>): List<Option> = listOf(Option("0", tr("By its place"))) +
         (1..9).map { d -> Option("$d", others.firstOrNull { it.hotkey == d }?.let { "$d · " + tr("Now {name}'s", "name" to it.name) } ?: "$d") }
@@ -396,35 +420,23 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
 
     /** Revoke a job always approved: its next change waits for the owner's OK. What to say. */
     @Throws(Exception::class)
-    suspend fun revokeJob(jobId: String): String = revoked(BotSettings.JOB_REVOKED) {
-        val saved = api.setJobAlwaysApprove(botId, jobId, false)
-        return@revoked { b -> b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }) }
-    }
+    suspend fun revokeJob(jobId: String): String = revoked { BotSettings.revokeJob(api, botId, jobId) }
 
     /** Revoke a lasting grant in a connected app: it asks again. What to say. */
     @Throws(Exception::class)
-    suspend fun revokeGrant(action: String): String = revoked(BotSettings.REVOKED) {
-        api.revokeAlwaysAllowed(botId, action)
-        return@revoked { b -> b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action }) }
-    }
+    suspend fun revokeGrant(action: String): String = revoked { BotSettings.revokeGrant(api, botId, action) }
 
     /** Revoke a rule lifted for it: it asks again. What to say. */
     @Throws(Exception::class)
-    suspend fun revokeOverride(id: String): String = revoked(BotSettings.REVOKED) {
-        val left = api.revokeOverride(botId, id).overrides
-        return@revoked { b -> b.copy(overrides = left) }
-    }
+    suspend fun revokeOverride(id: String): String = revoked { BotSettings.revokeOverride(api, botId, id) }
 
-    /**
-     * Asks botdot ([call]), then applies what it answered ([call]'s step) to the bot as it is by then: a load or a save
-     * that landed while botdot answered stays.
-     */
-    private suspend fun revoked(ok: String, call: suspend () -> (Bot) -> Bot): String {
+    /** Asks botdot, then applies its answer to the bot as it is by then: a load or a save that landed meanwhile stays. */
+    private suspend fun revoked(call: suspend () -> BotSettings.Revoked): String {
         if (_state.value.bot == null) return ""
         return try {
-            val step = call()
-            _state.update { s -> s.copy(bot = s.bot?.let(step)) }
-            ok
+            val r = call()
+            _state.update { s -> s.copy(bot = s.bot?.let(r.step)) }
+            r.say
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
