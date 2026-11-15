@@ -72,4 +72,16 @@ class RunStepsTest {
         assertFalse(RunSteps.open(mapOf("w" to true), ended))
         assertTrue(RunSteps.open(mapOf("w" to false), ended))
     }
+    @Test fun theStepLineSaysWhatARunAtWorkDoesAndWhatAFinishedOneDid() {
+        val working = run("""{"id":"r1","botId":"b","prompt":"Ship it","status":"running","startedAt":"2026-10-27T10:00:00Z"}""")
+        assertEquals("Reading a.js, 3 steps", RunSteps.label(working, "Reading a.js", 3, held = false))
+        assertEquals("Working", RunSteps.label(working, null, 0, held = false))
+        assertEquals(OpeningLine.WAITING_FOR_OK, RunSteps.now("Reading a.js", held = true))
+        val done = run(
+            """{"id":"r2","botId":"b","prompt":"Ship it","status":"done","result":"Done","startedAt":"2026-10-27T10:00:00Z","endedAt":"2026-10-27T10:07:00Z",
+               "sentTo":{"id":"b2","name":"Reviewer","text":"Please review","at":"2026-10-27T10:00:03Z"},
+               "learned":[{"kind":"skill","skill":"backup-check","text":"Used backup-check"}]}""",
+        )
+        assertEquals("23 steps, the skill backup-check, Reviewer, ${RunSteps.took(done.startedAt, done.endedAt)}", RunSteps.label(done, null, 23, held = false))
+    }
 }

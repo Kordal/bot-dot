@@ -384,4 +384,30 @@ class BotChatTalkTest {
         assertEquals(listOf("r6" to false), answerable(listOf(choosing("r6", "6", status = "error")), emptyList()))
         assertEquals(listOf("r7" to false), answerable(listOf(choosing("r7", "7", status = "error")), listOf("r7")), "a failed one, even asked in")
     }
+    @Test fun aRunsStepLineFollowsItsLineItsStepsAndItsWaitAndAPlainFinishedRunHasNone() = runTest {
+        val working = """{"id":"r1","botId":"b1","status":"running","prompt":"Ship it","startedAt":"2026-11-14T09:00:00Z","steps":{"count":2,"rows":[{"text":"Reading a.js"}]}}"""
+        val asking = """{"id":"r3","botId":"b1","status":"running","prompt":"Deploy","startedAt":"2026-11-14T09:01:00Z","waitingFor":"ok"}"""
+        val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to "[$asking,$working,${run("r2")}]" else 200 to "[]" }
+        val (store, chat) = chat(fake)
+        chat.start()
+        until("the runs are read") { chat.state.value.runs.size == 3 }
+        fun steps(id: String) = chat.state.value.runs.first { it.run.id == id }.steps
+        assertNull(steps("r2"), "a plain finished run has no step line")
+        with(steps("r1")!!) {
+            assertEquals(2, count, "the run's own count")
+            assertFalse(held)
+            assertEquals("Working, 2 steps", label)
+        }
+        assertTrue(steps("r3")!!.held, "it waits for the owner's OK (waitsForOk)")
+        assertEquals(OpeningLine.WAITING_FOR_OK, steps("r3")!!.now)
+        store.lines.say("bot:b1", "Reading a.js", "r1")
+        until("its line comes") { steps("r1")?.label == "Reading a.js, 2 steps" }
+        store.lines.counted("r1", 5)
+        until("its count, the larger") { steps("r1")?.count == 5 }
+        store.lines.counted("r1", 1)
+        until("never under its own") { steps("r1")?.count == 2 }
+        store.lines.waiting("bot:b1", "r1", true)
+        until("it waits (heldRuns)") { steps("r1")?.held == true }
+        assertEquals("${OpeningLine.WAITING_FOR_OK}, 2 steps", steps("r1")!!.label)
+    }
 }

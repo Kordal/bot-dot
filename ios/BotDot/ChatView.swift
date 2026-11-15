@@ -193,12 +193,19 @@ struct RunRow: View {
         VStack(alignment: .leading, spacing: 8) {
             if let asked = view.asked { Mine(text: asked, files: view.askedFiles, waiting: false) }
             if let chip = view.chip { Text(chip).font(.caption).foregroundStyle(.secondary) }
+            if let steps = view.steps, !view.working {
+                StepLineView(run: view.run, steps: steps, stops: false, onStop: onStop)
+            }
             if view.working {
                 if let draft = view.draft, !draft.isEmpty { MarkdownView(text: draft, paths: paths) }
-                HStack {
-                    ProgressView().controlSize(.small)
-                    Text(view.line).font(.callout).foregroundStyle(.secondary).lineLimit(2)
-                    if stops { Spacer(); Button(tr("Stop"), action: onStop).font(.callout) }
+                if let steps = view.steps {
+                    StepLineView(run: view.run, steps: steps, stops: stops, onStop: onStop)
+                } else {
+                    HStack {
+                        ProgressView().controlSize(.small)
+                        Text(view.line).font(.callout).foregroundStyle(.secondary).lineLimit(2)
+                        if stops { Spacer(); Button(tr("Stop"), action: onStop).font(.callout) }
+                    }
                 }
             } else if let reply = view.reply, !reply.isEmpty {
                 MarkdownView(text: reply, paths: paths)
@@ -266,4 +273,87 @@ struct Mine: View {
         .frame(maxWidth: .infinity, alignment: .trailing)
         .textSelection(.enabled)
     }
+}
+
+/// A run's step line (Android's StepLine, #625, #636): at work, what it does and its steps so far, with Stop; done,
+/// its steps, skills, the bots it messaged and how long it took. A tap unfolds its steps; one opened while it worked
+/// folds when it is done (RunSteps.open).
+struct StepLineView: View {
+    let run: Run
+    let steps: StepLine
+    let stops: Bool
+    let onStop: () -> Void
+    /// Opened, and whether the run was at work then; nil while folded.
+    @State private var opened: Bool?
+
+    private var open: Bool {
+        guard let o = opened else { return false }
+        return RunSteps.companion.open(opened: [run.id: KotlinBoolean(bool: o)], r: run)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button { opened = open ? nil : run.isRunning } label: {
+                    HStack(spacing: 8) {
+                        if run.isRunning {
+                            if steps.held { Circle().fill(.secondary.opacity(0.5)).frame(width: 8, height: 8) } else { ProgressView().controlSize(.small) }
+                            Text(steps.now).font(.callout).lineLimit(1)
+                            if steps.count > 0 { Text("· " + RunSteps.companion.countWords(n: steps.count)).font(.caption.monospaced()).foregroundStyle(.secondary) }
+                        } else {
+                            Image(systemName: open ? "chevron.down" : "chevron.right").font(.caption).foregroundStyle(.secondary)
+                            Image(systemName: "checkmark").font(.caption).foregroundStyle(.green)
+                            Text(steps.label).font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(steps.label)
+                .accessibilityHint(open ? tr("Hide the steps") : tr("Show the steps"))
+                if run.isRunning && stops { Spacer(); Button(tr("Stop"), action: onStop).font(.callout) }
+            }
+            if open && !steps.timeline.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(steps.timeline.enumerated()), id: \.offset) { (_, row: RunSteps.Row) in
+                        StepRow(row: row)
+                    }
+                }
+                .padding(.leading, 16)
+                .overlay(alignment: .leading) { Rectangle().fill(.quaternary).frame(width: 1) }
+            }
+        }
+    }
+}
+
+/// One of a run's steps: when, what kind, and what it did; what it sent or changed in bold.
+private struct StepRow: View {
+    let row: RunSteps.Row
+
+    var body: some View {
+        let lines = row.text.split(separator: "\n", maxSplits: 1).map(String.init)
+        let head = lines.first ?? ""
+        let rest = lines.count > 1 ? lines[1] : nil
+        let strong = row.kind == RunSteps.companion.CHANGED || (row.kind == RunSteps.companion.MESSAGE && rest != nil)
+        HStack(alignment: .top, spacing: 10) {
+            Text(row.at.map { StepRow.clock($0) } ?? "").font(.caption.monospaced()).foregroundStyle(.tertiary).frame(minWidth: 40, alignment: .leading)
+            Image(systemName: icon).font(.caption).foregroundStyle(row.kind == "" ? .green : .secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(row.n > 1 ? "\(head) ×\(row.n)" : head).font(.subheadline).fontWeight(strong ? .semibold : .regular)
+                    .foregroundStyle(strong ? .primary : .secondary)
+                if let rest, !rest.isEmpty { Text(rest).font(.caption).foregroundStyle(.tertiary).lineLimit(2) }
+            }
+        }
+    }
+
+    private var icon: String {
+        switch row.kind {
+        case RunSteps.companion.MESSAGE: "bubble.left"
+        case RunSteps.companion.SKILL, RunSteps.companion.CHANGED: "sparkles"
+        default: "checkmark"
+        }
+    }
+
+    /// A step's time as its chat writes it: the hour and minute.
+    static func clock(_ at: String) -> String { String(BotChatKt.chatClock(iso: at).split(separator: ",").last ?? "").trimmingCharacters(in: .whitespaces) }
 }
