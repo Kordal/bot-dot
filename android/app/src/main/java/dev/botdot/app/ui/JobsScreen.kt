@@ -1,6 +1,5 @@
 package dev.botdot.app.ui
 
-import dev.botdot.app.data.scheduleWords
 import dev.botdot.app.data.without
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,12 +45,14 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
+    // The pause and Run now, and what they say: the shared layer's, as the iPhone's (JobsDesk).
+    val desk = remember(api, botId) { api?.let { dev.botdot.app.data.JobsDesk(scope, it, app.store, botId, ::shortTime) } }
+    androidx.compose.runtime.DisposableEffect(desk) { onDispose { desk?.stop() } }
     // The bot and its jobs as the app keeps them (Store), kept up to date from the live feed.
     val bots by app.store.bots.value.collectAsState()
     val bot = remember(bots, botId) { bots?.firstOrNull { it.id == botId } }
     val loadError by app.store.bots.error.collectAsState()
 
-    suspend fun load() = app.store.bots.refresh()
     // A message at the bottom, without holding up what comes after it (showSnackbar waits until it's gone).
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
     LaunchedEffect(loadError) { loadError?.let { tell(it) } }
@@ -72,20 +73,11 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
             items(jobs, key = { it.id }) { j ->
                 JobRow(j,
                     onToggle = { on ->
-                        scope.launch {
-                            // Show it right away; the server's answer (and next run) follows.
-                            app.store.bots.update { list -> list.map { b -> if (b.id != botId) b else b.copy(jobs = b.jobs.map { if (it.id == j.id) it.copy(enabled = on, nextRunAt = if (on) it.nextRunAt else null) else it }) } }
-                            val r = runCatching { api!!.setJobEnabled(botId, j.id, on) }
-                            load()
-                            tell(r.fold({ if (on) tr("Resumed") else tr("Paused. It won't run until you turn it back on.") }, { it.message ?: tr("Couldn't change it") }))
-                        }
+                        // Shown right away; the server's answer (and next run) follows.
+                        scope.launch { desk?.setOn(j.id, on)?.let { tell(it) } }
                     },
                     onRun = {
-                        scope.launch {
-                            val r = runCatching { api!!.runJob(botId, j.id) }
-                            load()
-                            tell(r.fold({ runNowSays(it) }, { it.message ?: tr("Couldn't start it") }))
-                        }
+                        scope.launch { desk?.run(j.id)?.let { tell(it) } }
                     },
                     onApprove = onNeedsYou,
                 )
@@ -105,13 +97,7 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             Column(Modifier.weight(1f)) {
                 Text("${if (j.kind == "script") "⚙️" else "🧠"} ${j.name}", style = MaterialTheme.typography.titleMedium, color = p.text)
                 // A job with a change beside it runs on as approved: its line is that of a running job.
-                val status = when {
-                    !j.approved -> tr("Waits for your OK")
-                    !j.enabled -> tr("Paused")
-                    j.nextRunAt != null -> tr("Next: {time}", "time" to shortTime(j.nextRunAt))
-                    else -> ""
-                }
-                Text(listOf(scheduleWords(j), status).filter { it.isNotBlank() }.joinToString(" · "),
+                Text(dev.botdot.app.data.Jobs.line(j, ::shortTime),
                     color = if (!j.approved) p.warnText else p.muted, style = MaterialTheme.typography.bodyMedium)
             }
             Switch(
@@ -136,40 +122,32 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
 }
 
 /** Under a job that takes signed calls (`callMode`, docs/api.md "A signed call"): how a sender gets in; null for any other. */
-internal fun callModeLine(j: Job): String? =
-    if (j.call && j.callMode == "signed") tr("Takes signed calls: each one is signed with the secret in Passwords, and runs once.") else null
+internal fun callModeLine(j: Job): String? = dev.botdot.app.data.Jobs.callModeLine(j)
 
 /** Under a job with a notify address (`notifyUrl`, docs/api.md): where the end of each run goes. */
-internal fun notifyLine(url: String): String = tr("Tells {url} when a run ends, signed with the secret in Passwords.", "url" to url)
+internal fun notifyLine(url: String): String = dev.botdot.app.data.Jobs.notifyLine(url)
 
 /** Under an approved job that has a change beside it (`change`, docs/api.md): it runs as approved meanwhile. */
-internal val CHANGE_WAITS: String get() = tr("A change waits for your OK")
+internal val CHANGE_WAITS: String get() = dev.botdot.app.data.Jobs.CHANGE_WAITS
 
 /** Whether the jobs screen says [CHANGE_WAITS] under a job: it is approved, so it runs, and a change waits beside it. */
-internal fun changeWaits(j: Job): Boolean = j.approved && j.change != null
+internal fun changeWaits(j: Job): Boolean = dev.botdot.app.data.Jobs.changeWaits(j)
 
 /**
  * The line under a job. The server's own (`last.text`, with `job-line`: "Did not run at 08:00: botdot was off.") as
  * it is; from a server that sends none, the app's line as before: when it last ran ([time], in the phone's words) and
  * how that went.
  */
-internal fun jobLine(last: JobLast, time: String): String = last.text ?: run {
-    val what = mapOf("held" to tr("held till morning"), "quiet" to tr("nothing to report"), "success" to tr("done"), "error" to tr("failed"), "stopped" to tr("stopped"), "interrupted" to tr("cut off"))[last.status] ?: last.status
-    tr("Last run {time}: {what}", "time" to time, "what" to what)
-}
+internal fun jobLine(last: JobLast, time: String): String = dev.botdot.app.data.Jobs.lastLine(last, time)
 
 /** How the line under a job is coloured: its last run failed (also again and again), its time passed without a run, or neither. */
 internal enum class JobTone { FAILED, MISSED, FINE }
 
-internal fun jobLineTone(last: JobLast): JobTone = when {
-    last.status == "error" || last.failures > 0 -> JobTone.FAILED
-    last.status == "missed" -> JobTone.MISSED
-    else -> JobTone.FINE
+internal fun jobLineTone(last: JobLast): JobTone = when (dev.botdot.app.data.Jobs.tone(last)) {
+    dev.botdot.app.data.Jobs.Tone.FAILED -> JobTone.FAILED
+    dev.botdot.app.data.Jobs.Tone.MISSED -> JobTone.MISSED
+    dev.botdot.app.data.Jobs.Tone.FINE -> JobTone.FINE
 }
 
 /** What "Run now" says, from the server's answer: it started, it waits for the bot, or it was skipped and why. */
-internal fun runNowSays(answer: RunNow): String = when (answer) {
-    RunNow.Started -> tr("Started")
-    RunNow.Queued -> tr("It will run as soon as the bot is free")
-    is RunNow.Skipped -> answer.why
-}
+internal fun runNowSays(answer: RunNow): String = dev.botdot.app.data.Jobs.runNowSays(answer)
