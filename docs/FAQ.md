@@ -27,7 +27,7 @@ Claude only. Every bot and the Chief of Staff run as the official Claude Code CL
 
 ### What does it cost?
 
-botdot itself is free and open source under the [MIT licence](../LICENSE) when you run it yourself; the hosted service costs €29 a month. What costs money besides is Claude: each account signs in with its own Claude subscription (Pro, Max or Ultra), whose usage limits its bots' runs count against, or with an Anthropic API key, paid as you go. Runs that use the bots' computer cost more, because screenshots count as input. Plus the server you run it on.
+botdot itself is free and open source under the [MIT licence](../LICENSE): run it yourself and you pay for the server you run it on. The hosted service costs €29 a month, server included. Either way, what costs money besides is Claude: each account signs in with its own Claude subscription (Pro, Max or Ultra), whose usage limits its bots' runs count against, or with an Anthropic API key, paid as you go. Runs that use the bots' computer cost more, because screenshots count as input.
 
 ### Can I use my Claude subscription for bots that run unattended?
 
