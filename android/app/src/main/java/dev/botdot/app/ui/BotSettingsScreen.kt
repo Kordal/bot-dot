@@ -144,7 +144,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             launch { runCatching { app.store.bots.value.value ?: a.bots() }.onSuccess { all -> others = all.filter { it.id != botId }; all.firstOrNull { it.id == botId }?.let(::fill) }.onError { tell(it.message ?: tr("Couldn't load")) } }
             launch { runCatching { a.settings() }.onSuccess { choices = it } }
             launch { runCatching { a.skills() }.onSuccess { library = it.library; sysSkills = it.machine.map { k -> k to "machine" } + it.builtin.map { k -> k to "builtin" } } }
-            launch { runCatching { a.connectors() }.onSuccess { apps = it.connections.filter { c -> c.status == "ACTIVE" || it.connections.none { x -> x.toolkit == c.toolkit && x.status == "ACTIVE" } }.distinctBy { c -> if (c.accounts > 1) c.id else c.toolkit } } }
+            launch { runCatching { a.connectors() }.onSuccess { apps = dev.botdot.app.data.BotSettings.appChoices(it.connections) } }
         }
     }
 
@@ -325,13 +325,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 // An app with two or more accounts is a row per account, one of them at most (ADR 174).
                 val mine = bot?.id
-                fun picked(c: dev.botdot.app.data.Connection) = c.toolkit in connectors && (c.accounts < 2 || accounts[c.toolkit]?.let { it == c.id } ?: (mine in c.usedBy))
-                fun named(c: dev.botdot.app.data.Connection) = (c.app?.name ?: c.toolkit) + if (c.accounts > 1) " · " + (c.label ?: c.id) else ""
+                fun picked(c: dev.botdot.app.data.Connection) = dev.botdot.app.data.BotSettings.appPicked(c, connectors, accounts, mine)
+                fun named(c: dev.botdot.app.data.Connection) = dev.botdot.app.data.BotSettings.appName(c)
                 if (apps.isNotEmpty() || connectors.isNotEmpty()) FoldSection(tr("Apps"), apps.filter(::picked).joinToString(", ", transform = ::named).ifBlank { tr("None") }) {
                     apps.forEach { c ->
                         CheckRow(named(c), null, picked(c)) { on ->
-                            connectors = if (on) connectors + c.toolkit else connectors - c.toolkit
-                            accounts = if (on && c.accounts > 1) accounts + (c.toolkit to c.id) else accounts - c.toolkit
+                            val (k, acc) = dev.botdot.app.data.BotSettings.appToggled(c, on, connectors, accounts)
+                            connectors = k; accounts = acc
                         }
                     }
                 }
