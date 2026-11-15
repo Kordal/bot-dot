@@ -57,4 +57,9 @@ final class BoardModel {
     func remove(_ key: String, withTiles: Bool) async { try? await store.remove(key: key, withTiles: withTiles) }
     func askChange(_ key: String, _ text: String) async -> Bool { (try? await store.askChange(key: key, text: text))?.boolValue ?? false }
     func answer(_ suggestion: String, add: Bool) async { try? await store.answer(suggestion: suggestion, add: add) }
+
+    /// Where tiles' pictures (camera snapshots) are kept: the caches, so the phone may clear them.
+    nonisolated static let pictures = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("tile-pictures")
+    /// A picture block's image, saved: its file's path; nil when it couldn't be read.
+    func picture(_ src: String) async -> String? { try? await store.picture(src: src, root: Self.pictures.path) }
 }
