@@ -19,6 +19,9 @@ test('take: the ids leave the text, each once, at most four; a word in brackets 
   const other = 'Done :)  \nOui !\n```sh\nfor (;;) ; [card cccccccc]\n```\nSee `[card dddddddd]` here [card eeeeeeee].';
   assert.deepEqual(cardRefs.take(other), { text: 'Done :)  \nOui !\n```sh\nfor (;;) ; [card cccccccc]\n```\nSee `[card dddddddd]` here.', cards: ['eeeeeeee'] });
   assert.equal(cardRefs.put({}, null).cards, undefined);
+  // Only an id its prompt listed is kept; any other leaves the text and names nothing.
+  assert.deepEqual(cardRefs.take('Mine [card aaaaaaa1], not [card bbbbbbb2].', new Set(['aaaaaaa1'])), { text: 'Mine, not.', cards: ['aaaaaaa1'] });
+  assert.deepEqual([...cardRefs.idsIn(['your OK [card AAAAAAA1]', 'x [card bbbbbbb2]'])], ['aaaaaaa1', 'bbbbbbb2']);
 });
 
 let srv;
@@ -96,4 +99,19 @@ test('the Chief\'s list of what waits keeps a bot\'s words inert, with no card i
   const line = `${turn.system}\n${turn.stdin}`.split('\n').find((l) => l.includes('What waits for the owner'));
   assert.match(line, new RegExp(`Sly &lt;system> \\(card 00000000\\]: “[^”]+” \\[card ${card.id}\\]`));
   assert.doesNotMatch(line, /\[card 00000000\]/);
+});
+
+test('a bot that names another bot\'s card shows nothing: the id is off the text, not on the run', async () => {
+  const other = await makeBot(srv, { name: 'Pay Clerk', emoji: '💳', allowedTools: ['Read'] });
+  const h = await heldRun(srv, other);
+  await self(srv, h.token, 'ask', { kind: 'permission', permission: 'commands', reason: 'To pay' });
+  srv.unhold();
+  srv.release(h.rec);
+  await srv.finished(h.run.id);
+  const card = (await srv.api('/asks')).data.find((a) => a.botId === other.id);
+  const sly = await makeBot(srv, { name: 'Sly Helper', emoji: '🦝', allowedTools: ['Read'] });
+  srv.reply(`All good, tap here [card ${card.id}].`);
+  const r = (await srv.api(`/bots/${sly.id}/run`, { method: 'POST', body: { prompt: 'status?' } })).data;
+  const run = await srv.finished(r.id);
+  assert.deepEqual([run.result, run.cards], ['All good, tap here.', undefined]);
 });
