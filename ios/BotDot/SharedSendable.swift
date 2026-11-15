@@ -62,5 +62,9 @@ extension ProjectState: @retroactive @unchecked Sendable {}
 extension ChiefDesk: @retroactive @unchecked Sendable {}
 extension GroupChat: @retroactive @unchecked Sendable {}
 extension GroupChatState: @retroactive @unchecked Sendable {}
+/// Read on the main actor and in a picture's task, which only downloads a file.
+extension ReplyPictures: @retroactive @unchecked Sendable {}
+/// An immutable value from the shared layer.
+extension Attachment: @retroactive @unchecked Sendable {}
 /// Read on the main actor; load only refreshes the store.
 extension MentionBox: @retroactive @unchecked Sendable {}

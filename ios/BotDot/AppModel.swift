@@ -32,6 +32,15 @@ final class AppModel {
     /// What the sign-in says without it being wrong: that the account was deleted.
     var notice: String?
     private(set) var busy = false
+    /// The notice that what is sent goes to Anthropic was accepted on this phone (AiNotice): until it is, the
+    /// signed-in screen is the notice.
+    private(set) var noticeSeen = false
+
+    /// Signed in, and the notice not accepted yet: the notice in Home's place.
+    var showsNotice: Bool {
+        if case .signedIn = screen { return !noticeSeen }
+        return false
+    }
 
     let session: Session
     private let sessions: KeychainSessions
@@ -64,8 +73,18 @@ final class AppModel {
 
     /// The botdot this phone was set to: Home, until its front door asks for a sign-in ([signInNeeded]), as on Android.
     func start() async {
+        // Accepted in the app or in a share: both know, so it shows never again.
+        noticeSeen = !((try? await AiNotice.shared.asks(settings: settings))?.boolValue ?? true)
+        if noticeSeen { SharedAddress.noticeSeen = true } else if SharedAddress.noticeSeen { await acceptNotice() }
         let server = (try? await settings.serverNow()) ?? nil
         screen = server.map { home($0) } ?? .address
+    }
+
+    /// Continue on the notice: kept, so it shows never again, and Home shows.
+    func acceptNotice() async {
+        try? await settings.setAiNoticeSeen()
+        SharedAddress.noticeSeen = true
+        noticeSeen = true
     }
 
     /// An address typed in: refused at once, asked whether it is a botdot, then kept.
@@ -118,7 +137,9 @@ final class AppModel {
             return
         }
         switch onEnum(of: flow.state.value) {
-        case .done: screen = home(server)
+        case .done:
+            ReplyPictures.forgetAll() // another account may be signing in: none of the last one's pictures
+            screen = home(server)
         case .failed(let failed): error = failed.words
         default: break
         }
@@ -133,6 +154,7 @@ final class AppModel {
         await Notifications.shared.signOut(api) // while the session still lets it in
         try? await api.signOut()
         sessions.write(server: server, token: nil)
+        ReplyPictures.forgetAll() // signed out: none of this account's pictures stay
         // Another address may have been chosen meanwhile: its screen stays.
         if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }
@@ -145,6 +167,7 @@ final class AppModel {
     /// The account was deleted: the sign-in, saying so, from Home or from its paused screen.
     func accountDeleted(_ server: String, _ words: String) {
         sessions.write(server: server, token: nil)
+        ReplyPictures.forgetAll() // signed out: none of this account's pictures stay
         notice = words
         if screen == .signedIn(server) || screen == .paused(server) { screen = .signIn(server) }
     }

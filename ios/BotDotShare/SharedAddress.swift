@@ -8,6 +8,14 @@ enum SharedAddress {
 
     static func read() -> String? { group?.string(forKey: key) }
 
+    private static let noticeKey = "app.botdot.ai-notice"
+
+    /// The notice that what is sent goes to Anthropic was accepted on this phone, in the app or a share (AiNotice).
+    static var noticeSeen: Bool {
+        get { group?.bool(forKey: noticeKey) ?? false }
+        set { group?.set(newValue, forKey: noticeKey) }
+    }
+
     /// The address signed in to, or nil once none is (another address, a sign-out): a share then asks to sign in.
     static func write(_ server: String?) {
         if let server { group?.set(server, forKey: key) } else { group?.removeObject(forKey: key) }

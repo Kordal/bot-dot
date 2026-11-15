@@ -18,11 +18,15 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
                   layer's cards, NeedsDesk, with their buttons), a bot's chat (ChatView: its replies' Markdown, the live
                   feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box; a file
-                  path in a reply opens in the viewer, MarkdownView(paths:)), the Chief's chat (ChiefView: one
-                  conversation, what each message is about, 👍/👎 under the Chief's unasked messages), one message box
-                  for both (Composer), a group's chat (GroupChatView: each member's reply under its own name, a tapped
-                  answer with its question above it, the members at work with Stop all, who is next, Go on, waiting
-                  messages; its title opens the members panel, GroupPanelView: name, members, notes, delete),
+                  path in a reply opens in the viewer, MarkdownView(paths:); quick-answer choices and question boxes,
+                  QuestionsBox, under the reply that asks, each answering its run), the Chief's chat (ChiefView: its
+                  conversations, what each message is about, 👍/👎 under the Chief's unasked messages, a bot's
+                  suggestion with Approve and Decline, question boxes under its newest reply), one message box for all
+                  (Composer), a group's chat (GroupChatView: each member's reply under its own name, a tapped answer
+                  with its question above it, the members at work with Stop all, who is next, Go on, waiting messages,
+                  the plan dock, question boxes; its title opens the members panel, GroupPanelView: name, members,
+                  notes, delete); in all three a reply's pictures show as themselves and its other files as chips,
+                  each opening in the viewer (ReplyFilesView, the shared ReplyFiles),
                   Passwords (VaultView, from Home's ⋯ menu: the entries in their categories, which fold, a search over
                   a list longer than eight, a login's editor, Bitwarden's unlock), Files (FilesView, from Home's ⋯
                   menu: a bot's or the Chief's places and folders, sort, search, upload from Photos or Files, a new
@@ -69,8 +73,8 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView` |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
-| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile and a chat tile open nothing until #1368 and #1361) |
-| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | #1368 |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile and a chat tile open nothing yet) |
+| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | left (#1372): the viewer shows files, not pages |
 | `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
@@ -79,13 +83,13 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` (left: the "@" picker of the room's bots, as "@Name" typed in the message still mentions; the button to the newest message; block Markdown, a message shows inline Markdown) |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
-| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` |
-| `PlanDock` | a bot's chat | left (#1361) |
-| `ChiefScreen` (`chief/{id}`) | Home | #1362 |
-| `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | #1367 |
-| `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings | #1368 |
+| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` (left: Reply to a task and its steps, "@" mentions and Quote, page chips, Steer, "Learned" chips) |
+| `PlanDock` | a chat at work | `PlanDock` in `GroupChatView` (left: in a bot's chat and the Chief's) |
+| `ChiefScreen` (`chief/{id}`) | Home | `ChiefView` (left: the mail draft card, action chips, quick-answer choices) |
+| `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView` (left: making a group) |
+| `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings, Home's ⋯ | `FilesView`, `ViewerView` (left: Move or Copy, Export, Keep it up to date, On Board) |
 | `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
-| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | #1370 |
-| `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings | #1371 |
+| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView` (left: the Chief's settings, Jobs, Skills, Pages, Storage, most of a bot's settings) |
+| `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings, Home's ⋯ | `ScreenView` |
 | `ShareScreen` (`share`) | another app's Share | #1373 |
 | `AppUpdateRow` | Home, Settings | none: the App Store updates the iPhone app |
