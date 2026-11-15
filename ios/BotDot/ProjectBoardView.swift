@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import BotdotShared
 
 /// The cards made by Claude on a project's board (#776; Android's ProjectCardsRow, the rules are ProjectCards'): two to
@@ -273,6 +274,8 @@ struct ProjectSettingsView: View {
     let figure: FigureDef?
     /// Once the project is deleted: off its page.
     var onDeleted: () -> Void = {}
+    /// Open, beside the project's folder: the folder in Files.
+    var onFolder: (() -> Void)? = nil
     @State private var name = ""
     @State private var start = ""
     @State private var link = ""
@@ -281,6 +284,9 @@ struct ProjectSettingsView: View {
     @State private var standupTime = ""
     @State private var adding = false
     @State private var deleting = false
+    @State private var importing = false
+    @State private var logins: [VaultItem]?
+    @State private var team: TeamDraft?
 
     var body: some View {
         Form {
@@ -329,6 +335,32 @@ struct ProjectSettingsView: View {
                         .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                         .submitLabel(.done)
                         .onSubmit { let typed = link; Task { if await model.addLink(typed) { link = "" } } }
+                    if c.sources.count < Int(CompanySetup.shared.MAX_SOURCES) { Button(tr("Add files")) { importing = true } }
+                }
+                if let folder = c.folder, let onFolder {
+                    Section(tr("Folder")) {
+                        HStack {
+                            Text(folder.path).font(.callout.monospaced()).lineLimit(1).truncationMode(.middle)
+                            Spacer()
+                            Button(tr("Open"), action: onFolder).buttonStyle(.borderless)
+                        }
+                    }
+                }
+                if s.logins {
+                    Section(tr("Logins")) {
+                        ForEach(c.logins, id: \.id) { l in
+                            HStack {
+                                Text(l.name ?? l.id).lineLimit(1)
+                                Spacer()
+                                Button { Task { await model.removeLogin(l.id) } } label: { Image(systemName: "xmark") }
+                                    .buttonStyle(.borderless)
+                                    .accessibilityLabel(tr("Remove"))
+                            }
+                        }
+                        if c.logins.count < Int(ProjectLogins.shared.MAX) {
+                            Button(tr("Add")) { Task { logins = await model.addableLogins() } }
+                        }
+                    }
                 }
                 Section(tr("Team")) {
                     Picker(tr("Project Manager"), selection: Binding(get: { c.lead ?? "" }, set: { v in Task { await model.setLead(v.isEmpty ? nil : v) } })) {
@@ -340,8 +372,11 @@ struct ProjectSettingsView: View {
                             Text(t.team.name)
                             Spacer()
                             Text(t.keys.map { $0.bot.name }.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                            Button(tr("Edit")) { team = TeamDraft(id: t.team.id, name: t.team.name, bots: t.team.bots, lead: t.team.lead) }
+                                .buttonStyle(.borderless)
                         }
                     }
+                    Button(tr("New team")) { team = TeamDraft(id: nil, name: "", bots: [], lead: nil) }
                     if s.ownBots {
                         ForEach(s.own, id: \.bot.id) { k in
                             HStack {
@@ -434,9 +469,94 @@ struct ProjectSettingsView: View {
             BotPickerView(title: tr("Add bot"), bots: model.state?.addable ?? [], figure: figure) { ids in Task { await model.addOwn(ids) } }
                 .modifier(ProjectNotice(model: model))
         }
+        .sheet(item: $team) { d in
+            TeamEditorView(draft: d, bots: model.state?.bots ?? [], model: model)
+                .modifier(ProjectNotice(model: model))
+        }
+        .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+            if case .success(let urls) = result { Task { await model.addFiles(urls) } }
+        }
+        .confirmationDialog(tr("Logins"), isPresented: Binding(get: { logins != nil }, set: { if !$0 { logins = nil } })) {
+            ForEach(logins ?? [], id: \.id) { l in Button(l.name) { Task { await model.addLogin(l.id) } } }
+            Button(tr("Cancel"), role: .cancel) {}
+        }
     }
 
     private func delete(_ dropFolder: Bool) {
         Task { if await model.delete(dropFolder: dropFolder) { onDeleted() } }
+    }
+}
+
+/// A team's editor as it opens: a new team when [id] is nil.
+struct TeamDraft: Identifiable {
+    let id: String?
+    var name: String
+    var bots: [String]
+    var lead: String?
+}
+
+/// A team's editor (Android's TeamEditor): its name, which bots are in it, its lead, and Delete team for one that is
+/// there. What is saved is the shared ProjectDesk's ([ManyProjects.teamBody]).
+struct TeamEditorView: View {
+    @State var draft: TeamDraft
+    let bots: [Bot]
+    let model: ProjectModel
+    @State private var deleting = false
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(tr("Name")) {
+                    TextField(tr("Name"), text: Binding(get: { draft.name }, set: { draft.name = String($0.prefix(60)) }))
+                        .accessibilityIdentifier("team-name")
+                }
+                Section(tr("Bots")) {
+                    ForEach(bots, id: \.id) { b in
+                        Button { draft.bots = ManyProjects.shared.toggle(bots: draft.bots, id: b.id) } label: {
+                            HStack {
+                                Text(b.name)
+                                Spacer()
+                                if draft.bots.contains(b.id) { Image(systemName: "checkmark").foregroundStyle(.tint) }
+                            }
+                        }
+                        .tint(.primary)
+                    }
+                }
+                let members = draft.bots.compactMap { id in bots.first { $0.id == id } }
+                if members.count > 1 {
+                    Picker(tr("Lead"), selection: Binding(get: { draft.lead.flatMap { draft.bots.contains($0) ? $0 : nil } ?? draft.bots[0] }, set: { draft.lead = $0 })) {
+                        ForEach(members, id: \.id) { b in Text(b.name).tag(b.id) }
+                    }
+                }
+                if draft.id != nil {
+                    Section { Button(tr("Delete team"), role: .destructive) { deleting = true } }
+                }
+            }
+            .navigationTitle(draft.id == nil ? tr("New team") : draft.name)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button(tr("Cancel")) { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(tr("Save")) {
+                        let d = draft
+                        Task { if await model.saveTeam(d.id, name: d.name, bots: d.bots, lead: d.lead) { dismiss() } }
+                    }
+                    .disabled(ManyProjects.shared.teamBody(name: draft.name, bots: draft.bots, lead: draft.lead) == nil)
+                }
+            }
+            .confirmationDialog(deleteQuestion, isPresented: $deleting, titleVisibility: .visible) {
+                Button(tr("Delete team"), role: .destructive) {
+                    guard let id = draft.id else { return }
+                    Task { if await model.deleteTeam(id) { dismiss() } }
+                }
+                Button(tr("Cancel"), role: .cancel) {}
+            }
+        }
+    }
+
+    private var deleteQuestion: String {
+        guard let id = draft.id, let t = model.state?.project?.teams.first(where: { $0.id == id }) else { return tr("Delete team") }
+        return ProjectSettingWords.shared.deleteTeamQuestion(t: t)
     }
 }

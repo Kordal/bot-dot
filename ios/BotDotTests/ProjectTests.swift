@@ -60,4 +60,17 @@ final class ProjectTests: XCTestCase {
         XCTAssertNotNil(Overviews.shared.open(destination: "bot/b1"))
         XCTAssertEqual(OverviewState(snapshot: nil, files: nil, error: nil, filesError: nil).status, "Loading…")
     }
+    /// A team's editor, logins and files as sources: the shared rules reach Swift (what each sends is ProjectDeskTest's).
+    func testTheTeamEditorAndLoginsReachSwift() async {
+        XCTAssertNil(ManyProjects.shared.teamBody(name: " ", bots: ["b1"], lead: nil), "no name: Save waits")
+        XCTAssertNotNil(ManyProjects.shared.teamBody(name: "Crew", bots: ["b1"], lead: nil))
+        XCTAssertEqual(ManyProjects.shared.toggle(bots: ["b1"], id: "b1"), [])
+        let c = CompanySetup.shared.of(answer: kitchen)
+        XCTAssertEqual(ProjectSettingWords.shared.deleteTeamQuestion(t: c.teams[0]), "Delete the team Crew? Its bots stay.")
+        let model = ProjectModel(home: HomeStore(api: unreachableApi()))
+        let logins = await model.addableLogins()
+        XCTAssertNil(logins, "no project shown: no Vault read")
+        let saved = await model.saveTeam(nil, name: "Crew", bots: [], lead: nil)
+        XCTAssertFalse(saved)
+    }
 }
