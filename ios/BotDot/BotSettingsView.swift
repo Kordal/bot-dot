@@ -74,7 +74,10 @@ struct BotSettingsView: View {
     @State private var failed: String?
     /// The computer a switch asks about first: whether its files go along (#556).
     @State private var askMove: String?
-    /// What a Revoke said, for a moment at the top.
+    /// Duplicate's confirmation, while it is open; then the copy's chat.
+    @State private var duplicating: DuplicateDesk?
+    @State private var copy: ChatRoute?
+    /// What Duplicate or a Revoke said, for a moment at the top.
     @State private var said: (text: String, count: Int) = ("", 0)
     // What is typed stays as typed: the shared draft follows it.
     @State private var name = ""
@@ -117,7 +120,16 @@ struct BotSettingsView: View {
             }
             Button(tr("Cancel"), role: .cancel) { askMove = nil }
         }
+        .navigationDestination(item: $copy) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
+        .sheet(isPresented: Binding(get: { duplicating != nil }, set: { if !$0 { duplicating = nil } })) {
+            if let desk = duplicating {
+                DuplicateSheet(desk: desk, botName: model?.state?.bot?.name ?? "") { id, name in
+                    duplicating = nil
+                    copy = ChatRoute(botId: id, name: name)
+                } onSaid: { said = ($0, said.count + 1) }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if saved { Text(tr("Saved")).font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("saved") }
@@ -282,7 +294,8 @@ struct BotSettingsView: View {
                 ForEach(state.trusted, id: \.id) { j in
                     revokeRow(j.name, state.trustedLine(j: j)) { try await model.store.revokeJob(jobId: j.id) }
                 }
-                ForEach(state.grants, id: \.action) { g in
+                // One row per grant, as on Android: several may share an action under different labels.
+                ForEach(state.grants, id: \.rowId) { g in
                     revokeRow(state.grantName(g: g), nil) { try await model.store.revokeGrant(action: g.action) }
                 }
             }
@@ -314,6 +327,12 @@ struct BotSettingsView: View {
             NavigationLink(tr("Scheduled jobs")) { JobsView(home: home, botId: bot.id, figure: figure) }
         }
         Section {
+            if Duplicate.shared.shows(features: state.features) {
+                Button(tr("Duplicate {name}", ["name": bot.name])) {
+                    let desk = model.store.duplicate(name: bot.name)
+                    Task { if (try? await desk.ask())?.boolValue == true { duplicating = desk } else { said = (desk.state.value.notice ?? "", said.count + 1) } }
+                }
+            }
             Button(role: .destructive) { askDelete = true } label: {
                 Text(deleting ? tr("Deleting…") : tr("Delete {name}", ["name": bot.name]))
             }
@@ -412,4 +431,9 @@ private struct BotIconPicker: View {
             }
         }
     }
+}
+
+private extension AlwaysAllowed {
+    /// A grant's row: its action and label, since one action may have several labels.
+    var rowId: String { "\(action)\u{0}\(label)" }
 }

@@ -124,4 +124,13 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(BotSettings.shared.moveQuestion(to: "linux"), "Copy its files to this machine?")
         XCTAssertNil(BotSettings.shared.proxyChoices(advanced: false, features: ["proxies"], b: Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"A","computer":"linux"}"#) as! Bot, list: nil))
     }
+
+    /// Duplicate: the shared desk and words reach Swift.
+    func testDuplicateIsTheSharedDesk() {
+        let desk = BotSettingsStore(home: home(), botId: "b1").duplicate(name: "Coder")
+        XCTAssertNil(desk.state.value.plan, "not asked yet")
+        XCTAssertFalse(desk.state.value.canGo)
+        XCTAssertEqual(Duplicate.shared.made(name: "Coder 2"), "Coder 2 made")
+        XCTAssertTrue(Duplicate.shared.shows(features: ["duplicate-bot"]))
+    }
 }

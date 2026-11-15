@@ -221,7 +221,7 @@ fun busyWord(label: String, connects: Boolean = false): String = if (connects) C
     tr("Save") -> tr("Saving…")
     tr("Install") -> tr("Installing…")
     tr("Add") -> tr("Adding…")
-    else -> if (label.startsWith("Always allow ") || label.startsWith("Allow always ") || label.startsWith(tr("Always allow") + " ")) tr("Allowing…") else "$label…" // the server's "Always allow reminders" (#280)
+    else -> if (label.startsWith("Always allow ") || label.startsWith("Allow always ") || label.startsWith(tr("Always allow") + " ")) tr("Allowing…") else "$label…" // the server's "Always allow changes to your Board" (#280)
 }
 
 /**

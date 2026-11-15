@@ -27,7 +27,7 @@ function chiefAlways({ features = ['chief-connectors', 'more-always'], answers =
 
 const GRANTS = {
   '/chief/connector-actions': { actions: ['gmail:GMAIL_SEND_EMAIL'], grants: [{ action: 'gmail:GMAIL_SEND_EMAIL', label: 'Send email with Gmail' }] },
-  '/chief/after-web': { types: [{ type: 'reminders', label: 'reminders' }] },
+  '/chief/after-web': { types: [{ type: 'quiet-hours', label: 'changes to your quiet hours' }] },
 };
 
 test("web: the Chief's settings list its app actions and after-web types in the owner's words", async () => {
@@ -37,7 +37,7 @@ test("web: the Chief's settings list its app actions and after-web types in the 
   assert.equal(s.root.dataset.always, '1', 'asked once while they are open');
   const p = s.picker();
   assert.equal(p.el, s.picks);
-  assert.deepEqual([...p.items.map((x) => x.label)], ['Send email with Gmail', 'Reminders']);
+  assert.deepEqual([...p.items.map((x) => x.label)], ['Send email with Gmail', 'Changes to your quiet hours']);
   assert.deepEqual([...p.selected], [...p.items.map((x) => x.id)]);
   assert.equal(p.opts.action.label, 'Revoke');
 });
@@ -50,7 +50,7 @@ test('web: Revoke removes the grant by its own route and says it asks again; a r
   assert.deepEqual(s.calls.at(-1), ['DELETE', '/chief/connector-actions', { action: 'gmail:GMAIL_SEND_EMAIL' }]);
   assert.deepEqual(s.toasts.at(-1), ['Revoked: it asks you again']);
   assert.equal(await s.picker().opts.action.run(web.id), true);
-  assert.deepEqual(s.calls.at(-1), ['DELETE', '/chief/after-web', { type: 'reminders' }]);
+  assert.deepEqual(s.calls.at(-1), ['DELETE', '/chief/after-web', { type: 'quiet-hours' }]);
   const f = chiefAlways({ answers: GRANTS, fail: 'No.' });
   await f.ctx.loadChiefAlways(f.root);
   assert.equal(await f.picker().opts.action.run(f.picker().items[0].id), false);
