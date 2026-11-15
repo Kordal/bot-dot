@@ -1,15 +1,20 @@
 package dev.botdot.app.data
 
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
-import kotlinx.coroutines.test.runCurrent
-import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.fail
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 
 /**
  * The Board as a phone draws it (BoardDesk, #1372): the Android app's order, colours, notes and taps, from the shared
@@ -119,6 +124,31 @@ class BoardDeskTest {
         advanceTimeBy(BoardDesk.FLASH_MS + 1)
         runCurrent()
         assertNull(desk.state.value.rows.flatten().single { it.key == "t3" }.note)
+    }
+
+    @Test fun theBoardIsReadOnlyWhileTheAppIsInFrontAndAtOnceWhenItComesBack() = runTest {
+        val server = FakeServer { 200 to board }
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.version.set(VersionInfo(features = listOf(TileAsk.FEATURE)))
+        val ticks = Channel<Unit>() // each one is the 15 seconds between two reads; taken only by a poll that waits
+        val desk = BoardDesk(store, server.api, backgroundScope) { ticks.receive() }
+        suspend fun reads() = server.sent().count { it.path.contains("/dashboard") }
+        suspend fun until(n: Int) { repeat(400) { if (reads() >= n) return; runCurrent(); withContext(Dispatchers.Default) { delay(5) } }; fail("never $n reads") }
+        suspend fun stays(n: Int) { repeat(20) { runCurrent(); withContext(Dispatchers.Default) { delay(5) } }; assertEquals(n, reads()) }
+
+        until(1) // read as it opens
+        stays(1)
+        desk.active(false) // the phone was locked
+        repeat(4) { ticks.trySend(Unit) } // a minute goes by
+        stays(1) // nothing is read in the background
+        desk.active(true)
+        until(2) // back in front: read at once
+        desk.active(true) // already on: no second loop
+        stays(2)
+        ticks.trySend(Unit)
+        until(3) // then every 15 seconds
+        stays(3)
+        desk.close()
     }
 
     @Test fun aRefusedTapIsSaid() = runTest {

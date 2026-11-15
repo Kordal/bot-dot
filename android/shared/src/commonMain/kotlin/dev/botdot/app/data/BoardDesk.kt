@@ -77,10 +77,16 @@ data class BoardState(
 
 /**
  * The Board for a phone, on the shared [Store]: [state] after every change, and the taps, as the Android app's
- * DashboardScreen does them. While it is open the stale tiles are read again every [EVERY_MS]. [close] it when the
- * screen goes.
+ * DashboardScreen does them. While it is open and the app in front ([active]) the stale tiles are read again every
+ * [EVERY_MS]. [close] it when the screen goes.
  */
-class BoardDesk(private val store: Store, private val api: Api, scope: CoroutineScope) {
+class BoardDesk(
+    private val store: Store,
+    private val api: Api,
+    scope: CoroutineScope,
+    /** The wait between two reads while it is in front ([EVERY_MS]); the tests tick it themselves. */
+    private val again: suspend () -> Unit = { delay(EVERY_MS) },
+) {
     private val job = SupervisorJob(scope.coroutineContext[Job])
     private val own = CoroutineScope(scope.coroutineContext + job)
 
@@ -99,8 +105,19 @@ class BoardDesk(private val store: Store, private val api: Api, scope: Coroutine
     val state: StateFlow<BoardState> = combine(store.dashboard.value, store.bots.value, store.version.value, local) { d, b, v, l -> build(d, b.orEmpty(), v?.features, l) }
         .stateIn(own, SharingStarted.Eagerly, BoardState())
 
-    init {
-        own.launch { while (true) { load(); delay(EVERY_MS) } }
+    // Called on the main thread (the screen's), so one at a time.
+    private var poll: Job? = null
+
+    init { active(true) }
+
+    /**
+     * The app went to the background ([on] false: nothing is read, as Android reads only while the screen is resumed)
+     * or came back to the front: the Board is read at once, then every [EVERY_MS].
+     */
+    fun active(on: Boolean) {
+        if (!on) { poll?.cancel(); poll = null; return }
+        if (poll?.isActive == true) return
+        poll = own.launch { while (true) { load(); again() } }
     }
 
     /** The phone's width, in points: the Board has [BoardKit.columns] of it. */
@@ -314,7 +331,7 @@ class BoardDesk(private val store: Store, private val api: Api, scope: Coroutine
     }
 
     companion object {
-        /** While the Board is open its stale tiles are read again this often, as on Android. */
+        /** While the Board is open and the app in front, its stale tiles are read again this often, as on Android. */
         const val EVERY_MS = 15_000L
         /** How long a tile says "Asked …" after a tap. */
         const val FLASH_MS = 2_500L

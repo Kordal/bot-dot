@@ -22,6 +22,8 @@ class BoardStore(home: HomeStore) {
     fun watch(onChange: (BoardState) -> Unit): Job = scope.launch { desk.state.collect { onChange(it) } }
 
     fun width(points: Float) = desk.width(points)
+    /** The app in front ([on]) or in the background: the Board is read only while it is in front. */
+    fun active(on: Boolean) = desk.active(on)
     fun filter(name: String) = desk.filter(name)
 
     /** The refresh button, and a pull: every tile read again. */
