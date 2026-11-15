@@ -202,6 +202,14 @@ struct BoardView: View {
                 if cell.askable { Button(tr("Change")) { changing = cell.key } }
                 Button(tr("Remove from Board"), role: .destructive) { removing = cell }
             }
+            // Drag to move (Android's press, hold and drag): let go on another tile and it goes where that one is,
+            // under its heading or into its open group (BoardDesk.drop; a group stays out of groups).
+            .draggable(cell.key)
+            .dropDestination(for: String.self) { keys, _ in
+                guard let from = keys.first, from != cell.key else { return false }
+                Task { await model.drop(from, cell.key) }
+                return true
+            }
             .accessibilityAddTraits(.isButton)
         }
     }

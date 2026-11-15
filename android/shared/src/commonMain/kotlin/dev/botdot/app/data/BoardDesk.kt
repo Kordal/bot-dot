@@ -216,6 +216,22 @@ class BoardDesk(
         }
     }
 
+    /**
+     * Drag to move: the tile [from] let go where [onto] is (on the Board as it is laid out now). False when it can't
+     * go there (a group into a group); else it is saved and the Board read again; a refusal is said.
+     */
+    @Throws(Exception::class)
+    suspend fun drop(from: String, onto: String): Boolean {
+        val d = store.dashboard.value.value ?: return false
+        val l = local.value
+        val keys = BoardKit.layout(d, l.filter.takeIf { it in BoardKit.headings(d) }.orEmpty(), l.open)
+        val rows = BoardKit.moved(keys, from, onto, d.tiles) ?: return false
+        val at = BoardKit.placeOf(rows, from)
+        try { api.moveTile(from, at.section, at.parent, at.before) } catch (e: CancellationException) { throw e } catch (e: Exception) { tell(e.message ?: tr("Couldn't move it")) }
+        quietly()
+        return true
+    }
+
     /** Remove: off the Board; a group alone ([withTiles] false, its tiles stay, loose) or with its tiles. */
     @Throws(Exception::class)
     suspend fun remove(key: String, withTiles: Boolean) {
