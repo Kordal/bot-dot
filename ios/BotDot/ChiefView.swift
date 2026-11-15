@@ -40,6 +40,13 @@ private struct ChiefChat: View {
                             ChiefRow(line: m, onRate: { model.rate(m.index, $0) },
                                      onApprove: { await model.approve(m.index) }, onDecline: { await model.decline() },
                                      onAnswer: { await model.answer(m.index, $0) })
+                                .contextMenu {
+                                    // Quote and Copy a message's words (Quote), as a bot's reply has them.
+                                    if !m.text.isEmpty && !m.pending {
+                                        Button { model.quote(m.text) } label: { Label(tr("Quote"), systemImage: "text.quote") }
+                                        Button { UIPasteboard.general.string = m.text } label: { Label(tr("Copy"), systemImage: "doc.on.doc") }
+                                    }
+                                }
                                 // Its conversation in its identity: another conversation's row at the same place starts
                                 // anew (its card's Send and Approve), not with this one's taps.
                                 .id("\(s.chatId ?? "new")-\(m.index)")

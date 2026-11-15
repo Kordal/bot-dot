@@ -10,9 +10,15 @@ final class ChatModel: MessageBox {
     private(set) var state: BotChatState?
     private let chat: BotChat
     private var watching: Kotlinx_coroutines_coreJob?
+    let mentions: MentionBox?
+    private let inbox = QuoteInbox()
+    var quoted: (text: String, count: Int)? { inbox.quoted }
+    /// Quote: [text] goes into the box, after what is typed.
+    func quote(_ text: String) { inbox.quote(text) }
 
     init(home: HomeStore, botId: String) {
         chat = home.chat(botId: botId)
+        mentions = home.mentions(chat: botId)
     }
 
     func start() {

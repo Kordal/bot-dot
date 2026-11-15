@@ -95,6 +95,9 @@ class HomeStore(val api: Api) {
         if (on) { feed.connect(api); feed.reconnect() } else feed.connect(null)
     }
 
+    /** The "@" of a chat's message box: [chat] a bot's id, or Mentions.CHIEF for the Chief's (MentionBox). */
+    fun mentions(chat: String): MentionBox = MentionBox(store, chat)
+
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId)
 

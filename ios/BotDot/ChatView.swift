@@ -29,7 +29,10 @@ struct ChatView: View {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
                         ForEach(s.runs.reversed(), id: \.run.id) { r in
                             RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) })
-                                .contextMenu { RunMenu(view: r, replies: model.replies(r.run.id)) { model.replyTo(r.run.id); focused = true } }
+                                .contextMenu {
+                                    RunMenu(view: r, replies: model.replies(r.run.id), onReply: { model.replyTo(r.run.id); focused = true },
+                                            onQuote: { model.quote($0) })
+                                }
                         }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
@@ -105,15 +108,18 @@ struct ChatView: View {
     }
 }
 
-/// A run's long press (Android's RunBlock): Reply to this task, where the botdot takes replies, and Copy its reply.
+/// A run's long press (Android's RunBlock): Reply to this task, where the botdot takes replies; Quote its reply into
+/// the box (Quote), and Copy it.
 struct RunMenu: View {
     let view: RunView
     let replies: Bool
     let onReply: () -> Void
+    var onQuote: (String) -> Void = { _ in }
 
     var body: some View {
         if replies { Button(action: onReply) { Label(tr("Reply to this task"), systemImage: "arrowshape.turn.up.left") } }
         if let reply = view.reply, !reply.isEmpty {
+            Button { onQuote(reply) } label: { Label(tr("Quote"), systemImage: "text.quote") }
             Button { UIPasteboard.general.string = reply } label: { Label(tr("Copy"), systemImage: "doc.on.doc") }
         }
     }

@@ -10,10 +10,16 @@ final class ChiefModel: MessageBox {
     private(set) var state: ChiefState?
     private let desk: ChiefDesk
     private var watching: Kotlinx_coroutines_coreJob?
+    let mentions: MentionBox?
+    private let inbox = QuoteInbox()
+    var quoted: (text: String, count: Int)? { inbox.quoted }
+    /// Quote: [text] goes into the box, after what is typed.
+    func quote(_ text: String) { inbox.quote(text) }
 
     /// [chatId]: the conversation a notification asked for; nil, the latest.
     init(home: HomeStore, chatId: String? = nil) {
         desk = home.chief(chatId: chatId)
+        mentions = home.mentions(chat: Mentions.shared.CHIEF)
     }
 
     func start() {

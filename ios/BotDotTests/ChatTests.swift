@@ -25,4 +25,20 @@ final class ChatTests: XCTestCase {
     func testTheReplyChipDraws() {
         XCTAssertNotNil(ImageRenderer(content: ReplyChip(text: "Reply to: Plan my week", onClear: {}).frame(width: 360)).cgImage)
     }
+
+    /// Quote: the same words quoted twice come twice; the box takes them as Markdown after what is typed.
+    func testAQuoteGoesIntoTheBoxAfterWhatIsTyped() {
+        let inbox = QuoteInbox()
+        inbox.quote("Ship it")
+        inbox.quote("Ship it")
+        XCTAssertEqual(inbox.quoted?.count, 2)
+        XCTAssertEqual(Quote.shared.add(draft: "Yes", selected: "Ship it")?.text, "Yes\n\n> Ship it\n\n")
+    }
+
+    /// A bot's chat and the Chief's offer "@" (MentionBox); the group's box offers none yet.
+    func testTheBotAndChiefBoxesOfferMentions() {
+        let home = HomeStore(api: unreachableApi())
+        XCTAssertNotNil(ChatModel(home: home, botId: "b1").mentions)
+        XCTAssertNotNil(ChiefModel(home: home).mentions)
+    }
 }

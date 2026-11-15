@@ -28,6 +28,23 @@ protocol MessageBox: AnyObject, Observable {
     /// A picked file that couldn't be read or copied: the chat says so.
     func attachFailed(_ name: String)
     func stopFromBox()
+    /// The "@" of this box (MentionBox): nil where the chat offers no mentions.
+    var mentions: MentionBox? { get }
+    /// Text quoted from the chat for the box, once (Quote); counted, so the same words quoted again come again.
+    var quoted: (text: String, count: Int)? { get }
+}
+
+extension MessageBox {
+    var mentions: MentionBox? { nil }
+    var quoted: (text: String, count: Int)? { nil }
+}
+
+/// What a chat quotes into its box: the words, and a count that tells a new quote of the same words.
+@MainActor
+@Observable
+final class QuoteInbox {
+    private(set) var quoted: (text: String, count: Int)?
+    func quote(_ text: String) { quoted = (text, (quoted?.count ?? 0) + 1) }
 }
 
 /// A chat's message box, as Android's: the system's text input (dictation, the keyboard's own behaviour), files from
@@ -48,6 +65,7 @@ struct Composer<Box: MessageBox>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let note = box.note { Text(note).font(.footnote).foregroundStyle(.red) }
+            suggestions
             if !box.files.isEmpty {
                 ScrollView(.horizontal) {
                     HStack {
@@ -88,6 +106,8 @@ struct Composer<Box: MessageBox>: View {
         .padding(.horizontal).padding(.vertical, 8)
         .background(.bar)
         .onChange(of: box.back) { take() }
+        .onChange(of: box.quoted?.count) { quote() }
+        .task { try? await box.mentions?.load() }
         .onChange(of: photos) { pick(photos) }
         // A picker presented from the menu's button: one placed in a Menu doesn't open reliably.
         .photosPicker(isPresented: $picking, selection: $photos, matching: .any(of: [.images, .videos]))
@@ -96,6 +116,37 @@ struct Composer<Box: MessageBox>: View {
         }
         .task { take(); unsent() }
         .onDisappear { box.leave(typed) }
+    }
+
+    /// The "@" suggestions for what is typed (MentionBox): a tap puts the mention in place of the "@…".
+    @ViewBuilder
+    private var suggestions: some View {
+        let rows = box.mentions?.suggest(typed: typed) ?? []
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    Button { if let m = box.mentions { typed = m.pick(typed: typed, row: row) } } label: {
+                        HStack(spacing: 8) {
+                            Text(row.text).font(.subheadline.monospaced())
+                            Text(row.label).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 8).contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .background(.quaternary, in: .rect(cornerRadius: 12))
+            .accessibilityIdentifier("mention-suggestions")
+        }
+    }
+
+    /// A quote from the chat: after what is typed, as Markdown, the cursor in the box (Quote).
+    private func quote() {
+        guard let words = box.quoted?.text, let added = Quote.shared.add(draft: typed, selected: words) else { return }
+        typed = added.text
+        focused = true
     }
 
     private func send() {
