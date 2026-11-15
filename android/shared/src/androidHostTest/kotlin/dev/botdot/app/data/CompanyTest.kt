@@ -293,7 +293,9 @@ class CompanyTest {
         assertEquals("coder", joined["bot"]!!.jsonPrimitive.content)
         assertEquals("Claude Coder", joined["name"]!!.jsonPrimitive.content)
         assertEquals("in the proposal's first team", "Core", joined["team"]!!.jsonPrimitive.content)
-        val proposed = next.map { Api.JSON.decodeFromJsonElement(Proposed.serializer(), it) }
+        assertNull("the server gives it its key", joined["key"])
+        // As the server answers it: with its key.
+        val proposed = next.map { Api.JSON.decodeFromJsonElement(Proposed.serializer(), JsonObject(mapOf("key" to JsonPrimitive("k2")) + it)) }
         assertTrue(proposed[1].existing)
         assertEquals("a bot in the proposal is offered once", listOf("b2"), CompanySetup.existing(bots, proposed).map { it.id })
     }
