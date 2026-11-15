@@ -62,6 +62,21 @@ final class BoardTests: XCTestCase {
         XCTAssertFalse(HomeTiles.shared.shows(features: []), "a botdot without home-tiles: no long press")
         XCTAssertTrue(HomeTiles.shared.shows(features: ["home-tiles"]))
     }
+
+    /// A table block: the shared KitTable sorts, filters and pages it, as on Android.
+    func testATableIsTheSharedKitTable() {
+        let json = """
+        {"type":"table","text":"Features","pageSize":2,"head":[{"label":"Feature"},{"label":"State","type":"status"},{"label":"Runs","type":"number"}],
+         "rows":[[{"text":"Copy"},{"text":"Done","level":"ok"},{"text":"3","n":3}],[{"text":"Rooms"},{"text":"Open"},{"text":"12","n":12}],[{"text":"Kit"},{"text":"Done"},{"text":""}]],
+         "filter":{"column":1,"options":["Done","Open"]}}
+        """
+        let b = Api.companion.JSON.decodeFromString(deserializer: Block.companion.serializer(), string: json) as! Block
+        let v = KitTable.shared.view(b: b, sort: TableSort(column: 2, dir: "desc"), query: "", filter: "", page: 0)
+        XCTAssertEqual(v.rows.map { $0[0].text }, ["Rooms", "Copy"])
+        XCTAssertEqual(v.pages, 2)
+        XCTAssertEqual(KitTable.shared.count(v: KitTable.shared.view(b: b, sort: nil, query: "", filter: "done", page: 0)), "2 of 2 · 3 in all")
+        XCTAssertEqual(KitTable.shared.next(now: TableSort(column: 1, dir: "asc"), column: 1), TableSort(column: 1, dir: "desc"))
+    }
 }
 
 /// The account's parts on the iPhone: what the front door offers, What's new, the paused account.
