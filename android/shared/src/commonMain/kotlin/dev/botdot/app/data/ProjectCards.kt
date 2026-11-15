@@ -28,6 +28,8 @@ data class ProjectCard(
     /** A failed card's host of the owner's own that no login of the project reaches (#804, [ProjectLogins]). */
     val needsLogin: String? = null,
     val changing: Boolean = false,
+    /** Its text drawn this many times its normal size ([ProjectCards.TEXT_SIZES], card-text-size). */
+    val textSize: Double = 1.0,
 ) {
     val name: String get() = title.ifBlank { ask }
     val asking: Boolean get() = state == "asking"
@@ -85,7 +87,8 @@ object ProjectCards {
     /** One place in the cards row: a card, its questions, the ask field (a new card's, or a card's Change), or New card. */
     sealed interface Slot {
         val wide: Boolean
-        data class Card(val card: ProjectCard) : Slot { override val wide get() = card.body?.show == "table" || card.body?.show == "list" }
+        /** Wide for a table, a list, or larger text, so its number still fits. */
+        data class Card(val card: ProjectCard) : Slot { override val wide get() = card.body?.show == "table" || card.body?.show == "list" || card.textSize > 1.0 }
         data class Questions(val card: ProjectCard) : Slot { override val wide get() = true }
         /** The ask field: [card] null for a new card, else the card being changed. */
         data class Ask(val card: ProjectCard?) : Slot { override val wide get() = true }
@@ -161,5 +164,13 @@ object ProjectCards {
     }
 
     fun askBody(ask: String): JsonObject = buildJsonObject { put("ask", ask.trim()) }
+    fun textSizeBody(size: Double): JsonObject = buildJsonObject { put("textSize", size) }
+
+    /** How large a card's text can be drawn (card-text-size): its normal size times one of these, from its menu. */
+    const val TEXT_SIZE = "card-text-size"
+    val TEXT_SIZES = listOf(1.0, 1.25, 1.5, 2.0)
+
+    /** The size one step ([by] -1 or 1) from [now], or null at the end; a size botdot does not know counts as 1. */
+    fun stepSize(now: Double, by: Int): Double? = TEXT_SIZES.getOrNull(TEXT_SIZES.indexOf(now).coerceAtLeast(0) + by)
     fun answerBody(text: String): JsonObject = buildJsonObject { put("text", text.trim()) }
 }
