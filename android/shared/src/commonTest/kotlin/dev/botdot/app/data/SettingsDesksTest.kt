@@ -391,4 +391,36 @@ class SettingsDesksTest {
         none.load()
         assertNull(none.state.value.pages, "a botdot without pages: no section")
     }
+    @Test fun alwaysApprovedAndTheRulesLiftedAreRevokedOneByOneOrSayWhyNot() = runTest {
+        var fail = false
+        val botdot = MockBotdot { s ->
+            when {
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"A","jobs":[{"id":"j1","name":"Digest","cron":"0 7 * * *","alwaysApprove":true,"kind":"script"},{"id":"j2","name":"Other","cron":"0 8 * * *"}],
+                    "alwaysAllowed":[{"action":"send","label":"Send mail"},{"action":"post"}],"overrides":[{"id":"o1","rule":"ask before deleting","action":"delete"}]}]"""
+                fail && s.method != "GET" -> 500 to """{"error":"Not now"}"""
+                s.method == "PUT" && s.path == "/bots/a/jobs/j1" -> 200 to """{"id":"j1","name":"Digest","cron":"0 7 * * *","alwaysApprove":false}"""
+                s.method == "DELETE" && s.path == "/bots/a/overrides/o1" -> 200 to """{"id":"a","name":"A","overrides":[]}"""
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        desk.load()
+        with(desk.state.value) {
+            assertEquals(listOf("Digest"), trusted.map { it.name })
+            assertTrue(trustedLine(trusted.single()).endsWith("a script, no AI"))
+            assertEquals(listOf("Send mail", "post"), grants.map { grantName(it) })
+            assertEquals("Digest, Send mail, post", bot?.let(BotSettings::alwaysLine))
+            assertEquals("Its rule: ask before deleting", overrideLine(overrides.single()))
+        }
+        fail = true
+        assertEquals("Not now", desk.revokeGrant("send"))
+        assertEquals(2, desk.state.value.grants.size, "refused: it stays")
+        fail = false
+        assertEquals(BotSettings.JOB_REVOKED, desk.revokeJob("j1"))
+        assertTrue(desk.state.value.trusted.isEmpty())
+        assertEquals(BotSettings.REVOKED, desk.revokeGrant("send"))
+        assertEquals(listOf("post"), desk.state.value.grants.map { it.action })
+        assertEquals(BotSettings.REVOKED, desk.revokeOverride("o1"))
+        assertTrue(desk.state.value.overrides.isEmpty())
+    }
 }

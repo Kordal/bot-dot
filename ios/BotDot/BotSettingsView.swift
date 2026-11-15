@@ -72,6 +72,8 @@ struct BotSettingsView: View {
     @State private var deleting = false
     @State private var saved = false
     @State private var failed: String?
+    /// What a Revoke said, for a moment at the top.
+    @State private var said: (text: String, count: Int) = ("", 0)
     // What is typed stays as typed: the shared draft follows it.
     @State private var name = ""
     @State private var about = ""
@@ -106,6 +108,7 @@ struct BotSettingsView: View {
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
         .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
+        .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if saved { Text(tr("Saved")).font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("saved") }
@@ -244,6 +247,26 @@ struct BotSettingsView: View {
                 }
             }
         }
+        // Always approved (#474): the jobs whose later changes need no OK and its lasting grants in connected apps;
+        // Revoke takes one off at once.
+        if !state.trusted.isEmpty || !state.grants.isEmpty {
+            Section(tr("Always approved")) {
+                ForEach(state.trusted, id: \.id) { j in
+                    revokeRow(j.name, state.trustedLine(j: j)) { try await model.store.revokeJob(jobId: j.id) }
+                }
+                ForEach(state.grants, id: \.action) { g in
+                    revokeRow(state.grantName(g: g), nil) { try await model.store.revokeGrant(action: g.action) }
+                }
+            }
+        }
+        // The rules you lifted for it with "Allow always for this bot" (#253).
+        if !state.overrides.isEmpty {
+            Section(tr("Rules you lifted")) {
+                ForEach(state.overrides, id: \.id) { o in
+                    revokeRow(o.action, state.overrideLine(o: o)) { try await model.store.revokeOverride(id: o.id) }
+                }
+            }
+        }
         if state.showsOthersMayAsk || state.showsRooms {
             Section {
                 if state.showsOthersMayAsk {
@@ -286,6 +309,21 @@ struct BotSettingsView: View {
         Task {
             failed = await model.delete()
             deleting = false
+        }
+    }
+
+    /// A row with Revoke (Always approved, Rules you lifted): its name, its line, and the button, which says what happened.
+    private func revokeRow(_ name: String, _ line: String?, _ revoke: @escaping () async throws -> String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if let line { Text(line).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            Button(tr("Revoke")) {
+                Task { if let words = try? await revoke(), !words.isEmpty { said = (words, said.count + 1) } }
+            }
+            .buttonStyle(.bordered)
         }
     }
 }

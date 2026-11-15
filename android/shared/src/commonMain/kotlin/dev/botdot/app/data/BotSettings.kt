@@ -189,6 +189,24 @@ object BotSettings {
     @Throws(Exception::class)
     suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
 
+    /** Its jobs you said to always approve (#474): their later changes need no OK. */
+    fun trusted(b: Bot): List<dev.botdot.app.data.Job> = b.jobs.filter { it.alwaysApprove }
+
+    /** Under a job always approved: when it runs, and whether it uses AI. */
+    fun trustedLine(j: dev.botdot.app.data.Job): String = "${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI")
+
+    /** A lasting grant in a connected app, in words: its label, else its action. */
+    fun grantName(g: AlwaysAllowed): String = g.label.ifBlank { g.action }
+
+    /** The "Always approved" summary: the jobs and the grants by name. */
+    fun alwaysLine(b: Bot): String = (trusted(b).map { it.name } + b.alwaysAllowed.map(::grantName)).joinToString(", ")
+
+    /** Under a rule lifted for it ("Allow always for this bot", #253): the rule. */
+    fun overrideLine(o: BotOverride): String = tr("Its rule: {rule}", "rule" to o.rule)
+
+    val JOB_REVOKED: String get() = tr("Revoked: its next change waits for your OK")
+    val REVOKED: String get() = tr("Revoked: it asks you again")
+
     /** The choices of its key on the keypad (#366): by its place, or a digit, saying which bot holds it now. */
     fun hotkeys(others: List<Bot>): List<Option> = listOf(Option("0", tr("By its place"))) +
         (1..9).map { d -> Option("$d", others.firstOrNull { it.hotkey == d }?.let { "$d · " + tr("Now {name}'s", "name" to it.name) } ?: "$d") }
@@ -227,6 +245,13 @@ class BotSettingsState(
     val appsLine: String get() = apps.filter(::hasApp).joinToString(", ", transform = BotSettings::appName).ifBlank { tr("None") }
     /** A page's line ([Pages.line]). */
     fun pageLine(page: PageInfo): String = Pages.line(page)
+    /** Always approved: its jobs and its grants in connected apps; and the rules lifted for it. */
+    val trusted: List<dev.botdot.app.data.Job> get() = bot?.let(BotSettings::trusted).orEmpty()
+    val grants: List<AlwaysAllowed> get() = bot?.alwaysAllowed.orEmpty()
+    val overrides: List<BotOverride> get() = bot?.overrides.orEmpty()
+    fun trustedLine(j: dev.botdot.app.data.Job): String = BotSettings.trustedLine(j)
+    fun grantName(g: AlwaysAllowed): String = BotSettings.grantName(g)
+    fun overrideLine(o: BotOverride): String = BotSettings.overrideLine(o)
 
     val models: List<Option> get() = BotSettings.models(info)
     val efforts: List<Option> get() = BotSettings.efforts(info)
@@ -365,6 +390,36 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
             throw e
         } catch (e: Exception) {
             e.message ?: tr("Couldn't undo")
+        }
+    }
+
+    /** Revoke a job always approved: its next change waits for the owner's OK. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeJob(jobId: String): String = revoked(BotSettings.JOB_REVOKED) { b ->
+        val saved = api.setJobAlwaysApprove(botId, jobId, false)
+        b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it })
+    }
+
+    /** Revoke a lasting grant in a connected app: it asks again. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeGrant(action: String): String = revoked(BotSettings.REVOKED) { b ->
+        api.revokeAlwaysAllowed(botId, action)
+        b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action })
+    }
+
+    /** Revoke a rule lifted for it: it asks again. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeOverride(id: String): String = revoked(BotSettings.REVOKED) { b -> b.copy(overrides = api.revokeOverride(botId, id).overrides) }
+
+    private suspend fun revoked(ok: String, act: suspend (Bot) -> Bot): String {
+        val b = _state.value.bot ?: return ""
+        return try {
+            _state.value = _state.value.copy(bot = act(b))
+            ok
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.message ?: tr("Couldn't save")
         }
     }
 

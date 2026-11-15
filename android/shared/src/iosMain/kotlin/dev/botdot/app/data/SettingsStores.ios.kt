@@ -32,6 +32,11 @@ class BotSettingsStore(home: HomeStore, botId: String) {
 
     fun deleteText(): String = desk.deleteText()
 
+    /** Revoke in Always approved or Rules you lifted: what to say. */
+    @Throws(Exception::class) suspend fun revokeJob(jobId: String): String = desk.revokeJob(jobId)
+    @Throws(Exception::class) suspend fun revokeGrant(action: String): String = desk.revokeGrant(action)
+    @Throws(Exception::class) suspend fun revokeOverride(id: String): String = desk.revokeOverride(id)
+
     fun close() = scope.cancel()
 }
 
