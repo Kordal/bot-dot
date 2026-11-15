@@ -33,6 +33,11 @@ class BotSettingsStore(home: HomeStore, private val botId: String) {
 
     fun deleteText(): String = desk.deleteText()
 
+    /** Revoke in Always approved or Rules you lifted: what to say. */
+    @Throws(Exception::class) suspend fun revokeJob(jobId: String): String = desk.revokeJob(jobId)
+    @Throws(Exception::class) suspend fun revokeGrant(action: String): String = desk.revokeGrant(action)
+    @Throws(Exception::class) suspend fun revokeOverride(id: String): String = desk.revokeOverride(id)
+
     /** Duplicate (#227): what the copy gets, its name, the copy made. */
     fun duplicate(name: String): DuplicateDesk = DuplicateDesk(api, botId, name, scope)
 
