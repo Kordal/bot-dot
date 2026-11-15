@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -390,6 +391,29 @@ class SettingsDesksTest {
         val none = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
         none.load()
         assertNull(none.state.value.pages, "a botdot without pages: no section")
+    }
+    @Test fun aChangeThatLandsWhileARevokeIsAnsweredStays() = runTest {
+        // botdot answers the revoke late; meanwhile the bot is read again, renamed elsewhere. Both stay.
+        val held = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var name = "A"
+        val botdot = MockBotdot { s ->
+            when {
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"$name","alwaysAllowed":[{"action":"send"},{"action":"post"}]}]"""
+                s.method == "DELETE" -> { held.await(); 200 to "{}" }
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        desk.load()
+        val revoking = async { desk.revokeGrant("send") }
+        runCurrent()
+        name = "Renamed"
+        desk.load()
+        assertEquals("Renamed", desk.state.value.bot?.name)
+        held.complete(Unit)
+        assertEquals(BotSettings.REVOKED, revoking.await())
+        assertEquals("Renamed", desk.state.value.bot?.name, "the bot read meanwhile stays")
+        assertEquals(listOf("post"), desk.state.value.grants.map { it.action }, "and the revoke is applied to it")
     }
     @Test fun alwaysApprovedAndTheRulesLiftedAreRevokedOneByOneOrSayWhyNot() = runTest {
         var fail = false

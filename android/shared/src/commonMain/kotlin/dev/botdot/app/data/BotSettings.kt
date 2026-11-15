@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -395,26 +396,34 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
 
     /** Revoke a job always approved: its next change waits for the owner's OK. What to say. */
     @Throws(Exception::class)
-    suspend fun revokeJob(jobId: String): String = revoked(BotSettings.JOB_REVOKED) { b ->
+    suspend fun revokeJob(jobId: String): String = revoked(BotSettings.JOB_REVOKED) {
         val saved = api.setJobAlwaysApprove(botId, jobId, false)
-        b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it })
+        return@revoked { b -> b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }) }
     }
 
     /** Revoke a lasting grant in a connected app: it asks again. What to say. */
     @Throws(Exception::class)
-    suspend fun revokeGrant(action: String): String = revoked(BotSettings.REVOKED) { b ->
+    suspend fun revokeGrant(action: String): String = revoked(BotSettings.REVOKED) {
         api.revokeAlwaysAllowed(botId, action)
-        b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action })
+        return@revoked { b -> b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action }) }
     }
 
     /** Revoke a rule lifted for it: it asks again. What to say. */
     @Throws(Exception::class)
-    suspend fun revokeOverride(id: String): String = revoked(BotSettings.REVOKED) { b -> b.copy(overrides = api.revokeOverride(botId, id).overrides) }
+    suspend fun revokeOverride(id: String): String = revoked(BotSettings.REVOKED) {
+        val left = api.revokeOverride(botId, id).overrides
+        return@revoked { b -> b.copy(overrides = left) }
+    }
 
-    private suspend fun revoked(ok: String, act: suspend (Bot) -> Bot): String {
-        val b = _state.value.bot ?: return ""
+    /**
+     * Asks botdot ([call]), then applies what it answered ([call]'s step) to the bot as it is by then: a load or a save
+     * that landed while botdot answered stays.
+     */
+    private suspend fun revoked(ok: String, call: suspend () -> (Bot) -> Bot): String {
+        if (_state.value.bot == null) return ""
         return try {
-            _state.value = _state.value.copy(bot = act(b))
+            val step = call()
+            _state.update { s -> s.copy(bot = s.bot?.let(step)) }
             ok
         } catch (e: CancellationException) {
             throw e
