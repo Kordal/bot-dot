@@ -81,7 +81,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
-| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` with table and picture blocks (`BoardBlocks`) and the colour wheel (`ColorWheel`) (left: drag to move) |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` with table and picture blocks (`BoardBlocks`), the colour wheel (`ColorWheel`) and drag to move |
 | `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`), from a page tile or a bot's chat's page chip (left: a Chief reply's page chips, page blocks) |
 | `HomeTilesSheet` | holding Home's Board cards | `HomeTilesView` |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |

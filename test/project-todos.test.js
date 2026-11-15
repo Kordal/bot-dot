@@ -4,9 +4,9 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
-const { startServer, makeBot, writeData, heldRun, self, feed } = require('./helpers');
+const { startServer, makeBot, writeData, heldRun, self, feed, serverDay } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
-const { nextDue, repeatOf, today } = require('../lib/company');
+const { nextDue, repeatOf } = require('../lib/company');
 
 // ---------- the next date ----------
 
@@ -84,7 +84,7 @@ test('the owner adds an item with a day and a rhythm, ticks it, and the next one
   const done = r.data.todos.find((x) => x.id === item.id);
   assert.ok(done.done && done.doneAt && done.next);
   const next = r.data.todos.find((x) => x.id === done.next);
-  assert.deepEqual([next.text, next.due, next.repeat, next.done], ['Count active users', nextDue({ every: 'week', days: [1] }, '2026-11-02', today(new Date())), { every: 'week', days: [1] }, false], 'a week on, or the first Monday after today');
+  assert.deepEqual([next.text, next.due, next.repeat, next.done], ['Count active users', nextDue({ every: 'week', days: [1] }, '2026-11-02', serverDay()), { every: 'week', days: [1] }, false], 'a week on, or the first Monday after today');
   // Ticked again it makes no second one.
   r = await srv.api(`/company/todos/${item.id}`, { method: 'PUT', body: { done: true } });
   assert.equal(r.data.todos.filter((x) => x.text === 'Count active users').length, 2);
@@ -98,10 +98,10 @@ test('the owner adds an item with a day and a rhythm, ticks it, and the next one
 test('a repeating item without a day is due today, on its first day of the rhythm', async () => {
   let r = await srv.api('/company/todos', { method: 'POST', body: { text: 'Water the plants', repeat: { every: 'day' } } });
   const item = r.data.todos.at(-1);
-  assert.equal(item.due, today(new Date()));
+  assert.equal(item.due, serverDay());
   r = await srv.api(`/company/todos/${item.id}`, { method: 'PUT', body: { done: true } });
   const next = r.data.todos.find((x) => x.id === r.data.todos.find((y) => y.id === item.id).next);
-  assert.equal(next.due, nextDue({ every: 'day' }, item.due, today(new Date())));
+  assert.equal(next.due, nextDue({ every: 'day' }, item.due, serverDay()));
   r = await srv.api('/company/todos', { method: 'POST', body: { text: 'Pay the rent', due: '2026-11-03', repeat: { every: 'month', day: 1 } } });
   assert.equal(r.data.todos.at(-1).due, '2026-12-01', 'moved to the first 1st on or after it');
 });

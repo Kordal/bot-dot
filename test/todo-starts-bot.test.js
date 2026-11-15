@@ -3,8 +3,7 @@
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
-const { startServer, makeBot, writeData, waitFor } = require('./helpers');
-const { today } = require('../lib/company');
+const { startServer, makeBot, writeData, waitFor, serverDay } = require('./helpers');
 
 let srv; let mine; let theirs; let old;
 before(async () => {
@@ -15,7 +14,7 @@ before(async () => {
   old = await makeBot(srv, { name: 'Old Item Bot', emoji: '🗃' });
   assert.equal((await srv.api('/company', { method: 'POST', body: { start: 'A planner for busy parents' } })).status, 201);
   const c = (await srv.api('/company')).data.company;
-  const day = today(new Date());
+  const day = serverDay();
   writeData(path.join(srv.data, 'company.json'), {
     ...c, name: 'Fernhill', phase: 'running', startedAt: new Date().toISOString(),
     teams: [{ id: 't1', name: 'Growth', bots: [mine.id, theirs.id, old.id], lead: mine.id }],
@@ -36,7 +35,7 @@ test("the owner's item due today starts its bot once, as the owner's message", a
   const runs = await waitFor(async () => { const r = await runsOf(mine); return r.length ? r : null; }, { what: 'the bot started on its item' });
   assert.equal(runs.length, 1);
   assert.match(runs[0].prompt, /Send the weekly numbers/);
-  assert.equal((await item('due1')).started, today(new Date()));
+  assert.equal((await item('due1')).started, serverDay());
   await new Promise((r) => setTimeout(r, 1200)); // a few more rounds
   assert.equal((await runsOf(mine)).length, 1, 'once for its day');
 });

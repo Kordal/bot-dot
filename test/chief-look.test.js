@@ -4,7 +4,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot, feed, waitFor, sleep } = require('./helpers');
+const { startServer, makeBot, feed, waitFor, sleep, serverDay } = require('./helpers');
 const look = require('../lib/look');
 
 const ENV = { BOT_DOT_LOOK_ON_DEMAND: '1' };
@@ -271,7 +271,7 @@ test('a look reads what is due today in the owner\'s projects (#1225)', async (t
   t.after(() => own.stop());
   await own.api('/settings/quiet-hours', { method: 'PUT', body: { start: 0, end: 0 } });
   const now = new Date();
-  const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const day = serverDay();
   require('./helpers').writeData(path.join(own.data, 'company.json'), { id: 'p1', name: 'Fernhill', start: 'fernhill.app', phase: 'running', startedAt: now.toISOString(), todos: [{ id: 't1', text: 'Send the deck to Anna', due: day }] });
   own.reply('NOTHING');
   const r = (await own.api('/chief/look', { method: 'POST' })).data;
