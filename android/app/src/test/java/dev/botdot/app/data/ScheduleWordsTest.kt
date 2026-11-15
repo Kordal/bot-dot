@@ -118,7 +118,7 @@ class ScheduleWordsTest {
         val one = "fun scheduleWords(j: Job): String = j.words?.takeIf { it.isNotBlank() } ?: describeCron(j.cron)"
         assertEquals(listOf("NeedsCards.kt" to one), lines.filter { (_, l) -> ".cron" in l })
         assertEquals(listOf("NeedsCards.kt" to one), lines.filter { (_, l) -> "describeCron(" in l && !l.startsWith("fun describeCron(") })
-        assertEquals(listOf("BotSettingsScreen.kt", "Jobs.kt", "JobsScreen.kt", "NeedsCards.kt"),
+        assertEquals(listOf("BotSettingsScreen.kt", "Jobs.kt", "NeedsCards.kt"),
             lines.filter { (_, l) -> "scheduleWords(j)" in l && l != one }.map { it.first }.sorted())
     }
 

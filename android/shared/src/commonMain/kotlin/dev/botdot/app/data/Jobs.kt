@@ -53,6 +53,9 @@ object Jobs {
         is RunNow.Skipped -> answer.why
     }
 
+    /** The line under a job's name: its schedule, then its status ([status]). */
+    fun line(j: Job, time: (String?) -> String): String = listOf(scheduleWords(j), status(j, time)).filter { it.isNotBlank() }.joinToString(" · ")
+
     /** Its status beside its schedule: it waits for the OK, it is paused, or when it runs next ([time]); "" for none. */
     fun status(j: Job, time: (String?) -> String): String = when {
         !j.approved -> tr("Waits for your OK")
@@ -94,7 +97,7 @@ class JobsDesk(private val scope: CoroutineScope, private val api: Api, private 
         val bot = bots?.firstOrNull { it.id == botId } ?: return JobsState("", null, null)
         val advanced = Advanced.on.value
         val jobs = bot.jobs.map { j ->
-            JobView(j.id, j.name, j.kind == "script", listOf(scheduleWords(j), Jobs.status(j, time)).filter { it.isNotBlank() }.joinToString(" · "),
+            JobView(j.id, j.name, j.kind == "script", Jobs.line(j, time),
                 waits = !j.approved, changeWaits = Jobs.changeWaits(j), enabled = j.enabled, approved = j.approved,
                 last = j.last?.let { Jobs.lastLine(it, time(it.at)) }, tone = j.last?.let { Jobs.tone(it) } ?: Jobs.Tone.FINE,
                 advanced = if (!advanced) emptyList() else listOfNotNull(Jobs.callModeLine(j), j.notifyUrl?.takeIf { it.isNotBlank() }?.let { Jobs.notifyLine(it) }))

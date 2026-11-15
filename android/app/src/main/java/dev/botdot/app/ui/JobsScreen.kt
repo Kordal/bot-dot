@@ -1,6 +1,5 @@
 package dev.botdot.app.ui
 
-import dev.botdot.app.data.scheduleWords
 import dev.botdot.app.data.without
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,12 +45,13 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
+    // The pause and Run now, and what they say: the shared layer's, as the iPhone's (JobsDesk).
+    val desk = remember(api, botId) { api?.let { dev.botdot.app.data.JobsDesk(scope, it, app.store, botId, ::shortTime) } }
     // The bot and its jobs as the app keeps them (Store), kept up to date from the live feed.
     val bots by app.store.bots.value.collectAsState()
     val bot = remember(bots, botId) { bots?.firstOrNull { it.id == botId } }
     val loadError by app.store.bots.error.collectAsState()
 
-    suspend fun load() = app.store.bots.refresh()
     // A message at the bottom, without holding up what comes after it (showSnackbar waits until it's gone).
     fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
     LaunchedEffect(loadError) { loadError?.let { tell(it) } }
@@ -72,20 +72,11 @@ fun JobsScreen(app: BotDotApp, botId: String, onNeedsYou: () -> Unit, onBack: ()
             items(jobs, key = { it.id }) { j ->
                 JobRow(j,
                     onToggle = { on ->
-                        scope.launch {
-                            // Show it right away; the server's answer (and next run) follows.
-                            app.store.bots.update { list -> list.map { b -> if (b.id != botId) b else b.copy(jobs = b.jobs.map { if (it.id == j.id) it.copy(enabled = on, nextRunAt = if (on) it.nextRunAt else null) else it }) } }
-                            val r = runCatching { api!!.setJobEnabled(botId, j.id, on) }
-                            load()
-                            tell(r.fold({ if (on) tr("Resumed") else tr("Paused. It won't run until you turn it back on.") }, { it.message ?: tr("Couldn't change it") }))
-                        }
+                        // Shown right away; the server's answer (and next run) follows.
+                        scope.launch { desk?.let { tell(it.setOn(j.id, on)) } }
                     },
                     onRun = {
-                        scope.launch {
-                            val r = runCatching { api!!.runJob(botId, j.id) }
-                            load()
-                            tell(r.fold({ runNowSays(it) }, { it.message ?: tr("Couldn't start it") }))
-                        }
+                        scope.launch { desk?.let { tell(it.run(j.id)) } }
                     },
                     onApprove = onNeedsYou,
                 )
@@ -105,13 +96,7 @@ private fun JobRow(j: Job, onToggle: (Boolean) -> Unit, onRun: () -> Unit, onApp
             Column(Modifier.weight(1f)) {
                 Text("${if (j.kind == "script") "⚙️" else "🧠"} ${j.name}", style = MaterialTheme.typography.titleMedium, color = p.text)
                 // A job with a change beside it runs on as approved: its line is that of a running job.
-                val status = when {
-                    !j.approved -> tr("Waits for your OK")
-                    !j.enabled -> tr("Paused")
-                    j.nextRunAt != null -> tr("Next: {time}", "time" to shortTime(j.nextRunAt))
-                    else -> ""
-                }
-                Text(listOf(scheduleWords(j), status).filter { it.isNotBlank() }.joinToString(" · "),
+                Text(dev.botdot.app.data.Jobs.line(j, ::shortTime),
                     color = if (!j.approved) p.warnText else p.muted, style = MaterialTheme.typography.bodyMedium)
             }
             Switch(
