@@ -457,6 +457,7 @@ class ProjectDeskTest {
             assertTrue(board)
             assertFalse(overview, "no Overview page: the board is it")
             assertFalse(teamsOnBoard, "the teams are under Team")
+            assertTrue(teamEntry, "and Team opens them")
             assertEquals(listOf("work", "blockers"), overviewTop)
             assertTrue(replies)
             assertNull(needsYou, "nothing read yet, nothing waits")
@@ -467,7 +468,7 @@ class ProjectDeskTest {
         desk.follow(false)
         val (_, page) = desk(FakeBotdot { 200 to "{}" }, all + ProjectOverview.FEATURE)
         runCurrent()
-        with(page.state.value) { assertTrue(overview); assertFalse(board); assertTrue(teamsOnBoard); assertTrue(overviewTop.isEmpty()); assertFalse(replies) }
+        with(page.state.value) { assertTrue(overview); assertFalse(board); assertTrue(teamsOnBoard); assertFalse(teamEntry); assertTrue(overviewTop.isEmpty()); assertFalse(replies) }
     }
 
     @Test fun aTeamIsSavedNewOrAsItIsAndDeletedAndNothingWithoutANameOrABot() = runTest {

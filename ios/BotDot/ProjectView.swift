@@ -236,7 +236,7 @@ struct ProjectPage: View {
                         .disabled(s.tidying)
                         .accessibilityLabel(tr("Tidy up the board"))
                 }
-                if s.board {
+                if s.teamEntry {
                     Button(tr("Team")) { teamPage = true }
                         .accessibilityIdentifier("project-team")
                 }

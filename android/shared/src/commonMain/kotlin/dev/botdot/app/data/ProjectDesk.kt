@@ -136,6 +136,8 @@ class ProjectState(
     val board: Boolean = false,
     /** Its teams' rows and own bots on the page; with overview-board on its Team page instead (ADR 238). */
     val teamsOnBoard: Boolean = true,
+    /** The Team entry beside the gear, which opens that Team page: with overview-board only (Android's Team button). */
+    val teamEntry: Boolean = false,
     val recorded: OverviewState = OverviewState(),
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
@@ -296,6 +298,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             overview = c != null && Overviews.page(f),
             board = board,
             teamsOnBoard = !board,
+            teamEntry = board,
             recorded = x.recorded,
             needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
