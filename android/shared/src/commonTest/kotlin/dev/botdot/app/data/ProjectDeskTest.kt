@@ -276,6 +276,65 @@ class ProjectDeskTest {
 
     @Test fun twoOwnBotsChangesAtOnceSendOneList() = twoTapsAtOnce("/company/bots", kitchen) { it.setOwnBots(listOf("b3", "b4")) }
 
+    /** What the settings and the team panel sent, as botdot got it: method, path, body. */
+    private suspend fun FakeBotdot.changes(): List<Triple<String, String, String>> = asked().filter { it.method != "GET" }.map { Triple(it.method, it.path, it.body) }
+
+    @Test fun theSettingsSendNothingThatChangesNothing() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertFalse(desk.rename(" Kitchen "), "the same name")
+        assertFalse(desk.rename("   "), "no name")
+        assertFalse(desk.setColor("#34C759"), "the same colour, in capitals")
+        assertFalse(desk.setLead(null), "the Chief is the Project Manager already")
+        assertTrue(fake.changes().isEmpty())
+        assertTrue(desk.rename("  Big kitchen "))
+        assertTrue(desk.setColor("#ff9500"))
+        assertEquals(listOf(
+            Triple("PATCH", "/company", """{"name":"Big kitchen"}"""),
+            Triple("PATCH", "/company", """{"color":"#ff9500"}"""),
+        ), fake.changes())
+    }
+
+    @Test fun theProjectManagerGoesBackToTheChiefAsJsonNull() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake, c = kitchen.replace("\"color\":\"#34c759\"", "\"color\":\"#34c759\",\"lead\":\"b3\""))
+        runCurrent()
+        assertTrue(desk.setLead(null))
+        assertEquals(Triple("PATCH", "/company", """{"lead":null}"""), fake.changes().single())
+    }
+
+    @Test fun aTeamsPlusSendsItsBotsAndOnlyTheNewOnes() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertTrue(desk.addToTeam("t1", listOf("b2", "b4")))
+        assertEquals(Triple("PUT", "/company/teams/t1", """{"bots":["b1","b2","b4"]}"""), fake.changes().single())
+        assertFalse(desk.addToTeam("gone", listOf("b4")), "a team that isn't there: nothing sent")
+        assertEquals(1, fake.changes().size)
+    }
+
+    @Test fun makeLeadArchiveAndABoardPieceSendWhatTheySay() = runTest {
+        val fake = FakeBotdot { 200 to kitchen }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        assertTrue(desk.makeLead("t1", "b1"))
+        assertTrue(desk.setArchived(true))
+        desk.putPiece("calendar") // on the board: tapped, it goes
+        val c = fake.changes()
+        assertEquals(Triple("PUT", "/company/teams/t1", """{"lead":"b1"}"""), c[0])
+        assertEquals(Triple("PATCH", "/company", """{"archived":true}"""), c[1])
+        assertEquals(Triple("PATCH", "/company", """{"board":["days","goals","teams","todo","files"]}"""), c[2])
+    }
+
+    @Test fun aTeamsChatIsOnlyOnABotdotWithTeamChats() {
+        val groups = listOf(Api.JSON.decodeFromString(Group.serializer(), """{"id":"g1","name":"Crew","team":"t1"}"""))
+        assertEquals("g1", ProjectRules.teamChat(listOf(Groups.TEAM_CHATS), groups, "t1"))
+        assertNull(ProjectRules.teamChat(listOf("groups"), groups, "t1"), "without team-chats its name opens its panel")
+        assertNull(ProjectRules.teamChat(null, groups, "t1"))
+        assertNull(ProjectRules.teamChat(listOf(Groups.TEAM_CHATS), groups, "t2"))
+    }
+
     @Test fun theFilesTileAsksForTheNewestFilesWhileFollowed() = runTest {
         val fake = FakeBotdot { a -> if (a.path == "/company/files") 200 to """{"state":"on","files":[{"name":"plan.md","path":"plan.md","at":1}]}""" else 200 to "{}" }
         val (_, desk) = desk(fake)

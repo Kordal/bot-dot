@@ -51,13 +51,13 @@ final class ProjectModel {
     func putPiece(_ piece: String) async { try? await store.putPiece(piece: piece) }
 
     func offered(_ team: String) -> [Bot] { store.offered(team: team) }
-    func addOwn(_ ids: [String]) async { _ = try? await store.addOwn(ids: ids) }
-    func removeOwn(_ id: String) async { _ = try? await store.removeOwn(id: id) }
-    func addToTeam(_ team: String, _ ids: [String]) async { _ = try? await store.addToTeam(team: team, ids: ids) }
-    func makeLead(_ team: String, _ bot: String) async { _ = try? await store.makeLead(team: team, bot: bot) }
+    @discardableResult func addOwn(_ ids: [String]) async -> Bool { (try? await store.addOwn(ids: ids))?.boolValue ?? false }
+    @discardableResult func removeOwn(_ id: String) async -> Bool { (try? await store.removeOwn(id: id))?.boolValue ?? false }
+    @discardableResult func addToTeam(_ team: String, _ ids: [String]) async -> Bool { (try? await store.addToTeam(team: team, ids: ids))?.boolValue ?? false }
+    @discardableResult func makeLead(_ team: String, _ bot: String) async -> Bool { (try? await store.makeLead(team: team, bot: bot))?.boolValue ?? false }
 
-    func rename(_ name: String) async { _ = try? await store.rename(name: name) }
-    func setColor(_ color: String) async { _ = try? await store.setColor(color: color) }
-    func setLead(_ bot: String?) async { _ = try? await store.setLead(bot: bot) }
-    func setArchived(_ on: Bool) async { _ = try? await store.setArchived(on: on) }
+    @discardableResult func rename(_ name: String) async -> Bool { (try? await store.rename(name: name))?.boolValue ?? false }
+    @discardableResult func setColor(_ color: String) async -> Bool { (try? await store.setColor(color: color))?.boolValue ?? false }
+    @discardableResult func setLead(_ bot: String?) async -> Bool { (try? await store.setLead(bot: bot))?.boolValue ?? false }
+    @discardableResult func setArchived(_ on: Bool) async -> Bool { (try? await store.setArchived(on: on))?.boolValue ?? false }
 }

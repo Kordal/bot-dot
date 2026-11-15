@@ -140,8 +140,6 @@ struct ProjectPage: View {
     @State private var chief: ChiefRoute?
     @State private var group: GroupRoute?
     @State private var files: FilesPlace?
-    @State private var notice: String?
-    @State private var noticeTimer: Task<Void, Never>?
     @State private var unfolded: Set<String> = []
 
     /// A team's panel on screen.
@@ -182,19 +180,14 @@ struct ProjectPage: View {
             BotPickerView(title: p.title, bots: p.bots, figure: figure) { ids in
                 Task { if let team = p.team { await model.addToTeam(team, ids) } else { await model.addOwn(ids) } }
             }
+            .modifier(ProjectNotice(model: model))
         }
         .sheet(item: $panel) { t in
             TeamPanel(model: model, teamId: t.id, figure: figure, onBot: { b in panel = nil; chat = ChatRoute(botId: b.id, name: b.name) })
                 .presentationDetents([.medium, .large])
+                .modifier(ProjectNotice(model: model))
         }
-        .overlay(alignment: .top) {
-            if let notice { Text(notice).font(.callout).padding(10).background(.thinMaterial, in: .capsule).padding(.top, 8) }
-        }
-        .onChange(of: model.state?.noticeCount) {
-            notice = model.state?.notice
-            noticeTimer?.cancel()
-            noticeTimer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { notice = nil } }
-        }
+        .modifier(ProjectNotice(model: model))
         // Followed while the page is in the stack, also under its settings or a chat it opened: the model closes it when it goes.
         .task { model.start(); model.show(id); model.follow(true) }
     }
@@ -520,5 +513,25 @@ struct BotPickerView: View {
                 }
             }
         }
+    }
+}
+
+/// What botdot refused on a project's page, its settings or a sheet over them, in its words for a moment at the top
+/// (the shared ProjectState's notice, new with each noticeCount): each screen shows it, as the one on top is seen.
+struct ProjectNotice: ViewModifier {
+    let model: ProjectModel
+    @State private var notice: String?
+    @State private var timer: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .top) {
+                if let notice { Text(notice).font(.callout).padding(10).background(.thinMaterial, in: .capsule).padding(.top, 8).accessibilityIdentifier("notice") }
+            }
+            .onChange(of: model.state?.noticeCount) {
+                notice = model.state?.notice
+                timer?.cancel()
+                timer = Task { try? await Task.sleep(for: .seconds(3)); if !Task.isCancelled { notice = nil } }
+            }
     }
 }
