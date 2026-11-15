@@ -199,5 +199,13 @@ class FilesStore(val api: Api, val ownerId: String, val name: String, place: Str
         refresh()
     }
 
+    /** Move to… or Copy to… for [e] (CarryDesk): its tree starts in the place shown; [say] for a folder it couldn't read. */
+    fun carry(move: Boolean, e: WorkspaceEntry, say: (String) -> Unit): CarryDesk =
+        CarryDesk(scope, api, ownerId, move, state.value.place, listOf(e), state.value.places, say)
+
+    /** Move here or Copy here: [desk]'s items carried, the folder read again; what to say ([CarryDesk.go]). */
+    @Throws(Exception::class)
+    suspend fun carried(desk: CarryDesk): String { val said = desk.go(); runCatching { refresh() }; return said }
+
     fun close() = scope.cancel()
 }

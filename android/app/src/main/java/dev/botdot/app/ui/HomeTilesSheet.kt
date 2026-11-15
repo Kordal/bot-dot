@@ -25,11 +25,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,8 +40,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.botdot.app.data.Dashboard
-import dev.botdot.app.data.HomeTiles
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.launch
 import sh.calvin.reorderable.ReorderableItem
@@ -55,25 +52,23 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun HomeTilesSheet(dash: Dashboard, save: suspend (List<String>) -> Unit, onDismiss: () -> Unit) {
+internal fun HomeTilesSheet(desk: dev.botdot.app.data.HomeTilesDesk, onDismiss: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val haptic = LocalHapticFeedback.current
-    val titles = remember(dash) { dash.tiles.associate { it.id to it.title } }
-    var on by remember { mutableStateOf(HomeTiles.rows(dash).first) }
-    val rest = remember(dash, on) { dash.tiles.filter { it.approved && it.id !in on }.map { it.id } }
-    // The server's list, when it changes while this is open (a save of ours coming back, the Chief's).
-    LaunchedEffect(dash.home) { on = HomeTiles.rows(dash).first }
-    fun change(next: List<String>) {
-        val before = on
-        on = next
-        scope.launch { runCatching { save(next) }.onFailure { on = before } }
-    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // The rows, the saves and their rollback are the shared desk's (one copy with the iPhone's sheet).
+    val state by desk.state.collectAsState()
+    val on = state.on.map { it.id }
+    val titles = (state.on + state.rest).associate { it.id to it.title }
+    val rest = state.rest.map { it.id }
+    LaunchedEffect(state.noticeCount) { state.notice?.takeIf { state.noticeCount > 0 }?.let { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_LONG).show() } }
+    fun toggle(id: String) { scope.launch { desk.toggle(id) } }
     val listState = rememberLazyListState()
     val reorder = rememberReorderableLazyListState(listState) { from, to ->
         val a = from.key as? String ?: return@rememberReorderableLazyListState
         val b = to.key as? String ?: return@rememberReorderableLazyListState
-        on = HomeTiles.move(on, a, b)
+        desk.move(a, b)
         haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
     }
     ModalBottomSheet(onDismissRequest = onDismiss) {
@@ -82,12 +77,12 @@ internal fun HomeTilesSheet(dash: Dashboard, save: suspend (List<String>) -> Uni
                 ReorderableItem(reorder, key = id) { lifted ->
                     HomeTileRow(titles[id].orEmpty(), checked = true, lifted = lifted, handle = Modifier.draggableHandle(
                         onDragStarted = { haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate) },
-                        onDragStopped = { change(on) },
-                    )) { change(HomeTiles.toggle(on, id)) }
+                        onDragStopped = { scope.launch { desk.drop() } },
+                    )) { toggle(id) }
                 }
             }
             if (on.isNotEmpty() && rest.isNotEmpty()) item(key = "sep") { Box(Modifier.fillMaxWidth().padding(horizontal = Space.s8, vertical = Space.s4).height(1.dp).background(p.line)) }
-            items(rest, key = { it }) { id -> HomeTileRow(titles[id].orEmpty(), checked = false) { change(HomeTiles.toggle(on, id)) } }
+            items(rest, key = { it }) { id -> HomeTileRow(titles[id].orEmpty(), checked = false) { toggle(id) } }
         }
     }
 }

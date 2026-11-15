@@ -119,7 +119,10 @@ object FilesExplorer {
         listOf(sizeOf(e), whenOf(e.at, zone, today)).filter { it.isNotEmpty() }.joinToString(" · ")
 
     /** What can be done to an entry where it is. */
-    data class Can(val open: Boolean, val rename: Boolean, val move: Boolean, val copy: Boolean, val download: Boolean, val keep: Boolean, val unpin: Boolean, val delete: Boolean)
+    data class Can(val open: Boolean, val rename: Boolean, val move: Boolean, val copy: Boolean, val download: Boolean, val keep: Boolean, val unpin: Boolean, val delete: Boolean) {
+        /** [copy] for Swift, where `copy` is NSObject's. */
+        val copies: Boolean get() = copy
+    }
 
     /**
      * On botdot what botdot keeps and links are never changed; on the computer and in a project box changes anything

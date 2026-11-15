@@ -78,6 +78,9 @@ extension PagesDesk: @retroactive @unchecked Sendable {}
 extension PageInfo: @retroactive @unchecked Sendable {}
 /// Read from the main actor (OverviewModel).
 extension OverviewDesk: @retroactive @unchecked Sendable {}
+extension CarryDesk: @retroactive @unchecked Sendable {}
+
+extension HomeTilesDesk: @retroactive @unchecked Sendable {}
 extension StorageDesk: @retroactive @unchecked Sendable {}
 extension StorageRow: @retroactive @unchecked Sendable {}
 extension Storage.Group: @retroactive @unchecked Sendable {}
