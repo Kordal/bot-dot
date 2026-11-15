@@ -137,6 +137,9 @@ struct ProjectPage: View {
     @State private var picking: Picking?
     @State private var panel: TeamRoute?
     @State private var chat: ChatRoute?
+    @State private var chief: ChiefRoute?
+    @State private var group: GroupRoute?
+    @State private var files: FilesPlace?
     @State private var notice: String?
     @State private var noticeTimer: Task<Void, Never>?
     @State private var unfolded: Set<String> = []
@@ -172,6 +175,9 @@ struct ProjectPage: View {
         .safeAreaInset(edge: .bottom) { chatField }
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure) }
         .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+        .navigationDestination(item: $chief) { r in ChiefView(home: home, chatId: r.chatId) }
+        .navigationDestination(item: $group) { r in GroupChatView(home: home, groupId: r.groupId, name: r.name, figure: figure) }
+        .navigationDestination(item: $files) { FilesView(api: home.api, at: $0) }
         .sheet(item: $picking) { p in
             BotPickerView(title: p.title, bots: p.bots, figure: figure) { ids in
                 Task { if let team = p.team { await model.addToTeam(team, ids) } else { await model.addOwn(ids) } }
@@ -202,9 +208,8 @@ struct ProjectPage: View {
                         .accessibilityLabel("\(tr("Project Manager")): \(m.name)")
                 }
                 if s.tidy {
-                    // STUB until claude/ios-chief merges: Tidy asks the Chief in the project's chat, which opens once the
-                    // iPhone has the Chief's chat; until then the board is arranged and the chat is not opened.
-                    Button { Task { _ = await model.tidy() } } label: { Image(systemName: s.tidying ? "hourglass" : "square.grid.3x3") }
+                    // Tidy asks the project's Chief in its chat, which opens.
+                    Button { Task { let id = await model.tidy(); if !id.isEmpty { chief = ChiefRoute(chatId: id) } } } label: { Image(systemName: s.tidying ? "hourglass" : "square.grid.3x3") }
                         .disabled(s.tidying)
                         .accessibilityLabel(tr("Tidy up the board"))
                 }
@@ -237,7 +242,12 @@ struct ProjectPage: View {
             CardsRow(model: model, state: s, slots: slots, figure: figure).listRowSeparator(.hidden)
         }
         if s.filesTile {
-            FilesTile(files: s.files).listRowSeparator(.hidden)
+            FilesTile(files: s.files) { file in
+                if let folder = c.folder?.name {
+                    files = FilesPlace(owner: ProjectFiles.shared.owner(folder: folder), name: folder, path: file.map { ProjectFiles.shared.folderOf(path: $0) } ?? "", file: file ?? "")
+                }
+            }
+            .listRowSeparator(.hidden)
         }
         ForEach(s.teams, id: \.team.id) { t in
             teamRow(t).listRowSeparator(.hidden)
@@ -263,9 +273,10 @@ struct ProjectPage: View {
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel(tr("Members"))
-                // STUB until claude/ios-groups merges: the team's name opens its chat (t.chat, a group chat) on Android;
-                // here it opens the team's panel until the iPhone has group chats.
-                Button { panel = TeamRoute(id: t.team.id) } label: {
+                // The team's name opens its chat (a group chat); with none, the team's panel.
+                Button {
+                    if let g = t.chat { group = GroupRoute(groupId: g, name: t.team.name) } else { panel = TeamRoute(id: t.team.id) }
+                } label: {
                     HStack(spacing: 8) {
                         HStack(spacing: -8) { ForEach(t.keys.prefix(3), id: \.bot.id) { k in head(k.bot, 26) } }
                         Text(t.team.name).font(.headline).lineLimit(1)
@@ -312,9 +323,9 @@ struct ProjectPage: View {
             if let b = field.bot {
                 Button { chat = ChatRoute(botId: b.id, name: b.name) } label: { label }.tint(.primary).accessibilityIdentifier("project-chat")
             } else {
-                // STUB until claude/ios-chief merges: the project's own Chief chat (s.chiefChat() makes it) opens in the
-                // Chief's chat screen, which the iPhone doesn't have yet.
-                label.opacity(0.6).accessibilityIdentifier("project-chat")
+                // The project's own Chief chat, made on the first tap.
+                Button { Task { let id = await model.chiefChat(); if !id.isEmpty { chief = ChiefRoute(chatId: id) } } } label: { label }
+                    .tint(.primary).accessibilityIdentifier("project-chat")
             }
         }
     }
@@ -398,22 +409,30 @@ struct Goals: View {
     }
 }
 
-/// The Files tile: the newest files of the project's folder, with when each changed.
+/// The Files tile: the newest files of the project's folder, with when each changed. A tap on its title opens the
+/// folder in Files ([open] with nil), a tap on a file opens it over its folder.
 struct FilesTile: View {
     let files: [RecentFile]
+    let open: (String?) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(tr("Files"), systemImage: "folder").font(.subheadline.weight(.semibold))
-            // STUB until claude/ios-files merges: a tap on the tile opens the project's folder in Files, and a file
-            // opens over it (ProjectFiles.fileRoute); the iPhone has no Files screen yet, so they only show.
+            Button { open(nil) } label: {
+                Label(tr("Files"), systemImage: "folder").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("project-files")
             ForEach(files, id: \.path) { f in
-                HStack {
-                    Image(systemName: "doc.text").foregroundStyle(.secondary)
-                    Text(f.name).font(.subheadline).lineLimit(1)
-                    Spacer(minLength: 0)
-                    Text(ProjectRules.shared.fileWhen(at: f.at)).font(.caption).foregroundStyle(.secondary)
+                Button { open(f.path) } label: {
+                    HStack {
+                        Image(systemName: "doc.text").foregroundStyle(.secondary)
+                        Text(f.name).font(.subheadline).lineLimit(1)
+                        Spacer(minLength: 0)
+                        Text(ProjectRules.shared.fileWhen(at: f.at)).font(.caption).foregroundStyle(.secondary)
+                    }
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
             }
         }
         .padding(12)

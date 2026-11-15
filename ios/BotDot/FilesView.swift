@@ -18,6 +18,9 @@ struct FilesView: View {
     @State private var typed = ""
     @State private var deleting: (entry: WorkspaceEntry, words: String)?
     @State private var sharing: SharedFile?
+    /// The file asked for on the way in, opened once over the folder.
+    @State private var opened: DocumentView.Opening?
+    @State private var fileOpened = false
 
     /// A name asked for: a new folder, or an entry's new name.
     private enum Naming: Identifiable {
@@ -64,7 +67,11 @@ struct FilesView: View {
                     Task { await model.upload(copies.compactMap(\.1), unread: copies.filter { $0.1 == nil }.map(\.0)) }
                 }
             }
-            .task { model.start() }
+            .navigationDestination(item: $opened) { ViewerView(api: model.files.api, opening: $0) }
+            .task {
+                model.start()
+                if !at.file.isEmpty, !fileOpened { fileOpened = true; opened = model.files.openingOf(path: at.file) }
+            }
             .onDisappear { model.stop() }
     }
 

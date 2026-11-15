@@ -39,6 +39,7 @@ final class ProjectModel {
 
     /// Tidy up: the id of the Chief chat it was asked in, "" for none.
     func tidy() async -> String { (try? await store.tidy()) ?? "" }
+    func chiefChat() async -> String { (try? await store.chiefChat()) ?? "" }
 
     func openCard(_ id: String) { store.openCard(id: id) }
     func closeCard() { store.closeCard() }
