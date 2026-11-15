@@ -90,4 +90,15 @@ final class ChatTests: XCTestCase {
         model.accountDeleted("https://botdot.test", "Deleted")
         XCTAssertFalse(FileManager.default.fileExists(atPath: ReplyPictures.cache.path))
     }
+
+    /// Quote after "Ask @we": the cursor goes to the quote's end, where no "@" is being typed.
+    func testAQuoteMovesTheCursorToItsEnd() throws {
+        let (text, cursor) = try XCTUnwrap(Cursor.quoting("Ship it", into: "Ask @we"))
+        XCTAssertEqual(text, "Ask @we\n\n> Ship it\n\n")
+        let at = Cursor.offset(of: cursor, in: text)
+        XCTAssertEqual(at, text.utf16.count)
+        let before = String(text.utf16.prefix(at)) ?? ""
+        XCTAssertFalse(before.hasSuffix("@we"), "no mention is being typed at the cursor")
+        XCTAssertNil(Cursor.quoting("  ", into: "Ask"), "nothing to quote")
+    }
 }

@@ -47,6 +47,12 @@ enum Cursor {
         return text.utf16.distance(from: text.startIndex, to: range.upperBound)
     }
 
+    /// [draft] with the quote of [words] after it (Quote), and the cursor at its end; nil when there is nothing to quote.
+    static func quoting(_ words: String, into draft: String) -> (String, TextSelection)? {
+        guard let added = Quote.shared.add(draft: draft, selected: words) else { return nil }
+        return (added.text, at(added.text.utf16.count, in: added.text))
+    }
+
     /// A cursor at [offset] (UTF-16) in [text].
     static func at(_ offset: Int, in text: String) -> TextSelection {
         let i = text.utf16.index(text.startIndex, offsetBy: min(max(offset, 0), text.utf16.count))
@@ -166,8 +172,9 @@ struct Composer<Box: MessageBox>: View {
 
     /// A quote from the chat: after what is typed, as Markdown, the cursor in the box (Quote).
     private func quote() {
-        guard let words = box.quoted?.text, let added = Quote.shared.add(draft: typed, selected: words) else { return }
-        typed = added.text
+        guard let words = box.quoted?.text, let quoted = Cursor.quoting(words, into: typed) else { return }
+        typed = quoted.0
+        selection = quoted.1 // the cursor after the quote: an "@" before it is no longer being typed
         focused = true
     }
 
