@@ -38,6 +38,9 @@ final class BotSettingsModel {
         store.close() // the screen is gone for good
     }
 
+    /// Undo last change: nil when it went, else botdot's sentence.
+    func undo() async -> String? { (try? await store.undo()) ?? nil }
+
     /// Delete, once the owner said yes: nil when it went, else botdot's sentence.
     func delete() async -> String? {
         do {
@@ -169,6 +172,37 @@ struct BotSettingsView: View {
             if state.showsEffort {
                 Picker(tr("Reasoning"), selection: Binding(get: { draft.effort }, set: { v in model.edit { $0.withEffort(effort: v) } })) {
                     ForEach(state.efforts, id: \.id) { Text($0.label).tag($0.id) }
+                }
+            }
+        }
+        if state.undoes {
+            Section {
+                Button(tr("Undo last change")) { Task { failed = await model.undo() } }
+            }
+        }
+        Section(tr("Computer")) {
+            Toggle(tr("Its own computer"), isOn: Binding(get: { draft.computer }, set: { on in model.edit { $0.withComputer(on: on) } }))
+        }
+        Section(tr("Skills")) {
+            Toggle(tr("Use skills"), isOn: Binding(get: { draft.useSkills }, set: { on in model.edit { $0.withUseSkills(on: on) } }))
+            if draft.useSkills {
+                ForEach(state.library, id: \.self) { name in
+                    Toggle(name, isOn: Binding(get: { draft.skills.contains(name) }, set: { on in model.edit { $0.withSkill(name: name, on: on) } }))
+                }
+            }
+        }
+        if state.showsOthersMayAsk || state.showsRooms {
+            Section {
+                if state.showsOthersMayAsk {
+                    Toggle(tr("Other bots may ask it"), isOn: Binding(get: { draft.othersMayAsk }, set: { on in model.edit { $0.withOthersMayAsk(on: on) } }))
+                }
+                if state.showsRooms {
+                    Toggle(tr("May be in shared rooms"), isOn: Binding(get: { draft.rooms.allowRooms }, set: { on in model.edit { $0.withAllowRooms(on: on) } }))
+                    if draft.rooms.allowRooms {
+                        Picker(tr("Who may mention it"), selection: Binding(get: { draft.rooms.whoMayMention }, set: { v in model.edit { $0.withWhoMayMention(who: v) } })) {
+                            ForEach(state.whoMayMention, id: \.id) { Text($0.label).tag($0.id) }
+                        }
+                    }
                 }
             }
         }

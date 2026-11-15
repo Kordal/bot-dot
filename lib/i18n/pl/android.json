@@ -1368,5 +1368,7 @@
   "Allowed tools": "Dozwolone narzędzia",
   "Schedule": "Harmonogram",
   "That address is on a computer, and only that computer reaches it: a phone can't. Use your botdot's address on your tailnet, the one you open in the browser on the phone.": "Ten adres jest na komputerze i tylko ten komputer go osiąga: telefon nie. Użyj adresu twojego botdota w twoim tailnecie, tego, który otwierasz w przeglądarce na telefonie.",
-  "Photos": "Zdjęcia"
+  "Photos": "Zdjęcia",
+  "Its own computer": "Własny komputer",
+  "Use skills": "Używa umiejętności"
 }

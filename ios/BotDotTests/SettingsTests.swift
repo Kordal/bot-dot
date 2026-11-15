@@ -52,4 +52,13 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(BotSettingsKt.BotColors.count, 8)
         XCTAssertEqual(BotSettingsKt.BotColors.first?.first as String?, "#1d9e75")
     }
+
+    /// A bot's computer, skills, asking and rooms are edited through the shared draft.
+    func testABotsDraftTakesItsComputerSkillsAndRooms() {
+        let d = BotDraft.companion.empty().withComputer(on: true).withSkill(name: "mail", on: true).withAllowRooms(on: true)
+        XCTAssertTrue(d.computer)
+        XCTAssertTrue(d.skills.contains("mail"))
+        XCTAssertTrue(d.rooms.allowRooms)
+        XCTAssertFalse(d.withSkill(name: "mail", on: false).skills.contains("mail"))
+    }
 }

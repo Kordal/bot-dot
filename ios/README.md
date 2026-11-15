@@ -34,7 +34,8 @@ BotDot/           the app (app.botdot): the address and sign-in screens, Home (H
                   numbers, a CSV as a table, the rest in QuickLook), a bot's computer screen (ScreenView: the shared
                   layer's ScreenStore, noVNC in a WKWebView with the session's cookie, Take control and I'm done, opened
                   from Home's ⋯ menu), a bot's settings (BotSettingsView: icon, colour, name, assignment, pinned, its
-                  key, with Advanced its model; BotSettingsDesk saves each change by itself), Settings (SettingsView:
+                  computer, its skills, other bots asking it, shared rooms, Undo last change, its key, with Advanced its
+                  model; BotSettingsDesk saves each change by itself), Settings (SettingsView:
                   Apps, models, language, Usage, Claude, Updates with What's new, the Subscription of a managed account,
                   Advanced, the address; AppSettingsDesk), Apps (AppsView: the Composio key, the connected apps and who
                   uses them, search, Connect opening the sign-in in Safari; AppsDesk), the status keypad (KeypadView:
@@ -89,7 +90,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView` (left: making a group) |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings, Home's ⋯ | `FilesView`, `ViewerView` (left: Move or Copy, Export, Keep it up to date, On Board) |
 | `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
-| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView` (left: the Chief's settings, Jobs, Skills, Pages, Storage, most of a bot's settings) |
+| `SettingsScreen` (`settings`), `BotSettingsScreen`, `ChiefSettingsScreen`, `JobsScreen`, `SkillsConnectorsScreens` (`skills`, `connectors`), `PagesScreen` (`pages`), `StorageScreen` (`storage`), `KeypadView` | Home, a chat's settings | `SettingsView`, `BotSettingsView`, `KeypadView` (left: the Chief's settings, Jobs, Skills, Pages, Storage; in a bot's settings its apps, browser and proxy, always-approved rules, Duplicate and its pages) |
 | `LiveScreen`, `BoatScreen` (`screen/{id}`) | a bot's settings, Home's ⋯ | `ScreenView` |
 | `ShareScreen` (`share`) | another app's Share | #1373 |
 | `AppUpdateRow` | Home, Settings | none: the App Store updates the iPhone app |
