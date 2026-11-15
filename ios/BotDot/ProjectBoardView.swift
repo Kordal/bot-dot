@@ -362,34 +362,7 @@ struct ProjectSettingsView: View {
                         }
                     }
                 }
-                Section(tr("Team")) {
-                    Picker(tr("Project Manager"), selection: Binding(get: { c.lead ?? "" }, set: { v in Task { await model.setLead(v.isEmpty ? nil : v) } })) {
-                        Text(s.chiefName).tag("")
-                        ForEach(s.leadChoices, id: \.id) { b in Text(b.name).tag(b.id) }
-                    }
-                    ForEach(s.teams, id: \.team.id) { t in
-                        HStack {
-                            Text(t.team.name)
-                            Spacer()
-                            Text(t.keys.map { $0.bot.name }.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                            Button(tr("Edit")) { team = TeamDraft(id: t.team.id, name: t.team.name, bots: t.team.bots, lead: t.team.lead) }
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                    Button(tr("New team")) { team = TeamDraft(id: nil, name: "", bots: [], lead: nil) }
-                    if s.ownBots {
-                        ForEach(s.own, id: \.bot.id) { k in
-                            HStack {
-                                Text(k.bot.name)
-                                Spacer()
-                                Button { Task { await model.removeOwn(k.bot.id) } } label: { Image(systemName: "xmark") }
-                                    .buttonStyle(.borderless).disabled(s.ownSaving)
-                                    .accessibilityLabel(tr("Remove {name}", ["name": k.bot.name]))
-                            }
-                        }
-                        Button(tr("Add bot")) { adding = true }.disabled(s.ownSaving)
-                    }
-                }
+                TeamSection(model: model, state: s, project: c, team: $team, adding: $adding)
                 if s.updates {
                     Section(tr("Project updates")) {
                         Picker(tr("Project updates"), selection: Binding(get: { c.updates?.every ?? "existing" }, set: { v in Task { await model.setUpdates(v) } })) {
@@ -558,5 +531,75 @@ struct TeamEditorView: View {
     private var deleteQuestion: String {
         guard let id = draft.id, let t = model.state?.project?.teams.first(where: { $0.id == id }) else { return tr("Delete team") }
         return ProjectSettingWords.shared.deleteTeamQuestion(t: t)
+    }
+}
+
+/// A project's Team (Android's ProjectTeamSettings): its Project Manager, each team with Edit and New team, its own
+/// bots with ✕ and Add bot. In its settings, and with overview-board behind the page's Team (ADR 238).
+struct TeamSection: View {
+    let model: ProjectModel
+    let state: ProjectState
+    let project: Company
+    @Binding var team: TeamDraft?
+    @Binding var adding: Bool
+
+    var body: some View {
+        let s = state
+        let c = project
+        Section(tr("Team")) {
+            Picker(tr("Project Manager"), selection: Binding(get: { c.lead ?? "" }, set: { v in Task { await model.setLead(v.isEmpty ? nil : v) } })) {
+                Text(s.chiefName).tag("")
+                ForEach(s.leadChoices, id: \.id) { b in Text(b.name).tag(b.id) }
+            }
+            ForEach(s.teams, id: \.team.id) { t in
+                HStack {
+                    Text(t.team.name)
+                    Spacer()
+                    Text(t.keys.map { $0.bot.name }.joined(separator: ", ")).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    Button(tr("Edit")) { team = TeamDraft(id: t.team.id, name: t.team.name, bots: t.team.bots, lead: t.team.lead) }
+                        .buttonStyle(.borderless)
+                }
+            }
+            Button(tr("New team")) { team = TeamDraft(id: nil, name: "", bots: [], lead: nil) }
+            if s.ownBots {
+                ForEach(s.own, id: \.bot.id) { k in
+                    HStack {
+                        Text(k.bot.name)
+                        Spacer()
+                        Button { Task { await model.removeOwn(k.bot.id) } } label: { Image(systemName: "xmark") }
+                            .buttonStyle(.borderless).disabled(s.ownSaving)
+                            .accessibilityLabel(tr("Remove {name}", ["name": k.bot.name]))
+                    }
+                }
+                Button(tr("Add bot")) { adding = true }.disabled(s.ownSaving)
+            }
+        }
+    }
+}
+
+/// A project's Team page (ADR 238): with overview-board its team rows leave the board for here.
+struct ProjectTeamView: View {
+    let model: ProjectModel
+    let figure: FigureDef?
+    @State private var team: TeamDraft?
+    @State private var adding = false
+
+    var body: some View {
+        Form {
+            if let s = model.state, let c = s.project {
+                TeamSection(model: model, state: s, project: c, team: $team, adding: $adding)
+            }
+        }
+        .navigationTitle(tr("Team"))
+        .navigationBarTitleDisplayMode(.inline)
+        .modifier(ProjectNotice(model: model))
+        .sheet(isPresented: $adding) {
+            BotPickerView(title: tr("Add bot"), bots: model.state?.addable ?? [], figure: figure) { ids in Task { await model.addOwn(ids) } }
+                .modifier(ProjectNotice(model: model))
+        }
+        .sheet(item: $team) { d in
+            TeamEditorView(draft: d, bots: model.state?.bots ?? [], model: model)
+                .modifier(ProjectNotice(model: model))
+        }
     }
 }

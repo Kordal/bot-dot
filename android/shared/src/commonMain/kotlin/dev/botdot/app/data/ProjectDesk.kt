@@ -130,7 +130,8 @@ class ProjectState(
     val overview: Boolean = false,
     /**
      * The overview is the board (`overview-board`, ADR 245): Needs you at the top when something waits ([needsYou]),
-     * then Current work and Blockers ([overviewTop]), and Latest replies at the end ([replies]), from [recorded].
+     * then Current work and Blockers ([overviewTop]), and Latest replies at the end ([replies]), from [recorded]; the
+     * teams leave the board for its Team entry (ADR 238).
      */
     val board: Boolean = false,
     val recorded: OverviewState = OverviewState(),

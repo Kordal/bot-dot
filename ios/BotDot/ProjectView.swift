@@ -144,6 +144,7 @@ struct ProjectPage: View {
     let model: ProjectModel
     @Environment(\.dismiss) private var dismiss
     @State private var settings = false
+    @State private var teamPage = false
     @State private var picking: Picking?
     @State private var panel: TeamRoute?
     @State private var chat: ChatRoute?
@@ -185,6 +186,7 @@ struct ProjectPage: View {
         .safeAreaInset(edge: .bottom) { chatField }
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure, onDeleted: { settings = false; dismiss() },
                                 onFolder: model.state?.project?.folder == nil ? nil : { if let c = model.state?.project { settings = false; file(c, nil) } }) }
+        .navigationDestination(isPresented: $teamPage) { ProjectTeamView(model: model, figure: figure) }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }
@@ -243,6 +245,10 @@ struct ProjectPage: View {
                         .disabled(s.tidying)
                         .accessibilityLabel(tr("Tidy up the board"))
                 }
+                if s.board {
+                    Button(tr("Team")) { teamPage = true }
+                        .accessibilityIdentifier("project-team")
+                }
                 if s.overview {
                     Button { overview = true } label: { Image(systemName: "list.bullet.rectangle") }
                         .accessibilityLabel(tr("Overview"))
@@ -294,10 +300,13 @@ struct ProjectPage: View {
             }
             .listRowSeparator(.hidden)
         }
-        ForEach(s.teams, id: \.team.id) { t in
-            teamRow(t).listRowSeparator(.hidden)
+        // With overview-board the teams are under Team (ADR 238), not on the board.
+        if !s.board {
+            ForEach(s.teams, id: \.team.id) { t in
+                teamRow(t).listRowSeparator(.hidden)
+            }
         }
-        if s.ownBots {
+        if s.ownBots && !s.board {
             OwnKeys(keys: s.own, figure: figure, busy: s.ownSaving, onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) }) {
                 picking = Picking(team: nil, title: tr("Add bot"), bots: s.addable)
             }

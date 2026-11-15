@@ -88,4 +88,9 @@ final class ProjectTests: XCTestCase {
         let saved = await model.saveTeam(nil, name: "Crew", bots: [], lead: nil)
         XCTAssertFalse(saved)
     }
+    /// With overview-board the teams are behind Team (ADR 238): its page draws from the project's model.
+    func testTheTeamPageDrawsFromTheProjectsModel() {
+        let model = ProjectModel(home: HomeStore(api: unreachableApi()))
+        XCTAssertNotNil(ImageRenderer(content: ProjectTeamView(model: model, figure: nil).frame(width: 320, height: 480)).cgImage)
+    }
 }
