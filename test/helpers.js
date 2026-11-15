@@ -42,11 +42,11 @@ const freePort = () => new Promise((resolve, reject) => {
 
 // A test server's scratch folder (its data, backups included, about 33 MB) is removed when the test file's process
 // ends: left behind, they filled the disk run after run. One a killed process left is swept by npm test (run.js).
-const SCRATCH_PREFIX = 'botdot-test-';
+const { SCRATCH_PREFIX } = require('./run');
 const scratchDirs = new Set();
 process.on('exit', () => {
   for (const d of scratchDirs) {
-    try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* a broker's folder of another user: the sweep's */ }
+    try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* a broker's files of another user, removable only as root */ }
   }
 });
 

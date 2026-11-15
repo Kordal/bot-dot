@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const { sweepScratch, STALE_MS } = require('./run');
+const { sweepScratch, STALE_MS, SCRATCH_PREFIX } = require('./run');
 
 test("a test server's scratch folder is gone once its test file's process ends", () => {
   const script = `
@@ -15,7 +15,7 @@ test("a test server's scratch folder is gone once its test file's process ends",
   const r = spawnSync(process.execPath, ['-e', script], { encoding: 'utf8', timeout: 60_000 });
   assert.strictEqual(r.status, 0, r.stderr);
   const dir = r.stdout.trim().split('\n').pop();
-  assert.ok(path.basename(dir).startsWith('botdot-test-'), dir);
+  assert.ok(path.basename(dir).startsWith(SCRATCH_PREFIX), dir);
   assert.strictEqual(fs.existsSync(dir), false, `${dir} was left`);
 });
 
@@ -30,8 +30,8 @@ test('npm test sweeps the scratch folders older than six hours, and only those',
       fs.utimesSync(d, t, t);
       return d;
     };
-    const stale = make('botdot-test-aaaaaa', STALE_MS + 60_000);
-    const fresh = make('botdot-test-bbbbbb', 60_000);
+    const stale = make(`${SCRATCH_PREFIX}aaaaaa`, STALE_MS + 60_000);
+    const fresh = make(`${SCRATCH_PREFIX}bbbbbb`, 60_000);
     const other = make('botdot-vault-cccccc', STALE_MS + 60_000);
     assert.strictEqual(sweepScratch(root, now), 1);
     assert.strictEqual(fs.existsSync(stale), false);

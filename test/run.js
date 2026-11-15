@@ -19,7 +19,8 @@ function fakes() {
 }
 
 // Test servers' scratch folders (test/helpers.js) that a killed test process left: those older than STALE_MS, so a
-// run of another checkout at the same time keeps its own. → how many were removed.
+// run of another checkout at the same time keeps its own. A folder's age is its own mtime, set when its server first
+// starts: no test file runs for hours (docs/decisions/2026-11-15-stale-test-scratch.md). → how many were removed.
 const SCRATCH_PREFIX = 'botdot-test-';
 const STALE_MS = 6 * 60 * 60 * 1000;
 function sweepScratch(root = os.tmpdir(), now = Date.now()) {
@@ -68,5 +69,5 @@ async function main() {
   process.exit(code);
 }
 
-module.exports = { fakes, sweepScratch, STALE_MS };
+module.exports = { fakes, sweepScratch, STALE_MS, SCRATCH_PREFIX };
 if (require.main === module) main();
