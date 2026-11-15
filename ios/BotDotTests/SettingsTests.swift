@@ -77,6 +77,15 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Storage.shared.size(bytes: 1_500_000), "1.5 MB")
         XCTAssertTrue(Storage.shared.shows(features: ["storage"]))
     }
+    /// Settings → Skills: the shared SkillsDesk and words reach Swift.
+    func testSkillsAreTheSharedDeskAndWords() {
+        let model = SkillsModel(home: home())
+        XCTAssertFalse(model.desk.state.value.loaded, "not read yet")
+        let k = Api.companion.JSON.decodeFromString(deserializer: Skill.companion.serializer(), string: #"{"name":"deploy","usedBy":["chief"],"createdBy":"chief"}"#) as! Skill
+        XCTAssertEqual(SkillWords.shared.usedLine(k: k), "Used by the Chief")
+        XCTAssertEqual(model.desk.madeBy(k: k), "Made by the Chief")
+    }
+
 
     /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
     func testTheChiefsSettingsAreTheSharedDesk() {
