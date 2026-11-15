@@ -3,7 +3,7 @@ package dev.botdot.app.data
 import kotlinx.coroutines.CancellationException
 
 /**
- * Making a group from a bot's chat (Android's BotPicker under the "+" beside the bot's name): who can join, in what
+ * Making a group from a bot's chat, for both phones (the picker under the "+" beside the bot's name): who can join, in what
  * order, what the picker says, and the making itself. A group has two to [GROUP_MAX] bots: this one and one to five
  * picked.
  */

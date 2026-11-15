@@ -3,7 +3,7 @@ package dev.botdot.app.data
 import kotlinx.coroutines.CancellationException
 
 /**
- * Home's search (Android's HomeScreen): while two letters or more are typed, the Chief, the bots and the groups that
+ * Home's search, for both phones: while two letters or more are typed, the Chief, the bots and the groups that
  * match, then the messages across the chats that botdot finds (`GET /api/search`). A hit opens its chat.
  */
 object HomeSearch {
@@ -13,9 +13,9 @@ object HomeSearch {
     /** What is typed, as it is matched: trimmed, lower case. */
     fun query(typed: String): String = typed.trim().lowercase()
 
-    /** The Chief matches by its role or its name. */
+    /** The Chief matches by its role (in English too) or its name. */
     fun chief(q: String, chiefName: String): Boolean =
-        q.isNotEmpty() && (ChiefName.role.lowercase().contains(q) || chiefName.lowercase().contains(q))
+        q.isNotEmpty() && ("chief of staff".contains(q) || ChiefName.role.lowercase().contains(q) || chiefName.lowercase().contains(q))
 
     /** The bots whose name, description or category has it. */
     fun bots(q: String, bots: List<Bot>): List<Bot> =
