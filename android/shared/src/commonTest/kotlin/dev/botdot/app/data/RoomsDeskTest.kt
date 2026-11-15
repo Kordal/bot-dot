@@ -146,6 +146,18 @@ class RoomsDeskTest {
         chat.stop()
     }
 
+    @Test fun theAtPickerOffersTheRoomsBotsAndPutsThePickInPlace() = runTest {
+        val s = server()
+        val hub = hub(s)
+        val chat = RoomChatDesk(backgroundScope, s.api, hub, "r1", MutableSharedFlow()) { it.orEmpty() }
+        until { hub.list.value != null }
+        val rows = chat.suggest("Hi @Pi now", 6)
+        assertEquals(listOf("Pip · bob"), rows.map { it.label }, "the room's bot, by its account")
+        val picked = chat.pick("Hi @Pi now", 6, rows.single())!!
+        assertEquals("Hi @Pip now", picked.text)
+        assertTrue(chat.suggest("Hi @Pi now", 10).isEmpty(), "no \"@\" being typed at the cursor")
+    }
+
     @Test fun aSentMessageIsInTheChatAndOneThatFailedComesBackWithItsKey() = runTest {
         var refuse = true
         val s = server { t -> if (t.method == "POST" && t.path == "/front-door/rooms/r1/messages" && refuse) 503 to "{}" else null }

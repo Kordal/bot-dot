@@ -160,6 +160,8 @@ struct RoomChatView: View {
     let figure: FigureDef?
     @State private var model: RoomChatModel?
     @State private var typed = ""
+    /// The newest message is in sight: the button to it shows while it isn't.
+    @State private var atEnd = true
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -187,10 +189,19 @@ struct RoomChatView: View {
                         ProgressView().frame(maxWidth: .infinity)
                     }
                     Color.clear.frame(height: 1).id("end")
+                        .onScrollVisibilityChange { atEnd = $0 }
                 }
                 .padding(16)
             }
             .defaultScrollAnchor(.bottom)
+            .overlay(alignment: .bottomTrailing) {
+                // To the newest message, as Android's room chat (ToLatestButton).
+                if !atEnd {
+                    Button { withAnimation { proxy.scrollTo("end", anchor: .bottom) } } label: { Image(systemName: "arrow.down").padding(10) }
+                        .buttonStyle(.bordered).clipShape(Circle()).padding()
+                        .accessibilityLabel(tr("Latest"))
+                }
+            }
             .onChange(of: model?.state?.lines.last?.id) { _, _ in withAnimation { proxy.scrollTo("end", anchor: .bottom) } }
             .refreshable { await model?.refresh() }
         }
@@ -220,6 +231,7 @@ struct RoomChatView: View {
     private var composer: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let note = model?.state?.note { Text(note).font(.footnote).foregroundStyle(.red) }
+            mentionRows
             HStack(alignment: .bottom, spacing: 8) {
                 TextField(model?.state?.placeholder ?? "", text: $typed, axis: .vertical)
                     .lineLimit(1...5)
@@ -242,6 +254,33 @@ struct RoomChatView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(.bar)
+    }
+
+    /// The "@" picker of the room's bots, above the box: a tap puts the bot's mention in place of the "@…" typed.
+    @ViewBuilder
+    private var mentionRows: some View {
+        let cursor = typed.utf16.count
+        let rows = model?.suggest(typed, cursor: cursor) ?? []
+        if !rows.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                    Button {
+                        if let picked = model?.pick(typed, cursor: cursor, row: row) { typed = picked.text }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(row.text).font(.subheadline.monospaced())
+                            Text(row.label).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 8).contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 12)
+            .background(.quaternary, in: .rect(cornerRadius: 12))
+            .accessibilityIdentifier("room-mentions")
+        }
     }
 }
 
@@ -279,14 +318,14 @@ struct RoomLineView: View {
     }
 }
 
-/// A message's bubble: its inline Markdown through the shared parser (MarkdownView.inline, as the other chats: only the
-/// links it allows are tappable), selectable; this account's own tinted.
+/// A message's bubble: its Markdown, blocks too (lists, quotes, code), through the shared parser as the other chats
+/// (MarkdownView: only the links it allows are tappable), selectable; this account's own tinted.
 struct Bubble: View {
     let text: String
     let mine: Bool
 
     var body: some View {
-        Text(MarkdownView.inline(text))
+        MarkdownView(text: text)
             .textSelection(.enabled)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)

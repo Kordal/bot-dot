@@ -52,6 +52,10 @@ final class RoomChatModel {
         desk = rooms.store.chat(id: id)
     }
 
+    /// The "@" picker of the room's bots for [text] with the cursor at [cursor] (UTF-16).
+    func suggest(_ text: String, cursor: Int) -> [Mentions.Row] { desk.suggest(text: text, cursor: Int32(cursor)) }
+    func pick(_ text: String, cursor: Int, row: Mentions.Row) -> Mentions.Picked? { desk.pick(text: text, cursor: Int32(cursor), row: row) }
+
     func start() {
         guard watching == nil else { return }
         watching = desk.watch { [weak self] state in

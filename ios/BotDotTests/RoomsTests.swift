@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 import BotdotShared
 @testable import BotDot
@@ -41,5 +42,15 @@ final class RoomsTests: XCTestCase {
         XCTAssertEqual(RoomWords.shared.rowLine(invites: 2), "2 invitations")
         XCTAssertEqual(RoomWords.shared.askTitle(delete: false, name: "Plans"), "Leave Plans?")
         XCTAssertEqual(RoomWords.shared.TITLE, "Shared rooms")
+    }
+
+    /// A room's message draws its block Markdown (a list, a quote) in its bubble.
+    func testARoomMessageDrawsItsBlocks() {
+        XCTAssertNotNil(ImageRenderer(content: Bubble(text: "Plan:\n\n- one\n- two\n\n> said", mine: false).frame(width: 300)).cgImage)
+    }
+
+    /// A folded category's heading draws, with its dot when one of its bots works.
+    func testAFoldedCategoryHeadingDraws() {
+        XCTAssertNotNil(ImageRenderer(content: CategoryHeading(category: "Work", folded: true, works: true, onTap: {}).frame(width: 300)).cgImage)
     }
 }

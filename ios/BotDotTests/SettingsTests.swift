@@ -61,4 +61,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(d.rooms.allowRooms)
         XCTAssertFalse(d.withSkill(name: "mail", on: false).skills.contains("mail"))
     }
+
+    /// A bot's scheduled jobs: the shared desk and words reach Swift (its rules are the shared JobsDeskTest's).
+    func testTheJobsDeskReachesSwift() {
+        let desk = home().jobs(botId: "b1")
+        XCTAssertNil(desk.state.value.jobs, "the bots not read yet: nothing")
+        XCTAssertEqual(Jobs.shared.CHANGE_WAITS, "A change waits for your OK")
+    }
 }

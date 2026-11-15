@@ -207,6 +207,9 @@ struct BotSettingsView: View {
             }
         }
         Section {
+            NavigationLink(tr("Scheduled jobs")) { JobsView(home: home, botId: bot.id, figure: figure) }
+        }
+        Section {
             Button(role: .destructive) { askDelete = true } label: {
                 Text(deleting ? tr("Deleting…") : tr("Delete {name}", ["name": bot.name]))
             }
