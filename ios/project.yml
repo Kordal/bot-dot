@@ -96,7 +96,7 @@ targets:
       - BotDot/I18n.swift
       - BotDot/SharedSendable.swift
     dependencies:
-      - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework
+      - framework: ../android/shared/build/XCFrameworks/debug/BotdotShared.xcframework
         embed: false
     settings:
       base:
