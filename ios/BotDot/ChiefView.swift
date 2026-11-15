@@ -11,14 +11,23 @@ struct ChiefView: View {
     var chatId: String? = nil
     /// Made once the screen is there: SwiftUI makes a destination's view more than once.
     @State private var model: ChiefModel?
-    /// A file under a reply, opened in the viewer.
+    /// A bot a chip or a mail card opens: its chat, or its screen.
+    @State private var chat: ChatRoute?
+    @State private var screen: HomeView.ScreenOpen?
+    /// A file under a reply or one a mail carries, opened in the viewer.
     @State private var opening: DocumentView.Opening?
 
     var body: some View {
         Group {
-            if let model { ChiefChat(model: model) } else { Color.clear }
+            if let model {
+                ChiefChat(model: model, onBot: { b in
+                    if b.screen { screen = .init(id: b.id, name: b.name) } else { chat = ChatRoute(botId: b.id, name: b.name) }
+                }, onFile: { opening = $0 })
+            } else { Color.clear }
         }
         .replyFiles(api: home.api, from: model?.state?.name ?? "", opening: $opening)
+        .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+        .navigationDestination(item: $screen) { s in ScreenView(home: home, botId: s.id, name: s.name) }
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .task {
             if model == nil { model = ChiefModel(home: home, chatId: chatId) }
@@ -30,6 +39,8 @@ struct ChiefView: View {
 
 private struct ChiefChat: View {
     let model: ChiefModel
+    let onBot: (ChiefDesk.ChipBot) -> Void
+    let onFile: (DocumentView.Opening) -> Void
     @State private var atBottom = true
     @State private var sentAt = 0
     @FocusState private var focused: Bool
@@ -43,7 +54,17 @@ private struct ChiefChat: View {
                         ForEach(s.messages, id: \.index) { m in
                             ChiefRow(line: m, onRate: { model.rate(m.index, $0) },
                                      onApprove: { await model.approve(m.index) }, onDecline: { await model.decline() },
-                                     onAnswer: { await model.answer(m.index, $0) })
+                                     onAnswer: { await model.answer(m.index, $0) },
+                                     onMail: { await model.mail(m.index, $0) },
+                                     onChip: { chip in Task { if let b = await model.chipBot(chip) { onBot(b) } } },
+                                     onMailBot: { screen in
+                                         // Found as a chip's bot is: read again, or said to be gone.
+                                         Task {
+                                             guard let b = await model.mailBot(m.index) else { return }
+                                             onBot(ChiefDesk.ChipBot(id: b.id, name: b.name, screen: screen && b.screen))
+                                         }
+                                     },
+                                     mailFile: { model.mailFile($0) }, onFile: onFile)
                                 // Its conversation in its identity: another conversation's row at the same place starts
                                 // anew (its card's Send and Approve), not with this one's taps.
                                 .id("\(s.chatId ?? "new")-\(m.index)")
@@ -166,6 +187,12 @@ struct ChiefRow: View {
     var onApprove: () async -> Bool = { false }
     var onDecline: () async -> Void = {}
     var onAnswer: ([String]) async -> Bool = { _ in false }
+    var onMail: (String) async -> Bool = { _ in false }
+    var onChip: (ChiefChip) -> Void = { _ in }
+    /// The mail card's bot tapped: its chat, or its screen (true).
+    var onMailBot: (Bool) -> Void = { _ in }
+    var mailFile: (Attachment) -> DocumentView.Opening? = { _ in nil }
+    var onFile: (DocumentView.Opening) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: line.role == "user" ? .trailing : .leading, spacing: 6) {
@@ -180,6 +207,11 @@ struct ChiefRow: View {
                 if !line.text.isEmpty { MarkdownView(text: line.text) }
                 if let error = line.error { Text(error).foregroundStyle(.red) }
                 ReplyFilesView(files: line.files)
+                if !line.chips.isEmpty { ChiefChips(chips: line.chips, onTap: onChip) }
+                if let mail = line.mail {
+                    MailCardView(mail: mail, onPick: onMail, onBot: { onMailBot(false) }, onScreen: { onMailBot(true) },
+                                 opening: mailFile, onFile: onFile)
+                }
                 if line.suggests { SuggestionButtons(onApprove: onApprove, onDecline: onDecline) }
                 if line.declined { Text(tr("You declined it")).font(.footnote).foregroundStyle(.secondary) }
                 if !line.questions.isEmpty { QuestionsBox(questions: line.questions, choices: line.choices, onSend: onAnswer) }

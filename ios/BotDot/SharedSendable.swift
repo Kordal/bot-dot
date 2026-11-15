@@ -66,3 +66,6 @@ extension GroupChatState: @retroactive @unchecked Sendable {}
 extension ReplyPictures: @retroactive @unchecked Sendable {}
 /// An immutable value from the shared layer.
 extension Attachment: @retroactive @unchecked Sendable {}
+/// Immutable values from the shared layer, read on the main actor.
+extension ChiefDesk.ChipBot: @retroactive @unchecked Sendable {}
+extension ChiefChip: @retroactive @unchecked Sendable {}
