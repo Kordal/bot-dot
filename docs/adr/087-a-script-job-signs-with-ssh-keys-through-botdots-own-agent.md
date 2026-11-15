@@ -12,7 +12,7 @@ ADR 085 lets a script job call APIs with the Vault logins its job lists. A routi
 - **The same list.** A script job's `logins` may name Vault SSH keys shared with its bot, with the same limit of 8 and the same approval as its logins (ADR 085).
 - **botdot is the agent.** During a run of a job that lists logins, `SSH_AUTH_SOCK` points to a socket the botdot server serves itself for that run (`lib/ssh-agent.js`). It speaks the ssh-agent protocol, but only "list your keys" and "sign this": adding, removing and locking are refused. It signs with ed25519, RSA (SHA-2 and SHA-1) and ECDSA keys in the server's own process. The key is never in a file, an environment variable or a process of the bot's user, so the script and its programs cannot read it.
 - **Read only when needed.** The agent fetches the keys from Bitwarden the first time the script's ssh asks, so a run that does not use SSH reads no key.
-- **Reachable by that run alone.** The socket is in a folder of the server's that anyone may pass through but nobody may list (`0711`), under a random name that only the script's environment holds, and it is removed when the script ends.
+- **Reachable by that run alone.** The socket is in a folder of the server's that anyone may pass through but nobody may list (`0711`), under a random name that only the script's environment holds, and it is removed when the script ends. Superseded by [ADR 249](249-a-bots-ssh-agent-socket-is-in-a-folder-only-that-bot-may-enter.md): the name is no secret (`/proc/net/unix` lists it), so the socket is in a folder only its bot's user may enter.
 - **The image gets `openssh-client`**, for `ssh` and `scp` in scripts.
 
 ## Alternatives

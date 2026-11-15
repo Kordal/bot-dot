@@ -147,7 +147,10 @@ Linux user (`box`) with passwordless sudo. The owner chose this knowing what it 
   ([ADR 085](docs/adr/085-a-script-job-calls-apis-with-the-logins-its-job-lists.md)).
   An SSH key the job lists is used through an ssh-agent that botdot serves itself for that run
   ([ADR 087](docs/adr/087-a-script-job-signs-with-ssh-keys-through-botdots-own-agent.md)): it signs in
-  botdot's own process, so the key never reaches the script, a file or the bot's user.
+  botdot's own process, so the key never reaches the script, a file or the bot's user. Its socket is in a
+  folder only that bot's user may enter
+  ([ADR 249](docs/adr/249-a-bots-ssh-agent-socket-is-in-a-folder-only-that-bot-may-enter.md)), so no other
+  bot reaches it, though every user can read the socket's path.
 - **A bot's git signs in without holding a key.** In a bot's AI run on the server, `SSH_AUTH_SOCK` points
   to an ssh-agent botdot serves for that run with the Vault SSH keys shared with the bot, which signs in
   botdot's own process as a script job's does. git's credential helper there asks botdot, with a key of
