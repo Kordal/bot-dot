@@ -6,7 +6,7 @@ import BotdotShared
 /// (BotSettingsDesk, AppSettingsDesk, AppsDesk, Keypad) and get the Android app's answers.
 @MainActor
 final class SettingsTests: XCTestCase {
-    private func home() -> HomeStore { HomeStore(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000)) }
+    private func home() -> HomeStore { HomeStore(api: unreachableApi()) }
 
     private func wait(_ done: () -> Bool) async throws {
         for _ in 0..<250 where !done() { try await Task.sleep(for: .milliseconds(20)) }
@@ -18,7 +18,7 @@ final class SettingsTests: XCTestCase {
         defer { model.stop() }
         try await wait { model.state != nil }
         let state = try XCTUnwrap(model.state)
-        XCTAssertEqual(state.address, "botdot.invalid")
+        XCTAssertEqual(state.address, "127.0.0.1:9")
         XCTAssertNil(state.subscription, "no front door answered: no Subscription row")
         XCTAssertEqual(state.presets.count, 3)
     }

@@ -46,9 +46,11 @@ final class VaultTests: XCTestCase {
         dirs.append(dir)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let settings = settingsIn(directory: dir.path)
-        let api = Api(baseUrl: "https://192.0.2.1", session: nil, quietMs: Api.companion.QUIET_MS) // TEST-NET: answers nothing
+        // The Vault's read is refused at once; the folded categories are this phone's (Settings), drawn without an answer.
+        let api = unreachableApi()
         let first = VaultModel(api: api, settings: settings)
         let started = Task { await first.start() }
+        try await until { first.state != nil } // following the store before the tap
         await first.toggle("Servers")
         try await until { first.state?.folded.contains("Servers") == true }
         started.cancel()

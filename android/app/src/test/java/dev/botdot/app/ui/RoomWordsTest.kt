@@ -1,5 +1,6 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.RoomWords
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test

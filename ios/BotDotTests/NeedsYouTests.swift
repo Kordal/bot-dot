@@ -6,7 +6,7 @@ import BotdotShared
 @MainActor
 final class NeedsYouTests: XCTestCase {
     func testTheScreenGetsTheSharedStateOnTheMainThread() async throws {
-        let model = NeedsYouModel(home: HomeStore(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000)))
+        let model = NeedsYouModel(home: HomeStore(api: unreachableApi()))
         model.start()
         defer { model.stop() }
         for _ in 0..<50 where model.state == nil { try await Task.sleep(for: .milliseconds(20)) }
@@ -16,7 +16,7 @@ final class NeedsYouTests: XCTestCase {
     }
 
     func testATapOnACardThatIsNotThereSendsNothing() async {
-        let model = NeedsYouModel(home: HomeStore(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000)))
+        let model = NeedsYouModel(home: HomeStore(api: unreachableApi()))
         defer { model.stop() }
         let url = await model.press("a:gone", NeedsDesk.companion.YES)
         XCTAssertNil(url)

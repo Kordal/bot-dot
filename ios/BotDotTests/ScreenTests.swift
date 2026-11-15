@@ -6,8 +6,10 @@ import BotdotShared
 /// back to it.
 @MainActor
 final class ScreenTests: XCTestCase {
-    private func model(session: Session? = nil) -> ScreenModel {
-        ScreenModel(home: HomeStore(api: Api(baseUrl: "https://botdot.invalid", session: session, quietMs: 1_000)), botId: "b")
+    /// [server]: the cookie tests read the session kept for an address, and ask botdot nothing.
+    private func model(session: Session? = nil, server: String? = nil) -> ScreenModel {
+        let api = server.map { Api(baseUrl: $0, session: session, quietMs: 1_000) } ?? unreachableApi(session: session)
+        return ScreenModel(home: HomeStore(api: api), botId: "b")
     }
 
     func testAComputerThatCannotBeReachedSaysWhyAndOffersNoDone() async throws {
@@ -29,7 +31,7 @@ final class ScreenTests: XCTestCase {
         let sessions = KeychainSessions(service: "app.botdot.tests.screen")
         sessions.write(server: "https://botdot.invalid", token: "abc")
         defer { sessions.write(server: "https://botdot.invalid", token: nil) }
-        let model = model(session: Session(keep: sessions))
+        let model = model(session: Session(keep: sessions), server: "https://botdot.invalid")
         defer { model.stop() }
         let cookie = try XCTUnwrap(model.cookie(for: URL(string: "https://botdot.invalid/computer/b/vnc.html")!))
         XCTAssertEqual(cookie.name, "botdot_session")
@@ -39,7 +41,7 @@ final class ScreenTests: XCTestCase {
     }
 
     func testNoSessionNoCookie() {
-        let model = model()
+        let model = model(server: "https://botdot.invalid")
         defer { model.stop() }
         XCTAssertNil(model.cookie(for: URL(string: "https://botdot.invalid/computer/b/vnc.html")!))
     }

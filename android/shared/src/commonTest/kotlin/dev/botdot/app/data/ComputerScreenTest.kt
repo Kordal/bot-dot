@@ -177,7 +177,8 @@ class ComputerScreenTest {
         desk.state.first { it.control }
         assertTrue(desk.done())
         assertFalse(desk.done(), "it went back already: a late second tap does nothing")
-        assertFalse(desk.state.value.handBack, "and I'm done no longer shows")
+        // state is derived (stateIn): read it once it has the screen closed, not as it was a moment before.
+        assertFalse(desk.state.first { it.closed }.handBack, "and I'm done no longer shows")
         assertEquals(1, botdot.posts().size)
     }
 
