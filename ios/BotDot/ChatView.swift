@@ -10,6 +10,9 @@ struct ChatView: View {
     /// A file path tapped in a reply: opened in the viewer.
     @State private var opening: DocumentView.Opening?
     @State private var model: ChatModel
+    /// The "+" beside the name: a new group of this bot and others (GroupMaker), then its chat.
+    @State private var makingGroup = false
+    @State private var group: GroupRoute?
     @State private var atBottom = true
     @State private var sentAt = 0
     @FocusState private var focused: Bool
@@ -79,6 +82,21 @@ struct ChatView: View {
             }
         }
         .navigationTitle(name)
+        .toolbar {
+            if model.state?.bot != nil, canMakeGroup {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { makingGroup = true } label: { Image(systemName: "plus") }.accessibilityLabel(tr("New group"))
+                }
+            }
+        }
+        .sheet(isPresented: $makingGroup) {
+            if let bot = model.state?.bot {
+                NewGroupSheet(home: home, bot: bot, others: GroupMaker.shared.others(bots: allBots, bot: bot)) {
+                    group = GroupRoute(groupId: $0.id, name: $0.name)
+                }
+            }
+        }
+        .navigationDestination(item: $group) { g in GroupChatView(home: home, groupId: g.groupId, name: g.name, figure: nil) }
         // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.
         .environment(\.openURL, OpenURLAction { url in
             guard let path = MarkdownKt.filePathOf(link: url.absoluteString.removingPercentEncoding ?? url.absoluteString) else { return .systemAction }
@@ -92,6 +110,14 @@ struct ChatView: View {
         .task { model.start() }
         .onDisappear { model.stop() }
     }
+    /// Every bot, as the store last read them.
+    private var allBots: [Bot] { (home.store.bots.value.value as? [Bot]) ?? [] }
+
+    /// A group can be made here: the botdot has groups, and there is another bot.
+    private var canMakeGroup: Bool {
+        GroupMaker.shared.canMake(features: home.store.version.value.value?.features, otherBots: Int32(max(allBots.count - 1, 0)))
+    }
+
     /// To the chat's end once what changed is laid out ([after]: once the keyboard is up).
     private func toEnd(_ scroll: ScrollViewProxy, after: Duration = .zero) {
         Task {

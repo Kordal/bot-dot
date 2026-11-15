@@ -17,6 +17,9 @@ struct HomeView: View {
     @State private var asking = false
     /// The bot whose computer screen is open, from the ⋯ menu.
     @State private var screen: ScreenOpen?
+    /// Home's search: the Chief, bots and groups that match, then the messages botdot finds (HomeSearch).
+    @State private var query = ""
+    @State private var hits: [ChatHit] = []
 
     struct ScreenOpen: Hashable {
         let id: String
@@ -67,6 +70,63 @@ struct HomeView: View {
     }
 
     private var list: some View {
+        Group {
+            if HomeSearch.shared.query(typed: query).isEmpty { lists } else { found }
+        }
+        .searchable(text: $query)
+        .task(id: HomeSearch.shared.query(typed: query)) {
+            let q = HomeSearch.shared.query(typed: query)
+            hits = []
+            guard q.count >= Int(HomeSearch.shared.MIN) else { return }
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            hits = (try? await HomeSearch.shared.hits(api: home.home.api, q: q)) ?? []
+        }
+    }
+
+    /// While searching: the Chief, the bots and the groups that match, then the messages, each opening its chat.
+    private var found: some View {
+        let q = HomeSearch.shared.query(typed: query)
+        let state = home.state
+        let bots = state?.bots ?? []
+        return List {
+            if let state, HomeSearch.shared.chief(q: q, chiefName: state.chiefName) {
+                NavigationLink(value: ChiefRoute()) { Text(state.chiefName) }
+            }
+            ForEach(HomeSearch.shared.bots(q: q, bots: bots), id: \.id) { b in
+                NavigationLink(value: ChatRoute(botId: b.id, name: b.name)) { ContactRow(name: b.name, sub: state?.sub(b: b) ?? "", unread: 0, color: b.color, asks: false, drawing: nil) }
+            }
+            ForEach(HomeSearch.shared.groups(q: q, groups: state?.groups ?? [], bots: bots), id: \.id) { g in
+                NavigationLink(value: GroupRoute(groupId: g.id, name: g.name)) { Text(g.name) }
+            }
+            if !hits.isEmpty {
+                Section(tr("Messages")) {
+                    ForEach(Array(hits.enumerated()), id: \.offset) { _, h in hitRow(h, chiefName: state?.chiefName ?? "") }
+                }
+            }
+        }
+        .listStyle(.plain)
+        .accessibilityIdentifier("search-results")
+    }
+
+    @ViewBuilder
+    private func hitRow(_ h: ChatHit, chiefName: String) -> some View {
+        let label = VStack(alignment: .leading, spacing: 2) {
+            Text(HomeSearch.shared.who(h: h, chiefName: chiefName)).font(.caption).foregroundStyle(.secondary)
+            HomeSearch.shared.snippet(h: h).reduce(Text("")) { t, p in t + Text(p.text).fontWeight(p.hit ? .semibold : .regular) }
+                .font(.subheadline).lineLimit(2)
+        }
+        if let to = HomeSearch.shared.opens(h: h) {
+            switch onEnum(of: to) {
+            case .chief(let c): NavigationLink(value: ChiefRoute(chatId: c.chatId)) { label }
+            case .bot(let b): NavigationLink(value: ChatRoute(botId: b.id, name: b.name)) { label }
+            }
+        } else {
+            label
+        }
+    }
+
+    private var lists: some View {
         List {
             if let error = home.state?.error ?? home.error {
                 Text(error).foregroundStyle(.red).accessibilityIdentifier("error")

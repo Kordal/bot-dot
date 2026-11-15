@@ -61,7 +61,6 @@ import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.ChatOrder
 import dev.botdot.app.data.EmptyChatJobs
 import dev.botdot.app.data.Bot
-import dev.botdot.app.data.GROUP_MAX
 import dev.botdot.app.data.RunEvent
 import dev.botdot.app.data.InboxNote
 import dev.botdot.app.data.NotesWake
@@ -314,13 +313,13 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
     // A new group of this bot and those picked, one to five, with the name given. The bot's own chat stays as it
     // is. A refusal of the botdot server is shown in the picker, in its words, and nothing is made.
     if (makingGroup && bot != null) BotPicker(
-        title = tr("New group"), name = "", action = tr("Create"), max = GROUP_MAX - 1,
-        bots = others.sortedWith(compareBy<Bot> { it.group != bot.group }.thenBy { it.name.lowercase() }), // its category's bots first
+        title = tr("New group"), name = "", action = tr("Create"), max = dev.botdot.app.data.GroupMaker.PICKS,
+        bots = dev.botdot.app.data.GroupMaker.others(bots.orEmpty(), bot), // its category's bots first
         hint = { n -> makeHint(n, bot.name) }, onDismiss = { makingGroup = false },
     ) { picked, named ->
-        val made = (app.api.value ?: error(tr("Not connected to botdot"))).makeGroup(named, listOf(bot.id) + picked)
-        app.store.groups.refresh()
-        onGroup(made.id)
+        // The shared making (GroupMaker): the groups read again, or botdot's words, which the picker shows.
+        val made = dev.botdot.app.data.GroupMaker.make(app.api.value ?: error(tr("Not connected to botdot")), app.store, bot.id, picked, named)
+        onGroup((made.group ?: error(made.failed ?: tr("Couldn't create the group"))).id)
     }
 }
 
