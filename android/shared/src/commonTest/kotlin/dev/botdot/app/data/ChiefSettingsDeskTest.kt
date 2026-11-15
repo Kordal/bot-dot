@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -232,5 +233,43 @@ class ChiefSettingsDeskTest {
         desk.load() // back from a page: read again
         assertEquals("Typed, not saved yet", desk.state.value.rules)
         desk.close()
+    }
+    @Test fun aFailedFirstReadSavesNothingAndTryAgainReadsIt() = runTest {
+        var down = true
+        val s = FakeServer { t ->
+            when {
+                t.path == "/api/settings" && t.method == "GET" -> if (down) 503 to """{"error":"botdot is restarting"}""" else 200 to settings
+                t.path == "/api/settings" -> 200 to """{"settings":${t.body}}"""
+                else -> 200 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        val desk = ChiefSettingsDesk(backgroundScope, s.api, store, MutableSharedFlow())
+        desk.load()
+        assertTrue(desk.state.value.failed)
+        assertFalse(desk.state.value.loaded, "nothing to edit")
+        desk.setRules("Typed anyway")
+        advanceTimeBy(ChiefSettingsDesk.SAVE_MS + 1); runCurrent()
+        withContext(Dispatchers.Default) { delay(50) }
+        assertTrue(s.posts().isEmpty(), "blank defaults are never sent over the Chief's own")
+        down = false
+        desk.load() // Try again
+        assertTrue(desk.state.value.loaded)
+        assertFalse(desk.state.value.failed)
+        assertEquals("Be brief", desk.state.value.rules)
+        desk.close()
+    }
+
+    @Test fun closeSavesAChangeThatWaitedItsMomentAtOnce() = runTest {
+        val s = server()
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        val desk = ChiefSettingsDesk(backgroundScope, s.api, store, MutableSharedFlow())
+        desk.load()
+        desk.setRules("Left at once")
+        desk.close()
+        until("saved at once") { s.posts().any { it.path == "/api/settings" && "Left at once" in it.body } }
+        assertEquals(1, s.posts().count { it.path == "/api/settings" })
+        advanceTimeBy(ChiefSettingsDesk.SAVE_MS + 1); runCurrent()
+        assertEquals(1, s.posts().count { it.path == "/api/settings" }, "once")
     }
 }

@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -63,7 +64,10 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
     val server by app.store.version.value.collectAsState()
     // What it shows, the save a moment after the last change, and what acts at once are the shared ChiefSettingsDesk's
     // (one copy with the iPhone's).
-    val desk = remember(api) { api?.let { ChiefSettingsDesk(scope, it, app.store, app.feed.events) } }
+    // In the app's scope, so a save a moment after the last change outlives the screen; closed when the screen goes
+    // (or another botdot makes a new desk), which saves at once what waited.
+    val desk = remember(api) { api?.let { ChiefSettingsDesk(app.scope, it, app.store, app.feed.events) } }
+    DisposableEffect(desk) { onDispose { desk?.close() } }
     LaunchedEffect(desk) { desk?.load() }
     val st = desk?.state?.collectAsState()?.value ?: ChiefSettingsState()
     LaunchedEffect(st.noticeCount) { st.notice?.takeIf { st.noticeCount > 0 }?.let { snack.showSnackbar(it) } }
@@ -78,6 +82,8 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
         topBar = { TopAppBar(navigationIcon = { if (LocalPanelClose.current == null) BackButton(onBack) }, colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg), title = { Text(LocalChiefName.current, style = MaterialTheme.typography.titleMedium) }, actions = { SavedMark(savedAt); PanelClose() }) },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+            // The first read failed: nothing to edit (a save would go over its own settings), only Try again.
+            if (st.failed) { SecondaryButton(onClick = { scope.launch { desk?.load() } }) { Text(tr("Try again"), color = p.text) }; return@Column }
             st.name?.let { name -> Section(tr("Name")) {
                 Field(name, { desk?.setName(it) }, singleLine = true, modifier = Modifier.fillMaxWidth(), placeholder = { Text(ChiefName.role) })
             } }

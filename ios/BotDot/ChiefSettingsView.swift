@@ -34,6 +34,9 @@ struct ChiefSettingsView: View {
         Form {
             if let s = model?.state, s.loaded, let desk = model?.desk {
                 rows(s, desk)
+            } else if model?.state?.failed == true {
+                // The first read failed: nothing to edit, only Try again (the notice says why).
+                Button(tr("Try again")) { Task { try? await model?.desk.load() } }
             } else {
                 ProgressView().frame(maxWidth: .infinity)
             }

@@ -40,6 +40,8 @@ class ChiefSettingsState(
     val savedAt: Int = 0,
     val notice: String? = null,
     val noticeCount: Int = 0,
+    /** The first read failed: the form waits, with Try again (load once more). */
+    val failed: Boolean = false,
 ) {
     /** A page's line ([Pages.line]): when it was updated, and what keeps it. */
     fun pageLine(page: PageInfo): String = Pages.line(page)
@@ -72,6 +74,12 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     private var seenFeatures: List<String>? = null
     /** A name typed here that waits to be saved: a rename from elsewhere doesn't take its place. */
     private var nameEdited = false
+    /** The settings were read once: before, nothing is saved (blank defaults would go over the Chief's own). */
+    private var settingsRead = false
+    /** A first read was tried and failed. */
+    private var tried = false
+    /** A change waits its moment to be saved ([close] saves it at once). */
+    private var waiting = false
     private val following = mutableListOf<Job>()
     private val _state = MutableStateFlow(ChiefSettingsState())
     val state: StateFlow<ChiefSettingsState> = _state.asStateFlow()
@@ -87,8 +95,9 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
             val before = info.settings
             info = api.settings()
             // Read again: an edit not saved yet (it differs from what was read before) stays.
-            if (!loaded || edit == before) edit = info.settings
-        } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't load")) }
+            if (!settingsRead || edit == before) edit = info.settings
+            settingsRead = true
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't load")); if (!settingsRead) { tried = true; publish(); return } }
         val f = features
         readFeatured(f)
         val first = !loaded
@@ -104,8 +113,14 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         following += scope.launch { store.chief.value.collect { publish() } }
     }
 
-    /** The settings went: they follow the feed and the store no more. A change on its way is still saved. */
-    fun close() { following.forEach { it.cancel() }; following.clear() }
+    /**
+     * The settings went: they follow the feed and the store no more. A change that waited its moment is saved at
+     * once, and one on its way still finishes.
+     */
+    fun close() {
+        following.forEach { it.cancel() }; following.clear()
+        if (waiting) { saving?.cancel(); waiting = false; saving = scope.launch { withContext(NonCancellable) { save() } } }
+    }
 
     /** What only a botdot with its feature has: the name, the skills, what you always approved, its jobs, the checkup and its pages. */
     private suspend fun readFeatured(f: List<String>?) {
@@ -135,7 +150,8 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         publish()
         saving?.cancel()
         // Only the wait is put off by the next change: a save already on its way finishes (a cancelled rename would be lost).
-        saving = scope.launch { delay(SAVE_MS); withContext(NonCancellable) { save() } }
+        waiting = true
+        saving = scope.launch { delay(SAVE_MS); waiting = false; withContext(NonCancellable) { save() } }
     }
 
     /** One save at a time: the next waits for the one on its way, and sees what it sent. */
@@ -151,7 +167,7 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
             catch (e: CancellationException) { throw e } catch (e: Exception) { name = ChiefName.field(store.chiefName.value); say(e.message ?: tr("Couldn't rename")) }
         }
         nameEdited = false // saved, or the same as botdot's: a rename from elsewhere may take its place again
-        if (edit != info.settings && edit != refused) {
+        if (settingsRead && edit != info.settings && edit != refused) {
             val sent = edit
             try { info = api.saveSettings(sent); if (edit == sent) edit = info.settings; savedAt++ }
             catch (e: CancellationException) { throw e } catch (e: Exception) { refused = sent; say(e.message ?: tr("Couldn't save")) }
@@ -195,7 +211,7 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
         val thinks = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
         val saved = info.settings.chiefSkills.orEmpty()
         _state.value = ChiefSettingsState(
-            loaded = loaded, name = name,
+            loaded = loaded && settingsRead, failed = tried && !settingsRead, name = name,
             advanced = Advanced.on.value,
             model = edit.chiefModel, effort = edit.chiefEffort, thinks = thinks(edit.chiefModel.ifBlank { edit.defaultModel }),
             models = listOf(Option("", tr("Same as the default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) },
