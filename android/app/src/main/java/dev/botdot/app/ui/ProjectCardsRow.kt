@@ -344,6 +344,8 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas
     var menu by remember(k.id) { mutableStateOf(false) }
     // Its text size (card-text-size): drawn at once from the menu, back to botdot's if botdot refuses it.
     var size by remember(k.id, k.textSize) { mutableStateOf(k.textSize) }
+    // Only the last step's refusal puts the size back: an earlier one is already overtaken.
+    var sent by remember(k.id) { mutableStateOf(0) }
     val d = LocalDensity.current
     val scaled = Density(d.density, d.fontScale * size.toFloat())
     Column(modifier.heightIn(min = 148.dp).cardBox(p, if (fresh) p.ok else null).padding(start = Space.s16, end = Space.s8, top = Space.s8, bottom = Space.s16),
@@ -355,7 +357,7 @@ private fun BoardCard(modifier: Modifier, k: ProjectCard, fresh: Boolean, canvas
             Box {
                 CardIcon(Icons.Filled.MoreHoriz, tr("More")) { menu = true }
                 DropdownMenu(menu, { menu = false }) {
-                    if (onSize != null) TextSizeRow(size) { to -> val was = size; size = to; onSize(to) { ok -> if (!ok) size = was } }
+                    if (onSize != null) TextSizeRow(size) { to -> val was = size; val mine = ++sent; size = to; onSize(to) { ok -> if (!ok && mine == sent) size = was } }
                     MenuRow(Icons.Outlined.Edit, tr("Change"), p.text) { menu = false; onChange() }
                     MenuRow(Icons.Filled.Refresh, tr("Refresh"), p.text) { menu = false; if (!k.building) onRefresh() }
                     MenuRow(Icons.Outlined.Delete, tr("Remove"), p.err) { menu = false; onRemove() }
