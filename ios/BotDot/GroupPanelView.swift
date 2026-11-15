@@ -58,6 +58,9 @@ struct GroupPanelView: View {
                             Button("＋ " + tr("Add a bot")) { adding = true }
                         }
                     }
+                    Section {
+                        Toggle(tr("Pinned below the Chief"), isOn: Binding(get: { s.pinned }, set: { model.pin($0) }))
+                    }
                     if let notes = s.notes {
                         Section(tr("Notes")) {
                             ForEach(notes, id: \.id) { n in

@@ -440,6 +440,12 @@
   "in a group": "w grupie",
   "no AI": "bez AI",
   "No runs yet": "Jeszcze brak przebiegów",
+  "Show earlier": "Pokaż wcześniejsze",
+  "{n} runs": {
+    "one": "{n} przebieg",
+    "few": "{n} przebiegi",
+    "many": "{n} przebiegów"
+  },
   "[image]": "[obraz]",
   "(no output)": "(brak wyjścia)",
   "error": "błąd",

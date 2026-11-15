@@ -414,6 +414,30 @@ class GroupChatTalkTest {
         assertEquals("""{"lead":"b2"}""", fake.asked().single { it.method == "PUT" }.body)
     }
 
+    @Test fun aTeamChatsPanelPinsItBelowTheChiefAndUnpinsIt() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PUT" && a.path == "/group-chats/g1" -> 200 to """{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":1}"""
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
+                else -> 404 to "{}"
+            }
+        }
+        val (store, chat) = chat(fake)
+        store.groups.set(Group.list("""[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":0}]"""))
+        chat.start()
+        until("the chat is read") { chat.state.value.loaded }
+        assertFalse(chat.state.value.pinned)
+        chat.pin(false) // not pinned already: nothing sent
+        chat.pin(true)
+        until("sent") { fake.asked().any { it.method == "PUT" } }
+        assertEquals("""{"pinned":true}""", fake.asked().single { it.method == "PUT" }.body, "last among the pinned ones")
+        store.groups.set(Group.list("""[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","pinned":1}]"""))
+        until("the switch follows it") { chat.state.value.pinned }
+        chat.pin(false)
+        until("unpin sent") { fake.asked().count { it.method == "PUT" } == 2 }
+        assertEquals("""{"pinned":0}""", fake.asked().filter { it.method == "PUT" }[1].body)
+    }
+
     @Test fun aGroupThatIsNoTeamPicksNoLead() = runTest {
         val (_, chat) = chat(FakeBotdot { a -> if (a.path == "/group-chats/g1/chat") 200 to page(emptyList()) else 404 to "{}" }, features = listOf(Groups.TEAM_CHAT_LEAD))
         chat.start()

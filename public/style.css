@@ -627,6 +627,11 @@ a.file-mention:hover { background: color-mix(in srgb, currentColor 16%, transpar
 .run-item .pill.ok { display: none; }
 .run-item .pill.err { color: var(--err); }
 .run-item .pill.warn { color: var(--warn-text); }
+/* a row of one bot's runs in one place that day: its chevron turns as it opens to them, set in under it */
+.run-group[aria-expanded="true"] > .bs-chev { transform: rotate(90deg); }
+.run-sub { padding-left: var(--sp-16); }
+.run-more { display: block; width: 100%; min-height: 44px; padding: var(--sp-8); border: 0; border-radius: var(--r-8); background: transparent; color: var(--muted); font-size: var(--fs-14); cursor: pointer; }
+.run-more:hover { background: var(--sunk); color: var(--text); }
 .run-view { min-height: 400px; overflow: hidden; }
 .run-header { padding: var(--sp-16) var(--sp-16); border-bottom: 1px solid var(--line); display: flex; gap: var(--sp-12); align-items: center; flex-wrap: wrap; }
 .run-header .grow { flex: 1; min-width: 200px; }
