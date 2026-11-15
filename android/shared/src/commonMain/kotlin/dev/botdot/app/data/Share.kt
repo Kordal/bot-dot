@@ -35,6 +35,25 @@ object Share {
         else -> tr("Send the text to…")
     }
 
+    /** What the picker draws: who can get it, or why botdot couldn't be read ([failed], its sentence), the Chief still first. */
+    data class Picker(val picks: List<Pick>, val failed: String?)
+
+    /**
+     * The picker as botdot answers it: the Chief and its bots. Not read (offline, a session that ended, a paused
+     * account): the Chief alone, and botdot's sentence. The Chief's name falls back to its role.
+     */
+    @Throws(Exception::class)
+    suspend fun picker(api: Api): Picker {
+        val chief = try { api.setup().chiefName } catch (e: CancellationException) { throw e } catch (_: Exception) { ChiefName.role }
+        return try {
+            Picker(picks(api.bots(), chief), null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Picker(picks(emptyList(), chief), e.message ?: tr("Couldn't load"))
+        }
+    }
+
     /** The Chief, then the bots in their names' order, as Android's picker lists them. */
     fun picks(bots: List<Bot>, chiefName: String): List<Pick> =
         listOf(Pick(CHIEF, chiefName, tr("It can pass it on to the right bot"), CHIEF_COLOR)) +

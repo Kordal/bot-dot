@@ -18,7 +18,6 @@ final class AppModel {
     }
 
     private(set) var screen: Screen = .starting {
-        // The share extension sends through the botdot signed in to, and none once there is none.
         // The share extension sends through the botdot signed in to; paused, it still does, and botdot says it is
         // paused. Another address, or a sign-in: none.
         didSet {

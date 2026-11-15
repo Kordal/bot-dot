@@ -126,9 +126,11 @@ struct ShareView: View {
         shared = got
         words = got.words
         guard let api else { return }
-        let bots = (try? await api.bots()) ?? []
-        let chief = (try? await api.setup())?.chiefName ?? ChiefName.shared.role
-        picks = Share.shared.picks(bots: bots, chiefName: chief)
+        // Not read (offline, a session that ended, a paused account): botdot's sentence above the Chief.
+        if let picker = try? await Share.shared.picker(api: api) {
+            picks = picker.picks
+            error = picker.failed
+        }
     }
 
     private func send(to: String) {

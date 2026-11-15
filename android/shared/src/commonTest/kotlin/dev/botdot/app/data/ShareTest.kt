@@ -116,6 +116,18 @@ class ShareTest {
         assertEquals(listOf("a.pdf", "b.pdf", "b.pdf", "c.pdf"), ups, "the retry uploads the second and the third only")
     }
 
+    @Test fun thePickerSaysWhyBotdotCouldNotBeRead() = runTest {
+        val paused = FakeBotdot { a -> if (a.path == "/bots") 503 to """{"error":"Your account is paused.","paused":true}""" else 404 to "{}" }
+        val p = Share.picker(paused.api)
+        assertEquals("Your account is paused.", p.failed, "botdot's sentence, not an empty list")
+        assertEquals(listOf(Share.CHIEF), p.picks.map { it.id })
+        assertEquals("Chief of Staff", p.picks.single().name, "the role, when its name isn't read")
+        val fine = FakeBotdot { a -> if (a.path == "/bots") 200 to """[{"id":"b1","name":"Ada"}]""" else if (a.path == "/setup") 200 to """{"chiefName":"Max"}""" else 404 to "{}" }
+        val q = Share.picker(fine.api)
+        assertNull(q.failed)
+        assertEquals(listOf("Max", "Ada"), q.picks.map { it.name })
+    }
+
     @Test fun nothingIsSentWithoutWordsOrFilesAndARefusalSaysWhy() = runTest {
         val fake = FakeBotdot { 409 to """{"error":"The bot is paused."}""" }
         assertEquals("Nothing to send", Share.send(fake.api, "b1", "  ", emptyList()))
