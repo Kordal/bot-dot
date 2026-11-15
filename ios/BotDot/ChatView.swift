@@ -105,7 +105,6 @@ struct ChatView: View {
     }
 }
 
-/// One run: what started it on the owner's side, and what came of it on the bot's.
 /// A run's long press (Android's RunBlock): Reply to this task, where the botdot takes replies, and Copy its reply.
 struct RunMenu: View {
     let view: RunView
@@ -138,6 +137,7 @@ struct ReplyChip: View {
     }
 }
 
+/// One run: what started it on the owner's side, and what came of it on the bot's.
 struct RunRow: View {
     let view: RunView
     /// File paths in its reply open in the viewer.
