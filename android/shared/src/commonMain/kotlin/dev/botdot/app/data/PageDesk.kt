@@ -46,6 +46,9 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
     /** The page as the viewer read it: its keep and whether it is on the Board. */
     fun show(p: PageInfo?) { page = p; onBoard = p?.onBoard; publish() }
 
+    /** "Keep up to date" or Change: the sheet opens on what keeps the page now, as the last save or Stop left it. */
+    fun draft(): KeepDraft? = page?.let(KeepDraft::of)
+
     /** Board or On Board: shown flipped at once, back with botdot's words when it says no. */
     fun toggleBoard() {
         val was = onBoard ?: return

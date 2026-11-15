@@ -123,6 +123,7 @@ final class FilesTests: XCTestCase {
         let desk = try! XCTUnwrap(viewer.pageDesk(features: ["pages", "document-viewer", "pages-board"]))
         defer { viewer.close() }
         desk.show(p: page)
+        XCTAssertEqual(desk.draft()?.every, "day", "Change opens on what keeps the page now (here: nothing yet)")
         XCTAssertTrue(desk.state.value.board)
         XCTAssertEqual(desk.state.value.onBoard?.boolValue, false)
         XCTAssertNotNil(ImageRenderer(content: PageBarView(bar: desk.state.value, desk: desk) {}.frame(width: 360)).cgImage)

@@ -86,4 +86,21 @@ class PageDeskTest {
         until("stopped") { "It no longer keeps up to date" in said }
         assertNull(desk.state.value.keep, "nothing keeps it now")
     }
+    @Test fun changeOpensOnWhatKeepsItNowAfterASaveOrAStop() = runTest {
+        var stopped = false
+        val server = FakeServer { t ->
+            if (t.method == "DELETE") { stopped = true; 200 to """{"page":{"slug":"menu","sources":"the menu file"}}""" }
+            else 200 to """{"page":{"slug":"menu","sources":"the menu file","keep":{"jobId":"j1","when":"Every Monday","every":"monday","time":"09:00","notify":"always","check":"prices"}}}"""
+        }
+        val desk = PageDesk(backgroundScope, server.api, "b1", "menu", "Ada", on)
+        desk.show(page)
+        assertEquals(KeepDraft("day", "07:00", "report-only", "the menu file"), desk.draft(), "as first read")
+        desk.keep(KeepDraft("monday", "09:00", "always", "prices"))
+        until("kept") { desk.state.value.keep != null }
+        assertEquals(KeepDraft("monday", "09:00", "always", "prices"), desk.draft(), "Change opens on the schedule saved")
+        until("the ok gone") { desk.state.value.work == null }
+        desk.stop()
+        until("stopped") { stopped && desk.state.value.keep == null }
+        assertEquals(KeepDraft("day", "07:00", "report-only", "the menu file"), desk.draft(), "stopped: the defaults again")
+    }
 }

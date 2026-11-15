@@ -359,7 +359,7 @@ struct ViewerView: View {
             .overlay(alignment: .bottom) { Notice(text: $model.notice) }
             .safeAreaInset(edge: .top) {
                 if let bar = model.bar, let page = model.viewed?.view?.page, let desk = model.pageDesk {
-                    PageBarView(bar: bar, desk: desk) { keeping = KeepDraft.companion.of(page: page) }
+                    PageBarView(bar: bar, desk: desk) { keeping = desk.draft() ?? KeepDraft.companion.of(page: page) }
                 }
             }
             .onChange(of: model.bar?.reopen) { _, draft in

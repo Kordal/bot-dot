@@ -272,7 +272,7 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 onDismiss = { versions = false })
         }
         if (req.page != null && page != null && site == null) {
-            PageBar(page, if (pageDesk != null) bar?.keep ?: page.keep.takeIf { bar == null } else page.keep, onBoard == true, board, onKeep = { if (bar?.work?.kind != "busy") { keepDraft = null; keeping = true } },
+            PageBar(page, if (pageDesk != null) bar?.keep ?: page.keep.takeIf { bar == null } else page.keep, onBoard == true, board, onKeep = { if (bar?.work?.kind != "busy") { keepDraft = pageDesk?.draft(); keeping = true } },
                 onRefresh = { pageDesk?.refresh() }, onStop = { pageDesk?.stop() })
         }
         if (req.page != null) bar?.work?.let { w -> WorkLine(Work(w.kind, w.text, retry = { pageDesk?.retry() }), Modifier.padding(horizontal = Space.s16, vertical = Space.s4)) { pageDesk?.dismissWork() } }
