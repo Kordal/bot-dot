@@ -259,6 +259,8 @@ test('a new week is due once a plan of it was neither drafted nor asked for', ()
   assert.deepEqual(s.read().plan.items.map((x) => x.text), ten.map((x) => x.text));
   assert.throws(() => s.setPlan({ items: [...ten, { text: 'item 11' }] }), /At most 10 items: one thing each/);
   assert.equal(s.read().plan.items.length, 10, 'a refused plan leaves the one there was');
+  s.setPlan({ items: [...ten, { text: ' ' }, 'x'] });
+  assert.equal(s.read().plan.items.length, 10, 'a blank item does not count');
   fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'running', startedAt: '2026-10-01T09:00:00Z' }));
   assert.equal(s.planDue(), null, 'not for a project with no team (#1085)');
   fs.writeFileSync(file, JSON.stringify({ id: 'abc', start: 'x', phase: 'setup' }));
