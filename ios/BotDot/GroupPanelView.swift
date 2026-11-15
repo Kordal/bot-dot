@@ -40,6 +40,13 @@ struct GroupPanelView: View {
                                 }
                                 Text(b.name).lineLimit(1)
                                 Spacer()
+                                if s.picksLead {
+                                    if b.id == g.lead {
+                                        Label(tr("Lead"), systemImage: "crown.fill").font(.caption).foregroundStyle(.yellow)
+                                    } else {
+                                        Button(tr("Make lead")) { model.makeLead(b.id) }.font(.caption).buttonStyle(.bordered)
+                                    }
+                                }
                                 if s.canTakeOut {
                                     Button { model.takeOut(b.id) } label: { Image(systemName: "xmark").foregroundStyle(.secondary) }
                                         .buttonStyle(.borderless)

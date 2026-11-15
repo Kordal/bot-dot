@@ -394,4 +394,30 @@ class GroupChatTalkTest {
         val keys = posts.map { Api.JSON.parseToJsonElement(it.body).jsonObject.getValue("key").toString() }
         assertEquals(1, keys.toSet().size, "the same answers: one key, taken once")
     }
+
+    @Test fun aTeamChatsPanelMakesAnotherBotItsLead() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PUT" && a.path == "/group-chats/g1" -> 200 to """{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","lead":"b2"}"""
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList())
+                else -> 404 to "{}"
+            }
+        }
+        val (store, chat) = chat(fake, features = listOf(Groups.TEAM_CHAT_LEAD))
+        store.groups.set(Group.list("""[{"id":"g1","name":"Crew","members":["b1","b2"],"team":"t1","lead":"b1"}]"""))
+        chat.start()
+        until("the panel picks its lead") { chat.state.value.picksLead }
+        chat.makeLead("b1") // the lead already
+        chat.makeLead("b9") // not a member
+        chat.makeLead("b2")
+        until("sent") { fake.asked().any { it.method == "PUT" } }
+        assertEquals("""{"lead":"b2"}""", fake.asked().single { it.method == "PUT" }.body)
+    }
+
+    @Test fun aGroupThatIsNoTeamPicksNoLead() = runTest {
+        val (_, chat) = chat(FakeBotdot { a -> if (a.path == "/group-chats/g1/chat") 200 to page(emptyList()) else 404 to "{}" }, features = listOf(Groups.TEAM_CHAT_LEAD))
+        chat.start()
+        until("the chat is read") { chat.state.value.loaded }
+        assertFalse(chat.state.value.picksLead, "a group of bots, no team: no lead")
+    }
 }

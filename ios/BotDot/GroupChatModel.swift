@@ -55,6 +55,7 @@ final class GroupChatModel: MessageBox {
     func loadOlder() { chat.loadOlder() }
     /// An answer button under the group's open question.
     func answer(_ choice: String) { Task { _ = try? await chat.answer(choice: choice) } }
+    func makeLead(_ botId: String) { chat.makeLead(botId: botId) }
     func answerQuestions(_ runId: String, _ answers: [String]) async -> Bool {
         (try? await chat.answerQuestions(runId: runId, answers: answers))?.boolValue ?? false
     }

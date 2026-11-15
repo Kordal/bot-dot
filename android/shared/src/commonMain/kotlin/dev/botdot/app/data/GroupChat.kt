@@ -132,6 +132,8 @@ class GroupChatState(
     val canTakeOut: Boolean,
     val renames: Boolean,
     val deletes: Boolean,
+    /** A team's chat of two bots or more picks its lead here ([GroupChat.makeLead]): its row says Lead, the others Make lead. */
+    val picksLead: Boolean = false,
 )
 
 /**
@@ -400,6 +402,13 @@ class GroupChat(
     }
 
     /** The member [botId] leaves the group (a group left with none is deleted by botdot). */
+    /** Make lead, in a team chat's panel: that bot leads the team in its project. */
+    fun makeLead(botId: String) {
+        val g = group() ?: return
+        if (g.lead == botId || botId !in g.members) return
+        change { api.updateGroup(groupId, buildJsonObject { put("lead", JsonPrimitive(botId)) }) }
+    }
+
     fun takeOut(botId: String) {
         val g = group() ?: return
         change { api.updateGroup(groupId, api.membersOf(g.members - botId)) }
@@ -574,6 +583,7 @@ class GroupChat(
             canTakeOut = g != null && Groups.canTakeOut(g, features),
             renames = g != null && (g.team == null || features?.contains(Groups.TEAM_CHAT_RENAME) == true),
             deletes = g != null && Groups.deletes(g, features),
+            picksLead = g != null && Groups.picksLead(g, features),
         )
     }
 
