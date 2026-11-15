@@ -18,8 +18,11 @@ final class FilesTests: XCTestCase {
     func testAFolderStartsOnBotdotLoadingUnderItsOwnersName() async {
         let model = FilesModel(api: api, at: FilesPlace(owner: "news", name: "News"))
         let seen = expectation(description: "the first state")
+        // Only the first state: the read that follows (refused at once, here) brings another one.
+        let first = FirstOnly()
         let job = model.files.watch { s in
             MainActor.assumeIsolated {
+                guard first.take() else { return }
                 XCTAssertEqual(s.title, "News")
                 XCTAssertEqual(s.place, "server")
                 XCTAssertEqual(s.placeName, "On botdot")
@@ -65,4 +68,10 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(FilesView.icon(.sheet), "tablecells")
         XCTAssertEqual(FilesView.icon(FilesExplorer.shared.kindOf(e: WorkspaceEntry(name: "a.png", path: "a.png", type: "file", size: nil, at: nil, kept: false, keepsName: false, items: nil))), "photo")
     }
+}
+
+/// True once, for the first call: a watch that hands over every state, checked for its first alone.
+private final class FirstOnly: @unchecked Sendable {
+    private var taken = false
+    func take() -> Bool { if taken { return false }; taken = true; return true }
 }
