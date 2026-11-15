@@ -37,6 +37,7 @@ final class ProjectTests: XCTestCase {
         XCTAssertNotNil(ImageRenderer(content: Goals(goals: c.objectives).frame(width: 320)).cgImage)
         XCTAssertNotNil(ImageRenderer(content: QuestionsCard(card: c.cards[1], figure: nil, onClose: {}, onAnswer: { _ in true }).frame(width: 320)).cgImage)
     }
+
     /// A project's settings: the shared words and rules reach Swift (what each sends is the shared ProjectDeskTest's).
     func testTheSettingsWordsAndRulesReachSwift() async {
         XCTAssertEqual(ProjectSettingWords.shared.rhythms.map { $0.label }, ["Off", "Daily", "Twice a week", "Weekly"])
@@ -49,5 +50,14 @@ final class ProjectTests: XCTestCase {
         XCTAssertFalse(deleted, "no project shown: nothing deleted")
         let saved = await model.setStandupTime("25:00")
         XCTAssertFalse(saved)
+    }
+
+    /// A project's Overview: its words and where an entry opens come from the shared layer.
+    func testTheOverviewSaysEachEntryAndWhereItOpens() {
+        let e = OverviewEntry(id: "w1", botId: "b1", chatId: nil, groupId: nil, name: "Coder", state: "failed", text: "", at: "")
+        XCTAssertEqual(Overviews.shared.text(e: e), "Failed")
+        XCTAssertEqual(Overviews.shared.meta(e: e), "Failed")
+        XCTAssertNotNil(Overviews.shared.open(destination: "bot/b1"))
+        XCTAssertEqual(OverviewState(snapshot: nil, files: nil, error: nil, filesError: nil).status, "Loading…")
     }
 }

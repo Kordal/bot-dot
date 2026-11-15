@@ -92,3 +92,21 @@ test('web: a chip without it is as before, also from a server that sends somethi
 test('web: a chip of a run on a computer keeps its way to the live screen, after what waits', () => {
   assert.match(actionChip({ kind: 'run', text: 'Started Coder', runId: 'r1', waits: 'a login waits for your OK' }), /→ Started Coder · <span class="waits">a login waits for your OK<\/span> · View live screen<\/button>$/);
 });
+
+test("web: the card of questions stands under the newest reply only: an older reply's questions are part of its text", () => {
+  vm.runInContext(cut("// A run's reply as its bubble draws it.", '// send(text, key) resolves'), page);
+  const asked = { role: 'chief', text: 'Two things first.', questions: ['Which account?', 'Which day?'], at };
+  const newest = chiefBubble(asked, true);
+  assert.match(newest, /<questions>/);
+  assert.doesNotMatch(newest, /<li>Which account\?/);
+  const older = chiefBubble(asked, false);
+  assert.doesNotMatch(older, /<questions>/);
+  assert.match(text(older), /Two things first\. Which account\? Which day\?/);
+  assert.match(older, /<li>Which account\?<\/li>\s*<li>Which day\?<\/li>/);
+});
+
+test('web: the newest reply with a mail draft keeps its questions off its text, as the phone does', () => {
+  const html = chiefBubble({ role: 'chief', text: 'Draft is ready.', questions: ['Send today?', 'From work?'], draft: { to: 'a@b.c', subject: 'Hi', body: 'Hi' }, at }, true);
+  assert.doesNotMatch(html, /<li>Send today\?/);
+  assert.doesNotMatch(html, /<questions>/, 'the mail card takes the card\'s place');
+});

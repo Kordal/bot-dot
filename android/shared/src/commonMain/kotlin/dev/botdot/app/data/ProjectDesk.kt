@@ -119,6 +119,8 @@ class ProjectState(
     val settings: Boolean,
     /** Tidy up the board, from a botdot with `board-tidy`, on a running project. */
     val tidy: Boolean,
+    /** Its Overview (ADR 236), from a botdot with `project-overview`: drawn again when the features come. */
+    val overview: Boolean = false,
     /** Its settings' Project updates (`project-updates`), else each lead's report rhythm (`company-leads`); the morning standup (`project-standup`). */
     val updates: Boolean = false,
     val rhythms: Boolean = false,
@@ -267,6 +269,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             color = c?.color ?: ManyProjects.DEFAULT_COLOR,
             settings = c != null && ManyProjects.SETTINGS in f,
             tidy = c != null && c.phase == "running" && ManyProjects.TIDY in f,
+            overview = c != null && Overviews.shows(f),
             updates = ProjectUpdates.FEATURE in f,
             rhythms = ProjectUpdates.FEATURE !in f && CompanyFloor.LEADS in f,
             standup = ProjectUpdates.FEATURE !in f && ProjectStandup.FEATURE in f,
