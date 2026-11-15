@@ -414,6 +414,7 @@ data class Run(
     val problem: String? = null, // the error said plainly, for showing (the raw error stays in error)
     val trigger: String? = null,
     val jobName: String? = null,
+    val watchName: String? = null, // the watch whose end started it (trigger "watch", ADR 247)
     val kind: String? = null,
     val startedAt: String = "",
     val endedAt: String? = null,
@@ -592,6 +593,10 @@ data class MailDraft(
 data class AskedBot(val id: String = "", val name: String = "", val color: String? = null, val text: String = "", val reply: String? = null, val at: String? = null)
 @Serializable
 data class SentTo(val id: String = "", val name: String = "", val emoji: String = "🤖", val color: String? = null, val delivered: String? = null, val text: String? = null, val at: String? = null) // text: the latest it sent that bot; at: when (its row among the run's steps)
+
+/** What a bot watches (ADR 247): botdot reads it without AI, and its end starts the bot. state: what it read last. */
+@Serializable
+data class Watch(val id: String = "", val name: String = "", val until: String = "", val state: String = "", val error: String? = null)
 
 @Serializable
 data class InboxNote(val fromId: String? = null, val from: String = "", val emoji: String? = null, val color: String? = null, val text: String = "", val at: String? = null, val call: Boolean = false, val later: Boolean = false) // call: a job's call, `from` its job; later: the wake gate held it for the next run (ADR 083)

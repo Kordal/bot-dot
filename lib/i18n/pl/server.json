@@ -654,5 +654,9 @@
   "Not marked done": "Nie oznaczono jako gotowe",
   "The project conversation is busy.": "Rozmowa projektu jest zajęta.",
   "Install": "Zainstaluj",
-  "Reply": "Odpowiedz"
+  "Reply": "Odpowiedz",
+  "Setting a watch": "Ustawiam obserwację",
+  "Looking at its watches": "Przeglądam swoje obserwacje",
+  "Checking the watches": "Sprawdzam obserwacje",
+  "Stopping a watch": "Zatrzymuję obserwację"
 }
