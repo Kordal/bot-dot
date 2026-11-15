@@ -452,6 +452,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, only: Set<String>? = null, except: 
     // And what was answered on the Needs you screen for this chat: the same line, taken once (AnsweredAway).
     val answeredAway by store.answeredAway.value.collectAsState()
     LaunchedEffect(scope, answeredAway) {
+        if (only != null) return@LaunchedEffect // what was answered on Needs you is said at the end of the chat
         val mine = store.answeredAway.take(scope).filter { a -> decided.none { it.key == a.key } }
         if (mine.isNotEmpty()) decided = decided + mine.map { Decided(it.key, null, it.title, it.label) }
     }
