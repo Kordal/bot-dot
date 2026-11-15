@@ -133,6 +133,8 @@ class HomeStore(val api: Api) {
 
     /** Every bot's pages, the Pages list (PagesDesk). */
     fun pages(): PagesDesk = PagesDesk(scope, api, store)
+    /** Settings → Storage. */
+    fun storage(): StorageDesk = StorageDesk(scope, api)
 
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId, plans)

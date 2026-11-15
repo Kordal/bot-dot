@@ -46,7 +46,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,8 +57,6 @@ import androidx.compose.ui.unit.dp
 import dev.botdot.app.BotDotApp
 import dev.botdot.app.data.Storage
 import dev.botdot.app.data.tr
-import dev.botdot.app.data.trn
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -75,75 +72,55 @@ fun StorageScreen(app: BotDotApp, onFiles: (owner: String, root: String, path: S
     val api by app.api.collectAsState()
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
-    fun tell(msg: String) { scope.launch { snack.showSnackbar(msg) } }
-    var data by remember { mutableStateOf<Storage.Answer?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
-    var trail by rememberSaveable { mutableStateOf(listOf<String>()) }
+    // What it reads, the folder open, Check again, Delete and Clear are the shared StorageDesk's (one copy with the iPhone's).
+    val desk = remember(api) { api?.let { dev.botdot.app.data.StorageDesk(scope, it) } }
+    val s = desk?.state?.collectAsState()?.value
     var menu by remember { mutableStateOf<String?>(null) }
     var ask by remember { mutableStateOf<String?>(null) } // the key of the row whose question shows
-    var busy by remember { mutableStateOf(false) }
-    var polls by remember { mutableStateOf(0) }
-
-    suspend fun load() {
-        val a = api ?: return
-        runCatching { a.storage() }.onSuccess { data = it; error = null }.onFailure { error = it.message }
-    }
-    LaunchedEffect(api, polls) {
-        load()
-        // While a check runs, look again every few seconds.
-        while (data?.checking == true) { delay(3000); load() }
-    }
-    fun go(next: List<String>) { trail = next; menu = null; ask = null }
-    BackHandler(enabled = trail.isNotEmpty()) { go(trail.dropLast(1)) }
-
-    val d = data
-    val opened = d?.let { Storage.open(it, trail) }
-    if (d != null && trail.isNotEmpty() && opened == null) trail = emptyList()
+    LaunchedEffect(desk) { desk?.load() }
+    LaunchedEffect(s?.noticeCount) { s?.notice?.takeIf { s.noticeCount > 0 }?.let { snack.showSnackbar(it) } }
+    fun go(up: Boolean, into: String = "") { if (up) desk?.back() else desk?.open(into); menu = null; ask = null }
+    BackHandler(enabled = s?.trail?.isNotEmpty() == true) { go(true) }
 
     // One folder or file: its icon, name, a bar against the largest beside it, its size and its menu. A folder that
     // holds more opens; one Files opens has the menu.
     @Composable
-    fun Item(key: String, name: String, owner: String?, bytes: Long, dir: Boolean, files: Long, opens: Boolean, w: Storage.Where?, top: Long, into: String = name) {
+    fun Item(r: dev.botdot.app.data.StorageRow) {
+        val key = r.key
+        val w = r.where
         val hot = menu == key || ask == key
         Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(if (hot) p.fill else Color.Transparent)) {
             Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable {
-                if (opens) go(trail + into) else if (w != null) { menu = if (menu == key) null else key; ask = null }
+                if (r.opens) go(false, r.into) else if (w != null) { menu = if (menu == key) null else key; ask = null }
             }.padding(horizontal = Space.s4), verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (dir) Icons.Outlined.Folder else Icons.Outlined.Description, contentDescription = null, tint = p.faint, modifier = Modifier.size(18.dp))
-                Text(name, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = Space.s12).weight(1f))
-                if (owner != null) Text(owner, color = p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = Space.s8).width(72.dp))
+                Icon(if (r.dir) Icons.Outlined.Folder else Icons.Outlined.Description, contentDescription = null, tint = p.faint, modifier = Modifier.size(18.dp))
+                Text(r.name, color = p.text, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = Space.s12).weight(1f))
+                if (r.owner != null) Text(r.owner!!, color = p.faint, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = Space.s8).width(72.dp))
                 Box(Modifier.padding(start = Space.s8).width(40.dp).height(6.dp).clip(RoundedCornerShape(8.dp)).background(p.sunk)) {
-                    Box(Modifier.fillMaxHeight().fillMaxWidth((bytes.toFloat() / top).coerceIn(0.05f, 1f)).background(p.muted))
+                    Box(Modifier.fillMaxHeight().fillMaxWidth(r.share).background(p.muted))
                 }
-                Text(Storage.size(bytes), color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.padding(start = Space.s8).width(64.dp))
+                Text(Storage.size(r.bytes), color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, modifier = Modifier.padding(start = Space.s8).width(64.dp))
                 if (w != null) Box {
                     IconButton(onClick = { menu = if (menu == key) null else key; ask = null }) { Icon(Icons.Filled.MoreHoriz, contentDescription = tr("More"), tint = p.muted) }
                     DropdownMenu(expanded = menu == key, onDismissRequest = { menu = null }) {
                         if (!w.place.gone) DropdownMenuItem(text = { Text(tr("Open in Files")) }, onClick = {
                             menu = null
-                            val folder = if (dir) w.path else w.path.substringBeforeLast('/', "")
-                            onFiles(Storage.ownerOf(w.place), Storage.rootOf(w.place), folder)
+                            onFiles(Storage.ownerOf(w.place), Storage.rootOf(w.place), desk!!.filesFolder(r))
                         })
                         DropdownMenuItem(text = { Text(tr("Ask the Chief")) }, onClick = {
                             menu = null
-                            val whose = w.place.project ?: if (w.place.bot == dev.botdot.app.data.UploadedFiles.CHIEF) tr("Chief of Staff") else app.store.bots.value.value?.firstOrNull { it.id == w.place.bot }?.name.orEmpty()
-                            app.chiefWords = tr("What is {name} ({size}) in {whose}’s files, and can it go?", "name" to w.path, "size" to Storage.size(bytes), "whose" to whose)
+                            val whose = desk!!.whose(r) { id -> app.store.bots.value.value?.firstOrNull { it.id == id }?.name }
+                            app.chiefWords = desk.askWords(r, whose)
                             onChief()
                         })
-                        if (Storage.deletable(w)) DropdownMenuItem(text = { Text(tr("Delete…"), color = p.err) }, onClick = { menu = null; ask = key })
+                        if (r.deletable) DropdownMenuItem(text = { Text(tr("Delete…"), color = p.err) }, onClick = { menu = null; ask = key })
                     }
-                } else if (opens) Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12, end = Space.s12)) else Spacer(Modifier.width(48.dp))
+                } else if (r.opens) Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12, end = Space.s12)) else Spacer(Modifier.width(48.dp))
             }
-            if (ask == key && w != null) Box(Modifier.padding(horizontal = Space.s12)) {
-                val words = if (dir) tr("Delete {name}? {size}, {count}.", "name" to name, "size" to Storage.size(bytes), "count" to trn(files.toInt(), "{n} file", "{n} files"))
-                    else tr("Delete {name}? {size}.", "name" to name, "size" to Storage.size(bytes))
-                Ask(words, if (busy) tr("Deleting…") else tr("Delete"), busy, onCancel = { ask = null }) {
-                    busy = true
-                    scope.launch {
-                        runCatching { if (w.place.gone) api!!.deleteGone(w) else api!!.deleteFromWorkspace(Storage.ownerOf(w.place), Storage.rootOf(w.place), w.path) }
-                            .onSuccess { ask = null; tell(tr("Deleted")); load() }.onFailure { tell(it.message ?: tr("Couldn't delete")) }
-                        busy = false
-                    }
+            if (ask == key && w != null && desk != null) Box(Modifier.padding(horizontal = Space.s12)) {
+                val busy = s?.busy == true
+                Ask(desk.deleteWords(r), if (busy) tr("Deleting…") else tr("Delete"), busy, onCancel = { ask = null }) {
+                    scope.launch { if (desk.delete(r)) ask = null }
                 }
             }
         }
@@ -155,58 +132,49 @@ fun StorageScreen(app: BotDotApp, onFiles: (owner: String, root: String, path: S
         snackbarHost = { BotSnackbarHost(snack) },
         topBar = {
             TopAppBar(
-                navigationIcon = { BackButton { if (trail.isEmpty()) onBack() else go(trail.dropLast(1)) } },
+                navigationIcon = { BackButton { if (s?.trail.isNullOrEmpty()) onBack() else go(true) } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = p.bg),
-                title = { Text(opened?.crumbs?.lastOrNull() ?: tr("Storage"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                title = { Text(s?.title ?: tr("Storage"), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 actions = {
-                    if (trail.isEmpty()) IconButton(enabled = d?.checking != true, onClick = {
-                        scope.launch { runCatching { api!!.checkStorage() }.onSuccess { data = it }.onFailure { tell(it.message ?: tr("Couldn't check")) }; polls++ }
-                    }) { Icon(Icons.Filled.Refresh, contentDescription = tr("Check again"), tint = if (d?.checking == true) p.faint else p.muted) }
+                    if (s?.trail.isNullOrEmpty()) IconButton(enabled = s?.checking != true, onClick = { scope.launch { desk?.check() } }) {
+                        Icon(Icons.Filled.Refresh, contentDescription = tr("Check again"), tint = if (s?.checking == true) p.faint else p.muted)
+                    }
                 },
             )
         },
     ) { pad ->
         Column(Modifier.padding(pad).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Space.s16, vertical = Space.s8)) {
-            if (d == null) {
-                Text(error ?: tr("Loading…"), color = p.muted)
+            val d = s?.answer
+            if (s == null || d == null) {
+                Text(s?.error ?: tr("Loading…"), color = p.muted)
                 return@Column
             }
-            Text(if (d.checkedAt == null) "—" else Storage.size(opened?.node?.bytes ?: d.total), color = p.text, fontSize = Type.s32, fontWeight = FontWeight.SemiBold)
+            Text(s.total, color = p.text, fontSize = Type.s32, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(Space.s16))
-            if (opened == null) {
+            if (s.trail.isEmpty()) {
                 Bar(d)
                 Spacer(Modifier.height(Space.s24))
-                d.groups.filter { it.bytes > 0 }.forEach { g ->
+                s.groups.forEach { g ->
                     val key = "g:${g.id}"
-                    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable { go(listOf(g.id)) }.padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).clickable { go(false, g.id) }.padding(vertical = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(10.dp).clip(CircleShape).background(colorOf(g.id, p)))
                         Text(Storage.groupName(g.id), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(start = Space.s12).weight(1f))
-                        if (g.id == "caches") TextButton(enabled = !busy, onClick = { ask = key; menu = null }) { Text(tr("Clear"), color = p.text) }
+                        if (g.id == "caches") TextButton(enabled = !s.busy, onClick = { ask = key; menu = null }) { Text(tr("Clear"), color = p.text) }
                         Text(Storage.size(g.bytes), color = p.muted, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = Space.s8))
                         Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
                     }
-                    if (ask == key) Ask(tr("Clear the caches? {size}.", "size" to Storage.size(g.bytes)), if (busy) tr("Clearing…") else tr("Clear"), busy, onCancel = { ask = null }) {
-                        busy = true
-                        scope.launch {
-                            runCatching { api!!.clearCaches() }.onSuccess { data = it; ask = null; tell(tr("Cleared {size}", "size" to Storage.size(it.freed))) }.onFailure { tell(it.message ?: tr("Couldn't clear")) }
-                            busy = false
-                        }
+                    if (ask == key && desk != null) Ask(desk.clearWords(g), if (s.busy) tr("Clearing…") else tr("Clear"), s.busy, onCancel = { ask = null }) {
+                        scope.launch { if (desk.clearCaches()) ask = null }
                     }
                     Rule()
                 }
-                if (d.largest.isNotEmpty()) {
+                if (s.largest.isNotEmpty()) {
                     Text(tr("Largest"), color = p.muted, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = Space.s32, bottom = Space.s8))
-                    val top = d.largest.first().bytes.coerceAtLeast(1)
-                    d.largest.take(10).forEachIndexed { i, f ->
-                        val w = f.place?.let { Storage.Where(it, f.path) }
-                        Item("l:$i", f.name, f.owner, f.bytes, false, 0, false, w, top)
-                    }
+                    s.largest.forEach { Item(it) }
                 }
             } else {
-                val kids = opened.node.kids.filter { it.bytes > 0 }
-                if (kids.isEmpty()) Text(tr("Nothing here."), color = p.muted)
-                val top = kids.firstOrNull()?.bytes?.coerceAtLeast(1) ?: 1
-                kids.forEachIndexed { i, k -> Item("k:$i", Storage.nameOf(k), null, k.bytes, k.dir, k.files, k.kids.isNotEmpty(), Storage.where(k, opened), top, into = k.name) }
+                if (s.rows.isEmpty()) Text(tr("Nothing here."), color = p.muted)
+                s.rows.forEach { Item(it) }
             }
         }
     }
