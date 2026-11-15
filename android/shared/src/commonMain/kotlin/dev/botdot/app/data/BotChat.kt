@@ -220,18 +220,25 @@ class BotChat(
      * Whether [runId] takes a reply (#627, `reply-to`): a run of the bot's own work, not a script's, a side question or
      * one still waiting.
      */
-    fun replies(runId: String): Boolean {
-        if ("reply-to" !in store.version.value.value?.features.orEmpty()) return false
-        val r = all.firstOrNull { it.id == runId } ?: return false
-        return r.kind != "script" && !r.btw && !r.isQueued
+    fun replies(runId: String): Boolean = replyTarget(runId) != null
+
+    /**
+     * "Reply to this task" on [runId] or any round of its block (ChatOrder.rounds, #627): the next message replies to
+     * the block's newest round, and above the box until it is sent stands the first line of the block's first request,
+     * as on Android.
+     */
+    fun replyTo(runId: String) {
+        replying = replyTarget(runId) ?: return
+        publish()
     }
 
-    /** "Reply to this task": the next message replies to [runId], its first line above the box until it is sent. */
-    fun replyTo(runId: String) {
-        if (!replies(runId)) return
-        val r = all.first { it.id == runId }
-        replying = runId to RunSteps.firstLine(r.prompt).ifEmpty { tr("this task") }
-        publish()
+    /** The newest round of [runId]'s block and the first request's line, when it takes a reply; else null. */
+    private fun replyTarget(runId: String): Pair<String, String>? {
+        if ("reply-to" !in store.version.value.value?.features.orEmpty()) return null
+        val rounds = ChatOrder.rounds(all.filterNot { it.quiet }).firstOrNull { b -> b.any { it.id == runId } } ?: return null
+        val last = rounds.last()
+        if (last.kind == "script" || last.btw || last.isQueued) return null
+        return last.id to RunSteps.firstLine(rounds.first().prompt).ifEmpty { tr("this task") }
     }
 
     /** ✕ on the reply above the box: the next message is a new one. */

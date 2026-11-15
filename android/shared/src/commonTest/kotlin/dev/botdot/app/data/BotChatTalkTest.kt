@@ -244,4 +244,28 @@ class BotChatTalkTest {
         assertNull(chat.state.value.replying)
         chat.stop()
     }
+
+    @Test fun aReplyOnAnEarlierRoundRepliesToTheNewestWithTheFirstRequest() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.path == "/runs" -> 200 to """[
+                    {"id":"r2","botId":"b1","status":"success","prompt":"And Friday?","result":"Friday too","replyTo":"r1","startedAt":"2026-11-14T09:05:00Z"},
+                    {"id":"r1","botId":"b1","status":"success","prompt":"Plan my week","result":"Planned","startedAt":"2026-11-14T09:00:00Z"}]"""
+                a.method == "POST" && a.path == "/bots/b1/run" -> 200 to run("r3", status = "running", prompt = "And Saturday")
+                else -> 404 to "{}"
+            }
+        }
+        val store = Store(backgroundScope, MutableStateFlow(fake.api))
+        runCurrent()
+        store.version.set(VersionInfo(features = listOf("reply-to")))
+        val chat = BotChat(backgroundScope, fake.api, store, events, "b1")
+        chat.start()
+        until("its rounds") { chat.state.value.runs.size == 2 }
+        chat.replyTo("r1") // the block's earlier round, pressed
+        assertEquals("Reply to: Plan my week", chat.state.value.replying, "the block's first request")
+        assertTrue(chat.send("And Saturday"))
+        val post = fake.asked().single { it.method == "POST" }
+        assertTrue("\"replyTo\":\"r2\"" in post.body, "to the newest round: ${post.body}")
+        chat.stop()
+    }
 }
