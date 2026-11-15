@@ -180,8 +180,11 @@ struct BotSettingsView: View {
                 Button(tr("Undo last change")) { Task { failed = await model.undo() } }
             }
         }
-        Section(tr("Computer")) {
-            Toggle(tr("Its own computer"), isOn: Binding(get: { draft.computer }, set: { on in model.edit { $0.withComputer(on: on) } }))
+        // A server from before every bot has a computer (ADR 192): whether it has one, as Android's "Browser".
+        if state.showsBrowser {
+            Section {
+                Toggle(tr("Browser"), isOn: Binding(get: { draft.computer }, set: { on in model.edit { $0.withComputer(on: on) } }))
+            }
         }
         Section(tr("Skills")) {
             Toggle(tr("Use skills"), isOn: Binding(get: { draft.useSkills }, set: { on in model.edit { $0.withUseSkills(on: on) } }))

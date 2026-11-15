@@ -134,7 +134,7 @@ object BotSettings {
         if (d.connectors != b.connectors.toSet()) put("connectors", JsonArray(d.connectors.map { JsonPrimitive(it) }))
         if (d.accounts != b.accounts) put("accounts", JsonObject(d.accounts.mapValues { JsonPrimitive(it.value) }))
         // Every bot may message every other since ADR 192: only a server from before limits it.
-        if ("everything-allowed" !in features.orEmpty()) {
+        if (limits(features)) {
             val everyone = others.all { it.id in d.mayMessage }
             if (everyone != b.mayMessageAll) put("mayMessageAll", everyone)
             if (!everyone && (b.mayMessageAll || d.mayMessage != b.mayMessage.toSet())) put("mayMessage", JsonArray(d.mayMessage.map { JsonPrimitive(it) }))
@@ -152,6 +152,22 @@ object BotSettings {
 
     /** The choices of a bot's Reasoning, its own default first. */
     fun efforts(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.efforts.map { Option(it.id, it.label) }
+
+    /** A server from before every bot may message every other (ADR 192): it still limits who may. */
+    fun limits(features: Collection<String>?): Boolean = "everything-allowed" !in features.orEmpty()
+
+    /** "Browser", whether it has a computer: a server from before every bot has one; on one since, it shows not. */
+    fun showsBrowser(features: Collection<String>?): Boolean = limits(features)
+
+    /** "Other bots may ask it": a server that limits it and says so, and another bot to ask it. */
+    fun showsOthersMayAsk(b: Bot, others: List<Bot>, features: Collection<String>?): Boolean = limits(features) && others.isNotEmpty() && b.othersMayAsk != null
+
+    /** Its shared-room settings: a server that keeps them (`room-settings`) and has them for this bot. */
+    fun showsRooms(b: Bot, features: Collection<String>?): Boolean = BotRooms.shows(features) && b.rooms != null
+
+    /** Undo last change (#596): the card's change [change] undone on botdot, and the bot as it is now. */
+    @Throws(Exception::class)
+    suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
 
     /** The choices of its key on the keypad (#366): by its place, or a digit, saying which bot holds it now. */
     fun hotkeys(others: List<Bot>): List<Option> = listOf(Option("0", tr("By its place"))) +
@@ -188,9 +204,11 @@ class BotSettingsState(
     /** Its key on the keypad shows only from a server that has hotkeys. */
     val showsHotkey: Boolean get() = bot?.hotkey != null
     /** "Other bots may ask it": a server from before every bot may message every other (ADR 192) that says so. */
-    val showsOthersMayAsk: Boolean get() = bot?.othersMayAsk != null && others.isNotEmpty() && "everything-allowed" !in features
+    val showsOthersMayAsk: Boolean get() = bot?.let { BotSettings.showsOthersMayAsk(it, others, features) } == true
+    /** Its "Browser" switch: a server from before every bot has a computer. */
+    val showsBrowser: Boolean get() = BotSettings.showsBrowser(features)
     /** Its shared-room settings, from a server that keeps them (`room-settings`). */
-    val showsRooms: Boolean get() = BotRooms.shows(features) && bot?.rooms != null
+    val showsRooms: Boolean get() = bot?.let { BotSettings.showsRooms(it, features) } == true
     /** Who may mention it in a room: the owner, or anyone in it. */
     val whoMayMention: List<Option> get() = BotRooms.WHO.map { (id, label) -> Option(id, label) }
     /** Undo last change: a change a card made to its assignment or rules that one tap undoes (#596). */
@@ -302,8 +320,7 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
     suspend fun undo(): String? {
         val change = _state.value.bot?.undo ?: return null
         return try {
-            api.undoChange(botId, change)
-            val b = api.bot(botId)
+            val b = BotSettings.undo(api, botId, change)
             _state.value = _state.value.copy(bot = b, draft = BotSettings.draft(b, _state.value.others))
             null
         } catch (e: CancellationException) {
