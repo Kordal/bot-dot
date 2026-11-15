@@ -39,7 +39,9 @@ final class BotSettingsModel {
     }
 
     /// Undo last change: nil when it went, else botdot's sentence.
-    func undo() async -> String? { (try? await store.undo()) ?? nil }
+    func undo() async -> String? {
+        do { return try await store.undo() } catch { return error.localizedDescription }
+    }
 
     /// Delete, once the owner said yes: nil when it went, else botdot's sentence.
     func delete() async -> String? {
