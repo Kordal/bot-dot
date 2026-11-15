@@ -17,6 +17,14 @@ final class BoardTests: XCTestCase {
         XCTAssertEqual(state.columns, 2)
     }
 
+    func testABoardStartedOnAWideScreenHasItsColumnsAtOnce() async throws {
+        let model = BoardModel(home: home())
+        model.start(width: 700)
+        defer { model.stop() }
+        for _ in 0..<50 where model.state?.columns != 3 { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(model.state?.columns, 3, "an iPad's or a landscape Board: three columns from its first frame")
+    }
+
     func testATapOnATileThatIsNotThereDoesNothing() async throws {
         let model = BoardModel(home: home())
         defer { model.stop() }

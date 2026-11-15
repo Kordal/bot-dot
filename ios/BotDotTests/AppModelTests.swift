@@ -52,6 +52,22 @@ final class AppModelTests: XCTestCase {
         first.cancel()
     }
 
+    func testADeletedAccountLeavesItsPausedScreenForTheSignIn() async throws {
+        let m = model()
+        let server = "https://hq.example.com"
+        try await m.settings.setServer(url: server)
+        sessions.write(server: server, token: "s3cret")
+        await m.start()
+        XCTAssertEqual(m.screen, .signedIn(server))
+        m.session.answered(server: server, api: true, sent: nil, code: 503, setCookies: [], body: { #"{"error":"Paused.","paused":true}"# })
+        for _ in 0..<50 where m.screen != .paused(server) { try await Task.sleep(for: .milliseconds(20)) }
+        XCTAssertEqual(m.screen, .paused(server))
+        m.accountDeleted(server, "Your account was deleted.")
+        XCTAssertEqual(m.screen, .signIn(server), "no session: the paused screen's watch stops with it")
+        XCTAssertEqual(m.notice, "Your account was deleted.")
+        XCTAssertNil(sessions.read(server: server))
+    }
+
     func testSigningOutLeavesAnotherAddressOnScreen() async {
         let m = model()
         sessions.write(server: "https://hq.example.com", token: "s3cret")

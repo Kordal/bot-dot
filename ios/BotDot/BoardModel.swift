@@ -15,6 +15,12 @@ final class BoardModel {
         store = BoardStore(home: home)
     }
 
+    /// Starts it at the screen's [width] (its columns): the width's changes after come through [width(_:)].
+    func start(width points: CGFloat) {
+        width(points)
+        start()
+    }
+
     func start() {
         guard watching == nil else { return }
         watching = store.watch { [weak self] state in
