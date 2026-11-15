@@ -24,6 +24,9 @@ data class ProjectOverview(val projectId: String, val at: String, val work: List
     }
 }
 
+/** Needs you's rows ([Overviews.needsYou]): the questions, the Chief chat's cards, what waits for the bots. */
+data class NeedsYou(val questions: List<OverviewEntry>, val asks: List<Ask>, val waiting: List<Waiting>)
+
 @Serializable
 data class OverviewEntry(val id: String, val botId: String? = null, val chatId: String? = null, val groupId: String? = null, val name: String = "", val state: String = "", val text: String = "", val at: String = "") {
     /** An owner-assigned to-do has no actor: it uses the same primary contact as the project field. */
@@ -72,6 +75,25 @@ object Overviews {
 
     /** Whether a botdot has the Overview. */
     fun shows(features: Collection<String>?): Boolean = features != null && ProjectOverview.FEATURE in features
+
+    /** The Overview as a page of its own (ADR 236): on a botdot with it but without overview-board, where the board is the page (ADR 245). */
+    fun page(features: Collection<String>?): Boolean = shows(features) && ProjectOverview.BOARD !in features.orEmpty()
+
+    /**
+     * What Needs you holds on a project's Overview or board (ADR 245), or null when nothing waits: the questions in
+     * its chats ([ProjectOverview.questions], less those a card already stands for), the cards asked in its own Chief
+     * chat by a bot not in its teams, and what waits for its bots ([here], Android's NeedsRows).
+     */
+    fun needsYou(c: Company, here: List<Waiting>, needs: Needs?, questions: List<OverviewEntry>): NeedsYou? {
+        val asks = needs?.asks.orEmpty()
+        val team = Spaces.teamBots(listOf(c))
+        val chief = asks.filter { c.chiefChat != null && it.chatId == c.chiefChat && it.bot?.id !in team }
+        val q = ProjectOverview.withoutCarded(questions, asks.mapNotNull { it.chatId }.toSet())
+        return if (ProjectOverview.needsYouShows(here.size + chief.size, q.size)) NeedsYou(q, chief, here) else null
+    }
+
+    /** A card in Needs you in a line: its title, else its line. */
+    fun askText(a: Ask): String = a.title.ifBlank { a.line }
 
     /** A section's line when it has no entries. */
     val noWork: String get() = tr("No recorded work.")

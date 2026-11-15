@@ -30,4 +30,27 @@ class ProjectOverviewNeedsYouTest {
         assertEquals(listOf("r1"), ProjectOverview.withoutCarded(listOf(question, chief), setOf("c1")).map { it.id })
         assertEquals(listOf("r1", "chief"), ProjectOverview.withoutCarded(listOf(question, chief), emptySet()).map { it.id })
     }
+    private fun ask(json: String): Ask = Api.JSON.decodeFromString(Ask.serializer(), json)
+
+    @Test
+    fun needsYouHoldsTheQuestionsTheChiefChatsCardsAndWhatWaitsOrNothing() {
+        val c = CompanySetup.of("""{"id":"p1","chiefChat":"c1","teams":[{"id":"t1","name":"Crew","bots":["b1"]}]}""")
+        val chief = OverviewEntry(id = "chief", chatId = "c1", name = "Chief", state = "asks")
+        val card = ask("""{"id":"a1","title":"Approve the team?","chatId":"c1"}""")
+        val teamCard = ask("""{"id":"a2","title":"Use the card?","chatId":"c1","bot":{"id":"b1","name":"Ada"}}""")
+        val n = Overviews.needsYou(c, emptyList(), Needs(asks = listOf(card, teamCard)), listOf(question, chief))!!
+        assertEquals(listOf("r1"), n.questions.map { it.id }, "the Chief's question is its card's")
+        assertEquals(listOf("a1"), n.asks.map { it.id }, "a team bot's card waits under its team, not here")
+        assertEquals("Approve the team?", Overviews.askText(n.asks.single()))
+        assertEquals(null, Overviews.needsYou(c, emptyList(), Needs(), emptyList()), "nothing waits: no Needs you")
+        val waiting = Waiting(color = null, text = "Ada asks", bot = "b1")
+        assertEquals(listOf(waiting), Overviews.needsYou(c, listOf(waiting), null, emptyList())?.waiting)
+    }
+
+    @Test
+    fun theOverviewIsAPageOnlyWithoutOverviewBoard() {
+        assertTrue(Overviews.page(listOf(ProjectOverview.FEATURE)))
+        assertFalse(Overviews.page(listOf(ProjectOverview.FEATURE, ProjectOverview.BOARD)), "the board is the page")
+        assertFalse(Overviews.page(null))
+    }
 }
