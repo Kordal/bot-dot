@@ -23,7 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
+import dev.botdot.app.data.OverviewDesk
 import dev.botdot.app.data.OverviewEntry
+import dev.botdot.app.data.OverviewState
+import dev.botdot.app.data.Overviews
 import dev.botdot.app.data.ProjectFiles
 import dev.botdot.app.data.tr
 import androidx.lifecycle.Lifecycle
@@ -51,26 +54,17 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
             while (true) { d.read(); delay(d.everyMs) }
         }
     }
-    fun open(x: OverviewEntry) {
-        when (val to = dev.botdot.app.data.Overviews.open(x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features))) {
-            is dev.botdot.app.data.Overviews.Open.Team -> ways.onTeam?.invoke(to.groupId) ?: ways.onNeeds()
-            is dev.botdot.app.data.Overviews.Open.Bot -> ways.onBot(to.botId)
-            dev.botdot.app.data.Overviews.Open.ProjectChief -> ways.onChiefChat?.let { ui.openChief(c, it) }
-            dev.botdot.app.data.Overviews.Open.Chief -> ways.onChief()
-            is dev.botdot.app.data.Overviews.Open.ChiefChat -> ways.onChiefChat?.invoke(to.chatId)
-            null -> Unit
-        }
-    }
+    val open = remember(c, ways) { overviewOpener(ui, c, ways) }
     // The questions waiting for the owner stand in Needs you, above, not again under Blockers.
-    needsYou(snapshot?.questions().orEmpty(), ::open)
+    needsYou(snapshot?.questions().orEmpty(), open)
     Column(Modifier.fillMaxWidth().testTag("project-overview"), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         state.problem?.let { Text(it, color = p.err) }
         Text(state.status, color = p.muted, fontSize = if (snapshot != null) Type.s12 else androidx.compose.ui.unit.TextUnit.Unspecified)
         SmallButton(tr("Refresh")) { request++ }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, dev.botdot.app.data.Overviews.noWork, sites) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, dev.botdot.app.data.Overviews.noBlockers, sites) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, dev.botdot.app.data.Overviews.noReplies, sites) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, open, dev.botdot.app.data.Overviews.noWork, sites) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), open, dev.botdot.app.data.Overviews.noBlockers, sites) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, open, dev.botdot.app.data.Overviews.noReplies, sites) }
         }
         OverviewSection(tr("Files")) {
             state.filesProblem?.let { Text(it, color = p.err) }
@@ -115,54 +109,51 @@ internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> U
     }
 }
 
-/** The overview's snapshot for its board tiles (overview-board, ADR 245): polled while a tile shows, never starting the computer. */
-internal class OverviewFeed(val snapshot: ProjectOverview?, val error: String?)
-
+/**
+ * The overview for its board tiles (overview-board, ADR 245): what botdot recorded, read by the shared [OverviewDesk]
+ * every [OverviewDesk.everyMs] while a tile shows, never starting the computer (no files are asked for).
+ */
 @Composable
-internal fun rememberOverviewFeed(ui: CompanyUi, c: Company): OverviewFeed {
+internal fun rememberOverviewFeed(ui: CompanyUi, c: Company): OverviewState {
     val api by ui.app.api.collectAsState()
     val life = LocalLifecycleOwner.current
-    var snapshot by remember(c.id, api) { mutableStateOf<ProjectOverview?>(null) }
-    var error by remember(c.id, api) { mutableStateOf<String?>(null) }
-    LaunchedEffect(c.id, api, life) {
-        val a = api ?: return@LaunchedEffect
+    val desk = remember(c.id, api) { api?.let { OverviewDesk(it, c.id) } }
+    val state = desk?.state?.collectAsState()?.value ?: OverviewState()
+    LaunchedEffect(desk, life) {
+        val d = desk ?: return@LaunchedEffect
         life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            while (true) {
-                runCatching { a.projectOverview(c.id) }.onSuccess { if (it.projectId == c.id) { snapshot = it; error = null } }.onFailure { if (it is CancellationException) throw it; error = it.message ?: tr("Couldn't refresh") }
-                delay(30_000)
-            }
+            while (true) { d.readRecorded(); delay(d.everyMs) }
         }
     }
-    return OverviewFeed(snapshot, error)
+    return state
 }
 
-/** Where a row of the overview opens: its team chat, its bot, or the Chief's chat. */
+/** Where a row of the overview opens ([Overviews.open]): its team chat, its bot, a Chief chat, or the Chief. */
 internal fun overviewOpener(ui: CompanyUi, c: Company, ways: CompanyWays): (OverviewEntry) -> Unit = { x ->
-    x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features)?.let { route ->
-        when {
-            route.startsWith("group/") -> ways.onTeam?.invoke(route.removePrefix("group/")) ?: ways.onNeeds()
-            route.startsWith("bot/") -> ways.onBot(route.removePrefix("bot/"))
-            route.startsWith(dev.botdot.app.data.Spaces.PROJECT_CHIEF) -> ways.onChiefChat?.let { ui.openChief(c, it) }
-            route == dev.botdot.app.data.Spaces.CHIEF -> ways.onChief()
-            route.startsWith("chief/") -> ways.onChiefChat?.invoke(route.removePrefix("chief/"))
-        }
+    when (val to = Overviews.open(x.destination(c, ui.bots.value, ui.app.store.version.value.value?.features))) {
+        is Overviews.Open.Team -> ways.onTeam?.invoke(to.groupId) ?: ways.onNeeds()
+        is Overviews.Open.Bot -> ways.onBot(to.botId)
+        Overviews.Open.ProjectChief -> ways.onChiefChat?.let { ui.openChief(c, it) }
+        Overviews.Open.Chief -> ways.onChief()
+        is Overviews.Open.ChiefChat -> ways.onChiefChat?.invoke(to.chatId)
+        null -> Unit
     }
 }
 
 /** Current work, Blockers or Latest replies as a board tile. */
 @Composable
-internal fun OverviewTile(key: String, feed: OverviewFeed, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
+internal fun OverviewTile(key: String, feed: OverviewState, open: (OverviewEntry) -> Unit, modifier: Modifier = Modifier) {
     val p = LocalPaper.current
     val title = when (key) { "work" -> tr("Current work"); "blockers" -> tr("Blockers"); else -> tr("Latest replies") }
     Column(modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16).testTag("overview-$key"), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Text(title, color = p.text, fontWeight = FontWeight.SemiBold, fontSize = Type.s16, modifier = Modifier.semantics { heading() })
-        feed.error?.let { Text("${tr("Couldn't refresh")}: $it", color = p.err) }
+        feed.problem?.let { Text(it, color = p.err) }
         val d = feed.snapshot
         when {
-            d == null -> Text(if (feed.error == null) tr("Loading…") else tr("Information unavailable"), color = p.muted)
-            key == "work" -> OverviewRows(d.work, open, tr("No recorded work."))
-            key == "blockers" -> OverviewRows(d.failures(), open, tr("No failed work."))
-            else -> OverviewRows(d.replies, open, tr("No replies yet."))
+            d == null -> Text(feed.status, color = p.muted)
+            key == "work" -> OverviewRows(d.work, open, Overviews.noWork)
+            key == "blockers" -> OverviewRows(d.failures(), open, Overviews.noBlockers)
+            else -> OverviewRows(d.replies, open, Overviews.noReplies)
         }
     }
 }
