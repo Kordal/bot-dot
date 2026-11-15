@@ -31,6 +31,10 @@ object Pages {
     const val FEATURE_CHIEF = "chief-pages"
     fun showsChief(features: Collection<String>?): Boolean = shows(features) && FEATURE_CHIEF in features!!
 
+    /** The page chips under a reply of [botId] (the Chief's is [CHIEF]): its [pages], on a botdot that opens them; none else. */
+    fun chips(botId: String, pages: List<PageRef>, features: Collection<String>?): List<PageRef> =
+        if (!shows(features) || (botId == CHIEF && !showsChief(features))) emptyList() else pages
+
     /** Pages on the Board (#451): "On Board" on a page and a switch on each row of the Pages screen. */
     const val FEATURE_BOARD = "pages-board"
     fun showsBoard(features: Collection<String>?): Boolean = shows(features) && FEATURE_BOARD in features!!

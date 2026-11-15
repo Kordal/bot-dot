@@ -75,21 +75,60 @@ struct ProjectOverviewView: View {
         }
     }
 
-    @ViewBuilder
     private func entries(_ title: String, _ items: [OverviewEntry], _ empty: String) -> some View {
-        Section(title) {
-            if items.isEmpty { Text(empty).foregroundStyle(.secondary) }
-            ForEach(items, id: \.id) { e in
-                Button { onOpen(e) } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(e.name).fontWeight(.semibold)
-                        Text(Overviews.shared.meta(e: e)).font(.caption).foregroundStyle(.secondary)
-                        // The bot's Markdown, as in its chat, in at most four lines (as Android's Overview).
-                        if e.text.isEmpty { Text(Overviews.shared.text(e: e)) } else { Text(MarkdownView.inline(e.text)).lineLimit(4) }
-                    }
+        Section(title) { OverviewRows(items: items, empty: empty, onOpen: onOpen) }
+    }
+}
+
+/// The Overview's entries (Android's OverviewRows): each its name, its state and when, and its words, opening its chat.
+struct OverviewRows: View {
+    let items: [OverviewEntry]
+    /// In place of none; nil draws nothing.
+    let empty: String?
+    let onOpen: (OverviewEntry) -> Void
+
+    var body: some View {
+        if items.isEmpty, let empty { Text(empty).foregroundStyle(.secondary) }
+        ForEach(items, id: \.id) { e in
+            Button { onOpen(e) } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(e.name).fontWeight(.semibold)
+                    Text(Overviews.shared.meta(e: e)).font(.caption).foregroundStyle(.secondary)
+                    // The bot's Markdown, as in its chat, in at most four lines (as Android's Overview).
+                    if e.text.isEmpty { Text(Overviews.shared.text(e: e)) } else { Text(MarkdownView.inline(e.text)).lineLimit(4) }
                 }
-                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.borderless)
+            .tint(.primary)
+        }
+    }
+}
+
+/// Current work, Blockers or Latest replies as a board tile (overview-board, ADR 245; Android's OverviewTile).
+struct OverviewTile: View {
+    /// "work", "blockers" or "replies".
+    let key: String
+    let state: OverviewState
+    let onOpen: (OverviewEntry) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(ProjectBoard.shared.label(k: key)).font(.headline)
+            if let problem = state.problem { Text(problem).font(.caption).foregroundStyle(.red) }
+            if let d = state.snapshot {
+                switch key {
+                case "work": OverviewRows(items: d.work, empty: Overviews.shared.noWork, onOpen: onOpen)
+                case "blockers": OverviewRows(items: d.failures(), empty: Overviews.shared.noBlockers, onOpen: onOpen)
+                default: OverviewRows(items: d.replies, empty: Overviews.shared.noReplies, onOpen: onOpen)
+                }
+            } else {
+                Text(state.status).foregroundStyle(.secondary)
             }
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 12))
+        .accessibilityIdentifier("overview-\(key)")
     }
 }

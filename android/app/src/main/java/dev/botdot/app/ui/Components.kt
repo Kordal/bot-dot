@@ -343,11 +343,11 @@ fun PageChips(botId: String, pages: List<dev.botdot.app.data.PageRef>, name: Str
     val p = LocalPaper.current
     val app = dev.botdot.app.BotDotApp.of(LocalContext.current)
     val server by app.store.version.value.collectAsState()
-    if (!dev.botdot.app.data.Pages.shows(server?.features)) return
-    if (botId == dev.botdot.app.data.Pages.CHIEF && !dev.botdot.app.data.Pages.showsChief(server?.features)) return
+    val shown = dev.botdot.app.data.Pages.chips(botId, pages, server?.features)
+    if (shown.isEmpty()) return
     val from = name ?: LocalPathActions.current?.from.orEmpty()
     Column(Modifier.padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        pages.forEach { page ->
+        shown.forEach { page ->
             Row(Modifier.widthIn(max = 320.dp).raised(Radius.card)
                 .clickable { DocViewer.open = DocViewer.page(botId, page, from) }.padding(horizontal = Space.s12, vertical = Space.s8),
                 verticalAlignment = Alignment.CenterVertically) {

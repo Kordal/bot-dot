@@ -102,6 +102,24 @@ final class ChatTests: XCTestCase {
         XCTAssertNil(Cursor.quoting("  ", into: "Ask"), "nothing to quote")
     }
 
+    /// A run's step line: its words are the shared RunSteps' (what it shows is RunStepsTest's).
+    func testAStepLinesWordsAreAndroids() {
+        XCTAssertEqual(RunSteps.companion.countWords(n: 3), "3 steps")
+        XCTAssertEqual(RunSteps.companion.countWords(n: 0), "")
+        XCTAssertEqual(RunSteps.companion.now(line: nil, held: false), "Working")
+        XCTAssertEqual(RunSteps.companion.now(line: "Reading a.js", held: false), "Reading a.js")
+    }
+
+    /// A reply's page chips: shown on a botdot that opens pages (Pages.chips), a tap opens the page in the viewer.
+    func testAReplysPageChipOpensItsPage() {
+        let page = PageRef(slug: "menu", title: "Menu", botId: "b1", bot: "Ada")
+        XCTAssertEqual(Pages.shared.chips(botId: "b1", pages: [page], features: ["pages", "document-viewer"]).map(\.slug), ["menu"])
+        XCTAssertTrue(Pages.shared.chips(botId: "b1", pages: [page], features: ["pages"]).isEmpty)
+        let opening = DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title, from: "Ada")
+        XCTAssertEqual(opening.slug, "menu")
+        XCTAssertNotNil(ImageRenderer(content: PageChip(page: page) {}.frame(width: 320)).cgImage)
+    }
+
     /// A reply's "Learned" chips: the shared words, cut to Android's length from a server before memory-chips.
     func testALearnedChipIsCutAsAndroidsBeforeMemoryChips() {
         let long = String(repeating: "x", count: 120)
