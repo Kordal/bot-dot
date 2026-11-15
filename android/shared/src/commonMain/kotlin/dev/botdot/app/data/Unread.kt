@@ -36,7 +36,7 @@ object Unread {
     fun <T : Any> line(had: T?, unread: Int, firstUnread: T?): T? = if (unread > 0 && firstUnread != null) firstUnread else had
 
     /** What started a run, as its chat shows it above the reply. */
-    enum class Asked { REPLIES, MESSAGE, JOB, SCHEDULE, HELLO, REMINDER, CARRIED_ON, USUAL, MINE }
+    enum class Asked { REPLIES, MESSAGE, JOB, SCHEDULE, HELLO, REMINDER, WATCH, CARRIED_ON, USUAL, MINE }
 
     /** The one place that says what started a run: the chat draws from it, and the "New" line is placed by it. */
     fun asked(r: Run): Asked = when {
@@ -46,6 +46,7 @@ object Unread {
         r.jobName != null -> Asked.JOB
         r.trigger == "schedule" -> Asked.SCHEDULE
         r.trigger == "hello" -> Asked.HELLO // a new bot's first message (#511): nobody asked, nothing stands above it
+        r.trigger == "watch" -> Asked.WATCH // a watch it set ended (ADR 247): its name, as a job's run has its job's
         r.trigger == "project" -> Asked.HELLO // a lead's work for its project that botdot started (#696): drawn the same way
         r.kind == "reminder" -> Asked.REMINDER // a reminder it set went off (#343): botdot posted it, nobody asked
         // After the owner's OK it goes on with a request that stands above the first reply: nothing is drawn for it
