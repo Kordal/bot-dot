@@ -202,15 +202,15 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
     /** What it watches (ADR 247); an older botdot has none to show. */
     private suspend fun readWatches() {
         val a = app.api.value ?: return
+        if (app.store.version.value.value?.features?.contains("watches") != true) return // an older botdot has none
         runCatching { a.watches(botId) }.onSuccess { watches = it }
     }
 
     /** Stop on a watch: gone at once here, and on the server. */
     fun stopWatch(id: String) {
-        val before = watches
         watches = watches.filterNot { it.id == id }
         viewModelScope.launch {
-            try { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopWatch(botId, id) } catch (e: CancellationException) { throw e } catch (e: Exception) { watches = before; _notes.tryEmit(e.message ?: tr("Couldn't stop it")) }
+            try { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopWatch(botId, id) } catch (e: CancellationException) { throw e } catch (e: Exception) { _notes.tryEmit(e.message ?: tr("Couldn't stop it")); readWatches() } // as the server has them
         }
     }
 

@@ -13,12 +13,13 @@ A bot that waits for something outside (a pull request to be merged, its checks 
 - **Three fixed kinds**, so no script and no card: a GitHub pull request (merged or closed, every check of its newest commit finished, a new review or comment, any change), an address read with GET (a value of its JSON, a text there or gone, any change), and a mail in the owner's Gmail that came after it was set. What it reads is data: the woken run gets a few lines of it inside a block, beside its own `then`.
 - **Safe reads.** Without a login only a public https address is read, its address checked and pinned against DNS rebinding as a login's is. A private repository or the owner's own server needs a saved login shared with the bot; its secret goes only to the login's own hosts (vault-http.js). The Chief's watches take no login.
 - **The first read is at once.** A wrong address or a missing login is said to the bot in its tool's answer, and something already so is said instead of watched.
-- **Waking.** A bot is started with a run of `trigger: "watch"`, queued like a lead's project work when it is busy; its reply is in its chat. The Chief's end is a check (ADR 175, P3), so a look says what it found, within the day's rules.
+- **Waking.** A wake the bot's queue could not take keeps the watch, which tries again at the next read, reading nothing more. A bot is started with a run of `trigger: "watch"`, queued like a lead's project work when it is busy; its reply is in its chat. The Chief's end is a check (ADR 175, P3), so a look says what it found, within the day's rules.
 - **Seen and stopped.** Each watch is a chip at the end of its bot's chat with its name, its deadline and a button that stops it. At most 10 per bot and 10 for the Chief, 14 days at most. Bots are told to watch instead of promising to look again.
 
 ## Alternatives
 
 - **A job with a script and `aiWhen: "output"`.** It does the same reading, but its script waits for the owner's OK and it never ends by itself.
+- **The jobs' scheduler reading them.** Its minute starts runs and scripts of the bots; a watch's read is a few seconds of network that must never hold a job's minute back, and many watches read at once. The reads have their own short timer; what they start goes through the bots' queue (`startOrQueue`) and the Chief's checks (ADR 175), the same ways a job or a promised check (#1229) reaches them.
 - **GitHub webhooks.** A server at home (`BOT_DOT_REACH=local`) has no public address, and a webhook needs setting up per repository. Reading every few minutes works on every server; webhooks can come later for hosted machines.
 - **Through the connected GitHub app (Composio).** Its action names and accounts differ by connection; GitHub's own API with a token or none is simpler. Later, if owners connect GitHub only there.
 

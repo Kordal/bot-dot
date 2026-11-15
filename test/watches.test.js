@@ -165,6 +165,22 @@ test('the deadline and reads that keep failing end it too, saying why; a stopped
   assert.equal(fired.length, 2, 'stopped: nothing more');
 });
 
+test('a wake that could not be taken keeps the watch and is tried again, reading nothing more', async () => {
+  let reads = 0;
+  let answer = 'full';
+  const woke = [];
+  const w = W.create({ dataDir: dir(), deps: { get: async () => { reads++; return res(reads > 1 ? 'b' : 'a'); }, mail: async () => [] }, fire: (watch, why) => { woke.push(why); return answer; }, log: () => {} });
+  await w.add({ url: 'https://a.example/', is: 'b', then: 'x' }, { botId: 'b1' });
+  await w.tick(later(6));
+  assert.deepEqual(woke, ['met']);
+  assert.equal(w.list('b1').length, 1, 'kept: its bot could not take it');
+  answer = 'queued';
+  await w.tick(later(7));
+  assert.deepEqual(woke, ['met', 'met']);
+  assert.equal(reads, 2, 'nothing read again');
+  assert.equal(w.list('b1').length, 0);
+});
+
 test("at most 10 at once; the Chief's need no login; a deleted bot's go with it", async () => {
   let alive = true;
   const { w } = harness(async () => res('a'), { alive: () => alive });
