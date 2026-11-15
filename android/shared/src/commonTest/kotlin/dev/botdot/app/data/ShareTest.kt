@@ -155,6 +155,33 @@ class ShareTest {
         assertEquals(1, fake.asked().count { it.path.startsWith("/uploads") }, "its file uploaded once")
     }
 
+    @Test fun anotherOnePickedAfterAFailureUploadsForItAndMakesItsOwnConversation() = runTest {
+        var botFails = true
+        var chiefFails = true
+        val fake = FakeBotdot { a ->
+            when {
+                a.path.startsWith("/uploads") -> 200 to uploaded
+                a.path == "/bots/b1/run" -> if (botFails) { botFails = false; 504 to """{"error":"It took too long."}""" } else 200 to """{"id":"r1"}"""
+                a.method == "POST" && a.path == "/chief/chats" -> 200 to """{"id":"c9"}"""
+                a.path == "/chief/chats/c9/messages" -> if (chiefFails) { chiefFails = false; 504 to """{"error":"It took too long."}""" } else 200 to """{"id":"c9"}"""
+                else -> 404 to "{}"
+            }
+        }
+        val pending = Share.Pending()
+        val menu = listOf(file("menu.pdf"))
+        // To the bot, failed; then the Chief instead.
+        assertEquals("It took too long.", Share.send(fake.api, "b1", "Look", menu, pending = pending))
+        assertEquals("It took too long.", Share.send(fake.api, Share.CHIEF, "Look", menu, pending = pending))
+        val ups = fake.asked().filter { it.path.startsWith("/uploads") }.map { it.query }
+        assertEquals(listOf("to=bot%3Ab1", "to=chief"), ups, "uploaded again, for the Chief")
+        assertEquals(1, fake.asked().count { it.method == "POST" && it.path == "/chief/chats" }, "its own conversation, made")
+        // And back to the bot: the Chief's conversation is not the bot's, its file goes up for the bot again.
+        assertNull(Share.send(fake.api, "b1", "Look", menu, pending = pending))
+        assertEquals(listOf("to=bot%3Ab1", "to=chief", "to=bot%3Ab1"), fake.asked().filter { it.path.startsWith("/uploads") }.map { it.query })
+        assertEquals(1, fake.asked().count { it.method == "POST" && it.path == "/chief/chats" }, "no conversation for a bot")
+        assertEquals(2, fake.asked().count { it.path == "/bots/b1/run" })
+    }
+
     @Test fun nothingIsSentWithoutWordsOrFilesAndARefusalSaysWhy() = runTest {
         val fake = FakeBotdot { 409 to """{"error":"The bot is paused."}""" }
         assertEquals("Nothing to send", Share.send(fake.api, "b1", "  ", emptyList()))
