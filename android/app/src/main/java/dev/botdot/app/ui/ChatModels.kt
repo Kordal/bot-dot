@@ -93,7 +93,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
     private val taking = HashSet<String>() // being taken back now
     var waiting by mutableStateOf<List<InboxNote>>(emptyList()) // notes for its next run
         private set
-    var watches by mutableStateOf<List<dev.botdot.app.data.Watch>>(emptyList()) // what it watches (ADR 247)
+    var watches by mutableStateOf<List<dev.botdot.app.data.Watch>>(emptyList()) // what it watches (ADR 248)
         private set
     var loaded by mutableStateOf(false)
         private set
@@ -168,7 +168,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
                     ev.type.startsWith("run_") && ev.data.str("botId") == botId -> kicks.tryEmit(Unit)
                     ev.type == "bot_message" && (ev.data["to"] as? JsonObject)?.str("id") == botId -> kicks.tryEmit(Unit)
                     ev.type == "notes_held" && ev.data.str("botId") == botId -> kicks.tryEmit(Unit) // the wake gate held a note (ADR 083)
-                    ev.type == "watches" && ev.data.str("botId") == botId -> viewModelScope.launch { readWatches() } // set, read, ended or stopped (ADR 247)
+                    ev.type == "watches" && ev.data.str("botId") == botId -> viewModelScope.launch { readWatches() } // set, read, ended or stopped (ADR 248)
                     // While it works, a card came, went or changed: an action in a connected app may have begun or
                     // ended its wait for the owner's OK, which the run says in this list (`waitingFor`).
                     ev.type == "asks" && all.any { it.isRunning } -> kicks.tryEmit(Unit)
@@ -199,7 +199,7 @@ class BotChatModel(private val app: BotDotApp, val botId: String) : ViewModel() 
         readWatches()
     }
 
-    /** What it watches (ADR 247); an older botdot has none to show. */
+    /** What it watches (ADR 248); an older botdot has none to show. */
     private suspend fun readWatches() {
         val a = app.api.value ?: return
         if (app.store.version.value.value?.features?.contains("watches") != true) return // an older botdot has none
