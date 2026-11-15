@@ -41,6 +41,8 @@ struct ChiefSettingsView: View {
         .navigationTitle(home.store.chiefName.value)
         .navigationBarTitleDisplayMode(.inline)
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
+        // A page's keeping can change in the viewer: read the pages again when it closes, as Android does.
+        .onChange(of: opening == nil) { _, closed in if closed { Task { try? await model?.desk.pagesAgain() } } }
         .modifier(NoticeOverlay(notice: model?.state?.notice, count: Int(model?.state?.noticeCount ?? 0)))
         .task {
             if model == nil { model = ChiefSettingsModel(home: home) }
