@@ -124,6 +124,15 @@ class CompanySetupDesk(private val store: Store, private val api: Api, private v
         }
     }
 
+    /**
+     * A file picked that this phone couldn't read (not downloaded from iCloud, not allowed, no room for its copy): shown
+     * as failed, red, so Go waits until it is taken off or added again, as an upload that failed.
+     */
+    fun addFailed(name: String) {
+        if (local.value.sources.size >= CompanySetup.MAX_SOURCES) return say(tr("Add at most 20 sources."))
+        local.update { it.copy(sources = it.sources + SourceDraft(newKey(), "file", name, failed = true)) }
+    }
+
     fun removeSource(id: String) = local.update { l -> l.copy(sources = l.sources.filterNot { it.id == id }) }
 
     /** Go, with what was typed: the project is made, and its setup opens (with the Chief, where botdot has that). */

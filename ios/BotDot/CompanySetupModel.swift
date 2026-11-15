@@ -45,7 +45,8 @@ final class CompanySetupModel {
             let open = url.startAccessingSecurityScopedResource()
             defer { if open { url.stopAccessingSecurityScopedResource() } }
             let copy = picked.appendingPathComponent(UUID().uuidString).appendingPathExtension(url.pathExtension)
-            guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { continue }
+            // Not read (in iCloud only, not allowed, no room): a red chip, so Go waits, not a file quietly left out.
+            guard (try? FileManager.default.copyItem(at: url, to: copy)) != nil else { store.addFailed(name: url.lastPathComponent); continue }
             store.addFile(path: copy.path, name: url.lastPathComponent)
         }
     }

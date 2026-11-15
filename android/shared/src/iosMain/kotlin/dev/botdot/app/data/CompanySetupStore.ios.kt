@@ -27,6 +27,9 @@ class CompanySetupStore(private val home: HomeStore) {
     /** A file picked on this phone, at [path] (a copy the app may read), uploaded for the Chief. */
     fun addFile(path: String, name: String) = desk.addFile(outgoingFile(path, name))
 
+    /** A file picked that couldn't be read here: a red chip that holds Go. */
+    fun addFailed(name: String) = desk.addFailed(name)
+
     fun removeSource(id: String) = desk.removeSource(id)
 
     @Throws(Exception::class) suspend fun go(typed: String): Boolean = desk.go(typed)

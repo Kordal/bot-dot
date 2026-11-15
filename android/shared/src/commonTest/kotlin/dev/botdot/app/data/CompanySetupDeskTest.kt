@@ -126,6 +126,19 @@ class CompanySetupDeskTest {
         assertTrue(fake.asked().none { it.path == "/company" }, "nothing was made")
     }
 
+    @Test fun aFilePickedThatCouldNotBeReadIsRedAndHoldsGo() = runTest {
+        val fake = FakeBotdot { 200 to talking }
+        val (_, desk) = desk(fake)
+        runCurrent()
+        desk.addFailed("plan.numbers")
+        until("a red chip") { desk.state.value.sources.singleOrNull()?.let { it.failed && it.name == "plan.numbers" } == true }
+        assertFalse(desk.go("A kitchen app"))
+        until("it says why") { desk.state.value.notice == "Remove failed files or add them again." }
+        assertTrue(fake.asked().isEmpty(), "nothing was sent")
+        desk.removeSource(desk.state.value.sources.single().id)
+        assertTrue(desk.go("A kitchen app"), "taken off: Go goes")
+    }
+
     @Test fun twoGoTapsAtOnceMakeOneProject() = runTest {
         repeat(20) { round ->
             val held = CompletableDeferred<Unit>()
