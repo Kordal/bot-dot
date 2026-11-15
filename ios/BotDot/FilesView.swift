@@ -145,7 +145,7 @@ struct FilesView: View {
             } label: { Label(tr("Share…"), systemImage: "square.and.arrow.up") }
         }
         if can.move { Button { carrying = model.carry(true, e) } label: { Label(tr("Move to…"), systemImage: "folder") } }
-        if can.copy { Button { carrying = model.carry(false, e) } label: { Label(tr("Copy to…"), systemImage: "doc.on.doc") } }
+        if can.copies { Button { carrying = model.carry(false, e) } label: { Label(tr("Copy to…"), systemImage: "doc.on.doc") } }
         if can.keep { Button { Task { await model.keep(e, true) } } label: { Label(tr("Keep in mind"), systemImage: "pin") } }
         if can.unpin { Button { Task { await model.keep(e, false) } } label: { Label(tr("Unpin"), systemImage: "pin.slash") } }
         if can.delete {
