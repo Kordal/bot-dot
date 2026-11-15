@@ -186,7 +186,9 @@ struct ProjectPage: View {
         .safeAreaInset(edge: .bottom) { chatField }
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure, onDeleted: { settings = false; dismiss() },
                                 onFolder: model.state?.project?.folder == nil ? nil : { if let c = model.state?.project { settings = false; file(c, nil) } }) }
-        .navigationDestination(isPresented: $teamPage) { ProjectTeamView(model: model, figure: figure) }
+        .navigationDestination(isPresented: $teamPage) {
+            ProjectTeamView(model: model, figure: figure) { if let s = model.state { teamKeys(s) } }
+        }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }
@@ -301,19 +303,24 @@ struct ProjectPage: View {
             .listRowSeparator(.hidden)
         }
         // With overview-board the teams are under Team (ADR 238), not on the board.
-        if !s.board {
-            ForEach(s.teams, id: \.team.id) { t in
-                teamRow(t).listRowSeparator(.hidden)
-            }
+        if s.teamsOnBoard { teamKeys(s) }
+        if s.replies {
+            OverviewTile(key: "replies", state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
         }
-        if s.ownBots && !s.board {
+    }
+
+    /// Its teams' rows and its own bots' keys: on the board, or with overview-board on its Team page (ADR 238), where
+    /// each still opens its team's panel and chat or its bot's chat.
+    @ViewBuilder
+    private func teamKeys(_ s: ProjectState) -> some View {
+        ForEach(s.teams, id: \.team.id) { t in
+            teamRow(t).listRowSeparator(.hidden)
+        }
+        if s.ownBots {
             OwnKeys(keys: s.own, figure: figure, busy: s.ownSaving, onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) }) {
                 picking = Picking(team: nil, title: tr("Add bot"), bots: s.addable)
             }
             .listRowSeparator(.hidden)
-        }
-        if s.replies {
-            OverviewTile(key: "replies", state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
         }
     }
 

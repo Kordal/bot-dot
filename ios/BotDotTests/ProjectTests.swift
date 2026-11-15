@@ -88,9 +88,29 @@ final class ProjectTests: XCTestCase {
         let saved = await model.saveTeam(nil, name: "Crew", bots: [], lead: nil)
         XCTAssertFalse(saved)
     }
-    /// With overview-board the teams are behind Team (ADR 238): its page draws from the project's model.
-    func testTheTeamPageDrawsFromTheProjectsModel() {
-        let model = ProjectModel(home: HomeStore(api: unreachableApi()))
-        XCTAssertNotNil(ImageRenderer(content: ProjectTeamView(model: model, figure: nil).frame(width: 320, height: 480)).cgImage)
+    /// With overview-board the teams are behind Team (ADR 238): a loaded project's teams and own bots leave the board
+    /// (teamsOnBoard) and the Team page lists them, each a row that opens its panel and chat.
+    func testWithOverviewBoardTheTeamPageListsTheTeamsAndOwnBotsTheBoardHides() async throws {
+        let home = HomeStore(api: unreachableApi())
+        let store = home.store
+        func bot(_ json: String) -> Bot { Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: json) as! Bot }
+        let model = ProjectModel(home: home)
+        model.start()
+        defer { model.stop() }
+        // The store's parts start again once it takes its botdot: what the test sets comes after.
+        try await Task.sleep(for: .milliseconds(300))
+        store.version.set(v: VersionInfo(app: "", version: "", revision: nil, short: nil, apiVersion: 0,
+                                         features: ["company", "project-bots", "project-overview", "overview-board"],
+                                         frontDoor: false, docker: false, boat: false, android: nil))
+        store.bots.set(v: [bot(#"{"id":"b1","name":"Ada"}"#), bot(#"{"id":"b3","name":"Cy"}"#)])
+        store.company.set(v: CompanyHeld(company: CompanySetup.shared.of(answer: #"{"id":"p1","name":"Kitchen","phase":"running","teams":[{"id":"t1","name":"Crew","bots":["b1"]}],"bots":["b3"]}"#)))
+        for _ in 0..<250 where model.state?.board != true || model.state?.teams.isEmpty != false { try await Task.sleep(for: .milliseconds(20)) }
+        let s = try XCTUnwrap(model.state)
+        XCTAssertTrue(s.board)
+        XCTAssertFalse(s.teamsOnBoard, "the board hides its teams and own bots")
+        XCTAssertEqual(s.teams.map { $0.team.name }, ["Crew"], "the Team page lists the team")
+        XCTAssertEqual(s.own.map { $0.bot.name }, ["Cy"], "and the own bot")
+        // The page takes the board's rows ([keys]); a Form doesn't draw off screen, so its lines are the state's above.
+        _ = ProjectTeamView(model: model, figure: nil) { ForEach(s.teams, id: \.team.id) { Text($0.team.name) } }
     }
 }

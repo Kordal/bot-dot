@@ -577,16 +577,19 @@ struct TeamSection: View {
     }
 }
 
-/// A project's Team page (ADR 238): with overview-board its team rows leave the board for here.
-struct ProjectTeamView: View {
+/// A project's Team page (ADR 238): with overview-board its team rows and own bots leave the board for here ([keys],
+/// the page's own, opening a team's panel and chat or a bot's chat), over the Team editor its settings have.
+struct ProjectTeamView<Keys: View>: View {
     let model: ProjectModel
     let figure: FigureDef?
+    @ViewBuilder let keys: () -> Keys
     @State private var team: TeamDraft?
     @State private var adding = false
 
     var body: some View {
         Form {
             if let s = model.state, let c = s.project {
+                if !s.teams.isEmpty || !s.own.isEmpty { Section { keys() } }
                 TeamSection(model: model, state: s, project: c, team: $team, adding: $adding)
             }
         }
