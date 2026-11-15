@@ -5,18 +5,36 @@ const path = require('node:path');
 
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', ...p), 'utf8');
 
-// A project's overview showed "Needs you" and its Review button with nothing waiting (2026-11-15).
-test('the project overview shows Needs you only when something waits (web)', () => {
+// 2026-11-15: a project's overview showed "Needs you" with only a Review button while nothing waited, and a bot's
+// question waiting for the owner stood under Blockers instead of in Needs you.
+test('web: Needs you on the overview holds the cards and the questions, and is gone when nothing waits', () => {
   const home = read('public', 'company-home.js');
   const body = home.slice(home.indexOf('function overviewHome('), home.indexOf('function teamHome('));
-  assert.match(body, /\$\{items\.length \? `<section class="po-section"><h2>\$\{tr\('Needs you'\)\}/);
-  assert.doesNotMatch(body, /\$\('\[data-po-needs\]', root\)\.onclick/); // the button is not there when nothing waits
+  assert.match(body, /\$\{items\.length \|\| questions\.length \? `<section class="po-section"><h2>\$\{tr\('Needs you'\)\}<\/h2>\$\{ProjectOverview\.rows\(questions\)\}\$\{needsHTML\(c, items\)\}<\/section>` : ''\}/);
+  assert.ok(body.indexOf('ProjectOverview.html(c)') < body.indexOf('ProjectOverview.questions(c)')); // the snapshot is asked for first
+  const po = read('public', 'project-overview.js');
+  assert.match(po, /rows\(d\.blockers\.filter\(\(x\) => x\.state !== 'asks'\), tr\('No failed work\.'\)\)/); // not shown twice
+  assert.match(po, /const questions = \(c\) => \(stateOf\(c\.id\)\.data\?\.blockers \|\| \[\]\)\.filter\(\(x\) => x\.state === 'asks'\)/);
 });
 
-test('the project overview shows Needs you only when something waits (Android)', () => {
-  const kt = read('android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui', 'CompanyHome.kt');
-  const at = kt.indexOf('Text(tr("Needs you")');
-  assert.ok(at > 0);
-  const before = kt.slice(kt.lastIndexOf('\n', kt.lastIndexOf('\n', at) - 1), at);
-  assert.match(before, /if \(here\.isNotEmpty\(\) \|\| chiefAsks\.isNotEmpty\(\)\)/);
+test('web: the overview rows draw nothing for an empty list without an empty line', () => {
+  const vm = require('node:vm');
+  const ctx = { state: {}, tr: (s) => s, esc: (s) => String(s), ago: () => 'now', setInterval: () => 0, document: {}, Company: {}, Dock: {}, Files: {} };
+  vm.createContext(ctx);
+  vm.runInContext(`${read('public', 'project-overview.js')}\nthis.ProjectOverview = ProjectOverview;`, ctx);
+  const PO = ctx.ProjectOverview;
+  assert.equal(PO.rows([]), '');
+  assert.match(PO.rows([], 'Empty.'), /po-empty/);
+  assert.match(PO.rows([{ botId: 'b1', name: 'Issue Reviewer', state: 'asks', text: 'Go ahead?', at: 'x' }]), /data-po-bot="b1"[\s\S]*Go ahead\?/);
+  assert.equal(PO.questions({ id: 'none' }).length, 0);
+});
+
+test('Android: Needs you on the overview holds the cards and the questions, and is gone when nothing waits', () => {
+  const dir = ['android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui'];
+  const home = read(...dir, 'CompanyHome.kt');
+  assert.match(home, /if \(here\.isNotEmpty\(\) \|\| chiefAsks\.isNotEmpty\(\) \|\| questions\.isNotEmpty\(\)\) \{\n\s+Text\(tr\("Needs you"\)/);
+  assert.doesNotMatch(home, /SmallButton\(tr\("Review"\), onClick = ways\.onNeeds\)/);
+  const po = read(...dir, 'ProjectOverview.kt');
+  assert.match(po, /val \(questions, blockers\) = snapshot\?\.blockers\.orEmpty\(\)\.partition \{ it\.state == "asks" \}/);
+  assert.match(po, /OverviewRows\(blockers, ::open, tr\("No failed work\."\)\)/);
 });

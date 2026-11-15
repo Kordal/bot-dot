@@ -36,7 +36,7 @@ import kotlinx.coroutines.delay
 
 /** A fixed reading order; polls only while this overview is composed, never starts the computer. */
 @Composable
-internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) {
+internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, needsYou: @Composable (questions: List<OverviewEntry>, open: (OverviewEntry) -> Unit) -> Unit = { _, _ -> }) {
     val p = LocalPaper.current
     val api by ui.app.api.collectAsState()
     val life = LocalLifecycleOwner.current
@@ -65,6 +65,9 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
             route.startsWith("chief/") -> ways.onChiefChat?.invoke(route.removePrefix("chief/"))
         }
     }
+    // The questions waiting for the owner stand in Needs you, above, not again under Blockers.
+    val (questions, blockers) = snapshot?.blockers.orEmpty().partition { it.state == "asks" }
+    needsYou(questions, ::open)
     Column(Modifier.fillMaxWidth().testTag("project-overview"), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         error?.let { Text("${tr("Couldn't refresh")}: $it" + if (snapshot != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
         snapshot?.let { Text(tr("Updated {when}", "when" to NotesWake.ago(it.at)), color = p.muted, fontSize = Type.s12) }
@@ -72,9 +75,9 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
         SmallButton(tr("Refresh")) { request++ }
         OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, tr("No recorded work."), ::open) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, tr("No failed work or open questions."), ::open) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, tr("No replies yet."), ::open) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, tr("No recorded work.")) }
+            OverviewSection(tr("Blockers")) { OverviewRows(blockers, ::open, tr("No failed work.")) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, tr("No replies yet.")) }
         }
         OverviewSection(tr("Files")) {
             filesError?.let { Text("${tr("Couldn't load files")}: $it" + if (files != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
@@ -104,9 +107,9 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun OverviewRows(items: List<OverviewEntry>, empty: String, open: (OverviewEntry) -> Unit) {
+internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null) {
     val p = LocalPaper.current
-    if (items.isEmpty()) Text(empty, color = p.muted)
+    if (items.isEmpty() && empty != null) Text(empty, color = p.muted)
     items.forEach { x ->
         val label = when (x.state) { "working" -> tr("Working"); "planned" -> tr("Planned"); "failed" -> tr("Failed"); "asks" -> tr("Asks"); else -> tr("Reply") }
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
