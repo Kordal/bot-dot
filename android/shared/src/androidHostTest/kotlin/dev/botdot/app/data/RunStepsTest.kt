@@ -63,6 +63,13 @@ class RunStepsTest {
         assertNull("code", RunSteps.folded("$text\n\n```\ncode\n```"))
     }
 
+    @Test fun aLongReplyThatAsksNeverFolds() {
+        val para = "word ".repeat(80).trim()
+        val text = "First.\n\n$para\n\nShould I move them to Tuesday?\n\n$para"
+        assertEquals("no buttons under it: it folds", "First.", RunSteps.folded(text))
+        assertNull("its answers stand under it: the question is never hidden", RunSteps.folded(text, asks = true))
+    }
+
     @Test fun aStepLineOpenedWhileItsRunWorksFoldsWhenTheRunEnds() {
         val working = run("""{"id":"w","botId":"b","prompt":"Test it","status":"running"}""")
         val ended = run("""{"id":"w","botId":"b","prompt":"Test it","status":"success","result":"Done."}""")
