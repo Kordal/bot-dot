@@ -160,8 +160,6 @@ struct RoomChatView: View {
     let figure: FigureDef?
     @State private var model: RoomChatModel?
     @State private var typed = ""
-    /// Where the cursor is in the box: the "@" picker reads the word before it.
-    @State private var selection: TextSelection?
     /// The newest message is in sight: the button to it shows while it isn't.
     @State private var atEnd = true
     @Environment(\.dismiss) private var dismiss
@@ -235,7 +233,7 @@ struct RoomChatView: View {
             if let note = model?.state?.note { Text(note).font(.footnote).foregroundStyle(.red) }
             mentionRows
             HStack(alignment: .bottom, spacing: 8) {
-                TextField(model?.state?.placeholder ?? "", text: $typed, selection: $selection, axis: .vertical)
+                TextField(model?.state?.placeholder ?? "", text: $typed, axis: .vertical)
                     .lineLimit(1...5)
                     .padding(10)
                     .background(.quaternary, in: .rect(cornerRadius: 18))
@@ -261,16 +259,13 @@ struct RoomChatView: View {
     /// The "@" picker of the room's bots, above the box: a tap puts the bot's mention in place of the "@…" typed.
     @ViewBuilder
     private var mentionRows: some View {
-        let cursor = Cursor.offset(of: selection, in: typed)
+        let cursor = typed.utf16.count
         let rows = model?.suggest(typed, cursor: cursor) ?? []
         if !rows.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
                 ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                     Button {
-                        if let picked = model?.pick(typed, cursor: cursor, row: row) {
-                            typed = picked.text
-                            selection = Cursor.at(Int(picked.cursor), in: picked.text)
-                        }
+                        if let picked = model?.pick(typed, cursor: cursor, row: row) { typed = picked.text }
                     } label: {
                         HStack(spacing: 8) {
                             Text(row.text).font(.subheadline.monospaced())
