@@ -23,7 +23,7 @@ class StorageDeskTest {
                 else -> 200 to answer
             }
         }
-        val desk = StorageDesk(backgroundScope, server.api)
+        val desk = StorageDesk(backgroundScope, server.api, emptyList())
         desk.load()
         with(desk.state.value) {
             assertEquals("Storage", title)
@@ -56,14 +56,26 @@ class StorageDeskTest {
             if (t.method == "POST") 200 to """{"checking":true}"""
             else { reads++; if (reads < 3) 200 to """{"checking":true}""" else 200 to answer }
         }
-        val desk = StorageDesk(backgroundScope, server.api)
+        val desk = StorageDesk(backgroundScope, server.api, emptyList())
         desk.check()
         assertFalse(desk.state.value.checking)
         assertEquals(3, reads, "read again while botdot measures")
-        val down = StorageDesk(backgroundScope, FakeServer { 503 to """{"error":"botdot is restarting"}""" }.api)
+        val down = StorageDesk(backgroundScope, FakeServer { 503 to """{"error":"botdot is restarting"}""" }.api, emptyList())
         down.load()
         assertNull(down.state.value.answer)
         assertEquals("botdot is restarting", down.state.value.error)
         runCurrent()
+    }
+    @Test fun aDeskGivenTheKeptFolderOpensThereOnceItIsRead() = runTest {
+        val desk = StorageDesk(backgroundScope, FakeServer { 200 to answer }.api, listOf("bots", "Ada"))
+        desk.load()
+        assertEquals("Ada", desk.state.value.title)
+        assertEquals(listOf("bots", "Ada"), desk.state.value.trail)
+        assertEquals(listOf("reports", "a.txt"), desk.state.value.rows.map { it.name })
+        assertTrue(desk.back())
+        assertEquals(listOf("bots"), desk.state.value.trail)
+        val gone = StorageDesk(backgroundScope, FakeServer { 200 to answer }.api, listOf("bots", "Nobody"))
+        gone.load()
+        assertEquals(emptyList(), gone.state.value.trail, "a folder that is no longer there: the groups")
     }
 }

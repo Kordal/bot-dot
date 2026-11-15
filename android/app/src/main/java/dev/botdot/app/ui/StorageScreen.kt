@@ -47,6 +47,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,8 +74,11 @@ fun StorageScreen(app: BotDotApp, onFiles: (owner: String, root: String, path: S
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
     // What it reads, the folder open, Check again, Delete and Clear are the shared StorageDesk's (one copy with the iPhone's).
-    val desk = remember(api) { api?.let { dev.botdot.app.data.StorageDesk(scope, it) } }
+    // The folder open is kept over a rotation or the process going, as it was before the desk: the desk starts there.
+    var kept by rememberSaveable { mutableStateOf(listOf<String>()) }
+    val desk = remember(api) { api?.let { dev.botdot.app.data.StorageDesk(scope, it, kept) } }
     val s = desk?.state?.collectAsState()?.value
+    LaunchedEffect(s?.trail) { s?.trail?.let { if (s.answer != null) kept = it } }
     var menu by remember { mutableStateOf<String?>(null) }
     var ask by remember { mutableStateOf<String?>(null) } // the key of the row whose question shows
     LaunchedEffect(desk) { desk?.load() }

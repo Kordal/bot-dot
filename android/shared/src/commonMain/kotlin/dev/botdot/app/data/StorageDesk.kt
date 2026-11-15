@@ -37,12 +37,14 @@ class StorageState(
  * Settings → Storage for both phones (docs/api.md, Storage; Android's StorageScreen): the total, the groups, the
  * largest files; a group or a folder [open]s to what it holds, largest first, and [back] goes up. Check again asks
  * botdot to measure again and reads it every few seconds while it does. Delete and Clear the caches ask first (the
- * phone's question, [deleteWords] / [clearWords]) and say what happened.
+ * phone's question, [deleteWords] / [clearWords]) and say what happened. It opens at [trail] (empty for the
+ * groups), so a phone that kept the folder open over a rotation opens there again once the answer is read.
  */
-class StorageDesk(private val scope: CoroutineScope, private val api: Api) {
+class StorageDesk(private val scope: CoroutineScope, private val api: Api, trail: List<String>) {
     private var answer: Storage.Answer? = null
     private var error: String? = null
-    private var trail: List<String> = emptyList()
+    /** The folder open; [trail] at first: one the phone kept over a rotation or its process going. */
+    private var trail: List<String> = trail
     private var busy = false
     private var notice: String? = null
     private var noticeCount = 0

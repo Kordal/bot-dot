@@ -136,7 +136,7 @@ class HomeStore(val api: Api) {
     /** The tiles-on-home sheet (#447): a long press on Home's Board cards. */
     fun homeTiles(): HomeTilesDesk = HomeTilesDesk(scope, api, store)
     /** Settings → Storage. */
-    fun storage(): StorageDesk = StorageDesk(scope, api)
+    fun storage(): StorageDesk = StorageDesk(scope, api, emptyList())
 
     /** The chat of the bot [botId], following this botdot's feed. [BotChat.stop] it when it is left. */
     fun chat(botId: String): BotChat = BotChat(scope, api, store, feed.events, botId, plans)
