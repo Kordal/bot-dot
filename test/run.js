@@ -2,6 +2,7 @@
 // npm test: the tests, then a check that they left no stand-in Claude (fixtures/fake-claude.js) of this
 // checkout running. One that outlives its test server goes on for hours, and they add up run after run.
 // Those already there before the tests began (an earlier run's) are not counted. Arguments go to node --test: options before the files, files after them.
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawn, execFileSync } = require('child_process');
@@ -17,7 +18,29 @@ function fakes() {
     .map((m) => ({ pid: Number(m[1]), command: m[2] }));
 }
 
+// Test servers' scratch folders (test/helpers.js) that a killed test process left: those older than STALE_MS, so a
+// run of another checkout at the same time keeps its own. → how many were removed.
+const SCRATCH_PREFIX = 'botdot-test-';
+const STALE_MS = 6 * 60 * 60 * 1000;
+function sweepScratch(root = os.tmpdir(), now = Date.now()) {
+  let removed = 0;
+  let names = [];
+  try { names = fs.readdirSync(root); } catch { return 0; }
+  for (const name of names) {
+    if (!name.startsWith(SCRATCH_PREFIX)) continue;
+    const dir = path.join(root, name);
+    try {
+      const st = fs.lstatSync(dir);
+      if (!st.isDirectory() || now - st.mtimeMs < STALE_MS) continue;
+      fs.rmSync(dir, { recursive: true, force: true });
+      removed++;
+    } catch { /* gone already, or not ours to remove */ }
+  }
+  return removed;
+}
+
 async function main() {
+  sweepScratch();
   let before;
   try { before = new Set(fakes().map((f) => f.pid)); } catch (e) { console.error(`No check for leftover stand-in Claudes: ps did not run (${e.message})`); }
   // Two test files per core: most of a test's time is spent waiting on its server, not computing.
@@ -45,5 +68,5 @@ async function main() {
   process.exit(code);
 }
 
-module.exports = { fakes };
+module.exports = { fakes, sweepScratch, STALE_MS };
 if (require.main === module) main();

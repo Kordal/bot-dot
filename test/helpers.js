@@ -40,11 +40,22 @@ const freePort = () => new Promise((resolve, reject) => {
   s.listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); });
 });
 
+// A test server's scratch folder (its data, backups included, about 33 MB) is removed when the test file's process
+// ends: left behind, they filled the disk run after run. One a killed process left is swept by npm test (run.js).
+const SCRATCH_PREFIX = 'botdot-test-';
+const scratchDirs = new Set();
+process.on('exit', () => {
+  for (const d of scratchDirs) {
+    try { fs.rmSync(d, { recursive: true, force: true }); } catch { /* a broker's folder of another user: the sweep's */ }
+  }
+});
+
 // Start a server. dir: reuse a scratch folder (to restart one). env: extra settings. wait: false returns it at once,
 // without waiting for it to answer (a server that is not expected to). account: the account it serves; its socket is
 // <dir>/fd/<account>/botdot.sock, where a real front door with FRONT_DOOR_SOCKETS=<dir>/fd looks for it.
 async function startServer({ dir, env = {}, broker = false, wait = true, account = 'tester', tries = 3 } = {}) {
-  dir ||= fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-test-'));
+  dir ||= fs.mkdtempSync(path.join(os.tmpdir(), SCRATCH_PREFIX));
+  if (path.basename(dir).startsWith(SCRATCH_PREFIX)) scratchDirs.add(dir);
   const data = path.join(dir, 'data');
   const out = path.join(dir, 'fake');
   const home = path.join(dir, 'home');
