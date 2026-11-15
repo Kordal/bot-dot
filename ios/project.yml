@@ -32,8 +32,9 @@ targets:
       - path: ../lib/figure.json
         buildPhase: resources
     dependencies:
-      # Built by `make ios` (./gradlew :shared:assembleBotdotSharedReleaseXCFramework); static, so nothing is embedded.
-      - framework: ../android/shared/build/XCFrameworks/release/BotdotShared.xcframework
+      # Built by `make ios` (./gradlew :shared:assembleBotdotSharedDebugXCFramework); static, so nothing is embedded.
+      # Debug: it links in seconds where Release takes minutes; an archive for TestFlight needs the Release one.
+      - framework: ../android/shared/build/XCFrameworks/debug/BotdotShared.xcframework
         embed: false
       - target: BotDotNotify
     settings:
