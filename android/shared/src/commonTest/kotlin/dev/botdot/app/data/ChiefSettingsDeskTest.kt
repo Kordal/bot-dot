@@ -141,4 +141,96 @@ class ChiefSettingsDeskTest {
         assertEquals(1, s.posts().count { it.path == "/api/settings/chief-name" }, "the rename went once, and was not cancelled")
         desk.close()
     }
+    /** A botdot whose actions can be refused ([fail]): grants, jobs and pages, with what the desk asked. */
+    private class Actions(var fail: Boolean = false) {
+        var pagesRead = 0
+        val server = FakeServer { t ->
+            when {
+                t.path == "/api/settings" && t.method == "GET" -> 200 to """{"settings":{"chiefRules":"Be brief"}}"""
+                t.path == "/api/settings" -> 200 to """{"settings":${t.body}}"""
+                t.path == "/api/chief/connector-actions" && t.method == "GET" -> 200 to """{"grants":[{"action":"send","label":"Send mail"},{"action":"post","label":"Post"}]}"""
+                t.path == "/api/chief/connector-actions" -> if (fail) 500 to """{"error":"Not now"}""" else 200 to """{"grants":[{"action":"post","label":"Post"}]}"""
+                t.path == "/api/chief/jobs" -> 200 to """{"jobs":[{"id":"j1","name":"Digest","when":"Every morning","on":true},{"id":"j2","name":"Backup","when":"Sundays","on":true}]}"""
+                t.path.startsWith("/api/chief/jobs/") && t.method == "PUT" -> if (fail) 500 to """{"error":"Not now"}""" else 200 to """{"id":"j1","name":"Digest","when":"Every morning","on":false}"""
+                t.path.startsWith("/api/chief/jobs/") -> if (fail) 500 to """{"error":"Not now"}""" else 200 to "{}"
+                t.path == "/api/bots/chief/pages" -> { pagesRead++; 200 to """{"pages":[{"slug":"p$pagesRead","title":"Page $pagesRead"}]}""" }
+                else -> 200 to "{}"
+            }
+        }
+    }
+
+    private fun TestScope.actionDesk(a: Actions, events: MutableSharedFlow<FeedEvent> = MutableSharedFlow()): ChiefSettingsDesk {
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        store.version.set(VersionInfo(features = listOf(ChiefJobs.FEATURE, Checkup.FEATURE, ChiefGrant.Kind.APP.feature, Pages.FEATURE, DocumentView.FEATURE, Pages.FEATURE_CHIEF)))
+        return ChiefSettingsDesk(backgroundScope, a.server.api, store, events)
+    }
+
+    @Test fun revokeTakesTheGrantOffAndSaysSoOrWhyNot() = runTest {
+        val a = Actions()
+        val desk = actionDesk(a)
+        desk.load()
+        val send = desk.state.value.grants.first { it.id == "send" }
+        desk.revoke(send)
+        assertEquals(listOf("post"), desk.state.value.grants.map { it.id })
+        assertEquals(ChiefGrant.REVOKED, desk.state.value.notice)
+        a.fail = true
+        desk.revoke(desk.state.value.grants.single())
+        assertEquals(listOf("post"), desk.state.value.grants.map { it.id }, "refused: it stays")
+        assertEquals("Not now", desk.state.value.notice)
+        desk.close()
+    }
+
+    @Test fun aJobsSwitchAndRemoveActAtOnceOrSayWhyNot() = runTest {
+        val a = Actions()
+        val desk = actionDesk(a)
+        desk.load()
+        desk.setJobOn("j1", false)
+        assertEquals(listOf(false, true), desk.state.value.jobs?.map { it.on })
+        desk.removeJob("j2")
+        assertEquals(listOf("j1"), desk.state.value.jobs?.map { it.id })
+        assertEquals("Removed.", desk.state.value.notice)
+        a.fail = true
+        desk.setJobOn("j1", true)
+        assertEquals(false, desk.state.value.jobs?.single()?.on, "refused: as it was")
+        assertEquals("Not now", desk.state.value.notice)
+        desk.removeJob("j1")
+        assertEquals(listOf("j1"), desk.state.value.jobs?.map { it.id }, "refused: it stays")
+        desk.close()
+    }
+
+    @Test fun theFeedsCheckupAndJobsAreFollowedUntilItCloses() = runTest {
+        val events = MutableSharedFlow<FeedEvent>(extraBufferCapacity = 4)
+        val desk = actionDesk(Actions(), events)
+        desk.load()
+        runCurrent()
+        events.emit(FeedEvent(null, Checkup.FEATURE, Api.JSON.parseToJsonElement("""{"on":false,"webSearch":true,"when":"Mondays"}""").let { it as kotlinx.serialization.json.JsonObject }))
+        events.emit(FeedEvent(null, "chief_jobs", Api.JSON.parseToJsonElement("""{"jobs":[{"id":"j9","name":"New","when":"Daily","on":true}]}""") as kotlinx.serialization.json.JsonObject))
+        runCurrent()
+        assertEquals("Mondays", desk.state.value.checkup?.caption)
+        assertEquals(listOf("j9"), desk.state.value.jobs?.map { it.id })
+        desk.close()
+        runCurrent()
+        events.emit(FeedEvent(null, "chief_jobs", Api.JSON.parseToJsonElement("""{"jobs":[]}""") as kotlinx.serialization.json.JsonObject))
+        runCurrent()
+        assertEquals(listOf("j9"), desk.state.value.jobs?.map { it.id }, "closed: it follows the feed no more")
+    }
+
+    @Test fun pagesAgainReadsItsPagesAgain() = runTest {
+        val a = Actions()
+        val desk = actionDesk(a)
+        desk.load()
+        val first = desk.state.value.pages?.single()?.title
+        desk.pagesAgain()
+        assertTrue(desk.state.value.pages?.single()?.title != first, "read again")
+        desk.close()
+    }
+
+    @Test fun readAgainAnEditNotSavedYetStays() = runTest {
+        val desk = actionDesk(Actions())
+        desk.load()
+        desk.setRules("Typed, not saved yet")
+        desk.load() // back from a page: read again
+        assertEquals("Typed, not saved yet", desk.state.value.rules)
+        desk.close()
+    }
 }

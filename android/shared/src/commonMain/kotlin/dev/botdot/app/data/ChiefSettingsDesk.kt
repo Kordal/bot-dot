@@ -83,7 +83,12 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     /** Everything it shows, then what the feed and the store bring while it is open. */
     @Throws(Exception::class)
     suspend fun load() {
-        try { info = api.settings(); edit = info.settings } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't load")) }
+        try {
+            val before = info.settings
+            info = api.settings()
+            // Read again: an edit not saved yet (it differs from what was read before) stays.
+            if (!loaded || edit == before) edit = info.settings
+        } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message ?: tr("Couldn't load")) }
         val f = features
         readFeatured(f)
         val first = !loaded

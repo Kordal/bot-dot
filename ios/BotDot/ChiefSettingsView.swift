@@ -45,9 +45,14 @@ struct ChiefSettingsView: View {
         .onChange(of: opening == nil) { _, closed in if closed { Task { try? await model?.desk.pagesAgain() } } }
         .modifier(NoticeOverlay(notice: model?.state?.notice, count: Int(model?.state?.noticeCount ?? 0)))
         .task {
-            if model == nil { model = ChiefSettingsModel(home: home) }
-            model?.start()
-            try? await model?.desk.load()
+            // Read only when the model was just made: back from a page, what is being typed stays (its pages are read again on close).
+            if model == nil {
+                model = ChiefSettingsModel(home: home)
+                model?.start()
+                try? await model?.desk.load()
+            } else {
+                model?.start()
+            }
         }
         // A page opened in the viewer hides this screen too: keep following then; stop only when it is left.
         .onDisappear { if opening == nil { model?.stop(); model = nil } }
