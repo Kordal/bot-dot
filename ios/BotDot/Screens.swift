@@ -1,5 +1,6 @@
 import SwiftUI
 import AuthenticationServices
+import BotdotShared
 
 /// The app's screens: the address, the sign-in, and Home once signed in. Dark, as the Android app (#14).
 struct RootView: View {
