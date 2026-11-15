@@ -2,6 +2,7 @@ package dev.botdot.app.ui
 
 import dev.botdot.app.data.Ended
 import dev.botdot.app.data.endedWords
+import dev.botdot.app.data.replyText
 import dev.botdot.app.data.takesOnce
 import dev.botdot.app.data.lineWith
 import dev.botdot.app.data.isGoOn
@@ -628,6 +629,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
     val color = bot?.color ?: r.botColor ?: GONE_COLOR
     val footer = shortTime(r.endedAt ?: r.startedAt)
     val whole = announces(features, MEMORY_CHIPS)
+    val text = replyText(r, asks) // a closed card's questions stand at the end of the reply
     val learned: List<Pair<CharSequence, (() -> Unit)?>> = r.learned.orEmpty().map { it.line(features) to null }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Box(Modifier.padding(top = Space.s16)) { BotFigure(color, if (r.status == "error") "failed" else "idle", 28, bot?.outfit) }
@@ -636,10 +638,10 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             Text(bot?.name ?: r.botName.ifBlank { tr("A bot") }, color = parseColor(color, p.muted), fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
             r.asked.orEmpty().filter { it.text.isNotBlank() }.forEach { AskedFold(it) }
             when (r.status) {
-                "success" -> TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole) {
+                "success" -> TheirBubble(footer, copyText = text, chips = learned, wholeChips = whole) {
                     // A path in its reply opens in the viewer (#251), from its own folder or the computer.
                     CompositionLocalProvider(LocalPathActions provides rememberPathActions(r.botId, bot?.name ?: r.botName), LocalProductSaver provides r.botId) {
-                        Column { MarkdownText(r.result.orEmpty().ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(r.result, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
+                        Column { MarkdownText(text.ifBlank { if (r.files.isNullOrEmpty()) tr("Done.") else "" }); OpenAsDocument(text, bot?.name ?: r.botName); BotFilesRow(r.files); PlanFold(r.plan) }
                     }
                 }
                 else -> when (val ended = endedWords(r, features)) {

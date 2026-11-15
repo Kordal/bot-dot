@@ -380,6 +380,13 @@ const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length
 const questionsHTML = (questions, picks, of = '') => (questions?.length
   ? `<div class="ask-card card"${of ? ` data-of="${esc(of)}"` : ''}>${questions.map((q, i) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea>${picks?.[i]?.length ? `<span class="ask-picks">${picks[i].map((c) => `<button type="button" class="btn" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</span>` : ''}</label>`).join('')}<button class="btn primary sm" data-send disabled>${tr('Send')}</button></div>`
   : '');
+// A run's reply as its bubble draws it. A reply that asked several questions at once had them taken off its text for
+// its card; once that card is closed (answered, or ended by another message) they are part of what it said, so they
+// stand at its end as a list. open: its card stands under it. Android's replyText has the same rule.
+function replyText(r, open) {
+  const asked = open ? [] : (r.questions || []).filter((q) => String(q).trim());
+  return asked.length ? `${String(r.result || '').trimEnd()}\n\n${asked.map((q) => `- ${q}`).join('\n')}`.trim() : String(r.result || '');
+}
 // send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
 // as long as the page is open (answerKey), or without `of` for as long as it is drawn; a card for as long as its
