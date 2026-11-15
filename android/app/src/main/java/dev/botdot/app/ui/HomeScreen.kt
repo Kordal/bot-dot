@@ -186,12 +186,9 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val dash by store.dashboard.value.collectAsState()
     // The tiles on home, chosen in a sheet (#447): a long press on the Board's strip.
     var choosingHome by remember { mutableStateOf(false) }
-    dash?.takeIf { choosingHome }?.let { d ->
-        HomeTilesSheet(d, save = { ids ->
-            runCatching { api!!.setHomeTiles(ids) }.onFailure { android.widget.Toast.makeText(context, it.message ?: tr("Couldn't save"), android.widget.Toast.LENGTH_LONG).show() }.getOrThrow()
-            store.dashboard.refresh()
-        }, onDismiss = { choosingHome = false })
-    }
+    val tilesScope = rememberCoroutineScope()
+    val tilesDesk = remember(api) { api?.let { dev.botdot.app.data.HomeTilesDesk(tilesScope, it, store) } }
+    if (choosingHome && dash != null && tilesDesk != null) HomeTilesSheet(tilesDesk, onDismiss = { choosingHome = false })
     // The Board's line is looked at again while the list is in front, at once and then once a minute, so a tile's
     // "5 minutes ago" moves on (botdot works out those words when it is asked).
     val life = LocalLifecycleOwner.current
