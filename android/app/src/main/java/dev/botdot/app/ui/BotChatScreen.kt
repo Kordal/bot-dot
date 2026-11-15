@@ -1,6 +1,7 @@
 package dev.botdot.app.ui
 
 import dev.botdot.app.data.endedWords
+import dev.botdot.app.data.replyText
 import dev.botdot.app.data.Ended
 import dev.botdot.app.data.ENDED_BY
 import dev.botdot.app.data.without
@@ -287,12 +288,13 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                 if (steps) StepLine(r, runLines[r.id], maxOf(runSteps[r.id] ?: 0, r.steps?.count ?: 0), r.waitsForOk || r.id in heldRuns, bot?.color,
                                     open = RunSteps.open(stepsOpen, r), onOpen = { if (it) stepsOpen[r.id] = r.isRunning else stepsOpen.remove(r.id) }, onStop = { vm.stop(r.id) })
                                 val theirs = @Composable {
-                                    TheirSide(r, open = r.id in opened, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
+                                    val asksHere = (r.id in askedIn || (r.id == lastReply && !r.asks)) && r.status == "success"
+                                    TheirSide(r, open = r.id in opened, asksOpen = asksHere, features = features, timed = steps, draft = vm.drafts[r.id], plan = r.plan?.takeIf { r.id != planView?.id },
                                         learned = r.learned.orEmpty().filter { it.kind !in RunSteps.SKILL_KINDS }.map { x -> x.line(features) to when (x.opens) { Learned.Opens.JOBS -> onJobs; Learned.Opens.SETTINGS -> ({ onLearned(x.opensSkill) }); null -> null } })
                                     // Under the reply that is last in the chat, and under the run its open question is from when newer
                                     // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
                                     // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).
-                                    if ((r.id in askedIn || (r.id == lastReply && !r.asks)) && r.status == "success") {
+                                    if (asksHere) {
                                         Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key, r.id) }
                                         Questions(r.questions, r.questionChoices) { text, key -> sendFrom(text, key, r.id) }
                                     }
@@ -347,7 +349,7 @@ private fun drawsAsked(r: Run): Boolean = !r.inbox.isNullOrEmpty() || when (Unre
 }
 
 @Composable
-private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList(), timed: Boolean = false) {
+private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features: Collection<String>? = null, draft: String? = null, plan: Plan? = null, learned: List<Pair<String, (() -> Unit)?>> = emptyList(), timed: Boolean = false) {
     val p = LocalPaper.current
     // [timed]: its step line says how long it took (#636), and its reply has no footer.
     val footer = if (timed) "" else listOf(shortTime(r.endedAt ?: r.startedAt), RunSteps.took(r.startedAt, r.endedAt)).filter { it.isNotEmpty() }.joinToString(" · ")
@@ -355,14 +357,16 @@ private fun TheirSide(r: Run, open: Boolean = false, features: Collection<String
     val whole = announces(features, MEMORY_CHIPS)
     val to = r.sentToAll?.takeIf { it.isNotEmpty() } ?: listOfNotNull(r.sentTo)
     // A long reply folds to its first paragraph and "More" (#625); a paragraph with a link is never folded.
-    val folded = remember(r.result) { RunSteps.folded(r.result) }
+    // A closed card's questions stand at the end of the reply (replyText).
+    val text = replyText(r, asksOpen)
+    val folded = remember(text) { RunSteps.folded(text) }
     var more by remember(r.id) { mutableStateOf(false) }
     val reply: @Composable () -> Unit = {
-        TheirBubble(footer, copyText = r.result, chips = learned, wholeChips = whole, plain = true) {
+        TheirBubble(footer, copyText = text, chips = learned, wholeChips = whole, plain = true) {
             Column {
-                MarkdownText((if (folded != null && !more) folded else r.result.orEmpty()).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
+                MarkdownText((if (folded != null && !more) folded else text).ifBlank { if (r.files.isNullOrEmpty() && r.pages.isEmpty() && r.reconnect.isEmpty()) tr("Done.") else "" })
                 if (folded != null && !more) Text(tr("More"), color = p.muted, fontSize = Type.s14, modifier = Modifier.clip(Radius.small).clickable { more = true }.padding(top = Space.s8, bottom = Space.s4))
-                OpenAsDocument(r.result, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect, r.botId); PlanFold(plan)
+                OpenAsDocument(text, r.botName); BotFilesRow(r.files); PageChips(r.botId, r.pages); ReconnectCards(r.reconnect, r.botId); PlanFold(plan)
             }
         }
     }

@@ -21,3 +21,16 @@ fun endedWords(r: Run, features: Collection<String>?): Ended {
     if (r.status == "stopped") return if (problem != null && features != null && ENDED_BY in features) Ended.Problem(problem) else Ended.Stopped()
     return Ended.Problem(problem ?: r.error?.ifBlank { null } ?: tr("It didn't finish ({status}).", "status" to r.status))
 }
+
+/**
+ * A reply's text as its bubble draws it. A reply that asked several questions at once had them taken off its text for
+ * its card ([Run.questions]); once that card is closed (answered, or ended by another message) the questions stand at
+ * the end of the text as a list, so what the bot asked never goes from the chat. [open]: its card stands under it.
+ * The web page's replyText has the same rule.
+ */
+fun replyText(r: Run, open: Boolean): String {
+    val text = r.result.orEmpty()
+    val asked = r.questions.orEmpty().filter { it.isNotBlank() }
+    if (open || asked.isEmpty()) return text
+    return (text.trimEnd() + "\n\n" + asked.joinToString("\n") { "- $it" }).trim()
+}

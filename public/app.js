@@ -380,6 +380,13 @@ const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length
 const questionsHTML = (questions, picks, of = '') => (questions?.length
   ? `<div class="ask-card card"${of ? ` data-of="${esc(of)}"` : ''}>${questions.map((q, i) => `<label><span>${esc(q)}</span><textarea rows="1" data-q="${esc(q)}"></textarea>${picks?.[i]?.length ? `<span class="ask-picks">${picks[i].map((c) => `<button type="button" class="btn" data-pick="${esc(c)}">${esc(c)}</button>`).join('')}</span>` : ''}</label>`).join('')}<button class="btn primary sm" data-send disabled>${tr('Send')}</button></div>`
   : '');
+// A run's reply as its bubble draws it. A reply that asked several questions at once had them taken off its text for
+// its card; once that card is closed (answered, or ended by another message) they are part of what it said, so they
+// stand at its end as a list. open: its card stands under it. Android's replyText has the same rule.
+function replyText(r, open) {
+  const asked = open ? [] : (r.questions || []).filter((q) => String(q).trim());
+  return asked.length ? `${String(r.result || '').trimEnd()}\n\n${asked.map((q) => `- ${q}`).join('\n')}`.trim() : String(r.result || '');
+}
 // send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
 // as long as the page is open (answerKey), or without `of` for as long as it is drawn; a card for as long as its
@@ -829,18 +836,37 @@ const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="$
 
 // [botId]: a bot's reply, whose product cards can be saved (products.js).
 function mdHTML(blocks, botId) { return mdParts(blocks, botId).join('\n'); }
+// A line of a block, its text escaped: code, struck, bold, italic and [words](address) links.
+function mdInline(t) {
+  return t
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (all, words, href) => isWebAddress(words)
+      ? `<a class="web-link" href="${href}" title="${href}" target="_blank" rel="noopener">${linkLabel(words)}</a>`
+      : `<a href="${href}" target="_blank" rel="noopener">${words}</a>`);
+}
+// A reply shown in a few lines (the project overview): one line per paragraph, title, quote or item ("• " or its
+// number), without code blocks, tables and rules; a reply that is only code is its first code block as one `code`
+// line, and one of only a table or a rule its words (the `preview` cases of test/fixtures/markdown-cases.json;
+// previewLines in Android's Markdown.kt, the same rules). Its lines are escaped.
+function previewLines(src) {
+  const blocks = mdBlocks(src);
+  const flat = (t) => t.replace(/\s*\n\s*/g, ' ').trim();
+  const lines = blocks.flatMap((b) => b.type === 'item' ? [`${b.number == null ? '•' : `${b.number}.`} ${flat(b.text)}`]
+    : ['para', 'heading', 'quote'].includes(b.type) ? [flat(b.text)] : []);
+  const code = blocks.find((b) => b.type === 'code' && flat(b.text));
+  if (lines.length) return lines;
+  if (code) return [`\`${flat(code.text)}\``];
+  const words = esc(String(src || '').replace(/\s+/g, ' ').trim());
+  return words ? [words] : [];
+}
+// Its HTML, links shortened as in a chat.
+function mdPreview(src) { return previewLines(src).map(mdInline).join('<br>'); }
 // The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
 function mdParts(blocks, botId) {
-  const inline = (t) =>
-    t
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
-      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (all, words, href) => isWebAddress(words)
-        ? `<a class="web-link" href="${href}" title="${href}" target="_blank" rel="noopener">${linkLabel(words)}</a>`
-        : `<a href="${href}" target="_blank" rel="noopener">${words}</a>`);
-  const text = (t) => t.split('\n').map(inline).join('<br>');
+  const text = (t) => t.split('\n').map(mdInline).join('<br>');
   const isItem = (i) => i < blocks.length && blocks[i].type === 'item';
   // The list that starts at blocks[i], its sub-lists inside their items: its HTML and the block after it.
   const list = (i) => {
@@ -863,7 +889,7 @@ function mdParts(blocks, botId) {
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i];
     if (b.type === 'item') { const l = list(i); out.push(l.html); i = l.next - 1; }
-    else if (b.type === 'heading') out.push(`<h${b.level}>${inline(b.text)}</h${b.level}>`);
+    else if (b.type === 'heading') out.push(`<h${b.level}>${mdInline(b.text)}</h${b.level}>`);
     else if (b.type === 'quote') out.push(`<blockquote>${text(b.text)}</blockquote>`);
     else if (b.type === 'rule') out.push('<hr>');
     // Shopping results are product cards (products.js), and their code when they can't be read.
@@ -871,7 +897,7 @@ function mdParts(blocks, botId) {
     // A diagram stays its code until the page draws it (diagrams.js), and is its code when it can't be. Its drawing
     // takes the place of the <pre> inside the box, so Copy stays in the corner and copies the source.
     else if (b.type === 'code') out.push(`<div class="code-block"><pre${b.lang === 'mermaid' ? ' class="mermaid-src"' : ''}><code>${b.text}</code></pre>${CODE_COPY_BTN}</div>`);
-    else if (b.type === 'table') out.push(tableHTML(b.rows, inline));
+    else if (b.type === 'table') out.push(tableHTML(b.rows, mdInline));
     else out.push(`<p>${text(b.text)}</p>`);
   }
   return out;
@@ -964,7 +990,7 @@ function linkifyChat(root) {
   while (walker.nextNode()) {
     const node = walker.currentNode;
     const parent = node.parentElement;
-    if (parent?.closest('.chat-thread .bubble') &&
+    if (parent?.closest('.chat-thread .bubble, .po-text') &&
         !parent.closest('a, code, pre, button, .mention, .diagram')) nodes.push(node);
   }
   for (const node of nodes) {
@@ -992,7 +1018,7 @@ function linkifyChat(root) {
 // A site's icon before each web link in a reply (#530, ADR 086), from botdot (/api/favicon), never from the site: a
 // grey globe where botdot keeps none. Only from a server whose `features` name `site-icons`.
 const GLOBE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
-const SITE_LINKS = '.bubble .md a[href^="http"]:not(.file-path):not([data-site-icon])';
+const SITE_LINKS = ':is(.bubble .md, .po-text) a[href^="http"]:not(.file-path):not([data-site-icon])';
 // The host botdot is asked for, or null for an address it would refuse (an IP address, a local name).
 function linkHost(href) {
   let host;

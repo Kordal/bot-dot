@@ -155,6 +155,7 @@ class RoomsDeskTest {
         assertEquals(listOf("Pip · bob"), rows.map { it.label }, "the room's bot, by its account")
         val picked = chat.pick("Hi @Pi now", 6, rows.single())!!
         assertEquals("Hi @Pip now", picked.text)
+        assertEquals(8, picked.cursor, "the cursor after the mention, before the rest of the message")
         assertTrue(chat.suggest("Hi @Pi now", 10).isEmpty(), "no \"@\" being typed at the cursor")
     }
 

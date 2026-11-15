@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.OverviewEntry
@@ -42,6 +43,8 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
     val snapshot = state.snapshot
     val files = state.files
     var request by remember(c.id) { mutableStateOf(0) }
+    val server by ui.app.store.version.value.collectAsState() // its features: whether links show their site's icon
+    val sites = sitesShown(server?.features)
     LaunchedEffect(desk, request, life) {
         val d = desk ?: return@LaunchedEffect
         life.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
@@ -64,11 +67,10 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays, 
         state.problem?.let { Text(it, color = p.err) }
         Text(state.status, color = p.muted, fontSize = if (snapshot != null) Type.s12 else androidx.compose.ui.unit.TextUnit.Unspecified)
         SmallButton(tr("Refresh")) { request++ }
-        OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, dev.botdot.app.data.Overviews.noWork) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, dev.botdot.app.data.Overviews.noBlockers) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, dev.botdot.app.data.Overviews.noReplies) }
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, ::open, dev.botdot.app.data.Overviews.noWork, sites) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.failures(), ::open, dev.botdot.app.data.Overviews.noBlockers, sites) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, ::open, dev.botdot.app.data.Overviews.noReplies, sites) }
         }
         OverviewSection(tr("Files")) {
             state.filesProblem?.let { Text(it, color = p.err) }
@@ -96,14 +98,19 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null) {
+internal fun OverviewRows(items: List<OverviewEntry>, open: (OverviewEntry) -> Unit, empty: String? = null, sites: Boolean = false) {
     val p = LocalPaper.current
     if (items.isEmpty() && empty != null) Text(empty, color = p.muted)
     items.forEach { x ->
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
             Text(dev.botdot.app.data.Overviews.meta(x), color = p.muted, fontSize = Type.s12)
-            Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
+            // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
+            if (x.text.isBlank()) Text(dev.botdot.app.data.Overviews.text(x), color = p.text)
+            else {
+                val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
+                Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
+            }
         }
     }
 }

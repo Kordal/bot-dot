@@ -85,7 +85,8 @@ struct ProjectOverviewView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(e.name).fontWeight(.semibold)
                         Text(Overviews.shared.meta(e: e)).font(.caption).foregroundStyle(.secondary)
-                        Text(Overviews.shared.text(e: e))
+                        // The bot's Markdown, as in its chat, in at most four lines (as Android's Overview).
+                        if e.text.isEmpty { Text(Overviews.shared.text(e: e)) } else { Text(MarkdownView.inline(e.text)).lineLimit(4) }
                     }
                 }
                 .buttonStyle(.plain)

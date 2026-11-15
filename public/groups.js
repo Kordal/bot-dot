@@ -525,7 +525,8 @@ function groupWaitingHTML(m, chat) {
 // the reply that asked (asks: that run's id).
 function groupReplyHTML(r, asks = null) {
   const failed = ['error', 'stopped', 'interrupted'].includes(r.status);
-  const body = failed ? r.problem || friendlyProblem(r, r.result) : r.result || tr('Done. (No written reply.)');
+  const open = asks === r.id && !failed; // the group's one open question: its card stands under it
+  const body = failed ? r.problem || friendlyProblem(r, r.result) : !open && r.questions?.length ? replyText(r, false) : r.result || tr('Done. (No written reply.)'); // a closed card's questions stand at its end
   const color = memberColor(r.botId, r.botColor);
   const bot = botById(r.botId);
   const meta = [msgTime(r.endedAt || r.startedAt), r.durationMs != null ? dur(r.durationMs) : null].filter(Boolean);
@@ -537,7 +538,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${globalThis.Plan && r.plan ? Plan.replyHTML(r.plan) : ''}</div>
       ${learnedChips(r)}
       <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
-      ${asks === r.id && !failed ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}
+      ${open ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}
     </div></div>`;
 }
 // The bots outside the group a turn asked (`asked`, ADR 219): one folded line each, opening to the question and what

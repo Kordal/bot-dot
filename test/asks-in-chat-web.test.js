@@ -147,3 +147,14 @@ test('web: a "New" line whose run the page does not hold is read first, then the
   await new Promise((r) => setTimeout(r, 10));
   assert.deepEqual(ctx.chatRuns('iw', 'q1').map((r) => r.id), ['q1'], 'the question is in the chat');
 });
+
+test("web: a card of questions that closed stays in the bot's chat: its questions stand at the end of the reply", () => {
+  const ctx = page();
+  vm.runInContext(cut('// A run\'s reply as its bubble draws it.', '// send(text, key) resolves'), ctx);
+  const asked = run('r1', 1, { result: 'Two things first.', questions: ['Which account?', 'Which day?'] });
+  const bot = { id: 'iw', name: 'Issue Writer', color: '#c46' };
+  const open = ctx.botThreadHTML({ ...bot, asks: { text: 'Which account? (+1 more)', runId: 'r1', at: at(1), open: [{ runId: 'r1' }] } }, [asked, run('r2', 5, { startedBy: 'chief' })]);
+  assert.doesNotMatch(open, /- Which account\?/, 'open: on its card only');
+  const closed = ctx.botThreadHTML(bot, [asked, run('r2', 5)]);
+  assert.match(closed, /Two things first\.\n\n- Which account\?\n- Which day\?/);
+});

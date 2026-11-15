@@ -19,7 +19,7 @@ test('web: Needs you on the overview holds the cards and the questions, and is g
 
 test('web: the overview rows draw nothing for an empty list without an empty line', () => {
   const vm = require('node:vm');
-  const ctx = { state: {}, tr: (s) => s, esc: (s) => String(s), ago: () => 'now', setInterval: () => 0, document: {}, Company: {}, Dock: {}, Files: {} };
+  const ctx = { state: {}, tr: (s) => s, esc: (s) => String(s), mdPreview: (s) => String(s), ago: () => 'now', setInterval: () => 0, document: {}, Company: {}, Dock: {}, Files: {} };
   vm.createContext(ctx);
   vm.runInContext(`${read('public', 'project-overview.js')}\nthis.ProjectOverview = ProjectOverview;`, ctx);
   const PO = ctx.ProjectOverview;
@@ -45,7 +45,7 @@ test('web: a waiting question comes out of Blockers into the questions Needs you
     { id: 'r1', botId: 'b1', name: 'Issue Reviewer', state: 'asks', text: 'Go ahead with the fix?', at: 'x' },
     { id: 'r2', botId: 'b2', name: 'Coder', state: 'failed', text: 'Build broke', at: 'x' },
   ] };
-  const ctx = { state: { company: null }, tr: (s) => s, esc: (s) => String(s), ago: () => 'now', setInterval: () => 0, document: {}, Company: { place: () => '' }, Dock: { docked: () => false }, Files: {},
+  const ctx = { state: { company: null }, tr: (s) => s, esc: (s) => String(s), mdPreview: (s) => String(s), ago: () => 'now', setInterval: () => 0, document: {}, Company: { place: () => '' }, Dock: { docked: () => false }, Files: {},
     api: (p) => Promise.resolve(p.startsWith('/company/overview') ? snapshot : { files: [] }) };
   vm.createContext(ctx);
   vm.runInContext(`${read('public', 'project-overview.js')}\nthis.ProjectOverview = ProjectOverview;`, ctx);
