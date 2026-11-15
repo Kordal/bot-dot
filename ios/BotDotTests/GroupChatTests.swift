@@ -48,4 +48,13 @@ final class GroupChatTests: XCTestCase {
                                          Plan.Step(text: "Write the fix", status: Plan.companion.DOING, doing: "Fixing the test")])
         XCTAssertNotNil(ImageRenderer(content: PlanDock(plan: plan).frame(width: 360)).cgImage)
     }
+
+    /// The "+" in a bot's chat and Home's search reach the shared rules: the picker's hint, a hit's line and snippet.
+    func testGroupMakingAndSearchReachTheSharedRules() {
+        XCTAssertEqual(GroupMaker.shared.hint(n: 2, bot: "Coder"), "3 bots in the group, with Coder.")
+        XCTAssertFalse(GroupMaker.shared.canMake(features: nil, otherBots: 1))
+        let hit = ChatHit(runId: nil, bot: nil, fromBot: nil, chatId: "c1", index: nil, title: "Week", at: nil, snippet: "the «web» page")
+        XCTAssertEqual(HomeSearch.shared.who(h: hit, chiefName: "Alfred"), "Alfred · Week")
+        XCTAssertEqual(HomeSearch.shared.snippet(h: hit).map(\.hit), [false, true, false])
+    }
 }
