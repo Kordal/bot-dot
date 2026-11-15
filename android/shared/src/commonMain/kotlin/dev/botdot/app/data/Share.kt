@@ -77,7 +77,9 @@ object Share {
         // Another one picked after a failure: its files go up for it, and the Chief's conversation isn't it.
         if (pending.to != to) { pending.to = to; pending.uploaded.clear(); pending.chat = null }
         return try {
-            val attachments = files.mapIndexed { i, f -> pending.uploaded[i] ?: api.upload(f, to).also { pending.uploaded[i] = it } }
+            // Where botdot keeps a message's file: the Chief's, or the bot's ("bot:<id>"), as its chat uploads them.
+            val at = if (to == CHIEF) "chief" else "bot:$to"
+            val attachments = files.mapIndexed { i, f -> pending.uploaded[i] ?: api.upload(f, at).also { pending.uploaded[i] = it } }
             if (to == CHIEF) {
                 val chat = pending.chat ?: api.newChiefChat().id.also { pending.chat = it }
                 api.sendToChief(chat, words, attachments, key)

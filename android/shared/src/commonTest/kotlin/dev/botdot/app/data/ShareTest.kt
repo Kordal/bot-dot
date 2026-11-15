@@ -28,7 +28,10 @@ class ShareTest {
         val api = Api("https://botdot.test", MockEngine { req ->
             val asked = Asked(req.method.value, req.url.encodedPath.removePrefix("/api"), req.url.encodedQuery, (req.body as? TextContent)?.text.orEmpty(), req.headers["X-File-Name"].orEmpty())
             lock.withLock { took += asked }
-            val (status, body) = answer(asked)
+            // As botdot's /uploads: a file goes to the Chief, a bot ("bot:<id>") or a group, or it is refused.
+            val to = req.url.parameters["to"].orEmpty()
+            val (status, body) = if (asked.path.startsWith("/uploads") && to != "chief" && !to.startsWith("bot:") && !to.startsWith("group:"))
+                400 to """{"error":"Say where the file goes"}""" else answer(asked)
             respond(body, HttpStatusCode.fromValue(status), headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
         })
         suspend fun asked(): List<Asked> = lock.withLock { took.toList() }
@@ -57,7 +60,7 @@ class ShareTest {
         }
         assertNull(Share.send(fake.api, "b1", " https://kitchen.example ", listOf(file("menu.pdf"))))
         val up = fake.asked().first()
-        assertEquals("to=b1", up.query, "uploaded for the bot it goes to")
+        assertEquals("to=bot%3Ab1", up.query, "uploaded for the bot it goes to, as its chat uploads them")
         val run = Api.JSON.parseToJsonElement(fake.asked().last().body).jsonObject
         assertTrue(run.toString().contains("https://kitchen.example"))
         assertTrue(run.getValue("key").toString().length > 8, "its message key")
