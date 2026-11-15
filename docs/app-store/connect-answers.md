@@ -54,7 +54,7 @@ The app has no in-app purchases and sells nothing. Sign-in is a passkey on the u
 
 ## Export Compliance
 
-Answered in the app: `ITSAppUsesNonExemptEncryption` is false in `ios/project.yml` (the app uses only Apple's encryption: HTTPS, the Keychain, CryptoKit to open a notification's seal), so a build asks nothing. If App Store Connect asks anyway: uses encryption **Yes**, qualifies for an exemption **Yes** (only standard encryption within Apple's operating system).
+Answered in the app once #1470 is merged: it sets `ITSAppUsesNonExemptEncryption` false in `ios/project.yml` (the app uses only Apple's encryption: HTTPS, the Keychain, CryptoKit to open a notification's seal), so a build asks nothing. Until then every build asks, with the answers below. If App Store Connect asks anyway: uses encryption **Yes**, qualifies for an exemption **Yes** (only standard encryption within Apple's operating system).
 
 ## Content Rights
 

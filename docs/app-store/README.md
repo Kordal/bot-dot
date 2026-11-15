@@ -11,9 +11,11 @@ The privacy policy and the account deletion page are the site's: `https://botdot
 
 ## The build
 
+The upload workflow, its script, the export compliance key and the key's section in [release signatures](../release-signing.md) come with pull request [#1470](https://github.com/Kordal/bot-dot/pull/1470); until it is merged they are not on `main`.
+
 - **Upload:** Actions → iOS release → Run workflow on `main`, with the version (`.github/workflows/ios-release.yml`, #1470; [ios/README.md](../../ios/README.md)). It tests the commit, archives the Release build, signs it with automatic signing and uploads it to App Store Connect; the build number is the run number.
 - **Bundle ids:** `app.botdot` (the app, as on Google Play), `app.botdot.notify` (the notification extension), `app.botdot.share` (the share extension), App Group `group.app.botdot`. Automatic signing registers them the first time.
-- **Export compliance** is answered in the app itself (`ITSAppUsesNonExemptEncryption` false: only Apple's own encryption), so a build needs no answer in App Store Connect.
+- **Export compliance** is answered in the app itself once #1470 is merged (`ITSAppUsesNonExemptEncryption` false in `ios/project.yml`: only Apple's own encryption), so a build needs no answer in App Store Connect. Without it, every build asks.
 
 ## Steps, in order
 
