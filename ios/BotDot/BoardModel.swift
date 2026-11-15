@@ -35,6 +35,8 @@ final class BoardModel {
     }
 
     func width(_ points: CGFloat) { store.width(points: Float(points)) }
+    /// The app in front or not: the Board is read only while it is (the poll stops when the phone is locked).
+    func active(_ on: Bool) { store.active(on: on) }
     func filter(_ name: String) { store.filter(name: name) }
     func refresh() async { try? await store.refresh() }
 

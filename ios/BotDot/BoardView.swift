@@ -15,6 +15,7 @@ struct BoardView: View {
     @State private var changing: String?
     @State private var removing: BoardCell?
     @State private var needs = false
+    @Environment(\.scenePhase) private var phase
 
     /// A tile whose question is on screen before its tap goes.
     struct Asking: Identifiable {
@@ -27,6 +28,8 @@ struct BoardView: View {
     var body: some View {
         sheets
             .onDisappear { model?.stop(); model = nil }
+            // Read only while the app is in front, as Android reads only while its screen is resumed.
+            .onChange(of: phase) { _, now in model?.active(now == .active) }
             .task(id: model?.state?.noticeId) {
                 guard let text = model?.state?.notice else { return }
                 notice = text
