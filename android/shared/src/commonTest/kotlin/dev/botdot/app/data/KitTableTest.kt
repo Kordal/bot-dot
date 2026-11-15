@@ -1,14 +1,8 @@
-package dev.botdot.app.ui
+package dev.botdot.app.data
 
-import dev.botdot.app.data.Api
-import dev.botdot.app.data.Block
-import dev.botdot.app.data.TableCell
-import dev.botdot.app.data.TableFilter
-import dev.botdot.app.data.TableHead
-import dev.botdot.app.data.TableSort
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 /** The table block (#396), as the web page sorts, searches, filters and pages it (test/table-block-web.test.js). */
 class KitTableTest {

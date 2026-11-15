@@ -525,8 +525,12 @@ struct BlockView: View {
             } else {
                 ColorSwatch(b: b, key: key)
             }
+        case "table":
+            TableBlock(b: b)
+        case "image":
+            PictureBlock(b: b, model: model)
         default:
-            // A block this phone doesn't draw yet (a table, a picture, a chat link): the tile stays readable.
+            // A block this phone doesn't draw yet (a chat link): the tile stays readable.
             EmptyView()
         }
     }

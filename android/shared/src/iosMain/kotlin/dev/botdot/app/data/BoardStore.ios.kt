@@ -4,6 +4,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import io.ktor.http.Url
+import kotlinx.io.files.Path
 
 /**
  * The Board on the iPhone, for the botdot of [home]: its [BoardDesk] on the same shared [Store] as Home, and the live
@@ -14,6 +16,7 @@ class BoardStore(home: HomeStore) {
     private val scope = MainScope()
     private val desk = BoardDesk(home.store, home.api, scope)
     private val bots = home.store.bots
+    private val api = home.api
 
     init {
         scope.followFeed(home.api, home.store)
@@ -29,6 +32,19 @@ class BoardStore(home: HomeStore) {
     /** The app in front ([on]) or in the background: the Board is read only while it is in front. */
     fun active(on: Boolean) = desk.active(on)
     fun filter(name: String) = desk.filter(name)
+
+    /**
+     * A picture block's image (a camera snapshot, [Block.src]) saved under [root], in a folder of this botdot and
+     * session: its file's path. A new snapshot (its address's ?v=…) takes the old one's place.
+     */
+    @Throws(Exception::class)
+    suspend fun picture(src: String, root: String): String {
+        val server = Url(api.baseUrl).let { Session.originOf(it.protocol.name, it.host, it.port) }
+        val name = ReplyPictures.place(src.substringBefore('?'), null)
+        val dest = Path(root, ReplyPictures.place(server, api.session?.token(server)), name)
+        api.downloadTo(src, dest)
+        return dest.toString()
+    }
 
     /** The refresh button, and a pull: every tile read again. */
     @Throws(Exception::class)

@@ -84,11 +84,14 @@ final class ChatTests: XCTestCase {
         let kept = ReplyPictures.cache.appendingPathComponent("0123456789abcdef")
         try FileManager.default.createDirectory(at: kept, withIntermediateDirectories: true)
         try Data("picture".utf8).write(to: kept.appendingPathComponent("run-1_chart.png"))
+        try FileManager.default.createDirectory(at: BoardModel.pictures, withIntermediateDirectories: true)
+        try Data("snapshot".utf8).write(to: BoardModel.pictures.appendingPathComponent("camera.jpg"))
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: dir) }
         let model = AppModel(directory: dir, sessions: KeychainSessions(service: "test-\(UUID().uuidString)"))
         model.accountDeleted("https://botdot.test", "Deleted")
         XCTAssertFalse(FileManager.default.fileExists(atPath: ReplyPictures.cache.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: BoardModel.pictures.path), "a Board tile's pictures go too")
     }
 
     /// Quote after "Ask @we": the cursor goes to the quote's end, where no "@" is being typed.
