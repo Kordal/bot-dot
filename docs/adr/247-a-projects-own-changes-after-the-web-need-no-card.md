@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** the owner's request of 15 November 2026 ("no need to ask for it"), on two "Change your project" cards of the Chief in a project's chat
+- **Changed by:** [ADR 249](249-reminders-need-no-card.md): the Chief's reminders, set or cancelled, are not held and "Always allow reminders" is gone
 - **Changes:** [ADR 033](033-the-chief-reads-the-web-and-what-it-changes-after-waits.md) (every change of the Chief's after the web waits), in the spirit of [ADR 176](176-what-the-owner-asks-the-chief-for-in-their-own-turn-needs-no-card.md) and [ADR 178](178-cards-that-guarded-nothing-are-gone.md)
 
 ## Context

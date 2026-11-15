@@ -20,9 +20,9 @@ class ChiefAlwaysTest {
     }
 
     @Test fun afterWebTypesStartWithACapital() {
-        val types = ChiefGrant.of(ChiefGrant.Kind.WEB, """{"types":[{"type":"reminders","label":"reminders"},{"type":"board","label":"changes to your Board"}]}""")
-        assertEquals(listOf("Reminders", "Changes to your Board"), types.map { it.label })
-        assertEquals(listOf("reminders", "board"), types.map { it.id })
+        val types = ChiefGrant.of(ChiefGrant.Kind.WEB, """{"types":[{"type":"quiet-hours","label":"changes to your quiet hours"},{"type":"board","label":"changes to your Board"}]}""")
+        assertEquals(listOf("Changes to your quiet hours", "Changes to your Board"), types.map { it.label })
+        assertEquals(listOf("quiet-hours", "board"), types.map { it.id })
     }
 
     @Test fun onlyTheKindsTheServerAnnounces() {
@@ -38,11 +38,11 @@ class ChiefAlwaysTest {
         server.start()
         try {
             val api = Api(server.url("/").toString().trimEnd('/'))
-            assertEquals(emptyList<ChiefGrant>(), api.revokeChiefGrant(ChiefGrant(ChiefGrant.Kind.WEB, "reminders", "Reminders")))
+            assertEquals(emptyList<ChiefGrant>(), api.revokeChiefGrant(ChiefGrant(ChiefGrant.Kind.WEB, "quiet-hours", "Changes to your quiet hours")))
             val web = server.takeRequest()
             assertEquals("DELETE", web.method)
             assertEquals("/api/chief/after-web", web.target)
-            assertEquals("""{"type":"reminders"}""", web.body?.utf8())
+            assertEquals("""{"type":"quiet-hours"}""", web.body?.utf8())
             api.revokeChiefGrant(ChiefGrant(ChiefGrant.Kind.APP, "gmail:GMAIL_SEND_EMAIL", "Send email with Gmail"))
             val app = server.takeRequest()
             assertEquals("/api/chief/connector-actions", app.target)
