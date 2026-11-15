@@ -467,6 +467,15 @@
   let boardFor = null;
   let teamFor = null;
   Company.steps.homeClosed = () => { boardFor = null; teamFor = null; Company.steps.settingsClosed?.(); };
+  // Needs you as a board tile (overview-board, ADR 245): the cards and the questions waiting in this project, only
+  // when something waits.
+  function needsTileHTML(c) {
+    if (!Company.onBoard(c, 'needs')) return '';
+    const items = projectNeeds(c);
+    ProjectOverview.refresh(c); // Needs you alone on the board still reads the snapshot its questions come from
+    const questions = ProjectOverview.questions(c, items);
+    return items.length || questions.length ? `<section class="cf-ov" data-cf-ov="needs"><h2>${tr('Needs you')}</h2>${ProjectOverview.rows(questions)}${needsHTML(c, items)}</section>` : '';
+  }
   function overviewHome(root, c) {
     const items = projectNeeds(c);
     const overview = ProjectOverview.html(c); // first: it reads the snapshot the questions come from
@@ -482,7 +491,7 @@
 
   function teamHome(root, c) {
     if ($('[data-pt-root]', root) && Company.teamSettings.hold(root)) return;
-    root.innerHTML = `<div class="cf-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.chiefHTML()}<button type="button" class="btn sm" data-pt-back>${tr('Overview')}</button></header>
+    root.innerHTML = `<div class="cf-home"><header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.chiefHTML()}<button type="button" class="btn sm" data-pt-back>${state.features.includes('overview-board') ? tr('Board') : tr('Overview')}</button></header>
       <div data-pt-root>${Company.teamSettings.html(c)}${teamsHTML(c, true)}</div></div>${Company.railOn() ? fieldHTML(c) : ''}`;
     const team = c.teams.find((t) => t.id === teamOpen);
     if (team) $('[data-pt-root]', root).insertAdjacentHTML('beforeend', `<aside class="cf-panel">${teamHTML(c, team)}</aside>`);
@@ -494,7 +503,9 @@
   // ---------- drawing and wiring ----------
   function home(root, c) {
     if (state.features.includes('project-overview') && teamFor === c.id) return teamHome(root, c);
-    if (state.features.includes('project-overview') && boardFor !== c.id) return overviewHome(root, c);
+    // With overview-board (ADR 245) the board is the one project page; the overview's sections are its tiles.
+    const one = state.features.includes('overview-board');
+    if (state.features.includes('project-overview') && !one && boardFor !== c.id) return overviewHome(root, c);
     if (window.BoardView?.busy()) return; // a tile is dragged: drawn again once it is dropped
     const known = info();
     const f = { ...CompanyFloor.floor(c, state.bots, known), info: known };
@@ -506,15 +517,21 @@
     // What the fields hold, and which has the focus: the floor drawn again keeps them.
     const kept = ['#cf-add input', '#cf-change input', '#cf-decide input', '#cf-source-app', '#cf-source-what', ...(window.ProjectCards?.FIELDS || [])].map((sel) => { const el = $(sel, root); return el && { sel, value: el.value, focus: document.activeElement === el }; }).filter(Boolean);
     root.innerHTML = `<div class="cf-home">
-      <header class="cf-top"><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.tidyHTML()}${Company.chiefHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
-      ${needsHTML(c, projectNeeds(c))}
+      <header class="cf-top"${one ? ' data-cf-ov-feed' : ''}><h1>${Company.pickHTML(c.name || c.start)}</h1>${Company.gearHTML()}${Company.tidyHTML()}${Company.chiefHTML()}${days ? `<span class="cf-day">${tr('Day {n} of 90', { n: c.day })}</span>` : ''}${Company.railOn() ? Company.toolsHTML() : ''}</header>
+      ${one ? needsTileHTML(c) : needsHTML(c, projectNeeds(c))}
+      ${one ? ['work', 'blockers'].filter((k) => Company.onBoard(c, k)).map((k) => ProjectOverview.tile(c, k)).join('') : ''}
       ${days ? lineHTML(c) : ''}
       ${(days || c.ongoing) && c.checkin ? checkinHTML(c.checkin) : ''}
-      ${teamsHTML(c)}
+      ${one ? '' : teamsHTML(c)}
       ${Company.onBoard(c, 'goals') ? goalsHTML(c) : ''}
       <div class="cf-main${panel ? '' : ' solo'}">${floorHTML(c, f)}${panel ? `<aside class="cf-panel">${team ? teamHTML(c, team) : todoPanelHTML(c)}</aside>` : ''}</div>
+      ${one && Company.onBoard(c, 'replies') ? ProjectOverview.tile(c, 'replies') : ''}
     </div>${Company.railOn() ? fieldHTML(c) : ''}`;
-    if (state.features.includes('project-overview')) {
+    if (one) {
+      $('.cf-top', root).insertAdjacentHTML('beforeend', `<button type="button" class="btn sm" data-po-team>${tr('Team')}</button>`);
+      $('[data-po-team]', root).onclick = () => { teamFor = c.id; root.scrollTop = 0; Company.redraw(); };
+      ProjectOverview.wire(root, c);
+    } else if (state.features.includes('project-overview')) {
       $('.cf-top', root).insertAdjacentHTML('beforeend', `<button type="button" class="btn sm" data-po-back>${tr('Overview')}</button>`);
       $('[data-po-back]', root).onclick = () => { boardFor = null; root.scrollTop = 0; Company.redraw(); };
     }

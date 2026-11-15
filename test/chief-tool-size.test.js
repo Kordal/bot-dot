@@ -25,5 +25,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   const size = TOOLS.reduce((n, x) => n + JSON.stringify(x).length, 0);
   // 111k: set_company_team's proposal lists its bots' fields (a bare object refused every field as unknown).
   // 111.2k: set_project_goal, the goal's sentence and a new objective, which project settings no longer show.
-  assert.ok(size < 111_200, `${size} characters`);
+  // 111.3k: arrange_project_board hides and shows pieces, the overview's four among them (ADR 245).
+  assert.ok(size < 111_300, `${size} characters`);
 });

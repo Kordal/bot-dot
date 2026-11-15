@@ -28,6 +28,10 @@ object BoardCanvas {
         "calendar" to Kind(420, 260, 792, 340),
         "todo" to Kind(280, 280, 392, 560),
         "files" to Kind(280, 120, 392, 260),
+        "needs" to Kind(280, 96, 1200, 160),
+        "work" to Kind(280, 120, 592, 300),
+        "blockers" to Kind(280, 120, 592, 300),
+        "replies" to Kind(280, 120, 1200, 300),
         "card" to Kind(240, 140, 392, 220),
         "new-card" to Kind(200, 56, 392, 64, maxH = 64),
     )
