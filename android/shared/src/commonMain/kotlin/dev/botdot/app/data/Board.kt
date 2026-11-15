@@ -131,6 +131,41 @@ object BoardKit {
     /** The question before a tap of a tile that asks first ([BoardTap.Ask]), and its yes. */
     fun askTitle(t: Tile, on: Boolean?): String = when (on) { true -> tr("Turn on “{title}”?", "title" to t.title); false -> tr("Turn off “{title}”?", "title" to t.title); null -> "${t.title}?" }
     fun askYes(on: Boolean?): String = when (on) { true -> tr("Turn on"); false -> tr("Turn off"); null -> "OK" }
+
+    // Drag to move (the Board's layout keys, [layout]: "h:<heading>", tile ids, an open group's "in:<g>" … "out:<g>").
+
+    /** The group the place [i] of [rows] is inside: between an open group's "in:" and "out:"; null when loose. */
+    fun groupAt(rows: List<String>, i: Int): String? {
+        for (j in i - 1 downTo 0) { val k = rows[j]; if (k.startsWith("out:") || k.startsWith("h:")) return null; if (k.startsWith("in:")) return k.removePrefix("in:") }
+        return null
+    }
+
+    /** [rows] with [from] moved to where [to] is; null when it can't go there (a group stays out of groups). */
+    fun moved(rows: List<String>, from: String, to: String, tiles: List<Tile>): List<String>? {
+        val a = rows.indexOf(from); val b = rows.indexOf(to)
+        if (a < 0 || b < 0 || a == b) return null
+        val next = rows.toMutableList().apply { add(b, removeAt(a)) }
+        if (tiles.firstOrNull { it.id == from }?.kind == "group" && groupAt(next, next.indexOf(from)) != null) return null
+        return next
+    }
+
+    /** Where a tile let go at its place in [rows] is: its heading ("" for none; null inside a group), its group, the tile after it. */
+    fun placeOf(rows: List<String>, id: String): TilePlace {
+        val i = rows.indexOf(id)
+        val parent = groupAt(rows, i)
+        val section = if (parent != null) null else (i - 1 downTo 0).map { rows[it] }.firstOrNull { it.startsWith("h:") }?.removePrefix("h:") ?: ""
+        // The next tile in the same place (skipping an open group's tiles when it's loose).
+        var before: String? = null
+        var j = i + 1
+        while (j < rows.size) {
+            val k = rows[j]
+            if (k.startsWith("h:") || (parent != null && k.startsWith("out:"))) break
+            if (parent == null && k.startsWith("in:")) { j = rows.indexOf("out:" + k.removePrefix("in:")) + 1; continue }
+            if (!k.contains(':')) { before = k; break }
+            j++
+        }
+        return TilePlace(section, parent, before)
+    }
 }
 
 /** The Board's own words, the same as the web page's (public/app.js). */
@@ -219,3 +254,6 @@ sealed class BoardTap {
         }
     }
 }
+
+/** Where a tile goes on the Board (POST /dashboard/tiles/:id/move): its heading, its group, the tile it goes before. */
+data class TilePlace(val section: String?, val parent: String?, val before: String?)

@@ -66,6 +66,10 @@ class BoardStore(home: HomeStore) {
     @Throws(Exception::class)
     suspend fun press(key: String, block: String) = desk.press(key, block)
 
+    /** Drag to move: [from] let go where [onto] is; false when it can't go there ([BoardDesk.drop]). */
+    @Throws(Exception::class)
+    suspend fun drop(from: String, onto: String): Boolean = desk.drop(from, onto)
+
     @Throws(Exception::class)
     suspend fun remove(key: String, withTiles: Boolean) = desk.remove(key, withTiles)
 

@@ -49,6 +49,36 @@ class BoardDeskTest {
         assertEquals(listOf("Home", "Garden"), BoardKit.headings(d))
     }
 
+    @Test fun aTileLetGoTakesTheHeadingGroupAndPlaceWhereItLands() {
+        val d = dash(board)
+        val keys = BoardKit.layout(d, "", setOf("g"))
+        // t3 onto t1: under Home, before t1.
+        val a = BoardKit.moved(keys, "t3", "t1", d.tiles)!!
+        assertEquals(TilePlace("Home", null, "t1"), BoardKit.placeOf(a, "t3"))
+        // t1 onto g1: into the open group Lights, before g1.
+        val b = BoardKit.moved(keys, "t1", "g1", d.tiles)!!
+        assertEquals(TilePlace(null, "g", "g1"), BoardKit.placeOf(b, "t1"))
+        // n onto g: loose at the top, before the group (its open tiles are skipped).
+        assertEquals(TilePlace("", null, "g"), BoardKit.placeOf(BoardKit.moved(keys, "n", "g", d.tiles)!!, "n"))
+        // Last under a heading: before nothing.
+        assertEquals(TilePlace("Garden", null, null), BoardKit.placeOf(BoardKit.moved(keys, "t1", "t3", d.tiles)!!, "t1"))
+        // A group stays out of groups; onto itself is no move.
+        assertNull(BoardKit.moved(keys, "g", "g1", d.tiles))
+        assertNull(BoardKit.moved(keys, "t1", "t1", d.tiles))
+    }
+
+    @Test fun aDropIsSavedWhereItLandsAndTheBoardReadAgain() = runTest {
+        val (_, desk, server) = desk(FakeServer { t -> if (t.path.endsWith("/move")) 409 to """{"error":"Not there"}""" else 200 to board })
+        runCurrent()
+        assertTrue(desk.drop("t3", "t1"))
+        val sent = server.posts().last { it.path.endsWith("/move") }
+        assertEquals("/api/dashboard/tiles/t3/move", sent.path)
+        assertEquals("""{"section":"Home","parent":null,"before":"t1"}""", sent.body)
+        runCurrent()
+        assertEquals("Not there", desk.state.value.notice, "a refusal is said")
+        assertFalse(desk.drop("t1", "nowhere"))
+    }
+
     @Test fun aTapDoesWhatTheTileSays() {
         val bots = setOf("keeper")
         val d = dash(board).tiles.associateBy { it.id }
