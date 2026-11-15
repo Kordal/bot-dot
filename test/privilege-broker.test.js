@@ -2,7 +2,7 @@ process.env.BOT_DOT_SWEEP_MS = '0'; // its sweep would end the other test files'
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 
 test('configured isolation refuses a missing broker instead of running under the server identity', () => {
   const code = `const c=require('./lib/privilege-client'); try { c.callSync('prepare',{principal:'example'}); process.exit(41); } catch(e) { process.stdout.write(e.message); }`;
@@ -593,9 +593,16 @@ test("a bot's ssh-agent socket is in a folder of its own: it connects, another b
   const agent = await require('../lib/ssh-agent').start(async () => [], { dir: one.agents });
   t.after(async () => { agent.close(); await new Promise((resolve) => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }); });
   assert.equal(path.dirname(agent.socket), one.agents);
-  // Asks the agent for its keys, as uid: prints "ok" on an answer, or the error's code.
-  const knock = (uid) => spawnSync(process.execPath, ['-e', `const c=require('net').connect(process.argv[1]);c.on('connect',()=>c.write(Buffer.from([0,0,0,1,11])));c.on('data',()=>{process.stdout.write('ok');c.destroy();});c.on('error',(e)=>process.stdout.write(e.code));`, agent.socket], { uid, gid: uid, cwd: '/', encoding: 'utf8', timeout: 10000 });
-  assert.equal(knock(one.uid).stdout, 'ok', 'its own bot reaches it');
-  assert.equal(knock(two.uid).stdout, 'EACCES', 'another bot does not, though /proc/net/unix shows the path');
+  // Asks the agent for its keys, as uid: prints "ok" on an answer, or the error's code. Not spawnSync: the agent
+  // answers from this process, which spawnSync would hold until the child gave up.
+  const knock = (uid) => new Promise((resolve) => {
+    const child = spawn(process.execPath, ['-e', `const c=require('net').connect(process.argv[1]);c.on('connect',()=>c.write(Buffer.from([0,0,0,1,11])));c.on('data',()=>{process.stdout.write('ok');c.destroy();});c.on('error',(e)=>process.stdout.write(e.code));`, agent.socket], { uid, gid: uid, cwd: '/' });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    const timer = setTimeout(() => child.kill(), 10000);
+    child.on('close', () => { clearTimeout(timer); resolve(out); });
+  });
+  assert.equal(await knock(one.uid), 'ok', 'its own bot reaches it');
+  assert.equal(await knock(two.uid), 'EACCES', 'another bot does not, though /proc/net/unix shows the path');
   assert.notEqual(spawnSync('/bin/ls', [one.agents], { uid: one.uid, gid: one.uid }).status, 0, 'nor can its own bot list the folder');
 });
