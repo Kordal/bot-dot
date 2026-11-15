@@ -22,6 +22,9 @@ final class ShareViewController: UIViewController {
     }
 }
 
+// What another app shares is read once, on the extension's main actor, and handed to the reads below.
+extension NSExtensionItem: @retroactive @unchecked Sendable {}
+
 /// What was shared, read from the extension's items: files copied where the shared layer may read them, and words
 /// (a link, a page's address, some text).
 struct Shared {
