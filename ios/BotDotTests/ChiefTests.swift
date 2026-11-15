@@ -41,11 +41,11 @@ final class ChiefTests: XCTestCase {
         XCTAssertEqual(chips.map(\.opens), [true, false], "a chip opens only a bot")
         let mail = MailView(to: "ann@example.test", subject: "Dinner", text: "Friday?", sent: false, state: "In Drafts · not sent",
                             earlier: false, actions: ["Send now", "Not now"], files: [Attachment(name: "menu.pdf", file: "r1/menu.pdf", size: 0, readable: nil)],
-                            bot: "Mailer", botId: "b3", screen: true)
+                            bot: "Mailer", botId: "b3", runId: nil, screen: true)
         let l = line(role: "chief", text: "Drafted it", chips: chips, mail: mail)
         XCTAssertNotNil(ImageRenderer(content: ChiefRow(line: l, onRate: { _ in }).frame(width: 360)).cgImage)
         let sent = MailView(to: "ann@example.test", subject: "Dinner", text: "Friday?", sent: true, state: "Sent 09:30",
-                            earlier: false, actions: [], files: [], bot: nil, botId: nil, screen: false)
+                            earlier: false, actions: [], files: [], bot: nil, botId: nil, runId: nil, screen: false)
         XCTAssertNotNil(ImageRenderer(content: MailCardView(mail: sent).frame(width: 360)).cgImage)
     }
 }

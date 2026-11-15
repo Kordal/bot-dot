@@ -237,4 +237,27 @@ class ChiefDeskTalkTest {
         assertEquals("This bot is no longer available", desk.state.value.notice)
         assertEquals(notices + 1, desk.state.value.noticeCount)
     }
+
+    @Test fun aMailCardsBotOpensOnceReadAgainOrIsSaidToBeGone() = runTest {
+        var bots = "[]"
+        val fake = FakeBotdot { _, path ->
+            when (path) {
+                "/chief" -> 200 to """{"chats":[{"id":"c1","title":"Week"}]}"""
+                "/bots" -> 200 to bots
+                "/chief/chats/c1" -> 200 to """{"id":"c1","messages":[
+                    {"role":"chief","text":"Drafted","draft":{"to":"a@example.test","botId":"b1","bot":"Mailer"}},
+                    {"role":"chief","text":"Again","draft":{"to":"a@example.test","botId":"b9","bot":"Old"}}],"total":2}"""
+                else -> 404 to "{}"
+            }
+        }
+        val desk = desk(fake)
+        desk.start()
+        until("the cards") { desk.state.value.messages.size == 2 }
+        val (made, gone) = desk.state.value.messages
+        assertEquals("b1", made.mail!!.botId, "named even before the list knows it")
+        bots = """[{"id":"b1","name":"Mailer","computer":"linux"}]"""
+        assertEquals(ChiefDesk.ChipBot("b1", "Mailer", screen = true), desk.mailBot(made.index), "the list read again: it is there")
+        assertNull(desk.mailBot(gone.index))
+        assertEquals("This bot is no longer available", desk.state.value.notice)
+    }
 }

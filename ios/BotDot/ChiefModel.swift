@@ -43,6 +43,7 @@ final class ChiefModel: MessageBox {
     func decline() async { try? await desk.decline() }
     func mail(_ index: Int32, _ words: String) async -> Bool { (try? await desk.mail(index: index, words: words))?.boolValue ?? false }
     func chipBot(_ chip: ChiefChip) async -> ChiefDesk.ChipBot? { (try? await desk.chipBot(chip: chip)) ?? nil }
+    func mailBot(_ index: Int32) async -> ChiefDesk.ChipBot? { (try? await desk.mailBot(index: index)) ?? nil }
     func mailFile(_ f: Attachment) -> DocumentView.Opening? { desk.mailFile(f: f) }
     func answer(_ index: Int32, _ answers: [String]) async -> Bool { (try? await desk.answer(index: index, answers: answers))?.boolValue ?? false }
 

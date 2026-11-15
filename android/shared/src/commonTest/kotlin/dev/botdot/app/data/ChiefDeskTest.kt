@@ -131,6 +131,7 @@ class ChiefDeskTest {
         assertEquals(listOf("Send now", "Not now"), mail.actions)
         assertEquals("Mailer", mail.bot)
         assertFalse(mail.sent || mail.screen)
+        assertEquals("b3", mail.botId)
     }
 
     @Test fun aSentMailHasNoButtonsAndAnEarlierOneFolds() {

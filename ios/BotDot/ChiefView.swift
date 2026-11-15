@@ -57,8 +57,11 @@ private struct ChiefChat: View {
                                      onMail: { await model.mail(m.index, $0) },
                                      onChip: { chip in Task { if let b = await model.chipBot(chip) { onBot(b) } } },
                                      onMailBot: { screen in
-                                         guard let mail = m.mail, let id = mail.botId else { return }
-                                         onBot(ChiefDesk.ChipBot(id: id, name: mail.bot ?? "", screen: screen))
+                                         // Found as a chip's bot is: read again, or said to be gone.
+                                         Task {
+                                             guard let b = await model.mailBot(m.index) else { return }
+                                             onBot(ChiefDesk.ChipBot(id: b.id, name: b.name, screen: screen && b.screen))
+                                         }
                                      },
                                      mailFile: { model.mailFile($0) }, onFile: onFile)
                                 // Its conversation in its identity: another conversation's row at the same place starts

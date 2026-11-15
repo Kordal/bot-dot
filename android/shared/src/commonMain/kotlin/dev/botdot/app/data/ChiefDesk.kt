@@ -80,7 +80,9 @@ data class MailView(
     val actions: List<String>,
     val files: List<Attachment>,
     val bot: String?,
+    /** The bot whose run wrote it, as the draft names it: [ChiefDesk.mailBot] finds it, also once it is gone. */
     val botId: String?,
+    val runId: String?,
     val screen: Boolean,
 )
 
@@ -277,13 +279,26 @@ class ChiefDesk(
      * the chat says so.
      */
     @Throws(Exception::class)
-    suspend fun chipBot(chip: ChiefChip): ChipBot? = try {
-        val id = chip.botId ?: chip.runId?.let { api.run(it).botId }
+    suspend fun chipBot(chip: ChiefChip): ChipBot? = openBot(chip.botId, chip.runId) { it.computer == "linux" && chip.kind == "run" }
+
+    /**
+     * The bot a mail card's footer opens: the one whose run wrote the draft, its screen when it has a Linux computer.
+     * Null when it is gone or couldn't be read: the chat says so.
+     */
+    @Throws(Exception::class)
+    suspend fun mailBot(index: Int): ChipBot? {
+        val mail = state.value.messages.firstOrNull { it.index == index }?.mail ?: return null
+        return openBot(mail.botId, mail.runId) { it.computer == "linux" }
+    }
+
+    /** The bot [botId], or the one whose run is [runId]: the list read again when it isn't in it (made just now). */
+    private suspend fun openBot(botId: String?, runId: String?, screen: (Bot) -> Boolean): ChipBot? = try {
+        val id = botId ?: runId?.let { api.run(it).botId }
         fun known() = store.bots.value.value?.firstOrNull { it.id == id }
         // Not in the list read so far (a bot made in this reply): read once more before it is said to be gone.
         val bot = known() ?: id?.let { store.bots.refresh(); known() }
         if (bot == null) { say(tr("This bot is no longer available")); null }
-        else ChipBot(bot.id, bot.name, chip.kind == "run" && bot.computer == "linux")
+        else ChipBot(bot.id, bot.name, screen(bot))
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
@@ -602,7 +617,7 @@ internal fun chiefLine(m: ChiefMessage, index: Int, draft: String, features: Col
                 to = d.to, subject = d.subject, text = d.text, sent = d.state == "sent",
                 state = if (d.state == "sent") tr("Sent {time}", "time" to chatClock(d.sentAt)).trimEnd() else MailCard.state(d),
                 earlier = d.earlier, actions = MailCard.actions(d), files = d.attachments,
-                bot = d.bot ?: by?.name, botId = by?.id, screen = by?.computer == "linux",
+                bot = d.bot ?: by?.name, botId = d.botId, runId = d.runId, screen = by?.computer == "linux",
             )
         },
     )
