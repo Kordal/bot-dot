@@ -342,4 +342,30 @@ class GroupChatTalkTest {
         assertEquals(emptyList(), store.groups.value.value?.map { it.id }, "gone at once, before botdot's list is read again")
         assertNull(chat.state.value.panelError)
     }
+
+    @Test fun aTeamsAnswerFoldsItsMembersRepliesUnderOneRowThatOpens() = runTest {
+        val fake = FakeBotdot { a ->
+            if (a.path == "/group-chats/g1/chat") 200 to page(listOf(
+                message("m1", "Ship it?", "2026-11-14T09:00:00Z", ""","answer":"r3""""),
+                reply("r1", "b1", "Tests pass.", "2026-11-14T09:01:00Z"),
+                reply("r2", "b2", "Looks fine.", "2026-11-14T09:02:00Z"),
+                reply("r3", "b1", "Ship it.", "2026-11-14T09:03:00Z"),
+            )) else 404 to "{}"
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("the chat is read") { chat.state.value.rows.isNotEmpty() }
+        val folded = chat.state.value.rows
+        assertEquals(listOf("m1", "fold:m1", "r3"), folded.map { it.id }, "the members' replies under one row, the answer after it")
+        val f = folded[1].fold!!
+        assertEquals("Coder and Reviewer · 2", f.words)
+        assertEquals(listOf("#7f77dd", "#d4537e"), f.heads.map { it.color })
+        assertFalse(f.open)
+        chat.toggleFold("m1")
+        until("open") { chat.state.value.rows.size == 5 }
+        assertEquals(listOf("m1", "fold:m1", "r1", "r2", "r3"), chat.state.value.rows.map { it.id })
+        assertTrue(chat.state.value.rows[1].fold!!.open)
+        chat.toggleFold("m1")
+        until("closed again") { chat.state.value.rows.size == 3 }
+    }
 }

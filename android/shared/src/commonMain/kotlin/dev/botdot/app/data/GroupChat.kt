@@ -63,7 +63,16 @@ class GroupMessageView(
 )
 
 /** One row of a group's chat: the owner's message or a member's reply. */
-class GroupRow(val id: String, val message: GroupMessageView?, val reply: GroupReplyView?)
+class GroupRow(val id: String, val message: GroupMessageView?, val reply: GroupReplyView?, val fold: GroupFoldView? = null)
+
+/**
+ * The row a team's answer folds its members' replies under (ADR 201): who replied, in their colours, how many replies,
+ * and whether it is open ([GroupChat.toggleFold]). Android's FoldRow.
+ */
+class GroupFoldView(val messageId: String, val heads: List<GroupFoldHead>, val words: String, val open: Boolean)
+
+/** One member whose reply a fold holds. */
+class GroupFoldHead(val bot: Bot?, val color: String)
 
 /** A member at work in the group: its line, "Name · what it does…", in the server's words. */
 class GroupTurnView(val runId: String, val botId: String, val bot: Bot?, val name: String, val color: String, val line: String, val held: Boolean)
@@ -146,6 +155,8 @@ class GroupChat(
     private var taken = 0
     private val heldDrafts = ReplyDraft.Group()
     private var files: List<Attachment> = emptyList()
+    // The messages whose folded replies the owner opened, while the chat is on screen.
+    private var openFolds: Set<String> = emptySet()
     private var uploading = false
     private var notice: String? = null
     private var panelError: String? = null
@@ -404,6 +415,12 @@ class GroupChat(
         return true
     }
 
+    /** A tap on a fold's row: the members' replies it holds open under it, or close again. */
+    fun toggleFold(messageId: String) {
+        openFolds = if (messageId in openFolds) openFolds - messageId else openFolds + messageId
+        publish()
+    }
+
     /** The panel was opened: what an earlier change came to is not said again. */
     fun panelOpened() { if (panelError != null) { panelError = null; publish() } }
 
@@ -486,10 +503,18 @@ class GroupChat(
         val messages = rows.filterIsInstance<GroupItem.Message>().map { it.message }
         val waits = messages.filter { waitsWhole(it, bots, signedOut) }
         val shown = rows.filterNot { it is GroupItem.Message && waitsWhole(it.message, bots, signedOut) }
-        val drawn = shown.mapIndexed { i, x ->
+        // A team's answer folds its members' replies under one row (Groups.shown), open while the owner keeps it open.
+        val laid = Groups.shown(shown, openFolds)
+        val drawn = laid.mapIndexed { i, x ->
             when (x) {
-                is GroupItem.Message -> GroupRow(x.id, messageView(x.message, shown.getOrNull(i - 1), bots), null)
+                is GroupItem.Message -> GroupRow(x.id, messageView(x.message, laid.getOrNull(i - 1) as? GroupItem, bots), null)
                 is GroupItem.Reply -> GroupRow(x.id, null, replyView(x, bots, features))
+                is Groups.Fold -> {
+                    val who = x.runs.distinctBy { it.botId }
+                    val words = "${namesList(who.map { r -> memberName(bots, r.botId).takeIf { bots.any { b -> b.id == r.botId } } ?: r.botName })} · ${x.runs.size}"
+                    GroupRow(x.id, null, null, GroupFoldView(x.messageId, who.map { r -> GroupFoldHead(bots.firstOrNull { it.id == r.botId }, bots.firstOrNull { it.id == r.botId }?.color ?: r.botColor ?: GONE_COLOR) }, words, x.open))
+                }
+                else -> error("a row of the chat: $x")
             }
         }
         val next = Groups.heads(Groups.next(messages, working), bots)
