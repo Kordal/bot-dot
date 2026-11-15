@@ -26,7 +26,12 @@ class PageBarState(
     val onBoard: Boolean?, val board: Boolean, val keep: PageKeep?, val work: PageWork?, val reopen: KeepDraft? = null, val boarding: Boolean = false,
     /** Counts each save or Stop that changed what keeps the page: the viewer reads the page again then (Refresh now runs a job and changes nothing here). */
     val pageChanged: Int = 0,
-)
+    /** The desk has the page ([PageDesk.show]); before, what keeps it is the page's as the viewer read it. */
+    val shown: Boolean = false,
+) {
+    /** An action is on its way: Keep up to date, Change, Refresh now and Stop wait for it (a second one would be dropped). */
+    val busy: Boolean get() = work?.kind == "busy"
+}
 
 /**
  * A bot's page in the viewer, for both phones (#346, #451, #475; Android's PageBar): Board and On Board flip at once
@@ -114,7 +119,7 @@ class PageDesk(private val scope: CoroutineScope, private val api: Api, private 
         }
     }
 
-    private fun publish() { _state.value = PageBarState(onBoard, board && onBoard != null, page?.keep, work, reopen, boarding, pageChanged) }
+    private fun publish() { _state.value = PageBarState(onBoard, board && onBoard != null, page?.keep, work, reopen, boarding, pageChanged, page != null) }
 
     companion object {
         /** How long an action's ok stays under the bar. */

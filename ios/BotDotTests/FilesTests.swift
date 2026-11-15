@@ -125,6 +125,7 @@ final class FilesTests: XCTestCase {
         desk.show(p: page)
         XCTAssertEqual(desk.draft()?.every, "day", "Change opens on what keeps the page now (here: nothing yet)")
         XCTAssertTrue(desk.state.value.board)
+        XCTAssertFalse(desk.state.value.busy, "nothing on its way: the bar's actions can be tapped")
         XCTAssertEqual(desk.state.value.onBoard?.boolValue, false)
         XCTAssertNotNil(ImageRenderer(content: PageBarView(bar: desk.state.value, desk: desk) {}.frame(width: 360)).cgImage)
         XCTAssertEqual(DocumentExport.shared.FORMATS.map { $0.first as String? ?? "" }, ["docx", "pdf", "md"])

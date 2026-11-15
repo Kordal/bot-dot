@@ -275,8 +275,9 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
                 onDismiss = { versions = false })
         }
         if (req.page != null && page != null && site == null) {
-            PageBar(page, if (pageDesk != null) bar?.keep ?: page.keep.takeIf { bar == null } else page.keep, onBoard == true, board, onKeep = { if (bar?.work?.kind != "busy") { keepDraft = pageDesk?.draft(); keeping = true } },
-                onRefresh = { pageDesk?.refresh() }, onStop = { pageDesk?.stop() })
+            PageBar(page, if (bar?.shown == true) bar.keep else page.keep, onBoard == true, board, busy = bar?.busy == true,
+                onKeep = { if (pageDesk == null) tell(tr("Not connected to botdot")) else if (bar?.busy != true) { keepDraft = pageDesk.draft(); keeping = true } },
+                onRefresh = { pageDesk?.refresh() ?: tell(tr("Not connected to botdot")) }, onStop = { pageDesk?.stop() ?: tell(tr("Not connected to botdot")) })
         }
         val desk = pageDesk
         val w = bar?.work
@@ -494,17 +495,18 @@ private fun CsvTable(text: String, sep: Char) {
 
 /** A page's bar (#346): what keeps it up to date, with Refresh now, Change and Stop, or the button that does. */
 @Composable
-private fun PageBar(page: PageInfo, keep: dev.botdot.app.data.PageKeep?, onBoard: Boolean, board: (() -> Unit)?, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
+private fun PageBar(page: PageInfo, keep: dev.botdot.app.data.PageKeep?, onBoard: Boolean, board: (() -> Unit)?, busy: Boolean, onKeep: () -> Unit, onRefresh: () -> Unit, onStop: () -> Unit) {
     val p = LocalPaper.current
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s8),
         horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-        if (keep == null) SecondaryButton(onClick = onKeep) { Text(tr("Keep up to date"), color = p.text) }
+        // While an action is on its way the others wait (PageBarState.busy): a second one would be dropped.
+        if (keep == null) SecondaryButton(onClick = onKeep, enabled = !busy) { Text(tr("Keep up to date"), color = p.text) }
         else {
             Text("↻ " + tr("Keeps up to date") + " · ${keep.`when`}", color = p.okText, fontSize = Type.s12,
                 modifier = Modifier.align(Alignment.CenterVertically).clip(Radius.pill).background(p.okSoft).padding(horizontal = Space.s12, vertical = Space.s8))
-            SecondaryButton(onClick = onRefresh) { Text(tr("Refresh now"), color = p.text) }
-            androidx.compose.material3.TextButton(onClick = onKeep) { Text(tr("Change"), color = p.muted) }
-            androidx.compose.material3.TextButton(onClick = onStop) { Text(tr("Stop"), color = p.muted) }
+            SecondaryButton(onClick = onRefresh, enabled = !busy) { Text(tr("Refresh now"), color = p.text) }
+            androidx.compose.material3.TextButton(onClick = onKeep, enabled = !busy) { Text(tr("Change"), color = p.muted) }
+            androidx.compose.material3.TextButton(onClick = onStop, enabled = !busy) { Text(tr("Stop"), color = p.muted) }
         }
         if (board != null) BoardButton(onBoard, board)
     }

@@ -19,11 +19,14 @@ struct PageBarView: View {
                     if let keep = bar.keep {
                         Text("↻ " + tr("Keeps up to date") + " · \(keep.when)").font(.caption)
                             .padding(.horizontal, 10).padding(.vertical, 6).background(.green.opacity(0.15), in: .capsule)
-                        Button(tr("Refresh now")) { desk.refresh() }.buttonStyle(.bordered)
-                        Button(tr("Change"), action: onKeep).buttonStyle(.borderless)
-                        Button(tr("Stop")) { desk.stop() }.buttonStyle(.borderless)
+                        Group {
+                            Button(tr("Refresh now")) { desk.refresh() }.buttonStyle(.bordered)
+                            Button(tr("Change"), action: onKeep).buttonStyle(.borderless)
+                            Button(tr("Stop")) { desk.stop() }.buttonStyle(.borderless)
+                        }
+                        .disabled(bar.busy)
                     } else {
-                        Button(tr("Keep up to date"), action: onKeep).buttonStyle(.bordered).disabled(bar.work?.kind == "busy")
+                        Button(tr("Keep up to date"), action: onKeep).buttonStyle(.bordered).disabled(bar.busy)
                     }
                     if bar.board {
                         let on = bar.onBoard?.boolValue == true

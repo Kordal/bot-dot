@@ -57,6 +57,7 @@ class PageDeskTest {
         val draft = KeepDraft("day", "08:00", "always", "prices")
         desk.keep(draft)
         assertEquals(PageWork("busy", "Saving schedule…"), desk.state.value.work)
+        assertTrue(desk.state.value.busy, "the bar's actions wait")
         desk.stop()
         assertEquals("Saving schedule…", desk.state.value.work?.text, "one action at a time")
         held.complete(Unit)
@@ -108,7 +109,9 @@ class PageDeskTest {
     }
     @Test fun boardShowsOnceTheFeaturesComeAfterTheDeskWasMade() {
         val desk = PageDesk(kotlinx.coroutines.CoroutineScope(Dispatchers.Unconfined), FakeServer { 200 to "{}" }.api, "b1", "menu", "Ada", null)
+        assertFalse(desk.state.value.shown, "no page yet: the phone draws the page's own keep")
         desk.show(page)
+        assertTrue(desk.state.value.shown)
         assertFalse(desk.state.value.board, "the features not known yet")
         desk.setFeatures(on)
         assertTrue(desk.state.value.board, "they came: Board shows")
