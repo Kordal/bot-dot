@@ -187,7 +187,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             Column(m.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
                 Text(tr("Needs you"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.semantics { heading() })
                 needsYou?.let { n ->
-                    if (n.questions.isNotEmpty()) OverviewRows(n.questions, openEntry)
+                    if (n.questions.isNotEmpty()) OverviewRows(n.questions, bots, openEntry)
                     n.asks.forEach { ask -> Text(dev.botdot.app.data.Overviews.askText(ask), color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
                 }
                 rows()
@@ -199,7 +199,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             FixedProjectOverview(ui, c, ways) { asked, open ->
                 dev.botdot.app.data.Overviews.needsYou(c, here, needs, asked)?.let { n ->
                     Text(tr("Needs you"), fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
-                    if (n.questions.isNotEmpty()) OverviewRows(n.questions, open, sites = sitesShown(features))
+                    if (n.questions.isNotEmpty()) OverviewRows(n.questions, bots, open, sites = sitesShown(features))
                     n.asks.forEach { ask -> Text(dev.botdot.app.data.Overviews.askText(ask), color = p.text, modifier = Modifier.clickable(onClickLabel = tr("Review"), onClick = ways.onNeeds)) }
                     rows()
                 }
@@ -210,7 +210,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             val cards = rememberCards(ui, c)
             val tiles = buildList {
                 if (needsTile) add(Tile("needs") { m, _ -> needsBox(m) })
-                feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> add(Tile(k) { m, _ -> OverviewTile(k, f, openEntry, m) }) } }
+                feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> add(Tile(k) { m, _ -> OverviewTile(k, f, bots, openEntry, m) }) } }
                 if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } }) }
                 // An ongoing project's monthly review (#925) stands where the 90-day line would.
                 else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } }) }
@@ -232,7 +232,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
                 if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
                 if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
                 if (filesAt != null) add(Tile("files") { m, _ -> Box(m) { ProjectFilesTile(ui, c, filesAt, ways.onFolderFile) } })
-                if (feed != null && on("replies")) add(Tile("replies") { m, _ -> OverviewTile("replies", feed, openEntry, m) })
+                if (feed != null && on("replies")) add(Tile("replies") { m, _ -> OverviewTile("replies", feed, bots, openEntry, m) })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {
@@ -243,7 +243,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             holdAndDrag(onHold = { started = true; haptic.performHapticFeedback(HapticFeedbackType.LongPress); true })
         } else Modifier), verticalArrangement = Arrangement.spacedBy(Space.s16)) {
         if (needsTile) needsBox(Modifier)
-        feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> OverviewTile(k, f, openEntry) } }
+        feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> OverviewTile(k, f, bots, openEntry) } }
         if (on("days")) {
             c.day?.let { DaysLine(c, it) }
             c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) }
@@ -264,7 +264,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             if (filesAt != null) ProjectFilesTile(ui, c, filesAt, ways.onFolderFile)
         }
         if (on("todo")) TodoPanel(ui, c, bots, here, ways, features)
-        if (feed != null && on("replies")) OverviewTile("replies", feed, openEntry)
+        if (feed != null && on("replies")) OverviewTile("replies", feed, bots, openEntry)
         }
         }
         }
