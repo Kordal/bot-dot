@@ -7,3 +7,5 @@ BotDot/Info.plist
 BotDot/BotDot.entitlements
 BotDotNotify/Info.plist
 BotDotNotify/BotDotNotify.entitlements
+# scripts/ios-archive.sh makes it from project.yml
+project-release.yml

@@ -53,6 +53,21 @@ each Mac `.app.tar.gz` and Windows installer that the manifest `latest.json` nam
 without updates until they are installed again with a new public key; changing it is the same: ship the new public
 key in a release signed with the old one first.
 
+## The iOS app's App Store Connect key
+
+The iOS app (ADR 242) goes to TestFlight and the App Store signed by Apple's own certificates, which Xcode makes and
+fetches with automatic signing (#1365): the workflow holds no certificate or profile of its own, only an App Store
+Connect API key. Its secrets, in the protected `release` environment (main only), are `APPLE_TEAM_ID` (the team's ten
+characters), `APP_STORE_CONNECT_KEY_ID`, `APP_STORE_CONNECT_ISSUER_ID` and `APP_STORE_CONNECT_KEY` (the text of the
+`.p8` file Apple lets you download once). Only the release job of `.github/workflows/ios-release.yml` reads them; it
+writes the key to a mode-0600 file on GitHub's throwaway Mac for the archive and the upload.
+
+Making the key (the owner, once the Apple Developer account is active): App Store Connect → Users and Access →
+Integrations → App Store Connect API → Team Keys → Generate, with the Admin role (automatic signing makes the
+distribution certificate and registers the app's ids, which a lower role may not). Before the first upload the app
+needs its record in App Store Connect (My Apps → New App, bundle id `app.botdot`) and an internal testing group in
+TestFlight. A revoked key is replaced by a new one in the same secrets; the builds already uploaded stay.
+
 ## Where a release is published
 
 An image's signed release is an index tagged `accounts-release` in its repository, whose annotation

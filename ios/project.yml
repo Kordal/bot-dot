@@ -52,6 +52,9 @@ targets:
       properties:
         CFBundleDisplayName: botdot
         UILaunchScreen: {}
+        # Export compliance (#1365): the app's encryption is Apple's own (HTTPS, the Keychain, CryptoKit for a push's
+        # seal), which is exempt, so App Store Connect asks no question for each TestFlight build.
+        ITSAppUsesNonExemptEncryption: false
         # The front door's sign-in hands back to botdot://signed-in?code=… (ASWebAuthenticationSession takes it first).
         CFBundleURLTypes:
           - CFBundleURLName: app.botdot.sign-in
