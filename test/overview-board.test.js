@@ -18,6 +18,12 @@ test('the overview pieces are tiles, and every board gets them once at its top',
   assert.deepEqual(kept.needs, [0, 0, 1200, 160]);
   assert.ok(kept.todo[1] >= kept.replies[1] + kept.replies[3], 'the To-do slid below them');
   assert.deepEqual(clean({ id: 'p', board: ['todo'], overviewOn: true, layout: { todo: [0, 0, 392, 560] } }).layout.todo, [0, 0, 392, 560]);
+  // A board made before pieces, and the arrangement Tidy up kept to go back to, get them at the top too, once.
+  const all = clean({ id: 'p', layout: { todo: [0, 0, 392, 560] }, layoutBack: { days: [0, 0, 392, 160] } });
+  assert.deepEqual(all.layout.needs, [0, 0, 1200, 160]);
+  assert.ok(all.layout.todo[1] >= all.layout.replies[1] + all.layout.replies[3]);
+  assert.ok(all.layoutBack.needs && all.layoutBack.days[1] >= all.layoutBack.replies[1] + all.layoutBack.replies[3]);
+  assert.deepEqual(clean(all).layout, all.layout, 'moved once');
 });
 
 test('the web and Android draw the same tile kinds', () => {
