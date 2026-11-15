@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -35,12 +36,7 @@ class DuplicateDeskTest {
         assertEquals("Too many bots", desk.state.value.notice)
         assertTrue(desk.state.value.plan != null, "refused: the confirmation stays, as it was")
         refuse = false
-        val seen = mutableListOf<Boolean>()
-        desk.watch { seen += it.busy }
-        runCurrent()
         assertEquals("b9", desk.go())
-        runCurrent()
-        assertTrue(true in seen, "busy shows while the copy is made")
         assertEquals("Coder 3 made", desk.state.value.notice)
         assertNull(desk.state.value.plan)
         assertTrue("\"name\":\"Coder 3\"" in server.posts().last().body)
@@ -54,5 +50,32 @@ class DuplicateDeskTest {
         val down = DuplicateDesk(FakeServer { 503 to """{"error":"botdot is restarting"}""" }.api, "b1", "Coder", backgroundScope)
         assertFalse(down.ask())
         assertEquals("botdot is restarting", down.state.value.notice)
+    }
+    @Test fun whileTheCopyIsMadeItIsBusyAndAWatchSeesIt() = runTest {
+        // botdot's answer is held, so the busy state is there to see for certain (a watch alone may see only the end:
+        // a StateFlow hands over its latest value).
+        val held = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val server = FakeServer { t -> if (t.method == "GET") 200 to """{"name":"Coder 2"}""" else { held.await(); 200 to """{"id":"b9","name":"Coder 2"}""" } }
+        val desk = DuplicateDesk(server.api, "b1", "Coder", backgroundScope)
+        desk.ask()
+        val seen = mutableListOf<DuplicateState>()
+        desk.watch { seen += it }
+        runCurrent()
+        val going = async { desk.go() }
+        runCurrent()
+        until("busy") { desk.state.value.busy }
+        assertEquals("Duplicating Coder…", desk.state.value.notice)
+        assertFalse(desk.state.value.canGo, "while it is made, Duplicate waits")
+        runCurrent()
+        assertTrue(seen.any { it.busy }, "the watch saw it busy")
+        held.complete(Unit)
+        assertEquals("b9", going.await())
+        runCurrent()
+        assertFalse(seen.last().busy)
+    }
+
+    private suspend fun kotlinx.coroutines.test.TestScope.until(what: String, done: () -> Boolean) {
+        repeat(200) { if (done()) return; runCurrent(); kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { kotlinx.coroutines.delay(5) } }
+        kotlin.test.fail("never: $what")
     }
 }
