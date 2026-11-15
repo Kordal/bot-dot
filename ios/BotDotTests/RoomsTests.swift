@@ -29,8 +29,7 @@ final class RoomsTests: XCTestCase {
         let rooms = RoomsModel(home: home())
         let chat = RoomChatModel(rooms: rooms, id: "r1")
         chat.start()
-        // Up to 10 seconds: on a busy CI simulator the failed lookup of botdot.invalid can take 5 or more.
-        for _ in 0..<500 where chat.state?.error == nil { try await Task.sleep(for: .milliseconds(20)) }
+        for _ in 0..<100 where chat.state?.error == nil { try await Task.sleep(for: .milliseconds(20)) }
         XCTAssertNotNil(chat.state?.error, "the first page could not be read")
         XCTAssertEqual(chat.state?.placeholder, "Message the room…")
         chat.stop()

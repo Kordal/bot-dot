@@ -258,7 +258,8 @@ const BODY_MAX = 64 * 1024;
 const FEEDBACK_BODY_MAX = Math.ceil((store.SCREENSHOTS_MAX * store.SCREENSHOT_BYTES * 4) / 3) + BODY_MAX;
 const FEEDBACK_TOO_LARGE = `That is too much to send at once: at most ${store.SCREENSHOTS_MAX} screenshots of 5 MB each go in one report.`;
 const CHALLENGE_MS = 5 * 60_000;
-const VERSION = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passkeys'] };
+// review-demo: this is the dedicated review demo, whose Delete account answers { demo: true } and keeps the account.
+const VERSION = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passkeys', ...(DEMO_HASH ? ['review-demo'] : [])] };
 // The Android app (dev.botdot.app) signs in with the site's passkey through Android's Credential Manager, which
 // trusts an app with a site's passkeys when the site's asset links name it. The app's sign-in then comes from
 // android:apk-key-hash:<the certificate's SHA-256, base64url> in place of the site's own origin.

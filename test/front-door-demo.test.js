@@ -26,6 +26,15 @@ test('a dedicated demo accepts its code repeatedly, rejects a wrong code and han
   assert.ok(!audit.includes(code));
 });
 
+test('only the review demo says so in its features', async (t) => {
+  const demo = await startFrontDoor({ env: { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'demo', FRONT_DOOR_DEMO_CODE_SHA256: hash } });
+  t.after(demo.stop);
+  assert.ok((await demo.browser().get('/api/version')).data.features.includes('review-demo'));
+  const normal = await startFrontDoor();
+  t.after(normal.stop);
+  assert.ok(!(await normal.browser().get('/api/version')).data.features.includes('review-demo'));
+});
+
 test('a normal machine never offers or accepts a demo code', async (t) => {
   const door = await startFrontDoor();
   t.after(door.stop);
