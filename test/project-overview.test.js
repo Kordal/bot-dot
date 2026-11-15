@@ -74,3 +74,16 @@ test('current team questions and file-only replies are visible, while internal o
   assert.deepEqual(result.replies.map((r) => r.text), ['report.pdf']);
   assert.ok(result.blockers.some((r) => r.groupId === 'g' && r.text === 'Publish it?'));
 });
+
+test('an entry keeps the Markdown and lines the bot wrote, cut at 600 characters never inside a link or an open code block', () => {
+  const { overview } = require('../lib/project-overview');
+  const at = '2026-11-13T12:00:00Z';
+  const of = (result) => overview({ id: 'p', bots: ['b'] }, { bots: [{ id: 'b', name: 'B' }], runs: [{ id: 'r', botId: 'b', status: 'success', result, endedAt: at }], now: at }).replies[0].text;
+  const list = 'Done:\r\n- close [#252](https://github.com/o/r/issues/252)   \n\n\n\n- review **PR #374**';
+  assert.equal(of(list), 'Done:\n- close [#252](https://github.com/o/r/issues/252)\n\n- review **PR #374**');
+  const link = `${'word '.repeat(115)}[#23](https://github.com/o/r/issues/23) after`;
+  assert.equal(of(link), `${'word '.repeat(114)}word…`, 'a link that does not fit is left out whole');
+  const fence = `${'word '.repeat(100)}\n\`\`\`\n${'code '.repeat(40)}\n\`\`\``;
+  assert.equal(of(fence), `${'word '.repeat(99)}word…`, 'a code block that does not fit is left out whole');
+  assert.ok(of('x'.repeat(700)).length <= 601);
+});

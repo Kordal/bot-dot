@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.NotesWake
@@ -72,9 +73,10 @@ internal fun FixedProjectOverview(ui: CompanyUi, c: Company, ways: CompanyWays) 
         SmallButton(tr("Refresh")) { request++ }
         OverviewSection(tr("Goal")) { Text(c.goal.ifBlank { tr("No goal set.") }, color = p.text, fontSize = Type.s20) }
         snapshot?.let { d ->
-            OverviewSection(tr("Current work")) { OverviewRows(d.work, tr("No recorded work."), ::open) }
-            OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, tr("No failed work or open questions."), ::open) }
-            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, tr("No replies yet."), ::open) }
+            val sites = sitesShown(ui.app.store.version.value.value?.features)
+            OverviewSection(tr("Current work")) { OverviewRows(d.work, tr("No recorded work."), sites, ::open) }
+            OverviewSection(tr("Blockers")) { OverviewRows(d.blockers, tr("No failed work or open questions."), sites, ::open) }
+            OverviewSection(tr("Latest replies")) { OverviewRows(d.replies, tr("No replies yet."), sites, ::open) }
         }
         OverviewSection(tr("Files")) {
             filesError?.let { Text("${tr("Couldn't load files")}: $it" + if (files != null) " · ${tr("Showing saved information")}" else "", color = p.err) }
@@ -104,7 +106,7 @@ private fun OverviewSection(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun OverviewRows(items: List<OverviewEntry>, empty: String, open: (OverviewEntry) -> Unit) {
+private fun OverviewRows(items: List<OverviewEntry>, empty: String, sites: Boolean, open: (OverviewEntry) -> Unit) {
     val p = LocalPaper.current
     if (items.isEmpty()) Text(empty, color = p.muted)
     items.forEach { x ->
@@ -112,7 +114,12 @@ private fun OverviewRows(items: List<OverviewEntry>, empty: String, open: (Overv
         Column(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(x) }.padding(vertical = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
             Row { Text(x.name, color = p.text, fontWeight = FontWeight.SemiBold) }
             Text(label + if (x.at.isNotBlank()) " · ${NotesWake.ago(x.at)}" else "", color = p.muted, fontSize = Type.s12)
-            Text(x.text.ifBlank { label }, color = p.text)
+            // The bot's Markdown as in its chat, in at most four lines; a link opens itself, the rest of the row the chat.
+            if (x.text.isBlank()) Text(label, color = p.text)
+            else {
+                val text = remember(x.text, p, sites) { previewText(x.text, p.text, p, sites) }
+                Text(text, color = p.text, maxLines = 4, overflow = TextOverflow.Ellipsis, inlineContent = remember(text) { siteIconsIn(listOf(text)) })
+            }
         }
     }
 }

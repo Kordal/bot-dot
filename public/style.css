@@ -3626,5 +3626,8 @@ dialog.co-delete .modal-foot { border-top: 0; }
 .po-row:hover { background: var(--raise-3); }
 .po-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-8); margin-bottom: var(--sp-4); }
 .po-meta span, .po-stamp, .po-empty { color: var(--muted); font-size: var(--fs-12); }
-.po-text { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A reply's Markdown as in a chat, in at most four lines (mdPreview). */
+.po-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
+div.po-row { cursor: pointer; }
+div.po-row:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: -2px; }
 .po-error { color: var(--err); }

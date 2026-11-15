@@ -19,8 +19,8 @@ const ProjectOverview = (() => {
   }
   const label = (k) => ({ working: tr('Working'), planned: tr('Planned'), failed: tr('Failed'), asks: tr('Asks'), reply: tr('Reply') })[k] || '';
   function rows(items, empty) {
-    return items.length ? items.map((x) => `<button type="button" class="po-row" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>
-      <span class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></span><span class="po-text">${esc(x.text || label(x.state))}</span></button>`).join('') : `<p class="po-empty">${empty}</p>`;
+    return items.length ? items.map((x) => `<div role="button" tabindex="0" class="po-row" ${x.groupId ? `data-po-group="${esc(x.groupId)}"` : x.chatId ? `data-po-chief="${esc(x.chatId)}"` : x.botId ? `data-po-bot="${esc(x.botId)}"` : 'data-po-chat'}>
+      <span class="po-meta"><b>${esc(x.name)}</b><span>${esc(label(x.state))}${x.at ? ` · ${esc(ago(x.at))}` : ''}</span></span><span class="po-text md">${x.text ? mdPreview(x.text) : esc(label(x.state))}</span></div>`).join('') : `<p class="po-empty">${empty}</p>`;
   }
   function html(c) {
     refresh(c);
@@ -44,6 +44,11 @@ const ProjectOverview = (() => {
     root.querySelectorAll('[data-po-chief]').forEach((b) => b.onclick = () => Dock.openChief(b.dataset.poChief));
     root.querySelectorAll('[data-po-chat]').forEach((b) => b.onclick = () => Dock.openDefault());
     root.querySelectorAll('[data-po-file]').forEach((b) => b.onclick = () => c.folder && Files.openFolderFile(folder(), b.dataset.poFile));
+    // A row holds links, so it is no <button>: Enter and Space open it as a click does, and a link opens only itself.
+    root.querySelectorAll('div.po-row').forEach((r) => {
+      r.addEventListener('keydown', (e) => { if (e.target === r && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); r.click(); } });
+      r.addEventListener('click', (e) => { if (e.target.closest('a')) e.stopImmediatePropagation(); }, true);
+    });
     root.querySelector('[data-po-folder]')?.addEventListener('click', () => Files.openFolder(folder()));
   }
   setInterval(() => { if (!document.hidden && state.company && Company.place() === 'company' && (state.view === 'company' || Dock.docked()) && document.querySelector('[data-po-root]')) { refresh(state.company, true); Company.redraw(); } }, 30_000);

@@ -830,16 +830,32 @@ const CODE_COPY_BTN = `<button type="button" class="copy-btn code-copy" title="$
 // [botId]: a bot's reply, whose product cards can be saved (products.js).
 function mdHTML(blocks, botId) { return mdParts(blocks, botId).join('\n'); }
 // The HTML of each top-level element of a reply, in order: a list is one, with its sub-lists.
+// A line of a block, its text escaped: code, struck, bold, italic and [words](address) links.
+function mdInline(t) {
+  return t
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (all, words, href) => isWebAddress(words)
+      ? `<a class="web-link" href="${href}" title="${href}" target="_blank" rel="noopener">${linkLabel(words)}</a>`
+      : `<a href="${href}" target="_blank" rel="noopener">${words}</a>`);
+}
+// A reply shown in a few lines (the project overview): one line per paragraph, title, quote or item ("• " or its
+// number), without code blocks, tables and rules, by the rules both apps share (the `preview` cases of
+// test/fixtures/markdown-cases.json; previewLines in Android's Markdown.kt). Its blocks hold escaped text.
+function previewLines(blocks) {
+  const flat = (t) => t.replace(/\s*\n\s*/g, ' ');
+  return blocks.flatMap((b) => b.type === 'item' ? [`${b.number == null ? '•' : `${b.number}.`} ${flat(b.text)}`]
+    : ['para', 'heading', 'quote'].includes(b.type) ? [flat(b.text)] : []);
+}
+// Its HTML, links shortened as in a chat; text that is only code is shown as it is.
+function mdPreview(src) {
+  const lines = previewLines(mdBlocks(src));
+  return lines.length ? lines.map(mdInline).join('<br>') : esc(String(src || '').replace(/\s+/g, ' ').trim());
+}
 function mdParts(blocks, botId) {
-  const inline = (t) =>
-    t
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-      .replace(/(<code>[^<]*<\/code>)|~~([^~\s](?:[^~]*[^~\s])?)~~/g, (all, code, struck) => code || `<del>${struck}</del>`)
-      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-      .replace(/(^|[^*])\*([^*\s][^*]*)\*/g, '$1<em>$2</em>')
-      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (all, words, href) => isWebAddress(words)
-        ? `<a class="web-link" href="${href}" title="${href}" target="_blank" rel="noopener">${linkLabel(words)}</a>`
-        : `<a href="${href}" target="_blank" rel="noopener">${words}</a>`);
+  const inline = mdInline;
   const text = (t) => t.split('\n').map(inline).join('<br>');
   const isItem = (i) => i < blocks.length && blocks[i].type === 'item';
   // The list that starts at blocks[i], its sub-lists inside their items: its HTML and the block after it.
@@ -964,7 +980,7 @@ function linkifyChat(root) {
   while (walker.nextNode()) {
     const node = walker.currentNode;
     const parent = node.parentElement;
-    if (parent?.closest('.chat-thread .bubble') &&
+    if (parent?.closest('.chat-thread .bubble, .po-text') &&
         !parent.closest('a, code, pre, button, .mention, .diagram')) nodes.push(node);
   }
   for (const node of nodes) {
@@ -992,7 +1008,7 @@ function linkifyChat(root) {
 // A site's icon before each web link in a reply (#530, ADR 086), from botdot (/api/favicon), never from the site: a
 // grey globe where botdot keeps none. Only from a server whose `features` name `site-icons`.
 const GLOBE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
-const SITE_LINKS = '.bubble .md a[href^="http"]:not(.file-path):not([data-site-icon])';
+const SITE_LINKS = ':is(.bubble .md, .po-text) a[href^="http"]:not(.file-path):not([data-site-icon])';
 // The host botdot is asked for, or null for an address it would refuse (an IP address, a local name).
 function linkHost(href) {
   let host;

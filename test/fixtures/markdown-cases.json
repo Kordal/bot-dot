@@ -1420,5 +1420,49 @@
         }
       ]
     }
+  ],
+  "preview": [
+    {
+      "name": "links and bold stay marks; a list item is a line with its bullet",
+      "source": "Sure:\n- close [#252](https://github.com/o/r/issues/252) and [#200](https://github.com/o/r/issues/200)\n- review **PR #374**",
+      "lines": [
+        "Sure:",
+        "• close [#252](https://github.com/o/r/issues/252) and [#200](https://github.com/o/r/issues/200)",
+        "• review **PR #374**"
+      ]
+    },
+    {
+      "name": "a numbered list keeps its numbers, a sub-item is a line of its own",
+      "source": "1. one\n   - inner\n2. two",
+      "lines": [
+        "1. one",
+        "• inner",
+        "2. two"
+      ]
+    },
+    {
+      "name": "a paragraph's lines and an item's text under it are one line",
+      "source": "first line\nsecond line\n\n- item\n  goes on",
+      "lines": [
+        "first line second line",
+        "• item goes on"
+      ]
+    },
+    {
+      "name": "titles and quotes are lines; code blocks, tables and rules are left out",
+      "source": "## Plan\n\n> quoted\n\n```js\nx()\n```\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n---\n\ndone",
+      "lines": [
+        "Plan",
+        "quoted",
+        "done"
+      ]
+    },
+    {
+      "name": "text that is only code is shown as it is, on one line",
+      "source": "```\nnpm test\n```",
+      "lines": [
+        "``` npm test ```"
+      ]
+    }
   ]
 }
