@@ -62,3 +62,5 @@ extension ProjectState: @retroactive @unchecked Sendable {}
 extension ChiefDesk: @retroactive @unchecked Sendable {}
 extension GroupChat: @retroactive @unchecked Sendable {}
 extension GroupChatState: @retroactive @unchecked Sendable {}
+/// Read on the main actor; load only refreshes the store.
+extension MentionBox: @retroactive @unchecked Sendable {}
