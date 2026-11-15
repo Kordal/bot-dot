@@ -14,8 +14,9 @@ Native SwiftUI on the Android app's shared data layer ([ADR 242](../docs/adr/242
 
 ```
 project.yml       the Xcode project: the app, its notification extension and its tests; iOS 26 and later
-BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, the Board's numbers,
-                  the bots in the owner's order, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
+BotDot/           the app (app.botdot): the address and sign-in screens, Home (HomeView: Needs you, with Allow and No
+                  on a permission, the Board's numbers, the bots in the owner's order, a category folded by a tap on its
+                  heading, drag to reorder, pull to refresh), Needs you (NeedsYouView: the shared
                   layer's cards, NeedsDesk, with their buttons), a bot's chat (ChatView: its replies' Markdown, the live
                   feed, send, Stop, waiting messages, files from Photos and Files, a failed send back in the box; a file
                   path in a reply opens in the viewer, MarkdownView(paths:); quick-answer choices and question boxes,
@@ -71,16 +72,16 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `ConnectScreen` (`connect`) | first run, ⋯ | `AddressView` |
 | `SignInScreen` (`sign-in`) | the front door asks | `SignInView` |
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
-| `HomeScreen` (`home`), `HomeParts` | start | `HomeView` |
+| `HomeScreen` (`home`), `HomeParts` | start | `HomeView` (left: search, picking the Board's tiles shown on Home) |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
-| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile and a chat tile open nothing yet) |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` (left: drag to move, the colour wheel, table and picture blocks; a page tile opens nothing yet) |
 | `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | left (#1372): the viewer shows files, not pages |
 | `HomeTilesSheet` | holding Home's Board cards | left (#1372) |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
 | `ChiefNameQuestion` | the first run | the alert in `HomeView` |
 | `SettingsScreen`: Delete account | Settings | `AccountDeletionView`, from Home's ⋯ until Settings is there |
-| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` (left: the "@" picker of the room's bots, as "@Name" typed in the message still mentions; the button to the newest message; block Markdown, a message shows inline Markdown) |
+| `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | #1366 |
 | `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView` (left: Reply to a task and its steps, "@" mentions and Quote, page chips, Steer, "Learned" chips) |

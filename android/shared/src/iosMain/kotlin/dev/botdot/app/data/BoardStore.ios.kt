@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 class BoardStore(home: HomeStore) {
     private val scope = MainScope()
     private val desk = BoardDesk(home.store, home.api, scope)
+    private val bots = home.store.bots
 
     init {
         scope.followFeed(home.api, home.store)
@@ -22,6 +23,9 @@ class BoardStore(home: HomeStore) {
     fun watch(onChange: (BoardState) -> Unit): Job = scope.launch { desk.state.collect { onChange(it) } }
 
     fun width(points: Float) = desk.width(points)
+
+    /** The name of the bot [id], for its chat's title when a chat tile opens it; null when the list doesn't know it. */
+    fun botName(id: String): String? = bots.value.value?.firstOrNull { it.id == id }?.name
     /** The app in front ([on]) or in the background: the Board is read only while it is in front. */
     fun active(on: Boolean) = desk.active(on)
     fun filter(name: String) = desk.filter(name)
