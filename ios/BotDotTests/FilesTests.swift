@@ -53,13 +53,16 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(viewer.lines(text: "one\ntwo\n"), ["one", "two"])
     }
 
-    func testACsvSwitchesBetweenItsTableAndItsTextAndMarkdownIsItsText() {
+    func testACsvSwitchesBetweenItsTableAndItsTextAndMarkdownIsRenderedOrItsSource() {
         let csv = Viewed(view: FileView(name: "a.csv", size: 1, at: nil, kind: "csv", type: "", text: "a", truncated: false, downloadable: true, page: nil, parts: nil, tiles: [], plain: nil, interactive: nil), pane: .text, failed: nil)
         XCTAssertEqual(csv.mode, "table")
         XCTAssertEqual(csv.switches, ["table", "source"])
         XCTAssertTrue(csv.table(mode: "table"))
         let md = Viewed(view: FileView(name: "a.md", size: 1, at: nil, kind: "markdown", type: "", text: "# a", truncated: false, downloadable: true, page: nil, parts: nil, tiles: [], plain: nil, interactive: nil), pane: .text, failed: nil)
-        XCTAssertTrue(md.switches.isEmpty)
+        XCTAssertEqual(md.switches, ["rendered", "source"], "Markdown is drawn, or its source")
+        XCTAssertEqual(md.mode, "rendered")
+        XCTAssertTrue(md.rendered(mode: md.mode))
+        XCTAssertFalse(md.rendered(mode: "source"))
         XCTAssertFalse(md.table(mode: md.mode))
     }
 
