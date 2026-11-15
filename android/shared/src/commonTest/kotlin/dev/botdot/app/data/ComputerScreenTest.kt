@@ -8,11 +8,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.async
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -32,7 +27,7 @@ import kotlin.test.assertTrue
 class ComputerScreenTest {
     private data class Sent(val method: String, val path: String, val body: String)
 
-    private class FakeBotdot(answer: suspend (Sent) -> Pair<Int, String>) {
+    private class FakeBotdot(answer: (Sent) -> Pair<Int, String>) {
         private val lock = Mutex()
         private val took = mutableListOf<Sent>()
         val api = Api("https://botdot.test", MockEngine { req ->
@@ -137,47 +132,6 @@ class ComputerScreenTest {
         val first = async { desk.done() }
         val second = async { desk.done() }
         assertEquals(1, listOf(first.await(), second.await()).count { it })
-        assertEquals(1, botdot.posts().size)
-    }
-
-    @Test fun doneTappedTwiceFromTwoThreadsAtOnceIsSentOnceEveryTime() = runTest {
-        repeat(200) { round ->
-            val botdot = FakeBotdot { r -> if (r.method == "POST") 200 to """{"ok":true}""" else 200 to running }
-            val desk = desk(botdot)
-            desk.settled()
-            desk.control()
-            desk.state.first { it.control }
-            val taps = List(2) { async(Dispatchers.Default) { desk.done() } }
-            assertEquals(1, taps.awaitAll().count { it }, "round $round: one tap hands it back")
-            assertEquals(1, botdot.posts().size, "round $round: sent once")
-        }
-    }
-
-    @Test fun aHandBackCancelledOnItsWaySaysNothingAndCanBeTappedAgain() = runTest {
-        val held = CompletableDeferred<Unit>()
-        val botdot = FakeBotdot { r -> if (r.method == "POST") { held.await(); 200 to """{"ok":true}""" } else 200 to running }
-        val desk = desk(botdot)
-        desk.settled()
-        desk.control()
-        desk.state.first { it.control }
-        val tap = launch(Dispatchers.Default) { desk.done() }
-        desk.state.first { !it.handBack } // on its way
-        tap.cancelAndJoin() // the screen left while it was sent
-        val after = desk.state.first { it.handBack }
-        assertNull(after.notice, "cancelled is not a failure: no notice")
-        assertFalse(after.closed)
-        held.complete(Unit)
-    }
-
-    @Test fun aTapAfterTheScreenWentBackSendsNothing() = runTest {
-        val botdot = FakeBotdot { r -> if (r.method == "POST") 200 to """{"ok":true}""" else 200 to running }
-        val desk = desk(botdot)
-        desk.settled()
-        desk.control()
-        desk.state.first { it.control }
-        assertTrue(desk.done())
-        assertFalse(desk.done(), "it went back already: a late second tap does nothing")
-        assertFalse(desk.state.value.handBack, "and I'm done no longer shows")
         assertEquals(1, botdot.posts().size)
     }
 

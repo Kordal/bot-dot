@@ -12,14 +12,17 @@ final class HomeModel {
     /// The list as drawn: the pinned rows, the line under them (ListLayout.PINS), then each category and its rows.
     private(set) var order: [String] = []
     var error: String?
-    /// What the front door offers this account (deleting it, Feedback), read once its features are known.
-    private(set) var offers: FrontDoorOffers?
-    /// When the front door was last asked what it offers; nil before the first read.
-    private var offersAsked: Date?
+    /// Home's first reads, as the shared layer keeps them (FirstRunDesk): the front door's offers, What's new, the name.
+    private(set) var firstRun: FirstRunState?
+    /// What the front door offers this account (deleting it, Feedback); nil while not read.
+    var offers: FrontDoorOffers? { firstRun?.offers }
     /// The notes of the releases this person has not seen (What's new), shown once.
-    private(set) var whatsNew: [WhatsNew.Entry] = []
-    /// The first run's question for the Chief's name (ChiefName.firstRun).
-    var askName = false
+    var whatsNew: [WhatsNew.Entry] { firstRun?.whatsNew ?? [] }
+    /// The first run's question for the Chief's name (ChiefName.firstRun); What's new waits for it.
+    var askName: Bool { firstRun?.askName ?? false }
+    var showsWhatsNew: Bool { firstRun?.showsWhatsNew ?? false }
+    private let firstRunDesk: FirstRunDesk
+    private var firstRunWatch: Kotlinx_coroutines_coreJob?
 
     let home: HomeStore
     /// Shared rooms, where the front door has them on for this account: Home's row, and the screens it opens.
@@ -27,11 +30,11 @@ final class HomeModel {
     private var watching: Kotlinx_coroutines_coreJob?
     private var figureKey: String??
     private var figureTask: Task<Void, Never>?
-    private var firstRead = false
 
     init(api: Api, bundled: FigureDef? = HomeModel.bundledFigure) {
         home = HomeStore(api: api)
         rooms = RoomsModel(home: home)
+        firstRunDesk = home.firstRun(zone: TimeZone.current.identifier)
         figure = bundled
     }
 
@@ -42,11 +45,16 @@ final class HomeModel {
         watching = home.watch { [weak self] state in
             MainActor.assumeIsolated { self?.show(state) }
         }
+        firstRunWatch = firstRunDesk.watch { [weak self] run in
+            MainActor.assumeIsolated { self?.firstRun = run }
+        }
     }
 
     func stop() {
         watching?.cancel(cause: nil)
         watching = nil
+        firstRunWatch?.cancel(cause: nil)
+        firstRunWatch = nil
         figureTask?.cancel()
         figureTask = nil
         figureKey = nil
@@ -58,19 +66,8 @@ final class HomeModel {
 
     /// Pull to refresh: everything Home shows, at once, and what the front door offers if it wasn't read yet.
     func refresh() async {
-        if offers == nil, offersAsked != nil { readOffers() }
+        firstRunDesk.refresh(features: state?.version?.features)
         try? await home.refresh()
-    }
-
-    /// What the front door offers, asked again after a read that failed (a flaky network at launch): Feedback and
-    /// Delete account show once it answers.
-    private func readOffers() {
-        guard let features = state?.version?.features else { return }
-        offersAsked = .now
-        Task { [home] in
-            let o = (try? await FrontDoorDesk(api: home.api).read(features: features)) ?? nil
-            if self.offers == nil { self.offers = o }
-        }
     }
 
     /// A row was let go at its new place: saved as Android's list saves it, then the list is read again.
@@ -94,22 +91,8 @@ final class HomeModel {
     private func show(_ s: HomeState) {
         state = s
         order = Self.order(s)
-        if let features = s.version?.features, !firstRead {
-            // Once the server's features are known: what the front door offers, What's new and the first run.
-            firstRead = true
-            Task { [home] in
-                async let offers = (try? await FrontDoorDesk(api: home.api).read(features: features)) ?? nil
-                async let notes = try? WhatsNew.shared.unseen(api: home.api, features: features)
-                async let ask = try? ChiefName.shared.firstRun(api: home.api, features: features, zone: TimeZone.current.identifier)
-                let (o, n, a) = await (offers, notes, ask)
-                // All at once: the name's question first, What's new after it is answered.
-                self.offers = o
-                self.offersAsked = .now
-                self.askName = a?.boolValue ?? false
-                self.whatsNew = n ?? []
-            }
-        }
-        if offers == nil, offersAsked.map({ Date.now.timeIntervalSince($0) > 30 }) == true { readOffers() }
+        // Once the features are known, the first reads; a front door not reached yet is asked again (FirstRunDesk).
+        firstRunDesk.saw(features: s.version?.features)
         let key = s.version?.figureKey
         if s.version != nil, figureKey != .some(key) {
             // Another server version: the definition is asked anew, and an answer for the one before is dropped.
@@ -126,20 +109,13 @@ final class HomeModel {
     }
 
     /// What's new closed, any way: its notes are seen, here and in every other app.
-    func whatsNewClosed() {
-        let shown = whatsNew
-        whatsNew = []
-        Task { [home] in try? await WhatsNew.shared.seen(api: home.api, entries: shown) }
-    }
+    func whatsNewClosed() { firstRunDesk.whatsNewClosed() }
 
     /// Save or Skip on the Chief's name: nil once it was kept, else why not, and the question stays.
     func nameChief(_ given: String) async -> String? {
         let failed: String?
-        do { failed = try await ChiefName.shared.answer(api: home.api, given: given) } catch { failed = tr("Couldn't save the name") }
-        if failed == nil {
-            askName = false
-            await refresh()
-        }
+        do { failed = try await firstRunDesk.nameChief(given: given) } catch { failed = tr("Couldn't save the name") }
+        if failed == nil { await refresh() }
         return failed
     }
 

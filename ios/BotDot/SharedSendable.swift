@@ -23,6 +23,8 @@ extension BoardState: @retroactive @unchecked Sendable {}
 extension BoardTap: @retroactive @unchecked Sendable {}
 extension FrontDoorOffers: @retroactive @unchecked Sendable {}
 extension FrontDoorDesk: @retroactive @unchecked Sendable {}
+extension FirstRunDesk: @retroactive @unchecked Sendable {}
+extension FirstRunState: @retroactive @unchecked Sendable {}
 extension FrontDoorDesk.Deleted: @retroactive @unchecked Sendable {}
 extension WhatsNew.Entry: @retroactive @unchecked Sendable {}
 extension PausedWatch: @retroactive @unchecked Sendable {}

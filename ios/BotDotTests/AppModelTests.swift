@@ -68,6 +68,13 @@ final class AppModelTests: XCTestCase {
         XCTAssertNil(sessions.read(server: server))
     }
 
+    func testHomeAsksNothingAndShowsNothingBeforeBotdotAnswers() {
+        let home = HomeModel(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000), bundled: nil)
+        XCTAssertNil(home.offers, "not read: Feedback and Delete account wait")
+        XCTAssertFalse(home.askName)
+        XCTAssertFalse(home.showsWhatsNew)
+    }
+
     func testSigningOutLeavesAnotherAddressOnScreen() async {
         let m = model()
         sessions.write(server: "https://hq.example.com", token: "s3cret")
