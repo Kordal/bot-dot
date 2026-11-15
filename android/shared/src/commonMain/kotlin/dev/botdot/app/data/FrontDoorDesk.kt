@@ -13,11 +13,14 @@ data class FrontDoorOffers(val deletion: AccountDeletion.Offer? = null, val feed
  * ([delete]) and Feedback ([sendFeedback]), with the Android app's rules and words. The iPhone draws what it answers.
  */
 class FrontDoorDesk(private val api: Api) {
-    /** What the front door offers, from its session; a front door that isn't reached offers nothing for now. */
+    /**
+     * What the front door offers, from its session; null when its session couldn't be read, so the phone asks again
+     * later instead of offering nothing for good. Behind no front door it offers nothing, and asks nothing.
+     */
     @Throws(Exception::class)
-    suspend fun read(features: List<String>?): FrontDoorOffers {
+    suspend fun read(features: List<String>?): FrontDoorOffers? {
         if (features?.contains("accounts") != true) return FrontDoorOffers()
-        val session = try { api.frontDoorSession() } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
+        val session = try { api.frontDoorSession() } catch (e: CancellationException) { throw e } catch (_: Exception) { return null }
         return FrontDoorOffers(AccountDeletion.offer(features, session), Feedback.on(features, session), Feedback.shotsOn(session))
     }
 

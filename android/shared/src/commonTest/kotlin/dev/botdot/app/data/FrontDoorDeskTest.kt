@@ -24,7 +24,7 @@ class FrontDoorDeskTest {
 
     @Test fun anAccountThatMayBeDeletedIsOfferedDeleteWithItsName() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"feedback":true,"feedbackScreenshots":true}""")
-        val o = FrontDoorDesk(f.api).read(listOf("accounts"))
+        val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!
         assertEquals(AccountDeletion.Offer.Delete("ann", "This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback."), o.deletion)
         assertTrue(o.feedback)
         assertTrue(o.shots)
@@ -32,23 +32,35 @@ class FrontDoorDeskTest {
 
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"deletionRequest":true}""")
-        val o = FrontDoorDesk(f.api).read(listOf("accounts")).deletion as AccountDeletion.Offer.Delete
+        val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!.deletion as AccountDeletion.Offer.Delete
         assertTrue(o.warning.startsWith("Your account is paused and you are signed out at once."))
     }
 
     @Test fun aPageOfBotdotAppOrTheAdminsNote() = runTest {
-        val page = FrontDoorDesk(door("""{"deleteAccountPage":"https://botdot.app/delete"}""").api).read(listOf("accounts")).deletion
+        val page = FrontDoorDesk(door("""{"deleteAccountPage":"https://botdot.app/delete"}""").api).read(listOf("accounts"))!!.deletion
         assertEquals(AccountDeletion.Offer.Page("https://botdot.app/delete"), page)
-        val plain = FrontDoorDesk(door("""{"deleteAccountPage":"http://botdot.app/delete"}""").api).read(listOf("accounts")).deletion
+        val plain = FrontDoorDesk(door("""{"deleteAccountPage":"http://botdot.app/delete"}""").api).read(listOf("accounts"))!!.deletion
         assertNull(plain, "only an https page")
-        val admin = FrontDoorDesk(door("""{"admin":true,"deleteAccount":false}""").api).read(listOf("accounts")).deletion
+        val admin = FrontDoorDesk(door("""{"admin":true,"deleteAccount":false}""").api).read(listOf("accounts"))!!.deletion
         assertEquals(AccountDeletion.Offer.AdminNote, admin)
         assertTrue(AccountDeletion.Offer.AdminNote.text.startsWith("This is the admin's account"))
     }
 
-    @Test fun aFrontDoorNotReachedOffersNothingForNow() = runTest {
-        val f = FakeServer { 502 to "" }
-        assertEquals(FrontDoorOffers(), FrontDoorDesk(f.api).read(listOf("accounts")))
+    @Test fun aFrontDoorNotReachedIsAskedAgainAndThenOffersWhatItHas() = runTest {
+        var reached = false
+        val f = FakeServer { t ->
+            when {
+                t.path != "/front-door/session" -> 404 to "{}"
+                reached -> 200 to """{"account":"ann","deleteAccount":true,"feedback":true}"""
+                else -> 502 to ""
+            }
+        }
+        val desk = FrontDoorDesk(f.api)
+        assertNull(desk.read(listOf("accounts")), "not read: unknown, not \"nothing offered\"")
+        reached = true
+        val o = desk.read(listOf("accounts"))
+        assertTrue(o?.feedback == true, "read again once it answers")
+        assertTrue(o?.deletion is AccountDeletion.Offer.Delete)
     }
 
     @Test fun deleteSendsNothingUntilTheNameIsTypedExactly() = runTest {

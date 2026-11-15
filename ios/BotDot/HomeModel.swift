@@ -14,6 +14,8 @@ final class HomeModel {
     var error: String?
     /// What the front door offers this account (deleting it, Feedback), read once its features are known.
     private(set) var offers: FrontDoorOffers?
+    /// When the front door was last asked what it offers; nil before the first read.
+    private var offersAsked: Date?
     /// The notes of the releases this person has not seen (What's new), shown once.
     private(set) var whatsNew: [WhatsNew.Entry] = []
     /// The first run's question for the Chief's name (ChiefName.firstRun).
@@ -50,9 +52,21 @@ final class HomeModel {
         home.close() // Home left for good: another botdot, or signed out
     }
 
-    /// Pull to refresh: everything Home shows, at once.
+    /// Pull to refresh: everything Home shows, at once, and what the front door offers if it wasn't read yet.
     func refresh() async {
+        if offers == nil, offersAsked != nil { readOffers() }
         try? await home.refresh()
+    }
+
+    /// What the front door offers, asked again after a read that failed (a flaky network at launch): Feedback and
+    /// Delete account show once it answers.
+    private func readOffers() {
+        guard let features = state?.version?.features else { return }
+        offersAsked = .now
+        Task { [home] in
+            let o = (try? await FrontDoorDesk(api: home.api).read(features: features)) ?? nil
+            if self.offers == nil { self.offers = o }
+        }
     }
 
     /// A row was let go at its new place: saved as Android's list saves it, then the list is read again.
@@ -80,16 +94,18 @@ final class HomeModel {
             // Once the server's features are known: what the front door offers, What's new and the first run.
             firstRead = true
             Task { [home] in
-                async let offers = try? FrontDoorDesk(api: home.api).read(features: features)
+                async let offers = (try? await FrontDoorDesk(api: home.api).read(features: features)) ?? nil
                 async let notes = try? WhatsNew.shared.unseen(api: home.api, features: features)
                 async let ask = try? ChiefName.shared.firstRun(api: home.api, features: features, zone: TimeZone.current.identifier)
                 let (o, n, a) = await (offers, notes, ask)
                 // All at once: the name's question first, What's new after it is answered.
                 self.offers = o
+                self.offersAsked = .now
                 self.askName = a?.boolValue ?? false
                 self.whatsNew = n ?? []
             }
         }
+        if offers == nil, offersAsked.map({ Date.now.timeIntervalSince($0) > 30 }) == true { readOffers() }
         let key = s.version?.figureKey
         if s.version != nil, figureKey != .some(key) {
             // Another server version: the definition is asked anew, and an answer for the one before is dropped.
