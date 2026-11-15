@@ -31,6 +31,10 @@ struct ColorWheelBlock: View {
     let model: BoardModel
     @State private var hex: String?
     @State private var sent = Date.distantPast
+    /// While the finger is on the wheel, a Board read doesn't move the mark back.
+    @State private var dragging = false
+    /// The last send: each waits for it, so the colour let go on is the one botdot gets last.
+    @State private var sending: Task<Void, Never>?
     private let size: CGFloat = 220
     private static let hues: [Color] = [
         Color(red: 1, green: 0, blue: 0), Color(red: 1, green: 1, blue: 0), Color(red: 0, green: 1, blue: 0),
@@ -58,14 +62,19 @@ struct ColorWheelBlock: View {
             .accessibilityLabel(b.label ?? tr("Colour"))
         }
         .onAppear { hex = BoardKit.shared.textOf(v: b.value) }
-        .onChange(of: BoardKit.shared.textOf(v: b.value)) { _, now in hex = now }
+        .onChange(of: BoardKit.shared.textOf(v: b.value)) { _, now in if !dragging { hex = now } }
     }
 
     private func pick(_ at: CGPoint, done: Bool) {
         let picked = BoardKit.shared.wheelHex(x: Double(at.x / size), y: Double(at.y / size))
         hex = picked
+        dragging = !done
         guard let block = b.key, done || Date().timeIntervalSince(sent) > 0.35 else { return }
         sent = Date()
-        Task { await model.setColor(key, block, picked, done: done) }
+        let before = sending
+        sending = Task {
+            await before?.value
+            await model.setColor(key, block, picked, done: done)
+        }
     }
 }
