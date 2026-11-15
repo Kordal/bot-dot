@@ -48,7 +48,7 @@ ios: android-tools ## Build the iOS app and run its tests in the simulator
 	@command -v xcodebuild >/dev/null || { echo "Xcode is missing: the iOS target needs it"; exit 1; }
 	$(eval IOS_SIMULATOR := $(shell bash scripts/ios-simulator.sh))
 	@[ -n "$(IOS_SIMULATOR)" ] || { echo "No iPhone simulator: add one in Xcode (Settings, Components)"; exit 1; }
-	cd android && ./gradlew :shared:assembleBotdotSharedReleaseXCFramework --console=plain
+	cd android && ./gradlew :shared:assembleBotdotSharedDebugXCFramework --console=plain
 	cd ios && xcodegen generate --quiet
 	cd ios && xcodebuild test -project BotDot.xcodeproj -scheme BotDot -destination 'platform=iOS Simulator,id=$(IOS_SIMULATOR)' -derivedDataPath build
 

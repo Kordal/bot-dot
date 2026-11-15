@@ -274,6 +274,15 @@ test("the Android release builds on GitHub's machines, and no workflow builds or
   const runs = ios.steps.filter((st) => st.run).map((st) => st.run).join('\n');
   assert.match(runs, /\.\/gradlew :shared:compileKotlinIosArm64 :shared:iosSimulatorArm64Test/);
   assert.match(runs, /^make ios$/m);
+  // Speed (2026-11-15): the simulator boots before Gradle, one Gradle run links the Debug framework make ios uses,
+  // and only a run on main writes the Kotlin/Native cache.
+  const names = ios.steps.map((st) => st.name || st.uses);
+  assert.ok(names.indexOf('Boot the simulator') < names.indexOf('Shared data layer in the simulator'));
+  assert.match(runs, /:shared:assembleBotdotSharedDebugXCFramework/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'Makefile'), 'utf8'), /:shared:assembleBotdotSharedDebugXCFramework/);
+  assert.match(fs.readFileSync(path.join(__dirname, '..', 'ios', 'project.yml'), 'utf8'), /XCFrameworks\/debug\/BotdotShared\.xcframework/);
+  assert.match(ios.steps.find((st) => st.name === 'Save Kotlin/Native').if, /^github\.event_name == 'push' &&/);
+  assert.deepEqual(workflow('ios.yml').on.push.branches, ['main']);
   assert.doesNotMatch(runs, /make mac-|working-directory: macos|codesign|CODE_SIGN_IDENTITY=[^"]/, 'nothing is signed');
   assert.equal(fs.readFileSync(path.join(WORKFLOWS, 'ios.yml'), 'utf8').includes('secrets.'), false, 'no secret');
   for (const name of fs.readdirSync(WORKFLOWS)) {
