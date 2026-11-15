@@ -37,6 +37,15 @@ class RunView(
     val problem: Boolean,
     /** The files it attached to its reply. */
     val files: List<Attachment>,
+    /**
+     * Its quick answers, while they can be answered ([BotChat.answer]): under the bot's open question, or the newest
+     * reply when it asks none; [yes] is the one that says yes, filled with the bot's colour (-1 for none).
+     */
+    val choices: List<String> = emptyList(),
+    val yes: Int = -1,
+    /** Several questions at once there: a box and its choices under each ([BotChat.answerQuestions]). */
+    val questions: List<String> = emptyList(),
+    val questionChoices: List<List<String>> = emptyList(),
 )
 
 /** Everything a bot's chat draws, at one moment. */
@@ -215,6 +224,38 @@ class BotChat(
         return went
     }
 
+    /** A quick answer tapped under [runId]: its words go to the bot as the answer to that run. Whether it went. */
+    @Throws(Exception::class)
+    suspend fun answer(runId: String, choice: String): Boolean = sendFrom(runId, choice)
+
+    /**
+     * Several questions under [runId] answered at once, in one message ([questionsAnswer]): nothing with every box
+     * empty. Whether it went.
+     */
+    @Throws(Exception::class)
+    suspend fun answerQuestions(runId: String, answers: List<String>): Boolean {
+        val r = all.firstOrNull { it.id == runId } ?: return false
+        val questions = r.questions.orEmpty()
+        if (questions.isEmpty() || answers.none { it.isNotBlank() }) return false
+        return sendFrom(runId, questionsAnswer(questions, answers))
+    }
+
+    // One key per card while its words stay the same: a second tap is taken once.
+    private val cardKeys = HashMap<String, Pair<String, String>>()
+
+    /** A card's words sent as their own message (not the box's), answering [runId], with the card's key. */
+    private suspend fun sendFrom(runId: String, text: String): Boolean {
+        val key = (cardKeys[runId]?.takeIf { it.first == text } ?: (text to newMessageKey()).also { cardKeys[runId] = it }).second
+        val known = ownWords(all, queued).mapTo(HashSet()) { it.id }
+        val went = outbox.send(text, emptyList(), box = false, key = key, once = takesOnce(store.version.value.value?.features), known = known) { k ->
+            publish()
+            took(api.runBot(botId, text, emptyList(), k, answers = runId), text, emptyList())
+        }
+        publish()
+        refresh()
+        return went
+    }
+
     /** The box took the failed message back: its text is returned, its files are picked again. */
     fun takeFailed(): String? {
         val back = outbox.take() ?: return null
@@ -332,12 +373,16 @@ class BotChat(
 
     private fun snapshot(): BotChatState {
         val runs = all.filterNot { it.quiet || it.isQueued }
+        // What asks can be answered where it stands: the bot's open questions, and the newest reply that asks none
+        // (Android's bot chat, ADR 211).
+        val askedIn = store.bots.value.value?.firstOrNull { it.id == botId }?.asks?.runs.orEmpty()
+        val newest = runs.firstOrNull()?.id
         val features = store.version.value.value?.features
         val line = store.lines.lines.value["bot:$botId"]
         return BotChatState(
             bot = store.bots.value.value?.firstOrNull { it.id == botId },
             opensFiles = DocumentView.opensChatFiles(features),
-            runs = runs.map { view(it, features, line) },
+            runs = runs.map { r -> view(r, features, line, answerable = (r.id in askedIn || (r.id == newest && !r.asks)) && r.status == "success") },
             queued = queued,
             started = stillStarting(starting, all),
             loaded = loaded,
@@ -361,7 +406,7 @@ class BotChat(
     /** A stopped plan's Dismiss: it shows no more. */
     fun dismissPlan() { state.value.plan?.let { plans.dismiss(it.view.id) }; publish() }
 
-    private fun view(r: Run, features: Collection<String>?, line: String?): RunView {
+    private fun view(r: Run, features: Collection<String>?, line: String?, answerable: Boolean = false): RunView {
         val asked = Unread.asked(r)
         val chip = when (asked) {
             Unread.Asked.JOB -> "${Unread.jobChip(r)} · ${chatClock(r.startedAt)}"
@@ -383,6 +428,10 @@ class BotChat(
             ended = ended?.text,
             problem = ended is Ended.Problem,
             files = r.files.orEmpty(),
+            choices = if (answerable) r.choices.orEmpty() else emptyList(),
+            yes = if (answerable) r.yes ?: -1 else -1,
+            questions = if (answerable) r.questions.orEmpty() else emptyList(),
+            questionChoices = if (answerable) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
         )
     }
 

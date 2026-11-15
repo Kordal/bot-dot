@@ -17,10 +17,10 @@ data class Took(val method: String, val path: String, val body: String)
  * A fake botdot behind its front door, for the shared tests: Ktor's MockEngine under the shared Api, so they run on
  * Android's host and in the iOS simulator alike. [answer] says what each request gets: a status and a JSON body.
  */
-class FakeServer(answer: suspend (Took) -> Pair<Int, String>) {
+class FakeServer(session: Session? = null, base: String = "https://botdot.test", answer: suspend (Took) -> Pair<Int, String>) {
     private val lock = Mutex()
     private val took = mutableListOf<Took>()
-    val api = Api("https://botdot.test", MockEngine { req ->
+    val api = Api(base, session, MockEngine { req ->
         val t = Took(req.method.value, req.url.encodedPath, (req.body as? TextContent)?.text.orEmpty())
         lock.withLock { took += t }
         val (status, body) = answer(t)

@@ -27,7 +27,9 @@ struct ChatView: View {
                 LazyVStack(alignment: .leading, spacing: 14) {
                     if let s = model.state {
                         Color.clear.frame(height: 1).onAppear { model.loadOlder() }
-                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) }) }
+                        ForEach(s.runs.reversed(), id: \.run.id) { r in RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
+                                                                                   color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
+                                                                                   onAnswers: { await model.answerQuestions(r.run.id, $0) }) }
                         ForEach(s.started, id: \.id) { q in Mine(text: q.text, files: q.attachments, waiting: true) }
                         ForEach(s.queued, id: \.id) { q in
                             VStack(alignment: .trailing, spacing: 4) {
@@ -83,6 +85,7 @@ struct ChatView: View {
             opening = DocumentView.shared.ofPath(botId: botId, path: path, from: name, name: (path as NSString).lastPathComponent)
             return .handled
         })
+        .replyFiles(api: home.api, from: name, opening: $opening)
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
         .navigationBarTitleDisplayMode(.inline)
         .modifier(NoticeOverlay(notice: model.state?.notice, count: Int(model.state?.noticeCount ?? 0)))
@@ -113,6 +116,10 @@ struct RunRow: View {
     /** Its working line has Stop (Send stays in the box while it works). */
     let stops: Bool
     let onStop: () -> Void
+    /// The bot's colour, for the choice that says yes.
+    var color: String? = nil
+    var onAnswer: (String) async -> Bool = { _ in false }
+    var onAnswers: ([String]) async -> Bool = { _ in false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -130,7 +137,47 @@ struct RunRow: View {
             } else if let ended = view.ended {
                 Text(ended).foregroundStyle(view.problem ? .red : .secondary)
             }
-            ForEach(view.files, id: \.file) { f in Label(f.name, systemImage: "doc").font(.callout) }
+            ReplyFilesView(files: view.files)
+            if !view.choices.isEmpty { Choices(choices: view.choices, yes: Int(view.yes), color: color, onAnswer: onAnswer) }
+            if !view.questions.isEmpty {
+                QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
+            }
+        }
+    }
+}
+
+/// A reply's quick answers: a tap is the owner's answer to the run that asked; the one that says yes is filled with
+/// the bot's colour. Tapped, they wait for the answer to go, and go with it.
+struct Choices: View {
+    let choices: [String]
+    let yes: Int
+    let color: String?
+    let onAnswer: (String) async -> Bool
+    @State private var sent = false
+    @State private var busy = false
+
+    var body: some View {
+        if !sent {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack {
+                    ForEach(Array(choices.enumerated()), id: \.offset) { (i, c: String) in
+                        if i == yes {
+                            Button(c) { tap(c) }.buttonStyle(.borderedProminent).tint(ContactRow.tint(color))
+                        } else {
+                            Button(c) { tap(c) }.buttonStyle(.bordered)
+                        }
+                    }
+                }
+            }
+            .disabled(busy)
+        }
+    }
+
+    private func tap(_ c: String) {
+        busy = true
+        Task {
+            if await onAnswer(c) { sent = true }
+            busy = false
         }
     }
 }

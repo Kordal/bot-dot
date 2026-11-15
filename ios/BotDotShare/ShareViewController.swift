@@ -76,6 +76,8 @@ struct ShareView: View {
     @State private var pending = Share.Pending()
     private let dir = FileManager.default.temporaryDirectory.appendingPathComponent("share").appendingPathComponent(UUID().uuidString)
     private let server = SharedAddress.read()
+    /// Nothing is sent before the notice that it goes to Anthropic was accepted, here or in the app.
+    @State private var noticed = SharedAddress.noticeSeen
 
     var body: some View {
         NavigationStack {
@@ -91,6 +93,8 @@ struct ShareView: View {
     private var list: some View {
         if server == nil {
             Text(tr("Not signed in")).foregroundStyle(.secondary).padding()
+        } else if !noticed {
+            AiNoticeView { SharedAddress.noticeSeen = true; noticed = true }
         } else {
             List {
                 Section { TextField(tr("Message"), text: $words, axis: .vertical).lineLimit(1...5) }
@@ -133,7 +137,7 @@ struct ShareView: View {
     }
 
     private func send(to: String) {
-        guard let api, sending == nil else { return }
+        guard let api, sending == nil, noticed else { return }
         sending = to
         let files = (shared?.files ?? []).map { outgoingFile(path: $0.path, name: $0.name) }
         let text = words

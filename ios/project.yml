@@ -29,6 +29,7 @@ targets:
       - BotDotNotify/PushKey.swift
       # The address the share extension sends through, written where it can read it.
       - BotDotShare/SharedAddress.swift
+      - BotDotShare/AiNoticeView.swift
       # The figure definition every app draws its bots from (ADR 003), the server's own file: a copy in the app, until
       # the server hands out its own.
       - path: ../lib/figure.json
@@ -44,6 +45,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.botdot
         PRODUCT_NAME: BotDot
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         OTHER_LDFLAGS: [-lc++]
     info:
       path: BotDot/Info.plist
