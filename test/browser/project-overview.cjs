@@ -66,7 +66,7 @@ const path = require('node:path');
     await page.route('**/api/company/overview?project=p1', async (route) => {
       started();
       await new Promise((done) => { release = done; });
-      await route.fulfill({ json: { projectId: 'p1', at: new Date().toISOString(), work: [], blockers: [], replies: [] } });
+      await route.fulfill({ json: { projectId: 'p1', at: new Date().toISOString(), work: [{ id: 'late', name: 'Late', state: 'working', text: 'Late old data', at: new Date().toISOString() }], blockers: [], replies: [] } });
     });
     await page.locator('[data-po-refresh]').click();
     await waiting;
@@ -75,6 +75,7 @@ const path = require('node:path');
     release();
     await page.waitForFunction(() => !ProjectOverview.sig('p1').busy);
     assert.match(await page.locator('.po-home h1').innerText(), /Garden/);
+    assert.equal(await page.getByText('Late old data').count(), 0, 'the late p1 overview did not paint over p2');
     assert.equal(await page.evaluate(() => state.company.id), 'p2');
     // Leaving for Home while a refresh waits must not switch the owner back to Projects.
     let releaseHome;
