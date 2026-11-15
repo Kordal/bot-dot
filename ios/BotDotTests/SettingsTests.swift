@@ -52,4 +52,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(BotSettingsKt.BotColors.count, 8)
         XCTAssertEqual(BotSettingsKt.BotColors.first?.first as String?, "#1d9e75")
     }
+
+    /// A bot's scheduled jobs: the shared desk and words reach Swift (its rules are the shared JobsDeskTest's).
+    func testTheJobsDeskReachesSwift() {
+        let desk = home().jobs(botId: "b1")
+        XCTAssertNil(desk.state.value.jobs, "the bots not read yet: nothing")
+        XCTAssertEqual(Jobs.shared.CHANGE_WAITS, "A change waits for your OK")
+    }
 }
