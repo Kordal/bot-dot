@@ -142,3 +142,18 @@ test('web: on a managed machine Delete asks for the account to be deleted, and s
   ctx.openDeleteAccount('bob');
   assert.match(m.html, /This deletes at once/, 'elsewhere unchanged');
 });
+
+test('web: the review demo says it is not deleted, and OK stays signed in', async () => {
+  const said = 'This is a demo account: it is not deleted. On your own account, this deletes it and erases its data.';
+  const { ctx, posts, went, m } = page({ post: async () => ({ ok: true, demo: true, said }) });
+  ctx.openDeleteAccount('demo', true);
+  m.parts['#delete-account-go'].classList = { remove() {} };
+  type(m, 'demo');
+  await submit(m);
+  assert.equal(m.parts['#delete-account-said'].textContent, said);
+  assert.equal(m.parts['#delete-account-said'].classList.shown, true);
+  assert.deepEqual(went, [], 'it does not leave for a deleted page');
+  await submit(m);
+  assert.deepEqual(went, ['/']);
+  assert.equal(posts.length, 1, 'OK sends nothing again');
+});

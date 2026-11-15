@@ -83,6 +83,15 @@ class AccountDeletionTest {
         assertEquals("Your account is being deleted.", AccountDeletion.said(done))
     }
 
+    @Test fun theReviewDemoSaysItIsNotDeleted() = runBlocking {
+        door.enqueue(json("""{"ok":true,"demo":true,"said":"This is a demo account: it is not deleted."}"""))
+        val done = api.deleteAccount("demo")
+        door.takeRequest()
+        assertTrue(done.demo)
+        assertFalse(done.requested)
+        assertEquals("This is a demo account: it is not deleted.", AccountDeletion.said(done))
+    }
+
     @Test fun deleteWorksOnlyForTheNameTypedExactly() {
         val account = AccountDeletion.account(obj("""{"account":"bob","deleteAccount":true}"""))
         assertEquals("bob", account)

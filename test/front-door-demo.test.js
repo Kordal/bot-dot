@@ -47,3 +47,29 @@ test('a customer account cannot be converted into a demo, while a demo survives 
   require('../lib/front-door/store').open(demoDir).createDemoAccount('demo');
   assert.equal(demos.accountCount(), 1);
 });
+
+test('the review demo goes through Delete account but is neither suspended nor erased, and refuses Sign out everywhere', async (t) => {
+  const door = await startFrontDoor({ env: { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'demo', FRONT_DOOR_DEMO_CODE_SHA256: hash } });
+  t.after(door.stop);
+  const one = door.browser(), other = door.browser();
+  assert.equal((await one.post('/sign-in', { demoCode: code })).status, 200);
+  assert.equal((await other.post('/sign-in', { demoCode: code })).status, 200);
+  const session = (await one.get('/front-door/session')).data;
+  assert.equal(session.deleteAccount, true, 'the reviewer sees the whole flow');
+  assert.equal((await one.post('/front-door/delete-account', { name: 'nope' })).status, 400);
+  const asked = await one.post('/front-door/delete-account', { name: 'demo' });
+  assert.equal(asked.status, 200);
+  assert.equal(asked.data.demo, true);
+  assert.match(asked.data.said, /demo account: it is not deleted/);
+  assert.equal(asked.data.deleted, undefined);
+  assert.equal((await one.get('/front-door/session')).data.account, 'demo', 'the one who asked stays signed in');
+  assert.equal((await other.get('/front-door/session')).data.account, 'demo', 'and so does every other reviewer');
+  const fs = require('node:fs'), path = require('node:path');
+  const outbox = path.join(door.data, 'outbox');
+  assert.ok(!fs.existsSync(outbox) || !fs.readdirSync(outbox).some((f) => fs.readFileSync(path.join(outbox, f), 'utf8').includes('deletion')), 'no deletion request reaches the console');
+  const out = await one.post('/sign-out-everywhere', {});
+  assert.equal(out.status, 403);
+  assert.match(out.data.error, /Sign out everywhere is off/);
+  assert.equal((await other.get('/front-door/session')).data.account, 'demo');
+  assert.equal((await door.browser().post('/sign-in', { demoCode: code })).status, 200, 'the next reviewer still gets in');
+});

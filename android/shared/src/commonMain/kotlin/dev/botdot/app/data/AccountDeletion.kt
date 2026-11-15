@@ -74,14 +74,19 @@ object AccountDeletion {
      * What the front door answered: [boat] is why its machines on boat.dev were not all deleted, or null when they were;
      * [requested], that a managed machine took the request to delete it (#1313).
      */
-    data class Done(val boat: String?, val requested: Boolean = false)
+    data class Done(val boat: String?, val requested: Boolean = false, val demo: Boolean = false)
     fun done(answer: JsonObject?): Done = Done(
         (answer?.get("boat") as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim()?.ifEmpty { null },
         flag(answer, "requested") == true,
+        flag(answer, "demo") == true,
     )
 
-    /** What the phone says once it is deleted: with a line on boat.dev's machines when not all of them went. */
-    fun said(done: Done): String = if (done.requested) tr("Your account is being deleted.")
+    /**
+     * What the phone says once it is deleted: with a line on boat.dev's machines when not all of them went. The review
+     * demo is never deleted, and says so.
+     */
+    fun said(done: Done): String = if (done.demo) tr("This is a demo account: it is not deleted.")
+        else if (done.requested) tr("Your account is being deleted.")
         else done.boat?.let { tr("Your account is deleted, but not all its machines on boat.dev were ({why}). Tell the admin of this machine.", "why" to it) }
         ?: tr("Your account is deleted.")
 
