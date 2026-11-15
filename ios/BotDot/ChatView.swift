@@ -66,7 +66,15 @@ struct ChatView: View {
                 guard on, atBottom else { return }
                 toEnd(scroll, after: .milliseconds(350))
             }
-            .safeAreaInset(edge: .bottom) { Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 } }
+            .safeAreaInset(edge: .bottom) {
+                VStack(spacing: 6) {
+                    if let plan = model.state?.plan {
+                        ChatPlanDock(plan: plan, color: model.state?.bot?.color, onFold: model.foldPlan, onDismiss: model.dismissPlan)
+                            .padding(.horizontal).padding(.top, 6)
+                    }
+                    Composer(box: model, placeholder: tr("Message"), focused: $focused) { sentAt += 1 }
+                }
+            }
         }
         .navigationTitle(name)
         // A file path in a reply opens in the viewer (#251), as on Android; a web address in the browser.

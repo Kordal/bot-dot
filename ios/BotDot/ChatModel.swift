@@ -46,6 +46,8 @@ final class ChatModel: MessageBox {
     func leave(_ typed: String) { chat.leave(typed: typed) }
     func takeUnsent() -> String { chat.takeUnsent() }
     func stopFromBox() { chat.stopRun(runId: nil) }
+    func foldPlan(_ folded: Bool) { chat.foldPlan(folded: folded) }
+    func dismissPlan() { chat.dismissPlan() }
 
     /// Sends what is typed; false when it didn't go (it comes back to the box with the line saying why).
     func send(_ text: String) async -> Bool {

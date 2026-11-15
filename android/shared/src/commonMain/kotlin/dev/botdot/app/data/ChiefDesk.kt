@@ -79,6 +79,8 @@ data class ChiefState(
     val name: String,
     /** Its conversations, newest first ([ChiefDesk.open] one; null: a new one). */
     val chats: List<ChiefChatSummary> = emptyList(),
+    /** The dock above the message box: the reply being written's plan, or the last reply's that failed before its plan was done. */
+    val plan: DockPlan? = null,
 )
 
 /**
@@ -95,6 +97,8 @@ class ChiefDesk(
     private val events: Flow<FeedEvent>,
     /** The conversation to open (a notification's `"chief:<chatId>"`); null: the latest. */
     startChat: String? = null,
+    /** Each chat's plan fold and the stopped plans dismissed, on this phone. */
+    private val plans: PlanMemory = PlanMemory(),
 ) {
     private var chatId: String? = startChat
     // Opening on the latest conversation, until one is picked or a new one asked for ([open]).
@@ -205,6 +209,14 @@ class ChiefDesk(
      */
     @Throws(Exception::class)
     suspend fun approve(index: Int): Boolean = sendFrom("approve:$index", PLAN_APPROVAL)
+
+    private val planChat get() = "chief:${chatId.orEmpty()}"
+
+    /** The dock folded to its one line, or open: kept for this chat. */
+    fun foldPlan(folded: Boolean) { plans.setFolded(planChat, folded); publish() }
+
+    /** A stopped plan's Dismiss: it shows no more. */
+    fun dismissPlan() { state.value.plan?.let { plans.dismiss(it.view.id) }; publish() }
 
     /** A bot's suggestion declined: botdot is told, and the chat is read again with it so. */
     @Throws(Exception::class)
@@ -481,6 +493,7 @@ class ChiefDesk(
             noticeCount = noticeCount,
             name = store.chiefName.value,
             chats = store.chief.value.value?.chats.orEmpty(),
+            plan = c?.let { PlanView.ofChief(it.id, messages, plans::dismissed) }?.let { DockPlan(it, plans.folded(planChat)) },
         )
     }
 

@@ -100,7 +100,15 @@ private struct ChiefChat: View {
             }
             .safeAreaInset(edge: .bottom) {
                 // Not before the chat is read: a message would start a new conversation instead of the latest.
-                if model.state?.loaded == true { Composer(box: model, placeholder: tr("Message the Chief…"), focused: $focused) { sentAt += 1 } }
+                if model.state?.loaded == true {
+                    VStack(spacing: 6) {
+                        if let plan = model.state?.plan {
+                            ChatPlanDock(plan: plan, color: ChiefColorKt.CHIEF_COLOR, onFold: model.foldPlan, onDismiss: model.dismissPlan)
+                                .padding(.horizontal).padding(.top, 6)
+                        }
+                        Composer(box: model, placeholder: tr("Message the Chief…"), focused: $focused) { sentAt += 1 }
+                    }
+                }
             }
         }
         .navigationTitle(model.state?.name ?? "")

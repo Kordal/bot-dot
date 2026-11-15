@@ -71,6 +71,8 @@ class BotChatState(
     /** Something to say once at the bottom of the screen ("Couldn't load", "Stopping…"), with a count that tells a new one. */
     val notice: String?,
     val noticeCount: Int,
+    /** The dock above the message box: its run at work's plan, or its newest run's that stopped before its plan was done. */
+    val plan: DockPlan? = null,
 )
 
 /**
@@ -86,7 +88,10 @@ class BotChat(
     private val store: Store,
     private val events: Flow<FeedEvent>,
     val botId: String,
+    /** Each chat's plan fold and the stopped plans dismissed, on this phone. */
+    private val plans: PlanMemory = PlanMemory(),
 ) {
+    private val planChat = "bot:$botId"
     private var all: List<Run> = emptyList() // newest first, quiet ones too (they anchor the pages)
     private var queued: List<Queued> = emptyList()
     private var starting: List<Queued> = emptyList()
@@ -346,8 +351,15 @@ class BotChat(
             uploading = uploading,
             notice = notice,
             noticeCount = noticeCount,
+            plan = PlanView.ofBot(runs, plans::dismissed)?.let { DockPlan(it, plans.folded(planChat)) },
         )
     }
+
+    /** The dock folded to its one line, or open: kept for this chat. */
+    fun foldPlan(folded: Boolean) { plans.setFolded(planChat, folded); publish() }
+
+    /** A stopped plan's Dismiss: it shows no more. */
+    fun dismissPlan() { state.value.plan?.let { plans.dismiss(it.view.id) }; publish() }
 
     private fun view(r: Run, features: Collection<String>?, line: String?): RunView {
         val asked = Unread.asked(r)
