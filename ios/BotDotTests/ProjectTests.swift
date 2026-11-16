@@ -162,4 +162,11 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(taller["goal:a"]?.h, 360)
         XCTAssertGreaterThanOrEqual(taller["files"]?.y ?? 0, 376, "what it would cover slides down")
     }
+
+    /// Two fingers zoom the canvas 1 to 4 times, its edges held inside (the shared rule).
+    func testTheCanvasZoomsOneToFourTimes() {
+        XCTAssertEqual(BoardCanvas.shared.zoomIn(z: 9), 4)
+        XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).first?.doubleValue, -800)
+        XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).second?.doubleValue, 0)
+    }
 }
