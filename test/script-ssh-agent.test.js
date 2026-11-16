@@ -166,3 +166,17 @@ test('OpenSSH signs through the agent with keys ssh-keygen made, and its signatu
     }
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("with a bot's own folder the socket is made there, and the folder is left as it is (security review M1)", async (t) => {
+  const os = require('node:os'), path = require('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agent-dir-'));
+  fs.chmodSync(dir, 0o710);
+  const a = await agent.start(async () => []);
+  const own = await agent.start(async () => [], { dir });
+  t.after(() => { a.close(); own.close(); fs.rmSync(dir, { recursive: true, force: true }); });
+  assert.equal(path.dirname(own.socket), dir);
+  assert.equal(fs.statSync(dir).mode & 0o777, 0o710, 'not opened up to 0711');
+  assert.equal(path.dirname(a.socket), agent.agentsDir(), 'without one, the shared folder of one-user machines');
+  own.close();
+  assert.ok(!fs.existsSync(own.socket));
+});

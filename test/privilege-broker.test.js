@@ -2,7 +2,7 @@ process.env.BOT_DOT_SWEEP_MS = '0'; // its sweep would end the other test files'
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 
 test('configured isolation refuses a missing broker instead of running under the server identity', () => {
   const code = `const c=require('./lib/privilege-client'); try { c.callSync('prepare',{principal:'example'}); process.exit(41); } catch(e) { process.stdout.write(e.message); }`;
@@ -570,4 +570,39 @@ test("a principal's file requests go to one kept worker, as the principal, and i
   // Idle, it ends.
   for (let i = 0; i < 80 && workers().length; i++) await new Promise((r) => setTimeout(r, 50));
   assert.equal(workers().length, 0, 'the idle worker ended');
+});
+
+test("a bot's ssh-agent socket is in a folder of its own: it connects, another bot can't, even knowing the path (security review M1)", { skip: !ROOT_LINUX && 'needs isolated Linux root', timeout: 30000 }, async (t) => {
+  const fs = require('node:fs'); const os = require('node:os');
+  const { SERVER_UID } = require('../lib/privilege-broker');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'broker-agents-')); fs.chmodSync(dir, 0o755);
+  const data = path.join(dir, 'data');
+  fs.mkdirSync(data, { mode: 0o711 }); fs.chmodSync(data, 0o711);
+  for (const name of ['homes', 'workspaces', 'skill-packs']) { fs.mkdirSync(path.join(data, name), { mode: 0o711 }); fs.chmodSync(path.join(data, name), 0o711); }
+  const socket = path.join(dir, 'broker.sock');
+  const server = require('../lib/privilege-broker').createBroker({ dataDir: data, socket });
+  await new Promise((resolve) => server.listen(socket, resolve));
+  const value = async (message) => { const r = await ask(socket, message); assert.ok(!r.error && !r.value?.error, JSON.stringify(r)); return r.value; };
+  const one = await value({ operation: 'prepare', principal: 'bot1' });
+  const two = await value({ operation: 'prepare', principal: 'bot2' });
+  assert.equal(one.agents, path.join(data, 'agents', String(one.uid)));
+  const area = fs.statSync(path.join(data, 'agents'));
+  assert.deepEqual([area.uid, area.gid, area.mode & 0o7777], [SERVER_UID, SERVER_UID, 0o711]);
+  const st = fs.statSync(one.agents);
+  assert.deepEqual([st.uid, st.gid, st.mode & 0o7777], [SERVER_UID, one.uid, 0o710], "the server's, with the bot's group, mode 0710");
+  const agent = await require('../lib/ssh-agent').start(async () => [], { dir: one.agents });
+  t.after(async () => { agent.close(); await new Promise((resolve) => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }); });
+  assert.equal(path.dirname(agent.socket), one.agents);
+  // Asks the agent for its keys, as uid: prints "ok" on an answer, or the error's code. Not spawnSync: the agent
+  // answers from this process, which spawnSync would hold until the child gave up.
+  const knock = (uid) => new Promise((resolve) => {
+    const child = spawn(process.execPath, ['-e', `const c=require('net').connect(process.argv[1]);c.on('connect',()=>c.write(Buffer.from([0,0,0,1,11])));c.on('data',()=>{process.stdout.write('ok');c.destroy();});c.on('error',(e)=>process.stdout.write(e.code));`, agent.socket], { uid, gid: uid, cwd: '/' });
+    let out = '';
+    child.stdout.on('data', (d) => { out += d; });
+    const timer = setTimeout(() => child.kill(), 10000);
+    child.on('close', () => { clearTimeout(timer); resolve(out); });
+  });
+  assert.equal(await knock(one.uid), 'ok', 'its own bot reaches it');
+  assert.equal(await knock(two.uid), 'EACCES', 'another bot does not, though /proc/net/unix shows the path');
+  assert.notEqual(spawnSync('/bin/ls', [one.agents], { uid: one.uid, gid: one.uid }).status, 0, 'nor can its own bot list the folder');
 });
