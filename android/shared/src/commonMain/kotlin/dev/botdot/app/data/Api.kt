@@ -472,6 +472,17 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         }))
     /** "Take back" on a message none of whose turns has started, as [takeBack]. 409 once one has. */
     suspend fun takeBackFromGroup(id: String, messageId: String): TakenBack = TakenBack.of(send("DELETE", "/group-chats/${enc(id)}/messages/${enc(messageId)}"))
+
+    /**
+     * "Steer" on a message that waits in a group (`group-steer`, ADR 253): the run of the busy member that is going reads it
+     * at its next tool call. Answers the message as it is now, with `steering`. 409 with the server's sentence when it
+     * started, or no member's run can take it.
+     */
+    suspend fun steerInGroup(id: String, messageId: String): GroupMessage? {
+        val answer = send("POST", "/group-chats/${enc(id)}/messages/${enc(messageId)}/steer")
+        return GroupMessage.of(runCatching { JSON.parseToJsonElement(answer) }.getOrNull())
+    }
+
     /** "Stop all": every run of the group at work ends, and the turns behind them never start. */
     suspend fun stopGroup(id: String) { send("POST", "/group-chats/${enc(id)}/stop") }
     /** "Go on": every line of the group that stopped at the limit goes on. 409 when none is stopped. */

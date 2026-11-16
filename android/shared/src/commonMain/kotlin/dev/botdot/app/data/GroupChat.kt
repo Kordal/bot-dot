@@ -90,8 +90,11 @@ class GroupPlanView(val name: String, val color: String, val stepLine: String, v
 /** A member's reply as it is written (ReplyDraft), in the bubble its reply will have. */
 class GroupDraftView(val runId: String, val bot: Bot?, val name: String, val color: String, val text: String)
 
-/** A message none of whose turns has started, that waits for a busy member or for Claude's sign-in: with "Take back". */
-class GroupWaitingView(val message: GroupMessage, val words: String)
+/**
+ * A message none of whose turns has started, that waits for a busy member or for Claude's sign-in: with "Take back", and
+ * with "Steer" while a busy member is still to be steered to ([steerable], ADR 253).
+ */
+class GroupWaitingView(val message: GroupMessage, val words: String, val steerable: Boolean = false)
 
 /** Everything a group's chat and its members panel draw, at one moment. */
 class GroupChatState(
@@ -385,6 +388,27 @@ class GroupChat(
         }
     }
 
+    /**
+     * "Steer" on a message that waits: the run of the busy member that is going reads it at its next tool call, and until
+     * then it shows "Steering…". When botdot refused (no run can take it, or it has started), the box's line says why.
+     */
+    fun steer(m: GroupMessage) {
+        if (!taking.add(m.id)) return
+        scope.launch {
+            try {
+                api.steerInGroup(groupId, m.id)?.let { if (held.hold(it)) publish() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                outbox.steerFailed(e)
+                publish()
+            } finally {
+                taking.remove(m.id)
+            }
+            load()
+        }
+    }
+
     /** "Stop all": every run of the group at work ends, and the turns that would have followed never start. */
     fun stopAll() {
         scope.launch {
@@ -597,7 +621,7 @@ class GroupChat(
             next = next,
             nextWords = if (next.isEmpty()) "" else tr("Next: {names}", "names" to namesList(next.map { it.name })),
             limit = limit?.text,
-            waiting = waits.map { GroupWaitingView(it, waitsLine(it, bots).ifEmpty { tr("Waits until Claude is signed in") }) },
+            waiting = waits.map { GroupWaitingView(it, waitsWords(it, bots), canSteerGroup(features) && waitsLine(it, bots).isNotEmpty()) },
             sent = outbox.sent?.unlessIn(ownWords()),
             sending = outbox.sending,
             note = outbox.note,
@@ -683,8 +707,16 @@ class GroupChat(
             return if (names.isEmpty()) "" else if (names.size > 1) tr("Waits until {names} are free", "names" to namesList(names)) else tr("Waits until {names} is free", "names" to namesList(names))
         }
 
-        /** A message none of whose turns has started, that waits for a busy member or for Claude's sign-in: drawn at the end. */
-        fun waitsWhole(m: GroupMessage, bots: List<Bot>, signedOut: Boolean): Boolean = !m.byChief && m.canTakeBack && (waitsLine(m, bots).isNotEmpty() || signedOut)
+        /**
+         * A message none of whose turns has started, that waits for a busy member, is steered into its run and not read yet
+         * (ADR 253), or waits for Claude's sign-in: drawn at the end.
+         */
+        fun waitsWhole(m: GroupMessage, bots: List<Bot>, signedOut: Boolean): Boolean =
+            !m.byChief && m.canTakeBack && (waitsLine(m, bots).isNotEmpty() || m.steering.isNotEmpty() || signedOut)
+
+        /** What stands under a message that waits whole: for whom, "Steering…" once its busy members were steered, or the sign-in. */
+        fun waitsWords(m: GroupMessage, bots: List<Bot>): String =
+            waitsLine(m, bots).ifEmpty { if (m.steering.isNotEmpty()) STEERING else tr("Waits until Claude is signed in") }
 
         /** A member's working line: its name, and what it does in the server's words, or that it waits for the owner's OK. */
         fun workingWords(name: String, line: TurnLine?, opening: String?): String = "$name · " +

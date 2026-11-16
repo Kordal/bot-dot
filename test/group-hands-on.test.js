@@ -146,6 +146,7 @@ test('a turn that ended with a hand-on names its next member from the moment it 
     runs: {
       newId: () => `r${records.size + 1}`, record: (id) => records.get(id) || null, waits: () => false, drain: () => {}, openingLine: () => null,
       atWork: () => [...records.values()].filter((r) => r.status === 'running'), turns: () => [...records.values()],
+      steering: () => null, steered: () => null,
       ask: (bot, turn) => { asked.push(turn); records.set(turn.id, { id: turn.id, botId: bot.id, groupId: turn.groupId, groupMessageId: turn.groupMessageId, status: 'running', startedAt: new Date().toISOString() }); return 'started'; },
     },
   });

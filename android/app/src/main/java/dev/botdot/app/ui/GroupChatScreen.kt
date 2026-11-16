@@ -9,6 +9,7 @@ import dev.botdot.app.data.isGoOn
 import dev.botdot.app.data.stopNote
 import dev.botdot.app.data.SentMessage
 import dev.botdot.app.data.Outbox
+import dev.botdot.app.data.canSteerGroup
 import dev.botdot.app.markdown.draftSource
 import dev.botdot.app.data.CHIEF_COLOR
 import androidx.compose.foundation.background
@@ -311,6 +312,26 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
         }
     }
 
+    /**
+     * "Steer" on a message that waits (ADR 253): the run of the busy member that is going reads it at its next tool call, and
+     * until then it shows "Steering…". When botdot refused (no run can take it, or it has started), the box's line says why.
+     */
+    fun steer(m: GroupMessage) {
+        if (!taking.add(m.id)) return
+        viewModelScope.launch {
+            try {
+                (app.api.value ?: throw ApiException(NOT_CONNECTED)).steerInGroup(groupId, m.id)?.let { if (held.hold(it)) publish() }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                outbox.steerFailed(e)
+            } finally {
+                taking.remove(m.id)
+            }
+            load()
+        }
+    }
+
     /** "Stop all": every run of the group at work ends, and the turns that would have followed never start. */
     fun stopAll() {
         viewModelScope.launch {
@@ -499,7 +520,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                             // Who is next: the members whose turn has not come, also between two turns, when no line stands.
                             NextHeads(Groups.heads(next, bots))
                             if (waiting.isNotEmpty()) Column(Modifier.fillMaxWidth().padding(top = Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
-                                waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots)) { vm.takeBack(m) } } }
+                                waiting.forEach { m -> androidx.compose.runtime.key(m.id) { WaitingMessage(m.text, m.attachments, waitsWords(m, bots), onSteer = if (canSteerGroup(features) && waitsLine(m, bots).isNotEmpty()) ({ vm.steer(m) }) else null) { vm.takeBack(m) } } }
                             }
                             if (sent != null && vm.working.isNotEmpty()) SentBubble(sent, above = false, sentArrives)
                             ChatNeeds(app, chatKey, except = namedHere.values.flatten().toSet()) // what stands under a reply, not again here
