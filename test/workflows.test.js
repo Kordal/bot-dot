@@ -218,6 +218,17 @@ test('the Android release builds the Play bundle and sends it to Play only after
   assert.match(upload.run, / internal$/m, 'only the internal track: promoting stays a step in Play Console');
 });
 
+// "Re-run failed jobs" re-runs publish or play and not build: they take what the first attempt's build left, so
+// the artifacts are named for the run, not the attempt; a build run again replaces them.
+test('an Android run whose publish failed can be re-run from its failed jobs', () => {
+  const jobs = workflow('android.yml').jobs;
+  const uploads = jobs.build.steps.filter((st) => /^actions\/upload-artifact@/.test(st.uses || ''));
+  const downloads = [...jobs.publish.steps, ...jobs.play.steps].filter((st) => /^actions\/download-artifact@/.test(st.uses || ''));
+  for (const st of [...uploads, ...downloads]) assert.doesNotMatch(st.with.name, /run_attempt/, st.with.name);
+  for (const st of uploads) assert.equal(st.with.overwrite, true, `${st.with.name}: a build run again replaces it`);
+  assert.deepEqual(downloads.map((st) => st.with.name).sort(), uploads.map((st) => st.with.name).sort());
+});
+
 test('a nightly Android release starts no image build of its own; a run by hand starts one', () => {
   const step = workflow('android.yml').jobs.publish.steps.find((st) => /gh workflow run images\.yml/.test(st.run || ''));
   assert.equal(step.if, "github.event_name == 'workflow_dispatch'");

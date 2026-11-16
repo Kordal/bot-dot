@@ -120,9 +120,12 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: android-release-${{ github.sha }}-${{ github.run_attempt }}
+          # One name for the whole run, not each attempt's: "Re-run failed jobs" re-runs publish or play and not
+          # build, and they then take the APK the first attempt's build left; a build run again replaces it (overwrite).
+          name: android-release-${{ github.sha }}
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
+          overwrite: true
           retention-days: 1
 
       # For the first upload by hand in Play Console (Actions → this run → Artifacts), and for the play job.
@@ -131,6 +134,7 @@ jobs:
           name: play-bundle
           path: android/app/build/outputs/bundle/play/app-play.aab
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
 
       - name: Clean up
@@ -149,7 +153,7 @@ jobs:
 
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          name: android-release-${{ github.sha }}-${{ github.run_attempt }}
+          name: android-release-${{ github.sha }}
           path: android
 
       - name: Publish a release
