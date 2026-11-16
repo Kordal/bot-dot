@@ -53,6 +53,8 @@ test('a built card is checked: its value, sub and data are plain text and number
   assert.equal(kind({ show: 'pie', list: [{ text: 'a' }] }), 'list', 'an unknown kind with data is the kind of its data');
   assert.equal(kind({ points: [1, 2] }), 'spark', 'no show: the kind of its data');
   assert.equal(kind({}), 'number', 'no show and no data: a number');
+  assert.match(cards.cardOf('```card\n{"show":"constructor","value":"5"}\n```').error, /not constructor/, "only the words' own keys");
+  assert.equal(cards.questionsOf('{"title":"T","show":"toString","questions":[]}').show, undefined);
   assert.match(cards.cardOf('```card\n{"show":"line","value":"5"}\n```').error, /two points/, 'a chart with no points fails, it is not a number');
   // Up to 15 items and 12 rows, so a card resized taller on the board shows more of what it read.
   const many = (n, f) => JSON.stringify(Array.from({ length: n }, (_, i) => f(i)));
@@ -315,6 +317,13 @@ test("a card's text size (card-text-size): the owner's on its menu, the Chief's 
 
 // ---------- a chart, and several cards in one ask (#1510) ----------
 
+test('a new card asked again after a restart splits as its first ask would; a part made from such an ask does not', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'routes', 'company.js'), 'utf8');
+  const due = src.slice(src.indexOf('function cardsDue('), src.indexOf('setInterval(() => { try { cardsDue()'));
+  assert.match(due, /askCard\(c\.id, card, !card\.part && !card\.earlier\?\.length\)/);
+  assert.match(src, /const card = cards\.add\(pid, \{ ask, part: !split \}\);/);
+});
+
 test("the Chief's questions say the kind of card asked for, and split an ask for several cards into one each", () => {
   const got = cards.questionsOf(JSON.stringify({ title: 'Temperature', show: 'line chart', questions: [], apps: [], ask: 'A line chart of the temperature', more: ['A number: today\'s high', 'A list of the last readings', 'A number: today\'s high', '', 'b', 'c', 'd'] }));
   assert.equal(got.show, 'spark', 'a line chart is the card\'s spark');
@@ -346,5 +355,7 @@ test('"Add three cards: number, list, chart" makes three cards, each with its ow
   assert.equal(all[0].show, 'number');
   await new Promise((ok) => setTimeout(ok, 300));
   assert.equal((await cardsNow()).length, before + 3, 'the cards made from it do not split again');
+  assert.equal(all[0].part, undefined);
+  assert.ok(all.slice(1).every((c) => c.part === true), 'the cards made from it are marked, so a retry never splits them');
   for (const c of all) await srv.api(`/company/cards/${c.id}`, { method: 'DELETE' });
 });
