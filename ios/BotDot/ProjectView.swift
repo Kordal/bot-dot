@@ -138,6 +138,7 @@ struct ProjectView: View {
 /// the board (the day, the objectives, the cards, the Files tile); a row per team (the lead first, with the crown),
 /// the project's own bots with Add bot; and its default chat at the bottom.
 struct ProjectPage: View {
+    @Environment(\.horizontalSizeClass) private var size
     let home: HomeStore
     let id: String
     let figure: FigureDef?
@@ -258,7 +259,14 @@ struct ProjectPage: View {
 
     @ViewBuilder
     private func page(_ s: ProjectState, _ c: Company) -> some View {
-        if let order = s.order {
+        if let canvas = s.canvas, size == .regular {
+            // The board as the owner arranged it (#784), on a wide screen: the canvas itself, its tiles moved and resized there.
+            BoardCanvasView(places: canvas, tile: { id in tile(id, s, c) }, onArrange: { await model.arrange($0) })
+                .listRowSeparator(.hidden)
+            if s.teamsOnBoard {
+                TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)
+            }
+        } else if let order = s.order {
             // The board as the owner arranged it on the canvas (#784): on a phone, its tiles in the canvas's reading
             // order (ADR 147); a tile this phone doesn't draw yet is left out.
             ForEach(order, id: \.self) { id in tile(id, s, c) }

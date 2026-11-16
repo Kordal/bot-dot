@@ -141,14 +141,8 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
                 var from = places
                 holdAndDrag(
                     onHold = hold@{ at ->
-                        val x = at.x / density; val y = at.y / density
-                        val hit = shown.entries.lastOrNull { (_, r) -> x >= r.x && x <= r.right && y >= r.y && y <= r.bottom } ?: return@hold false
-                        val (id, r) = hit
-                        val near = 28f
-                        edge = buildString {
-                            if (y > r.bottom - near) append('s')
-                            if (x > r.right - near) append('e') else if (x < r.x + near) append('w')
-                        }.ifEmpty { null }
+                        val (id, from0) = BoardCanvas.held(shown, (at.x / density).toDouble(), (at.y / density).toDouble()) ?: return@hold false
+                        edge = from0
                         from = now
                         held = id
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)

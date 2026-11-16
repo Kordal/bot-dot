@@ -47,6 +47,7 @@ final class ProjectModel {
     func answer(_ card: String, _ text: String) async -> Bool { (try? await store.answer(card: card, text: text))?.boolValue ?? false }
     func closeQuestions(_ card: String) async { try? await store.closeQuestions(card: card) }
     func refreshCard(_ card: String) async { try? await store.refreshCard(card: card) }
+    func arrange(_ layout: [String: BoardCanvas.R]) async -> Bool { (try? await store.arrange(layout: layout))?.boolValue ?? false }
     func removeCard(_ card: String) async { try? await store.removeCard(card: card) }
     func putPiece(_ piece: String) async { try? await store.putPiece(piece: piece) }
 
