@@ -4208,9 +4208,22 @@ import_request() {
       warn "The account $IM_NAME wasn't imported, and the front door didn't delete what was made of it${IM_WHY:+: $IM_WHY}"
       return 0 ;;
   esac
+  # The admin's own account (a machine of one account takes only that one) is never erased: what was made of it
+  # stays, and the import asked again writes over it.
+  if [ "$IM_NAME" = "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ]; then
+    import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 200), and what was made of the account stays on the machine: ask for the import again, which writes over it\""
+    warn "The account $IM_NAME wasn't imported, and what was made of it stays for the next import to write over: ${im_text:-see above}"
+    return 0
+  fi
   set +e
   ( set -e; erase_account "$IM_NAME" ) </dev/null
+  im_erased=$?
   set -e
+  if [ "$im_erased" != 0 ]; then
+    import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 200), and the machine didn't erase what was made of the account yet: the next run tries again\""
+    warn "The account $IM_NAME wasn't imported, and what was made of it wasn't erased yet (see above)"
+    return 0
+  fi
   import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 300)\""
   warn "The account $IM_NAME wasn't imported, and what was made of it is gone: ${im_text:-see above}"
 }

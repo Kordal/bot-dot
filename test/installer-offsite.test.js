@@ -971,6 +971,23 @@ test('IMPORT-bob that fails once the front door made bob deletes and erases what
   assert.equal(status(again, 'import-bob.json').state, 'imported', again.said);
 });
 
+test("IMPORT-bob of the machine's own account that fails keeps what it made, for the next import to write over", (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  // bob is the admin's own here, as a machine of one account's is: never erased.
+  const env = path.join(m.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^FRONT_DOOR_ADMIN=.*$/m, 'FRONT_DOOR_ADMIN=bob'));
+  const once = path.join(m.first.top, 'compose-failed');
+  const stuck = [`case "$*" in *"compose --project-directory"*"/bob down"*) [ -e ${once} ] || { touch ${once}; exit 1; } ;; esac`];
+  const failed = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...stuck, ...moveDoor(m), ...extracts] });
+  const said = status(failed, 'import-bob.json');
+  assert.deepEqual([said.state, said.phase], ['failed', 'account'], JSON.stringify(said));
+  assert.match(said.error, /what was made of the account stays on the machine: ask for the import again, which writes over it$/);
+  assert.doesNotMatch(failed.system, /^userdel botdot-bob$/m, 'not erased');
+});
+
 test('IMPORT-bob waits while an off-site backup runs, and asks nothing of the front door', (t) => {
   const m = machine(t);
   m.offsite();
