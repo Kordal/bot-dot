@@ -164,10 +164,29 @@ object BoardCanvas {
         if (overviewBoard && on("replies")) add("replies")
     }
 
-    /** A board the owner arranged (#784, with [FEATURE]): its [tiles] in the order a phone's column reads them (ADR 147); null while never arranged. */
-    fun readOrder(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): List<String>? {
+    /** A board the owner arranged (#784, with [FEATURE]): each of its [tiles] where it stands; null while never arranged. */
+    fun arranged(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): Map<String, R>? {
         if (FEATURE !in f) return null
         val saved = of(layout) ?: return null
-        return order(complete(saved, tiles))
+        return complete(saved, tiles)
+    }
+
+    /** A board the owner arranged: its [tiles] in the order a phone's column reads them (ADR 147); null while never arranged. */
+    fun readOrder(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): List<String>? = arranged(f, layout, tiles)?.let(::order)
+
+    /** How near an edge, in canvas units, a held finger resizes the tile rather than moving it. */
+    const val NEAR = 28
+
+    /**
+     * The tile a finger held at ([x], [y]) on the canvas takes, and from where: null to move it, else the edges it
+     * resizes from ("s", "e", "w", "se", "sw"). Null for no tile there.
+     */
+    fun held(layout: Map<String, R>, x: Double, y: Double): Pair<String, String?>? {
+        val (id, r) = layout.entries.lastOrNull { (_, r) -> x >= r.x && x <= r.right && y >= r.y && y <= r.bottom } ?: return null
+        val edge = buildString {
+            if (y > r.bottom - NEAR) append('s')
+            if (x > r.right - NEAR) append('e') else if (x < r.x + NEAR) append('w')
+        }.ifEmpty { null }
+        return id to edge
     }
 }
