@@ -358,14 +358,6 @@ class GroupsTest {
             assertEquals(409, (runCatching { api.takeBackFromGroup("g1", "m1") }.exceptionOrNull() as ApiException).status)
             asked()
 
-            // "Steer" (`group-steer`, ADR 253): the message comes back marked as steered; 409 says why in the server's words.
-            server.enqueue(json("""{"id":"m1","text":"hi","at":"2026-10-08T09:00:00Z","to":["coder"],"waitsFor":[],"steering":["coder"],"next":["coder"],"canTakeBack":true}""", 200))
-            assertEquals(listOf("coder"), api.steerInGroup("g1", "m1")?.steering)
-            assertEquals("POST" to "/api/group-chats/g1/messages/m1/steer", asked().let { it.first to it.second })
-            server.enqueue(json("""{"error":"Coder is working in another chat. This starts when it is free."}""", 409))
-            assertEquals("Coder is working in another chat. This starts when it is free.", runCatching { api.steerInGroup("g1", "m1") }.exceptionOrNull()?.message)
-            asked()
-
             server.enqueue(json("""{"ok":true,"stopped":2,"dropped":1}""", 200))
             api.stopGroup("g1")
             assertEquals("POST" to "/api/group-chats/g1/stop", asked().let { it.first to it.second })
@@ -378,6 +370,32 @@ class GroupsTest {
         } finally {
             server.close()
         }
+    }
+
+    private val steered = """{"id":"m1","text":"hi","at":"2026-10-08T09:00:00Z","to":["coder"],"waitsFor":[],"steering":["coder"],"next":["coder"],"canTakeBack":true}"""
+
+    // "Steer" (`group-steer`, ADR 253): the message comes back marked as steered.
+    @Test fun steerInAGroupAnswersTheMessageMarkedAsSteered() = runBlocking {
+        val server = MockWebServer().also { it.start() }
+        try {
+            val api = Api(server.url("/").toString().trimEnd('/'))
+            server.enqueue(MockResponse.Builder().code(200).addHeader("Content-Type", "application/json").body(steered).build())
+            val answer = api.steerInGroup("g1", "m1")
+            val asked = server.takeRequest()
+            assertEquals("POST" to "/api/group-chats/g1/messages/m1/steer", asked.method to asked.target)
+            assertEquals(listOf("coder"), answer?.steering)
+        } finally { server.close() }
+    }
+
+    // A 409 says why in the server's words.
+    @Test fun steerInAGroupRefusedSaysWhyInTheServersWords() = runBlocking {
+        val server = MockWebServer().also { it.start() }
+        try {
+            val api = Api(server.url("/").toString().trimEnd('/'))
+            server.enqueue(MockResponse.Builder().code(409).addHeader("Content-Type", "application/json").body("""{"error":"Coder is working in another chat. This starts when it is free."}""").build())
+            val refused = runCatching { api.steerInGroup("g1", "m1") }.exceptionOrNull() as ApiException
+            assertEquals(Triple("Coder is working in another chat. This starts when it is free.", 409, true), Triple(refused.message, refused.status, refused.said))
+        } finally { server.close() }
     }
 
     @Test fun aTeamChatPicksItsLeadOnAServerThatDoesIt() {
