@@ -4261,6 +4261,12 @@ hold_request() {
     hr_said failed '"error":"Another off-site backup was running, so none was made since the account was held: ask again."'
     return 0
   fi
+  # And it must have succeeded: a failed run keeps the last success from before the hold.
+  if ! grep -q '^{"state":"done",' "$DOOR/status/offsite.json" 2>/dev/null || [ "$(printf '%s' "$hr_last" | tr -d 'TZ:-')" -lt "$hr_since" ]; then
+    hr_why="$(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' "$DOOR/status/offsite.json" 2>/dev/null | plain_line 300)"
+    hr_said failed "\"error\":\"The off-site backup since the account was held failed${hr_why:+: $hr_why}\""
+    return 0
+  fi
   hr_said held "\"lastSuccess\":\"$hr_last\""
   ok "The account $IM_NAME is held, and backed up off-site at $hr_last"
 }

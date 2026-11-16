@@ -1028,6 +1028,20 @@ test('HOLD-bob on suspends bob and backs the machine up off-site from then on; o
   assert.equal(status(let_go, 'hold-bob.json').state, 'released');
 });
 
+test('HOLD-bob on is not held when the off-site run after the hold fails', (t) => {
+  const m = machine(t);
+  const given = { BOT_DOT_OFFSITE_REPO: m.store };
+  // A success from before the hold, which the failed run keeps as its lastSuccess.
+  ask(m, 'HOLD-bob', 'on\n', { given, dockerFirst: holdDoor(m) });
+  const failed = ask(m, 'HOLD-bob', 'on\n', { given: { ...given, STAND_IN_RESTIC_FAIL: 'accounts/bob/workspace.tar' }, dockerFirst: holdDoor(m) });
+  assert.equal(status(failed, 'offsite.json').state, 'failed');
+  assert.ok(status(failed, 'offsite.json').lastSuccess, 'the earlier success is still named');
+  const said = status(failed, 'hold-bob.json');
+  assert.equal(said.state, 'failed', JSON.stringify(said));
+  assert.match(said.error, /^The off-site backup since the account was held failed/);
+  assert.equal(said.lastSuccess, undefined);
+});
+
 test('HOLD- is refused for the first account, without an off-site repository, and when another backup runs', (t) => {
   const m = machine(t);
   const first = ask(m, 'HOLD-ann', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
