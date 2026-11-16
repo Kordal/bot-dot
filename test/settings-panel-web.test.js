@@ -126,7 +126,7 @@ test('web: the address keeps the panel, under the names it had as pages', () => 
   assert.match(app, /const routeViews = \(\) => \[[^\]]*\.\.\.Panel\.NAMES[^\]]*\];/, 'the page knows the three at its start and in a changed address');
   // A chat's address is written in one place, so a chat opened or a message sent beside the panel keeps it.
   assert.doesNotMatch(app, /replaceState\(null, '', `#(chief|bot)/, 'no chat\'s address is written by hand');
-  assert.match(app, /function writeHash\(\) \{[\s\S]*?state\.hash = `#\$\{Panel\.name\(v, state\.panel\)\}[^\n]*\n\s*history\.replaceState\(null, '', state\.hash\);/);
+  assert.match(app, /function writeHash\(over = false\) \{[\s\S]*?state\.hash = `#\$\{Panel\.name\(v, state\.panel\)\}[^\n]*\n[\s\S]*?history\.replaceState\(history\.state, '', state\.hash\);/);
 });
 
 test('web: which of the three pages the panel draws', () => {
