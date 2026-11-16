@@ -6,6 +6,7 @@ import dev.botdot.app.data.replyText
 import dev.botdot.app.data.takesOnce
 import dev.botdot.app.data.lineWith
 import dev.botdot.app.data.isGoOn
+import dev.botdot.app.data.stopNote
 import dev.botdot.app.data.SentMessage
 import dev.botdot.app.data.Outbox
 import dev.botdot.app.markdown.draftSource
@@ -318,6 +319,14 @@ class GroupChatModel(private val app: BotDotApp, val groupId: String) : ViewMode
         }
     }
 
+    /** Stop on one member's working line: that run ends, the others at work go on, and its line goes on with the next member. */
+    fun stopMember(runId: String) {
+        viewModelScope.launch {
+            _notes.tryEmit(stopNote(runCatching { (app.api.value ?: throw ApiException(NOT_CONNECTED)).stopRun(runId) }))
+            load()
+        }
+    }
+
     /** "Go on": the group stopped at the limit gets its next replies. A group that is no longer stopped says so in the server's words. */
     fun goOn() {
         viewModelScope.launch {
@@ -483,7 +492,8 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                             vm.working.forEachIndexed { i, w ->
                                 val line = turnLines[w.runId]
                                 StatusLine(workingWords(memberName(bots, w.botId), line, OpeningLine.ofRun(w.workingLine, w.openingLine, app.store.lines.features)), memberColor(bots, w.botId), still = line?.held == true,
-                                    onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = tr("Stop all"))
+                                    onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = tr("Stop all"),
+                                    onStopOne = if (vm.working.size > 1) ({ vm.stopMember(w.runId) }) else null, stopOneLabel = tr("Stop {name}", "name" to memberName(bots, w.botId)))
                             }
                             // Who is next: the members whose turn has not come, also between two turns, when no line stands.
                             NextHeads(Groups.heads(next, bots))
