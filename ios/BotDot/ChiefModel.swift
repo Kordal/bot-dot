@@ -15,6 +15,9 @@ final class ChiefModel: MessageBox {
     var quoted: (text: String, count: Int)? { inbox.quoted }
     /// Quote: [text] goes into the box, after what is typed.
     func quote(_ text: String) { inbox.quote(text) }
+    var filled: (text: String, count: Int)? { inbox.filled }
+    /// A new chat that starts with [text] in its box (Storage's Ask the Chief).
+    func fill(_ text: String) { inbox.fill(text) }
 
     /// [chatId]: the conversation a notification asked for; nil, the latest.
     init(home: HomeStore, chatId: String? = nil) {

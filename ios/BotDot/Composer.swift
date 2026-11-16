@@ -32,11 +32,14 @@ protocol MessageBox: AnyObject, Observable {
     var mentions: MentionBox? { get }
     /// Text quoted from the chat for the box, once (Quote); counted, so the same words quoted again come again.
     var quoted: (text: String, count: Int)? { get }
+    /// Words a new chat starts with (Storage's Ask the Chief), put in the box as they are, once.
+    var filled: (text: String, count: Int)? { get }
 }
 
 extension MessageBox {
     var mentions: MentionBox? { nil }
     var quoted: (text: String, count: Int)? { nil }
+    var filled: (text: String, count: Int)? { nil }
 }
 
 /// The message box's cursor as the shared layer counts it (UTF-16, as Kotlin's strings), and back.
@@ -66,6 +69,8 @@ enum Cursor {
 final class QuoteInbox {
     private(set) var quoted: (text: String, count: Int)?
     func quote(_ text: String) { quoted = (text, (quoted?.count ?? 0) + 1) }
+    private(set) var filled: (text: String, count: Int)?
+    func fill(_ text: String) { filled = (text, (filled?.count ?? 0) + 1) }
 }
 
 /// A chat's message box, as Android's: the system's text input (dictation, the keyboard's own behaviour), files from
@@ -130,6 +135,7 @@ struct Composer<Box: MessageBox>: View {
         .background(.bar)
         .onChange(of: box.back) { take() }
         .onChange(of: box.quoted?.count) { quote() }
+        .onChange(of: box.filled?.count) { fill() }
         .task { try? await box.mentions?.load() }
         .onChange(of: photos) { pick(photos) }
         // A picker presented from the menu's button: one placed in a Menu doesn't open reliably.
@@ -137,7 +143,7 @@ struct Composer<Box: MessageBox>: View {
         .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
             if case .success(let urls) = result { for url in urls { Task { await importFile(url) } } }
         }
-        .task { take(); unsent() }
+        .task { take(); unsent(); fill() }
         .onDisappear { box.leave(typed) }
     }
 
@@ -171,6 +177,13 @@ struct Composer<Box: MessageBox>: View {
     }
 
     /// A quote from the chat: after what is typed, as Markdown, the cursor in the box (Quote).
+    /// Words the chat starts with, in place of what is typed, the cursor at their end.
+    private func fill() {
+        guard let words = box.filled?.text, !words.isEmpty else { return }
+        typed = words
+        selection = Cursor.at(words.utf16.count, in: words)
+    }
+
     private func quote() {
         guard let words = box.quoted?.text, let quoted = Cursor.quoting(words, into: typed) else { return }
         typed = quoted.0

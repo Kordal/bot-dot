@@ -77,6 +77,20 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Storage.shared.size(bytes: 1_500_000), "1.5 MB")
         XCTAssertTrue(Storage.shared.shows(features: ["storage"]))
     }
+    /// Storage's Ask the Chief: the shared question, and a new Chief chat that starts with it in its box.
+    func testStorageAsksTheChiefInANewChat() {
+        let h = home()
+        let model = StorageModel(home: h)
+        let place = Storage.Place(bot: UploadedFiles.shared.CHIEF, root: nil, project: nil, gone: false)
+        let r = StorageRow(key: "k", name: "reports", owner: nil, bytes: 1_500_000, dir: true, files: 3, opens: false, into: "reports",
+                           `where`: Storage.Where(place: place, path: "reports"), share: 1)
+        XCTAssertEqual(h.askChief(desk: model.desk, r: r), "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        let inbox = QuoteInbox()
+        XCTAssertNil(inbox.filled)
+        inbox.fill("What is reports?")
+        XCTAssertEqual(inbox.filled?.text, "What is reports?")
+        XCTAssertEqual(inbox.filled?.count, 1)
+    }
     /// Settings → Skills: the shared SkillsDesk and words reach Swift.
     func testSkillsAreTheSharedDeskAndWords() {
         let model = SkillsModel(home: home())
