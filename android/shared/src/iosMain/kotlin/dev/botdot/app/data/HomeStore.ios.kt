@@ -139,6 +139,8 @@ class HomeStore(val api: Api) {
     fun homeTiles(): HomeTilesDesk = HomeTilesDesk(scope, api, store)
     /** Settings → Storage. */
     fun storage(): StorageDesk = StorageDesk(scope, api, emptyList())
+    /** Storage's Ask the Chief on [r]: the words a new Chief chat starts with, whose files they are named by the bots now. */
+    fun askChief(desk: StorageDesk, r: StorageRow): String = desk.askWords(r, desk.whose(r) { id -> store.bots.value.value?.firstOrNull { it.id == id }?.name })
     /** The Chief's settings, following the feed while they are open. */
     fun chiefSettings(): ChiefSettingsDesk = ChiefSettingsDesk(scope, api, store, feed.events)
 
