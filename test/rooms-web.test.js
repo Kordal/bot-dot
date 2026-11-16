@@ -361,7 +361,7 @@ test('web: an invite link opened waits for rooms, then asks to join; Join posts 
   assert.equal(p.ctx.joinHash(), `#rooms/join=${TOKEN}`, 'kept for the sign-in page to come back to');
   assert.ok(read('app.js').includes("location.assign(`/sign-in${typeof joinHash === 'function' ? joinHash() : ''}`)"));
   assert.ok(require('../lib/front-door/pages').SCRIPT.includes("/^#rooms[/]join=[A-Za-z0-9_-]{1,100}$/.test(location.hash) ? location.hash : ''"), 'signed in, back to the link');
-  assert.match(read('boot.js'), /view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink\(hashSub\)/);
+  assert.match(read('boot.js'), /view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink\(route\.sub\)/);
   await p.flush();
   assert.deepEqual(p.said.calls, [], 'nothing asked while rooms are off');
   p.ctx.setRoomsOn(true, 'me', true);

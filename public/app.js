@@ -1348,7 +1348,8 @@ function leaveBot() { show(Panel.next(state, { gone: true })); }
 function writeHash() {
   const v = state.view;
   const id = v === 'runs' ? state.selectedRun : v === 'chief' ? state.chatId : v === 'bot' ? state.botId : v === 'group' ? state.groupId : v === 'rooms' ? state.roomId : null;
-  history.replaceState(null, '', `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`);
+  state.hash = `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`; // what the address says now: no route of its own (boot.js)
+  history.replaceState(null, '', state.hash);
 }
 function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot') for (const es of state.botStreams.splice(0)) es.close();
