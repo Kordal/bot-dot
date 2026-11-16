@@ -52,6 +52,10 @@ final class ProjectModel {
     func putPiece(_ piece: String) async { try? await store.putPiece(piece: piece) }
     @discardableResult func answerSuggested(add: Bool) async -> Bool { (try? await store.answerSuggested(add: add))?.boolValue ?? false }
 
+    @discardableResult func approvePlan() async -> Bool { (try? await store.approvePlan())?.boolValue ?? false }
+    func changePlan(_ text: String) async -> Bool { (try? await store.changePlan(text: text))?.boolValue ?? false }
+    func addDecision(_ typed: String) async -> Bool { (try? await store.addDecision(typed: typed))?.boolValue ?? false }
+    @discardableResult func deleteDecision(_ id: String) async -> Bool { (try? await store.deleteDecision(id: id))?.boolValue ?? false }
     func todoFilter(_ filter: String) { store.todoFilter(filter: filter) }
     func tickTodo(_ id: String, _ done: Bool) async { try? await store.tickTodo(id: id, done: done) }
     func deleteTodo(_ id: String) async { try? await store.deleteTodo(id: id) }

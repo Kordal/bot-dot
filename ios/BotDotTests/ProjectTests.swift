@@ -200,4 +200,12 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: "t1")), "#ff9500")
         XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: nil)), ManyProjects.shared.ACCENT)
     }
+
+    /// The To-do's decisions and standup in the shared words.
+    func testTheDecisionsAndStandupAreTheSharedWords() {
+        let d = Api.companion.JSON.decodeFromString(deserializer: Decision.companion.serializer(), string: #"{"id":"d2","by":"checkin","day":30,"decision":"keep","at":"2026-11-16T10:00:00Z"}"#) as! Decision
+        XCTAssertEqual(ProjectDecisions.shared.textOf(d: d, ongoing: false), "Day 30 check-in: Keep going")
+        XCTAssertEqual(ProjectDecisions.shared.textOf(d: d, ongoing: true), "Monthly review: Keep going")
+        XCTAssertNotNil(ProjectDecisions.shared.dayOf(d: d))
+    }
 }

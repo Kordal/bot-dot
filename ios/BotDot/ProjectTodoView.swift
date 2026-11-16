@@ -12,6 +12,8 @@ struct TodoPanelView: View {
     let onApprove: (String) -> Void
     let onReview: () -> Void
     let onBot: (Bot) -> Void
+    /// A standup block's Reply: the lead's chat (its id) with the words in its box.
+    var onReply: (String, String) -> Void = { _, _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -26,6 +28,8 @@ struct TodoPanelView: View {
                 }
                 .pickerStyle(.segmented)
             }
+            if let plan = panel.plan { PlanCardView(plan: plan, rows: panel.planRows, model: model) }
+            if !panel.standup.isEmpty { StandupView(lines: panel.standup, onReply: onReply) }
             ForEach(Array(panel.waits.enumerated()), id: \.offset) { _, w in
                 HStack(spacing: 12) {
                     Text(w.text).font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
@@ -45,6 +49,7 @@ struct TodoPanelView: View {
             }
             ForEach(panel.rows, id: \.todo.id) { r in row(r) }
             AddTodoRow(full: panel.full, forBots: panel.forBots, adding: adding, figure: figure, model: model)
+            if let decisions = panel.decisions { DecisionsView(decisions: decisions, ongoing: panel.ongoing, model: model) }
         }
         .buttonStyle(.borderless)
     }
@@ -202,5 +207,126 @@ private struct WhenSheet: View {
 
     static func rhythmWord(_ k: String) -> String {
         switch k { case "day": tr("Daily"); case "week": tr("Weekly"); case "month": tr("Monthly"); case "days": tr("Custom"); default: tr("None") }
+    }
+}
+
+/// The week's plan the Chief drafts (#673; Android's PlanCard): its items with their team and objective's colour; while
+/// it waits, Approve, or Change, which asks the Chief for another.
+private struct PlanCardView: View {
+    let plan: WeekPlan
+    let rows: [ProjectPlan.Row]
+    let model: ProjectModel
+    @State private var changing = false
+    @State private var typed = ""
+    @State private var busy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(tr("This week")).font(.subheadline.weight(.semibold))
+            ForEach(Array(rows.enumerated()), id: \.offset) { i, x in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("\(i + 1).").font(.subheadline).foregroundStyle(.tertiary).frame(width: 22, alignment: .leading)
+                    Text(x.text).font(.subheadline).foregroundStyle(plan.approved ? .secondary : .primary).frame(maxWidth: .infinity, alignment: .leading)
+                    if let t = x.team {
+                        Text(t.name).font(.caption).lineLimit(1).foregroundStyle(ContactRow.tint(t.color))
+                            .padding(.horizontal, 8).padding(.vertical, 4).background(ContactRow.tint(t.color).opacity(0.16), in: .capsule)
+                    }
+                    if let c = x.color { Circle().fill(ContactRow.tint(c)).frame(width: 8, height: 8).padding(.top, 6) }
+                }
+            }
+            if !plan.approved {
+                if changing {
+                    HStack {
+                        TextField(tr("Change"), text: $typed, axis: .vertical).onChange(of: typed) { _, t in if t.count > 1000 { typed = String(t.prefix(1000)) } }
+                        Button(tr("Send")) { send() }.disabled(typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || busy)
+                    }
+                } else {
+                    HStack {
+                        Spacer()
+                        Button(tr("Change")) { changing = true }
+                        Button(tr("Approve")) { busy = true; Task { await model.approvePlan(); busy = false } }.buttonStyle(.borderedProminent).disabled(busy)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.1), in: .rect(cornerRadius: 12))
+    }
+
+    private func send() {
+        busy = true
+        let text = typed
+        Task { if await model.changePlan(text) { typed = ""; changing = false }; busy = false }
+    }
+}
+
+/// The morning standup (#698; Android's StandupCard): per team, in its colour, what got done, what is next and what
+/// blocks it; a block that waits for the owner has Reply, into the lead's chat.
+private struct StandupView: View {
+    let lines: [ProjectStandup.Line]
+    let onReply: (String, String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(tr("Standup")).font(.subheadline.weight(.semibold))
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, l in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Circle().fill(ContactRow.tint(l.team.color)).frame(width: 8, height: 8)
+                        Text(l.team.name).font(.caption.weight(.semibold))
+                    }
+                    if let done = l.done { Label(done, systemImage: "checkmark").font(.subheadline).foregroundStyle(ContactRow.tint(l.team.color)) }
+                    if let next = l.next { Label(next, systemImage: "arrow.right").font(.subheadline).foregroundStyle(.secondary) }
+                    if let blocked = l.blocked {
+                        HStack {
+                            Label(blocked, systemImage: "exclamationmark.circle").font(.subheadline).foregroundStyle(l.asks ? .orange : .secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if l.asks { Button(tr("Reply")) { onReply(l.bot, ProjectStandup.shared.reply(l: l)) }.buttonStyle(.bordered).font(.caption) }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.secondary.opacity(0.1), in: .rect(cornerRadius: 12))
+    }
+}
+
+/// The owner's decisions (#694; Android's Decisions): the last five, newest first, the reason under each and its day,
+/// Remove; Add a decision under them ("… because …" gives its reason).
+private struct DecisionsView: View {
+    let decisions: [Decision]
+    let ongoing: Bool
+    let model: ProjectModel
+    @State private var typed = ""
+    @State private var busy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(tr("Decisions")).font(.subheadline.weight(.semibold)).padding(.top, 8)
+            ForEach(decisions, id: \.id) { d in
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(ProjectDecisions.shared.textOf(d: d, ongoing: ongoing)).font(.subheadline)
+                        if let why = d.why, !why.isEmpty { Text(why).font(.caption).foregroundStyle(.secondary) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    if let day = ProjectDecisions.shared.dayOf(d: d) { Text(TodoWords.day(day)).font(.caption.monospaced()).foregroundStyle(.tertiary) }
+                    Button { Task { await model.deleteDecision(d.id) } } label: { Image(systemName: "xmark").foregroundStyle(.secondary) }
+                        .accessibilityLabel(tr("Remove"))
+                }
+            }
+            HStack {
+                TextField(tr("Add a decision"), text: $typed).onChange(of: typed) { _, t in if t.count > 600 { typed = String(t.prefix(600)) } }
+                    .onSubmit(add).disabled(busy)
+                Button(tr("Add"), action: add).disabled(typed.trimmingCharacters(in: .whitespaces).isEmpty || busy)
+            }
+        }
+    }
+
+    private func add() {
+        busy = true
+        let text = typed
+        Task { if await model.addDecision(text) { typed = "" }; busy = false }
     }
 }

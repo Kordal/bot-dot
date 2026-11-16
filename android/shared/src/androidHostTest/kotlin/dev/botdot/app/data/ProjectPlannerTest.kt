@@ -78,6 +78,33 @@ class ProjectPlannerTest {
         assertEquals("You", older.title); assertNull("no chips before the full To-do", older.rows.first().chip)
     }
 
+    @Test fun thePanelHasThePlanTheStandupAndTheDecisions() {
+        val c = CompanySetup.of("""{"id":"c1","phase":"running","teams":[{"id":"t1","name":"Crew","color":"#ff9500","bots":["a"]}],
+            "objectives":[{"id":"o1","name":"Users","color":"#34c759","target":100}],
+            "plan":{"items":[{"text":"Ship sign-up","objective":"o1","team":"t1"},{"text":"Write docs"}],"approved":false},
+            "standupToday":{"leads":[{"team":"t1","bot":"a","done":"Sign-up","next":"Docs","blocked":"Need a logo","asks":true,"at":"2026-11-16T07:00:00Z"},
+                {"team":"gone","bot":"a","done":"x","at":"2026-11-16T07:00:00Z"}]},
+            "decisions":[{"id":"d1","text":"Polish first","why":"most users are Polish","at":"2026-11-15T10:00:00Z"},
+                {"id":"d2","text":"","by":"checkin","day":30,"decision":"keep","at":"2026-11-16T10:00:00Z"}]}""")
+        val bots = listOf(Bot("a", "Ada"))
+        val f = listOf(ProjectTodo.FEATURE, ProjectStandup.FEATURE, ProjectDecisions.FEATURE)
+        val p = ProjectTodo.panel(c, bots, emptyList(), "all", f)
+        assertEquals(listOf("Ship sign-up", "Write docs"), p.planRows.map { it.text })
+        assertEquals("Crew", p.planRows[0].team?.name); assertEquals("#34c759", p.planRows[0].color); assertNull(p.planRows[1].team)
+        assertFalse(p.plan!!.approved)
+        assertEquals("a lead of a team that is gone is left out", listOf("Crew"), p.standup.map { it.team.name })
+        assertTrue(p.standup.single().asks)
+        assertEquals("Standup: Need a logo\n", ProjectStandup.reply(p.standup.single()))
+        assertEquals("newest first", listOf("d2", "d1"), p.decisions!!.map { it.id })
+        assertEquals("Day 30 check-in: Keep going", ProjectDecisions.textOf(p.decisions!![0], ongoing = false))
+        assertEquals("Monthly review: Keep going", ProjectDecisions.textOf(p.decisions!![0], ongoing = true))
+        assertEquals("Polish first", ProjectDecisions.textOf(p.decisions!![1], ongoing = false))
+        assertTrue(ProjectDecisions.dayOf(p.decisions!![1])!!.startsWith("2026-11-1"))
+        val bots2 = ProjectTodo.panel(c, bots, emptyList(), "bots", f)
+        assertNull("Bots: no plan", bots2.plan); assertTrue(bots2.standup.isEmpty()); assertEquals(2, bots2.decisions?.size)
+        assertNull("no decisions without company-decisions", ProjectTodo.panel(c, bots, emptyList(), "all", listOf(ProjectTodo.FEATURE)).decisions)
+    }
+
     @Test fun eachFilterShowsWhatTheWebShows() {
         val all = listOf(
             Todo("late", due = "2026-10-01"), Todo("none1"), Todo("bot", bot = "a", due = "2026-10-05"), Todo("none2"),

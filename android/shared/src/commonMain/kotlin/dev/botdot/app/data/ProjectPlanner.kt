@@ -15,6 +15,7 @@ import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * The project's To-do (#692), calendar (#695), standup (#698) and decisions (#694) on Android, with the rules the web
@@ -133,6 +134,15 @@ object ProjectTodo {
         val count: Int,
         /** Whom an item may be for, beside the owner. */
         val forBots: List<Bot>,
+        /** The week's plan above the asks (on All and You): its rows, whether it waits for Approve; null for none. */
+        val plan: WeekPlan? = null,
+        val planRows: List<ProjectPlan.Row> = emptyList(),
+        /** The morning standup (#698, project-standup), on All and You. */
+        val standup: List<ProjectStandup.Line> = emptyList(),
+        /** The owner's decisions (#694, company-decisions): the last five, newest first; null: no section. */
+        val decisions: List<Decision>? = null,
+        /** An ongoing project: a check-in's decision is its monthly review. */
+        val ongoing: Boolean = false,
     )
 
     fun panel(c: Company, bots: List<Bot>, waiting: List<Waiting>, filter: String, features: Collection<String>?): Panel {
@@ -148,6 +158,11 @@ object ProjectTodo {
             full = full, title = if (full) tr("To-do") else tr("You"), filter = filter, asks = asks, waits = waits, asking = asking, rows = rows,
             count = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks,
             forBots = projectBots(c, bots),
+            plan = if (asks) ProjectPlan.of(c) else null,
+            planRows = if (asks) ProjectPlan.rows(c) else emptyList(),
+            standup = if (asks && ProjectStandup.FEATURE in f) ProjectStandup.lines(c, bots) else emptyList(),
+            decisions = if (ProjectDecisions.FEATURE in f) ProjectDecisions.shown(c.decisions) else null,
+            ongoing = c.ongoing,
         )
     }
 
@@ -283,6 +298,16 @@ object ProjectDecisions {
     }
 
     fun addBody(t: Typed): JsonObject = buildJsonObject { put("text", t.text); if (t.why.isNotEmpty()) put("why", t.why) }
+
+    /** A decision's line: a check-in's in words ("Day 30 check-in: Keep going"; an ongoing project's "Monthly review: …"), else its text. */
+    fun textOf(d: Decision, ongoing: Boolean): String {
+        val word = when (d.decision) { "keep" -> tr("Keep going"); "change" -> tr("Change direction"); "stop" -> tr("Stop"); else -> null }
+        if (d.by != "checkin" || d.day == null || word == null) return d.text
+        return "${if (ongoing) tr("Monthly review") else tr("Day {n} check-in", "n" to d.day)}: $word"
+    }
+
+    /** The day it was made ("2026-11-16") in the phone's time zone; null without a time botdot can read. */
+    fun dayOf(d: Decision): String? = d.at?.let { runCatching { kotlin.time.Instant.parse(it).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString() }.getOrNull() }
 }
 
 object ProjectStandup {
@@ -293,4 +318,27 @@ object ProjectStandup {
 
     /** The leads whose team waits for the owner, of bots that are still there: counted in what waits, with Reply. */
     fun asks(c: Company, bots: List<Bot>): List<StandupLead> = leads(c).filter { l -> l.asks && bots.any { it.id == l.bot } }
+
+    /** A lead's line in the standup: its team, what got done, what is next, what blocks it and whether that waits for the owner (Reply). */
+    class Line(val team: CompanyTeam, val done: String?, val next: String?, val blocked: String?, val asks: Boolean, val bot: String)
+
+    fun lines(c: Company, bots: List<Bot>): List<Line> = leads(c).mapNotNull { l ->
+        val team = c.teams.firstOrNull { it.id == l.team } ?: return@mapNotNull null
+        Line(team, l.done?.takeIf { it.isNotBlank() }, l.next?.takeIf { it.isNotBlank() }, l.blocked?.takeIf { it.isNotBlank() }, l.asks && bots.any { it.id == l.bot }, l.bot)
+    }
+
+    /** What Reply puts in the lead's chat. */
+    fun reply(l: Line): String = tr("Standup: {text}", "text" to l.blocked.orEmpty()) + "\n"
+}
+
+/** The week's plan the Chief drafts (#673) as the To-do shows it: its items, each with its team and the colour of the objective it moves. */
+object ProjectPlan {
+    class Row(val text: String, val team: CompanyTeam?, val color: String?)
+
+    /** The plan to show: one with items; null for none. */
+    fun of(c: Company): WeekPlan? = c.plan?.takeIf { it.items.isNotEmpty() }
+
+    fun rows(c: Company): List<Row> = of(c)?.items.orEmpty().map { x ->
+        Row(x.text, c.teams.firstOrNull { it.id == x.team }, c.objectives.firstOrNull { it.id == x.objective }?.color)
+    }
 }

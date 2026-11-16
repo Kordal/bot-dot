@@ -20,11 +20,14 @@ struct ChatView: View {
     @State private var sentAt = 0
     @FocusState private var focused: Bool
 
-    init(home: HomeStore, botId: String, name: String) {
+    /// [words]: what its box starts with (a standup's Reply); nil, the box as it was.
+    init(home: HomeStore, botId: String, name: String, words: String? = nil) {
         self.name = name
         self.home = home
         self.botId = botId
-        _model = State(initialValue: ChatModel(home: home, botId: botId))
+        let m = ChatModel(home: home, botId: botId)
+        if let words { m.fill(words) }
+        _model = State(initialValue: m)
     }
 
     var body: some View {

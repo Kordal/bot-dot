@@ -149,6 +149,21 @@ class ProjectDeskTest {
         assertEquals("DELETE", fake.asked().last { it.path == "/company/suggestion" }.method)
     }
 
+    @Test fun thePlanIsApprovedOrChangedAndADecisionAddedOrRemoved() = runTest {
+        val fake = FakeBotdot { a -> if (a.method == "GET") 200 to "{}" else 200 to kitchen }
+        val (_, desk) = desk(fake)
+        until("the project") { desk.state.value.project != null }
+        assertTrue(desk.approvePlan())
+        assertEquals("POST", fake.asked().last { it.path == "/company/plan/approve" }.method)
+        assertFalse(desk.changePlan("  "), "nothing typed, nothing sent")
+        assertTrue(desk.changePlan("Less on docs"))
+        assertEquals("""{"text":"Less on docs"}""", fake.asked().last { it.path == "/company/plan/change" }.body)
+        assertTrue(desk.addDecision("Launch in Polish first because most users are Polish"))
+        assertEquals("""{"text":"Launch in Polish first","why":"most users are Polish"}""", fake.asked().last { it.path == "/company/decisions" }.body)
+        assertTrue(desk.deleteDecision("d1"))
+        assertEquals("DELETE", fake.asked().last { it.path == "/company/decisions/d1" }.method)
+    }
+
     @Test fun itsOverviewShowsOnceTheFeaturesSaySo() = runTest {
         val (store, desk) = desk(FakeBotdot { 200 to "{}" })
         until("the project") { desk.state.value.project != null }

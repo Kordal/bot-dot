@@ -399,7 +399,8 @@ struct ProjectPage: View {
         TodoPanelView(panel: todo, adding: s.adding, figure: figure, model: model,
                       onApprove: { id in Task { _ = try? await home.answer(permission: id, yes: true) } },
                       onReview: { needsOpen = true },
-                      onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) })
+                      onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) },
+                      onReply: { id, words in chat = ChatRoute(botId: id, name: s.bots.first(where: { $0.id == id })?.name ?? "", words: words) })
             .listRowSeparator(.hidden)
     }
 
@@ -642,7 +643,7 @@ struct TeamRoutes: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .navigationDestination(item: routes.chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+            .navigationDestination(item: routes.chat) { r in ChatView(home: home, botId: r.botId, name: r.name, words: r.words) }
             .navigationDestination(item: routes.group) { r in GroupChatView(home: home, groupId: r.groupId, name: r.name, figure: figure) }
             .sheet(item: routes.picking) { p in
                 BotPickerView(title: p.title, bots: p.bots, figure: figure) { ids in

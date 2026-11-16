@@ -15,6 +15,10 @@ final class ChatModel: MessageBox {
     var quoted: (text: String, count: Int)? { inbox.quoted }
     /// Quote: [text] goes into the box, after what is typed.
     func quote(_ text: String) { inbox.quote(text) }
+    var filled: (text: String, count: Int)? { inbox.filled }
+    /// The chat opens with [text] in its box (a standup's Reply).
+    func fill(_ text: String) { inbox.fill(text) }
+    func takeFilled() -> String? { inbox.takeFilled() }
 
     init(home: HomeStore, botId: String) {
         chat = home.chat(botId: botId)

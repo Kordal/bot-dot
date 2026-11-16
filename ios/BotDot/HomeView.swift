@@ -365,6 +365,8 @@ struct ChiefRoute: Hashable {
 struct ChatRoute: Hashable {
     let botId: String
     let name: String
+    /// What its box starts with (a standup's Reply); nil, the box as it was.
+    var words: String? = nil
 }
 
 /// One row of the list: the mark, the name, what it says under it, and its new replies as dots in its colour (at most
