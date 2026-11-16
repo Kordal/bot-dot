@@ -414,7 +414,7 @@ internal fun ByChief() {
 @Composable
 internal fun PlanCard(ui: CompanyUi, c: Company) {
     val p = LocalPaper.current
-    val plan = c.plan?.takeIf { it.items.isNotEmpty() } ?: return
+    val plan = dev.botdot.app.data.ProjectPlan.of(c) ?: return
     var changing by rememberSaveable { mutableStateOf(false) }
     var typed by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
@@ -423,9 +423,9 @@ internal fun PlanCard(ui: CompanyUi, c: Company) {
             Text(tr("This week"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             ByChief()
         }
-        plan.items.forEachIndexed { i, x ->
-            val color = c.objectives.firstOrNull { it.id == x.objective }?.color
-            val team = c.teams.firstOrNull { it.id == x.team }
+        dev.botdot.app.data.ProjectPlan.rows(c).forEachIndexed { i, x ->
+            val color = x.color
+            val team = x.team
             Row(verticalAlignment = Alignment.Top) {
                 Text("${i + 1}.", color = p.faint, fontSize = Type.s14, modifier = Modifier.width(22.dp))
                 Text(x.text, color = if (plan.approved) p.muted else p.text, fontSize = Type.s14, lineHeight = Type.line20, modifier = Modifier.weight(1f))

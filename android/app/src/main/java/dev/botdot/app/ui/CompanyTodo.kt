@@ -286,7 +286,7 @@ private fun AddTask(ui: CompanyUi, bots: List<Bot>) {
 @Composable
 private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
     val p = LocalPaper.current
-    val leads = ProjectStandup.leads(c)
+    val leads = ProjectStandup.lines(c, bots)
     if (leads.isEmpty()) return
     Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -294,7 +294,7 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
             ByChief()
         }
         leads.forEach { l ->
-            val team = c.teams.first { it.id == l.team }
+            val team = l.team
             val color = parseColor(team.color, p.muted)
             Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -311,8 +311,8 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
                 }
                 line(Icons.Filled.Check, l.done, color)
                 line(Icons.AutoMirrored.Filled.ArrowForward, l.next, p.muted)
-                val reply: (@Composable () -> Unit)? = if (l.asks && bots.any { it.id == l.bot }) {
-                    { SmallButton(tr("Reply")) { ways.onBotSay(l.bot, tr("Standup: {text}", "text" to l.blocked.orEmpty()) + "\n") } }
+                val reply: (@Composable () -> Unit)? = if (l.asks) {
+                    { SmallButton(tr("Reply")) { ways.onBotSay(l.bot, ProjectStandup.reply(l)) } }
                 } else null
                 line(Icons.Outlined.ErrorOutline, l.blocked, if (l.asks) p.warnText else p.muted, reply)
             }
@@ -341,9 +341,8 @@ private fun Decisions(ui: CompanyUi, c: Company) {
 @Composable
 private fun DecisionRow(ui: CompanyUi, d: Decision) {
     val p = LocalPaper.current
-    val words = mapOf("keep" to tr("Keep going"), "change" to tr("Change direction"), "stop" to tr("Stop"))
-    val text = if (d.by == "checkin" && d.day != null && words[d.decision] != null) "${if (ui.company()?.ongoing == true) tr("Monthly review") else tr("Day {n} check-in", "n" to d.day)}: ${words[d.decision]}" else d.text
-    val day = d.at?.let { runCatching { Instant.parse(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() }.getOrNull() }
+    val text = ProjectDecisions.textOf(d, ui.company()?.ongoing == true)
+    val day = ProjectDecisions.dayOf(d)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             Text(text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20)

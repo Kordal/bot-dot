@@ -460,6 +460,20 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
     @Throws(Exception::class)
     suspend fun refreshCard(card: String) { call { it.refreshCard(card) } }
 
+    /** The week's plan: Approve, or a change asked of the Chief in [text]. True once botdot took it. */
+    @Throws(Exception::class)
+    suspend fun approvePlan(): Boolean = call { it.approvePlan() }
+
+    @Throws(Exception::class)
+    suspend fun changePlan(text: String): Boolean = text.trim().takeIf { it.isNotEmpty() }?.let { t -> call { it.changePlan(t) } } ?: false
+
+    /** Add a decision: [typed] split into the decision and its reason ([ProjectDecisions.split]); nothing typed, nothing sent. */
+    @Throws(Exception::class)
+    suspend fun addDecision(typed: String): Boolean = ProjectDecisions.split(typed).takeIf { it.text.isNotEmpty() }?.let { d -> call { it.addDecision(d) } } ?: false
+
+    @Throws(Exception::class)
+    suspend fun deleteDecision(id: String): Boolean = call { it.deleteDecision(id) }
+
     /** The To-do's filter: All, You, Bots or Done. */
     fun todoFilter(filter: String) { if (filter in ProjectTodo.FILTERS) local.update { it.copy(todoFilter = filter) } }
 
