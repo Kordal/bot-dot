@@ -111,6 +111,7 @@ final class ViewerModel {
 
     func load() async {
         viewed = nil
+        blocks = nil
         guard let v = try? await viewer.load() else { return }
         viewed = v
         mode = v.mode
@@ -126,6 +127,19 @@ final class ViewerModel {
             pageDesk?.show(p: v.view?.page)
         }
     }
+
+    /// A page's blocks as last read again while it is open (PageReblock); nil until then.
+    private(set) var blocks: PageBlocks?
+    private var reblocking: Kotlinx_coroutines_coreJob?
+
+    /// A page with blocks that read tiles: read again when a tile has a new value ([ticks], the feed's) and each minute.
+    func follow(_ ticks: TileTicks?) {
+        reblocking?.cancel(cause: nil); reblocking = nil
+        guard let ticks, let v = viewed?.view else { return }
+        reblocking = viewer.reblock(ticks: ticks, view: v) { [weak self] b in MainActor.assumeIsolated { self?.blocks = b } }
+    }
+
+    func unfollow() { reblocking?.cancel(cause: nil); reblocking = nil }
 
     /// A Markdown page's bar, and its desk; nil for any other file.
     private(set) var bar: PageBarState?

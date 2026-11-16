@@ -152,6 +152,15 @@ final class FilesTests: XCTestCase {
         XCTAssertTrue(DocumentExport.shared.isGoogleDoc(url: "https://docs.google.com/document/d/abc_1/edit"))
         XCTAssertFalse(DocumentExport.shared.isGoogleDoc(url: "https://evil.example/document/d/abc/edit"))
     }
+
+    /// A page's blocks are read again only where they read tiles, on a tick of one of them or of the Board (shared rule).
+    func testAPagesBlocksAreReadAgainForTheTilesTheyRead() {
+        XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: "t1"))
+        XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: nil))
+        XCTAssertFalse(PageReblock.companion.reads(tiles: ["t1"], tick: "t2"))
+        XCTAssertFalse(PageReblock.companion.reads(tiles: [], tick: nil))
+        XCTAssertEqual(PageReblock.companion.EVERY_MS, 60_000)
+    }
 }
 
 /// True once, for the first call: a watch that hands over every state, checked for its first alone.

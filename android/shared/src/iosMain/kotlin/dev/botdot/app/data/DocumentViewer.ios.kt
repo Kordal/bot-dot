@@ -29,6 +29,12 @@ class DocumentViewer(val api: Api, val opening: DocumentView.Opening) {
     /** A bot's page: an interactive one draws in its frame. */
     val page: Boolean get() = opening.slug != null
 
+    /** A page with blocks that read tiles ([view]'s): read again while it is open ([PageReblock]), each read to [onBlocks]. */
+    fun reblock(ticks: TileTicks, view: FileView, onBlocks: (PageBlocks) -> Unit): kotlinx.coroutines.Job? {
+        if (view.parts == null || view.tiles.isEmpty()) return null
+        return PageReblock(api, ticks.value, scope).follow(opening.src, view.tiles, onBlocks)
+    }
+
     /** An interactive page's version shown; null for the one the page shows. */
     var version: Int? = null
 
