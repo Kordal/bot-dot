@@ -71,6 +71,14 @@ data class CardItem(val text: String = "", val ref: String? = null, val tag: Str
 data class CardRow(val label: String = "", val value: String = "", val change: String? = null, val tone: String? = null)
 
 object ProjectCards {
+    /** The board's tile of [s] (#784, [BoardCanvas]): its card's, or New card's. */
+    fun tileOf(s: Slot): String = when (s) {
+        is Slot.Card -> "card:${s.card.id}"
+        is Slot.Questions -> "card:${s.card.id}"
+        is Slot.Ask -> s.card?.let { "card:${it.id}" } ?: "new-card"
+        Slot.New -> "new-card"
+    }
+
     const val FEATURE = "project-cards"
     /** A project has at most this many cards. */
     const val MAX = 12

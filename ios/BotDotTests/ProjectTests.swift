@@ -130,4 +130,14 @@ final class ProjectTests: XCTestCase {
         XCTAssertTrue(s.teamsOnBoard)
         XCTAssertFalse(s.teamEntry)
     }
+
+    /// An arranged board (#784): the shared canvas reads its tiles from the top, left to right where two start level.
+    func testAnArrangedBoardReadsInItsCanvasOrder() {
+        let tiles = ["days", "card:k1", "files"]
+        let places: [String: [Double]] = ["card:k1": [0, 0, 392, 220], "days": [0, 236, 1200, 140], "files": [408, 0, 392, 260]]
+        let layout = places.mapValues { $0.map { KotlinDouble(value: $0) } }
+        XCTAssertEqual(BoardCanvas.shared.readOrder(f: [BoardCanvas.shared.FEATURE], layout: layout, tiles: tiles), ["card:k1", "files", "days"])
+        XCTAssertNil(BoardCanvas.shared.readOrder(f: [], layout: layout, tiles: tiles), "without project-layout")
+        XCTAssertNil(BoardCanvas.shared.readOrder(f: [BoardCanvas.shared.FEATURE], layout: nil, tiles: tiles), "never arranged")
+    }
 }

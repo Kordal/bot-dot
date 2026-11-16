@@ -208,31 +208,36 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
-            val tiles = buildList {
-                if (needsTile) add(Tile("needs") { m, _ -> needsBox(m) })
-                feed?.let { f -> listOf("work", "blockers").filter { on(it) }.forEach { k -> add(Tile(k) { m, _ -> OverviewTile(k, f, bots, openEntry, m) }) } }
-                if (on("days")) c.day?.let { day -> add(Tile("days") { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } }) }
-                // An ongoing project's monthly review (#925) stands where the 90-day line would.
-                else if (c.ongoing) c.checkin?.let { k -> add(Tile("days") { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } }) }
-                if (CompanyFloor.DISPLAY in features && on("goals")) c.objectives.filter { it.id !in ui.removingGoals }.forEach { o -> add(Tile("goal:${o.id}") { m, _ -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } }) }
-                if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots().forEach { s ->
-                    // New card opened: its ask and the picks under it get a card's height, not the button's.
-                    val asks = s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null
-                    add(Tile(cards.tileOf(s), open = if (asks) BoardCanvas.KINDS.getValue("card").h else 0) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
-                        // On the canvas a card fills its tile, its list as many lines as it holds; in the phone's column
-                        // it takes its own height, as in the flow. The ask keeps its picks under it.
-                        CardSlot(cards, s, if (fixed) Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card) else Modifier.fillMaxWidth(), canvas = fixed)
-                        if (s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
-                    } })
+            // Which tiles the board has, in the order they take free spots, is the shared BoardCanvas.tiles (both phones).
+            val slots = if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots() else null
+            val slotOf = slots.orEmpty().associateBy { cards.tileOf(it) }
+            val ids = BoardCanvas.tiles(features, c, needsTile, one, slots, filesAt != null)
+                .filterNot { it.startsWith("goal:") && it.removePrefix("goal:") in ui.removingGoals }
+            val tiles = ids.mapNotNull { id ->
+                when {
+                    id == "needs" -> Tile(id) { m, _ -> needsBox(m) }
+                    id == "work" || id == "blockers" || id == "replies" -> feed?.let { f -> Tile(id) { m, _ -> OverviewTile(id, f, bots, openEntry, m) } }
+                    id == "days" -> if (on("days")) c.day?.let { day -> Tile(id) { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } } }
+                        // An ongoing project's monthly review (#925) stands where the 90-day line would.
+                        else c.checkin?.let { k -> Tile(id) { m, _ -> Box(m) { CheckinCard(ui, k, ways, c.name.ifBlank { c.start }, ongoing = true) } } }
+                    id.startsWith("goal:") -> c.objectives.firstOrNull { "goal:${it.id}" == id }?.let { o -> Tile(id) { m, _ -> Box(m) { GoalCard(ui, c, o, ways.onGoalChat.takeIf { GoalAsk.shows(features) }, GoalAsk.removes(features)) } } }
+                    id == "new-card" || id.startsWith("card:") -> slotOf[id]?.let { s ->
+                        // New card opened: its ask and the picks under it get a card's height, not the button's.
+                        val asks = s is dev.botdot.app.data.ProjectCards.Slot.Ask && s.card == null
+                        Tile(id, open = if (asks) BoardCanvas.KINDS.getValue("card").h else 0) { m, fixed -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                            // On the canvas a card fills its tile, its list as many lines as it holds; in the phone's column
+                            // it takes its own height, as in the flow. The ask keeps its picks under it.
+                            CardSlot(cards, s, if (fixed) Modifier.fillMaxWidth().weight(1f, fill = s is dev.botdot.app.data.ProjectCards.Slot.Card) else Modifier.fillMaxWidth(), canvas = fixed)
+                            if (asks) CardPicks(cards, dev.botdot.app.data.ProjectBoard.missing(features, c))
+                        } }
+                    }
+                    id == "suggest" -> c.suggestion?.let { sg -> Tile(id) { m, _ -> Box(m) { SuggestedCard(ui, c, sg) } } }
+                    id == "new-team" -> Tile(id) { m, _ -> Box(m) { NewTeam(ui, c, addOwn.takeIf { ownBots && c.bots.isEmpty() }) } }
+                    id == "calendar" -> Tile(id) { m, _ -> Box(m) { CalendarTile(ui, c, bots) } }
+                    id == "todo" -> Tile(id) { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } }
+                    id == "files" -> filesAt?.let { at -> Tile(id) { m, _ -> Box(m) { ProjectFilesTile(ui, c, at, ways.onFolderFile) } } }
+                    else -> null
                 }
-                if (on("teams")) {
-                    c.suggestion?.let { sg -> add(Tile("suggest") { m, _ -> Box(m) { SuggestedCard(ui, c, sg) } }) }
-                    add(Tile("new-team") { m, _ -> Box(m) { NewTeam(ui, c, addOwn.takeIf { ownBots && c.bots.isEmpty() }) } })
-                }
-                if (dev.botdot.app.data.ProjectCalendar.FEATURE in features && on("calendar")) add(Tile("calendar") { m, _ -> Box(m) { CalendarTile(ui, c, bots) } })
-                if (on("todo")) add(Tile("todo") { m, _ -> Column(m) { TodoPanel(ui, c, bots, here, ways, features) } })
-                if (filesAt != null) add(Tile("files") { m, _ -> Box(m) { ProjectFilesTile(ui, c, filesAt, ways.onFolderFile) } })
-                if (feed != null && on("replies")) add(Tile("replies") { m, _ -> OverviewTile("replies", feed, bots, openEntry, m) })
             }
             BoardCanvasView(tiles, saved) { l -> ui.call({ it.setLayout(BoardCanvas.raw(l)) }) }
         } else {

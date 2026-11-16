@@ -142,6 +142,8 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
+    /** The board as the owner arranged it on the canvas (#784, ADR 147): its tiles in reading order; null: the usual flow. */
+    val order: List<String>? = null,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -282,6 +284,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         }
         val ownBots = ProjectBots.FEATURE in f
         val board = c != null && ProjectOverview.BOARD in f
+        val needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null
+        val cards = if (c != null && ProjectCards.shows(features, c)) ProjectCards.slots(c.cards, x.open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }, x.closing, x.removing) else null
+        val filesTile = c != null && ProjectFiles.FEATURE in f && on(ProjectFiles.PIECE) && c.phase == "running" && c.folder != null
         return ProjectState(
             shows = CompanySetup.shows(features),
             spaces = Spaces.list(projects, bots, waiting),
@@ -300,9 +305,10 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             teamsOnBoard = !board,
             teamEntry = board,
             recorded = x.recorded,
-            needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
+            needsYou = needsYou,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            order = c?.let { BoardCanvas.readOrder(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
@@ -314,7 +320,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             // With "Show as" (#690) the objectives are the board's "goals" piece; before it, always on the whiteboard.
             goals = if (c == null) emptyList() else if (CompanyFloor.DISPLAY !in f || on("goals")) c.objectives else emptyList(),
             goal = c?.goal.orEmpty(),
-            cards = if (c != null && ProjectCards.shows(features, c)) ProjectCards.slots(c.cards, x.open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }, x.closing, x.removing) else null,
+            cards = cards,
             fresh = x.fresh,
             refused = x.refused,
             pieces = if (c != null && x.open == ProjectCards.NEW) ProjectBoard.missing(f, c) else emptyList(),
@@ -323,7 +329,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             own = if (c == null || !ownBots) emptyList() else c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }.map { key(it, false) },
             addable = if (c == null) emptyList() else ProjectBots.addable(c, bots),
             ownSaving = x.ownSaving,
-            filesTile = c != null && ProjectFiles.FEATURE in f && on(ProjectFiles.PIECE) && c.phase == "running" && c.folder != null,
+            filesTile = filesTile,
             folder = c?.folder,
             files = x.files,
             chat = chat,
