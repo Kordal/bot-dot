@@ -96,6 +96,61 @@ object ProjectTodo {
         r.n?.let { put("n", it) }
     }
 
+    /** [due]'s kind as of today, and the repeat a rhythm gives as of today: for a phone that has no LocalDate to pass. */
+    fun dueToday(due: String?): Due? = dueKind(due)
+    fun rhythmToday(every: String, due: String?): Repeat? = rhythm(every, due)
+
+    /** What an item's chip says, first that applies: how it repeats, that its bot works now, its due day. */
+    enum class Chip { REPEAT, WORKING, DUE }
+
+    fun chip(t: Todo, bot: Bot?): Chip? = when {
+        t.repeat != null -> Chip.REPEAT
+        !t.done && bot?.running == true -> Chip.WORKING
+        t.due != null -> Chip.DUE
+        else -> null
+    }
+
+    /** Its due day has passed and it is still open: its chip in the warning colour. */
+    fun late(t: Todo): Boolean = !t.done && dueKind(t.due) == Due.LATE
+
+    /** One item as the panel draws it: the item, whom it is for (null: the owner), its chip and whether it is late. */
+    class Row(val todo: Todo, val bot: Bot?, val chip: Chip?, val late: Boolean)
+
+    /**
+     * The To-do panel (#692; Android's TodoPanel) under [filter]: its title, the asks that wait for the owner here
+     * ([waiting], what waits in this project only, and the team bots' questions, on All and You), its items, and the
+     * number by its title. Before [FEATURE] it is the older "You" list: every open task and the last five done.
+     */
+    class Panel(
+        val full: Boolean,
+        val title: String,
+        val filter: String,
+        /** The asks shown above the items: what waits, and the bots asking a question. */
+        val asks: Boolean,
+        val waits: List<Waiting>,
+        val asking: List<Bot>,
+        val rows: List<Row>,
+        val count: Int,
+        /** Whom an item may be for, beside the owner. */
+        val forBots: List<Bot>,
+    )
+
+    fun panel(c: Company, bots: List<Bot>, waiting: List<Waiting>, filter: String, features: Collection<String>?): Panel {
+        val f = features.orEmpty()
+        val full = FEATURE in f
+        val asks = !full || filter == "all" || filter == "you"
+        val waits = if (asks) waiting else emptyList()
+        val asking = if (asks) Spaces.askingIn(c, bots) { ProjectRules.question(it) != null } else emptyList()
+        val items = if (full) shown(c.todos, filter) else CompanyFloor.todos(c.todos)
+        val standupAsks = if (asks && ProjectStandup.FEATURE in f) ProjectStandup.asks(c, bots).size else 0
+        val rows = items.map { t -> bots.firstOrNull { it.id == t.bot }.let { b -> Row(t, b, if (full) chip(t, b) else null, late(t)) } }
+        return Panel(
+            full = full, title = if (full) tr("To-do") else tr("You"), filter = filter, asks = asks, waits = waits, asking = asking, rows = rows,
+            count = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks,
+            forBots = projectBots(c, bots),
+        )
+    }
+
     /** The bots an item may be for: the project's, or every bot while it has no team. */
     fun projectBots(c: Company, bots: List<Bot>): List<Bot> {
         val ids = c.teams.flatMap { it.bots }.toSet()

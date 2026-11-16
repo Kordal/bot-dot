@@ -40,6 +40,12 @@ class ProjectStore(home: HomeStore) {
     /** The Chief's suggested bot: Add (true) or dismiss. */
     @Throws(Exception::class) suspend fun answerSuggested(add: Boolean): Boolean = desk.answerSuggested(add)
 
+    /** The To-do (#692): its filter, a tick, Delete, and Add. */
+    fun todoFilter(filter: String) = desk.todoFilter(filter)
+    @Throws(Exception::class) suspend fun tickTodo(id: String, done: Boolean) = desk.tickTodo(id, done)
+    @Throws(Exception::class) suspend fun deleteTodo(id: String) = desk.deleteTodo(id)
+    @Throws(Exception::class) suspend fun addTodo(typed: String, who: String?, due: String?, repeat: Repeat?): Boolean = desk.addTodo(typed, who, due, repeat)
+
     fun offered(team: String): List<Bot> = desk.offered(team)
     fun newBotWords(team: String?): String = desk.newBotWords(team)
     @Throws(Exception::class) suspend fun addOwn(ids: List<String>): Boolean = desk.addOwn(ids)
