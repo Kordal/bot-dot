@@ -323,6 +323,8 @@ struct ShareSheet: UIViewControllerRepresentable {
 /// the phone's own previewer (QuickLook). The ⋯ menu copies its text and shares the file.
 struct ViewerView: View {
     let opening: DocumentView.Opening
+    /// The feed's tile ticks, for a page's blocks read again while it is open.
+    @Environment(\.tileTicks) var tileTicks
     // Not private: the interactive page's part of the view is in InteractivePageView.swift.
     @State var model: ViewerModel
     @State var sharing: SharedFile?
@@ -385,7 +387,8 @@ struct ViewerView: View {
                 }
             }
             .toolbar(full ? .hidden : .visible, for: .navigationBar)
-            .task { await model.load() }
+            .task { await model.load(); model.follow(tileTicks) }
+            .onDisappear { model.unfollow() }
     }
 
     @ViewBuilder
@@ -437,7 +440,7 @@ struct ViewerView: View {
             }
             if viewed.table(mode: model.mode) {
                 CsvTable(viewer: model.viewer, text: v.text ?? "")
-            } else if viewed.rendered(mode: model.mode), let parts = v.parts {
+            } else if viewed.rendered(mode: model.mode), let parts = model.blocks?.parts ?? v.parts {
                 // A bot's page with blocks: its Markdown and its blocks drawn (Android's PageParts).
                 ScrollView { PagePartsView(parts: parts).textSelection(.enabled).padding() }
             } else if viewed.rendered(mode: model.mode) {
@@ -580,4 +583,9 @@ struct QuickLookPreview: UIViewControllerRepresentable {
         func numberOfPreviewItems(in controller: QLPreviewController) -> Int { 1 }
         func previewController(_ controller: QLPreviewController, previewItemAt index: Int) -> QLPreviewItem { url as NSURL }
     }
+}
+
+extension EnvironmentValues {
+    /// The Store's tile ticks (the feed's `dashboard`), for a page's blocks read again while it is open.
+    @Entry var tileTicks: TileTicks? = nil
 }
