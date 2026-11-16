@@ -92,3 +92,5 @@ extension ChiefGrant: @retroactive @unchecked Sendable {}
 extension DuplicateDesk: @retroactive @unchecked Sendable {}
 extension Repeat: @retroactive @unchecked Sendable {}
 extension BoardCanvas.R: @retroactive @unchecked Sendable {}
+extension PageBlocks: @retroactive @unchecked Sendable {}
+extension TileTicks: @retroactive @unchecked Sendable {}

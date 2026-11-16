@@ -142,6 +142,15 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(Pages.shared.rows(blocks: grid.blocks, columns: grid.columns, wide: true).map { $0.count }, [3])
         XCTAssertEqual(Pages.shared.rows(blocks: grid.blocks, columns: grid.columns, wide: false).map { $0.count }, [2, 1])
     }
+
+    /// A page's blocks are read again only where they read tiles, on a tick of one of them or of the Board (shared rule).
+    func testAPagesBlocksAreReadAgainForTheTilesTheyRead() {
+        XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: "t1"))
+        XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: nil))
+        XCTAssertFalse(PageReblock.companion.reads(tiles: ["t1"], tick: "t2"))
+        XCTAssertFalse(PageReblock.companion.reads(tiles: [], tick: nil))
+        XCTAssertEqual(PageReblock.companion.EVERY_MS, 60_000)
+    }
 }
 
 /// True once, for the first call: a watch that hands over every state, checked for its first alone.
