@@ -57,7 +57,7 @@ function docker(args) {
   if (cmd === 'rm' && name) containers.delete(name);
   if (cmd === 'ps') return [...containers].filter(([n]) => n.startsWith('botdot-')).map(([n, c]) => `${n}|${n.slice(7)}|${c.state}`).join('\n');
   // A screen's computer-server answers once its supervisord was started (#105).
-  if (cmd === 'exec' && args.includes('sudo') && sudoBroken) throw new Error("sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set");
+  if (cmd === 'exec' && args.includes('sudo') && sudoBroken) throw new Error(sudoBroken === true ? "sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set" : sudoBroken);
   if (cmd === 'exec' && args.includes('/usr/bin/supervisord')) screensUp.add(args.find((a) => a.startsWith('API_PORT=')).slice(9));
   if (cmd === 'exec' && args.includes('python3') && !args.includes('-I') && !screensUp.has(args.at(-1))) throw new Error('Connection refused');
   if (cmd === 'exec' && args.includes('-I') && bridgeSays && !args.includes('botdot-run')) return bridgeSays(args);
@@ -126,6 +126,16 @@ test('a computer whose sudo is broken by its runtime still starts, and botdot sa
   try { await computers.ensure(seat('a1')); } finally { console.error = realError; sudoBroken = false; }
   assert.equal((await computers.inspect('a1')).state, 'running');
   assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /runsc/.test(e) && /reset would not help/.test(e)), errors.join('\n'));
+});
+
+test('another sudo failure is logged as it is, without blaming runsc', async () => {
+  sudoBroken = 'sudo: a password is required';
+  const errors = [];
+  const realError = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  try { await computers.ensure(seat('a1')); } finally { console.error = realError; sudoBroken = false; }
+  assert.ok(errors.some((e) => /sudo does not work for box: .*password is required/.test(e)), errors.join('\n'));
+  assert.ok(!errors.some((e) => /runsc|reset would not help/.test(e)), 'no advice for a failure that is not setuid');
 });
 
 test('a working sudo adds nothing to the log at a start', async () => {
