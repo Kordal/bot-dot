@@ -44,3 +44,12 @@ test('the privacy policy names every permission the Play build asks for', () => 
     assert.match(policy, words[p], p);
   }
 });
+
+test('Play Console names the site\'s privacy and deletion pages, the ones the App Store names', () => {
+  const answers = read('console-answers.md');
+  assert.match(answers, /`https:\/\/botdot\.app\/privacy`/);
+  assert.match(answers, /deletion URL: `https:\/\/botdot\.app\/account-deletion`/);
+  assert.doesNotMatch(answers, /github\.com\/Kordal\/bot-dot\/blob/);
+  const store = fs.readFileSync(path.join(__dirname, '../docs/app-store/connect-answers.md'), 'utf8');
+  assert.match(store, /https:\/\/botdot\.app\/privacy\b/);
+});

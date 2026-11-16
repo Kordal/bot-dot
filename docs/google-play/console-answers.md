@@ -4,7 +4,7 @@ The answers for Play Console → Policy → App content, matching the app as bui
 
 ## Privacy policy
 
-`https://github.com/Kordal/bot-dot/blob/main/docs/google-play/privacy.md`
+`https://botdot.app/privacy` (the site's page, Kordal/botdot-site; the same URL the App Store and the iPhone app name). [privacy.md](privacy.md) is its source here: a change to one changes the other.
 
 ## Ads
 
@@ -15,8 +15,9 @@ No, the app has no ads.
 "All or some functionality is restricted." Add one set of instructions:
 
 - Name: `Demo server`
-- Username / password: the demo login (see README.md, step 9)
-- Instructions: `botdot connects to the user's own self-hosted server. Tap Connect, enter https://demo.botdot.app and sign in with the username and password above. The demo account has sample bots; message the Chief of Staff to see a bot reply.`
+- Username: `demo` (the sign-in page has only a code; Play's field needs a value). Password: the review demo code (ADR 216), typed in by the owner. It is not kept in this repository or in botdot's Vault.
+- Instructions: `botdot connects to the user's own botdot server. Open the app, enter https://demo.botdot.app and tap Connect. On the sign-in page, enter the password above under "Demo access code" and tap Open demo. Open the Chief of Staff and send a message: a bot replies in under a minute. Delete account (Settings) goes through every step on the demo account but keeps it, so the next reviewer can still sign in.`
+- Before submitting: the demo server runs a release with #1465 (the demo account survives Delete account and Sign out everywhere), installed with `BOT_DOT_DEMO_CODE_SHA256`.
 
 ## Content rating (IARC questionnaire)
 
@@ -36,7 +37,7 @@ Data that leaves the phone goes only to the server the user signs in to, which t
 
 - Does the app collect or share user data? **Yes**, collected.
 - Is all data encrypted in transit? **Yes** (HTTPS only: the app allows no plain HTTP connection).
-- Can users request deletion? **Yes**, deletion URL: `https://github.com/Kordal/bot-dot/blob/main/docs/google-play/delete-account.md`
+- Can users request deletion? **Yes**, deletion URL: `https://botdot.app/account-deletion` (the site's page; [delete-account.md](delete-account.md) is its source here)
 
 | Data type | Collected | Shared | Optional | Purpose |
 | --- | --- | --- | --- | --- |
