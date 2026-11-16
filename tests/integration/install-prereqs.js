@@ -22,8 +22,10 @@ const GVISOR_RELEASE = fs.readFileSync(path.join(root, 'install.sh'), 'utf8').ma
 // Each distribution's image, pinned, and what a server of it has that the image leaves out.
 const APT_PREP = 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl ca-certificates >/dev/null';
 // A distribution's container image drops the file capabilities newuidmap and newgidmap have on a machine (the
-// installer refuses them so); reinstalling shadow-utils gives them back, as a machine of it has them.
-const DNF_PREP = 'dnf reinstall -y -q shadow-utils >/dev/null';
+// installer refuses them so); reinstalling shadow-utils gives them back, as a machine of it has them. Once the
+// distribution's mirrors no longer carry the image's own version (AlmaLinux 9's after a point release), it can't be
+// reinstalled, and upgrading it installs it anew.
+const DNF_PREP = 'dnf reinstall -y -q shadow-utils >/dev/null 2>&1 || dnf upgrade -y -q shadow-utils >/dev/null';
 const DISTROS = {
   'ubuntu-22.04': { image: 'ubuntu:22.04@sha256:076e7bf82319619f28dd0aa9c02ab34b055ad37100395b4f49a2ffba04fb5e11', prep: APT_PREP },
   'ubuntu-24.04': { image: 'ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55', prep: APT_PREP },

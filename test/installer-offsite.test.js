@@ -862,10 +862,10 @@ test('an account made in the same run as an off-site restore gets the restored i
   assert.equal(carol.match(/^BOT_DOT_INSTANCE=(.*)$/m)[1], old, 'not the instance the run started with');
 });
 
-test('the scratch folders a cut-off restore or restore test left are removed by the next off-site backup, under its lock', (t) => {
+test('the scratch folders a cut-off restore, restore test or import left are removed by the next off-site backup, under its lock', (t) => {
   const m = machine(t);
   m.offsite();
-  const left = [scratch(m), path.join(m.dir, 'restore-test')];
+  const left = [scratch(m), path.join(m.dir, 'restore-test'), path.join(m.dir, 'account-import')];
   for (const dir of left) {
     fs.mkdirSync(path.join(dir, 'accounts', 'bob'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'accounts', 'bob', 'env'), 'SECRET=1\n');
@@ -896,4 +896,252 @@ test('a restore test and an off-site backup stop at a step that fails, from a re
   assert.notEqual(backup.status, 0);
   assert.equal(status(backup, 'offsite.json').state, 'failed');
   assert.ok(!resticCalls(backup).some((c) => / backup /.test(c)), 'nothing is backed up past it');
+});
+
+// An account moved between machines (ADR 254): IMPORT-<account> restores one account of another machine's latest
+// off-site backup here, after the front door made it (`front-door.js import-account`, its side in
+// test/front-door-console-move.test.js), and DELETE-<account> deletes it from the machine it left. The stand-in front
+// door keeps the record it was handed and writes the data its change leaves.
+const moveDoor = (m, { refuse = false } = {}) => {
+  const data = path.join(m.dir, 'front-door', 'data', 'front-door.json');
+  const record = path.join(m.first.top, 'import-record.json');
+  return [
+    'case "$*" in',
+    `  *"front-door.js import-account --account bob --record /dev/stdin --by console"*) cat > ${record}; if flock -n ${path.join(m.first.run, 'offsite.lock')} true; then echo free; else echo held; fi > ${path.join(m.first.top, 'import-lock')}; ${refuse ? `echo '{"state":"refused","account":"bob","error":"This machine holds one account, ann, and takes no other."}'; exit 3` : `printf '%s' '{"accounts":{"ann":{},"bob":{}}}' > ${data}; echo '{"state":"imported","account":"bob"}'; exit 0`} ;;`,
+    `  *"front-door.js delete-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{}},"deleted":{"bob":"2026-11-16T12:00:00.000Z"}}' > ${data}; echo '{"state":"deleted","account":"bob"}'; exit 0 ;;`,
+    'esac',
+  ];
+};
+// The machine bob moves to: an instance of its own, without bob.
+function elsewhere(m) {
+  const env = path.join(m.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_INSTANCE=.*$/m, 'BOT_DOT_INSTANCE=0badcafe'));
+  m.door({ accounts: { ann: {} } });
+  fs.writeFileSync(path.join(m.home, 'data', 'vault.json'), 'fresh');
+}
+
+test('IMPORT-bob restores bob alone from another machine\'s latest backup, after the front door made it, and leaves no scratch folder', (t) => {
+  const m = machine(t);
+  fs.mkdirSync(path.join(m.dir, 'born'), { recursive: true });
+  fs.writeFileSync(path.join(m.dir, 'born', 'bob'), '20260101T000000Z\n');
+  m.offsite();
+  const old = instanceOf(m);
+  const backedUp = doorData(m);
+  elsewhere(m);
+  // An erase of bob with this born stamp waits here (a half-made import before, or bob moved away once): it would
+  // forget the snapshots of the bob imported now.
+  fs.mkdirSync(m.secrets, { recursive: true });
+  fs.writeFileSync(path.join(m.secrets, 'erased'), 'bob 20260101T000000Z 1790000000 2026-10-21T12:00:00Z\ncarl 20250101T000000Z 1790000000 2026-10-21T12:00:00Z\n');
+  const done = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m), ...extracts] });
+  assert.equal(fs.readFileSync(path.join(m.dir, 'born', 'bob'), 'utf8').trim(), '20260101T000000Z', 'bob keeps his born stamp');
+  assert.equal(fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8'), 'carl 20250101T000000Z 1790000000 2026-10-21T12:00:00Z\n', 'bob is no erase to finish');
+  const said = status(done, 'import-bob.json');
+  assert.deepEqual({ state: said.state, account: said.account, instance: said.instance }, { state: 'imported', account: 'bob', instance: old }, done.said);
+  assert.match(said.snapshot, /^[0-9a-f]{64}$/);
+  assert.equal(fs.readFileSync(path.join(m.first.top, 'import-record.json'), 'utf8'), backedUp, 'the front door is handed the other machine\'s data');
+  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), '[]', 'bob\'s data is the backup\'s');
+  assert.equal(instanceOf(m), '0badcafe', 'the machine keeps its own instance');
+  const calls = resticCalls(done);
+  assert.ok(calls.some((c) => c.endsWith(` snapshots --json --host ${old} --tag instance=${old},part=manifest --latest 1`)), calls.join('\n'));
+  const restored = calls.filter((c) => / restore /.test(c));
+  assert.equal(restored.length, 8, 'the manifest, the front door\'s data and bob\'s six parts');
+  const named = fs.readdirSync(path.join(m.store, 'byid')).filter((f) => f.endsWith('.name')).map((f) => [f.slice(0, 64), fs.readFileSync(path.join(m.store, 'byid', f), 'utf8').trim()]);
+  const parts = restored.map((c) => named.find(([id]) => c.includes(` restore ${id} `))?.[1]).filter(Boolean);
+  assert.ok(parts.includes('front-door/data.tar') && parts.every((p) => !p.startsWith('accounts/ann/')), parts.join(' '));
+  assert.ok(!fs.existsSync(path.join(m.dir, 'account-import')), 'the scratch folder is removed');
+  assert.match(done.said, /The account bob is imported from the machine/);
+  assert.equal(fs.readFileSync(path.join(m.first.top, 'import-lock'), 'utf8').trim(), 'held', 'the off-site lock is held past the download');
+});
+
+test('IMPORT-bob that fails once the front door made bob deletes and erases what it made, and can be asked again', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  // bob's botdot server won't stop, so his data can't be put back: once.
+  const once = path.join(m.first.top, 'compose-failed');
+  const stuck = [`case "$*" in *"compose --project-directory"*"/bob down"*) [ -e ${once} ] || { touch ${once}; exit 1; } ;; esac`];
+  const failed = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...stuck, ...moveDoor(m), ...extracts] });
+  const said = status(failed, 'import-bob.json');
+  assert.deepEqual([said.state, said.phase], ['failed', 'account'], JSON.stringify(said));
+  assert.match(said.error, /Couldn't stop the account bob's botdot server/);
+  assert.ok(failed.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js delete-account --account bob --by console')), 'the front door is asked to delete bob');
+  assert.match(failed.system, /^userdel botdot-bob$/m, 'bob is erased');
+  const again = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...stuck, ...moveDoor(m), ...extracts] });
+  assert.equal(status(again, 'import-bob.json').state, 'imported', again.said);
+});
+
+test("IMPORT-bob of the machine's own account that fails keeps what it made, for the next import to write over", (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  // bob is the admin's own here, as a machine of one account's is: never erased.
+  const env = path.join(m.dir, 'front-door', '.env');
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^FRONT_DOOR_ADMIN=.*$/m, 'FRONT_DOOR_ADMIN=bob'));
+  const once = path.join(m.first.top, 'compose-failed');
+  const stuck = [`case "$*" in *"compose --project-directory"*"/bob down"*) [ -e ${once} ] || { touch ${once}; exit 1; } ;; esac`];
+  const failed = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...stuck, ...moveDoor(m), ...extracts] });
+  const said = status(failed, 'import-bob.json');
+  assert.deepEqual([said.state, said.phase], ['failed', 'account'], JSON.stringify(said));
+  assert.match(said.error, /what was made of the account stays on the machine: ask for the import again, which writes over it$/);
+  assert.doesNotMatch(failed.system, /^userdel botdot-bob$/m, 'not erased');
+});
+
+test('IMPORT-bob waits while an off-site backup runs, and asks nothing of the front door', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  const release = holdLock(t, m);
+  const done = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m), ...extracts] });
+  release();
+  const said = status(done, 'import-bob.json');
+  assert.deepEqual([said.state, said.error], ['failed', 'An off-site backup runs now: import the account when it is done.']);
+  assert.ok(!done.docker.some((c) => / import-account /.test(c.call)));
+});
+
+test('IMPORT-bob reads the repository and password it names, puts the key on the sub-account, and keeps neither password', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  const repo = 'sftp://u1-sub3@u1.your-storagebox.de:23/botdot';
+  const ssh = '#!/bin/sh\necho "ssh $*" >> "$STAND_IN_LOG"\ncat > /dev/null\n';
+  const log = path.join(m.first.top, 'system.log');
+  const before = fs.readFileSync(log, 'utf8').length;
+  const done = m.step('IMPORT-bob', { body: `${old}\n${repo}\nold-restic-password\nsub-password\n`, dockerFirst: [...moveDoor(m), ...extracts], bins: { restic: restic(m.store), ssh, 'ssh-keygen': '#!/bin/sh\nf=""; p=""; for a; do [ "$p" = -f ] && f="$a"; p="$a"; done; echo key > "$f"; echo pub > "$f.pub"\n' } });
+  const system = fs.readFileSync(log, 'utf8').slice(before);
+  assert.equal(status(done, 'import-bob.json').state, 'imported', done.said);
+  assert.match(system, new RegExp(`^restic-env ${repo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} \\S+/offsite/import-password `, 'm'));
+  assert.match(system, /^ssh -p 23 .* u1-sub3@u1\.your-storagebox\.de install-ssh-key$/m);
+  for (const f of ['import-password', 'subpass', 'askpass']) assert.ok(!fs.existsSync(path.join(m.secrets, f)), `${f} is gone`);
+});
+
+test('IMPORT-bob is refused for an account the machine has, a request that names no instance, or one the front door refuses, and changes nothing', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  const has = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: moveDoor(m) });
+  assert.deepEqual([status(has, 'import-bob.json').state, status(has, 'import-bob.json').error], ['refused', 'This machine has an account bob already.']);
+  assert.deepEqual(resticCalls(has), [], 'nothing is read');
+  elsewhere(m);
+  const bad = ask(m, 'IMPORT-bob', 'not-one\n', { dockerFirst: moveDoor(m) });
+  assert.equal(status(bad, 'import-bob.json').error, 'The request named no instance: an instance id is 8 hex digits.');
+  const noPass = ask(m, 'IMPORT-bob', `${old}\nsftp://u1-sub3@u1.your-storagebox.de:23/botdot\n`, { dockerFirst: moveDoor(m) });
+  assert.equal(status(noPass, 'import-bob.json').error, 'The request named a repository without its password.');
+  const refused = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m, { refuse: true }), ...extracts] });
+  assert.deepEqual([status(refused, 'import-bob.json').state, status(refused, 'import-bob.json').error], ['refused', 'This machine holds one account, ann, and takes no other.']);
+  assert.equal(fs.readFileSync(path.join(m.home, 'data', 'vault.json'), 'utf8'), 'fresh', 'nothing is put back');
+  assert.ok(!fs.existsSync(path.join(m.dir, 'account-import')));
+});
+
+test('IMPORT-bob of a machine with no backup, or of another version, fails in its download, and makes no account', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  const none = ask(m, 'IMPORT-bob', 'deadbeef\n', { dockerFirst: moveDoor(m) });
+  assert.deepEqual([status(none, 'import-bob.json').state, status(none, 'import-bob.json').phase, status(none, 'import-bob.json').error], ['failed', 'download', 'The off-site repository holds no backup of the machine deadbeef.']);
+  fs.writeFileSync(path.join(m.dir, 'front-door', 'status', 'version.json'), '{"version":"def5678","selfBuilt":false}\n');
+  const other = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: moveDoor(m) });
+  assert.equal(status(other, 'import-bob.json').error, 'The backup is of version abc1234, and this machine runs def5678: install version abc1234 here first.');
+  for (const done of [none, other]) assert.ok(!done.docker.some((c) => / import-account /.test(c.call)), 'the front door is asked nothing');
+  assert.ok(!fs.existsSync(path.join(m.dir, 'account-import')));
+});
+
+test('DELETE-bob has the front door delete bob and erases it from the machine at once', (t) => {
+  const m = machine(t);
+  const done = ask(m, 'DELETE-bob', '', { dockerFirst: moveDoor(m) });
+  assert.ok(done.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js delete-account --account bob --by console')));
+  assert.match(done.system, /^userdel botdot-bob$/m);
+  const said = status(done, 'delete-bob.json');
+  assert.deepEqual({ state: said.state, account: said.account }, { state: 'deleted', account: 'bob' });
+});
+
+test('DELETE-bob the front door is still deleting fails, to be asked again, and erases nothing yet', (t) => {
+  const m = machine(t);
+  const slow = ['case "$*" in', `  *"front-door.js delete-account --account bob --by console"*) echo '{"state":"deleting","account":"bob"}'; exit 0 ;;`, 'esac'];
+  const done = ask(m, 'DELETE-bob', '', { dockerFirst: [...slow, ...moveDoor(m)] });
+  assert.doesNotMatch(done.system, /userdel botdot-bob/);
+  const said = status(done, 'delete-bob.json');
+  assert.deepEqual([said.state, said.error], ['failed', 'The front door is still deleting the account: ask again in a few minutes.']);
+});
+
+// HOLD-<account> (ADR 254): the account held still on the machine it leaves, and backed up off-site from then on.
+const holdDoor = (m) => {
+  const data = path.join(m.dir, 'front-door', 'data', 'front-door.json');
+  return [
+    'case "$*" in',
+    `  *"front-door.js hold-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{},"bob":{"suspended":"2026-11-16T12:00:00.000Z","held":"2026-11-16T12:00:00.000Z"}}}' > ${data}; echo '{"state":"held","account":"bob","changed":true}'; exit 0 ;;`,
+    `  *"front-door.js release-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{},"bob":{}}}' > ${data}; echo '{"state":"released","account":"bob","changed":true}'; exit 0 ;;`,
+    'esac',
+  ];
+};
+
+test('HOLD-bob on suspends bob and backs the machine up off-site from then on; off lets go of it', (t) => {
+  const m = machine(t);
+  const given = { BOT_DOT_OFFSITE_REPO: m.store };
+  const held = ask(m, 'HOLD-bob', 'on\n', { given, dockerFirst: holdDoor(m) });
+  assert.ok(held.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js hold-account --account bob --by console')));
+  assert.ok(resticCalls(held).some((c) => / backup /.test(c)), 'backed up');
+  const said = status(held, 'hold-bob.json');
+  assert.equal(said.state, 'held', JSON.stringify(said));
+  assert.match(said.lastSuccess, /^\d{4}-\d\d-\d\dT/);
+  assert.equal(said.lastSuccess, status(held, 'offsite.json').lastSuccess);
+  const let_go = ask(m, 'HOLD-bob', 'off\n', { given, dockerFirst: holdDoor(m) });
+  assert.ok(let_go.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js release-account --account bob --by console')));
+  assert.equal(status(let_go, 'hold-bob.json').state, 'released');
+});
+
+test('HOLD-bob on is not held when the off-site run after the hold fails', (t) => {
+  const m = machine(t);
+  const given = { BOT_DOT_OFFSITE_REPO: m.store };
+  // A success from before the hold, which the failed run keeps as its lastSuccess.
+  ask(m, 'HOLD-bob', 'on\n', { given, dockerFirst: holdDoor(m) });
+  const failed = ask(m, 'HOLD-bob', 'on\n', { given: { ...given, STAND_IN_RESTIC_FAIL: 'accounts/bob/workspace.tar' }, dockerFirst: holdDoor(m) });
+  assert.equal(status(failed, 'offsite.json').state, 'failed');
+  assert.ok(status(failed, 'offsite.json').lastSuccess, 'the earlier success is still named');
+  const said = status(failed, 'hold-bob.json');
+  assert.equal(said.state, 'failed', JSON.stringify(said));
+  assert.match(said.error, /^The off-site backup since the account was held failed/);
+  assert.equal(said.lastSuccess, undefined);
+});
+
+test('HOLD- is refused for the first account, without an off-site repository, and when another backup runs', (t) => {
+  const m = machine(t);
+  const first = ask(m, 'HOLD-ann', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
+  assert.deepEqual([status(first, 'hold-ann.json').state, status(first, 'hold-ann.json').error], ['refused', "The account ann is the machine's first account, which stays on it."]);
+  const none = ask(m, 'HOLD-bob', 'on\n', { dockerFirst: holdDoor(m) });
+  assert.equal(status(none, 'hold-bob.json').state, 'refused');
+  assert.ok(!none.docker.some((c) => c.call.includes('hold-account')), 'nothing held');
+  const release = holdLock(t, m);
+  const busy = ask(m, 'HOLD-bob', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
+  release();
+  const said = status(busy, 'hold-bob.json');
+  assert.deepEqual([said.state, said.error], ['failed', 'Another off-site backup was running, so none was made since the account was held: ask again.']);
+});
+
+test("DELETE- of the machine's first account is refused before the front door is asked", (t) => {
+  const m = machine(t);
+  const done = ask(m, 'DELETE-ann', '', { dockerFirst: moveDoor(m) });
+  assert.ok(!done.docker.some((c) => c.call.includes('front-door.js delete-account')), 'the front door is not asked');
+  assert.doesNotMatch(done.system, /userdel/);
+  const said = status(done, 'delete-ann.json');
+  assert.deepEqual({ state: said.state, error: said.error }, { state: 'refused', error: "The account ann is the machine's first account, which stays on it." });
+});
+
+test('IMPORT- and DELETE- requests the front door made are refused, and nothing is read or deleted', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
+  const m = machine(t);
+  m.offsite();
+  const requests = path.join(m.dir, 'front-door', 'requests');
+  for (const name of ['IMPORT-carl', 'DELETE-bob']) {
+    fs.writeFileSync(path.join(requests, name), 'deadbeef\n');
+    fs.chownSync(path.join(requests, name), 990, 990);
+  }
+  const done = ask(m, 'ann', '', { dockerFirst: moveDoor(m) });
+  assert.equal(status(done, 'import-carl.json').error, 'Only root asks for this.');
+  assert.equal(status(done, 'delete-bob.json').error, 'Only root asks for this.');
+  assert.doesNotMatch(done.system, /^userdel botdot-bob$/m);
+  assert.deepEqual(resticCalls(done), []);
 });

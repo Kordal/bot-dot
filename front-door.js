@@ -232,18 +232,106 @@ if (process.argv[2] === 'revoke-links') {
 // The whole machine paused or started again by the fleet console through root's step (its customer suspended or
 // activated): every account suspended, or resumed, as the admin page does for one, each an audit entry by the
 // console. One line of JSON, { state: 'suspended' | 'resumed', accounts }, the accounts it changed; an account that
-// was so already is left as it is. Root's step then makes the machine match.
+// was so already is left as it is, and so is one held for its move. Root's step then makes the machine match.
 if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
   const suspend = process.argv[2] === 'suspend';
   const changed = [];
-  for (const { name, suspended } of doors.listAccounts()) {
+  for (const { name, suspended, held, moving } of doors.listAccounts()) {
+    // A held account the machine's pause reaches is the pause's from now on: the move's release leaves it suspended.
+    if (suspend && held) doors.holdAccount(name, 'keep');
     if (!!suspended === suspend) continue;
+    // An account held for its move stays still until the move lets go of it (ADR 254).
+    // The pause it was handed to ends: its suspension is the hold's again, which the move's release lifts.
+    if (!suspend && moving) { doors.holdAccount(name, 'back'); continue; }
     doors.setSuspended(name, suspend);
     audited(suspend ? 'suspend' : 'resume', { actor: 'console', account: name });
     changed.push(name);
   }
   console.log(JSON.stringify({ state: suspend ? 'suspended' : 'resumed', accounts: changed }));
   process.exit(0);
+}
+// An account the fleet console moves to another machine (ADR 254), held still from its last backup on: `hold-account
+// --account NAME` suspends it, as the admin page does, unless it is so already, and `release-account` lets go of that
+// hold only. One line of JSON, { state: 'held' | 'released', account, changed }, or { state: 'refused', error }; an
+// audit entry by the console when it changed. Root's step then makes the account match.
+if (process.argv[2] === 'hold-account' || process.argv[2] === 'release-account') {
+  const on = process.argv[2] === 'hold-account';
+  const at = process.argv.indexOf('--account');
+  const account = at > 0 ? process.argv[at + 1] ?? '' : '';
+  try {
+    if (!store.ACCOUNT_NAME.test(account)) throw Object.assign(new Error(store.NAME_RULE), { status: 400 });
+    // A held account's botdot server is stopped, so the delete at the move's end couldn't remove its boat.dev machines
+    // (eraseBoat): on a machine with a boat.dev key no account is held. A managed machine has none.
+    if (on && !ONE_ACCOUNT && boatStore.open(DATA).shown().keySet) throw Object.assign(new Error('This machine has a boat.dev key, and an account moved off it would leave its boat.dev machines behind: remove the key first.'), { status: 409 });
+    const changed = doors.holdAccount(account, on);
+    if (changed) audited(on ? 'suspend' : 'resume', { actor: 'console', account, detail: 'move' });
+    console.log(JSON.stringify({ state: on ? 'held' : 'released', account, changed }));
+    process.exit(0);
+  } catch (e) {
+    if (!e.status) throw e;
+    console.log(JSON.stringify({ state: 'refused', error: e.message }));
+    process.exit(3);
+  }
+}
+// An account moved between machines by the fleet console through root's step (ADR 254). `import-account --account
+// NAME --record FILE` makes NAME here, with no passkey, from what FILE (the other machine's front-door.json, from its
+// off-site backup) kept of it, before root's step puts its data back: refused when the name is taken, on a machine of
+// one account unless it is that one and the machine has none yet, and on a managed machine without room for its share.
+// `delete-account --account NAME` has the running front door delete NAME as the admin page does, once it runs on its
+// new machine, and waits for it. Each says one
+// line of JSON, { state: 'imported' | 'deleted' | 'deleting', account } or { state: 'refused', account?, error }
+// (deleting: the running front door hadn't finished when the wait ran out, and goes on), and is an audit
+// entry by the console.
+if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account') {
+  const importing = process.argv[2] === 'import-account';
+  const arg = (flag) => { const at = process.argv.indexOf(flag); return at > 0 ? process.argv[at + 1] ?? '' : ''; };
+  const account = arg('--account');
+  const named = store.ACCOUNT_NAME.test(account) ? account : undefined;
+  const refused = (error) => {
+    audited('console-refused', { actor: 'console', account: named, detail: `${importing ? 'import' : 'delete'} · ${error}` });
+    console.log(JSON.stringify({ state: 'refused', ...(named ? { account: named } : {}), error }));
+    process.exit(3);
+  };
+  if (!named) refused(store.NAME_RULE);
+  try {
+    if (importing) {
+      // Counted, not listed: a listing sizes each share, which on a self-hosted machine reads the load files this CLI
+      // hasn't opened (only the managed branch below, whose shares are fixed, lists them).
+      if (ONE_ACCOUNT && (account !== ONE_ACCOUNT || doors.accountCount())) refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no other.`);
+      if (MANAGED && !ONE_ACCOUNT) {
+        const others = doors.listAccounts();
+        const machine = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null).machine();
+        if (capacity.roomByShares(machine, others.map((a) => a.share), doors.defaultShare()) === 0) refused(`This machine has no room for another account's share.`);
+      }
+      let record = {};
+      try { record = JSON.parse(fs.readFileSync(arg('--record'), 'utf8')).accounts?.[account] || {}; } catch { /* none kept: made as new */ }
+      doors.importAccount(account, record);
+      audited('import', { actor: 'console', account });
+      console.log(JSON.stringify({ state: 'imported', account }));
+    } else {
+      // The running front door erases it (consoleDeletes), as the admin page does: its boat.dev machines, its rooms
+      // and its usage go too, which only that process holds. Asked again after a wait that ran out, it waits again.
+      if (!doors.accountExists(account) && doors.wasDeleted(account)) {
+        console.log(JSON.stringify({ state: 'deleted', account }));
+        process.exit(0);
+      }
+      doors.askConsoleDelete(account);
+      const until = Date.now() + (Number(process.env.FRONT_DOOR_CONSOLE_DELETE_WAIT_MS) || 150_000);
+      const pause = new Int32Array(new SharedArrayBuffer(4));
+      while (doors.accountExists(account) && Date.now() < until) Atomics.wait(pause, 0, 0, 250);
+      // Not refused: the running front door goes on deleting it, and root's step erases it once it has. Asked again
+      // then, it says deleted.
+      if (doors.accountExists(account)) {
+        console.log(JSON.stringify({ state: 'deleting', account }));
+        process.exit(0);
+      }
+      console.log(JSON.stringify({ state: 'deleted', account }));
+    }
+    process.exit(0);
+  } catch (e) {
+    if (!e.status) throw e;
+    refused(e.message);
+  }
 }
 const SOCKETS = process.env.FRONT_DOOR_SOCKETS ? path.resolve(process.env.FRONT_DOOR_SOCKETS) : null;
 if (!SOCKETS) {
@@ -1857,6 +1945,20 @@ async function eraseAccount(name, actor) {
   askMachine(name);
   return boatGone;
 }
+
+// The accounts the fleet console asked to delete (ADR 254, `front-door.js delete-account`), each erased once as the
+// admin page erases one, by the console.
+const consoleErasing = new Set();
+function consoleDeletes() {
+  for (const name of doors.consoleDeletes()) {
+    if (consoleErasing.has(name)) continue;
+    consoleErasing.add(name);
+    eraseAccount(name, 'console')
+      .catch((e) => console.error(`[front door] couldn't delete the account ${name} the console asked to: ${e.message}`))
+      .finally(() => consoleErasing.delete(name));
+  }
+}
+setInterval(consoleDeletes, Number(process.env.FRONT_DOOR_CONSOLE_DELETE_MS) || 2000).unref();
 
 // Whether this account's owner may delete it in Settings (#1307): only on a machine of several accounts with an admin,
 // who has the admin page. Never the admin's own account: it is the only admin, and nobody would be left to run the
