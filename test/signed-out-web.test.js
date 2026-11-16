@@ -81,7 +81,7 @@ test('web: the line is on the page in both places, drawn as Claude is at that mo
 
 test('web: "Sign in" opens Setup, wherever the line stands', () => {
   assert.match(app, /document\.addEventListener\('click', \(e\) => \{ if \(e\.target\.closest\('\[data-sign-in\]'\)\) setView\('setup'\); \}\);/);
-  assert.match(app, /'settings', 'setup', 'connectors'\]\.includes\(view\)/, 'Setup is a view of the page');
+  assert.match(app, /const routeViews = \(\) => \[[^\]]*'settings', 'setup', 'connectors'\];/, 'Setup is a view of the page');
 });
 
 test('web: the feed says it: `hello.claude` at the start and the `claude` event on every change', () => {
