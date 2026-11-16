@@ -142,6 +142,11 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
+    /** The board's "teams" piece: the bot the Chief suggests (Add or dismiss), and New team. */
+    val suggested: Suggested? = null,
+    val newTeam: Boolean = false,
+    /** New team's bots to pick from, those in no team first ([ManyProjects.newTeamBots]). */
+    val newTeamBots: List<Bot> = emptyList(),
     /** The board as the owner arranged it on the canvas (#784): each tile where it stands; null: the usual flow. */
     val canvas: Map<String, BoardCanvas.R>? = null,
     val tidying: Boolean,
@@ -312,6 +317,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             needsYou = needsYou,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            suggested = c?.suggestion?.takeIf { on("teams") },
+            newTeam = on("teams"),
+            newTeamBots = if (c != null && on("teams")) ManyProjects.newTeamBots(c, bots) else emptyList(),
             canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
@@ -631,6 +639,10 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         val body = ManyProjects.teamBody(name, bots, lead) ?: return false
         return if (team == null) call { it.addTeam(body) } else call { it.editTeam(team, body) }
     }
+
+    /** The Chief's suggested bot: Add makes it (into the team it would join), ✕ dismisses it. */
+    @Throws(Exception::class)
+    suspend fun answerSuggested(add: Boolean): Boolean = call { if (add) it.addSuggested() else it.dismissSuggested() }
 
     /** Delete team: its bots stay. */
     @Throws(Exception::class)

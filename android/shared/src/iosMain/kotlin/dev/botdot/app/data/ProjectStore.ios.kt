@@ -37,6 +37,8 @@ class ProjectStore(home: HomeStore) {
     @Throws(Exception::class) suspend fun arrange(layout: Map<String, BoardCanvas.R>): Boolean = desk.arrange(layout)
     @Throws(Exception::class) suspend fun removeCard(card: String) = desk.removeCard(card)
     @Throws(Exception::class) suspend fun putPiece(piece: String) = desk.putPiece(piece)
+    /** The Chief's suggested bot: Add (true) or dismiss. */
+    @Throws(Exception::class) suspend fun answerSuggested(add: Boolean): Boolean = desk.answerSuggested(add)
 
     fun offered(team: String): List<Bot> = desk.offered(team)
     fun newBotWords(team: String?): String = desk.newBotWords(team)
