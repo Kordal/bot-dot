@@ -288,6 +288,8 @@
   }
   const MORE = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>';
   const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+  // A team's faces, the lead first with its crown, "+N" past three: on a team's row and on its chip under the title.
+  const facesHTML = (ids) => ids.slice(0, 3).map((id, i) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}${i === 0 && ids.length > 1 ? CROWN : ''}</i>`; }).join('') + (ids.length > 3 ? `<i class="sp-faces-n">+${ids.length - 3}</i>` : '');
   function teamsHTML(c, editor = false) {
     const docked = typeof Dock !== 'undefined' && Dock.docked();
     const open = unfolded(c);
@@ -305,7 +307,7 @@
       const g = (state.groups || []).find((x) => x.team === t.id);
       const on = docked && state.view === 'group' && g && state.groupId === g.id;
       const unfold = open.includes(t.id);
-      const faces = ids.slice(0, 3).map((id, i) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}${i === 0 && ids.length > 1 ? CROWN : ''}</i>`; }).join('') + (ids.length > 3 ? `<i class="sp-faces-n">+${ids.length - 3}</i>` : '');
+      const faces = facesHTML(ids);
       const working = ids.filter((id) => keyStatus(botById(id)).kind === 'working').length;
       // Who waits (ADR 205): its bots by name, then its chat; a bot on several teams only on its home team.
       const w = waits[t.id] || { bots: [], chat: 0 };
@@ -330,7 +332,8 @@
   // One chip per team under the project's title, on the board (ADR 245): a click opens the team's chat. Team stays the
   // way to who is in a team and who leads it (ADR 238). Needs you shows only when a team's bot or chat waits.
   function teamChipsHTML(c) {
-    const shown = (c.teams || []).filter((t) => leadFirst(t).length);
+    // Only a team whose chat exists: a tap that opened nothing would be a dead chip.
+    const shown = (c.teams || []).filter((t) => leadFirst(t).length && (state.groups || []).some((g) => g.team === t.id));
     if (!shown.length) return '';
     const docked = typeof Dock !== 'undefined' && Dock.docked();
     const waits = Keypad.teamWaits(c, needs(), state.groups, state.bots.filter((b) => question(b)).map((b) => b.id));
@@ -338,7 +341,7 @@
       const ids = leadFirst(t);
       const g = (state.groups || []).find((x) => x.team === t.id);
       const on = docked && state.view === 'group' && g && state.groupId === g.id;
-      const faces = ids.slice(0, 3).map((id, i) => { const b = botById(id); return `<i>${botFigure(b.color, b.state, 'sm', b.outfit, b.id)}${i === 0 && ids.length > 1 ? CROWN : ''}</i>`; }).join('') + (ids.length > 3 ? `<i class="sp-faces-n">+${ids.length - 3}</i>` : '');
+      const faces = facesHTML(ids);
       const w = waits[t.id] || { bots: [], chat: 0 };
       const asks = w.bots.length || w.chat;
       return `<button type="button" class="sp-chip${on ? ' here' : ''}"${on ? ' aria-current="true"' : ''} data-cf-team-chat="${esc(t.id)}" title="${esc(t.name)}"><span class="sp-faces">${faces}</span><span class="sp-name">${esc(t.name)}</span>${asks ? `<span class="sp-st needs">${esc(tr('Needs you'))}</span>` : ''}</button>`;
@@ -847,5 +850,5 @@
   // The keys of the project on screen, in reading order, while its page is up (#838): 1-9 open them, Esc the Chief.
   Company.spaceKeys = () => (Company.onProjectPage?.() ? keysOf(state.company) : null);
   // The floor also shows the bots' states, what waits for the owner, the Chief's line and the open team.
-  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null]), state.botsKnown, boardFor, teamFor, Company.teamSettings?.sig(), typeof ProjectOverview !== 'undefined' ? ProjectOverview.sig(state.company?.id) : null];
+  Company.steps.sig = () => [unfolded(state.company), state.company?.bots || null, Company.calendar?.sig(), Company.files?.sig(), window.BoardView?.sig(), teamOpen, changing, menuFor, sourceFor, apps, filter, menu, pick, state.bots.map((b) => [b.id, b.name, b.color, b.state, !!b.running, question(b), b.running ? liveLine(b) : keyStatus(b).text]), needs().map((x) => x.key), state.view, state.botId, state.groupId, typeof Dock !== 'undefined' && Dock.docked(), (state.groups || []).map((g) => [g.id, g.team || null, !!g.asks]), state.botsKnown, boardFor, teamFor, Company.teamSettings?.sig(), typeof ProjectOverview !== 'undefined' ? ProjectOverview.sig(state.company?.id) : null];
 })();

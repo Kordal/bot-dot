@@ -423,16 +423,16 @@ class ProjectDeskTest {
         desk.follow(false)
     }
 
-    @Test fun everyTeamHasAChipThatOpensItsChat() {
+    @Test fun everyTeamWithAChatHasAChipThatOpensIt() {
         val bots = listOf(bot("""{"id":"b1","name":"Ada"}"""), bot("""{"id":"b2","name":"Bo"}"""))
-        val c = company("""{"id":"p1","name":"Kitchen","phase":"running","teams":[{"id":"t1","name":"Crew","bots":["b1","b2"],"lead":"b2"},{"id":"t2","name":"Solo","bots":["b1"]},{"id":"t3","name":"Gone","bots":["x"]}]}""")
-        val groups = listOf(Api.JSON.decodeFromString(Group.serializer(), """{"id":"g1","name":"Crew","team":"t1"}"""))
+        val c = company("""{"id":"p1","name":"Kitchen","phase":"running","teams":[{"id":"t1","name":"Crew","bots":["b1","b2"],"lead":"b2"},{"id":"t2","name":"Solo","bots":["b1"]},{"id":"t3","name":"Gone","bots":["x"]},{"id":"t4","name":"Quiet","bots":["b2"]}]}""")
+        val groups = listOf("t1", "t2", "t3").map { Api.JSON.decodeFromString(Group.serializer(), """{"id":"g-$it","name":"Chat","team":"$it"}""") }
         val chips = ProjectRules.teamChips(c, bots, listOf(Groups.TEAM_CHATS), groups, mapOf("t2" to Spaces.TeamWait(chat = 1)))
-        assertEquals(listOf("t1", "t2"), chips.map { it.team.id }, "a team with no bot left has no chip")
+        assertEquals(listOf("t1", "t2"), chips.map { it.team.id }, "no chip for a team with no bot left or no chat yet")
         assertEquals(listOf("b2", "b1"), chips[0].bots.map { it.id }, "the lead first")
-        assertEquals(listOf("g1", null), chips.map { it.chat }, "a team without its chat yet opens its panel")
+        assertEquals(listOf("g-t1", "g-t2"), chips.map { it.chat })
         assertEquals(listOf(false, true), chips.map { it.asks })
-        assertNull(ProjectRules.teamChips(c, bots, listOf("groups"), groups, emptyMap())[0].chat, "without team-chats there is no chat to open")
+        assertTrue(ProjectRules.teamChips(c, bots, listOf("groups"), groups, emptyMap()).isEmpty(), "without team-chats there is no chat to open")
     }
 
     @Test fun aTeamsWordNamesWhoWaitsThenHowManyWork() {

@@ -13,6 +13,7 @@ test('the board draws the chips under the title and keeps Team', () => {
   const chips = home.slice(home.indexOf('function teamChipsHTML'), home.indexOf('function fieldHTML'));
   assert.match(chips, /data-cf-team-chat/, 'a chip opens the team chat the same way a team row does');
   assert.match(chips, /Keypad\.teamWaits/, 'Needs you from the same waits as the rows');
+  assert.match(chips, /state\.groups \|\| \[\]\)\.some\(\(g\) => g\.team === t\.id\)/, 'only a team whose chat exists, so no chip is dead');
   assert.match(chips, /if \(!shown\.length\) return ''/, 'no teams, no strip');
   assert.match(home, /\$\{one \? teamChipsHTML\(c\) \+ needsTileHTML\(c\)/, 'only on the board of overview-board');
   assert.match(home, /\$\('\.cf-top', root\)\.insertAdjacentHTML\('beforeend', `<button type="button" class="btn sm" data-po-team>/, 'Team stays');

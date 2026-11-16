@@ -91,13 +91,14 @@ object ProjectRules {
         if (features != null && Groups.TEAM_CHATS in features) Groups.teamChat(groups, teamId)?.id else null
 
     /** A team's chip under the project's title (web: teamChipsHTML): its bots, the lead first; its chat, which a tap opens; whether something waits in it. */
-    data class TeamChip(val team: CompanyTeam, val bots: List<Bot>, val chat: String?, val asks: Boolean)
+    data class TeamChip(val team: CompanyTeam, val bots: List<Bot>, val chat: String, val asks: Boolean)
 
-    /** One chip per team that has bots, in the project's order: a tap opens the team's chat, so the owner needs no second screen. */
+    /** One chip per team that has bots and a chat, in the project's order: a tap opens the team's chat, so the owner needs no second screen. */
     fun teamChips(c: Company, bots: List<Bot>, features: Collection<String>?, groups: List<Group>, waits: Map<String, Spaces.TeamWait>): List<TeamChip> =
-        ManyProjects.branches(c, bots).map { b ->
+        ManyProjects.branches(c, bots).mapNotNull { b ->
+            val chat = teamChat(features, groups, b.team.id) ?: return@mapNotNull null
             val w = waits[b.team.id] ?: Spaces.TeamWait()
-            TeamChip(b.team, b.bots, teamChat(features, groups, b.team.id), w.bots.isNotEmpty() || w.chat > 0)
+            TeamChip(b.team, b.bots, chat, w.bots.isNotEmpty() || w.chat > 0)
         }
 }
 

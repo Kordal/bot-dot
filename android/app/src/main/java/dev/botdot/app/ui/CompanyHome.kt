@@ -169,7 +169,7 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         }
         if (one && !overview && !teamView) {
             val teamWaits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
-            TeamChips(dev.botdot.app.data.ProjectRules.teamChips(c, bots, features, groups.orEmpty(), teamWaits)) { chip -> teamChat(chip.team.id)?.invoke() ?: run { teamOpen = chip.team.id } }
+            TeamChips(dev.botdot.app.data.ProjectRules.teamChips(c, bots, features, groups.orEmpty(), teamWaits)) { chip -> teamChat(chip.team.id)?.invoke() }
         }
         if (!teamView) {
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
