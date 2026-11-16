@@ -18,6 +18,7 @@ final class ChiefModel: MessageBox {
     var filled: (text: String, count: Int)? { inbox.filled }
     /// A new chat that starts with [text] in its box (Storage's Ask the Chief).
     func fill(_ text: String) { inbox.fill(text) }
+    func takeFilled() -> String? { inbox.takeFilled() }
 
     /// [chatId]: the conversation a notification asked for; nil, the latest.
     init(home: HomeStore, chatId: String? = nil) {

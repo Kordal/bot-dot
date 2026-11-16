@@ -91,6 +91,22 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(inbox.filled?.text, "What is reports?")
         XCTAssertEqual(inbox.filled?.count, 1)
     }
+
+    /// The new Chief chat Ask the Chief opens: the box gets the words once. Back in the chat after a chip (the box
+    /// shown again), what was typed over them stays; a new Ask comes in again.
+    @MainActor
+    func testTheAskedWordsGoInTheBoxOnceAndAnEditStays() {
+        let chief = ChiefModel(home: home())
+        chief.open(nil)
+        XCTAssertNil(chief.takeFilled(), "nothing asked yet")
+        chief.fill("What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        XCTAssertEqual(chief.filled?.text, "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        XCTAssertEqual(chief.takeFilled(), "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?", "the box takes them")
+        XCTAssertNil(chief.takeFilled(), "shown again: the owner's edit isn't overwritten")
+        chief.fill("What is uploads?")
+        XCTAssertEqual(chief.takeFilled(), "What is uploads?", "a new Ask comes in")
+        chief.stop()
+    }
     /// Settings → Skills: the shared SkillsDesk and words reach Swift.
     func testSkillsAreTheSharedDeskAndWords() {
         let model = SkillsModel(home: home())

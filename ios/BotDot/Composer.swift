@@ -34,12 +34,15 @@ protocol MessageBox: AnyObject, Observable {
     var quoted: (text: String, count: Int)? { get }
     /// Words a new chat starts with (Storage's Ask the Chief), put in the box as they are, once.
     var filled: (text: String, count: Int)? { get }
+    /// Those words, the first time they are asked for; nil after (they are in the box, maybe changed).
+    func takeFilled() -> String?
 }
 
 extension MessageBox {
     var mentions: MentionBox? { nil }
     var quoted: (text: String, count: Int)? { nil }
     var filled: (text: String, count: Int)? { nil }
+    func takeFilled() -> String? { nil }
 }
 
 /// The message box's cursor as the shared layer counts it (UTF-16, as Kotlin's strings), and back.
@@ -71,6 +74,13 @@ final class QuoteInbox {
     func quote(_ text: String) { quoted = (text, (quoted?.count ?? 0) + 1) }
     private(set) var filled: (text: String, count: Int)?
     func fill(_ text: String) { filled = (text, (filled?.count ?? 0) + 1) }
+    /// The fill not yet put in the box.
+    @ObservationIgnored private var taken = 0
+    func takeFilled() -> String? {
+        guard let f = filled, f.count > taken else { return nil }
+        taken = f.count
+        return f.text
+    }
 }
 
 /// A chat's message box, as Android's: the system's text input (dictation, the keyboard's own behaviour), files from
@@ -176,14 +186,15 @@ struct Composer<Box: MessageBox>: View {
         }
     }
 
-    /// A quote from the chat: after what is typed, as Markdown, the cursor in the box (Quote).
-    /// Words the chat starts with, in place of what is typed, the cursor at their end.
+    /// Words the chat starts with, in place of what is typed, the cursor at their end: taken once, so coming back to
+    /// the chat (a chip opened and closed) keeps what was typed over them.
     private func fill() {
-        guard let words = box.filled?.text, !words.isEmpty else { return }
+        guard let words = box.takeFilled(), !words.isEmpty else { return }
         typed = words
         selection = Cursor.at(words.utf16.count, in: words)
     }
 
+    /// A quote from the chat: after what is typed, as Markdown, the cursor in the box (Quote).
     private func quote() {
         guard let words = box.quoted?.text, let quoted = Cursor.quoting(words, into: typed) else { return }
         typed = quoted.0
