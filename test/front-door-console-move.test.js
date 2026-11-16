@@ -217,9 +217,16 @@ test('hold-account suspends an account for its move and release-account lets go 
   assert.equal((await a.post('/admin/accounts/dora/suspend', { name: 'dora' })).status, 200);
   assert.equal(ask(door, env, 'hold-account', '--account', 'dora').said.changed, true, 'moving');
   assert.ok(!data(door).accounts.dora.held, 'her suspension stays the admin\'s');
-  assert.ok(!ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume').said.accounts.includes('dora'), 'not resumed while she moves');
   assert.equal(ask(door, env, 'release-account', '--account', 'dora').said.changed, true);
   assert.ok(data(door).accounts.dora.suspended, 'still the admin\'s suspension');
+  // The machine paused, then carl held, then the machine resumed, then the move stopped: carl runs, as the resume
+  // would have had him.
+  ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'suspend');
+  ask(door, env, 'hold-account', '--account', 'carl');
+  assert.ok(!ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume').said.accounts.includes('carl'), 'not resumed while he moves');
+  assert.ok(data(door).accounts.carl.suspended);
+  ask(door, env, 'release-account', '--account', 'carl');
+  assert.ok(!data(door).accounts.carl.suspended, 'released and running');
   const none = ask(door, env, 'hold-account', '--account', 'eve');
   assert.deepEqual([none.status, none.said.state], [3, 'refused']);
   // With a boat.dev key, the held account's machines there couldn't be removed at its delete: none is held.
