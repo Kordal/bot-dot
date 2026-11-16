@@ -90,3 +90,4 @@ extension SkillsDesk: @retroactive @unchecked Sendable {}
 extension ChiefSettingsDesk: @retroactive @unchecked Sendable {}
 extension ChiefGrant: @retroactive @unchecked Sendable {}
 extension DuplicateDesk: @retroactive @unchecked Sendable {}
+extension Repeat: @retroactive @unchecked Sendable {}
