@@ -82,7 +82,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
 | `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` with table and picture blocks (`BoardBlocks`), the colour wheel (`ColorWheel`) and drag to move |
-| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`), from a page tile or a bot's chat's page chip (left: a Chief reply's page chips, page blocks) |
+| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`), from a page tile or a chat's page chip (left: page blocks) |
 | `HomeTilesSheet` | holding Home's Board cards | `HomeTilesView` |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
@@ -93,7 +93,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | `ProjectView` (with overview-board the Overview's tiles on its board and the teams under Team, `ProjectTeamView`, ADR 238), its Overview page (`ProjectOverviewView`, without it), `ProjectSettingsView`, `CompanySetupView` (left: the board canvas) |
 | `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView`: Reply to a task, "@" mentions and Quote, Steer, a task's steps, a reply's page chips and "Learned" chips |
 | `PlanDock` | a chat at work | `ChatPlanDock` in a bot's chat and the Chief's, `PlanDock` in `GroupChatView` |
-| `ChiefScreen` (`chief/{id}`) | Home | `ChiefView`, with the mail draft card and its action chips (`MailCardView`) and the questions' quick answers |
+| `ChiefScreen` (`chief/{id}`) | Home | `ChiefView`, with the mail draft card and its action chips (`MailCardView`), the questions' quick answers and a reply's page chips |
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView`; a new group from a bot's chat, its "+" (`NewGroupSheet`) |
 | `FilesScreen` (`files/{id}`), `DocumentViewer` | chats, settings, Home's ⋯ | `FilesView` with Move to… and Copy to… (`CarryView`), `ViewerView` with Export…, Keep up to date and On Board on a page (`PageBarView`) (left: Export to Google Docs) |
 | `VaultScreen` (`vault`) | Settings | `VaultView`, from Home's ⋯ |
