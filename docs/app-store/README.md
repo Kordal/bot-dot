@@ -7,7 +7,7 @@ How the iOS app ([ADR 242](../adr/242-the-ios-app-is-native-swiftui-on-the-andro
 | [listing-en.md](listing-en.md), [listing-pl.md](listing-pl.md) | The App Store listing texts, English and Polish |
 | [connect-answers.md](connect-answers.md) | The answers for App Store Connect: App Privacy, age rating, App Review Information, export compliance, the EU trader status |
 
-The privacy policy and the account deletion page are the site's: `https://botdot.app/privacy/` and `https://botdot.app/account-deletion/`.
+The privacy policy and the account deletion page are the site's: `https://botdot.app/privacy` and `https://botdot.app/account-deletion/`.
 
 ## The build
 
@@ -40,10 +40,10 @@ Apple's reviewers get the same review demo as Google's ([ADR 216](../adr/216-man
 | --- | --- |
 | 2.1 App completeness | A working demo server and code in App Review Information (step 9) |
 | 4.2 Minimum functionality | A native SwiftUI app with chats, Needs you, the Board, files, a share extension and notifications, not a web view |
-| 5.1.1(i) Privacy policy | `https://botdot.app/privacy/` in App Store Connect (App Privacy → Privacy Policy URL). **Open:** the guideline also asks for a link inside the app, which it has nowhere yet (a Privacy policy row in Settings and on the address screen) |
+| 5.1.1(i) Privacy policy | `https://botdot.app/privacy` in App Store Connect (App Privacy → Privacy Policy URL), and inside the app: "Privacy policy" under the address screen, before any sign-in, and as the last row of Settings, both in Safari (`Legal.privacyPolicy` in `ios/BotDot/Screens.swift`) |
 | 5.1.1(v) Account deletion | Home's ⋯ menu → Delete account, on a managed account; a self-hosted owner deletes in the admin page |
 | 5.1.2(i) Data sent to third-party AI | The full-screen notice before anything goes to the bots (AiNoticeView), in the app and in the share extension |
-| 3.1.1 In-app purchase | No purchase in the app and no link or call to action to one. **Open:** Settings → Subscription opens a managed account's billing page in Safari (ADR 234); review rejects such a link. It must be hidden in the iOS app before submitting |
+| 3.1.1 In-app purchase | No purchase in the app and no link or call to action to one. **Kept:** Settings → Subscription opens a managed account's billing page in Safari (ADR 234), shown only on a managed machine. The owner chose to keep it (2026-11-16). Review may reject such a link outside the US; then the row is hidden in the iOS app |
 | 4.8 Login services | No third-party or social login: sign-in is a passkey (or the demo code) on the user's own botdot |
 
 ## What changes the answers

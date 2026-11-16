@@ -42,7 +42,7 @@ final class SettingsModel {
 
 /// Settings, as Android's: one flat list, a row per setting and no helper text. Apps; with Advanced on the default
 /// model and reasoning; the language; Usage; Claude's sign-in; Updates with what the waiting version brings; the
-/// Subscription of a managed account (in Safari); Advanced; botdot's address.
+/// Subscription of a managed account (in Safari); Advanced; botdot's address; the privacy policy (in Safari).
 struct SettingsView: View {
     let app: AppModel
     let home: HomeStore
@@ -139,6 +139,8 @@ struct SettingsView: View {
                 LabeledContent(tr("botdot's address"), value: state.address)
             }
             .foregroundStyle(.primary)
+            // App Review 5.1.1(i): the privacy policy, linked inside the app too.
+            Link(tr("Privacy policy"), destination: Legal.privacyPolicy).accessibilityIdentifier("privacy-policy")
         }
     }
 }

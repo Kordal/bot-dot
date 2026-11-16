@@ -7,6 +7,10 @@ import BotdotShared
 /// the first message that what is sent goes to Anthropic.
 @MainActor
 final class StoreTests: XCTestCase {
+    func testThePrivacyPolicyIsTheSitesPage() {
+        XCTAssertEqual(Legal.privacyPolicy.absoluteString, "https://botdot.app/privacy")
+    }
+
     func testTheAppCarriesItsPrivacyManifestAndTracksNobody() throws {
         let url = try XCTUnwrap(Bundle.main.url(forResource: "PrivacyInfo", withExtension: "xcprivacy"), "the manifest is in the app")
         let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil) as? [String: Any])

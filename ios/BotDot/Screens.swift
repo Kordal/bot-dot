@@ -29,7 +29,13 @@ struct RootView: View {
     }
 }
 
-/// Where's your botdot? HTTPS only; a botdot on a computer itself is explained, not tried.
+/// The privacy policy (App Review 5.1.1(i)): the site's page, the address App Store Connect and Play Console name too.
+/// Linked on the address screen, before any sign-in, and in Settings.
+enum Legal {
+    static let privacyPolicy = URL(string: "https://botdot.app/privacy")!
+}
+
+/// Where's your botdot? HTTPS only; a botdot on a computer itself is explained, not tried. The privacy policy under it.
 struct AddressView: View {
     let model: AppModel
     @State private var typed = ""
@@ -59,6 +65,10 @@ struct AddressView: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .disabled(model.busy || typed.trimmingCharacters(in: .whitespaces).isEmpty)
+            Link(tr("Privacy policy"), destination: Legal.privacyPolicy)
+                .font(.footnote)
+                .frame(maxWidth: .infinity)
+                .accessibilityIdentifier("privacy-policy")
         }
         .padding(24)
         .frame(maxHeight: .infinity)
