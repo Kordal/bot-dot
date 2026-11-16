@@ -218,3 +218,12 @@ test('hold-account suspends an account for its move and release-account lets go 
   assert.match(boat.said.error, /boat\.dev key/);
   assert.ok(!data(door).accounts.carl.suspended);
 });
+
+test('self-hosted, several: an import beside an account with no share of its own is made', async (t) => {
+  const door = await startFrontDoor({ env: {} });
+  t.after(() => door.stop());
+  for (const account of ['carl', 'dora']) {
+    const made = ask(door, {}, 'import-account', '--account', account, '--record', '/nonexistent');
+    assert.deepEqual(made.said, { state: 'imported', account }, made.stderr || account);
+  }
+});

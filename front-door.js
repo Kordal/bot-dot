@@ -294,9 +294,11 @@ if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account'
   if (!named) refused(store.NAME_RULE);
   try {
     if (importing) {
-      const others = doors.listAccounts();
-      if (ONE_ACCOUNT && (account !== ONE_ACCOUNT || others.length)) refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no other.`);
+      // Counted, not listed: a listing sizes each share, which on a self-hosted machine reads the load files this CLI
+      // hasn't opened (only the managed branch below, whose shares are fixed, lists them).
+      if (ONE_ACCOUNT && (account !== ONE_ACCOUNT || doors.accountCount())) refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no other.`);
       if (MANAGED && !ONE_ACCOUNT) {
+        const others = doors.listAccounts();
         const machine = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null).machine();
         if (capacity.roomByShares(machine, others.map((a) => a.share), doors.defaultShare()) === 0) refused(`This machine has no room for another account's share.`);
       }
