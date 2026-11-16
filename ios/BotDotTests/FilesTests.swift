@@ -143,6 +143,16 @@ final class FilesTests: XCTestCase {
         XCTAssertEqual(Pages.shared.rows(blocks: grid.blocks, columns: grid.columns, wide: false).map { $0.count }, [2, 1])
     }
 
+    /// Save to Google Docs: the shared row's words, only from a botdot that has it.
+    func testGoogleDocsIsTheSharedRow() {
+        XCTAssertTrue(DocumentExport.shared.savesToGoogleDocs(features: [DocumentExport.shared.GOOGLE_DOCS]))
+        XCTAssertFalse(DocumentExport.shared.savesToGoogleDocs(features: []))
+        let docs = GoogleDocs(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000))
+        XCTAssertEqual(docs.label, "", "not read yet")
+        XCTAssertTrue(DocumentExport.shared.isGoogleDoc(url: "https://docs.google.com/document/d/abc_1/edit"))
+        XCTAssertFalse(DocumentExport.shared.isGoogleDoc(url: "https://evil.example/document/d/abc/edit"))
+    }
+
     /// A page's blocks are read again only where they read tiles, on a tick of one of them or of the Board (shared rule).
     func testAPagesBlocksAreReadAgainForTheTilesTheyRead() {
         XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: "t1"))
