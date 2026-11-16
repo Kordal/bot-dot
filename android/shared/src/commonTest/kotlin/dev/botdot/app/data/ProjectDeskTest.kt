@@ -97,6 +97,21 @@ class ProjectDeskTest {
         assertEquals(12, s.day)
     }
 
+    @Test fun aBoardTheOwnerArrangedReadsInItsCanvasOrderOnAPhone() = runTest {
+        // Files under the days line, the card at the top: a phone's column reads them from the top (ADR 147).
+        val arranged = kitchen.dropLast(1) + ""","layout":{"card:k1":[0,0,392,220],"days":[0,236,1200,140],"files":[0,392,392,260]}}"""
+        val (store, desk) = desk(FakeBotdot { 200 to "{}" }, all + BoardCanvas.FEATURE + ProjectFiles.FEATURE, arranged)
+        until("the project") { desk.state.value.project != null }
+        val order = desk.state.value.order!!
+        assertEquals(listOf("card:k1", "days", "files"), order.filter { it in setOf("card:k1", "days", "files") })
+        assertTrue("new-card" in order, "a tile with no place takes a free spot: " + order)
+        store.version.set(VersionInfo(features = all + ProjectFiles.FEATURE))
+        until("without project-layout, the usual flow") { desk.state.value.order == null }
+        store.company.set(CompanyHeld(company(kitchen)))
+        store.version.set(VersionInfo(features = all + BoardCanvas.FEATURE))
+        until("never arranged: the usual flow") { desk.state.value.project != null && desk.state.value.order == null }
+    }
+
     @Test fun itsOverviewShowsOnceTheFeaturesSaySo() = runTest {
         val (store, desk) = desk(FakeBotdot { 200 to "{}" })
         until("the project") { desk.state.value.project != null }
