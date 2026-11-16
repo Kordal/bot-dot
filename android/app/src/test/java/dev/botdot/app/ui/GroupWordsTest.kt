@@ -91,6 +91,21 @@ class GroupWordsTest {
         assertFalse(waitsWhole(message(""""waitsFor":[],"next":["coder"],"atLimit":true,"canTakeBack":false"""), bots, signedOut = false))
     }
 
+    @Test fun aMessageSteeredIntoARunStillWaitsAndSaysSteering() {
+        // Steered (`group-steer`, ADR 253): no member is waited for, but no run has read it yet: still at the end, "Steering…", with "Take back".
+        val steered = message(""""waitsFor":[],"steering":["coder"],"next":["coder"],"canTakeBack":true""")
+        assertEquals(listOf("coder"), steered.steering)
+        assertTrue(waitsWhole(steered, bots, signedOut = false))
+        assertEquals("Steering…", waitsWords(steered, bots))
+        // Read by the run: an ordinary message again.
+        assertFalse(waitsWhole(message(""""waitsFor":[],"next":[],"canTakeBack":false"""), bots, signedOut = false))
+        // Some members steered, one still waits: it says for whom, and can be steered again.
+        assertEquals("Waits until Reviewer is free", waitsWords(message(""""waitsFor":["reviewer"],"steering":["coder"],"canTakeBack":true"""), bots))
+        assertTrue(dev.botdot.app.data.canSteerGroup(listOf("groups", "group-steer")))
+        assertFalse(dev.botdot.app.data.canSteerGroup(listOf("groups")))
+        assertFalse(dev.botdot.app.data.canSteerGroup(null))
+    }
+
     @Test fun underTheChatStandsOneLinePerWorkingMember() {
         assertEquals("Coder · Working…", workingWords("Coder", null, null))
         assertEquals("the chat's own word for it, until the feed says one", "Coder · Reading the issue…", workingWords("Coder", null, "Reading the issue"))

@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Owning task:** [#173](https://github.com/Kordal/bot-dot/issues/173)
+- **Changed by:** [ADR 253](253-a-waiting-message-in-a-group-is-steered-into-the-busy-members-run.md): a group's waiting message can be steered too
 
 ## Context
 
