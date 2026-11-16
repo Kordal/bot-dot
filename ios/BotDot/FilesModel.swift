@@ -141,7 +141,7 @@ final class ViewerModel {
     /// Google Docs tapped: the Doc saved (its address to open), or Google's sign-in to open; what to say is said.
     func saveToGoogleDocs() async -> URL? {
         guard let docs, let v = viewed?.view, let text = v.plain ?? v.text else { return nil }
-        guard let done = try? await docs.tap(title: viewer.opening.name, text: text, saying: { [weak self] w in MainActor.assumeIsolated { self?.notice = w } }) else { return nil }
+        guard let done = try? await docs.tap(title: viewer.opening.name, text: text, saying: { @Sendable [weak self] w in Task { @MainActor in self?.notice = w } }) else { return nil }
         notice = done.say
         docsLabel = docs.label
         return done.open.flatMap(URL.init(string:))
