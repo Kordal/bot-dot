@@ -56,6 +56,7 @@ function page({ bots = BOTS, groups = [EVENING], runs = [], dash = null, view = 
     Motion, state, esc, ...words, JSON, Unread: lib.Unread, OpeningLine: lib.OpeningLine, Keypad: lib.Keypad, openingLines: lib.OpeningLine.keeper(),
     Figure: { svg: (st, color) => `<svg class="fig" data-st="${st}" data-c="${color}"></svg>` },
     botFigure: (color, st = 'idle') => `<div class="avatar head" data-st="${st}" data-c="${color}"></div>`,
+    md: (t) => `<p>${esc(t)}</p>`,
     tintOf: (c) => c || '#888', CHIEF_COLOR: '#d85a30', chiefFigure: () => '<div class="avatar head chief"></div>', outfitOf: () => null,
     answerNeed: (x, yes) => said.answers.push([x.key, yes]),
     setView: (v, sub) => said.views.push([v, sub]), openChiefChat: (id) => said.chief.push(id),
@@ -253,6 +254,23 @@ test('web: the Board\'s strip is a plain number per tile: its title, its first n
   assert.match(cards[2], /kp-card-dot/);
   p.doc['#kp-board'].click('board');
   assert.deepEqual(p.said.views, [['dashboard', undefined]], 'a tap opens the Board');
+});
+
+test('web: a note tile on home shows its text under its title, folded as on the Board; a value beside it is as before (#1502)', () => {
+  const dash = { tiles: [
+    { id: 'n1', kind: 'note', title: 'QA note', look: { dot: { filled: true }, face: [{ type: 'text', text: 'Buy milk and bread', markdown: true, lines: 3 }] } },
+    { id: 'n2', kind: 'note', title: 'Empty note', look: { dot: { filled: true }, face: [{ type: 'text', text: '', markdown: true, lines: 3 }] } },
+    { id: 't1', title: 'Living room', look: { face: [{ type: 'value', text: '21.5', unit: '°C' }], short: '21.5 °C' } },
+  ] };
+  const p = page({ dash });
+  const h = p.board();
+  const note = h.match(/<span class="kp-card kp-note">([\s\S]*?)<\/span>/)[1];
+  assert.equal(texts(note), 'QA note Buy milk and bread', 'its title, then its text');
+  assert.match(note, /<div class="tile-note md folded small" style="--lines:3"><p>Buy milk and bread<\/p><\/div>/, 'folded to its lines, as on the Board');
+  assert.doesNotMatch(note, /kp-card-dot/, 'no dot in place of its text');
+  assert.match(h, /<span class="kp-card"><div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">Empty note<\/div><div class="kit-num kp-card-dot">/, 'a note with no text keeps its dot');
+  assert.match(h, /Living room[\s\S]*21\.5/, 'a value as before');
+  assert.match(css, /\.kp-card\.kp-note \{ grid-column: 1 \/ -1; \}/, 'the whole row on a narrow keypad and a phone');
 });
 
 test('web: past nine keys, across the pages, the rest have no number', () => {
