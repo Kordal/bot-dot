@@ -88,6 +88,19 @@ class ChiefSettingsDeskTest {
         assertTrue(desk.state.value.jobs.orEmpty().isEmpty())
         assertEquals("Removed.", desk.state.value.notice)
     }
+    @Test fun itsFilesOpenInFilesFromABotdotThatHasBoth() = runTest {
+        val store = Store(backgroundScope, MutableStateFlow(null))
+        val desk = ChiefSettingsDesk(backgroundScope, server().api, store, MutableSharedFlow())
+        desk.load()
+        assertFalse(desk.state.value.files, "features not known yet")
+        store.version.set(VersionInfo(features = all + UploadedFiles.CHIEF_FEATURE))
+        until("Files only with files-explorer too") { desk.state.value.loaded }
+        assertFalse(desk.state.value.files)
+        store.version.set(VersionInfo(features = all + UploadedFiles.CHIEF_FEATURE + FilesExplorer.FEATURE))
+        until("its files") { desk.state.value.files }
+        desk.close()
+    }
+
     @Test fun featuresThatComeAfterTheSettingsOpenedBringTheirSections() = runTest {
         val s = server()
         val store = Store(backgroundScope, MutableStateFlow(null))

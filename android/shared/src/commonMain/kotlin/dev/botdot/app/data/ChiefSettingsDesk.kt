@@ -42,6 +42,8 @@ class ChiefSettingsState(
     val noticeCount: Int = 0,
     /** The first read failed: the form waits, with Try again (load once more). */
     val failed: Boolean = false,
+    /** Its files and workspace (#383) open in Files (#603), from a botdot that has both ([FilesExplorer.opensFor]). */
+    val files: Boolean = false,
 ) {
     /** A page's line ([Pages.line]): when it was updated, and what keeps it. */
     fun pageLine(page: PageInfo): String = Pages.line(page)
@@ -223,6 +225,7 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
             grants = grants, jobs = jobs, pages = pages, checkup = checkup,
             chats = store.chief.value.value?.chats.orEmpty().take(15),
             savedAt = savedAt, notice = notice, noticeCount = noticeCount,
+            files = FilesExplorer.opensFor(UploadedFiles.CHIEF, features),
         )
     }
 

@@ -153,6 +153,12 @@ struct ChiefSettingsView: View {
                     .disabled(!c.webSearchUsable)
             }
         }
+        // Its files and workspace (#383), in Files (#603), as a bot's.
+        if s.files {
+            Section {
+                NavigationLink(tr("Files")) { FilesView(api: home.api, at: FilesPlace(owner: UploadedFiles.shared.CHIEF, name: home.store.chiefName.value)) }
+            }
+        }
         Section(tr("Earlier chats")) {
             if s.chats.isEmpty { Text(tr("No earlier chats")).foregroundStyle(.secondary) }
             ForEach(s.chats, id: \.id) { c in

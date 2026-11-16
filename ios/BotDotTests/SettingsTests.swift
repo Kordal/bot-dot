@@ -133,4 +133,10 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Duplicate.shared.made(name: "Coder 2"), "Coder 2 made")
         XCTAssertTrue(Duplicate.shared.shows(features: ["duplicate-bot"]))
     }
+
+    /// The Chief's settings open its files in Files only from a botdot that has both (FilesExplorer.opensFor).
+    func testTheChiefsFilesOpenInFilesWithBothFeatures() {
+        XCTAssertTrue(FilesExplorer.shared.opensFor(ownerId: UploadedFiles.shared.CHIEF, features: [UploadedFiles.shared.CHIEF_FEATURE, FilesExplorer.shared.FEATURE]))
+        XCTAssertFalse(FilesExplorer.shared.opensFor(ownerId: UploadedFiles.shared.CHIEF, features: [FilesExplorer.shared.FEATURE]))
+    }
 }
