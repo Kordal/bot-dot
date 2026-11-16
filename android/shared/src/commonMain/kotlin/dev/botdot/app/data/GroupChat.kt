@@ -393,14 +393,6 @@ class GroupChat(
         }
     }
 
-    /** Stop on one member's working line: that run ends, the others at work go on, and its line goes on with the next member. */
-    fun stopMember(runId: String) {
-        scope.launch {
-            say(stopNote(runCatching { api.stopRun(runId) }))
-            load()
-        }
-    }
-
     /** "Go on": the group stopped at the limit gets its next replies; one no longer stopped says so in the server's words. */
     fun goOn() {
         scope.launch {

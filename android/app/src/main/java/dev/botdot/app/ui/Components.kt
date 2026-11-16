@@ -476,7 +476,7 @@ fun StatusLine(line: String?, color: String?, working: Boolean = false, waiting:
  * to it in a moment (a message is on its way), and nothing above it moves then.
  */
 @Composable
-fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (() -> Unit)? = null, stopWord: String = tr("Stop"), room: Boolean = false, onStopOne: (() -> Unit)? = null, stopOneLabel: String = tr("Stop")) {
+fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (() -> Unit)? = null, stopWord: String = tr("Stop"), room: Boolean = false, onStopOne: (() -> Unit)? = null, stopOneLabel: String = "") {
     if (text.isEmpty()) return
     val p = LocalPaper.current
     val c = parseColor(color, p.faint)
@@ -495,7 +495,7 @@ fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (()
         if (onStopOne != null) {
             // Stop for this line's run alone (a group with several members at work): a small square, 48 dp to the touch.
             Box(Modifier.size(48.dp).clip(Radius.small).clickable(role = Role.Button, onClickLabel = stopOneLabel, onClick = onStopOne), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Stop, contentDescription = stopOneLabel, tint = p.faint, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Stop, contentDescription = null, tint = p.faint, modifier = Modifier.size(16.dp))
             }
         }
         if (onStop != null) WordButton(stopWord, p.faint, onStop)

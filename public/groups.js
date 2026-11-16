@@ -643,7 +643,10 @@ function groupWorkingHTML(working) {
     const said = turnLines.get(w.runId) || {};
     const held = said.held === true; // its run waits for the owner's OK
     const doing = held ? OpeningLine.WAITING : OpeningLine.text(said.text) || OpeningLine.ofRun(w, state.features) || tr('Working');
-    return `<div class="status-line${held ? ' held' : ''}" role="status" style="--c:${Unread.tint(memberColor(w.botId))}"><i></i><span><b>${esc(memberName(w.botId))}</b> · ${esc(doing)}</span>${working.length > 1 && typeof w.runId === 'string' ? `<button type="button" class="stop-one" data-stop-member="${esc(w.runId)}" aria-label="${esc(tr('Stop {name}', { name: memberName(w.botId) }))}" title="${esc(tr('Stop {name}', { name: memberName(w.botId) }))}">${STOP_MEMBER_ICON}</button>` : ''}${i === working.length - 1 ? `<button type="button" data-stop-all>${tr('Stop all')}</button>` : ''}</div>`;
+    const name = memberName(w.botId);
+    const stopLabel = esc(tr('Stop {name}', { name }));
+    const one = working.length > 1 ? `<button type="button" class="stop-one" data-stop-member="${esc(w.runId)}" aria-label="${stopLabel}" title="${stopLabel}">${STOP_MEMBER_ICON}</button>` : '';
+    return `<div class="status-line${held ? ' held' : ''}" role="status" style="--c:${Unread.tint(memberColor(w.botId))}"><i></i><span><b>${esc(name)}</b> · ${esc(doing)}</span>${one}${i === working.length - 1 ? `<button type="button" data-stop-all>${tr('Stop all')}</button>` : ''}</div>`;
   });
   return lines.length ? `<div class="g-working">${lines.join('')}</div>` : '';
 }

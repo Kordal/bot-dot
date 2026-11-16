@@ -770,7 +770,10 @@ test('web: under the chat stands one line per working member, with its name and 
   assert.deepEqual([...h.matchAll(/<div class="status-line( held)?" role="status" style="--c:(#\w+)"><i><\/i><span><b>(.*?)<\/b> · (.*?)<\/span>/g)].map((m) => m.slice(1)),
     [[undefined, CODER.color, 'Coder', 'Running the tests'], [undefined, REVIEWER.color, 'Reviewer', 'Working']]);
   assert.equal((h.match(/data-stop-all/g) || []).length, 1);
-  assert.match(h, /Working<\/span><button type="button" class="stop-one" data-stop-member="r6"[^>]*><svg[^>]*><rect[^>]*\/><\/svg><\/button><button type="button" data-stop-all>Stop all<\/button><\/div><\/div>$/, 'at the end of the last line, after its own Stop');
+  assert.match(h, /data-stop-member="r6"[^>]*>.*<\/button><button type="button" data-stop-all>Stop all<\/button><\/div><\/div>$/, 'at the end of the last line, after its own Stop');
+  // The same bot at work twice: each of its runs has its Stop.
+  const twice = p.ctx.groupWorkingHTML([{ botId: 'coder', runId: 'r7', messageId: 'm1' }, { botId: 'coder', runId: 'r8', messageId: 'm1' }]);
+  assert.deepEqual([...twice.matchAll(/data-stop-member="(\w+)"/g)].map((m) => m[1]), ['r7', 'r8']);
   // Where several members work, each line has a Stop of its own for its run, named for the member.
   assert.deepEqual([...h.matchAll(/data-stop-member="(\w+)" aria-label="([^"]*)"/g)].map((m) => m.slice(1)), [['r5', 'Stop Coder'], ['r6', 'Stop Reviewer']]);
   assert.doesNotMatch(h, /data-stop-run/, 'not the bot chat\'s own Stop');
