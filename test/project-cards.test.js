@@ -338,6 +338,19 @@ test("the Chief's questions say the kind of card asked for, and split an ask for
   assert.doesNotMatch(cards.questionsPrompt({ ask: 'add a graph', project: 'W', card: { title: 'T', earlier: [{ ask: 'x', answers: [] }] } }), /"more"/, 'a change is one card');
 });
 
+test('a Change closed with its questions open keeps the kind the card was asked as (#1510)', (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cards-was-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const store = cards.create({ file: path.join(dir, 'cards.json') });
+  const c = store.add('p', { ask: 'A line chart of the temperature' });
+  store.questions('p', c.id, { title: 'Temperature', questions: [], apps: [], show: 'spark' });
+  store.built('p', c.id, { title: 'Temperature', body: { show: 'spark', value: '12', points: [1, 2, 3] }, how: 'Read it.' });
+  store.reask('p', c.id, { ask: 'only this week' });
+  assert.equal(store.get('p', c.id).show, undefined, 'the change asks anew');
+  store.cancel('p', c.id);
+  assert.equal(store.get('p', c.id).show, 'spark', 'closed: as it was, a chart');
+});
+
 test('a card asked for as a chart is built as one: the build is told its kind', () => {
   const { prompt, system } = cards.buildPrompts({ card: { ask: 'A line chart of the temperature', answers: [], show: 'spark' }, project: 'Weather' });
   assert.match(prompt, /They asked for it as a chart \(a spark\) card: answer "show": "spark" with its data, not a number alone\./);
