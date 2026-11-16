@@ -10,9 +10,12 @@ import kotlinx.coroutines.launch
  * follows the live feed. [watch] hands the screen a new [ProjectState] after every change, on the main thread. Home
  * keeps one for the switch of spaces; each project's page keeps its own and [close]s it when it goes.
  */
-class ProjectStore(home: HomeStore) {
+class ProjectStore(private val home: HomeStore) {
     private val scope = MainScope()
     private val desk = ProjectDesk(home.store, home.api, scope)
+
+    /** The project's calendar (#695): its own desk, on the same Store, which the calendar tile [CalendarDesk.close]s. */
+    fun calendar(): CalendarDesk = CalendarDesk(home.store, home.api, scope)
 
     /** Calls [onChange] with the project's page now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (ProjectState) -> Unit): Job = scope.launch { desk.state.collect { onChange(it) } }

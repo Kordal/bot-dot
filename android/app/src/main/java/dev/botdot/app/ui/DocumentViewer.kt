@@ -197,13 +197,13 @@ private fun ViewerScreen(req: DocViewer.Request, onBack: () -> Unit) {
     LaunchedEffect(tick) {
         val (id, n) = tick
         val reads = view?.interactive?.tiles ?: view?.tiles
-        if (n == 0L || reads?.let { t -> t.isNotEmpty() && (id == null || id in t) } != true) return@LaunchedEffect
-        kotlinx.coroutines.delay(400)
+        if (n == 0L || !dev.botdot.app.data.PageReblock.reads(reads, id)) return@LaunchedEffect
+        kotlinx.coroutines.delay(dev.botdot.app.data.PageReblock.SETTLE_MS)
         reblock()
     }
     val readsTiles = (view?.interactive?.tiles ?: view?.tiles)?.isNotEmpty() == true
     LaunchedEffect(req, readsTiles) {
-        while ((view?.interactive?.tiles ?: view?.tiles)?.isNotEmpty() == true) { kotlinx.coroutines.delay(60_000); reblock() }
+        while ((view?.interactive?.tiles ?: view?.tiles)?.isNotEmpty() == true) { kotlinx.coroutines.delay(dev.botdot.app.data.PageReblock.EVERY_MS); reblock() }
     }
     // Its download is a zip of the version shown, named as the server names it.
     val fileName = view?.interactive?.let { view?.name } ?: req.name
