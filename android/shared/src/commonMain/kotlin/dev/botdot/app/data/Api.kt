@@ -478,8 +478,11 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      * at its next tool call. Answers the message as it is now, with `steering`. 409 with the server's sentence when it
      * started, or no member's run can take it.
      */
-    suspend fun steerInGroup(id: String, messageId: String): GroupMessage? =
-        GroupMessage.of(runCatching { JSON.parseToJsonElement(send("POST", "/group-chats/${enc(id)}/messages/${enc(messageId)}/steer")) }.getOrNull())
+    suspend fun steerInGroup(id: String, messageId: String): GroupMessage? {
+        val answer = send("POST", "/group-chats/${enc(id)}/messages/${enc(messageId)}/steer")
+        return GroupMessage.of(runCatching { JSON.parseToJsonElement(answer) }.getOrNull())
+    }
+
     /** "Stop all": every run of the group at work ends, and the turns behind them never start. */
     suspend fun stopGroup(id: String) { send("POST", "/group-chats/${enc(id)}/stop") }
     /** "Go on": every line of the group that stopped at the limit goes on. 409 when none is stopped. */
