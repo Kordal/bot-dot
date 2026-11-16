@@ -12,7 +12,7 @@ const CHIEF = { id: 'chief', name: 'Chief of Staff' };
 function page(bots, chiefName = 'Chief of Staff') {
   const ctx = vm.createContext({ URL, state: { bots }, Mentions: { CHIEF: 'chief' }, CHIEF_ROLE: 'Chief of Staff', CHIEF_BOT: { ...CHIEF, name: chiefName }, chiefName: () => chiefName });
   vm.runInContext(`${cut('// What a web address shows in a chat', '// The Copy button')}${cut('const BARE_TLDS', 'function linkifyChat(root)')}${cut("// A bot's name in a message is a link", '// A tap on a bot')}
-    this.botNameLinks = botNameLinks; this.chatLinkParts = chatLinkParts; this.namedBots = namedBots;`, ctx);
+    this.botNameLinks = botNameLinks; this.chatLinkParts = chatLinkParts; this.namedBots = namedBots; this.botsToLink = botsToLink;`, ctx);
   return ctx;
 }
 const plain = (v) => JSON.parse(JSON.stringify(v));
@@ -35,4 +35,24 @@ test('web: a name is a link beside web addresses, and never inside one', () => {
 test('web: the bots a message can name are the bots there are, and the Chief by the name the owner gave it', () => {
   assert.deepEqual(plain(page([{ id: 'qa', name: 'QA Tester', color: 'red' }]).namedBots()), [{ id: 'qa', name: 'QA Tester' }]);
   assert.deepEqual(plain(page([{ id: 'qa', name: 'QA Tester' }], 'Alfred').namedBots()), [{ id: 'chief', name: 'Alfred' }, { id: 'qa', name: 'QA Tester' }]);
+});
+
+// Where a name is a link: an element that has the selectors it sits under.
+const under = (...sels) => ({ closest: (sel) => (sels.includes(sel) ? {} : null) });
+const BUBBLE = '.chat-thread .bubble:not(.from-me)';
+test('web: a name is a link in what a bot wrote, not in the owner\'s message, a shared room or a page that is no chat', () => {
+  const bots = [{ id: 'qa', name: 'QA Tester' }, { id: 'al', name: 'Alfred' }];
+  const p = page(bots);
+  const ids = (el) => plain(p.botsToLink(el, bots)).map((b) => b.id);
+  assert.deepEqual(ids(under(BUBBLE)), ['qa', 'al']);
+  assert.deepEqual(ids(under()), []); // the owner's message (.from-me), the project overview (.po-text)
+  assert.deepEqual(ids(under(BUBBLE, '#room-thread')), []);
+});
+
+test('web: no link to the bot whose chat it is, nor to the Chief in its own chat', () => {
+  const bots = [{ id: 'qa', name: 'QA Tester' }, { id: 'chief', name: 'Alfred' }];
+  const p = page(bots);
+  p.state.botId = 'qa';
+  assert.deepEqual(plain(p.botsToLink(under(BUBBLE, '#bot-thread'), bots)).map((b) => b.id), ['chief']);
+  assert.deepEqual(plain(p.botsToLink(under(BUBBLE, '#chat-thread'), bots)).map((b) => b.id), ['qa']);
 });

@@ -36,7 +36,10 @@ fun rememberBotLinks(app: BotDotApp, own: String? = null): BotLinks? {
     val names = bots.orEmpty().map { BotNames.Bot(it.id, it.name) }
     return remember(names, chief, own, role, shown) {
         if (!shown) return@remember null
-        val named = if (chief == role) emptyList() else listOf(BotNames.Bot(Mentions.CHIEF, chief))
-        BotLinks((named + names).filter { it.id != own }) { id -> open?.invoke(id) }
+        BotLinks(botLinkNames(names, chief, role, own)) { id -> open?.invoke(id) }
     }
 }
+
+/** The bots a chat links: [bots], and the Chief when the owner gave it a name (not its [role]); not [own], the bot whose chat it is. */
+internal fun botLinkNames(bots: List<BotNames.Bot>, chief: String, role: String, own: String?): List<BotNames.Bot> =
+    ((if (chief == role) emptyList() else listOf(BotNames.Bot(Mentions.CHIEF, chief))) + bots).filter { it.id != own }

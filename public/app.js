@@ -1000,10 +1000,7 @@ function linkifyChat(root) {
   for (const node of nodes) {
     const text = node.textContent;
     const parent = node.parentElement;
-    // A bot's name is a link in what a bot or the Chief wrote, not in the owner's own message, in the project
-    // overview (whose rows are links) or in a shared room, and not to the bot whose chat it is.
-    const own = parent.closest('#bot-thread') ? state.botId : parent.closest('#chat-thread') ? Mentions.CHIEF : null;
-    const named = parent.closest('.chat-thread .bubble:not(.from-me)') && !parent.closest('#room-thread') ? bots.filter((b) => b.id !== own) : [];
+    const named = botsToLink(parent, bots);
     const fragment = document.createDocumentFragment();
     let at = 0;
     for (const { index, text: found, href, id } of chatLinkParts(text, named)) {
@@ -1054,6 +1051,13 @@ function botNameLinks(text, bots) {
 }
 // The bots a message can name: the ones there are, and the Chief by the name the owner gave it (not by its role).
 const namedBots = () => [...(chiefName() === CHIEF_ROLE ? [] : [CHIEF_BOT]), ...state.bots].map(({ id, name }) => ({ id, name }));
+// The bots a text may link to, by where it stands: in what a bot or the Chief wrote, not in the owner's own message,
+// in the project overview (whose rows are links) or in a shared room, and not the bot whose chat it is.
+function botsToLink(parent, bots) {
+  if (!parent.closest('.chat-thread .bubble:not(.from-me)') || parent.closest('#room-thread')) return [];
+  const own = parent.closest('#bot-thread') ? state.botId : parent.closest('#chat-thread') ? Mentions.CHIEF : null;
+  return bots.filter((b) => b.id !== own);
+}
 // The links in a chat text, in order: web addresses (chatLinks) and bot names (botNameLinks), no name inside an address.
 function chatLinkParts(text, bots) {
   const web = chatLinks(text);
