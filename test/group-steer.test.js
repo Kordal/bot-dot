@@ -132,3 +132,25 @@ test('a member that is busy in another chat, or not working, cannot take it: 409
   // Started by itself: nothing to steer now.
   assert.equal((await steer(group, w.id)).status, 409);
 });
+
+test('a message whose line waits for the lines before it is steered to all its busy members or to none: no member answers two lines at once', async () => {
+  const lead = await makeBot(srv, { name: 'Line Lead', emoji: '🥇' });
+  const dev = await makeBot(srv, { name: 'Line Dev', emoji: '🥈' });
+  const group = (await srv.api('/group-chats', { method: 'POST', body: { name: 'Lines', members: [lead.id, dev.id] } })).data;
+  srv.hold();
+  await send(group, { text: `${to(lead, 'first')} ${to(dev, 'then you')}` });
+  const rec = await srv.nextRun((x) => x.self?.env && isRunOf(lead)(x), 'the first turn of Line Lead');
+  // The second message waits for Lead at work and for Dev, who is next on the first line and has no run to read it.
+  const two = (await send(group, { text: `${to(lead, 'also')} ${to(dev, 'and you')}` })).data;
+  assert.deepEqual(two.waitsFor.sort(), [dev.id, lead.id].sort());
+  const s = await steer(group, two.id);
+  assert.equal(s.status, 409, JSON.stringify(s.data));
+  assert.match(s.data.error, /Line Dev is not working now/);
+  // Nothing was given: the line still waits, and Lead's run reads nothing.
+  const m = await messageIn(group, two.id);
+  assert.deepEqual([m.waitsFor.sort(), m.steering, m.canTakeBack], [[dev.id, lead.id].sort(), undefined, true]);
+  assert.equal(await toolCall(rec.self.env.RUN_TOKEN), null);
+  assert.equal(srv.runs().filter(isRunOf(dev)).length, 0, 'Dev has no turn of the second message yet');
+  srv.unhold();
+  srv.release(rec);
+});
