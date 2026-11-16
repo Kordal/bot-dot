@@ -323,18 +323,11 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
             val fresh = layoutOf()
             if (dragged == null && rows.toList() != fresh) { rows.clear(); rows.addAll(fresh) }
             val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
-            // Inside an open group: between its "in:" and "out:".
-            fun groupAt(i: Int): String? {
-                for (j in i - 1 downTo 0) { val k = rows[j]; if (k.startsWith("out:") || k.startsWith("h:")) return null; if (k.startsWith("in:")) return k.removePrefix("in:") }
-                return null
-            }
             val reorder = sh.calvin.reorderable.rememberReorderableLazyGridState(gridState) { from, to ->
-                val a = rows.indexOf(from.key as? String ?: return@rememberReorderableLazyGridState)
-                val b = rows.indexOf(to.key as? String ?: return@rememberReorderableLazyGridState)
-                if (a < 0 || b < 0) return@rememberReorderableLazyGridState
-                val item = rows[a]
-                rows.add(b, rows.removeAt(a))
-                if (tilesById[item]?.kind == "group" && groupAt(rows.indexOf(item)) != null) { rows.add(a, rows.removeAt(b)); return@rememberReorderableLazyGridState } // a group stays out of groups
+                // A group stays out of groups (BoardKit.moved).
+                val next = BoardKit.moved(rows.toList(), from.key as? String ?: return@rememberReorderableLazyGridState, to.key as? String ?: return@rememberReorderableLazyGridState, d?.tiles.orEmpty())
+                    ?: return@rememberReorderableLazyGridState
+                rows.clear(); rows.addAll(next)
                 moved = true
                 haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
             }
@@ -344,21 +337,9 @@ fun DashboardScreen(app: BotDotApp, onBot: (String) -> Unit, onNeeds: () -> Unit
                 scope.launch { delay(400); if (held == t.id) held = null } // no tap came after it
                 if (!moved) { if (TileAsk.shows(server?.features)) asking = t else removing = t; return }
                 moved = false
-                val i = rows.indexOf(t.id)
-                val parent = groupAt(i)
-                val section = if (parent != null) null else (i - 1 downTo 0).map { rows[it] }.firstOrNull { it.startsWith("h:") }?.removePrefix("h:") ?: ""
-                // The next tile in the same place (skipping an open group's tiles when it's loose).
-                var before: String? = null
-                var j = i + 1
-                while (j < rows.size) {
-                    val k = rows[j]
-                    if (k.startsWith("h:") || (parent != null && k.startsWith("out:"))) break
-                    if (parent == null && k.startsWith("in:")) { j = rows.indexOf("out:" + k.removePrefix("in:")) + 1; continue }
-                    if (!k.contains(':')) { before = k; break }
-                    j++
-                }
+                val at = BoardKit.placeOf(rows.toList(), t.id)
                 scope.launch {
-                    runCatching { api!!.moveTile(t.id, section, parent, before) }.onError { tell(it.message ?: tr("Couldn't move it")) }
+                    runCatching { api!!.moveTile(t.id, at.section, at.parent, at.before) }.onError { tell(it.message ?: tr("Couldn't move it")) }
                     load(quiet = true)
                 }
             }

@@ -66,6 +66,14 @@ class BoardStore(home: HomeStore) {
     @Throws(Exception::class)
     suspend fun press(key: String, block: String) = desk.press(key, block)
 
+    /** The colour wheel at [hex]; [done] once it is let go (only then is the tile drawn again from botdot's answer). */
+    @Throws(Exception::class)
+    suspend fun setColor(key: String, block: String, hex: String, done: Boolean) = desk.setColor(key, block, hex, done)
+
+    /** Drag to move: [from] let go where [onto] is; false when it can't go there ([BoardDesk.drop]). */
+    @Throws(Exception::class)
+    suspend fun drop(from: String, onto: String): Boolean = desk.drop(from, onto)
+
     @Throws(Exception::class)
     suspend fun remove(key: String, withTiles: Boolean) = desk.remove(key, withTiles)
 
