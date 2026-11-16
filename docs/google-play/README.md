@@ -35,7 +35,7 @@ How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-a
 
 ## Reviewers
 
-The app shows nothing without a botdot server, and sign-in is a passkey on that server's page, which a reviewer's test device may not keep. Play rejects an app whose reviewers can't get in. The plan: a small separate VPS (`demo.botdot.app`), one account with sample bots, and a demo login (a fixed username and password, off unless the machine is started with it, never on a real machine) for that one account. Bots there run on a Claude account with a spending cap. The login is not built yet.
+The app shows nothing without a botdot server, and sign-in is a passkey on that server's page, which a reviewer's test device may not keep. Play rejects an app whose reviewers can't get in. The plan: a small separate VPS (`demo.botdot.app`), one account with sample bots, and a reusable demo access code for that one account, on only when the machine is installed with `BOT_DOT_DEMO_CODE_SHA256` and never on a real machine ([ADR 216](../adr/216-managed-computers-prepare-in-the-background-and-demo-access-is-explicit.md)). Bots there run on a Claude account with a spending cap. Delete account and Sign out everywhere keep the demo account for the next reviewer (#1465). The App access answers are in [console-answers.md](console-answers.md).
 
 ## What changes the answers
 
