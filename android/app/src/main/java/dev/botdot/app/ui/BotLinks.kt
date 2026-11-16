@@ -32,9 +32,11 @@ fun rememberBotLinks(app: BotDotApp, own: String? = null): BotLinks? {
     val open by rememberUpdatedState(LocalOpenChat.current)
     val role = ChiefName.role
     val shown = LocalOpenChat.current != null
-    return remember(bots, chief, own, role, shown) {
+    // Keyed on the names alone: a bot starting or ending a run changes the list of bots, and must not restyle every message.
+    val names = bots.orEmpty().map { BotNames.Bot(it.id, it.name) }
+    return remember(names, chief, own, role, shown) {
         if (!shown) return@remember null
         val named = if (chief == role) emptyList() else listOf(BotNames.Bot(Mentions.CHIEF, chief))
-        BotLinks((named + bots.orEmpty().map { BotNames.Bot(it.id, it.name) }).filter { it.id != own }) { id -> open?.invoke(id) }
+        BotLinks((named + names).filter { it.id != own }) { id -> open?.invoke(id) }
     }
 }
