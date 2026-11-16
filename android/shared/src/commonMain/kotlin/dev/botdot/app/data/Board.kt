@@ -132,6 +132,39 @@ object BoardKit {
     fun askTitle(t: Tile, on: Boolean?): String = when (on) { true -> tr("Turn on “{title}”?", "title" to t.title); false -> tr("Turn off “{title}”?", "title" to t.title); null -> "${t.title}?" }
     fun askYes(on: Boolean?): String = when (on) { true -> tr("Turn on"); false -> tr("Turn off"); null -> "OK" }
 
+    // The colour wheel (a colour block's pop-up): hue around it, red at the right going clockwise, white in the middle.
+    // Brightness is a slider of its own. A point is where on the wheel's square, 0..1 across and down.
+
+    /** The colour at a point of the wheel: "#rrggbb". */
+    fun wheelHex(x: Double, y: Double): String {
+        val dx = x - 0.5; val dy = y - 0.5
+        val h = (kotlin.math.atan2(dy, dx) * 180 / kotlin.math.PI + 360) % 360
+        val sat = kotlin.math.min(kotlin.math.hypot(dx, dy) * 2, 1.0)
+        fun f(n: Int): String {
+            val k = (n + h / 60) % 6
+            return (255 * (1 - sat * maxOf(0.0, minOf(k, 4 - k, 1.0)))).roundToInt().toString(16).padStart(2, '0')
+        }
+        return "#" + f(5) + f(3) + f(1)
+    }
+
+    /** Where on the wheel a colour is (its mark), 0..1 across and down; null for one that isn't "#rrggbb". */
+    fun wheelAt(hex: String?): Pair<Double, Double>? {
+        if (hex == null || !Regex("^#[0-9a-fA-F]{6}$").matches(hex)) return null
+        val (r, g, b) = listOf(1, 3, 5).map { hex.substring(it, it + 2).toInt(16) / 255.0 }
+        val mx = maxOf(r, g, b); val d = mx - minOf(r, g, b)
+        var h = 0.0
+        if (d > 0) h = when (mx) { r -> ((g - b) / d) % 6; g -> (b - r) / d + 2; else -> (r - g) / d + 4 }
+        val hue = ((h * 60 + 360) % 360) * kotlin.math.PI / 180
+        val sat = if (mx > 0) d / mx else 0.0
+        return (0.5 + kotlin.math.cos(hue) * sat / 2) to (0.5 + kotlin.math.sin(hue) * sat / 2)
+    }
+
+    /** A colour block's own pop-up: the block [key] on a tile's face, wherever it is in its rows and columns. */
+    fun faceBlock(look: TileLook?, key: String): Block? {
+        fun inList(list: List<Block>): Block? { for (b in list) { if (b.key == key) return b; inList(b.blocks)?.let { return it } }; return null }
+        return look?.let { inList(it.face) }
+    }
+
     // Drag to move (the Board's layout keys, [layout]: "h:<heading>", tile ids, an open group's "in:<g>" … "out:<g>").
 
     /** The group the place [i] of [rows] is inside: between an open group's "in:" and "out:"; null when loose. */
