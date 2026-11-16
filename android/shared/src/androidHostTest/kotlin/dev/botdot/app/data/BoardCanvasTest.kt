@@ -39,7 +39,7 @@ class BoardCanvasTest {
         assertEquals(-800.0 to -600.0, BoardCanvas.panIn(2.0, 800.0, 600.0, -2000.0, -2000.0))
         assertEquals(0.0 to 0.0, BoardCanvas.panIn(2.0, 800.0, 600.0, 50.0, 10.0))
         assertEquals(-300.0 to -100.0, BoardCanvas.panIn(2.0, 800.0, 600.0, -300.0, -100.0))
-        assertEquals(0.0 to 0.0, BoardCanvas.panIn(1.0, 800.0, 600.0, -300.0, -100.0), "all of it: no pan")
+        assertEquals("all of it: no pan", 0.0 to 0.0, BoardCanvas.panIn(1.0, 800.0, 600.0, -300.0, -100.0))
     }
 
     @Test fun aHeldTileMovesFromItsMiddleAndResizesFromNearItsEdges() {
