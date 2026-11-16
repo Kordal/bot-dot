@@ -50,6 +50,7 @@ final class ProjectModel {
     func arrange(_ layout: [String: BoardCanvas.R]) async -> Bool { (try? await store.arrange(layout: layout))?.boolValue ?? false }
     func removeCard(_ card: String) async { try? await store.removeCard(card: card) }
     func putPiece(_ piece: String) async { try? await store.putPiece(piece: piece) }
+    @discardableResult func answerSuggested(add: Bool) async -> Bool { (try? await store.answerSuggested(add: add))?.boolValue ?? false }
 
     func todoFilter(_ filter: String) { store.todoFilter(filter: filter) }
     func tickTodo(_ id: String, _ done: Bool) async { try? await store.tickTodo(id: id, done: done) }
