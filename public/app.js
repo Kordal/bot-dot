@@ -1349,12 +1349,28 @@ function leaveBot() { show(Panel.next(state, { gone: true })); }
 // over: the view is a chat that came over the project's screen or the list, below a wide window (#1507). It gets an
 // entry of its own in the history, so the browser's Back leaves it as the chat's own Back does (backFromChat).
 function writeHash(over = false) {
+  if (unstepping) return; // written once the step is gone (stepGone)
   const v = state.view;
+  // A view that is no chat leaves the chat's step by going back over it, so no entry is left that Back only
+  // changes the address of; the view's address is written on the entry before it (stepGone).
+  if (!CHAT_VIEWS.includes(v) && history.state?.over) { dropStep(); return; }
   const id = v === 'runs' ? state.selectedRun : v === 'chief' ? state.chatId : v === 'bot' ? state.botId : v === 'group' ? state.groupId : v === 'rooms' ? state.roomId : null;
   const url = `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`;
-  // The step stays marked only while a chat is up: a view that is no chat in its place is an ordinary entry.
   if (over && !history.state?.over) history.pushState({ over: true }, '', url);
-  else history.replaceState(CHAT_VIEWS.includes(v) ? history.state : null, '', url);
+  else history.replaceState(history.state, '', url);
+}
+// A chat's step being gone back over without leaving anything (dropStep): its popstate only writes the address.
+let unstepping = false;
+function dropStep() {
+  unstepping = true;
+  history.back();
+}
+// The popstate of dropStep (boot.js): true when it was that one, after writing the address of what is on screen.
+function stepGone() {
+  if (!unstepping) return false;
+  unstepping = false;
+  writeHash();
+  return true;
 }
 function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot') for (const es of state.botStreams.splice(0)) es.close();
@@ -1462,8 +1478,10 @@ function leaveChat() {
   else showList();
 }
 
-// Phones: back to the contact list, the conversation going off to the right.
+// Phones: back to the contact list, the conversation going off to the right. A chat's step goes with the chat
+// (#1507), also when the list comes back another way than Back (Home, Needs you, the page's start).
 function showList() {
+  if (history.state?.over) dropStep();
   if (matchMedia(PHONE).matches && $('#app').classList.contains('in-main')) { Motion.leave($('.main'), 'm-push-out'); Motion.play($('.sidebar'), 'm-return'); }
   $('#app').classList.remove('in-main');
   syncRead();

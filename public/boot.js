@@ -19,6 +19,7 @@ document.addEventListener('click', (e) => {
 });
 // The browser's Back from a chat that opened as a step of its own (writeHash): out of the chat, as its Back (#1507).
 addEventListener('popstate', (e) => {
+  if (stepGone()) return;
   if (!e.state?.over && CHAT_VIEWS.includes(state.view) && $('#app').classList.contains('in-main')) leaveChat();
 });
 // A picture in a chat opens big on this page (served as a download, a plain link would save it).
