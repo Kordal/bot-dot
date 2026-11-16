@@ -241,7 +241,8 @@ if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
     if (suspend && held) doors.holdAccount(name, 'keep');
     if (!!suspended === suspend) continue;
     // An account held for its move stays still until the move lets go of it (ADR 254).
-    if (!suspend && moving) continue;
+    // The pause it was handed to ends: its suspension is the hold's again, which the move's release lifts.
+    if (!suspend && moving) { doors.holdAccount(name, 'back'); continue; }
     doors.setSuspended(name, suspend);
     audited(suspend ? 'suspend' : 'resume', { actor: 'console', account: name });
     changed.push(name);

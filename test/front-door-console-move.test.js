@@ -202,8 +202,14 @@ test('hold-account suspends an account for its move and release-account lets go 
   // Activated again before the move ends: carl, still moving, stays still.
   assert.ok(!ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume').said.accounts.includes('carl'));
   assert.ok(data(door).accounts.carl.suspended, 'still still while it moves');
+  // The move stops after that resume: its release alone starts carl, on a machine running again.
   assert.equal(ask(door, env, 'release-account', '--account', 'carl').said.changed, true);
-  assert.ok(data(door).accounts.carl.suspended && !data(door).accounts.carl.moving, 'released, and still the pause\'s');
+  assert.ok(!data(door).accounts.carl.suspended && !data(door).accounts.carl.moving, 'released and running');
+  // Held, paused, released while still paused: carl stays the pause's, and the resume starts it.
+  ask(door, env, 'hold-account', '--account', 'carl');
+  ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'suspend');
+  ask(door, env, 'release-account', '--account', 'carl');
+  assert.ok(data(door).accounts.carl.suspended, 'still paused');
   ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume');
   assert.ok(!data(door).accounts.carl.suspended, 'the resume starts it');
 
