@@ -953,6 +953,24 @@ test('IMPORT-bob restores bob alone from another machine\'s latest backup, after
   assert.equal(fs.readFileSync(path.join(m.first.top, 'import-lock'), 'utf8').trim(), 'held', 'the off-site lock is held past the download');
 });
 
+test('IMPORT-bob that fails once the front door made bob deletes and erases what it made, and can be asked again', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  // bob's botdot server won't stop, so his data can't be put back: once.
+  const once = path.join(m.first.top, 'compose-failed');
+  const stuck = [`case "$*" in *"compose --project-directory"*"/bob down"*) [ -e ${once} ] || { touch ${once}; exit 1; } ;; esac`];
+  const failed = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...stuck, ...moveDoor(m), ...extracts] });
+  const said = status(failed, 'import-bob.json');
+  assert.deepEqual([said.state, said.phase], ['failed', 'account'], JSON.stringify(said));
+  assert.match(said.error, /Couldn't stop the account bob's botdot server/);
+  assert.ok(failed.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js delete-account --account bob --by console')), 'the front door is asked to delete bob');
+  assert.match(failed.system, /^userdel botdot-bob$/m, 'bob is erased');
+  const again = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...stuck, ...moveDoor(m), ...extracts] });
+  assert.equal(status(again, 'import-bob.json').state, 'imported', again.said);
+});
+
 test('IMPORT-bob waits while an off-site backup runs, and asks nothing of the front door', (t) => {
   const m = machine(t);
   m.offsite();

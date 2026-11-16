@@ -4194,8 +4194,16 @@ import_request() {
   fi
   im_text="$(cut -f2- "$im_why" 2>/dev/null || true)"
   rm -f "$im_why"
-  # Half made: gone again, so that the import can be asked once more.
+  # Half made: gone again, so that the import can be asked once more. Erased only once the front door deleted it, so
+  # its record never stays without its data.
   door_account delete-account
+  case "$IM_LINE" in
+    '{"state":"deleted",'*) ;;
+    *)
+      import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 200), and the front door kept what was made of the account: delete it from the admin page${IM_WHY:+ ($(printf '%s' "$IM_WHY" | plain_line 80))}\""
+      warn "The account $IM_NAME wasn't imported, and the front door didn't delete what was made of it${IM_WHY:+: $IM_WHY}"
+      return 0 ;;
+  esac
   set +e
   ( set -e; erase_account "$IM_NAME" ) </dev/null
   set -e
