@@ -107,7 +107,7 @@
       canvas.append(t);
     }
     // The header, the project's Needs you (ADR 252) and its team rows (#838) stay above the canvas (#1188): the bots first.
-    for (const ch of [...home.children]) if (!ch.matches('.cf-top, .sp-needs, .cf-needs, .sp-teams')) ch.remove();
+    for (const ch of [...home.children]) if (!ch.matches('.cf-top, .cf-teamchips, .sp-needs, .cf-needs, .sp-teams')) ch.remove();
     home.append(wrap);
     place(wrap);
     observer?.disconnect();
@@ -158,7 +158,7 @@
 
   // The tile a press at `target` picks up, and its element on the canvas or in the flow; none in a field or the title.
   function tileAt(target, home) {
-    if (!(target instanceof Element) || target.closest(FIELD) || target.closest('.cf-top, .sp-needs, .cf-needs, .sp-teams')) return null;
+    if (!(target instanceof Element) || target.closest(FIELD) || target.closest('.cf-top, .cf-teamchips, .sp-needs, .cf-needs, .sp-teams')) return null;
     // On a phone's width the board is a column to read: its tiles are arranged on a wider screen.
     if (narrow(home)) return null;
     const t = target.closest('.bc-tile');

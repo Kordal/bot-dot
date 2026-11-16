@@ -167,6 +167,10 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             c.day?.takeIf { !overview && !teamView }?.takeIf { on("days") }?.let { Text(tr("Day {n} of 90", "n" to it), color = p.muted, fontSize = Type.s12, fontFamily = GeistMono,
                 modifier = Modifier.padding(start = Space.s12).clip(Radius.pill).background(p.fill).padding(horizontal = Space.s12, vertical = Space.s4)) }
         }
+        if (one && !overview && !teamView) {
+            val teamWaits = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.teamWaits(c, waiting, groups.orEmpty(), bots.filter { question(it) != null }.map { it.id }) }
+            TeamChips(dev.botdot.app.data.ProjectRules.teamChips(c, bots, features, groups.orEmpty(), teamWaits)) { chip -> teamChat(chip.team.id)?.invoke() ?: run { teamOpen = chip.team.id } }
+        }
         if (!teamView) {
         // What waits in this project only (#841): its team bots' asks, answered here as on Home.
         val here = remember(c, waiting, groups, bots) { dev.botdot.app.data.Spaces.needsIn(c, waiting, groups.orEmpty()).let { dev.botdot.app.data.Spaces.underLeads(c, it, bots) }.sortedBy { if (it.act != null) 0 else 1 } } // what stops its bots' work first: a missing app
@@ -627,6 +631,33 @@ private fun Reports(ui: CompanyUi, team: CompanyTeam, bots: List<Bot>, controls:
         Column(Modifier.weight(1f).padding(start = if (by != null) Space.s12 else 0.dp)) {
             Text(r.text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20)
             Text(shortTime(r.at), color = p.faint, fontSize = Type.s12, modifier = Modifier.padding(top = Space.s4))
+        }
+    }
+}
+
+/** The tag of a team's chip under the title. */
+internal const val TEAM_CHIP = "team-chip"
+
+/**
+ * One chip per team under the project's title (web: teamChipsHTML): its faces, its name and "Needs you" when something
+ * waits; a tap opens the team's chat. Team beside the title stays the way to who is in a team and who leads it (ADR 238).
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun TeamChips(chips: List<dev.botdot.app.data.ProjectRules.TeamChip>, onOpen: (dev.botdot.app.data.ProjectRules.TeamChip) -> Unit) {
+    if (chips.isEmpty()) return
+    val p = LocalPaper.current
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
+        chips.forEach { chip ->
+            Row(Modifier.heightIn(min = 44.dp).clip(Radius.pill).background(p.panel).clickable(onClickLabel = tr("Team chat")) { onOpen(chip) }.testTag(TEAM_CHIP)
+                .padding(start = Space.s8, end = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+                TeamPicture(chip.bots.take(3), if (chip.bots.size > 1) chip.team.lead else null, 24)
+                Text(chip.team.name, color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s8).widthIn(max = 200.dp))
+                if (chip.asks) {
+                    Box(Modifier.padding(start = Space.s8).size(7.dp).clip(CircleShape).background(p.warn))
+                    Text(tr("Needs you"), color = p.warnText, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.padding(start = Space.s4))
+                }
+            }
         }
     }
 }

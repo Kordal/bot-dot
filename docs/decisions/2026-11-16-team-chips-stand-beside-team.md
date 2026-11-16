@@ -1,0 +1,1 @@
+2026-11-16: the project page shows one chip per team under its title that opens the team's chat, and Team stays beside the title for members and lead (ADR 238); the owner chose this over chips in the title line, which squeeze the title, and a menu on Team, which is two taps.

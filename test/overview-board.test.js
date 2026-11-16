@@ -121,7 +121,7 @@ test('web: Needs you stands first whenever something waits, above the arranged t
   assert.match(tile, /<section class="cf-ov cf-needs" data-cf-needs>/);
   assert.doesNotMatch(tile, /data-cf-ov=/, 'no tile of the canvas');
   const canvas = read('board-canvas-view.js');
-  assert.match(canvas, /if \(!ch\.matches\('\.cf-top, \.sp-needs, \.cf-needs, \.sp-teams'\)\) ch\.remove\(\);/, 'kept above the canvas');
-  assert.match(canvas, /target\.closest\('\.cf-top, \.sp-needs, \.cf-needs, \.sp-teams'\)/, 'and never dragged');
+  assert.match(canvas, /if \(!ch\.matches\('\.cf-top, \.cf-teamchips, \.sp-needs, \.cf-needs, \.sp-teams'\)\) ch\.remove\(\);/, 'kept above the canvas');
+  assert.match(canvas, /target\.closest\('\.cf-top, \.cf-teamchips, \.sp-needs, \.cf-needs, \.sp-teams'\)/, 'and never dragged');
   assert.match(read('company.js'), /const OVERVIEW = \['work', 'blockers', 'replies'\];/, 'not offered as a piece');
 });
