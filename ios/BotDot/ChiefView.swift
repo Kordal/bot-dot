@@ -9,6 +9,8 @@ struct ChiefView: View {
     let home: HomeStore
     /// The conversation a notification asked for; nil, the latest.
     var chatId: String? = nil
+    /// A new chat, starting with these words in its box (Storage's Ask the Chief); nil: the box as it was.
+    var words: String? = nil
     /// Made once the screen is there: SwiftUI makes a destination's view more than once.
     @State private var model: ChiefModel?
     /// A bot a chip or a mail card opens: its chat, or its screen.
@@ -38,7 +40,11 @@ struct ChiefView: View {
             }
         }
         .task {
-            if model == nil { model = ChiefModel(home: home, chatId: chatId) }
+            if model == nil {
+                let m = ChiefModel(home: home, chatId: chatId)
+                if let words { m.open(nil); m.fill(words) }
+                model = m
+            }
             model?.start()
         }
         .onDisappear { model?.stop() }
