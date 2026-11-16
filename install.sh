@@ -4172,6 +4172,13 @@ import_request() {
   rm -rf -- "$IMPORT_SCRATCH"
   if [ "$im_done" = 0 ]; then
     rm -f "$im_why"
+    # An erase of this account and born stamp waiting here (a half-made import before, or the account moved away
+    # once and back now) would forget the snapshots of the account just imported: it is no longer one to forget.
+    im_born="$(cat "$BORN/$IM_NAME" 2>/dev/null || true)"
+    if [ -n "$im_born" ] && [ -f "$OFFSITE/erased" ]; then
+      awk -v n="$IM_NAME" -v b="$im_born" '!($1 == n && $2 == b)' "$OFFSITE/erased" > "$OFFSITE/erased.new"
+      mv "$OFFSITE/erased.new" "$OFFSITE/erased"
+    fi
     import_said imported
     ok "The account $IM_NAME is imported from the machine $IM_FROM"
     return 0

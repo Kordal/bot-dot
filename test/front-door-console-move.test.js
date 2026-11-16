@@ -180,6 +180,10 @@ test('hold-account suspends an account for its move and release-account lets go 
   assert.deepEqual(ask(door, env, 'hold-account', '--account', 'carl').said, { state: 'held', account: 'carl', changed: true });
   assert.ok(data(door).accounts.carl.suspended && data(door).accounts.carl.held);
   assert.deepEqual(ask(door, env, 'hold-account', '--account', 'carl').said, { state: 'held', account: 'carl', changed: false }, 'twice: the same hold');
+  // The machine-wide resume (its customer activated) leaves a held account still.
+  const resumed = ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume');
+  assert.ok(!resumed.said.accounts.includes('carl'), JSON.stringify(resumed.said));
+  assert.ok(data(door).accounts.carl.suspended && data(door).accounts.carl.held, 'still held');
   assert.deepEqual(ask(door, env, 'release-account', '--account', 'carl').said, { state: 'released', account: 'carl', changed: true });
   assert.ok(!data(door).accounts.carl.suspended && !data(door).accounts.carl.held);
 

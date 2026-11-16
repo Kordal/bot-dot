@@ -922,11 +922,19 @@ function elsewhere(m) {
 
 test('IMPORT-bob restores bob alone from another machine\'s latest backup, after the front door made it, and leaves no scratch folder', (t) => {
   const m = machine(t);
+  fs.mkdirSync(path.join(m.dir, 'born'), { recursive: true });
+  fs.writeFileSync(path.join(m.dir, 'born', 'bob'), '20260101T000000Z\n');
   m.offsite();
   const old = instanceOf(m);
   const backedUp = doorData(m);
   elsewhere(m);
+  // An erase of bob with this born stamp waits here (a half-made import before, or bob moved away once): it would
+  // forget the snapshots of the bob imported now.
+  fs.mkdirSync(m.secrets, { recursive: true });
+  fs.writeFileSync(path.join(m.secrets, 'erased'), 'bob 20260101T000000Z 1790000000 2026-10-21T12:00:00Z\ncarl 20250101T000000Z 1790000000 2026-10-21T12:00:00Z\n');
   const done = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m), ...extracts] });
+  assert.equal(fs.readFileSync(path.join(m.dir, 'born', 'bob'), 'utf8').trim(), '20260101T000000Z', 'bob keeps his born stamp');
+  assert.equal(fs.readFileSync(path.join(m.secrets, 'erased'), 'utf8'), 'carl 20250101T000000Z 1790000000 2026-10-21T12:00:00Z\n', 'bob is no erase to finish');
   const said = status(done, 'import-bob.json');
   assert.deepEqual({ state: said.state, account: said.account, instance: said.instance }, { state: 'imported', account: 'bob', instance: old }, done.said);
   assert.match(said.snapshot, /^[0-9a-f]{64}$/);

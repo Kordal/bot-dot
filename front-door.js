@@ -232,12 +232,14 @@ if (process.argv[2] === 'revoke-links') {
 // The whole machine paused or started again by the fleet console through root's step (its customer suspended or
 // activated): every account suspended, or resumed, as the admin page does for one, each an audit entry by the
 // console. One line of JSON, { state: 'suspended' | 'resumed', accounts }, the accounts it changed; an account that
-// was so already is left as it is. Root's step then makes the machine match.
+// was so already is left as it is, and so is one held for its move. Root's step then makes the machine match.
 if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
   const suspend = process.argv[2] === 'suspend';
   const changed = [];
-  for (const { name, suspended } of doors.listAccounts()) {
+  for (const { name, suspended, held } of doors.listAccounts()) {
     if (!!suspended === suspend) continue;
+    // An account held for its move stays still until the move lets go of it (ADR 254).
+    if (!suspend && held) continue;
     doors.setSuspended(name, suspend);
     audited(suspend ? 'suspend' : 'resume', { actor: 'console', account: name });
     changed.push(name);
