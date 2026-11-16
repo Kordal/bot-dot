@@ -134,6 +134,16 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
         scope.launch { readMonth() }
     }
 
+    /**
+     * The month as it was before the screen went (a rotation, the app's process gone): open on [picked], with the
+     * event [editing] being changed again once it is read (dropped when it is gone).
+     */
+    fun restore(picked: String?, editing: String?) {
+        if (picked == null) return
+        open(picked)
+        if (editing != null) local.update { it.copy(editing = editing) }
+    }
+
     /** The month closed. */
     fun shut() = local.update { it.copy(month = null, monthItems = emptyList(), picked = null, editing = null) }
 

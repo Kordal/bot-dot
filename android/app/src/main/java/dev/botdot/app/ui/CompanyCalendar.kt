@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -122,9 +123,16 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
     val p = LocalPaper.current
     // What it shows, when it is read again, and the month's days and events are the shared CalendarDesk (both phones).
     val api = ui.api ?: return
-    val desk = remember(api) { CalendarDesk(ui.app.store, api, ui.app.scope) }
+    // The open month's day and the event being changed outlive a rotation and the app's process (the desk is made anew).
+    var keptDay by rememberSaveable { mutableStateOf<String?>(null) }
+    var keptEdit by rememberSaveable { mutableStateOf<String?>(null) }
+    val desk = remember(api) { CalendarDesk(ui.app.store, api, ui.app.scope).also { it.restore(keptDay, keptEdit) } }
     DisposableEffect(desk) { onDispose { desk.close() } }
     val s by desk.state.collectAsState()
+    LaunchedEffect(s.month, s.picked, s.editing?.id) {
+        // The desk's first state comes before its restore shows: keep what was kept until the month is open.
+        if (s.month != null) { keptDay = s.picked; keptEdit = s.editing?.id } else if (s.week.isNotEmpty()) { keptDay = null; keptEdit = null }
+    }
     LaunchedEffect(s.noticeCount) { if (s.noticeCount > 0) ui.tell(s.notice) }
     val shape = Radius.card
     Column(Modifier.fillMaxWidth().raised(shape).clickable(onClickLabel = tr("Calendar")) { desk.open(s.today) }.padding(Space.s12),
@@ -211,9 +219,9 @@ private fun MonthSheet(desk: CalendarDesk, s: dev.botdot.app.data.CalendarState,
 @Composable
 private fun EventForm(desk: CalendarDesk, day: LocalDate, event: CalendarItem?, busy: Boolean) {
     val p = LocalPaper.current
-    var title by remember(event?.id) { mutableStateOf(event?.title.orEmpty()) }
-    var time by remember(event?.id) { mutableStateOf(event?.time.orEmpty()) }
-    var moveTo by remember(event?.id) { mutableStateOf(event?.day) }
+    var title by rememberSaveable(event?.id) { mutableStateOf(event?.title.orEmpty()) }
+    var time by rememberSaveable(event?.id) { mutableStateOf(event?.time.orEmpty()) }
+    var moveTo by rememberSaveable(event?.id) { mutableStateOf(event?.day) }
     var picking by remember { mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val hhmm = ProjectCalendar.time(time)

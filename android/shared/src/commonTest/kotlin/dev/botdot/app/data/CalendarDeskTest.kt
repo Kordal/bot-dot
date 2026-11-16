@@ -156,4 +156,21 @@ class CalendarDeskTest {
         assertTrue(fake.asked().none { it.path == "/company/events/e1" }, "nothing changed on an event that is gone")
         assertEquals("POST", fake.asked().last { it.path == "/company/events" }.method)
     }
+
+    @Test fun aMonthOpenBeforeTheScreenWentComesBackWithItsEdit() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/company/calendar") 200 to items else 200 to project }
+        val (_, desk) = desk(fake)
+        desk.restore("2026-11-18", "e1")
+        until("the month back") { desk.state.value.editing?.id == "e1" }
+        assertEquals("2026-11", desk.state.value.month)
+        assertEquals("2026-11-18", desk.state.value.picked)
+        val (_, again) = desk(fake)
+        again.restore("2026-11-18", "gone")
+        until("the month") { again.state.value.pickedItems.isNotEmpty() }
+        assertNull(again.state.value.editing, "an event that is gone isn't edited")
+        val (_, none) = desk(fake)
+        none.restore(null, "e1")
+        runCurrent()
+        assertNull(none.state.value.month, "nothing was open")
+    }
 }
