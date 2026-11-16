@@ -494,7 +494,11 @@ function waitsLine(m) {
 }
 // A message none of whose turns has started, and that waits: for a busy member, or for Claude to be signed in.
 // It is drawn at the end of the chat, faded, with "Take back", as a waiting message in a bot's chat is.
-const waitsWhole = (m) => m.by !== 'chief' && m.canTakeBack === true && (!!waitsLine(m) || signedOut.on);
+// A message whose busy members were all steered (ADR 253) still waits, until a run of theirs reads it.
+const steeringIn = (m) => (Array.isArray(m.steering) ? m.steering : []).length > 0;
+const waitsWhole = (m) => m.by !== 'chief' && m.canTakeBack === true && (!!waitsLine(m) || steeringIn(m) || signedOut.on);
+// "Steer" under a waiting message: a server with `group-steer` hands it to the run of the busy member that is going.
+const canSteerGroup = () => state.features.includes('group-steer');
 
 // One message of the owner's in its place in the chat. A message whose first turns went and that still waits for
 // a busy member says for whom, under it.
@@ -525,12 +529,16 @@ function groupQuestionHTML(q, prev) {
   const bot = botById(q.botId) || { id: q.botId, color: memberColor(q.botId) };
   return `<button type="button" class="g-question" data-question="${esc(q.runId)}" title="${esc(memberName(q.botId, q.botName))}"><i>${botMark(bot)}</i><span>${esc(q.text)}</span></button>`;
 }
-// One waiting message, at the end of the chat: the owner's bubble, faded, for whom it waits, and the way back.
+// One waiting message, at the end of the chat: the owner's bubble, faded, for whom it waits, Steer while a busy member
+// is still to be steered to, and the way back. Steered: "Steering…" in place of the line.
 function groupWaitingHTML(m, chat) {
   const text = typeof m.text === 'string' ? m.text : '';
+  const waits = waitsLine(m);
+  const line = waits || (steeringIn(m) ? tr('Steering…') : tr('Waits until Claude is signed in'));
+  const steer = waits && canSteerGroup() ? `<button type="button" data-steer="${esc(m.id)}">${tr('Steer')}</button>` : '';
   return `<div class="bubble-row from-me"><div class="stack mine">
     <div class="bubble from-me waits">${escMentions(text, chat)}${filesHTML(Array.isArray(m.attachments) ? m.attachments : [], chat)}</div>
-    <div class="bubble-meta"><span>${esc(waitsLine(m) || tr('Waits until Claude is signed in'))}</span><button type="button" data-take-back="${esc(m.id)}">${tr('Take back')}</button></div>
+    <div class="bubble-meta"><span>${esc(line)}</span>${steer}<button type="button" data-take-back="${esc(m.id)}">${tr('Take back')}</button></div>
   </div></div>`;
 }
 // One reply: its bot's head beside it and its bot's name above it, in the bot's colour. A reply that failed, was
@@ -897,6 +905,7 @@ function drawGroupTail(g, chat) {
   if (stop) stop.onclick = () => stopGroup(g.id, stop);
   const on = $('[data-go-on]', tail);
   if (on) on.onclick = () => goOnGroup(g.id, on);
+  $$('[data-steer]', tail).forEach((b) => (b.onclick = () => steerInGroup(g.id, b.dataset.steer, b)));
   $$('[data-take-back]', tail).forEach((b) => (b.onclick = () => takeBackInGroup(g.id, b.dataset.takeBack, b)));
   if (atBottom) thread.scrollTop = thread.scrollHeight;
 }
@@ -963,6 +972,23 @@ async function goOnGroup(id, button) {
     if (groupChat?.id === id && went?.wentOn) { groupChat.limit = null; redrawGroup(id); }
   } catch (e) { toast(e.message, true); if (button) button.disabled = false; }
   loadGroupChat(id);
+}
+// Steer a waiting message into the run of the busy member that is going (ADR 253): the server's message comes back marked
+// as steered. When it started meanwhile, or the member's run can't take it (409), the line above the box says why, in the
+// server's words.
+async function steerInGroup(id, messageId, button) {
+  const form = $('#view-group form.composer');
+  const here = () => $('#view-group')?.dataset.group === id;
+  if (button) button.disabled = true;
+  try {
+    const message = await api(`/group-chats/${encodeURIComponent(id)}/messages/${encodeURIComponent(messageId)}/steer`, { method: 'POST' });
+    if (groupChat?.id === id && holdMessage(groupChat, message)) redrawGroup(id);
+  } catch (e) {
+    if (button) button.disabled = false;
+    if (e.status === 409) showBoxNote(here() ? form : null, e.message);
+    else toast(e.message, true);
+    if (e.status === 404 || e.status === 409 || e.status === 410) loadGroupChat(id);
+  }
 }
 // Take a waiting message back: its text and files are in the message box again, and it starts nothing. When its
 // turn came first (409), the line above the box says so and the chat shows what started.

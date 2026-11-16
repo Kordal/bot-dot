@@ -822,6 +822,41 @@ test('web: a message that waits for a busy member is drawn as waiting and says f
   assert.deepEqual(late.said.calls.map((x) => x.slice(0, 2)), [['DELETE', '/group-chats/g1/messages/m2'], ['GET', '/group-chats/g1/chat?limit=50']]);
 });
 
+test('web: a waiting message has "Steer" beside "Take back" with `group-steer`, and "Steering…" once its busy members were steered (ADR 253)', async () => {
+  const waits = message('m2', '@Coder also bump the version.', { at: at(5), to: ['coder'], waitsFor: ['coder'], next: ['coder'], canTakeBack: true });
+  const steered = { ...waits, waitsFor: [], steering: ['coder'] };
+  // Without the feature: no button.
+  const old = page();
+  assert.doesNotMatch(old.ctx.groupTailHTML(old.group(), old.chat([waits])), /data-steer/);
+  // With it: Steer first, then Take back, under the line for whom it waits.
+  const p = page({ features: ['groups', 'unread', 'group-steer'], reply: async (path, opts) => (opts.method === 'POST' && path.endsWith('/steer') ? steered : { items: [] }) });
+  const c = p.chat([message('m1', 'Ship it.'), waits], { working: [{ botId: 'coder', runId: 'r5', startedAt: at(2) }] });
+  assert.match(p.ctx.groupTailHTML(p.group(), c), /<span>Waits until Coder is free<\/span><button type="button" data-steer="m2">Steer<\/button><button type="button" data-take-back="m2">Take back<\/button>/);
+  // The press: the message comes back steered, and stands at the end as "Steering…" with Take back alone.
+  p.doc['#view-group form.composer'] = {};
+  p.doc['#view-group'] = { dataset: { group: 'g1' } };
+  await p.ctx.steerInGroup('g1', 'm2', { disabled: false });
+  assert.deepEqual(p.said.calls[0], ['POST', '/group-chats/g1/messages/m2/steer']);
+  assert.deepEqual(plain(c.items.get('m2').steering), ['coder']);
+  const tail = p.ctx.groupTailHTML(p.group(), c);
+  assert.match(tail, /<span>Steering…<\/span><button type="button" data-take-back="m2">Take back<\/button>/);
+  assert.doesNotMatch(tail, /data-steer=/);
+  assert.doesNotMatch(p.ctx.groupThreadHTML(p.group(), c), /data-gmsg="m2"/, 'still waiting: not among the rows');
+  // Read by the run: the message is an ordinary one again, among the rows.
+  c.items.set('m2', { type: 'message', ...steered, steering: undefined, canTakeBack: false });
+  assert.match(p.ctx.groupThreadHTML(p.group(), c), /data-gmsg="m2"/);
+  // It cannot be steered (409): the line above the box says why, in the server's words, and the chat is read again.
+  const no = page({ features: ['groups', 'group-steer'], reply: async (path, opts) => (opts.method === 'POST' ? refused('Coder is working in another chat. This starts when it is free.', 409) : { items: [] }) });
+  no.chat([waits]);
+  no.doc['#view-group form.composer'] = {};
+  no.doc['#view-group'] = { dataset: { group: 'g1' } };
+  const button = { disabled: false };
+  await no.ctx.steerInGroup('g1', 'm2', button);
+  assert.deepEqual(no.said.notes, ['Coder is working in another chat. This starts when it is free.']);
+  assert.deepEqual([no.said.toasts, button.disabled], [[], false]);
+  assert.deepEqual(no.said.calls.map((x) => x.slice(0, 2)), [['POST', '/group-chats/g1/messages/m2/steer'], ['GET', '/group-chats/g1/chat?limit=50']]);
+});
+
 test('web: while Claude is signed out a message that has not started waits for the sign-in, and can be taken back', () => {
   const p = page();
   const m = message('m1', 'All clear?', { next: DEV.members, canTakeBack: true });

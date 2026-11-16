@@ -140,12 +140,13 @@ data class GroupLimit(val text: String, val messages: List<String> = emptyList()
  * [question]: the member's question it answers with one of its buttons (docs/api.md, "question").
  * [byChief]: the Project Manager wrote it, not the owner (ADR 217): drawn with the Chief's head, never taken back.
  * [asBot]: it wrote as the project's lead, that bot's id (ADR 227): drawn with its head and name.
+ * [steering]: the members whose run that is going will read it at its next tool call, after the owner's "Steer" (`group-steer`, ADR 253).
  */
 data class GroupMessage(
     val id: String, val text: String, val at: String, val attachments: List<Attachment> = emptyList(),
     val to: List<String> = emptyList(), val waitsFor: List<String> = emptyList(), val next: List<String> = emptyList(),
     val canTakeBack: Boolean = false, val atLimit: Boolean = false, val stopped: Boolean = false, val answer: String? = null,
-    val question: GroupQuestion? = null, val byChief: Boolean = false, val asBot: String? = null,
+    val question: GroupQuestion? = null, val byChief: Boolean = false, val asBot: String? = null, val steering: List<String> = emptyList(),
 ) {
     companion object {
         /** A message as the server sent it; null without an id: it cannot be taken back, or told from the next. */
@@ -156,6 +157,7 @@ data class GroupMessage(
                 texts(o["to"]), texts(o["waitsFor"]), texts(o["next"]), isTrue(o["canTakeBack"]), isTrue(o["atLimit"]), isTrue(o["stopped"]),
                 o["answer"].textOrNull(), GroupQuestion.of(o["question"]), o["by"].textOrNull() == "chief",
                 o["as"].textOrNull()?.takeIf { o["by"].textOrNull() == "chief" },
+                texts(o["steering"]),
             )
         }
     }

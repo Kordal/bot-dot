@@ -161,6 +161,12 @@ const val CHIEF_STEER = "chief-steer"
 /** Whether a Chief chat's waiting message has "Steer". */
 fun canSteerChief(features: Collection<String>?): Boolean = features != null && CHIEF_STEER in features
 
+/** The feature of "Steer" under a message that waits in a group (ADR 253). */
+const val GROUP_STEER = "group-steer"
+
+/** Whether a group's waiting message has "Steer". */
+fun canSteerGroup(features: Collection<String>?): Boolean = features != null && GROUP_STEER in features
+
 /** Under a message that the owner steered into the run that is going, until that run read it. */
 val STEERING: String get() = tr("Steering…")
 

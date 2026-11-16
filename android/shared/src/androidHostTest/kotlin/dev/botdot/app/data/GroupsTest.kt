@@ -358,6 +358,14 @@ class GroupsTest {
             assertEquals(409, (runCatching { api.takeBackFromGroup("g1", "m1") }.exceptionOrNull() as ApiException).status)
             asked()
 
+            // "Steer" (`group-steer`, ADR 253): the message comes back marked as steered; 409 says why in the server's words.
+            server.enqueue(json("""{"id":"m1","text":"hi","at":"2026-10-08T09:00:00Z","to":["coder"],"waitsFor":[],"steering":["coder"],"next":["coder"],"canTakeBack":true}""", 200))
+            assertEquals(listOf("coder"), api.steerInGroup("g1", "m1")?.steering)
+            assertEquals("POST" to "/api/group-chats/g1/messages/m1/steer", asked().let { it.first to it.second })
+            server.enqueue(json("""{"error":"Coder is working in another chat. This starts when it is free."}""", 409))
+            assertEquals("Coder is working in another chat. This starts when it is free.", runCatching { api.steerInGroup("g1", "m1") }.exceptionOrNull()?.message)
+            asked()
+
             server.enqueue(json("""{"ok":true,"stopped":2,"dropped":1}""", 200))
             api.stopGroup("g1")
             assertEquals("POST" to "/api/group-chats/g1/stop", asked().let { it.first to it.second })
