@@ -185,7 +185,7 @@ object BoardCanvas {
      * shows beyond its edges at zoom [z].
      */
     fun panIn(z: Double, w: Double, h: Double, x: Double, y: Double): Pair<Double, Double> =
-        x.coerceIn(-(z - 1) * w, 0.0) to y.coerceIn(-(z - 1) * h, 0.0)
+        (x.coerceIn(-(z - 1) * w, 0.0) + 0.0) to (y.coerceIn(-(z - 1) * h, 0.0) + 0.0) // + 0.0: no -0.0
 
     /** How near an edge, in canvas units, a held finger resizes the tile rather than moving it. */
     const val NEAR = 28
