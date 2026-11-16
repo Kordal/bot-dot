@@ -50,20 +50,49 @@ test("the lead hands on, the member answers \"Done\": the Chief is told botdot's
   assert.match(back.stdin, /<team-answer>\n[\s\S]*QA Writer confirmed step 4: Done\.[\s\S]*<\/team-answer>/);
   assert.match(back.stdin, /If you told the owner earlier that this hand-off was not sent, not answered or not done, say now plainly that it came back/);
   srv.release(back);
-  // In the chat that wrote the team's message: the correction is beside the first status.
-  const chat = await waitFor(async () => { const m = (await srv.api(`/chief/chats/${pmChat}`)).data.messages; return m.length ? m : null; }, { what: 'the chat' });
-  assert.ok(chat.length > 0);
+  // Both turns are in the chat that wrote the team's message: the first status, then the correction beside it.
+  const said = await waitFor(async () => { const m = (await srv.api(`/chief/chats/${pmChat}`)).data.messages.filter((x) => x.role === 'chief' && !x.pending); return m.length === 2 ? m : null; }, { what: "both turns in the chat that wrote the team's message" });
+  assert.equal(said.length, 2);
   srv.unhold();
 });
 
-test("a hand-off from a turn the owner started in the team's chat goes to nobody's manager: the owner reads it in the bot's chat", async () => {
-  const pm = require('../lib/project-manager');
-  assert.equal(typeof pm, 'object');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'project-manager.js'), 'utf8');
-  const fn = src.slice(src.indexOf('function followedUp('), src.indexOf('// The owner wrote in a Chief chat'));
-  assert.match(fn, /const pmChat = B\.groupChat\.pmOf\(chain\.groupId, chain\.groupMessageId\);/);
-  assert.match(fn, /if \(!pmChat \|\| pmBot === meta\.botId\) return null;/, "the owner's message, or the manager's own hand-off, starts no turn");
-  assert.match(fn, /chatId: pmChat,/, 'the Chief chat that wrote the message');
+// A hand-off in a turn the Project Manager did not write: the turn's lead hands on, its teammate answers, its
+// follow-up runs, and then no manager is told (the owner reads the bot's reply in its chat).
+async function handOffWithoutManager(start, lead) {
+  reply(lead, 'Asked my teammate.');
+  reply(writer, 'Done.');
+  srv.hold();
+  await start();
+  const turn = await srv.nextRun((x) => x.self?.env && x.args.includes(`${lead.emoji} ${lead.name}`) && !x.stdin.includes('This was the task you asked them for'), "the lead's turn in the team chat");
+  assert.equal((await self(srv, turn.self.env.RUN_TOKEN, 'message', { to: writer.id, message: 'Please confirm.', priority: true })).data.ok, true);
+  srv.release(turn);
+  const asked = await srv.nextRun((x) => x.self?.env && x.args.includes('✍️ QA Writer') && x.stdin.includes('Please confirm.'), "QA Writer's run");
+  srv.release(asked);
+  const follow = await srv.nextRun((x) => x.self?.env && x.args.includes(`${lead.emoji} ${lead.name}`) && x.stdin.includes('This was the task you asked them for'), "the lead's follow-up");
+  srv.release(follow);
+  srv.unhold();
+  await new Promise((ok) => setTimeout(ok, 1500));
+  return srv.runs().filter((x) => String(x.stdin || '').includes('has finished what it handed on') && String(x.stdin || '').includes('Asked my teammate.'));
+}
+
+test("a hand-off from a turn the owner started in the team's chat tells no manager: the owner reads it in the bot's chat", async () => {
+  const g = await teamChat(team.id);
+  const told = await handOffWithoutManager(() => srv.api(`/group-chats/${g.id}/messages`, { method: 'POST', body: { text: '@QA Web confirm step 5 with QA Writer' } }), web);
+  assert.deepEqual(told, []);
+});
+
+test("the Project Manager's own hand-off comes back in its own chat: nobody else is told", async () => {
+  assert.equal((await srv.api('/company', { method: 'PATCH', body: { lead: web.id } })).status, 200);
+  srv.hold();
+  await srv.api(`/bots/${web.id}/run`, { method: 'POST', body: { prompt: 'Ask the team for step 6.' } });
+  const own = await srv.nextRun((x) => x.self?.env && x.args.includes('🌐 QA Web') && x.stdin.includes('Ask the team for step 6.'), "QA Web's run as Project Manager");
+  const told = await handOffWithoutManager(async () => {
+    const sent = await self(srv, own.self.env.RUN_TOKEN, 'team-chat', { team: team.id, text: 'Step 6, please.' });
+    assert.equal(sent.status, 201, JSON.stringify(sent.data));
+    srv.release(own);
+  }, web);
+  assert.deepEqual(told, []);
+  await srv.api('/company', { method: 'PATCH', body: { lead: null } });
 });
 
 test('an answer with no hand-off waiting says so: the Chief may not say a teammate has not answered', async () => {
