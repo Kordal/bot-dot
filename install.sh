@@ -4274,7 +4274,12 @@ hold_request() {
   fi
   hr_since="$(date -u +%Y%m%d%H%M%S)"
   hr_said holding
-  if ! offsite_backup; then
+  # On its own, not in a condition, which would turn set -e off in the backup's subshell (as --offsite calls it).
+  set +e
+  offsite_backup
+  hr_ob=$?
+  set -e
+  if [ "$hr_ob" != 0 ]; then
     hr_said failed "\"error\":\"$(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' "$DOOR/status/offsite.json" 2>/dev/null | plain_line 300)\""
     return 0
   fi
