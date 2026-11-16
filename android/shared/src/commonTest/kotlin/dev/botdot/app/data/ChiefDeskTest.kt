@@ -26,6 +26,16 @@ class ChiefDeskTest {
         assertFalse(line.rates)
     }
 
+    @Test fun aFinishedReplyHasItsPagesAndItsBotsPagesAsChips() {
+        val m = Api.JSON.decodeFromString(ChiefMessage.serializer(), """{"role":"chief","text":"Done.","at":"2026-11-14T09:00:00Z",
+            "pages":[{"slug":"week","title":"Week"}],"botPages":[{"slug":"menu","title":"Menu","botId":"b1","bot":"Cook"}]}""")
+        val all = listOf(Pages.FEATURE, DocumentView.FEATURE, Pages.FEATURE_CHIEF)
+        assertEquals(listOf(PageRef("week", "Week", Pages.CHIEF), PageRef("menu", "Menu", "b1", "Cook")), chiefLine(m, 1, "", all).pages)
+        assertEquals(listOf("menu"), chiefLine(m, 1, "", all - Pages.FEATURE_CHIEF).pages.map { it.slug }, "the Chief's own need chief-pages")
+        assertTrue(chiefLine(m, 1, "", listOf(Pages.FEATURE)).pages.isEmpty(), "no viewer: no chips")
+        assertTrue(chiefLine(m.copy(pending = true), 1, "", all).pages.isEmpty(), "a reply still being written")
+    }
+
     @Test fun anUnaskedReplyGetsThumbsOnABotdotThatTakesThem() {
         val m = ChiefMessage("chief", text = "Your server's disk is 90% full.", unasked = true, rating = "up", at = "2026-11-14T09:00:00Z")
         val line = chiefLine(m, 3, "", rates)
