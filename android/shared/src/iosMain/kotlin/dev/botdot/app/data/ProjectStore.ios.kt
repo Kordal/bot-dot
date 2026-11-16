@@ -43,12 +43,13 @@ class ProjectStore(private val home: HomeStore) {
     /** The Chief's suggested bot: Add (true) or dismiss. */
     @Throws(Exception::class) suspend fun answerSuggested(add: Boolean): Boolean = desk.answerSuggested(add)
 
-    /** The To-do (#692): its filter, a tick, Delete, and Add. */
     /** The week's plan's Approve and Change, and the decisions' Add and Remove. */
     @Throws(Exception::class) suspend fun approvePlan(): Boolean = desk.approvePlan()
     @Throws(Exception::class) suspend fun changePlan(text: String): Boolean = desk.changePlan(text)
     @Throws(Exception::class) suspend fun addDecision(typed: String): Boolean = desk.addDecision(typed)
     @Throws(Exception::class) suspend fun deleteDecision(id: String): Boolean = desk.deleteDecision(id)
+
+    /** The To-do (#692): its filter, a tick, Delete, and Add. */
     fun todoFilter(filter: String) = desk.todoFilter(filter)
     @Throws(Exception::class) suspend fun tickTodo(id: String, done: Boolean) = desk.tickTodo(id, done)
     @Throws(Exception::class) suspend fun deleteTodo(id: String) = desk.deleteTodo(id)
