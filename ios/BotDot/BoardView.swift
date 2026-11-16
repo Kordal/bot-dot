@@ -12,6 +12,8 @@ struct BoardView: View {
     @State private var notice: String?
     @State private var asking: Asking?
     @State private var panel: String?
+    /// The one block a tile's pop-up shows (a colour swatch's wheel); nil: its whole panel.
+    @State private var panelOnly: String?
     @State private var changing: String?
     @State private var removing: BoardCell?
     @State private var needs = false
@@ -31,6 +33,7 @@ struct BoardView: View {
     // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
         sheets
+            .environment(\.openTileColor) { tile, block in panelOnly = block; panel = tile }
             .onDisappear { model?.stop(); model = nil }
             // Read only while the app is in front, as Android reads only while its screen is resumed.
             .onChange(of: phase) { _, now in model?.active(now == .active) }
@@ -123,7 +126,7 @@ struct BoardView: View {
         Button(tr("Cancel"), role: .cancel) {}
     }
 
-    private var panelKey: Binding<Key?> { Binding(get: { panel.map(Key.init) }, set: { panel = $0?.id }) }
+    private var panelKey: Binding<Key?> { Binding(get: { panel.map(Key.init) }, set: { panel = $0?.id; if $0 == nil { panelOnly = nil } }) }
     private var changingKey: Binding<Key?> { Binding(get: { changing.map(Key.init) }, set: { changing = $0?.id }) }
 
     private func cellOf(_ key: String) -> BoardCell? { model?.state?.rows.flatMap({ $0 }).first(where: { $0.key == key }) }
@@ -132,7 +135,7 @@ struct BoardView: View {
         asked
             .sheet(item: panelKey) { (key: Key) in
                 if let model, let cell = cellOf(key.id), let tile = cell.tile {
-                    TilePanel(tile: tile, color: cell.color, model: model)
+                    TilePanel(tile: tile, color: cell.color, only: panelOnly, model: model)
                 }
             }
             .sheet(item: changingKey) { (key: Key) in
@@ -524,12 +527,18 @@ struct BlockView: View {
             }
         case "column":
             Blocks(list: b.blocks, color: color, where: `where`, key: key, model: model)
+        case "color":
+            if `where` == "panel" {
+                ColorWheelBlock(b: b, key: key, model: model)
+            } else {
+                ColorSwatch(b: b, key: key)
+            }
         case "table":
             TableBlock(b: b)
         case "image":
             PictureBlock(b: b, model: model)
         default:
-            // A block this phone doesn't draw yet (a colour wheel, a chat link): the tile stays readable.
+            // A block this phone doesn't draw yet (a chat link): the tile stays readable.
             EmptyView()
         }
     }
@@ -625,15 +634,19 @@ private struct SliderBlock: View {
 private struct TilePanel: View {
     let tile: Tile
     let color: String
+    /// The one block of its face to show (a colour swatch's wheel), or nil for its whole panel.
+    let only: String?
     let model: BoardModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let list = only.map { key in BoardKit.shared.faceBlock(look: tile.look, key: key).map { [$0] } ?? [] } ?? tile.look?.panel ?? []
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Blocks(list: tile.look?.panel ?? [], color: ContactRow.tint(color), where: "panel", key: tile.id, model: model)
-                    if let line = BoardKt.refreshLine(t: tile) { Text(line).font(.caption).foregroundStyle(.tertiary) }
+                    Blocks(list: list, color: ContactRow.tint(color), where: "panel", key: tile.id, model: model)
+                    // How often it refreshes, and who changes it; not under one block's own pop-up.
+                    if only == nil, let line = BoardKt.refreshLine(t: tile) { Text(line).font(.caption).foregroundStyle(.tertiary) }
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)

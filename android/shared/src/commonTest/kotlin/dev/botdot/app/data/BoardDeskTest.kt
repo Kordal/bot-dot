@@ -124,6 +124,38 @@ class BoardDeskTest {
         assertTrue(cells.getValue("g").askable)
     }
 
+    @Test fun theColourWheelIsHueAroundAndWhiteInTheMiddle() {
+        assertEquals("#ff0000", BoardKit.wheelHex(1.0, 0.5), "red at the right")
+        assertEquals("#ffffff", BoardKit.wheelHex(0.5, 0.5), "white in the middle")
+        assertEquals("#00ffff", BoardKit.wheelHex(0.0, 0.5), "cyan across from red")
+        assertEquals("#80ff00", BoardKit.wheelHex(0.5 + 0.5 * kotlin.math.cos(kotlin.math.PI / 3 * 1.5), 0.5 + 0.5 * kotlin.math.sin(kotlin.math.PI / 3 * 1.5)), "clockwise: yellow, then green")
+        val (x, y) = BoardKit.wheelAt("#ff0000")!!
+        assertEquals(1.0, x, 1e-9); assertEquals(0.5, y, 1e-9)
+        val (cx, cy) = BoardKit.wheelAt("#ffffff")!!
+        assertEquals(0.5, cx, 1e-9); assertEquals(0.5, cy, 1e-9)
+        assertNull(BoardKit.wheelAt("warm"), "not a colour: no mark")
+        assertEquals("#00ffff", BoardKit.wheelAt("#00ffff")!!.let { (a, b) -> BoardKit.wheelHex(a, b) })
+    }
+
+    @Test fun whileTheWheelIsDraggedTheTileStaysAndLettingGoDrawsIt() = runTest {
+        val light = """{"id":"l","kind":"light","title":"Lamp","look":{"face":[{"type":"row","blocks":[{"type":"color","key":"c","value":"#ff0000"}]}],"tap":"panel"}}"""
+        val answer = """{"id":"l","kind":"light","title":"Lamp","look":{"face":[{"type":"row","blocks":[{"type":"color","key":"c","value":"#00ff00"}]}],"tap":"panel"}}"""
+        // A refresh of the Board reads the new colour only once it is let go (the second act), so the test sees the
+        // desk's own redraw, not a refresh's.
+        var acts = 0
+        val (store, desk, server) = desk(FakeServer { t ->
+            if (t.path.endsWith("/act")) { acts++; 200 to answer } else 200 to """{"tiles":[${if (acts >= 2) answer else light}]}"""
+        })
+        store.dashboard.set(dash("""{"tiles":[$light]}"""))
+        val face = { BoardKit.faceBlock(store.dashboard.value.value!!.tiles.single().look, "c")?.value?.toString() }
+        assertEquals("\"#ff0000\"", face())
+        desk.setColor("l", "c", "#00ff00", done = false)
+        assertEquals("\"#ff0000\"", face(), "still dragged: the mark stays under the finger")
+        assertEquals("""{"block":"c","value":"#00ff00"}""", server.posts().last { it.path.endsWith("/act") }.body)
+        desk.setColor("l", "c", "#00ff00", done = true)
+        assertEquals("\"#00ff00\"", face(), "let go: botdot's tile")
+    }
+
     @Test fun aSwitchTurnsAtOnceAndTheAnswerSaysWhetherItTook() = runTest {
         val (store, desk, server) = desk(FakeServer { t ->
             if (t.path.endsWith("/tap")) 200 to """{"id":"g1","kind":"switch","title":"Hall","parent":"g","look":{"dot":{"filled":false},"tap":"toggle"}}""" else 200 to board

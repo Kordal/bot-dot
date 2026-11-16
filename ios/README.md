@@ -81,8 +81,8 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `PausedScreen` (`paused`) | an account the admin paused | `PausedView` |
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
-| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` with table and picture blocks (`BoardBlocks`) and drag to move (left: the colour wheel) |
-| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`) (left: a chat's page links, page blocks) |
+| `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` with table and picture blocks (`BoardBlocks`), the colour wheel (`ColorWheel`) and drag to move |
+| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`), from a page tile or a bot's chat's page chip (left: a Chief reply's page chips, page blocks) |
 | `HomeTilesSheet` | holding Home's Board cards | `HomeTilesView` |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |
@@ -91,7 +91,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `RoomsScreens`: `RoomsScreen`, `RoomChatScreen`, `RoomSettingsScreen` (`rooms`, `room/{id}`, `room/{id}/settings`) | Home's Rooms row | `RoomsView`, `RoomChatView`, `RoomSettingsView` |
 | `CompanyScreen` (`company`) with `CompanyHome`, `CompanyAbout`, `CompanyTeam`, `CompanyGoals`, `CompanyTodo`, `CompanyCalendar` | a project's space | left (#1372; the project's page and its setup, which #1366's projects open) |
 | `SpaceSwitch` (the rail and sheet of spaces), `ProjectTree`, `ProjectSettings`, `ProjectOverview`, `ProjectCardsRow`, `ProjectChatSheet`, `ProjectCreation` | the spaces | `ProjectView` (with overview-board the Overview's tiles on its board and the teams under Team, `ProjectTeamView`, ADR 238), its Overview page (`ProjectOverviewView`, without it), `ProjectSettingsView`, `CompanySetupView` (left: the board canvas) |
-| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView`: Reply to a task, "@" mentions and Quote, Steer (left: a task's steps, page chips, "Learned" chips) |
+| `BotChatScreen` (`bot/{id}`) | Home's rows | `ChatView`: Reply to a task, "@" mentions and Quote, Steer, a task's steps, a reply's page chips and "Learned" chips |
 | `PlanDock` | a chat at work | `ChatPlanDock` in a bot's chat and the Chief's, `PlanDock` in `GroupChatView` |
 | `ChiefScreen` (`chief/{id}`) | Home | `ChiefView`, with the mail draft card and its action chips (`MailCardView`) and the questions' quick answers |
 | `GroupChatScreen` (`group/{id}`), `GroupSettingsScreen` | Home's group rows | `GroupChatView`, `GroupPanelView`; a new group from a bot's chat, its "+" (`NewGroupSheet`) |
