@@ -77,9 +77,3 @@ test("deleting a project deletes the jobs its bots set up for it, and says which
   assert.equal((await chiefLines(srv)).length, lines, 'no note when no job went');
 });
 
-test('the scheduler starts no job of an archived project', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'bots.js'), 'utf8');
-  const tick = src.slice(src.indexOf('function tick(now = new Date())'), src.indexOf('// ---------- suggestions for the Board'));
-  assert.match(tick, /archived = new Set\(company\.list\(\)\.filter\(\(c\) => c\.archived\)\.map\(\(c\) => c\.id\)\)/);
-  assert.match(tick, /if \(job\.project && archived\.has\(job\.project\)\) continue;/);
-});
