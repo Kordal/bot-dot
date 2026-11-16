@@ -125,11 +125,11 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
                 do {
                     val e = awaitPointerEvent()
                     if (e.changes.count { it.pressed } >= 2) {
-                        val z = (zoom * e.calculateZoom()).coerceIn(1f, 4f)
-                        val w = size.width.toFloat(); val h = size.height.toFloat()
+                        val z = BoardCanvas.zoomIn((zoom * e.calculateZoom()).toDouble())
                         val o = pan + e.calculatePan()
-                        pan = Offset(o.x.coerceIn(-(z - 1) * w, 0f), o.y.coerceIn(-(z - 1) * h, 0f))
-                        zoom = z
+                        val (px, py) = BoardCanvas.panIn(z, size.width.toDouble(), size.height.toDouble(), o.x.toDouble(), o.y.toDouble())
+                        pan = Offset(px.toFloat(), py.toFloat())
+                        zoom = z.toFloat()
                         e.changes.forEach { it.consume() }
                     }
                 } while (e.changes.any { it.pressed })
