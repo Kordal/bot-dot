@@ -4,7 +4,7 @@ The answers for App Store Connect, matching the app as `ios/project.yml` builds 
 
 ## Privacy Policy URL
 
-`https://botdot.app/privacy/`
+`https://botdot.app/privacy`
 
 ## App Privacy
 
