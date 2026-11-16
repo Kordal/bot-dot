@@ -55,4 +55,25 @@ class GoogleDocsTest {
         assertEquals("Google Docs needs connecting again. Tap Google Docs to connect it.", lost.say)
         assertEquals("Connect…", docs.label, "the next tap connects it again")
     }
+
+    @Test fun afterTheSignInInTheBrowserTheNextTapSaves() = runTest {
+        var connected = false
+        val server = FakeServer { t ->
+            when {
+                t.method == "GET" -> 200 to """{"configured":true,"connected":$connected}"""
+                t.path.endsWith("/connectors/connect") -> 200 to """{"redirectUrl":"https://accounts.example.test/signin"}"""
+                else -> 200 to """{"url":"$doc"}"""
+            }
+        }
+        val docs = GoogleDocs(server.api)
+        docs.read()
+        assertEquals(DocumentExport.GOOGLE_DOCS_SIGN_IN, docs.tap("Week", "# Week") {}.say)
+        // Signed in in the browser; Export… still open, its status as it was read.
+        connected = true
+        val saved = docs.tap("Week", "# Week") {}
+        assertEquals("Saved to Google Docs", saved.say)
+        assertEquals(doc, saved.open)
+        assertEquals("connected", docs.label)
+        assertEquals(1, server.posts().count { it.path.endsWith("/connectors/connect") }, "connected once, not again")
+    }
 }

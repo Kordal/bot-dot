@@ -5,7 +5,8 @@ import kotlinx.coroutines.CancellationException
 /**
  * Save to Google Docs for both phones (#351, #378; Android's ExportSheet): the row's status as botdot says it when
  * Export… opens, and the tap. Set up and connected, the Markdown is saved and its Doc opened; not connected, the tap
- * connects Google Docs (the Connectors page's own path) with the sign-in in the browser, and the next tap saves; a
+ * connects Google Docs (the Connectors page's own path) with the sign-in in the browser, and the next tap (which asks
+ * botdot again) saves; a
  * connection that lost its access (409) is connected again on the next tap.
  */
 class GoogleDocs(private val api: Api) {
@@ -28,6 +29,8 @@ class GoogleDocs(private val api: Api) {
     /** The tap on Google Docs for [title]'s [text]; [saying] hears what is under way ("Saving to Google Docs…"). */
     @Throws(Exception::class)
     suspend fun tap(title: String, text: String, saying: (String) -> Unit): Done {
+        // As botdot has it now: a sign-in finished in the browser since Export… opened is connected.
+        read()
         val s = status
         if (s != null && !s.configured) return Done(DocumentExport.GOOGLE_DOCS_NOT_SET_UP, null)
         if (s?.connected != false) return save(title, text, saying)
