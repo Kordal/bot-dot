@@ -174,6 +174,19 @@ object BoardCanvas {
     /** A board the owner arranged: its [tiles] in the order a phone's column reads them (ADR 147); null while never arranged. */
     fun readOrder(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): List<String>? = arranged(f, layout, tiles)?.let(::order)
 
+    /** How far two fingers zoom the canvas in: 1 (all of it) to [MAX_ZOOM] times. */
+    const val MAX_ZOOM = 4.0
+
+    /** A zoom as two fingers leave it: kept between 1 and [MAX_ZOOM]. */
+    fun zoomIn(z: Double): Double = z.coerceIn(1.0, MAX_ZOOM)
+
+    /**
+     * Where the zoomed canvas stands ([x], [y], 0 or less): its top left held inside a view [w] by [h], so no space
+     * shows beyond its edges at zoom [z].
+     */
+    fun panIn(z: Double, w: Double, h: Double, x: Double, y: Double): Pair<Double, Double> =
+        (x.coerceIn(-(z - 1) * w, 0.0) + 0.0) to (y.coerceIn(-(z - 1) * h, 0.0) + 0.0) // + 0.0: no -0.0
+
     /** How near an edge, in canvas units, a held finger resizes the tile rather than moving it. */
     const val NEAR = 28
 

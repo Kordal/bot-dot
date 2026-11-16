@@ -4,7 +4,8 @@ import BotdotShared
 /// A project's board as the owner arranged it (#784, ADR 124; Android's BoardCanvasFree), on a wide screen: each tile
 /// where it stands on a canvas BoardCanvas.W wide, drawn at that size and scaled to the screen's width. A long press
 /// on a tile, then a drag, moves it; from near its bottom or a side it resizes it (BoardCanvas.held). A tile in the way
-/// slides down (BoardCanvas.drag), and each drop is saved whole.
+/// slides down (BoardCanvas.drag), and each drop is saved whole. Two fingers zoom in (1 to 4 times) about where they
+/// pinch, the canvas's edges held inside (BoardCanvas.zoomIn, panIn).
 struct BoardCanvasView<Tile: View>: View {
     let places: [String: BoardCanvas.R]
     let tile: (String) -> Tile
@@ -15,6 +16,10 @@ struct BoardCanvasView<Tile: View>: View {
     @State private var from: [String: BoardCanvas.R]?
     @State private var held: (id: String, edge: String?)?
     @State private var moving: [String: BoardCanvas.R]?
+    @State private var zoom: CGFloat = 1
+    @State private var pan: CGPoint = .zero
+    /// The zoom and the place as a pinch started.
+    @State private var pinched: (zoom: CGFloat, pan: CGPoint)?
 
     var body: some View {
         let shown = moving ?? places
@@ -36,8 +41,10 @@ struct BoardCanvasView<Tile: View>: View {
             }
         }
         .frame(width: canvas, height: high, alignment: .topLeading)
-        .scaleEffect(s, anchor: .topLeading)
+        .scaleEffect(s * zoom, anchor: .topLeading)
+        .offset(x: pan.x, y: pan.y)
         .frame(width: width, height: high * s, alignment: .topLeading)
+        .clipped()
         .frame(maxWidth: .infinity, alignment: .leading)
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
         .gesture(
@@ -45,15 +52,16 @@ struct BoardCanvasView<Tile: View>: View {
                 .sequenced(before: DragGesture(minimumDistance: 0))
                 .onChanged { v in
                     guard case .second(true, let drag?) = v, s > 0 else { return }
+                    let k = s * zoom
                     if held == nil {
-                        let at = BoardCanvas.shared.held(layout: places, x: Double(drag.startLocation.x / s), y: Double(drag.startLocation.y / s))
+                        let at = BoardCanvas.shared.held(layout: places, x: Double((drag.startLocation.x - pan.x) / k), y: Double((drag.startLocation.y - pan.y) / k))
                         guard let at, let id = at.first else { return }
                         from = places
                         held = (id as String, at.second as String?)
                     }
                     if let h = held, let f = from {
                         moving = BoardCanvas.shared.drag(layout: f, id: h.id, edge: h.edge,
-                                                         dx: Double(drag.translation.width / s), dy: Double(drag.translation.height / s))
+                                                         dx: Double(drag.translation.width / k), dy: Double(drag.translation.height / k))
                     }
                 }
                 .onEnded { _ in
@@ -61,6 +69,21 @@ struct BoardCanvasView<Tile: View>: View {
                     if let m = moving, held != nil { Task { if !(await onArrange(m)) { moving = nil } } }
                     held = nil; from = nil
                 }
+        )
+        .simultaneousGesture(
+            MagnifyGesture()
+                .onChanged { v in
+                    let start = pinched ?? (zoom, pan)
+                    pinched = start
+                    let z = CGFloat(BoardCanvas.shared.zoomIn(z: Double(start.zoom * v.magnification)))
+                    // The point under the fingers stays under them.
+                    let a = v.startLocation
+                    let x = a.x - (a.x - start.pan.x) * z / start.zoom, y = a.y - (a.y - start.pan.y) * z / start.zoom
+                    let kept = BoardCanvas.shared.panIn(z: Double(z), w: Double(width), h: Double(high * s), x: Double(x), y: Double(y))
+                    zoom = z
+                    pan = CGPoint(x: CGFloat(kept.first?.doubleValue ?? 0), y: CGFloat(kept.second?.doubleValue ?? 0))
+                }
+                .onEnded { _ in pinched = nil }
         )
         .onChange(of: places) { moving = nil }
     }
