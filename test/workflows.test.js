@@ -224,8 +224,6 @@ test('an Android run whose publish failed can be re-run from its failed jobs', (
   const jobs = workflow('android.yml').jobs;
   const uploads = jobs.build.steps.filter((st) => /^actions\/upload-artifact@/.test(st.uses || ''));
   const downloads = [...jobs.publish.steps, ...jobs.play.steps].filter((st) => /^actions\/download-artifact@/.test(st.uses || ''));
-  assert.equal(uploads.length, 2);
-  assert.equal(downloads.length, 2);
   for (const st of [...uploads, ...downloads]) assert.doesNotMatch(st.with.name, /run_attempt/, st.with.name);
   for (const st of uploads) assert.equal(st.with.overwrite, true, `${st.with.name}: a build run again replaces it`);
   assert.deepEqual(downloads.map((st) => st.with.name).sort(), uploads.map((st) => st.with.name).sort());

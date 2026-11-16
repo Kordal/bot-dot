@@ -120,8 +120,8 @@ jobs:
 
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          # One name for the whole run, not each attempt's: "Re-run failed jobs" re-runs publish and not build, and
-          # publish then takes the APK the first attempt's build left; a build run again replaces it (overwrite).
+          # One name for the whole run, not each attempt's: "Re-run failed jobs" re-runs publish or play and not
+          # build, and they then take the APK the first attempt's build left; a build run again replaces it (overwrite).
           name: android-release-${{ github.sha }}
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
