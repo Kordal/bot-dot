@@ -51,6 +51,14 @@ final class ProjectModel {
     func removeCard(_ card: String) async { try? await store.removeCard(card: card) }
     func putPiece(_ piece: String) async { try? await store.putPiece(piece: piece) }
 
+    func todoFilter(_ filter: String) { store.todoFilter(filter: filter) }
+    func tickTodo(_ id: String, _ done: Bool) async { try? await store.tickTodo(id: id, done: done) }
+    func deleteTodo(_ id: String) async { try? await store.deleteTodo(id: id) }
+    /// True once it went in: the field empties.
+    func addTodo(_ typed: String, who: String?, due: String?, repeat r: Repeat?) async -> Bool {
+        (try? await store.addTodo(typed: typed, who: who, due: due, repeat: r))?.boolValue ?? false
+    }
+
     func offered(_ team: String) -> [Bot] { store.offered(team: team) }
     @discardableResult func addOwn(_ ids: [String]) async -> Bool { (try? await store.addOwn(ids: ids))?.boolValue ?? false }
     @discardableResult func removeOwn(_ id: String) async -> Bool { (try? await store.removeOwn(id: id))?.boolValue ?? false }

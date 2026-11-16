@@ -141,6 +141,17 @@ final class ProjectTests: XCTestCase {
         XCTAssertNil(BoardCanvas.shared.readOrder(f: [BoardCanvas.shared.FEATURE], layout: nil, tiles: tiles), "never arranged")
     }
 
+    /// The To-do's words on the phone: a repeating item says its rhythm, a working bot's says so, a late one its day.
+    func testTheToDosChipsAreTheSharedOnesInThePhonesWords() {
+        let c = CompanySetup.shared.of(answer: #"{"id":"c1","phase":"running","todos":[{"id":"r","text":"Report","repeat":{"every":"day"}},{"id":"w","text":"Fix","bot":"a"}]}"#)
+        let bots = [Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"Ada","running":true}"#) as! Bot]
+        let panel = ProjectTodo.shared.panel(c: c, bots: bots, waiting: [], filter: "all", features: [ProjectTodo.shared.FEATURE])
+        XCTAssertEqual(panel.rows.map { TodoWords.chip($0) }, ["Daily", "Working"])
+        let day = DateFormatter(); day.dateFormat = "yyyy-MM-dd"; day.timeZone = .current
+        XCTAssertEqual(TodoWords.day(day.string(from: .now)), "Today")
+        XCTAssertEqual(TodoWords.filter("bots"), "Bots")
+    }
+
     /// On a wide screen: a held tile moves, or resizes from near its edge, and what it would cover slides down.
     func testAHeldTileMovesOrResizesOnTheSharedCanvas() {
         let l: [String: BoardCanvas.R] = ["goal:a": BoardCanvas.R(x: 0, y: 0, w: 592, h: 260), "files": BoardCanvas.R(x: 0, y: 276, w: 392, h: 260)]
