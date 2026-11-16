@@ -50,7 +50,20 @@ test("the lead hands on, the member answers \"Done\": the Chief is told botdot's
   assert.match(back.stdin, /<team-answer>\n[\s\S]*QA Writer confirmed step 4: Done\.[\s\S]*<\/team-answer>/);
   assert.match(back.stdin, /If you told the owner earlier that this hand-off was not sent, not answered or not done, say now plainly that it came back/);
   srv.release(back);
+  // In the chat that wrote the team's message: the correction is beside the first status.
+  const chat = await waitFor(async () => { const m = (await srv.api(`/chief/chats/${pmChat}`)).data.messages; return m.length ? m : null; }, { what: 'the chat' });
+  assert.ok(chat.length > 0);
   srv.unhold();
+});
+
+test("a hand-off from a turn the owner started in the team's chat goes to nobody's manager: the owner reads it in the bot's chat", async () => {
+  const pm = require('../lib/project-manager');
+  assert.equal(typeof pm, 'object');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'project-manager.js'), 'utf8');
+  const fn = src.slice(src.indexOf('function followedUp('), src.indexOf('// The owner wrote in a Chief chat'));
+  assert.match(fn, /const pmChat = B\.groupChat\.pmOf\(chain\.groupId, chain\.groupMessageId\);/);
+  assert.match(fn, /if \(!pmChat \|\| pmBot === meta\.botId\) return null;/, "the owner's message, or the manager's own hand-off, starts no turn");
+  assert.match(fn, /chatId: pmChat,/, 'the Chief chat that wrote the message');
 });
 
 test('an answer with no hand-off waiting says so: the Chief may not say a teammate has not answered', async () => {
