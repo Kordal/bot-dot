@@ -147,8 +147,7 @@ final class ProjectTests: XCTestCase {
         let bots = [Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"Ada","running":true}"#) as! Bot]
         let panel = ProjectTodo.shared.panel(c: c, bots: bots, waiting: [], filter: "all", features: [ProjectTodo.shared.FEATURE])
         XCTAssertEqual(panel.rows.map { TodoWords.chip($0) }, ["Daily", "Working"])
-        let day = DateFormatter(); day.dateFormat = "yyyy-MM-dd"; day.timeZone = .current
-        XCTAssertEqual(TodoWords.day(day.string(from: .now)), "Today")
+        XCTAssertEqual(TodoWords.day(ISODay.string(.now)), "Today")
         XCTAssertEqual(TodoWords.filter("bots"), "Bots")
     }
 
@@ -163,11 +162,34 @@ final class ProjectTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(taller["files"]?.y ?? 0, 376, "what it would cover slides down")
     }
 
+    /// The calendar: the shared desk's words and colours, and the month in the phone's words.
+    func testTheCalendarIsTheSharedOne() {
+        let job = Api.companion.JSON.decodeFromString(deserializer: CalendarItem.companion.serializer(), string: #"{"kind":"checkin","day":"2026-11-20","n":30}"#) as! CalendarItem
+        XCTAssertEqual(ProjectCalendar.shared.titleOf(x: job), "Day 30 check-in")
+        XCTAssertEqual(ProjectCalendar.shared.colorOf(x: job, bots: []), ProjectCalendar.shared.CHECKIN_COLOR)
+        XCTAssertEqual(ProjectCalendar.shared.whenOf(x: job, today: "2026-11-19"), "Tomorrow")
+        XCTAssertNil(ProjectCalendar.shared.whenOf(x: job, today: "2026-11-01"), "a later day: the phone names it")
+        XCTAssertFalse(CalendarWords.month("2026-11").isEmpty)
+        XCTAssertEqual(ProjectCalendar.shared.time(typed: "930"), "09:30")
+    }
+
     /// Two fingers zoom the canvas 1 to 4 times, its edges held inside (the shared rule).
     func testTheCanvasZoomsOneToFourTimes() {
         XCTAssertEqual(BoardCanvas.shared.zoomIn(z: 9), 4)
         XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).first?.doubleValue, -800)
         XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).second?.doubleValue, 0)
+    }
+
+    /// botdot's days read the same on any calendar the phone is set to: POSIX and Gregorian, not the phone's own.
+    func testADayReadsTheSameOnABuddhistCalendar() {
+        XCTAssertEqual(ISODay.formatter.calendar.identifier, .gregorian)
+        XCTAssertEqual(ISODay.formatter.locale.identifier, "en_US_POSIX")
+        let d = ISODay.date("2026-11-16")
+        XCTAssertNotNil(d)
+        XCTAssertEqual(Calendar(identifier: .gregorian).component(.year, from: d!), 2026)
+        XCTAssertEqual(ISODay.string(d!), "2026-11-16")
+        var buddhist = Calendar(identifier: .buddhist); buddhist.timeZone = .current
+        XCTAssertEqual(buddhist.component(.year, from: d!), 2569, "the same day, in a Buddhist year")
     }
 
     /// The suggested bot's colour and New team's bots are the shared rules.

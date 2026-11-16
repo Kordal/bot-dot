@@ -94,3 +94,5 @@ extension Repeat: @retroactive @unchecked Sendable {}
 extension BoardCanvas.R: @retroactive @unchecked Sendable {}
 extension PageBlocks: @retroactive @unchecked Sendable {}
 extension TileTicks: @retroactive @unchecked Sendable {}
+extension CalendarDesk: @retroactive @unchecked Sendable {}
+extension CalendarState: @retroactive @unchecked Sendable {}

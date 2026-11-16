@@ -295,6 +295,8 @@ struct ProjectPage: View {
             if let day = s.day?.intValue { dayLine(day) }
         case "files":
             if s.filesTile { filesTile(s, c) }
+        case "calendar":
+            if s.calendar { CalendarTileView(model: model, bots: s.bots, figure: figure).listRowSeparator(.hidden) }
         case "suggest":
             if let sg = s.suggested { SuggestedTeamCard(suggested: sg, project: c, figure: figure, model: model).listRowSeparator(.hidden) }
         case "new-team":
@@ -352,6 +354,7 @@ struct ProjectPage: View {
         if let slots = s.cards {
             CardsRow(model: model, state: s, slots: slots, figure: figure).listRowSeparator(.hidden)
         }
+        if s.calendar { CalendarTileView(model: model, bots: s.bots, figure: figure).listRowSeparator(.hidden) }
         // The bot the Chief suggests and New team (the board's "teams" piece), under the cards as on Android.
         if let sg = s.suggested { SuggestedTeamCard(suggested: sg, project: c, figure: figure, model: model).listRowSeparator(.hidden) }
         if s.addsTeam { NewTeamTile(bots: s.teamCandidates, model: model).listRowSeparator(.hidden) }

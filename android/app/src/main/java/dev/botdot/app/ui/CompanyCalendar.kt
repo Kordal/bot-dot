@@ -1,8 +1,5 @@
 package dev.botdot.app.ui
 
-import kotlinx.datetime.toKotlinYearMonth
-import kotlinx.datetime.toKotlinLocalDate
-import kotlinx.datetime.toJavaLocalDate
 import dev.botdot.app.data.locale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,6 +40,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +61,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Bot
 import dev.botdot.app.data.CalendarItem
+import kotlinx.coroutines.launch
+import dev.botdot.app.data.CalendarDesk
 import dev.botdot.app.data.Company
 import dev.botdot.app.data.I18n
 import dev.botdot.app.data.ProjectCalendar
@@ -73,16 +74,12 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 
-private const val CHECKIN_COLOR = "#f5c542"
-private const val PROJECT_COLOR = "#8e7cff"
+private val CHECKIN_COLOR = ProjectCalendar.CHECKIN_COLOR
+private val PROJECT_COLOR = ProjectCalendar.PROJECT_COLOR
 
-/** The colour of an item's dot: its bot's, a check-in's gold, else the project's accent. */
-private fun colorOf(x: CalendarItem, bots: List<Bot>): String {
-    val id = if (x.kind == "event") x.by else x.bot
-    return bots.firstOrNull { it.id == id }?.color ?: if (x.kind == "checkin") CHECKIN_COLOR else PROJECT_COLOR
-}
+private fun colorOf(x: CalendarItem, bots: List<Bot>): String = ProjectCalendar.colorOf(x, bots)
 
-private fun titleOf(x: CalendarItem): String = if (x.kind == "checkin") (if (x.monthly) tr("Monthly review") else tr("Day {n} check-in", "n" to (x.n ?: 0))) else x.title
+private fun titleOf(x: CalendarItem): String = ProjectCalendar.titleOf(x)
 
 private fun short(d: LocalDate, pattern: String): String = d.format(DateTimeFormatter.ofPattern(pattern, I18n.locale))
 
@@ -111,7 +108,7 @@ private fun ItemRow(x: CalendarItem, bots: List<Bot>, whenText: String, onEdit: 
         Text(whenText, color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, maxLines = 1, modifier = Modifier.width(72.dp))
         WhoHead(x, bots)
         Text(titleOf(x), color = if (x.done) p.faint else p.text, fontSize = Type.s14, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
-        if (x.repeat != null || (x.runs ?: 0) > 1) Icon(Icons.Filled.Repeat, null, tint = p.faint, modifier = Modifier.size(16.dp))
+        if (ProjectCalendar.repeats(x)) Icon(Icons.Filled.Repeat, null, tint = p.faint, modifier = Modifier.size(16.dp))
         if (onDelete != null) RoundButton(Icons.Filled.Close, tr("Delete"), size = 32.dp, onClick = onDelete)
     }
 }
@@ -124,46 +121,41 @@ private fun ItemRow(x: CalendarItem, bots: List<Bot>, whenText: String, onEdit: 
 @Composable
 internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
     val p = LocalPaper.current
-    val today = LocalDate.now()
-    val key = ProjectCalendar.sourceKey(c, bots, today.toString())
-    var items by remember { mutableStateOf<List<CalendarItem>>(emptyList()) }
-    var open by rememberSaveable { mutableStateOf<String?>(null) }
-    LaunchedEffect(key) {
-        val from = ProjectCalendar.monday(today.toKotlinLocalDate()).toJavaLocalDate()
-        runCatching { ui.api?.projectCalendar(from.toString(), from.plusDays(13).toString()) }.getOrNull()?.let { items = it }
+    // What it shows, when it is read again, and the month's days and events are the shared CalendarDesk (both phones).
+    val api = ui.api ?: return
+    // The open month's day and the event being changed outlive a rotation and the app's process (the desk is made anew).
+    var keptDay by rememberSaveable { mutableStateOf<String?>(null) }
+    var keptEdit by rememberSaveable { mutableStateOf<String?>(null) }
+    val desk = remember(api) { CalendarDesk(ui.app.store, api, ui.app.scope).also { it.restore(keptDay, keptEdit) } }
+    DisposableEffect(desk) { onDispose { desk.close() } }
+    val s by desk.state.collectAsState()
+    LaunchedEffect(s.month, s.picked, s.editing?.id) {
+        // The desk's first state comes before its restore shows: keep what was kept until the month is open.
+        if (s.month != null) { keptDay = s.picked; keptEdit = s.editing?.id } else if (s.week.isNotEmpty()) { keptDay = null; keptEdit = null }
     }
-    val days = ProjectCalendar.byDay(items)
+    LaunchedEffect(s.noticeCount) { if (s.noticeCount > 0) ui.tell(s.notice) }
     val shape = Radius.card
-    Column(Modifier.fillMaxWidth().raised(shape).clickable(onClickLabel = tr("Calendar")) { open = today.toString() }.padding(Space.s12),
+    Column(Modifier.fillMaxWidth().raised(shape).clickable(onClickLabel = tr("Calendar")) { desk.open(s.today) }.padding(Space.s12),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Dot(PROJECT_COLOR)
             Text(tr("Calendar"), color = p.text, fontSize = Type.s14, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = Space.s8))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-            ProjectCalendar.week(today.toKotlinLocalDate()).map { it.toJavaLocalDate() }.forEach { d ->
-                val on = days[d.toString()].orEmpty()
-                val isToday = d == today
-                Column(Modifier.weight(1f).clip(Radius.small).background(if (isToday) p.ink else p.sunk).clickable(onClickLabel = short(d, "EEE d")) { open = d.toString() }
+            s.week.forEach { d ->
+                val day = LocalDate.parse(d.day)
+                Column(Modifier.weight(1f).clip(Radius.small).background(if (d.today) p.ink else p.sunk).clickable(onClickLabel = short(day, "EEE d")) { desk.open(d.day) }
                     .padding(vertical = Space.s8), horizontalAlignment = Alignment.CenterHorizontally) {
-                    val ink = if (isToday) p.inkText else if (d.isBefore(today)) p.faint else p.text
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = if (isToday) p.inkText else p.faint, fontSize = Type.s12, maxLines = 1)
-                    Text(d.dayOfMonth.toString(), color = ink, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
-                    Box(Modifier.padding(top = Space.s4).size(5.dp).clip(CircleShape).background(if (on.isEmpty()) p.panel.copy(alpha = 0f) else parseColor(colorOf(on.first(), bots), p.muted)))
+                    val ink = if (d.today) p.inkText else if (d.past) p.faint else p.text
+                    Text(day.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = if (d.today) p.inkText else p.faint, fontSize = Type.s12, maxLines = 1)
+                    Text(d.number.toString(), color = ink, fontSize = Type.s14, fontWeight = FontWeight.SemiBold)
+                    Box(Modifier.padding(top = Space.s4).size(5.dp).clip(CircleShape).background(d.dots.firstOrNull()?.let { parseColor(it, p.muted) } ?: p.panel.copy(alpha = 0f)))
                 }
             }
         }
-        val now = today.toString()
-        ProjectCalendar.next(items, now).forEach { x ->
-            val whenText = when (x.day) {
-                now -> x.time ?: tr("Today")
-                today.plusDays(1).toString() -> tr("Tomorrow")
-                else -> short(LocalDate.parse(x.day), "EEE d")
-            }
-            ItemRow(x, bots, whenText)
-        }
+        s.next.forEach { x -> ItemRow(x, bots, ProjectCalendar.whenOf(x, s.today) ?: short(LocalDate.parse(x.day), "EEE d")) }
     }
-    open?.let { day -> MonthSheet(ui, c, bots, LocalDate.parse(day), key) { open = null } }
+    if (s.month != null) MonthSheet(desk, s, bots) { desk.shut() }
 }
 
 /**
@@ -173,91 +165,70 @@ internal fun CalendarTile(ui: CompanyUi, c: Company, bots: List<Bot>) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MonthSheet(ui: CompanyUi, c: Company, bots: List<Bot>, start: LocalDate, key: List<Any?>, onClose: () -> Unit) {
+private fun MonthSheet(desk: CalendarDesk, s: dev.botdot.app.data.CalendarState, bots: List<Bot>, onClose: () -> Unit) {
     val p = LocalPaper.current
-    val today = LocalDate.now()
-    var ym by rememberSaveable { mutableStateOf(YearMonth.from(start).toString()) }
-    var picked by rememberSaveable { mutableStateOf(start.toString()) }
-    var editing by rememberSaveable { mutableStateOf<String?>(null) }
-    var items by remember { mutableStateOf<List<CalendarItem>>(emptyList()) }
-    val month = YearMonth.parse(ym)
-    val cells = ProjectCalendar.month(month.toKotlinYearMonth()).map { it.toJavaLocalDate() }
-    LaunchedEffect(ym, key) {
-        runCatching { ui.api?.projectCalendar(cells.first().toString(), cells.last().toString()) }.onSuccess { it?.let { got -> items = got } }.onFailure { ui.tell(it.message) }
-    }
-    val days = ProjectCalendar.byDay(items)
+    val month = YearMonth.parse(s.month!!)
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = p.bg, dragHandle = null) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).navigationBarsPadding()) {
             Row(Modifier.fillMaxWidth().padding(start = Space.s16, end = Space.s8, top = Space.s12, bottom = Space.s8), verticalAlignment = Alignment.CenterVertically) {
                 Text(month.atDay(1).format(DateTimeFormatter.ofPattern("LLLL yyyy", I18n.locale)).replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s20, fontWeight = FontWeight.SemiBold)
-                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Previous month"), size = 36.dp, modifier = Modifier.padding(start = Space.s12)) { ym = month.minusMonths(1).toString(); picked = month.minusMonths(1).atDay(1).toString(); editing = null }
-                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("Next month"), size = 36.dp, modifier = Modifier.padding(start = Space.s8)) { ym = month.plusMonths(1).toString(); picked = month.plusMonths(1).atDay(1).toString(); editing = null }
+                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowLeft, tr("Previous month"), size = 36.dp, modifier = Modifier.padding(start = Space.s12)) { desk.turn(-1) }
+                RoundButton(Icons.AutoMirrored.Filled.KeyboardArrowRight, tr("Next month"), size = 36.dp, modifier = Modifier.padding(start = Space.s8)) { desk.turn(1) }
                 Spacer(Modifier.weight(1f))
                 RoundButton(Icons.Filled.Close, tr("Close"), size = 36.dp, onClick = onClose)
             }
             Row(Modifier.fillMaxWidth()) {
-                ProjectCalendar.week(today.toKotlinLocalDate()).map { it.toJavaLocalDate() }.forEach { d ->
-                    Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = Space.s8))
+                s.week.forEach { d ->
+                    Text(LocalDate.parse(d.day).dayOfWeek.getDisplayName(TextStyle.SHORT, I18n.locale), color = p.faint, fontSize = Type.s12, fontFamily = GeistMono, textAlign = TextAlign.Center, modifier = Modifier.weight(1f).padding(vertical = Space.s8))
                 }
             }
-            cells.chunked(7).forEach { week ->
+            s.cells.chunked(7).forEach { week ->
                 Row(Modifier.fillMaxWidth()) {
                     week.forEach { d ->
-                        val out = YearMonth.from(d) != month
-                        val sel = d.toString() == picked
-                        val on = days[d.toString()].orEmpty()
-                        Column(Modifier.weight(1f).aspectRatio(1f).border(0.5.dp, if (sel) p.muted else p.line, RoundedCornerShape(0.dp)).background(if (out) p.panel else p.bg)
-                            .clickable(onClickLabel = short(d, "EEE d MMM")) {
-                                picked = d.toString(); editing = null
-                                if (out) ym = YearMonth.from(d).toString()
-                            }, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                            val isToday = d == today
-                            Box(Modifier.size(28.dp).clip(CircleShape).background(if (isToday) p.ink else p.bg.copy(alpha = 0f)), contentAlignment = Alignment.Center) {
-                                Text(d.dayOfMonth.toString(), color = if (isToday) p.inkText else if (out) p.faint else p.text, fontSize = Type.s14, fontWeight = if (isToday) FontWeight.SemiBold else FontWeight.Normal)
+                        val sel = d.day == s.picked
+                        Column(Modifier.weight(1f).aspectRatio(1f).border(0.5.dp, if (sel) p.muted else p.line, RoundedCornerShape(0.dp)).background(if (d.out) p.panel else p.bg)
+                            .clickable(onClickLabel = short(LocalDate.parse(d.day), "EEE d MMM")) { desk.pick(d.day) },
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Box(Modifier.size(28.dp).clip(CircleShape).background(if (d.today) p.ink else p.bg.copy(alpha = 0f)), contentAlignment = Alignment.Center) {
+                                Text(d.number.toString(), color = if (d.today) p.inkText else if (d.out) p.faint else p.text, fontSize = Type.s14, fontWeight = if (d.today) FontWeight.SemiBold else FontWeight.Normal)
                             }
                             Row(Modifier.padding(top = Space.s4).heightIn(min = 5.dp), horizontalArrangement = Arrangement.spacedBy(Space.s4)) {
-                                on.take(ProjectCalendar.IN_DAY).forEach { x -> Box(Modifier.size(5.dp).clip(CircleShape).background(parseColor(colorOf(x, bots), p.muted))) }
+                                d.dots.forEach { c -> Box(Modifier.size(5.dp).clip(CircleShape).background(parseColor(c, p.muted))) }
                             }
                         }
                     }
                 }
             }
-            val day = LocalDate.parse(picked)
-            val list = days[picked].orEmpty()
+            val day = LocalDate.parse(s.picked ?: s.today)
             Column(Modifier.fillMaxWidth().padding(horizontal = Space.s16, vertical = Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                 Text(short(day, "EEE, d MMM").replaceFirstChar { it.uppercase() }, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold)
-                list.forEach { x ->
-                    if (ProjectCalendar.editable(x) && x.id != null) ItemRow(x, bots, x.time.orEmpty(), picked = editing == x.id,
-                        onEdit = { editing = if (editing == x.id) null else x.id }, onDelete = { ui.call({ it.deleteEvent(x.id!!) }) { ok -> if (ok && editing == x.id) editing = null } })
+                s.pickedItems.forEach { x ->
+                    if (ProjectCalendar.editable(x) && x.id != null) ItemRow(x, bots, x.time.orEmpty(), picked = s.editing?.id == x.id,
+                        onEdit = { desk.edit(x.id!!) }, onDelete = { scope.launch { desk.delete(x.id!!) } })
                     else ItemRow(x, bots, x.time.orEmpty())
                 }
-                val event = editing?.let { id -> list.firstOrNull { it.kind == "event" && it.id == id } }
-                EventForm(ui, day, event) { editing = null }
+                EventForm(desk, day, s.editing, s.busy)
             }
         }
     }
 }
 
-/** Add an event on the picked day (a title and an optional time), or, with [event], change its title, time and day. */
+/** Add an event on the picked day (a title and an optional time), or, with [event], change its title, time and day: CalendarDesk.save. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EventForm(ui: CompanyUi, day: LocalDate, event: CalendarItem?, onSaved: () -> Unit) {
+private fun EventForm(desk: CalendarDesk, day: LocalDate, event: CalendarItem?, busy: Boolean) {
     val p = LocalPaper.current
-    var title by remember(event?.id) { mutableStateOf(event?.title.orEmpty()) }
-    var time by remember(event?.id) { mutableStateOf(event?.time.orEmpty()) }
-    var moveTo by remember(event?.id) { mutableStateOf(event?.day) }
-    var busy by remember { mutableStateOf(false) }
+    var title by rememberSaveable(event?.id) { mutableStateOf(event?.title.orEmpty()) }
+    var time by rememberSaveable(event?.id) { mutableStateOf(event?.time.orEmpty()) }
+    var moveTo by rememberSaveable(event?.id) { mutableStateOf(event?.day) }
     var picking by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val hhmm = ProjectCalendar.time(time)
     val ready = title.isNotBlank() && hhmm != null && !busy
     fun go() {
         if (!ready) return
-        busy = true
-        val t = title.trim()
-        ui.call({ a -> if (event?.id != null) a.changeEvent(event.id!!, t, moveTo ?: day.toString(), hhmm.orEmpty()) else a.addEvent(t, day.toString(), hhmm.orEmpty()) }) { ok ->
-            busy = false
-            if (ok) { title = ""; time = ""; onSaved() }
-        }
+        scope.launch { if (desk.save(title, time, moveTo)) { title = ""; time = "" } }
     }
     Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {

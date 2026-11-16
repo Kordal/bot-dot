@@ -87,8 +87,7 @@ enum TodoWords {
         case .today: return tr("Today")
         case .tomorrow: return tr("Tomorrow")
         default:
-            let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current
-            guard let d = f.date(from: due) else { return due }
+            guard let d = ISODay.date(due) else { return due }
             return d.formatted(.dateTime.day().month(.abbreviated))
         }
     }
@@ -168,14 +167,13 @@ private struct AddTodoRow: View {
 private struct WhenSheet: View {
     @Binding var due: String?
     @Binding var repeat_: Repeat?
-    private static let day: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current; return f }()
 
     var body: some View {
         Form {
             Section {
-                Toggle(tr("Due"), isOn: Binding(get: { due != nil }, set: { due = $0 ? Self.day.string(from: .now) : nil }))
-                if let d = due, let date = Self.day.date(from: d) {
-                    DatePicker(tr("Due"), selection: Binding(get: { date }, set: { due = Self.day.string(from: $0) }), displayedComponents: .date)
+                Toggle(tr("Due"), isOn: Binding(get: { due != nil }, set: { due = $0 ? ISODay.string(.now) : nil }))
+                if let d = due, let date = ISODay.date(d) {
+                    DatePicker(tr("Due"), selection: Binding(get: { date }, set: { due = ISODay.string($0) }), displayedComponents: .date)
                 }
             }
             Section {

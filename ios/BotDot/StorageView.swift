@@ -35,6 +35,9 @@ struct StorageView: View {
     @State private var asking: StorageRow?
     @State private var clearing: Storage.Group?
     @State private var files: FilesPlace?
+    /// Ask the Chief: a new Chief chat with the question in its box.
+    @State private var asked: Asked?
+    struct Asked: Identifiable, Hashable { let words: String; var id: String { words } }
 
     var body: some View {
         List {
@@ -80,6 +83,7 @@ struct StorageView: View {
             Button(tr("Cancel"), role: .cancel) {}
         }
         .navigationDestination(item: $files) { FilesView(api: home.api, at: $0) }
+        .navigationDestination(item: $asked) { a in ChiefView(home: home, words: a.words) }
         .modifier(NoticeOverlay(notice: model?.state?.notice, count: Int(model?.state?.noticeCount ?? 0)))
         .task {
             if model == nil { model = StorageModel(home: home) }
@@ -131,6 +135,9 @@ struct StorageView: View {
                         Label(tr("Open in Files"), systemImage: "folder")
                     }
                 }
+                Button {
+                    if let model { asked = Asked(words: home.askChief(desk: model.desk, r: r)) }
+                } label: { Label(tr("Ask the Chief"), systemImage: "bubble.left") }
                 if r.deletable { Button(role: .destructive) { asking = r } label: { Label(tr("Delete…"), systemImage: "trash") } }
             }
         }
