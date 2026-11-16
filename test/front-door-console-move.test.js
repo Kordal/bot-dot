@@ -1,7 +1,8 @@
 // An account moved between machines by the fleet console (ADR 253, install.sh's IMPORT- and DELETE-, in
 // test/installer-offsite.test.js): `node front-door.js import-account --account NAME --record FILE --by console` makes
 // the account with no passkey from what the other machine's front door kept of it, so that only a sign-in link lets
-// its owner in, and `delete-account` deletes it as the admin page does. Each prints one line of JSON and keeps an
+// its owner in, and `delete-account` has the running front door delete it as the admin page does: its boat.dev
+// machines, its rooms and its usage go too. Each prints one line of JSON and keeps an
 // audit entry by the console.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -78,11 +79,13 @@ test('managed, several: an imported account has what the other machine kept of i
   assert.ok(!data(door).accounts.carl);
   assert.ok(data(door).deleted.carl, 'named for root\'s step to erase');
   assert.equal((await b.get('/api/bots')).status, 401, 'its session ends');
-  const none = ask(door, env, 'delete-account', '--account', 'carl');
-  assert.equal(none.said.state, 'refused');
+  const again2 = ask(door, env, 'delete-account', '--account', 'carl');
+  assert.deepEqual(again2.said, { state: 'deleted', account: 'carl' }, 'asked again once deleted: deleted');
+  const none = ask(door, env, 'delete-account', '--account', 'dora');
+  assert.deepEqual([none.status, none.said.state, none.said.error], [3, 'refused', 'There is no account dora.']);
 
   const entries = JSON.parse(`[${fs.readFileSync(path.join(door.data, 'audit.jsonl'), 'utf8').trim().split('\n').join(',')}]`).filter((e) => e.actor === 'console');
-  assert.deepEqual(entries.map((e) => [e.action, e.account]), [['import', 'carl'], ['sign-in-link', 'carl'], ['console-refused', 'carl'], ['delete', 'carl'], ['console-refused', 'carl']]);
+  assert.deepEqual(entries.map((e) => [e.action, e.account]), [['import', 'carl'], ['sign-in-link', 'carl'], ['console-refused', 'carl'], ['delete', 'carl'], ['console-refused', 'dora']]);
 });
 
 test('managed, several: an import with no room for its share is refused', async (t) => {
@@ -122,4 +125,39 @@ test('a name that is no account\'s is refused', async (t) => {
     assert.equal(r.status, 3);
     assert.deepEqual(Object.keys(r.said).sort(), ['error', 'state']);
   }
+});
+
+test('delete-account deletes as the admin page does: the account leaves its rooms and its boat.dev machines go', async (t) => {
+  const http = require('http');
+  const stub = http.createServer((req, res) => { req.resume(); res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{}'); });
+  await new Promise((r) => stub.listen(0, '127.0.0.1', r));
+  const env = { FRONT_DOOR_ADMIN: 'ann', BOT_DOT_BOAT_URL: `http://127.0.0.1:${stub.address().port}` };
+  const door = await startFrontDoor({ env });
+  const stands = { ann: await standIn(door, 'ann'), carl: await standIn(door, 'carl', { answer: (req) => (req.url === '/api/boat/erase' ? [200, { deleted: 2, failed: [] }] : null) }) };
+  t.after(async () => { await door.stop(); for (const s of Object.values(stands)) s.close(); stub.close(); });
+  const signUp = async (name, p) => {
+    const b = door.browser();
+    const key = passkey.create({ rpId: door.rpId, origin: door.origin });
+    const options = await b.post(`${p}/options`, { name });
+    assert.equal((await b.post(p, { name, credential: key.register(options.data.publicKey) })).status, 201);
+    return b;
+  };
+  const ann = await signUp('ann', door.firstLink.path);
+  const carl = await signUp('carl', new URL((await ann.post('/admin/links', {})).data.url).pathname);
+  assert.equal((await ann.post('/admin/boat', { key: 'boat_goodkey12345' })).status, 200);
+  assert.equal((await ann.post('/admin/rooms', { on: true })).status, 200);
+  const room = (await ann.post('/front-door/rooms', { name: 'With carl' })).data.room;
+  await ann.post(`/front-door/rooms/${room.id}/invite`, { account: 'carl' });
+  await carl.post(`/front-door/rooms/${room.id}/accept`, {});
+
+  // Asked without blocking this process, which holds carl's stand-in server.
+  const { execFile } = require('child_process');
+  const said = await new Promise((resolve, reject) => {
+    execFile(process.execPath, ['front-door.js', 'delete-account', '--account', 'carl', '--by', 'console'], { cwd: path.join(__dirname, '..'), env: { PATH: process.env.PATH, FRONT_DOOR_ORIGIN: door.origin, FRONT_DOOR_DATA: door.data, ...env } }, (e, out) => (e ? reject(e) : resolve(JSON.parse(out))));
+  });
+  assert.deepEqual(said, { state: 'deleted', account: 'carl' });
+  assert.equal(stands.carl.seen.filter((r) => r.url === '/api/boat/erase').length, 1, 'its boat.dev machines asked to go first');
+  assert.deepEqual((await ann.get(`/front-door/rooms/${room.id}`)).data.room.members.map((m) => m.account), ['ann'], 'it left its room');
+  const entry = JSON.parse(fs.readFileSync(path.join(door.data, 'audit.jsonl'), 'utf8').trim().split('\n').at(-1));
+  assert.deepEqual([entry.action, entry.actor, entry.account, entry.detail], ['delete', 'console', 'carl', 'boat.dev: 2 machines deleted']);
 });

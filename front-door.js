@@ -249,7 +249,8 @@ if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
 // NAME --record FILE` makes NAME here, with no passkey, from what FILE (the other machine's front-door.json, from its
 // off-site backup) kept of it, before root's step puts its data back: refused when the name is taken, on a machine of
 // one account unless it is that one and the machine has none yet, and on a managed machine without room for its share.
-// `delete-account --account NAME` deletes NAME as the admin page does, once it runs on its new machine. Each says one
+// `delete-account --account NAME` has the running front door delete NAME as the admin page does, once it runs on its
+// new machine, and waits for it. Each says one
 // line of JSON, { state: 'imported' | 'deleted', account } or { state: 'refused', account?, error }, and is an audit
 // entry by the console.
 if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account') {
@@ -277,8 +278,17 @@ if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account'
       audited('import', { actor: 'console', account });
       console.log(JSON.stringify({ state: 'imported', account }));
     } else {
-      doors.deleteAccount(account, Date.now(), doors.userIdOf(account));
-      audited('delete', { actor: 'console', account });
+      // The running front door erases it (consoleDeletes), as the admin page does: its boat.dev machines, its rooms
+      // and its usage go too, which only that process holds. Asked again after a wait that ran out, it waits again.
+      if (!doors.accountExists(account) && doors.wasDeleted(account)) {
+        console.log(JSON.stringify({ state: 'deleted', account }));
+        process.exit(0);
+      }
+      doors.askConsoleDelete(account);
+      const until = Date.now() + (Number(process.env.FRONT_DOOR_CONSOLE_DELETE_WAIT_MS) || 150_000);
+      const pause = new Int32Array(new SharedArrayBuffer(4));
+      while (doors.accountExists(account) && Date.now() < until) Atomics.wait(pause, 0, 0, 250);
+      if (doors.accountExists(account)) refused('The front door is still deleting the account. Ask again in a few minutes.');
       console.log(JSON.stringify({ state: 'deleted', account }));
     }
     process.exit(0);
@@ -1899,6 +1909,20 @@ async function eraseAccount(name, actor) {
   askMachine(name);
   return boatGone;
 }
+
+// The accounts the fleet console asked to delete (ADR 253, `front-door.js delete-account`), each erased once as the
+// admin page erases one, by the console.
+const consoleErasing = new Set();
+function consoleDeletes() {
+  for (const name of doors.consoleDeletes()) {
+    if (consoleErasing.has(name)) continue;
+    consoleErasing.add(name);
+    eraseAccount(name, 'console')
+      .catch((e) => console.error(`[front door] couldn't delete the account ${name} the console asked to: ${e.message}`))
+      .finally(() => consoleErasing.delete(name));
+  }
+}
+setInterval(consoleDeletes, Number(process.env.FRONT_DOOR_CONSOLE_DELETE_MS) || 2000).unref();
 
 // Whether this account's owner may delete it in Settings (#1307): only on a machine of several accounts with an admin,
 // who has the admin page. Never the admin's own account: it is the only admin, and nobody would be left to run the
