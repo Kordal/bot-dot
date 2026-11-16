@@ -109,6 +109,13 @@ class GroupsTest {
         assertEquals("a group of six is full", emptyList<Bot>(), Groups.addable(groups("""[{"id":"g1","members":["1","2","3","4","5","6"]}]""").single(), bots))
     }
 
+    @Test fun aWorkingLineHasAStopOfItsOwnOnlyWhereSeveralMembersWork() {
+        val coder = GroupWorking("coder", "r1")
+        assertEquals("one alone has \"Stop all\" only", emptySet<String>(), Groups.stoppable(listOf(coder)))
+        assertEquals(emptySet<String>(), Groups.stoppable(emptyList()))
+        assertEquals("one per run, a bot at work twice included", setOf("r1", "r2"), Groups.stoppable(listOf(coder, GroupWorking("coder", "r2"))))
+    }
+
     @Test fun theFeedSaysWhoWorksAndTheNewestReplyAndNeverAPass() {
         val before = groups("""[{"id":"g1","name":"Dev","members":["coder","reviewer"]},{"id":"g2","name":"Pair","members":["coder","cook"]}]""")
         val started = Groups.on(before, event("group_run_started", """{"id":"r1","botId":"coder","botName":"Coder","groupId":"g1","groupMessageId":"m1","chat":"group:g1","status":"running"}"""))

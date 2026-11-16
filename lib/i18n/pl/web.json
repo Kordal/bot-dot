@@ -961,6 +961,7 @@
   "The group stopped.": "Grupa się zatrzymała.",
   "Go on": "Kontynuuj",
   "Stop all": "Zatrzymaj wszystkie",
+  "Stop {name}": "Zatrzymaj {name}",
   "Next: {names}": "Następny: {names}",
   "Its name and its members": "Nazwa i członkowie",
   "Message {name}": "Wiadomość do {name}",

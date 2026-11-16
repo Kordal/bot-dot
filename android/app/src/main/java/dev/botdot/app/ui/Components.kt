@@ -476,13 +476,13 @@ fun StatusLine(line: String?, color: String?, working: Boolean = false, waiting:
  * to it in a moment (a message is on its way), and nothing above it moves then.
  */
 @Composable
-fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (() -> Unit)? = null, stopWord: String = tr("Stop"), room: Boolean = false) {
+fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (() -> Unit)? = null, stopWord: String = tr("Stop"), room: Boolean = false, onStopOne: (() -> Unit)? = null, stopOneLabel: String = "") {
     if (text.isEmpty()) return
     val p = LocalPaper.current
     val c = parseColor(color, p.faint)
     val clock = movingClock(!still)
     // With Stop the row is as high as its touch target, which then stands for the line's own space above and below.
-    Row(Modifier.fillMaxWidth().padding(start = Space.s4).then(if (onStop != null) Modifier else if (room) Modifier.heightIn(min = 48.dp) else Modifier.padding(top = Space.s8, bottom = Space.s4)), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(start = Space.s4).then(if (onStop != null || onStopOne != null) Modifier else if (room) Modifier.heightIn(min = 48.dp) else Modifier.padding(top = Space.s8, bottom = Space.s4)), verticalAlignment = Alignment.CenterVertically) {
         Row(Modifier.weight(1f, fill = false).semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.s8)) {
             Canvas(Modifier.size(7.dp)) {
@@ -491,6 +491,12 @@ fun StatusLine(text: String, color: String?, still: Boolean = false, onStop: (()
                 drawCircle(c.copy(alpha = a))
             }
             Text(text, color = p.muted, fontSize = Type.s14, lineHeight = Type.line20)
+        }
+        if (onStopOne != null) {
+            // Stop for this line's run alone (a group with several members at work): a small square, 48 dp to the touch.
+            Box(Modifier.size(48.dp).clip(Radius.small).clickable(role = Role.Button, onClickLabel = stopOneLabel, onClick = onStopOne), contentAlignment = Alignment.Center) {
+                Icon(Icons.Filled.Stop, contentDescription = null, tint = p.faint, modifier = Modifier.size(16.dp))
+            }
         }
         if (onStop != null) WordButton(stopWord, p.faint, onStop)
     }

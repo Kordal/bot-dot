@@ -770,8 +770,15 @@ test('web: under the chat stands one line per working member, with its name and 
   assert.deepEqual([...h.matchAll(/<div class="status-line( held)?" role="status" style="--c:(#\w+)"><i><\/i><span><b>(.*?)<\/b> · (.*?)<\/span>/g)].map((m) => m.slice(1)),
     [[undefined, CODER.color, 'Coder', 'Running the tests'], [undefined, REVIEWER.color, 'Reviewer', 'Working']]);
   assert.equal((h.match(/data-stop-all/g) || []).length, 1);
-  assert.match(h, /Working<\/span><button type="button" data-stop-all>Stop all<\/button><\/div><\/div>$/, 'at the end of the last line');
-  assert.doesNotMatch(h, /data-stop-run/, 'no Stop per member');
+  assert.match(h, /data-stop-member="r6"[^>]*>.*<\/button><button type="button" data-stop-all>Stop all<\/button><\/div><\/div>$/, 'at the end of the last line, after its own Stop');
+  // The same bot at work twice: each of its runs has its Stop.
+  const twice = p.ctx.groupWorkingHTML([{ botId: 'coder', runId: 'r7', messageId: 'm1' }, { botId: 'coder', runId: 'r8', messageId: 'm1' }]);
+  assert.deepEqual([...twice.matchAll(/data-stop-member="(\w+)"/g)].map((m) => m[1]), ['r7', 'r8']);
+  // Where several members work, each line has a Stop of its own for its run, named for the member.
+  assert.deepEqual([...h.matchAll(/data-stop-member="(\w+)" aria-label="([^"]*)"/g)].map((m) => m.slice(1)), [['r5', 'Stop Coder'], ['r6', 'Stop Reviewer']]);
+  assert.doesNotMatch(h, /data-stop-run/, 'not the bot chat\'s own Stop');
+  // One member alone has "Stop all" only.
+  assert.doesNotMatch(p.ctx.groupWorkingHTML(c.working.slice(0, 1)), /data-stop-member/);
   // The feed's line takes the place of "Working"; a run that waits for the owner's OK says so, with a still dot.
   p.ctx.sayTurnLine('r6', 'g1', 'reviewer', { text: 'Reading pull request 310' });
   p.ctx.sayTurnLine('r5', 'g1', 'coder', { held: true });
@@ -783,6 +790,12 @@ test('web: under the chat stands one line per working member, with its name and 
   await p.ctx.stopGroup('g1', button);
   assert.deepEqual(p.said.calls.slice(0, 1), [['POST', '/group-chats/g1/stop']]);
   assert.deepEqual(p.said.toasts, [['Stopping…', false]]);
+  // Stop on one line ends that run alone (the one-run route of a bot's chat), and the chat is read again.
+  const one = { disabled: false };
+  await p.ctx.stopMember('g1', 'r6', one);
+  assert.deepEqual(p.said.calls.slice(2, 3), [['POST', '/runs/r6/stop']]);
+  assert.deepEqual(p.said.toasts, [['Stopping…', false], ['Stopping…', false]]);
+  assert.equal(one.disabled, true, 'once, until the chat is read again');
   assert.match(css, /\.g-working \.status-line \{/);
 });
 

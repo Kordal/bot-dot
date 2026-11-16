@@ -1817,6 +1817,9 @@ details.bs-row { display: block; }
 /* One line per member at work, with its name; "Stop all" ends them together. */
 .g-working { display: flex; flex-direction: column; }
 .g-working .status-line { margin: var(--sp-4) 0; }
+.g-working .stop-one { display: inline-flex; align-items: center; margin-right: 0; padding: var(--sp-8) var(--sp-12); } /* Stop for one member, an icon: its padding is a finger's hit area, and it ends where "Stop all" begins */
+.g-working .stop-one + button { margin-left: 0; }
+.g-working .stop-one svg { width: 14px; height: 14px; fill: currentColor; stroke: none; }
 .status-line b { font-weight: 600; color: var(--text); }
 /* Who is next: a small still head per member whose turn has not come, under the lines, its first under their dot. */
 .g-next { display: flex; flex-wrap: wrap; gap: var(--sp-4); padding-left: var(--sp-4); font-size: var(--fs-14); }

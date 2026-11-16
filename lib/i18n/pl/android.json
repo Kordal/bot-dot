@@ -757,6 +757,7 @@
   "Message {name}…": "Napisz do {name}…",
   "Message the group…": "Napisz do grupy…",
   "Stop all": "Zatrzymaj wszystkie",
+  "Stop {name}": "Zatrzymaj {name}",
   "Go on": "Kontynuuj",
   "Members": "Członkowie",
   "Its bots are all gone. Add one, or delete the group.": "Nie ma już żadnego z jej botów. Dodaj któregoś albo usuń grupę.",

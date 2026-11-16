@@ -481,6 +481,12 @@ object Groups {
     /** The row a message's folded replies stand under: their runs, oldest first, and whether it is open. */
     data class Fold(val messageId: String, val runs: List<Run>, val open: Boolean) { val id get() = "fold:$messageId" }
 
+    /**
+     * The runs whose working line has a Stop of its own: every one where two or more members are at work, none where
+     * one alone is ("Stop all" ends it). A bot at work twice has one per run. `public/groups.js` has the same rule.
+     */
+    fun stoppable(working: List<GroupWorking>): Set<String> = if (working.size > 1) working.map { it.runId }.toSet() else emptySet()
+
     /** The bots of who is next ([next]) that exist, in that order: a bot the app does not know is given no head. */
     fun heads(next: List<String>, bots: List<Bot>): List<Bot> = next.mapNotNull { id -> bots.firstOrNull { it.id == id } }
 

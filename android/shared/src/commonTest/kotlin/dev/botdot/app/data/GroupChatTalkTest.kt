@@ -199,6 +199,22 @@ class GroupChatTalkTest {
         until("stop is asked") { fake.asked().any { it.method == "POST" && it.path == "/group-chats/g1/stop" } }
     }
 
+    @Test fun stopOnOneMemberStopsThatRunAlone() = runTest {
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "POST" && a.path == "/runs/r6/stop" -> 200 to "{}"
+                a.path == "/group-chats/g1/chat" -> 200 to page(emptyList(), working = """[{"botId":"b1","runId":"r5"},{"botId":"b1","runId":"r6"}]""")
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("two runs are at work") { chat.state.value.turns.size == 2 }
+        chat.stopMember("r6")
+        until("that run's stop is asked") { fake.asked().any { it.method == "POST" && it.path == "/runs/r6/stop" } }
+        assertTrue(fake.asked().none { it.path == "/group-chats/g1/stop" || it.path == "/runs/r5/stop" }, "the group and the other run are not stopped")
+    }
+
     @Test fun aSendThatEndsAfterTheChatWasLeftFollowsNoRun() = runTest {
         val answer = CompletableDeferred<Unit>()
         var sent = false
