@@ -57,7 +57,10 @@ function docker(args) {
   if (cmd === 'rm' && name) containers.delete(name);
   if (cmd === 'ps') return [...containers].filter(([n]) => n.startsWith('botdot-')).map(([n, c]) => `${n}|${n.slice(7)}|${c.state}`).join('\n');
   // A screen's computer-server answers once its supervisord was started (#105).
-  if (cmd === 'exec' && args.includes('sudo') && sudoBroken) throw new Error(sudoBroken === true ? "sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set" : sudoBroken);
+  if (cmd === 'exec' && args.includes('sudo') && sudoBroken) {
+    const said = sudoBroken === true ? "sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set" : sudoBroken;
+    throw Object.assign(new Error(`Command failed: docker ${args.join(' ')}\n${said}`), { stderr: said });
+  }
   if (cmd === 'exec' && args.includes('/usr/bin/supervisord')) screensUp.add(args.find((a) => a.startsWith('API_PORT=')).slice(9));
   if (cmd === 'exec' && args.includes('python3') && !args.includes('-I') && !screensUp.has(args.at(-1))) throw new Error('Connection refused');
   if (cmd === 'exec' && args.includes('-I') && bridgeSays && !args.includes('botdot-run')) return bridgeSays(args);
@@ -129,7 +132,7 @@ test('a computer whose sudo is broken by its runtime still starts, and botdot sa
   } finally { console.error = realError; sudoBroken = false; }
   assert.equal((await computers.inspect('a1')).state, 'running');
   assert.equal(errors.filter((e) => /sudo does not work/.test(e)).length, 1, 'a computer already running is not checked again');
-  assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /runsc/.test(e) && /reset would not help/.test(e)), errors.join('\n'));
+  assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /effective uid is not 0/.test(e) && !/Command failed/.test(e) && /runsc/.test(e) && /reset would not help/.test(e)), errors.join('\n'));
 });
 
 test('another sudo failure is logged as it is, without blaming runsc', async () => {
