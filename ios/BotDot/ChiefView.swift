@@ -211,6 +211,12 @@ struct ChiefRow: View {
     /// Whose pages the Chief's own are, in the viewer's way back.
     var chiefName: String = ""
 
+    /// A page chip's page in the viewer: at the Chief's routes with its name for the Chief's own, at its bot's for a bot's.
+    static func opening(_ page: PageRef, chiefName: String) -> DocumentView.Opening {
+        DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title,
+                                   from: page.botId == Pages.shared.CHIEF ? chiefName : page.bot)
+    }
+
     var body: some View {
         VStack(alignment: line.role == "user" ? .trailing : .leading, spacing: 6) {
             if let team = line.team, !line.pending {
@@ -226,10 +232,7 @@ struct ChiefRow: View {
                 ReplyFilesView(files: line.files)
                 // The pages it saved, and those its bots saved for it (Android's PageChips): a tap opens one.
                 ForEach(line.pages, id: \.self) { page in
-                    PageChip(page: page) {
-                        onFile(DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title,
-                                                          from: page.botId == Pages.shared.CHIEF ? chiefName : page.bot))
-                    }
+                    PageChip(page: page) { onFile(Self.opening(page, chiefName: chiefName)) }
                 }
                 if !line.chips.isEmpty { ChiefChips(chips: line.chips, onTap: onChip) }
                 if let mail = line.mail {

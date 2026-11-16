@@ -37,11 +37,16 @@ final class ChiefTests: XCTestCase {
     /// A reply's page chips (the Chief's own and its bots'): drawn, and a tap opens that bot's page in the viewer.
     func testAReplysPageChipsDrawAndOpenTheirPage() {
         let pages = [PageRef(slug: "week", title: "Week", botId: Pages.shared.CHIEF, bot: ""), PageRef(slug: "menu", title: "Menu", botId: "b1", bot: "Cook")]
-        var opened: [DocumentView.Opening] = []
-        let row = ChiefRow(line: line(role: "chief", text: "Done", pages: pages), onRate: { _ in }, onFile: { opened.append($0) }, chiefName: "Chief")
+        let row = ChiefRow(line: line(role: "chief", text: "Done", pages: pages), onRate: { _ in }, chiefName: "Chief")
         XCTAssertNotNil(ImageRenderer(content: row.frame(width: 360)).cgImage)
-        XCTAssertEqual(DocumentView.shared.ofPage(botId: "b1", slug: "menu", title: "Menu", from: "Cook").name, "Menu")
-        XCTAssertTrue(opened.isEmpty, "nothing opens until a tap")
+        let own = ChiefRow.opening(pages[0], chiefName: "Chief")
+        XCTAssertEqual(own.from, "Chief", "the Chief's own page: back to the Chief")
+        XCTAssertEqual(own.botId, Pages.shared.CHIEF)
+        XCTAssertEqual(own.slug, "week")
+        let bots = ChiefRow.opening(pages[1], chiefName: "Chief")
+        XCTAssertEqual(bots.from, "Cook", "a bot's page: back to that bot")
+        XCTAssertEqual(bots.botId, "b1")
+        XCTAssertEqual(bots.name, "Menu")
     }
 
     /// A reply with what the Chief did as chips and a mail draft's card under it: drawn, the chips that name a bot tappable.
