@@ -437,6 +437,9 @@ struct ViewerView: View {
             }
             if viewed.table(mode: model.mode) {
                 CsvTable(viewer: model.viewer, text: v.text ?? "")
+            } else if viewed.rendered(mode: model.mode), let parts = v.parts {
+                // A bot's page with blocks: its Markdown and its blocks drawn (Android's PageParts).
+                ScrollView { PagePartsView(parts: parts).textSelection(.enabled).padding() }
             } else if viewed.rendered(mode: model.mode) {
                 ScrollView { MarkdownView(text: v.text ?? "").textSelection(.enabled).padding() }
             } else {

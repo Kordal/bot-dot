@@ -82,7 +82,7 @@ that builds it. A screen added on Android adds its row here. "Left" is part of #
 | `HomeScreen` (`home`), `HomeParts` | start | `HomeView`, with search |
 | `NeedsYouScreen` (`needs`) | Home's Needs you, the Board | `NeedsYouView` |
 | `DashboardScreen` (`dashboard`), `TileBlocks`, `BlockKit` | Home's Board cards | `BoardView` with table and picture blocks (`BoardBlocks`), the colour wheel (`ColorWheel`) and drag to move |
-| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`), from a page tile or a chat's page chip (left: page blocks) |
+| `InteractivePage`, `PageBlocks` | a page tile, a chat's page link | `ViewerView`: a page in Markdown, an interactive page in its own isolated frame with Full screen, Versions and Download (`InteractivePageView`), from a page tile or a chat's page chip, a page's blocks (`PagePartsView`) (left: a page's blocks read again while it is open) |
 | `HomeTilesSheet` | holding Home's Board cards | `HomeTilesView` |
 | `WhatsNewDialog` | after an update | `WhatsNewSheet` |
 | `FeedbackDialog` | Home's ⋯ | `FeedbackView` |

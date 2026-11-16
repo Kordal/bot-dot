@@ -466,36 +466,11 @@ struct BlockView: View {
                 if let text = b.text, !text.isEmpty { Text(text).font(.caption).foregroundStyle(.secondary) }
             }
         case "chart":
-            VStack(alignment: .leading, spacing: 6) {
-                if let text = b.text { Text(text).font(.caption).foregroundStyle(.secondary) }
-                if b.style == "hbar" {
-                    ForEach(Array(b.bars.enumerated()), id: \.offset) { _, bar in
-                        HStack {
-                            Text(bar.label).font(.subheadline).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                            ProgressView(value: min(max(bar.ratio, 0), 1)).tint(own).frame(maxWidth: .infinity)
-                            Text(bar.text).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        }
-                    }
-                } else {
-                    Spark(points: b.points.map { $0.doubleValue }, color: own).frame(height: `where` == "panel" || `where` == "wide" ? 80 : 44)
-                }
-            }
+            ChartBlock(b: b, color: own, tall: `where` == "panel" || `where` == "wide")
         case "status":
-            HStack(spacing: 6) {
-                Circle().fill(Board.level(b.level)).frame(width: 6, height: 6)
-                Text(b.text ?? "").font(.caption).lineLimit(1)
-            }
-            .foregroundStyle(Board.level(b.level))
-            .padding(.horizontal, 12).padding(.vertical, 4)
-            .background(Board.level(b.level).opacity(0.15), in: .capsule)
+            StatusPill(text: b.text ?? "", level: b.level)
         case "callout":
-            VStack(alignment: .leading, spacing: 4) {
-                if let title = b.title { Text(title).font(.subheadline.weight(.semibold)) }
-                Text(BoardKit.shared.plain(md: b.text ?? "")).font(.subheadline)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Board.level(b.level).opacity(0.15), in: .rect(cornerRadius: 12))
+            CalloutBlock(b: b)
         case "switch":
             Toggle(b.label ?? "", isOn: Binding(get: { b.on?.boolValue == true }, set: { on in
                 if let k = b.key { Task { await model.setSwitch(key, k, on) } }
@@ -545,7 +520,7 @@ struct BlockView: View {
 }
 
 /// A kpi, or a value: the number big with its unit and "of N", the line under it, a sparkline beside it and a bar under it.
-private struct Kpi: View {
+struct Kpi: View {
     let b: Block
     let color: Color
     let compact: Bool
@@ -723,5 +698,45 @@ private struct SuggestionCard: View {
         }
         .padding(16)
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.3)))
+    }
+}
+
+/// A chart block: bars across with their labels, or a line of its points.
+struct ChartBlock: View {
+    let b: Block
+    let color: Color
+    /// Taller: in a pop-up, a wide tile or on a page.
+    let tall: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let text = b.text { Text(text).font(.caption).foregroundStyle(.secondary) }
+            if b.style == "hbar" {
+                ForEach(Array(b.bars.enumerated()), id: \.offset) { _, bar in
+                    HStack {
+                        Text(bar.label).font(.subheadline).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                        ProgressView(value: min(max(bar.ratio, 0), 1)).tint(color).frame(maxWidth: .infinity)
+                        Text(bar.text).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Spark(points: b.points.map { $0.doubleValue }, color: color).frame(height: tall ? 80 : 44)
+            }
+        }
+    }
+}
+
+/// A callout: its title and words on its level's colour.
+struct CalloutBlock: View {
+    let b: Block
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let title = b.title { Text(title).font(.subheadline.weight(.semibold)) }
+            Text(BoardKit.shared.plain(md: b.text ?? "")).font(.subheadline)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Board.level(b.level).opacity(0.15), in: .rect(cornerRadius: 12))
     }
 }
