@@ -73,6 +73,12 @@ test('managed, several: an imported account has what the other machine kept of i
 
   const again = ask(door, env, 'import-account', '--account', 'carl', '--record', record(t));
   assert.deepEqual([again.status, again.said.state, again.said.error], [3, 'refused', 'This machine has an account carl already.']);
+  // dora's login is the name of an account here: refused, never imported without the login its owner signs in with.
+  const doraRecord = path.join(tmp(t), 'front-door.json');
+  fs.writeFileSync(doraRecord, JSON.stringify({ accounts: { dora: { created: '2026-10-01T10:00:00.000Z', login: 'carl' } } }));
+  const taken = ask(door, { ...env, FRONT_DOOR_LOAD: load }, 'import-account', '--account', 'dora', '--record', doraRecord);
+  assert.deepEqual([taken.status, taken.said.state, taken.said.error], [3, 'refused', 'The login carl of the account dora is taken on this machine.']);
+  assert.ok(!data(door).accounts.dora);
 
   const gone = ask(door, env, 'delete-account', '--account', 'carl');
   assert.deepEqual(gone.said, { state: 'deleted', account: 'carl' });
@@ -85,7 +91,7 @@ test('managed, several: an imported account has what the other machine kept of i
   assert.deepEqual([none.status, none.said.state, none.said.error], [3, 'refused', 'There is no account dora.']);
 
   const entries = JSON.parse(`[${fs.readFileSync(path.join(door.data, 'audit.jsonl'), 'utf8').trim().split('\n').join(',')}]`).filter((e) => e.actor === 'console');
-  assert.deepEqual(entries.map((e) => [e.action, e.account]), [['import', 'carl'], ['sign-in-link', 'carl'], ['console-refused', 'carl'], ['delete', 'carl'], ['console-refused', 'dora']]);
+  assert.deepEqual(entries.map((e) => [e.action, e.account]), [['import', 'carl'], ['sign-in-link', 'carl'], ['console-refused', 'carl'], ['console-refused', 'dora'], ['delete', 'carl'], ['console-refused', 'dora']]);
 });
 
 test('managed, several: an import with no room for its share is refused', async (t) => {
