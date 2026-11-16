@@ -54,7 +54,8 @@ struct CalendarTileView: View {
             watching = d.watch { s in MainActor.assumeIsolated { state = s } }
         }
         .onDisappear { watching?.cancel(cause: nil); watching = nil; desk?.close(); desk = nil }
-        .onChange(of: state?.noticeCount) { said = state?.notice }
+        // While the month is open, its sheet shows the notice (SwiftUI shows no alert from a view presenting a sheet).
+        .onChange(of: state?.noticeCount) { if state?.month == nil { said = state?.notice } }
         .alert(said ?? "", isPresented: Binding(get: { said != nil }, set: { if !$0 { said = nil } })) { Button(tr("Close")) {} }
     }
 }
@@ -123,6 +124,7 @@ private struct MonthSheet: View {
     let bots: [Bot]
     let figure: FigureDef?
     @Environment(\.dismiss) private var dismiss
+    @State private var said: String?
 
     var body: some View {
         NavigationStack {
@@ -174,6 +176,8 @@ private struct MonthSheet: View {
                 ToolbarItem(placement: .topBarTrailing) { Button(tr("Close")) { dismiss() } }
             }
         }
+        .onChange(of: state.noticeCount) { said = state.notice }
+        .alert(said ?? "", isPresented: Binding(get: { said != nil }, set: { if !$0 { said = nil } })) { Button(tr("Close")) {} }
     }
 }
 
