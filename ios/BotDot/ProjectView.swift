@@ -154,6 +154,8 @@ struct ProjectPage: View {
     /// The project's Overview (ADR 236), from the toolbar.
     @State private var overview = false
     @State private var unfolded: Set<String> = []
+    /// Needs you, from the To-do's Review.
+    @State private var needsOpen = false
 
     /// Where its team rows and keys go: this page's own sheets and chats.
     private var routes: TeamRoutes.Routes { TeamRoutes.Routes(picking: $picking, panel: $panel, chat: $chat, group: $group) }
@@ -190,6 +192,7 @@ struct ProjectPage: View {
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure, onDeleted: { settings = false; dismiss() },
                                 onFolder: model.state?.project?.folder == nil ? nil : { if let c = model.state?.project { settings = false; file(c, nil) } }) }
         .navigationDestination(isPresented: $teamPage) { ProjectTeamView(home: home, model: model, figure: figure) }
+        .navigationDestination(isPresented: $needsOpen) { NeedsYouView(home: home, figure: figure) }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }
@@ -295,6 +298,7 @@ struct ProjectPage: View {
         if s.teamsOnBoard {
             TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)
         }
+        if let todo = s.todo { todoPanel(todo, s) }
         if s.replies {
             OverviewTile(key: "replies", state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
         }
@@ -323,6 +327,15 @@ struct ProjectPage: View {
                     .tint(.primary).accessibilityIdentifier("project-chat")
             }
         }
+    }
+
+    /// The To-do (#692): Approve answers a permission here, Review opens Needs you, Reply the asking bot's chat.
+    private func todoPanel(_ todo: ProjectTodo.Panel, _ s: ProjectState) -> some View {
+        TodoPanelView(panel: todo, adding: s.adding, figure: figure, model: model,
+                      onApprove: { id in Task { _ = try? await home.answer(permission: id, yes: true) } },
+                      onReview: { needsOpen = true },
+                      onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) })
+            .listRowSeparator(.hidden)
     }
 
     private func head(_ b: Bot, _ size: CGFloat) -> some View { ProjectHead(bot: b, figure: figure, size: size) }

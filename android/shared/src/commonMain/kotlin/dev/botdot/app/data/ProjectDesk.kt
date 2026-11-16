@@ -142,6 +142,10 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
+    /** The To-do panel (#692, the board's "todo" piece): what it holds under its filter; null where the board has none. */
+    val todo: ProjectTodo.Panel? = null,
+    /** An item of the To-do on its way in: Add waits. */
+    val adding: Boolean = false,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -202,6 +206,8 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         /** The projects whose Chief chat is being made: a second tap meanwhile asks nothing. */
         val openingChief: Set<String> = emptySet(),
         val notice: String? = null, val noticeCount: Int = 0,
+        /** The To-do's filter (ProjectTodo.FILTERS), and an item on its way in. */
+        val todoFilter: String = "all", val adding: Boolean = false,
         /** The board's overview tiles' snapshot (overview-board), read while the page is followed. */
         val recorded: OverviewState = OverviewState(),
     )
@@ -303,6 +309,8 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            todo = if (c != null && on("todo")) ProjectTodo.panel(c, bots, here, x.todoFilter, features) else null,
+            adding = x.adding,
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
@@ -433,6 +441,34 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     @Throws(Exception::class)
     suspend fun refreshCard(card: String) { call { it.refreshCard(card) } }
+
+    /** The To-do's filter: All, You, Bots or Done. */
+    fun todoFilter(filter: String) { if (filter in ProjectTodo.FILTERS) local.update { it.copy(todoFilter = filter) } }
+
+    /** An item ticked done, or back open. */
+    @Throws(Exception::class)
+    suspend fun tickTodo(id: String, done: Boolean) { call { it.tickTodo(id, done) } }
+
+    /** An item's Delete: the owner's alone, on a botdot with the full To-do. */
+    @Throws(Exception::class)
+    suspend fun deleteTodo(id: String) { call { it.deleteTodo(id) } }
+
+    /**
+     * Add a task: [typed] ("@Bot text" gives it to that bot), for [who] (a bot's id; null: the owner), on [due] and
+     * repeating as [repeat], with the full To-do; before it, its text and bot only. True when it went in (the field
+     * empties); one at a time.
+     */
+    @Throws(Exception::class)
+    suspend fun addTodo(typed: String, who: String?, due: String?, repeat: Repeat?): Boolean {
+        val t = CompanyFloor.task(typed, store.bots.value.value.orEmpty())
+        if (t.text.isEmpty() || !claim({ it.adding }, { it.copy(adding = true) })) return false
+        return try {
+            if (ProjectTodo.FEATURE in store.version.value.value?.features.orEmpty()) call { it.addTodo(t.text, t.bot ?: who, due, repeat) }
+            else call { it.addTodo(t.text, t.bot) }
+        } finally {
+            local.update { it.copy(adding = false) }
+        }
+    }
 
     /** A card's Remove: off the row at once; a refusal puts it back. */
     @Throws(Exception::class)
