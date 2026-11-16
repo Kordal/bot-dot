@@ -41,7 +41,19 @@ test('a built card is checked: its value, sub and data are plain text and number
   assert.match(cards.cardOf('```card\n{"show":"number"}\n```').error, /no value/);
   assert.deepEqual(cards.cardOf('```card\n{"title":"Calls","show":"bars","value":"14","bars":[{"label":"Monday","value":3},{"label":"T","value":"x"}]}\n```').body.bars, [{ label: 'Monday', value: 3 }].map((b) => ({ ...b, label: 'Monday'.slice(0, 6) })));
   assert.deepEqual(cards.cardOf('```card\n{"show":"table","value":"$12","rows":[{"label":"Globex","value":"$12","change":"+$2","tone":"bad"},{"label":"No value"}]}\n```').body.rows, [{ label: 'Globex', value: '$12', change: '+$2', tone: 'bad' }]);
-  assert.equal(cards.cardOf('```card\n{"show":"weird","value":"5"}\n```').body.show, 'number');
+  // A chart that was asked for is never a number card in its place (#1510): words for a kind are that kind, "chart" is
+  // the one its data fits, a show with no kind and no data is an error the card shows.
+  assert.match(cards.cardOf('```card\n{"show":"weird","value":"5"}\n```').error, /a card shows number, spark, bars, list, table, not weird/);
+  const kind = (o) => cards.cardOf(`\`\`\`card\n${JSON.stringify({ value: '5', ...o })}\n\`\`\``).body?.show;
+  assert.equal(kind({ show: 'line', points: [1, 2, 3] }), 'spark');
+  assert.equal(kind({ show: 'Line chart', points: [1, 2, 3] }), 'spark');
+  assert.equal(kind({ show: 'chart', points: [1, 2, 3] }), 'spark');
+  assert.equal(kind({ show: 'chart', bars: [{ label: 'M', value: 1 }] }), 'bars');
+  assert.equal(kind({ show: 'bar_chart', bars: [{ label: 'M', value: 1 }] }), 'bars');
+  assert.equal(kind({ show: 'pie', list: [{ text: 'a' }] }), 'list', 'an unknown kind with data is the kind of its data');
+  assert.equal(kind({ points: [1, 2] }), 'spark', 'no show: the kind of its data');
+  assert.equal(kind({}), 'number', 'no show and no data: a number');
+  assert.match(cards.cardOf('```card\n{"show":"line","value":"5"}\n```').error, /two points/, 'a chart with no points fails, it is not a number');
   // Up to 15 items and 12 rows, so a card resized taller on the board shows more of what it read.
   const many = (n, f) => JSON.stringify(Array.from({ length: n }, (_, i) => f(i)));
   assert.equal(cards.cardOf(`\`\`\`card\n{"show":"list","value":"40","list":${many(40, (i) => ({ text: `Item ${i}` }))}}\n\`\`\``).body.list.length, 15);
@@ -299,4 +311,40 @@ test("a card's text size (card-text-size): the owner's on its menu, the Chief's 
   assert.equal((await srv.api(`/company/cards/${id}`, { method: 'PUT', body: { textSize: 1 } })).status, 200);
   assert.equal((await card(id)).textSize, undefined);
   await srv.api(`/company/cards/${id}`, { method: 'DELETE' });
+});
+
+// ---------- a chart, and several cards in one ask (#1510) ----------
+
+test("the Chief's questions say the kind of card asked for, and split an ask for several cards into one each", () => {
+  const got = cards.questionsOf(JSON.stringify({ title: 'Temperature', show: 'line chart', questions: [], apps: [], ask: 'A line chart of the temperature', more: ['A number: today\'s high', 'A list of the last readings', 'A number: today\'s high', '', 'b', 'c', 'd'] }));
+  assert.equal(got.show, 'spark', 'a line chart is the card\'s spark');
+  assert.equal(got.ask, 'A line chart of the temperature');
+  assert.deepEqual(got.more, ["A number: today's high", 'A list of the last readings', 'b', 'c'], 'each once, at most four');
+  assert.equal(cards.questionsOf('{"title":"T","show":"chart","questions":[]}').show, 'spark');
+  assert.equal(cards.questionsOf('{"title":"T","show":"pie","questions":[]}').show, undefined, 'a kind the board has not is left out');
+  assert.equal(cards.questionsOf('{"title":"T","ask":"only this","questions":[]}').ask, undefined, 'its own words only beside others');
+  const prompt = cards.questionsPrompt({ ask: 'Add three cards: number, list, chart', project: 'Weather' });
+  assert.match(prompt, /"spark" for a chart, a graph, a line or a trend over time/);
+  assert.match(prompt, /ask and more: only when their words ask for several cards at once/);
+  assert.doesNotMatch(cards.questionsPrompt({ ask: 'add a graph', project: 'W', card: { title: 'T', earlier: [{ ask: 'x', answers: [] }] } }), /"more"/, 'a change is one card');
+});
+
+test('a card asked for as a chart is built as one: the build is told its kind', () => {
+  const { prompt, system } = cards.buildPrompts({ card: { ask: 'A line chart of the temperature', answers: [], show: 'spark' }, project: 'Weather' });
+  assert.match(prompt, /They asked for it as a chart \(a spark\) card: answer "show": "spark" with its data, not a number alone\./);
+  assert.match(system, /a line chart or a trend is a spark/);
+  assert.doesNotMatch(cards.buildPrompts({ card: { ask: 'Signups', answers: [] }, project: 'W' }).prompt, /They asked for it as/);
+});
+
+test('"Add three cards: number, list, chart" makes three cards, each with its own words; none splits again', async () => {
+  const before = (await cardsNow()).length;
+  fs.writeFileSync(path.join(srv.out, 'card-questions.txt'), JSON.stringify({ title: 'Today', show: 'number', questions: [{ q: 'Which city?', choices: ['Brussels'] }], ask: "A number: today's high in Brussels", more: ['A list of the last weather readings', 'A line chart of the temperature this week'] }));
+  const r = await srv.api('/company/cards', { method: 'POST', body: { ask: 'Add three cards: number, list, chart' } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  const all = await waitFor(async () => { const cs = await cardsNow(); return cs.length >= before + 3 && cs.slice(before).every((c) => c.questions) ? cs.slice(before) : null; }, { what: 'three cards' });
+  assert.deepEqual(all.map((c) => c.ask), ["A number: today's high in Brussels", 'A list of the last weather readings', 'A line chart of the temperature this week']);
+  assert.equal(all[0].show, 'number');
+  await new Promise((ok) => setTimeout(ok, 300));
+  assert.equal((await cardsNow()).length, before + 3, 'the cards made from it do not split again');
+  for (const c of all) await srv.api(`/company/cards/${c.id}`, { method: 'DELETE' });
 });
