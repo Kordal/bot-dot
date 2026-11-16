@@ -1002,6 +1002,46 @@ test('DELETE-bob has the front door delete bob and erases it from the machine at
   assert.deepEqual({ state: said.state, account: said.account }, { state: 'deleted', account: 'bob' });
 });
 
+// HOLD-<account> (ADR 253): the account held still on the machine it leaves, and backed up off-site from then on.
+const holdDoor = (m) => {
+  const data = path.join(m.dir, 'front-door', 'data', 'front-door.json');
+  return [
+    'case "$*" in',
+    `  *"front-door.js hold-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{},"bob":{"suspended":"2026-11-16T12:00:00.000Z","held":"2026-11-16T12:00:00.000Z"}}}' > ${data}; echo '{"state":"held","account":"bob","changed":true}'; exit 0 ;;`,
+    `  *"front-door.js release-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{},"bob":{}}}' > ${data}; echo '{"state":"released","account":"bob","changed":true}'; exit 0 ;;`,
+    'esac',
+  ];
+};
+
+test('HOLD-bob on suspends bob and backs the machine up off-site from then on; off lets go of it', (t) => {
+  const m = machine(t);
+  const given = { BOT_DOT_OFFSITE_REPO: m.store };
+  const held = ask(m, 'HOLD-bob', 'on\n', { given, dockerFirst: holdDoor(m) });
+  assert.ok(held.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js hold-account --account bob --by console')));
+  assert.ok(resticCalls(held).some((c) => / backup /.test(c)), 'backed up');
+  const said = status(held, 'hold-bob.json');
+  assert.equal(said.state, 'held', JSON.stringify(said));
+  assert.match(said.lastSuccess, /^\d{4}-\d\d-\d\dT/);
+  assert.equal(said.lastSuccess, status(held, 'offsite.json').lastSuccess);
+  const let_go = ask(m, 'HOLD-bob', 'off\n', { given, dockerFirst: holdDoor(m) });
+  assert.ok(let_go.docker.some((c) => c.call.endsWith('exec -T front-door node front-door.js release-account --account bob --by console')));
+  assert.equal(status(let_go, 'hold-bob.json').state, 'released');
+});
+
+test('HOLD- is refused for the first account, without an off-site repository, and when another backup runs', (t) => {
+  const m = machine(t);
+  const first = ask(m, 'HOLD-ann', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
+  assert.deepEqual([status(first, 'hold-ann.json').state, status(first, 'hold-ann.json').error], ['refused', "The account ann is the machine's first account, which stays on it."]);
+  const none = ask(m, 'HOLD-bob', 'on\n', { dockerFirst: holdDoor(m) });
+  assert.equal(status(none, 'hold-bob.json').state, 'refused');
+  assert.ok(!none.docker.some((c) => c.call.includes('hold-account')), 'nothing held');
+  const release = holdLock(t, m);
+  const busy = ask(m, 'HOLD-bob', 'on\n', { given: { BOT_DOT_OFFSITE_REPO: m.store }, dockerFirst: holdDoor(m) });
+  release();
+  const said = status(busy, 'hold-bob.json');
+  assert.deepEqual([said.state, said.error], ['failed', 'Another off-site backup was running, so none was made since the account was held: ask again.']);
+});
+
 test("DELETE- of the machine's first account is refused before the front door is asked", (t) => {
   const m = machine(t);
   const done = ask(m, 'DELETE-ann', '', { dockerFirst: moveDoor(m) });

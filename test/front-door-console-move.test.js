@@ -161,3 +161,33 @@ test('delete-account deletes as the admin page does: the account leaves its room
   const entry = JSON.parse(fs.readFileSync(path.join(door.data, 'audit.jsonl'), 'utf8').trim().split('\n').at(-1));
   assert.deepEqual([entry.action, entry.actor, entry.account, entry.detail], ['delete', 'console', 'carl', 'boat.dev: 2 machines deleted']);
 });
+
+test('hold-account suspends an account for its move and release-account lets go of that hold only', async (t) => {
+  const env = { FRONT_DOOR_ADMIN: 'ann' };
+  const door = await startFrontDoor({ env });
+  t.after(() => door.stop());
+  const a = door.browser();
+  const key = passkey.create({ rpId: door.rpId, origin: door.origin });
+  const options = await a.post(`${door.firstLink.path}/options`, { name: 'ann' });
+  assert.equal((await a.post(door.firstLink.path, { name: 'ann', credential: key.register(options.data.publicKey) })).status, 201);
+  for (const name of ['carl', 'dora']) {
+    const p = new URL((await a.post('/admin/links', {})).data.url).pathname;
+    const b = door.browser();
+    const k = passkey.create({ rpId: door.rpId, origin: door.origin });
+    const o = await b.post(`${p}/options`, { name });
+    assert.equal((await b.post(p, { name, credential: k.register(o.data.publicKey) })).status, 201);
+  }
+  assert.deepEqual(ask(door, env, 'hold-account', '--account', 'carl').said, { state: 'held', account: 'carl', changed: true });
+  assert.ok(data(door).accounts.carl.suspended && data(door).accounts.carl.held);
+  assert.deepEqual(ask(door, env, 'hold-account', '--account', 'carl').said, { state: 'held', account: 'carl', changed: false }, 'twice: the same hold');
+  assert.deepEqual(ask(door, env, 'release-account', '--account', 'carl').said, { state: 'released', account: 'carl', changed: true });
+  assert.ok(!data(door).accounts.carl.suspended && !data(door).accounts.carl.held);
+
+  // dora suspended by the admin is held as she is, and a release leaves her suspended.
+  assert.equal((await a.post('/admin/accounts/dora/suspend', { name: 'dora' })).status, 200);
+  assert.equal(ask(door, env, 'hold-account', '--account', 'dora').said.changed, false);
+  assert.equal(ask(door, env, 'release-account', '--account', 'dora').said.changed, false);
+  assert.ok(data(door).accounts.dora.suspended, 'still the admin\'s suspension');
+  const none = ask(door, env, 'hold-account', '--account', 'eve');
+  assert.deepEqual([none.status, none.said.state], [3, 'refused']);
+});

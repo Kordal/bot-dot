@@ -245,6 +245,26 @@ if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
   console.log(JSON.stringify({ state: suspend ? 'suspended' : 'resumed', accounts: changed }));
   process.exit(0);
 }
+// An account the fleet console moves to another machine (ADR 253), held still from its last backup on: `hold-account
+// --account NAME` suspends it, as the admin page does, unless it is so already, and `release-account` lets go of that
+// hold only. One line of JSON, { state: 'held' | 'released', account, changed }, or { state: 'refused', error }; an
+// audit entry by the console when it changed. Root's step then makes the account match.
+if (process.argv[2] === 'hold-account' || process.argv[2] === 'release-account') {
+  const on = process.argv[2] === 'hold-account';
+  const at = process.argv.indexOf('--account');
+  const account = at > 0 ? process.argv[at + 1] ?? '' : '';
+  try {
+    if (!store.ACCOUNT_NAME.test(account)) throw Object.assign(new Error(store.NAME_RULE), { status: 400 });
+    const changed = doors.holdAccount(account, on);
+    if (changed) audited(on ? 'suspend' : 'resume', { actor: 'console', account, detail: 'move' });
+    console.log(JSON.stringify({ state: on ? 'held' : 'released', account, changed }));
+    process.exit(0);
+  } catch (e) {
+    if (!e.status) throw e;
+    console.log(JSON.stringify({ state: 'refused', error: e.message }));
+    process.exit(3);
+  }
+}
 // An account moved between machines by the fleet console through root's step (ADR 253). `import-account --account
 // NAME --record FILE` makes NAME here, with no passkey, from what FILE (the other machine's front-door.json, from its
 // off-site backup) kept of it, before root's step puts its data back: refused when the name is taken, on a machine of

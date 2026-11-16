@@ -4187,6 +4187,84 @@ import_request() {
   warn "The account $IM_NAME wasn't imported, and what was made of it is gone: ${im_text:-see above}"
 }
 
+# HOLD-<account>, root's alone (ADR 253): the account held still while the fleet console moves it to another machine.
+# Its first line `on` suspends it, as the admin page does, unless it is so already, and backs the machine up off-site
+# at once, so that the backup the other machine imports holds everything it wrote; `off` lets go of that hold only,
+# never a suspension the admin or the console made. status/hold-<account>.json: state (holding, held, released, refused
+# or failed), at, account, lastSuccess (that backup's, once held) and error.
+HOLD=HOLD-
+hold_request() {
+  IM_NAME="${1##*/"$HOLD"}"
+  if ! valid_account "$IM_NAME"; then
+    rm -f -- "$1"
+    warn "Not an account's name, so nothing was held: $(printf '%s' "$IM_NAME" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
+    return 0
+  fi
+  hr_said() { write_status "hold-$IM_NAME.json" "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"account\":\"$IM_NAME\"${2:+,$2}}"; }
+  if ! by_root "$1"; then
+    rm -f -- "$1"
+    hr_said refused '"error":"Only root asks for this."'
+    warn "A hold of an account that root didn't make was refused."
+    return 0
+  fi
+  hr_on="$(head -c 16 "$1" 2>/dev/null | head -n 1 | tr -d ' \t\r' || true)"
+  rm -f -- "$1"
+  case "$hr_on" in
+    on) hr_kind=hold-account ;;
+    off) hr_kind=release-account ;;
+    *) hr_said refused '"error":"A hold is on or off."'; return 0 ;;
+  esac
+  if [ "$hr_on" = on ] && [ "$IM_NAME" = "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ]; then
+    hr_said refused "\"error\":\"The account $IM_NAME is the machine's first account, which stays on it.\""
+    return 0
+  fi
+  if [ "$hr_on" = on ] && [ -z "$(offsite_repo)" ]; then
+    hr_said refused '"error":"This machine has no off-site repository to back the account up to."'
+    return 0
+  fi
+  door_account "$hr_kind"
+  case "$IM_LINE" in
+    '{"state":"held",'* | '{"state":"released",'*) ;;
+    '{"state":"refused",'*)
+      hr_said refused "\"error\":\"$(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 300)\""
+      return 0 ;;
+    *)
+      hr_said failed "\"error\":\"The front door changed nothing${IM_WHY:+: $IM_WHY}\""
+      warn "The front door didn't $hr_kind $IM_NAME${IM_WHY:+: $IM_WHY}"
+      return 0 ;;
+  esac
+  hr_state="$(door_state "$IM_NAME")"
+  set +e
+  # shellcheck disable=SC2086 # the state, then its share's three numbers
+  ( set -e; settle "$IM_NAME" $hr_state ) </dev/null
+  hr_done=$?
+  set -e
+  if [ "$hr_done" != 0 ]; then
+    hr_said failed "\"error\":\"The account $IM_NAME doesn't match the front door yet; the next run tries again.\""
+    return 0
+  fi
+  if [ "$hr_on" = off ]; then
+    hr_said released
+    ok "The account $IM_NAME is no longer held"
+    return 0
+  fi
+  hr_since="$(date -u +%Y%m%d%H%M%S)"
+  hr_said holding
+  if ! offsite_backup; then
+    hr_said failed "\"error\":\"$(sed -n 's/.*"error":"\([^"]*\)".*/\1/p' "$DOOR/status/offsite.json" 2>/dev/null | plain_line 300)\""
+    return 0
+  fi
+  # The run must have started once the account was held: one that ran already when it was asked doesn't count.
+  hr_last="$(sed -n 's/.*"lastSuccess":"\([0-9TZ:-]*\)".*/\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true)"
+  hr_started="$(sed -n 's/.*"started":"\([0-9TZ:-]*\)".*/\1/p' "$DOOR/status/offsite.json" 2>/dev/null || true)"
+  if [ -z "$hr_last" ] || [ -z "$hr_started" ] || [ "$(printf '%s' "$hr_started" | tr -d 'TZ:-')" -lt "$hr_since" ]; then
+    hr_said failed '"error":"Another off-site backup was running, so none was made since the account was held: ask again."'
+    return 0
+  fi
+  hr_said held "\"lastSuccess\":\"$hr_last\""
+  ok "The account $IM_NAME is held, and backed up off-site at $hr_last"
+}
+
 # An account deleted by the fleet console once it runs on another machine (ADR 253), root's alone: DELETE-<account>.
 # The front door deletes it as the admin page does, and root's step erases it from the machine at once. How it went is
 # in status/delete-<account>.json: state (deleted, refused or failed), at, account, and error.
@@ -4408,7 +4486,12 @@ if [ "$MODE" = requested ]; then
     [ -f "$request" ] && [ ! -L "$request" ] || continue
     revoke_request "$request"
   done
-  # Accounts moved between machines (ADR 253): imported here, then deleted from the one they left.
+  # Accounts moved between machines (ADR 253): held still and backed up on the one they leave, imported here, then
+  # deleted from the one they left.
+  for request in "$REQUESTS/$HOLD"*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    hold_request "$request"
+  done
   for request in "$REQUESTS/$IMPORT"*; do
     [ -f "$request" ] && [ ! -L "$request" ] || continue
     import_request "$request"
@@ -4424,7 +4507,7 @@ if [ "$MODE" = requested ]; then
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$OFFSITE_SET" ] || [ "$name" = "$OFFSITE_RESTORE" ] || [ "$name" = "$RESTORE_TEST_REQUEST" ] || [ "$name" = "$KEYS_REQUEST" ] || [ "$name" = "$SUSPEND_REQUEST" ] || [ "$name" = "$RESUME_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
-    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP" | "$REVOKE_SIGN_UP"* | "$IMPORT"* | "$DELETE"*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
+    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP" | "$REVOKE_SIGN_UP"* | "$IMPORT"* | "$DELETE"* | "$HOLD"*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else
