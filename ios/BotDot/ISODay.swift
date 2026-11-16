@@ -7,7 +7,7 @@ enum ISODay {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
-        f.timeZone = .current
+        f.timeZone = TimeZone.autoupdatingCurrent  // follows the phone when its zone changes, as the desk's now() does
         f.dateFormat = "yyyy-MM-dd"
         return f
     }()
