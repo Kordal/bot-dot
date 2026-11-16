@@ -444,8 +444,8 @@
       <div class="kit-seg cf-filters" role="tablist">${CompanyTodo.FILTERS.map((k) => `<button type="button" role="tab" class="${filter === k ? 'on' : ''}" aria-selected="${filter === k}" data-cf-filter="${k}">${FILTER[k]()}</button>`).join('')}</div>
       ${asks ? planHTML(c) + standupHTML(c) : ''}
       <div class="cf-rows">${rows}</div>
-      <form class="co-ask small cf-add" id="cf-add"><button type="button" class="cf-who" data-cf-who aria-label="${esc(who ? who.name : tr('You'))}">${who ? head(who) : you}</button><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="button" class="cf-when${when ? ' set' : ''}" data-cf-when aria-label="${tr('Due')}">${when ? esc(when) : CAL}</button><button type="submit" class="co-go">${tr('Add')}</button></form>
-      ${menuHTML(c)}
+      <div class="cf-add-wrap"><form class="co-ask small cf-add" id="cf-add"><button type="button" class="cf-who" data-cf-who aria-label="${esc(who ? who.name : tr('You'))}">${who ? head(who) : you}</button><input name="task" autocomplete="off" maxlength="300" placeholder="${tr('Add a task')}" aria-label="${tr('Add a task')}" /><button type="button" class="cf-when${when ? ' set' : ''}" data-cf-when aria-label="${tr('Due')}">${when ? esc(when) : CAL}</button><button type="submit" class="co-go">${tr('Add')}</button></form>
+      ${menuHTML(c)}</div>
       ${decisionsHTML(c)}`;
   }
   // The owner's decisions (#694): the last few, newest first, with their reason and day; Add a decision under them.

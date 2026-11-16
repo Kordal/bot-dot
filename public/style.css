@@ -3031,6 +3031,10 @@ button.ct-team:hover, button.ct-team.here { background: var(--sunk); color: var(
 .cf-lead-chip .cf-crown { position: static; padding: 0; background: none; }
 .cf-lead-chip svg.team-crown { width: 12px; height: 12px; fill: #f5c542; flex: none; }
 .cf-add { position: relative; margin-top: var(--sp-4); }
+/* The Who and Due menus open under the row, at its side of each button (#1511). */
+.cf-add-wrap { position: relative; }
+.cf-add-wrap > .cf-menu { top: calc(100% + var(--sp-4)); }
+.cf-add-wrap > .cf-menu:not(.cf-when-menu) { right: auto; left: 0; }
 /* The To-do (#692): the filters, an item's chip and delete, Add's who and when, and their pickers. */
 .cf-filters { display: flex; }
 .cf-filters button { flex: 1; }
