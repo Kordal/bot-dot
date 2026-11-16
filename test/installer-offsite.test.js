@@ -1002,6 +1002,15 @@ test('DELETE-bob has the front door delete bob and erases it from the machine at
   assert.deepEqual({ state: said.state, account: said.account }, { state: 'deleted', account: 'bob' });
 });
 
+test("DELETE- of the machine's first account is refused before the front door is asked", (t) => {
+  const m = machine(t);
+  const done = ask(m, 'DELETE-ann', '', { dockerFirst: moveDoor(m) });
+  assert.ok(!done.docker.some((c) => c.call.includes('front-door.js delete-account')), 'the front door is not asked');
+  assert.doesNotMatch(done.system, /userdel/);
+  const said = status(done, 'delete-ann.json');
+  assert.deepEqual({ state: said.state, error: said.error }, { state: 'refused', error: "The account ann is the machine's first account, which stays on it." });
+});
+
 test('IMPORT- and DELETE- requests the front door made are refused, and nothing is read or deleted', { skip: process.getuid?.() !== 0 && 'chowning needs root' }, (t) => {
   const m = machine(t);
   m.offsite();

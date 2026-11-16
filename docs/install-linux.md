@@ -181,7 +181,7 @@ The fleet console moves one account between two managed machines through the off
 printf '%s\n' 3f2a9c1e sftp://u1-sub3@u1.your-storagebox.de:23/botdot "$PASSWORD" "$SUB_PASSWORD" | sudo tee /var/lib/botdot/front-door/requests/IMPORT-bob > /dev/null
 ```
 
-Root's step restores the account's parts of that machine's latest backup into `/var/lib/botdot/account-import`, has the front door make the account with no passkey (its owner signs in with `SIGN-IN-bob`), puts its data back and removes the folder. The backup must be of the version this machine runs, and the account's name free here. `status/import-bob.json` says `state` (`importing` with its `phase`, `imported`, `refused` or `failed`), `at`, `account`, `instance`, `snapshot` and `error`. On the old machine `DELETE-bob` then deletes the account as the admin page would and erases it at once: `status/delete-bob.json` (`deleted`, `refused` or `failed`). A request the front door made, not root, is refused.
+Root's step restores the account's parts of that machine's latest backup into `/var/lib/botdot/account-import`, has the front door make the account with no passkey (its owner signs in with `SIGN-IN-bob`), puts its data back and removes the folder. The backup must be of the version this machine runs, and the account's name free here. `status/import-bob.json` says `state` (`importing` with its `phase`, `imported`, `refused` or `failed`), `at`, `account`, `instance`, `snapshot` and `error`. On the old machine `DELETE-bob` then deletes the account as the admin page would and erases it at once: `status/delete-bob.json` (`deleted`, `refused` or `failed`); the machine's first account is refused, as it is never erased. A request the front door made, not root, is refused.
 
 ### The console's keys
 

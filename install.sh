@@ -4207,6 +4207,13 @@ delete_request() {
     return 0
   fi
   rm -f -- "$1"
+  # The admin's own account, and a managed machine's first one, is never erased (erase_account): it stays, with its
+  # passkeys, rather than leave the front door without it and the machine with its data.
+  if [ "$IM_NAME" = "$(get_env "$ENV" FRONT_DOOR_ADMIN)" ]; then
+    dr_said refused "\"error\":\"The account $IM_NAME is the machine's first account, which stays on it.\""
+    warn "The account $IM_NAME is the machine's first account, so it wasn't deleted."
+    return 0
+  fi
   door_account delete-account
   case "$IM_LINE" in
     '{"state":"deleted",'*) ;;
