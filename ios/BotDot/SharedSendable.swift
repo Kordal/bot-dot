@@ -91,3 +91,5 @@ extension ChiefSettingsDesk: @retroactive @unchecked Sendable {}
 extension ChiefGrant: @retroactive @unchecked Sendable {}
 extension DuplicateDesk: @retroactive @unchecked Sendable {}
 extension BoardCanvas.R: @retroactive @unchecked Sendable {}
+extension CalendarDesk: @retroactive @unchecked Sendable {}
+extension CalendarState: @retroactive @unchecked Sendable {}

@@ -142,6 +142,8 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
+    /** The calendar tile (#695, `project-calendar` and the board's "calendar" piece). */
+    val calendar: Boolean = false,
     /** The board as the owner arranged it on the canvas (#784): each tile where it stands; null: the usual flow. */
     val canvas: Map<String, BoardCanvas.R>? = null,
     val tidying: Boolean,
@@ -312,6 +314,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             needsYou = needsYou,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            calendar = c != null && ProjectCalendar.FEATURE in f && on("calendar"),
             canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,

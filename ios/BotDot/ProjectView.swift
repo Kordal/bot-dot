@@ -292,6 +292,8 @@ struct ProjectPage: View {
             if let day = s.day?.intValue { dayLine(day) }
         case "files":
             if s.filesTile { filesTile(s, c) }
+        case "calendar":
+            if s.calendar { CalendarTileView(model: model, bots: s.bots, figure: figure).listRowSeparator(.hidden) }
         default:
             if id.hasPrefix("goal:"), let o = s.goals.first(where: { "goal:\($0.id)" == id }) {
                 Goals(goals: [o]).listRowSeparator(.hidden)
@@ -343,6 +345,7 @@ struct ProjectPage: View {
         if let slots = s.cards {
             CardsRow(model: model, state: s, slots: slots, figure: figure).listRowSeparator(.hidden)
         }
+        if s.calendar { CalendarTileView(model: model, bots: s.bots, figure: figure).listRowSeparator(.hidden) }
         if s.filesTile { filesTile(s, c) }
         // With overview-board the teams are under Team (ADR 238), not on the board.
         if s.teamsOnBoard {

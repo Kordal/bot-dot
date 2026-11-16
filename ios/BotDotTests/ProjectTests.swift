@@ -151,4 +151,15 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(taller["goal:a"]?.h, 360)
         XCTAssertGreaterThanOrEqual(taller["files"]?.y ?? 0, 376, "what it would cover slides down")
     }
+
+    /// The calendar: the shared desk's words and colours, and the month in the phone's words.
+    func testTheCalendarIsTheSharedOne() {
+        let job = Api.companion.JSON.decodeFromString(deserializer: CalendarItem.companion.serializer(), string: #"{"kind":"checkin","day":"2026-11-20","n":30}"#) as! CalendarItem
+        XCTAssertEqual(ProjectCalendar.shared.titleOf(x: job), "Day 30 check-in")
+        XCTAssertEqual(ProjectCalendar.shared.colorOf(x: job, bots: []), ProjectCalendar.shared.CHECKIN_COLOR)
+        XCTAssertEqual(ProjectCalendar.shared.whenOf(x: job, today: "2026-11-19"), "Tomorrow")
+        XCTAssertNil(ProjectCalendar.shared.whenOf(x: job, today: "2026-11-01"), "a later day: the phone names it")
+        XCTAssertFalse(CalendarWords.month("2026-11").isEmpty)
+        XCTAssertEqual(ProjectCalendar.shared.time(typed: "930"), "09:30")
+    }
 }
