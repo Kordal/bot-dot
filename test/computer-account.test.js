@@ -123,8 +123,12 @@ test('a computer whose sudo is broken by its runtime still starts, and botdot sa
   const errors = [];
   const realError = console.error;
   console.error = (...a) => errors.push(a.join(' '));
-  try { await computers.ensure(seat('a1')); } finally { console.error = realError; sudoBroken = false; }
+  try {
+    await computers.ensure(seat('a1'));
+    await computers.ensure(seat('b1'));
+  } finally { console.error = realError; sudoBroken = false; }
   assert.equal((await computers.inspect('a1')).state, 'running');
+  assert.equal(errors.filter((e) => /sudo does not work/.test(e)).length, 1, 'a computer already running is not checked again');
   assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /runsc/.test(e) && /reset would not help/.test(e)), errors.join('\n'));
 });
 
