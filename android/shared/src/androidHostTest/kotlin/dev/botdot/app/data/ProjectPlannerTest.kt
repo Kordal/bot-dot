@@ -58,6 +58,26 @@ class ProjectPlannerTest {
         assertNull(older.todos[0].due); assertNull(older.standupToday); assertTrue(older.decisions.isEmpty()); assertTrue(older.events.isEmpty())
     }
 
+    @Test fun thePanelHoldsItsAsksItemsChipsAndNumberForBothPhones() {
+        val c = CompanySetup.of("""{"id":"c1","phase":"running","teams":[{"id":"t1","name":"Crew","bots":["a"]}],"todos":[
+            {"id":"r","text":"Report","repeat":{"every":"day"}},{"id":"w","text":"Fix","bot":"a"},{"id":"l","text":"Pay","due":"2020-01-01"},
+            {"id":"d","text":"Old","done":true,"doneAt":"2026-10-01T00:00:00Z"}]}""")
+        val bots = listOf(Bot("a", "Ada", running = true), Bot("z", "Zed"))
+        val waits = listOf(Waiting(null, "Ada wants to send mail", bot = "a"))
+        val all = ProjectTodo.panel(c, bots, waits, "all", listOf(ProjectTodo.FEATURE))
+        assertEquals("To-do", all.title)
+        assertEquals(listOf("l", "r", "w"), all.rows.map { it.todo.id })
+        assertEquals(listOf(ProjectTodo.Chip.DUE, ProjectTodo.Chip.REPEAT, ProjectTodo.Chip.WORKING), all.rows.map { it.chip })
+        assertTrue("its due day passed", all.rows[0].late)
+        assertEquals("one wait and three open items", 4, all.count)
+        assertEquals(listOf("a"), all.forBots.map { it.id })
+        val bySelf = ProjectTodo.panel(c, bots, waits, "bots", listOf(ProjectTodo.FEATURE))
+        assertFalse("Bots: no asks", bySelf.asks); assertEquals(listOf("w"), bySelf.rows.map { it.todo.id }); assertEquals(1, bySelf.count)
+        assertEquals(0, ProjectTodo.panel(c, bots, waits, "done", listOf(ProjectTodo.FEATURE)).count)
+        val older = ProjectTodo.panel(c, bots, waits, "all", emptyList())
+        assertEquals("You", older.title); assertNull("no chips before the full To-do", older.rows.first().chip)
+    }
+
     @Test fun eachFilterShowsWhatTheWebShows() {
         val all = listOf(
             Todo("late", due = "2026-10-01"), Todo("none1"), Todo("bot", bot = "a", due = "2026-10-05"), Todo("none2"),
