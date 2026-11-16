@@ -510,7 +510,7 @@ internal fun Dot(color: String?) = Box(Modifier.size(8.dp).clip(CircleShape).bac
 @Composable
 private fun SuggestedCard(ui: CompanyUi, c: Company, s: Suggested) {
     val p = LocalPaper.current
-    val color = c.teams.firstOrNull { it.id == s.team }?.color ?: "#8e7cff"
+    val color = dev.botdot.app.data.ManyProjects.suggestedColor(c, s)
     var busy by remember(s.name) { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().dashedBox(parseColor(color, p.line2)).padding(Space.s12), verticalAlignment = Alignment.CenterVertically) {
         BotFigure(color, "idle", 40)
@@ -542,8 +542,7 @@ private fun NewTeam(ui: CompanyUi, c: Company, addBot: (() -> Unit)? = null) {
         if (addBot != null) Dashed(tr("Add bot"), Modifier.weight(1f).testTag(OWN_ADD), addBot)
     }
     if (picking) {
-        val inTeam = c.teams.flatMap { it.bots }.toSet()
-        val bots = ui.bots.collectAsState().value.orEmpty().sortedBy { it.id in inTeam }
+        val bots = dev.botdot.app.data.ManyProjects.teamCandidates(c, ui.bots.collectAsState().value.orEmpty())
         BotPicker(tr("New team"), bots, max = 40, action = tr("Create"), hint = { "" }, name = "", onDismiss = { picking = false }) { picked, name ->
             val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
             ui.took(a.newCompanyTeam(name, picked))
