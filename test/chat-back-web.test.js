@@ -17,6 +17,7 @@ function makeHistory(ctx) {
   const h = {
     entries: [{ state: null, url: '#company' }], at: 0,
     get state() { return h.entries[h.at].state; },
+    get length() { return h.entries.length; },
     pushState(s, _t, url) { h.entries.splice(h.at + 1); h.entries.push({ state: s, url }); h.at++; },
     replaceState(s, _t, url) { h.entries[h.at] = { state: s, url }; },
     back() { if (h.at === 0) return; h.at--; ctx.popped({ state: h.state }); },
@@ -97,6 +98,17 @@ test("a Back over entries that are no chat's step is left to the address's own r
   ctx.history.back();
   assert.equal(ctx.state.view, 'bot', 'popstate leaves it to hashchange');
   assert.deepEqual([...said], []);
+});
+
+test('an address typed while a chat is a step opens what it names: it is no Back', () => {
+  const { ctx, said } = load();
+  ctx.setView('chief');
+  // The browser goes to a typed #settings: a new entry after the step, and a popstate with no state.
+  ctx.history.entries.push({ state: null, url: '#settings' });
+  ctx.history.at = 2;
+  ctx.popped({ state: null });
+  assert.deepEqual([...said], ['chief'], 'the chat is not left here: hashchange opens #settings');
+  assert.equal(ctx.history.entries[2].url, '#settings', 'its entry is not written over');
 });
 
 test('a chat that came on the Projects screen another way (a link, a typed or reloaded address) still leaves to the project', () => {

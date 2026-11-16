@@ -1356,13 +1356,14 @@ function writeHash(over = false) {
   if (!CHAT_VIEWS.includes(v) && history.state?.over) { dropStep(); return; }
   const id = v === 'runs' ? state.selectedRun : v === 'chief' ? state.chatId : v === 'bot' ? state.botId : v === 'group' ? state.groupId : v === 'rooms' ? state.roomId : null;
   state.hash = `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`; // what the address says now: no route of its own (boot.js)
-  if (over && !history.state?.over) history.pushState({ over: true }, '', state.hash);
+  if (over && !history.state?.over) { history.pushState({ over: true }, '', state.hash); stepLength = history.length; }
   else history.replaceState(history.state, '', state.hash);
   onStep = !!history.state?.over;
 }
 // A chat's step being gone back over without leaving anything (dropStep): its popstate only writes the address.
 let unstepping = false;
 let onStep = false; // the entry shown is a chat's step (writeHash)
+let stepLength = 0; // the history's length once the step was made: an address typed since adds an entry
 function dropStep() {
   unstepping = true;
   history.back();
@@ -1375,9 +1376,10 @@ function stepGone() {
   writeHash();
   return true;
 }
-// The popstate of the browser's Back (boot.js): true when it left a chat's step, so the chat is left too.
+// The popstate of the browser's Back (boot.js): true when it left a chat's step, so the chat is left too. An address
+// typed or pasted while the step is shown fires one too, as a new entry after it: that is the address's own route.
 function leftStep(e) {
-  const left = onStep && !e.state?.over;
+  const left = onStep && !e.state?.over && history.length === stepLength;
   onStep = !!e.state?.over;
   return left;
 }
