@@ -26,7 +26,7 @@ dns.promises.Resolver = class {
 
 // The stand-in Docker: containers by name, { state, labels, mounts }, and the named volumes. With refuseLimits, it has no
 // CPU cgroup. With missing, `docker cp` finds no such folder there.
-let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false, bridgeSays = null;
+let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false, bridgeSays = null, sudoBroken = false;
 function docker(args) {
   calls.push(args);
   const [cmd] = args;
@@ -57,6 +57,7 @@ function docker(args) {
   if (cmd === 'rm' && name) containers.delete(name);
   if (cmd === 'ps') return [...containers].filter(([n]) => n.startsWith('botdot-')).map(([n, c]) => `${n}|${n.slice(7)}|${c.state}`).join('\n');
   // A screen's computer-server answers once its supervisord was started (#105).
+  if (cmd === 'exec' && args.includes('sudo') && sudoBroken) throw new Error("sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set");
   if (cmd === 'exec' && args.includes('/usr/bin/supervisord')) screensUp.add(args.find((a) => a.startsWith('API_PORT=')).slice(9));
   if (cmd === 'exec' && args.includes('python3') && !args.includes('-I') && !screensUp.has(args.at(-1))) throw new Error('Connection refused');
   if (cmd === 'exec' && args.includes('-I') && bridgeSays && !args.includes('botdot-run')) return bridgeSays(args);
@@ -115,6 +116,24 @@ test("every bot's computer is the account's one computer, made once", async () =
   assert.equal(computers.containerName('b1'), ACCOUNT);
   assert.equal(containers.get('botdot-b1').state, 'exited', "a bot's old computer is not started");
   for (const id of ['a1', 'b1']) assert.equal((await computers.inspect(id)).state, 'running');
+});
+
+test('a computer whose sudo is broken by its runtime still starts, and botdot says why in its log', async () => {
+  sudoBroken = true;
+  const errors = [];
+  const realError = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  try { await computers.ensure(seat('a1')); } finally { console.error = realError; sudoBroken = false; }
+  assert.equal((await computers.inspect('a1')).state, 'running');
+  assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /runsc/.test(e) && /reset would not help/.test(e)), errors.join('\n'));
+});
+
+test('a working sudo adds nothing to the log at a start', async () => {
+  const errors = [];
+  const realError = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  try { await computers.ensure(seat('a1')); } finally { console.error = realError; }
+  assert.deepEqual(errors.filter((e) => /sudo does not work/.test(e)), []);
 });
 
 test('it runs as box, with sudo: Docker keeps its default capabilities, under its own network and firewall', async () => {
