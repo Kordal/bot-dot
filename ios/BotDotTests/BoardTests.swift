@@ -62,6 +62,42 @@ final class BoardTests: XCTestCase {
         XCTAssertFalse(HomeTiles.shared.shows(features: []), "a botdot without home-tiles: no long press")
         XCTAssertTrue(HomeTiles.shared.shows(features: ["home-tiles"]))
     }
+
+    /// The colour wheel: the shared BoardKit's colours and marks, and a swatch's own block found on a tile's face.
+    func testTheColourWheelIsTheSharedOne() {
+        XCTAssertEqual(BoardKit.shared.wheelHex(x: 1, y: 0.5), "#ff0000")
+        XCTAssertEqual(BoardKit.shared.wheelHex(x: 0.5, y: 0.5), "#ffffff")
+        XCTAssertEqual(BoardKit.shared.wheelAt(hex: "#ff0000")?.first?.doubleValue ?? 0, 1, accuracy: 1e-9)
+        XCTAssertNil(BoardKit.shared.wheelAt(hex: "warm"))
+        let json = """
+        {"id":"l","kind":"light","title":"Lamp","look":{"face":[{"type":"row","blocks":[{"type":"color","key":"c","value":"#00ff00"}]}]}}
+        """
+        let t = Api.companion.JSON.decodeFromString(deserializer: Tile.companion.serializer(), string: json) as! Tile
+        XCTAssertEqual(BoardKit.shared.faceBlock(look: t.look, key: "c")?.type, "color")
+    }
+
+    /// Drag to move: where a tile let go lands is the shared BoardKit's rule.
+    func testWhereADroppedTileGoesIsTheSharedRule() {
+        let rows = ["h:Home", "t1", "t2", "h:Garden", "t3"]
+        let next = BoardKit.shared.moved(rows: rows, from: "t3", to: "t1", tiles: [])
+        XCTAssertEqual(next, ["h:Home", "t3", "t1", "t2", "h:Garden"])
+        XCTAssertEqual(BoardKit.shared.placeOf(rows: next ?? [], id: "t3"), TilePlace(section: "Home", parent: nil, before: "t1"))
+    }
+
+    /// A table block: the shared KitTable sorts, filters and pages it, as on Android.
+    func testATableIsTheSharedKitTable() {
+        let json = """
+        {"type":"table","text":"Features","pageSize":2,"head":[{"label":"Feature"},{"label":"State","type":"status"},{"label":"Runs","type":"number"}],
+         "rows":[[{"text":"Copy"},{"text":"Done","level":"ok"},{"text":"3","n":3}],[{"text":"Rooms"},{"text":"Open"},{"text":"12","n":12}],[{"text":"Kit"},{"text":"Done"},{"text":""}]],
+         "filter":{"column":1,"options":["Done","Open"]}}
+        """
+        let b = Api.companion.JSON.decodeFromString(deserializer: Block.companion.serializer(), string: json) as! Block
+        let v = KitTable.shared.view(b: b, sort: TableSort(column: 2, dir: "desc"), query: "", filter: "", page: 0)
+        XCTAssertEqual(v.rows.map { $0[0].text }, ["Rooms", "Copy"])
+        XCTAssertEqual(v.pages, 2)
+        XCTAssertEqual(KitTable.shared.count(v: KitTable.shared.view(b: b, sort: nil, query: "", filter: "done", page: 0)), "2 of 2 · 3 in all")
+        XCTAssertEqual(KitTable.shared.next(now: TableSort(column: 1, dir: "asc"), column: 1), TableSort(column: 1, dir: "desc"))
+    }
 }
 
 /// The account's parts on the iPhone: what the front door offers, What's new, the paused account.

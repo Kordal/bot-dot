@@ -66,14 +66,8 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.cos
-import kotlin.math.hypot
-import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
 /*
  * A tile's blocks (lib/tile-blocks.js on the server, like the web page's): what shows on a tile (its face)
@@ -270,20 +264,7 @@ private fun TileImage(b: Block, ctl: TileControls) {
     }
 }
 
-// The colour wheel: hue around it (red at the right, going clockwise), white in the middle. Brightness is a slider of its own.
-private fun hsvHex(h: Double, s: Double): String {
-    fun f(n: Int): Int { val k = (n + h / 60) % 6; return (255 * (1 - s * max(0.0, minOf(k, 4 - k, 1.0)))).roundToInt() }
-    return "#%02x%02x%02x".format(f(5), f(3), f(1))
-}
-private fun hexHs(hex: String): Pair<Double, Double>? {
-    if (!Regex("^#[0-9a-fA-F]{6}$").matches(hex)) return null
-    val (r, g, b) = listOf(1, 3, 5).map { hex.substring(it, it + 2).toInt(16) / 255.0 }
-    val mx = maxOf(r, g, b); val d = mx - minOf(r, g, b)
-    var h = 0.0
-    if (d > 0) h = when (mx) { r -> ((g - b) / d) % 6; g -> (b - r) / d + 2; else -> (r - g) / d + 4 }
-    return ((h * 60 + 360) % 360) to (if (mx > 0) d / mx else 0.0)
-}
-
+// The colour wheel: hue around it (red at the right, going clockwise), white in the middle (BoardKit.wheelHex).
 @Composable
 private fun ColorWheel(b: Block, ctl: TileControls) {
     val act by rememberUpdatedState(ctl.act)
@@ -292,8 +273,7 @@ private fun ColorWheel(b: Block, ctl: TileControls) {
     val density = LocalDensity.current
     val wheel = 220.dp
     fun pick(o: Offset, w: Int, done: Boolean) {
-        val x = o.x / w - 0.5; val y = o.y / w - 0.5
-        val picked = hsvHex((atan2(y, x) * 180 / PI + 360) % 360, min(hypot(x, y) * 2, 1.0))
+        val picked = dev.botdot.app.data.BoardKit.wheelHex(o.x.toDouble() / w, o.y.toDouble() / w)
         hex = picked
         val now = System.currentTimeMillis()
         if (done || now - last > 350) { last = now; act(b.key!!, JsonPrimitive(picked), done) }
@@ -315,12 +295,11 @@ private fun ColorWheel(b: Block, ctl: TileControls) {
                 drawCircle(Brush.radialGradient(listOf(Color.White, Color.White.copy(alpha = 0f))))
             }
             hex?.let { h ->
-                hexHs(h)?.let { (hue, sat) ->
-                    val r = with(density) { wheel.toPx() } / 2
-                    val a = hue * PI / 180
+                dev.botdot.app.data.BoardKit.wheelAt(h)?.let { (x, y) ->
+                    val w = with(density) { wheel.toPx() }
                     val mark = with(density) { 22.dp.toPx() }
                     Box(
-                        Modifier.offset { IntOffset((r + cos(a) * sat * r - mark / 2).roundToInt(), (r + sin(a) * sat * r - mark / 2).roundToInt()) }
+                        Modifier.offset { IntOffset((x * w - mark / 2).roundToInt(), (y * w - mark / 2).roundToInt()) }
                             .size(22.dp).clip(CircleShape).background(parseColor(h, Color.White)).border(3.dp, Color.White, CircleShape),
                     )
                 }
