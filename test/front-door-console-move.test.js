@@ -80,6 +80,9 @@ test('managed, several: an imported account has what the other machine kept of i
   assert.deepEqual([taken.status, taken.said.state, taken.said.error], [3, 'refused', 'The login carl of the account dora is taken on this machine.']);
   assert.ok(!data(door).accounts.dora);
 
+  // The wait ran out before the running front door deleted carl: not refused, still deleting, and no audit entry.
+  const slow = ask(door, { ...env, FRONT_DOOR_CONSOLE_DELETE_WAIT_MS: '1' }, 'delete-account', '--account', 'carl');
+  assert.deepEqual([slow.status, slow.said], [0, { state: 'deleting', account: 'carl' }]);
   const gone = ask(door, env, 'delete-account', '--account', 'carl');
   assert.deepEqual(gone.said, { state: 'deleted', account: 'carl' });
   assert.ok(!data(door).accounts.carl);

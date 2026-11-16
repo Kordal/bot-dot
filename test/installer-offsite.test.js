@@ -1042,6 +1042,15 @@ test('DELETE-bob has the front door delete bob and erases it from the machine at
   assert.deepEqual({ state: said.state, account: said.account }, { state: 'deleted', account: 'bob' });
 });
 
+test('DELETE-bob the front door is still deleting fails, to be asked again, and erases nothing yet', (t) => {
+  const m = machine(t);
+  const slow = ['case "$*" in', `  *"front-door.js delete-account --account bob --by console"*) echo '{"state":"deleting","account":"bob"}'; exit 0 ;;`, 'esac'];
+  const done = ask(m, 'DELETE-bob', '', { dockerFirst: [...slow, ...moveDoor(m)] });
+  assert.doesNotMatch(done.system, /userdel botdot-bob/);
+  const said = status(done, 'delete-bob.json');
+  assert.deepEqual([said.state, said.error], ['failed', 'The front door is still deleting the account: ask again in a few minutes.']);
+});
+
 // HOLD-<account> (ADR 254): the account held still on the machine it leaves, and backed up off-site from then on.
 const holdDoor = (m) => {
   const data = path.join(m.dir, 'front-door', 'data', 'front-door.json');

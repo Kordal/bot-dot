@@ -278,7 +278,8 @@ if (process.argv[2] === 'hold-account' || process.argv[2] === 'release-account')
 // one account unless it is that one and the machine has none yet, and on a managed machine without room for its share.
 // `delete-account --account NAME` has the running front door delete NAME as the admin page does, once it runs on its
 // new machine, and waits for it. Each says one
-// line of JSON, { state: 'imported' | 'deleted', account } or { state: 'refused', account?, error }, and is an audit
+// line of JSON, { state: 'imported' | 'deleted' | 'deleting', account } or { state: 'refused', account?, error }
+// (deleting: the running front door hadn't finished when the wait ran out, and goes on), and is an audit
 // entry by the console.
 if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account') {
   const importing = process.argv[2] === 'import-account';
@@ -315,7 +316,12 @@ if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account'
       const until = Date.now() + (Number(process.env.FRONT_DOOR_CONSOLE_DELETE_WAIT_MS) || 150_000);
       const pause = new Int32Array(new SharedArrayBuffer(4));
       while (doors.accountExists(account) && Date.now() < until) Atomics.wait(pause, 0, 0, 250);
-      if (doors.accountExists(account)) refused('The front door is still deleting the account. Ask again in a few minutes.');
+      // Not refused: the running front door goes on deleting it, and root's step erases it once it has. Asked again
+      // then, it says deleted.
+      if (doors.accountExists(account)) {
+        console.log(JSON.stringify({ state: 'deleting', account }));
+        process.exit(0);
+      }
       console.log(JSON.stringify({ state: 'deleted', account }));
     }
     process.exit(0);

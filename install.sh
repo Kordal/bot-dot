@@ -4199,8 +4199,12 @@ import_request() {
   door_account delete-account
   case "$IM_LINE" in
     '{"state":"deleted",'*) ;;
+    '{"state":"deleting",'*)
+      import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 200), and the front door is still deleting what was made of the account: ask for the import again in a few minutes\""
+      warn "The account $IM_NAME wasn't imported, and the front door is still deleting what was made of it"
+      return 0 ;;
     *)
-      import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 200), and the front door kept what was made of the account: delete it from the admin page${IM_WHY:+ ($(printf '%s' "$IM_WHY" | plain_line 80))}\""
+      import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 200), and the front door kept what was made of the account${IM_WHY:+ ($(printf '%s' "$IM_WHY" | plain_line 80))}\""
       warn "The account $IM_NAME wasn't imported, and the front door didn't delete what was made of it${IM_WHY:+: $IM_WHY}"
       return 0 ;;
   esac
@@ -4330,6 +4334,11 @@ delete_request() {
   door_account delete-account
   case "$IM_LINE" in
     '{"state":"deleted",'*) ;;
+    '{"state":"deleting",'*)
+      # Still going in the running front door: root's step erases it once it is done, and asked again it says deleted.
+      dr_said failed '"error":"The front door is still deleting the account: ask again in a few minutes."'
+      warn "The front door is still deleting the account $IM_NAME"
+      return 0 ;;
     '{"state":"refused",'*)
       dr_said refused "\"error\":\"$(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 300)\""
       warn "The front door didn't delete the account $IM_NAME: $(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 200)"
