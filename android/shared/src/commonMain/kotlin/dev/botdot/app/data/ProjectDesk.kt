@@ -144,6 +144,11 @@ class ProjectState(
     val replies: Boolean = false,
     /** The calendar tile (#695, `project-calendar` and the board's "calendar" piece). */
     val calendar: Boolean = false,
+    /** The board's "teams" piece: the bot the Chief suggests (Add or dismiss), and New team. */
+    val suggested: Suggested? = null,
+    val addsTeam: Boolean = false,
+    /** New team's bots to pick from, those in no team first ([ManyProjects.teamCandidates]). */
+    val teamCandidates: List<Bot> = emptyList(),
     /** The To-do panel (#692, the board's "todo" piece): what it holds under its filter; null where the board has none. */
     val todo: ProjectTodo.Panel? = null,
     /** An item of the To-do on its way in: Add waits. */
@@ -321,6 +326,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
             calendar = c != null && ProjectCalendar.FEATURE in f && on("calendar"),
+            suggested = c?.suggestion?.takeIf { on("teams") },
+            addsTeam = on("teams"),
+            teamCandidates = if (c != null && on("teams")) ManyProjects.teamCandidates(c, bots) else emptyList(),
             todo = if (c != null && on("todo")) ProjectTodo.panel(c, bots, here, x.todoFilter, features) else null,
             adding = x.adding,
             canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
@@ -669,6 +677,10 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         val body = ManyProjects.teamBody(name, bots, lead) ?: return false
         return if (team == null) call { it.addTeam(body) } else call { it.editTeam(team, body) }
     }
+
+    /** The Chief's suggested bot: Add makes it (into the team it would join), ✕ dismisses it. */
+    @Throws(Exception::class)
+    suspend fun answerSuggested(add: Boolean): Boolean = call { if (add) it.addSuggested() else it.dismissSuggested() }
 
     /** Delete team: its bots stay. */
     @Throws(Exception::class)

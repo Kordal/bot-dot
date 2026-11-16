@@ -191,4 +191,13 @@ final class ProjectTests: XCTestCase {
         var buddhist = Calendar(identifier: .buddhist); buddhist.timeZone = .current
         XCTAssertEqual(buddhist.component(.year, from: d!), 2569, "the same day, in a Buddhist year")
     }
+
+    /// The suggested bot's colour and New team's bots are the shared rules.
+    func testTheTeamsTilesAreTheSharedRules() {
+        let c = CompanySetup.shared.of(answer: ##"{"id":"c1","phase":"running","teams":[{"id":"t1","name":"Crew","color":"#ff9500","bots":["a"]}]}"##)
+        let bots = ["a", "z"].map { Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: "{\"id\":\"\($0)\",\"name\":\"\($0)\"}") as! Bot }
+        XCTAssertEqual(ManyProjects.shared.teamCandidates(c: c, bots: bots).map(\.id), ["z", "a"])
+        XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: "t1")), "#ff9500")
+        XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: nil)), ManyProjects.shared.ACCENT)
+    }
 }

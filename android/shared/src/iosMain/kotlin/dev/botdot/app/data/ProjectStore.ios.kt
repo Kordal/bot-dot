@@ -40,6 +40,8 @@ class ProjectStore(private val home: HomeStore) {
     @Throws(Exception::class) suspend fun arrange(layout: Map<String, BoardCanvas.R>): Boolean = desk.arrange(layout)
     @Throws(Exception::class) suspend fun removeCard(card: String) = desk.removeCard(card)
     @Throws(Exception::class) suspend fun putPiece(piece: String) = desk.putPiece(piece)
+    /** The Chief's suggested bot: Add (true) or dismiss. */
+    @Throws(Exception::class) suspend fun answerSuggested(add: Boolean): Boolean = desk.answerSuggested(add)
 
     /** The To-do (#692): its filter, a tick, Delete, and Add. */
     fun todoFilter(filter: String) = desk.todoFilter(filter)
