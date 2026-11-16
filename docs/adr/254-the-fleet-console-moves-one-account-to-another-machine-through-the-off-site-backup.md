@@ -1,4 +1,4 @@
-# ADR-253: The fleet console moves one account to another machine through the off-site backup
+# ADR-254: The fleet console moves one account to another machine through the off-site backup
 
 - **Status:** Accepted (2026-11-16)
 - **Owning task:** the owner's request in the project thread "Add Migrate per account in console" (move an account between servers from the fleet console)

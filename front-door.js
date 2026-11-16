@@ -245,7 +245,7 @@ if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
   console.log(JSON.stringify({ state: suspend ? 'suspended' : 'resumed', accounts: changed }));
   process.exit(0);
 }
-// An account the fleet console moves to another machine (ADR 253), held still from its last backup on: `hold-account
+// An account the fleet console moves to another machine (ADR 254), held still from its last backup on: `hold-account
 // --account NAME` suspends it, as the admin page does, unless it is so already, and `release-account` lets go of that
 // hold only. One line of JSON, { state: 'held' | 'released', account, changed }, or { state: 'refused', error }; an
 // audit entry by the console when it changed. Root's step then makes the account match.
@@ -268,7 +268,7 @@ if (process.argv[2] === 'hold-account' || process.argv[2] === 'release-account')
     process.exit(3);
   }
 }
-// An account moved between machines by the fleet console through root's step (ADR 253). `import-account --account
+// An account moved between machines by the fleet console through root's step (ADR 254). `import-account --account
 // NAME --record FILE` makes NAME here, with no passkey, from what FILE (the other machine's front-door.json, from its
 // off-site backup) kept of it, before root's step puts its data back: refused when the name is taken, on a machine of
 // one account unless it is that one and the machine has none yet, and on a managed machine without room for its share.
@@ -1933,7 +1933,7 @@ async function eraseAccount(name, actor) {
   return boatGone;
 }
 
-// The accounts the fleet console asked to delete (ADR 253, `front-door.js delete-account`), each erased once as the
+// The accounts the fleet console asked to delete (ADR 254, `front-door.js delete-account`), each erased once as the
 // admin page erases one, by the console.
 const consoleErasing = new Set();
 function consoleDeletes() {

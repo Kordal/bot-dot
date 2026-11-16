@@ -898,7 +898,7 @@ test('a restore test and an off-site backup stop at a step that fails, from a re
   assert.ok(!resticCalls(backup).some((c) => / backup /.test(c)), 'nothing is backed up past it');
 });
 
-// An account moved between machines (ADR 253): IMPORT-<account> restores one account of another machine's latest
+// An account moved between machines (ADR 254): IMPORT-<account> restores one account of another machine's latest
 // off-site backup here, after the front door made it (`front-door.js import-account`, its side in
 // test/front-door-console-move.test.js), and DELETE-<account> deletes it from the machine it left. The stand-in front
 // door keeps the record it was handed and writes the data its change leaves.
@@ -1002,7 +1002,7 @@ test('DELETE-bob has the front door delete bob and erases it from the machine at
   assert.deepEqual({ state: said.state, account: said.account }, { state: 'deleted', account: 'bob' });
 });
 
-// HOLD-<account> (ADR 253): the account held still on the machine it leaves, and backed up off-site from then on.
+// HOLD-<account> (ADR 254): the account held still on the machine it leaves, and backed up off-site from then on.
 const holdDoor = (m) => {
   const data = path.join(m.dir, 'front-door', 'data', 'front-door.json');
   return [

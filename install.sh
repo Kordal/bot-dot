@@ -57,7 +57,7 @@
 # ("A link asked by root alone", below), which only root and the front door read, and nowhere else.
 # REVOKE-SIGN-UP-<account> cancels every open sign-up link made for that account (#1279): status/revoke-sign-up-<account>.json.
 #
-# One account moves between machines (ADR 253), root's alone too: IMPORT-<account> makes it here from another machine's
+# One account moves between machines (ADR 254), root's alone too: IMPORT-<account> makes it here from another machine's
 # off-site backup, and DELETE-<account> deletes it from the one it left (below, "An account moved to this machine").
 #
 # The fleet console pauses the whole machine with SUSPEND and starts it again with RESUME, root's alone too: every
@@ -3968,7 +3968,7 @@ revoke_request() {
   rm -f "$rr_err"
 }
 
-# An account moved to this machine from another (ADR 253), root's alone: IMPORT-<account>, whose lines are the other
+# An account moved to this machine from another (ADR 254), root's alone: IMPORT-<account>, whose lines are the other
 # machine's instance, its off-site repository (none: this machine's own), that repository's restic password and, for a
 # Storage Box, the sub-account's password once, to put this machine's key there. Root's step finds that machine's latest
 # off-site backup, restores the account's parts and the front door's data with `restic restore --verify` into
@@ -4187,7 +4187,7 @@ import_request() {
   warn "The account $IM_NAME wasn't imported, and what was made of it is gone: ${im_text:-see above}"
 }
 
-# HOLD-<account>, root's alone (ADR 253): the account held still while the fleet console moves it to another machine.
+# HOLD-<account>, root's alone (ADR 254): the account held still while the fleet console moves it to another machine.
 # Its first line `on` suspends it, as the admin page does, unless it is so already, and backs the machine up off-site
 # at once, so that the backup the other machine imports holds everything it wrote; `off` lets go of that hold only,
 # never a suspension the admin or the console made. status/hold-<account>.json: state (holding, held, released, refused
@@ -4271,7 +4271,7 @@ hold_request() {
   ok "The account $IM_NAME is held, and backed up off-site at $hr_last"
 }
 
-# An account deleted by the fleet console once it runs on another machine (ADR 253), root's alone: DELETE-<account>.
+# An account deleted by the fleet console once it runs on another machine (ADR 254), root's alone: DELETE-<account>.
 # The front door deletes it as the admin page does, and root's step erases it from the machine at once. How it went is
 # in status/delete-<account>.json: state (deleted, refused or failed), at, account, and error.
 DELETE=DELETE-
@@ -4492,7 +4492,7 @@ if [ "$MODE" = requested ]; then
     [ -f "$request" ] && [ ! -L "$request" ] || continue
     revoke_request "$request"
   done
-  # Accounts moved between machines (ADR 253): held still and backed up on the one they leave, imported here, then
+  # Accounts moved between machines (ADR 254): held still and backed up on the one they leave, imported here, then
   # deleted from the one they left.
   for request in "$REQUESTS/$HOLD"*; do
     [ -f "$request" ] && [ ! -L "$request" ] || continue
