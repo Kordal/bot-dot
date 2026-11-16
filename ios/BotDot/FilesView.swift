@@ -323,6 +323,7 @@ struct ShareSheet: UIViewControllerRepresentable {
 /// the phone's own previewer (QuickLook). The ⋯ menu copies its text and shares the file.
 struct ViewerView: View {
     let opening: DocumentView.Opening
+    @Environment(\.openURL) var openURL
     /// The feed's tile ticks, for a page's blocks read again while it is open.
     @Environment(\.tileTicks) var tileTicks
     // Not private: the interactive page's part of the view is in InteractivePageView.swift.
@@ -370,6 +371,12 @@ struct ViewerView: View {
             .confirmationDialog(tr("Export…"), isPresented: $exporting) {
                 ForEach(DocumentExport.shared.FORMATS, id: \.first) { f in
                     Button(f.second as String? ?? "") { Task { if let url = await model.export(f.first as String? ?? "") { sharing = SharedFile(url: url) } } }
+                }
+                // Save to Google Docs (#351): connected, it saves and opens the Doc; not yet, Google's sign-in opens.
+                if model.docs != nil {
+                    Button(model.docsLabel.isEmpty ? "Google Docs" : "Google Docs · \(model.docsLabel)") {
+                        Task { if let url = await model.saveToGoogleDocs() { openURL(url) } }
+                    }
                 }
                 Button(tr("Cancel"), role: .cancel) {}
             }

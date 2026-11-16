@@ -116,6 +116,8 @@ final class ViewerModel {
         viewed = v
         mode = v.mode
         exports = (try? await viewer.exports(view: v.view))?.boolValue ?? false
+        docs = try? await viewer.googleDocs(view: v.view)
+        docsLabel = docs?.label ?? ""
         // A Markdown page's bar (#346, #451): the shared PageDesk, told the page as it was read.
         if v.site == nil, v.view?.page != nil {
             if pageDesk == nil, let desk = try? await viewer.pageDesk() {
@@ -145,6 +147,19 @@ final class ViewerModel {
     private var watching: Kotlinx_coroutines_coreJob?
     /// Export… is offered: a Markdown file on a botdot with document-export.
     private(set) var exports = false
+
+    /// Save to Google Docs in Export…, and what its row says beside it; nil where botdot has none.
+    private(set) var docs: GoogleDocs?
+    private(set) var docsLabel = ""
+
+    /// Google Docs tapped: the Doc saved (its address to open), or Google's sign-in to open; what to say is said.
+    func saveToGoogleDocs() async -> URL? {
+        guard let docs, let v = viewed?.view, let text = v.plain ?? v.text else { return nil }
+        guard let done = try? await docs.tap(title: viewer.opening.name, text: text, saying: { @Sendable [weak self] w in Task { @MainActor in self?.notice = w } }) else { return nil }
+        notice = done.say
+        docsLabel = docs.label
+        return done.open.flatMap(URL.init(string:))
+    }
 
     /// Export… in [format]: botdot makes the file, saved for the share sheet; nil (said) when it couldn't.
     func export(_ format: String) async -> URL? {
