@@ -43,5 +43,14 @@ test('App Privacy names every data type the privacy manifests declare, and no tr
     assert.match(manifest, /<key>NSPrivacyTracking<\/key>\s*<false\/>/, `${target} tracks nobody`);
   }
   assert.match(answers, /Used for tracking\? \*\*No\*\*/);
-  assert.match(answers, /^`https:\/\/botdot\.app\/privacy\/`$/m);
+  assert.match(answers, /^`https:\/\/botdot\.app\/privacy`$/m);
+});
+
+test('the app links the same privacy policy App Store Connect names, on the address screen and in Settings (5.1.1(i))', () => {
+  const url = read('connect-answers.md').match(/## Privacy Policy URL\n+`([^`]+)`/)[1];
+  const ios = (f) => fs.readFileSync(path.join(__dirname, '../ios/BotDot', f), 'utf8');
+  assert.ok(ios('Screens.swift').includes(`static let privacyPolicy = URL(string: "${url}")!`), 'Legal.privacyPolicy');
+  const address = ios('Screens.swift').match(/struct AddressView: View \{[\s\S]*?\n\}\n/)[0];
+  assert.match(address, /Link\(tr\("Privacy policy"\), destination: Legal\.privacyPolicy\)/, 'the address screen');
+  assert.match(ios('SettingsView.swift'), /Link\(tr\("Privacy policy"\), destination: Legal\.privacyPolicy\)/, 'Settings');
 });
