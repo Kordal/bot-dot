@@ -97,6 +97,26 @@ class ProjectDeskTest {
         assertEquals(12, s.day)
     }
 
+    @Test fun theToDoAddsTicksAndFiltersItsItems() = runTest {
+        val fake = FakeBotdot { a -> if (a.method == "GET") 200 to "{}" else 200 to kitchen }
+        val (_, desk) = desk(fake, all + ProjectTodo.FEATURE)
+        until("the To-do") { desk.state.value.todo != null }
+        assertEquals("To-do", desk.state.value.todo!!.title)
+        assertTrue(desk.addTodo("@Ada plan the menu", null, "2026-12-01", Repeat("week", days = listOf(1))))
+        val added = fake.asked().last { it.path == "/company/todos" }
+        assertEquals("POST", added.method)
+        assertTrue(added.body.contains("\"text\":\"plan the menu\"") && added.body.contains("\"bot\":\"b1\""), added.body)
+        assertTrue(added.body.contains("\"due\":\"2026-12-01\"") && added.body.contains("\"every\":\"week\""), added.body)
+        assertFalse(desk.addTodo("   ", null, null, null), "nothing typed: nothing sent")
+        desk.tickTodo("k9", true)
+        assertEquals("PUT", fake.asked().last { it.path == "/company/todos/k9" }.method)
+        desk.todoFilter("bots")
+        until("the filter") { desk.state.value.todo?.filter == "bots" }
+        desk.todoFilter("nonsense")
+        runCurrent()
+        assertEquals("bots", desk.state.value.todo?.filter, "only the four filters")
+    }
+
     @Test fun aBoardTheOwnerArrangedReadsInItsCanvasOrderOnAPhone() = runTest {
         // Files under the days line, the card at the top: a phone's column reads them from the top (ADR 147).
         val arranged = kitchen.dropLast(1) + ""","layout":{"card:k1":[0,0,392,220],"days":[0,236,1200,140],"files":[0,392,392,260]}}"""
