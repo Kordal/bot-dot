@@ -593,11 +593,13 @@ OFFSITE_SUBSETS=20
 # An erased account's off-site snapshots stay this many days (#1019): an erase made by mistake can still be restored.
 OFFSITE_GRACE_DAYS=14
 BORN="$DIR/born"
-# The scratch folders of an off-site restore (ADR 159) and of a restore test (#1018), on the machine's disk, each in use
-# only under the off-site lock. One a run that was cut off left (the machine restarted, root's step was stopped) holds
-# accounts' data, so the next off-site backup removes it once it holds that lock.
+# The scratch folders of an off-site restore (ADR 159), of a restore test (#1018) and of an account's import (ADR 254),
+# on the machine's disk, each in use only under the off-site lock. One a run that was cut off left (the machine
+# restarted, root's step was stopped) holds accounts' data, or another machine's front door, so the next off-site
+# backup removes it once it holds that lock.
 OFFSITE_SCRATCH="$DIR/offsite-restore"
 RESTORE_TEST_SCRATCH="$DIR/restore-test"
+IMPORT_SCRATCH="$DIR/account-import"
 # What of an account's data stays out: its own backups, what a project installs again and what a backup cut off left.
 # Its memory database is the consistent copy its server makes (#1015) when it can, as in a set (offsite_run).
 OFFSITE_DATA_SKIP='--exclude=./backups --no-anchored --exclude=node_modules --exclude=*.part --anchored'
@@ -1011,7 +1013,7 @@ offsite_backup() {
     if command -v flock >/dev/null 2>&1; then
       exec 8>"$RUN/offsite.lock"
       flock -n 8 || { say "An off-site backup runs already."; exit 0; }
-      rm -rf -- "$OFFSITE_SCRATCH" "$RESTORE_TEST_SCRATCH"
+      rm -rf -- "$OFFSITE_SCRATCH" "$RESTORE_TEST_SCRATCH" "$IMPORT_SCRATCH"
     fi
     offsite_run
   )
@@ -3974,12 +3976,11 @@ revoke_request() {
 # off-site backup, restores the account's parts and the front door's data with `restic restore --verify` into
 # IMPORT_SCRATCH, checked as an off-site restore checks them (the same version, each part's size), has the front door
 # make the account with what the other one kept of it (no passkey: its owner signs in with a sign-in link), and puts
-# its data back as a set's account. The folder goes however it ends, and an account made here by a failed import is
-# deleted again. It holds the off-site lock. How it went is in status/import-<account>.json: state (importing,
+# its data back as a set's account. The folder goes however it ends (one a cut-off import left, the next off-site
+# backup removes), and an account made here by a failed import is deleted again. It holds the off-site lock. How it went is in status/import-<account>.json: state (importing,
 # imported, refused or failed), at, account, instance, phase (download, front-door, account), snapshot once found, and
 # error. The request is removed as soon as it is read.
 IMPORT=IMPORT-
-IMPORT_SCRATCH="$DIR/account-import"
 # import_said STATE [FIELDS]: status/import-<IM_NAME>.json.
 import_said() { write_status "import-$IM_NAME.json" "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"account\":\"$IM_NAME\"${IM_FROM:+,\"instance\":\"$IM_FROM\"}${IM_SNAP:+,\"snapshot\":\"$IM_SNAP\"}${2:+,$2}}"; }
 # import_fetch: the account IM_NAME's parts of the latest off-site backup of the machine IM_FROM in IMPORT_SCRATCH, as

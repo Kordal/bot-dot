@@ -862,10 +862,10 @@ test('an account made in the same run as an off-site restore gets the restored i
   assert.equal(carol.match(/^BOT_DOT_INSTANCE=(.*)$/m)[1], old, 'not the instance the run started with');
 });
 
-test('the scratch folders a cut-off restore or restore test left are removed by the next off-site backup, under its lock', (t) => {
+test('the scratch folders a cut-off restore, restore test or import left are removed by the next off-site backup, under its lock', (t) => {
   const m = machine(t);
   m.offsite();
-  const left = [scratch(m), path.join(m.dir, 'restore-test')];
+  const left = [scratch(m), path.join(m.dir, 'restore-test'), path.join(m.dir, 'account-import')];
   for (const dir of left) {
     fs.mkdirSync(path.join(dir, 'accounts', 'bob'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'accounts', 'bob', 'env'), 'SECRET=1\n');

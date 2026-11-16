@@ -186,6 +186,14 @@ test('hold-account suspends an account for its move and release-account lets go 
   assert.ok(data(door).accounts.carl.suspended && data(door).accounts.carl.held, 'still held');
   assert.deepEqual(ask(door, env, 'release-account', '--account', 'carl').said, { state: 'released', account: 'carl', changed: true });
   assert.ok(!data(door).accounts.carl.suspended && !data(door).accounts.carl.held);
+  // Held, then the machine paused (its customer suspended): the pause keeps carl suspended after the move's release.
+  ask(door, env, 'hold-account', '--account', 'carl');
+  ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'suspend');
+  assert.ok(data(door).accounts.carl.suspended && !data(door).accounts.carl.held, 'the pause\'s now');
+  assert.equal(ask(door, env, 'release-account', '--account', 'carl').said.changed, false);
+  assert.ok(data(door).accounts.carl.suspended, 'still paused');
+  ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume');
+  assert.ok(!data(door).accounts.carl.suspended, 'the resume starts it');
 
   // dora suspended by the admin is held as she is, and a release leaves her suspended.
   assert.equal((await a.post('/admin/accounts/dora/suspend', { name: 'dora' })).status, 200);

@@ -237,6 +237,8 @@ if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
   const suspend = process.argv[2] === 'suspend';
   const changed = [];
   for (const { name, suspended, held } of doors.listAccounts()) {
+    // A held account the machine's pause reaches is the pause's from now on: the move's release leaves it suspended.
+    if (suspend && held) doors.holdAccount(name, 'keep');
     if (!!suspended === suspend) continue;
     // An account held for its move stays still until the move lets go of it (ADR 254).
     if (!suspend && held) continue;
