@@ -47,8 +47,22 @@ final class ProjectModel {
     func answer(_ card: String, _ text: String) async -> Bool { (try? await store.answer(card: card, text: text))?.boolValue ?? false }
     func closeQuestions(_ card: String) async { try? await store.closeQuestions(card: card) }
     func refreshCard(_ card: String) async { try? await store.refreshCard(card: card) }
+    func arrange(_ layout: [String: BoardCanvas.R]) async -> Bool { (try? await store.arrange(layout: layout))?.boolValue ?? false }
     func removeCard(_ card: String) async { try? await store.removeCard(card: card) }
     func putPiece(_ piece: String) async { try? await store.putPiece(piece: piece) }
+    @discardableResult func answerSuggested(add: Bool) async -> Bool { (try? await store.answerSuggested(add: add))?.boolValue ?? false }
+
+    @discardableResult func approvePlan() async -> Bool { (try? await store.approvePlan())?.boolValue ?? false }
+    func changePlan(_ text: String) async -> Bool { (try? await store.changePlan(text: text))?.boolValue ?? false }
+    func addDecision(_ typed: String) async -> Bool { (try? await store.addDecision(typed: typed))?.boolValue ?? false }
+    @discardableResult func deleteDecision(_ id: String) async -> Bool { (try? await store.deleteDecision(id: id))?.boolValue ?? false }
+    func todoFilter(_ filter: String) { store.todoFilter(filter: filter) }
+    func tickTodo(_ id: String, _ done: Bool) async { try? await store.tickTodo(id: id, done: done) }
+    func deleteTodo(_ id: String) async { try? await store.deleteTodo(id: id) }
+    /// True once it went in: the field empties.
+    func addTodo(_ typed: String, who: String?, due: String?, repeat r: Repeat?) async -> Bool {
+        (try? await store.addTodo(typed: typed, who: who, due: due, repeat: r))?.boolValue ?? false
+    }
 
     func offered(_ team: String) -> [Bot] { store.offered(team: team) }
     @discardableResult func addOwn(_ ids: [String]) async -> Bool { (try? await store.addOwn(ids: ids))?.boolValue ?? false }

@@ -97,6 +97,73 @@ class ProjectDeskTest {
         assertEquals(12, s.day)
     }
 
+    @Test fun theToDoAddsTicksAndFiltersItsItems() = runTest {
+        val fake = FakeBotdot { a -> if (a.method == "GET") 200 to "{}" else 200 to kitchen }
+        val (_, desk) = desk(fake, all + ProjectTodo.FEATURE)
+        until("the To-do") { desk.state.value.todo != null }
+        assertEquals("To-do", desk.state.value.todo!!.title)
+        assertTrue(desk.addTodo("@Ada plan the menu", null, "2026-12-01", Repeat("week", days = listOf(1))))
+        val added = fake.asked().last { it.path == "/company/todos" }
+        assertEquals("POST", added.method)
+        assertTrue(added.body.contains("\"text\":\"plan the menu\"") && added.body.contains("\"bot\":\"b1\""), added.body)
+        assertTrue(added.body.contains("\"due\":\"2026-12-01\"") && added.body.contains("\"every\":\"week\""), added.body)
+        assertFalse(desk.addTodo("   ", null, null, null), "nothing typed: nothing sent")
+        desk.tickTodo("k9", true)
+        assertEquals("PUT", fake.asked().last { it.path == "/company/todos/k9" }.method)
+        desk.todoFilter("bots")
+        until("the filter") { desk.state.value.todo?.filter == "bots" }
+        desk.todoFilter("nonsense")
+        runCurrent()
+        assertEquals("bots", desk.state.value.todo?.filter, "only the four filters")
+    }
+
+    @Test fun aBoardTheOwnerArrangedReadsInItsCanvasOrderOnAPhone() = runTest {
+        // Files under the days line, the card at the top: a phone's column reads them from the top (ADR 147).
+        val arranged = kitchen.dropLast(1) + ""","layout":{"card:k1":[0,0,392,220],"days":[0,236,1200,140],"files":[0,392,392,260]}}"""
+        val (store, desk) = desk(FakeBotdot { 200 to "{}" }, all + BoardCanvas.FEATURE + ProjectFiles.FEATURE, arranged)
+        until("the project") { desk.state.value.project != null }
+        val order = desk.state.value.order!!
+        assertEquals(listOf("card:k1", "days", "files"), order.filter { it in setOf("card:k1", "days", "files") })
+        assertTrue("new-card" in order, "a tile with no place takes a free spot: " + order)
+        store.version.set(VersionInfo(features = all + ProjectFiles.FEATURE))
+        until("without project-layout, the usual flow") { desk.state.value.order == null }
+        store.company.set(CompanyHeld(company(kitchen)))
+        store.version.set(VersionInfo(features = all + BoardCanvas.FEATURE))
+        until("never arranged: the usual flow") { desk.state.value.project != null && desk.state.value.order == null }
+    }
+
+    @Test fun theChiefsSuggestedBotAndNewTeamAreTheTeamsPiece() = runTest {
+        val suggesting = kitchen.dropLast(1) + ""","suggestion":{"name":"Cook","why":"For the menus","team":"t1"},"teams":[{"id":"t1","name":"Crew","color":"#ff9500","bots":["b1","b2"],"lead":"b2"}]}"""
+        val fake = FakeBotdot { a -> if (a.method == "GET") 200 to "{}" else 200 to kitchen }
+        val (_, desk) = desk(fake, all, suggesting)
+        until("the project") { desk.state.value.suggested != null }
+        with(desk.state.value) {
+            assertEquals("Cook", suggested?.name)
+            assertEquals("#ff9500", ManyProjects.suggestedColor(project!!, suggested!!), "the colour of the team it would join")
+            assertTrue(addsTeam)
+            assertEquals(listOf("b3", "b4", "b1", "b2"), teamCandidates.map { it.id }, "the bots in no team first")
+        }
+        assertTrue(desk.answerSuggested(add = true))
+        assertEquals("POST", fake.asked().last { it.path == "/company/suggestion/add" }.method)
+        assertTrue(desk.answerSuggested(add = false))
+        assertEquals("DELETE", fake.asked().last { it.path == "/company/suggestion" }.method)
+    }
+
+    @Test fun thePlanIsApprovedOrChangedAndADecisionAddedOrRemoved() = runTest {
+        val fake = FakeBotdot { a -> if (a.method == "GET") 200 to "{}" else 200 to kitchen }
+        val (_, desk) = desk(fake)
+        until("the project") { desk.state.value.project != null }
+        assertTrue(desk.approvePlan())
+        assertEquals("POST", fake.asked().last { it.path == "/company/plan/approve" }.method)
+        assertFalse(desk.changePlan("  "), "nothing typed, nothing sent")
+        assertTrue(desk.changePlan("Less on docs"))
+        assertEquals("""{"text":"Less on docs"}""", fake.asked().last { it.path == "/company/plan/change" }.body)
+        assertTrue(desk.addDecision("Launch in Polish first because most users are Polish"))
+        assertEquals("""{"text":"Launch in Polish first","why":"most users are Polish"}""", fake.asked().last { it.path == "/company/decisions" }.body)
+        assertTrue(desk.deleteDecision("d1"))
+        assertEquals("DELETE", fake.asked().last { it.path == "/company/decisions/d1" }.method)
+    }
+
     @Test fun itsOverviewShowsOnceTheFeaturesSaySo() = runTest {
         val (store, desk) = desk(FakeBotdot { 200 to "{}" })
         until("the project") { desk.state.value.project != null }

@@ -9,6 +9,8 @@ struct ChiefView: View {
     let home: HomeStore
     /// The conversation a notification asked for; nil, the latest.
     var chatId: String? = nil
+    /// A new chat, starting with these words in its box (Storage's Ask the Chief); nil: the box as it was.
+    var words: String? = nil
     /// Made once the screen is there: SwiftUI makes a destination's view more than once.
     @State private var model: ChiefModel?
     /// A bot a chip or a mail card opens: its chat, or its screen.
@@ -16,6 +18,8 @@ struct ChiefView: View {
     @State private var screen: HomeView.ScreenOpen?
     /// A file under a reply or one a mail carries, opened in the viewer.
     @State private var opening: DocumentView.Opening?
+    /// Its settings (Android's ChiefSettingsScreen), behind the gear.
+    @State private var settings = false
 
     var body: some View {
         Group {
@@ -29,8 +33,18 @@ struct ChiefView: View {
         .navigationDestination(item: $chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
         .navigationDestination(item: $screen) { s in ScreenView(home: home, botId: s.id, name: s.name) }
         .navigationDestination(item: $opening) { ViewerView(api: home.api, opening: $0) }
+        .navigationDestination(isPresented: $settings) { ChiefSettingsView(home: home) { id in settings = false; model?.open(id) } }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { settings = true } label: { Image(systemName: "gearshape") }.accessibilityLabel(tr("Settings"))
+            }
+        }
         .task {
-            if model == nil { model = ChiefModel(home: home, chatId: chatId) }
+            if model == nil {
+                let m = ChiefModel(home: home, chatId: chatId)
+                if let words { m.open(nil); m.fill(words) }
+                model = m
+            }
             model?.start()
         }
         .onDisappear { model?.stop() }
@@ -64,7 +78,7 @@ private struct ChiefChat: View {
                                              onBot(ChiefDesk.ChipBot(id: b.id, name: b.name, screen: screen && b.screen))
                                          }
                                      },
-                                     mailFile: { model.mailFile($0) }, onFile: onFile)
+                                     mailFile: { model.mailFile($0) }, onFile: onFile, chiefName: s.name)
                                 .contextMenu {
                                     // Quote and Copy a message's words (Quote), as a bot's reply has them.
                                     if !m.text.isEmpty && !m.pending {
@@ -200,6 +214,14 @@ struct ChiefRow: View {
     var onMailBot: (Bool) -> Void = { _ in }
     var mailFile: (Attachment) -> DocumentView.Opening? = { _ in nil }
     var onFile: (DocumentView.Opening) -> Void = { _ in }
+    /// Whose pages the Chief's own are, in the viewer's way back.
+    var chiefName: String = ""
+
+    /// A page chip's page in the viewer: at the Chief's routes with its name for the Chief's own, at its bot's for a bot's.
+    static func opening(_ page: PageRef, chiefName: String) -> DocumentView.Opening {
+        DocumentView.shared.ofPage(botId: page.botId, slug: page.slug, title: page.title,
+                                   from: page.botId == Pages.shared.CHIEF ? chiefName : page.bot)
+    }
 
     var body: some View {
         VStack(alignment: line.role == "user" ? .trailing : .leading, spacing: 6) {
@@ -214,6 +236,10 @@ struct ChiefRow: View {
                 if !line.text.isEmpty { MarkdownView(text: line.text) }
                 if let error = line.error { Text(error).foregroundStyle(.red) }
                 ReplyFilesView(files: line.files)
+                // The pages it saved, and those its bots saved for it (Android's PageChips): a tap opens one.
+                ForEach(line.pages, id: \.self) { page in
+                    PageChip(page: page) { onFile(Self.opening(page, chiefName: chiefName)) }
+                }
                 if !line.chips.isEmpty { ChiefChips(chips: line.chips, onTap: onChip) }
                 if let mail = line.mail {
                     MailCardView(mail: mail, onPick: onMail, onBot: { onMailBot(false) }, onScreen: { onMailBot(true) },

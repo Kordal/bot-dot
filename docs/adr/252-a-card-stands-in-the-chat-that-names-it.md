@@ -1,4 +1,4 @@
-# ADR-249: A card stands in the chat that names it
+# ADR-252: A card stands in the chat that names it
 
 - **Status:** Accepted
 - **Owning task:** the owner's request of 15 November 2026: a project's page did not show what waited for their OK, and a bot that said "in Needs you a card waits" only pointed elsewhere

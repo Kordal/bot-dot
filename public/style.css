@@ -993,7 +993,7 @@ input[type=checkbox], input[type=radio] { accent-color: var(--text); }
 .chat-decided { font-size: var(--fs-12); color: var(--muted); }
 .chat-needs:not([data-scope="chief"]) .need-who { display: none; } /* it's this chat's bot */
 .chat-needs[data-scope^="group:"] .need-who { display: block; } /* in a group the card says which member's it is */
-/* A card under the message that names it (ADR 249): the same card, full width under the bubble. */
+/* A card under the message that names it (ADR 252): the same card, full width under the bubble. */
 .inline-needs { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-12); max-width: 560px; width: 100%; margin-top: var(--sp-8); }
 .inline-needs:empty { display: none; }
 .need-in { color: var(--faint); } /* a card asked in a group: "in Dev", after its bot's name */
@@ -2385,6 +2385,17 @@ button.pg-row { width: 100%; background: none; font: inherit; text-align: left; 
 .pc-row .pc-more { display: none; }
 .pc-failed { color: var(--err); font-size: var(--fs-14); }
 .pc-failed.quiet { color: var(--faint); font-size: var(--fs-12); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pc-big b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* A card's text at the size picked on its menu (card-text-size): each piece's own size times --pc-text. */
+.pc-card { --pc-text: 1; }
+.pc-card .pc-title, .pc-card .pc-list li, .pc-card .pc-list a, .pc-card .pc-table, .pc-card .pc-failed { font-size: calc(var(--fs-14) * var(--pc-text)); }
+.pc-card .pc-big b { font-size: calc(var(--fs-32) * var(--pc-text)); }
+.pc-card .pc-sub, .pc-card .pc-ref, .pc-card .pc-bar small, .pc-card .kit-pill, .pc-card .pc-failed.quiet { font-size: calc(var(--fs-12) * var(--pc-text)); }
+.pc-size { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.pc-size button { justify-content: center; align-items: center; height: 40px; padding: 0; font-weight: 600; }
+.pc-size button:first-child { font-size: var(--fs-12); }
+.pc-size button:last-child { font-size: var(--fs-20); }
+.pc-size button:disabled { color: var(--faint); cursor: default; background: transparent; }
 .pc-login { align-self: flex-start; margin-top: var(--sp-12); } /* a card that needs a login of the project (#804) */
 .pc-shimmer { display: grid; gap: var(--sp-8); }
 .pc-shimmer i { display: block; height: 10px; border-radius: var(--r-8); background: linear-gradient(90deg, var(--fill) 0%, #2e2e2e 50%, var(--fill) 100%); background-size: 200% 100%; animation: pc-shimmer 1.4s linear infinite; }
@@ -3648,6 +3659,10 @@ dialog.co-delete .modal-foot { border-top: 0; }
 /* A reply's Markdown as in a chat, in at most four lines (mdPreview). */
 .po-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
 div.po-row { cursor: pointer; }
+.po-who { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: var(--sp-12); align-items: start; }
+.po-who > .avatar, .po-who > .cf-you { grid-row: span 2; width: 28px; height: 28px; margin: 0; }
+.po-who > .po-meta, .po-who > .po-text { grid-column: 2; }
+.po-who > .avatar svg { width: 100%; height: 100%; display: block; }
 button.po-meta { width: 100%; padding: 0; text-align: left; font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
 button.po-meta:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 .po-error { color: var(--err); }

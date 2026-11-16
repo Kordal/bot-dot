@@ -198,15 +198,22 @@ class BoardDesk(
         act(key, block, b.options.getOrNull(option)?.value ?: return)
     }
 
+    /**
+     * The colour wheel at [hex]: while it is still dragged ([done] false) the tile isn't drawn again from botdot's
+     * answer, so the mark stays under the finger.
+     */
+    @Throws(Exception::class)
+    suspend fun setColor(key: String, block: String, hex: String, done: Boolean) = act(key, block, JsonPrimitive(hex), redraw = done)
+
     /** A button of a tile's blocks. */
     @Throws(Exception::class)
     suspend fun press(key: String, block: String) = act(key, block, null)
 
-    private suspend fun act(key: String, block: String, value: JsonElement?) {
+    private suspend fun act(key: String, block: String, value: JsonElement?, redraw: Boolean = true) {
         val bot = store.dashboard.value.value?.tiles?.firstOrNull { it.id == key }?.bot?.let { b -> store.bots.value.value?.firstOrNull { it.id == b }?.name }
         try {
             val a = api.actTile(key, block, value)
-            a.tile?.let { replace(it) }
+            if (redraw) a.tile?.let { replace(it) }
             if (a.queued) flash(key, tileAsked(bot, queued = true))
         } catch (e: CancellationException) {
             throw e
@@ -214,6 +221,22 @@ class BoardDesk(
             tell(e.message ?: tr("That didn't work"))
             quietly()
         }
+    }
+
+    /**
+     * Drag to move: the tile [from] let go where [onto] is (on the Board as it is laid out now). False when it can't
+     * go there (a group into a group); else it is saved and the Board read again; a refusal is said.
+     */
+    @Throws(Exception::class)
+    suspend fun drop(from: String, onto: String): Boolean {
+        val d = store.dashboard.value.value ?: return false
+        val l = local.value
+        val keys = BoardKit.layout(d, l.filter.takeIf { it in BoardKit.headings(d) }.orEmpty(), l.open)
+        val rows = BoardKit.moved(keys, from, onto, d.tiles) ?: return false
+        val at = BoardKit.placeOf(rows, from)
+        try { api.moveTile(from, at.section, at.parent, at.before) } catch (e: CancellationException) { throw e } catch (e: Exception) { tell(e.message ?: tr("Couldn't move it")) }
+        quietly()
+        return true
     }
 
     /** Remove: off the Board; a group alone ([withTiles] false, its tiles stay, loose) or with its tiles. */

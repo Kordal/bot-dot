@@ -286,11 +286,105 @@ test("the Android release builds on GitHub's machines, and no workflow builds or
   assert.doesNotMatch(runs, /make mac-|working-directory: macos|codesign|CODE_SIGN_IDENTITY=[^"]/, 'nothing is signed');
   assert.equal(fs.readFileSync(path.join(WORKFLOWS, 'ios.yml'), 'utf8').includes('secrets.'), false, 'no secret');
   for (const name of fs.readdirSync(WORKFLOWS)) {
-    if (name === 'ios.yml') continue;
+    if (name === 'ios.yml' || name === 'ios-release.yml') continue;
     const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
     assert.doesNotMatch(text, /make mac-|runs-on: macos|xcodebuild|swift (build|test)|working-directory: macos/, name);
     if (name !== 'desktop.yml') assert.doesNotMatch(text, /\bmacos-(latest|\d)/, name);
   }
+});
+
+// The iOS app to TestFlight (#1365, #1409): only by hand on main, after ios.yml's tests of the commit, and the App Store
+// Connect key only in the release environment's job, which archives the Release build that ios.yml checks unsigned.
+test('the iOS app is released to TestFlight only by hand, after its tests, with the key only in the release environment', () => {
+  const wf = workflow('ios-release.yml');
+  assert.deepEqual(Object.keys(wf.on), ['workflow_dispatch']);
+  assert.deepEqual(wf.permissions, { contents: 'read' });
+  const { plan, test: tests, release } = wf.jobs;
+  assert.match(plan.steps.map((st) => st.run || '').join('\n'), /\[ "\$GITHUB_REF" = refs\/heads\/main \]/);
+  assert.equal(tests.uses, './.github/workflows/ios.yml');
+  assert.deepEqual(tests.with, { archive: 'no' });
+  assert.deepEqual([].concat(release.needs).sort(), ['plan', 'test']);
+  assert.equal(release.if, undefined, 'a failed test uploads nothing');
+  assert.equal(release.environment, 'release');
+  assert.equal(release['runs-on'], 'macos-latest');
+  for (const [id, job] of Object.entries(wf.jobs)) {
+    if (id !== 'release') assert.doesNotMatch(JSON.stringify(job), /secrets\./, id);
+  }
+  const archive = release.steps.find((st) => st.id === 'archive');
+  assert.match(archive.run, /^\s*scripts\/ios-archive\.sh --upload$/m);
+  assert.match(archive.run, /\[ -z "\$APP_STORE_CONNECT_KEY" \][\s\S]*scripts\/ios-archive\.sh --unsigned[\s\S]*exit 0/, 'without the key nothing is uploaded');
+  assert.equal(archive.env.IOS_BUILD, '${{ github.run_number }}', 'a build number that only grows');
+  assert.equal(release.steps.find((st) => st.name === 'Tag the commit').if, "steps.archive.outputs.uploaded == 'true'");
+  // ios.yml: callable, and its unsigned Release archive holds no secret.
+  const ios = workflow('ios.yml');
+  assert.deepEqual(ios.on.workflow_call.inputs.archive, { type: 'string', default: 'yes' });
+  const build = ios.jobs['release-build'];
+  assert.equal(build.if, "needs.changes.outputs.archive == 'true'");
+  assert.match(build.steps.map((st) => st.run || '').join('\n'), /scripts\/ios-archive\.sh --unsigned/);
+  assert.match(ios.jobs.changes.steps.find((st) => st.id === 'which').run, /if \[ "\$ARCHIVE" = no \]; then A=false/);
+});
+
+test('ios-archive.sh archives the Release build with the Release framework, and signs and uploads only with --upload', () => {
+  const { spawnSync } = require('child_process');
+  const os = require('os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ios-archive-'));
+  // A copy of the script beside the real project.yml, and stand-ins for Gradle, XcodeGen and xcodebuild that log.
+  fs.mkdirSync(path.join(dir, 'scripts'));
+  fs.mkdirSync(path.join(dir, 'android'));
+  fs.mkdirSync(path.join(dir, 'ios'));
+  fs.mkdirSync(path.join(dir, 'bin'));
+  fs.copyFileSync(path.join(__dirname, '..', 'scripts', 'ios-archive.sh'), path.join(dir, 'scripts', 'ios-archive.sh'));
+  fs.copyFileSync(path.join(__dirname, '..', 'ios', 'project.yml'), path.join(dir, 'ios', 'project.yml'));
+  const log = path.join(dir, 'log');
+  for (const tool of ['gradlew', 'xcodegen', 'xcodebuild']) {
+    fs.writeFileSync(path.join(dir, 'bin', tool), `#!/usr/bin/env bash\necho "${tool} $*" >> ${JSON.stringify(log)}\n`, { mode: 0o755 });
+  }
+  fs.writeFileSync(path.join(dir, 'AuthKey.p8'), 'not a key');
+  const script = path.join(dir, 'scripts', 'ios-archive.sh');
+  const env = { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}`, IOS_ARCHIVE_GRADLEW: 'gradlew', IOS_VERSION: '1.0', IOS_BUILD: '7' };
+  const run = (args, extra = {}) => { fs.rmSync(log, { force: true }); return spawnSync('bash', [script, ...args], { env: { ...env, ...extra }, encoding: 'utf8' }); };
+  const lines = () => fs.readFileSync(log, 'utf8').trim().split('\n');
+
+  let r = run(['--unsigned']);
+  assert.equal(r.status, 0, r.stderr);
+  let [gradle, gen, archive, ...rest] = lines();
+  assert.equal(gradle, 'gradlew :shared:assembleBotdotSharedReleaseXCFramework --console=plain');
+  assert.equal(gen, 'xcodegen generate --spec project-release.yml --quiet');
+  assert.match(archive, /^xcodebuild archive -project BotDot\.xcodeproj -scheme BotDot -configuration Release -destination generic\/platform=iOS /);
+  assert.match(archive, / MARKETING_VERSION=1\.0 CURRENT_PROJECT_VERSION=7 CODE_SIGNING_ALLOWED=NO /);
+  assert.doesNotMatch(archive, /-authenticationKey|allowProvisioningUpdates/);
+  assert.deepEqual(rest, [], 'nothing exported or uploaded');
+  const spec = fs.readFileSync(path.join(dir, 'ios', 'project-release.yml'), 'utf8');
+  assert.equal(spec.match(/XCFrameworks\/release\/BotdotShared\.xcframework/g).length, 2, 'the app and the share extension');
+  assert.doesNotMatch(spec, /XCFrameworks\/debug|CODE_SIGNING_ALLOWED\[sdk=iphoneos/);
+
+  const signing = { APPLE_TEAM_ID: 'TEAM123', ASC_KEY_ID: 'KEY123', ASC_ISSUER_ID: 'issuer', ASC_KEY_PATH: path.join(dir, 'AuthKey.p8') };
+  r = run(['--upload'], signing);
+  assert.equal(r.status, 0, r.stderr);
+  [, , archive, ...rest] = lines();
+  assert.match(archive, / -allowProvisioningUpdates -authenticationKeyPath \S+AuthKey\.p8 -authenticationKeyID KEY123 -authenticationKeyIssuerID issuer /);
+  assert.match(archive, / CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM=TEAM123$/);
+  assert.equal(rest.length, 1);
+  assert.match(rest[0], /^xcodebuild -exportArchive .* -exportOptionsPlist \S+ExportOptions\.plist .*-authenticationKeyID KEY123/);
+  const options = fs.readFileSync(path.join(dir, 'ios', 'build', 'release', 'ExportOptions.plist'), 'utf8');
+  assert.match(options, /<key>method<\/key><string>app-store-connect<\/string>/);
+  assert.match(options, /<key>destination<\/key><string>upload<\/string>/);
+  assert.match(options, /<key>teamID<\/key><string>TEAM123<\/string>/);
+
+  // What it refuses, before building anything.
+  for (const [args, extra, why] of [
+    [['--upload'], { ...signing, ASC_KEY_ID: '' }, /ASC_KEY_ID is missing/],
+    [['--upload'], { ...signing, ASC_KEY_PATH: path.join(dir, 'none.p8') }, /No key file/],
+    [['--unsigned'], { IOS_VERSION: 'v1' }, /Not a version/],
+    [['--unsigned'], { IOS_BUILD: '0' }, /Not a build number/],
+    [[], {}, /usage/],
+  ]) {
+    r = run(args, extra);
+    assert.equal(r.status, 2, String(why));
+    assert.match(r.stderr, why);
+    assert.equal(fs.existsSync(log), false, 'nothing ran');
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
 });
 
 // #306: Claude Code is bumped by hand in the Dockerfile; no workflow opens bump pull requests.

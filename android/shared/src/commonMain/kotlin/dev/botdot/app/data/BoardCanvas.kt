@@ -144,4 +144,62 @@ object BoardCanvas {
 
     /** The layout as botdot takes it. */
     fun raw(layout: Map<String, R>): Map<String, List<Int>> = layout.mapValues { (_, r) -> listOf(r.x, r.y, r.w, r.h) }
+
+    /**
+     * The board's tiles there are now, in the order they take free spots (CompanyHome's): Needs you when something
+     * waits, Current work and Blockers, the days line or an ongoing project's review, its goals, its cards (and New
+     * card), the suggested team and New team, the calendar, the to-dos, Files, and Latest replies.
+     */
+    fun tiles(f: Collection<String>, c: Company, needsYou: Boolean, overviewBoard: Boolean, cards: List<ProjectCards.Slot>?, files: Boolean): List<String> = buildList {
+        fun on(k: String) = ProjectBoard.shows(c, k)
+        if (needsYou) add("needs")
+        if (overviewBoard) listOf("work", "blockers").filter(::on).forEach(::add)
+        if ((on("days") && c.day != null) || (!on("days") && c.ongoing && c.checkin != null)) add("days")
+        if (CompanyFloor.DISPLAY in f && on("goals")) c.objectives.forEach { add("goal:${it.id}") }
+        cards?.forEach { add(ProjectCards.tileOf(it)) }
+        if (on("teams")) { if (c.suggestion != null) add("suggest"); add("new-team") }
+        if (ProjectCalendar.FEATURE in f && on("calendar")) add("calendar")
+        if (on("todo")) add("todo")
+        if (files) add("files")
+        if (overviewBoard && on("replies")) add("replies")
+    }
+
+    /** A board the owner arranged (#784, with [FEATURE]): each of its [tiles] where it stands; null while never arranged. */
+    fun arranged(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): Map<String, R>? {
+        if (FEATURE !in f) return null
+        val saved = of(layout) ?: return null
+        return complete(saved, tiles)
+    }
+
+    /** A board the owner arranged: its [tiles] in the order a phone's column reads them (ADR 147); null while never arranged. */
+    fun readOrder(f: Collection<String>, layout: Map<String, List<Double>>?, tiles: List<String>): List<String>? = arranged(f, layout, tiles)?.let(::order)
+
+    /** How far two fingers zoom the canvas in: 1 (all of it) to [MAX_ZOOM] times. */
+    const val MAX_ZOOM = 4.0
+
+    /** A zoom as two fingers leave it: kept between 1 and [MAX_ZOOM]. */
+    fun zoomIn(z: Double): Double = z.coerceIn(1.0, MAX_ZOOM)
+
+    /**
+     * Where the zoomed canvas stands ([x], [y], 0 or less): its top left held inside a view [w] by [h], so no space
+     * shows beyond its edges at zoom [z].
+     */
+    fun panIn(z: Double, w: Double, h: Double, x: Double, y: Double): Pair<Double, Double> =
+        (x.coerceIn(-(z - 1) * w, 0.0) + 0.0) to (y.coerceIn(-(z - 1) * h, 0.0) + 0.0) // + 0.0: no -0.0
+
+    /** How near an edge, in canvas units, a held finger resizes the tile rather than moving it. */
+    const val NEAR = 28
+
+    /**
+     * The tile a finger held at ([x], [y]) on the canvas takes, and from where: null to move it, else the edges it
+     * resizes from ("s", "e", "w", "se", "sw"). Null for no tile there.
+     */
+    fun held(layout: Map<String, R>, x: Double, y: Double): Pair<String, String?>? {
+        val (id, r) = layout.entries.lastOrNull { (_, r) -> x >= r.x && x <= r.right && y >= r.y && y <= r.bottom } ?: return null
+        val edge = buildString {
+            if (y > r.bottom - NEAR) append('s')
+            if (x > r.right - NEAR) append('e') else if (x < r.x + NEAR) append('w')
+        }.ifEmpty { null }
+        return id to edge
+    }
 }

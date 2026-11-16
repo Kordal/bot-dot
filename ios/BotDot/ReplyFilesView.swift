@@ -21,8 +21,11 @@ extension ReplyPictures {
     /// Where the pictures under replies are kept: a folder per botdot and session inside (ReplyPictures.place).
     static let cache = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("reply-pictures")
 
-    /// Signed out, or in (another account may be next): every picture gone.
-    static func forgetAll() { ReplyPictures.companion.forget(root: cache.path) }
+    /// Signed out, or in (another account may be next): every picture gone, the Board tiles' too.
+    static func forgetAll() {
+        ReplyPictures.companion.forget(root: cache.path)
+        try? FileManager.default.removeItem(at: BoardModel.pictures)
+    }
 }
 
 /// The files under a reply (ReplyFiles): pictures as themselves, the rest as chips; a tap opens one in the viewer.

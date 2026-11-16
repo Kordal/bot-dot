@@ -58,7 +58,7 @@ test('the Chief hides and shows a piece and places an overview tile', async () =
   assert.equal(r.status, 200, JSON.stringify(r.data));
   assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo']);
   r = await ownerTurn('Hide Needs you', (headers) => srv.asChief('/company/layout', { method: 'PUT', headers, body: { hide: 'needs' } }));
-  assert.equal(r.status, 400, 'Needs you is never hidden (ADR 249)');
+  assert.equal(r.status, 400, 'Needs you is never hidden (ADR 252)');
   assert.ok((await board()).includes('needs'));
   r = await srv.asChief('/company/layout', { method: 'PUT', body: { show: 'blockers' } });
   assert.deepEqual(r.data.board, ['needs', 'work', 'replies', 'todo', 'blockers']);
@@ -113,7 +113,7 @@ test('a board kept from before moves its tiles once, and a later move or hide st
   assert.deepEqual((await srv.api('/company')).data.company.layout, r.data.layout);
 });
 
-test('web: Needs you stands first whenever something waits, above the arranged tiles, and is no piece to add (ADR 249)', () => {
+test('web: Needs you stands first whenever something waits, above the arranged tiles, and is no piece to add (ADR 252)', () => {
   const read = (f) => require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'public', f), 'utf8');
   const home = read('company-home.js');
   const tile = home.slice(home.indexOf('function needsTileHTML(c) {'), home.indexOf('function overviewHome('));

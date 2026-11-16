@@ -29,6 +29,12 @@ class DocumentViewer(val api: Api, val opening: DocumentView.Opening) {
     /** A bot's page: an interactive one draws in its frame. */
     val page: Boolean get() = opening.slug != null
 
+    /** A page with blocks that read tiles ([view]'s): read again while it is open ([PageReblock]), each read to [onBlocks]. */
+    fun reblock(ticks: TileTicks, view: FileView, onBlocks: (PageBlocks) -> Unit): kotlinx.coroutines.Job? {
+        if (view.parts == null || view.tiles.isEmpty()) return null
+        return PageReblock(api, ticks.value, scope).follow(opening.src, view.tiles, onBlocks)
+    }
+
     /** An interactive page's version shown; null for the one the page shows. */
     var version: Int? = null
 
@@ -95,6 +101,11 @@ class DocumentViewer(val api: Api, val opening: DocumentView.Opening) {
     /** Export… (#348), on a botdot with document-export: a Markdown file's words made a Word document, PDF or Markdown by botdot. */
     @Throws(Exception::class)
     suspend fun exports(view: FileView?): Boolean = view?.kind == "markdown" && view.text != null && DocumentExport.shows(features())
+
+    /** Save to Google Docs (#351): from a botdot that has it, for a file Export… is offered on; null otherwise. */
+    @Throws(Exception::class)
+    suspend fun googleDocs(view: FileView?): GoogleDocs? =
+        if (exports(view) && DocumentExport.savesToGoogleDocs(features())) GoogleDocs(api).also { it.read() } else null
 
     /** The export in [format] ([DocumentExport.FORMATS]) saved in the folder [dir]; answers where it is. */
     @Throws(Exception::class)

@@ -43,6 +43,7 @@ extension RoomSettingsState: @retroactive @unchecked Sendable {}
 extension BotSettingsStore: @retroactive @unchecked Sendable {}
 extension BotSettingsState: @retroactive @unchecked Sendable {}
 extension BotDraft: @retroactive @unchecked Sendable {}
+extension Bot: @retroactive @unchecked Sendable {}
 extension AppSettingsStore: @retroactive @unchecked Sendable {}
 extension AppSettingsState: @retroactive @unchecked Sendable {}
 extension AppsStore: @retroactive @unchecked Sendable {}
@@ -86,3 +87,14 @@ extension StorageDesk: @retroactive @unchecked Sendable {}
 extension StorageRow: @retroactive @unchecked Sendable {}
 extension Storage.Group: @retroactive @unchecked Sendable {}
 extension SkillsDesk: @retroactive @unchecked Sendable {}
+extension ChiefSettingsDesk: @retroactive @unchecked Sendable {}
+extension ChiefGrant: @retroactive @unchecked Sendable {}
+extension DuplicateDesk: @retroactive @unchecked Sendable {}
+extension Repeat: @retroactive @unchecked Sendable {}
+extension BoardCanvas.R: @retroactive @unchecked Sendable {}
+extension GoogleDocs: @retroactive @unchecked Sendable {}
+extension GoogleDocs.Done: @retroactive @unchecked Sendable {}
+extension PageBlocks: @retroactive @unchecked Sendable {}
+extension TileTicks: @retroactive @unchecked Sendable {}
+extension CalendarDesk: @retroactive @unchecked Sendable {}
+extension CalendarState: @retroactive @unchecked Sendable {}

@@ -49,3 +49,44 @@ test('an explicitly saved internal address works; redirects and body secrets sta
   await assert.rejects(apiRequest(creds, { url, body: '{{password}}' }), /headers/);
   assert.equal(calls.length, 1);
 });
+
+// Security review M4 (ADR 250): a public address gets a saved login over https on 443 with its certificate checked; an
+// internal host keeps the self-signed exception of ADR 177 and any port.
+test('a saved login goes to a public address only over https, on its own port, with its certificate checked', async (t) => {
+  const https = require('node:https');
+  const { EventEmitter } = require('node:events');
+  const creds = { name: 'Bank', site: 'bank.com', username: 'test', password: 'fixture-secret' };
+  await assert.rejects(apiRequest(creds, { url: 'http://bank.com/v1', headers: { Authorization: 'Bearer {{password}}' } }), /https only, not http: write https:\/\/bank\.com\/v1/);
+  await assert.rejects(apiRequest(creds, { url: 'https://bank.com:8443/', headers: { Authorization: 'Bearer {{password}}' } }), /https port only, not port 8443/);
+
+  // What the request is made with, and a server whose certificate does not verify.
+  const made = [];
+  t.mock.method(https, 'request', (url, options) => {
+    made.push({ host: new URL(url).hostname, rejectUnauthorized: options.rejectUnauthorized, headers: options.headers });
+    const req = new EventEmitter();
+    req.write = () => {}; req.destroy = () => {};
+    req.end = () => setImmediate(() => req.emit('error', Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' })));
+    return req;
+  });
+  t.mock.method(dns.promises, 'lookup', async (host) => [{ address: host === 'nas.lan' ? '192.168.1.5' : '93.184.216.34', family: 4 }]);
+  const result = await apiRequest(creds, { url: 'https://bank.com/v1', headers: { Authorization: 'Bearer {{password}}' } });
+  assert.equal(result.ok, false);
+  assert.match(result.text, /DEPTH_ZERO_SELF_SIGNED_CERT\. Its certificate is not valid, and a saved login goes to a public address only with a valid one: nothing was sent\./);
+  assert.ok(!result.text.includes('fixture-secret'));
+  assert.equal(made.at(-1).rejectUnauthorized, true, 'the certificate is checked');
+
+  // The owner's own NAS: a self-signed certificate on another port is fine.
+  const nas = { name: 'NAS', site: 'nas.lan', username: 'root', password: 'fixture-secret' };
+  await apiRequest(nas, { url: 'https://nas.lan:5001/api', headers: { Authorization: 'Bearer {{password}}' } });
+  assert.deepEqual([made.at(-1).host, made.at(-1).rejectUnauthorized], ['nas.lan', false]);
+  // An internal-looking name that resolves to a public machine is public: http refused, the certificate checked.
+  const fake = { name: 'Fake', site: 'fake.lan', username: 'root', password: 'fixture-secret' };
+  dns.promises.lookup.mock.mockImplementation(async () => [{ address: '93.184.216.34', family: 4 }]);
+  await assert.rejects(apiRequest(fake, { url: 'http://fake.lan/', headers: { Authorization: 'Bearer {{password}}' } }), /fake\.lan resolves to a public address/);
+  await apiRequest(fake, { url: 'https://fake.lan/', headers: { Authorization: 'Bearer {{password}}' } });
+  assert.deepEqual([made.at(-1).host, made.at(-1).rejectUnauthorized], ['fake.lan', true]);
+  dns.promises.lookup.mock.mockImplementation(async (host) => [{ address: host === 'nas.lan' ? '192.168.1.5' : '93.184.216.34', family: 4 }]);
+  // A public login with an internal additional host the owner saved: that host is internal.
+  await apiRequest({ ...creds, allowedHosts: ['nas.lan'] }, { url: 'https://nas.lan:5001/', headers: { Authorization: 'Bearer {{password}}' } });
+  assert.equal(made.at(-1).rejectUnauthorized, false);
+});

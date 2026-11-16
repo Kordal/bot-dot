@@ -130,6 +130,37 @@ final class FilesTests: XCTestCase {
         XCTAssertNotNil(ImageRenderer(content: PageBarView(bar: desk.state.value, desk: desk) {}.frame(width: 360)).cgImage)
         XCTAssertEqual(DocumentExport.shared.FORMATS.map { $0.first as String? ?? "" }, ["docx", "pdf", "md"])
     }
+
+    /// A page with blocks: botdot's parts are read by the shared layer, and a grid is laid out by Pages.rows.
+    func testAPagesBlocksAreTheSharedParts() {
+        let json = """
+        {"parts":[{"md":"# Week"},{"block":{"type":"grid","columns":3,"blocks":[{"type":"kpi","text":"12"},{"type":"kpi","text":"3"},{"type":"kpi","text":"7"}]}}],"tiles":["t1"]}
+        """
+        let p = Api.companion.JSON.decodeFromString(deserializer: PageBlocks.companion.serializer(), string: json) as! PageBlocks
+        XCTAssertEqual(p.parts.first?.md, "# Week")
+        let grid = p.parts[1].block!
+        XCTAssertEqual(Pages.shared.rows(blocks: grid.blocks, columns: grid.columns, wide: true).map { $0.count }, [3])
+        XCTAssertEqual(Pages.shared.rows(blocks: grid.blocks, columns: grid.columns, wide: false).map { $0.count }, [2, 1])
+    }
+
+    /// Save to Google Docs: the shared row's words, only from a botdot that has it.
+    func testGoogleDocsIsTheSharedRow() {
+        XCTAssertTrue(DocumentExport.shared.savesToGoogleDocs(features: [DocumentExport.shared.GOOGLE_DOCS]))
+        XCTAssertFalse(DocumentExport.shared.savesToGoogleDocs(features: []))
+        let docs = GoogleDocs(api: Api(baseUrl: "https://botdot.invalid", session: nil, quietMs: 1_000))
+        XCTAssertEqual(docs.label, "", "not read yet")
+        XCTAssertTrue(DocumentExport.shared.isGoogleDoc(url: "https://docs.google.com/document/d/abc_1/edit"))
+        XCTAssertFalse(DocumentExport.shared.isGoogleDoc(url: "https://evil.example/document/d/abc/edit"))
+    }
+
+    /// A page's blocks are read again only where they read tiles, on a tick of one of them or of the Board (shared rule).
+    func testAPagesBlocksAreReadAgainForTheTilesTheyRead() {
+        XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: "t1"))
+        XCTAssertTrue(PageReblock.companion.reads(tiles: ["t1"], tick: nil))
+        XCTAssertFalse(PageReblock.companion.reads(tiles: ["t1"], tick: "t2"))
+        XCTAssertFalse(PageReblock.companion.reads(tiles: [], tick: nil))
+        XCTAssertEqual(PageReblock.companion.EVERY_MS, 60_000)
+    }
 }
 
 /// True once, for the first call: a watch that hands over every state, checked for its first alone.

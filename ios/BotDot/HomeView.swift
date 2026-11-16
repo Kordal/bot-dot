@@ -49,6 +49,7 @@ struct HomeView: View {
     // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
         withSheets
+        .environment(\.tileTicks, home.home.store.tileTicks)
         // The first run's question for the Chief's name: Save, or Skip to keep "Chief of Staff".
         .alert(ChiefName.shared.question, isPresented: $asking) {
             TextField(ChiefName.shared.role, text: $name).onChange(of: name) { _, n in if n.count > Int(ChiefName.shared.MAX) { name = String(n.prefix(Int(ChiefName.shared.MAX))) } }
@@ -364,6 +365,8 @@ struct ChiefRoute: Hashable {
 struct ChatRoute: Hashable {
     let botId: String
     let name: String
+    /// What its box starts with (a standup's Reply); nil, the box as it was.
+    var words: String? = nil
 }
 
 /// One row of the list: the mark, the name, what it says under it, and its new replies as dots in its colour (at most

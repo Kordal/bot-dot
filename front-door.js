@@ -145,6 +145,9 @@ if (DEMO_HASH && (!MANAGED || !ONE_ACCOUNT || !/^[0-9a-f]{64}$/.test(DEMO_HASH))
   throw new Error('Demo access requires a managed one-account machine and a SHA256 code hash');
 }
 if (DEMO_HASH) doors.createDemoAccount(ONE_ACCOUNT);
+// What the review demo answers to Delete account and Sign out everywhere, which it keeps from doing anything for real.
+const DEMO_NOT_DELETED = 'This is a demo account: it is not deleted. On your own account, this deletes it and erases its data.';
+const DEMO_KEPT_SIGNED_IN = "This is a demo account: Sign out everywhere is off, so other reviewers stay signed in.";
 
 // The audit log (#911, ADR 141): what the admin did on the admin page, and the front door's security events, for the
 // admin page alone. None on a machine of one account, which has no admin page, unless it asks for agreement to terms
@@ -255,7 +258,8 @@ const BODY_MAX = 64 * 1024;
 const FEEDBACK_BODY_MAX = Math.ceil((store.SCREENSHOTS_MAX * store.SCREENSHOT_BYTES * 4) / 3) + BODY_MAX;
 const FEEDBACK_TOO_LARGE = `That is too much to send at once: at most ${store.SCREENSHOTS_MAX} screenshots of 5 MB each go in one report.`;
 const CHALLENGE_MS = 5 * 60_000;
-const VERSION = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passkeys'] };
+// review-demo: this is the dedicated review demo, whose Delete account answers { demo: true } and keeps the account.
+const VERSION = { app: 'bot-dot', frontDoor: true, features: ['accounts', 'passkeys', ...(DEMO_HASH ? ['review-demo'] : [])] };
 // The Android app (dev.botdot.app) signs in with the site's passkey through Android's Credential Manager, which
 // trusts an app with a site's passkeys when the site's asset links name it. The app's sign-in then comes from
 // android:apk-key-hash:<the certificate's SHA-256, base64url> in place of the site's own origin.
@@ -814,6 +818,8 @@ async function signInRoutes(req, res, p) {
   if (p === '/sign-out-everywhere' && req.method === 'POST') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    // The review demo's code is shared by every store reviewer: one of them must not sign the others out.
+    if (doors.isDemo(account)) return send(res, 403, { error: DEMO_KEPT_SIGNED_IN });
     const ended = doors.endAccountSessions(account);
     console.log(`[front door] account ${account} signed out everywhere (${ended} session${ended === 1 ? '' : 's'})`);
     return send(res, 200, { ok: true, ended }, { 'Set-Cookie': sessionCookie(null) });
@@ -828,6 +834,11 @@ async function signInRoutes(req, res, p) {
     if (account === ADMIN) return send(res, 409, { error: `${account} is the admin's account: it can't be deleted here. The machine is removed by its admin instead.` });
     if (!deletesItself(account) && !asksDeletion(account)) return send(res, 404, { error: 'Not found' });
     if (body.name !== account) return send(res, 400, { error: `Type your account's name, ${account}, to delete it.` });
+    // The review demo goes through the whole form, but is neither suspended nor erased: the next reviewer still gets in.
+    if (doors.isDemo(account)) {
+      console.log(`[front door] the review demo ${account} was asked to delete itself; it is a demo and is kept`);
+      return send(res, 200, { ok: true, demo: true, said: DEMO_NOT_DELETED });
+    }
     if (asksDeletion(account)) return askDeletion(res, account, body);
     const boatGone = await eraseAccount(account, account);
     return send(res, 200, { ok: true, deleted: '/front-door/deleted', ...(boatGone?.failed ? { boat: boatGone.text } : {}) }, { 'Set-Cookie': sessionCookie(null) });

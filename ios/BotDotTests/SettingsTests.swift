@@ -77,6 +77,36 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Storage.shared.size(bytes: 1_500_000), "1.5 MB")
         XCTAssertTrue(Storage.shared.shows(features: ["storage"]))
     }
+    /// Storage's Ask the Chief: the shared question, and a new Chief chat that starts with it in its box.
+    func testStorageAsksTheChiefInANewChat() {
+        let h = home()
+        let model = StorageModel(home: h)
+        let place = Storage.Place(bot: UploadedFiles.shared.CHIEF, root: nil, project: nil, gone: false)
+        let r = StorageRow(key: "k", name: "reports", owner: nil, bytes: 1_500_000, dir: true, files: 3, opens: false, into: "reports",
+                           `where`: Storage.Where(place: place, path: "reports"), share: 1)
+        XCTAssertEqual(h.askChief(desk: model.desk, r: r), "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        let inbox = QuoteInbox()
+        XCTAssertNil(inbox.filled)
+        inbox.fill("What is reports?")
+        XCTAssertEqual(inbox.filled?.text, "What is reports?")
+        XCTAssertEqual(inbox.filled?.count, 1)
+    }
+
+    /// The new Chief chat Ask the Chief opens: the box gets the words once. Back in the chat after a chip (the box
+    /// shown again), what was typed over them stays; a new Ask comes in again.
+    @MainActor
+    func testTheAskedWordsGoInTheBoxOnceAndAnEditStays() {
+        let chief = ChiefModel(home: home())
+        chief.open(nil)
+        XCTAssertNil(chief.takeFilled(), "nothing asked yet")
+        chief.fill("What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        XCTAssertEqual(chief.filled?.text, "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        XCTAssertEqual(chief.takeFilled(), "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?", "the box takes them")
+        XCTAssertNil(chief.takeFilled(), "shown again: the owner's edit isn't overwritten")
+        chief.fill("What is uploads?")
+        XCTAssertEqual(chief.takeFilled(), "What is uploads?", "a new Ask comes in")
+        chief.stop()
+    }
     /// Settings → Skills: the shared SkillsDesk and words reach Swift.
     func testSkillsAreTheSharedDeskAndWords() {
         let model = SkillsModel(home: home())
@@ -84,5 +114,59 @@ final class SettingsTests: XCTestCase {
         let k = Api.companion.JSON.decodeFromString(deserializer: Skill.companion.serializer(), string: #"{"name":"deploy","usedBy":["chief"],"createdBy":"chief"}"#) as! Skill
         XCTAssertEqual(SkillWords.shared.usedLine(k: k), "Used by the Chief")
         XCTAssertEqual(model.desk.madeBy(k: k), "Made by the Chief")
+    }
+
+    /// A bot's Apps: one row per app and per account of one with two or more, ticked as the shared rules say.
+    func testABotsAppsAreTheSharedRows() {
+        func conn(_ json: String) -> Connection { Api.companion.JSON.decodeFromString(deserializer: Connection.companion.serializer(), string: json) as! Connection }
+        let gmail = conn(#"{"id":"c1","toolkit":"gmail","status":"ACTIVE","app":{"name":"Gmail"}}"#)
+        let work = conn(#"{"id":"c2","toolkit":"slack","status":"ACTIVE","accounts":2,"label":"Work","app":{"name":"Slack"}}"#)
+        XCTAssertEqual(BotSettings.shared.appName(c: work), "Slack · Work")
+        let on = BotSettings.shared.appToggled(c: work, on: true, connectors: [], accounts: [:])
+        let connectors = on.first as? Set<String> ?? []
+        let accounts = on.second as? [String: String] ?? [:]
+        XCTAssertEqual(accounts["slack"], "c2", "the account of an app with two")
+        XCTAssertTrue(BotSettings.shared.appPicked(c: work, connectors: connectors, accounts: accounts, botId: "b1"))
+        XCTAssertFalse(BotSettings.shared.appPicked(c: gmail, connectors: connectors, accounts: accounts, botId: "b1"), "not ticked")
+    }
+
+    /// Always approved and the rules lifted: the shared words reach Swift.
+    func testAlwaysApprovedIsTheSharedWords() {
+        XCTAssertEqual(BotSettings.shared.JOB_REVOKED, "Revoked: its next change waits for your OK")
+        XCTAssertEqual(BotSettings.shared.REVOKED, "Revoked: it asks you again")
+        XCTAssertEqual(BotSettings.shared.grantName(g: AlwaysAllowed(action: "post", label: "")), "post")
+        XCTAssertEqual(BotSettings.shared.overrideLine(o: BotOverride(id: "o1", rule: "ask first", action: "delete", at: "")), "Its rule: ask first")
+    }
+
+    /// The Chief's settings: the shared ChiefSettingsDesk reaches Swift; before it is read, nothing shows.
+    func testTheChiefsSettingsAreTheSharedDesk() {
+        let model = ChiefSettingsModel(home: home())
+        let s = model.desk.state.value
+        XCTAssertFalse(s.loaded)
+        XCTAssertNil(s.name, "no chief-name read yet: no Name field")
+        XCTAssertNil(s.skills)
+        XCTAssertNil(s.jobs)
+        XCTAssertEqual(ChiefSettingsDesk.companion.SAVE_MS, 800)
+        model.stop()
+    }
+    /// Where its computer is and its proxy: the shared rules reach Swift.
+    func testComputerAndProxyAreTheSharedRules() {
+        XCTAssertEqual(BotSettings.shared.moveQuestion(to: "linux"), "Copy its files to this machine?")
+        XCTAssertNil(BotSettings.shared.proxyChoices(advanced: false, features: ["proxies"], b: Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"A","computer":"linux"}"#) as! Bot, list: nil))
+    }
+
+    /// Duplicate: the shared desk and words reach Swift.
+    func testDuplicateIsTheSharedDesk() {
+        let desk = BotSettingsStore(home: home(), botId: "b1").duplicate(name: "Coder")
+        XCTAssertNil(desk.state.value.plan, "not asked yet")
+        XCTAssertFalse(desk.state.value.canGo)
+        XCTAssertEqual(Duplicate.shared.made(name: "Coder 2"), "Coder 2 made")
+        XCTAssertTrue(Duplicate.shared.shows(features: ["duplicate-bot"]))
+    }
+
+    /// The Chief's settings open its files in Files only from a botdot that has both (FilesExplorer.opensFor).
+    func testTheChiefsFilesOpenInFilesWithBothFeatures() {
+        XCTAssertTrue(FilesExplorer.shared.opensFor(ownerId: UploadedFiles.shared.CHIEF, features: [UploadedFiles.shared.CHIEF_FEATURE, FilesExplorer.shared.FEATURE]))
+        XCTAssertFalse(FilesExplorer.shared.opensFor(ownerId: UploadedFiles.shared.CHIEF, features: [FilesExplorer.shared.FEATURE]))
     }
 }

@@ -138,6 +138,7 @@ struct ProjectView: View {
 /// the board (the day, the objectives, the cards, the Files tile); a row per team (the lead first, with the crown),
 /// the project's own bots with Add bot; and its default chat at the bottom.
 struct ProjectPage: View {
+    @Environment(\.horizontalSizeClass) private var size
     let home: HomeStore
     let id: String
     let figure: FigureDef?
@@ -154,6 +155,8 @@ struct ProjectPage: View {
     /// The project's Overview (ADR 236), from the toolbar.
     @State private var overview = false
     @State private var unfolded: Set<String> = []
+    /// Needs you, from the To-do's Review.
+    @State private var needsOpen = false
 
     /// Where its team rows and keys go: this page's own sheets and chats.
     private var routes: TeamRoutes.Routes { TeamRoutes.Routes(picking: $picking, panel: $panel, chat: $chat, group: $group) }
@@ -190,6 +193,7 @@ struct ProjectPage: View {
         .navigationDestination(isPresented: $settings) { ProjectSettingsView(model: model, figure: figure, onDeleted: { settings = false; dismiss() },
                                 onFolder: model.state?.project?.folder == nil ? nil : { if let c = model.state?.project { settings = false; file(c, nil) } }) }
         .navigationDestination(isPresented: $teamPage) { ProjectTeamView(home: home, model: model, figure: figure) }
+        .navigationDestination(isPresented: $needsOpen) { NeedsYouView(home: home, figure: figure) }
         .navigationDestination(isPresented: $overview) {
             if let c = model.state?.project { ProjectOverviewView(company: c, api: home.api, onOpen: { open($0, c) }, onFile: { file(c, $0) }) }
         }
@@ -255,11 +259,81 @@ struct ProjectPage: View {
 
     @ViewBuilder
     private func page(_ s: ProjectState, _ c: Company) -> some View {
-        if let day = s.day?.intValue {
-            Text(tr("Day {n} of 90", ["n": "\(day)"])).font(.caption.monospaced()).foregroundStyle(.secondary)
-                .padding(.horizontal, 12).padding(.vertical, 4).background(.quaternary, in: .capsule)
+        if let canvas = s.canvas, size == .regular {
+            // Needs you is never an arranged tile: always first, above them (ADR 252).
+            tile("needs", s, c)
+            // The board as the owner arranged it (#784), on a wide screen: the canvas itself, its tiles moved and resized there.
+            BoardCanvasView(places: canvas, tile: { id in tile(id, s, c) }, onArrange: { await model.arrange($0) })
                 .listRowSeparator(.hidden)
+            if s.teamsOnBoard {
+                TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)
+            }
+        } else if let order = s.order {
+            // The board as the owner arranged it on the canvas (#784): on a phone, its tiles in the canvas's reading
+            // order (ADR 147); a tile this phone doesn't draw yet is left out. Needs you first, above them (ADR 252).
+            tile("needs", s, c)
+            ForEach(order, id: \.self) { id in tile(id, s, c) }
+            if s.teamsOnBoard {
+                TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)
+            }
+        } else {
+            flow(s, c)
         }
+    }
+
+    /// One tile of an arranged board, by its id (BoardCanvas.tiles).
+    @ViewBuilder
+    private func tile(_ id: String, _ s: ProjectState, _ c: Company) -> some View {
+        switch id {
+        case "needs":
+            if let n = s.needsYou {
+                NavigationLink { NeedsYouView(home: home, figure: figure) } label: {
+                    NeedsYou(waiting: n.waiting, figure: figure, questions: n.questions, asks: n.asks, onQuestion: { open($0, c) })
+                }
+                .listRowSeparator(.hidden)
+            }
+        case "work", "blockers", "replies":
+            OverviewTile(key: id, state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
+        case "days":
+            if let day = s.day?.intValue { dayLine(day) }
+        case "files":
+            if s.filesTile { filesTile(s, c) }
+        case "calendar":
+            if s.calendar { CalendarTileView(model: model, bots: s.bots, figure: figure).listRowSeparator(.hidden) }
+        case "suggest":
+            if let sg = s.suggested { SuggestedTeamCard(suggested: sg, project: c, figure: figure, model: model).listRowSeparator(.hidden) }
+        case "new-team":
+            if s.addsTeam { NewTeamTile(bots: s.teamCandidates, model: model).listRowSeparator(.hidden) }
+        case "todo":
+            if let todo = s.todo { todoPanel(todo, s) }
+        default:
+            if id.hasPrefix("goal:"), let o = s.goals.first(where: { "goal:\($0.id)" == id }) {
+                Goals(goals: [o]).listRowSeparator(.hidden)
+            } else if let slots = s.cards, let one = slots.first(where: { ProjectCards.shared.tileOf(s: $0) == id }) {
+                CardsRow(model: model, state: s, slots: [one], figure: figure, pieces: id == "new-card").listRowSeparator(.hidden)
+            }
+        }
+    }
+
+    private func dayLine(_ day: Int) -> some View {
+        Text(tr("Day {n} of 90", ["n": "\(day)"])).font(.caption.monospaced()).foregroundStyle(.secondary)
+            .padding(.horizontal, 12).padding(.vertical, 4).background(.quaternary, in: .capsule)
+            .listRowSeparator(.hidden)
+    }
+
+    private func filesTile(_ s: ProjectState, _ c: Company) -> some View {
+        FilesTile(files: s.files) { file in
+            if let folder = c.folder?.name {
+                files = FilesPlace(owner: ProjectFiles.shared.owner(folder: folder), name: folder, path: file.map { ProjectFiles.shared.folderOf(path: $0) } ?? "", file: file ?? "")
+            }
+        }
+        .listRowSeparator(.hidden)
+    }
+
+    /// The board never arranged: its pieces in their usual order.
+    @ViewBuilder
+    private func flow(_ s: ProjectState, _ c: Company) -> some View {
+        if let day = s.day?.intValue { dayLine(day) }
         if s.board {
             // The overview is the board (overview-board, ADR 245): Needs you when something waits, then its tiles.
             if let n = s.needsYou {
@@ -283,18 +357,16 @@ struct ProjectPage: View {
         if let slots = s.cards {
             CardsRow(model: model, state: s, slots: slots, figure: figure).listRowSeparator(.hidden)
         }
-        if s.filesTile {
-            FilesTile(files: s.files) { file in
-                if let folder = c.folder?.name {
-                    files = FilesPlace(owner: ProjectFiles.shared.owner(folder: folder), name: folder, path: file.map { ProjectFiles.shared.folderOf(path: $0) } ?? "", file: file ?? "")
-                }
-            }
-            .listRowSeparator(.hidden)
-        }
+        if s.calendar { CalendarTileView(model: model, bots: s.bots, figure: figure).listRowSeparator(.hidden) }
+        // The bot the Chief suggests and New team (the board's "teams" piece), under the cards as on Android.
+        if let sg = s.suggested { SuggestedTeamCard(suggested: sg, project: c, figure: figure, model: model).listRowSeparator(.hidden) }
+        if s.addsTeam { NewTeamTile(bots: s.teamCandidates, model: model).listRowSeparator(.hidden) }
+        if s.filesTile { filesTile(s, c) }
         // With overview-board the teams are under Team (ADR 238), not on the board.
         if s.teamsOnBoard {
             TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)
         }
+        if let todo = s.todo { todoPanel(todo, s) }
         if s.replies {
             OverviewTile(key: "replies", state: s.recorded) { open($0, c) }.listRowSeparator(.hidden)
         }
@@ -323,6 +395,16 @@ struct ProjectPage: View {
                     .tint(.primary).accessibilityIdentifier("project-chat")
             }
         }
+    }
+
+    /// The To-do (#692): Approve answers a permission here, Review opens Needs you, Reply the asking bot's chat.
+    private func todoPanel(_ todo: ProjectTodo.Panel, _ s: ProjectState) -> some View {
+        TodoPanelView(panel: todo, adding: s.adding, figure: figure, model: model,
+                      onApprove: { id in Task { _ = try? await home.answer(permission: id, yes: true) } },
+                      onReview: { needsOpen = true },
+                      onBot: { b in chat = ChatRoute(botId: b.id, name: b.name) },
+                      onReply: { id, words in chat = ChatRoute(botId: id, name: s.bots.first(where: { $0.id == id })?.name ?? "", words: words) })
+            .listRowSeparator(.hidden)
     }
 
     private func head(_ b: Bot, _ size: CGFloat) -> some View { ProjectHead(bot: b, figure: figure, size: size) }
@@ -564,7 +646,7 @@ struct TeamRoutes: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .navigationDestination(item: routes.chat) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+            .navigationDestination(item: routes.chat) { r in ChatView(home: home, botId: r.botId, name: r.name, words: r.words) }
             .navigationDestination(item: routes.group) { r in GroupChatView(home: home, groupId: r.groupId, name: r.name, figure: figure) }
             .sheet(item: routes.picking) { p in
                 BotPickerView(title: p.title, bots: p.bots, figure: figure) { ids in

@@ -300,7 +300,7 @@ test('asksOf: Home lists every ask; a project only its own bots\' asks, a batch 
   assert.deepEqual(Keypad.asksOf(items, projects[1], projects), [items[1]]);
 });
 
-test('asksOf: a bot in two projects has its asks on both project pages (ADR 249)', () => {
+test('asksOf: a bot in two projects has its asks on both project pages (ADR 252)', () => {
   const both = [{ id: 'p1', teams: [{ id: 't1', bots: ['dev'] }] }, { id: 'p2', teams: [], bots: ['dev'] }];
   const items = [{ kind: 'ask', bot: { id: 'dev' } }];
   assert.deepEqual(Keypad.asksOf(items, both[0], both), items);

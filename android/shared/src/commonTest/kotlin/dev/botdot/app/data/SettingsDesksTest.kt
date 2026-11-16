@@ -8,6 +8,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -369,5 +370,91 @@ class SettingsDesksTest {
         val digits = Keypad.digits(pages, Keypad.shownKeys(pages, emptySet()))
         assertEquals(listOf(1, 2, 3, 4), digits.keys.toList())
         assertEquals(listOf("h", "p", "w", "o"), digits.values.map { it.id })
+    }
+    @Test fun aBotsAppsAndPagesAreReadWithItsSettings() = runTest {
+        val botdot = MockBotdot { s ->
+            when {
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"A","connectors":["gmail"]}]"""
+                s.path == "/connectors" -> 200 to """{"connections":[{"id":"c1","toolkit":"gmail","status":"ACTIVE","app":{"name":"Gmail"}},{"id":"c2","toolkit":"notion","status":"ACTIVE","app":{"name":"Notion"}}]}"""
+                s.path == "/bots/a/pages" -> 200 to """{"pages":[{"slug":"menu","title":"Menu"}]}"""
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(listOf(Pages.FEATURE, DocumentView.FEATURE)), backgroundScope)
+        desk.load()
+        with(desk.state.value) {
+            assertEquals(listOf("Gmail", "Notion"), apps.map { appName(it) })
+            assertEquals(listOf(true, false), apps.map { hasApp(it) })
+            assertEquals("Gmail", appsLine)
+            assertEquals(listOf("Menu"), pages?.map { it.title })
+        }
+        val none = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        none.load()
+        assertNull(none.state.value.pages, "a botdot without pages: no section")
+    }
+    @Test fun aRevokedGrantGoesByItsActionFromTheBotAsItIsThen() = runTest {
+        // The one rule for both phones: the step applies to the bot as botdot answered, and every grant of that action
+        // goes, though the bot was read again meanwhile with another label for it.
+        val botdot = MockBotdot { 200 to "{}" }
+        val r = BotSettings.revokeGrant(botdot.api, "a", "send")
+        assertEquals(BotSettings.REVOKED, r.say)
+        val now = Bot(id = "a", name = "A", alwaysAllowed = listOf(AlwaysAllowed("send", "Send mail (new)"), AlwaysAllowed("post", "")))
+        assertEquals(listOf("post"), r.step(now).alwaysAllowed.map { it.action })
+        assertEquals("DELETE", botdot.sent().single().method)
+    }
+    @Test fun aChangeThatLandsWhileARevokeIsAnsweredStays() = runTest {
+        // botdot answers the revoke late; meanwhile the bot is read again, renamed elsewhere. Both stay.
+        val held = kotlinx.coroutines.CompletableDeferred<Unit>()
+        var name = "A"
+        val botdot = MockBotdot { s ->
+            when {
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"$name","alwaysAllowed":[{"action":"send"},{"action":"post"}]}]"""
+                s.method == "DELETE" -> { held.await(); 200 to "{}" }
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        desk.load()
+        val revoking = async { desk.revokeGrant("send") }
+        runCurrent()
+        name = "Renamed"
+        desk.load()
+        assertEquals("Renamed", desk.state.value.bot?.name)
+        held.complete(Unit)
+        assertEquals(BotSettings.REVOKED, revoking.await())
+        assertEquals("Renamed", desk.state.value.bot?.name, "the bot read meanwhile stays")
+        assertEquals(listOf("post"), desk.state.value.grants.map { it.action }, "and the revoke is applied to it")
+    }
+    @Test fun alwaysApprovedAndTheRulesLiftedAreRevokedOneByOneOrSayWhyNot() = runTest {
+        var fail = false
+        val botdot = MockBotdot { s ->
+            when {
+                s.path == "/bots" -> 200 to """[{"id":"a","name":"A","jobs":[{"id":"j1","name":"Digest","cron":"0 7 * * *","alwaysApprove":true,"kind":"script"},{"id":"j2","name":"Other","cron":"0 8 * * *"}],
+                    "alwaysAllowed":[{"action":"send","label":"Send mail"},{"action":"post"}],"overrides":[{"id":"o1","rule":"ask before deleting","action":"delete"}]}]"""
+                fail && s.method != "GET" -> 500 to """{"error":"Not now"}"""
+                s.method == "PUT" && s.path == "/bots/a/jobs/j1" -> 200 to """{"id":"j1","name":"Digest","cron":"0 7 * * *","alwaysApprove":false}"""
+                s.method == "DELETE" && s.path == "/bots/a/overrides/o1" -> 200 to """{"id":"a","name":"A","overrides":[]}"""
+                else -> 200 to "{}"
+            }
+        }
+        val desk = BotSettingsDesk(botdot.api, "a", store(), backgroundScope)
+        desk.load()
+        with(desk.state.value) {
+            assertEquals(listOf("Digest"), trusted.map { it.name })
+            assertTrue(trustedLine(trusted.single()).endsWith("a script, no AI"))
+            assertEquals(listOf("Send mail", "post"), grants.map { grantName(it) })
+            assertEquals("Digest, Send mail, post", bot?.let(BotSettings::alwaysLine))
+            assertEquals("Its rule: ask before deleting", overrideLine(overrides.single()))
+        }
+        fail = true
+        assertEquals("Not now", desk.revokeGrant("send"))
+        assertEquals(2, desk.state.value.grants.size, "refused: it stays")
+        fail = false
+        assertEquals(BotSettings.JOB_REVOKED, desk.revokeJob("j1"))
+        assertTrue(desk.state.value.trusted.isEmpty())
+        assertEquals(BotSettings.REVOKED, desk.revokeGrant("send"))
+        assertEquals(listOf("post"), desk.state.value.grants.map { it.action })
+        assertEquals(BotSettings.REVOKED, desk.revokeOverride("o1"))
+        assertTrue(desk.state.value.overrides.isEmpty())
     }
 }

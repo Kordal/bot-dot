@@ -128,7 +128,7 @@ function projectOf(projects) {
   return map;
 }
 // What a space's Needs you lists: on Home (project null) every ask; in a project only those of its own bots (any bot
-// of its teams or of the project itself, also one that is in another project too, ADR 249), and those asked in one of
+// of its teams or of the project itself, also one that is in another project too, ADR 252), and those asked in one of
 // its teams' group chats (the Chief's there too). An ask names its bot (`bot.id`) and the group it was asked in
 // (`group.id`, needs.js); groups: the account's, each with the `team` it is the chat of. A batch holds several, and is
 // the project's when one of them is.

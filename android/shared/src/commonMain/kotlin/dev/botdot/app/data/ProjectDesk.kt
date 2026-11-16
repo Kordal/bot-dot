@@ -142,6 +142,19 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
+    /** The calendar tile (#695, `project-calendar` and the board's "calendar" piece). */
+    val calendar: Boolean = false,
+    /** The board's "teams" piece: the bot the Chief suggests (Add or dismiss), and New team. */
+    val suggested: Suggested? = null,
+    val addsTeam: Boolean = false,
+    /** New team's bots to pick from, those in no team first ([ManyProjects.teamCandidates]). */
+    val teamCandidates: List<Bot> = emptyList(),
+    /** The To-do panel (#692, the board's "todo" piece): what it holds under its filter; null where the board has none. */
+    val todo: ProjectTodo.Panel? = null,
+    /** An item of the To-do on its way in: Add waits. */
+    val adding: Boolean = false,
+    /** The board as the owner arranged it on the canvas (#784): each tile where it stands; null: the usual flow. */
+    val canvas: Map<String, BoardCanvas.R>? = null,
     val tidying: Boolean,
     /** The Chief's head beside the gear: the project's own Chief chat (`project-chief`), and what waits there. */
     val chief: Boolean,
@@ -187,6 +200,10 @@ class ProjectState(
     val noticeCount: Int,
 ) {
     val running: Boolean get() = project?.running == true
+    /** On a phone (ADR 147): the arranged board's tiles in the order its column reads them. */
+    val order: List<String>? get() = canvas?.let(BoardCanvas::order)
+    /** How tall the arranged board's canvas is, in its units. */
+    val canvasHeight: Int get() = canvas?.let(BoardCanvas::height) ?: 0
 }
 
 /**
@@ -202,6 +219,8 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         /** The projects whose Chief chat is being made: a second tap meanwhile asks nothing. */
         val openingChief: Set<String> = emptySet(),
         val notice: String? = null, val noticeCount: Int = 0,
+        /** The To-do's filter (ProjectTodo.FILTERS), and an item on its way in. */
+        val todoFilter: String = "all", val adding: Boolean = false,
         /** The board's overview tiles' snapshot (overview-board), read while the page is followed. */
         val recorded: OverviewState = OverviewState(),
     )
@@ -282,6 +301,9 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         }
         val ownBots = ProjectBots.FEATURE in f
         val board = c != null && ProjectOverview.BOARD in f
+        val needsYou = if (board && c != null) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null
+        val cards = if (c != null && ProjectCards.shows(features, c)) ProjectCards.slots(c.cards, x.open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }, x.closing, x.removing) else null
+        val filesTile = c != null && ProjectFiles.FEATURE in f && on(ProjectFiles.PIECE) && c.phase == "running" && c.folder != null
         return ProjectState(
             shows = CompanySetup.shows(features),
             spaces = Spaces.list(projects, bots, waiting),
@@ -300,9 +322,16 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             teamsOnBoard = !board,
             teamEntry = board,
             recorded = x.recorded,
-            needsYou = if (board && c != null) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null,
+            needsYou = needsYou,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            calendar = c != null && ProjectCalendar.FEATURE in f && on("calendar"),
+            suggested = c?.suggestion?.takeIf { on("teams") },
+            addsTeam = on("teams"),
+            teamCandidates = if (c != null && on("teams")) ManyProjects.teamCandidates(c, bots) else emptyList(),
+            todo = if (c != null && on("todo")) ProjectTodo.panel(c, bots, here, x.todoFilter, features) else null,
+            adding = x.adding,
+            canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, false, board, cards, filesTile)) },
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,
@@ -314,7 +343,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             // With "Show as" (#690) the objectives are the board's "goals" piece; before it, always on the whiteboard.
             goals = if (c == null) emptyList() else if (CompanyFloor.DISPLAY !in f || on("goals")) c.objectives else emptyList(),
             goal = c?.goal.orEmpty(),
-            cards = if (c != null && ProjectCards.shows(features, c)) ProjectCards.slots(c.cards, x.open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }, x.closing, x.removing) else null,
+            cards = cards,
             fresh = x.fresh,
             refused = x.refused,
             pieces = if (c != null && x.open == ProjectCards.NEW) ProjectBoard.missing(f, c) else emptyList(),
@@ -323,7 +352,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             own = if (c == null || !ownBots) emptyList() else c.bots.mapNotNull { id -> bots.firstOrNull { it.id == id } }.map { key(it, false) },
             addable = if (c == null) emptyList() else ProjectBots.addable(c, bots),
             ownSaving = x.ownSaving,
-            filesTile = c != null && ProjectFiles.FEATURE in f && on(ProjectFiles.PIECE) && c.phase == "running" && c.folder != null,
+            filesTile = filesTile,
             folder = c?.folder,
             files = x.files,
             chat = chat,
@@ -433,6 +462,51 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     @Throws(Exception::class)
     suspend fun refreshCard(card: String) { call { it.refreshCard(card) } }
+
+    /** The week's plan: Approve, or a change asked of the Chief in [text]. True once botdot took it. */
+    @Throws(Exception::class)
+    suspend fun approvePlan(): Boolean = call { it.approvePlan() }
+
+    @Throws(Exception::class)
+    suspend fun changePlan(text: String): Boolean = text.trim().takeIf { it.isNotEmpty() }?.let { t -> call { it.changePlan(t) } } ?: false
+
+    /** Add a decision: [typed] split into the decision and its reason ([ProjectDecisions.split]); nothing typed, nothing sent. */
+    @Throws(Exception::class)
+    suspend fun addDecision(typed: String): Boolean = ProjectDecisions.split(typed).takeIf { it.text.isNotEmpty() }?.let { d -> call { it.addDecision(d) } } ?: false
+
+    @Throws(Exception::class)
+    suspend fun deleteDecision(id: String): Boolean = call { it.deleteDecision(id) }
+
+    /** The To-do's filter: All, You, Bots or Done. */
+    fun todoFilter(filter: String) { if (filter in ProjectTodo.FILTERS) local.update { it.copy(todoFilter = filter) } }
+
+    /** An item ticked done, or back open. */
+    @Throws(Exception::class)
+    suspend fun tickTodo(id: String, done: Boolean) { call { it.tickTodo(id, done) } }
+
+    /** An item's Delete: the owner's alone, on a botdot with the full To-do. */
+    @Throws(Exception::class)
+    suspend fun deleteTodo(id: String) { call { it.deleteTodo(id) } }
+
+    /**
+     * Add a task: [typed] ("@Bot text" gives it to that bot), for [who] (a bot's id; null: the owner), on [due] and
+     * repeating as [repeat], with the full To-do; before it, its text and bot only. True when it went in (the field
+     * empties); one at a time.
+     */
+    @Throws(Exception::class)
+    suspend fun addTodo(typed: String, who: String?, due: String?, repeat: Repeat?): Boolean {
+        val t = CompanyFloor.task(typed, store.bots.value.value.orEmpty())
+        if (t.text.isEmpty() || !claim({ it.adding }, { it.copy(adding = true) })) return false
+        return try {
+            if (ProjectTodo.FEATURE in store.version.value.value?.features.orEmpty()) call { it.addTodo(t.text, t.bot ?: who, due, repeat) }
+            else call { it.addTodo(t.text, t.bot) }
+        } finally {
+            local.update { it.copy(adding = false) }
+        }
+    }
+    /** The arranged board after a tile was moved or resized ([BoardCanvas.drag]): saved whole, so every app shows the same. */
+    @Throws(Exception::class)
+    suspend fun arrange(layout: Map<String, BoardCanvas.R>): Boolean = call { it.setLayout(BoardCanvas.raw(layout)) }
 
     /** A card's Remove: off the row at once; a refusal puts it back. */
     @Throws(Exception::class)
@@ -617,6 +691,10 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         val body = ManyProjects.teamBody(name, bots, lead) ?: return false
         return if (team == null) call { it.addTeam(body) } else call { it.editTeam(team, body) }
     }
+
+    /** The Chief's suggested bot: Add makes it (into the team it would join), ✕ dismisses it. */
+    @Throws(Exception::class)
+    suspend fun answerSuggested(add: Boolean): Boolean = call { if (add) it.addSuggested() else it.dismissSuggested() }
 
     /** Delete team: its bots stay. */
     @Throws(Exception::class)

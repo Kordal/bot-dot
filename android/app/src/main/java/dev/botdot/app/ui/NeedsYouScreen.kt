@@ -389,7 +389,7 @@ fun NeedsYouScreen(app: BotDotApp, onChat: (String) -> Unit = {}, onDone: (() ->
 
 // ---------- in the chat ----------
 
-/** The cards a message names (`cards`, ADR 249), drawn right under it while they wait; [scope] is its chat's. */
+/** The cards a message names (`cards`, ADR 252), drawn right under it while they wait; [scope] is its chat's. */
 @Composable
 fun NamedCards(app: BotDotApp, scope: String, ids: List<String>?) {
     val set = ids.orEmpty().filter { NAMED_CARD.matches(it) }.toSet()
@@ -398,7 +398,7 @@ fun NamedCards(app: BotDotApp, scope: String, ids: List<String>?) {
 
 /**
  * Which cards each message of a chat shows, by its key: a card named by several messages stands under the newest
- * alone, as on the web page (ADR 249). [named]: each message's key and `cards`, oldest first.
+ * alone, as on the web page (ADR 252). [named]: each message's key and `cards`, oldest first.
  */
 fun newestNames(named: List<Pair<String, List<String>?>>): Map<String, List<String>> {
     val seen = mutableSetOf<String>()
@@ -477,7 +477,7 @@ fun ChatNeeds(app: BotDotApp, scope: String, only: Set<String>? = null, except: 
     val jobs = if (only != null) emptyList() else jobsLeft(bots.flatMap { b -> b.jobs.filter { it.waits }.map { b to it } }
         .filter { (b, j) -> here(cardGroups[CardGroups.jobKey(b.id, j.id)]) && (group != null || if (chief) j.askedBy == "chief" else b.id == scope && j.askedBy != "chief") }, decided.map { it.key })
     val mems = if (chief || only != null) emptyList() else memory.filter { here(it.group) && (group != null || it.botId == scope) && decided.none { d -> d.key == "m:${it.id}" } }
-    // Under a message that names cards (`only`, ADR 249): those cards alone, wherever they stand. At the end of the
+    // Under a message that names cards (`only`, ADR 252): those cards alone, wherever they stand. At the end of the
     // chat: none of the cards a message of it names (`except`), which stand under that message.
     val myAsks = asks.filter { a -> (if (only != null) a.id in only else a.standsInChat(scope) && a.id !in except) && decided.none { it.key == "a:${a.id}" } }
     val reqs = requests.filter { r -> (if (only != null) r.id in only else here(r.group) && (group != null || if (chief) r.from == "chief" else r.bot?.id == scope && r.from != "chief") && r.id !in except) && decided.none { it.key == "r:${r.id}" } }

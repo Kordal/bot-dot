@@ -674,7 +674,7 @@ function toHeldCard(thread, botId) {
   return true;
 }
 
-// ---------- a card under the message that names it (ADR 249) ----------
+// ---------- a card under the message that names it (ADR 252) ----------
 
 // The cards a message names (`cards`: ids of asks and login requests, docs/api.md "A card in the chat"): a place under
 // it that updateChatNeeds fills with each card that still waits.

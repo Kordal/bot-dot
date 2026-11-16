@@ -66,10 +66,19 @@ struct BotSettingsView: View {
     var focusSkill: String? = nil
     @State private var model: BotSettingsModel?
     @State private var picking = false
+    /// One of its pages, open in the viewer.
+    @State private var page: DocumentView.Opening?
     @State private var askDelete = false
     @State private var deleting = false
     @State private var saved = false
     @State private var failed: String?
+    /// The computer a switch asks about first: whether its files go along (#556).
+    @State private var askMove: String?
+    /// Duplicate's confirmation, while it is open; then the copy's chat.
+    @State private var duplicating: DuplicateDesk?
+    @State private var copy: ChatRoute?
+    /// What Duplicate or a Revoke said, for a moment at the top.
+    @State private var said: (text: String, count: Int) = ("", 0)
     // What is typed stays as typed: the shared draft follows it.
     @State private var name = ""
     @State private var about = ""
@@ -103,6 +112,24 @@ struct BotSettingsView: View {
         }
         }
         .navigationTitle(model?.state?.bot?.name ?? "")
+        .navigationDestination(item: $page) { ViewerView(api: home.api, opening: $0) }
+        .confirmationDialog(askMove.map { model?.state?.moveQuestion(to: $0) ?? "" } ?? "", isPresented: Binding(get: { askMove != nil }, set: { if !$0 { askMove = nil } }), titleVisibility: .visible) {
+            if let to = askMove {
+                Button(tr("Copy files")) { model?.edit { $0.withComputerOn(to: to, move: true) }; askMove = nil }
+                Button(tr("Start empty")) { model?.edit { $0.withComputerOn(to: to, move: false) }; askMove = nil }
+            }
+            Button(tr("Cancel"), role: .cancel) { askMove = nil }
+        }
+        .navigationDestination(item: $copy) { r in ChatView(home: home, botId: r.botId, name: r.name) }
+        .modifier(NoticeOverlay(notice: said.text.isEmpty ? nil : said.text, count: said.count))
+        .sheet(isPresented: Binding(get: { duplicating != nil }, set: { if !$0 { duplicating = nil } })) {
+            if let desk = duplicating {
+                DuplicateSheet(desk: desk, botName: model?.state?.bot?.name ?? "") { id, name in
+                    duplicating = nil
+                    copy = ChatRoute(botId: id, name: name)
+                } onSaid: { said = ($0, said.count + 1) }
+            }
+        }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if saved { Text(tr("Saved")).font(.footnote).foregroundStyle(.secondary).accessibilityIdentifier("saved") }
@@ -200,9 +227,28 @@ struct BotSettingsView: View {
             }
         }
         // A server from before every bot has a computer (ADR 192): whether it has one, as Android's "Browser".
-        if state.showsBrowser {
+        // Where its computer is, with Advanced on (ADR 088), else Browser; its proxy (ADR 171) on this machine.
+        if let computers = state.computers {
+            Section {
+                Picker(tr("Computer"), selection: Binding(get: { state.computerValue }, set: { to in
+                    if state.asksMove(to: to) { askMove = to } else { model.edit { $0.withComputerOn(to: to, move: false) } }
+                })) {
+                    ForEach(computers, id: \.id) { Text($0.label).tag($0.id) }
+                }
+                if let proxies = state.proxies {
+                    proxyPicker(proxies, draft, model)
+                }
+            }
+        } else if state.showsBrowser {
             Section {
                 Toggle(tr("Browser"), isOn: Binding(get: { draft.computer }, set: { on in model.edit { $0.withComputer(on: on) } }))
+                if let proxies = state.proxies {
+                    proxyPicker(proxies, draft, model)
+                }
+            }
+        } else if let proxies = state.proxies {
+            Section {
+                proxyPicker(proxies, draft, model)
             }
         }
         Section(tr("Skills")) {
@@ -216,6 +262,52 @@ struct BotSettingsView: View {
             }
         }
         .id("skills")
+        // Its apps (Android's Apps): one row per connected app, and per account of an app with two or more (ADR 174).
+        if !state.apps.isEmpty {
+            Section(tr("Apps")) {
+                ForEach(state.apps, id: \.id) { c in
+                    Toggle(state.appName(c: c), isOn: Binding(get: { state.hasApp(c: c) }, set: { on in model.edit { $0.withApp(c: c, on: on) } }))
+                }
+            }
+        }
+        // Its pages (#346): what it made for you, each opening in the viewer, kept up to date from there.
+        if let pages = state.pages {
+            Section(tr("Pages")) {
+                if pages.isEmpty { Text(tr("None yet")).foregroundStyle(.secondary) }
+                ForEach(pages, id: \.slug) { pg in
+                    Button {
+                        page = DocumentView.shared.ofPage(botId: botId, slug: pg.slug, title: pg.title, from: state.bot?.name ?? "")
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(pg.title)
+                            Text(state.pageLine(page: pg)).font(.caption).foregroundStyle(pg.keep != nil ? .green : .secondary)
+                        }
+                    }
+                    .tint(.primary)
+                }
+            }
+        }
+        // Always approved (#474): the jobs whose later changes need no OK and its lasting grants in connected apps;
+        // Revoke takes one off at once.
+        if !state.trusted.isEmpty || !state.grants.isEmpty {
+            Section(tr("Always approved")) {
+                ForEach(state.trusted, id: \.id) { j in
+                    revokeRow(j.name, state.trustedLine(j: j)) { try await model.store.revokeJob(jobId: j.id) }
+                }
+                // One row per grant, as on Android: several may share an action under different labels.
+                ForEach(state.grants, id: \.rowId) { g in
+                    revokeRow(state.grantName(g: g), nil) { try await model.store.revokeGrant(action: g.action) }
+                }
+            }
+        }
+        // The rules you lifted for it with "Allow always for this bot" (#253).
+        if !state.overrides.isEmpty {
+            Section(tr("Rules you lifted")) {
+                ForEach(state.overrides, id: \.id) { o in
+                    revokeRow(o.action, state.overrideLine(o: o)) { try await model.store.revokeOverride(id: o.id) }
+                }
+            }
+        }
         if state.showsOthersMayAsk || state.showsRooms {
             Section {
                 if state.showsOthersMayAsk {
@@ -235,6 +327,12 @@ struct BotSettingsView: View {
             NavigationLink(tr("Scheduled jobs")) { JobsView(home: home, botId: bot.id, figure: figure) }
         }
         Section {
+            if Duplicate.shared.shows(features: state.features) {
+                Button(tr("Duplicate {name}", ["name": bot.name])) {
+                    let desk = model.store.duplicate(name: bot.name)
+                    Task { if (try? await desk.ask())?.boolValue == true { duplicating = desk } else { said = (desk.state.value.notice ?? "", said.count + 1) } }
+                }
+            }
             Button(role: .destructive) { askDelete = true } label: {
                 Text(deleting ? tr("Deleting…") : tr("Delete {name}", ["name": bot.name]))
             }
@@ -258,6 +356,28 @@ struct BotSettingsView: View {
         Task {
             failed = await model.delete()
             deleting = false
+        }
+    }
+
+    /// Its proxy (ADR 171): the account's, none, or one of the account's (BotSettings.proxyChoices).
+    private func proxyPicker(_ proxies: [Option], _ draft: BotDraft, _ model: BotSettingsModel) -> some View {
+        Picker(tr("Proxy"), selection: Binding(get: { draft.proxy }, set: { p in model.edit { $0.withProxy(proxy: p) } })) {
+            ForEach(proxies, id: \.id) { Text($0.label).tag($0.id) }
+        }
+    }
+
+    /// A row with Revoke (Always approved, Rules you lifted): its name, its line, and the button, which says what happened.
+    private func revokeRow(_ name: String, _ line: String?, _ revoke: @escaping () async throws -> String) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                if let line { Text(line).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer()
+            Button(tr("Revoke")) {
+                Task { if let words = try? await revoke(), !words.isEmpty { said = (words, said.count + 1) } }
+            }
+            .buttonStyle(.bordered)
         }
     }
 }
@@ -311,4 +431,9 @@ private struct BotIconPicker: View {
             }
         }
     }
+}
+
+private extension AlwaysAllowed {
+    /// A grant's row: its action and label, since one action may have several labels.
+    var rowId: String { "\(action)\u{0}\(label)" }
 }

@@ -28,7 +28,8 @@
 
   const on = () => (state.features || []).includes('project-cards');
   const tone = (t) => (t === 'ok' || t === 'bad' || t === 'muted' ? ` ${t}` : '');
-  const wide = (c) => (c.state === 'asking' || c.body?.show === 'table' ? ' wide' : c.body?.show === 'list' ? ' tall' : '');
+  // A card with larger text takes the row's whole width, so its number still fits.
+  const wide = (c) => (c.state === 'asking' || c.body?.show === 'table' || c.textSize > 1 ? ' wide' : c.body?.show === 'list' ? ' tall' : '');
 
   // ---------- a card ----------
   function bars(list) {
@@ -54,8 +55,20 @@
     return big + more;
   }
   const stepText = (s) => (!s ? tr('Starting') : s.kind === 'search' ? (s.what ? tr('Searching {what}', { what: s.what }) : tr('Searching the web')) : s.what ? tr('Reading {what}', { what: s.what }) : tr('Reading'));
+  // How large a card's text is drawn (card-text-size): its normal size times one of these, from the card's menu.
+  const SIZES = [1, 1.25, 1.5, 2];
+  const sizeOf = (c) => (SIZES.includes(c.textSize) ? c.textSize : 1);
+  const sizing = () => (state.features || []).includes('card-text-size');
+  let sizeSent = 0;
+  function sizeHTML(c) {
+    const at = SIZES.indexOf(sizeOf(c));
+    return `<div class="pc-size" role="group">
+      <button type="button" role="menuitem" data-pc-size="${esc(c.id)}" data-pc-step="-1" aria-label="${tr('Smaller text')}" title="${tr('Smaller text')}"${at <= 0 ? ' disabled' : ''}>A</button>
+      <button type="button" role="menuitem" data-pc-size="${esc(c.id)}" data-pc-step="1" aria-label="${tr('Larger text')}" title="${tr('Larger text')}"${at >= SIZES.length - 1 ? ' disabled' : ''}>A</button>
+    </div>`;
+  }
   function menuHTML(c) {
-    return `<div class="pc-menu" role="menu">
+    return `<div class="pc-menu" role="menu">${sizing() ? sizeHTML(c) : ''}
       <button type="button" role="menuitem" data-pc-change="${esc(c.id)}">${ICON.pen}${tr('Change')}</button>
       <button type="button" role="menuitem" data-pc-refresh="${esc(c.id)}">${ICON.refresh}${tr('Refresh')}</button>
       <button type="button" role="menuitem" class="danger" data-pc-remove="${esc(c.id)}">${ICON.trash}${tr('Remove')}</button>
@@ -78,7 +91,8 @@
     const login = c.state === 'failed' && c.needsLogin && (state.features || []).includes('project-logins');
     const said = login ? tr('No login for {host}', { host: c.needsLogin }) : c.error || tr('Could not build it');
     const failed = c.state === 'failed' ? `<div class="pc-failed${c.body ? ' quiet' : ''}" title="${esc(said)}">${esc(said)}</div>${login ? `<button type="button" class="btn sm pc-login" data-pc-login>${tr('Add login')}</button>` : ''}` : '';
-    return `<div class="pc-card${wide(c)}${fresh.has(c.id) ? ' fresh' : ''}${c.state === 'failed' ? ' failed' : ''}" data-pc-card="${esc(c.id)}">${head}${c.body ? bodyHTML(c.body) : ''}${failed}</div>`;
+    const size = sizeOf(c) !== 1 ? ` style="--pc-text:${sizeOf(c)}"` : '';
+    return `<div class="pc-card${wide(c)}${fresh.has(c.id) ? ' fresh' : ''}${c.state === 'failed' ? ' failed' : ''}" data-pc-card="${esc(c.id)}"${size}>${head}${c.body ? bodyHTML(c.body) : ''}${failed}</div>`;
   }
 
   // ---------- the ask and the questions ----------
@@ -182,6 +196,23 @@
     $$('[data-pc-refresh]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; b.disabled = true; send(at(b.dataset.pcRefresh, '/refresh'), 'POST', {}); }));
     $$('[data-pc-change]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; open = b.dataset.pcChange; Company.redraw(); const input = $('#pc-ask input'); if (input) { input.focus(); input.select(); } }));
     $$('[data-pc-login]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); Company.openSettings('logins'); }));
+    // Text size: drawn at once, the menu stays open for the next step; botdot's answer draws it again.
+    $$('[data-pc-size]', root).forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation();
+      const k = (shown?.cards || []).find((x) => x.id === b.dataset.pcSize);
+      const to = k && SIZES[SIZES.indexOf(sizeOf(k)) + Number(b.dataset.pcStep)];
+      if (!to) return;
+      const was = k.textSize;
+      const step = b.dataset.pcStep;
+      const mine = ++sizeSent;
+      k.textSize = to;
+      Company.redraw();
+      // The focus stays on the A pressed (or the other, at the end), for a keyboard's next step.
+      const again = (sel) => $(`[data-pc-size="${CSS.escape(k.id)}"]${sel}:not(:disabled)`);
+      (again(`[data-pc-step="${step}"]`) || again(''))?.focus();
+      // Only the last step's refusal puts a size back: an earlier one is already overtaken.
+      send(at(k.id), 'PUT', { textSize: to }).then((ok) => { if (!ok && mine === sizeSent) { k.textSize = was; Company.redraw(); } });
+    }));
     $$('[data-pc-remove]', root).forEach((b) => (b.onclick = (e) => { e.stopPropagation(); menu = null; leave(removing, b.dataset.pcRemove, at(b.dataset.pcRemove), 'DELETE'); }));
     if (menu) document.addEventListener('click', () => { if (menu) { menu = null; Company.redraw(); } }, { once: true });
   }

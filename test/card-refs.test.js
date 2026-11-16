@@ -1,4 +1,4 @@
-// A card in the chat that talks about it (ADR 249): a bot or the Chief that tells the owner a card waits in Needs you
+// A card in the chat that talks about it (ADR 252): a bot or the Chief that tells the owner a card waits in Needs you
 // puts `[card <id>]` after it. botdot takes the id off the text and keeps it on the message as `cards`, and the web
 // page draws that card under the message, to answer there, and not again at the end of the chat.
 const { test, before, after } = require('node:test');

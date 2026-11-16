@@ -12,6 +12,8 @@ struct BoardView: View {
     @State private var notice: String?
     @State private var asking: Asking?
     @State private var panel: String?
+    /// The one block a tile's pop-up shows (a colour swatch's wheel); nil: its whole panel.
+    @State private var panelOnly: String?
     @State private var changing: String?
     @State private var removing: BoardCell?
     @State private var needs = false
@@ -31,6 +33,7 @@ struct BoardView: View {
     // The body in steps, each of a stated type: one long chain of modifiers is slow to type-check.
     var body: some View {
         sheets
+            .environment(\.openTileColor) { tile, block in panelOnly = block; panel = tile }
             .onDisappear { model?.stop(); model = nil }
             // Read only while the app is in front, as Android reads only while its screen is resumed.
             .onChange(of: phase) { _, now in model?.active(now == .active) }
@@ -123,7 +126,7 @@ struct BoardView: View {
         Button(tr("Cancel"), role: .cancel) {}
     }
 
-    private var panelKey: Binding<Key?> { Binding(get: { panel.map(Key.init) }, set: { panel = $0?.id }) }
+    private var panelKey: Binding<Key?> { Binding(get: { panel.map(Key.init) }, set: { panel = $0?.id; if $0 == nil { panelOnly = nil } }) }
     private var changingKey: Binding<Key?> { Binding(get: { changing.map(Key.init) }, set: { changing = $0?.id }) }
 
     private func cellOf(_ key: String) -> BoardCell? { model?.state?.rows.flatMap({ $0 }).first(where: { $0.key == key }) }
@@ -132,7 +135,7 @@ struct BoardView: View {
         asked
             .sheet(item: panelKey) { (key: Key) in
                 if let model, let cell = cellOf(key.id), let tile = cell.tile {
-                    TilePanel(tile: tile, color: cell.color, model: model)
+                    TilePanel(tile: tile, color: cell.color, only: panelOnly, model: model)
                 }
             }
             .sheet(item: changingKey) { (key: Key) in
@@ -201,6 +204,14 @@ struct BoardView: View {
             .contextMenu {
                 if cell.askable { Button(tr("Change")) { changing = cell.key } }
                 Button(tr("Remove from Board"), role: .destructive) { removing = cell }
+            }
+            // Drag to move (Android's press, hold and drag): let go on another tile and it goes where that one is,
+            // under its heading or into its open group (BoardDesk.drop; a group stays out of groups).
+            .draggable(cell.key)
+            .dropDestination(for: String.self) { keys, _ in
+                guard let from = keys.first, from != cell.key else { return false }
+                Task { await model.drop(from, cell.key) }
+                return true
             }
             .accessibilityAddTraits(.isButton)
         }
@@ -455,36 +466,11 @@ struct BlockView: View {
                 if let text = b.text, !text.isEmpty { Text(text).font(.caption).foregroundStyle(.secondary) }
             }
         case "chart":
-            VStack(alignment: .leading, spacing: 6) {
-                if let text = b.text { Text(text).font(.caption).foregroundStyle(.secondary) }
-                if b.style == "hbar" {
-                    ForEach(Array(b.bars.enumerated()), id: \.offset) { _, bar in
-                        HStack {
-                            Text(bar.label).font(.subheadline).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
-                            ProgressView(value: min(max(bar.ratio, 0), 1)).tint(own).frame(maxWidth: .infinity)
-                            Text(bar.text).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        }
-                    }
-                } else {
-                    Spark(points: b.points.map { $0.doubleValue }, color: own).frame(height: `where` == "panel" || `where` == "wide" ? 80 : 44)
-                }
-            }
+            ChartBlock(b: b, color: own, tall: `where` == "panel" || `where` == "wide")
         case "status":
-            HStack(spacing: 6) {
-                Circle().fill(Board.level(b.level)).frame(width: 6, height: 6)
-                Text(b.text ?? "").font(.caption).lineLimit(1)
-            }
-            .foregroundStyle(Board.level(b.level))
-            .padding(.horizontal, 12).padding(.vertical, 4)
-            .background(Board.level(b.level).opacity(0.15), in: .capsule)
+            StatusPill(text: b.text ?? "", level: b.level)
         case "callout":
-            VStack(alignment: .leading, spacing: 4) {
-                if let title = b.title { Text(title).font(.subheadline.weight(.semibold)) }
-                Text(BoardKit.shared.plain(md: b.text ?? "")).font(.subheadline)
-            }
-            .padding(.horizontal, 16).padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Board.level(b.level).opacity(0.15), in: .rect(cornerRadius: 12))
+            CalloutBlock(b: b)
         case "switch":
             Toggle(b.label ?? "", isOn: Binding(get: { b.on?.boolValue == true }, set: { on in
                 if let k = b.key { Task { await model.setSwitch(key, k, on) } }
@@ -516,15 +502,25 @@ struct BlockView: View {
             }
         case "column":
             Blocks(list: b.blocks, color: color, where: `where`, key: key, model: model)
+        case "color":
+            if `where` == "panel" {
+                ColorWheelBlock(b: b, key: key, model: model)
+            } else {
+                ColorSwatch(b: b, key: key)
+            }
+        case "table":
+            TableBlock(b: b)
+        case "image":
+            PictureBlock(b: b, model: model)
         default:
-            // A block this phone doesn't draw yet (a table, a picture, a colour wheel, a chat link): the tile stays readable.
+            // A block this phone doesn't draw yet (a chat link): the tile stays readable.
             EmptyView()
         }
     }
 }
 
 /// A kpi, or a value: the number big with its unit and "of N", the line under it, a sparkline beside it and a bar under it.
-private struct Kpi: View {
+struct Kpi: View {
     let b: Block
     let color: Color
     let compact: Bool
@@ -613,15 +609,19 @@ private struct SliderBlock: View {
 private struct TilePanel: View {
     let tile: Tile
     let color: String
+    /// The one block of its face to show (a colour swatch's wheel), or nil for its whole panel.
+    let only: String?
     let model: BoardModel
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        let list = only.map { key in BoardKit.shared.faceBlock(look: tile.look, key: key).map { [$0] } ?? [] } ?? tile.look?.panel ?? []
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Blocks(list: tile.look?.panel ?? [], color: ContactRow.tint(color), where: "panel", key: tile.id, model: model)
-                    if let line = BoardKt.refreshLine(t: tile) { Text(line).font(.caption).foregroundStyle(.tertiary) }
+                    Blocks(list: list, color: ContactRow.tint(color), where: "panel", key: tile.id, model: model)
+                    // How often it refreshes, and who changes it; not under one block's own pop-up.
+                    if only == nil, let line = BoardKt.refreshLine(t: tile) { Text(line).font(.caption).foregroundStyle(.tertiary) }
                 }
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -698,5 +698,45 @@ private struct SuggestionCard: View {
         }
         .padding(16)
         .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(Color.secondary.opacity(0.3)))
+    }
+}
+
+/// A chart block: bars across with their labels, or a line of its points.
+struct ChartBlock: View {
+    let b: Block
+    let color: Color
+    /// Taller: in a pop-up, a wide tile or on a page.
+    let tall: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let text = b.text { Text(text).font(.caption).foregroundStyle(.secondary) }
+            if b.style == "hbar" {
+                ForEach(Array(b.bars.enumerated()), id: \.offset) { _, bar in
+                    HStack {
+                        Text(bar.label).font(.subheadline).lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+                        ProgressView(value: min(max(bar.ratio, 0), 1)).tint(color).frame(maxWidth: .infinity)
+                        Text(bar.text).font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
+                }
+            } else {
+                Spark(points: b.points.map { $0.doubleValue }, color: color).frame(height: tall ? 80 : 44)
+            }
+        }
+    }
+}
+
+/// A callout: its title and words on its level's colour.
+struct CalloutBlock: View {
+    let b: Block
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let title = b.title { Text(title).font(.subheadline.weight(.semibold)) }
+            Text(BoardKit.shared.plain(md: b.text ?? "")).font(.subheadline)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Board.level(b.level).opacity(0.15), in: .rect(cornerRadius: 12))
     }
 }

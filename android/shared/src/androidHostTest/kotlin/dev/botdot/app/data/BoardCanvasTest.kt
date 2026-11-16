@@ -31,6 +31,28 @@ class BoardCanvasTest {
         for (a in l.keys) for (b in l.keys) if (a < b) assertFalse("$a and $b overlap", BoardCanvas.hits(l.getValue(a), l.getValue(b)))
     }
 
+    @Test fun twoFingersZoomOneToFourTimesWithTheCanvasHeldInside() {
+        assertEquals(1.0, BoardCanvas.zoomIn(0.5), 0.0)
+        assertEquals(4.0, BoardCanvas.zoomIn(9.0), 0.0)
+        assertEquals(2.5, BoardCanvas.zoomIn(2.5), 0.0)
+        // At 2 times on a view 800 by 600: at most 800 left and 600 up, never past the top left.
+        assertEquals(-800.0 to -600.0, BoardCanvas.panIn(2.0, 800.0, 600.0, -2000.0, -2000.0))
+        assertEquals(0.0 to 0.0, BoardCanvas.panIn(2.0, 800.0, 600.0, 50.0, 10.0))
+        assertEquals(-300.0 to -100.0, BoardCanvas.panIn(2.0, 800.0, 600.0, -300.0, -100.0))
+        assertEquals("all of it: no pan", 0.0 to 0.0, BoardCanvas.panIn(1.0, 800.0, 600.0, -300.0, -100.0))
+    }
+
+    @Test fun aHeldTileMovesFromItsMiddleAndResizesFromNearItsEdges() {
+        val l = mapOf("goal:a" to R(0, 0, 592, 260), "files" to R(608, 0, 392, 260))
+        assertEquals("goal:a" to null, BoardCanvas.held(l, 300.0, 100.0))
+        assertEquals("goal:a" to "s", BoardCanvas.held(l, 300.0, 250.0))
+        assertEquals("goal:a" to "se", BoardCanvas.held(l, 580.0, 250.0))
+        assertEquals("files" to "w", BoardCanvas.held(l, 615.0, 100.0))
+        assertNull(BoardCanvas.held(l, 1100.0, 100.0))
+        assertNull("never arranged", BoardCanvas.arranged(listOf(BoardCanvas.FEATURE), null, l.keys.toList()))
+        assertEquals(listOf("goal:a", "files"), BoardCanvas.readOrder(listOf(BoardCanvas.FEATURE), mapOf("files" to listOf(608.0, 0.0, 392.0, 260.0), "goal:a" to listOf(0.0, 0.0, 592.0, 260.0)), l.keys.toList()))
+    }
+
     @Test fun kinds() {
         assertEquals("calendar", BoardCanvas.kindOf("calendar"))
         assertEquals("goal", BoardCanvas.kindOf("goal:o1"))

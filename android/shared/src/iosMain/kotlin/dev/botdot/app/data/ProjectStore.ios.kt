@@ -10,9 +10,12 @@ import kotlinx.coroutines.launch
  * follows the live feed. [watch] hands the screen a new [ProjectState] after every change, on the main thread. Home
  * keeps one for the switch of spaces; each project's page keeps its own and [close]s it when it goes.
  */
-class ProjectStore(home: HomeStore) {
+class ProjectStore(private val home: HomeStore) {
     private val scope = MainScope()
     private val desk = ProjectDesk(home.store, home.api, scope)
+
+    /** The project's calendar (#695): its own desk, on the same Store, which the calendar tile [CalendarDesk.close]s. */
+    fun calendar(): CalendarDesk = CalendarDesk(home.store, home.api, scope)
 
     /** Calls [onChange] with the project's page now and after every change, until the returned job is cancelled or [close]. */
     fun watch(onChange: (ProjectState) -> Unit): Job = scope.launch { desk.state.collect { onChange(it) } }
@@ -33,8 +36,24 @@ class ProjectStore(home: HomeStore) {
     @Throws(Exception::class) suspend fun answer(card: String, text: String): Boolean = desk.answer(card, text)
     @Throws(Exception::class) suspend fun closeQuestions(card: String) = desk.closeQuestions(card)
     @Throws(Exception::class) suspend fun refreshCard(card: String) = desk.refreshCard(card)
+    /** The arranged board after a tile was moved or resized, saved whole; false when botdot refused it. */
+    @Throws(Exception::class) suspend fun arrange(layout: Map<String, BoardCanvas.R>): Boolean = desk.arrange(layout)
     @Throws(Exception::class) suspend fun removeCard(card: String) = desk.removeCard(card)
     @Throws(Exception::class) suspend fun putPiece(piece: String) = desk.putPiece(piece)
+    /** The Chief's suggested bot: Add (true) or dismiss. */
+    @Throws(Exception::class) suspend fun answerSuggested(add: Boolean): Boolean = desk.answerSuggested(add)
+
+    /** The week's plan's Approve and Change, and the decisions' Add and Remove. */
+    @Throws(Exception::class) suspend fun approvePlan(): Boolean = desk.approvePlan()
+    @Throws(Exception::class) suspend fun changePlan(text: String): Boolean = desk.changePlan(text)
+    @Throws(Exception::class) suspend fun addDecision(typed: String): Boolean = desk.addDecision(typed)
+    @Throws(Exception::class) suspend fun deleteDecision(id: String): Boolean = desk.deleteDecision(id)
+
+    /** The To-do (#692): its filter, a tick, Delete, and Add. */
+    fun todoFilter(filter: String) = desk.todoFilter(filter)
+    @Throws(Exception::class) suspend fun tickTodo(id: String, done: Boolean) = desk.tickTodo(id, done)
+    @Throws(Exception::class) suspend fun deleteTodo(id: String) = desk.deleteTodo(id)
+    @Throws(Exception::class) suspend fun addTodo(typed: String, who: String?, due: String?, repeat: Repeat?): Boolean = desk.addTodo(typed, who, due, repeat)
 
     fun offered(team: String): List<Bot> = desk.offered(team)
     fun newBotWords(team: String?): String = desk.newBotWords(team)

@@ -13,7 +13,7 @@
 
 A messenger-style app for a team of **bots**. Each bot is a Claude Code agent with one job, its own tools, permissions, workspace and schedule. You tell the **Chief of Staff** what you need in a chat, and it makes the bots, runs them and reports back. Anything risky waits for your OK.
 
-It runs on your own Linux server, each account walled off under rootless Docker and gVisor, with the official Claude Code CLI signed in to your own Claude subscription or API key. No telemetry.
+It runs on your own Linux server, each account walled off under rootless Docker and gVisor, with the official Claude Code CLI signed in to your own Claude subscription or API key. No telemetry. Rather not run a server? We host it for you for €29 a month at [botdot.app](https://botdot.app) ([FAQ](docs/FAQ.md#is-it-a-hosted-service)).
 
 ## Install
 
@@ -37,7 +37,7 @@ The installer asks before it installs Docker, rootless Docker and gVisor, checks
 | --- | --- |
 | **Server** | Ubuntu 22.04+, Debian 12 or 13, Fedora, RHEL 9 or 10 and its rebuilds; Intel/AMD or ARM; a full VM, not LXC or OpenVZ |
 | **Size** | 4 CPUs, 8 GB RAM, 40 GB free disk for one account |
-| **Claude** | Pro, Max or an Anthropic API key, per account |
+| **Claude** | Pro, Max, Ultra or an Anthropic API key, per account |
 | **Access** | A domain pointed at the server (ports 80, 443, 8443), or Tailscale |
 
 botdot runs bots unattended: read [Claude Code's legal and compliance page](https://code.claude.com/docs/en/legal-and-compliance) and the [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) first. [Install on Linux](docs/install-linux.md) has the full requirements, the optional services (Composio, Bitwarden, OpenRouter, boat.dev), what the installer changes, updates, backups and uninstalling. Stuck? [Troubleshooting](docs/FAQ.md#troubleshooting).

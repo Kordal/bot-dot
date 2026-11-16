@@ -285,7 +285,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                 onBuild = { scope.launch { sendFrom(PLAN_APPROVAL, approval) } },
                                 onDismiss = { vm.dismiss() },
                                 thumbs = if (Ratings.shows(m, features, index)) ({ Thumbs(Ratings.value(m.rating)) { vm.rate(index, it) } }) else null)
-                            // The cards it names, under it, to answer here (ADR 249).
+                            // The cards it names, under it, to answer here (ADR 252).
                             if (!m.pending && !m.failed && m.role in setOf("chief", "report")) NamedCards(app, "chief", namedHere["${messages.size - 1 - i}"])
                             // A mail draft (#415): its card under the reply, with its own buttons in place of the answer buttons.
                             val mail = MailCard.card(m)

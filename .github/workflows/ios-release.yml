@@ -1,0 +1,105 @@
+# Releases the iOS app to TestFlight (#1365, #1409, ADR 242): the iOS tests of ios.yml on the commit, then the Release
+# archive (scripts/ios-archive.sh: the shared data layer's Release framework, the app signed with automatic signing)
+# uploaded to App Store Connect, where TestFlight's internal testers get it. The tag ios-v<version>-<build> marks the
+# commit an uploaded build came from.
+#
+# When: only by hand (Actions → iOS release → Run workflow, on main), with the version testers and the App Store see.
+# The build number is this workflow's run number, which only grows. A merge to main releases nothing, and no tag starts
+# it: the release environment, which holds the App Store Connect key, runs only for main.
+#
+# Secrets of the release environment (docs/release-signing.md): APPLE_TEAM_ID, APP_STORE_CONNECT_KEY_ID,
+# APP_STORE_CONNECT_ISSUER_ID and APP_STORE_CONNECT_KEY (the .p8 file's text). Without the key the run builds the
+# Release archive unsigned and uploads nothing.
+name: iOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'The version testers and the App Store see (1.0, 1.0.1)'
+        required: true
+        default: '1.0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.which.outputs.version }}
+    steps:
+      - id: which
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo "The iOS app is released from main only, not $GITHUB_REF_NAME" >&2; exit 1; }
+          echo "$VERSION" | grep -qE '^(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*)){0,2}$' || { echo "Not a version: $VERSION" >&2; exit 1; }
+          echo "Releasing botdot for iOS $VERSION ($GITHUB_RUN_NUMBER)."
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  # The shared data layer in the simulator and the app's tests (make ios), on this commit; a failure uploads nothing.
+  test:
+    needs: plan
+    uses: ./.github/workflows/ios.yml
+    with:
+      archive: 'no'
+
+  release:
+    needs: [plan, test]
+    environment: release
+    runs-on: macos-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write # the tag
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          cache-read-only: true
+      - name: Kotlin version
+        id: kotlin
+        run: echo "version=$(sed -n 's/^kotlin = "\(.*\)"$/\1/p' android/gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
+      - name: Restore Kotlin/Native
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ steps.kotlin.outputs.version }}
+      - name: XcodeGen
+        run: brew install xcodegen && xcodegen --version && xcodebuild -version
+      - name: Archive and upload
+        id: archive
+        env:
+          IOS_VERSION: ${{ needs.plan.outputs.version }}
+          IOS_BUILD: ${{ github.run_number }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APP_STORE_CONNECT_KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
+        run: |
+          if [ -z "$APP_STORE_CONNECT_KEY" ]; then
+            echo "No APP_STORE_CONNECT_KEY secret: the Release archive is built unsigned and nothing is uploaded."
+            scripts/ios-archive.sh --unsigned
+            exit 0
+          fi
+          export ASC_KEY_PATH="$RUNNER_TEMP/AuthKey_$ASC_KEY_ID.p8"
+          (umask 077 && printf '%s\n' "$APP_STORE_CONNECT_KEY" > "$ASC_KEY_PATH")
+          trap 'rm -f "$ASC_KEY_PATH"' EXIT
+          scripts/ios-archive.sh --upload
+          echo "uploaded=true" >> "$GITHUB_OUTPUT"
+      - name: Tag the commit
+        if: steps.archive.outputs.uploaded == 'true'
+        env:
+          TAG: ios-v${{ needs.plan.outputs.version }}-${{ github.run_number }}
+        run: |
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
+          echo "Uploaded as $TAG." >> "$GITHUB_STEP_SUMMARY"

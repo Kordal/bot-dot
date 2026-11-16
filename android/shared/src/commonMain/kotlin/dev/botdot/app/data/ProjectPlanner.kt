@@ -15,6 +15,7 @@ import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
 import kotlinx.datetime.plus
 import kotlinx.datetime.todayIn
+import kotlinx.datetime.toLocalDateTime
 
 /**
  * The project's To-do (#692), calendar (#695), standup (#698) and decisions (#694) on Android, with the rules the web
@@ -96,6 +97,75 @@ object ProjectTodo {
         r.n?.let { put("n", it) }
     }
 
+    /** [due]'s kind as of today, and the repeat a rhythm gives as of today: for a phone that has no LocalDate to pass. */
+    fun dueToday(due: String?): Due? = dueKind(due)
+    fun rhythmToday(every: String, due: String?): Repeat? = rhythm(every, due)
+
+    /** What an item's chip says, first that applies: how it repeats, that its bot works now, its due day. */
+    enum class Chip { REPEAT, WORKING, DUE }
+
+    fun chip(t: Todo, bot: Bot?): Chip? = when {
+        t.repeat != null -> Chip.REPEAT
+        !t.done && bot?.running == true -> Chip.WORKING
+        t.due != null -> Chip.DUE
+        else -> null
+    }
+
+    /** Its due day has passed and it is still open: its chip in the warning colour. */
+    fun late(t: Todo): Boolean = !t.done && dueKind(t.due) == Due.LATE
+
+    /** One item as the panel draws it: the item, whom it is for (null: the owner), its chip and whether it is late. */
+    class Row(val todo: Todo, val bot: Bot?, val chip: Chip?, val late: Boolean)
+
+    /**
+     * The To-do panel (#692; Android's TodoPanel) under [filter]: its title, the asks that wait for the owner here
+     * ([waiting], what waits in this project only, and the team bots' questions, on All and You), its items, and the
+     * number by its title. Before [FEATURE] it is the older "You" list: every open task and the last five done.
+     */
+    class Panel(
+        val full: Boolean,
+        val title: String,
+        val filter: String,
+        /** The asks shown above the items: what waits, and the bots asking a question. */
+        val asks: Boolean,
+        val waits: List<Waiting>,
+        val asking: List<Bot>,
+        val rows: List<Row>,
+        val count: Int,
+        /** Whom an item may be for, beside the owner. */
+        val forBots: List<Bot>,
+        /** The week's plan above the asks (on All and You): its rows, whether it waits for Approve; null for none. */
+        val plan: WeekPlan? = null,
+        val planRows: List<ProjectPlan.Row> = emptyList(),
+        /** The morning standup (#698, project-standup), on All and You. */
+        val standup: List<ProjectStandup.Line> = emptyList(),
+        /** The owner's decisions (#694, company-decisions): the last five, newest first; null: no section. */
+        val decisions: List<Decision>? = null,
+        /** An ongoing project: a check-in's decision is its monthly review. */
+        val ongoing: Boolean = false,
+    )
+
+    fun panel(c: Company, bots: List<Bot>, waiting: List<Waiting>, filter: String, features: Collection<String>?): Panel {
+        val f = features.orEmpty()
+        val full = FEATURE in f
+        val asks = !full || filter == "all" || filter == "you"
+        val waits = if (asks) waiting else emptyList()
+        val asking = if (asks) Spaces.askingIn(c, bots) { ProjectRules.question(it) != null } else emptyList()
+        val items = if (full) shown(c.todos, filter) else CompanyFloor.todos(c.todos)
+        val standupAsks = if (asks && ProjectStandup.FEATURE in f) ProjectStandup.asks(c, bots).size else 0
+        val rows = items.map { t -> bots.firstOrNull { it.id == t.bot }.let { b -> Row(t, b, if (full) chip(t, b) else null, late(t)) } }
+        return Panel(
+            full = full, title = if (full) tr("To-do") else tr("You"), filter = filter, asks = asks, waits = waits, asking = asking, rows = rows,
+            count = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks,
+            forBots = projectBots(c, bots),
+            plan = if (asks) ProjectPlan.of(c) else null,
+            planRows = if (asks) ProjectPlan.rows(c) else emptyList(),
+            standup = if (asks && ProjectStandup.FEATURE in f) ProjectStandup.lines(c, bots) else emptyList(),
+            decisions = if (ProjectDecisions.FEATURE in f) ProjectDecisions.shown(c.decisions) else null,
+            ongoing = c.ongoing,
+        )
+    }
+
     /** The bots an item may be for: the project's, or every bot while it has no team. */
     fun projectBots(c: Company, bots: List<Bot>): List<Bot> {
         val ids = c.teams.flatMap { it.bots }.toSet()
@@ -149,6 +219,29 @@ object ProjectCalendar {
 
     /** What is still to come from [now]: open items only, today's first, in the server's order. */
     fun next(items: List<CalendarItem>, now: String, n: Int = NEXT): List<CalendarItem> = items.filter { it.day >= now && !it.done }.take(n)
+
+    /** A check-in's dot is gold, the project's own accent otherwise. */
+    const val CHECKIN_COLOR = "#f5c542"
+    const val PROJECT_COLOR = "#8e7cff"
+
+    /** The colour of an item's dot: its bot's, a check-in's gold, else the project's accent. */
+    fun colorOf(x: CalendarItem, bots: List<Bot>): String {
+        val id = if (x.kind == "event") x.by else x.bot
+        return bots.firstOrNull { it.id == id }?.color ?: if (x.kind == "checkin") CHECKIN_COLOR else PROJECT_COLOR
+    }
+
+    /** What an item is called: a check-in by its day (an ongoing project's is its monthly review), anything else by its title. */
+    fun titleOf(x: CalendarItem): String = if (x.kind == "checkin") (if (x.monthly) tr("Monthly review") else tr("Day {n} check-in", "n" to (x.n ?: 0))) else x.title
+
+    /** Its line in the tile's list, as the owner reads it: its time today, Tomorrow; null for a later day (the phone names it). */
+    fun whenOf(x: CalendarItem, today: String): String? = when (x.day) {
+        today -> x.time ?: tr("Today")
+        runCatching { LocalDate.parse(today).plus(1, DateTimeUnit.DAY).toString() }.getOrNull() -> tr("Tomorrow")
+        else -> null
+    }
+
+    /** It repeats, or it is a job that runs more than once that day: a repeat mark beside it. */
+    fun repeats(x: CalendarItem): Boolean = x.repeat != null || (x.runs ?: 0) > 1
 
     /** Only events are the owner's to change here: a to-do, a check-in and a job have their own places. */
     fun editable(x: CalendarItem): Boolean = x.kind == "event"
@@ -205,6 +298,16 @@ object ProjectDecisions {
     }
 
     fun addBody(t: Typed): JsonObject = buildJsonObject { put("text", t.text); if (t.why.isNotEmpty()) put("why", t.why) }
+
+    /** A decision's line: a check-in's in words ("Day 30 check-in: Keep going"; an ongoing project's "Monthly review: …"), else its text. */
+    fun textOf(d: Decision, ongoing: Boolean): String {
+        val word = when (d.decision) { "keep" -> tr("Keep going"); "change" -> tr("Change direction"); "stop" -> tr("Stop"); else -> null }
+        if (d.by != "checkin" || d.day == null || word == null) return d.text
+        return "${if (ongoing) tr("Monthly review") else tr("Day {n} check-in", "n" to d.day)}: $word"
+    }
+
+    /** The day it was made ("2026-11-16") in the phone's time zone; null without a time botdot can read. */
+    fun dayOf(d: Decision): String? = d.at?.let { runCatching { kotlin.time.Instant.parse(it).toLocalDateTime(TimeZone.currentSystemDefault()).date.toString() }.getOrNull() }
 }
 
 object ProjectStandup {
@@ -215,4 +318,27 @@ object ProjectStandup {
 
     /** The leads whose team waits for the owner, of bots that are still there: counted in what waits, with Reply. */
     fun asks(c: Company, bots: List<Bot>): List<StandupLead> = leads(c).filter { l -> l.asks && bots.any { it.id == l.bot } }
+
+    /** A lead's line in the standup: its team, what got done, what is next, what blocks it and whether that waits for the owner (Reply). */
+    class Line(val team: CompanyTeam, val done: String?, val next: String?, val blocked: String?, val asks: Boolean, val bot: String)
+
+    fun lines(c: Company, bots: List<Bot>): List<Line> = leads(c).mapNotNull { l ->
+        val team = c.teams.firstOrNull { it.id == l.team } ?: return@mapNotNull null
+        Line(team, l.done?.takeIf { it.isNotBlank() }, l.next?.takeIf { it.isNotBlank() }, l.blocked?.takeIf { it.isNotBlank() }, l.asks && bots.any { it.id == l.bot }, l.bot)
+    }
+
+    /** What Reply puts in the lead's chat. */
+    fun reply(l: Line): String = tr("Standup: {text}", "text" to l.blocked.orEmpty()) + "\n"
+}
+
+/** The week's plan the Chief drafts (#673) as the To-do shows it: its items, each with its team and the colour of the objective it moves. */
+object ProjectPlan {
+    class Row(val text: String, val team: CompanyTeam?, val color: String?)
+
+    /** The plan to show: one with items; null for none. */
+    fun of(c: Company): WeekPlan? = c.plan?.takeIf { it.items.isNotEmpty() }
+
+    fun rows(c: Company): List<Row> = of(c)?.items.orEmpty().map { x ->
+        Row(x.text, c.teams.firstOrNull { it.id == x.team }, c.objectives.firstOrNull { it.id == x.objective }?.color)
+    }
 }

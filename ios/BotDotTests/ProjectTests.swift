@@ -130,4 +130,82 @@ final class ProjectTests: XCTestCase {
         XCTAssertTrue(s.teamsOnBoard)
         XCTAssertFalse(s.teamEntry)
     }
+
+    /// An arranged board (#784): the shared canvas reads its tiles from the top, left to right where two start level.
+    func testAnArrangedBoardReadsInItsCanvasOrder() {
+        let tiles = ["days", "card:k1", "files"]
+        let places: [String: [Double]] = ["card:k1": [0, 0, 392, 220], "days": [0, 236, 1200, 140], "files": [408, 0, 392, 260]]
+        let layout = places.mapValues { $0.map { KotlinDouble(value: $0) } }
+        XCTAssertEqual(BoardCanvas.shared.readOrder(f: [BoardCanvas.shared.FEATURE], layout: layout, tiles: tiles), ["card:k1", "files", "days"])
+        XCTAssertNil(BoardCanvas.shared.readOrder(f: [], layout: layout, tiles: tiles), "without project-layout")
+        XCTAssertNil(BoardCanvas.shared.readOrder(f: [BoardCanvas.shared.FEATURE], layout: nil, tiles: tiles), "never arranged")
+    }
+
+    /// The To-do's words on the phone: a repeating item says its rhythm, a working bot's says so, a late one its day.
+    func testTheToDosChipsAreTheSharedOnesInThePhonesWords() {
+        let c = CompanySetup.shared.of(answer: #"{"id":"c1","phase":"running","todos":[{"id":"r","text":"Report","repeat":{"every":"day"}},{"id":"w","text":"Fix","bot":"a"}]}"#)
+        let bots = [Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"Ada","running":true}"#) as! Bot]
+        let panel = ProjectTodo.shared.panel(c: c, bots: bots, waiting: [], filter: "all", features: [ProjectTodo.shared.FEATURE])
+        XCTAssertEqual(panel.rows.map { TodoWords.chip($0) }, ["Daily", "Working"])
+        XCTAssertEqual(TodoWords.day(ISODay.string(.now)), "Today")
+        XCTAssertEqual(TodoWords.filter("bots"), "Bots")
+    }
+
+    /// On a wide screen: a held tile moves, or resizes from near its edge, and what it would cover slides down.
+    func testAHeldTileMovesOrResizesOnTheSharedCanvas() {
+        let l: [String: BoardCanvas.R] = ["goal:a": BoardCanvas.R(x: 0, y: 0, w: 592, h: 260), "files": BoardCanvas.R(x: 0, y: 276, w: 392, h: 260)]
+        XCTAssertEqual(BoardCanvas.shared.held(layout: l, x: 300, y: 100)?.first, "goal:a")
+        XCTAssertNil(BoardCanvas.shared.held(layout: l, x: 300, y: 100)?.second)
+        XCTAssertEqual(BoardCanvas.shared.held(layout: l, x: 300, y: 250)?.second, "s")
+        let taller = BoardCanvas.shared.drag(layout: l, id: "goal:a", edge: "s", dx: 0, dy: 100)
+        XCTAssertEqual(taller["goal:a"]?.h, 360)
+        XCTAssertGreaterThanOrEqual(taller["files"]?.y ?? 0, 376, "what it would cover slides down")
+    }
+
+    /// The calendar: the shared desk's words and colours, and the month in the phone's words.
+    func testTheCalendarIsTheSharedOne() {
+        let job = Api.companion.JSON.decodeFromString(deserializer: CalendarItem.companion.serializer(), string: #"{"kind":"checkin","day":"2026-11-20","n":30}"#) as! CalendarItem
+        XCTAssertEqual(ProjectCalendar.shared.titleOf(x: job), "Day 30 check-in")
+        XCTAssertEqual(ProjectCalendar.shared.colorOf(x: job, bots: []), ProjectCalendar.shared.CHECKIN_COLOR)
+        XCTAssertEqual(ProjectCalendar.shared.whenOf(x: job, today: "2026-11-19"), "Tomorrow")
+        XCTAssertNil(ProjectCalendar.shared.whenOf(x: job, today: "2026-11-01"), "a later day: the phone names it")
+        XCTAssertFalse(CalendarWords.month("2026-11").isEmpty)
+        XCTAssertEqual(ProjectCalendar.shared.time(typed: "930"), "09:30")
+    }
+
+    /// Two fingers zoom the canvas 1 to 4 times, its edges held inside (the shared rule).
+    func testTheCanvasZoomsOneToFourTimes() {
+        XCTAssertEqual(BoardCanvas.shared.zoomIn(z: 9), 4)
+        XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).first?.doubleValue, -800)
+        XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).second?.doubleValue, 0)
+    }
+
+    /// botdot's days read the same on any calendar the phone is set to: POSIX and Gregorian, not the phone's own.
+    func testADayReadsTheSameOnABuddhistCalendar() {
+        XCTAssertEqual(ISODay.formatter.calendar.identifier, .gregorian)
+        XCTAssertEqual(ISODay.formatter.locale.identifier, "en_US_POSIX")
+        let d = ISODay.date("2026-11-16")
+        XCTAssertNotNil(d)
+        XCTAssertEqual(Calendar(identifier: .gregorian).component(.year, from: d!), 2026)
+        XCTAssertEqual(ISODay.string(d!), "2026-11-16")
+        var buddhist = Calendar(identifier: .buddhist); buddhist.timeZone = .current
+        XCTAssertEqual(buddhist.component(.year, from: d!), 2569, "the same day, in a Buddhist year")
+    }
+
+    /// The suggested bot's colour and New team's bots are the shared rules.
+    func testTheTeamsTilesAreTheSharedRules() {
+        let c = CompanySetup.shared.of(answer: ##"{"id":"c1","phase":"running","teams":[{"id":"t1","name":"Crew","color":"#ff9500","bots":["a"]}]}"##)
+        let bots = ["a", "z"].map { Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: "{\"id\":\"\($0)\",\"name\":\"\($0)\"}") as! Bot }
+        XCTAssertEqual(ManyProjects.shared.teamCandidates(c: c, bots: bots).map(\.id), ["z", "a"])
+        XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: "t1")), "#ff9500")
+        XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: nil)), ManyProjects.shared.ACCENT)
+    }
+
+    /// The To-do's decisions and standup in the shared words.
+    func testTheDecisionsAndStandupAreTheSharedWords() {
+        let d = Api.companion.JSON.decodeFromString(deserializer: Decision.companion.serializer(), string: #"{"id":"d2","by":"checkin","day":30,"decision":"keep","at":"2026-11-16T10:00:00Z"}"#) as! Decision
+        XCTAssertEqual(ProjectDecisions.shared.textOf(d: d, ongoing: false), "Day 30 check-in: Keep going")
+        XCTAssertEqual(ProjectDecisions.shared.textOf(d: d, ongoing: true), "Monthly review: Keep going")
+        XCTAssertNotNil(ProjectDecisions.shared.dayOf(d: d))
+    }
 }

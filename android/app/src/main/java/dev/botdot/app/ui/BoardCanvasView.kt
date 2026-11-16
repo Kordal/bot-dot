@@ -125,11 +125,11 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
                 do {
                     val e = awaitPointerEvent()
                     if (e.changes.count { it.pressed } >= 2) {
-                        val z = (zoom * e.calculateZoom()).coerceIn(1f, 4f)
-                        val w = size.width.toFloat(); val h = size.height.toFloat()
+                        val z = BoardCanvas.zoomIn((zoom * e.calculateZoom()).toDouble())
                         val o = pan + e.calculatePan()
-                        pan = Offset(o.x.coerceIn(-(z - 1) * w, 0f), o.y.coerceIn(-(z - 1) * h, 0f))
-                        zoom = z
+                        val (px, py) = BoardCanvas.panIn(z, size.width.toDouble(), size.height.toDouble(), o.x.toDouble(), o.y.toDouble())
+                        pan = Offset(px.toFloat(), py.toFloat())
+                        zoom = z.toFloat()
                         e.changes.forEach { it.consume() }
                     }
                 } while (e.changes.any { it.pressed })
@@ -141,14 +141,8 @@ private fun BoardCanvasFree(tiles: List<Tile>, saved: Map<String, BoardCanvas.R>
                 var from = places
                 holdAndDrag(
                     onHold = hold@{ at ->
-                        val x = at.x / density; val y = at.y / density
-                        val hit = shown.entries.lastOrNull { (_, r) -> x >= r.x && x <= r.right && y >= r.y && y <= r.bottom } ?: return@hold false
-                        val (id, r) = hit
-                        val near = 28f
-                        edge = buildString {
-                            if (y > r.bottom - near) append('s')
-                            if (x > r.right - near) append('e') else if (x < r.x + near) append('w')
-                        }.ifEmpty { null }
+                        val (id, from0) = BoardCanvas.held(shown, (at.x / density).toDouble(), (at.y / density).toDouble()) ?: return@hold false
+                        edge = from0
                         from = now
                         held = id
                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)

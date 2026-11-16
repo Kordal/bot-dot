@@ -468,7 +468,7 @@
   let teamFor = null;
   Company.steps.homeClosed = () => { boardFor = null; teamFor = null; Company.steps.settingsClosed?.(); };
   // Needs you as a board tile (overview-board, ADR 245): the cards and the questions waiting in this project, only
-  // when something waits, and then always, first: what waits for the owner is never hidden from the page (ADR 249).
+  // when something waits, and then always, first: what waits for the owner is never hidden from the page (ADR 252).
   function needsTileHTML(c) {
     const items = projectNeeds(c);
     ProjectOverview.refresh(c); // Needs you alone on the board still reads the snapshot its questions come from

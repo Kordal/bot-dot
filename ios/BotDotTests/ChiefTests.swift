@@ -8,10 +8,10 @@ import BotdotShared
 final class ChiefTests: XCTestCase {
     private func line(role: String, text: String, team: String? = nil, rates: Bool = false, rating: String? = nil, from: String? = nil,
                       suggests: Bool = false, declined: Bool = false, questions: [String] = [], choices: [[String]] = [],
-                      chips: [ChiefChip] = [], mail: MailView? = nil) -> ChiefLine {
+                      chips: [ChiefChip] = [], mail: MailView? = nil, pages: [PageRef] = []) -> ChiefLine {
         ChiefLine(index: 0, role: role, text: text, error: nil, files: [], from: from, team: team, teamColor: "#1d9e75",
                   project: team == nil ? nil : "Spring beds", rates: rates, rating: rating, pending: false, time: "09:00",
-                  suggests: suggests, declined: declined, questions: questions, choices: choices, chips: chips, mail: mail)
+                  suggests: suggests, declined: declined, questions: questions, choices: choices, chips: chips, mail: mail, pages: pages)
     }
 
     func testEveryKindOfMessageDraws() {
@@ -32,6 +32,21 @@ final class ChiefTests: XCTestCase {
         }
         XCTAssertEqual(NeedsDeskKt.questionsAnswer(questions: ["When?", "Where?"], answers: ["Mon", ""]), "When?\n→ Mon\n\nWhere?\n→ –",
                        "one message for all, as Android sends it")
+    }
+
+    /// A reply's page chips (the Chief's own and its bots'): drawn, and a tap opens that bot's page in the viewer.
+    func testAReplysPageChipsDrawAndOpenTheirPage() {
+        let pages = [PageRef(slug: "week", title: "Week", botId: Pages.shared.CHIEF, bot: ""), PageRef(slug: "menu", title: "Menu", botId: "b1", bot: "Cook")]
+        let row = ChiefRow(line: line(role: "chief", text: "Done", pages: pages), onRate: { _ in }, chiefName: "Chief")
+        XCTAssertNotNil(ImageRenderer(content: row.frame(width: 360)).cgImage)
+        let own = ChiefRow.opening(pages[0], chiefName: "Chief")
+        XCTAssertEqual(own.from, "Chief", "the Chief's own page: back to the Chief")
+        XCTAssertEqual(own.botId, Pages.shared.CHIEF)
+        XCTAssertEqual(own.slug, "week")
+        let bots = ChiefRow.opening(pages[1], chiefName: "Chief")
+        XCTAssertEqual(bots.from, "Cook", "a bot's page: back to that bot")
+        XCTAssertEqual(bots.botId, "b1")
+        XCTAssertEqual(bots.name, "Menu")
     }
 
     /// A reply with what the Chief did as chips and a mail draft's card under it: drawn, the chips that name a bot tappable.

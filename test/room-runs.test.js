@@ -92,7 +92,13 @@ test("each tool of a room run waits for the owner's answer on a card of its own:
   assert.deepEqual(await r.tool({ botId: 'b1', runId: 'plain' }, { tool: 'Bash', input: {} }), { status: 'allowed' }, 'not a room run');
   assert.equal((await r.tool({ botId: 'b1', runId: 'gone' }, { tool: 'Bash', input: {} })).status, 'stopped');
   assert.deepEqual(await r.tool(session, { tool: 'mcp__self__post_to_room', input: {} }), { status: 'allowed' }, 'its post waits on a card of its own');
+  for (const tool of ['mcp__self__remind_me', 'mcp__self__list_reminders', 'mcp__self__cancel_reminder']) {
+    assert.deepEqual(await r.tool(session, { tool, input: {} }), { status: 'allowed' }, `${tool}: its own reminders need no card (ADR 249)`);
+  }
   assert.equal(asks.list().length, 0);
+  const lookalike = await r.tool(session, { tool: 'mcp__other__remind_me', input: {} }, 20);
+  assert.equal(lookalike.status, 'waiting', "another server's remind_me still waits on a card");
+  asks.drop(() => true);
   const waiting = await r.tool(session, { tool: 'Bash', input: { command: 'ls' } }, 20);
   assert.equal(waiting.status, 'waiting');
   const card = asks.list().find((a) => a.id === waiting.id);

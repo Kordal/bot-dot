@@ -18,10 +18,10 @@ object ProjectBoard {
     /** Whether piece [k] is on the board of [c]. */
     fun shows(c: Company, k: String): Boolean = (k in piecesOf(c) || k in ProjectOverview.PIECES) && (c.board?.contains(k) ?: true)
 
-    /** The pieces the owner can add: those not on it, from a botdot that has them. Needs you is none: it shows first whenever something waits (ADR 249). */
+    /** The pieces the owner can add: those not on it, from a botdot that has them. Needs you is none: it shows first whenever something waits (ADR 252). */
     fun missing(features: List<String>, c: Company): List<String> = c.board?.takeIf { FEATURE in features }?.let { on -> piecesOf(c, features).filter { it !in on && it != NEEDS && (it != ProjectFiles.PIECE || ProjectFiles.FEATURE in features) } }.orEmpty()
 
-    /** Needs you: never hidden, and above the arranged tiles (ADR 249). */
+    /** Needs you: never hidden, and above the arranged tiles (ADR 252). */
     const val NEEDS = "needs"
 
     /** The board with [k] added at its end, or taken off; a project made before starts from every piece. */

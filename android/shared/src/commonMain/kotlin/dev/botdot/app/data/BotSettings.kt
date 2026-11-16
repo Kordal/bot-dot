@@ -8,6 +8,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -82,6 +83,10 @@ data class BotDraft(
     fun withUseSkills(on: Boolean) = copy(useSkills = on)
     /** One skill of the library given to it, or taken back. */
     fun withSkill(name: String, on: Boolean) = copy(skills = if (on) skills + name else skills - name)
+    /** Where its computer is now ("none", "linux", "boat"), its files copied along ([move]) or not. */
+    fun withComputerOn(to: String, move: Boolean) = copy(computer = to != "none", computerOn = if (to != "none") to else computerOn, moveFiles = move)
+    fun withProxy(proxy: String) = copy(proxy = proxy)
+    fun withApp(c: Connection, on: Boolean) = BotSettings.appToggled(c, on, connectors, accounts).let { (k, a) -> copy(connectors = k, accounts = a) }
     fun withOthersMayAsk(on: Boolean) = copy(othersMayAsk = on)
     /** May be in shared rooms (#316). */
     fun withAllowRooms(on: Boolean) = copy(rooms = rooms.copy(allowRooms = on))
@@ -96,6 +101,21 @@ data class BotDraft(
 
 /** The rules of a bot's settings (#636, ADR 205), drawn by Android's BotSettingsScreen and the iPhone's BotSettingsView. */
 object BotSettings {
+    /** The apps a bot can be given (Apps): each connected app once, its live connection, and one row per account of an app with two or more (ADR 174). */
+    fun appChoices(all: List<Connection>): List<Connection> =
+        all.filter { c -> c.status == "ACTIVE" || all.none { x -> x.toolkit == c.toolkit && x.status == "ACTIVE" } }.distinctBy { c -> if (c.accounts > 1) c.id else c.toolkit }
+
+    /** Whether the bot [botId] has app [c]: its app, and for an app with two or more accounts, this account. */
+    fun appPicked(c: Connection, connectors: Set<String>, accounts: Map<String, String>, botId: String?): Boolean =
+        c.toolkit in connectors && (c.accounts < 2 || accounts[c.toolkit]?.let { it == c.id } ?: (botId in c.usedBy))
+
+    /** An app's row: its name, and which account for an app with two or more. */
+    fun appName(c: Connection): String = (c.app?.name ?: c.toolkit) + if (c.accounts > 1) " · " + (c.label ?: c.id) else ""
+
+    /** An app ticked ([on]) or not: its toolkit, and the account for an app with two or more. */
+    fun appToggled(c: Connection, on: Boolean, connectors: Set<String>, accounts: Map<String, String>): Pair<Set<String>, Map<String, String>> =
+        (if (on) connectors + c.toolkit else connectors - c.toolkit) to (if (on && c.accounts > 1) accounts + (c.toolkit to c.id) else accounts - c.toolkit)
+
     /** A change is saved by itself this long after the last one (#636). */
     const val SAVE_MS = 800L
     /** The longest name and category a bot has. */
@@ -173,6 +193,81 @@ object BotSettings {
     @Throws(Exception::class)
     suspend fun undo(api: Api, botId: String, change: String): Bot { api.undoChange(botId, change); return api.bot(botId) }
 
+    /**
+     * Where its computer is (ADR 088), with Advanced on: None (unless every bot has one, ADR 192), this machine or the
+     * External Virtual PC; null where the account chooses it in Settings (account-computer, #579), on a botdot
+     * without boat.dev, or with Advanced off.
+     */
+    fun computerChoices(advanced: Boolean, features: Collection<String>?, boat: Boolean, b: Bot): List<Option>? {
+        val f = features.orEmpty()
+        if (!advanced || "account-computer" in f || "boat-computer" !in f || !(boat || b.computer == "boat")) return null
+        return (if (limits(features)) listOf(Option("none", tr("None"))) else emptyList()) +
+            listOf(Option("linux", tr("This machine")), Option("boat", tr("External Virtual PC")))
+    }
+
+    /** The computer's pick as it stands: where it is, or "none". */
+    fun computerValue(d: BotDraft): String = if (d.computer) d.computerOn else "none"
+
+    /** Between this machine and boat.dev its files go along or not: asked first (#556, computer-move). */
+    fun asksMove(features: Collection<String>?, b: Bot, to: String): Boolean =
+        "computer-move" in features.orEmpty() && to != b.computer && to != "none" && b.computer != "none"
+
+    /** The question before a move, and its two answers. */
+    fun moveQuestion(to: String): String = if (to == "boat") tr("Copy its files to the External Virtual PC?") else tr("Copy its files to this machine?")
+
+    /**
+     * Its proxy (ADR 171), with Advanced on: on the account's computer only (boat.dev's browser uses the account's);
+     * the account's, none, or one of the account's proxies. Null: no row.
+     */
+    fun proxyChoices(advanced: Boolean, features: List<String>?, b: Bot, list: ProxyList?): List<Option>? {
+        if (!advanced || b.computer != "linux" || !Proxies.shows(features) || list == null) return null
+        if (list.proxies.isEmpty() && b.proxy.isEmpty()) return null
+        val account = list.proxies.firstOrNull { it.id == list.default }?.name ?: tr("No proxy")
+        return listOf(Option("", tr("Account's ({name})", "name" to account)), Option("none", tr("No proxy"))) + list.proxies.map { Option(it.id, it.name) }
+    }
+
+    /** Its jobs you said to always approve (#474): their later changes need no OK. */
+    fun trusted(b: Bot): List<dev.botdot.app.data.Job> = b.jobs.filter { it.alwaysApprove }
+
+    /** Under a job always approved: when it runs, and whether it uses AI. */
+    fun trustedLine(j: dev.botdot.app.data.Job): String = "${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI")
+
+    /** A lasting grant in a connected app, in words: its label, else its action. */
+    fun grantName(g: AlwaysAllowed): String = g.label.ifBlank { g.action }
+
+    /** The "Always approved" summary: the jobs and the grants by name. */
+    fun alwaysLine(b: Bot): String = (trusted(b).map { it.name } + b.alwaysAllowed.map(::grantName)).joinToString(", ")
+
+    /** Under a rule lifted for it ("Allow always for this bot", #253): the rule. */
+    fun overrideLine(o: BotOverride): String = tr("Its rule: {rule}", "rule" to o.rule)
+
+    val JOB_REVOKED: String get() = tr("Revoked: its next change waits for your OK")
+    val REVOKED: String get() = tr("Revoked: it asks you again")
+
+    /** What botdot did for a Revoke: [step] makes the bot as it is when botdot answered say so, and what to [say]. */
+    class Revoked(val step: (Bot) -> Bot, val say: String)
+
+    /** Revoke a job always approved: its next change waits for the owner's OK. A refusal throws botdot's sentence. */
+    @Throws(Exception::class)
+    suspend fun revokeJob(api: Api, botId: String, jobId: String): Revoked {
+        val saved = api.setJobAlwaysApprove(botId, jobId, false)
+        return Revoked({ b -> b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }) }, JOB_REVOKED)
+    }
+
+    /** Revoke a lasting grant in a connected app: it asks again. Every grant of that action goes, whatever its label. */
+    @Throws(Exception::class)
+    suspend fun revokeGrant(api: Api, botId: String, action: String): Revoked {
+        api.revokeAlwaysAllowed(botId, action)
+        return Revoked({ b -> b.copy(alwaysAllowed = b.alwaysAllowed.filter { it.action != action }) }, REVOKED)
+    }
+
+    /** Revoke a rule lifted for it: it asks again; the rules left are botdot's. */
+    @Throws(Exception::class)
+    suspend fun revokeOverride(api: Api, botId: String, id: String): Revoked {
+        val left = api.revokeOverride(botId, id).overrides
+        return Revoked({ b -> b.copy(overrides = left) }, REVOKED)
+    }
+
     /** The choices of its key on the keypad (#366): by its place, or a digit, saying which bot holds it now. */
     fun hotkeys(others: List<Bot>): List<Option> = listOf(Option("0", tr("By its place"))) +
         (1..9).map { d -> Option("$d", others.firstOrNull { it.hotkey == d }?.let { "$d · " + tr("Now {name}'s", "name" to it.name) } ?: "$d") }
@@ -199,7 +294,35 @@ class BotSettingsState(
     val error: String? = null,
     /** It was deleted: the screen leaves. */
     val deleted: Boolean = false,
+    /** Its apps to pick from ([BotSettings.appChoices]); empty from a botdot without connected apps. */
+    val apps: List<Connection> = emptyList(),
+    /** Its pages (#346), from a botdot with pages; null: no section. */
+    val pages: List<PageInfo>? = null,
+    /** The botdot has boat.dev (the admin set its key), and the account's proxies when read. */
+    val boat: Boolean = false,
+    val proxyList: ProxyList? = null,
 ) {
+    /** Computer and proxy pickers ([BotSettings.computerChoices], [BotSettings.proxyChoices]); null: no row. */
+    val computers: List<Option>? get() = bot?.let { BotSettings.computerChoices(advanced, features, boat, it) }
+    val computerValue: String get() = BotSettings.computerValue(draft)
+    fun asksMove(to: String): Boolean = bot?.let { BotSettings.asksMove(features, it, to) } == true
+    fun moveQuestion(to: String): String = BotSettings.moveQuestion(to)
+    val proxies: List<Option>? get() = bot?.let { BotSettings.proxyChoices(advanced, features, it, proxyList) }
+    /** Whether it has app [c] as the draft stands. */
+    fun hasApp(c: Connection): Boolean = BotSettings.appPicked(c, draft.connectors, draft.accounts, bot?.id)
+    fun appName(c: Connection): String = BotSettings.appName(c)
+    /** The Apps section's summary: the apps it has, or None. */
+    val appsLine: String get() = apps.filter(::hasApp).joinToString(", ", transform = BotSettings::appName).ifBlank { tr("None") }
+    /** A page's line ([Pages.line]). */
+    fun pageLine(page: PageInfo): String = Pages.line(page)
+    /** Always approved: its jobs and its grants in connected apps; and the rules lifted for it. */
+    val trusted: List<dev.botdot.app.data.Job> get() = bot?.let(BotSettings::trusted).orEmpty()
+    val grants: List<AlwaysAllowed> get() = bot?.alwaysAllowed.orEmpty()
+    val overrides: List<BotOverride> get() = bot?.overrides.orEmpty()
+    fun trustedLine(j: dev.botdot.app.data.Job): String = BotSettings.trustedLine(j)
+    fun grantName(g: AlwaysAllowed): String = BotSettings.grantName(g)
+    fun overrideLine(o: BotOverride): String = BotSettings.overrideLine(o)
+
     val models: List<Option> get() = BotSettings.models(info)
     val efforts: List<Option> get() = BotSettings.efforts(info)
     val hotkeys: List<Option> get() = BotSettings.hotkeys(others)
@@ -222,7 +345,8 @@ class BotSettingsState(
         bot: Bot? = this.bot, draft: BotDraft = this.draft, others: List<Bot> = this.others, info: SettingsInfo = this.info,
         advanced: Boolean = this.advanced, saving: Boolean = this.saving, savedAt: Int = this.savedAt, error: String? = this.error,
         deleted: Boolean = this.deleted, library: List<String> = this.library, features: List<String>? = this.features,
-    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted)
+        apps: List<Connection> = this.apps, pages: List<PageInfo>? = this.pages, boat: Boolean = this.boat, proxyList: ProxyList? = this.proxyList,
+    ) = BotSettingsState(bot, draft, others, info, advanced, saving, savedAt, library, features, error, deleted, apps, pages, boat, proxyList)
 }
 
 /**
@@ -257,7 +381,8 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
             }
             launch {
                 val version = store.version.value.value ?: runCatching { api.version() }.getOrNull()?.also { store.version.set(it) }
-                version?.let { _state.value = _state.value.copy(features = it.features) }
+                version?.let { _state.value = _state.value.copy(features = it.features, boat = it.boat) }
+                if (Proxies.shows(version?.features)) runCatching { api.proxies() }.onSuccess { _state.value = _state.value.copy(proxyList = it) }
                 runCatching { api.settings() }.onSuccess { info ->
                     Advanced.take(version?.features, info.settings)
                     _state.value = _state.value.copy(info = info, advanced = Advanced.on.value)
@@ -267,6 +392,11 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
                 // The library, for the skills it may use: as the store has it, else read once.
                 val skills = store.skills.value.value ?: try { store.skills.refresh(); store.skills.value.value } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
                 _state.value = _state.value.copy(library = skills?.library.orEmpty().map { it.name })
+            }
+            launch { runCatching { api.connectors() }.onSuccess { _state.value = _state.value.copy(apps = BotSettings.appChoices(it.connections)) } }
+            launch {
+                val version = store.version.value.value ?: runCatching { api.version() }.getOrNull()
+                if (Pages.shows(version?.features)) runCatching { api.pages(botId) }.onSuccess { _state.value = _state.value.copy(pages = it) }
             }
         }
     }
@@ -331,6 +461,32 @@ class BotSettingsDesk(private val api: Api, val botId: String, private val store
             throw e
         } catch (e: Exception) {
             e.message ?: tr("Couldn't undo")
+        }
+    }
+
+    /** Revoke a job always approved: its next change waits for the owner's OK. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeJob(jobId: String): String = revoked { BotSettings.revokeJob(api, botId, jobId) }
+
+    /** Revoke a lasting grant in a connected app: it asks again. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeGrant(action: String): String = revoked { BotSettings.revokeGrant(api, botId, action) }
+
+    /** Revoke a rule lifted for it: it asks again. What to say. */
+    @Throws(Exception::class)
+    suspend fun revokeOverride(id: String): String = revoked { BotSettings.revokeOverride(api, botId, id) }
+
+    /** Asks botdot, then applies its answer to the bot as it is by then: a load or a save that landed meanwhile stays. */
+    private suspend fun revoked(call: suspend () -> BotSettings.Revoked): String {
+        if (_state.value.bot == null) return ""
+        return try {
+            val r = call()
+            _state.update { s -> s.copy(bot = s.bot?.let(r.step)) }
+            r.say
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            e.message ?: tr("Couldn't save")
         }
     }
 

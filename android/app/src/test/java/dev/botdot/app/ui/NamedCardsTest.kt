@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * A card a message names stands under that message (ADR 249): under the newest of several that name it, and at the
+ * A card a message names stands under that message (ADR 252): under the newest of several that name it, and at the
  * end of the chat not again. `test/card-refs.test.js` holds the web page's side.
  */
 class NamedCardsTest {

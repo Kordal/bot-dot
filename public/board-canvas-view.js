@@ -106,7 +106,7 @@
       t.onkeydown = (e) => key(e, t, c);
       canvas.append(t);
     }
-    // The header, the project's Needs you (ADR 249) and its team rows (#838) stay above the canvas (#1188): the bots first.
+    // The header, the project's Needs you (ADR 252) and its team rows (#838) stay above the canvas (#1188): the bots first.
     for (const ch of [...home.children]) if (!ch.matches('.cf-top, .sp-needs, .cf-needs, .sp-teams')) ch.remove();
     home.append(wrap);
     place(wrap);

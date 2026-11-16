@@ -105,20 +105,20 @@ internal fun YouHead(size: Int = 24) {
 /** [waiting]: what waits in this project only (Spaces.needsIn), as its Needs you lists it. */
 internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List<Waiting>, ways: CompanyWays, features: Collection<String>) {
     val p = LocalPaper.current
-    val full = ProjectTodo.FEATURE in features
     var filter by rememberSaveable { mutableStateOf("all") }
-    val asks = !full || filter == "all" || filter == "you"
-    val waits = if (asks) waiting else emptyList()
-    val asking = if (asks) dev.botdot.app.data.Spaces.askingIn(c, bots) { question(it) != null } else emptyList()
-    val items = if (full) ProjectTodo.shown(c.todos, filter) else CompanyFloor.todos(c.todos)
-    val standupAsks = if (asks && ProjectStandup.FEATURE in features) ProjectStandup.asks(c, bots).size else 0
-    val n = if (filter == "done") 0 else waits.size + asking.size + items.count { !it.done } + standupAsks
+    // What it holds and its number are the shared ProjectTodo.panel (both phones).
+    val panel = ProjectTodo.panel(c, bots, waiting, filter, features)
+    val full = panel.full
+    val asks = panel.asks
+    val waits = panel.waits
+    val asking = panel.asking
+    val n = panel.count
     val chief = chiefNamed()
     @Composable fun head(color: String?, outfit: kotlinx.serialization.json.JsonElement?) = BotFigure(color ?: chief.color, "idle", 28, if (color == null) chief.outfit else outfit)
     Column(Modifier.fillMaxWidth().raised(Radius.card).padding(Space.s16),
         verticalArrangement = Arrangement.spacedBy(Space.s12)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(if (full) tr("To-do") else tr("You"), color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+            Text(panel.title, color = p.text, fontSize = Type.s16, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
             if (n > 0) Text(n.toString(), color = p.inkText, fontSize = Type.s12, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(CircleShape).background(p.ink).padding(horizontal = Space.s8, vertical = Space.s4))
         }
         if (full) Filters(filter) { filter = it }
@@ -135,7 +135,7 @@ internal fun TodoPanel(ui: CompanyUi, c: Company, bots: List<Bot>, waiting: List
             }
             asking.forEach { b -> YouRow({ head(b.color, b.outfit) }, question(b).orEmpty()) { SmallButton(tr("Reply")) { ways.onBot(b.id) } } }
         }
-        items.forEach { t -> TodoRow(ui, t, bots.firstOrNull { it.id == t.bot }, full) }
+        panel.rows.forEach { r -> TodoRow(ui, r, full) }
         if (full) AddTodo(ui, c, bots) else AddTask(ui, bots)
         if (ProjectDecisions.FEATURE in features) Decisions(ui, c)
     }
@@ -157,28 +157,30 @@ private fun Filters(on: String, onPick: (String) -> Unit) {
 
 /** An item: whom it is for, its text, its chip, its tick, and Delete (the owner's alone) on a server with the full To-do. */
 @Composable
-private fun TodoRow(ui: CompanyUi, t: Todo, bot: Bot?, full: Boolean) {
+private fun TodoRow(ui: CompanyUi, r: ProjectTodo.Row, full: Boolean) {
     val p = LocalPaper.current
+    val t = r.todo
+    val bot = r.bot
     Row(Modifier.fillMaxWidth().heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
         if (bot != null) BotFigure(bot.color, "idle", 24, bot.outfit) else YouHead()
         Text(t.text, color = if (t.done) p.faint else p.text, fontSize = Type.s14, lineHeight = Type.line20, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(horizontal = Space.s12))
-        if (full) TodoChip(t, bot)
+        if (full) TodoChip(r)
         Checkbox(t.done, { ui.call({ a -> a.tickTodo(t.id, it) }) }, colors = CheckboxDefaults.colors(checkedColor = p.ink, checkmarkColor = p.inkText, uncheckedColor = p.line2),
             modifier = Modifier.semantics { contentDescription = tr("Done") })
         if (full) RoundButton(Icons.Filled.Close, tr("Delete"), size = 32.dp) { ui.call({ it.deleteTodo(t.id) }) }
     }
 }
 
-/** How it repeats, else that its bot works now, else its due day (late in the warning colour). */
+/** How it repeats, else that its bot works now, else its due day (late in the warning colour): ProjectTodo.chip. */
 @Composable
-private fun TodoChip(t: Todo, bot: Bot?) {
+private fun TodoChip(r: ProjectTodo.Row) {
     val p = LocalPaper.current
-    val repeat = t.repeat
-    val (text, color) = when {
-        repeat != null -> ProjectTodo.rhythmLabel(repeat, ::weekdayName) to p.muted
-        !t.done && bot?.running == true -> tr("Working") to p.okText
-        t.due != null -> dueLabel(t.due!!) to if (!t.done && ProjectTodo.dueKind(t.due) == ProjectTodo.Due.LATE) p.warnText else p.muted
-        else -> return
+    val t = r.todo
+    val (text, color) = when (r.chip) {
+        ProjectTodo.Chip.REPEAT -> ProjectTodo.rhythmLabel(t.repeat!!, ::weekdayName) to p.muted
+        ProjectTodo.Chip.WORKING -> tr("Working") to p.okText
+        ProjectTodo.Chip.DUE -> dueLabel(t.due!!) to if (r.late) p.warnText else p.muted
+        null -> return
     }
     Text(text, color = color, fontSize = Type.s12, maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.widthIn(max = 110.dp).clip(Radius.pill).background(p.sunk).padding(horizontal = Space.s8, vertical = Space.s4))
@@ -284,7 +286,7 @@ private fun AddTask(ui: CompanyUi, bots: List<Bot>) {
 @Composable
 private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
     val p = LocalPaper.current
-    val leads = ProjectStandup.leads(c)
+    val leads = ProjectStandup.lines(c, bots)
     if (leads.isEmpty()) return
     Column(Modifier.fillMaxWidth().clip(Radius.card).background(p.sunk).padding(Space.s12), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -292,7 +294,7 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
             ByChief()
         }
         leads.forEach { l ->
-            val team = c.teams.first { it.id == l.team }
+            val team = l.team
             val color = parseColor(team.color, p.muted)
             Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -309,8 +311,8 @@ private fun StandupCard(c: Company, bots: List<Bot>, ways: CompanyWays) {
                 }
                 line(Icons.Filled.Check, l.done, color)
                 line(Icons.AutoMirrored.Filled.ArrowForward, l.next, p.muted)
-                val reply: (@Composable () -> Unit)? = if (l.asks && bots.any { it.id == l.bot }) {
-                    { SmallButton(tr("Reply")) { ways.onBotSay(l.bot, tr("Standup: {text}", "text" to l.blocked.orEmpty()) + "\n") } }
+                val reply: (@Composable () -> Unit)? = if (l.asks) {
+                    { SmallButton(tr("Reply")) { ways.onBotSay(l.bot, ProjectStandup.reply(l)) } }
                 } else null
                 line(Icons.Outlined.ErrorOutline, l.blocked, if (l.asks) p.warnText else p.muted, reply)
             }
@@ -339,9 +341,8 @@ private fun Decisions(ui: CompanyUi, c: Company) {
 @Composable
 private fun DecisionRow(ui: CompanyUi, d: Decision) {
     val p = LocalPaper.current
-    val words = mapOf("keep" to tr("Keep going"), "change" to tr("Change direction"), "stop" to tr("Stop"))
-    val text = if (d.by == "checkin" && d.day != null && words[d.decision] != null) "${if (ui.company()?.ongoing == true) tr("Monthly review") else tr("Day {n} check-in", "n" to d.day)}: ${words[d.decision]}" else d.text
-    val day = d.at?.let { runCatching { Instant.parse(it).atZone(java.time.ZoneId.systemDefault()).toLocalDate().toString() }.getOrNull() }
+    val text = ProjectDecisions.textOf(d, ui.company()?.ongoing == true)
+    val day = ProjectDecisions.dayOf(d)
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             Text(text, color = p.text, fontSize = Type.s14, lineHeight = Type.line20)

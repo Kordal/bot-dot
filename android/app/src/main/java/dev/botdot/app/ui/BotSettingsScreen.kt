@@ -92,8 +92,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var askDelete by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) } // erasing its screen and logins can take a while: the button says so
     val server by app.store.version.value.collectAsState() // its features: whether it can duplicate a bot
-    var copyPlan by remember { mutableStateOf<dev.botdot.app.data.CopyPlan?>(null) } // the Duplicate confirmation, while it is open
-    var copyName by remember { mutableStateOf("") }
+    // Duplicate (#227): what the copy gets, its name and the copy made are the shared DuplicateDesk's (one copy with the
+    // iPhone's), in the app's scope so a copy on its way outlives the dialog.
+    val dupDesk = remember(api, botId) { api?.let { dev.botdot.app.data.DuplicateDesk(it, botId, "", app.scope) } }
+    val dup = dupDesk?.state?.collectAsState()?.value
     var pages by remember { mutableStateOf<List<dev.botdot.app.data.PageInfo>?>(null) } // its pages (#346), once loaded
     val context = androidx.compose.ui.platform.LocalContext.current
 
@@ -144,7 +146,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             launch { runCatching { app.store.bots.value.value ?: a.bots() }.onSuccess { all -> others = all.filter { it.id != botId }; all.firstOrNull { it.id == botId }?.let(::fill) }.onError { tell(it.message ?: tr("Couldn't load")) } }
             launch { runCatching { a.settings() }.onSuccess { choices = it } }
             launch { runCatching { a.skills() }.onSuccess { library = it.library; sysSkills = it.machine.map { k -> k to "machine" } + it.builtin.map { k -> k to "builtin" } } }
-            launch { runCatching { a.connectors() }.onSuccess { apps = it.connections.filter { c -> c.status == "ACTIVE" || it.connections.none { x -> x.toolkit == c.toolkit && x.status == "ACTIVE" } }.distinctBy { c -> if (c.accounts > 1) c.id else c.toolkit } } }
+            launch { runCatching { a.connectors() }.onSuccess { apps = dev.botdot.app.data.BotSettings.appChoices(it.connections) } }
         }
     }
 
@@ -242,14 +244,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             SettingsGroup {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here
                 // only whether. A server from before chose it per bot (ADR 088).
-                val accountComputer = "account-computer" in server?.features.orEmpty()
                 // Advanced (ADR 205): without it, where its computer is and its proxy are left as they are and not shown.
                 val advOn by dev.botdot.app.data.Advanced.on.collectAsState()
-                if (advOn && !accountComputer && "boat-computer" in server?.features.orEmpty() && (server?.boat == true || b.computer == "boat")) {
-                    val everyBot = !dev.botdot.app.data.BotSettings.limits(server?.features) // every bot has one (ADR 192)
-                    Choice(tr("Computer"), if (computer) computerOn else "none", (if (everyBot) emptyList() else listOf("none" to tr("None"))) + listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))) {
+                val computers = dev.botdot.app.data.BotSettings.computerChoices(advOn, server?.features, server?.boat == true, b)
+                if (computers != null) {
+                    Choice(tr("Computer"), if (computer) computerOn else "none", computers.map { it.id to it.label }) {
                         // Between this machine and boat.dev, its files go along or not: asked first (#556).
-                        if ("computer-move" in server?.features.orEmpty() && it != b.computer && it != "none" && b.computer != "none") { askMove = it; return@Choice }
+                        if (dev.botdot.app.data.BotSettings.asksMove(server?.features, b, it)) { askMove = it; return@Choice }
                         computer = it != "none"
                         if (computer) computerOn = it
                         moveFiles = false
@@ -325,13 +326,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 // An app with two or more accounts is a row per account, one of them at most (ADR 174).
                 val mine = bot?.id
-                fun picked(c: dev.botdot.app.data.Connection) = c.toolkit in connectors && (c.accounts < 2 || accounts[c.toolkit]?.let { it == c.id } ?: (mine in c.usedBy))
-                fun named(c: dev.botdot.app.data.Connection) = (c.app?.name ?: c.toolkit) + if (c.accounts > 1) " · " + (c.label ?: c.id) else ""
+                fun picked(c: dev.botdot.app.data.Connection) = dev.botdot.app.data.BotSettings.appPicked(c, connectors, accounts, mine)
+                fun named(c: dev.botdot.app.data.Connection) = dev.botdot.app.data.BotSettings.appName(c)
                 if (apps.isNotEmpty() || connectors.isNotEmpty()) FoldSection(tr("Apps"), apps.filter(::picked).joinToString(", ", transform = ::named).ifBlank { tr("None") }) {
                     apps.forEach { c ->
                         CheckRow(named(c), null, picked(c)) { on ->
-                            connectors = if (on) connectors + c.toolkit else connectors - c.toolkit
-                            accounts = if (on && c.accounts > 1) accounts + (c.toolkit to c.id) else accounts - c.toolkit
+                            val (k, acc) = dev.botdot.app.data.BotSettings.appToggled(c, on, connectors, accounts)
+                            connectors = k; accounts = acc
                         }
                     }
                 }
@@ -359,7 +360,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
             if (!explorer && dev.botdot.app.data.WorkspaceFiles.shows(server?.features)) {
                 WorkspaceSection(api, botId, b.name, usesComputer = b.computer == "linux", viewer = dev.botdot.app.data.DocumentView.shows(server?.features), tell = ::tell, folders = dev.botdot.app.data.WorkspaceFiles.folders(server?.features), projects = dev.botdot.app.data.Projects.shows(server?.features))
             }
-            val trusted = b.jobs.filter { it.alwaysApprove }
+            val trusted = dev.botdot.app.data.BotSettings.trusted(b)
             val grants = b.alwaysAllowed
             val roomsShown = dev.botdot.app.data.BotSettings.showsRooms(b, server?.features)
             if ((others.isNotEmpty() && dev.botdot.app.data.BotSettings.limits(server?.features)) || roomsShown || trusted.isNotEmpty() || grants.isNotEmpty() || b.overrides.isNotEmpty()) SettingsGroup {
@@ -379,17 +380,17 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 // The jobs you said to always approve, whose later changes need no OK, and its lasting grants in connected apps
                 // (#474). Revoke takes one off (saved right away).
-                if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), (trusted.map { it.name } + grants.map { it.label.ifBlank { it.action } }).joinToString(", ")) {
+                if (trusted.isNotEmpty() || grants.isNotEmpty()) FoldSection(tr("Always approved"), dev.botdot.app.data.BotSettings.alwaysLine(b)) {
                     trusted.forEach { j ->
                         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(j.name, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text("${scheduleWords(j)} · " + if (j.kind == "script") tr("a script, no AI") else tr("uses AI"), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                Text(dev.botdot.app.data.BotSettings.trustedLine(j), color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.setJobAlwaysApprove(botId, j.id, false) }
-                                        .onSuccess { saved -> bot = b.copy(jobs = b.jobs.map { if (it.id == saved.id) it.copy(alwaysApprove = false) else it }); tell(tr("Revoked: its next change waits for your OK")) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeJob(api!!, botId, j.id) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -397,11 +398,11 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     }
                     grants.forEach { g ->
                         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(g.label.ifBlank { g.action }, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                            Text(dev.botdot.app.data.BotSettings.grantName(g), color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.revokeAlwaysAllowed(botId, g.action) }
-                                        .onSuccess { bot = b.copy(alwaysAllowed = b.alwaysAllowed - g); tell(tr("Revoked: it asks you again")) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeGrant(api!!, botId, g.action) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -414,12 +415,12 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(o.action, color = p.text, style = MaterialTheme.typography.bodyLarge)
-                                Text(tr("Its rule: {rule}", "rule" to o.rule), color = p.muted, style = MaterialTheme.typography.bodySmall)
+                                Text(dev.botdot.app.data.BotSettings.overrideLine(o), color = p.muted, style = MaterialTheme.typography.bodySmall)
                             }
                             SecondaryButton(onClick = {
                                 scope.launch {
-                                    runCatching { api!!.revokeOverride(botId, o.id) }
-                                        .onSuccess { saved -> bot = b.copy(overrides = saved.overrides); tell(tr("Revoked: it asks you again")) }
+                                    runCatching { dev.botdot.app.data.BotSettings.revokeOverride(api!!, botId, o.id) }
+                                        .onSuccess { r -> bot = bot?.let(r.step); tell(r.say) }
                                         .onError { tell(it.message ?: tr("Couldn't save")) }
                                 }
                             }) { Text(tr("Revoke"), color = p.text) }
@@ -428,7 +429,8 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
             }
             if (dev.botdot.app.data.Duplicate.shows(server?.features)) SecondaryButton(onClick = {
-                scope.launch { runCatching { (api ?: error(tr("Not connected to botdot"))).copyPlan(botId) }.onSuccess { copyPlan = it; copyName = it.name }.onError { tell(it.message ?: tr("Couldn't load")) } }
+                val d = dupDesk ?: return@SecondaryButton tell(tr("Not connected to botdot"))
+                scope.launch { if (!d.ask()) d.state.value.notice?.let(::tell) }
             }, modifier = Modifier.fillMaxWidth()) { Text(tr("Duplicate {name}", "name" to b.name), color = p.text) }
             SecondaryButton(onClick = { askDelete = true }, enabled = !deleting, modifier = Modifier.fillMaxWidth()) { Text(if (deleting) tr("Deleting…") else tr("Delete {name}", "name" to b.name), color = p.err) }
         }
@@ -436,28 +438,30 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     // "Duplicate" (#227): the server's list of what the copy gets, a name to change, then the copy's chat. It goes away
     // at once while the copy is made (#478), and comes back with the server's sentence when refused.
-    copyPlan?.let { plan ->
+    if (dup?.plan != null && dupDesk != null) {
         var aside by remember { mutableStateOf(false) }
         if (!aside) AlertDialog(
-            onDismissRequest = { copyPlan = null },
+            onDismissRequest = { dupDesk.cancel() },
             title = { Text(tr("Duplicate {name}?", "name" to bot?.name)) },
             text = {
                 Column {
-                    Field(copyName, { copyName = it.take(60) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    Text(dev.botdot.app.data.Duplicate.text(plan), color = p.text, modifier = Modifier.padding(top = Space.s12))
+                    Field(dup.name, { dupDesk.setName(it) }, label = { Text(tr("Name")) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Text(dup.text, color = p.text, modifier = Modifier.padding(top = Space.s12))
                 }
             },
             confirmButton = {
-                TextButton(enabled = !work.busy && !plan.vaultLocked, onClick = {
+                TextButton(enabled = !work.busy && dup.canGo, onClick = {
                     aside = true
-                    var made = ""
-                    work.run(tr("Duplicating {name}…", "name" to bot?.name), { tr("{name} made", "name" to made) }, refused = { aside = false; tell(it) }) {
-                        val copy = (api ?: error(tr("Not connected to botdot"))).duplicateBot(botId, copyName)
-                        made = copy.name; copyPlan = null; onCopied(copy.id)
+                    var made = dup.name.trim()
+                    // The line under the settings says Duplicating…, then the copy made under botdot's name for it; a refusal brings the dialog back with botdot's sentence.
+                    work.run(dev.botdot.app.data.Duplicate.duplicating(bot?.name), { dev.botdot.app.data.Duplicate.made(made) }, refused = { aside = false; tell(it) }) {
+                        val copy = dupDesk.go() ?: throw dev.botdot.app.data.ApiException(dupDesk.state.value.notice ?: tr("Couldn't save"))
+                        made = copy.name
+                        onCopied(copy.id)
                     }
                 }) { Text(tr("Duplicate"), color = p.text) }
             },
-            dismissButton = { TextButton(onClick = { copyPlan = null }) { Text(tr("Cancel"), color = p.text) } },
+            dismissButton = { TextButton(onClick = { dupDesk.cancel() }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
 
@@ -465,7 +469,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         val choose = { copy: Boolean -> computer = true; computerOn = to; moveFiles = copy; askMove = null }
         AlertDialog(
             onDismissRequest = { askMove = null },
-            title = { Text(if (to == "boat") tr("Copy its files to the External Virtual PC?") else tr("Copy its files to this machine?")) },
+            title = { Text(dev.botdot.app.data.BotSettings.moveQuestion(to)) },
             confirmButton = { TextButton(onClick = { choose(true) }) { Text(tr("Copy files"), color = p.text) } },
             dismissButton = { TextButton(onClick = { choose(false) }) { Text(tr("Start empty"), color = p.text) } },
         )
