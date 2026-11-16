@@ -26,6 +26,9 @@ addEventListener('hashchange', () => {
   if (!state.routed || hash === state.hash || hash.startsWith('#doc/')) return;
   const route = readRoute(hash);
   if (!route.known || (route.view === 'rooms' && String(route.sub || '').startsWith('join='))) return;
+  // A chat or a run is drawn by the functions that open it: its page may be built already, showing another one.
+  if (route.view === 'chief' && route.sub) return openChiefChat(route.sub);
+  if (route.view === 'runs' && route.sub) return openRun(route.sub);
   selectRoute(route);
   setView(route.view, routeSub(route));
 });
