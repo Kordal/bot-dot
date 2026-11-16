@@ -3977,9 +3977,10 @@ revoke_request() {
 # IMPORT_SCRATCH, checked as an off-site restore checks them (the same version, each part's size), has the front door
 # make the account with what the other one kept of it (no passkey: its owner signs in with a sign-in link), and puts
 # its data back as a set's account. The folder goes however it ends (one a cut-off import left, the next off-site
-# backup removes), and an account made here by a failed import is deleted again. It holds the off-site lock. How it went is in status/import-<account>.json: state (importing,
-# imported, refused or failed), at, account, instance, phase (download, front-door, account), snapshot once found, and
-# error. The request is removed as soon as it is read.
+# backup removes), and an account made here by a failed import is deleted again. It holds the off-site lock
+# throughout, as an off-site restore does. How it went is in status/import-<account>.json: state (importing, imported,
+# refused or failed), at, account, instance, phase (download, front-door, account), snapshot once found, and error. The
+# request is removed as soon as it is read.
 IMPORT=IMPORT-
 # import_said STATE [FIELDS]: status/import-<IM_NAME>.json.
 import_said() { write_status "import-$IM_NAME.json" "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"account\":\"$IM_NAME\"${IM_FROM:+,\"instance\":\"$IM_FROM\"}${IM_SNAP:+,\"snapshot\":\"$IM_SNAP\"}${2:+,$2}}"; }
@@ -4102,15 +4103,22 @@ import_request() {
   im_why="$RUN/import-why"
   mkdir -p "$RUN"
   rm -f "$im_why"
+  # The off-site lock, held from the download to the account made (the caller lets go of it): no off-site run
+  # removes IMPORT_SCRATCH, or backs up a half-made account, meanwhile.
+  if command -v flock >/dev/null 2>&1; then
+    exec 8>"$RUN/offsite.lock"
+    if ! flock -n 8; then
+      exec 8>&-
+      import_said failed '"phase":"download","error":"An off-site backup runs now: import the account when it is done."'
+      warn "An off-site backup runs now, so the account $IM_NAME wasn't imported."
+      return 0
+    fi
+  fi
   set +e
   (
     set -e
     umask 077
     ACCOUNT_WHY="$im_why"
-    if command -v flock >/dev/null 2>&1; then
-      exec 8>"$RUN/offsite.lock"
-      flock -n 8 || die "An off-site backup runs now: import the account when it is done."
-    fi
     mkdir -p "$OFFSITE"
     chmod 700 "$OFFSITE"
     OFFSITE_REPO="$im_repo"
@@ -4509,6 +4517,7 @@ if [ "$MODE" = requested ]; then
   for request in "$REQUESTS/$IMPORT"*; do
     [ -f "$request" ] && [ ! -L "$request" ] || continue
     import_request "$request"
+    exec 8>&-
   done
   for request in "$REQUESTS/$DELETE"*; do
     [ -f "$request" ] && [ ! -L "$request" ] || continue

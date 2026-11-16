@@ -907,7 +907,7 @@ const moveDoor = (m, { refuse = false } = {}) => {
   const record = path.join(m.first.top, 'import-record.json');
   return [
     'case "$*" in',
-    `  *"front-door.js import-account --account bob --record /dev/stdin --by console"*) cat > ${record}; ${refuse ? `echo '{"state":"refused","account":"bob","error":"This machine holds one account, ann, and takes no other."}'; exit 3` : `printf '%s' '{"accounts":{"ann":{},"bob":{}}}' > ${data}; echo '{"state":"imported","account":"bob"}'; exit 0`} ;;`,
+    `  *"front-door.js import-account --account bob --record /dev/stdin --by console"*) cat > ${record}; if flock -n ${path.join(m.first.run, 'offsite.lock')} true; then echo free; else echo held; fi > ${path.join(m.first.top, 'import-lock')}; ${refuse ? `echo '{"state":"refused","account":"bob","error":"This machine holds one account, ann, and takes no other."}'; exit 3` : `printf '%s' '{"accounts":{"ann":{},"bob":{}}}' > ${data}; echo '{"state":"imported","account":"bob"}'; exit 0`} ;;`,
     `  *"front-door.js delete-account --account bob --by console"*) printf '%s' '{"accounts":{"ann":{}},"deleted":{"bob":"2026-11-16T12:00:00.000Z"}}' > ${data}; echo '{"state":"deleted","account":"bob"}'; exit 0 ;;`,
     'esac',
   ];
@@ -950,6 +950,20 @@ test('IMPORT-bob restores bob alone from another machine\'s latest backup, after
   assert.ok(parts.includes('front-door/data.tar') && parts.every((p) => !p.startsWith('accounts/ann/')), parts.join(' '));
   assert.ok(!fs.existsSync(path.join(m.dir, 'account-import')), 'the scratch folder is removed');
   assert.match(done.said, /The account bob is imported from the machine/);
+  assert.equal(fs.readFileSync(path.join(m.first.top, 'import-lock'), 'utf8').trim(), 'held', 'the off-site lock is held past the download');
+});
+
+test('IMPORT-bob waits while an off-site backup runs, and asks nothing of the front door', (t) => {
+  const m = machine(t);
+  m.offsite();
+  const old = instanceOf(m);
+  elsewhere(m);
+  const release = holdLock(t, m);
+  const done = ask(m, 'IMPORT-bob', `${old}\n`, { dockerFirst: [...moveDoor(m), ...extracts] });
+  release();
+  const said = status(done, 'import-bob.json');
+  assert.deepEqual([said.state, said.error], ['failed', 'An off-site backup runs now: import the account when it is done.']);
+  assert.ok(!done.docker.some((c) => / import-account /.test(c.call)));
 });
 
 test('IMPORT-bob reads the repository and password it names, puts the key on the sub-account, and keeps neither password', (t) => {
