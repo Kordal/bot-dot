@@ -169,4 +169,13 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).first?.doubleValue, -800)
         XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).second?.doubleValue, 0)
     }
+
+    /// The suggested bot's colour and New team's bots are the shared rules.
+    func testTheTeamsTilesAreTheSharedRules() {
+        let c = CompanySetup.shared.of(answer: ##"{"id":"c1","phase":"running","teams":[{"id":"t1","name":"Crew","color":"#ff9500","bots":["a"]}]}"##)
+        let bots = ["a", "z"].map { Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: "{\"id\":\"\($0)\",\"name\":\"\($0)\"}") as! Bot }
+        XCTAssertEqual(ManyProjects.shared.teamCandidates(c: c, bots: bots).map(\.id), ["z", "a"])
+        XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: "t1")), "#ff9500")
+        XCTAssertEqual(ManyProjects.shared.suggestedColor(c: c, s: Suggested(name: "Cook", description: "", why: "", team: nil)), ManyProjects.shared.ACCENT)
+    }
 }

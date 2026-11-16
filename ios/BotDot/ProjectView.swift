@@ -295,6 +295,10 @@ struct ProjectPage: View {
             if let day = s.day?.intValue { dayLine(day) }
         case "files":
             if s.filesTile { filesTile(s, c) }
+        case "suggest":
+            if let sg = s.suggested { SuggestedTeamCard(suggested: sg, project: c, figure: figure, model: model).listRowSeparator(.hidden) }
+        case "new-team":
+            if s.addsTeam { NewTeamTile(bots: s.teamCandidates, model: model).listRowSeparator(.hidden) }
         case "todo":
             if let todo = s.todo { todoPanel(todo, s) }
         default:
@@ -348,6 +352,9 @@ struct ProjectPage: View {
         if let slots = s.cards {
             CardsRow(model: model, state: s, slots: slots, figure: figure).listRowSeparator(.hidden)
         }
+        // The bot the Chief suggests and New team (the board's "teams" piece), under the cards as on Android.
+        if let sg = s.suggested { SuggestedTeamCard(suggested: sg, project: c, figure: figure, model: model).listRowSeparator(.hidden) }
+        if s.addsTeam { NewTeamTile(bots: s.teamCandidates, model: model).listRowSeparator(.hidden) }
         if s.filesTile { filesTile(s, c) }
         // With overview-board the teams are under Team (ADR 238), not on the board.
         if s.teamsOnBoard {

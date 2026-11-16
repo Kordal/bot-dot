@@ -132,6 +132,23 @@ class ProjectDeskTest {
         until("never arranged: the usual flow") { desk.state.value.project != null && desk.state.value.order == null }
     }
 
+    @Test fun theChiefsSuggestedBotAndNewTeamAreTheTeamsPiece() = runTest {
+        val suggesting = kitchen.dropLast(1) + ""","suggestion":{"name":"Cook","why":"For the menus","team":"t1"},"teams":[{"id":"t1","name":"Crew","color":"#ff9500","bots":["b1","b2"],"lead":"b2"}]}"""
+        val fake = FakeBotdot { a -> if (a.method == "GET") 200 to "{}" else 200 to kitchen }
+        val (_, desk) = desk(fake, all, suggesting)
+        until("the project") { desk.state.value.suggested != null }
+        with(desk.state.value) {
+            assertEquals("Cook", suggested?.name)
+            assertEquals("#ff9500", ManyProjects.suggestedColor(project!!, suggested!!), "the colour of the team it would join")
+            assertTrue(addsTeam)
+            assertEquals(listOf("b3", "b4", "b1", "b2"), teamCandidates.map { it.id }, "the bots in no team first")
+        }
+        assertTrue(desk.answerSuggested(add = true))
+        assertEquals("POST", fake.asked().last { it.path == "/company/suggestion/add" }.method)
+        assertTrue(desk.answerSuggested(add = false))
+        assertEquals("DELETE", fake.asked().last { it.path == "/company/suggestion" }.method)
+    }
+
     @Test fun itsOverviewShowsOnceTheFeaturesSaySo() = runTest {
         val (store, desk) = desk(FakeBotdot { 200 to "{}" })
         until("the project") { desk.state.value.project != null }

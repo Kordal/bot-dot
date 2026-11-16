@@ -121,6 +121,18 @@ object ManyProjects {
 
     // ---------- the settings page (#701) ----------
 
+    /** New team's bots to pick from: those in no team of [c] first, then the others. */
+    fun teamCandidates(c: Company, bots: List<Bot>): List<Bot> {
+        val inTeam = c.teams.flatMap { it.bots }.toSet()
+        return bots.sortedBy { it.id in inTeam }
+    }
+
+    /** The colour of the bot the Chief suggests: the team's it would join, else the project's accent. */
+    fun suggestedColor(c: Company, s: Suggested): String = c.teams.firstOrNull { it.id == s.team }?.color ?: ACCENT
+
+    /** A project's own accent, where nothing else gives a colour. */
+    const val ACCENT = "#8e7cff"
+
     /** A team's editor as it is saved: its name, its bots, a lead among them (else the first). Null while it cannot be saved. */
     fun teamBody(name: String, bots: List<String>, lead: String?): JsonObject? {
         val n = name.replace(Regex("\\s+"), " ").trim()
