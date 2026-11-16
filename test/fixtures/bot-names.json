@@ -1,0 +1,24 @@
+{
+  "about": [
+    "A bot's name in a message is a link to its chat, on the web page (botNameLinks in public/app.js) and in the Android app (BotNames in android/shared).",
+    "cases: { name, bots, text, links }. bots: [{ id, name }], the bots that exist. links: the names found in text, in order, as [where it starts, its text, the bot's id].",
+    "The text of a link is the name as written, plus one of the endings Polish gives it (owi ami ach em om ów ie ze a u y i e ę ą); case as the name has it; a whole word; the longest name first; a name two bots share, a name of one letter and a name after @, / or - are not links."
+  ],
+  "cases": [
+    { "name": "the name as written", "bots": [{ "id": "qa", "name": "QA Tester" }], "text": "Ask QA Tester to run it.", "links": [[4, "QA Tester", "qa"]] },
+    { "name": "declined: Testera", "bots": [{ "id": "qa", "name": "QA Tester" }], "text": "W czacie QA Testera naciśnij przycisk ekranu.", "links": [[9, "QA Testera", "qa"]] },
+    { "name": "declined: owi, em, ów", "bots": [{ "id": "al", "name": "Alfred" }], "text": "Alfredowi, z Alfredem i bez Alfredów", "links": [[0, "Alfredowi", "al"], [13, "Alfredem", "al"], [28, "Alfredów", "al"]] },
+    { "name": "the longest name first", "bots": [{ "id": "qa", "name": "QA" }, { "id": "qt", "name": "QA Tester" }], "text": "QA Tester and QA", "links": [[0, "QA Tester", "qt"], [14, "QA", "qa"]] },
+    { "name": "case is the name's", "bots": [{ "id": "qa", "name": "QA Tester" }], "text": "the qa tester and QA TESTER", "links": [] },
+    { "name": "a whole word", "bots": [{ "id": "al", "name": "Alfred" }], "text": "Alfredo, xAlfred, Alfred2 and Alfreds", "links": [] },
+    { "name": "punctuation is outside", "bots": [{ "id": "al", "name": "Alfred" }], "text": "(Alfred), \"Alfred\"; Alfred.", "links": [[1, "Alfred", "al"], [11, "Alfred", "al"], [20, "Alfred", "al"]] },
+    { "name": "a name two bots share is nobody's", "bots": [{ "id": "a", "name": "Max" }, { "id": "b", "name": "Max" }, { "id": "c", "name": "Eve" }], "text": "Max and Eve", "links": [[8, "Eve", "c"]] },
+    { "name": "one bot twice with its name is still its", "bots": [{ "id": "a", "name": "Max" }, { "id": "a", "name": "Max" }], "text": "Max", "links": [[0, "Max", "a"]] },
+    { "name": "a name of one letter is no link", "bots": [{ "id": "x", "name": "X" }], "text": "X marks", "links": [] },
+    { "name": "after @, / and -", "bots": [{ "id": "al", "name": "Alfred" }], "text": "@Alfred /Alfred re-Alfred", "links": [] },
+    { "name": "a name with marks", "bots": [{ "id": "rd", "name": "R&D (v2)" }], "text": "Ask R&D (v2).", "links": [[4, "R&D (v2)", "rd"]] },
+    { "name": "a name of no bot is text", "bots": [{ "id": "al", "name": "Alfred" }], "text": "Bob said hi to Alfred", "links": [[15, "Alfred", "al"]] },
+    { "name": "no bots, no links", "bots": [], "text": "Alfred", "links": [] },
+    { "name": "a name with a hyphen", "bots": [{ "id": "bd", "name": "bot-dot" }], "text": "The bot-dot decision", "links": [[4, "bot-dot", "bd"]] }
+  ]
+}

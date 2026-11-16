@@ -2084,6 +2084,8 @@ a.file-path { display: inline-flex; align-items: baseline; gap: var(--sp-4); col
 a.file-path:hover { text-decoration: underline; }
 a.file-path svg { width: 13px; height: 13px; flex: none; align-self: center; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linejoin: round; }
 a.file-path code { color: inherit; }
+/* A bot's name in a message, a link to its chat: blue as a mention is, underlined as a link is. */
+a.bot-link, .chat-thread .bubble.from-bot .md a.bot-link { color: var(--mention); text-decoration: underline; text-underline-offset: 2px; }
 /* In a wide window the chat is one narrow column right of the keypad: it widens to hold the viewer beside it. */
 @media (min-width: 1001px) {
   .main.viewing { width: calc(var(--chat-w, clamp(400px, 38vw, 560px)) + 540px); max-width: calc(100vw - 320px); }
