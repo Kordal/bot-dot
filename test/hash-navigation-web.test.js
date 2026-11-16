@@ -59,7 +59,7 @@ test('web: typing #setup into an open tab opens Setup without a reload', () => {
 
 test('web: Back or a typed address opens the view it names (#1500)', () => {
   // Settings > Skills, then Back to Settings, or Activity typed in.
-  for (const [hash, view] of [['#settings', 'settings'], ['#runs', 'runs'], ['#chief', 'chief'], ['#dashboard', 'dashboard'], ['#vault', 'vault']]) {
+  for (const [hash, view] of [['#settings', 'settings'], ['#runs', 'runs'], ['#chief', 'chief'], ['#dashboard', 'dashboard'], ['#vault', 'vault'], ['#storage', 'storage']]) {
     const p = page('skills');
     p.navigate(hash);
     assert.equal(p.state.view, view, hash);
@@ -168,6 +168,14 @@ test('web: before the first view is drawn, only #setup opens from the address', 
   assert.deepEqual(p.opened, []);
   assert.equal(p.state.chatId, 'chat-1');
   assert.equal(p.state.selectedRun, 'run-1');
+});
+
+test('web: every view of the page is one the address can name', () => {
+  const html = require('fs').readFileSync(require('path').join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const views = [...new Set([...html.matchAll(/id="view-([a-z]+)"/g)].map((m) => m[1]))];
+  assert.ok(views.length > 10);
+  const p = page();
+  for (const v of views) assert.equal(p.ctx.readRoute(`#${v}`).known, true, v);
 });
 
 test('web: boot reads the address with the same route as the listener', () => {

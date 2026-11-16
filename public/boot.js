@@ -3,7 +3,7 @@
 $('#more-btn').onclick = () => setView('settings');
 // What an address names: its view, the id after it, and a bot's skill (#botsettings/<bot>/skill/<name>). Read at
 // load (below) and on every change of the address, Back and Forward included (#1500).
-const routeViews = () => ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'pages', 'company', 'settings', 'setup', 'connectors'];
+const routeViews = () => ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'storage', 'skills', 'pages', 'company', 'settings', 'setup', 'connectors'];
 function readRoute(hash) {
   const [view, sub, what, skill] = String(hash || '').slice(1).split('/');
   let name;
