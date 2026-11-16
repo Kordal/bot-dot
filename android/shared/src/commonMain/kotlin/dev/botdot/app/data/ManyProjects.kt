@@ -122,7 +122,7 @@ object ManyProjects {
     // ---------- the settings page (#701) ----------
 
     /** New team's bots to pick from: those in no team of [c] first, then the others. */
-    fun newTeamBots(c: Company, bots: List<Bot>): List<Bot> {
+    fun teamCandidates(c: Company, bots: List<Bot>): List<Bot> {
         val inTeam = c.teams.flatMap { it.bots }.toSet()
         return bots.sortedBy { it.id in inTeam }
     }

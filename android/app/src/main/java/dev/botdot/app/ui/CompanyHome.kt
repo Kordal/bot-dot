@@ -542,7 +542,7 @@ private fun NewTeam(ui: CompanyUi, c: Company, addBot: (() -> Unit)? = null) {
         if (addBot != null) Dashed(tr("Add bot"), Modifier.weight(1f).testTag(OWN_ADD), addBot)
     }
     if (picking) {
-        val bots = dev.botdot.app.data.ManyProjects.newTeamBots(c, ui.bots.collectAsState().value.orEmpty())
+        val bots = dev.botdot.app.data.ManyProjects.teamCandidates(c, ui.bots.collectAsState().value.orEmpty())
         BotPicker(tr("New team"), bots, max = 40, action = tr("Create"), hint = { "" }, name = "", onDismiss = { picking = false }) { picked, name ->
             val a = ui.api ?: throw dev.botdot.app.data.ApiException(tr("Can't reach botdot."))
             ui.took(a.newCompanyTeam(name, picked))

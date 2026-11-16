@@ -120,8 +120,8 @@ class ProjectDeskTest {
         with(desk.state.value) {
             assertEquals("Cook", suggested?.name)
             assertEquals("#ff9500", ManyProjects.suggestedColor(project!!, suggested!!), "the colour of the team it would join")
-            assertTrue(newTeam)
-            assertEquals(listOf("b3", "b4", "b1", "b2"), newTeamBots.map { it.id }, "the bots in no team first")
+            assertTrue(addsTeam)
+            assertEquals(listOf("b3", "b4", "b1", "b2"), teamCandidates.map { it.id }, "the bots in no team first")
         }
         assertTrue(desk.answerSuggested(add = true))
         assertEquals("POST", fake.asked().last { it.path == "/company/suggestion/add" }.method)
