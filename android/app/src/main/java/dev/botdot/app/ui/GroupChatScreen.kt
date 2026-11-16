@@ -489,11 +489,12 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                             // members' own lines replace; under what waits already while some do.
                             val sent = vm.sent
                             if (sent != null && vm.working.isEmpty()) { SentBubble(sent, above = true, sentArrives); StatusLine(lineWith("", sent), null, room = true) }
+                            val stoppable = Groups.stoppable(vm.working)
                             vm.working.forEachIndexed { i, w ->
                                 val line = turnLines[w.runId]
                                 StatusLine(workingWords(memberName(bots, w.botId), line, OpeningLine.ofRun(w.workingLine, w.openingLine, app.store.lines.features)), memberColor(bots, w.botId), still = line?.held == true,
                                     onStop = if (i == vm.working.lastIndex) ({ vm.stopAll() }) else null, stopWord = tr("Stop all"),
-                                    onStopOne = if (vm.working.size > 1) ({ vm.stopMember(w.runId) }) else null, stopOneLabel = tr("Stop {name}", "name" to memberName(bots, w.botId)))
+                                    onStopOne = if (w.runId in stoppable) ({ vm.stopMember(w.runId) }) else null, stopOneLabel = tr("Stop {name}", "name" to memberName(bots, w.botId)))
                             }
                             // Who is next: the members whose turn has not come, also between two turns, when no line stands.
                             NextHeads(Groups.heads(next, bots))
