@@ -199,15 +199,20 @@ test('hold-account suspends an account for its move and release-account lets go 
   ask(door, env, 'hold-account', '--account', 'carl');
   ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'suspend');
   assert.ok(data(door).accounts.carl.suspended && !data(door).accounts.carl.held, 'the pause\'s now');
-  assert.equal(ask(door, env, 'release-account', '--account', 'carl').said.changed, false);
-  assert.ok(data(door).accounts.carl.suspended, 'still paused');
+  // Activated again before the move ends: carl, still moving, stays still.
+  assert.ok(!ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume').said.accounts.includes('carl'));
+  assert.ok(data(door).accounts.carl.suspended, 'still still while it moves');
+  assert.equal(ask(door, env, 'release-account', '--account', 'carl').said.changed, true);
+  assert.ok(data(door).accounts.carl.suspended && !data(door).accounts.carl.moving, 'released, and still the pause\'s');
   ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume');
   assert.ok(!data(door).accounts.carl.suspended, 'the resume starts it');
 
   // dora suspended by the admin is held as she is, and a release leaves her suspended.
   assert.equal((await a.post('/admin/accounts/dora/suspend', { name: 'dora' })).status, 200);
-  assert.equal(ask(door, env, 'hold-account', '--account', 'dora').said.changed, false);
-  assert.equal(ask(door, env, 'release-account', '--account', 'dora').said.changed, false);
+  assert.equal(ask(door, env, 'hold-account', '--account', 'dora').said.changed, true, 'moving');
+  assert.ok(!data(door).accounts.dora.held, 'her suspension stays the admin\'s');
+  assert.ok(!ask(door, { ...env, FRONT_DOOR_MANAGED: '1' }, 'resume').said.accounts.includes('dora'), 'not resumed while she moves');
+  assert.equal(ask(door, env, 'release-account', '--account', 'dora').said.changed, true);
   assert.ok(data(door).accounts.dora.suspended, 'still the admin\'s suspension');
   const none = ask(door, env, 'hold-account', '--account', 'eve');
   assert.deepEqual([none.status, none.said.state], [3, 'refused']);
