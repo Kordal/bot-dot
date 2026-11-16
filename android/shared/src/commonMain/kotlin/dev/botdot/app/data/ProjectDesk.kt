@@ -446,7 +446,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
 
     /** The arranged board after a tile was moved or resized ([BoardCanvas.drag]): saved whole, so every app shows the same. */
     @Throws(Exception::class)
-    suspend fun arrange(layout: Map<String, BoardCanvas.R>) { call { it.setLayout(BoardCanvas.raw(layout)) } }
+    suspend fun arrange(layout: Map<String, BoardCanvas.R>): Boolean = call { it.setLayout(BoardCanvas.raw(layout)) }
 
     /** A card's Remove: off the row at once; a refusal puts it back. */
     @Throws(Exception::class)

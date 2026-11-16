@@ -31,6 +31,17 @@ class BoardCanvasTest {
         for (a in l.keys) for (b in l.keys) if (a < b) assertFalse("$a and $b overlap", BoardCanvas.hits(l.getValue(a), l.getValue(b)))
     }
 
+    @Test fun aHeldTileMovesFromItsMiddleAndResizesFromNearItsEdges() {
+        val l = mapOf("goal:a" to R(0, 0, 592, 260), "files" to R(608, 0, 392, 260))
+        assertEquals("goal:a" to null, BoardCanvas.held(l, 300.0, 100.0))
+        assertEquals("goal:a" to "s", BoardCanvas.held(l, 300.0, 250.0))
+        assertEquals("goal:a" to "se", BoardCanvas.held(l, 580.0, 250.0))
+        assertEquals("files" to "w", BoardCanvas.held(l, 615.0, 100.0))
+        assertNull(BoardCanvas.held(l, 1100.0, 100.0))
+        assertNull(BoardCanvas.arranged(listOf(BoardCanvas.FEATURE), null, l.keys.toList()), "never arranged")
+        assertEquals(listOf("goal:a", "files"), BoardCanvas.readOrder(listOf(BoardCanvas.FEATURE), mapOf("files" to listOf(608.0, 0.0, 392.0, 260.0), "goal:a" to listOf(0.0, 0.0, 592.0, 260.0)), l.keys.toList()))
+    }
+
     @Test fun kinds() {
         assertEquals("calendar", BoardCanvas.kindOf("calendar"))
         assertEquals("goal", BoardCanvas.kindOf("goal:o1"))

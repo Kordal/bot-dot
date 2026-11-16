@@ -140,4 +140,15 @@ final class ProjectTests: XCTestCase {
         XCTAssertNil(BoardCanvas.shared.readOrder(f: [], layout: layout, tiles: tiles), "without project-layout")
         XCTAssertNil(BoardCanvas.shared.readOrder(f: [BoardCanvas.shared.FEATURE], layout: nil, tiles: tiles), "never arranged")
     }
+
+    /// On a wide screen: a held tile moves, or resizes from near its edge, and what it would cover slides down.
+    func testAHeldTileMovesOrResizesOnTheSharedCanvas() {
+        let l: [String: BoardCanvas.R] = ["goal:a": BoardCanvas.R(x: 0, y: 0, w: 592, h: 260), "files": BoardCanvas.R(x: 0, y: 276, w: 392, h: 260)]
+        XCTAssertEqual(BoardCanvas.shared.held(layout: l, x: 300, y: 100)?.first, "goal:a")
+        XCTAssertNil(BoardCanvas.shared.held(layout: l, x: 300, y: 100)?.second)
+        XCTAssertEqual(BoardCanvas.shared.held(layout: l, x: 300, y: 250)?.second, "s")
+        let taller = BoardCanvas.shared.drag(layout: l, id: "goal:a", edge: "s", dx: 0, dy: 100)
+        XCTAssertEqual(taller["goal:a"]?.h, 360)
+        XCTAssertGreaterThanOrEqual(taller["files"]?.y ?? 0, 376, "what it would cover slides down")
+    }
 }
