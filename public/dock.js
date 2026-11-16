@@ -48,12 +48,7 @@ const Dock = (() => {
     showBtn?.classList.add('hidden');
     syncHead(false);
   }
-  // Back in a chat opened on a project: the project, not the list (boot.js's Back), before that one hears it.
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest?.('#chat-row [data-back]') || !$('#app').classList.contains('proj-full')) return;
-    e.stopPropagation();
-    setView('company');
-  }, true);
+  // Back in a chat opened on a project is the project, not the list: boot.js's backFromChat (#1507).
 
   // ---------- the chat column of a wide window (#825) ----------
   // Hidden by its head's button: the board takes the whole width until a chat is opened or Show is pressed. Kept per

@@ -1331,6 +1331,7 @@ const BOT_NAMES = ['bot', 'botsettings', 'botjobs']; // the names that come with
 const GROUP_NAMES = ['group', 'groupsettings']; // and those that come with a group's
 const CHAT_VIEWS = ['bot', 'chief', 'group']; // the views that are a chat, with the panel beside them
 const PHONE = '(max-width: 479px)'; // the style's phone width, where the list of bots and a view take turns
+const CHAT_OVER = '(max-width: 1000px)'; // below a wide window: a project's chat is full screen, with no list beside it (dock.js)
 const panelPage = () => Panel.page(state.view, state.panel);
 let covered = false; // the panel is over the chat, as last seen
 let placedChat = null; // the chat show() last put on screen ('group:<id>', chatInView), null for any other view
@@ -1345,10 +1346,15 @@ function setView(v, sub) {
 function setPanel(what) { show(Panel.next(state, { panel: what })); }
 // The bot, or the group, of the open chat is gone: the Chief's chat, without the panel.
 function leaveBot() { show(Panel.next(state, { gone: true })); }
-function writeHash() {
+// over: the view is a chat that came over the project's screen or the list, below a wide window (#1507). It gets an
+// entry of its own in the history, so the browser's Back leaves it as the chat's own Back does (backFromChat).
+function writeHash(over = false) {
   const v = state.view;
   const id = v === 'runs' ? state.selectedRun : v === 'chief' ? state.chatId : v === 'bot' ? state.botId : v === 'group' ? state.groupId : v === 'rooms' ? state.roomId : null;
-  history.replaceState(null, '', `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`);
+  const url = `#${Panel.name(v, state.panel)}${id ? '/' + id : ''}`;
+  // The step stays marked only while a chat is up: a view that is no chat in its place is an ordinary entry.
+  if (over && !history.state?.over) history.pushState({ over: true }, '', url);
+  else history.replaceState(CHAT_VIEWS.includes(v) ? history.state : null, '', url);
 }
 function show({ view: v, panel, via }, fresh = false) {
   if (v !== 'bot') for (const es of state.botStreams.splice(0)) es.close();
@@ -1391,10 +1397,13 @@ function show({ view: v, panel, via }, fresh = false) {
     page.scrollTop = 0;
   }
   $$('.nav-btn[data-view]').forEach((b) => b.classList.toggle('active', b.dataset.view === v));
+  // A chat over the list (phones) or over the project's screen (below a wide window, where the project has no list
+  // beside it) is a step the browser's Back leaves (#1507).
+  const over = CHAT_VIEWS.includes(v) && (onProjectScreen() && matchMedia(CHAT_OVER).matches ? !CHAT_VIEWS.includes(from) : phone && !inMain);
   // Phones: show the conversation instead of the list, coming in over it from the right.
   if (phone && !inMain) { Motion.leave($('.sidebar'), 'm-recede'); Motion.play($('.main'), 'm-push'); }
   $('#app').classList.add('in-main');
-  writeHash();
+  writeHash(over);
   render();
   const hid = covered;
   covered = panelCovers();
@@ -1436,6 +1445,21 @@ function boardIn() {
   const r = view.getBoundingClientRect();
   if (key?.width && r.width) view.style.setProperty('--m-origin', `${key.left + key.width / 2 - r.left}px ${key.top + key.height / 2 - r.top}px`);
   Motion.play(view, 'm-board-in');
+}
+
+// The Projects screen is up: a chat there leaves to the project, as it has no list (#1507).
+const onProjectScreen = () => typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company';
+// A chat's Back (#1507): the step the chat opened as (writeHash), else straight out of it. Going back that step runs
+// leaveChat (boot.js, popstate), so the chat's Back and the browser's do the same.
+function backFromChat() {
+  if (history.state?.over) history.back();
+  else leaveChat();
+}
+// Out of the chat: on the Projects screen to the project (the chat may have opened there in any way: its head, a
+// link, a typed or reloaded address), else to the list.
+function leaveChat() {
+  if (onProjectScreen()) setView('company');
+  else showList();
 }
 
 // Phones: back to the contact list, the conversation going off to the right.

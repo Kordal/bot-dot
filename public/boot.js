@@ -13,7 +13,14 @@ document.addEventListener('click', (e) => { if (e.target.closest('[data-sub-back
 document.addEventListener('click', (e) => { if (e.target.closest('[data-sign-in]')) setView('setup'); }); // the standing line's "Sign in"
 $('#contact-search').oninput = () => { searchChats(); renderContacts(); markSearch(); };
 addEventListener('keydown', onKeypadKey); // the keypad's keys, where it is shown
-document.addEventListener('click', (e) => { if (e.target.closest('[data-back]')) showList(); });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-back]')) return;
+  if (e.target.closest('#chat-row') && CHAT_VIEWS.includes(state.view)) backFromChat(); else showList();
+});
+// The browser's Back from a chat that opened as a step of its own (writeHash): out of the chat, as its Back (#1507).
+addEventListener('popstate', (e) => {
+  if (!e.state?.over && CHAT_VIEWS.includes(state.view) && $('#app').classList.contains('in-main')) leaveChat();
+});
 // A picture in a chat opens big on this page (served as a download, a plain link would save it).
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a.file-image, img.shot');

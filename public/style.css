@@ -3551,7 +3551,7 @@ dialog.co-delete .modal-foot { border-top: 0; }
   .sp-field::before { inset: calc(var(--sp-12) * -1) calc(var(--sp-24) * -1) calc((var(--sp-64) + env(safe-area-inset-bottom)) * -1); background: linear-gradient(transparent, var(--bg) var(--sp-12)); }
   .sp-field::after { inset: 0; border-radius: var(--r-pill); background: var(--raise-2); box-shadow: var(--lift); }
   .app.has-rail.place-company .main { display: flex; flex: 1; width: auto; max-width: none; }
-  .app.proj-full #chat-row .back-btn { display: grid; }
+  .app.proj-full #chat-row .back-btn, .app.has-rail.place-company #chat-row .back-btn { display: grid; }
   .app.has-rail.place-company #chat-row .away-line:not(.hidden), .app.has-rail.place-company #chat-row .claude-line:not(.hidden) { display: block; }
 }
 @media (max-width: 479px) {
