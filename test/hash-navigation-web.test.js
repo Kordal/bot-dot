@@ -8,12 +8,13 @@ const { cut, element } = require('./web-page');
 const PANELS = ['botsettings', 'botjobs', 'chiefsettings', 'groupsettings'];
 
 // The page, its first view drawn (routed) or not yet. opened: each view setView opened, with its id.
-function page(view = 'chief', { routed = true, sub, built = true } = {}) {
+function page(view = 'chief', { routed = true, sub, built = true, panel = null, hash } = {}) {
   const listeners = {};
   const opened = [];
   const drawn = []; // the chats drawn on a page built already
   const els = {}; // the page's elements, one per selector
-  const state = { view, chatId: 'chat-1', selectedRun: 'run-1', botId: null, routed, hash: `#${view}${sub ? '/' + sub : ''}` };
+  const state = { view, panel, chatId: 'chat-1', selectedRun: 'run-1', botId: null, routed, hash: hash || `#${view}${sub ? '/' + sub : ''}` };
+  const panels = []; // what was asked of the panel
   if (view === 'bot') state.botId = sub;
   const location = { hash: state.hash };
   const noop = () => {};
@@ -25,6 +26,7 @@ function page(view = 'chief', { routed = true, sub, built = true } = {}) {
     $: (sel) => (built || !['#chat-thread', '#run-view'].includes(sel) ? (els[sel] ||= element()) : null),
     document: { documentElement: { dataset: {} }, addEventListener: noop },
     showChat: (id) => { state.chatId = id; drawn.push(`chat/${id}`); },
+    setPanel: (what) => { panels.push(what); if (what === 'close') state.panel = null; },
     matchMedia: () => ({ matches: false }), requestAnimationFrame: noop,
     addEventListener: (type, fn) => { listeners[type] = fn; },
     // As app.js: the id goes with its view, and the address then says the view (writeHash).
@@ -41,7 +43,7 @@ function page(view = 'chief', { routed = true, sub, built = true } = {}) {
   vm.runInContext(cut('function openRun(id) {', 'function toolArg('), ctx);
   ctx.getComputedStyle = () => ({ gridTemplateColumns: 'a b' });
   vm.runInContext(cut('// ---------- boot ----------', '(async () => {'), ctx);
-  return { state, opened, drawn, els, ctx, navigate(hash) { location.hash = hash; listeners.hashchange?.(); } };
+  return { state, opened, drawn, els, panels, ctx, navigate(hash) { location.hash = hash; listeners.hashchange?.(); } };
 }
 
 test('web: typing #setup into an open tab opens Setup without a reload', () => {
@@ -120,6 +122,35 @@ test('web: a chat or run named in the address is drawn on a page built already, 
   assert.equal(p.els['#run-view'].dataset.id, '', 'the open run cleared, so renderRuns draws run-2');
   assert.deepEqual(p.opened, ['runs']);
   assert.equal(p.state.selectedRun, 'run-2');
+});
+
+test('web: the Chief\'s settings named with a chat draw that chat on a page built already', () => {
+  const p = page('chief', { sub: 'chat-2' });
+  p.state.chatId = 'chat-2';
+  p.navigate('#chiefsettings/chat-1');
+  assert.deepEqual(p.opened, ['chiefsettings']);
+  assert.deepEqual(p.drawn, ['chat/chat-1'], 'the chat beside the settings is the one messages go to');
+  assert.equal(p.state.chatId, 'chat-1');
+  // The same chat as on screen: nothing drawn again.
+  const same = page('chief', { sub: 'chat-1' });
+  same.navigate('#chiefsettings/chat-1');
+  assert.deepEqual(same.drawn, []);
+});
+
+test('web: Back from a panel\'s address to its chat closes the panel', () => {
+  for (const [view, hash, back] of [['bot', '#botsettings/b1', '#bot/b1'], ['chief', '#chiefsettings/chat-1', '#chief'], ['group', '#groupsettings/g1', '#group/g1']]) {
+    const p = page(view, { sub: view === 'chief' ? undefined : hash.split('/')[1], panel: 'settings', hash });
+    p.navigate(back);
+    assert.deepEqual(p.panels, ['close'], back);
+    assert.equal(p.state.panel, null, back);
+  }
+  // No panel open, or no chat named: the panel is left alone.
+  let p = page('bot', { sub: 'b1' });
+  p.navigate('#chief');
+  assert.deepEqual(p.panels, []);
+  p = page('bot', { sub: 'b1', panel: 'settings', hash: '#botsettings/b1' });
+  p.navigate('#runs');
+  assert.deepEqual(p.panels, []);
 });
 
 test('web: the address the page wrote itself, an unknown one, a document and a room invite change nothing', () => {

@@ -27,10 +27,17 @@ addEventListener('hashchange', () => {
   const route = readRoute(hash);
   if (!route.known || (route.view === 'rooms' && String(route.sub || '').startsWith('join='))) return;
   // A chat or a run is drawn by the functions that open it: its page may be built already, showing another one.
-  if (route.view === 'chief' && route.sub) return openChiefChat(route.sub);
-  if (route.view === 'runs' && route.sub) return openRun(route.sub);
-  selectRoute(route);
-  setView(route.view, routeSub(route));
+  if (route.view === 'chief' && route.sub) openChiefChat(route.sub);
+  else if (route.view === 'runs' && route.sub) openRun(route.sub);
+  else {
+    const built = !!$('#chat-thread'), was = state.chatId;
+    selectRoute(route);
+    setView(route.view, routeSub(route));
+    // The Chief's settings with a chat of their own: that chat is drawn beside them too.
+    if (route.view === 'chiefsettings' && route.sub && built && route.sub !== was) showChat(route.sub);
+  }
+  // A chat named alone (Back from its panel's address): the panel closes, so the address stays what was asked.
+  if (['bot', 'chief', 'group'].includes(route.view) && state.panel) setPanel('close');
 });
 $('#feedback-btn').onclick = () => openFeedback();
 initSideGrip();
