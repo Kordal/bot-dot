@@ -75,6 +75,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
+import dev.botdot.app.data.BotNames
 import dev.botdot.app.data.FilePaths
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.delay
@@ -160,7 +161,7 @@ internal fun sitesShown(features: List<String>?) = features?.contains("site-icon
  *  [copy]: a Copy button on each code block (#285); none in a reply still being written (its code may be cut short)
  *  or on a tile (a tap runs the tile), as on the web page. */
 @Composable
-fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true) {
+fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier: Modifier = Modifier, onWeb: String? = LocalChatOnWeb.current, paths: PathActions? = LocalPathActions.current, copy: Boolean = true, bots: BotLinks? = LocalBotLinks.current) {
     val p = LocalPaper.current
     val sites = LocalSiteIcons.current
     val cards = LocalProductCards.current
@@ -168,9 +169,9 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
     // Each block styled once (and again only when the searched words or the colours change), not on every redraw of
     // the chat: a reply draft that grows with each draft the server sends restyles only its last block, and the blocks
     // before it, the same objects as before, are skipped when the chat draws again.
-    val made = remember(terms, color, p, paths, sites, cards) { HashMap<Block, StyledBlock>() }
+    val made = remember(terms, color, p, paths, sites, cards, bots) { HashMap<Block, StyledBlock>() }
     val blocks = remember(text, made) {
-        parseBlocks(text).map { b -> made.getOrPut(b) { styledBlock(b, color, p, paths, sites, cards) } }
+        parseBlocks(text).map { b -> made.getOrPut(b) { styledBlock(b, color, p, paths, sites, cards, bots) } }
             .also { shown -> made.keys.retainAll(shown.mapTo(HashSet()) { it.block }) }
     }
     QuotableSelection(modifier) { // selectable, with Quote in its menu inside a chat (QuoteUi.kt)
@@ -183,13 +184,13 @@ fun MarkdownText(text: String, color: Color = LocalPaper.current.text, modifier:
 /** A block of a reply with its styled text: its text, or its cells for a table, the site icons in them and its cards. */
 internal class StyledBlock(val block: Block, val text: List<AnnotatedString>, val icons: Map<String, InlineTextContent>, val products: List<Product>?)
 
-private fun styledBlock(b: Block, color: Color, p: Paper, paths: PathActions?, sites: Boolean, cards: Boolean): StyledBlock {
+private fun styledBlock(b: Block, color: Color, p: Paper, paths: PathActions?, sites: Boolean, cards: Boolean, bots: BotLinks?): StyledBlock {
     val text = when (b) {
-        is Block.Heading -> listOf(inline(b.text, color, p, paths, sites))
-        is Block.Para -> listOf(inline(b.text, color, p, paths, sites))
-        is Block.Item -> listOf(inline(b.text, color, p, paths, sites))
-        is Block.Quote -> listOf(inline(b.text, color, p, paths, sites))
-        is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths, sites) } }
+        is Block.Heading -> listOf(inline(b.text, color, p, paths, sites, bots))
+        is Block.Para -> listOf(inline(b.text, color, p, paths, sites, bots))
+        is Block.Item -> listOf(inline(b.text, color, p, paths, sites, bots))
+        is Block.Quote -> listOf(inline(b.text, color, p, paths, sites, bots))
+        is Block.Table -> b.rows.flatMap { row -> row.map { inline(it, color, p, paths, sites, bots) } }
         else -> emptyList()
     }
     // Shopping results as product cards (Products.kt, #685), from a server that has them; else their code.
@@ -355,20 +356,32 @@ internal fun numericColumns(rows: List<List<String>>): BooleanArray {
 
 /** Link plain chat text, each address shown as its site ([linkLabel]), keeping the rest of its characters, mentions
  *  and search marks; with [sites], each link has its site's icon before it ([siteIcon]). */
-internal fun linkedChatText(source: AnnotatedString, color: Color, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
+internal fun linkedChatText(source: AnnotatedString, color: Color, sites: Boolean = false, bots: BotLinks? = null, botColor: Color = color): AnnotatedString = buildAnnotatedString {
     val styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
     var at = 0
     chatLinks(source.text).forEach { link ->
         val end = link.start + link.text.length
         if (source.getLinkAnnotations(link.start, end).isNotEmpty()) return@forEach
-        append(source.subSequence(at, link.start))
+        appendWithBots(source.subSequence(at, link.start), bots, botColor)
         if (sites) siteIcon(link.url)
         val start = length
         append(linkLabel(link.text))
         addLink(LinkAnnotation.Url(link.url, styles), start, length)
         at = end
     }
-    append(source.subSequence(at, source.length))
+    appendWithBots(source.subSequence(at, source.length), bots, botColor)
+}
+
+/** [text], each bot's name in it a link that opens that bot's chat ([BotNames]), in [color]. */
+private fun AnnotatedString.Builder.appendWithBots(text: AnnotatedString, bots: BotLinks?, color: Color) {
+    if (bots == null || bots.bots.isEmpty()) { append(text); return }
+    var at = 0
+    for (f in BotNames.find(text.text, bots.bots)) {
+        append(text.subSequence(at, f.start))
+        withLink(LinkAnnotation.Clickable(f.id, TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)), { bots.open(f.id) })) { append(text.subSequence(f.start, f.start + f.text.length)) }
+        at = f.start + f.text.length
+    }
+    append(text.subSequence(at, text.length))
 }
 
 /** The host botdot is asked for a link's icon, or null for one it would refuse (an IP address, a local name): the
@@ -408,7 +421,7 @@ private fun SiteIcon(host: String) {
     }
 }
 
-private fun inline(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false): AnnotatedString = SearchMarks.mark(inlineText(s, color, p, paths, sites))
+private fun inline(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false, bots: BotLinks? = null): AnnotatedString = SearchMarks.mark(inlineText(s, color, p, paths, sites, bots))
 
 /** A file path as a link: blue, a tap opens it, and tagged for [pathLongPress]. */
 private fun AnnotatedString.Builder.pathLink(path: String, p: Paper, paths: PathActions, content: AnnotatedString.Builder.() -> Unit) {
@@ -418,17 +431,17 @@ private fun AnnotatedString.Builder.pathLink(path: String, p: Paper, paths: Path
 }
 
 /** Plain text with its web addresses linked and, with [paths], its file paths. */
-private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathActions?, sites: Boolean): AnnotatedString {
-    if (paths == null) return linkedChatText(AnnotatedString(s), color, sites)
+private fun linkedReplyText(s: String, color: Color, p: Paper, paths: PathActions?, sites: Boolean, bots: BotLinks?): AnnotatedString {
+    if (paths == null) return linkedChatText(AnnotatedString(s), color, sites, bots, p.mention)
     return buildAnnotatedString {
         var at = 0
         for (f in filePathsIn(s)) {
-            append(linkedChatText(AnnotatedString(s.substring(at, f.start)), color, sites))
+            append(linkedChatText(AnnotatedString(s.substring(at, f.start)), color, sites, bots, p.mention))
             appendInlineContent(FILE_ICON, " ")
             pathLink(f.text, p, paths) { append(f.text) }
             at = f.start + f.text.length
         }
-        append(linkedChatText(AnnotatedString(s.substring(at)), color, sites))
+        append(linkedChatText(AnnotatedString(s.substring(at)), color, sites, bots, p.mention))
     }
 }
 
@@ -437,14 +450,14 @@ internal fun previewText(s: String, color: Color, p: Paper, sites: Boolean = fal
     previewLines(s).forEachIndexed { i, line -> if (i > 0) append("\n"); append(inlineText(line, color, p, sites = sites)) }
 }
 
-internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false): AnnotatedString = buildAnnotatedString {
+internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? = null, sites: Boolean = false, bots: BotLinks? = null): AnnotatedString = buildAnnotatedString {
     val links = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline))
     var at = 0
     for (m in INLINE.findAll(s)) {
-        append(linkedReplyText(s.substring(at, m.range.first), color, p, paths, sites))
+        append(linkedReplyText(s.substring(at, m.range.first), color, p, paths, sites, bots))
         val g = m.groupValues
         when {
-            g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p, paths, sites)) }
+            g[1].isNotEmpty() || g[2].isNotEmpty() -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(inlineText(g[1].ifEmpty { g[2] }, color, p, paths, sites, bots)) }
             g[3].isNotEmpty() && paths != null && FilePaths.isPath(g[4]) -> pathLink(g[4], p, paths) {
                 withStyle(SpanStyle(fontFamily = GeistMono, background = p.sunk, fontSize = Type.s14)) { append(g[4]) }
             }
@@ -457,10 +470,10 @@ internal fun inlineText(s: String, color: Color, p: Paper, paths: PathActions? =
                 } else append(g[5])
             }
             g[7].isNotEmpty() -> append(linkedChatText(AnnotatedString(g[7]), color, sites))
-            g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p, paths, sites)) }
-            g[10].isNotEmpty() -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(inlineText(g[10], color, p, paths, sites)) }
+            g[8].isNotEmpty() || g[9].isNotEmpty() -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(inlineText(g[8].ifEmpty { g[9] }, color, p, paths, sites, bots)) }
+            g[10].isNotEmpty() -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) { append(inlineText(g[10], color, p, paths, sites, bots)) }
         }
         at = m.range.last + 1
     }
-    append(linkedReplyText(s.substring(at), color, p, paths, sites))
+    append(linkedReplyText(s.substring(at), color, p, paths, sites, bots))
 }

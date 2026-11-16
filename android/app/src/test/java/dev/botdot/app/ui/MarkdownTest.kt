@@ -1,10 +1,12 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.BotNames
 import dev.botdot.app.data.without
 import dev.botdot.app.markdown.draftSource
 import dev.botdot.app.markdown.parseBlocks
 import dev.botdot.app.markdown.Block
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import kotlinx.serialization.json.Json
@@ -73,6 +75,20 @@ class MarkdownTest {
         assertEquals("struck both ~~code~~ ~~open ~one~ ~~ spaced ~~", s.text)
         val struck = s.spanStyles.filter { it.item.textDecoration == TextDecoration.LineThrough }.map { s.text.substring(it.start, it.end) }
         assertEquals(listOf("struck", "both"), struck)
+    }
+
+    @Test fun aBotsNameInAReplyIsALinkToItsChat() {
+        // The cases of the name finder are test/fixtures/bot-names.json (BotNamesTest); here a name is linked, in bold too, never in `code`.
+        var opened: String? = null
+        val bots = BotLinks(listOf(BotNames.Bot("qa", "QA Tester")), { opened = it })
+        val s = inlineText("W czacie **QA Testera** naciśnij `QA Tester`, QA Tester.", Color.White, DarkPaper, bots = bots)
+        assertEquals("W czacie QA Testera naciśnij QA Tester, QA Tester.", s.text)
+        val links = s.getLinkAnnotations(0, s.length)
+        assertEquals(listOf("QA Testera", "QA Tester"), links.map { s.text.substring(it.start, it.end) })
+        val link = links.first().item as LinkAnnotation.Clickable
+        link.linkInteractionListener?.onClick(link)
+        assertEquals("qa", opened)
+        assertTrue(inlineText("QA Tester", Color.White, DarkPaper).getLinkAnnotations(0, 9).isEmpty())
     }
 
     @Test fun aSubItemsTextStartsRightOfItsParentsText() {

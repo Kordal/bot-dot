@@ -996,21 +996,34 @@ function linkifyChat(root) {
     if (parent?.closest('.chat-thread .bubble, .po-text') &&
         !parent.closest('a, code, pre, button, .mention, .diagram')) nodes.push(node);
   }
+  const bots = nodes.length ? namedBots() : [];
   for (const node of nodes) {
     const text = node.textContent;
+    const parent = node.parentElement;
+    // A bot's name is a link in what a bot or the Chief wrote, not in the owner's own message, in the project
+    // overview (whose rows are links) or in a shared room, and not to the bot whose chat it is.
+    const own = parent.closest('#bot-thread') ? state.botId : parent.closest('#chat-thread') ? Mentions.CHIEF : null;
+    const named = parent.closest('.chat-thread .bubble:not(.from-me)') && !parent.closest('#room-thread') ? bots.filter((b) => b.id !== own) : [];
     const fragment = document.createDocumentFragment();
     let at = 0;
-    for (const { index, text: url, href } of chatLinks(text)) {
+    for (const { index, text: found, href, id } of chatLinkParts(text, named)) {
       fragment.append(document.createTextNode(text.slice(at, index)));
       const link = document.createElement('a');
-      link.href = href;
-      link.className = 'web-link';
-      link.textContent = linkLabel(url);
-      link.title = href;
-      link.target = '_blank';
-      link.rel = 'noopener noreferrer';
+      if (id) {
+        link.href = id === Mentions.CHIEF ? '#chief' : `#bot/${encodeURIComponent(id)}`;
+        link.className = 'bot-link';
+        link.dataset.botLink = id;
+        link.textContent = found;
+      } else {
+        link.href = href;
+        link.className = 'web-link';
+        link.textContent = linkLabel(found);
+        link.title = href;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      }
       fragment.append(link);
-      at = index + url.length;
+      at = index + found.length;
     }
     if (at) {
       fragment.append(document.createTextNode(text.slice(at)));
@@ -1018,6 +1031,46 @@ function linkifyChat(root) {
     }
   }
 }
+// A bot's name in a message is a link to its chat (test/fixtures/bot-names.json, shared with the Android app): the
+// name as written, or declined by one of the endings Polish gives it (QA Testera, QA Testerowi), case as the name has
+// it, longest name first, as a whole word. A name two bots share is nobody's. A bot that is gone is plain text.
+const BOT_NAME_ENDINGS = 'owi|ami|ach|em|om|ów|ie|ze|a|u|y|i|e|ę|ą';
+const botNameRes = new Map();
+// The names in a text: where each starts, the text of the name and its ending, and the id of the bot. bots: { id, name }.
+function botNameLinks(text, bots) {
+  const ids = new Map();
+  for (const b of bots) {
+    const name = String(b.name ?? '').trim();
+    if (name.length >= 2) ids.set(name, ids.has(name) && ids.get(name) !== b.id ? null : b.id);
+  }
+  const names = [...ids].filter(([, id]) => id).map(([n]) => n).sort((a, b) => b.length - a.length);
+  if (!names.length) return [];
+  const key = names.join('\u0000');
+  if (!botNameRes.has(key)) {
+    if (botNameRes.size > 16) botNameRes.clear();
+    botNameRes.set(key, new RegExp(`(?<![\\p{L}\\p{N}_@/-])(${names.map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?:${BOT_NAME_ENDINGS})?(?![\\p{L}\\p{N}_])`, 'gu'));
+  }
+  return [...text.matchAll(botNameRes.get(key))].map((m) => ({ index: m.index, text: m[0], id: ids.get(m[1]) }));
+}
+// The bots a message can name: the ones there are, and the Chief by the name the owner gave it (not by its role).
+const namedBots = () => [...(chiefName() === CHIEF_ROLE ? [] : [CHIEF_BOT]), ...state.bots].map(({ id, name }) => ({ id, name }));
+// The links in a chat text, in order: web addresses (chatLinks) and bot names (botNameLinks), no name inside an address.
+function chatLinkParts(text, bots) {
+  const web = chatLinks(text);
+  const named = bots.length ? botNameLinks(text, bots).filter((b) => !web.some((w) => b.index < w.index + w.text.length && w.index < b.index + b.text.length)) : [];
+  return [...web, ...named].sort((x, y) => x.index - y.index);
+}
+// A tap on a bot's name opens its chat: where the Chief is, the Chief's.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a.bot-link');
+  if (!a) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = a.dataset.botLink;
+  if (id === Mentions.CHIEF) setView('chief');
+  else if (botById(id)) setView('bot', id);
+}, true);
+
 // A site's icon before each web link in a reply (#530, ADR 086), from botdot (/api/favicon), never from the site: a
 // grey globe where botdot keeps none. Only from a server whose `features` name `site-icons`.
 const GLOBE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg>';
