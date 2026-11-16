@@ -284,11 +284,15 @@ function boardLine() {
   const edit = canHome() ? `<button type="button" class="kp-board-edit" data-home-edit aria-label="${tr('Tiles on home')}">${PEN}</button>` : '';
   return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="${tr('Board')}">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>${edit}`;
 }
+// A folded note that has more to it fades out at the bottom, as on the Board (#1502). Measured again whenever its
+// line changes size, so a note drawn while its line was hidden (the other layout's, or home behind a chat) fades once shown.
+const fadeNotes = (el) => $$('.tile-note.folded', el).forEach((n) => n.classList.toggle('more', n.scrollHeight > n.clientHeight + 2));
+const boardLineSize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((es) => es.forEach((e) => fadeNotes(e.target)));
 // The Board's line drawn in `el`: the keypad's, or a phone's.
 function drawBoardLine(el) {
   if (!drawHTML(el, boardLine())) return; // as it stands, wired already
-  // A folded note that has more to it fades out at the bottom, as on the Board.
-  $$('.tile-note.folded', el).forEach((n) => n.classList.toggle('more', n.scrollHeight > n.clientHeight + 2));
+  fadeNotes(el);
+  boardLineSize?.observe(el); // once per element: observing it again changes nothing
   $$('[data-board]', el).forEach((b) => {
     let timer = null, long = false, x0 = 0, y0 = 0;
     const cancel = () => clearTimeout(timer);

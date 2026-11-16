@@ -273,6 +273,27 @@ test('web: a note tile on home shows its text under its title, folded as on the 
   assert.match(css, /\.kp-card\.kp-note \{ grid-column: 1 \/ -1; \}/, 'the whole row on a narrow keypad and a phone');
 });
 
+test('web: a folded note on home fades when its line is shown, also when it was drawn hidden (#1502)', () => {
+  const src = cut('// A folded note that has more to it fades out', '// The Chief of Staff\'s key');
+  const observed = [];
+  let onSize = null;
+  const note = { scrollHeight: 0, clientHeight: 0, cls: new Set(), classList: { toggle(c, on) { if (on) note.cls.add(c); else note.cls.delete(c); } } };
+  const line = { innerHTML: '' };
+  const ctx = vm.createContext({
+    ResizeObserver: class { constructor(f) { onSize = f; } observe(el) { observed.push(el); } },
+    $$: (sel, root) => (sel === '.tile-note.folded' && root === line ? [note] : []),
+    drawHTML: (el, h) => { if (el.innerHTML === h) return false; el.innerHTML = h; return true; },
+    boardLine: () => '<div class="kp-board-line"></div>', canHome: () => false,
+  });
+  vm.runInContext(`${src}; this.drawBoardLine = drawBoardLine;`, ctx);
+  ctx.drawBoardLine(line);
+  assert.equal(note.cls.has('more'), false, 'hidden: nothing to measure, no fade');
+  assert.deepEqual(observed, [line], 'its line is watched for its size');
+  Object.assign(note, { scrollHeight: 120, clientHeight: 63 });
+  onSize([{ target: line }]);
+  assert.equal(note.cls.has('more'), true, 'shown: the long note fades at the bottom');
+});
+
 test('web: past nine keys, across the pages, the rest have no number', () => {
   const many = Array.from({ length: 11 }, (_, i) => ({ id: `b${i}`, name: `Bot ${String(i + 1).padStart(2, '0')}`, color: '#378add', state: 'idle', group: i < 6 ? 'Home' : 'Work', order: i + 1 }));
   const p = page({ bots: many, groups: [] });
