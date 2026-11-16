@@ -261,13 +261,16 @@ function keyHTML(x, i, section = null, digit = 0) {
 }
 // A tile in the strip over the keys (#397): the block kit's kpi with the tile's title over its first number (a value, a
 // kpi, a bar or a gauge on its face) and that block's sparkline or bar beside it (#635); a switch says On or Off, any
-// other tile its dot. Live: it is drawn again whenever the Board is read or a value arrives on the feed.
+// other tile its dot. A note with no number shows its text under its title, folded with a fade as on the Board (#1502).
+// Live: it is drawn again whenever the Board is read or a value arrives on the feed.
 function stripKpi(t) {
   const find = (list) => { for (const b of list || []) { if (['kpi', 'value', 'progress', 'gauge'].includes(b.type)) return b; const y = b.blocks && find(b.blocks); if (y) return y; } return null; };
   const b = find(t.look?.face);
   const c = tintOf(b?.color, t);
   const num = b ? { text: b.text || '', unit: b.type === 'kpi' || b.type === 'value' ? b.unit : '', of: b.of, points: b.points, ratio: b.ratio } : t.look?.short ? { text: t.look.short } : null;
   if (!num && t.kind === 'page' && t.at) return `<span class="kp-card">${kitKpi({ label: t.title, text: pageAge(t.at) }, c)}</span>`; // a page without a number: its age (#451)
+  const note = !num && (t.look?.face || []).find((x) => x.type === 'text' && x.markdown && x.text);
+  if (note) return `<span class="kp-card kp-note"><div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="tile-note md folded small" style="--lines:${note.lines || 3}">${md(note.text)}</div></div></div></span>`;
   const dot = t.look?.dot;
   const card = num ? kitKpi({ label: t.title, ...num }, c)
     : `<div class="kit-kpi"><div class="kit-kpi-main"><div class="kit-label">${esc(t.title)}</div><div class="kit-num kp-card-dot">${tileMark(t)}${dot && dot.big ? `<span>${dot.filled === true ? tr('On') : dot.filled === false ? tr('Off') : '·'}</span>` : ''}</div></div></div>`;
@@ -281,9 +284,15 @@ function boardLine() {
   const edit = canHome() ? `<button type="button" class="kp-board-edit" data-home-edit aria-label="${tr('Tiles on home')}">${PEN}</button>` : '';
   return `<div class="kp-board-line ${state.view === 'dashboard' ? 'active' : ''}" role="button" tabindex="0" data-board title="${tr('Board')}">${boardTiles().map(stripKpi).join('') || BOARD_EMPTY}</div>${edit}`;
 }
+// A folded note that has more to it fades out at the bottom, as on the Board (#1502). Measured again whenever its
+// line changes size, so a note drawn while its line was hidden (the other layout's, or home behind a chat) fades once shown.
+const fadeNotes = (el) => $$('.tile-note.folded', el).forEach((n) => n.classList.toggle('more', n.scrollHeight > n.clientHeight + 2));
+const boardLineSize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((es) => es.forEach((e) => fadeNotes(e.target)));
 // The Board's line drawn in `el`: the keypad's, or a phone's.
 function drawBoardLine(el) {
   if (!drawHTML(el, boardLine())) return; // as it stands, wired already
+  fadeNotes(el);
+  boardLineSize?.observe(el); // once per element: observing it again changes nothing
   $$('[data-board]', el).forEach((b) => {
     let timer = null, long = false, x0 = 0, y0 = 0;
     const cancel = () => clearTimeout(timer);
