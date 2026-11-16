@@ -643,12 +643,18 @@ function groupLimitHTML(limit) {
   const text = typeof limit?.text === 'string' ? limit.text.trim() : '';
   return limit ? `<div class="g-limit" role="status"><span>${esc(text || tr('The group stopped.'))}</span><button type="button" class="btn sm" data-go-on>${tr('Go on')}</button></div>` : '';
 }
+// Stop for one member's run, a small square before "Stop all": only where several members work (one alone is
+// ended by "Stop all"). It ends that run alone: the others go on, and its line goes on with the next member.
+const STOP_MEMBER_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>';
 function groupWorkingHTML(working) {
   const lines = working.map((w, i) => {
     const said = turnLines.get(w.runId) || {};
     const held = said.held === true; // its run waits for the owner's OK
     const doing = held ? OpeningLine.WAITING : OpeningLine.text(said.text) || OpeningLine.ofRun(w, state.features) || tr('Working');
-    return `<div class="status-line${held ? ' held' : ''}" role="status" style="--c:${Unread.tint(memberColor(w.botId))}"><i></i><span><b>${esc(memberName(w.botId))}</b> · ${esc(doing)}</span>${i === working.length - 1 ? `<button type="button" data-stop-all>${tr('Stop all')}</button>` : ''}</div>`;
+    const name = memberName(w.botId);
+    const stopLabel = esc(tr('Stop {name}', { name }));
+    const one = working.length > 1 ? `<button type="button" class="stop-one" data-stop-member="${esc(w.runId)}" aria-label="${stopLabel}" title="${stopLabel}">${STOP_MEMBER_ICON}</button>` : '';
+    return `<div class="status-line${held ? ' held' : ''}" role="status" style="--c:${Unread.tint(memberColor(w.botId))}"><i></i><span><b>${esc(name)}</b> · ${esc(doing)}</span>${one}${i === working.length - 1 ? `<button type="button" data-stop-all>${tr('Stop all')}</button>` : ''}</div>`;
   });
   return lines.length ? `<div class="g-working">${lines.join('')}</div>` : '';
 }
@@ -903,6 +909,7 @@ function drawGroupTail(g, chat) {
   if (mine) arrive($('[data-sent]', tail));
   const stop = $('[data-stop-all]', tail);
   if (stop) stop.onclick = () => stopGroup(g.id, stop);
+  $$('[data-stop-member]', tail).forEach((b) => (b.onclick = () => stopMember(g.id, b.dataset.stopMember, b)));
   const on = $('[data-go-on]', tail);
   if (on) on.onclick = () => goOnGroup(g.id, on);
   $$('[data-steer]', tail).forEach((b) => (b.onclick = () => steerInGroup(g.id, b.dataset.steer, b)));
@@ -961,6 +968,14 @@ async function sendToGroup(id, text, attachments = [], key = messageKey()) {
 async function stopGroup(id, button) {
   if (button) button.disabled = true;
   try { await api(`/group-chats/${encodeURIComponent(id)}/stop`, { method: 'POST' }); toast(tr('Stopping…')); }
+  catch (e) { toast(e.message, true); if (button) button.disabled = false; }
+  loadGroupChat(id);
+}
+// Stop on one member's working line: that run ends (the one-run Stop of a bot's chat), the others at work go on, and
+// its line goes on with the next member. The chat is read again, as after "Stop all".
+async function stopMember(id, runId, button) {
+  if (button) button.disabled = true;
+  try { await api(`/runs/${encodeURIComponent(runId)}/stop`, { method: 'POST' }); toast(tr('Stopping…')); }
   catch (e) { toast(e.message, true); if (button) button.disabled = false; }
   loadGroupChat(id);
 }
