@@ -40,7 +40,7 @@ class CalendarDeskTest {
         suspend fun asked(): List<Asked> = lock.withLock { took.toList() }
     }
 
-    private val today = LocalDate(2026, 11, 18) // a Wednesday
+    private var today = LocalDate(2026, 11, 18) // a Wednesday
     private val project = """{"id":"p1","name":"Kitchen","phase":"running","teams":[{"id":"t1","name":"Crew","bots":["b1"]}]}"""
     private val items = """{"items":[{"kind":"event","id":"e1","day":"2026-11-18","time":"09:00","title":"Standup"},
         {"kind":"job","day":"2026-11-19","title":"Digest","bot":"b1","runs":2},{"kind":"checkin","day":"2026-11-20","n":30},
@@ -117,5 +117,43 @@ class CalendarDeskTest {
         desk.shut()
         until("shut") { desk.state.value.month == null }
         assertNull(desk.state.value.picked)
+    }
+
+    @Test fun pastMidnightTheTileReadsAgainAndLightsTheNewDay() = runTest {
+        val fake = FakeBotdot { a -> if (a.path == "/company/calendar") 200 to items else 200 to project }
+        val (_, desk) = desk(fake)
+        until("the tile read") { desk.state.value.next.isNotEmpty() }
+        val reads = fake.asked().count { it.path == "/company/calendar" }
+        assertTrue(desk.state.value.week[2].today)
+        today = LocalDate(2026, 11, 19)
+        advanceTimeBy(CalendarDesk.TICK_MS + 1)
+        until("the new day") { desk.state.value.today == "2026-11-19" }
+        assertTrue(desk.state.value.week[3].today, "Thursday lit now")
+        assertTrue(desk.state.value.week[2].past)
+        until("read again") { fake.asked().count { it.path == "/company/calendar" } > reads }
+        assertEquals(listOf("Digest", "Day 30 check-in"), desk.state.value.next.map(ProjectCalendar::titleOf), "yesterday's event is past")
+    }
+
+    @Test fun anEventGoneWhileItWasBeingChangedIsAddedNotChanged() = runTest {
+        var gone = false
+        val fake = FakeBotdot { a ->
+            when {
+                a.path == "/company/calendar" -> 200 to if (gone) """{"items":[]}""" else items
+                else -> 200 to project
+            }
+        }
+        val (store, desk) = desk(fake)
+        desk.open("2026-11-18")
+        until("the month") { desk.state.value.pickedItems.isNotEmpty() }
+        desk.edit("e1")
+        until("editing") { desk.state.value.editing?.id == "e1" }
+        // Deleted elsewhere: the project changes, the month is read again without it.
+        gone = true
+        store.company.set(CompanyHeld(CompanySetup.of(project.dropLast(1) + ""","day":13}""")))
+        until("it went") { desk.state.value.pickedItems.isEmpty() }
+        assertNull(desk.state.value.editing, "the form adds again")
+        assertTrue(desk.save("Standup", "0900", null))
+        assertTrue(fake.asked().none { it.path == "/company/events/e1" }, "nothing changed on an event that is gone")
+        assertEquals("POST", fake.asked().last { it.path == "/company/events" }.method)
     }
 }

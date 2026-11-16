@@ -61,19 +61,18 @@ struct CalendarTileView: View {
 
 /// The words the calendar draws in the phone's language.
 enum CalendarWords {
-    private static let iso: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current; return f }()
 
     static func weekday(_ d: Int32) -> String { Calendar.current.shortWeekdaySymbols[Int(d) % 7] }
 
     /// "Mon 3", or with [long] "Mon, 3 Nov".
     static func day(_ day: String, long: Bool) -> String {
-        guard let d = iso.date(from: day) else { return day }
+        guard let d = ISODay.date(day) else { return day }
         return long ? d.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) : d.formatted(.dateTime.weekday(.abbreviated).day())
     }
 
     /// "November 2026".
     static func month(_ ym: String) -> String {
-        guard let d = iso.date(from: ym + "-01") else { return ym }
+        guard let d = ISODay.date(ym + "-01") else { return ym }
         return d.formatted(.dateTime.month(.wide).year())
     }
 }
@@ -186,7 +185,6 @@ private struct EventForm: View {
     @State private var title = ""
     @State private var time = ""
     @State private var moveTo: Date?
-    private static let iso: DateFormatter = { let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; f.timeZone = .current; return f }()
 
     var body: some View {
         let ready = !title.trimmingCharacters(in: .whitespaces).isEmpty && ProjectCalendar.shared.time(typed: time) != nil && !busy
@@ -211,13 +209,13 @@ private struct EventForm: View {
         .onChange(of: event?.id, initial: true) {
             title = event?.title ?? ""
             time = event?.time ?? ""
-            moveTo = event.flatMap { Self.iso.date(from: $0.day) }
+            moveTo = event.flatMap { ISODay.date($0.day) }
         }
     }
 
     private func go(_ ready: Bool) {
         guard ready else { return }
-        let move = moveTo.map { Self.iso.string(from: $0) }
+        let move = moveTo.map { ISODay.string($0) }
         Task { if (try? await desk.save(title: title, typedTime: time, moveTo: move))?.boolValue == true { title = ""; time = "" } }
     }
 }

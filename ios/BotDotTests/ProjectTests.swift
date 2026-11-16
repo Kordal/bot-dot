@@ -147,8 +147,7 @@ final class ProjectTests: XCTestCase {
         let bots = [Api.companion.JSON.decodeFromString(deserializer: Bot.companion.serializer(), string: #"{"id":"a","name":"Ada","running":true}"#) as! Bot]
         let panel = ProjectTodo.shared.panel(c: c, bots: bots, waiting: [], filter: "all", features: [ProjectTodo.shared.FEATURE])
         XCTAssertEqual(panel.rows.map { TodoWords.chip($0) }, ["Daily", "Working"])
-        let day = DateFormatter(); day.dateFormat = "yyyy-MM-dd"; day.timeZone = .current
-        XCTAssertEqual(TodoWords.day(day.string(from: .now)), "Today")
+        XCTAssertEqual(TodoWords.day(ISODay.string(.now)), "Today")
         XCTAssertEqual(TodoWords.filter("bots"), "Bots")
     }
 
@@ -179,5 +178,17 @@ final class ProjectTests: XCTestCase {
         XCTAssertEqual(BoardCanvas.shared.zoomIn(z: 9), 4)
         XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).first?.doubleValue, -800)
         XCTAssertEqual(BoardCanvas.shared.panIn(z: 2, w: 800, h: 600, x: -2000, y: 10).second?.doubleValue, 0)
+    }
+
+    /// botdot's days read the same on any calendar the phone is set to: POSIX and Gregorian, not the phone's own.
+    func testADayReadsTheSameOnABuddhistCalendar() {
+        XCTAssertEqual(ISODay.formatter.calendar.identifier, .gregorian)
+        XCTAssertEqual(ISODay.formatter.locale.identifier, "en_US_POSIX")
+        let d = ISODay.date("2026-11-16")
+        XCTAssertNotNil(d)
+        XCTAssertEqual(Calendar(identifier: .gregorian).component(.year, from: d!), 2026)
+        XCTAssertEqual(ISODay.string(d!), "2026-11-16")
+        var buddhist = Calendar(identifier: .buddhist); buddhist.timeZone = .current
+        XCTAssertEqual(buddhist.component(.year, from: d!), 2569, "the same day, in a Buddhist year")
     }
 }

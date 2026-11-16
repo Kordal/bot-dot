@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
@@ -44,7 +45,8 @@ class CalendarState(
 
 /**
  * The project's calendar for both phones (#695; Android's CalendarTile and MonthSheet): what it shows is asked of
- * `GET /api/company/calendar` again whenever the project, its bots' jobs or the day change ([ProjectCalendar.sourceKey]);
+ * `GET /api/company/calendar` again whenever the project, its bots' jobs or the day change ([ProjectCalendar.sourceKey]; the
+ * day is looked at every [TICK_MS]);
  * the month adds, changes, moves and deletes the owner's events. [close] stops it.
  */
 class CalendarDesk(private val store: Store, private val api: Api, private val scope: CoroutineScope, private val now: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) }) {
@@ -59,13 +61,27 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
     val state: StateFlow<CalendarState> = _state
     private val jobs = mutableListOf<Job>()
 
+    /** The day as last seen: a new one (past midnight) reads the tile again and lights the new today ([TICK_MS]). */
+    private val day = MutableStateFlow(now())
+
     init {
         jobs += scope.launch {
-            combine(store.company.value, store.bots.value) { c, b -> c?.company?.let { it to b.orEmpty() } }
-                .distinctUntilChanged { a, b -> a?.let { (c, bots) -> ProjectCalendar.sourceKey(c, bots, now().toString()) } == b?.let { (c, bots) -> ProjectCalendar.sourceKey(c, bots, now().toString()) } }
+            while (true) {
+                delay(TICK_MS)
+                now().let { if (it != day.value) day.value = it }
+            }
+        }
+        jobs += scope.launch {
+            combine(store.company.value, store.bots.value, day) { c, b, d -> c?.company?.let { ProjectCalendar.sourceKey(it, b.orEmpty(), d.toString()) } }
+                .distinctUntilChanged()
                 .collect { if (it != null) { readTile(); readMonth() } }
         }
-        jobs += scope.launch { combine(local, store.bots.value) { l, b -> l to b.orEmpty() }.collect { (l, b) -> _state.value = stateOf(l, b) } }
+        jobs += scope.launch { combine(local, store.bots.value, day) { l, b, _ -> l to b.orEmpty() }.collect { (l, b) -> _state.value = stateOf(l, b) } }
+    }
+
+    companion object {
+        /** How often the desk looks whether the day changed. */
+        const val TICK_MS = 60_000L
     }
 
     /** Calls [onChange] with the calendar now and after every change, until the returned job is cancelled. */
@@ -74,7 +90,7 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
     fun close() { jobs.forEach { it.cancel() } }
 
     private fun stateOf(l: Local, bots: List<Bot>): CalendarState {
-        val today = now()
+        val today = day.value
         val t = today.toString()
         fun cell(d: LocalDate, items: Map<String, List<CalendarItem>>, out: Boolean) = CalendarDay(d.toString(), d.day, d.dayOfWeek.isoDayNumber % 7, d == today, d < today, out,
             items[d.toString()].orEmpty().take(ProjectCalendar.IN_DAY).map { ProjectCalendar.colorOf(it, bots) })
@@ -95,7 +111,7 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
     }
 
     private suspend fun readTile() {
-        val from = ProjectCalendar.monday(now())
+        val from = ProjectCalendar.monday(day.value)
         try { local.update { it.copy(tile = api.projectCalendar(from.toString(), from.plus(13, DateTimeUnit.DAY).toString())) } } catch (e: CancellationException) { throw e } catch (_: Exception) {}
     }
 
@@ -104,7 +120,8 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
         val cells = ProjectCalendar.month(m)
         try {
             val items = api.projectCalendar(cells.first().toString(), cells.last().toString())
-            local.update { if (it.month == m) it.copy(monthItems = items) else it }
+            // An event being changed that is gone now (deleted or moved elsewhere): the form adds again.
+            local.update { l -> if (l.month != m) l else l.copy(monthItems = items, editing = l.editing?.takeIf { id -> items.any { it.kind == "event" && it.id == id && it.day == l.picked } }) }
         } catch (e: CancellationException) { throw e } catch (e: Exception) { say(e.message) }
     }
 
@@ -112,7 +129,7 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
 
     /** The tile or one of its days tapped: the month on [day]. */
     fun open(day: String) {
-        val d = runCatching { LocalDate.parse(day) }.getOrNull() ?: now()
+        val d = runCatching { LocalDate.parse(day) }.getOrNull() ?: this.day.value
         local.update { it.copy(month = d.yearMonth, monthItems = emptyList(), picked = d.toString(), editing = null) }
         scope.launch { readMonth() }
     }
@@ -152,7 +169,8 @@ class CalendarDesk(private val store: Store, private val api: Api, private val s
         val hhmm = ProjectCalendar.time(typedTime) ?: return false
         if (t.isEmpty() || l.busy) return false
         local.update { it.copy(busy = true) }
-        val id = _state.value.editing?.id
+        // The event being changed as the desk holds it, and only while it is still the picked day's.
+        val id = l.editing?.takeIf { e -> l.monthItems.any { it.kind == "event" && it.id == e && it.day == day } }
         return try {
             store.tookProject(if (id != null) api.changeEvent(id, t, moveTo ?: day, hhmm) else api.addEvent(t, day, hhmm))
             local.update { it.copy(editing = null) }
