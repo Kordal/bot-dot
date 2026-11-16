@@ -190,4 +190,10 @@ test('hold-account suspends an account for its move and release-account lets go 
   assert.ok(data(door).accounts.dora.suspended, 'still the admin\'s suspension');
   const none = ask(door, env, 'hold-account', '--account', 'eve');
   assert.deepEqual([none.status, none.said.state], [3, 'refused']);
+  // With a boat.dev key, the held account's machines there couldn't be removed at its delete: none is held.
+  fs.writeFileSync(path.join(door.data, 'boat.json'), JSON.stringify({ key: 'boat_goodkey12345' }));
+  const boat = ask(door, env, 'hold-account', '--account', 'carl');
+  assert.deepEqual([boat.status, boat.said.state], [3, 'refused']);
+  assert.match(boat.said.error, /boat\.dev key/);
+  assert.ok(!data(door).accounts.carl.suspended);
 });

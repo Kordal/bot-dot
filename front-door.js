@@ -255,6 +255,9 @@ if (process.argv[2] === 'hold-account' || process.argv[2] === 'release-account')
   const account = at > 0 ? process.argv[at + 1] ?? '' : '';
   try {
     if (!store.ACCOUNT_NAME.test(account)) throw Object.assign(new Error(store.NAME_RULE), { status: 400 });
+    // A held account's botdot server is stopped, so the delete at the move's end couldn't remove its boat.dev machines
+    // (eraseBoat): on a machine with a boat.dev key no account is held. A managed machine has none.
+    if (on && !ONE_ACCOUNT && boatStore.open(DATA).shown().keySet) throw Object.assign(new Error('This machine has a boat.dev key, and an account moved off it would leave its boat.dev machines behind: remove the key first.'), { status: 409 });
     const changed = doors.holdAccount(account, on);
     if (changed) audited(on ? 'suspend' : 'resume', { actor: 'console', account, detail: 'move' });
     console.log(JSON.stringify({ state: on ? 'held' : 'released', account, changed }));
