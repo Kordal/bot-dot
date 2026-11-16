@@ -77,6 +77,36 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(Storage.shared.size(bytes: 1_500_000), "1.5 MB")
         XCTAssertTrue(Storage.shared.shows(features: ["storage"]))
     }
+    /// Storage's Ask the Chief: the shared question, and a new Chief chat that starts with it in its box.
+    func testStorageAsksTheChiefInANewChat() {
+        let h = home()
+        let model = StorageModel(home: h)
+        let place = Storage.Place(bot: UploadedFiles.shared.CHIEF, root: nil, project: nil, gone: false)
+        let r = StorageRow(key: "k", name: "reports", owner: nil, bytes: 1_500_000, dir: true, files: 3, opens: false, into: "reports",
+                           `where`: Storage.Where(place: place, path: "reports"), share: 1)
+        XCTAssertEqual(h.askChief(desk: model.desk, r: r), "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        let inbox = QuoteInbox()
+        XCTAssertNil(inbox.filled)
+        inbox.fill("What is reports?")
+        XCTAssertEqual(inbox.filled?.text, "What is reports?")
+        XCTAssertEqual(inbox.filled?.count, 1)
+    }
+
+    /// The new Chief chat Ask the Chief opens: the box gets the words once. Back in the chat after a chip (the box
+    /// shown again), what was typed over them stays; a new Ask comes in again.
+    @MainActor
+    func testTheAskedWordsGoInTheBoxOnceAndAnEditStays() {
+        let chief = ChiefModel(home: home())
+        chief.open(nil)
+        XCTAssertNil(chief.takeFilled(), "nothing asked yet")
+        chief.fill("What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        XCTAssertEqual(chief.filled?.text, "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?")
+        XCTAssertEqual(chief.takeFilled(), "What is reports (1.5 MB) in Chief of Staff’s files, and can it go?", "the box takes them")
+        XCTAssertNil(chief.takeFilled(), "shown again: the owner's edit isn't overwritten")
+        chief.fill("What is uploads?")
+        XCTAssertEqual(chief.takeFilled(), "What is uploads?", "a new Ask comes in")
+        chief.stop()
+    }
     /// Settings → Skills: the shared SkillsDesk and words reach Swift.
     func testSkillsAreTheSharedDeskAndWords() {
         let model = SkillsModel(home: home())
@@ -132,5 +162,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertFalse(desk.state.value.canGo)
         XCTAssertEqual(Duplicate.shared.made(name: "Coder 2"), "Coder 2 made")
         XCTAssertTrue(Duplicate.shared.shows(features: ["duplicate-bot"]))
+    }
+
+    /// The Chief's settings open its files in Files only from a botdot that has both (FilesExplorer.opensFor).
+    func testTheChiefsFilesOpenInFilesWithBothFeatures() {
+        XCTAssertTrue(FilesExplorer.shared.opensFor(ownerId: UploadedFiles.shared.CHIEF, features: [UploadedFiles.shared.CHIEF_FEATURE, FilesExplorer.shared.FEATURE]))
+        XCTAssertFalse(FilesExplorer.shared.opensFor(ownerId: UploadedFiles.shared.CHIEF, features: [FilesExplorer.shared.FEATURE]))
     }
 }

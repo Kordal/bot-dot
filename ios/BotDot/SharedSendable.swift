@@ -94,3 +94,5 @@ extension Repeat: @retroactive @unchecked Sendable {}
 extension BoardCanvas.R: @retroactive @unchecked Sendable {}
 extension GoogleDocs: @retroactive @unchecked Sendable {}
 extension GoogleDocs.Done: @retroactive @unchecked Sendable {}
+extension CalendarDesk: @retroactive @unchecked Sendable {}
+extension CalendarState: @retroactive @unchecked Sendable {}

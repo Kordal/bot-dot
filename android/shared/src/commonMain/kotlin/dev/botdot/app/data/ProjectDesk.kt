@@ -142,6 +142,8 @@ class ProjectState(
     val needsYou: NeedsYou? = null,
     val overviewTop: List<String> = emptyList(),
     val replies: Boolean = false,
+    /** The calendar tile (#695, `project-calendar` and the board's "calendar" piece). */
+    val calendar: Boolean = false,
     /** The board's "teams" piece: the bot the Chief suggests (Add or dismiss), and New team. */
     val suggested: Suggested? = null,
     val addsTeam: Boolean = false,
@@ -323,6 +325,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             needsYou = needsYou,
             overviewTop = if (board) listOf("work", "blockers").filter(::on) else emptyList(),
             replies = board && on("replies"),
+            calendar = c != null && ProjectCalendar.FEATURE in f && on("calendar"),
             suggested = c?.suggestion?.takeIf { on("teams") },
             addsTeam = on("teams"),
             teamCandidates = if (c != null && on("teams")) ManyProjects.teamCandidates(c, bots) else emptyList(),

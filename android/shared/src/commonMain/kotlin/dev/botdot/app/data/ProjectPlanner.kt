@@ -205,6 +205,29 @@ object ProjectCalendar {
     /** What is still to come from [now]: open items only, today's first, in the server's order. */
     fun next(items: List<CalendarItem>, now: String, n: Int = NEXT): List<CalendarItem> = items.filter { it.day >= now && !it.done }.take(n)
 
+    /** A check-in's dot is gold, the project's own accent otherwise. */
+    const val CHECKIN_COLOR = "#f5c542"
+    const val PROJECT_COLOR = "#8e7cff"
+
+    /** The colour of an item's dot: its bot's, a check-in's gold, else the project's accent. */
+    fun colorOf(x: CalendarItem, bots: List<Bot>): String {
+        val id = if (x.kind == "event") x.by else x.bot
+        return bots.firstOrNull { it.id == id }?.color ?: if (x.kind == "checkin") CHECKIN_COLOR else PROJECT_COLOR
+    }
+
+    /** What an item is called: a check-in by its day (an ongoing project's is its monthly review), anything else by its title. */
+    fun titleOf(x: CalendarItem): String = if (x.kind == "checkin") (if (x.monthly) tr("Monthly review") else tr("Day {n} check-in", "n" to (x.n ?: 0))) else x.title
+
+    /** Its line in the tile's list, as the owner reads it: its time today, Tomorrow; null for a later day (the phone names it). */
+    fun whenOf(x: CalendarItem, today: String): String? = when (x.day) {
+        today -> x.time ?: tr("Today")
+        runCatching { LocalDate.parse(today).plus(1, DateTimeUnit.DAY).toString() }.getOrNull() -> tr("Tomorrow")
+        else -> null
+    }
+
+    /** It repeats, or it is a job that runs more than once that day: a repeat mark beside it. */
+    fun repeats(x: CalendarItem): Boolean = x.repeat != null || (x.runs ?: 0) > 1
+
     /** Only events are the owner's to change here: a to-do, a check-in and a job have their own places. */
     fun editable(x: CalendarItem): Boolean = x.kind == "event"
 

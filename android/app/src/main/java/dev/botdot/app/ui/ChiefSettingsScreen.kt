@@ -154,7 +154,7 @@ fun ChiefSettingsScreen(app: BotDotApp, onChat: (String) -> Unit, onFiles: () ->
             }
             // Its files and workspace (#383), as a bot's: what you attached in its chats, and every file in its folder.
             // In Files (#603), full screen, from a server that has it.
-            if (UploadedFiles.chiefShows(server?.features) && dev.botdot.app.data.FilesExplorer.shows(server?.features)) FilesLink(onFiles)
+            if (dev.botdot.app.data.FilesExplorer.opensFor(UploadedFiles.CHIEF, server?.features)) FilesLink(onFiles)
             else if (UploadedFiles.chiefShows(server?.features)) {
                 val viewer = DocumentView.shows(server?.features)
                 FilesSection(api, UploadedFiles.CHIEF, LocalChiefName.current, viewer,
