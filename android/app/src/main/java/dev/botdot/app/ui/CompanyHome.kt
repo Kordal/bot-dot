@@ -179,9 +179,10 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
             })
         }
         if (!overview && !one) rows()
-        // Needs you as a tile: its cards, and the questions bots and the Chief ask in this project's chats, only when something waits.
+        // Needs you: its cards, and the questions bots and the Chief ask in this project's chats, only when something waits,
+        // and then always, first, above the arranged tiles (ADR 252).
         val boardNeeds by ui.app.store.needs.value.collectAsState()
-        val needsYou = if (one && on("needs")) dev.botdot.app.data.Overviews.needsYou(c, here, boardNeeds, feed?.snapshot?.questions().orEmpty()) else null
+        val needsYou = if (one) dev.botdot.app.data.Overviews.needsYou(c, here, boardNeeds, feed?.snapshot?.questions().orEmpty()) else null
         val needsTile = needsYou != null
         val needsBox: @Composable (Modifier) -> Unit = { m ->
             Column(m.fillMaxWidth().raised(Radius.card).padding(Space.s16), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
@@ -208,14 +209,15 @@ internal fun CompanyHome(ui: CompanyUi, c: Company, ways: CompanyWays, overview:
         // The owner's arrangement (#784): every tile where it was put, on a canvas scaled to the screen.
         if (canvas && (saved != null || started)) {
             val cards = rememberCards(ui, c)
+            // Needs you is never an arranged tile: always first, above them (ADR 252).
+            if (needsTile) needsBox(Modifier)
             // Which tiles the board has, in the order they take free spots, is the shared BoardCanvas.tiles (both phones).
             val slots = if (dev.botdot.app.data.ProjectCards.shows(features, c)) cards.slots() else null
             val slotOf = slots.orEmpty().associateBy { cards.tileOf(it) }
-            val ids = BoardCanvas.tiles(features, c, needsTile, one, slots, filesAt != null)
+            val ids = BoardCanvas.tiles(features, c, false, one, slots, filesAt != null)
                 .filterNot { it.startsWith("goal:") && it.removePrefix("goal:") in ui.removingGoals }
             val tiles = ids.mapNotNull { id ->
                 when {
-                    id == "needs" -> Tile(id) { m, _ -> needsBox(m) }
                     id == "work" || id == "blockers" || id == "replies" -> feed?.let { f -> Tile(id) { m, _ -> OverviewTile(id, f, bots, openEntry, m) } }
                     id == "days" -> if (on("days")) c.day?.let { day -> Tile(id) { m, _ -> Column(m, verticalArrangement = Arrangement.spacedBy(Space.s12)) { DaysLine(c, day); c.checkin?.let { CheckinCard(ui, it, ways, c.name.ifBlank { c.start }) } } } }
                         // An ongoing project's monthly review (#925) stands where the 90-day line would.

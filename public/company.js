@@ -368,7 +368,8 @@ const Company = (() => {
   // The teams are no piece on the web since #838: each team is a row of keys under the board, always (ADR 132).
   // What was the overview (ADR 245) is four more, from a server with `overview-board`.
   const PIECES = ['days', 'goals', 'calendar', 'todo', 'files'];
-  const OVERVIEW = ['needs', 'work', 'blockers', 'replies'];
+  // Needs you is none of them to add or hide: it shows first whenever something waits (ADR 252).
+  const OVERVIEW = ['work', 'blockers', 'replies'];
   const piecesNow = () => [...PIECES, ...((state.features || []).includes('overview-board') ? OVERVIEW : [])];
   // An ongoing project (#925) has no 90 days, so no "90 days" piece.
   const piecesOf = (c) => (c?.ongoing ? piecesNow().filter((k) => k !== 'days') : piecesNow());

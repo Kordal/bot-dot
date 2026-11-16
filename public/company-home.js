@@ -468,13 +468,12 @@
   let teamFor = null;
   Company.steps.homeClosed = () => { boardFor = null; teamFor = null; Company.steps.settingsClosed?.(); };
   // Needs you as a board tile (overview-board, ADR 245): the cards and the questions waiting in this project, only
-  // when something waits.
+  // when something waits, and then always, first: what waits for the owner is never hidden from the page (ADR 252).
   function needsTileHTML(c) {
-    if (!Company.onBoard(c, 'needs')) return '';
     const items = projectNeeds(c);
     ProjectOverview.refresh(c); // Needs you alone on the board still reads the snapshot its questions come from
     const questions = ProjectOverview.questions(c, items);
-    return items.length || questions.length ? `<section class="cf-ov" data-cf-ov="needs"><h2>${tr('Needs you')}</h2>${ProjectOverview.rows(questions)}${needsHTML(c, items)}</section>` : '';
+    return items.length || questions.length ? `<section class="cf-ov cf-needs" data-cf-needs><h2>${tr('Needs you')}</h2>${ProjectOverview.rows(questions)}${needsHTML(c, items)}</section>` : '';
   }
   function overviewHome(root, c) {
     const items = projectNeeds(c);

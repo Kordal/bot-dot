@@ -15,11 +15,11 @@ test('android: a chat draws the login, payment and Bitwarden cards of Needs you,
   assert.match(chat, /CardRequest\(r, who\.takeIf \{ shown \},/);
   assert.match(chat, /BitwardenCard\(bw, null, unlockError\) \{ pw -> api\?\.let \{ app\.unlockBitwarden\(it, pw\) \} \}/);
   assert.doesNotMatch(chat, /tr\("Add it"\)/);
-  assert.match(screen, /fun ChatNeeds\(app: BotDotApp, scope: String\) \{/);
+  assert.match(screen, /fun ChatNeeds\(app: BotDotApp, scope: String, only: Set<String>\? = null, except: Set<String> = emptySet\(\)\) \{/);
 });
 
 test('android: a locked Bitwarden stands in the chat of the bot that waits for it only', () => {
-  assert.match(chat, /val bwHere = locked && !chief && group == null && bw\?\.wantedBy\?\.id == scope/);
+  assert.match(chat, /val bwHere = locked && only == null && !chief && group == null && bw\?\.wantedBy\?\.id == scope/);
 });
 
 test('android: while a password can be typed in a chat, the window is out of screenshots, as on Needs you', () => {

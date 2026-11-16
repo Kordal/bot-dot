@@ -674,15 +674,51 @@ function toHeldCard(thread, botId) {
   return true;
 }
 
+// ---------- a card under the message that names it (ADR 252) ----------
+
+// The cards a message names (`cards`: ids of asks and login requests, docs/api.md "A card in the chat"): a place under
+// it that updateChatNeeds fills with each card that still waits.
+function inlineCardsHTML(m) {
+  const ids = Array.isArray(m?.cards) ? m.cards.filter((id) => typeof id === 'string' && /^[0-9a-f]{8}$/i.test(id)) : [];
+  return ids.length ? `<div class="inline-needs" data-card-refs="${esc(ids.join(' '))}"></div>` : '';
+}
+const inlineDone = new Map(); // a card's key -> its faded card, answered under its message: it stays there, faded
+// Fills the places under the messages of `thread` with the cards they name: a card once, under the newest message
+// that names it. Returns the keys drawn, which the cards at the end of the chat then leave out.
+function drawInlineCards(thread, here) {
+  const shown = new Set();
+  const places = $$('[data-card-refs]', thread);
+  if (!places.length) return shown;
+  const byId = new Map();
+  for (const x of needsItems()) {
+    if (x.kind === 'ask') byId.set(x.a.id, x);
+    else if (x.kind === 'login' || x.kind === 'pay') byId.set(x.r.id, x);
+  }
+  const byKey = new Map([...byId.values()].map((x) => [x.key, x]));
+  const keyOf = (id) => byId.get(id)?.key || [`ask:${id}`, `req:${id}`].find((k) => inlineDone.has(k)) || null;
+  for (const place of [...places].reverse()) {
+    const keys = place.dataset.cardRefs.split(' ').map(keyOf).filter((k) => k && !shown.has(k));
+    keys.forEach((k) => shown.add(k));
+    const items = keys.map((k) => byKey.get(k)).filter(Boolean);
+    const sig = JSON.stringify(keys.map((k) => [k, inlineDone.has(k), byKey.has(k) ? needLive(byKey.get(k), here) : null]));
+    if (place.dataset.sig === sig) continue;
+    place.dataset.sig = sig;
+    place.innerHTML = keys.map((k) => inlineDone.get(k) || needCardHTML(byKey.get(k), here)).join('');
+    wireNeedCards(place, items);
+  }
+  return shown;
+}
+
 // Put the cards (and what you decided here) at the end of a chat thread; scope: a bot's id, 'chief' or "group:<id>".
 function updateChatNeeds(thread, scope) {
   if (!thread) return;
   for (const [k, d] of chatDecided) if (d.scope !== scope) chatDecided.delete(k); // you left that chat
   for (const [k, d] of answeredAway) if (d.scope === scope) { chatDecided.set(k, d); answeredAway.delete(k); } // answered on the Needs you page
-  const items = chatNeeds(scope);
   // Whose messages these are: the Chief's chats share their cards, and one says "in this chat" only in its own;
   // a group's cards do not repeat the group's name.
   const here = scope === 'chief' ? thread.dataset.chat || null : String(scope).startsWith('group:') ? scope : null;
+  const inline = drawInlineCards(thread, here); // a card a message names stands under it, not again at the end
+  const items = chatNeeds(scope).filter((x) => !inline.has(x.key));
   const done = [...chatDecided.values()];
   let box = $('.chat-needs', thread);
   if (!box) { box = document.createElement('div'); box.className = 'chat-needs'; }
@@ -768,6 +804,7 @@ function markAnswered(x, yes, always, answer, chats) {
     el.classList.add('done');
     $('.need-actions', el).innerHTML = `<span class="muted">${esc(label)}</span>`; // the server's words are text
     $('.need-until', el)?.remove(); // and so is "until you answer"
+    if (el.closest('.inline-needs')) { inlineDone.set(x.key, el.outerHTML); return; } // under its message, faded
     const chat = el.closest('.chat-needs');
     if (chat) chatDecided.set(`${chat.dataset.scope} ${x.key}`, { scope: chat.dataset.scope, title: $('.need-title', el).textContent, label }); // a tool's card is in two chats
     else { needsDone.set(x.key, el.outerHTML); away = $('.need-title', el).textContent; }

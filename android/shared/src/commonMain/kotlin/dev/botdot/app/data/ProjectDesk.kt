@@ -301,7 +301,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
         }
         val ownBots = ProjectBots.FEATURE in f
         val board = c != null && ProjectOverview.BOARD in f
-        val needsYou = if (board && c != null && on("needs")) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null
+        val needsYou = if (board && c != null) Overviews.needsYou(c, here, needs, x.recorded.snapshot?.questions().orEmpty()) else null
         val cards = if (c != null && ProjectCards.shows(features, c)) ProjectCards.slots(c.cards, x.open?.takeIf { it == ProjectCards.NEW || c.cards.any { k -> k.id == it } }, x.closing, x.removing) else null
         val filesTile = c != null && ProjectFiles.FEATURE in f && on(ProjectFiles.PIECE) && c.phase == "running" && c.folder != null
         return ProjectState(
@@ -331,7 +331,7 @@ class ProjectDesk(private val store: Store, private val api: Api, private val sc
             teamCandidates = if (c != null && on("teams")) ManyProjects.teamCandidates(c, bots) else emptyList(),
             todo = if (c != null && on("todo")) ProjectTodo.panel(c, bots, here, x.todoFilter, features) else null,
             adding = x.adding,
-            canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, needsYou != null, board, cards, filesTile)) },
+            canvas = c?.let { BoardCanvas.arranged(f, it.layout, BoardCanvas.tiles(f, it, false, board, cards, filesTile)) },
             logins = c != null && ProjectLogins.FEATURE in f,
             tidying = x.tidying,
             chief = c != null && ManyProjects.CHIEF in f,

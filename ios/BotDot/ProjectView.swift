@@ -260,6 +260,8 @@ struct ProjectPage: View {
     @ViewBuilder
     private func page(_ s: ProjectState, _ c: Company) -> some View {
         if let canvas = s.canvas, size == .regular {
+            // Needs you is never an arranged tile: always first, above them (ADR 252).
+            tile("needs", s, c)
             // The board as the owner arranged it (#784), on a wide screen: the canvas itself, its tiles moved and resized there.
             BoardCanvasView(places: canvas, tile: { id in tile(id, s, c) }, onArrange: { await model.arrange($0) })
                 .listRowSeparator(.hidden)
@@ -268,7 +270,8 @@ struct ProjectPage: View {
             }
         } else if let order = s.order {
             // The board as the owner arranged it on the canvas (#784): on a phone, its tiles in the canvas's reading
-            // order (ADR 147); a tile this phone doesn't draw yet is left out.
+            // order (ADR 147); a tile this phone doesn't draw yet is left out. Needs you first, above them (ADR 252).
+            tile("needs", s, c)
             ForEach(order, id: \.self) { id in tile(id, s, c) }
             if s.teamsOnBoard {
                 TeamKeysView(model: model, state: s, figure: figure, unfolded: $unfolded, routes: routes)

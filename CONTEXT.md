@@ -75,7 +75,7 @@ Everything waiting for the user's OK (jobs, permissions, skills, installed tools
 _Avoid_: inbox, approvals, pending
 
 **Card**:
-One thing waiting in Needs you, with its buttons: drawn in Needs you and at the end of the chat it was asked in. The server's own word for most of them is an ask.
+One thing waiting in Needs you, with its buttons: drawn in Needs you and at the end of the chat it was asked in, or under the message of a bot or the Chief that names it (ADR 252). The server's own word for most of them is an ask.
 _Avoid_: request, prompt, approval
 
 **Carry on**:

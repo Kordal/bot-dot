@@ -549,6 +549,7 @@ function groupReplyHTML(r, asks = null) {
       <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
       ${groupAskedHTML(r)}
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${globalThis.Plan && r.plan ? Plan.replyHTML(r.plan) : ''}</div>
+      ${failed ? '' : globalThis.inlineCardsHTML?.(r) || ''}
       ${learnedChips(r)}
       <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
       ${open ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}

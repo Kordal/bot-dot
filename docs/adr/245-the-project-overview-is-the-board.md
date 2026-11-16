@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-11-15, the owner approved merging the overview into the board)
 - **Changes:** The fixed overview of ADR 236 and its Board entry; keeps Team as the secondary entry of ADR 238 and the board's canvas of ADR 124.
+- **Changed by:** [ADR 252](252-a-card-stands-in-the-chat-that-names-it.md): Needs you is no tile to hide; it stands first whenever something waits.
 
 ## Context
 
