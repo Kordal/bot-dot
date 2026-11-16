@@ -245,6 +245,48 @@ if (process.argv[2] === 'suspend' || process.argv[2] === 'resume') {
   console.log(JSON.stringify({ state: suspend ? 'suspended' : 'resumed', accounts: changed }));
   process.exit(0);
 }
+// An account moved between machines by the fleet console through root's step (ADR 253). `import-account --account
+// NAME --record FILE` makes NAME here, with no passkey, from what FILE (the other machine's front-door.json, from its
+// off-site backup) kept of it, before root's step puts its data back: refused when the name is taken, on a machine of
+// one account unless it is that one and the machine has none yet, and on a managed machine without room for its share.
+// `delete-account --account NAME` deletes NAME as the admin page does, once it runs on its new machine. Each says one
+// line of JSON, { state: 'imported' | 'deleted', account } or { state: 'refused', account?, error }, and is an audit
+// entry by the console.
+if (process.argv[2] === 'import-account' || process.argv[2] === 'delete-account') {
+  const importing = process.argv[2] === 'import-account';
+  const arg = (flag) => { const at = process.argv.indexOf(flag); return at > 0 ? process.argv[at + 1] ?? '' : ''; };
+  const account = arg('--account');
+  const named = store.ACCOUNT_NAME.test(account) ? account : undefined;
+  const refused = (error) => {
+    audited('console-refused', { actor: 'console', account: named, detail: `${importing ? 'import' : 'delete'} · ${error}` });
+    console.log(JSON.stringify({ state: 'refused', ...(named ? { account: named } : {}), error }));
+    process.exit(3);
+  };
+  if (!named) refused(store.NAME_RULE);
+  try {
+    if (importing) {
+      const others = doors.listAccounts();
+      if (ONE_ACCOUNT && (account !== ONE_ACCOUNT || others.length)) refused(`This machine holds one account, ${ONE_ACCOUNT}, and takes no other.`);
+      if (MANAGED && !ONE_ACCOUNT) {
+        const machine = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process.env.FRONT_DOOR_LOAD) : null).machine();
+        if (capacity.roomByShares(machine, others.map((a) => a.share), doors.defaultShare()) === 0) refused(`This machine has no room for another account's share.`);
+      }
+      let record = {};
+      try { record = JSON.parse(fs.readFileSync(arg('--record'), 'utf8')).accounts?.[account] || {}; } catch { /* none kept: made as new */ }
+      doors.importAccount(account, record);
+      audited('import', { actor: 'console', account });
+      console.log(JSON.stringify({ state: 'imported', account }));
+    } else {
+      doors.deleteAccount(account, Date.now(), doors.userIdOf(account));
+      audited('delete', { actor: 'console', account });
+      console.log(JSON.stringify({ state: 'deleted', account }));
+    }
+    process.exit(0);
+  } catch (e) {
+    if (!e.status) throw e;
+    refused(e.message);
+  }
+}
 const SOCKETS = process.env.FRONT_DOOR_SOCKETS ? path.resolve(process.env.FRONT_DOOR_SOCKETS) : null;
 if (!SOCKETS) {
   console.error("Set FRONT_DOOR_SOCKETS to the folder of the accounts' botdot servers' sockets.");

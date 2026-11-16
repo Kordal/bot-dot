@@ -57,6 +57,9 @@
 # ("A link asked by root alone", below), which only root and the front door read, and nowhere else.
 # REVOKE-SIGN-UP-<account> cancels every open sign-up link made for that account (#1279): status/revoke-sign-up-<account>.json.
 #
+# One account moves between machines (ADR 253), root's alone too: IMPORT-<account> makes it here from another machine's
+# off-site backup, and DELETE-<account> deletes it from the one it left (below, "An account moved to this machine").
+#
 # The fleet console pauses the whole machine with SUSPEND and starts it again with RESUME, root's alone too: every
 # account suspended or resumed in the front door's data, then made to match, as status/suspend.json says.
 #
@@ -713,8 +716,9 @@ offsite_restic() {
   die "Couldn't download restic $RESTIC_VERSION with its checksum ($or_why), and this machine has no restic of 0.17 or newer."
 }
 # r ARG…: restic on the off-site repository, signing in with OFFSITE's key, and never asking.
+# R_PASSWORD names another password file for OFFSITE_REPO: another machine's repository, read by an account's import.
 r() {
-  RESTIC_REPOSITORY="$OFFSITE_REPO" RESTIC_PASSWORD_FILE="$OFFSITE/password" RESTIC_CACHE_DIR="$OFFSITE/cache" \
+  RESTIC_REPOSITORY="$OFFSITE_REPO" RESTIC_PASSWORD_FILE="${R_PASSWORD:-$OFFSITE/password}" RESTIC_CACHE_DIR="$OFFSITE/cache" \
     "$RESTIC" -o "sftp.args=-i $OFFSITE/ssh_key -o IdentitiesOnly=yes -o UserKnownHostsFile=$OFFSITE/known_hosts -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ServerAliveInterval=60" "$@" </dev/null
 }
 # offsite_why FILE…: the last thing restic or tar said of a failure in FILE…, as plain text.
@@ -3964,6 +3968,265 @@ revoke_request() {
   rm -f "$rr_err"
 }
 
+# An account moved to this machine from another (ADR 253), root's alone: IMPORT-<account>, whose lines are the other
+# machine's instance, its off-site repository (none: this machine's own), that repository's restic password and, for a
+# Storage Box, the sub-account's password once, to put this machine's key there. Root's step finds that machine's latest
+# off-site backup, restores the account's parts and the front door's data with `restic restore --verify` into
+# IMPORT_SCRATCH, checked as an off-site restore checks them (the same version, each part's size), has the front door
+# make the account with what the other one kept of it (no passkey: its owner signs in with a sign-in link), and puts
+# its data back as a set's account. The folder goes however it ends, and an account made here by a failed import is
+# deleted again. It holds the off-site lock. How it went is in status/import-<account>.json: state (importing,
+# imported, refused or failed), at, account, instance, phase (download, front-door, account), snapshot once found, and
+# error. The request is removed as soon as it is read.
+IMPORT=IMPORT-
+IMPORT_SCRATCH="$DIR/account-import"
+# import_said STATE [FIELDS]: status/import-<IM_NAME>.json.
+import_said() { write_status "import-$IM_NAME.json" "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"account\":\"$IM_NAME\"${IM_FROM:+,\"instance\":\"$IM_FROM\"}${IM_SNAP:+,\"snapshot\":\"$IM_SNAP\"}${2:+,$2}}"; }
+# import_fetch: the account IM_NAME's parts of the latest off-site backup of the machine IM_FROM in IMPORT_SCRATCH, as
+# a set's, with the other front door's data in IMPORT_SCRATCH/front-door.json.
+import_fetch() {
+  im_meta="$IMPORT_SCRATCH/.offsite"
+  rm -rf -- "$IMPORT_SCRATCH"
+  mkdir -p "$im_meta"
+  chown 0:0 "$IMPORT_SCRATCH"
+  chmod 700 "$IMPORT_SCRATCH"
+  r snapshots --json --host "$IM_FROM" --tag "instance=$IM_FROM,part=manifest" --latest 1 > "$im_meta/snapshots" 2> "$im_meta/err" \
+    || die "Couldn't list the off-site backups: $(offsite_why "$im_meta/err")"
+  im_id="$({ grep -o '"id":"[0-9a-f]\{64\}"' "$im_meta/snapshots" || true; } | cut -d'"' -f4 | tail -n 1)"
+  [ -n "$im_id" ] || die "The off-site repository holds no backup of the machine $IM_FROM."
+  IM_SNAP="$im_id"
+  import_said importing '"phase":"download"'
+  r restore "$im_id" --target "$im_meta" --verify > "$im_meta/out" 2> "$im_meta/err" || die "Couldn't restore the manifest of the backup $im_id: $(offsite_why "$im_meta/out" "$im_meta/err")"
+  im_manifest="$(cat "$im_meta/manifest.json" 2>/dev/null || true)"
+  im_field() { printf '%s' "$im_manifest" | json "$1"; }
+  [ "$(im_field 'j.kind + "/" + j.format')" = botdot-offsite/1 ] || die "The snapshot $im_id isn't the manifest of an off-site backup this version reads."
+  im_version="$(im_field 'j.version')"
+  [ -n "$im_version" ] && [ "$im_version" = "$(version_now)" ] || die "The backup is of version ${im_version:-unknown}, and this machine runs $(version_now): install version ${im_version:-unknown} here first."
+  printf '%s' "$im_manifest" | json "j.accounts.includes(\"$IM_NAME\") ? 1 : ''" | grep -q 1 || die "The backup of the machine $IM_FROM holds no account $IM_NAME."
+  im_failed="$(im_field "j.failed.filter((p) => p === 'front-door/data.tar' || p.startsWith('accounts/$IM_NAME/')).join(' ')")"
+  [ -z "$im_failed" ] || die "The backup $im_id is incomplete for $IM_NAME, as these parts of it failed: $im_failed."
+  { im_field "Object.entries(j.snapshots).filter(([p]) => p === 'front-door/data.tar' || p.startsWith('accounts/$IM_NAME/')).map(([p, id]) => p + ' ' + id).join('\n')"; echo; } > "$im_meta/parts"
+  im_need=0
+  : > "$im_meta/sizes"
+  while read -r im_p im_s; do
+    [ -n "$im_p" ] || continue
+    case "$im_p" in front-door/data.tar | "accounts/$IM_NAME/data.tar" | "accounts/$IM_NAME/env" | "accounts/$IM_NAME/"*.tar) ;; *) die "The backup has a part that can't be one: $im_p." ;; esac
+    case "$im_p" in *..* | */*/*/*/*) die "The backup has a part that can't be one: $im_p." ;; esac
+    case "$im_s" in *[!0-9a-f]* | '') die "The backup's snapshot of $im_p can't be one." ;; esac
+    r stats --json --mode restore-size "$im_s" > "$im_meta/stats" 2> "$im_meta/err" || die "Couldn't read the size of $im_p: $(offsite_why "$im_meta/err")"
+    im_size="$(sed -n 's/.*"total_size":\([0-9][0-9]*\).*/\1/p' "$im_meta/stats")"
+    [ -n "$im_size" ] || die "Couldn't read the size of $im_p: restic said no total_size."
+    im_need=$((im_need + im_size))
+    printf '%s %s %s\n' "$im_p" "$im_s" "$im_size" >> "$im_meta/sizes"
+  done < "$im_meta/parts"
+  grep -q '^front-door/data.tar ' "$im_meta/sizes" || die "The backup $im_id holds no front door's data."
+  grep -q "^accounts/$IM_NAME/data.tar " "$im_meta/sizes" && grep -q "^accounts/$IM_NAME/env " "$im_meta/sizes" || die "The backup $im_id holds no data of the account $IM_NAME."
+  im_free=$(($(df -Pk "$DIR" | awk 'NR == 2 { print $4 }') * 1024))
+  [ $((2 * im_need + OFFSITE_TEST_ROOM)) -le "$im_free" ] \
+    || die "It needs $(rt_gb $((2 * im_need + OFFSITE_TEST_ROOM))) free in $DIR (the account's backup, its data put back, and 512 MB to spare), and has $(rt_gb "$im_free")."
+  # Its born stamp (#1019), from its data's snapshot's tags: the account here is that one.
+  im_data="$(sed -n "s#^accounts/$IM_NAME/data\.tar \([0-9a-f]*\) .*#\1#p" "$im_meta/sizes")"
+  mkdir -p "$IMPORT_SCRATCH/born"
+  if r snapshots --json "$im_data" > "$im_meta/tags" 2> "$im_meta/err"; then
+    im_born="$(json 'j.map((s) => ((s.tags || []).find((t) => t.startsWith("born=")) || "").slice(5)).join("")' < "$im_meta/tags")"
+    if printf '%s' "$im_born" | grep -Eqx '[0-9]{8}T[0-9]{6}Z'; then printf '%s\n' "$im_born" > "$IMPORT_SCRATCH/born/$IM_NAME"; fi
+  fi
+  say "Restoring the account $IM_NAME from the off-site backup $im_id of the machine $IM_FROM into $IMPORT_SCRATCH"
+  while read -r im_p im_s im_size; do
+    r restore "$im_s" --target "$IMPORT_SCRATCH" --verify > "$im_meta/out" 2> "$im_meta/err" || die "Couldn't restore $im_p: $(offsite_why "$im_meta/out" "$im_meta/err")"
+    [ -f "$IMPORT_SCRATCH/$im_p" ] && [ ! -L "$IMPORT_SCRATCH/$im_p" ] || die "The snapshot of $im_p doesn't hold it."
+    im_got="$(wc -c < "$IMPORT_SCRATCH/$im_p" | tr -d ' ')"
+    [ "$im_got" = "$im_size" ] || die "$im_p came back with $im_got bytes, and restic recorded $im_size."
+  done < "$im_meta/sizes"
+  tar -xOf "$IMPORT_SCRATCH/front-door/data.tar" ./front-door.json > "$IMPORT_SCRATCH/front-door.json" 2>/dev/null || die "The backup's front door's data holds no front-door.json."
+  rm -rf -- "$im_meta" "$IMPORT_SCRATCH/front-door/data.tar"
+  find "$IMPORT_SCRATCH" -type d -exec chmod 700 {} + -o -type f -exec chmod 600 {} +
+  chown -R 0:0 "$IMPORT_SCRATCH"
+}
+# door_account import-account FILE | delete-account: the front door asked to make the account IM_NAME with what the
+# other front door's data FILE kept of it, or to delete it; its one line of JSON in IM_LINE, what it said wrong in IM_WHY.
+door_account() {
+  da_err="$RUN/door-account-err"
+  set +e
+  # The other front door's data reaches the front door's container on its standard input.
+  IM_LINE="$($D compose --project-directory "$DOOR" exec -T front-door node front-door.js "$1" --account "$IM_NAME" ${2:+--record /dev/stdin} --by console < "${2:-/dev/null}" 2>"$da_err" | head -n 1)"
+  set -e
+  IM_WHY="$(head -n 1 "$da_err" 2>/dev/null | plain_line 200)"
+  rm -f "$da_err"
+}
+# import_request FILE: the import FILE asks, which is removed as it is read.
+import_request() {
+  IM_NAME="${1##*/"$IMPORT"}" IM_FROM='' IM_SNAP=''
+  if ! valid_account "$IM_NAME"; then
+    rm -f -- "$1"
+    warn "Not an account's name, so nothing was imported: $(printf '%s' "$IM_NAME" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
+    return 0
+  fi
+  if ! by_root "$1"; then
+    rm -f -- "$1"
+    import_said refused '"error":"Only root asks for this."'
+    warn "An account import that root didn't make was refused."
+    return 0
+  fi
+  im_from="$(head -c 2000 "$1" | sed -n 1p | tr -d ' \t\r')"
+  im_repo="$(head -c 2000 "$1" | sed -n 2p | tr -d '\r')"
+  im_pass="$(head -c 2000 "$1" | sed -n 3p | tr -d '\r')"
+  im_sub="$(head -c 2000 "$1" | sed -n 4p | tr -d '\r')"
+  rm -f -- "$1"
+  if ! printf '%s' "$im_from" | grep -Eqx '[0-9a-f]{8}'; then
+    import_said refused '"error":"The request named no instance: an instance id is 8 hex digits."'
+    return 0
+  fi
+  IM_FROM="$im_from"
+  case "$im_repo" in *[[:space:]]* | -*)
+    import_said refused '"error":"The request named no repository."'
+    return 0 ;;
+  esac
+  if [ -n "$im_repo" ] && [ -z "$im_pass" ]; then
+    import_said refused '"error":"The request named a repository without its password."'
+    return 0
+  fi
+  [ -n "$im_repo" ] || im_repo="$(offsite_repo)"
+  if [ -z "$im_repo" ]; then
+    import_said failed '"phase":"download","error":"The request named no repository, and this machine has none of its own."'
+    return 0
+  fi
+  case "$(door_state "$IM_NAME")" in running* | suspended*)
+    import_said refused "\"error\":\"This machine has an account $IM_NAME already.\""
+    warn "The account $IM_NAME is on this machine already, so it wasn't imported."
+    return 0 ;;
+  esac
+  say "Importing the account $IM_NAME from the machine $IM_FROM"
+  import_said importing '"phase":"download"'
+  im_why="$RUN/import-why"
+  mkdir -p "$RUN"
+  rm -f "$im_why"
+  set +e
+  (
+    set -e
+    umask 077
+    ACCOUNT_WHY="$im_why"
+    if command -v flock >/dev/null 2>&1; then
+      exec 8>"$RUN/offsite.lock"
+      flock -n 8 || die "An off-site backup runs now: import the account when it is done."
+    fi
+    mkdir -p "$OFFSITE"
+    chmod 700 "$OFFSITE"
+    OFFSITE_REPO="$im_repo"
+    INSTANCE="$(get_env "$ENV" BOT_DOT_INSTANCE)"
+    if [ -n "$im_pass" ]; then
+      printf '%s\n' "$im_pass" > "$OFFSITE/import-password"
+      chmod 600 "$OFFSITE/import-password"
+      R_PASSWORD="$OFFSITE/import-password"
+    else
+      [ -s "$OFFSITE/password" ] || die "This machine has no password of its off-site repository."
+    fi
+    offsite_key
+    if [ -n "$im_sub" ]; then
+      printf '%s\n' "$im_sub" > "$OFFSITE/subpass"
+      chmod 600 "$OFFSITE/subpass"
+      offsite_key_on "$(printf '%s' "$im_repo" | sed -n 's#^sftp:\(//\)\{0,1\}\([^@/:]*@[^/:]*\).*#\2#p')"
+    fi
+    offsite_restic
+    import_fetch
+  ) </dev/null
+  im_done=$?
+  set -e
+  rm -f "$OFFSITE/import-password" "$OFFSITE/subpass" "$OFFSITE/askpass"
+  IM_SNAP="$(sed -n 's/.*"snapshot":"\([0-9a-f]\{64\}\)".*/\1/p' "$DOOR/status/import-$IM_NAME.json" 2>/dev/null || true)"
+  if [ "$im_done" != 0 ]; then
+    rm -rf -- "$IMPORT_SCRATCH"
+    im_text="$(cut -f2- "$im_why" 2>/dev/null || true)"
+    rm -f "$im_why"
+    import_said failed "\"phase\":\"download\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 300)\""
+    warn "The account $IM_NAME wasn't imported: ${im_text:-see above}"
+    return 0
+  fi
+  import_said importing '"phase":"front-door"'
+  door_account import-account "$IMPORT_SCRATCH/front-door.json"
+  case "$IM_LINE" in
+    '{"state":"imported",'*) ;;
+    '{"state":"refused",'*)
+      rm -rf -- "$IMPORT_SCRATCH"
+      import_said refused "\"error\":\"$(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 300)\""
+      warn "The front door refused the account $IM_NAME: $(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 200)"
+      return 0 ;;
+    *)
+      rm -rf -- "$IMPORT_SCRATCH"
+      import_said failed "\"phase\":\"front-door\",\"error\":\"The front door made no account${IM_WHY:+: $IM_WHY}\""
+      warn "The front door made no account $IM_NAME${IM_WHY:+: $IM_WHY}"
+      return 0 ;;
+  esac
+  import_said importing '"phase":"account"'
+  set +e
+  (
+    set -e
+    ACCOUNT_WHY="$im_why"
+    ACCOUNT_RESULT=failed
+    if [ -s "$IMPORT_SCRATCH/born/$IM_NAME" ]; then mkdir -p "$BORN"; chmod 700 "$BORN"; cp -- "$IMPORT_SCRATCH/born/$IM_NAME" "$BORN/$IM_NAME"; fi
+    SET="$IMPORT_SCRATCH"
+    restore_account "$IM_NAME"
+  ) </dev/null
+  im_done=$?
+  set -e
+  rm -rf -- "$IMPORT_SCRATCH"
+  if [ "$im_done" = 0 ]; then
+    rm -f "$im_why"
+    import_said imported
+    ok "The account $IM_NAME is imported from the machine $IM_FROM"
+    return 0
+  fi
+  im_text="$(cut -f2- "$im_why" 2>/dev/null || true)"
+  rm -f "$im_why"
+  # Half made: gone again, so that the import can be asked once more.
+  door_account delete-account
+  set +e
+  ( set -e; erase_account "$IM_NAME" ) </dev/null
+  set -e
+  import_said failed "\"phase\":\"account\",\"error\":\"$(printf '%s' "${im_text:-The import stopped without saying why}" | plain_line 300)\""
+  warn "The account $IM_NAME wasn't imported, and what was made of it is gone: ${im_text:-see above}"
+}
+
+# An account deleted by the fleet console once it runs on another machine (ADR 253), root's alone: DELETE-<account>.
+# The front door deletes it as the admin page does, and root's step erases it from the machine at once. How it went is
+# in status/delete-<account>.json: state (deleted, refused or failed), at, account, and error.
+DELETE=DELETE-
+delete_request() {
+  IM_NAME="${1##*/"$DELETE"}"
+  if ! valid_account "$IM_NAME"; then
+    rm -f -- "$1"
+    warn "Not an account's name, so nothing was deleted: $(printf '%s' "$IM_NAME" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
+    return 0
+  fi
+  dr_file="delete-$IM_NAME.json"
+  dr_said() { write_status "$dr_file" "{\"state\":\"$1\",\"at\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"account\":\"$IM_NAME\"${2:+,$2}}"; }
+  if ! by_root "$1"; then
+    rm -f -- "$1"
+    dr_said refused '"error":"Only root asks for this."'
+    warn "An account deletion that root didn't make was refused."
+    return 0
+  fi
+  rm -f -- "$1"
+  door_account delete-account
+  case "$IM_LINE" in
+    '{"state":"deleted",'*) ;;
+    '{"state":"refused",'*)
+      dr_said refused "\"error\":\"$(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 300)\""
+      warn "The front door didn't delete the account $IM_NAME: $(printf '%s' "$IM_LINE" | sed -n 's/.*"error":"\([^"]*\)".*/\1/p' | plain_line 200)"
+      return 0 ;;
+    *)
+      dr_said failed "\"error\":\"The front door deleted nothing${IM_WHY:+: $IM_WHY}\""
+      warn "The front door didn't delete the account $IM_NAME${IM_WHY:+: $IM_WHY}"
+      return 0 ;;
+  esac
+  set +e
+  ( set -e; settle "$IM_NAME" deleted ) </dev/null
+  dr_done=$?
+  set -e
+  if [ "$dr_done" = 0 ]; then dr_said deleted; ok "The account $IM_NAME is deleted from this machine"
+  else dr_said failed '"error":"The front door deleted it, and the machine did not erase it yet: the next run tries again."'; warn "The account $IM_NAME wasn't erased (see above)."; fi
+}
+
 # The fleet console's keys for a managed machine (ADR 162), root's alone: KEYS, lines of `openrouter KEY` and
 # `composio KEY`, written 600 by the console's agent and removed as soon as it is read. They reach the front door the
 # way the installer's do, in data/install-keys.json, which it takes within a minute. status/keys.json says which were
@@ -4138,6 +4401,15 @@ if [ "$MODE" = requested ]; then
     [ -f "$request" ] && [ ! -L "$request" ] || continue
     revoke_request "$request"
   done
+  # Accounts moved between machines (ADR 253): imported here, then deleted from the one they left.
+  for request in "$REQUESTS/$IMPORT"*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    import_request "$request"
+  done
+  for request in "$REQUESTS/$DELETE"*; do
+    [ -f "$request" ] && [ ! -L "$request" ] || continue
+    delete_request "$request"
+  done
   for request in "$REQUESTS"/* "$REQUESTS"/.[!.]* "$REQUESTS"/..?*; do
     [ -e "$request" ] || [ -L "$request" ] || continue
     name="$(basename "$request")"
@@ -4145,7 +4417,7 @@ if [ "$MODE" = requested ]; then
     # Asked again while it ran: the next run, which systemd starts for it, updates once more.
     if { [ "$name" = "$UPDATE" ] || [ "$name" = "$BACKUP" ] || [ "$name" = "$RESTORE" ] || [ "$name" = "$OFFSITE_REQUEST" ] || [ "$name" = "$OFFSITE_SET" ] || [ "$name" = "$OFFSITE_RESTORE" ] || [ "$name" = "$RESTORE_TEST_REQUEST" ] || [ "$name" = "$KEYS_REQUEST" ] || [ "$name" = "$SUSPEND_REQUEST" ] || [ "$name" = "$RESUME_REQUEST" ]; } && [ -f "$request" ] && [ ! -L "$request" ]; then continue
     # So is "Update now" asked while it ran.
-    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP" | "$REVOKE_SIGN_UP"*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
+    elif case "$name" in SWITCH-* | ROLLBACK-* | "$SIGN_IN"* | "$SIGN_UP" | "$REVOKE_SIGN_UP"* | "$IMPORT"* | "$DELETE"*) [ -f "$request" ] && [ ! -L "$request" ] ;; *) false ;; esac; then continue
     elif ! valid_account "$name"; then
       warn "Not an account's name, so nothing was done: $(printf '%s' "$name" | tr -cd 'A-Za-z0-9._-' | cut -c1-40)"
     else
