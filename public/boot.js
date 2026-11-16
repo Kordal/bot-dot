@@ -1,8 +1,44 @@
 // ---------- boot ----------
 
 $('#more-btn').onclick = () => setView('settings');
-// Setup must also open when its address is typed into an already open tab.
-addEventListener('hashchange', () => { if (location.hash === '#setup') setView('setup'); });
+// What an address names: its view, the id after it, and a bot's skill (#botsettings/<bot>/skill/<name>). Read at
+// load (below) and on every change of the address, Back and Forward included (#1500).
+const routeViews = () => ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'storage', 'skills', 'pages', 'company', 'settings', 'setup', 'connectors'];
+function readRoute(hash) {
+  const [view, sub, what, skill] = String(hash || '').slice(1).split('/');
+  let name;
+  if (sub && view === 'botsettings' && what === 'skill') { name = ''; try { name = decodeURIComponent(skill || ''); } catch {} }
+  return { view, sub, skill: name, known: routeViews().includes(view) };
+}
+// The content an address names, selected for the view that shows it: a chat, a run, a bot's skill.
+function selectRoute({ view, sub, skill }) {
+  if (sub && view === 'runs') state.selectedRun = sub;
+  if (sub && (view === 'chief' || view === 'chiefsettings')) state.chatId = sub;
+  if (skill !== undefined) state.openSkill = { bot: sub, name: skill };
+}
+const routeSub = ({ view, sub }) => (BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) || view === 'rooms' ? sub : undefined);
+// Setup must also open when its address is typed into an already open tab. Any other view the address names opens
+// too, once the first view is drawn: the page wrote that address itself (writeHash), an unknown one, a document
+// (it reloads, below) and a room's invite link (rooms.js) change nothing here.
+addEventListener('hashchange', () => {
+  const hash = location.hash;
+  if (hash === '#setup') return setView('setup');
+  if (!state.routed || hash === state.hash || hash.startsWith('#doc/')) return;
+  const route = readRoute(hash);
+  if (!route.known || (route.view === 'rooms' && String(route.sub || '').startsWith('join='))) return;
+  // A chat or a run is drawn by the functions that open it: its page may be built already, showing another one.
+  if (route.view === 'chief' && route.sub) openChiefChat(route.sub);
+  else if (route.view === 'runs' && route.sub) openRun(route.sub);
+  else {
+    const built = !!$('#chat-thread'), was = state.chatId;
+    selectRoute(route);
+    setView(route.view, routeSub(route));
+    // The Chief's settings with a chat of their own: that chat is drawn beside them too.
+    if (route.view === 'chiefsettings' && route.sub && built && route.sub !== was) showChat(route.sub);
+  }
+  // A chat named alone (Back from its panel's address): the panel closes, so the address stays what was asked.
+  if (['bot', 'chief', 'group'].includes(route.view) && state.panel) setPanel('close');
+});
 $('#feedback-btn').onclick = () => openFeedback();
 initSideGrip();
 initChatGrip();
@@ -18,9 +54,11 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#chat-row') && CHAT_VIEWS.includes(state.view)) backFromChat(); else showList();
 });
 // The browser's Back from a chat that opened as a step of its own (writeHash): out of the chat, as its Back (#1507).
+// Before the address's own route (hashchange, above): the address it comes back to is then what the page shows.
 addEventListener('popstate', (e) => {
-  if (stepGone()) return;
-  if (!e.state?.over && CHAT_VIEWS.includes(state.view) && $('#app').classList.contains('in-main')) leaveChat();
+  if (stepGone() || !leftStep(e)) return;
+  if (CHAT_VIEWS.includes(state.view) && $('#app').classList.contains('in-main')) leaveChat();
+  state.hash = location.hash; // the list keeps the address of the entry it is on: no route of its own
 });
 // A picture in a chat opens big on this page (served as a download, a plain link would save it).
 document.addEventListener('click', (e) => {
@@ -54,14 +92,11 @@ document.addEventListener('click', (e) => {
   addEventListener('hashchange', () => { if (location.hash.startsWith('#doc/')) location.reload(); });
   showAdminLink();
   await figure;
-  const [view, hashSub] = location.hash.slice(1).split('/');
+  const route = readRoute(location.hash);
+  const { view, known } = route;
   // A room's invite link (rooms.js, ADR 068): "Join" opens once rooms are known; the page opens on the list of rooms.
-  const sub = view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink(hashSub) ? undefined : hashSub;
-  if (sub && view === 'runs') state.selectedRun = sub;
-  if (sub && (view === 'chief' || view === 'chiefsettings')) state.chatId = sub;
-  // A bot's settings on one of its skills: #botsettings/<bot>/skill/<name>.
-  const [, , what, skill] = location.hash.slice(1).split('/');
-  if (sub && view === 'botsettings' && what === 'skill') { let name = ''; try { name = decodeURIComponent(skill || ''); } catch {} state.openSkill = { bot: sub, name }; }
+  const sub = view === 'rooms' && typeof joinFromLink === 'function' && joinFromLink(route.sub) ? undefined : route.sub;
+  selectRoute({ ...route, sub });
   await refresh();
   state.status = await statusRead;
   renderStatus();
@@ -71,13 +106,13 @@ document.addEventListener('click', (e) => {
   if (opensSetup(setupNow)) {
     setView('setup');
   } else {
-    const known = ['chief', 'dashboard', 'bot', 'group', 'rooms', 'needs', ...Panel.NAMES, 'runs', 'vault', 'skills', 'pages', 'company', 'settings', 'setup', 'connectors'].includes(view);
     // Without an address: the space this device last had (#837), a project or Home's Chief.
     const space = typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company' ? 'company' : 'chief';
-    setView(known ? view : space, BOT_NAMES.includes(view) || GROUP_NAMES.includes(view) || view === 'rooms' ? sub : undefined);
+    setView(known ? view : space, routeSub({ view, sub }));
     if (!known) showList(); // phones start on the contact list
     showWhatsNew(); // after an update: what changed, once (whats-new.js)
   }
+  state.routed = true; // from now on the address opens what it names (the listener above)
   // No time zone of its own yet (#756): the botdot takes this device's, once, so bots say times in the owner's time.
   if (setupNow && !setupNow.savedTimezone && deviceTimezone()) api('/setup', { method: 'PUT', body: { deviceTimezone: deviceTimezone() } }).catch(() => {});
   // Keep things fresh without clobbering an open dialog. The live feed says when something changed, so while

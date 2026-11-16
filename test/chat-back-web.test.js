@@ -39,6 +39,7 @@ function load({ place = 'company', narrow = true, phone = false } = {}) {
     PHONE: '(max-width: 479px)',
     popped: () => {},
   };
+  Object.defineProperty(ctx, 'location', { get: () => ({ hash: ctx.history.entries[ctx.history.at].url }) });
   ctx.history = makeHistory(ctx);
   ctx.setView = (v) => {
     const from = ctx.state.view;
@@ -56,7 +57,7 @@ function load({ place = 'company', narrow = true, phone = false } = {}) {
     ${cut(app, '// The Projects screen is up', '// Phones: back to the contact list')}
     ${cut(app, 'function showList() {', '\n}\n')}
 }
-    this.writeHash = writeHash; this.backFromChat = backFromChat; this.leaveChat = leaveChat; this.showList = showList;`, ctx);
+    this.writeHash = writeHash; this.backFromChat = backFromChat; this.leaveChat = leaveChat; this.showList = showList; this.leftStep = leftStep;`, ctx);
   // boot.js's popstate route
   const onPop = cut(boot, "addEventListener('popstate', ", '\n});') + '\n});';
   vm.runInContext(onPop.replace("addEventListener('popstate', ", 'this.popped = ('), ctx);
@@ -80,11 +81,22 @@ test('a chat opened on the Projects screen below a wide window is a step: its Ba
   assert.deepEqual([...said], ['chief', 'company']);
 });
 
-test("the browser's Back from that chat does the same as the chat's Back", () => {
+test("the browser's Back from that chat does the same as the chat's Back, and the address's own route then has nothing to do", () => {
   const { ctx } = load();
   ctx.setView('bot');
   ctx.history.back(); // the browser's Back
   assert.equal(ctx.state.view, 'company');
+  assert.equal(ctx.state.hash, ctx.location.hash, 'hashchange (boot.js) sees the address the page wrote');
+});
+
+test("a Back over entries that are no chat's step is left to the address's own route", () => {
+  const { ctx, said } = load();
+  ctx.state.view = 'bot'; // a chat opened by a typed address: an entry of the browser's, no step
+  ctx.history.entries.push({ state: null, url: '#bot/b1' });
+  ctx.history.at = 1;
+  ctx.history.back();
+  assert.equal(ctx.state.view, 'bot', 'popstate leaves it to hashchange');
+  assert.deepEqual([...said], []);
 });
 
 test('a chat that came on the Projects screen another way (a link, a typed or reloaded address) still leaves to the project', () => {
