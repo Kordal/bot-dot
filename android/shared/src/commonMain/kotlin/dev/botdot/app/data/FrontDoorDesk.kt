@@ -24,7 +24,10 @@ class FrontDoorDesk(private val api: Api) {
         return FrontDoorOffers(AccountDeletion.offer(features, session), Feedback.on(features, session), Feedback.shotsOn(session))
     }
 
-    /** Delete pressed, [typed] the account's name: what the phone says after it, and whether it went. */
+    /**
+     * Delete pressed, [typed] the account's name: what the phone says after it, and whether it went. The review demo's
+     * account is never deleted and keeps its session: not done, so the phone says it in the form and stays signed in.
+     */
     data class Deleted(val words: String, val done: Boolean)
 
     /**
@@ -35,7 +38,8 @@ class FrontDoorDesk(private val api: Api) {
     suspend fun delete(account: String, typed: String): Deleted {
         if (!AccountDeletion.matches(typed, account)) return Deleted(AccountDeletion.typeToConfirm(account), false)
         return try {
-            Deleted(AccountDeletion.said(api.deleteAccount(account)), true)
+            val done = api.deleteAccount(account)
+            Deleted(AccountDeletion.said(done), !done.demo)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

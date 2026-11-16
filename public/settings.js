@@ -739,6 +739,16 @@ async function deleteAccount(m, account) {
     go.disabled = false;
     return;
   }
+  // The review demo is kept: the form says so, in the page's own words, and OK leaves the account signed in.
+  if (done.demo === true) {
+    said.textContent = tr('This is a demo account: it is not deleted.');
+    said.classList.remove('hidden');
+    go.textContent = tr('OK');
+    go.classList.remove('red');
+    go.disabled = false;
+    $('#delete-account-form', m).onsubmit = (e) => { e.preventDefault(); location.assign('/'); };
+    return;
+  }
   const next = typeof done.deleted === 'string' && done.deleted.startsWith('/') ? done.deleted : '/sign-in';
   // The account is gone, but not all its machines on boat.dev: said before the page leaves, with no second delete.
   if (typeof done.boat === 'string' && done.boat.trim()) {
