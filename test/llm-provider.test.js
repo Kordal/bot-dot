@@ -54,7 +54,7 @@ test('the setup checklist offers the presets, and nothing is on a provider until
   const s = (await srv.api('/setup')).data;
   assert.deepEqual(s.providers.map((p) => p.id), ['deepseek', 'glm', 'minimax', 'opencode-go', 'openrouter', 'ollama', 'custom']);
   assert.deepEqual(s.providers.find((p) => p.id === 'deepseek'), { id: 'deepseek', name: 'DeepSeek', url: 'https://api.deepseek.com/anthropic', big: 'deepseek-v4-pro', small: 'deepseek-flash' });
-  assert.equal(s.providers.find((p) => p.id === 'ollama').keyless, true);
+  assert.deepEqual(s.providers.find((p) => p.id === 'ollama'), { id: 'ollama', name: 'Ollama', url: '', big: '', small: '', keyless: true, askUrl: true }, 'no address to suggest: none of this machine\'s resolves inside the server\'s container');
   assert.deepEqual([s.claude.using, s.claude.provider], ['subscription', null]);
   assert.ok((await srv.api('/version')).data.features.includes('llm-provider'));
   const bot = await makeBot(srv, { name: 'Before Provider' });
@@ -157,7 +157,9 @@ test('the models of a preset are its own unless the owner names others, and a sm
   assert.equal(providers.clean({ preset: 'glm', key: 'abcdefgh', url: 'https://evil.example/x' }).url, 'https://api.z.ai/api/anthropic', 'a preset\'s address is not the request\'s');
   assert.equal(providers.cleanUrl('https://gateway.example.com/anthropic/'), 'https://gateway.example.com/anthropic');
   assert.equal(providers.cleanUrl('http://192.168.1.20:11434'), 'http://192.168.1.20:11434');
+  assert.equal(providers.cleanUrl('http://ollama:11434'), 'http://ollama:11434', 'a name with no dot is on a private network');
   assert.throws(() => providers.cleanUrl('http://8.8.8.8/x'));
+  assert.throws(() => providers.cleanUrl('http://example.com/x'));
   assert.throws(() => providers.cleanUrl('https://user:pw@example.com/x'));
 });
 

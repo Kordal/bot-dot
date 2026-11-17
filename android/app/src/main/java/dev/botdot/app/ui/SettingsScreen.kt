@@ -256,7 +256,7 @@ fun SettingsScreen(
                                 val url = if (chosen.askUrl) pUrl.ifBlank { chosen.url } else null
                                 providerSaving = true
                                 keyChange(tr("Saved. Bots now run on it")) { api!!.claudeSaveProvider(preset, key, url, big, small) }
-                            }, enabled = !providerSaving && (chosen.keyless || pKey.isNotBlank()) && (chosen.big.isNotBlank() || pBig.isNotBlank()) && (!chosen.custom || pUrl.isNotBlank()),
+                            }, enabled = !providerSaving && (chosen.keyless || pKey.isNotBlank()) && (chosen.big.isNotBlank() || pBig.isNotBlank()) && (!chosen.askUrl || chosen.url.isNotBlank() || pUrl.isNotBlank()),
                                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                             TextButton(onClick = { providerOpen = false; pKey = "" }) { Text(tr("Cancel"), color = p.text) }
                         }

@@ -114,7 +114,7 @@ function wireClaudeKey(root, c, redraw) {
       const p = presets.find((x) => x.id === pform.preset.value) || {};
       pform.url.hidden = !p.askUrl;
       pform.url.placeholder = p.url || 'https://…';
-      pform.url.required = !!p.custom;
+      pform.url.required = !!p.askUrl && !p.url;
       pform.key.hidden = !!p.keyless;
       pform.key.required = !p.keyless;
       pform.big.placeholder = p.big || tr('Model');

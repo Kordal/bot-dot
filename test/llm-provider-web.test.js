@@ -9,7 +9,7 @@ const { app, read, cut, esc, element, finders, words } = require('./web-page');
 
 const PRESETS = [
   { id: 'deepseek', name: 'DeepSeek', url: 'https://api.deepseek.com/anthropic', big: 'deepseek-v4-pro', small: 'deepseek-flash' },
-  { id: 'ollama', name: 'Ollama', url: 'http://host.docker.internal:11434', big: '', small: '', keyless: true, askUrl: true },
+  { id: 'ollama', name: 'Ollama', url: '', big: '', small: '', keyless: true, askUrl: true },
   { id: 'custom', name: 'Other', url: '', big: '', small: '', custom: true, askUrl: true },
 ];
 const SAVED = { preset: 'deepseek', name: 'DeepSeek', key: '…wxyz', big: 'deepseek-v4-pro', small: 'deepseek-flash' };
