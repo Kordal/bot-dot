@@ -210,14 +210,14 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
     private fun say(text: String) { notice = text; noticeCount++; publish() }
 
     private fun publish() {
-        val thinks = { m: String -> info.models.firstOrNull { it.id == m }?.effort ?: true }
         val saved = info.settings.chiefSkills.orEmpty()
+        val model = edit.chiefModel.ifBlank { edit.defaultModel }
         _state.value = ChiefSettingsState(
             loaded = loaded && settingsRead, failed = tried && !settingsRead, name = name,
             advanced = Advanced.on.value,
-            model = edit.chiefModel, effort = edit.chiefEffort, thinks = thinks(edit.chiefModel.ifBlank { edit.defaultModel }),
+            model = info.shownModel(edit.chiefModel), effort = info.shownEffort(edit.chiefEffort, model), thinks = info.canThink(model),
             models = listOf(Option("", tr("Same as the default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) },
-            efforts = listOf(Option("", tr("Same as the default"))) + info.efforts.map { Option(it.id, it.label) },
+            efforts = listOf(Option("", tr("Same as the default"))) + info.availableEfforts(model).map { Option(it.id, it.label) },
             rules = edit.chiefRules,
             // The ones it has come first, as saved, so rows don't jump while they are ticked.
             skills = library?.sortedBy { it.name !in saved },

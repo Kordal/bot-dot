@@ -1293,7 +1293,10 @@ data class AppSettings(val defaultModel: String = "", val defaultEffort: String 
                        val advanced: Boolean? = null)
 
 @Serializable
-data class ModelChoice(val id: String, val label: String = "", val group: String? = null, val note: String? = null, val effort: Boolean = true)
+data class ModelChoice(
+    val id: String, val label: String = "", val group: String? = null, val note: String? = null,
+    val effort: Boolean = true, val efforts: List<String>? = null,
+)
 
 @Serializable
 data class EffortChoice(val id: String, val label: String = "", val note: String? = null)
@@ -1328,7 +1331,37 @@ data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = e
 }
 
 @Serializable
-data class SettingsInfo(val settings: AppSettings = AppSettings(), val models: List<ModelChoice> = emptyList(), val efforts: List<EffortChoice> = emptyList())
+data class ProviderModelChoices(val name: String = "", val main: String = "", val helper: String = "", val refreshable: Boolean = false)
+
+@Serializable
+data class SettingsInfo(
+    val settings: AppSettings = AppSettings(),
+    val models: List<ModelChoice> = emptyList(),
+    val efforts: List<EffortChoice> = emptyList(),
+    val provider: ProviderModelChoices? = null,
+) {
+    fun shownModel(id: String): String = when {
+        id.isEmpty() || models.any { it.id == id } -> id
+        id.startsWith("provider:") -> ""
+        provider != null -> if (id.contains("haiku", ignoreCase = true)) provider.helper else provider.main
+        else -> id
+    }
+
+    fun canThink(id: String): Boolean {
+        val model = shownModel(id)
+        return if (provider == null) BotSettings.canThink(models, model)
+        else models.firstOrNull { it.id == model.ifEmpty { provider.main } }?.effort == true
+    }
+
+    fun availableEfforts(model: String): List<EffortChoice> {
+        val effective = shownModel(model).ifEmpty { provider?.main.orEmpty() }
+        val levels = models.firstOrNull { it.id == effective }?.efforts
+        return if (levels == null) efforts else efforts.filter { it.id in levels }
+    }
+    fun shownEffort(id: String, model: String = ""): String = if (provider == null || availableEfforts(model).any { it.id == id }) id else ""
+    fun defaultModelLabel(): String = models.firstOrNull { it.id == provider?.main }?.let { tr("Default ({model})", "model" to it.label) }
+        ?: tr("Claude Code's default")
+}
 
 @Serializable
 data class BackupInfo(val offsite: OffsiteBackup? = null, val preparing: Boolean = false, val minPassphrase: Int = 12)

@@ -171,7 +171,8 @@ object BotSettings {
     fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) }
 
     /** The choices of a bot's Reasoning, its own default first. */
-    fun efforts(info: SettingsInfo): List<Option> = listOf(Option("", tr("Default"))) + info.efforts.map { Option(it.id, it.label) }
+    fun efforts(info: SettingsInfo, model: String = info.settings.defaultModel): List<Option> =
+        listOf(Option("", tr("Default"))) + info.availableEfforts(model).map { Option(it.id, it.label) }
 
     /** A server from before every bot may message every other (ADR 192): it still limits who may. */
     fun limits(features: Collection<String>?): Boolean = "everything-allowed" !in features.orEmpty()

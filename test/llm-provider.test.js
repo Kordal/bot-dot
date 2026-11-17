@@ -24,6 +24,7 @@ const stand = http.createServer((req, res) => {
     try { parsed = JSON.parse(body); } catch { /* none */ }
     asked.push({ method: req.method, url: req.url, auth: req.headers.authorization, xKey: req.headers['x-api-key'], model: parsed.model, max: parsed.max_tokens });
     const json = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
+    if (req.url === '/api/show') return json(200, { thinking: { values: parsed.model === 'big-model' ? ['low', 'high'] : [false, true] } });
     if (req.headers.authorization !== `Bearer ${KEY}` && req.headers.authorization !== 'Bearer none') return json(401, { error: { message: 'bad key' } });
     if (!['big-model', 'small-model'].includes(parsed.model)) return json(404, { error: { message: `no model ${parsed.model}` } });
     json(200, { content: [{ type: 'text', text: 'OK' }] });
@@ -143,9 +144,27 @@ test('a keyless provider (Ollama on this machine) is saved without a key', async
   const r = await srv.api('/setup/claude/provider', { method: 'PUT', body: { preset: 'ollama', url, big: 'big-model', small: 'small-model' } });
   assert.equal(r.status, 200);
   assert.deepEqual([r.data.claude.using, r.data.claude.provider.key], ['provider', null]);
+  const { models, efforts, provider } = (await srv.api('/settings')).data;
+  assert.equal(provider.refreshable, true);
+  assert.deepEqual(models.map((model) => model.efforts), [['low', 'high'], []]);
+  assert.deepEqual(efforts.map((effort) => effort.id), ['low', 'high']);
+  assert.equal((await srv.api('/settings/refresh-models', { method: 'POST' })).status, 200);
   const run = await runOf(await makeBot(srv, { name: 'Local Model' }), 'keyless');
   assert.equal(run.anthropic.ANTHROPIC_AUTH_TOKEN, 'none');
   await srv.api('/setup/claude/provider', { method: 'DELETE' });
+});
+
+test('OpenRouter reasoning uses the advertised levels for each configured model', async () => {
+  const p = providers.clean({ preset: 'openrouter', key: KEY, big: 'vendor/reasoning', small: 'vendor/auto' });
+  const reasoning = await providers.discoverEfforts(p, { fetchImpl: async (target, init) => {
+    assert.equal(target, 'https://openrouter.ai/api/v1/models');
+    assert.equal(init.headers, undefined, 'a public catalog needs no key');
+    return { ok: true, json: async () => ({ data: [
+      { id: 'vendor/reasoning', reasoning: { supported_efforts: ['high', 'none', 'low', 'minimal'] } },
+      { id: 'vendor/auto' },
+    ] }) };
+  } });
+  assert.deepEqual(reasoning, [{ model: 'vendor/reasoning', levels: ['low', 'high'] }, { model: 'vendor/auto', levels: [] }]);
 });
 
 test('the models of a preset are its own unless the owner names others, and a small one falls back to the big', () => {
@@ -172,5 +191,57 @@ test('settings.args turns a model into the provider\'s only while a provider is 
     assert.deepEqual(settings.args({ model: 'sonnet', effort: 'high' }), ['--model', 'b']);
     assert.deepEqual(settings.args({ model: 'haiku', effort: '' }), ['--model', 's']);
     assert.deepEqual(settings.args({ model: '', effort: 'high' }), [], 'no model: the provider\'s default in ANTHROPIC_MODEL');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('Settings offers the active provider’s models and uses a bot’s explicit selection', async () => {
+  assert.equal((await save({})).status, 200);
+  try {
+    const { models, efforts, provider } = (await srv.api('/settings')).data;
+    assert.deepEqual(models.map((m) => m.label), ['big-model', 'small-model']);
+    assert.deepEqual(efforts, []);
+    const bot = await makeBot(srv, { name: 'Chooses Small', model: provider.helper });
+    const run = await runOf(bot, 'use the selected provider model');
+    assert.equal(run.args[run.args.indexOf('--model') + 1], 'small-model');
+    assert.equal((await save({ small: 'big-model' })).status, 200);
+    const changed = await runOf(bot, 'fall back after the selected model is removed');
+    assert.ok(!changed.args.includes('small-model'));
+    assert.equal(changed.anthropic.ANTHROPIC_MODEL, 'big-model');
+    await srv.api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } });
+    const fallback = await runOf(bot, 'fall back to Claude');
+    assert.ok(!fallback.args.includes(provider.helper));
+    assert.ok(!fallback.args.includes('small-model'));
+  } finally { await srv.api('/setup/claude/provider', { method: 'DELETE' }); }
+});
+
+test('provider reasoning levels are applied only to models that accept them', () => {
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'llm-effort-'));
+  try {
+    const settings = settingsLib.create(dir, {});
+    for (const [preset, big, small] of [
+      ['deepseek', 'deepseek-v4-pro', 'deepseek-flash'],
+      ['glm', 'glm-5.3', 'glm-5.3-flash'],
+    ]) {
+      const provider = providers.clean({ preset, key: KEY, big, small });
+      fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { ...provider, key: undefined } }));
+      const { efforts, models } = settings.choices();
+      assert.deepEqual(efforts.map((e) => e.id), ['low', 'high', 'max']);
+      const model = models.find((m) => m.label === small).id;
+      const args = settings.args({ model, effort: 'max' });
+      assert.deepEqual(args, ['--model', small, '--effort', 'max']);
+      assert.deepEqual(providers.reasoningEnv(args, providers.envFor(provider)), {
+        ANTHROPIC_CUSTOM_MODEL_OPTION: small,
+        ANTHROPIC_CUSTOM_MODEL_OPTION_SUPPORTED_CAPABILITIES: 'effort,thinking,adaptive_thinking',
+      });
+      assert.deepEqual(settings.args({ model, effort: 'medium' }), ['--model', small]);
+      settings.update({ defaultEffort: 'high' });
+      assert.deepEqual(settings.forBot({ model, effort: 'medium' }), { model, effort: 'high' });
+    }
+    const minimax = providers.clean({ preset: 'minimax', key: KEY });
+    fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { ...minimax, key: undefined } }));
+    const { models } = settings.choices();
+    assert.deepEqual(models.map((m) => [m.label, m.effort]), [['MiniMax-M3', false], ['MiniMax-M3.1-Flash', true]]);
+    assert.deepEqual(settings.args({ model: models[0].id, effort: 'high' }), ['--model', 'MiniMax-M3']);
+    assert.deepEqual(settings.args({ model: models[1].id, effort: 'xhigh' }), ['--model', 'MiniMax-M3.1-Flash', '--effort', 'xhigh']);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
