@@ -1380,7 +1380,7 @@ data class Disconnected(val note: String? = null)
 
 /** A model provider the server offers for Claude Code to run on (ADR 255; `providers` of `GET /api/setup`): [big] the model bots run on, [small] the one for short helper calls, "" one to name. */
 @Serializable
-data class ProviderPreset(val id: String, val name: String = "", val url: String = "", val big: String = "", val small: String = "", val keyless: Boolean = false, val custom: Boolean = false)
+data class ProviderPreset(val id: String, val name: String = "", val url: String = "", val big: String = "", val small: String = "", val keyless: Boolean = false, val custom: Boolean = false, val askUrl: Boolean = false)
 
 /** The saved provider (`claude.provider`): its [key] as the last four ("…wxyz"), or null for none, never the key. */
 @Serializable

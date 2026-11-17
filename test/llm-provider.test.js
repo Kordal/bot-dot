@@ -67,7 +67,8 @@ test('a key the provider refuses, a model it does not know, a bad address or no 
   assert.deepEqual([refused.status, refused.data.error], [400, 'It refused this key. Check that you copied all of it.']);
   const unknown = await save({ big: 'nope', small: 'nope' });
   assert.equal(unknown.status, 400);
-  assert.match(unknown.data.error, /^It doesn't know that address or model: /);
+  assert.equal(unknown.data.error, "It doesn't know that address or model.");
+  assert.equal((await save({ small: 'bad name!' })).data.error, "That isn't a model name.");
   assert.equal((await save({ key: '' })).status, 400);
   assert.equal((await save({ url: 'http://example.com/anthropic' })).data.error, 'A key goes over https. Plain http works only for this machine or your own network.');
   assert.equal((await save({ url: 'not an address' })).status, 400);

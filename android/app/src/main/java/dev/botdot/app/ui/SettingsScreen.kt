@@ -122,6 +122,7 @@ fun SettingsScreen(
     var pUrl by remember { mutableStateOf("") }
     var pBig by remember { mutableStateOf("") }
     var pSmall by remember { mutableStateOf("") }
+    var providerSaving by remember { mutableStateOf(false) } // the provider is being checked with it, which takes a while
     var confirmRemoveProvider by remember { mutableStateOf(false) }
 
     // All at once: over Tailscale, one after another would take a round trip each.
@@ -232,14 +233,16 @@ fun SettingsScreen(
                 fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
                     scope.launch {
                         runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = ""; providerOpen = false; pKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
+                        providerSaving = false
                         load()
                     }
                 }
+                val useProvider = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }
                 FoldSection("Claude", dev.botdot.app.data.claudeValue(s.claude)) {
                     if (providers && providerOpen && loginUrl == null) {
                         val chosen = s.providers.firstOrNull { it.id == pPreset } ?: s.providers.first()
-                        Choice(tr("Provider"), chosen.id, s.providers.map { it.id to (if (it.custom) tr("Other") else it.name) }) { pPreset = it }
-                        if (chosen.custom || chosen.id == "ollama") Field(pUrl, { pUrl = it.trim() }, placeholder = { Text(chosen.url.ifBlank { "https://…" }) }, singleLine = true,
+                        Choice(tr("Provider"), chosen.id, s.providers.map { it.id to (if (it.custom) tr("Other") else it.name) }) { pPreset = it; pKey = ""; pUrl = ""; pBig = ""; pSmall = "" }
+                        if (chosen.askUrl) Field(pUrl, { pUrl = it.trim() }, placeholder = { Text(chosen.url.ifBlank { "https://…" }) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         if (!chosen.keyless) Field(pKey, { pKey = it.trim() }, label = { Text(tr("API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
@@ -250,9 +253,10 @@ fun SettingsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = {
                                 val (preset, key, big, small) = listOf(chosen.id, pKey, pBig, pSmall)
-                                val url = if (chosen.custom || chosen.id == "ollama") pUrl.ifBlank { chosen.url } else null
+                                val url = if (chosen.askUrl) pUrl.ifBlank { chosen.url } else null
+                                providerSaving = true
                                 keyChange(tr("Saved. Bots now run on it")) { api!!.claudeSaveProvider(preset, key, url, big, small) }
-                            }, enabled = (chosen.keyless || pKey.isNotBlank()) && (chosen.big.isNotBlank() || pBig.isNotBlank()) && (!chosen.custom || pUrl.isNotBlank()),
+                            }, enabled = !providerSaving && (chosen.keyless || pKey.isNotBlank()) && (chosen.big.isNotBlank() || pBig.isNotBlank()) && (!chosen.custom || pUrl.isNotBlank()),
                                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                             TextButton(onClick = { providerOpen = false; pKey = "" }) { Text(tr("Cancel"), color = p.text) }
                         }
@@ -284,7 +288,7 @@ fun SettingsScreen(
                             }
                             TextButton(onClick = { confirmRemoveKey = true }) { Text(tr("Remove the key"), color = p.text) }
                         }
-                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }, onNew = openProvider)
+                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = useProvider, onNew = openProvider)
                     } else if (s.claude.loggedIn && loginUrl == null) {
                         if (s.claude.fromEnv) Hint(claudeSays(s.claude))
                         else {
@@ -300,13 +304,13 @@ fun SettingsScreen(
                             }
                         }
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
-                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }, onNew = openProvider)
+                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = useProvider, onNew = openProvider)
                     } else if (loginUrl == null) {
                         Hint(claudeSays(s.claude))
                         Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } },
                             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in to Claude")) }
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
-                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }, onNew = openProvider)
+                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = useProvider, onNew = openProvider)
                     } else {
                         // Open the page, sign in and allow access, then paste the code it shows.
                         SecondaryButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }

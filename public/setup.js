@@ -45,8 +45,8 @@ function claudeKeyActions(c, busy) {
   if (busy || !claudeHasKeys(c)) return [];
   const link = (id, text) => `<button class="link-btn" id="${id}">${text}</button>`;
   const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))] : [];
-  const providers = state.setup?.providers?.length || c.provider;
-  const other = !providers ? []
+  const offered = !!(state.setup?.providers?.length || c.provider);
+  const other = !offered ? []
     : c.using === 'provider' ? [link('claude-provider-new', tr('Change provider')), link('claude-provider-remove', tr('Remove the provider'))]
     : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) }))]
     : [link('claude-provider-new', tr('Use another provider'))];
@@ -111,8 +111,8 @@ function wireClaudeKey(root, c, redraw) {
     // What the chosen preset asks for: its address only where the owner gives it, a key unless it needs none, and its models as the hints.
     const fit = () => {
       const p = presets.find((x) => x.id === pform.preset.value) || {};
-      pform.url.hidden = !(p.custom || p.id === 'ollama');
-      pform.url.value = p.id === 'ollama' ? pform.url.value || p.url : pform.url.value;
+      pform.url.hidden = !p.askUrl;
+      pform.url.placeholder = p.url || 'https://…';
       pform.url.required = !!p.custom;
       pform.key.hidden = !!p.keyless;
       pform.key.required = !p.keyless;
@@ -121,7 +121,8 @@ function wireClaudeKey(root, c, redraw) {
       pform.small.placeholder = p.small || tr('Small model');
     };
     fit();
-    pform.preset.onchange = fit;
+    // Another preset starts clean: what was typed under the last one is not its.
+    pform.preset.onchange = () => { for (const f of ['url', 'key', 'big', 'small']) pform[f].value = ''; fit(); };
     pform.onsubmit = (e) => {
       e.preventDefault();
       const btn = pform.querySelector('button');
