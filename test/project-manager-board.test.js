@@ -2,8 +2,11 @@
 // project chat and in the run of the bot the owner picked, so it answers "why does Current work show this twice"
 // from the board. Against a real botdot server and the stand-in for Claude, and the note on its own.
 const { test, before, after } = require('node:test');
+const fs = require('fs');
+const path = require('path');
 const assert = require('node:assert/strict');
-const { startServer, makeBot } = require('./helpers');
+const { startServer, makeBot, waitFor } = require('./helpers');
+const { shortName } = require('../public/mentions.js');
 const { boardNote, tilesOf } = require('../lib/project-board-note');
 
 let srv, lead, pmChat;
@@ -38,6 +41,19 @@ test("the Chief in the project's own chat is told the board's tiles and what eac
   assert.doesNotMatch(said, /Calendar tile|Files tile/, 'the apps draw the calendar and the files only once the project runs');
   assert.match(said, /Needs you tile: [^\n]*No question waits\./);
   assert.match(said, /To-do tile: 2 open/);
+});
+
+test("a run the owner forgot is not in the board the Project Manager is told (ADR 016)", async () => {
+  fs.writeFileSync(path.join(srv.out, `result-${shortName(lead.name)}.txt`), 'PRIVATE_BOARD_LILAC is the secret domain.');
+  const run = (await srv.api(`/bots/${lead.id}/run`, { method: 'POST', body: { prompt: 'Find the domain.' } })).data;
+  await waitFor(async () => !(await srv.api(`/bots/${lead.id}`)).data.running, { what: "the bot's run ends" });
+  const seen = async (text) => {
+    await srv.api(`/chief/chats/${pmChat}/messages`, { method: 'POST', body: { text } });
+    return (await srv.nextRun((x) => x.stdin.includes(text), "the Chief's turn")).stdin;
+  };
+  assert.match(await seen('Board before the forget?'), /PRIVATE_BOARD_LILAC/, 'the reply is a Latest replies row until it is left out');
+  assert.equal((await srv.api(`/memory/runs/${run.id || run.runId}`, { method: 'PUT', body: { excluded: true } })).status, 200);
+  assert.doesNotMatch(await seen('Board after the forget?'), /PRIVATE_BOARD_LILAC/);
 });
 
 test('the bot the owner picked is told the board in its own run', async () => {
