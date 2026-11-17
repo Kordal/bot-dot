@@ -1562,6 +1562,9 @@ div.field .hint { font-weight: 400; color: var(--faint); }
 .setup-login a.btn { text-decoration: none; display: inline-flex; }
 .setup-code { display: flex; gap: var(--sp-8); }
 .setup-name { max-width: 320px; }
+.setup-provider { flex-direction: column; align-items: stretch; }
+.setup-provider button { align-self: flex-start; }
+.setup-provider [hidden] { display: none; }
 .setup-code input { flex: 1; min-width: 0; font-family: var(--mono); }
 .setup-login > .link-btn { justify-self: start; font-size: var(--fs-12); }
 @media (max-width: 600px) { .setup-code { flex-direction: column; } }

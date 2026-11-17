@@ -1378,24 +1378,41 @@ data class ConnectLink(val redirectUrl: String? = null, val noAuth: Boolean = fa
 @Serializable
 data class Disconnected(val note: String? = null)
 
+/** A model provider the server offers for Claude Code to run on (ADR 255; `providers` of `GET /api/setup`): [big] the model bots run on, [small] the one for short helper calls, "" one to name. */
+@Serializable
+data class ProviderPreset(val id: String, val name: String = "", val url: String = "", val big: String = "", val small: String = "", val keyless: Boolean = false, val custom: Boolean = false, val askUrl: Boolean = false)
+
+/** The saved provider (`claude.provider`): its [key] as the last four ("…wxyz"), or null for none, never the key. */
+@Serializable
+data class ClaudeProvider(val preset: String = "", val name: String = "", val key: String? = null, val big: String = "", val small: String = "")
+
 /**
  * Claude's sign-in (docs/api.md, `GET /api/setup`). With an Anthropic API key as well as the subscription (#35):
- * [using] says which one bots run on ("api-key" or "subscription"), [apiKey] the saved key's last four ("…wxyz"),
- * never the key, and [subscription] what the check said of the subscription. On the key, [loggedIn] is true.
+ * [using] says which one bots run on ("api-key", "provider" or "subscription"), [apiKey] the saved key's last four
+ * ("…wxyz"), never the key, [subscription] what the check said of the subscription, and [provider] a saved other
+ * model provider (ADR 255). On a key or a provider, [loggedIn] is true.
  */
 @Serializable
 data class ClaudeStatus(
     val installed: Boolean = true, val loggedIn: Boolean = false, val email: String? = null, val method: String? = null, val fromEnv: Boolean = false, val error: String? = null,
-    val using: String? = null, val apiKey: String? = null, val subscription: Boolean? = null,
+    val using: String? = null, val apiKey: String? = null, val subscription: Boolean? = null, val provider: ClaudeProvider? = null,
 ) {
     /** Bots run on the owner's Anthropic API key. */
     val onApiKey get() = using == "api-key"
+    /** Bots run on another model provider. */
+    val onProvider get() = using == "provider" && provider != null
     /** The server says which one bots run on, so it takes a key; one that does not is drawn as before. */
-    val knowsKeys get() = using == "api-key" || using == "subscription"
+    val knowsKeys get() = using == "api-key" || using == "subscription" || using == "provider"
 }
 
 /** What Settings → Claude says of a sign-in that is known: which one bots run on, and the other, when it is there too, as not used. */
 fun claudeSays(c: ClaudeStatus): String {
+    val other = if (c.knowsKeys && c.provider != null && !c.onProvider) " " + tr("{name} is saved too; bots don't use it.", "name" to c.provider.name) else ""
+    if (c.onProvider) {
+        val p = c.provider!!
+        return (if (p.key != null) tr("Bots run on {name} ({key}).", "name" to p.name, "key" to p.key) else tr("Bots run on {name}.", "name" to p.name)) +
+            if (c.subscription == true) " " + tr("Your Claude subscription{email} is signed in too; bots don't use it.", "email" to c.email?.let { " ($it)" }.orEmpty()) else ""
+    }
     if (c.onApiKey) return tr("Bots run on your Anthropic API key {key}.", "key" to c.apiKey.orEmpty()) +
         if (c.subscription == true) " " + tr("Your Claude subscription{email} is signed in too; bots don't use it.", "email" to c.email?.let { " ($it)" }.orEmpty()) else ""
     val key = if (c.knowsKeys && c.apiKey != null) " " + tr("An Anthropic API key ({key}) is saved too; bots don't use it.", "key" to c.apiKey) else ""
@@ -1403,7 +1420,7 @@ fun claudeSays(c: ClaudeStatus): String {
         !c.loggedIn -> tr("Not signed in, so bots can't run.")
         c.fromEnv -> tr("Signed in with a token from the server's settings.")
         else -> c.email?.let { tr("Signed in with {email}.", "email" to it) } ?: tr("Signed in.")
-    } + key
+    } + key + other
 }
 
 /** What a sign-in answers (docs/api.md, `POST /api/setup/claude/code`): `claude`, the status after it. */
@@ -1419,6 +1436,8 @@ fun claudeCouldNotTell(claude: ClaudeStatus?): String? = claude?.error?.takeIf {
 @Serializable
 data class SetupInfo(
     val done: Boolean = false, val timezone: String = "", val claude: ClaudeStatus = ClaudeStatus(), val running: Int = 0,
+    // The model providers Claude Code can run on (ADR 255), from a server with `llm-provider`; none from an older one.
+    val providers: List<ProviderPreset> = emptyList(),
     // The zone the owner chose, or null while the botdot has none of its own (#756): the app then sends its device's.
     val savedTimezone: String? = null,
     // The Chief's name, and whether the owner answered the question for it (ChiefName). A botdot from before the name

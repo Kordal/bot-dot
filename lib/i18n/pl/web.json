@@ -1830,5 +1830,18 @@
   "until {time}": "do {time}",
   "Stop watching {name}": "Przestań obserwować: {name}",
   "Smaller text": "Mniejszy tekst",
-  "Larger text": "Większy tekst"
+  "Larger text": "Większy tekst",
+  "Bots run on {name} ({key}).": "Boty działają na {name} ({key}).",
+  "Bots run on {name}.": "Boty działają na {name}.",
+  "{name} is saved too; bots don't use it.": "{name} też jest zapisany; boty go nie używają.",
+  "Change provider": "Zmień dostawcę",
+  "Remove the provider": "Usuń dostawcę",
+  "Use {name} instead": "Użyj {name}",
+  "Use another provider": "Użyj innego dostawcy",
+  "Small model": "Mały model",
+  "Bots now run on {name}": "Boty działają teraz na {name}",
+  "Provider removed": "Dostawca usunięty",
+  "Saved. Bots now run on it": "Zapisane. Boty działają teraz na nim",
+  "Remove the provider? Bots will run on your Claude subscription.": "Usunąć dostawcę? Boty będą działać na twojej subskrypcji Claude.",
+  "Remove the provider? Bots can't run until you sign in to Claude or save a key again.": "Usunąć dostawcę? Boty nie będą działać, dopóki nie zalogujesz się do Claude albo znów nie zapiszesz klucza."
 }

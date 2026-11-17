@@ -1378,5 +1378,18 @@
   "Couldn't stop it": "Nie udało się zatrzymać",
   "Smaller text": "Mniejszy tekst",
   "Larger text": "Większy tekst",
-  "Privacy policy": "Polityka prywatności"
+  "Privacy policy": "Polityka prywatności",
+  "Bots run on {name} ({key}).": "Boty działają na {name} ({key}).",
+  "Bots run on {name}.": "Boty działają na {name}.",
+  "{name} is saved too; bots don't use it.": "{name} też jest zapisany; boty go nie używają.",
+  "Change provider": "Zmień dostawcę",
+  "Remove the provider": "Usuń dostawcę",
+  "Use {name} instead": "Użyj {name}",
+  "Use another provider": "Użyj innego dostawcy",
+  "Small model": "Mały model",
+  "Bots now run on {name}": "Boty działają teraz na {name}",
+  "Provider removed": "Dostawca usunięty",
+  "Saved. Bots now run on it": "Zapisane. Boty działają teraz na nim",
+  "Provider": "Dostawca",
+  "Remove the provider?": "Usunąć dostawcę?"
 }

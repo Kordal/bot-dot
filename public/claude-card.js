@@ -30,13 +30,13 @@ async function loadClaudeCard(fresh = true) {
   const unknown = claudeUnknown(c);
   const body = c.installed === false ? tr("Claude Code isn't installed on this machine, so bots can't run.")
     : unknown ? esc(unknown)
-    : c.using === 'api-key' ? claudeOnKey(c)
+    : claudeOnOwn(c) ? claudeOnOwn(c)
     : (!c.loggedIn ? tr("Not signed in, so bots can't run.")
       : c.fromEnv ? tr("Signed in with a token from the server's settings.")
-      : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c);
+      : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c) + claudeProviderNote(c);
   const keys = claudeKeyActions(c, signingIn || keyOpen).join(' · ');
   const action = signingIn || c.installed === false ? ''
-    : c.using === 'api-key' ? keys
+    : claudeOnOwn(c) ? keys
     : unknown || !c.loggedIn ? [`<button class="btn primary" id="claude-login">${tr('Sign in to Claude')}</button>`, keys].filter(Boolean).join(' ')
     : [...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...(keys ? [keys] : [])].join(' · ');
   const steps = signingIn ? `<div class="setup-login" style="padding:0;margin:12px 0 0">
@@ -50,7 +50,7 @@ async function loadClaudeCard(fresh = true) {
     <h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>
     <p class="muted settings-hint" style="margin:0">${body}</p>
     ${action ? `<div class="setup-actions">${action}</div>` : ''}
-    ${steps}${keyOpen ? claudeKeyBox(true) : ''}`;
+    ${steps}${keyOpen ? claudeKeyBox(true) : ''}${state.setupProvider && !signingIn ? claudeProviderBox(true) : ''}`;
 
   const onClick = (sel, fn) => { const el = $(sel, card); if (el) el.onclick = fn; };
   wireClaudeKey(card, c, () => loadClaudeCard(false));
