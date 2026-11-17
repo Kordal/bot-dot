@@ -16,6 +16,7 @@ const KEY = 'sk-provider-test-KEY-0123456789-wxyz';
 const REFUSED = 'sk-provider-refused-000000000';
 
 const asked = [];
+let reasoningAvailable = true;
 const stand = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -24,7 +25,10 @@ const stand = http.createServer((req, res) => {
     try { parsed = JSON.parse(body); } catch { /* none */ }
     asked.push({ method: req.method, url: req.url, auth: req.headers.authorization, xKey: req.headers['x-api-key'], model: parsed.model, max: parsed.max_tokens });
     const json = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
-    if (req.url === '/api/show') return json(200, { thinking: { values: parsed.model === 'big-model' ? ['low', 'high'] : [false, true] } });
+    if (req.url === '/api/show') {
+      if (!reasoningAvailable) return json(503, {});
+      return json(200, { thinking: { values: parsed.model === 'big-model' ? ['low', 'high'] : [false, true] } });
+    }
     if (req.headers.authorization !== `Bearer ${KEY}` && req.headers.authorization !== 'Bearer none') return json(401, { error: { message: 'bad key' } });
     if (!['big-model', 'small-model'].includes(parsed.model)) return json(404, { error: { message: `no model ${parsed.model}` } });
     json(200, { content: [{ type: 'text', text: 'OK' }] });
@@ -152,6 +156,23 @@ test('a keyless provider (Ollama on this machine) is saved without a key', async
   const run = await runOf(await makeBot(srv, { name: 'Local Model' }), 'keyless');
   assert.equal(run.anthropic.ANTHROPIC_AUTH_TOKEN, 'none');
   await srv.api('/setup/claude/provider', { method: 'DELETE' });
+});
+
+test('a failed reasoning refresh reports the error and keeps the last known levels', async () => {
+  const saved = await save({ preset: 'ollama', key: '' });
+  assert.equal(saved.status, 200);
+  try {
+    reasoningAvailable = false;
+    const refresh = await srv.api('/settings/refresh-models', { method: 'POST' });
+    assert.deepEqual([refresh.status, refresh.data.error], [502, "Couldn't refresh the provider's reasoning levels."]);
+    const { models } = (await srv.api('/settings')).data;
+    assert.deepEqual(models.map((model) => model.efforts), [['low', 'high'], []]);
+    reasoningAvailable = true;
+    assert.equal((await srv.api('/settings/refresh-models', { method: 'POST' })).status, 200);
+  } finally {
+    reasoningAvailable = true;
+    await srv.api('/setup/claude/provider', { method: 'DELETE' });
+  }
 });
 
 test('OpenRouter reasoning uses the advertised levels for each configured model', async () => {
