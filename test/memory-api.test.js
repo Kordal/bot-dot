@@ -381,7 +381,7 @@ test('an index from before version 2 gets Chief ids of the replies themselves, k
 });
 
 test("a Chief reply is indexed under its own place in the chat, even when a reminder went off while it replied", async (t) => {
-  const at = new Date().toISOString().slice(0, 16); // as once.test.js sets one for now
+  const at = new Date().toISOString().slice(0, 19); // now, to the second: a minute cut to :00 is up to 59 s old, and one older than 60 s is "already passed"
   srv.hold();
   t.after(() => srv.unhold());
   srv.reply('PLACEDCHIEF answer');
