@@ -42,10 +42,11 @@ const claudeProviderNote = (c) => (c.using !== 'provider' && c.provider ? ` ${tr
 const claudeOnOwn = (c) => (c.using === 'api-key' ? claudeOnKey(c) : c.using === 'provider' && c.provider ? claudeOnProvider(c) : null);
 // The key's links, none while signing in or while the key box is open (busy).
 function claudeKeyActions(c, busy) {
-  if (busy || !claudeHasKeys(c)) return [];
+  const here = typeof state === 'undefined' ? {} : state; // the page's state, where the page has one
+  if (busy || here.setupProvider || !claudeHasKeys(c)) return [];
   const link = (id, text) => `<button class="link-btn" id="${id}">${text}</button>`;
   const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))] : [];
-  const offered = !!(state.setup?.providers?.length || c.provider);
+  const offered = !!(here.setup?.providers?.length || c.provider);
   const other = !offered ? []
     : c.using === 'provider' ? [link('claude-provider-new', tr('Change provider')), link('claude-provider-remove', tr('Remove the provider'))]
     : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) }))]
@@ -183,9 +184,8 @@ function drawSetup() {
   const signingIn = !!state.setupLogin;
 
   const unknown = !!claudeUnknown(c);
-  const providerOpen = !!state.setupProvider && !signingIn;
-  const keyOpen = (!!state.setupKey || providerOpen) && !signingIn;
-  const claude = claudeSetupItem(c, signingIn, keyOpen) + (state.setupKey && !signingIn ? claudeKeyBox(false) : '') + (providerOpen ? claudeProviderBox(false) : '');
+  const keyOpen = !!state.setupKey && !signingIn;
+  const claude = claudeSetupItem(c, signingIn, keyOpen) + (keyOpen ? claudeKeyBox(false) : '') + (state.setupProvider && !signingIn ? claudeProviderBox(false) : '');
   const loginBox = signingIn ? `<div class="card setup-login">
       <ol>
         <li><a class="btn primary" href="${esc(state.setupLogin.url)}" target="_blank" rel="noopener">${tr('Open the sign-in page')}</a><span class="muted">${tr('Sign in, allow access, and copy the code it shows.')}</span></li>

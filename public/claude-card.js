@@ -25,8 +25,7 @@ async function loadClaudeCard(fresh = true) {
   }
   const c = state.setup.claude || {};
   const signingIn = !!state.setupLogin;
-  const providerOpen = !!state.setupProvider && !signingIn; // another provider's box (ADR 255)
-  const keyOpen = (!!state.setupKey || providerOpen) && !signingIn; // the API key's box (#35)
+  const keyOpen = !!state.setupKey && !signingIn; // the API key's box (#35)
   // A check that could not tell says its own sentence, never "Not signed in"; the way to sign in stays.
   const unknown = claudeUnknown(c);
   const body = c.installed === false ? tr("Claude Code isn't installed on this machine, so bots can't run.")
@@ -51,7 +50,7 @@ async function loadClaudeCard(fresh = true) {
     <h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>
     <p class="muted settings-hint" style="margin:0">${body}</p>
     ${action ? `<div class="setup-actions">${action}</div>` : ''}
-    ${steps}${state.setupKey && !signingIn ? claudeKeyBox(true) : ''}${providerOpen ? claudeProviderBox(true) : ''}`;
+    ${steps}${keyOpen ? claudeKeyBox(true) : ''}${state.setupProvider && !signingIn ? claudeProviderBox(true) : ''}`;
 
   const onClick = (sel, fn) => { const el = $(sel, card); if (el) el.onclick = fn; };
   wireClaudeKey(card, c, () => loadClaudeCard(false));
