@@ -211,11 +211,12 @@ class ChiefSettingsDesk(private val scope: CoroutineScope, private val api: Api,
 
     private fun publish() {
         val saved = info.settings.chiefSkills.orEmpty()
-        val model = edit.chiefModel.ifBlank { edit.defaultModel }
+        val shown = info.shownModel(edit.chiefModel)
+        val model = shown.ifBlank { edit.defaultModel }
         _state.value = ChiefSettingsState(
             loaded = loaded && settingsRead, failed = tried && !settingsRead, name = name,
             advanced = Advanced.on.value,
-            model = info.shownModel(edit.chiefModel), effort = info.shownEffort(edit.chiefEffort, model), thinks = info.canThink(model),
+            model = shown, effort = info.shownEffort(edit.chiefEffort, model), thinks = info.canThink(model),
             models = listOf(Option("", tr("Same as the default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) },
             efforts = listOf(Option("", tr("Same as the default"))) + info.availableEfforts(model).map { Option(it.id, it.label) },
             rules = edit.chiefRules,

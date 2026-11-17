@@ -48,7 +48,11 @@ function llmSummary(model, effort) {
   return chosenLevel ? `${modelLabel(model)} · ${effortLabel(effort)}` : modelLabel(model);
 }
 // The value of a Model row of the Chief or a bot, which nothing set follows the default.
-const llmValue = (model, effort) => (model || effort ? llmSummary(model, effort) : tr('Default'));
+function llmValue(model, effort) {
+  const shown = shownModel(model);
+  if (!shown && !effort) return tr('Default');
+  return llmSummary(shown || (state.modelProvider ? state.settings?.defaultModel : ''), effort);
+}
 
 // Model + reasoning selects. inherit: label for the "use the default" choice ('' = Claude Code's default).
 function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
