@@ -35,7 +35,8 @@ test("the Chief in the project's own chat is told the board's tiles and what eac
   assert.match(said, /Current work tile: [^\n]*\n(?:- [^\n]*\n)*- Planner \(planned[^\n]*\): Talk through the Pro plan\n- Planner \(planned[^\n]*\): Plan the upgrade to Pro\n/);
   assert.match(said, /Blockers tile: [^\n]*No failed work\./);
   assert.match(said, /Goal tiles: Waitlist \(12 of 100\)/);
-  assert.match(said, /Calendar tile: \d{4}-\d\d-\d\d Launch call/);
+  assert.doesNotMatch(said, /Calendar tile|Files tile/, 'the apps draw the calendar and the files only once the project runs');
+  assert.match(said, /Needs you tile: [^\n]*No question waits\./);
   assert.match(said, /To-do tile: 2 open/);
 });
 
@@ -60,12 +61,28 @@ test('a text of a bot or the owner in a tile cannot open a tag, and is cut', () 
 });
 
 test("only the tiles on the board are told, and a project made before the board's pieces shows them all", () => {
-  const c = { board: ['work', 'days'], ongoing: false, setup: { shape: 'ops' }, objectives: [], events: [], todos: [] };
+  const c = { board: ['work', 'days'], setup: { shape: 'ops' }, objectives: [], events: [], todos: [] };
   assert.deepEqual(tilesOf(c), ['work'], 'an ongoing project has no 90 days');
   const note = boardNote(c, { snapshot: { work: [], blockers: [], replies: [{ name: 'Copy', state: 'reply', text: 'Hi', at: '' }] }, cards: [] });
-  assert.match(note, /Tiles on it: Current work\./);
+  assert.match(note, /Tiles on it: Needs you \(only while something waits\), Current work\./);
   assert.match(note, /Current work tile: [^\n]*No recorded work\./);
-  assert.doesNotMatch(note, /Blockers tile|Latest replies tile|Needs you tile/);
+  assert.doesNotMatch(note, /Blockers tile|Latest replies tile/);
+  assert.match(note, /Needs you tile: [^\n]*No question waits\./, 'never hidden');
   const all = boardNote({ objectives: [], events: [], todos: [] }, { snapshot: { work: [], blockers: [], replies: [] }, cards: [] });
-  assert.match(all, /Tiles on it: 90 days, Goals, Teams, Calendar, To-do, Files, Needs you, Current work, Blockers, Latest replies\./);
+  assert.match(all, /Tiles on it: 90 days, Goals, Teams, To-do, Needs you, Current work, Blockers, Latest replies\./);
+});
+
+test('a running project tells its calendar and files; a question waits in Needs you, owner to-dos are the owner\'s, and a goal with a number shows it', () => {
+  const day = new Date(Date.now() + 86_400_000);
+  const due = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+  const c = { phase: 'running', board: ['calendar', 'files', 'goals', 'work'], events: [{ day: due, time: '10:00', title: 'Launch call' }], todos: [], objectives: [{ name: 'Waitlist', target: 100, current: 12, steps: [{ done: true }, { done: false }] }] };
+  const rows = (n) => Array.from({ length: n }, (_, i) => ({ name: '', state: 'planned', text: `Item ${i}`, at: '' }));
+  const snapshot = { work: rows(12), blockers: [{ name: 'Copy', state: 'asks', text: 'Which domain?', at: '' }], replies: [] };
+  const note = boardNote(c, { snapshot, cards: [] });
+  assert.match(note, new RegExp(`Calendar tile: ${due} 10:00 Launch call`));
+  assert.match(note, /Files tile/);
+  assert.match(note, /Goal tiles: Waitlist \(12 of 100\)/);
+  assert.match(note, /Needs you tile: [^\n]*\n- Copy \(asks\): Which domain\?/);
+  assert.match(note, /- the owner \(planned\): Item 0/);
+  assert.match(note, /- and 2 more/);
 });
