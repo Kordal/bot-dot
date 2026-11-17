@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 /** Claude's row in a word or two: what bots run on, or that they can't. */
 fun claudeValue(c: ClaudeStatus): String = when {
     c.onApiKey -> tr("API key")
+    c.onProvider -> c.provider!!.name
     !c.loggedIn -> tr("Not signed in")
     else -> c.email ?: tr("Signed in")
 }

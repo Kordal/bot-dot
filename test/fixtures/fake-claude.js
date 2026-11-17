@@ -207,6 +207,7 @@ if (settingsArg) { try { rec.settings = JSON.parse(fs.readFileSync(settingsArg, 
 rec.env = Object.fromEntries(Object.entries(process.env).filter(([k]) => k.startsWith('CLAUDE_CODE_'))); // Claude Code's own switches
 rec.git = Object.fromEntries(Object.entries(process.env).filter(([k]) => /^(GIT_|SSH_AUTH_SOCK$|BOTDOT_)/.test(k))); // where git stops, whose identity it has and how it signs in (ADR 090)
 rec.apiKey = process.env.ANTHROPIC_API_KEY || null; // the Anthropic API key it runs on, in API-key mode only (#35)
+rec.anthropic = Object.fromEntries(Object.entries(process.env).filter(([k]) => /^ANTHROPIC_/.test(k))); // where it sends its requests and with what, on another provider (ADR 255)
 rec.uid = process.getuid?.();
 rec.cwd = process.cwd();
 rec.path = process.env.PATH; // where its commands are looked for (a bot's installed tools come first)

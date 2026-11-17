@@ -29,16 +29,30 @@ function setupItem({ state: st, icon, title, body, action = '' }) {
 const claudeUnknown = (c) => (c && c.error ? String(c.error) : '');
 // Claude on an Anthropic API key as well as the subscription (#35; docs/api.md, Setup and updates). `using` says
 // which one bots run on; a server that does not say has no key, and nothing of one is drawn.
-const claudeHasKeys = (c) => !!c && c.installed !== false && (c.using === 'api-key' || c.using === 'subscription');
+const claudeHasKeys = (c) => !!c && c.installed !== false && (c.using === 'api-key' || c.using === 'subscription' || c.using === 'provider');
 // On the key: the sentence that says so, and names a subscription that is signed in too as not used.
 const claudeOnKey = (c) => `${tr('Bots run on your Anthropic API key {key}.', { key: `<b>${esc(c.apiKey || '')}</b>` })}${c.subscription === true ? ` ${c.email ? tr("Your Claude subscription ({email}) is signed in too; bots don't use it.", { email: `<b>${esc(c.email)}</b>` }) : tr("Your Claude subscription is signed in too; bots don't use it.")}` : ''}`;
 // On the subscription: a saved key, named as not used.
 const claudeKeyNote = (c) => (claudeHasKeys(c) && c.apiKey ? ` ${tr("An Anthropic API key ({key}) is saved too; bots don't use it.", { key: `<b>${esc(c.apiKey)}</b>` })}` : '');
+// Another model provider (ADR 255). On it: the sentence that says so, and names a subscription that is signed in too as not used.
+const claudeOnProvider = (c) => `${c.provider.key ? tr('Bots run on {name} ({key}).', { name: esc(c.provider.name), key: `<b>${esc(c.provider.key)}</b>` }) : tr('Bots run on {name}.', { name: esc(c.provider.name) })}${c.subscription === true ? ` ${c.email ? tr("Your Claude subscription ({email}) is signed in too; bots don't use it.", { email: `<b>${esc(c.email)}</b>` }) : tr("Your Claude subscription is signed in too; bots don't use it.")}` : ''}`;
+// Not on it: a saved provider, named as not used.
+const claudeProviderNote = (c) => (c.using !== 'provider' && c.provider ? ` ${tr("{name} is saved too; bots don't use it.", { name: esc(c.provider.name) })}` : '');
+// What is said of how bots run, on a key or on a provider, or null for the subscription.
+const claudeOnOwn = (c) => (c.using === 'api-key' ? claudeOnKey(c) : c.using === 'provider' && c.provider ? claudeOnProvider(c) : null);
 // The key's links, none while signing in or while the key box is open (busy).
 function claudeKeyActions(c, busy) {
   if (busy || !claudeHasKeys(c)) return [];
-  if (c.using === 'api-key') return [...(c.subscription === true ? [`<button class="link-btn" id="claude-use-sub">${tr('Use the subscription instead')}</button>`] : []), `<button class="link-btn" id="claude-key-remove">${tr('Remove the key')}</button>`];
-  return [c.apiKey ? `<button class="link-btn" id="claude-use-key">${tr('Use the API key instead')}</button>` : `<button class="link-btn" id="claude-key-new">${tr('Use an API key instead')}</button>`];
+  const link = (id, text) => `<button class="link-btn" id="${id}">${text}</button>`;
+  const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))] : [];
+  const providers = state.setup?.providers?.length || c.provider;
+  const other = !providers ? []
+    : c.using === 'provider' ? [link('claude-provider-new', tr('Change provider')), link('claude-provider-remove', tr('Remove the provider'))]
+    : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) }))]
+    : [link('claude-provider-new', tr('Use another provider'))];
+  if (c.using === 'api-key') return [...sub, link('claude-key-remove', tr('Remove the key')), ...other];
+  if (c.using === 'provider') return [...sub, ...(c.apiKey ? [link('claude-use-key', tr('Use the API key instead'))] : []), ...other];
+  return [c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
 }
 // Where the key is pasted: a password field, so it is never shown. inCard: in Settings → Claude.
 const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="padding:0;margin:12px 0 0' : 'card setup-login'}">
@@ -46,6 +60,23 @@ const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="pa
       <p class="muted settings-hint">${tr('Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.')}</p>
       <button class="link-btn muted" id="claude-key-cancel">${tr('Cancel')}</button>
     </div>`;
+// Where another provider is chosen and its key pasted (ADR 255): the presets the server hands out, a password field for the key, and
+// the models, whose placeholders are the preset's own. The address is asked only where the owner gives it.
+const claudeProviderBox = (inCard) => {
+  const presets = state.setup?.providers || [];
+  const saved = state.setup?.claude?.provider?.preset;
+  return `<div class="${inCard ? 'setup-login" style="padding:0;margin:12px 0 0' : 'card setup-login'}">
+      <form id="claude-provider-form" class="setup-code setup-provider">
+        <select name="preset">${presets.map((p) => `<option value="${esc(p.id)}"${p.id === saved ? ' selected' : ''}>${esc(p.id === 'custom' ? tr('Other') : p.name)}</option>`).join('')}</select>
+        <input type="text" name="url" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" hidden>
+        <input type="password" name="key" placeholder="${tr('API key')}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input type="text" name="big" placeholder="${tr('Model')}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <input type="text" name="small" placeholder="${tr('Small model')}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <button class="btn primary" type="submit">${tr('Save')}</button>
+      </form>
+      <button class="link-btn muted" id="claude-provider-cancel">${tr('Cancel')}</button>
+    </div>`;
+};
 // The key's links and box in root, for Setup and Settings → Claude; redraw draws root again from state.setup.
 function wireClaudeKey(root, c, redraw) {
   const on = (sel, fn) => { const el = $(sel, root); if (el) el.onclick = fn; };
@@ -53,19 +84,54 @@ function wireClaudeKey(root, c, redraw) {
     try {
       const r = await call();
       state.setupKey = false;
+      state.setupProvider = false;
       state.setup.claude = r.claude;
       toastClaude(r.claude, said);
     } catch (err) { toast(err.message, true); }
     redraw();
   };
-  on('#claude-key-new', () => { state.setupKey = true; redraw(); });
+  on('#claude-key-new', () => { state.setupKey = true; state.setupProvider = false; redraw(); });
   on('#claude-key-cancel', () => { state.setupKey = false; redraw(); });
+  on('#claude-provider-new', () => { state.setupProvider = true; state.setupKey = false; redraw(); });
+  on('#claude-provider-cancel', () => { state.setupProvider = false; redraw(); });
+  on('#claude-use-provider', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'provider' } }), tr('Bots now run on {name}', { name: c.provider?.name || '' })));
+  on('#claude-provider-remove', async () => {
+    if (!(await askFirst(c.subscription === true ? tr('Remove the provider? Bots will run on your Claude subscription.') : tr("Remove the provider? Bots can't run until you sign in to Claude or save a key again."), tr('Remove')))) return;
+    ask(() => api('/setup/claude/provider', { method: 'DELETE' }), tr('Provider removed'));
+  });
   on('#claude-use-key', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'api-key' } }), tr('Bots now run on your API key')));
   on('#claude-use-sub', () => ask(() => api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } }), tr('Bots now run on your Claude subscription')));
   on('#claude-key-remove', async () => {
     if (!(await askFirst(c.subscription === true ? tr('Remove the API key? Bots will run on your Claude subscription.') : tr("Remove the API key? Bots can't run until you sign in to Claude or save a key again."), tr('Remove')))) return;
     ask(() => api('/setup/claude/key', { method: 'DELETE' }), tr('API key removed'));
   });
+  const pform = $('#claude-provider-form', root);
+  if (pform) {
+    const presets = state.setup?.providers || [];
+    // What the chosen preset asks for: its address only where the owner gives it, a key unless it needs none, and its models as the hints.
+    const fit = () => {
+      const p = presets.find((x) => x.id === pform.preset.value) || {};
+      pform.url.hidden = !(p.custom || p.id === 'ollama');
+      pform.url.value = p.id === 'ollama' ? pform.url.value || p.url : pform.url.value;
+      pform.url.required = !!p.custom;
+      pform.key.hidden = !!p.keyless;
+      pform.key.required = !p.keyless;
+      pform.big.placeholder = p.big || tr('Model');
+      pform.big.required = !p.big;
+      pform.small.placeholder = p.small || tr('Small model');
+    };
+    fit();
+    pform.preset.onchange = fit;
+    pform.onsubmit = (e) => {
+      e.preventDefault();
+      const btn = pform.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = tr('Checking…');
+      const body = { preset: pform.preset.value, key: pform.key.value, big: pform.big.value, small: pform.small.value };
+      if (!pform.url.hidden) body.url = pform.url.value;
+      ask(() => api('/setup/claude/provider', { method: 'PUT', body }), tr('Saved. Bots now run on it'));
+    };
+  }
   const form = $('#claude-key-form', root);
   if (form) {
     form.key.focus();
@@ -87,16 +153,16 @@ function claudeSetupItem(c, signingIn, keyOpen = false) {
   const keys = claudeKeyActions(c, signingIn || keyOpen);
   const links = (list) => list.join(' · ');
   if (claudeUnknown(c)) return setupItem({ state: 'todo', icon: '✳︎', title: 'Claude', body: esc(claudeUnknown(c)), action: [signIn, links(keys)].filter(Boolean).join(' ') });
-  if (c.using === 'api-key') return setupItem({ state: 'ok', icon: '✳︎', title: 'Claude', body: claudeOnKey(c), action: links(keys) });
+  if (claudeOnOwn(c)) return setupItem({ state: 'ok', icon: '✳︎', title: 'Claude', body: claudeOnOwn(c), action: links(keys) });
   return c.loggedIn
     ? setupItem({
       state: 'ok', icon: '✳︎', title: 'Claude',
-      body: (c.fromEnv ? tr("Signed in with a token from the server's settings.") : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c),
+      body: (c.fromEnv ? tr("Signed in with a token from the server's settings.") : c.email ? tr('Signed in with {email}.', { email: `<b>${esc(c.email)}</b>` }) : tr('Signed in.')) + claudeKeyNote(c) + claudeProviderNote(c),
       action: links([...(c.fromEnv ? [] : [`<button class="link-btn" id="claude-switch">${tr('Use another account')}</button>`, `<button class="link-btn" id="claude-logout">${tr('Sign out')}</button>`]), ...keys]),
     })
     : setupItem({
       state: 'todo', icon: '✳︎', title: tr('Sign in to Claude'),
-      body: c.installed === false ? tr("Claude Code isn't installed on this machine, so bots can't run.") : `${tr('Your bots run on your Claude subscription. Sign in once; it stays signed in.')}${claudeHasKeys(c) ? ` ${tr('Or run them on an Anthropic API key.')}` : ''}${claudeKeyNote(c)}`,
+      body: c.installed === false ? tr("Claude Code isn't installed on this machine, so bots can't run.") : `${tr('Your bots run on your Claude subscription. Sign in once; it stays signed in.')}${claudeHasKeys(c) ? ` ${tr('Or run them on an Anthropic API key.')}` : ''}${claudeKeyNote(c)}${claudeProviderNote(c)}`,
       action: [signIn, links(keys)].filter(Boolean).join(' '),
     });
 }
@@ -116,8 +182,9 @@ function drawSetup() {
   const signingIn = !!state.setupLogin;
 
   const unknown = !!claudeUnknown(c);
-  const keyOpen = !!state.setupKey && !signingIn;
-  const claude = claudeSetupItem(c, signingIn, keyOpen) + (keyOpen ? claudeKeyBox(false) : '');
+  const providerOpen = !!state.setupProvider && !signingIn;
+  const keyOpen = (!!state.setupKey || providerOpen) && !signingIn;
+  const claude = claudeSetupItem(c, signingIn, keyOpen) + (state.setupKey && !signingIn ? claudeKeyBox(false) : '') + (providerOpen ? claudeProviderBox(false) : '');
   const loginBox = signingIn ? `<div class="card setup-login">
       <ol>
         <li><a class="btn primary" href="${esc(state.setupLogin.url)}" target="_blank" rel="noopener">${tr('Open the sign-in page')}</a><span class="muted">${tr('Sign in, allow access, and copy the code it shows.')}</span></li>

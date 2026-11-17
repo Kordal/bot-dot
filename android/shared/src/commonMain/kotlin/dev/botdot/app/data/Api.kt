@@ -745,9 +745,14 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun claudeCode(code: String): ClaudeStatus? = claudeOfAnswer(send("POST", "/setup/claude/code", buildJsonObject { put("code", code) }))
     /** Saves an Anthropic API key, which bots then run on (#35); a key Anthropic refuses throws the server's words. Only with `claude-api-key` in its features. */
     suspend fun claudeSaveKey(key: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/key", buildJsonObject { put("key", key) }))
-    /** Which one bots run on: "api-key" or "subscription". */
+    /** Which one bots run on: "api-key", "provider" or "subscription". */
     suspend fun claudeUse(use: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/use", buildJsonObject { put("use", use) }))
     suspend fun claudeRemoveKey(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/key"))
+    /** Saves another model provider, which bots then run on (ADR 255); one that refuses the key or does not know the model throws the server's words. [url] only for a preset whose address the owner gives. Only with `llm-provider` in its features. */
+    suspend fun claudeSaveProvider(preset: String, key: String, url: String?, big: String, small: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/provider", buildJsonObject {
+        put("preset", preset); put("key", key); if (url != null) put("url", url); put("big", big); put("small", small)
+    }))
+    suspend fun claudeRemoveProvider(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/provider"))
     suspend fun backups(): BackupInfo = json.decodeFromString(get("/backups"))
     /** Where the account's computer is (#579); a switch moves every bot with a computer, its files along with [moveFiles]. */
     suspend fun computerPlace(): ComputerPlace = json.decodeFromString(get("/settings/computer"))

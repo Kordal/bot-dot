@@ -116,6 +116,13 @@ fun SettingsScreen(
     var keyOpen by remember { mutableStateOf(false) } // the box for an Anthropic API key (#35)
     var apiKey by remember { mutableStateOf("") }
     var confirmRemoveKey by remember { mutableStateOf(false) }
+    var providerOpen by remember { mutableStateOf(false) } // the box for another model provider (ADR 255)
+    var pPreset by remember { mutableStateOf("") }
+    var pKey by remember { mutableStateOf("") }
+    var pUrl by remember { mutableStateOf("") }
+    var pBig by remember { mutableStateOf("") }
+    var pSmall by remember { mutableStateOf("") }
+    var confirmRemoveProvider by remember { mutableStateOf(false) }
 
     // All at once: over Tailscale, one after another would take a round trip each.
     suspend fun load() {
@@ -219,20 +226,55 @@ fun SettingsScreen(
             setup?.let { s ->
                 // An Anthropic API key as well as the subscription (#35): only from a server that takes one.
                 val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
+                // Another model provider (ADR 255): only from a server that offers some.
+                val providers = s.claude.knowsKeys && server?.features?.contains("llm-provider") == true && s.providers.isNotEmpty()
+                val openProvider = { pPreset = s.claude.provider?.preset ?: s.providers.first().id; providerOpen = true; keyOpen = false }
                 fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
                     scope.launch {
-                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
+                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = ""; providerOpen = false; pKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
                         load()
                     }
                 }
                 FoldSection("Claude", dev.botdot.app.data.claudeValue(s.claude)) {
-                    if (keys && keyOpen && loginUrl == null) {
+                    if (providers && providerOpen && loginUrl == null) {
+                        val chosen = s.providers.firstOrNull { it.id == pPreset } ?: s.providers.first()
+                        Choice(tr("Provider"), chosen.id, s.providers.map { it.id to (if (it.custom) tr("Other") else it.name) }) { pPreset = it }
+                        if (chosen.custom || chosen.id == "ollama") Field(pUrl, { pUrl = it.trim() }, placeholder = { Text(chosen.url.ifBlank { "https://…" }) }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        if (!chosen.keyless) Field(pKey, { pKey = it.trim() }, label = { Text(tr("API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        Field(pBig, { pBig = it.trim() }, placeholder = { Text(chosen.big.ifBlank { tr("Model") }) }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        Field(pSmall, { pSmall = it.trim() }, placeholder = { Text(chosen.small.ifBlank { tr("Small model") }) }, singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+                            Button(onClick = {
+                                val (preset, key, big, small) = listOf(chosen.id, pKey, pBig, pSmall)
+                                val url = if (chosen.custom || chosen.id == "ollama") pUrl.ifBlank { chosen.url } else null
+                                keyChange(tr("Saved. Bots now run on it")) { api!!.claudeSaveProvider(preset, key, url, big, small) }
+                            }, enabled = (chosen.keyless || pKey.isNotBlank()) && (chosen.big.isNotBlank() || pBig.isNotBlank()) && (!chosen.custom || pUrl.isNotBlank()),
+                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
+                            TextButton(onClick = { providerOpen = false; pKey = "" }) { Text(tr("Cancel"), color = p.text) }
+                        }
+                    } else if (keys && keyOpen && loginUrl == null) {
                         Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = { val key = apiKey; keyChange(tr("Saved. Bots now run on your API key")) { api!!.claudeSaveKey(key) } }, enabled = apiKey.isNotBlank(),
                                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                             TextButton(onClick = { keyOpen = false; apiKey = "" }) { Text(tr("Cancel"), color = p.text) }
+                        }
+                    } else if (s.claude.onProvider && loginUrl == null) {
+                        Hint(claudeSays(s.claude))
+                        Row {
+                            if (s.claude.subscription == true) TextButton(onClick = { keyChange(tr("Bots now run on your Claude subscription")) { api!!.claudeUse("subscription") } }) {
+                                Text(tr("Use the subscription instead"), color = p.text)
+                            }
+                            if (keys && s.claude.apiKey != null) KeyOffer(true, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        }
+                        Row {
+                            TextButton(onClick = openProvider) { Text(tr("Change provider"), color = p.text) }
+                            TextButton(onClick = { confirmRemoveProvider = true }) { Text(tr("Remove the provider"), color = p.text) }
                         }
                     } else if (s.claude.onApiKey && loginUrl == null) {
                         Hint(claudeSays(s.claude))
@@ -242,6 +284,7 @@ fun SettingsScreen(
                             }
                             TextButton(onClick = { confirmRemoveKey = true }) { Text(tr("Remove the key"), color = p.text) }
                         }
+                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }, onNew = openProvider)
                     } else if (s.claude.loggedIn && loginUrl == null) {
                         if (s.claude.fromEnv) Hint(claudeSays(s.claude))
                         else {
@@ -257,11 +300,13 @@ fun SettingsScreen(
                             }
                         }
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }, onNew = openProvider)
                     } else if (loginUrl == null) {
                         Hint(claudeSays(s.claude))
                         Button(onClick = { scope.launch { runCatching { api!!.claudeLogin() }.onSuccess { loginUrl = it.url }.onError { tell(it.message ?: tr("Couldn't start")) } } },
                             colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign in to Claude")) }
                         if (keys) KeyOffer(s.claude.apiKey != null, onUse = { keyChange(tr("Bots now run on your API key")) { api!!.claudeUse("api-key") } }, onNew = { keyOpen = true })
+                        if (providers) ProviderOffer(s.claude.provider?.name, onUse = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }, onNew = openProvider)
                     } else {
                         // Open the page, sign in and allow access, then paste the code it shows.
                         SecondaryButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(loginUrl))) }) { Text(tr("Open the sign-in page"), color = p.text) }
@@ -406,6 +451,21 @@ fun SettingsScreen(
         },
         dismissButton = { TextButton(onClick = { confirmRemoveKey = false }) { Text(tr("Cancel"), color = p.text) } },
     )
+    if (confirmRemoveProvider) AlertDialog(
+        onDismissRequest = { confirmRemoveProvider = false },
+        title = { Text(tr("Remove the provider?")) },
+        text = { Text(if (setup?.claude?.subscription == true) tr("Bots will run on your Claude subscription.") else tr("Bots can't run until you sign in to Claude or save a key again.")) },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmRemoveProvider = false
+                scope.launch {
+                    runCatching { api!!.claudeRemoveProvider() }.onSuccess { tell(claudeCouldNotTell(it) ?: tr("Provider removed")) }.onError { tell(it.message ?: tr("Couldn't remove it")) }
+                    load()
+                }
+            }) { Text(tr("Remove"), color = p.text) }
+        },
+        dismissButton = { TextButton(onClick = { confirmRemoveProvider = false }) { Text(tr("Cancel"), color = p.text) } },
+    )
     askPlace?.let { to ->
         val move = { copy: Boolean ->
             askPlace = null
@@ -481,6 +541,13 @@ fun SettingsScreen(
 private fun KeyOffer(saved: Boolean, onUse: () -> Unit, onNew: () -> Unit) {
     val p = LocalPaper.current
     TextButton(onClick = if (saved) onUse else onNew) { Text(if (saved) tr("Use the API key instead") else tr("Use an API key instead"), color = p.text) }
+}
+
+/** Another model provider as the other way to run (ADR 255): the saved one by name, or a new one. */
+@Composable
+private fun ProviderOffer(saved: String?, onUse: () -> Unit, onNew: () -> Unit) {
+    val p = LocalPaper.current
+    TextButton(onClick = if (saved != null) onUse else onNew) { Text(if (saved != null) tr("Use {name} instead", "name" to saved) else tr("Use another provider"), color = p.text) }
 }
 
 /** A row that opens another screen (#636): its name, its [value] and a chevron, and a thin line under it. */
