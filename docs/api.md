@@ -1224,9 +1224,9 @@ Tiles the Chief puts together: `switch`, `button`, `value`, `list` and `note`, g
 
 ## Attaching files
 
-`POST /api/uploads?to=bot:<botId>` (or `?to=chief`, or `?to=group:<id>` for a message in a group: see The owner's files in a group). The body is the file itself (`Content-Type: application/octet-stream`), with its name in the header `X-File-Name` (URL-encoded). Up to 25 MB.
+`POST /api/uploads?to=bot:<botId>` (or `?to=chief`, or `?to=group:<id>` for a message in a group: see The owner's files in a group). The body is the file itself (`Content-Type: application/octet-stream`), with its name in the header `X-File-Name` (URL-encoded). The file must fit on the account’s disk. An upload that cannot fit returns `507`. A failed upload leaves no partial attachment.
 
-Returns `{ name, file, size, readable }`. Send that object, as it is, in `attachments` with the message, up to 10 per message. `readable` is set when botdot saved a readable copy (Excel, Word, PowerPoint, OpenDocument).
+Returns `{ name, file, size, readable }`. Send that object, as it is, in `attachments` with the message, up to 10 per message. `readable` is set when botdot saved a readable copy (Excel, Word, PowerPoint, OpenDocument). Files over 25 MB are saved as supplied.
 
 ## Upload from phone
 
@@ -1236,7 +1236,7 @@ When `features` has `phone-upload`: the paperclip's "From phone" and Files' "Fro
 
 `GET /api/drops/<token>` → `{ expires, open, files: [{ id, name, size, status, saved?, error? }] }`: `status` is `arriving`, `saved` (with `saved`, what the upload route answered, e.g. `{ name, file, size, readable }` of Attaching files, ready to send in `attachments`) or `failed` (with `error`). `404` once the code is gone, ten minutes after it expired. `DELETE /api/drops/<token>` ends it at once.
 
-The phone, through the front door (see The front door, A phone's upload): `GET /drop/<account>/<token>` is its page, with the place's name (the chat's, or the folder's) and Choose files; a code that expired, was ended or never made is "This code has expired" (`404` for one never made). `POST /drop/<account>/<token>/files` with `X-Bot-Dot: 1`, the file as the body and its name in `X-File-Name` (URL-encoded), up to 25 MB, is taken by the code's upload address as the owner's own upload there: `201 { name, size }`, or that route's refusal; `410` once the code expired or was ended, `409` past 20 files, `413` over 25 MB. Each file saved goes to the audit log as `phone-upload`.
+The phone, through the front door (see The front door, A phone's upload): `GET /drop/<account>/<token>` is its page, with the place's name (the chat's, or the folder's) and Choose files; a code that expired, was ended or never made is "This code has expired" (`404` for one never made). `POST /drop/<account>/<token>/files` with `X-Bot-Dot: 1`, the file as the body and its name in `X-File-Name` (URL-encoded), is taken by the code's upload address as the owner's own upload there: `201 { name, size }`, or that route's refusal; `410` once the code expired or was ended, `409` past 20 files, `413` over 25 MB for a folder in Files, and `507` when a chat attachment cannot fit on the account’s disk. Each file saved goes to the audit log as `phone-upload`.
 
 ## Files from bots
 

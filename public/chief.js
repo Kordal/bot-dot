@@ -76,7 +76,6 @@ function wireAttachments(form, uploadTo) {
   const add = (files) => {
     for (const file of files) {
       if (form._files.length >= 10) { toast(tr('Attach at most 10 files at a time.'), true); break; }
-      if (file.size > 25 * 1024 * 1024) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
       const f = { key: Math.random().toString(36).slice(2), name: file.name, size: file.size, status: 'uploading' };
       form._files.push(f);
       fetch(`/api/uploads?to=${encodeURIComponent(uploadTo())}`, {

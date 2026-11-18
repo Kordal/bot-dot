@@ -2146,7 +2146,7 @@ function takeDrop(req, res, drop) {
 
 // ---------- the server ----------
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer({ requestTimeout: 0, headersTimeout: 60_000 }, async (req, res) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   try {
