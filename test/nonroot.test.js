@@ -192,3 +192,30 @@ test("a search of a bot's files (#604) is one call through the broker and holds 
     }
   } finally { await srv.stop(); }
 });
+
+test('a group file crosses the broker into a member without a whole-file read', { skip: !CAN && 'needs isolated Linux root', timeout: 120000 }, async () => {
+  const path = require('node:path');
+  const { makeBot, waitFor } = require('./helpers');
+  const srv = await startServer({ broker: true, env: { BOT_DOT_SEPARATE_USERS: '1' } });
+  try {
+    const reader = await makeBot(srv, { name: 'File Reader' });
+    const other = await makeBot(srv, { name: 'Other Member' });
+    const group = (await srv.api('/group-chats', { method: 'POST', body: { name: 'Reading', members: [reader.id, other.id] } })).data;
+    const upload = await srv.api(`/uploads?to=group:${group.id}`, {
+      method: 'POST', raw: Buffer.from('recorded bytes'), headers: { 'X-File-Name': 'file.bin' },
+    });
+    assert.equal(upload.status, 201, JSON.stringify(upload.data));
+    const size = 51 * 1024 * 1024;
+    fs.truncateSync(path.join(srv.data, 'group-files', group.id, upload.data.file), size);
+    const sent = await srv.api(`/group-chats/${group.id}/messages`, {
+      method: 'POST', body: { text: '@FileReader use this file', attachments: [upload.data] },
+    });
+    assert.ok(sent.status < 300, JSON.stringify(sent.data));
+    const run = await waitFor(async () => {
+      const chat = (await srv.api(`/group-chats/${group.id}/chat`)).data;
+      return chat.items.find((x) => x.type === 'reply' && x.run.botId === reader.id)?.run;
+    }, { timeout: 30_000, what: 'the group reply' });
+    assert.equal(run.attachments[0].size, size);
+    assert.equal(fs.statSync(path.join(srv.data, 'workspaces', reader.id, run.attachments[0].file)).size, size);
+  } finally { await srv.stop(); }
+});

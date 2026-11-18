@@ -6,6 +6,8 @@
 process.env.BOT_DOT_RUNS_MAX = '1';
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { startServer, makeBot, heldRun, self, waitFor, feed, sleep } = require('./helpers');
 const { shortName } = require('../public/mentions.js');
 
@@ -41,7 +43,10 @@ test('a message that waits behind the member\'s turn of an earlier message is re
   const one = (await send(group, { text: to(infra, 'Set up the staging key') })).data;
   const rec = await srv.nextRun((x) => x.self?.env && isRunOf(infra)(x), 'the first turn of Infra Admin');
   const token = rec.self.env.RUN_TOKEN;
-  const two = (await send(group, { text: to(infra, 'Do all of it in config, I want to see everything') })).data;
+  const file = (await srv.api(`/uploads?to=group:${group.id}`, {
+    method: 'POST', raw: Buffer.from('config entries'), headers: { 'X-File-Name': 'entries.txt' },
+  })).data;
+  const two = (await send(group, { text: to(infra, 'Do all of it in config, I want to see everything'), attachments: [file] })).data;
   assert.deepEqual([two.waitsFor, two.canTakeBack, two.steering], [[infra.id], true, undefined]);
   // Nothing was steered yet: a tool call reads nothing.
   assert.equal(await toolCall(token), null);
@@ -58,6 +63,7 @@ test('a message that waits behind the member\'s turn of an earlier message is re
   const read = await toolCall(token);
   assert.match(read, /The owner has sent you a message in the group chat "Qwotz Dev" while you work/);
   assert.ok(read.includes('Do all of it in config, I want to see everything'));
+  assert.ok(read.includes('config entries'));
   assert.equal(await toolCall(token), null, 'read once');
   // It is a started message now: nothing waits, no Steer, no Take back, and its line is over.
   const now = await waitFor(async () => { const m = await messageIn(group, two.id); return m.canTakeBack === false && m.waitsFor.length === 0 ? m : null; }, { what: 'the steered message to be read' });
@@ -67,6 +73,8 @@ test('a message that waits behind the member\'s turn of an earlier message is re
   const going = (await srv.api(`/runs/${runId}?events=0`)).data;
   assert.deepEqual(going.steered.map((x) => [x.id, x.text]), [[going.steered[0].id, to(infra, 'Do all of it in config, I want to see everything')]]);
 
+  const copied = going.steered[0].attachments[0];
+  assert.equal(fs.readFileSync(path.join(srv.data, 'workspaces', infra.id, copied.file), 'utf8'), 'config entries');
   srv.unhold();
   srv.release(rec);
   await waitFor(async () => { const m = await messageIn(group, one.id); return m?.canTakeBack === false && (await chatOf(group)).working.length === 0 ? true : null; }, { what: 'the first turn to end' });
