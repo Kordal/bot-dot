@@ -16,6 +16,9 @@ test('split takes the draft block off the text', () => {
   assert.deepEqual(split(block()).text, '', 'a reply that is only the card');
   assert.equal(split(`${block('draft sent', '')}`).draft.state, 'sent');
   assert.equal(split(`${block('draft sent', '')}`).draft.text, '', 'a sent block needs no text');
+  const sentClosed = '[[draft sent]]\nTo: Stefan Nowak <stefan@clinic.example>\nSubject: Today\'s appointment online?\n[[/draft sent]]';
+  assert.deepEqual(split(`Wysłane.\n\n${sentClosed}`), { text: 'Wysłane.', draft: { to: 'Stefan Nowak <stefan@clinic.example>', subject: "Today's appointment online?", text: '', state: 'sent' } }, 'a sent block closed by [[/draft sent]] is the card too');
+  assert.equal(split(sentClosed.replace('[[/draft sent]]', '[[ /draft  sent ]]')).draft.state, 'sent');
   assert.deepEqual(split('No draft here.'), { text: 'No draft here.', draft: null });
   assert.deepEqual(split(null), { text: null, draft: null });
   const noHead = '[[draft]]\nJust some words\n[[/draft]]';
