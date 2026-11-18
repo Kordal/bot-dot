@@ -141,7 +141,19 @@ test("the bridge to the bot's workspace (#545) goes through the helper: bringOut
   const server = createServer({ updates: {}, computers: {
     bringOut: async (seat, opts) => { calls.push(['bringOut', seat, opts]); return { code: 0, stdout: 'size 3\nYWJj\n' }; },
     listUploads: async (seat) => { calls.push(['listUploads', seat]); return { code: 0, stdout: 'a.pdf\n' }; },
-    putUpload: async (seat, { name, data }) => { calls.push(['putUpload', seat, name, Buffer.isBuffer(data), data.toString('hex')]); return { code: 0 }; },
+    putUpload: async (seat, { name, data, source }) => {
+      if (source) {
+        let size = 0;
+        for await (const chunk of source) {
+          assert.ok(chunk.length <= 1024 * 1024);
+          size += chunk.length;
+        }
+        calls.push(['streamed', seat, name, size]);
+      } else {
+        calls.push(['putUpload', seat, name, Buffer.isBuffer(data), data.toString('hex')]);
+      }
+      return { code: 0 };
+    },
   } });
   await new Promise((r) => server.listen(socket, r));
   const before = process.env.BOT_DOT_HELPER_SOCKET;
@@ -165,6 +177,12 @@ test("the bridge to the bot's workspace (#545) goes through the helper: bringOut
   // A file up to uploads.js's 25 MB fits in one call.
   const big = Buffer.alloc(25 * 1024 * 1024, 7);
   assert.deepEqual(await computers.putUpload(seat, { name: 'big.bin', data: big }), { code: 0 });
+
+  const chunk = Buffer.alloc(1024 * 1024, 7);
+  const { Readable } = require('node:stream');
+  const source = Readable.from((function* () { for (let n = 0; n < 51; n++) yield chunk; })());
+  assert.deepEqual(await computers.putUpload(seat, { name: 'stream.bin', source, size: 51 * chunk.length }), { code: 0 });
+  assert.deepEqual(calls.at(-1), ['streamed', seat, 'stream.bin', 51 * chunk.length]);
 
   // Only a plain name in uploads/, never a path, a hidden file or bytes that are not base64.
   for (const name of ['../x', 'a/b', '.part', '', 'x'.repeat(256), 'a\0b']) assert.equal(validate('putUpload', [seat, { name, data: 'YWJj' }]), false, name);

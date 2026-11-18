@@ -116,7 +116,12 @@ test('the files of uploads/ its computer lacks are copied there, whole; those it
   const bytes = names.map(() => crypto.randomBytes(1000));
   names.forEach((n, i) => fs.writeFileSync(path.join(ws, 'uploads', n), bytes[i]));
   const put = [];
-  const pc = { listUploads: async () => ({ code: 0, stdout: `${names[1]}\n.x.part\n` }), putUpload: async (botId, f) => { put.push({ botId, ...f }); return { code: 0 }; } };
+  const pc = { listUploads: async () => ({ code: 0, stdout: `${names[1]}\n.x.part\n` }), putUpload: async (botId, { name, source, size }) => {
+    const data = await require('node:stream/consumers').buffer(source);
+    assert.equal(data.length, size);
+    put.push({ botId, name, data });
+    return { code: 0 };
+  } };
   const files = names.map((n) => ({ file: `uploads/${n}` }));
   assert.deepEqual(await bridge.copyUploads(pc, 'desk', ws, files, { fs }), [names[0], names[2]]);
   assert.deepEqual(put.map((p) => [p.botId, p.name]), [['desk', names[0]], ['desk', names[2]]]);
