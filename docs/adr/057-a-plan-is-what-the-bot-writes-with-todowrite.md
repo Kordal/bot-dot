@@ -27,3 +27,4 @@ While a bot or the Chief works, the owner sees one working line: what it does no
 - A bump of Claude Code that renames these switches, or drops TodoWrite, leaves runs without a plan: `test/plan.test.js` checks the switches are given, and a real run is the check of the tool.
 - A plan stays with its run, so a reload, a phone that opens the chat later and a restart show the same plan.
 - A run that is cut off by a restart keeps the plan it had, and shows as stopped.
+- A plan the bot forgets to update is reminded of by botdot ([decision](../decisions/2026-11-18-a-plan-that-lags-the-run-is-reminded-of-by-the-steer-hook.md)): bots only, not the Chief.
