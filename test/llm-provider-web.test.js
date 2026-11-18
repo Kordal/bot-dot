@@ -30,10 +30,12 @@ test('web: on a provider Setup says so with its key, and names a signed-in subsc
   const on = ctx.claudeSetupItem(ON_PROVIDER, false);
   assert.match(on, /setup-item ok[\s\S]*Bots run on DeepSeek \(<b>…wxyz<\/b>\)\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
   assert.match(on, /id="claude-use-sub">Use the subscription instead<\/button>[\s\S]*id="claude-provider-new">Change provider<\/button>[\s\S]*id="claude-provider-remove">Remove the provider<\/button>/);
-  assert.doesNotMatch(on, /claude-logout|claude-use-provider|claude-key-new/);
+  assert.doesNotMatch(on, /claude-logout|claude-use-provider/);
+  assert.match(on, /id="claude-key-new">Use an API key instead/);
   const only = ctx.claudeSetupItem(PROVIDER_ONLY, false);
   assert.match(only, /Bots run on DeepSeek \(<b>…wxyz<\/b>\)\.<\/div>/, 'no word of a subscription that is not there');
   assert.doesNotMatch(only, /claude-use-sub/);
+  assert.match(only, /id="claude-login">Sign in to Claude/);
 });
 
 test('web: on the subscription a saved provider is named as not used, and another can be chosen', () => {
@@ -95,6 +97,25 @@ test('web: opening Settings mounts the Claude card by the Updates row', () => {
   ctx.renderSettings();
   assert.deepEqual(outputs.slice(0, 2), ['settings', 'beforebegin']);
   assert.match(outputs[2], /id="claude-card"/);
+});
+
+test('web: provider controls are inside the Model row and saved Claude IDs remain selectable', () => {
+  const outputs = [];
+  const form = { insertAdjacentHTML(where, html) { outputs.push(where, html); } };
+  const state = { setup: { providers: PRESETS }, models: [] };
+  const ctx = vm.createContext({
+    ...words, state, esc, renderSettings() {},
+    $: (sel) => ({ '#settings-form': form, '#update-card': {} })[sel],
+  });
+  vm.runInContext(read('claude-card.js'), ctx);
+  ctx.renderSettings();
+  assert.equal(outputs[0], 'beforebegin');
+  assert.match(outputs[1], /id="claude-card" data-in-model/);
+  const source = read('settings.js');
+  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nthis.llmFieldsHTML = llmFieldsHTML;', ctx);
+  const fields = ctx.llmFieldsHTML('default', { model: 'older-model' });
+  assert.match(fields, /<option value="older-model" selected>older-model/);
+  assert.doesNotMatch(fields, /__custom|ModelCustom|Full model name/);
 });
 
 test('web: Settings → Claude says the same, and the provider box opens there', async () => {

@@ -191,7 +191,7 @@ internal fun ProviderSetupForm(
 private val modelWordBoundary = Regex("""[\s._:/-]+""")
 
 @Composable
-private fun ModelOptions(models: List<ProviderModel>, selected: String, onSelect: (String) -> Unit) {
+internal fun ModelOptions(models: List<ProviderModel>, selected: String, onSelect: (String) -> Unit) {
     val p = LocalPaper.current
     var query by remember { mutableStateOf("") }
     val visible = remember(models, query) {

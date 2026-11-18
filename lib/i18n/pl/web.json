@@ -1858,5 +1858,7 @@
   "Use {name}": "Użyj {name}",
   "Saved key {key}": "Zapisany klucz {key}",
   "Use this provider": "Użyj tego dostawcy",
-  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele."
+  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele.",
+  "Refresh models": "Odśwież modele",
+  "Claude subscription": "Subskrypcja Claude"
 }

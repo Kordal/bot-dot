@@ -1,4 +1,4 @@
 Find models by name
-- Search and pick a model when you connect an AI provider.
-- Use the same model for short helper calls or pick a different one.
-- Change the models for a saved provider using its saved key.
+- Open Model in Settings to load the available models and change the provider.
+- Search for a model by name and select it from the list.
+- Use a saved key when changing models for the same provider.

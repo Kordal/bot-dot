@@ -284,6 +284,29 @@ test('settings.args turns a model into the provider\'s only while a provider is 
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('the Model row can discover and select models beyond provider setup', async () => {
+  assert.equal((await save({})).status, 200);
+  try {
+    const refresh = await srv.api('/settings/refresh-models?catalog', { method: 'POST' });
+    assert.equal(refresh.status, 200);
+    const third = refresh.data.models.find((model) => model.id === 'provider:custom:third-model');
+    assert.ok(third, 'Settings includes a model the provider listed beyond the two setup choices');
+    assert.ok((await srv.api('/settings')).data.models.some((model) => model.id === third.id));
+    const changed = await srv.api('/settings', { method: 'PUT', body: { defaultModel: third.id } });
+    assert.equal(changed.data.settings.defaultModel, third.id);
+    const run = await runOf(await makeBot(srv, { name: 'Uses Discovered Model' }), 'use the discovered model');
+    assert.equal(run.args[run.args.indexOf('--model') + 1], 'third-model');
+    catalogAvailable = false;
+    const fallback = await srv.api('/settings/refresh-models?catalog', { method: 'POST' });
+    assert.ok(fallback.data.catalog.error);
+    assert.ok(fallback.data.models.some((model) => model.id === third.id), 'keep the last catalog when the provider is unavailable');
+  } finally {
+    catalogAvailable = true;
+    await srv.api('/settings', { method: 'PUT', body: { defaultModel: '' } });
+    await srv.api('/setup/claude/provider', { method: 'DELETE' });
+  }
+});
+
 test('Settings offers the active provider’s models and uses a bot’s explicit selection', async () => {
   assert.equal((await save({})).status, 200);
   try {

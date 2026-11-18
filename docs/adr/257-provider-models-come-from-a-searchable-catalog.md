@@ -14,6 +14,8 @@ The botdot server returns model IDs and display names. It reads DeepSeek, OpenCo
 
 The apps search the list and pass the chosen IDs. A preset or saved helper is suggested when available. The owner can use the same model for both roles. Saving checks each distinct choice before switching the provider.
 
+Settings puts the provider and its default model in the same Model row. Opening that row discovers the active provider's models with its saved connection. The server keeps the last catalog for that provider so the existing Settings read stays local and bots can run on selected catalog models. Opening the row can work from the cached list during an outage. An Anthropic API key lists the models available to that key. The Claude subscription uses Claude's published model list.
+
 ## Consequences
 
 An address with neither a catalog nor saved choices shows an empty list. The apps can use existing presets on older servers. Older apps can continue to save exactly as before.

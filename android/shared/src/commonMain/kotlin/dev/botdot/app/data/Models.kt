@@ -1334,11 +1334,15 @@ data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = e
 data class ProviderModelChoices(val name: String = "", val main: String = "", val helper: String = "", val refreshable: Boolean = false)
 
 @Serializable
+data class ModelCatalogStatus(val error: String? = null, val source: String? = null)
+
+@Serializable
 data class SettingsInfo(
     val settings: AppSettings = AppSettings(),
     val models: List<ModelChoice> = emptyList(),
     val efforts: List<EffortChoice> = emptyList(),
     val provider: ProviderModelChoices? = null,
+    val catalog: ModelCatalogStatus? = null,
 ) {
     fun shownModel(id: String): String = when {
         id.isEmpty() || models.any { it.id == id } -> id

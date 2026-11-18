@@ -719,6 +719,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     suspend fun settings(): SettingsInfo = json.decodeFromString(get("/settings"))
     suspend fun refreshModels(): SettingsInfo = json.decodeFromString(send("POST", "/settings/refresh-models"))
+    suspend fun discoverModels(): SettingsInfo = json.decodeFromString(send("POST", "/settings/refresh-models?catalog"))
     suspend fun saveSettings(s: AppSettings): SettingsInfo = json.decodeFromString(send("PUT", "/settings", json.encodeToJsonElement(s) as JsonObject))
     /** The Chief's checkup; null from a server that answered without it. Only with `checkup` in its features. */
     suspend fun checkup(): Checkup? = Checkup.answer(get("/settings/checkup"))

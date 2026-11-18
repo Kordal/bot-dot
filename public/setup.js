@@ -45,14 +45,15 @@ function claudeKeyActions(c, busy) {
   const here = typeof state === 'undefined' ? {} : state; // the page's state, where the page has one
   if (busy || here.setupProvider || !claudeHasKeys(c)) return [];
   const link = (id, text) => `<button class="link-btn" id="${id}">${text}</button>`;
-  const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))] : [];
+  const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))]
+    : c.subscription === false && c.using !== 'subscription' ? [link('claude-login', tr('Sign in to Claude'))] : [];
   const offered = !!(here.setup?.providers?.length || c.provider);
   const other = !offered ? []
     : c.using === 'provider' ? [link('claude-provider-new', tr('Change provider')), link('claude-provider-remove', tr('Remove the provider'))]
-    : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) }))]
+    : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) })), link('claude-provider-new', tr('Change provider'))]
     : [link('claude-provider-new', tr('Use another provider'))];
   if (c.using === 'api-key') return [...sub, link('claude-key-remove', tr('Remove the key')), ...other];
-  if (c.using === 'provider') return [...sub, ...(c.apiKey ? [link('claude-use-key', tr('Use the API key instead'))] : []), ...other];
+  if (c.using === 'provider') return [...sub, c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
   return [c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
 }
 // Where the key is pasted: a password field, so it is never shown. inCard: in Settings → Claude.
@@ -278,14 +279,19 @@ function wireClaudeKey(root, c, redraw) {
       state.setupKey = false;
       state.setupProvider = false;
       state.setup.claude = r.claude;
-      if (state.modelProvider || r.claude.using === 'provider') {
+      if (state.modelProvider || r.claude.using === 'provider' || state.features?.includes('provider-model-catalog')) {
         const cfg = await api('/settings').catch(() => null);
         if (cfg) {
           Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, modelProvider: cfg.provider });
           const settings = $('#view-settings');
           if (settings) {
+            const openModel = $('#settings-model', settings)?.open;
             settings.innerHTML = '';
-            if (state.view === 'settings' || panelPage() === 'settings') renderSettings();
+            if (state.view === 'settings' || panelPage() === 'settings') {
+              renderSettings();
+              const model = $('#settings-model', settings);
+              if (openModel && model) model.open = true;
+            }
           }
         }
       }

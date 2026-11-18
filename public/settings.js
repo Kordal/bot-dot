@@ -65,7 +65,7 @@ function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
   const modelOpts = [
     `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || defaultModel)}</option>`,
     ...groups.map((g) => `<optgroup label="${esc(g)}">${models.filter((x) => x.group === g).map((x) => `<option value="${esc(x.id)}" ${x.id === model ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`),
-    state.modelProvider ? '' : `<option value="__custom" ${model && !known ? 'selected' : ''}>${tr('Another model…')}</option>`,
+    model && !known ? `<option value="${esc(model)}" selected>${esc(model)}</option>` : '',
   ].join('');
   const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || (state.modelProvider ? tr('Default') : tr("Claude Code's default")))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
   return `
@@ -74,7 +74,7 @@ function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
         <label class="field">${tr('Model')}<select name="${prefix}Model" data-saved-model="${esc(savedModel)}" data-shown-model="${esc(model)}">${modelOpts}</select></label>
         <label class="field">${tr('Reasoning level')}<select name="${prefix}Effort">${effortOpts}</select></label>
       </div>
-      <input type="text" class="mono ${model && !known ? '' : 'hidden'}" name="${prefix}ModelCustom" value="${model && !known ? esc(model) : ''}" placeholder="${esc(tr('Full model name, e.g. claude-opus-4-8'))}" autocomplete="off" spellcheck="false">
+
     </div>`;
 }
 
@@ -83,11 +83,9 @@ function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
 function wireLlmFields(form, prefix) {
   const m = form[`${prefix}Model`];
   const e = form[`${prefix}Effort`];
-  const custom = form[`${prefix}ModelCustom`];
   const describe = (el, text) => { el.title = text; el.setAttribute('aria-description', text); };
   const update = () => {
-    custom.classList.toggle('hidden', m.value !== '__custom');
-    const id = m.value === '__custom' ? custom.value.trim() : m.value;
+    const id = m.value;
     const info = state.models?.find((x) => x.id === id);
     const effective = id || (state.modelProvider && prefix !== 'default' ? state.settings?.defaultModel : '');
     const noEffort = (!!id || !!state.modelProvider) && !takesEffort(effective);
@@ -109,14 +107,13 @@ function wireLlmFields(form, prefix) {
     update();
   };
   e.onchange = update;
-  custom.oninput = update;
   update();
 }
 
 function readLlmFields(form, prefix) {
   const select = form[`${prefix}Model`];
   const m = select.value;
-  const model = m === '__custom' ? form[`${prefix}ModelCustom`].value.trim() : m === select.dataset?.shownModel ? select.dataset.savedModel : m;
+  const model = m === select.dataset?.shownModel ? select.dataset.savedModel : m;
   return { model, effort: form[`${prefix}Effort`].disabled ? '' : form[`${prefix}Effort`].value };
 }
 
@@ -389,8 +386,12 @@ function renderSettings() {
       ${advanced() ? `<details class="bs-row bs-more" id="settings-model">
         <summary${tipAttrs(tr('The model and reasoning level of every bot without a choice of its own.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
         <form class="bs-body" id="settings-form" autocomplete="off">
+          <input class="pick-search" type="search" id="settings-model-search" placeholder="${tr('Search models')}" aria-label="${tr('Search models')}" hidden>
           ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
-          ${!state.modelProvider || state.modelProvider.refreshable ? `<div class="catalog-line">${state.modelProvider ? '' : catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(state.modelProvider ? '' : catalogTip())}>${state.modelProvider ? tr('Refresh reasoning levels') : tr('Check for new models')}</button></div>` : ''}
+          ${!state.modelProvider || state.modelProvider.refreshable || state.features.includes('provider-model-catalog') ? `<div class="catalog-line">
+            <span data-model-status role="status">${state.modelProvider ? esc(state.catalog?.error || '') : catalogLine()}</span>
+            <button type="button" class="link-btn" id="refresh-models">${state.modelProvider && !state.features.includes('provider-model-catalog') ? tr('Refresh reasoning levels') : tr('Refresh models')}</button>
+          </div>` : ''}
         </form>
       </details>
       ${typeof Proxies !== 'undefined' ? Proxies.rowHTML() : ''}
@@ -427,23 +428,51 @@ function renderSettings() {
   wireLanguage(root);
   const form = $('#settings-form', root);
   if (!form) return;
-  wireLlmFields(form, 'default');
-  const refresh = $('#refresh-models', root);
-  if (refresh) refresh.onclick = async (e) => {
-    e.target.textContent = tr('Checking…');
-    try {
-      const r = await api('/settings/refresh-models', { method: 'POST' });
-      Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog, modelProvider: r.provider });
-      if (!r.provider || r.catalog.error) toast(r.catalog.error ? r.catalog.error : tr('Model list is up to date'), !!r.catalog.error);
-    } catch (err) { toast(err.message, true); }
-    root.innerHTML = '';
-    renderSettings();
-    $('#settings-model', root).open = true; // the row the button is in stays open
+  const section = $('#settings-model', root);
+  const search = $('#settings-model-search', form);
+  const refresh = $('#refresh-models', form);
+  const status = $('[data-model-status]', form);
+  const filter = () => {
+    const terms = search.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    for (const option of form.defaultModel.options) {
+      const words = (option.textContent + ' ' + option.value).toLowerCase();
+      option.hidden = !option.selected && !!option.value && !terms.every((term) => words.includes(term));
+    }
   };
+  const wireModels = () => {
+    search.hidden = (state.models?.length || 0) < 12;
+    if (search.hidden) search.value = '';
+    wireLlmFields(form, 'default');
+    filter();
+  };
+  search.oninput = filter;
+  wireModels();
+  const discovers = state.features.includes('provider-model-catalog');
+  async function refreshModels() {
+    if (refresh.disabled) return;
+    refresh.disabled = true;
+    status.textContent = tr('Loading models…');
+    try {
+      const r = await api(`/settings/refresh-models${discovers ? '?catalog' : ''}`, { method: 'POST' });
+      if (!form.isConnected) return;
+      Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog, modelProvider: r.provider });
+      const { defaultModel: model, defaultEffort: effort } = state.settings;
+      $('[data-llm="default"]', form).outerHTML = llmFieldsHTML('default', { model, effort });
+      $('[data-llm-val]', root).textContent = llmSummary(model, effort);
+      wireModels();
+      status.textContent = r.catalog?.error || '';
+    } catch (err) { status.textContent = err.message; }
+    finally { refresh.disabled = false; }
+  }
+  if (refresh) refresh.onclick = refreshModels;
+  if (discovers && (state.modelProvider || state.catalog?.source === 'anthropic-key') && refresh) {
+    section.addEventListener('toggle', () => { if (section.open) refreshModels(); });
+  }
   $$('[data-edit-bot]', root).forEach((b) => (b.onclick = () => setView('botsettings', b.dataset.editBot)));
   // Saves by itself, like a bot's settings.
   form.onsubmit = (e) => e.preventDefault();
-  form.onchange = async () => {
+  form.onchange = async (event) => {
+    if (event.target === search) return;
     const d = readLlmFields(form, 'default');
     try {
       const r = await api('/settings', { method: 'PUT', body: { defaultModel: d.model, defaultEffort: d.effort } });

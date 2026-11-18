@@ -81,6 +81,21 @@ class ClaudeProviderTest {
         } finally { server.close() }
     }
 
+    @Test fun theModelRowRequestsTheActiveCatalogAndShowsTheReturnedNames() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val api = Api(server.url("/").toString().trimEnd('/'))
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("""{"models":[{"id":"provider:custom:third","label":"A discovered model"}],"catalog":{"source":"provider"}}""").build())
+            val info = api.discoverModels()
+            assertEquals("A discovered model", info.models.single().label)
+            assertEquals("provider", info.catalog?.source)
+            val request = server.takeRequest()
+            assertEquals("POST" to "/api/settings/refresh-models?catalog", request.method to request.target)
+        } finally { server.close() }
+    }
+
     @Test fun theProviderIsSavedPickedAndRemovedWithTheServersRoutes() = runBlocking {
         val server = MockWebServer()
         server.start()
