@@ -117,14 +117,6 @@ fun SettingsScreen(
     var apiKey by remember { mutableStateOf("") }
     var confirmRemoveKey by remember { mutableStateOf(false) }
     var providerOpen by remember { mutableStateOf(false) } // the box for another model provider (ADR 255)
-    var pPreset by remember { mutableStateOf("") }
-    var pKey by remember { mutableStateOf("") }
-    var pUrl by remember { mutableStateOf("") }
-    var pBig by remember { mutableStateOf("") }
-    var pSmall by remember { mutableStateOf("") }
-    var pBigCustom by remember { mutableStateOf(false) }
-    var pSmallCustom by remember { mutableStateOf(false) }
-    var providerSaving by remember { mutableStateOf(false) } // the provider is being checked with it, which takes a while
     var confirmRemoveProvider by remember { mutableStateOf(false) }
 
     // All at once: over Tailscale, one after another would take a round trip each.
@@ -237,53 +229,26 @@ fun SettingsScreen(
                 val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
                 // Another model provider (ADR 255): only from a server that offers some.
                 val providers = s.claude.knowsKeys && server?.features?.contains("llm-provider") == true && s.providers.isNotEmpty()
-                val openProvider = {
-                    val savedProvider = s.claude.provider
-                    val preset = s.providers.firstOrNull { it.id == savedProvider?.preset } ?: s.providers.first()
-                    pPreset = preset.id
-                    pBig = savedProvider?.big ?: preset.big
-                    pSmall = savedProvider?.small ?: preset.small
-                    pBigCustom = false
-                    pSmallCustom = false
-                    pUrl = ""
-                    providerOpen = true
-                    keyOpen = false
-                }
+                val openProvider = { providerOpen = true; keyOpen = false }
                 fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
                     scope.launch {
-                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = ""; providerOpen = false; pKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
-                        providerSaving = false
+                        runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = ""; providerOpen = false }.onError { tell(it.message ?: tr("Couldn't change it")) }
                         load()
                     }
                 }
                 val useProvider = { keyChange(tr("Bots now run on {name}", "name" to s.claude.provider?.name.orEmpty())) { api!!.claudeUse("provider") } }
                 FoldSection("Claude", dev.botdot.app.data.claudeValue(s.claude)) {
                     if (providers && providerOpen && loginUrl == null) {
-                        val chosen = s.providers.firstOrNull { it.id == pPreset } ?: s.providers.first()
-                        val savedProvider = s.claude.provider?.takeIf { it.preset == chosen.id }
-                        val choices = listOfNotNull(chosen.big, chosen.small, savedProvider?.big, savedProvider?.small).filter { it.isNotBlank() }.distinct()
-                        Choice(tr("Provider"), chosen.id, s.providers.map { it.id to (if (it.custom) tr("Other") else it.name) }) { id ->
-                            val next = s.providers.first { it.id == id }
-                            val saved = s.claude.provider?.takeIf { it.preset == id }
-                            pPreset = id; pKey = ""; pUrl = ""; pBig = saved?.big ?: next.big; pSmall = saved?.small ?: next.small
-                            pBigCustom = false; pSmallCustom = false
-                        }
-                        if (chosen.askUrl) Field(pUrl, { pUrl = it.trim() }, placeholder = { Text(chosen.url.ifBlank { "https://…" }) }, singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        if (!chosen.keyless) Field(pKey, { pKey = it.trim() }, label = { Text(tr("API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        ProviderModelField(tr("Main model"), pBig, choices, pBigCustom, { pBigCustom = it }, { pBig = it })
-                        ProviderModelField(tr("Helper model"), pSmall, choices, pSmallCustom, { pSmallCustom = it }, { pSmall = it })
-                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
-                            Button(onClick = {
-                                val (preset, key, big, small) = listOf(chosen.id, pKey, pBig, pSmall)
-                                val url = if (chosen.askUrl) pUrl.ifBlank { chosen.url } else null
-                                providerSaving = true
-                                keyChange(tr("Saved. Bots now run on it")) { api!!.claudeSaveProvider(preset, key, url, big, small) }
-                            }, enabled = !providerSaving && (chosen.keyless || pKey.isNotBlank()) && pBig.isNotBlank()
-                                && (!pSmallCustom || pSmall.isNotBlank()) && (!chosen.askUrl || chosen.url.isNotBlank() || pUrl.isNotBlank()),
-                                colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
-                            TextButton(onClick = { providerOpen = false; pKey = "" }) { Text(tr("Cancel"), color = p.text) }
+                        api?.let { connected ->
+                            ProviderSetupForm(
+                                connected, s, server?.features?.contains("provider-model-catalog") == true,
+                                onCancel = { providerOpen = false },
+                                onSaved = {
+                                    tell(claudeCouldNotTell(it) ?: tr("Saved. Bots now run on it"))
+                                    providerOpen = false
+                                    scope.launch { load() }
+                                },
+                            )
                         }
                     } else if (keys && keyOpen && loginUrl == null) {
                         Field(apiKey, { apiKey = it.trim() }, label = { Text(tr("Anthropic API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
@@ -563,18 +528,6 @@ fun SettingsScreen(
             dismissButton = { TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
-}
-
-@Composable
-private fun ProviderModelField(label: String, value: String, names: List<String>, custom: Boolean, setCustom: (Boolean) -> Unit, onChange: (String) -> Unit) {
-    if (names.isNotEmpty()) {
-        Choice(label, if (custom) "" else value, names.map { it to it } + ("" to tr("Another model…"))) {
-            setCustom(it.isEmpty())
-            onChange(it)
-        }
-    }
-    if (custom || names.isEmpty()) Field(value, { onChange(it.trim()) }, label = { Text(label) }, singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
 }
 
 /** On the subscription, the API key as the other way to run (#35): the saved one ([saved]), or a new one. */

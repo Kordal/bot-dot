@@ -892,7 +892,7 @@ label.field .hint { font-weight: 400; color: var(--faint); }
 .feedback-shot { position: relative; display: block; border: 1px solid var(--line); border-radius: var(--r-8); overflow: hidden; line-height: 0; }
 .feedback-shot img { width: 88px; height: 66px; object-fit: cover; }
 .feedback-shot button { position: absolute; top: 3px; right: 3px; width: 22px; height: 22px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, .65); color: #fff; font-size: var(--fs-14); line-height: 22px; cursor: pointer; padding: 0; }
-input[type=text], input[type=number], input[type=password], .conn-filters input[type=search], .req-others input[type=search], input.pick-search, input.vault-search, select, textarea { width: 100%; background: var(--raise-2); border: 0; box-shadow: var(--sink); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-12); color: var(--text); }
+input[type=text], input[type=number], input[type=password], .conn-filters input[type=search], .req-others input[type=search], .provider-catalog input[type=search], .setup-provider input[type=url], input.pick-search, input.vault-search, select, textarea { width: 100%; background: var(--raise-2); border: 0; box-shadow: var(--sink); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-12); color: var(--text); }
 /* A field on a raised surface sinks below it, into the page's black. The Projects screens keep their fields until their own tickets (#720). */
 :is(#view-company, .company-side, .dock) :is(input, select, textarea) { box-shadow: none; }
 :is(.card, dialog, .tile, .fx-dialog, .ask-pop) :is(input[type=text], input[type=number], input[type=password], input[type=search], input[type=color], input[type=date], select, textarea) { background: var(--bg); }
@@ -1562,9 +1562,25 @@ div.field .hint { font-weight: 400; color: var(--faint); }
 .setup-login a.btn { text-decoration: none; display: inline-flex; }
 .setup-code { display: flex; gap: var(--sp-8); }
 .setup-name { max-width: 320px; }
-.setup-provider { flex-direction: column; align-items: stretch; }
-.setup-provider button { align-self: flex-start; }
+.setup-provider { display: grid; gap: var(--sp-12); }
 .setup-provider [hidden] { display: none; }
+.setup-provider :is(input, select, button) { min-height: 44px; }
+.setup-provider input[type=url] { background: var(--bg); }
+.setup-provider :is(input[type=url], input[type=search], input[type=password]) { font-size: var(--fs-14); }
+.provider-roles { display: grid; gap: var(--sp-8); padding-top: var(--sp-8); }
+.provider-main { text-align: start; justify-content: space-between; width: 100%; border-radius: var(--r-14); color: var(--text); }
+.provider-main span { overflow: hidden; text-overflow: ellipsis; }
+.provider-main svg { transform: rotate(-90deg); color: var(--muted); }
+.provider-helper { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-12); }
+.provider-helper [data-helper-name] { color: var(--text); font-size: var(--fs-14); overflow-wrap: anywhere; }
+.provider-catalog { background: var(--raise-2); border-radius: var(--r-14); box-shadow: var(--lift); padding: var(--sp-8); }
+.setup-provider .provider-catalog p, .setup-provider > p { margin: 0; }
+.provider-catalog p { padding: var(--sp-8); }
+.provider-choices { max-height: 224px; overflow: auto; }
+.provider-option { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-8); padding: var(--sp-12); border-radius: var(--r-8); cursor: pointer; overflow-wrap: anywhere; }
+.provider-option:hover, .provider-option.active { background: var(--fill); }
+.provider-option[aria-selected="true"] { font-weight: 600; }
+.provider-actions { display: flex; gap: var(--sp-12); justify-content: flex-end; align-items: center; }
 .setup-code input { flex: 1; min-width: 0; font-family: var(--mono); }
 .setup-login > .link-btn { justify-self: start; font-size: var(--fs-12); }
 @media (max-width: 600px) { .setup-code { flex-direction: column; } }

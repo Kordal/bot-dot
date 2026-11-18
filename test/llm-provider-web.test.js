@@ -50,11 +50,14 @@ test('web: on the subscription a saved provider is named as not used, and anothe
 
 test('web: the provider box lists the server\'s presets, hides what a preset does not need, and shows no key', () => {
   const box = page().claudeProviderBox(false);
-  assert.match(box, /<form id="claude-provider-form"[\s\S]*<select name="preset"><option value="deepseek">DeepSeek<\/option><option value="ollama">Ollama<\/option><option value="custom">Other<\/option><\/select>/);
-  assert.match(box, /<input type="password" name="key" placeholder="API key" autocomplete="off"/);
-  assert.match(box, /name="url"[^>]* hidden>/, 'the address only where the owner gives it');
-  assert.match(box, /<select name="bigChoice" aria-label="Main model"/);
-  assert.match(box, /<select name="smallChoice" aria-label="Helper model"/);
+  assert.match(box, /<form id="claude-provider-form"[\s\S]*<select name="preset" id="setup-provider-preset"><option value="deepseek">DeepSeek<\/option><option value="ollama">Ollama<\/option><option value="custom">Other<\/option><\/select>/);
+  assert.match(box, /<input type="password" name="key" autocomplete="off"/);
+  assert.match(box, /data-provider-address hidden>/, 'the address only where the owner gives it');
+  assert.match(box, /data-model-role="main"/);
+  assert.match(box, /data-model-role="helper"/);
+  assert.match(box, /type="search" role="combobox" aria-label="Search models"/);
+  assert.match(box, /role="listbox"/);
+  assert.doesNotMatch(box, /name="(?:big|small)"|Another model/);
   assert.match(box, /id="claude-provider-cancel"/);
   const again = page({ setup: { providers: PRESETS, claude: { provider: { ...SAVED, preset: 'custom' } } } }).claudeProviderBox(true);
   assert.match(again, /<option value="custom" selected>Other<\/option>/, 'the saved provider is the one chosen');
@@ -100,7 +103,9 @@ test('web: Settings → Claude says the same, and the provider box opens there',
 test('web: the provider is saved, picked and removed with the server\'s routes, and the answer is drawn', () => {
   const wire = cut('function wireClaudeKey(', '// First start, or Claude is known');
   assert.match(wire, /api\('\/setup\/claude\/provider', \{ method: 'PUT', body \}\)/);
-  assert.match(wire, /body = \{ preset: pform\.preset\.value, key: pform\.key\.value, big: pform\.big\.value, small: pform\.small\.value \}/);
+  const picker = cut('function wireProviderForm(', "// The key's links");
+  assert.match(picker, /api\('\/setup\/claude\/provider\/models', \{ method: 'POST', body \}\)/);
+  assert.match(picker, /big: models\.main, small: models\.helper \|\| models\.main/);
   assert.match(wire, /api\('\/setup\/claude\/use', \{ method: 'PUT', body: \{ use: 'provider' \} \}\)/);
   assert.match(wire, /api\('\/setup\/claude\/provider', \{ method: 'DELETE' \}\)/);
   assert.match(wire, /state\.setup\.claude = r\.claude;/);

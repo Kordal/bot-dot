@@ -1845,5 +1845,18 @@
   "Provider removed": "Dostawca usunięty",
   "Saved. Bots now run on it": "Zapisane. Boty działają teraz na nim",
   "Remove the provider? Bots will run on your Claude subscription.": "Usunąć dostawcę? Boty będą działać na twojej subskrypcji Claude.",
-  "Remove the provider? Bots can't run until you sign in to Claude or save a key again.": "Usunąć dostawcę? Boty nie będą działać, dopóki nie zalogujesz się do Claude albo znów nie zapiszesz klucza."
+  "Remove the provider? Bots can't run until you sign in to Claude or save a key again.": "Usunąć dostawcę? Boty nie będą działać, dopóki nie zalogujesz się do Claude albo znów nie zapiszesz klucza.",
+  "Server address": "Adres serwera",
+  "Choose a model": "Wybierz model",
+  "Same as main model": "Taki sam jak główny",
+  "Load models": "Wczytaj modele",
+  "Loading models…": "Wczytywanie modeli…",
+  "Search models": "Szukaj modeli",
+  "No models match your search.": "Nie znaleziono pasujących modeli.",
+  "No models available from this provider.": "Brak dostępnych modeli u tego dostawcy.",
+  "Change helper model": "Zmień model pomocniczy",
+  "Use {name}": "Użyj {name}",
+  "Saved key {key}": "Zapisany klucz {key}",
+  "Use this provider": "Użyj tego dostawcy",
+  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele."
 }
