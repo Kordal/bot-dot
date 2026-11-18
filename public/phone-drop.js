@@ -63,16 +63,20 @@ const PhoneDrop = (() => {
       const again = $('[data-pd-again]', card);
       if (again) again.onclick = start;
     };
+    const watching = () => d && (d.open || d.files.some((f) => f.status === 'arriving'));
     const look = async () => {
       timer = 0;
       if (!(alive ? alive() : card.isConnected)) return close(); // its chat or Files was left
-      if (closed || !d?.open) return;
+      if (closed || !watching()) return;
+      const code = d;
       try {
-        Object.assign(d, await api(`/drops/${d.token}`));
+        const found = await api(`/drops/${code.token}`);
+        if (closed || d !== code) return;
+        Object.assign(code, found);
         for (const f of d.files) if (f.status === 'saved' && !handed.has(f.id)) { handed.add(f.id); try { onFile?.(f.saved, f); } catch (e) { console.error(e); } }
       } catch { /* looked at again in a moment */ }
       draw();
-      if (d.open && !closed) timer = setTimeout(look, POLL_MS);
+      if (watching() && !closed) timer = setTimeout(look, POLL_MS);
     };
     async function start() {
       if (d?.token) api(`/drops/${d.token}`, { method: 'DELETE' }).catch(() => {});

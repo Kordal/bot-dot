@@ -65,6 +65,7 @@
 //                     it is the account's name. Unset: no Subscription row
 const fs = require('fs');
 const http = require('http');
+const { watchRequestBody } = require('./lib/routes/http');
 const net = require('net');
 const path = require('path');
 const crypto = require('crypto');
@@ -2147,6 +2148,7 @@ function takeDrop(req, res, drop) {
 // ---------- the server ----------
 
 const server = http.createServer({ requestTimeout: 0, headersTimeout: 60_000 }, async (req, res) => {
+  watchRequestBody(req);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   try {
