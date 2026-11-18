@@ -127,3 +127,14 @@ test('a bot with thousands of runs keeps both windows: each is fetched on its ow
   assert.equal(e.before.redone, 60);
   assert.equal(e.after.runs, 3360); // 14 days of one run every 6 minutes, not the 20 days since
 });
+
+test('the effect is read only for the changes the checkup keeps', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'effects-'));
+  const learn = learning.create(dir);
+  for (let i = 0; i < 5; i++) learn.recordChange('b1', { field: 'prompt', before: `a${i}`, after: `b${i}`, by: 'you', runId: `run${i}` });
+  let reads = 0;
+  const outcomes = { list: (o) => { reads++; return ledger([]).list(o); } };
+  const e = effects.create({ bots: { list: () => [{ id: 'b1', name: 'Cook' }] }, learn, outcomes });
+  assert.equal(e.recent(2).length, 2);
+  assert.equal(reads, 4); // two changes, two queries each
+});
