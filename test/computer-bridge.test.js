@@ -122,10 +122,14 @@ test('the files of uploads/ its computer lacks are copied there, whole; those it
     put.push({ botId, name, data });
     return { code: 0 };
   } };
+  const readable = `${names[0]}.txt`;
+  fs.writeFileSync(path.join(ws, 'uploads', readable), 'Readable copy');
   const files = names.map((n) => ({ file: `uploads/${n}` }));
-  assert.deepEqual(await bridge.copyUploads(pc, 'desk', ws, files, { fs }), [names[0], names[2]]);
-  assert.deepEqual(put.map((p) => [p.botId, p.name]), [['desk', names[0]], ['desk', names[2]]]);
-  assert.ok(put[0].data.equals(bytes[0]) && put[1].data.equals(bytes[2]));
+  files[0].readable = `uploads/${readable}`;
+  assert.deepEqual(await bridge.copyUploads(pc, 'desk', ws, files, { fs }), [names[0], readable, names[2]]);
+  assert.deepEqual(put.map((p) => [p.botId, p.name]), [['desk', names[0]], ['desk', readable], ['desk', names[2]]]);
+  assert.ok(put[0].data.equals(bytes[0]) && put[2].data.equals(bytes[2]));
+  assert.equal(put[1].data.toString(), 'Readable copy');
   assert.deepEqual(await bridge.copyUploads({ listUploads: () => assert.fail('nothing to ask') }, 'desk', ws, [], { fs }), []);
   await assert.rejects(bridge.copyUploads({ ...pc, putUpload: async () => ({ code: 1, stderr: 'No space left on device' }) }, 'desk', ws, files, { fs }), /No space left on device/);
 });
