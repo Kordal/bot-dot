@@ -7,7 +7,7 @@ const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
 const plan = require('../lib/plan');
-const { startServer, makeBot, heldRun, waitFor, sleep, streamOf, followStream } = require('./helpers');
+const { startServer, makeBot, heldRun, waitFor, sleep, streamOf, followStream, hookCall } = require('./helpers');
 
 const todos = (...steps) => ({ todos: steps.map(([content, status, activeForm]) => ({ content, status, activeForm: activeForm || content })) });
 const use = (name, input = {}, extra = {}) => ({ type: 'assistant', message: { content: [{ type: 'tool_use', id: `t${Math.random()}`, name, input }] }, ...extra });
@@ -63,6 +63,36 @@ test('of a run\'s plan on the feed only the newest is replayed to an app that co
 test('a bot and the Chief are told to plan work of several steps with TodoWrite', () => {
   assert.match(plan.PROMPT, /TodoWrite/);
   assert.match(plan.PROMPT, /above the message box/);
+  assert.match(plan.PROMPT, /before you begin it/);
+});
+
+// ---------- a plan that falls behind ----------
+
+test('a plan that no TodoWrite call has touched for a few tool calls is reminded of, once, with a step still open', () => {
+  const open = plan.fromTodos(todos(['Vanden Borre', 'in_progress'], ['MediaMarkt', 'pending']));
+  const g = plan.gap();
+  for (let i = 0; i < plan.STALE_AFTER - 1; i++) g.see(use('mcp__computer__screenshot'));
+  assert.equal(g.due(open), null, 'not yet');
+  g.see(use('WebFetch'));
+  assert.equal(g.due(open), plan.REMINDER);
+  assert.equal(g.due(open), null, 'said once: it counts again from there');
+  for (let i = 0; i < plan.STALE_AFTER; i++) g.see(use('Read'));
+  assert.equal(g.due(open), plan.REMINDER, 'and again when it stays behind');
+});
+
+test('the reminder is not owed for the plan\'s own calls, ToolSearch, a helper\'s calls, a finished plan or no plan', () => {
+  const open = plan.fromTodos(todos(['Vanden Borre', 'in_progress']));
+  const g = plan.gap();
+  for (let i = 0; i < 10; i++) { g.see(use('ToolSearch')); g.see({ ...use('Read'), parent_tool_use_id: 'toolu_1' }); g.see({ type: 'user' }); }
+  assert.equal(g.due(open), null);
+  for (let i = 0; i < 4; i++) g.see(use('Read'));
+  g.see(write(['Vanden Borre', 'in_progress']));
+  g.see(use('Read'));
+  assert.equal(g.due(open), null, 'a TodoWrite call, the same list again too, starts the count over');
+  for (let i = 0; i < 10; i++) g.see(use('Read'));
+  assert.equal(g.due(plan.fromTodos(todos(['a', 'completed'], ['b', 'completed']))), null, 'nothing left open');
+  assert.equal(g.due(null), null, 'no plan: a run is not made to write one');
+  assert.equal(g.due(open), plan.REMINDER, 'but the count was kept');
 });
 
 // ---------- a bot's run and a Chief's turn ----------
@@ -128,6 +158,22 @@ test('a bot\'s plan is on its running run and its stream as it changes, and stay
   assert.deepEqual(done.plan.steps.map((s) => s.status), ['done', 'done', 'done'], 'the reply keeps the plan');
   const log = (await srv.api(`/runs/${run.id}`)).data.events;
   assert.equal(log.some((e) => e.type === 'plan'), false, 'the log holds the TodoWrite calls, not the plan');
+  srv.unhold();
+});
+
+test('a run whose plan fell behind is reminded at its next tool call, once', async () => {
+  const bot = await makeBot(srv, { name: 'Web Hunter' });
+  const { run, rec } = await heldRun(srv, bot, 'Compare the espresso machines');
+  const play = player(rec);
+  const call = { hook_event_name: 'PostToolUse', tool_name: 'WebFetch' };
+  const said = async () => (await hookCall(rec.settings, call))?.hookSpecificOutput?.additionalContext;
+  play(write(['Vanden Borre', 'in_progress'], ['MediaMarkt', 'pending']));
+  await waitFor(async () => (await srv.api(`/runs/${run.id}?events=0`)).data.plan, { what: 'the plan' });
+  play(...Array.from({ length: plan.STALE_AFTER }, () => use('mcp__computer__screenshot')));
+  await waitFor(async () => { const t = await said(); return t === plan.REMINDER; }, { what: 'the reminder' });
+  assert.equal(await said(), undefined, 'told once');
+  srv.release(rec);
+  await srv.finished(run.id);
   srv.unhold();
 });
 
