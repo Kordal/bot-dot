@@ -1,12 +1,12 @@
 // Settings → Claude: which account botdot uses, with sign out, use another account, and sign in
 // when it isn't signed in, or the Anthropic API key bots run on instead (#35), same as the phone app. Loaded after app.js and uses its helpers ($, api,
-// esc, toast, state, claudeUnknown, toastClaude). Adds its card under Appearance each time the Settings page is drawn.
+// esc, toast, state, claudeUnknown, toastClaude). Adds its card before Updates in Settings.
 
 (() => {
   const drawSettings = renderSettings;
   renderSettings = function () {
     drawSettings();
-    const updates = $('#updates-card');
+    const updates = $('#update-card');
     if (!updates || $('#claude-card')) return;
     updates.insertAdjacentHTML('beforebegin', `<div class="card settings-card" id="claude-card">
       <h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>

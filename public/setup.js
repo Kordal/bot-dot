@@ -285,7 +285,7 @@ function wireClaudeKey(root, c, redraw) {
           const settings = $('#view-settings');
           if (settings) {
             settings.innerHTML = '';
-            if (panelPage() === 'settings') renderSettings();
+            if (state.view === 'settings' || panelPage() === 'settings') renderSettings();
           }
         }
       }

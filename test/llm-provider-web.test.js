@@ -83,6 +83,20 @@ test('web: model settings show the active provider and its reasoning levels', ()
   assert.doesNotMatch(form, /Another model|Claude Code's default/);
 });
 
+test('web: opening Settings mounts the Claude card by the Updates row', () => {
+  const outputs = [];
+  const widget = { insertAdjacentHTML(where, html) { outputs.push(where, html); } };
+  const state = { setup: { providers: PRESETS } };
+  const ctx = vm.createContext({
+    ...words, state, renderSettings() { outputs.push('settings'); },
+    $: (sel) => sel === '#update-card' ? widget : null,
+  });
+  vm.runInContext(read('claude-card.js'), ctx);
+  ctx.renderSettings();
+  assert.deepEqual(outputs.slice(0, 2), ['settings', 'beforebegin']);
+  assert.match(outputs[2], /id="claude-card"/);
+});
+
 test('web: Settings → Claude says the same, and the provider box opens there', async () => {
   const card = element();
   const state = { setup: { providers: PRESETS } };
@@ -115,13 +129,13 @@ test('web: the provider is saved, picked and removed with the server\'s routes, 
 test('web: switching a provider from Settings rebuilds the Settings panel immediately', async () => {
   const use = {};
   const settings = element({ '#claude-use-provider': use });
-  const state = { setup: { claude: SUB_AND_PROVIDER } };
+  const state = { view: 'settings', setup: { claude: SUB_AND_PROVIDER } };
   const calls = [];
   const ctx = vm.createContext({
     ...words, ...finders(element({ '#view-settings': settings })),
     state, toastClaude() {}, toast() {},
     api: async (path) => path === '/settings' ? { provider: { name: 'DeepSeek' } } : { claude: ON_PROVIDER },
-    panelPage: () => 'settings',
+    panelPage: () => '',
     renderSettings: () => calls.push('settings'),
   });
   vm.runInContext(cut('function wireClaudeKey(', '// First start, or Claude is known') + '\nthis.wireClaudeKey = wireClaudeKey;', ctx);
