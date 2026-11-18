@@ -237,7 +237,7 @@ const changeTrials = require('./lib/change-trials').create({
 const chiefReview = require('./lib/chief-review').create({
   dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
   settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
-  changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name }))),
+  changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name, effect: chief.changeEffects.effectAt(b.id, c.at) }))),
 });
 B.onChiefReview(() => chiefReview.due());
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });
