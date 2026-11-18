@@ -122,6 +122,8 @@ fun SettingsScreen(
     var pUrl by remember { mutableStateOf("") }
     var pBig by remember { mutableStateOf("") }
     var pSmall by remember { mutableStateOf("") }
+    var pBigCustom by remember { mutableStateOf(false) }
+    var pSmallCustom by remember { mutableStateOf(false) }
     var providerSaving by remember { mutableStateOf(false) } // the provider is being checked with it, which takes a while
     var confirmRemoveProvider by remember { mutableStateOf(false) }
 
@@ -150,8 +152,7 @@ fun SettingsScreen(
     val adv = dev.botdot.app.data.Advanced.shows(server?.features, info.settings)
     LaunchedEffect(server, info) { if (server != null) dev.botdot.app.data.Advanced.take(server?.features, info.settings) }
     val models = dev.botdot.app.data.AppSettingsRules.models(info).map { it.id to it.label }
-    val efforts = dev.botdot.app.data.AppSettingsRules.efforts(info).map { it.id to it.label }
-    val canThink = { m: String -> dev.botdot.app.data.BotSettings.canThink(info.models, m) }
+    val efforts = dev.botdot.app.data.AppSettingsRules.efforts(info, edit.defaultModel).map { it.id to it.label }
 
     // Saved by itself (#636): the top says "Saved" for a moment, in place of a sentence.
     var savedAt by remember { mutableStateOf(0) }
@@ -179,8 +180,15 @@ fun SettingsScreen(
             Spacer(Modifier.height(Space.s16))
 
             if (adv) {
-                Choice(tr("Model"), edit.defaultModel, models) { saveModel(edit.copy(defaultModel = it)) }
-                if (canThink(edit.defaultModel)) Choice(tr("Reasoning"), edit.defaultEffort, efforts) { saveModel(edit.copy(defaultEffort = it)) }
+                Choice(tr("Model"), info.shownModel(edit.defaultModel), models) { saveModel(edit.copy(defaultModel = it)) }
+                if (info.canThink(edit.defaultModel)) Choice(tr("Reasoning"), info.shownEffort(edit.defaultEffort, edit.defaultModel), efforts) { saveModel(edit.copy(defaultEffort = it)) }
+                val modelApi = api
+                if (info.provider?.refreshable == true && modelApi != null) Link(tr("Refresh reasoning levels")) {
+                    scope.launch {
+                        runCatching { modelApi.refreshModels() }.onSuccess { info = it; edit = it.settings }
+                            .onError { tell(it.message ?: tr("Couldn't load")) }
+                    }
+                }
                 Rule()
             }
 
@@ -229,7 +237,18 @@ fun SettingsScreen(
                 val keys = s.claude.knowsKeys && server?.features?.contains("claude-api-key") == true
                 // Another model provider (ADR 255): only from a server that offers some.
                 val providers = s.claude.knowsKeys && server?.features?.contains("llm-provider") == true && s.providers.isNotEmpty()
-                val openProvider = { pPreset = s.claude.provider?.preset ?: s.providers.first().id; providerOpen = true; keyOpen = false }
+                val openProvider = {
+                    val savedProvider = s.claude.provider
+                    val preset = s.providers.firstOrNull { it.id == savedProvider?.preset } ?: s.providers.first()
+                    pPreset = preset.id
+                    pBig = savedProvider?.big ?: preset.big
+                    pSmall = savedProvider?.small ?: preset.small
+                    pBigCustom = false
+                    pSmallCustom = false
+                    pUrl = ""
+                    providerOpen = true
+                    keyOpen = false
+                }
                 fun keyChange(said: String, call: suspend () -> dev.botdot.app.data.ClaudeStatus?) {
                     scope.launch {
                         runCatching { call() }.onSuccess { tell(claudeCouldNotTell(it) ?: said); keyOpen = false; apiKey = ""; providerOpen = false; pKey = "" }.onError { tell(it.message ?: tr("Couldn't change it")) }
@@ -241,22 +260,28 @@ fun SettingsScreen(
                 FoldSection("Claude", dev.botdot.app.data.claudeValue(s.claude)) {
                     if (providers && providerOpen && loginUrl == null) {
                         val chosen = s.providers.firstOrNull { it.id == pPreset } ?: s.providers.first()
-                        Choice(tr("Provider"), chosen.id, s.providers.map { it.id to (if (it.custom) tr("Other") else it.name) }) { pPreset = it; pKey = ""; pUrl = ""; pBig = ""; pSmall = "" }
+                        val savedProvider = s.claude.provider?.takeIf { it.preset == chosen.id }
+                        val choices = listOfNotNull(chosen.big, chosen.small, savedProvider?.big, savedProvider?.small).filter { it.isNotBlank() }.distinct()
+                        Choice(tr("Provider"), chosen.id, s.providers.map { it.id to (if (it.custom) tr("Other") else it.name) }) { id ->
+                            val next = s.providers.first { it.id == id }
+                            val saved = s.claude.provider?.takeIf { it.preset == id }
+                            pPreset = id; pKey = ""; pUrl = ""; pBig = saved?.big ?: next.big; pSmall = saved?.small ?: next.small
+                            pBigCustom = false; pSmallCustom = false
+                        }
                         if (chosen.askUrl) Field(pUrl, { pUrl = it.trim() }, placeholder = { Text(chosen.url.ifBlank { "https://…" }) }, singleLine = true,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
                         if (!chosen.keyless) Field(pKey, { pKey = it.trim() }, label = { Text(tr("API key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Field(pBig, { pBig = it.trim() }, placeholder = { Text(chosen.big.ifBlank { tr("Model") }) }, singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
-                        Field(pSmall, { pSmall = it.trim() }, placeholder = { Text(chosen.small.ifBlank { tr("Small model") }) }, singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+                        ProviderModelField(tr("Main model"), pBig, choices, pBigCustom, { pBigCustom = it }, { pBig = it })
+                        ProviderModelField(tr("Helper model"), pSmall, choices, pSmallCustom, { pSmallCustom = it }, { pSmall = it })
                         Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
                             Button(onClick = {
                                 val (preset, key, big, small) = listOf(chosen.id, pKey, pBig, pSmall)
                                 val url = if (chosen.askUrl) pUrl.ifBlank { chosen.url } else null
                                 providerSaving = true
                                 keyChange(tr("Saved. Bots now run on it")) { api!!.claudeSaveProvider(preset, key, url, big, small) }
-                            }, enabled = !providerSaving && (chosen.keyless || pKey.isNotBlank()) && (chosen.big.isNotBlank() || pBig.isNotBlank()) && (!chosen.askUrl || chosen.url.isNotBlank() || pUrl.isNotBlank()),
+                            }, enabled = !providerSaving && (chosen.keyless || pKey.isNotBlank()) && pBig.isNotBlank()
+                                && (!pSmallCustom || pSmall.isNotBlank()) && (!chosen.askUrl || chosen.url.isNotBlank() || pUrl.isNotBlank()),
                                 colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
                             TextButton(onClick = { providerOpen = false; pKey = "" }) { Text(tr("Cancel"), color = p.text) }
                         }
@@ -538,6 +563,18 @@ fun SettingsScreen(
             dismissButton = { TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text(tr("Cancel"), color = p.text) } },
         )
     }
+}
+
+@Composable
+private fun ProviderModelField(label: String, value: String, names: List<String>, custom: Boolean, setCustom: (Boolean) -> Unit, onChange: (String) -> Unit) {
+    if (names.isNotEmpty()) {
+        Choice(label, if (custom) "" else value, names.map { it to it } + ("" to tr("Another model…"))) {
+            setCustom(it.isEmpty())
+            onChange(it)
+        }
+    }
+    if (custom || names.isEmpty()) Field(value, { onChange(it.trim()) }, label = { Text(label) }, singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
 }
 
 /** On the subscription, the API key as the other way to run (#35): the saved one ([saved]), or a new one. */

@@ -237,9 +237,10 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                 }
                 // Advanced (ADR 205): without it, its model is left as it is and not shown.
                 val adv by dev.botdot.app.data.Advanced.on.collectAsState()
-                if (adv) Choice(tr("Model"), model, listOf("" to tr("Default")) + choices.models.map { it.id to it.label.ifBlank { it.id } }) { model = it }
-                val canThink = BotSettings.canThink(choices.models, model)
-                if (adv && canThink) Choice(tr("Reasoning"), effort, listOf("" to tr("Default")) + choices.efforts.map { it.id to it.label }) { effort = it }
+                val shown = choices.shownModel(model)
+                if (adv) Choice(tr("Model"), shown, BotSettings.models(choices).map { it.id to it.label }) { model = it }
+                val effective = if (choices.provider == null) shown else shown.ifBlank { choices.settings.defaultModel }
+                if (adv && choices.canThink(effective)) Choice(tr("Reasoning"), choices.shownEffort(effort, effective), BotSettings.efforts(choices, effective).map { it.id to it.label }) { effort = it }
             }
             SettingsGroup {
                 // Where it is, this machine or the External Virtual PC, is the account's choice in Settings (#579): here

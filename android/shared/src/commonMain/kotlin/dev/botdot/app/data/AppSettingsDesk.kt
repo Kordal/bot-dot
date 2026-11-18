@@ -19,10 +19,11 @@ fun claudeValue(c: ClaudeStatus): String = when {
 /** The rules of the app's Settings (#636), drawn by Android's SettingsScreen and the iPhone's SettingsView. */
 object AppSettingsRules {
     /** The account's default Model: Claude Code's own first. */
-    fun models(info: SettingsInfo): List<Option> = listOf(Option("", tr("Claude Code's default"))) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) }
+    fun models(info: SettingsInfo): List<Option> = listOf(Option("", info.defaultModelLabel())) + info.models.map { Option(it.id, it.label.ifBlank { it.id }) }
 
     /** The account's default Reasoning: Claude Code's own first. */
-    fun efforts(info: SettingsInfo): List<Option> = listOf(Option("", tr("Claude Code's default"))) + info.efforts.map { Option(it.id, it.label) }
+    fun efforts(info: SettingsInfo, model: String = info.settings.defaultModel): List<Option> =
+        listOf(Option("", if (info.provider == null) tr("Claude Code's default") else tr("Default"))) + info.availableEfforts(model).map { Option(it.id, it.label) }
 
     /** botdot's address as its row says it: without the scheme and the last slash. */
     fun address(baseUrl: String): String = baseUrl.removePrefix("https://").removePrefix("http://").trimEnd('/')
@@ -53,7 +54,7 @@ class AppSettingsState(
     val advanced: Boolean get() = Advanced.shows(features, info.settings)
     val models: List<Option> get() = AppSettingsRules.models(info)
     val efforts: List<Option> get() = AppSettingsRules.efforts(info)
-    val showsEffort: Boolean get() = advanced && BotSettings.canThink(info.models, info.settings.defaultModel)
+    val showsEffort: Boolean get() = advanced && info.canThink(info.settings.defaultModel)
     /** The interface's language (#645), from a server that keeps it. */
     val showsLanguage: Boolean get() = features?.contains(I18n.FEATURE) == true
     val languages: List<Option> get() = I18n.LANGUAGES.map { Option(it.first, it.second) }

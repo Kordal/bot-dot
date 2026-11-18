@@ -26,29 +26,52 @@ function openLearned(el, botId) {
 
 // ---------- model & reasoning ----------
 
-const modelLabel = (id) => (!id ? tr("Claude Code's default") : state.models?.find((x) => x.id === id)?.label || id);
+function shownModel(id = '') {
+  if (state.models?.some((model) => model.id === id)) return id;
+  if (id?.startsWith('provider:')) return '';
+  return state.modelProvider && id ? (/haiku/i.test(id) ? state.modelProvider.helper : state.modelProvider.main) : id;
+}
+const modelLabel = (id = '') => {
+  const shown = shownModel(id) || state.modelProvider?.main;
+  return state.models?.find((x) => x.id === shown)?.label || shown || tr("Claude Code's default");
+};
 const effortLabel = (id) => (!id ? tr("Claude Code's default") : state.efforts?.find((x) => x.id === id)?.label || id);
+const modelInfo = (id) => state.models?.find((x) => x.id === (shownModel(id) || state.modelProvider?.main));
 // Whether a model takes a reasoning level (from Anthropic's model list; unknown names are assumed to).
-const takesEffort = (id) => { const m = state.models?.find((x) => x.id === id); return m ? m.effort !== false : !/haiku/i.test(id || ''); };
-const llmSummary = (model, effort) => (model || effort ? `${modelLabel(model)}${effort && takesEffort(model) ? ` · ${effortLabel(effort)}` : ''}` : tr("Claude Code's choice"));
+const takesEffort = (id = '') => {
+  const m = modelInfo(id);
+  return state.modelProvider ? !!m?.effort : m ? m.effort !== false : !/haiku/i.test(id);
+};
+function llmSummary(model, effort) {
+  if (!model && !effort && !state.modelProvider) return tr("Claude Code's choice");
+  const chosenLevel = effort && takesEffort(model) && (!state.modelProvider || modelInfo(model)?.efforts?.includes(effort));
+  return chosenLevel ? `${modelLabel(model)} · ${effortLabel(effort)}` : modelLabel(model);
+}
 // The value of a Model row of the Chief or a bot, which nothing set follows the default.
-const llmValue = (model, effort) => (model || effort ? llmSummary(model, effort) : tr('Default'));
+function llmValue(model, effort) {
+  const shown = shownModel(model);
+  if (!shown && !effort) return tr('Default');
+  return llmSummary(shown || (state.modelProvider ? state.settings?.defaultModel : ''), effort);
+}
 
 // Model + reasoning selects. inherit: label for the "use the default" choice ('' = Claude Code's default).
 function llmFieldsHTML(prefix, { model = '', effort = '' }, inherit = '') {
+  const savedModel = model;
+  model = shownModel(model);
   const models = state.models || [];
   const known = models.some((x) => x.id === model);
   const groups = [...new Set(models.map((x) => x.group))];
+  const defaultModel = state.modelProvider ? tr('Default ({model})', { model: modelLabel() }) : modelLabel();
   const modelOpts = [
-    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`,
+    `<option value="" ${!model ? 'selected' : ''}>${esc(inherit || defaultModel)}</option>`,
     ...groups.map((g) => `<optgroup label="${esc(g)}">${models.filter((x) => x.group === g).map((x) => `<option value="${esc(x.id)}" ${x.id === model ? 'selected' : ''}>${esc(x.label)}</option>`).join('')}</optgroup>`),
-    `<option value="__custom" ${model && !known ? 'selected' : ''}>${tr('Another model…')}</option>`,
+    state.modelProvider ? '' : `<option value="__custom" ${model && !known ? 'selected' : ''}>${tr('Another model…')}</option>`,
   ].join('');
-  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || tr("Claude Code's default"))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
+  const effortOpts = [`<option value="" ${!effort ? 'selected' : ''}>${esc(inherit || (state.modelProvider ? tr('Default') : tr("Claude Code's default")))}</option>`, ...(state.efforts || []).map((x) => `<option value="${esc(x.id)}" ${x.id === effort ? 'selected' : ''}>${esc(x.label)}</option>`)].join('');
   return `
     <div class="llm-fields" data-llm="${prefix}">
       <div class="row">
-        <label class="field">${tr('Model')}<select name="${prefix}Model">${modelOpts}</select></label>
+        <label class="field">${tr('Model')}<select name="${prefix}Model" data-saved-model="${esc(savedModel)}" data-shown-model="${esc(model)}">${modelOpts}</select></label>
         <label class="field">${tr('Reasoning level')}<select name="${prefix}Effort">${effortOpts}</select></label>
       </div>
       <input type="text" class="mono ${model && !known ? '' : 'hidden'}" name="${prefix}ModelCustom" value="${model && !known ? esc(model) : ''}" placeholder="${esc(tr('Full model name, e.g. claude-opus-4-8'))}" autocomplete="off" spellcheck="false">
@@ -66,22 +89,35 @@ function wireLlmFields(form, prefix) {
     custom.classList.toggle('hidden', m.value !== '__custom');
     const id = m.value === '__custom' ? custom.value.trim() : m.value;
     const info = state.models?.find((x) => x.id === id);
-    const noEffort = !!id && !takesEffort(id);
+    const effective = id || (state.modelProvider && prefix !== 'default' ? state.settings?.defaultModel : '');
+    const noEffort = (!!id || !!state.modelProvider) && !takesEffort(effective);
     e.disabled = noEffort;
+    if (state.modelProvider) {
+      e.closest('label').classList.toggle('hidden', noEffort);
+      const levels = modelInfo(effective)?.efforts;
+      if (levels) for (const option of e.options) {
+        option.disabled = option.hidden = !!option.value && !levels.includes(option.value);
+        if (option.disabled && option.selected) e.value = '';
+      }
+    }
     const effort = state.efforts?.find((x) => x.id === e.value);
     describe(m, info?.note || '');
-    describe(e, noEffort ? tr("{model} doesn't use reasoning levels.", { model: info?.label || id }) : effort ? `${effort.label}: ${effort.note}` : '');
+    describe(e, noEffort ? tr("{model} doesn't use reasoning levels.", { model: info?.label || id }) : effort?.note ? `${effort.label}: ${effort.note}` : '');
   };
-  m.onchange = update;
+  m.onchange = () => {
+    delete m.dataset.shownModel;
+    update();
+  };
   e.onchange = update;
   custom.oninput = update;
   update();
 }
 
 function readLlmFields(form, prefix) {
-  const m = form[`${prefix}Model`].value;
-  const model = m === '__custom' ? form[`${prefix}ModelCustom`].value.trim() : m;
-  return { model, effort: model && !takesEffort(model) ? '' : form[`${prefix}Effort`].value };
+  const select = form[`${prefix}Model`];
+  const m = select.value;
+  const model = m === '__custom' ? form[`${prefix}ModelCustom`].value.trim() : m === select.dataset?.shownModel ? select.dataset.savedModel : m;
+  return { model, effort: form[`${prefix}Effort`].disabled ? '' : form[`${prefix}Effort`].value };
 }
 
 // ---------- the rows of a settings screen ----------
@@ -354,7 +390,7 @@ function renderSettings() {
         <summary${tipAttrs(tr('The model and reasoning level of every bot without a choice of its own.'))}><b>${tr('Model')}</b><span class="bs-val" data-llm-val>${esc(llmSummary(s.defaultModel, s.defaultEffort))}</span>${CHEV}</summary>
         <form class="bs-body" id="settings-form" autocomplete="off">
           ${llmFieldsHTML('default', { model: s.defaultModel, effort: s.defaultEffort })}
-          <div class="catalog-line">${catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(catalogTip())}>${tr('Check for new models')}</button></div>
+          ${!state.modelProvider || state.modelProvider.refreshable ? `<div class="catalog-line">${state.modelProvider ? '' : catalogLine()} <button type="button" class="link-btn" id="refresh-models"${tipAttrs(state.modelProvider ? '' : catalogTip())}>${state.modelProvider ? tr('Refresh reasoning levels') : tr('Check for new models')}</button></div>` : ''}
         </form>
       </details>
       ${typeof Proxies !== 'undefined' ? Proxies.rowHTML() : ''}
@@ -392,12 +428,13 @@ function renderSettings() {
   const form = $('#settings-form', root);
   if (!form) return;
   wireLlmFields(form, 'default');
-  $('#refresh-models', root).onclick = async (e) => {
+  const refresh = $('#refresh-models', root);
+  if (refresh) refresh.onclick = async (e) => {
     e.target.textContent = tr('Checking…');
     try {
       const r = await api('/settings/refresh-models', { method: 'POST' });
-      Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog });
-      toast(r.catalog.error ? r.catalog.error : tr('Model list is up to date'), !!r.catalog.error);
+      Object.assign(state, { models: r.models, efforts: r.efforts, catalog: r.catalog, modelProvider: r.provider });
+      if (!r.provider || r.catalog.error) toast(r.catalog.error ? r.catalog.error : tr('Model list is up to date'), !!r.catalog.error);
     } catch (err) { toast(err.message, true); }
     root.innerHTML = '';
     renderSettings();

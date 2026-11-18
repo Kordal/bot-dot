@@ -1,6 +1,6 @@
 # ADR-255: Bots can run on another model provider under Claude Code
 
-- **Status:** Accepted (2026-11-17)
+- **Status:** Accepted (2026-11-17). The model pickers and reasoning decision are superseded by ADR 256.
 - **Owning task:** the owner's request in the project thread "Add other LLM providers under Claude Code" (option C of the estimate "Pi as the bots' backend")
 - **Builds on:** the Anthropic API key of #35 (`lib/claude-key.js`), and `lib/identity.js` `runAs`, the one place where a run's or a Chief turn's Claude Code process gets its environment.
 

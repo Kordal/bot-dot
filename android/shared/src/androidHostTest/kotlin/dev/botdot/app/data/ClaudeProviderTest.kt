@@ -48,6 +48,24 @@ class ClaudeProviderTest {
         assertTrue(Api.JSON.decodeFromString<SetupInfo>("""{"done":true}""").providers.isEmpty())
     }
 
+    @Test fun settingsShowTheProvidersModelsAndSupportedEfforts() {
+        val pro = "provider:deepseek:deepseek-v4-pro"
+        val flash = "provider:deepseek:deepseek-flash"
+        val info = Api.JSON.decodeFromString<SettingsInfo>("""{
+            "provider":{"name":"DeepSeek","main":"$pro","helper":"$flash"},
+            "models":[{"id":"$pro","label":"deepseek-v4-pro","effort":true},
+                {"id":"$flash","label":"deepseek-flash","effort":true}],
+            "efforts":[{"id":"max","label":"Max"}]
+        }""")
+        assertEquals(pro, info.shownModel("opus"))
+        assertEquals(flash, info.shownModel("haiku"))
+        assertEquals(flash, info.shownModel(flash))
+        assertTrue(info.canThink("haiku"))
+        assertEquals("max", info.shownEffort("max"))
+        assertEquals("", info.shownEffort("medium"))
+        assertEquals("", SettingsInfo().shownModel(flash))
+    }
+
     @Test fun theProviderIsSavedPickedAndRemovedWithTheServersRoutes() = runBlocking {
         val server = MockWebServer()
         server.start()

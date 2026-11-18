@@ -62,7 +62,11 @@ const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="pa
       <button class="link-btn muted" id="claude-key-cancel">${tr('Cancel')}</button>
     </div>`;
 // Where another provider is chosen and its key pasted (ADR 255): the presets the server hands out, a password field for the key, and
-// the models, whose placeholders are the preset's own. The address is asked only where the owner gives it.
+// model choices from the preset and the saved provider. The address is asked only where the owner gives it.
+const providerModelField = (name, label) => `<div class="field"><span>${esc(label)}</span>
+        <select name="${name}Choice" aria-label="${esc(label)}" hidden></select>
+        <input type="text" name="${name}" aria-label="${esc(label)}" autocomplete="off" autocapitalize="off" spellcheck="false">
+      </div>`;
 const claudeProviderBox = (inCard) => {
   const presets = state.setup?.providers || [];
   const saved = state.setup?.claude?.provider?.preset;
@@ -71,8 +75,8 @@ const claudeProviderBox = (inCard) => {
         <select name="preset">${presets.map((p) => `<option value="${esc(p.id)}"${p.id === saved ? ' selected' : ''}>${esc(p.id === 'custom' ? tr('Other') : p.name)}</option>`).join('')}</select>
         <input type="text" name="url" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" hidden>
         <input type="password" name="key" placeholder="${tr('API key')}" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <input type="text" name="big" placeholder="${tr('Model')}" autocomplete="off" autocapitalize="off" spellcheck="false">
-        <input type="text" name="small" placeholder="${tr('Small model')}" autocomplete="off" autocapitalize="off" spellcheck="false">
+        ${providerModelField('big', tr('Main model'))}
+        ${providerModelField('small', tr('Helper model'))}
         <button class="btn primary" type="submit">${tr('Save')}</button>
       </form>
       <button class="link-btn muted" id="claude-provider-cancel">${tr('Cancel')}</button>
@@ -87,6 +91,17 @@ function wireClaudeKey(root, c, redraw) {
       state.setupKey = false;
       state.setupProvider = false;
       state.setup.claude = r.claude;
+      if (state.modelProvider || r.claude.using === 'provider') {
+        const cfg = await api('/settings').catch(() => null);
+        if (cfg) {
+          Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, modelProvider: cfg.provider });
+          const settings = $('#view-settings');
+          if (settings) {
+            settings.innerHTML = '';
+            if (panelPage() === 'settings') renderSettings();
+          }
+        }
+      }
       toastClaude(r.claude, said);
     } catch (err) { toast(err.message, true); }
     redraw();
@@ -109,7 +124,7 @@ function wireClaudeKey(root, c, redraw) {
   const pform = $('#claude-provider-form', root);
   if (pform) {
     const presets = state.setup?.providers || [];
-    // What the chosen preset asks for: its address only where the owner gives it, a key unless it needs none, and its models as the hints.
+    // Keep the saved selection on reopening, and allow model names outside the preset.
     const fit = () => {
       const p = presets.find((x) => x.id === pform.preset.value) || {};
       pform.url.hidden = !p.askUrl;
@@ -117,9 +132,23 @@ function wireClaudeKey(root, c, redraw) {
       pform.url.required = !!p.askUrl && !p.url;
       pform.key.hidden = !!p.keyless;
       pform.key.required = !p.keyless;
-      pform.big.placeholder = p.big || tr('Model');
-      pform.big.required = !p.big;
-      pform.small.placeholder = p.small || tr('Small model');
+      const saved = c.provider?.preset === p.id ? c.provider : null;
+      const names = [...new Set([p.big, p.small, saved?.big, saved?.small].filter(Boolean))];
+      for (const name of ['big', 'small']) {
+        const input = pform[name];
+        const select = pform[`${name}Choice`];
+        select.hidden = !names.length;
+        select.innerHTML = names.map((model) => `<option value="${esc(model)}">${esc(model)}</option>`).join('')
+          + `<option value="">${tr('Another model…')}</option>`;
+        select.value = saved?.[name] || p[name] || '';
+        const pick = () => {
+          input.hidden = !!select.value;
+          input.required = name === 'big' || !!names.length;
+          input.value = select.value;
+        };
+        select.onchange = pick;
+        pick();
+      }
     };
     fit();
     // Another preset starts clean: what was typed under the last one is not its.
