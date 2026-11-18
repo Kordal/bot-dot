@@ -14,14 +14,15 @@ const DAY = 864e5;
 const NOW = Date.parse('2026-11-18T08:00:00Z');
 const AT = '2026-11-11T08:00:00Z'; // the change: 7 days before now
 const ago = (days) => new Date(NOW - days * DAY).toISOString();
-const row = (days, more = {}) => ({ runId: `r${days}${Math.random()}`, at: ago(days), source: 'owner', outcome: 'done', ...more });
+let n = 0;
+const row = (days, more = {}) => ({ runId: `r${++n}`, at: ago(days), source: 'owner', kind: 'claude', outcome: 'done', ...more });
 const many = (days, n, more) => Array.from({ length: n }, (_, i) => row(days + i * 0.1, more));
 
 test('a window counts the owner\'s chats and jobs: corrected or asked again, and failed, before and after the change', () => {
   const rows = [
     ...many(1, 6), row(2, { corrected: true }), row(3, { reasked: true }), row(4, { outcome: 'failed' }), // after: 9 runs
     ...many(8, 3), row(9, { corrected: true }), row(10, { corrected: true }), row(11, { outcome: 'failed' }), // before: 6 runs
-    row(2, { source: 'group', corrected: true }), row(2, { source: 'aside', outcome: 'failed' }), // not counted
+    row(2, { source: 'group', corrected: true }), row(2, { source: 'aside', outcome: 'failed' }), row(2, { kind: 'script', outcome: 'failed' }), // not counted
     row(30, { corrected: true }), // beyond 14 days before the change
   ];
   const e = effects.effectOf(rows, AT, NOW);
@@ -65,7 +66,6 @@ test('the learning history lists the changes since a time, one per card, newest 
 test('the recent changes of every bot come with their effect, newest first', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'effects-'));
   const learn = learning.create(dir);
-  const real = Date.now;
   learn.recordChange('b1', { field: 'prompt', before: 'a', after: 'b', by: 'chief', reason: 'Shorter answers.' });
   const at = learn.changesSince('b1')[0].at;
   const now = Date.parse(at) + 7 * DAY;
@@ -80,7 +80,6 @@ test('the recent changes of every bot come with their effect, newest first', () 
   assert.equal(out[0].by, 'chief');
   assert.match(effects.effectLine(out[0].effect), /^Since then: 6 runs, 0 corrected or asked again, 0 failed\. In the 14 days before: 5 runs, 2 corrected or asked again, 0 failed\.$/);
   assert.match(effects.effectLine(e.effectAt('b1', at)), /^Since then: 6 runs/);
-  assert.equal(real, Date.now);
 });
 
 test('a checkup is told the changes lately, with the replay\'s score and what the ledger shows after', () => {
@@ -94,4 +93,20 @@ test('a checkup is told the changes lately, with the replay\'s score and what th
   assert.equal(text.match(/<\/records>/g).length, 1, 'a reason cannot close the records block');
   assert.match(checkup.systemPrompt({}), /Under "Changes lately"/);
   assert.doesNotMatch(checkup.prompt({ now: new Date('2026-11-18T08:00:00Z'), timeZone: 'UTC', since: new Date('2026-11-17T08:00:00Z') }), /Changes lately/);
+});
+
+test('an edit of two fields by the owner is one change, and the review\'s report lists a change with its score and its effect', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'effects-'));
+  const learn = learning.create(dir);
+  learn.recordChange('b1', { field: 'prompt', before: 'a', after: 'b', by: 'you' });
+  learn.recordChange('b1', { field: 'systemPrompt', before: 'x', after: 'y', by: 'you' });
+  const list = learn.changesSince('b1');
+  assert.equal(list.length, 1);
+  assert.deepEqual(list[0].fields.sort(), ['prompt', 'systemPrompt']);
+
+  const changed = [{ name: 'Cook', fields: ['prompt'], at: AT, tested: { of: 20, better: 14, worse: 1, same: 5, failed: 0 }, effect: effects.effectOf(many(1, 6), AT, NOW) }];
+  const report = review.reportOf([], changed);
+  assert.match(report, /Changed since the last review:\n- Cook's main assignment changed on your OK\. Better on 14 of 20 past tasks, worse on 1\. Since then: 6 runs, 0 corrected or asked again, 0 failed\. Too few runs before it to compare\./);
+  assert.match(review.reportOf([], [{ ...changed[0], effect: effects.effectOf(many(1, 2), AT, NOW) }]), /Too early to say: 2 runs since\./);
+  assert.doesNotMatch(review.reportOf([], [{ ...changed[0], effect: null }]), /Since then|Too early/);
 });
