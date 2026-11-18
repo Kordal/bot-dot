@@ -18,6 +18,9 @@ let n = 0;
 const row = (days, more = {}) => ({ runId: `r${++n}`, at: ago(days), source: 'owner', kind: 'claude', outcome: 'done', ...more });
 const many = (days, n, more) => Array.from({ length: n }, (_, i) => row(days + i * 0.1, more));
 
+// A ledger as outcomes.list answers: rows from `since` up to `until`, newest first, at most `limit`.
+const ledger = (rows) => ({ list: ({ since = '', until = '\uffff', limit = 500 }) => rows.filter((r) => r.at >= since && r.at < until).sort((a, b) => b.at.localeCompare(a.at)).slice(0, limit) });
+
 test('a window counts the owner\'s chats and jobs: corrected or asked again, and failed, before and after the change', () => {
   const rows = [
     ...many(1, 6), row(2, { corrected: true }), row(3, { reasked: true }), row(4, { outcome: 'failed' }), // after: 9 runs
@@ -73,7 +76,7 @@ test('the recent changes of every bot come with their effect, newest first', () 
     ...Array.from({ length: 6 }, (_, i) => ({ runId: `a${i}`, at: new Date(Date.parse(at) + (i + 1) * DAY).toISOString(), source: 'owner', outcome: 'done' })),
     ...Array.from({ length: 5 }, (_, i) => ({ runId: `b${i}`, at: new Date(Date.parse(at) - (i + 1) * DAY).toISOString(), source: 'owner', outcome: 'done', corrected: i < 2 })),
   ];
-  const e = effects.create({ bots: { list: () => [{ id: 'b1', name: 'Cook' }, { id: 'b2', name: 'Idle' }] }, learn, outcomes: { list: () => rows }, now: () => now });
+  const e = effects.create({ bots: { list: () => [{ id: 'b1', name: 'Cook' }, { id: 'b2', name: 'Idle' }] }, learn, outcomes: ledger(rows), now: () => now });
   const out = e.recent();
   assert.equal(out.length, 1);
   assert.equal(out[0].name, 'Cook');
@@ -109,4 +112,18 @@ test('an edit of two fields by the owner is one change, and the review\'s report
   assert.match(report, /Changed since the last review:\n- Cook's main assignment changed on your OK\. Better on 14 of 20 past tasks, worse on 1\. Since then: 6 runs, 0 corrected or asked again, 0 failed\. Too few runs before it to compare\./);
   assert.match(review.reportOf([], [{ ...changed[0], effect: effects.effectOf(many(1, 2), AT, NOW) }]), /Too early to say: 2 runs since\./);
   assert.doesNotMatch(review.reportOf([], [{ ...changed[0], effect: null }]), /Since then|Too early/);
+});
+
+test('a bot with thousands of runs keeps both windows: each is fetched on its own, up to the ledger\'s limit', () => {
+  const at = '2026-11-01T08:00:00Z';
+  const t = Date.parse(at);
+  const now = t + 20 * DAY; // 20 days after the change: the ledger holds 6000 rows from the change to now
+  const rows = [
+    ...Array.from({ length: 600 }, (_, i) => ({ runId: `b${i}`, at: new Date(t - (i + 1) * 20 * 60e3).toISOString(), source: 'job', kind: 'claude', outcome: 'done', corrected: i < 60 })),
+    ...Array.from({ length: 6000 }, (_, i) => ({ runId: `a${i}`, at: new Date(t + (i + 1) * 6 * 60e3).toISOString(), source: 'job', kind: 'claude', outcome: 'done' })),
+  ];
+  const e = effects.create({ bots: { list: () => [] }, learn: {}, outcomes: ledger(rows), now: () => now }).effectAt('b1', at);
+  assert.equal(e.before.runs, 600); // the 14 days before are all there, though 6000 later rows exist
+  assert.equal(e.before.redone, 60);
+  assert.equal(e.after.runs, 3360); // 14 days of one run every 6 minutes, not the 20 days since
 });
