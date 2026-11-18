@@ -233,11 +233,12 @@ const changeTrials = require('./lib/change-trials').create({
   dataDir: B.DATA_DIR, asks, on: () => require('./lib/replay').perHour() > 0, bot: (id) => B.bots.get(id),
   score: (a, { gone }) => { const bot = B.bots.get(a.botId); return bot ? replays.score({ bots: [bot], candidate: { changes: a.changes }, gone }) : null; },
 });
+const changeEffects = require('./lib/change-effects').create({ bots: B.bots, learn: B.learn, outcomes: B.memory.outcomes }); // how runs went after a change (ledger)
 // The Chief's memory review of its own and the shared notes (#117): proposals on cards, done on the owner's yes.
 const chiefReview = require('./lib/chief-review').create({
   dataDir: B.DATA_DIR, memory: B.memory, skills: B.skills, bots: B.bots, asks, chiefHas: shared.chiefHas, attachSkill: (name, ids) => shared.attachSkill(name, ids),
   settings: () => B.settings.get(), run: (input) => chief.runReview(input), busy: () => chief.lookBusy(), post: (text, chatId) => chief.post(text, chatId), test: tryProposal,
-  changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name }))),
+  changes: (since) => B.bots.list().flatMap((b) => B.learn.proposalsSince(b.id, since).map((c) => ({ ...c, name: b.name, effect: changeEffects.effectAt(b.id, c.at) }))),
 });
 B.onChiefReview(() => chiefReview.due());
 const tools = toolsLib.create({ dataDir: B.DATA_DIR, bots: B.bots, asks, audit, starts: B.toolStarts, tellChief: (turn) => chief.tell(turn), notify: (text) => chief.post(text), ownerWrote: (chatId) => chief.ownerWrote(chatId) });
