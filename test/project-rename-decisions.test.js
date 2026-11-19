@@ -9,7 +9,7 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('path');
 const fs = require('fs');
-const { startServer, makeBot, writeData, heldRun, fakeDocker } = require('./helpers');
+const { startServer, makeBot, writeData, heldRun, fakeDocker, waitFor } = require('./helpers');
 
 let srv; let docker; let coder; let pid;
 const RUNNING = '"running"|"bot-dot/desktop:latest"|"sha256:a"';
@@ -31,7 +31,9 @@ const onDisk = () => {
 
 before(async () => {
   docker = fakeDocker();
-  srv = await startServer({ env: { PATH: `${docker.bin}${path.delimiter}${process.env.PATH}` } });
+  // The minute's sweep (lib/bots.js followProjectFolders) runs every 200 ms here, so the deferred rename is the
+  // sweep's own write, not a second PATCH.
+  srv = await startServer({ env: { PATH: `${docker.bin}${path.delimiter}${process.env.PATH}`, BOT_DOT_PROJECT_FOLDERS_MS: '200' } });
   coder = await makeBot(srv, { name: 'Rename Coder', emoji: '💻', computer: 'linux' });
   docker.answer('inspect.json', null);
   const r = await srv.api('/company', { method: 'POST', body: { empty: true, name: 'Fernhill' } });
@@ -70,14 +72,14 @@ test('a decision survives a rename deferred for the sweep (a bot runs)', async (
   assert.equal(r.data.folder.name, 'Fernhill Garden');
   assert.deepEqual(r.data.decisions.map((d) => d.text), [DECISION]);
   assert.deepEqual(onDisk().decisions, [DECISION]);
-  srv.release(rec);
-  for (let i = 0; i < 50 && (await srv.api(`/bots/${coder.id}`)).data?.running; i++) await new Promise((ok) => setTimeout(ok, 50));
-  // The sweep's follow: once idle, the folder follows the new name.
+  // The sweep's follow: once the bot is idle, the sweep moves the folder by itself, with no second PATCH.
   docker.answer('exec.txt', 'moved Fernhill Estate\n');
-  r = await rename('Fernhill Estate');
-  assert.deepEqual(r.data.folder, { name: 'Fernhill Estate', path: '/workspace/projects/Fernhill Estate' });
-  assert.deepEqual(r.data.decisions.map((d) => d.text), [DECISION]);
-  assert.deepEqual(r.data.todos.map((t) => t.text), [TODO]);
-  assert.deepEqual(r.data.events.map((e) => e.title), [EVENT]);
+  srv.release(rec);
+  const c = await waitFor(async () => { const x = await company(); return x.folder?.name === 'Fernhill Estate' && x; }, { timeout: 15_000, what: 'the sweep to move the folder' });
   docker.answer('exec.txt', null);
+  assert.deepEqual(c.folder, { name: 'Fernhill Estate', path: '/workspace/projects/Fernhill Estate' });
+  assert.deepEqual(c.decisions.map((d) => d.text), [DECISION]);
+  assert.deepEqual(c.todos.map((t) => t.text), [TODO]);
+  assert.deepEqual(c.events.map((e) => e.title), [EVENT]);
+  assert.deepEqual(onDisk(), { decisions: [DECISION], todos: [TODO], events: [EVENT] });
 });
