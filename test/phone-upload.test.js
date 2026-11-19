@@ -103,8 +103,18 @@ test('a chat file beyond 25 MB is saved both directly and from a phone', async (
   assert.deepEqual(await r.json(), { name: 'phone.bin', size: body.length });
 });
 
-test('a phone upload into Files over 25 MB is refused', async () => {
+test('a phone upload into a folder of botdot\'s Files is as large as the disk has room for', async () => {
+  const body = Buffer.alloc(25 * 1024 * 1024 + 1, 3);
   const d = await code(`/api/bots/${bot.id}/workspace/upload?root=server`);
+  const r = await phonePost(d.url, 'big.bin', body);
+  assert.equal(r.status, 201);
+  assert.deepEqual(await r.json(), { name: 'big.bin', size: body.length });
+  assert.equal(fs.statSync(path.join(srv.data, 'workspaces', bot.id, 'big.bin')).size, body.length);
+  fs.rmSync(path.join(srv.data, 'workspaces', bot.id, 'big.bin'));
+});
+
+test('a phone upload into a folder of the computer over 25 MB is refused', async () => {
+  const d = await code(`/api/bots/${bot.id}/workspace/upload?root=computer`);
   const r = await phonePost(d.url, 'big.bin', Buffer.alloc(25 * 1024 * 1024 + 1));
   assert.equal(r.status, 413);
   assert.deepEqual((await srv.api(`/drops/${d.token}`)).data.files, []);

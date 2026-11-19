@@ -110,7 +110,6 @@ class CompanySetupDesk(private val store: Store, private val api: Api, private v
     /** "Add files": each is uploaded for the Chief at once, shown as uploading, then as added or failed (red). */
     fun addFile(file: OutgoingFile) {
         if (local.value.sources.size >= CompanySetup.MAX_SOURCES) return say(tr("Add at most 20 sources."))
-        if ((file.size ?: 0) > CompanySetup.MAX_FILE) return say(tr("{name} is over 25 MB.", "name" to file.name))
         val s = SourceDraft(newKey(), "file", file.name, size = file.size ?: 0)
         local.update { it.copy(sources = it.sources + s) }
         scope.launch {

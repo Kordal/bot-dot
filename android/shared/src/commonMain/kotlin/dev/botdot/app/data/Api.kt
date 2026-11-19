@@ -677,10 +677,13 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         }))
     /** Keeps a file on botdot in mind (#603): one the owner gave the bot as it is, any other as a copy in uploads/. */
     suspend fun keepFromWorkspace(botId: String, path: String) { send("POST", WorkspaceFiles.keep(botId), buildJsonObject { put("path", path) }) }
-    /** Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first. */
+    /**
+     * Uploads one file into folder [path] (another name when that one is taken); [made]: its missing folders are made first.
+     * A folder on botdot takes what fits on its disk; one on the computer takes a file in one piece, at most [WorkspaceFiles.MAX_BYTES].
+     */
     suspend fun uploadToWorkspace(file: OutgoingFile, botId: String, path: String, root: String = WorkspaceFiles.SERVER, made: Boolean = false) = withContext(Dispatchers.IO) {
         val name = file.name
-        if (file.size != null && file.size > WorkspaceFiles.MAX_BYTES) throw ApiException(tr("{name} is over 25 MB.", "name" to name))
+        if (root != WorkspaceFiles.SERVER && file.size != null && file.size > WorkspaceFiles.MAX_BYTES) throw ApiException(tr("{name} is over 25 MB.", "name" to name))
         call(request(WorkspaceFiles.upload(botId, path, root, made)).header("X-Bot-Dot", "1").header("X-File-Name", enc(name)).post(streamOf(file)).build())
         Unit
     }

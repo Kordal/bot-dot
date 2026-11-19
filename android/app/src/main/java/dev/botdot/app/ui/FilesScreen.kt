@@ -254,8 +254,7 @@ fun FilesScreen(app: BotDotApp, ownerId: String, startRoot: String = "", startPa
             try {
                 folder.files.forEachIndexed { i, f ->
                     busy = tr("Uploading {name}: {i} of {n}", "name" to folder.name, "i" to i + 1, "n" to folder.files.size)
-                    if ((f.size ?: 0) > WorkspaceFiles.MAX_BYTES) missed++
-                    else runCatching { a.uploadToWorkspace(context.contentResolver, f.uri, ownerId, WorkspaceFiles.folderDir(top, f.dir), r, made = true) }.onError { missed++ }
+                    runCatching { a.uploadToWorkspace(context.contentResolver, f.uri, ownerId, WorkspaceFiles.folderDir(top, f.dir), r, made = true) }.onError { missed++ }
                 }
             } finally { busy = null }
             tell(if (missed > 0) tr("{name}: {failed} of {n} files didn't upload.", "name" to folder.name, "failed" to missed, "n" to folder.files.size) else tr("Uploaded {name}", "name" to folder.name))

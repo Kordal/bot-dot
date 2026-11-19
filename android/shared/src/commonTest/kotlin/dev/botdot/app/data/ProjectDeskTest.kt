@@ -592,19 +592,20 @@ class ProjectDeskTest {
         assertFalse(without.state.value.logins)
     }
 
-    @Test fun filesAreUploadedAsSourcesAndOneTooBigOrUnreadIsSaid() = runTest {
+    @Test fun filesAreUploadedAsSourcesAndOneUnreadIsSaid() = runTest {
         val fake = FakeBotdot { a -> if (a.path == "/uploads") 200 to """{"name":"menu.pdf","file":"u1","size":4}""" else 200 to kitchen }
         val (_, desk) = desk(fake)
         runCurrent()
         val menu = OutgoingFile("menu.pdf", 4) { Buffer().apply { writeString("menu") } }
-        val big = OutgoingFile("big.mov", CompanySetup.MAX_FILE + 1) { null }
+        // A big file is no reason to leave it out: botdot takes what fits on its disk.
+        val big = OutgoingFile("big.mov", 100L * 1024 * 1024) { Buffer().apply { writeString("movie") } }
         assertTrue(desk.addFiles(listOf(big, menu), listOf("lost.txt")))
         runCurrent()
-        assertEquals("lost.txt: Couldn't read that file.\nbig.mov is over 25 MB.", desk.state.value.notice)
+        assertEquals("lost.txt: Couldn't read that file.", desk.state.value.notice)
         val sent = fake.asked().filter { it.method != "GET" }
-        assertEquals(listOf("/uploads", "/company"), sent.map { it.path }, "one upload, then the sources")
+        assertEquals(listOf("/uploads", "/uploads", "/company"), sent.map { it.path }, "two uploads, then the sources")
         assertEquals("to=chief", sent[0].query.substringBefore('&'))
-        assertTrue("\"kind\":\"file\"" in sent[1].body && "\"file\":\"u1\"" in sent[1].body, sent[1].body)
+        assertTrue("\"kind\":\"file\"" in sent[2].body && "\"file\":\"u1\"" in sent[2].body, sent[2].body)
         assertFalse(desk.addFiles(emptyList(), emptyList()), "nothing picked: nothing sent")
     }
 }

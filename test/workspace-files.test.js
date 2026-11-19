@@ -9,6 +9,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
+const { PassThrough } = require('node:stream');
 const { startServer, makeBot, fakeDocker } = require('./helpers');
 const W = require('../lib/workspace-files');
 
@@ -128,10 +129,25 @@ test('a whole folder (#576): its top takes a free name, its files go into folder
   fs.rmSync(path.join(ws(), 'site'), { recursive: true }); fs.rmSync(path.join(ws(), 'site (2)'), { recursive: true });
 });
 
-test('an upload over 25 MB is refused and leaves nothing', async () => {
-  const r = await srv.api(`/bots/${bot.id}/workspace/upload${q('')}`, { method: 'POST', raw: Buffer.alloc(25 * 1024 * 1024 + 1, 1), headers: { 'X-File-Name': 'big.bin' } }).catch((e) => ({ status: 0, e }));
-  assert.ok([413, 0].includes(r.status), String(r.status));
-  assert.ok(!fs.existsSync(path.join(ws(), 'big.bin')));
+test('an upload to botdot is as large as the disk has room for; the computer takes at most 25 MB and nothing is left of a refusal', async () => {
+  const big = Buffer.alloc(25 * 1024 * 1024 + 1, 1);
+  const r = await srv.api(`/bots/${bot.id}/workspace/upload${q('')}`, { method: 'POST', raw: big, headers: { 'X-File-Name': 'big.bin' } });
+  assert.equal(r.status, 201, JSON.stringify(r.data));
+  assert.equal(r.data.size, big.length);
+  assert.equal(fs.statSync(path.join(ws(), 'big.bin')).size, big.length);
+  fs.rmSync(path.join(ws(), 'big.bin'));
+  const body = new PassThrough();
+  const taken = W.readUpload(body);
+  body.end(big);
+  await assert.rejects(taken, { status: 413, message: 'That file is over 25 MB.' });
+});
+
+test('an upload that does not fit on the disk is refused before anything is written', async () => {
+  const req = new PassThrough();
+  req.headers = { 'content-length': '100' };
+  assert.throws(() => W.upload(req, ws(), '', 'does-not-fit.bin', { free: () => 99 }), { status: 507, message: 'No space left on the server.' });
+  assert.ok(!fs.existsSync(path.join(ws(), 'does-not-fit.bin')));
+  req.destroy();
 });
 
 test('delete says first what it takes, then takes a file or a folder with what it holds', async () => {
