@@ -682,6 +682,16 @@ test("a file the owner attaches in a group is kept once and handed to each membe
   assert.deepEqual(copiesIn(reviewer), []);
   assert.ok(next.id);
 
+  // The copy to a member must not depend on the broker's whole-file read ceiling.
+  const large = await upload(`group:${group.id}`, 'recording.bin', 'start');
+  const original = path.join(keptIn, large.data.file);
+  const size = 51 * 1024 * 1024;
+  fs.truncateSync(original, size);
+  const delivered = await said(srv, group, '@FileCoder use the recording', { attachments: [large.data] });
+  const copied = repliesIn(delivered.chat).find((x) => x.run.botId === coder.id && x.run.groupMessageId === delivered.id).run.attachments[0];
+  assert.equal(copied.size, size);
+  assert.equal(fs.statSync(path.join(srv.data, 'workspaces', coder.id, copied.file)).size, size);
+
   // Files alone are a message: it keeps no words, and its turns are asked to have a look.
   const alone = await said(srv, group, '', { attachments: [{ name: 'plan.md', file: up.data.file }] });
   assert.equal(messageIn(alone.chat, alone.id).text, '');
