@@ -566,7 +566,7 @@ function chiefBubble(m, last = false, index = null) {
         ${m.pending || m.error ? '' : globalThis.inlineCardsHTML?.(m) || ''}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta${Ratings.shows(m, state.features, index) ? '' : ' on-hover'}">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
-        ${open ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions, m.questionChoices, `chief:${state.chatId}:${m.at || at}`) : ''}
+        ${open ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions, m.questionChoices, `chief:${state.chatId}:${m.at ?? index}`) : ''}
       </div>
     </div>`;
 }
