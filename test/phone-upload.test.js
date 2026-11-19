@@ -113,6 +113,12 @@ test('a phone upload into a folder of botdot\'s Files is as large as the disk ha
   fs.rmSync(path.join(srv.data, 'workspaces', bot.id, 'big.bin'));
 });
 
+test('a phone upload into a project folder, which is on the computer, over 25 MB is refused before it is passed on', async () => {
+  const d = await code('/api/projects/Shop/workspace/upload?path=');
+  const r = await phonePost(d.url, 'big.bin', Buffer.alloc(25 * 1024 * 1024 + 1));
+  assert.equal(r.status, 413);
+});
+
 test('a phone upload into a folder of the computer over 25 MB is refused', async () => {
   const d = await code(`/api/bots/${bot.id}/workspace/upload?root=computer`);
   const r = await phonePost(d.url, 'big.bin', Buffer.alloc(25 * 1024 * 1024 + 1));
