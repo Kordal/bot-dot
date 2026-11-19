@@ -24,7 +24,9 @@ test("a skill's text that changed changes the hash the instructions' key is made
 test("the prompt tells the Chief to load bot-designer, pages and board once in a chat", () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'lib', 'chief.js'), 'utf8');
   assert.doesNotMatch(src, /even if you loaded it earlier in this chat/);
-  for (const skill of ['chief:bot-designer', 'kit:pages', 'chief:board']) {
+  // bot-designer's trigger names every path that makes a bot, so its sentence opens differently.
+  assert.match(src, /Whenever you are about to make a new bot, load your skill chief:bot-designer with the Skill tool and follow it, whatever asked for it: .* Load it once in a chat: when botdot says your instructions have changed, or you no longer have the skill's text in this chat, load it again\./);
+  for (const skill of ['kit:pages', 'chief:board']) {
     assert.match(src, new RegExp(`load your skill ${skill} with the Skill tool and follow it\\. Load it once in a chat: when botdot says your instructions have changed, or you no longer have the skill's text in this chat, load it again\\.`), skill);
   }
 });
