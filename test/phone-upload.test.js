@@ -5,7 +5,10 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const path = require('path');
-const { startServer, makeBot } = require('./helpers');
+const http = require('node:http');
+const { PassThrough } = require('node:stream');
+const uploads = require('../lib/uploads');
+const { startServer, makeBot, waitFor } = require('./helpers');
 
 let srv; let bot;
 before(async () => {
@@ -87,9 +90,49 @@ test('a wrong code, an ended one, a request without its header: refused, and the
   assert.ok(Array.isArray(r.data));
 });
 
-test('a file over 25 MB is refused before it is read', async () => {
-  const d = await code(`/api/uploads?to=bot:${bot.id}`);
+test('a chat file beyond 25 MB is saved both directly and from a phone', async () => {
+  const to = `/uploads?to=bot:${bot.id}`;
+  const body = Buffer.alloc(25 * 1024 * 1024 + 1, 7);
+  const direct = await srv.api(to, { method: 'POST', raw: body, headers: { 'X-File-Name': 'direct.bin' } });
+  assert.equal(direct.status, 201, JSON.stringify(direct.data));
+  assert.equal(fs.statSync(path.join(srv.data, 'workspaces', bot.id, direct.data.file)).size, body.length);
+
+  const d = await code(`/api${to}`);
+  const r = await phonePost(d.url, 'phone.bin', body);
+  assert.equal(r.status, 201);
+  assert.deepEqual(await r.json(), { name: 'phone.bin', size: body.length });
+});
+
+test('a phone upload into Files over 25 MB is refused', async () => {
+  const d = await code(`/api/bots/${bot.id}/workspace/upload?root=server`);
   const r = await phonePost(d.url, 'big.bin', Buffer.alloc(25 * 1024 * 1024 + 1));
   assert.equal(r.status, 413);
   assert.deepEqual((await srv.api(`/drops/${d.token}`)).data.files, []);
+});
+
+test('a chat upload is refused before writing when the account has too little space', async () => {
+  const req = new PassThrough();
+  req.headers = { 'content-length': '100' };
+  const workspace = path.join(srv.data, 'full-disk-test');
+  await assert.rejects(uploads.save(req, workspace, 'does-not-fit.bin', { free: () => 99 }), {
+    status: 507, message: 'No space left on the server.',
+  });
+  assert.equal(fs.existsSync(workspace), false);
+  req.destroy();
+});
+
+test('disconnecting a chat upload removes the partial file', async () => {
+  const dir = path.join(srv.data, 'workspaces', bot.id, 'uploads');
+  const partials = () => (fs.existsSync(dir) ? fs.readdirSync(dir) : []).filter((name) => name.endsWith('.part'));
+  const req = http.request(`${srv.base}/api/uploads?to=bot:${bot.id}`, {
+    method: 'POST',
+    headers: { 'X-Bot-Dot': '1', 'X-File-Name': 'interrupted.bin', 'Content-Length': 1024 * 1024 },
+  });
+  req.on('error', () => {}); // expected when we close the connection ourselves
+  try {
+    req.write(Buffer.alloc(65536, 3));
+    await waitFor(() => partials().length === 1, { what: 'a partial upload on disk' });
+  } finally { req.destroy(); }
+  await waitFor(() => !partials().length, { what: 'removal of the partial upload' });
+  assert.equal(fs.readdirSync(dir).some((name) => name.endsWith('interrupted.bin')), false);
 });

@@ -771,7 +771,6 @@ class PendingFiles(private val scope: CoroutineScope, private val context: Conte
         // Each file's name and size are a query of the app that has it (a cloud's, perhaps): off the main thread, in order.
         scope.launch { for (uri in uris.take(10 - items.size)) {
             val (name, size) = withContext(Dispatchers.IO) { a.describe(context.contentResolver, uri) }
-            if ((size ?: 0) > 25L * 1024 * 1024) { onFailed(tr("{name} is over 25 MB.", "name" to name)); continue }
             val item = Item(nextKey++, name, size, "uploading")
             items += item
             launch {

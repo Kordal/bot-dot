@@ -257,7 +257,7 @@ const MIME = {
 const zlib = require('zlib');
 const crypto = require('crypto');
 // Sending JSON and reading a request's body, as every route does (lib/routes/http.js).
-const { NEXT, send, httpError, readBody, readRaw, drained, sendFile } = require('./lib/routes/http');
+const { NEXT, send, httpError, watchRequestBody, readBody, readRaw, drained, sendFile } = require('./lib/routes/http');
 
 // The web page's own rules for the browser: only its own scripts, and it can't be framed elsewhere.
 // Inline styles stay (the page builds some); images may come from connected apps' logos.
@@ -1031,7 +1031,7 @@ async function respond(req, res) {
     else res.destroy();
   }
 }
-const server = http.createServer(respond);
+const server = http.createServer({ requestTimeout: 0, headersTimeout: 60_000 }, (req, res) => { watchRequestBody(req); respond(req, res); });
 
 async function handle(req, res) {
   // Every answer: the browser mustn't guess content types, and only botdot's own pages may frame it.
@@ -1195,7 +1195,7 @@ for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(signal, () => p
 // door may enter. The front door runs as another user (install.sh lets its group through the folder alone, with an
 // ACL), so the folder is what keeps everyone else out and the socket itself is open. Every request on it is the
 // account's owner's, once the front door names the account.
-const frontDoor = http.createServer(respond);
+const frontDoor = http.createServer({ requestTimeout: 0, headersTimeout: 60_000 }, (req, res) => { watchRequestBody(req); respond(req, res); });
 frontDoor.on('connection', (socket) => { socket[FROM_FRONT_DOOR] = true; });
 frontDoor.on('upgrade', upgrade);
 if (FRONT_DOOR_SOCKET) {

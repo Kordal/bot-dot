@@ -17,6 +17,10 @@ test('a code is good for ten minutes and 20 files, then only looked at, then gon
   assert.equal(drops.open(drops.get(d.token)), false, 'expired');
   assert.equal(drops.view(d).open, false);
   t += dropsLib.DROP_MS + 1;
+  assert.equal(drops.get(d.token), d, 'still available while a file is coming');
+  for (const file of d.files) drops.settle(d, file, { status: 'saved' });
+  assert.equal(drops.get(d.token), d, 'available to pick up the completed files');
+  t += dropsLib.DROP_MS + 1;
   assert.equal(drops.get(d.token), null, 'gone');
   assert.equal(drops.get('../../etc'), null);
 });
