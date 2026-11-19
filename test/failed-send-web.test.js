@@ -8,6 +8,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
+const fs = require('fs');
+const path = require('path');
 const { app, read, cut, element, finders, answer, esc, words } = require('./web-page');
 
 const unreached = () => Object.assign(new Error("Can't reach botdot."), { unreached: true });
@@ -864,4 +866,24 @@ test('web: what the owner typed or picked on a card of questions survives the ch
   const third = drawnCard(ctx);
   ctx.wireChoices(third.thread, send);
   assert.deepEqual(third.boxes.map((b) => b.value), ['', '']);
+});
+
+test('web: a card of questions drawn without its reply keeps no draft, and every chat draws its card with one', async () => {
+  const ctx = cardPage();
+  const send = async () => true;
+  const first = drawnCard(ctx, '');
+  ctx.wireChoices(first.thread, send);
+  first.boxes[0].value = 'The work one';
+  first.boxes[0].oninput();
+  // A later card asking the same questions starts empty: nothing ties the answer to the card it was typed on.
+  const later = drawnCard(ctx, '');
+  ctx.wireChoices(later.thread, send);
+  assert.deepEqual(later.boxes.map((b) => b.value), ['', '']);
+  // The bot's, the Chief's and a group's chat each pass the reply the card is under.
+  for (const f of ['bot-chat.js', 'chief.js', 'groups.js']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+    for (const call of src.match(/questionsHTML\([^)]*\)/g)) assert.match(call, /questionsHTML\([^,]+,[^,]+,[^,)]+\)/, `${f}: ${call}`);
+  }
+  const chief = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui', 'ChiefScreen.kt'), 'utf8');
+  for (const call of chief.match(/\bQuestions\(m\.[^{]*/g)) assert.match(call, /of = /, call);
 });

@@ -296,7 +296,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             }
                             if (cardOpen && !busy && mail == null) {
                                 Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
-                                Questions(m.questions, m.questionChoices) { text, key -> sendFrom(text, key) }
+                                Questions(m.questions, m.questionChoices, of = "chief:${chatId.orEmpty()}:${m.at.orEmpty()}") { text, key -> sendFrom(text, key) }
                             }
                         }
                     }

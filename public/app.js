@@ -428,6 +428,7 @@ function wireChoices(root, send) {
         ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + ta.offsetHeight - ta.clientHeight, 200) + 'px';
         btn.disabled = !boxes.some((b) => b.value.trim());
         picks.forEach((p) => p.classList.toggle('on', p.dataset.pick === ta.value.trim())); // the one the box says
+        if (!card.dataset.of) return; // no reply to keep it by: a later card with the same questions must start empty
         if (boxes.some((b) => b.value)) { if (cardDrafts.size > 100 && !cardDrafts.has(draft)) cardDrafts.clear(); cardDrafts.set(draft, boxes.map((b) => b.value)); } else cardDrafts.delete(draft);
       };
       // A choice fills the box; typed over, the answer is the owner's own.
@@ -439,7 +440,7 @@ function wireChoices(root, send) {
         if (boxes[i + 1]) boxes[i + 1].focus(); else btn.click();
       };
     });
-    const kept = cardDrafts.get(draft);
+    const kept = card.dataset.of ? cardDrafts.get(draft) : null;
     if (kept?.length === boxes.length) boxes.forEach((ta, i) => { ta.value = kept[i]; ta.oninput(); }); // drawn again: what was typed stands
     let last = null; // { text, key }: what the card sent last, while it has not gone
     btn.onclick = async () => {
