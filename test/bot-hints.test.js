@@ -88,6 +88,9 @@ test('update_bot answers with hints when the prompt changes or an icon is set, a
   // A new icon another bot has.
   const icon = await chief.json('update_bot', { id: b.id, outfit: { icon: 'server' } });
   assert.match(icon.hints.join(' '), /icon "server" is Upd A's/);
+  // The same shared icon resent to change only the hat says nothing of the icon.
+  const hatOnly = await chief.json('update_bot', { id: b.id, outfit: { icon: 'server', hat: 'chef' } });
+  assert.doesNotMatch((hatOnly.hints || []).join(' '), /icon/, JSON.stringify(hatOnly.hints));
   // A changed task is read as sent, though it waits for the owner's OK; the job it has counts.
   await srv.api(`/bots/${b.id}/jobs`, { method: 'POST', body: { name: 'Morning', cron: '0 8 * * *', prompt: 'Check.', kind: 'ai' } });
   const changed = await chief.json('update_bot', { id: b.id, prompt: 'You list tasks.\nWake: every morning.' });
