@@ -29,5 +29,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   // 111.4k: update_bot's disabledSkills names the kit's always-on writing style (ADR 246).
   // 113.1k: watch, list_watches and stop_watch, the Chief's waits that botdot reads without AI (ADR 248).
   // 113.2k: change_project_card's textSize, how large a card's text is drawn.
-  assert.ok(size < 113_200, `${size} characters`);
+  // 113.4k: create_bot and update_bot take verbatim, a task the owner dictated, which hints leave alone (#1543).
+  assert.ok(size < 113_400, `${size} characters`);
 });
