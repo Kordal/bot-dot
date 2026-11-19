@@ -438,7 +438,6 @@ private fun addFiles(ui: CompanyUi, context: Context, uris: List<Uri>) {
     for (uri in uris) {
         if (ui.sources.size >= CompanySetup.MAX_SOURCES) { ui.tell(tr("Add at most 20 sources.")); break }
         val (name, size) = a.describe(context.contentResolver, uri)
-        if ((size ?: 0) > CompanySetup.MAX_FILE) { ui.tell(tr("{name} is over 25 MB.", "name" to name)); continue }
         val s = SourceDraft(newId(), "file", name, size = size ?: 0)
         ui.sources.add(s)
         ui.scope.launch {

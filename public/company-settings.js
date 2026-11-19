@@ -259,7 +259,6 @@
   async function upload(list, c) {
     const added = [];
     for (const file of list.slice(0, 20 - c.sources.length)) {
-      if (file.size > 25 * 1024 * 1024) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
       try {
         const r = await fetch('/api/uploads?to=chief', { method: 'POST', headers: { 'X-Bot-Dot': '1', 'X-File-Name': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
         const d = await r.json().catch(() => ({}));

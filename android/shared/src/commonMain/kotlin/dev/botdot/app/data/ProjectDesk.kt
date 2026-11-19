@@ -824,13 +824,12 @@ object ProjectSettingWords {
 /** Files added to a project's sources in its settings (#701), as the start screen does: uploaded for the Chief. */
 object ProjectSources {
     /**
-     * Uploads up to [CompanySetup.MAX_SOURCES] less the [have] ones; one over [CompanySetup.MAX_FILE] or refused is
+     * Uploads up to [CompanySetup.MAX_SOURCES] less the [have] ones; one refused is
      * said and left out. The sources to add, `{ kind: file, name, upload }`.
      */
     suspend fun upload(api: Api, have: Int, files: List<OutgoingFile>, say: (String) -> Unit): List<JsonObject> {
         val added = mutableListOf<JsonObject>()
         for (f in files.take((CompanySetup.MAX_SOURCES - have).coerceAtLeast(0))) {
-            if ((f.size ?: 0) > CompanySetup.MAX_FILE) { say(tr("{name} is over 25 MB.", "name" to f.name)); continue }
             try { added += CompanySetup.fileSource(f.name, api.upload(f, "chief")) }
             catch (e: CancellationException) { throw e } catch (e: Exception) { say("${f.name}: ${e.message}") }
         }

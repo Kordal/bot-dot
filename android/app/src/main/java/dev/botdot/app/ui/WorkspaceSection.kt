@@ -112,8 +112,7 @@ fun WorkspaceSection(api: Api?, botId: String, botName: String, usesComputer: Bo
             try {
                 picked.files.forEachIndexed { i, f ->
                     busy = tr("Uploading {name}: {i} of {n}", "name" to picked.name, "i" to i + 1, "n" to picked.files.size)
-                    if ((f.size ?: 0) > WorkspaceFiles.MAX_BYTES) failed++
-                    else runCatching { a.uploadToWorkspace(context.contentResolver, f.uri, botId, WorkspaceFiles.folderDir(top, f.dir), r, made = true) }.onError { failed++ }
+                    runCatching { a.uploadToWorkspace(context.contentResolver, f.uri, botId, WorkspaceFiles.folderDir(top, f.dir), r, made = true) }.onError { failed++ }
                 }
             } finally { busy = null }
             tell(if (failed > 0) tr("{name}: {failed} of {n} files didn't upload.", "name" to picked.name, "failed" to failed, "n" to picked.files.size) else tr("Uploaded {name}", "name" to picked.name))

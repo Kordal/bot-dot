@@ -675,7 +675,6 @@ const Company = (() => {
   function addFiles(files) {
     for (const file of files) {
       if (draft.sources.length >= 20) { toast(tr('Add at most 20 sources.'), true); break; }
-      if (file.size > 25 * 1024 * 1024) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
       const s = { id: newId(), kind: 'file', name: file.name, size: file.size, status: 'uploading' };
       draft.sources.push(s);
       fetch('/api/uploads?to=chief', {

@@ -316,7 +316,6 @@ object CompanySetup {
     /** Several chips picked for one answer are joined with this. */
     const val SEP = "; "
     const val MAX_SOURCES = 20
-    const val MAX_FILE = 25L * 1024 * 1024
 
     fun shows(features: Collection<String>?): Boolean = features != null && FEATURE in features
 

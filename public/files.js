@@ -11,7 +11,8 @@
 
 const Files = (() => {
   const MAX_FILES = 10; // of one upload, as the attachments
-  const MAX_BYTES = 25 * 1024 * 1024;
+  const MAX_BYTES = 25 * 1024 * 1024; // what the computer's folders take in one piece; botdot's own take what fits on the disk
+  const tooBig = (c, file) => c.place.root !== 'server' && file.size > MAX_BYTES;
   const MAX_FOLDER_FILES = 1000; // of one uploaded folder
   const NARROW = '(max-width: 760px)';
   let cur = null;
@@ -466,7 +467,7 @@ const Files = (() => {
     const list = [...files].slice(0, MAX_FILES);
     for (const [i, file] of list.entries()) {
       c.busy = tr('Uploading {i} of {n}', { i: i + 1, n: list.length }); draw(c);
-      if (file.size > MAX_BYTES) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
+      if (tooBig(c, file)) { toast(tr('{name} is over 25 MB.', { name: file.name }), true); continue; }
       try { await sendFile(c, c.path, file); } catch (e) { toast(`${file.name}: ${e.message}`, true); }
     }
     c.busy = null;
@@ -488,7 +489,7 @@ const Files = (() => {
     const plan = folderPlan(items, made.path);
     for (const [i, { file, dir }] of plan.entries()) {
       c.busy = tr('Uploading {name}: {i} of {n}', { name: top, i: i + 1, n: plan.length }); draw(c);
-      if (file.size > MAX_BYTES) { failed++; continue; }
+      if (tooBig(c, file)) { failed++; continue; }
       try { await sendFile(c, dir, file, true); } catch { failed++; }
     }
     c.busy = null;
