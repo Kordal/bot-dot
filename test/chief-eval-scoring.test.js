@@ -149,3 +149,13 @@ test('the report says pass or fail per case, and why', () => {
   assert.match(md, /- server-check · job: no scheduled job on Price Watcher/);
   assert.match(md, /- vague: did not finish: timed out/);
 });
+
+test('the eval runs only with its own flag, which make chief-eval sets', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const root = path.join(__dirname, '..');
+  const suite = fs.readFileSync(path.join(root, 'test', 'live', 'chief-bot-eval.test.js'), 'utf8');
+  assert.match(suite, /process\.env\.BOT_DOT_TEST_CHIEF_EVAL !== '1'/);
+  assert.doesNotMatch(suite, /process\.env\.BOT_DOT_TEST_LIVE_CLAUDE/, 'the memory suite\'s flag would run all 13 cases with npm run test:live');
+  assert.match(fs.readFileSync(path.join(root, 'Makefile'), 'utf8'), /BOT_DOT_TEST_CHIEF_EVAL=1 node --test [^\n]*chief-bot-eval\.test\.js/);
+});

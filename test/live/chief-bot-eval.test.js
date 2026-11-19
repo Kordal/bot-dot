@@ -42,7 +42,8 @@ function realClaude() {
 
 // Why this suite cannot run now, or null.
 function whyNot() {
-  if (process.env.BOT_DOT_TEST_LIVE_CLAUDE !== '1') return 'it spends real model usage: run it with make chief-eval';
+  // Its own flag, not the memory suite's BOT_DOT_TEST_LIVE_CLAUDE: `npm run test:live` with that one must not run these cases too.
+  if (process.env.BOT_DOT_TEST_CHIEF_EVAL !== '1') return 'it spends real model usage: run it with make chief-eval';
   if (process.env.CLAUDE_CODE_OAUTH_TOKEN || process.env.ANTHROPIC_API_KEY) return null;
   try {
     const out = execFileSync(realClaude(), ['auth', 'status'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'ignore'] });
