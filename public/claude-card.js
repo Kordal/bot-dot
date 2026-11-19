@@ -1,17 +1,17 @@
 // Settings → Claude: which account botdot uses, with sign out, use another account, and sign in
 // when it isn't signed in, or the Anthropic API key bots run on instead (#35), same as the phone app. Loaded after app.js and uses its helpers ($, api,
-// esc, toast, state, claudeUnknown, toastClaude). Adds its card under Appearance each time the Settings page is drawn.
+// esc, toast, state, claudeUnknown, toastClaude). Shows the provider controls in Model when the row is available.
 
 (() => {
   const drawSettings = renderSettings;
   renderSettings = function () {
     drawSettings();
-    const updates = $('#updates-card');
+    const updates = $('#update-card');
     if (!updates || $('#claude-card')) return;
-    updates.insertAdjacentHTML('beforebegin', `<div class="card settings-card" id="claude-card">
-      <h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>
-      <p class="muted settings-hint" style="margin:0">${tr('Checking…')}</p>
-    </div>`);
+    const models = $('#settings-form');
+    (models || updates).insertAdjacentHTML('beforebegin', models
+      ? `<details class="bs-body model-credentials" id="claude-card" data-in-model><summary>${tr('Provider')}</summary><p>${tr('Checking…')}</p></details>`
+      : `<div class="settings-card card" id="claude-card"><p>${tr('Checking…')}</p></div>`);
     loadClaudeCard();
   };
 })();
@@ -46,11 +46,15 @@ async function loadClaudeCard(fresh = true) {
       </ol>
       <button class="link-btn muted" id="claude-cancel">${tr('Cancel')}</button>
     </div>` : '';
-  card.innerHTML = `
-    <h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>
-    <p class="muted settings-hint" style="margin:0">${body}</p>
+  const inModel = card.dataset?.inModel !== undefined;
+  const provider = c.using === 'provider' ? c.provider?.name
+    : c.using === 'api-key' ? tr('Anthropic API key') : tr('Claude subscription');
+  const controls = `<p class="muted settings-hint" style="margin:0">${body}</p>
     ${action ? `<div class="setup-actions">${action}</div>` : ''}
     ${steps}${keyOpen ? claudeKeyBox(true) : ''}${state.setupProvider && !signingIn ? claudeProviderBox(true) : ''}`;
+  card.innerHTML = inModel
+    ? `<summary><span data-provider-label>${tr('Provider')}</span><span class="muted">${esc(provider || '')}</span>${CHEV}</summary><div class="model-provider-controls">${controls}</div>`
+    : `<h3 class="page-sub" style="margin-top:0">✳︎ Claude</h3>${controls}`;
 
   const onClick = (sel, fn) => { const el = $(sel, card); if (el) el.onclick = fn; };
   wireClaudeKey(card, c, () => loadClaudeCard(false));

@@ -656,5 +656,6 @@
   "Setting a watch": "Ustawiam obserwację",
   "Looking at its watches": "Przeglądam swoje obserwacje",
   "Checking the watches": "Sprawdzam obserwacje",
-  "Stopping a watch": "Zatrzymuję obserwację"
+  "Stopping a watch": "Zatrzymuję obserwację",
+  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele."
 }

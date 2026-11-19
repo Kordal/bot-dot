@@ -719,6 +719,7 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
 
     suspend fun settings(): SettingsInfo = json.decodeFromString(get("/settings"))
     suspend fun refreshModels(): SettingsInfo = json.decodeFromString(send("POST", "/settings/refresh-models"))
+    suspend fun discoverModels(): SettingsInfo = json.decodeFromString(send("POST", "/settings/refresh-models?catalog"))
     suspend fun saveSettings(s: AppSettings): SettingsInfo = json.decodeFromString(send("PUT", "/settings", json.encodeToJsonElement(s) as JsonObject))
     /** The Chief's checkup; null from a server that answered without it. Only with `checkup` in its features. */
     suspend fun checkup(): Checkup? = Checkup.answer(get("/settings/checkup"))
@@ -749,9 +750,18 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     /** Which one bots run on: "api-key", "provider" or "subscription". */
     suspend fun claudeUse(use: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/use", buildJsonObject { put("use", use) }))
     suspend fun claudeRemoveKey(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/key"))
+    /** Reads choices for a provider without saving it. Only with `provider-model-catalog`. */
+    suspend fun claudeProviderModels(preset: String, key: String, url: String?, reuseKey: Boolean = false): ProviderModelCatalog =
+        json.decodeFromString(send("POST", "/setup/claude/provider/models", buildJsonObject {
+            put("preset", preset)
+            put("key", key)
+            if (url != null) put("url", url)
+            if (reuseKey) put("reuseKey", true)
+        }))
+
     /** Saves another model provider, which bots then run on (ADR 255); one that refuses the key or does not know the model throws the server's words. [url] only for a preset whose address the owner gives. Only with `llm-provider` in its features. */
-    suspend fun claudeSaveProvider(preset: String, key: String, url: String?, big: String, small: String): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/provider", buildJsonObject {
-        put("preset", preset); put("key", key); if (url != null) put("url", url); put("big", big); put("small", small)
+    suspend fun claudeSaveProvider(preset: String, key: String, url: String?, big: String, small: String, reuseKey: Boolean = false): ClaudeStatus? = claudeOfAnswer(send("PUT", "/setup/claude/provider", buildJsonObject {
+        put("preset", preset); put("key", key); if (url != null) put("url", url); put("big", big); put("small", small); if (reuseKey) put("reuseKey", true)
     }))
     suspend fun claudeRemoveProvider(): ClaudeStatus? = claudeOfAnswer(send("DELETE", "/setup/claude/provider"))
     suspend fun backups(): BackupInfo = json.decodeFromString(get("/backups"))

@@ -92,6 +92,18 @@ test('a saved key is checked with Anthropic, kept encrypted, answered only as it
   assert.doesNotMatch(everything(), new RegExp(KEY), 'neither the log nor any file in the data folder holds it in the clear');
 });
 
+test('the Model row reads the saved Anthropic key’s available models', async () => {
+  assert.equal((await srv.api('/setup/claude/key', { method: 'PUT', body: { key: KEY } })).status, 200);
+  const fresh = await srv.api('/settings/refresh-models?catalog', { method: 'POST' });
+  assert.equal(fresh.status, 200);
+  assert.equal(fresh.data.catalog.source, 'anthropic-key');
+  assert.deepEqual(fresh.data.models.map((model) => model.id), ['claude-x']);
+  assert.deepEqual(asked.at(-1), { method: 'GET', url: '/v1/models?limit=1000', key: KEY, version: '2023-06-01' });
+  const regular = await srv.api('/settings');
+  assert.deepEqual(regular.data.models, fresh.data.models, 'the catalog is retained for normal Settings reads');
+  assert.doesNotMatch(JSON.stringify(regular.data), /sk-ant-api03-test-KEY/);
+});
+
 test('the owner picks which one runs use when both are there, and removing the key goes back to the subscription', async () => {
   const bot = await makeBot(srv, { name: 'Switches' });
   const sub = await srv.api('/setup/claude/use', { method: 'PUT', body: { use: 'subscription' } });

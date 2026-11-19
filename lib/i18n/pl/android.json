@@ -1386,7 +1386,6 @@
   "Remove the provider": "Usuń dostawcę",
   "Use {name} instead": "Użyj {name}",
   "Use another provider": "Użyj innego dostawcy",
-  "Another model…": "Inny model…",
   "Refresh reasoning levels": "Odśwież poziomy rozumowania",
   "Default ({model})": "Domyślny ({model})",
   "Main model": "Model główny",
@@ -1395,5 +1394,19 @@
   "Provider removed": "Dostawca usunięty",
   "Saved. Bots now run on it": "Zapisane. Boty działają teraz na nim",
   "Provider": "Dostawca",
-  "Remove the provider?": "Usunąć dostawcę?"
+  "Remove the provider?": "Usunąć dostawcę?",
+  "Server address": "Adres serwera",
+  "Choose a model": "Wybierz model",
+  "Same as main model": "Taki sam jak główny",
+  "Load models": "Wczytaj modele",
+  "Loading models…": "Wczytywanie modeli…",
+  "Search models": "Szukaj modeli",
+  "No models match your search.": "Nie znaleziono pasujących modeli.",
+  "No models available from this provider.": "Brak dostępnych modeli u tego dostawcy.",
+  "Change helper model": "Zmień model pomocniczy",
+  "Saved key {key}": "Zapisany klucz {key}",
+  "Use this provider": "Użyj tego dostawcy",
+  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele.",
+  "Refresh models": "Odśwież modele",
+  "Claude subscription": "Subskrypcja Claude"
 }

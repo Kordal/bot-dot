@@ -66,6 +66,36 @@ class ClaudeProviderTest {
         assertEquals("", SettingsInfo().shownModel(flash))
     }
 
+    @Test fun modelDiscoveryReturnsChoicesWithoutSavingTheProvider() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val api = Api(server.url("/").toString().trimEnd('/'))
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("""{"models":[{"id":"qwen3:8b","label":"Qwen3 8B"}],"main":"","helper":""}""").build())
+            val catalog = api.claudeProviderModels("ollama", "", "http://ollama:11434")
+            assertEquals(listOf(ProviderModel("qwen3:8b", "Qwen3 8B")), catalog.models)
+            val request = server.takeRequest()
+            assertEquals("POST" to "/api/setup/claude/provider/models", request.method to request.target)
+            assertEquals("""{"preset":"ollama","key":"","url":"http://ollama:11434"}""", request.body!!.utf8())
+        } finally { server.close() }
+    }
+
+    @Test fun theModelRowRequestsTheActiveCatalogAndShowsTheReturnedNames() = runBlocking {
+        val server = MockWebServer()
+        server.start()
+        try {
+            val api = Api(server.url("/").toString().trimEnd('/'))
+            server.enqueue(MockResponse.Builder().addHeader("Content-Type", "application/json")
+                .body("""{"models":[{"id":"provider:custom:third","label":"A discovered model"}],"catalog":{"source":"provider"}}""").build())
+            val info = api.discoverModels()
+            assertEquals("A discovered model", info.models.single().label)
+            assertEquals("provider", info.catalog?.source)
+            val request = server.takeRequest()
+            assertEquals("POST" to "/api/settings/refresh-models?catalog", request.method to request.target)
+        } finally { server.close() }
+    }
+
     @Test fun theProviderIsSavedPickedAndRemovedWithTheServersRoutes() = runBlocking {
         val server = MockWebServer()
         server.start()

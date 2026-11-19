@@ -30,10 +30,12 @@ test('web: on a provider Setup says so with its key, and names a signed-in subsc
   const on = ctx.claudeSetupItem(ON_PROVIDER, false);
   assert.match(on, /setup-item ok[\s\S]*Bots run on DeepSeek \(<b>…wxyz<\/b>\)\. Your Claude subscription \(<b>me@example\.com<\/b>\) is signed in too; bots don't use it\./);
   assert.match(on, /id="claude-use-sub">Use the subscription instead<\/button>[\s\S]*id="claude-provider-new">Change provider<\/button>[\s\S]*id="claude-provider-remove">Remove the provider<\/button>/);
-  assert.doesNotMatch(on, /claude-logout|claude-use-provider|claude-key-new/);
+  assert.doesNotMatch(on, /claude-logout|claude-use-provider/);
+  assert.match(on, /id="claude-key-new">Use an API key instead/);
   const only = ctx.claudeSetupItem(PROVIDER_ONLY, false);
   assert.match(only, /Bots run on DeepSeek \(<b>…wxyz<\/b>\)\.<\/div>/, 'no word of a subscription that is not there');
   assert.doesNotMatch(only, /claude-use-sub/);
+  assert.match(only, /id="claude-login">Sign in to Claude/);
 });
 
 test('web: on the subscription a saved provider is named as not used, and another can be chosen', () => {
@@ -50,11 +52,14 @@ test('web: on the subscription a saved provider is named as not used, and anothe
 
 test('web: the provider box lists the server\'s presets, hides what a preset does not need, and shows no key', () => {
   const box = page().claudeProviderBox(false);
-  assert.match(box, /<form id="claude-provider-form"[\s\S]*<select name="preset"><option value="deepseek">DeepSeek<\/option><option value="ollama">Ollama<\/option><option value="custom">Other<\/option><\/select>/);
-  assert.match(box, /<input type="password" name="key" placeholder="API key" autocomplete="off"/);
-  assert.match(box, /name="url"[^>]* hidden>/, 'the address only where the owner gives it');
-  assert.match(box, /<select name="bigChoice" aria-label="Main model"/);
-  assert.match(box, /<select name="smallChoice" aria-label="Helper model"/);
+  assert.match(box, /<form id="claude-provider-form"[\s\S]*<select name="preset" id="setup-provider-preset"><option value="deepseek">DeepSeek<\/option><option value="ollama">Ollama<\/option><option value="custom">Other<\/option><\/select>/);
+  assert.match(box, /<input type="password" name="key" autocomplete="off"/);
+  assert.match(box, /data-provider-address hidden>/, 'the address only where the owner gives it');
+  assert.match(box, /data-model-role="main"/);
+  assert.match(box, /data-model-role="helper"/);
+  assert.match(box, /type="search" role="combobox" aria-label="Search models"/);
+  assert.match(box, /role="listbox"/);
+  assert.doesNotMatch(box, /name="(?:big|small)"|Another model/);
   assert.match(box, /id="claude-provider-cancel"/);
   const again = page({ setup: { providers: PRESETS, claude: { provider: { ...SAVED, preset: 'custom' } } } }).claudeProviderBox(true);
   assert.match(again, /<option value="custom" selected>Other<\/option>/, 'the saved provider is the one chosen');
@@ -80,6 +85,39 @@ test('web: model settings show the active provider and its reasoning levels', ()
   assert.doesNotMatch(form, /Another model|Claude Code's default/);
 });
 
+test('web: opening Settings mounts the Claude card by the Updates row', () => {
+  const outputs = [];
+  const widget = { insertAdjacentHTML(where, html) { outputs.push(where, html); } };
+  const state = { setup: { providers: PRESETS } };
+  const ctx = vm.createContext({
+    ...words, state, renderSettings() { outputs.push('settings'); },
+    $: (sel) => sel === '#update-card' ? widget : null,
+  });
+  vm.runInContext(read('claude-card.js'), ctx);
+  ctx.renderSettings();
+  assert.deepEqual(outputs.slice(0, 2), ['settings', 'beforebegin']);
+  assert.match(outputs[2], /id="claude-card"/);
+});
+
+test('web: provider controls are inside the Model row and saved Claude IDs remain selectable', () => {
+  const outputs = [];
+  const form = { insertAdjacentHTML(where, html) { outputs.push(where, html); } };
+  const state = { setup: { providers: PRESETS }, models: [] };
+  const ctx = vm.createContext({
+    ...words, state, esc, renderSettings() {},
+    $: (sel) => ({ '#settings-form': form, '#update-card': {} })[sel],
+  });
+  vm.runInContext(read('claude-card.js'), ctx);
+  ctx.renderSettings();
+  assert.equal(outputs[0], 'beforebegin');
+  assert.match(outputs[1], /id="claude-card" data-in-model/);
+  const source = read('settings.js');
+  vm.runInContext(source.slice(source.indexOf('function shownModel'), source.indexOf('// ---------- the rows of a settings screen')) + '\nthis.llmFieldsHTML = llmFieldsHTML;', ctx);
+  const fields = ctx.llmFieldsHTML('default', { model: 'older-model' });
+  assert.match(fields, /<option value="older-model" selected>older-model/);
+  assert.doesNotMatch(fields, /__custom|ModelCustom|Full model name/);
+});
+
 test('web: Settings → Claude says the same, and the provider box opens there', async () => {
   const card = element();
   const state = { setup: { providers: PRESETS } };
@@ -100,7 +138,9 @@ test('web: Settings → Claude says the same, and the provider box opens there',
 test('web: the provider is saved, picked and removed with the server\'s routes, and the answer is drawn', () => {
   const wire = cut('function wireClaudeKey(', '// First start, or Claude is known');
   assert.match(wire, /api\('\/setup\/claude\/provider', \{ method: 'PUT', body \}\)/);
-  assert.match(wire, /body = \{ preset: pform\.preset\.value, key: pform\.key\.value, big: pform\.big\.value, small: pform\.small\.value \}/);
+  const picker = cut('function wireProviderForm(', "// The key's links");
+  assert.match(picker, /api\('\/setup\/claude\/provider\/models', \{ method: 'POST', body \}\)/);
+  assert.match(picker, /big: models\.main, small: models\.helper \|\| models\.main/);
   assert.match(wire, /api\('\/setup\/claude\/use', \{ method: 'PUT', body: \{ use: 'provider' \} \}\)/);
   assert.match(wire, /api\('\/setup\/claude\/provider', \{ method: 'DELETE' \}\)/);
   assert.match(wire, /state\.setup\.claude = r\.claude;/);
@@ -110,13 +150,13 @@ test('web: the provider is saved, picked and removed with the server\'s routes, 
 test('web: switching a provider from Settings rebuilds the Settings panel immediately', async () => {
   const use = {};
   const settings = element({ '#claude-use-provider': use });
-  const state = { setup: { claude: SUB_AND_PROVIDER } };
+  const state = { view: 'settings', setup: { claude: SUB_AND_PROVIDER } };
   const calls = [];
   const ctx = vm.createContext({
     ...words, ...finders(element({ '#view-settings': settings })),
     state, toastClaude() {}, toast() {},
     api: async (path) => path === '/settings' ? { provider: { name: 'DeepSeek' } } : { claude: ON_PROVIDER },
-    panelPage: () => 'settings',
+    panelPage: () => '',
     renderSettings: () => calls.push('settings'),
   });
   vm.runInContext(cut('function wireClaudeKey(', '// First start, or Claude is known') + '\nthis.wireClaudeKey = wireClaudeKey;', ctx);

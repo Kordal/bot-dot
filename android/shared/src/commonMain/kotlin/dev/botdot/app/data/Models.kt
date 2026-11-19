@@ -1334,11 +1334,15 @@ data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = e
 data class ProviderModelChoices(val name: String = "", val main: String = "", val helper: String = "", val refreshable: Boolean = false)
 
 @Serializable
+data class ModelCatalogStatus(val error: String? = null, val source: String? = null)
+
+@Serializable
 data class SettingsInfo(
     val settings: AppSettings = AppSettings(),
     val models: List<ModelChoice> = emptyList(),
     val efforts: List<EffortChoice> = emptyList(),
     val provider: ProviderModelChoices? = null,
+    val catalog: ModelCatalogStatus? = null,
 ) {
     fun shownModel(id: String): String = when {
         id.isEmpty() || models.any { it.id == id } -> id
@@ -1411,13 +1415,13 @@ data class ConnectLink(val redirectUrl: String? = null, val noAuth: Boolean = fa
 @Serializable
 data class Disconnected(val note: String? = null)
 
-/** A model provider the server offers for Claude Code to run on (ADR 255; `providers` of `GET /api/setup`): [big] the model bots run on, [small] the one for short helper calls, "" one to name. */
+/** A model provider the server offers for Claude Code to run on (ADR 255; `providers` of `GET /api/setup`): [big] the model bots run on, [small] the one for short helper calls, "" when the preset has no default. */
 @Serializable
 data class ProviderPreset(val id: String, val name: String = "", val url: String = "", val big: String = "", val small: String = "", val keyless: Boolean = false, val custom: Boolean = false, val askUrl: Boolean = false)
 
 /** The saved provider (`claude.provider`): its [key] as the last four ("…wxyz"), or null for none, never the key. */
 @Serializable
-data class ClaudeProvider(val preset: String = "", val name: String = "", val key: String? = null, val big: String = "", val small: String = "")
+data class ClaudeProvider(val preset: String = "", val name: String = "", val key: String? = null, val big: String = "", val small: String = "", val url: String? = null)
 
 /**
  * Claude's sign-in (docs/api.md, `GET /api/setup`). With an Anthropic API key as well as the subscription (#35):
@@ -1465,6 +1469,12 @@ fun claudeOfAnswer(body: String): ClaudeStatus? = runCatching { Api.JSON.decodeF
 
 /** The sentence of a check that could not tell (`error`): the sign-in is not known then. Null when the check could tell. */
 fun claudeCouldNotTell(claude: ClaudeStatus?): String? = claude?.error?.takeIf { it.isNotBlank() }
+
+@Serializable
+data class ProviderModel(val id: String, val label: String)
+
+@Serializable
+data class ProviderModelCatalog(val models: List<ProviderModel> = emptyList(), val main: String = "", val helper: String = "", val limited: Boolean = false)
 
 @Serializable
 data class SetupInfo(

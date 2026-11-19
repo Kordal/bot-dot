@@ -17,6 +17,7 @@ const REFUSED = 'sk-provider-refused-000000000';
 
 const asked = [];
 let reasoningAvailable = true;
+let catalogAvailable = true;
 const stand = http.createServer((req, res) => {
   let body = '';
   req.on('data', (c) => { body += c; });
@@ -25,6 +26,16 @@ const stand = http.createServer((req, res) => {
     try { parsed = JSON.parse(body); } catch { /* none */ }
     asked.push({ method: req.method, url: req.url, auth: req.headers.authorization, xKey: req.headers['x-api-key'], model: parsed.model, max: parsed.max_tokens });
     const json = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
+    if (req.url === '/v1/models?after_id=small-model') return json(200, { data: [{ id: 'third-model' }], has_more: false });
+    if (req.url === '/v1/models' || req.url === '/api/tags') {
+      if (!catalogAvailable) return json(403, {});
+      if (req.headers.authorization === `Bearer ${REFUSED}`) return json(401, {});
+      if (req.url === '/api/tags') return json(200, { models: [{ model: 'qwen3:8b' }] });
+      return json(200, { data: [
+        { id: 'big-model', display_name: 'Big Model' }, { id: 'small-model', name: 'Small Model' },
+        { id: 'big-model' }, { id: 'a broken id' },
+      ], has_more: true, last_id: 'small-model' });
+    }
     if (req.url === '/api/show') {
       if (!reasoningAvailable) return json(503, {});
       return json(200, { thinking: { values: parsed.model === 'big-model' ? ['low', 'high'] : [false, true] } });
@@ -67,10 +78,50 @@ test('the setup checklist offers the presets, and nothing is on a provider until
   assert.deepEqual(run.anthropic, {}, 'no provider variable');
 });
 
+test('provider discovery returns choices by display name and does not pick the provider', async () => {
+  assert.ok((await srv.api('/version')).data.features.includes('provider-model-catalog'));
+  const list = (body) => srv.api('/setup/claude/provider/models', { method: 'POST', body });
+  const custom = await list({ preset: 'custom', url, key: KEY });
+  assert.equal(custom.status, 200);
+  assert.equal(custom.data.limited, false);
+  assert.deepEqual(custom.data.models, [{ id: 'big-model', label: 'Big Model' }, { id: 'small-model', label: 'Small Model' }, { id: 'third-model', label: 'third-model' }]);
+  assert.deepEqual((await list({ preset: 'ollama', url })).data.models, [{ id: 'qwen3:8b', label: 'qwen3:8b' }]);
+  assert.equal((await list({ preset: 'custom', url, key: REFUSED })).status, 400);
+  assert.equal((await list({ preset: 'custom', url: 'http://example.com', key: KEY })).status, 400);
+  assert.equal((await claude()).provider, null);
+});
+
+test('OpenCode Go lists translated models and checks the two choices in one session', async () => {
+  const key = 'sample-key';
+  const catalog = await providers.catalog({ preset: 'opencode-go', key }, null, {
+    fetchImpl: async (url) => {
+      assert.equal(url, 'https://opencode.ai/inference/go/v1/models');
+      return Response.json({ data: [
+        { id: 'glm-5.3', name: 'GLM 5.3', type: 'chat', capabilities: { tools: { supported: true } } },
+        { id: 'embeddings', type: 'embedding', capabilities: { tools: { supported: false } } },
+      ] });
+    },
+  });
+  assert.deepEqual(catalog.models, [{ id: 'glm-5.3', label: 'GLM 5.3' }]);
+  const session = new Set();
+  const models = new Set();
+  await providers.check(providers.clean({ preset: 'opencode-go', key, big: 'glm-5.3', small: 'qwen3.8-flash' }), {
+    fetchImpl: async (url, options) => {
+      assert.equal(url, 'https://opencode.ai/inference/go/anthropic/v1/messages');
+      assert.match(options.headers['x-opencode-session'], /^ses_/);
+      session.add(options.headers['x-opencode-session']);
+      models.add(JSON.parse(options.body).model);
+      return Response.json({});
+    },
+  });
+  assert.equal(session.size, 1);
+  assert.deepEqual(models, new Set(['glm-5.3', 'qwen3.8-flash']));
+});
+
 test('a key the provider refuses, a model it does not know, a bad address or no key is not saved', async () => {
   const refused = await save({ key: REFUSED });
   assert.deepEqual([refused.status, refused.data.error], [400, 'It refused this key. Check that you copied all of it.']);
-  const unknown = await save({ big: 'nope', small: 'nope' });
+  const unknown = await save({ big: 'nope', small: 'small-model' });
   assert.equal(unknown.status, 400);
   assert.equal(unknown.data.error, "It doesn't know that address or model.");
   assert.equal((await save({ small: 'bad name!' })).data.error, "That isn't a model name.");
@@ -86,7 +137,7 @@ test('a key the provider refuses, a model it does not know, a bad address or no 
 test('a saved provider is checked with a real request, kept encrypted and answered only as its last four', async () => {
   const r = await save({ key: `  ${KEY}\n` });
   assert.equal(r.status, 200);
-  assert.deepEqual(r.data.claude.provider, { preset: 'custom', name: 'Other', key: '…wxyz', big: 'big-model', small: 'small-model' });
+  assert.deepEqual(r.data.claude.provider, { preset: 'custom', name: 'Other', key: '…wxyz', big: 'big-model', small: 'small-model', url });
   assert.deepEqual([r.data.claude.using, r.data.claude.loggedIn, r.data.claude.subscription], ['provider', true, true]);
   const check = asked.find((a) => a.auth === `Bearer ${KEY}` && a.model === 'small-model');
   assert.deepEqual([check.method, check.url, check.max], ['POST', '/v1/messages', 16]);
@@ -95,6 +146,24 @@ test('a saved provider is checked with a real request, kept encrypted and answer
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
   assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(file, 'utf8')).provider.key).sort(), ['ct', 'iv', 'tag']);
   assert.doesNotMatch(everything(), new RegExp(KEY), 'neither the log nor any file in the data folder holds it in the clear');
+});
+
+test('saved choices and the saved key work at the same address only', async () => {
+  const list = (body) => srv.api('/setup/claude/provider/models', { method: 'POST', body });
+  const reused = await list({ preset: 'custom', url, reuseKey: true });
+  assert.equal(reused.status, 200);
+  assert.deepEqual([reused.data.main, reused.data.helper], ['big-model', 'small-model']);
+  assert.equal((await list({ preset: 'custom', url: url + '/other', reuseKey: true })).status, 400);
+  const unavailable = await list({ preset: 'custom', url: url + '/unlisted', key: KEY });
+  assert.deepEqual(unavailable.data.models, []);
+  catalogAvailable = false;
+  try {
+    const fallback = await list({ preset: 'custom', url, reuseKey: true });
+    assert.deepEqual(fallback.data.models.map((item) => item.id), ['big-model', 'small-model']);
+    assert.equal(fallback.data.limited, true);
+    assert.equal((await list({ preset: 'custom', url, key: REFUSED, reuseKey: true })).status, 400);
+  } finally { catalogAvailable = true; }
+  assert.equal((await save({ key: '', reuseKey: true })).status, 200);
 });
 
 test('runs and Chief turns go to the provider with its models, and get no subscription token', async () => {
@@ -213,6 +282,29 @@ test('settings.args turns a model into the provider\'s only while a provider is 
     assert.deepEqual(settings.args({ model: 'haiku', effort: '' }), ['--model', 's']);
     assert.deepEqual(settings.args({ model: '', effort: 'high' }), [], 'no model: the provider\'s default in ANTHROPIC_MODEL');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('the Model row can discover and select models beyond provider setup', async () => {
+  assert.equal((await save({})).status, 200);
+  try {
+    const refresh = await srv.api('/settings/refresh-models?catalog', { method: 'POST' });
+    assert.equal(refresh.status, 200);
+    const third = refresh.data.models.find((model) => model.id === 'provider:custom:third-model');
+    assert.ok(third, 'Settings includes a model the provider listed beyond the two setup choices');
+    assert.ok((await srv.api('/settings')).data.models.some((model) => model.id === third.id));
+    const changed = await srv.api('/settings', { method: 'PUT', body: { defaultModel: third.id } });
+    assert.equal(changed.data.settings.defaultModel, third.id);
+    const run = await runOf(await makeBot(srv, { name: 'Uses Discovered Model' }), 'use the discovered model');
+    assert.equal(run.args[run.args.indexOf('--model') + 1], 'third-model');
+    catalogAvailable = false;
+    const fallback = await srv.api('/settings/refresh-models?catalog', { method: 'POST' });
+    assert.ok(fallback.data.catalog.error);
+    assert.ok(fallback.data.models.some((model) => model.id === third.id), 'keep the last catalog when the provider is unavailable');
+  } finally {
+    catalogAvailable = true;
+    await srv.api('/settings', { method: 'PUT', body: { defaultModel: '' } });
+    await srv.api('/setup/claude/provider', { method: 'DELETE' });
+  }
 });
 
 test('Settings offers the active provider’s models and uses a bot’s explicit selection', async () => {

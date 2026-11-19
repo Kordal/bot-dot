@@ -45,14 +45,15 @@ function claudeKeyActions(c, busy) {
   const here = typeof state === 'undefined' ? {} : state; // the page's state, where the page has one
   if (busy || here.setupProvider || !claudeHasKeys(c)) return [];
   const link = (id, text) => `<button class="link-btn" id="${id}">${text}</button>`;
-  const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))] : [];
+  const sub = c.subscription === true ? [link('claude-use-sub', tr('Use the subscription instead'))]
+    : c.subscription === false && c.using !== 'subscription' ? [link('claude-login', tr('Sign in to Claude'))] : [];
   const offered = !!(here.setup?.providers?.length || c.provider);
   const other = !offered ? []
     : c.using === 'provider' ? [link('claude-provider-new', tr('Change provider')), link('claude-provider-remove', tr('Remove the provider'))]
-    : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) }))]
+    : c.provider ? [link('claude-use-provider', tr('Use {name} instead', { name: esc(c.provider.name) })), link('claude-provider-new', tr('Change provider'))]
     : [link('claude-provider-new', tr('Use another provider'))];
   if (c.using === 'api-key') return [...sub, link('claude-key-remove', tr('Remove the key')), ...other];
-  if (c.using === 'provider') return [...sub, ...(c.apiKey ? [link('claude-use-key', tr('Use the API key instead'))] : []), ...other];
+  if (c.using === 'provider') return [...sub, c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
   return [c.apiKey ? link('claude-use-key', tr('Use the API key instead')) : link('claude-key-new', tr('Use an API key instead')), ...other];
 }
 // Where the key is pasted: a password field, so it is never shown. inCard: in Settings → Claude.
@@ -61,49 +62,241 @@ const claudeKeyBox = (inCard) => `<div class="${inCard ? 'setup-login" style="pa
       <p class="muted settings-hint">${tr('Make one in the Claude Console (console.anthropic.com → API keys). botdot checks it with Anthropic, keeps it encrypted and never shows it again.')}</p>
       <button class="link-btn muted" id="claude-key-cancel">${tr('Cancel')}</button>
     </div>`;
-// Where another provider is chosen and its key pasted (ADR 255): the presets the server hands out, a password field for the key, and
-// model choices from the preset and the saved provider. The address is asked only where the owner gives it.
-const providerModelField = (name, label) => `<div class="field"><span>${esc(label)}</span>
-        <select name="${name}Choice" aria-label="${esc(label)}" hidden></select>
-        <input type="text" name="${name}" aria-label="${esc(label)}" autocomplete="off" autocapitalize="off" spellcheck="false">
-      </div>`;
+// The same provider form in Setup and Settings → Claude.
 const claudeProviderBox = (inCard) => {
   const presets = state.setup?.providers || [];
   const saved = state.setup?.claude?.provider?.preset;
-  return `<div class="${inCard ? 'setup-login" style="padding:0;margin:12px 0 0' : 'card setup-login'}">
-      <form id="claude-provider-form" class="setup-code setup-provider">
-        <select name="preset">${presets.map((p) => `<option value="${esc(p.id)}"${p.id === saved ? ' selected' : ''}>${esc(p.id === 'custom' ? tr('Other') : p.name)}</option>`).join('')}</select>
-        <input type="text" name="url" placeholder="https://…" autocomplete="off" autocapitalize="off" spellcheck="false" hidden>
-        <input type="password" name="key" placeholder="${tr('API key')}" autocomplete="off" autocapitalize="off" spellcheck="false">
-        ${providerModelField('big', tr('Main model'))}
-        ${providerModelField('small', tr('Helper model'))}
-        <button class="btn primary" type="submit">${tr('Save')}</button>
+  const id = inCard ? 'settings-provider' : 'setup-provider';
+  return `<div class="${inCard ? 'setup-login' : 'card setup-login'}">
+      <form id="claude-provider-form" class="setup-provider">
+        <div class="field"><label for="${id}-preset">${tr('Provider')}</label><select name="preset" id="${id}-preset">${presets.map((p) => `<option value="${esc(p.id)}"${p.id === saved ? ' selected' : ''}>${esc(p.id === 'custom' ? tr('Other') : p.name)}</option>`).join('')}</select></div>
+        <label class="field" data-provider-address hidden><span>${tr('Server address')}</span><input type="url" name="url" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <label class="field" data-provider-key><span>${tr('API key')}</span><input type="password" name="key" autocomplete="off" autocapitalize="off" spellcheck="false"></label>
+        <div class="provider-roles" hidden>
+          <div class="field"><span id="${id}-main">${tr('Main model')}</span>
+            <button class="btn provider-main" type="button" data-model-role="main" aria-labelledby="${id}-main ${id}-value" aria-expanded="false" aria-controls="${id}-menu"><span id="${id}-value" data-main-name></span><span class="provider-chevron" aria-hidden="true"></span></button>
+          </div>
+          <div class="provider-helper">
+            <div class="field"><span>${tr('Helper model')}</span><span data-helper-name></span></div>
+            <button class="link-btn" type="button" data-model-role="helper" aria-label="${tr('Change helper model')}" aria-expanded="false" aria-controls="${id}-menu">${tr('Change')}</button>
+          </div>
+          <div class="provider-catalog" id="${id}-menu" hidden>
+            <input type="search" role="combobox" aria-label="${tr('Search models')}" placeholder="${tr('Search models')}" aria-autocomplete="list" aria-controls="${id}-choices" aria-expanded="true" autocomplete="off">
+            <div class="provider-choices" id="${id}-choices" role="listbox"></div>
+            <p class="muted" data-model-empty role="status" hidden>${tr('No models match your search.')}</p>
+          </div>
+        </div>
+        <p class="muted" data-provider-status role="status" hidden></p>
+        <div class="provider-actions">
+          <button class="link-btn muted" type="button" id="claude-provider-cancel">${tr('Cancel')}</button>
+          <button class="btn primary" type="submit" data-provider-submit>${tr('Load models')}</button>
+        </div>
       </form>
-      <button class="link-btn muted" id="claude-provider-cancel">${tr('Cancel')}</button>
     </div>`;
 };
+
+function wireProviderForm(form, claude, save) {
+  const presets = state.setup.providers;
+  const address = $('[data-provider-address]', form);
+  const key = $('[data-provider-key]', form);
+  const roles = $('.provider-roles', form);
+  const menu = $('.provider-catalog', form);
+  const search = $('input', menu);
+  const list = $('[role=listbox]', menu);
+  const empty = $('[data-model-empty]', menu);
+  const status = $('[data-provider-status]', form);
+  const submit = $('[data-provider-submit]', form);
+  const buttons = [...form.querySelectorAll('[data-model-role]')];
+  $('.provider-chevron', form).innerHTML = ICON.back;
+  const selectedPreset = () => presets.find((item) => item.id === form.preset.value);
+  const supportsCatalog = state.features?.includes('provider-model-catalog');
+  const saved = claude.provider;
+  const reusesKey = () => supportsCatalog && !form.key.value.trim() && saved?.key && saved.preset === form.preset.value
+    && (!selectedPreset().askUrl || form.url.value.trim().replace(/\/+$/, '') === saved.url);
+  let catalog = null;
+  let models = { main: '', helper: '' };
+  let role = '';
+  let visible = [];
+  let active = -1;
+  let pending = false;
+  let saving = false;
+  let revision = 0;
+
+  const name = (id) => catalog?.models.find((item) => item.id === id)?.label || id;
+  const ready = () => !!catalog?.models.length;
+  function sync() {
+    const p = selectedPreset();
+    roles.hidden = !ready();
+    $('[data-main-name]', form).textContent = name(models.main) || tr('Choose a model');
+    $('[data-helper-name]', form).textContent = name(models.helper) || tr('Same as main model');
+    const use = p.custom ? tr('Use this provider') : tr('Use {name}', { name: p.name });
+    submit.textContent = saving ? tr('Checking…') : ready() ? use : tr('Load models');
+    form.key.placeholder = reusesKey() ? tr('Saved key {key}', { key: saved.key }) : '';
+    $('#claude-provider-cancel', form).disabled = saving;
+    submit.disabled = pending || saving || (ready() ? !models.main
+      : (!p.keyless && !form.key.value.trim() && !reusesKey()) || (p.askUrl && !form.url.value.trim()));
+  }
+  function say(message = '') {
+    status.textContent = message;
+    status.hidden = !message;
+  }
+  function dismiss(focus = false) {
+    const current = buttons.find((button) => button.dataset.modelRole === role);
+    current?.setAttribute('aria-expanded', 'false');
+    menu.hidden = true;
+    role = '';
+    if (focus) current?.focus();
+  }
+  function filter() {
+    const words = search.value.toLowerCase().trim().split(/[\s._:/-]+/).filter(Boolean);
+    const choices = role === 'helper' ? [{ id: '', label: tr('Same as main model') }, ...catalog.models] : catalog.models;
+    visible = choices.filter(({ id, label }) => words.every((word) => (label + ' ' + id).toLowerCase().includes(word)));
+    active = -1;
+    search.removeAttribute('aria-activedescendant');
+    list.setAttribute('aria-label', role === 'main' ? tr('Main model') : tr('Helper model'));
+    list.innerHTML = visible.map(({ id, label }, index) => `<div class="provider-option" id="${list.id}-${index}" role="option" data-index="${index}" aria-selected="${id === models[role]}"><span>${esc(label)}</span>${id === models[role] ? `<span aria-hidden="true">${ICON.copied}</span>` : ''}</div>`).join('');
+    list.scrollTop = 0;
+    empty.hidden = visible.length > 0;
+  }
+  function choose(index) {
+    if (!visible[index]) return;
+    models[role] = visible[index].id;
+    dismiss(true);
+    sync();
+  }
+  buttons.forEach((button) => {
+    button.onclick = () => {
+      if (saving) return;
+      const next = button.dataset.modelRole;
+      const wasOpen = role === next;
+      dismiss();
+      if (wasOpen) return;
+      role = next;
+      button.setAttribute('aria-expanded', 'true');
+      button.parentElement.after(menu);
+      menu.hidden = false;
+      search.value = '';
+      filter();
+      search.focus();
+    };
+  });
+  search.oninput = filter;
+  search.onkeydown = (e) => {
+    if (e.key === 'Escape') { e.preventDefault(); dismiss(true); }
+    if (e.key === 'Enter') { e.preventDefault(); if (active >= 0 || visible.length === 1) choose(Math.max(0, active)); }
+    if (!['ArrowUp', 'ArrowDown'].includes(e.key)) return;
+    e.preventDefault();
+    if (!visible.length) return;
+    const step = e.key === 'ArrowDown' ? 1 : -1;
+    list.children[active]?.classList.remove('active');
+    active = active < 0 ? (step > 0 ? 0 : visible.length - 1) : (active + step + visible.length) % visible.length;
+    const option = list.children[active];
+    option.classList.add('active');
+    search.setAttribute('aria-activedescendant', option.id);
+    option.scrollIntoView({ block: 'nearest' });
+  };
+  list.onclick = (event) => {
+    const option = event.target.closest('[data-index]');
+    if (option) choose(Number(option.dataset.index));
+  };
+  function reset() {
+    revision++;
+    pending = false;
+    catalog = null;
+    dismiss();
+    say();
+    sync();
+  }
+  function fit() {
+    const p = selectedPreset();
+    address.hidden = !p.askUrl;
+    form.url.required = !!p.askUrl;
+    form.url.placeholder = p.url || 'https://…';
+    key.hidden = !!p.keyless;
+    form.key.required = !p.keyless && !supportsCatalog;
+    if (p.askUrl && p.id === saved?.preset && saved.url) form.url.value = saved.url;
+    reset();
+  }
+  form.preset.onchange = () => { form.url.value = ''; form.key.value = ''; fit(); };
+  form.url.oninput = form.key.oninput = reset;
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    if (submit.disabled) return;
+    const p = selectedPreset();
+    const body = { preset: p.id, key: form.key.value };
+    if (p.askUrl) body.url = form.url.value;
+    if (reusesKey()) body.reuseKey = true;
+    if (ready()) {
+      saving = true;
+      form.preset.disabled = form.key.disabled = form.url.disabled = true;
+      sync();
+      await save({ ...body, big: models.main, small: models.helper || models.main });
+      if (!form.isConnected) return;
+      form.preset.disabled = form.key.disabled = form.url.disabled = false;
+      saving = false;
+      sync();
+      return;
+    }
+    const request = ++revision;
+    pending = true;
+    say(tr('Loading models…'));
+    sync();
+    try {
+      let result;
+      if (supportsCatalog) result = await api('/setup/claude/provider/models', { method: 'POST', body });
+      else {
+        const previous = saved?.preset === p.id && (!saved.url || saved.url === form.url.value.trim().replace(/\/+$/, '')) ? saved : null;
+        result = { main: previous?.big || p.big, helper: previous?.small || p.small,
+          models: [...new Set([previous?.big, previous?.small, p.big, p.small].filter(Boolean))].map((id) => ({ id, label: id })) };
+      }
+      if (request !== revision || !form.isConnected) return;
+      catalog = result;
+      models = { main: result.main || '', helper: result.helper || '' };
+      say(result.limited ? tr('Model list unavailable. Showing known models.')
+        : ready() ? '' : tr('No models available from this provider.'));
+    } catch (error) {
+      if (request === revision && form.isConnected) say(error.message);
+    } finally {
+      if (request === revision && form.isConnected) {
+        pending = false;
+        sync();
+        if (ready()) {
+          if (!models.main) buttons[0].click();
+          else buttons[0].focus();
+        }
+      }
+    }
+  };
+  fit();
+}
+
 // The key's links and box in root, for Setup and Settings → Claude; redraw draws root again from state.setup.
 function wireClaudeKey(root, c, redraw) {
   const on = (sel, fn) => { const el = $(sel, root); if (el) el.onclick = fn; };
-  const ask = async (call, said) => {
+  const ask = async (call, said, keepOpen = false) => {
     try {
       const r = await call();
       state.setupKey = false;
       state.setupProvider = false;
       state.setup.claude = r.claude;
-      if (state.modelProvider || r.claude.using === 'provider') {
+      if (state.modelProvider || r.claude.using === 'provider' || state.features?.includes('provider-model-catalog')) {
         const cfg = await api('/settings').catch(() => null);
         if (cfg) {
           Object.assign(state, { settings: cfg.settings, models: cfg.models, efforts: cfg.efforts, catalog: cfg.catalog, modelProvider: cfg.provider });
           const settings = $('#view-settings');
           if (settings) {
+            const openModel = $('#settings-model', settings)?.open;
             settings.innerHTML = '';
-            if (panelPage() === 'settings') renderSettings();
+            if (state.view === 'settings' || panelPage() === 'settings') {
+              renderSettings();
+              const model = $('#settings-model', settings);
+              if (openModel && model) model.open = true;
+            }
           }
         }
       }
       toastClaude(r.claude, said);
-    } catch (err) { toast(err.message, true); }
+    } catch (err) { toast(err.message, true); if (keepOpen) return; }
     redraw();
   };
   on('#claude-key-new', () => { state.setupKey = true; state.setupProvider = false; redraw(); });
@@ -122,47 +315,9 @@ function wireClaudeKey(root, c, redraw) {
     ask(() => api('/setup/claude/key', { method: 'DELETE' }), tr('API key removed'));
   });
   const pform = $('#claude-provider-form', root);
-  if (pform) {
-    const presets = state.setup?.providers || [];
-    // Keep the saved selection on reopening, and allow model names outside the preset.
-    const fit = () => {
-      const p = presets.find((x) => x.id === pform.preset.value) || {};
-      pform.url.hidden = !p.askUrl;
-      pform.url.placeholder = p.url || 'https://…';
-      pform.url.required = !!p.askUrl && !p.url;
-      pform.key.hidden = !!p.keyless;
-      pform.key.required = !p.keyless;
-      const saved = c.provider?.preset === p.id ? c.provider : null;
-      const names = [...new Set([p.big, p.small, saved?.big, saved?.small].filter(Boolean))];
-      for (const name of ['big', 'small']) {
-        const input = pform[name];
-        const select = pform[`${name}Choice`];
-        select.hidden = !names.length;
-        select.innerHTML = names.map((model) => `<option value="${esc(model)}">${esc(model)}</option>`).join('')
-          + `<option value="">${tr('Another model…')}</option>`;
-        select.value = saved?.[name] || p[name] || '';
-        const pick = () => {
-          input.hidden = !!select.value;
-          input.required = name === 'big' || !!names.length;
-          input.value = select.value;
-        };
-        select.onchange = pick;
-        pick();
-      }
-    };
-    fit();
-    // Another preset starts clean: what was typed under the last one is not its.
-    pform.preset.onchange = () => { for (const f of ['url', 'key', 'big', 'small']) pform[f].value = ''; fit(); };
-    pform.onsubmit = (e) => {
-      e.preventDefault();
-      const btn = pform.querySelector('button');
-      btn.disabled = true;
-      btn.textContent = tr('Checking…');
-      const body = { preset: pform.preset.value, key: pform.key.value, big: pform.big.value, small: pform.small.value };
-      if (!pform.url.hidden) body.url = pform.url.value;
-      ask(() => api('/setup/claude/provider', { method: 'PUT', body }), tr('Saved. Bots now run on it'));
-    };
-  }
+  if (pform) wireProviderForm(pform, c, (body) => ask(
+    () => api('/setup/claude/provider', { method: 'PUT', body }), tr('Saved. Bots now run on it'), true,
+  ));
   const form = $('#claude-key-form', root);
   if (form) {
     form.key.focus();
