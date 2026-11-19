@@ -282,6 +282,9 @@ test('the Chief suggests one bot at a time; Add makes it in its team, dismiss ke
   assert.equal(r.data.suggestion, null);
   const made = (await srv.api('/bots')).data.find((x) => x.name === 'Support Desk');
   assert.ok(made, 'the bot is made');
+  // No Chief turn follows an Add by itself, so botdot tells the Chief: the bot gets its jobs and first run by the one recipe.
+  const told = await srv.nextRun((x) => !!x.botdot && x.stdin.includes('Follow your skill chief:bot-designer from "Jobs and the first run"'), 'the Chief told of the added bot');
+  assert.ok(told.stdin.includes(made.id) && told.stdin.includes('Support Desk'));
   assert.deepEqual(r.data.teams[0].bots, [a.id, b.id, made.id]);
 
   r = await srv.asChief('/company/suggestion', { method: 'PUT', body: { name: 'Billing Helper', prompt: 'Answer billing.', why: 'First payments' } });

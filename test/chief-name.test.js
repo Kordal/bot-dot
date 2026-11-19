@@ -152,3 +152,17 @@ test("the owner renames the Chief from its settings at any time, announced on th
   assert.equal(await chiefName(), 'Friday', 'nothing changed');
   assert.equal((await srv.api('/settings/chief-name', { method: 'PUT', body: { name: '' } })).data.name, 'Chief of Staff');
 });
+
+test('bots know the current Chief name, including after a rename', async () => {
+  const bot = await makeBot(srv, { name: 'Name Reader' });
+  for (const name of ['Alfred', 'Friday', '']) {
+    await srv.api('/settings', { method: 'PUT', body: { chiefName: name } });
+    srv.reply('Understood.');
+    const r = await srv.api(`/bots/${bot.id}/run`, { method: 'POST', body: { prompt: 'Who is the Chief?' } });
+    assert.equal(r.status, 201);
+    await srv.finished(r.data.id);
+    const rec = srv.runs().filter((x) => x.args.includes(`${bot.emoji} ${bot.name}`)).at(-1);
+    assert.ok(rec.system.includes(`The owner's Chief of Staff is named "${name || 'Chief of Staff'}".`));
+    assert.match(rec.system, /send_to_chief/);
+  }
+});

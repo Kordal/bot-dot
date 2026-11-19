@@ -33,7 +33,8 @@ test("the Chief's instructions tell it to load chief:bot-designer for a new bot"
   await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'I need a bot that watches my server.' } });
   const turn = await srv.nextRun((r) => !!r.botdot, "the Chief's turn");
   await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { what: 'the Chief to reply' });
-  assert.match(turn.system, /When the user asks for a new bot or agent, load your skill chief:bot-designer with the Skill tool and follow it/);
+  assert.match(turn.system, /Whenever you are about to make a new bot, load your skill chief:bot-designer with the Skill tool and follow it/);
+  for (const path of ['the user\'s request', 'a checkup proposal they picked', 'a plan a bot handed you that they approved', 'added a bot from a project\'s suggestion']) assert.ok(turn.system.includes(path), path);
 });
 
 test('every tool the skill names in backticks is a tool of the Chief', () => {
@@ -53,4 +54,24 @@ test('the skill is generic, plain and keeps the known setup traps', () => {
   assert.doesNotMatch(text, /Info \/ Research|House \/ Life|Writing \/ Mail/, "no one person's folders");
   assert.doesNotMatch(text, /section id|manual drag/i, 'a category is a name set at create, not a section to drag into');
   for (const trap of ['Discord', 'Message Content Intent', 'GitHub', 'classic token', 'New VPS', 'Box updates']) assert.ok(text.includes(trap), trap);
+});
+
+// What the server gives every bot whatever it is saved with (ADR 192, withEverything): the skill must say so, and
+// must not tell the Chief to choose any of it.
+test('the skill names no setting the server overrides', async () => {
+  const saved = (await srv.api('/bots', { method: 'POST', body: { name: 'Read Only Hopeful', prompt: 'Read the logs.', allowedTools: ['Read', 'Grep', 'Glob'], permissionMode: 'dontAsk', computer: 'linux' } })).data;
+  const forcedTools = ['WebSearch', 'WebFetch', 'Edit', 'Write'];
+  for (const t of forcedTools) assert.ok(saved.allowedTools.includes(t), `the server gives every bot ${t}`);
+  assert.equal(saved.permissionMode, 'acceptEdits', 'dontAsk is not kept');
+  const text = skill();
+  // It says what every bot has, naming each of them.
+  const create = text.slice(text.indexOf('## Create'), text.indexOf('## Jobs and the first run'));
+  for (const t of [...forcedTools, 'acceptEdits']) assert.ok(create.includes(t), `the skill says every bot has ${t}`);
+  // What it tells the Chief to choose names none of them: no "dontAsk", no computer to set, no web or editing to add.
+  const choices = create.slice(create.indexOf('What you do choose:'), create.indexOf('2. Read what was saved'));
+  assert.ok(choices.length > 200, 'the list of what it does choose');
+  for (const t of [...forcedTools, 'dontAsk', 'acceptEdits', 'permissionMode', 'computer']) assert.ok(!choices.includes(t), `"${t}" is not among what the Chief chooses`);
+  assert.doesNotMatch(text, /dontAsk|computer "linux"|read-only work gets|research adds/i);
+  assert.match(text, /A bot's limits live in what it never does/);
+  assert.equal((await srv.api(`/bots/${saved.id}`, { method: 'DELETE' })).status, 200);
 });
