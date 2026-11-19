@@ -85,6 +85,10 @@ images: ## Build botdot's server image and the bots' computer image from this so
 staging: ## Move a self-built staging server to branch REF: check the disk, fetch, checkout, pull, make images, install.sh, then keep the running and the previous image and trim the build cache (needs Docker)
 	@SERVER_IMAGE="$(SERVER_IMAGE)" COMPUTER_IMAGE="$(COMPUTER_IMAGE)" MAKE="$(MAKE)" sh deploy/staging.sh "$(REF)"
 
+.PHONY: chief-eval
+chief-eval: ## 13 typical requests to the real Chief on scratch servers, each scored from the bots it made and what it said; spends model usage, skips when no Claude is signed in (BOT_DOT_TEST_LIVE_ONLY=<case ids> runs some)
+	@BOT_DOT_TEST_CHIEF_EVAL=1 node --test --test-reporter=spec test/live/chief-bot-eval.test.js
+
 .PHONY: tools-real
 tools-real: ## The real micromamba installs jq from conda-forge for one bot both ways, under the container's restrictions (needs Docker and the network)
 	@./tests/integration/tools-real.sh
