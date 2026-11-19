@@ -11,8 +11,9 @@
 //   make chief-eval
 //
 // It skips, saying why, when no Claude login is available (no `claude auth status` that says signed in, no
-// CLAUDE_CODE_OAUTH_TOKEN, no ANTHROPIC_API_KEY). The bots' first runs are real: the requests name only made-up
-// addresses (example.org, 203.0.113.10), and the servers' data is in the system's temporary folder (TMPDIR), which
+// CLAUDE_CODE_OAUTH_TOKEN, no ANTHROPIC_API_KEY). The bots' first runs are real: the servers in the requests are
+// made up (example.org, 203.0.113.10), a few cases name real public sites to read (see chief-eval-cases.js), and
+// the servers' data is in the system's temporary folder (TMPDIR), which
 // must lie outside any checkout, because Claude Code loads a CLAUDE.md that stands above a bot's folder.
 //
 // BOT_DOT_TEST_LIVE_ONLY: case ids, comma separated. BOT_DOT_TEST_LIVE_PARALLEL (default 2): cases at once.

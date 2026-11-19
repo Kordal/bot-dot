@@ -1,6 +1,8 @@
 // The requests the eval of the bots the Chief makes (chief-bot-eval.test.js) puts to the real Chief, and what each
-// is scored on (chief-scoring.js, score()). Every address, host and number is made up and harmless: the bots'
-// first runs are real, on a scratch server.
+// is scored on (chief-scoring.js, score()). The servers, hosts and numbers are made up (example.org, 203.0.113.10),
+// but three cases name real public sites the bots' first runs may read: x-kom.pl (price-watch), train-ticket shops
+// (spends-money: no card or login is given, so nothing can be bought) and the public Kordal/bot-dot repo
+// (dictated-short). The first runs are real, on a scratch server.
 //
 // A case: { id, says (what the owner types), existing?: bots made before it, bots: how many new bots it should
 // end with, schedule?: true when the owner asked for a schedule, so each new bot has a scheduled job, firstRun: true (a
