@@ -560,7 +560,7 @@ function groupReplyHTML(r, asks = null) {
       ${failed ? '' : globalThis.inlineCardsHTML?.(r) || ''}
       ${learnedChips(r)}
       <div class="bubble-meta on-hover">${meta.map(esc).join(' · ')} · <button data-details="${esc(r.id)}">${tr('Details')}</button>${copyBtn(body)}</div>
-      ${open ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions, r.questionChoices) : ''}
+      ${open ? choicesHTML(r.choices, r.yes, color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
     </div></div>`;
 }
 // The bots outside the group a turn asked (`asked`, ADR 219): one folded line each, opening to the question and what

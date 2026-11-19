@@ -8,6 +8,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const vm = require('vm');
+const fs = require('fs');
+const path = require('path');
 const { app, read, cut, element, finders, answer, esc, words } = require('./web-page');
 
 const unreached = () => Object.assign(new Error("Can't reach botdot."), { unreached: true });
@@ -249,7 +251,7 @@ function answers(send) {
   const card = element({ textarea: boxes, '[data-send]': sendBtn });
   const thread = element({ '[data-choice]': buttons, '.ask-card': [card] });
   const ctx = vm.createContext({ ...words, ...finders(), Math, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
-  vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('function wireChoices(root, send)', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
+  vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// What the owner typed or picked on a card of questions', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
   ctx.wireChoices(thread, send);
   return { row, buttons, card, boxes, sendBtn, picks };
 }
@@ -282,7 +284,7 @@ test('web: a quick answer tapped twice sends once', async () => {
 // The answers of one reply (choicesHTML's `of`, #495), drawn and wired again as the chat is drawn again.
 function replyAnswers() {
   const ctx = vm.createContext({ ...words, esc, $: () => null, $$: () => [], CSS: { escape: (s) => s }, crypto: globalThis.crypto, Map });
-  vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// The text colour that reads best on a filled colour', '// Several questions at once ([[ask: …]])')}\n${cut('function wireChoices(root, send)', 'const copyBtn = ')}\nObject.assign(this, { wireChoices, choicesHTML });`, ctx);
+  vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// The text colour that reads best on a filled colour', '// Several questions at once ([[ask: …]])')}\n${cut('// What the owner typed or picked on a card of questions', 'const copyBtn = ')}\nObject.assign(this, { wireChoices, choicesHTML });`, ctx);
   const draw = (send) => {
     const row = element({}, { hidden: false });
     row.dataset.of = 'run-1';
@@ -815,4 +817,73 @@ test('web: a 5xx without botdot\'s sentence while a new chat is made: "can\'t re
     assert.equal(b.line(), line, String(status));
     assert.equal(b.ta.value, 'hi');
   }
+});
+
+// A card of questions drawn again (a new run, a working line: the chat is built from its HTML again, #1545): the
+// owner's unsent answers stand in its new boxes, and are gone once it went.
+function drawnCard(ctx, of = 'run-9') {
+  const picks = ['Yes', 'No'].map((c) => element({}, { dataset: { pick: c }, classes: [] }));
+  const labels = [element({ '[data-pick]': picks }), element()];
+  const boxes = ['Which inbox?', 'From when?'].map((q, i) => element({}, { dataset: { q }, value: '', offsetHeight: 0, clientHeight: 0, scrollHeight: 0, closest: () => labels[i] }));
+  const sendBtn = element({}, { disabled: true });
+  const card = element({ textarea: boxes, '[data-send]': sendBtn });
+  card.dataset.of = of;
+  return { card, boxes, sendBtn, picks, thread: element({ '[data-choice]': [], '.ask-card': [card] }) };
+}
+const cardPage = () => {
+  const ctx = vm.createContext({ ...words, ...finders(), Math, Map, matchMedia: () => ({ matches: false }), crypto: globalThis.crypto });
+  vm.runInContext(`${cut('const messageKey = ', '// Copy a whole message')}\n${cut('// What the owner typed or picked on a card of questions', 'const copyBtn = ')}\nthis.wireChoices = wireChoices;`, ctx);
+  return ctx;
+};
+
+test('web: what the owner typed or picked on a card of questions survives the chat being drawn again, until the card is sent', async () => {
+  const ctx = cardPage();
+  const sent = [];
+  const send = async (t) => { sent.push(t); return true; };
+  const first = drawnCard(ctx);
+  ctx.wireChoices(first.thread, send);
+  first.boxes[0].value = 'The work one';
+  first.boxes[0].oninput();
+  first.picks[1].onclick({ preventDefault() {} }); // a choice under the first box fills it
+  first.boxes[1].value = 'Next week';
+  first.boxes[1].oninput();
+
+  // The bot started working: the chat is drawn again, a new card with empty boxes.
+  const second = drawnCard(ctx);
+  ctx.wireChoices(second.thread, send);
+  assert.deepEqual(second.boxes.map((b) => b.value), ['No', 'Next week'], 'its answers are in the new boxes');
+  assert.equal(second.sendBtn.disabled, false, 'and Send is on');
+
+  // Another reply's card is not touched by it.
+  const other = drawnCard(ctx, 'run-10');
+  ctx.wireChoices(other.thread, send);
+  assert.deepEqual(other.boxes.map((b) => b.value), ['', '']);
+
+  // Sent: the next card of the same reply starts empty.
+  await second.sendBtn.onclick();
+  assert.equal(second.card.removed, true);
+  assert.equal(sent.length, 1);
+  const third = drawnCard(ctx);
+  ctx.wireChoices(third.thread, send);
+  assert.deepEqual(third.boxes.map((b) => b.value), ['', '']);
+});
+
+test('web: a card of questions drawn without its reply keeps no draft, and every chat draws its card with one', async () => {
+  const ctx = cardPage();
+  const send = async () => true;
+  const first = drawnCard(ctx, '');
+  ctx.wireChoices(first.thread, send);
+  first.boxes[0].value = 'The work one';
+  first.boxes[0].oninput();
+  // A later card asking the same questions starts empty: nothing ties the answer to the card it was typed on.
+  const later = drawnCard(ctx, '');
+  ctx.wireChoices(later.thread, send);
+  assert.deepEqual(later.boxes.map((b) => b.value), ['', '']);
+  // The bot's, the Chief's and a group's chat each pass the reply the card is under.
+  for (const f of ['bot-chat.js', 'chief.js', 'groups.js']) {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'public', f), 'utf8');
+    for (const call of src.match(/questionsHTML\([^)]*\)/g)) assert.match(call, /questionsHTML\([^,]+,[^,]+,[^,)]+\)/, `${f}: ${call}`);
+  }
+  const chief = fs.readFileSync(path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'java', 'dev', 'botdot', 'app', 'ui', 'ChiefScreen.kt'), 'utf8');
+  for (const call of chief.match(/\bQuestions\(m\.[^{]*/g)) assert.match(call, /of = /, call);
 });

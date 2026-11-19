@@ -105,6 +105,30 @@ data class NeedsState(
 fun questionsAnswer(questions: List<String>, answers: List<String>): String =
     questions.mapIndexed { i, q -> "$q\n→ ${answers.getOrNull(i).orEmpty().trim().ifEmpty { "–" }}" }.joinToString("\n\n")
 
+/**
+ * The answers the owner typed or picked on a card of questions and has not sent (#1545). A card leaves the screen while
+ * its chat works or scrolls and comes back as a new one, so its answers are kept here, by card ([key]: the reply it is
+ * under and its questions), until it is sent ([drop]) or no longer asked.
+ */
+class CardDrafts(private val most: Int = 100) {
+    private val kept = LinkedHashMap<String, List<String>>()
+
+    fun key(of: String?, questions: List<String>): String = "${of.orEmpty()}\n${questions.joinToString("\n")}"
+
+    /** What was typed on the card, one answer per question; blanks when nothing was. */
+    fun of(key: String, size: Int): List<String> = kept[key]?.takeIf { it.size == size } ?: List(size) { "" }
+
+    /** Remembers what stands in the card's boxes; a card with every box empty keeps nothing. */
+    fun put(key: String, answers: List<String>) {
+        kept.remove(key)
+        if (answers.all { it.isEmpty() }) return
+        kept[key] = answers.toList()
+        while (kept.size > most) kept.remove(kept.keys.first()) // the oldest card of long ago
+    }
+
+    fun drop(key: String) { kept.remove(key) }
+}
+
 /** Why Bitwarden did not unlock, in the app's words. */
 fun unlockFailed(e: Throwable): String = if (e.message.orEmpty().contains("not right")) tr("Wrong master password") else e.message ?: tr("That didn't work")
 

@@ -394,6 +394,10 @@ function replyText(r, open) {
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
 // as long as the page is open (answerKey), or without `of` for as long as it is drawn; a card for as long as its
 // answers are the same. send(text, key, of): `of` is the reply it answers, when it was drawn with one.
+// What the owner typed or picked on a card of questions that is not sent yet (#1545), by card: the chat is built from
+// its HTML again whenever a run starts or ends, a working line comes or the lists are read, and the new card's boxes
+// are empty. Its answers are put back there, until the card goes or is no longer drawn.
+const cardDrafts = new Map(); // `${of}\n${questions}` → the text of each box
 function wireChoices(root, send) {
   $$('[data-choice]', root).forEach((b) => {
     const of = b.closest('.choices')?.dataset.of || '';
@@ -417,12 +421,15 @@ function wireChoices(root, send) {
   $$('.ask-card', root).forEach((card) => {
     const boxes = $$('textarea', card);
     const btn = $('[data-send]', card);
+    const draft = `${card.dataset.of || ''}\n${boxes.map((b) => b.dataset.q).join('\n')}`;
     boxes.forEach((ta, i) => {
       const picks = $$('[data-pick]', ta.closest('label'));
       ta.oninput = () => {
         ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight + ta.offsetHeight - ta.clientHeight, 200) + 'px';
         btn.disabled = !boxes.some((b) => b.value.trim());
         picks.forEach((p) => p.classList.toggle('on', p.dataset.pick === ta.value.trim())); // the one the box says
+        if (!card.dataset.of) return; // no reply to keep it by: a later card with the same questions must start empty
+        if (boxes.some((b) => b.value)) { if (cardDrafts.size > 100 && !cardDrafts.has(draft)) cardDrafts.clear(); cardDrafts.set(draft, boxes.map((b) => b.value)); } else cardDrafts.delete(draft);
       };
       // A choice fills the box; typed over, the answer is the owner's own.
       picks.forEach((p) => (p.onclick = (e) => { e.preventDefault(); ta.value = p.dataset.pick; ta.oninput(); }));
@@ -433,13 +440,15 @@ function wireChoices(root, send) {
         if (boxes[i + 1]) boxes[i + 1].focus(); else btn.click();
       };
     });
+    const kept = card.dataset.of ? cardDrafts.get(draft) : null;
+    if (kept?.length === boxes.length) boxes.forEach((ta, i) => { ta.value = kept[i]; ta.oninput(); }); // drawn again: what was typed stands
     let last = null; // { text, key }: what the card sent last, while it has not gone
     btn.onclick = async () => {
       btn.disabled = true;
       // Each question with its answer (see lib/choices.js). The answers stay in their boxes until it went.
       const text = boxes.map((b) => `${b.dataset.q}\n→ ${b.value.trim() || '–'}`).join('\n\n');
       if (last?.text !== text) last = { text, key: messageKey() }; // changed answers are a new message
-      if (await send(text, last.key, card.dataset.of || null)) card.remove();
+      if (await send(text, last.key, card.dataset.of || null)) { cardDrafts.delete(draft); card.remove(); }
       else btn.disabled = false;
     };
   });
