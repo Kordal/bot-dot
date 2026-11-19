@@ -25,6 +25,9 @@ test('no "never" line is a hint, in English and Polish, and "does not" or "n\'t"
   for (const ok of ['You summarise the news. It does not send mail.', "You summarise the news. You don't send mail.", 'Streszczasz newsy. Nigdy nie wysyłasz maili.', 'Streszczasz newsy. Nie wysyłasz maili.']) {
     assert.deepEqual(hintsFor({ prompt: ok, jobs: [] }), [], ok);
   }
+  // "nie" inside a Polish word ("właśnie", "rośnie") is not a "never" line.
+  const [polish] = hintsFor({ prompt: 'Właśnie sprawdzasz, co rośnie w ogrodzie.\nWake: whenever I ask.', jobs: [] });
+  assert.match(polish || '', /never/);
 });
 
 test('a task the user dictated word for word gets no hint about its parts', () => {
