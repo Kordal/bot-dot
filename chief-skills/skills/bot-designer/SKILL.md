@@ -5,7 +5,7 @@ description: "Design and create a new bot: check that no bot already does the jo
 
 # Designing a new bot
 
-Turn "I need a bot that does X" into a bot that works within minutes. One job per bot, clear limits, and started, not only created. Your tools here: `list_bots`, `get_bot`, `create_bot`, `update_bot`, `add_job`, `run_bot`, `wait_for_run`, `list_vault`, `request_login`, `list_connectors`, `list_skills`, `find_tool` and `ask_install_tool`.
+Turn "I need a bot that does X" into a bot that works within minutes. One job per bot, clear limits, and started, not only created. This is the one recipe for every new bot, whatever asked for it: the user's own request, a checkup proposal they picked, a plan a bot handed you that they approved, or a project's suggested bot they added (botdot then tells you in that chat that the bot exists: begin at "Jobs and the first run"). Your tools here: `list_bots`, `get_bot`, `create_bot`, `update_bot`, `add_job`, `run_bot`, `wait_for_run`, `list_vault`, `request_login`, `list_connectors`, `list_skills`, `find_tool` and `ask_install_tool`.
 
 ## Before you create
 
@@ -16,11 +16,13 @@ Turn "I need a bot that does X" into a bot that works within minutes. One job pe
 
 ## Questions
 
-Ask at most two short questions in one message, numbered, and only what you cannot settle yourself: usually what its one job is and when it should run. Skip anything the user already said. Short answers are enough: "everything, now, here, as a PDF" is a full answer. What else the bot needs, it asks for itself when it needs it.
+Ask at most two short questions in one message, numbered, and only what you cannot settle yourself: usually what its one job is and when it should run. Two is the limit for the whole request, before and after creating, also when it becomes several bots. Once the job is clear, create the bot right away, without asking whether to. Skip anything the user already said. Short answers are enough: "everything, now, here, as a PDF" is a full answer. What else the bot needs, it asks for itself when it needs it.
 
 Settle the rest yourself and say what you picked: the name, the category, the icon and colour, the tools.
 
 ## The main assignment
+
+One bot, one job. When a request names two unrelated jobs, make one bot per job, or ask one question: which job comes first.
 
 Write its main assignment (the prompt field) as one text of four parts, in this order:
 
@@ -29,11 +31,18 @@ Write its main assignment (the prompt field) as one text of four parts, in this 
 3. **Its voice** in a few words: language, length, plain active sentences with no filler. A bot that wakes on a schedule says nothing when there is nothing new.
 4. **When it wakes:** on request, on a schedule, or both. The schedule itself is a job you add with `add_job`.
 
-Name the concrete source in the job sentence or right after it: which API, site, inbox, server or start address, and which saved login or connected app. Never "use whatever tools you have". Keep it short: a long playbook belongs in a skill, not in the main assignment.
+A finished main assignment looks like this:
+
+  You watch the price of the Sony WH-1000XM6 headphones at three shops and tell me when it drops below 300 euros.
+  You never buy anything, and you never report a price that hasn't changed.
+  Voice: brief and factual, one line per shop.
+  Wake: every morning at 8:00, and whenever I ask.
+
+Name the concrete source in the job sentence or right after it: which API, site, inbox, server or start address, and which saved login or connected app. Never "use whatever tools you have". Keep it short: a long playbook belongs in a skill, not in the main assignment. A bot that wakes on a schedule reports only when there is something new, as in your instructions under "Scheduled reports". The wake line only says when; the schedule itself is a job you add with `add_job`. A main assignment the user dictates word for word is saved exactly as given. An existing bot keeps its main assignment until the user asks you to change it; a changed one has the same four parts.
 
 ## Safety by risk
 
-Pick the limits that fit the job and write them into what it never does:
+A bot's limits live in what it never does, not in its settings: every bot has the web, changing files and a computer (see "Create"), so "it only reads" is true only when its main assignment says it never changes or sends anything. Pick the limits that fit the job and write them into what it never does:
 
 - **Sending and posting** (mail, messages, posts, comments): it drafts, and sends only after the user approved the exact text in its chat.
 - **Servers and other systems:** read-only checks freely. It asks before every change, restart, install or delete. It never locks anyone out: the old way in stays until the new one is checked.
@@ -44,12 +53,14 @@ Pick the limits that fit the job and write them into what it never does:
 
 ## Create
 
-1. Call `create_bot` with the main assignment, a one-line description and only what the job needs:
-   - **Tools:** read-only work gets permissionMode "dontAsk" with Read, Grep and Glob. Work that changes files gets "acceptEdits" with Edit and Write. Research adds WebSearch and WebFetch. Commands add Bash.
-   - **A computer:** computer "linux" for anything that needs a real browser or an app with windows. It is on the internet and the home network.
+1. Call `create_bot` with the main assignment, a one-line description and what the job needs. botdot gives every bot, always, whatever you send: the web (WebSearch, WebFetch), changing files in its folder (Edit, Write, permissionMode "acceptEdits"), the account's computer with its screen and browser, and every other bot to ask. Never add, remove or describe them as choices: `allowedTools`, `permissionMode` and `computer` cannot narrow a bot, and a bot with only "Read" tools does not exist. What you do choose:
+   - **Commands and helpers:** add Bash only when the job runs commands (or the narrow form, such as `Bash(git log:*)`); "Agent" and "Task" together only when it needs helpers for parallel work.
+   - **Name, description, icon, colour and hat:** an icon that shows the job, one no other bot has where you can (see `list_bots`); a colour no other bot has.
+   - **Model and effort:** leave them out, unless the user asks or the job clearly needs one.
+   - **Skills:** from the library (`list_skills`), only those the job uses.
    - **Connected apps:** every bot has every app the user connected; nothing to set. Prefer a connected app over clicking around a website.
    - **Category:** group, a name the user already uses in the list (see `list_bots`), or none when they use no categories. A category is not a group chat.
-2. Read what was saved. `create_bot` answers with the bot as saved: when it differs from what you sent, say what differs. Its `waiting` list is what waits for the user's OK on cards in Needs you (the web, commands, a computer on the home network, a connected app). Check with `get_bot` when you are not sure.
+2. Read what was saved. `create_bot` answers with the bot as saved: when it differs from what you sent, say what differs. Its `waiting` list is what waits for the user's OK on cards in Needs you. A new bot gets what you make it with at once, with no card. Check with `get_bot` when you are not sure.
 3. What it still needs:
    - a login or token: `list_vault`, else `request_login` for this bot;
    - an app that is not connected: `offer_connect_app` with this bot; once connected, every bot has it;
@@ -66,7 +77,7 @@ Pick the limits that fit the job and write them into what it never does:
 
 ## Tell the user
 
-One short message: the bot's name, what it does and what it never does, when its job runs next, what its first run found, and what waits for the user (a card in Needs you, a login to fill in).
+One short message. It opens with one line naming the bot, what it does and what it never does ("Price Watcher checks the three shops every morning and never buys anything."), then says when its job runs next, what its first run found, and what waits for the user (a card in Needs you, a login to fill in).
 
 ## Known setup traps
 
@@ -96,4 +107,4 @@ The checkup reads how the bots did on the days the user set and proposes at most
 - What was saved checked, and what waits named.
 - Logins, apps and programs asked for through their cards.
 - Its job added and its first run started, or what it waits for named.
-- The user told the name, the job, what the first run found and what waits for them.
+- The user told what the bot does and never does, when its job runs, what the first run found and what waits for them.

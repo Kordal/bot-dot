@@ -3,7 +3,9 @@
 // and update_bot lists it: no read-back since QW-004). These are the words it is started with.
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
-const { startServer, makeBot, waitFor } = require('./helpers');
+const fs = require('fs');
+const path = require('path');
+const { startServer, makeBot, waitFor, ROOT } = require('./helpers');
 const { rpcClient } = require('./memory-helpers');
 
 let srv;
@@ -18,51 +20,64 @@ const chiefTools = (t) => {
 // What a hand-written task of the old kind looks like; the Chief's update must leave such bots alone.
 const OLD_TASK = 'Check the server logs for errors and summarise them. {{date}}';
 
-test('the Chief is started with the four parts of a task, one example, and the one line after saving', async () => {
+test('the Chief is started with the trigger and the one line after saving; the skill holds the recipe, said once', async () => {
   srv.reply('Done.');
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
   await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Make me a bot that watches a price' } });
   const { system } = await srv.nextRun((r) => !!r.botdot);
   await waitFor(async () => !(await srv.api(`/chief/chats/${chat.id}`)).data.busy, { what: 'the Chief to reply' });
 
-  // The four parts, in order, in one text in the prompt field.
-  assert.match(system, /Write a bot's task \(the prompt field\) as one text of four parts, in this order: its one job, named in the first sentence; what it never does; its voice in a few words; when it wakes \(on request, on a schedule, or both\)/);
-  // Waking on a schedule points at the existing rule about staying quiet; it isn't restated.
-  assert.match(system, /A bot that wakes on a schedule reports only when there is something new, as under "Scheduled reports"/);
-  assert.equal((system.match(/A scheduled AI job reaches the user only when its bot calls notify_owner/g) || []).length, 1);
-  assert.match(system, /The wake line only says when; the schedule itself is a job you add with add_job/);
-  // One example of a finished task, about five short lines.
-  const example = system.match(/A finished task looks like this:\n((?: {2}.+\n)+)/);
-  assert.ok(example, 'an example of a finished task');
-  const lines = example[1].trimEnd().split('\n').map((l) => l.trim());
-  assert.ok(lines.length >= 4 && lines.length <= 5, `${lines.length} lines`);
-  assert.match(lines[0], /^You watch /);
-  assert.match(lines[1], /^You never /);
-  assert.match(lines[2], /^Voice: /);
-  assert.match(lines[3], /^Wake: /);
+  // One trigger for every path that makes a bot: the request, a picked checkup proposal, an approved plan from a bot.
+  const trigger = system.match(/- Whenever you are about to make a new bot, load your skill chief:bot-designer[^\n]+/);
+  assert.ok(trigger, 'the trigger');
+  assert.match(trigger[0], /the user's request, a checkup proposal they picked \("Do 1 and 3"\), or a plan a bot handed you that they approved/);
+  assert.match(trigger[0], /added a bot from a project's suggestion, the bot exists already: follow the skill from its jobs and first run/);
+  // The recipe is not repeated in the instructions: it is in the skill (and tested there).
+  for (const gone of [/Write a bot's task \(the prompt field\) as one text of four parts/, /A finished task looks like this/, /Ask at most two short questions/, /When a request names two unrelated jobs/, /Around the task, give the bot a one-line description/, /Once the job is clear, create the bot right away/]) {
+    assert.doesNotMatch(system, gone);
+  }
 
   // One line after saving; a difference is said plainly; what waits is in the answer, not read back (QW-004).
   assert.match(system, /After create_bot or update_bot, tell the user in one line what the bot does and what it never does \("Price Watcher checks the three shops every morning and never buys anything\."\)/);
   assert.match(system, /Both answer with the bot as it was saved: when it differs from what you sent, say plainly what differs/);
   assert.match(system, /Otherwise update_bot answers with `waiting`, the list of what waits for the user's OK on its card in Needs you \(a changed task or changed rules, .* the home network .*\): say that in one line/);
   assert.doesNotMatch(system, /read the bot back|reads back right|get_bot shows the old value/);
-  // Questions, dictated tasks, two jobs, existing bots.
-  assert.match(system, /Ask at most two short questions, and only what you cannot settle yourself/);
-  assert.match(system, /Two is the limit for the whole request, before and after creating, also when it becomes several bots/);
-  assert.match(system, /Once the job is clear, create the bot right away, without asking whether to/);
-  assert.match(system, /A task the user dictates word for word is saved exactly as given/);
-  assert.match(system, /When a request names two unrelated jobs, make one bot per job, or ask one question: which job comes first/);
-  assert.match(system, /An existing bot keeps its task until the user asks you to change it/);
+  // An existing bot keeps its task.
+  assert.match(system, /An existing bot keeps its task until the user asks you to change it; then the changed task has the four parts chief:bot-designer describes/);
   // The sentence it replaces is gone; the opening line of MSG-005 stays.
   assert.doesNotMatch(system, /Design bots carefully/);
   assert.match(system, /Don't narrate your process\. One exception: when the request needs your tools/);
+});
+
+test('the skill is the one full recipe: the four parts in order, one example, the questions, the schedule rule', () => {
+  const text = fs.readFileSync(path.join(ROOT, 'chief-skills', 'skills', 'bot-designer', 'SKILL.md'), 'utf8');
+  assert.match(text, /Write its main assignment \(the prompt field\) as one text of four parts, in this order:\n\n1\. \*\*Its one job,\*\*.*\n2\. \*\*What it never does,\*\*.*\n3\. \*\*Its voice\*\*.*\n4\. \*\*When it wakes:\*\*/);
+  // One example of a finished task, four short lines.
+  const example = text.match(/A finished main assignment looks like this:\n\n((?: {2}.+\n)+)/);
+  assert.ok(example, 'an example of a finished task');
+  const lines = example[1].trimEnd().split('\n').map((l) => l.trim());
+  assert.equal(lines.length, 4);
+  assert.match(lines[0], /^You watch /);
+  assert.match(lines[1], /^You never /);
+  assert.match(lines[2], /^Voice: /);
+  assert.match(lines[3], /^Wake: /);
+  // Waking on a schedule points at the existing rule about staying quiet; the schedule is a job.
+  assert.match(text, /A bot that wakes on a schedule reports only when there is something new, as in your instructions under "Scheduled reports"/);
+  assert.match(text, /The wake line only says when; the schedule itself is a job you add with `add_job`/);
+  assert.match(text, /Ask at most two short questions in one message/);
+  assert.match(text, /Two is the limit for the whole request, before and after creating, also when it becomes several bots/);
+  assert.match(text, /Once the job is clear, create the bot right away, without asking whether to/);
+  assert.match(text, /A main assignment the user dictates word for word is saved exactly as given/);
+  assert.match(text, /When a request names two unrelated jobs, make one bot per job, or ask one question: which job comes first/);
+  assert.match(text, /An existing bot keeps its main assignment until the user asks you to change it/);
+  assert.match(text, /opens with one line naming the bot, what it does and what it never does \("Price Watcher checks the three shops every morning and never buys anything\."\)/);
 });
 
 test("the Chief's tools say the same, and a bot gets no new field for it", async (t) => {
   const chief = chiefTools(t);
   const tools = await chief.list();
   const of = (name) => tools.find((x) => x.name === name);
-  assert.match(of('create_bot').description, /Its task \(prompt\) is one text: its one job in the first sentence, what it never does, its voice in a few words, and when it wakes; a task the user dictates is saved as given\..* The answer is the bot as it was saved, with its task\. The bot gets everything you make it with at once, with no card in Needs you\./);
+  assert.match(of('create_bot').description, /^Create a new bot with your skill chief:bot-designer \(load it first\)\. Its task \(prompt\) has four parts: one job, what it never does, voice, when it wakes; a task the user dictates is saved as given\. Every bot has the web, files and a computer: set none\..* The answer is the bot as it was saved, with its task\. The bot gets everything you make it with at once, with no card in Needs you\./);
   assert.match(of('update_bot').description, /Only pass the fields to change\. A changed task \(prompt\) keeps the four parts: one job, what it never does, voice, when it wakes; a task the user dictates is saved as given\. The answer is the bot as it was saved, with its task\. In the user's own turn, before you read anything from outside, all is saved at once; else `waiting` in it lists what of this call was not saved/);
   assert.deepEqual(of('create_bot').inputSchema.required, ['name', 'prompt']);
   const fields = Object.keys(of('create_bot').inputSchema.properties);
