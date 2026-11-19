@@ -194,6 +194,25 @@ class NeedsDeskTest {
     @Test fun severalQuestionsAreOneMessage() =
         assertEquals("Which day?\n→ Monday\n\nWhat time?\n→ –", questionsAnswer(listOf("Which day?", "What time?"), listOf(" Monday ", "")))
 
+    @Test fun aQuestionCardKeepsWhatWasTypedUntilItIsSent() {
+        val drafts = CardDrafts()
+        val qs = listOf("Which day?", "What time?")
+        val key = drafts.key("r1", qs)
+        assertEquals(listOf("", ""), drafts.of(key, 2), "a card nobody typed on starts empty")
+        drafts.put(key, listOf("Monday", ""))
+        assertEquals(listOf("Monday", ""), drafts.of(drafts.key("r1", qs), 2), "the card drawn again has what was typed")
+        assertEquals(listOf("", ""), drafts.of(drafts.key("r2", qs), 2), "another reply's card is its own")
+        drafts.put(key, listOf("", ""))
+        assertEquals(listOf("", ""), drafts.of(key, 2), "emptied boxes keep nothing")
+        drafts.put(key, listOf("Monday", "9"))
+        drafts.drop(key)
+        assertEquals(listOf("", ""), drafts.of(key, 2), "sent: gone")
+        val few = CardDrafts(most = 2)
+        listOf("a", "b", "c").forEach { few.put(few.key(it, qs), listOf("x", "")) }
+        assertEquals(listOf("", ""), few.of(few.key("a", qs), 2), "the oldest goes first")
+        assertEquals(listOf("x", ""), few.of(few.key("c", qs), 2))
+    }
+
     @Test fun aMomentIsTheClockTodayAndTheDayBefore() {
         val now = Instant.parse("2026-10-05T15:00:00Z")
         assertEquals("13:52", shortClock("2026-10-05T13:52:00Z", TimeZone.UTC, now))

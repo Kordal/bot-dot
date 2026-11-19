@@ -301,7 +301,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                     // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).
                                     if (asksHere) {
                                         Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key, r.id) }
-                                        Questions(r.questions, r.questionChoices) { text, key -> sendFrom(text, key, r.id) }
+                                        Questions(r.questions, r.questionChoices, of = r.id) { text, key -> sendFrom(text, key, r.id) }
                                     }
                                 }
                                 // Its reply, once the run ended: it arrives when it is new in this open chat, and what

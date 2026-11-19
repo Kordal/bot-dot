@@ -958,6 +958,9 @@ fun Composer(
     }
 }
 
+/** The unsent answers of the question cards of this app run (#1545). */
+private val cardDrafts = dev.botdot.app.data.CardDrafts()
+
 /** The key of what a question card sends: the same while its text is the same, a new one once it changed. */
 internal class CardKey {
     private var last: Pair<String, String>? = null
@@ -1006,16 +1009,20 @@ fun inkOn(fill: Color): Color {
  * [onSend] sends them with their key and says whether it went: the card goes only then, and keeps its answers when it
  * did not. The card keeps its key until an answer changes: changed answers are a new message. [picks]: each
  * question's choices (null for one without), under its box; a tap fills the box, typed over it is the owner's own.
+ * [of]: the reply it stands under. What was typed and not sent is kept ([cardDrafts]) when the card leaves the screen
+ * (its chat works, it scrolls away) and is in its boxes when it is back, until it is sent (#1545).
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, onSend: suspend (String, String) -> Boolean) {
+fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, of: String? = null, onSend: suspend (String, String) -> Boolean) {
     if (questions.isNullOrEmpty()) return
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     var used by remember(questions) { mutableStateOf(false) }
     if (used) return
-    val answers = remember(questions) { mutableStateListOf(*Array(questions.size) { "" }) }
+    val draft = cardDrafts.key(of, questions)
+    val answers = remember(draft) { mutableStateListOf(*cardDrafts.of(draft, questions.size).toTypedArray()) }
+    fun set(i: Int, text: String) { answers[i] = text; cardDrafts.put(draft, answers) }
     val keys = remember(questions) { CardKey() }
     Column(
         Modifier.fillMaxWidth().padding(end = Space.s24).raised(Radius.card).padding(Space.s16),
@@ -1026,7 +1033,7 @@ fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, onSe
                 Text(q, color = p.text, fontSize = Type.s14)
                 BasicTextField(
                     value = answers[i],
-                    onValueChange = { answers[i] = it },
+                    onValueChange = { set(i, it) },
                     textStyle = TextStyle(color = p.text, fontSize = Type.s16, lineHeight = Type.line24, fontFamily = Geist),
                     cursorBrush = SolidColor(p.text),
                     maxLines = 6, // one line to start with; it grows as you type
@@ -1036,8 +1043,8 @@ fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, onSe
                     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(top = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
                         cs.forEach { c ->
                             // The one the box says is filled.
-                            if (answers[i].trim() == c) androidx.compose.material3.Button(onClick = { answers[i] = c }) { Text(c) }
-                            else SecondaryButton(onClick = { answers[i] = c }) { Text(c, color = p.text) }
+                            if (answers[i].trim() == c) androidx.compose.material3.Button(onClick = { set(i, c) }) { Text(c) }
+                            else SecondaryButton(onClick = { set(i, c) }) { Text(c, color = p.text) }
                         }
                     }
                 }
@@ -1048,7 +1055,7 @@ fun Questions(questions: List<String>?, picks: List<List<String>?>? = null, onSe
             onClick = {
                 // Each question with its answer (see lib/choices.js).
                 val all = dev.botdot.app.data.questionsAnswer(questions, answers)
-                scope.launch { if (onSend(all, keys.of(all))) used = true }
+                scope.launch { if (onSend(all, keys.of(all))) { cardDrafts.drop(draft); used = true } }
             },
             enabled = canSend,
             modifier = Modifier.align(Alignment.End),
