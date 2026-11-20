@@ -245,6 +245,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     reply = `
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
+        ${failed ? '' : globalThis.goToCardHTML?.(r) || ''}
         ${open ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
@@ -473,7 +474,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
   // run is no change: its step line grows in place (drawBlockLines).
   const waiting = state.inbox[bot.id] || [];
   const watching = state.watches[bot.id] || [];
-  const sig = runs.map((r) => `${r.id}:${r.status}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${asksOpen(bot.asks).join(',')}|watches:${watching.map((w) => `${w.id}:${w.state}:${w.error || ''}`).join(',')}`;
+  const sig = runs.map((r) => `${r.id}:${r.status}${r.goTo ? `:go-${r.goTo.state}` : ''}${r.status === 'running' ? `:${sentTo(r).length}` : ''}`).join('|') + `|notes:${waiting.map((n) => n.at).join(',')}|${mentionSig()}|new:${newFirst ?? ''}|asks:${asksOpen(bot.asks).join(',')}|watches:${watching.map((w) => `${w.id}:${w.state}:${w.error || ''}`).join(',')}`;
   const thread = part('chat-thread');
   holdChatEnd(thread, () => botFigure(bot.color, 'idle', '', bot.outfit, bot.id));
   if (root.dataset.sig !== sig) {

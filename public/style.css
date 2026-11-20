@@ -2244,6 +2244,34 @@ body.doc-mode > .app { display: none; }
 /* A Reconnect card under the reply of a job's run (#431): the app it found signed out, and the button that connects it. */
 .reconnect-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-8) var(--sp-12); max-width: 340px; margin-top: var(--sp-8); border-radius: var(--r-14); padding: var(--sp-8) var(--sp-8) var(--sp-8) var(--sp-12); background: var(--raise-2); box-shadow: var(--lift); color: var(--text); }
 .reconnect-error { flex-basis: 100%; color: var(--err); font-size: var(--fs-14); padding-right: var(--sp-4); }
+/* A "Go to <computer>" card under a bot's reply (ADR 258): the steps the owner does by hand there, and "I'm done". The dot is
+   static: amber while it waits, green when it is done. */
+.go-card { display: flex; flex-direction: column; width: min(100%, 440px); margin-top: var(--sp-8); border-radius: var(--r-14); background: var(--raise-2); box-shadow: var(--lift); color: var(--text); overflow: hidden; }
+.go-head { display: flex; align-items: center; gap: var(--sp-12); padding: var(--sp-12) var(--sp-16); }
+.go-screen { position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: var(--r-8); background: var(--fill); }
+.go-screen svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.go-dot { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; background: var(--warn); }
+.go-card.answered .go-dot { background: var(--ok); }
+.go-card.answered .go-head { padding-block: var(--sp-8); }
+.go-card.answered .go-screen { width: 32px; height: 32px; }
+.go-card.answered .go-screen svg { width: 16px; height: 16px; }
+.go-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.go-title { font-weight: 600; line-height: 1.3; overflow-wrap: anywhere; }
+.go-sub { color: var(--faint); font-size: var(--fs-12); overflow-wrap: anywhere; }
+.go-badge { display: inline-flex; align-items: center; gap: var(--sp-4); flex: none; color: var(--warn-text); font-size: var(--fs-12); white-space: nowrap; }
+.go-card.answered .go-badge { color: var(--ok-text); }
+.go-badge svg, .go-n svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.go-steps { list-style: none; margin: 0; padding: 0 var(--sp-16) var(--sp-12); display: grid; gap: var(--sp-8); color: var(--muted); font-size: var(--fs-14); }
+.go-steps li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: var(--sp-8); align-items: start; }
+.go-n { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--fill); color: var(--text); font-size: var(--fs-12); }
+.go-steps .on { color: var(--text); }
+.go-steps .on .go-n { background: var(--ink); color: var(--ink-text); }
+.go-steps .ok .go-n { background: var(--ok-soft); color: var(--ok-text); }
+.go-hint { margin: 0; padding: 0 var(--sp-16) var(--sp-12); color: var(--faint); font-size: var(--fs-12); }
+.go-actions { display: flex; flex-wrap: wrap; gap: var(--sp-8); padding: var(--sp-12) var(--sp-16); background: var(--raise); }
+.go-actions .btn { flex: 1 1 0; }
+.go-card.waiting .go-actions .btn.primary { flex-basis: 100%; }
+.go-card .btn svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .pg-icon { width: 30px; height: 36px; border-radius: var(--r-8); background: var(--sunk); display: grid; place-items: center; color: var(--muted); flex: none; }
 .pg-icon svg, .pg-keep svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .pg-text { display: flex; flex-direction: column; min-width: 0; }

@@ -48,6 +48,7 @@ function screenDone(m, bot) {
       const r = await api(`/bots/${bot.id}/computer/done`, { method: 'POST' });
       toast(r.text || tr("I'm done"));
       m.close();
+      refresh(); // the card of the step it carries on, if it made one, is answered by this too (ADR 258)
     } catch (e) { toast(e.message, true); $('#screen-done', m).disabled = false; }
   };
 }
@@ -426,3 +427,80 @@ function showRun(id) {
   es.onerror = () => es.close();
   history.replaceState(null, '', `#runs/${id}`);
 }
+
+// ---------- the "Go to <computer>" card (ADR 258) ----------
+
+// A bot asks the owner to do a step by hand on its computer (`go_to_computer`): one card under its reply, kept on the run
+// as `goTo` (docs/api.md, "A Go to computer card"). Waiting, it has the steps and "I'm done", "Take over screen" and
+// "Not now"; answered, it is one line. The run holds its state, so a chat drawn again draws it as it was; what was just
+// pressed is kept here until the run list says so (goAnswers), and each card is drawn again in place at the press.
+const goAnswers = new Map(); // run id -> { state: 'sending' | 'done' | 'later', at }
+const goRuns = new Map(); // run id -> the run as last drawn: { id, botId, goTo }
+const GO_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+
+function goToCardHTML(run) {
+  const c = run?.goTo;
+  if (!c || !Array.isArray(c.steps) || !c.steps.length || !['waiting', 'done', 'later'].includes(c.state)) return '';
+  goRuns.set(run.id, { id: run.id, botId: run.botId, goTo: c });
+  const bot = botById(run.botId);
+  const local = goAnswers.get(run.id);
+  const sending = c.state === 'waiting' && local?.state === 'sending';
+  const state = c.state === 'waiting' && local && !sending ? local.state : c.state;
+  const at = c.state === 'waiting' ? local?.at : c.answeredAt;
+  const computer = tr("{name}'s computer", { name: esc(bot?.name || '') });
+  const attrs = `class="go-card ${state === 'waiting' ? 'waiting' : 'answered'}" role="group" data-go-run="${esc(run.id)}" data-go-bot="${esc(run.botId)}"`;
+  const head = (title, sub, badge) => `<div class="go-head"><span class="go-screen">${ICON.screen}<span class="go-dot" aria-hidden="true"></span></span><span class="go-text"><span class="go-title">${title}</span><span class="go-sub">${sub}</span></span><span class="go-badge">${badge}</span></div>`;
+  if (state !== 'waiting') {
+    const said = state === 'done' ? tr('You confirmed · {time}', { time: esc(msgTime(at)) }) : tr('You said not now · {time}', { time: esc(msgTime(at)) });
+    return `<div ${attrs} aria-label="${esc(tr('Go to {name}', { name: bot?.name || '' }))}">${head(computer, said, state === 'done' ? `${GO_CHECK}${tr('Done')}` : tr('Not now'))}</div>`;
+  }
+  const busy = sending ? ' disabled aria-busy="true"' : '';
+  const done = `<button type="button" class="btn primary${goCompact(c) ? ' sm' : ''}" data-go-card="done"${busy}>${goCompact(c) ? '' : GO_CHECK}${tr("I'm done")}</button>`;
+  const now = c.steps[c.current - 1];
+  if (goCompact(c)) {
+    return `<div ${attrs} aria-label="${esc(tr('Go to {name}', { name: bot?.name || '' }))}"><div class="go-head"><span class="go-screen">${ICON.screen}<span class="go-dot" aria-hidden="true"></span></span><span class="go-text"><span class="go-title">${tr('Go to {name}', { name: computer })}</span><span class="go-sub">${esc(c.title || now)}</span></span>${done}</div></div>`;
+  }
+  const os = c.place === 'boat' ? 'Linux' : 'Ubuntu';
+  const place = c.place === 'boat' ? tr('External Virtual PC') : tr('This machine');
+  const steps = c.steps.map((s, i) => `<li class="${i + 1 < c.current ? 'ok' : i + 1 === c.current ? 'on' : ''}"${i + 1 === c.current ? ' aria-current="step"' : ''}><span class="go-n">${i + 1 < c.current ? GO_CHECK : i + 1}</span><span>${esc(s)}</span></li>`).join('');
+  return `<div ${attrs} aria-label="${esc(tr('Go to {name}', { name: bot?.name || '' }))}">
+    ${head(tr('Go to {name}', { name: computer }), `${os} · ${place}`, tr('Waiting for you'))}
+    <ol class="go-steps">${steps}</ol>
+    ${c.minutes ? `<p class="go-hint">${tr('Takes about {n} min.', { n: c.minutes })}</p>` : ''}
+    <div class="go-actions">${done}<button type="button" class="btn" data-go-card="screen"${busy}>${tr('Take over screen')}</button><button type="button" class="btn" data-go-card="later"${busy}>${tr('Not now')}</button></div>
+  </div>`;
+}
+const goCompact = (c) => c.compact === true;
+
+// Every drawing of the card of a run, drawn again where it stands (a chat, and the same chat open twice).
+function redrawGoCard(runId) {
+  const run = goRuns.get(runId);
+  if (!run) return;
+  const html = goToCardHTML(run);
+  for (const el of document.querySelectorAll('.go-card')) if (el.dataset.goRun === runId) el.outerHTML = html;
+}
+
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest?.('[data-go-card]');
+  const card = b?.closest('.go-card');
+  if (!b || !card) return;
+  const { goRun: run, goBot: botId } = card.dataset;
+  if (b.dataset.goCard === 'screen') return openScreen(botId);
+  const answer = b.dataset.goCard;
+  if (goAnswers.get(run)?.state === 'sending') return;
+  goAnswers.set(run, { state: 'sending' });
+  redrawGoCard(run);
+  try {
+    const r = await api(`/bots/${encodeURIComponent(botId)}/computer/card`, { method: 'POST', body: { run, answer } });
+    goAnswers.set(run, { state: answer, at: new Date().toISOString() });
+    if (r?.text) toast(r.text);
+    redrawGoCard(run);
+    refresh();
+  } catch (err) {
+    // Answered already (here on another device): the run list says so on the next read; any other, the card as it was.
+    if (err.status === 409 && err.state) goAnswers.set(run, { state: err.state, at: new Date().toISOString() }); else goAnswers.delete(run);
+    toast(err.message, true);
+    redrawGoCard(run);
+    refresh();
+  }
+});

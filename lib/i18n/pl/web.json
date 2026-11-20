@@ -1856,5 +1856,11 @@
   "Use this provider": "Użyj tego dostawcy",
   "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele.",
   "Refresh models": "Odśwież modele",
-  "Claude subscription": "Subskrypcja Claude"
+  "Claude subscription": "Subskrypcja Claude",
+  "You confirmed · {time}": "Potwierdzone przez ciebie · {time}",
+  "You said not now · {time}": "Wybrano: nie teraz · {time}",
+  "Go to {name}": "Przejdź do: {name}",
+  "Waiting for you": "Czeka na ciebie",
+  "Takes about {n} min.": "Zajmie około {n} min.",
+  "Take over screen": "Przejmij ekran"
 }
