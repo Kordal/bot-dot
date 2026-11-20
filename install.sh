@@ -189,6 +189,9 @@ LOAD="$DOOR/load"
 # file cache in its own memory, so an account held to 4 GB on a 16 GB machine filled it and thrashed its disk (#126).
 DEFAULT_RAM="$(awk '/^MemTotal:/ { g = int(int($2 / 1048576 + 0.5) / 2); print (g < 5 ? 5 : g) }' "$PROC/meminfo" 2>/dev/null || true)"
 DEFAULT_SHARE="2 ${DEFAULT_RAM:-5} 30"
+# The RAM, in GB, botdot needs for one account: the README's and docs/install-linux.md's "8 GB RAM" (#1555,
+# test/installer-ram.test.js keeps them the same). A machine with less is warned at install, and the install goes on.
+MIN_RAM_GB=8
 # An account's disk is full below this many bytes free: the admin page marks it.
 FULL_BELOW=209715200
 
@@ -1610,6 +1613,18 @@ KERNEL="$(uname -r 2>/dev/null | sed -n 's/^\([0-9][0-9]*\)\.\([0-9][0-9]*\).*/\
 if [ "$MODE" = install ] && [ -n "$KERNEL" ]; then
   [ "${KERNEL% *}" -gt 5 ] || { [ "${KERNEL% *}" -eq 5 ] && [ "${KERNEL#* }" -ge 11 ]; } \
     || die "botdot needs Linux 5.11 or newer for each account's rootless Docker, and this machine runs $(uname -r). Install a newer release (Ubuntu 22.04, Debian 12, Fedora, RHEL 9 or newer) and run this again."
+fi
+# A machine with less RAM than MIN_RAM_GB is warned, and installed all the same (#1555): a 2 GB machine installed
+# without a word, and its account's default share still said 5 GB. MemTotal is a little under the RAM a machine is
+# sold with, so it is rounded to whole GB, as DEFAULT_RAM rounds it. Not on the desktop app's botdot (local), whose VM
+# the app sizes, nor when /proc/meminfo can't be read.
+if [ "$MODE" = install ] && [ "${BOT_DOT_REACH:-$(get_env "$ENV" BOT_DOT_REACH)}" != local ]; then
+  RAM_KB="$(awk '/^MemTotal:/ { print $2 }' "$PROC/meminfo" 2>/dev/null || true)"
+  case "$RAM_KB" in
+    '' | *[!0-9]*) ;;
+    *) [ $(((RAM_KB + 524288) / 1048576)) -ge "$MIN_RAM_GB" ] \
+      || warn "This machine has $(awk -v k="$RAM_KB" 'BEGIN { printf "%.1f", k / 1048576 }') GB of RAM, and botdot needs at least $MIN_RAM_GB GB for one account. The install goes on, but its bots may run out of memory once they work (a bot's computer, its browser)." ;;
+  esac
 fi
 # Everything below needs it, also to see that botdot has started.
 command -v curl >/dev/null 2>&1 || die "The installer needs curl. Install it ($(install_hint curl curl)) and run this again."
