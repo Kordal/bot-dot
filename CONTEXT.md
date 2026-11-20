@@ -279,8 +279,20 @@ Where the admin creates and revokes sign-up links, suspends or deletes accounts,
 _Avoid_: dashboard (the Board's old name), admin panel, console
 
 **Feedback**:
-A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole. On a managed machine the fleet console is that admin, and its operator reads it there ([ADR 164](docs/adr/164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md)).
+A bug report or a feature request an owner sends the admin of their machine with the icon beside Settings, on the web page or in the Android app. It holds only what they typed and up to three screenshots they added on purpose, and the admin reads it on the admin page and sees each screenshot whole. On a managed machine the fleet console is that admin, and its operator reads it there ([ADR 164](docs/adr/164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md)). Where the machine says yes to Feedback to the developers, it goes to botdot's developers instead, and the owner sees its status ([ADR 259](docs/adr/259-feedback-goes-to-botdots-developers-through-a-relay-when-the-machine-says-yes.md)).
 _Avoid_: ticket, issue, support request, bug report (for both kinds)
+
+**Feedback to the developers**:
+The one switch that sends every Feedback of a machine, or of a managed account, to botdot's developers instead of an admin. The admin sets it for a self-hosted machine; each owner on a managed machine is asked once. The developers read each report, publish what is worth it as a public GitHub issue without the owner's personal details, and never publish a screenshot.
+_Avoid_: telemetry, crash reporting, sharing, opt-in (as a noun)
+
+**Feedback relay**:
+The developers' service that receives Feedback from self-hosted machines, keeps it private until a developer publishes it, and answers each machine with its reports' statuses.
+_Avoid_: proxy, bug tracker, issue bot
+
+**Report status**:
+Where one Feedback stands, as its owner sees it in My reports: Sent, Seen, Fixed in a version, or Won't fix with one line from the developers. Once the account runs the version it was fixed in, the apps say so once.
+_Avoid_: ticket state, resolution
 
 **What's new**:
 A short note per release, written by hand, that the web page and the Android app show once after an update: a title and 2 to 4 points in plain words. Closed once, it is gone in every app of the account.
