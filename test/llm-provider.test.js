@@ -102,7 +102,7 @@ test('OpenCode Go lists translated models and checks the two choices in one sess
       ] });
     },
   });
-  assert.deepEqual(catalog.models, [{ id: 'glm-5.3', label: 'GLM 5.3' }]);
+  assert.deepEqual(catalog.models, [{ id: 'glm-5.3', label: 'GLM 5.3', efforts: [] }]);
   const session = new Set();
   const models = new Set();
   await providers.check(providers.clean({ preset: 'opencode-go', key, big: 'glm-5.3', small: 'qwen3.8-flash' }), {
@@ -116,6 +116,103 @@ test('OpenCode Go lists translated models and checks the two choices in one sess
   });
   assert.equal(session.size, 1);
   assert.deepEqual(models, new Set(['glm-5.3', 'qwen3.8-flash']));
+});
+
+// What https://opencode.ai/inference/go/v1/models reports per model (capabilities.reasoning), as the stand-in answers it.
+const GO_MODELS = { data: [
+  { id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', type: 'chat', capabilities: { tools: { supported: true }, reasoning: { supported: true, effort: ['low', 'high', 'max'] } } },
+  { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', type: 'chat', capabilities: { tools: { supported: true }, reasoning: { supported: true, effort: ['high', 'max', 'turbo'] } } },
+  { id: 'glm-5.3', name: 'GLM 5.3', type: 'chat', capabilities: { tools: { supported: true }, reasoning: { supported: false, effort: ['high'] } } },
+  { id: 'qwen3.8-flash', name: 'Qwen3.8 Flash', type: 'chat', capabilities: { tools: { supported: true }, reasoning: { supported: true } } },
+  { id: 'minimax-m3', name: 'MiniMax M3', type: 'chat', capabilities: { tools: { supported: true } } },
+] };
+
+test('OpenCode Go\'s catalog keeps each model\'s reasoning levels that Claude Code can send', async () => {
+  const catalog = await providers.catalog({ preset: 'opencode-go', key: 'sample-key' }, null, { fetchImpl: async () => Response.json(GO_MODELS) });
+  assert.deepEqual(catalog.models.map((m) => [m.id, m.efforts]), [
+    ['deepseek-v4.1-flash', ['low', 'high', 'max']],
+    ['deepseek-v4-pro', ['high', 'max']], // "turbo" is not a level Claude Code takes
+    ['glm-5.3', []], // reasoning.supported false: none, whatever it lists
+    ['qwen3.8-flash', []],
+    ['minimax-m3', []],
+  ]);
+});
+
+test('Settings show OpenCode Go\'s levels from the saved catalog, with no request, and a run passes only a level the model has', () => {
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'llm-go-'));
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = () => { throw new Error('a Settings read made a request'); };
+  try {
+    const settings = settingsLib.create(dir, {});
+    const provider = providers.clean({ preset: 'opencode-go', key: KEY, big: 'deepseek-v4-pro', small: 'deepseek-v4.1-flash' });
+    const write = (catalog) => fs.writeFileSync(path.join(dir, 'claude-key.json'), JSON.stringify({ use: 'provider', provider: { ...provider, key: undefined, ...(catalog ? { catalog } : {}) } }));
+    // Saved before this was kept: no levels, as before, and no --effort.
+    write(null);
+    assert.ok(settings.choices().models.every((m) => m.effort === false));
+    const none = settings.choices().models[0].id;
+    assert.deepEqual(settings.args({ model: none, effort: 'high' }), ['--model', 'deepseek-v4-pro']);
+
+    write({ checkedAt: null, limited: false, models: [
+      { id: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro', efforts: ['high', 'max'] },
+      { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash', efforts: ['low', 'high', 'max'] },
+      { id: 'minimax-m3', label: 'MiniMax M3', efforts: [] },
+    ] });
+    const { models, efforts } = settings.choices();
+    assert.deepEqual(models.map((m) => [m.label, m.effort, m.efforts]), [
+      ['DeepSeek V4 Pro', true, ['high', 'max']], ['DeepSeek V4.1 Flash', true, ['low', 'high', 'max']], ['MiniMax M3', false, []],
+    ]);
+    assert.deepEqual(efforts.map((e) => e.id), ['low', 'high', 'max']);
+    const [pro, flash] = models.map((m) => m.id);
+    assert.deepEqual(settings.args({ model: models[2].id, effort: 'high' }), ['--model', 'minimax-m3']);
+    assert.deepEqual(settings.args({ model: flash, effort: 'low' }), ['--model', 'deepseek-v4.1-flash', '--effort', 'low']);
+    assert.deepEqual(settings.args({ model: pro, effort: 'low' }), ['--model', 'deepseek-v4-pro'], 'low is not one of this model\'s levels');
+    assert.deepEqual(settings.args({ model: pro, effort: 'max' }), ['--model', 'deepseek-v4-pro', '--effort', 'max']);
+    assert.deepEqual(settings.forBot({ model: flash, effort: 'low' }), { model: flash, effort: 'low' });
+    assert.deepEqual(settings.forBot({ model: pro, effort: 'low' }), { model: pro, effort: '' });
+  } finally { globalThis.fetch = realFetch; fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('refreshing the saved OpenCode Go catalog gives an already saved provider its levels, and an outage keeps them', async () => {
+  const dir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'llm-go-refresh-'));
+  const realFetch = globalThis.fetch;
+  let up = true;
+  globalThis.fetch = async (target) => {
+    assert.equal(target, 'https://opencode.ai/inference/go/v1/models');
+    return up ? Response.json(GO_MODELS) : new Response('{}', { status: 503 });
+  };
+  try {
+    const claudeKey = require('../lib/claude-key').create(dir);
+    await claudeKey.saveProvider({ preset: 'opencode-go', key: KEY, big: 'deepseek-v4-pro', small: 'deepseek-v4.1-flash' }, { fetchImpl: async () => Response.json({}) });
+    assert.equal(claudeKey.providerModels().catalog, undefined, 'saved without levels, as before');
+    assert.deepEqual(providers.effortsFor(claudeKey.providerModels(), 'deepseek-v4.1-flash'), []);
+
+    const listed = await claudeKey.providerCatalog({ preset: 'opencode-go', key: KEY });
+    assert.deepEqual(listed.models[0], { id: 'deepseek-v4.1-flash', label: 'DeepSeek V4.1 Flash' }, 'the setup answer stays { id, label }');
+    await claudeKey.refreshActiveProviderCatalog();
+    const saved = claudeKey.providerModels();
+    assert.deepEqual(providers.effortsFor(saved, 'deepseek-v4.1-flash'), ['low', 'high', 'max']);
+    assert.deepEqual(providers.effortsFor(saved, 'deepseek-v4-pro'), ['high', 'max']);
+    assert.deepEqual(providers.effortsFor(saved, 'minimax-m3'), []);
+    assert.deepEqual(providers.effortsFor(saved, 'deepseek-v4.1-flash[1m]'), ['low', 'high', 'max']);
+    assert.deepEqual(providers.effortsFor(saved, 'not-listed'), []);
+
+    // The catalog is down: the list is incomplete, the saved choices are added without levels, and keep what they had.
+    up = false;
+    await claudeKey.refreshActiveProviderCatalog();
+    const after = claudeKey.providerModels();
+    assert.equal(after.catalog.limited, true);
+    assert.deepEqual(providers.effortsFor(after, 'deepseek-v4.1-flash'), ['low', 'high', 'max']);
+    assert.deepEqual(providers.effortsFor(after, 'deepseek-v4-pro'), ['high', 'max']);
+
+    // A model whose levels the catalog now drops has none.
+    up = true;
+    GO_MODELS.data[0].capabilities.reasoning = { supported: false };
+    await claudeKey.refreshActiveProviderCatalog();
+    assert.deepEqual(providers.effortsFor(claudeKey.providerModels(), 'deepseek-v4.1-flash'), []);
+  } finally {
+    GO_MODELS.data[0].capabilities.reasoning = { supported: true, effort: ['low', 'high', 'max'] };
+    globalThis.fetch = realFetch; fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('a key the provider refuses, a model it does not know, a bad address or no key is not saved', async () => {
