@@ -1,7 +1,7 @@
-# ADR-258: Feedback goes to botdot's developers through a relay when the machine says yes
+# ADR-259: Feedback goes to botdot's developers through a relay when the machine says yes
 
 - **Status:** Accepted (by the owner, 2026-11-20)
-- **Owning task:** the spec to come from `/to-spec`
+- **Owning task:** [#1565](https://github.com/Kordal/bot-dot/issues/1565)
 - **Amends:** [ADR 048](048-the-admin-page-shows-the-feedback-an-owner-sends-the-admin.md) (Feedback goes to the admin page, never to GitHub) and [ADR 164](164-a-managed-machines-feedback-goes-to-the-fleet-console-through-an-outbox.md) (a reply from the console was left for later)
 - **Builds on:** [ADR 150](150-iphone-notifications-go-sealed-through-a-project-relay.md) (a small project relay), [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (the fleet console), [ADR 241](241-a-managed-machines-owner-asks-for-deletion-in-the-app.md) (deletion asked in the app)
 
