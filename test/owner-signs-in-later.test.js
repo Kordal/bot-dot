@@ -16,7 +16,8 @@ test('a bot on either computer asks whether the owner takes over its screen now 
   assert.match(rule, /Open the page only after their yes/);
   assert.doesNotMatch(rule, /\[\[/, 'a run the Chief started gets no answer buttons');
   assert.match(rule, /unless they or the Chief's message say they are ready now/);
-  assert.match(bots, /^const BOAT_REST = '.*' \+ OWNER_SIGNS_IN;$/m, 'told on the External Virtual PC');
+  assert.match(rule, /Then call go_to_computer for the steps they do/, 'the card, not a list in prose (ADR 258)');
+  assert.match(bots, /^const BOAT_REST = '.*' \+ OWNER_SIGNS_IN \+ ' ' \+ computerCardLib\.RULE;$/m, 'told on the External Virtual PC');
   assert.match(bots, /^- \$\{OWNER_SIGNS_IN\}$/m, "told on the account's computer");
 });
 
