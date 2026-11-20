@@ -242,3 +242,9 @@ test("the admin page has the switch, its line and the relay's address, and a cha
   const entry = (await m.ann.get('/admin/audit?action=feedback-developers')).data.entries[0];
   assert.equal(entry.detail, 'on');
 });
+
+test('the names are replaced whatever their case, also letters whose lowercase has another length, and not inside other words', () => {
+  const { neutral } = require('../lib/front-door/feedback-relay');
+  assert.equal(neutral('İpek and IPEK, ipekler; Ann\'s MAILER', { account: ['ann'], bots: ['İpek', 'Mailer', 'x'] }), '[bot] and IPEK, ipekler; [account]\'s [bot]');
+  assert.equal(neutral('nothing here', { account: [], bots: [] }), 'nothing here');
+});
