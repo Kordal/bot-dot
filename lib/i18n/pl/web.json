@@ -1285,6 +1285,7 @@
   "Bug": "Błąd",
   "Feature request": "Prośba o funkcję",
   "The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.": "Czyta to administrator tej maszyny i widzi każdy zrzut ekranu w całości, tak jak jest. Wysyłane jest tylko to, co tu napiszesz i dodasz.",
+  "botdot's developers read it. Its text may be published without personal details; screenshots never are. Only what you write and add here is sent.": "Czytają to twórcy botdot. Tekst może zostać opublikowany bez danych osobowych, a zrzutów ekranu nigdy się nie publikuje. Wysyłane jest tylko to, co tu napiszesz i dodasz.",
   "The admin of this machine reads it. Only what you write here is sent.": "Czyta to administrator tej maszyny. Wysyłane jest tylko to, co tu napiszesz.",
   "What happened, or what you would like": "Co się stało albo czego chcesz",
   "Add screenshot": "Dodaj zrzut ekranu",

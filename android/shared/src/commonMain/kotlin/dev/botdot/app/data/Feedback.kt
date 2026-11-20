@@ -22,15 +22,26 @@ object Feedback {
 
     /** The form's own words: its title, what it says of who reads it ([shotsOn]: and the screenshots), its field's placeholder. */
     val TITLE: String get() = tr("Feedback")
-    fun intro(shotsOn: Boolean): String = if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
+    fun intro(shotsOn: Boolean): String = intro(shotsOn, developers = false)
+
+    /** The same, when the front door sends Feedback to botdot's developers ([developers], #1566). No default: the iPhone calls these. */
+    fun intro(shotsOn: Boolean, developers: Boolean): String = if (developers) tr("botdot's developers read it. Its text may be published without personal details; screenshots never are. Only what you write and add here is sent.")
+        else if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
         else tr("The admin of this machine reads it. Only what you write here is sent.")
     val PLACEHOLDER: String get() = tr("What happened, or what you would like")
     /** Picked past [SHOTS_MAX]. */
     val TOO_MANY: String get() = tr("At most {max} screenshots go in one report.", "max" to SHOTS_MAX)
 
-    /** Whether to show Feedback: behind a front door (`accounts`) that says it goes to an admin page. */
+    /** Whether to show Feedback: behind a front door (`accounts`) that says it goes to an admin page or to the developers. */
     fun on(features: List<String>?, session: JsonObject?): Boolean =
         features?.contains("accounts") == true && flag(session, "feedback")
+
+    /**
+     * Whether the front door sends Feedback to botdot's developers (ADR 259, #1566), its session's `feedbackTo`: then the
+     * form says they read it. An older front door leaves the field out, and the form says what it said before.
+     */
+    fun toDevelopers(session: JsonObject?): Boolean =
+        (session?.get("feedbackTo") as? JsonPrimitive)?.let { it.isString && it.content == "developers" } == true
 
     /** Whether the form offers "Add screenshot": the front door says it takes them. An older one leaves the field out. */
     fun shotsOn(session: JsonObject?): Boolean = flag(session, "feedbackScreenshots")

@@ -30,6 +30,16 @@ class FrontDoorDeskTest {
         assertTrue(o.shots)
     }
 
+    @Test fun aFrontDoorThatSendsFeedbackToTheDevelopersSaysSoAndAnOlderOneDoesNot() = runTest {
+        val dev = FrontDoorDesk(door("""{"feedback":true,"feedbackTo":"developers"}""").api).read(listOf("accounts"))!!
+        assertTrue(dev.feedback)
+        assertTrue(dev.developers)
+        val admin = FrontDoorDesk(door("""{"feedback":true,"feedbackTo":"admin"}""").api).read(listOf("accounts"))!!
+        assertTrue(admin.feedback)
+        assertFalse(admin.developers)
+        assertFalse(FrontDoorDesk(door("""{"feedback":true}""").api).read(listOf("accounts"))!!.developers, "an older front door")
+    }
+
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"deletionRequest":true}""")
         val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!.deletion as AccountDeletion.Offer.Delete

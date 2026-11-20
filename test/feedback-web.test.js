@@ -175,3 +175,22 @@ test('web: a failed send keeps the text and the screenshots, and says so', async
   assert.equal(p.modal._shots.length, 1);
   assert.deepEqual(p.urls.revoked, []);
 });
+
+test('web: when the front door sends Feedback to botdot\'s developers the form says they read it, that its text may be published without personal details and that screenshots never are', async () => {
+  for (const shots of [true, false]) {
+    const p = page({ session: answer(200, { admin: false, feedback: true, feedbackTo: 'developers', ...(shots ? { feedbackScreenshots: true } : {}) }) });
+    await p.ctx.showAdminLink();
+    assert.equal(p.button.classList.contains('hidden'), false);
+    p.ctx.openFeedback();
+    assert.match(p.modal.html, /<p class="muted" id="feedback-to">botdot's developers read it\. Its text may be published without personal details; screenshots never are\. Only what you write and add here is sent\.<\/p>/);
+    assert.doesNotMatch(p.modal.html, /The admin of this machine/);
+  }
+  // An admin page, or an older front door that says nothing, keeps the form as it was.
+  for (const session of [answer(200, { feedback: true, feedbackTo: 'admin' }), answer(200, { feedback: true })]) {
+    const p = page({ session });
+    await p.ctx.showAdminLink();
+    p.ctx.openFeedback();
+    assert.match(p.modal.html, /The admin of this machine reads it/);
+    assert.doesNotMatch(p.modal.html, /developers read it/);
+  }
+});
