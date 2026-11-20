@@ -473,15 +473,20 @@ async function sendFeedback(report) {
   doors.feedbackTried(report.id, { tries, retryAt: Date.now() + Math.min(FEEDBACK_BACKOFF_MS * 2 ** (tries - 1), 6 * 3600_000) });
 }
 let feedbackFlushing = false;
+let feedbackAgain = false; // a report was written while one was sent: go through them again at once
 async function flushFeedback() {
-  if (!toDevelopers() || feedbackFlushing) return;
+  if (feedbackFlushing) { feedbackAgain = true; return; }
   feedbackFlushing = true;
   try {
-    for (const report of doors.feedbackToSend()) {
-      if (feedbackSending.has(report.id)) continue;
-      feedbackSending.add(report.id);
-      try { await sendFeedback(report); } catch (e) { console.error(`[front door] couldn't send a report to the developers: ${e.message}`); } finally { feedbackSending.delete(report.id); }
-    }
+    do {
+      feedbackAgain = false;
+      if (!toDevelopers()) return;
+      for (const report of doors.feedbackToSend()) {
+        if (feedbackSending.has(report.id)) continue;
+        feedbackSending.add(report.id);
+        try { await sendFeedback(report); } catch (e) { console.error(`[front door] couldn't send a report to the developers: ${e.message}`); } finally { feedbackSending.delete(report.id); }
+      }
+    } while (feedbackAgain);
   } finally { feedbackFlushing = false; }
 }
 if (feedbackRelay) {
@@ -1001,6 +1006,7 @@ async function signInRoutes(req, res, p) {
   if (p === '/front-door/session' && req.method === 'GET') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    const sendsFeedbackTo = feedbackTo(), sendsFeedback = sendsFeedbackTo !== null;
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
@@ -1009,7 +1015,7 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: feedbackTo() !== null, feedbackTo: feedbackTo(), feedbackScreenshots: feedbackTo() !== null, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1049,7 +1055,7 @@ async function signInRoutes(req, res, p) {
     // A managed machine whose console has been away long enough that 100 reports wait for it (ADR 164).
     if (outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
     const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
-    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version), to: to === 'developers' ? 'developers' : null });
+    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version), to });
     // On a managed machine a report is kept only with its file in the outbox, so the console never misses one the
     // owner was told went (ADR 164).
     if (outbox) {
