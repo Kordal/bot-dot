@@ -482,6 +482,7 @@ async function flushFeedback() {
       feedbackAgain = false;
       if (!toDevelopers()) return;
       for (const report of doors.feedbackToSend()) {
+        if (!toDevelopers()) break; // turned off meanwhile: nothing more goes
         if (feedbackSending.has(report.id)) continue;
         feedbackSending.add(report.id);
         try { await sendFeedback(report); } catch (e) { console.error(`[front door] couldn't send a report to the developers: ${e.message}`); } finally { feedbackSending.delete(report.id); }
