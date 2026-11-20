@@ -25,9 +25,11 @@ if (!linuxOnlyFile('SO_PEERCRED and descriptor passing are checked against the L
     const env = { ...process.env, BOTDOT_SUDO_SOCKET: socket, BOTDOT_SUDO_ALLOW: allow.join(',') };
     const child = spawn('python3', ['-I', SUDOD, '--serve'], { env, stdio: 'ignore' });
     t.after(() => { child.kill('SIGKILL'); fs.rmSync(dir, { recursive: true, force: true }); });
+    // As root, sudo runs a command itself unless it is asked for a user: -u root makes it use the helper, as box does.
     const sudo = (args, { input, env: more = {}, wait = true } = {}) => {
-      if (!wait) return spawn('python3', ['-I', SUDO, ...args], { env: { ...env, ...more }, stdio: ['ignore', 'pipe', 'pipe'] });
-      return spawnSync('python3', ['-I', SUDO, ...args], { env: { ...env, ...more }, input, encoding: 'utf8', timeout: 20_000 });
+      const argv = ['-I', SUDO, ...(ROOT ? ['-u', 'root'] : []), ...args];
+      if (!wait) return spawn('python3', argv, { env: { ...env, ...more }, stdio: ['ignore', 'pipe', 'pipe'] });
+      return spawnSync('python3', argv, { env: { ...env, ...more }, input, encoding: 'utf8', timeout: 20_000 });
     };
     return { dir, socket, env, child, sudo, up: async () => { for (let i = 0; i < 100 && !fs.existsSync(socket); i++) await new Promise((r) => setTimeout(r, 50)); } };
   }
@@ -96,7 +98,7 @@ if (!linuxOnlyFile('SO_PEERCRED and descriptor passing are checked against the L
   test('without a helper sudo says so, and what still works', skip, (t) => {
     const dir = fs.mkdtempSync(path.join('/tmp', 'sudo-test-'));
     t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-    const out = spawnSync('python3', ['-I', SUDO, '-n', 'true'], { env: { ...process.env, BOTDOT_SUDO_SOCKET: path.join(dir, 'none') }, encoding: 'utf8' });
+    const out = spawnSync('python3', ['-I', SUDO, ...(ROOT ? ['-u', 'root'] : []), '-n', 'true'], { env: { ...process.env, BOTDOT_SUDO_SOCKET: path.join(dir, 'none') }, encoding: 'utf8' });
     assert.equal(out.status, 1);
     assert.match(out.stderr, /^sudo: botdot's root helper on this computer does not answer/);
     assert.match(out.stderr, /botdot-install/);
@@ -159,16 +161,17 @@ if (!linuxOnlyFile('SO_PEERCRED and descriptor passing are checked against the L
     const h = helper(t, { allow: [0] });
     await h.up();
     assert.equal(h.sudo(['-n', 'id', '-u']).stdout, '0\n');
-    const nobody = h.sudo(['-n', '-u', 'nobody', 'sh', '-c', 'id -un; echo $HOME']);
+    const nobody = h.sudo(['-n', '-u', 'nobody', '-D', '/', 'sh', '-c', 'id -un; echo $HOME']);
     assert.equal(nobody.status, 0, nobody.stderr);
     assert.match(nobody.stdout, /^nobody\n/);
   });
 
-  test("the computer's image and start install the helper, with no sudoers file and no sudo package that needs setuid", () => {
-    const dockerfile = fs.readFileSync(path.join(DIR, 'Dockerfile'), 'utf8');
-    assert.match(dockerfile, /COPY botdot-sudo \/usr\/local\/bin\/sudo/);
-    assert.match(dockerfile, /COPY botdot-sudod \/usr\/local\/bin\/botdot-sudod/);
-    assert.doesNotMatch(dockerfile, /NOPASSWD|sudoers/, 'no sudoers: the helper is the way to root');
-    assert.doesNotMatch(dockerfile, /openssh-client sudo/, 'the real sudo is not installed');
-  });
 }
+
+test("the computer's image installs the helper, with no sudoers file and no sudo package that needs setuid", () => {
+  const dockerfile = fs.readFileSync(path.join(__dirname, '..', 'deploy', 'desktop', 'Dockerfile'), 'utf8');
+  assert.match(dockerfile, /COPY botdot-sudo \/usr\/local\/bin\/sudo/);
+  assert.match(dockerfile, /COPY botdot-sudod \/usr\/local\/bin\/botdot-sudod/);
+  assert.doesNotMatch(dockerfile, /NOPASSWD|sudoers/, 'no sudoers: the helper is the way to root');
+  assert.doesNotMatch(dockerfile, /openssh-client sudo/, 'the real sudo is not installed');
+});

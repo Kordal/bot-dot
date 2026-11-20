@@ -78,7 +78,7 @@ RUN if [ "$TARGETARCH" = amd64 ]; then \
 
 # Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035, ADR 259): there is no wall
 # between bots here. Its sudo is /usr/local/bin/sudo, a client of botdot-sudod, the computer's root process, and needs no
-# sudoers file and no setuid bit. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
+# configuration file for sudo and no setuid bit. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
 # bots cannot open without sudo, and which may write into box's Downloads folder (#311). /workspace is shared by the
 # bots. The container runs as `box` (lib/computers.js), so the desktop's services write their logs and pid as it.
 # Each bot's Camoufox keeps its own profile in /home/browser/profiles/<bot> (#105).
