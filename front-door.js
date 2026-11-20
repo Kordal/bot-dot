@@ -451,7 +451,7 @@ const feedbackSwitch = () => ({ on: feedbackRelay.on(), relay: feedbackRelay.url
 const FEEDBACK_BACKOFF_MS = Number(process.env.FRONT_DOOR_FEEDBACK_BACKOFF_MS) || 60_000;
 const feedbackSending = new Set();
 async function botNames(account) {
-  const r = await askAccount(account, 'GET', '/api/bots', null, 5000);
+  const r = await askAccount(account, 'GET', '/api/bots', null, 5000, 16 * 1024 * 1024); // the whole list: a part of it would leave a name in the text
   const list = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.bots) ? r.data.bots : null;
   return r.status === 200 && list ? list.map((b) => b?.name).filter((n) => typeof n === 'string') : null;
 }
@@ -1244,7 +1244,7 @@ const ROOM_HEADERS = (account) => ({ 'x-botdot-account': account, 'x-botdot-room
 const ROOM_ANSWER_MAX = 256 * 1024;
 // One request to an account's botdot server, from the front door itself: { status, data }, status 0 when it could
 // not be reached in time. A suspended or deleted account is not asked.
-function askAccount(account, method, to, body, timeoutMs) {
+function askAccount(account, method, to, body, timeoutMs, answerMax = ROOM_ANSWER_MAX) {
   if (!doors.accountExists(account) || doors.isSuspended(account)) return Promise.resolve({ status: 0, data: null });
   return new Promise((resolve) => {
     const text = body === null || body === undefined ? null : JSON.stringify(body);
@@ -1252,7 +1252,7 @@ function askAccount(account, method, to, body, timeoutMs) {
     const up = http.request({ socketPath: socketOf(account), method, path: to, headers, timeout: timeoutMs }, (answer) => {
       const chunks = [];
       let size = 0;
-      answer.on('data', (c) => { size += c.length; if (size > ROOM_ANSWER_MAX) { up.destroy(); resolve({ status: 0, data: null }); } else chunks.push(c); });
+      answer.on('data', (c) => { size += c.length; if (size > answerMax) { up.destroy(); resolve({ status: 0, data: null }); } else chunks.push(c); });
       answer.on('end', () => {
         let data = null;
         try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* not JSON */ }
