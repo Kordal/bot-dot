@@ -3,6 +3,7 @@
 // it: only a bot's old computer of its own goes. Docker is a stand-in here.
 const { test, beforeEach, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { IN_OWN_FOLDER } = require('./helpers');
 const util = require('node:util');
 const childProcess = require('node:child_process');
 const dns = require('node:dns');
@@ -440,4 +441,17 @@ test("a bot's proxy goes to its own bridge, which an older one is started again 
   calls = [];
   await computers.runShell(seat('a1'), { command: 'curl -s https://example.com' });
   assert.ok(!calls.find((a) => a.includes('curl -s https://example.com')).some((a) => /PROXY/.test(a)), 'without one, nothing');
+});
+
+test("run_shell finds programs a bot put in ~/.local/bin or installed by botdot-install (~/.local/env/bin), as its sh reads no profile", () => {
+  const { execFileSync } = require('node:child_process');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-path-'));
+  fs.mkdirSync(path.join(home, '.local', 'bin'), { recursive: true });
+  fs.mkdirSync(path.join(home, '.local', 'env', 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(home, '.local', 'bin', 'mytool'), '#!/bin/sh\necho from-local-bin\n', { mode: 0o755 });
+  fs.writeFileSync(path.join(home, '.local', 'env', 'bin', 'envtool'), '#!/bin/sh\necho from-env-bin\n', { mode: 0o755 });
+  // As runAsBot starts it: a non-login sh -c with the in-own-folder prelude, then the command.
+  const out = execFileSync('sh', ['-c', IN_OWN_FOLDER, 'sh', home, 'mytool; envtool; command -v ls'], { env: { HOME: home, PATH: process.env.PATH }, encoding: 'utf8' });
+  assert.match(out, /^from-local-bin\nfrom-env-bin\n/);
+  assert.match(out, /\/ls\n$/, 'the usual PATH is kept');
 });

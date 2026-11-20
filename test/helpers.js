@@ -513,7 +513,7 @@ const REAPED = ['/usr/bin/python3', '-I', '-c', require('fs').readFileSync(requi
 
 // What lib/computers.js runs a bot's command in on the account's computer: its git identity put in place first
 // (lib/workspace-git.js), then its own folder.
-const IN_OWN_FOLDER = '[ -z "$BOTDOT_GIT" ] || [ "$(cat "$GIT_CONFIG_SYSTEM" 2>/dev/null)" = "$BOTDOT_GIT" ] || { mkdir -p "${GIT_CONFIG_SYSTEM%/*}" && printf \'%s\n\' "$BOTDOT_GIT" > "$GIT_CONFIG_SYSTEM.$$" && mv -f "$GIT_CONFIG_SYSTEM.$$" "$GIT_CONFIG_SYSTEM"; } 2>/dev/null; unset BOTDOT_GIT; '
+const IN_OWN_FOLDER = '[ -z "$BOTDOT_GIT" ] || [ "$(cat "$GIT_CONFIG_SYSTEM" 2>/dev/null)" = "$BOTDOT_GIT" ] || { mkdir -p "${GIT_CONFIG_SYSTEM%/*}" && printf \'%s\n\' "$BOTDOT_GIT" > "$GIT_CONFIG_SYSTEM.$$" && mv -f "$GIT_CONFIG_SYSTEM.$$" "$GIT_CONFIG_SYSTEM"; } 2>/dev/null; unset BOTDOT_GIT; PATH="$HOME/.local/env/bin:$HOME/.local/bin:$PATH"; export PATH; '
   + 'mkdir -p "$1" 2>/dev/null; cd "$1" 2>/dev/null; exec sh -c "$2"';
 
 // A bot's command on the External Virtual PC as botdot sends it (lib/boat.js reaped, ADR 134), shown as the command
