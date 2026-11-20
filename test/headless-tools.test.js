@@ -161,6 +161,31 @@ test('run_shell, read_file and write_file go to their own routes, not the screen
   assert.deepEqual(asked.find((a) => a.path === '/session/computer/write').body, { path: 'a.txt', content: 'x' });
 });
 
+test('run_shell says what to do instead when sudo fails because the sandbox ignores setuid (#1562)', async (t) => {
+  const said = "sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set or an NFS file system without root privileges?";
+  let stderr = said;
+  const stub = http.createServer((req, res) => {
+    req.resume();
+    req.on('end', () => {
+      res.setHeader('Content-Type', 'application/json');
+      if (req.url === '/session/computer/shell') return res.end(JSON.stringify({ ok: true, stdout: '', stderr, exitCode: 1 }));
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise((r) => stub.listen(0, '127.0.0.1', r));
+  t.after(() => stub.close());
+  const mcp = rpcClient(t, 'computer-mcp.js', { VAULT_URL: `http://127.0.0.1:${stub.address().port}`, VAULT_TOKEN: 'fixture', COMPUTER_CONTAINER: 'botdot.account.computer' });
+  await mcp.request('initialize', {});
+  const out = await mcp.request('tools/call', { name: 'run_shell', arguments: { command: 'sudo apt-get install -y cowsay' } });
+  const text = out.content[0].text;
+  assert.ok(text.startsWith(`stderr:\n${said}\nexit code: 1\nNote: sudo does not work on this computer: its sandbox ignores setuid`), text);
+  assert.match(text, /botdot-install NAME` \(conda-forge\).*~\/\.local\/bin.*tell the owner plainly that this computer cannot install it/);
+  // Any other failure is shown as it is.
+  stderr = 'sudo: a password is required';
+  const other = await mcp.request('tools/call', { name: 'run_shell', arguments: { command: 'sudo true' } });
+  assert.equal(other.content[0].text, 'stderr:\nsudo: a password is required\nexit code: 1');
+});
+
 test('start_program answers in words: a program without a window leaves no picture with the run', async (t) => {
   const asked = [];
   const stub = http.createServer((req, res) => {

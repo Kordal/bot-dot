@@ -163,7 +163,7 @@ With the **Vault**, botdot's own encrypted store, or with a folder called **bot-
 
 ### Can a bot install programs?
 
-On its computer, a bot can `sudo apt-get install` what you ask for, or use `botdot-install` (conda-forge, pip, npm). On the botdot server, the Chief asks for a command-line tool for one bot, and nothing is installed before you tap **Install** on its card ([Installed tools](user-guide.md#installed-tools-a-command-a-bot-is-missing)).
+On its computer, a bot installs what you ask for into the shared home with `botdot-install` (conda-forge, pip, npm), or by downloading a binary into `~/.local/bin`: no root needed. `sudo apt-get install` works only where the computer's gVisor honours setuid; where it does not, sudo says "effective uid is not 0 ... nosuid", the bot says so plainly and installs without root, and a program only apt has cannot be installed there. On the botdot server, the Chief asks for a command-line tool for one bot, and nothing is installed before you tap **Install** on its card ([Installed tools](user-guide.md#installed-tools-a-command-a-bot-is-missing)).
 
 ### What is a page?
 

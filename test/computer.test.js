@@ -59,6 +59,11 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   assert.ok(rec.system.includes(`Files handed to you are in uploads/ on both. attach_file and message_bot take a path on your computer too (/workspace/${bot.id}/… or /home/box/…).`));
   assert.match(rec.system, /Every bot works there as the user box, with sudo without a password/);
   assert.match(rec.system, /Your screen is no wall/);
+  // Where sudo fails (the sandbox ignores setuid, #1562) installs go into the home, and the bot stops trying sudo.
+  assert.match(rec.system, /install it into your home, with no root: run_shell `botdot-install NAME`/);
+  assert.match(rec.system, /download the release binary into ~\/\.local\/bin/);
+  assert.match(rec.system, /may fail with "effective uid is not 0" or "nosuid": the sandbox ignores setuid[^.]*\. Don't work around it/);
+  assert.match(rec.system, /say plainly that this computer cannot install it/);
   // What an update of the account's computer keeps (#107).
   assert.match(rec.system, /Files in \/home\/box and \/workspace also stay when the owner updates the computer to a newer desktop; programs installed with apt do not/);
   assert.match(rec.system, /never touch their files, screens, windows or programs/);
