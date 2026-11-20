@@ -1826,6 +1826,8 @@ details.bs-row { display: block; }
 .g-row .stack { min-width: 0; max-width: calc(100% - 40px); }
 .g-row .bubble.from-bot { max-width: 100%; }
 .g-name { font-size: var(--fs-12); font-weight: 600; margin: 0 var(--sp-8) var(--sp-4); color: var(--c); }
+a.g-name { display: block; width: fit-content; max-width: 100%; cursor: pointer; text-decoration: none; }
+a.g-name:hover, a.g-name:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
 /* The members' replies a team's answer folds (ADR 201): their heads and names, one row that opens them. */
 .g-fold { display: flex; align-items: center; gap: var(--sp-4); align-self: flex-start; margin-left: calc(var(--sp-32) + var(--sp-8)); padding: var(--sp-4) var(--sp-8); border: 0; border-radius: var(--r-8); background: none; color: var(--muted); font: inherit; font-size: var(--fs-12); cursor: pointer; }
 .g-fold:hover { color: var(--text); }

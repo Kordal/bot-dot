@@ -1075,7 +1075,7 @@ function chatLinkParts(text, bots) {
 }
 // A tap on a bot's name opens its chat: where the Chief is, the Chief's.
 document.addEventListener('click', (e) => {
-  const a = e.target.closest?.('a.bot-link');
+  const a = e.target.closest?.('a.bot-link, a.g-name[data-bot-link]');
   if (!a) return;
   e.preventDefault();
   e.stopPropagation();
