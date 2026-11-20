@@ -7,8 +7,8 @@ Runs the command as its child and makes itself the subreaper of all it starts (P
 whose parent died comes to it, also one that left with setsid or nohup, and it reaps each one that ends, so no zombie
 stays behind on PID 1, which on a computer made before #535 is `sleep` and never reaps.
 Without --keep (a bot's command, a screen's supervisord, a browser's bridge) everything still left when the command
-ends is ended: SIGTERM, then SIGKILL after a moment. What runs as another user (root, through sudo) goes on: it is the
-computer's own, such as its Tailscale. With --keep (start_program) it stays while anything it started runs, for a
+ends is ended: SIGTERM, then SIGKILL after a moment. What runs as another user (root, through sudo) goes on, and so does the
+sudo client that holds its line (ADR 260): it is the computer's own, such as its Tailscale. With --keep (start_program) it stays while anything it started runs, for a
 program that forks and lets its first process go. A SIGTERM, SIGINT or SIGHUP goes to the command first and
 then ends the rest the same way. --screen names the bot's screen (its display's number) on the command line, so that
 the end of that screen finds what runs for it (lib/computers.js STOP_SCREEN), and --run names the bot's run, so that the
@@ -93,12 +93,25 @@ def under(procs, roots):
     return found
 
 
+def sudo_client(pid):
+    """Whether the process is /usr/local/bin/sudo (ADR 260), the client of a command that runs as root."""
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            words = f.read().split(b"\0")
+        script = next((w for w in words[1:3] if not w.startswith(b"-")), b"")  # `python3 -I /usr/local/bin/sudo ...`
+        return os.path.basename(words[0]).startswith(b"python") and script.endswith((b"/bin/sudo", b"/botdot-sudo"))
+    except OSError:
+        return False
+
+
 def descendants():
     """The live processes under this one, at any depth, that are its own user's: what a command started as root through
-    sudo (a daemon such as the computer's Tailscale) is the computer's own and goes on."""
+    sudo (a daemon such as the computer's Tailscale) is the computer's own and goes on. The sudo client is box's, but it
+    is only the line to that root command: ending it would end the command (the helper does, ADR 260), so it is left
+    too. A command still running has its client in its tree, and the limits end both."""
     procs = table()
     me = os.getpid()
-    return {pid for pid in under(procs, {pid for pid, p in procs.items() if p[0] == me}) if procs[pid][1]}
+    return {pid for pid in under(procs, {pid for pid, p in procs.items() if p[0] == me}) if procs[pid][1] and not sudo_client(pid)}
 
 
 def reap():

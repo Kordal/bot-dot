@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""botdot's root helper for the account's computer: what `sudo` talks to (ADR 259).
+"""botdot's root helper for the account's computer: what `sudo` talks to (ADR 260).
 
 Every bot works on the computer as `box`, with root through sudo (ADR 035). Under gVisor the setuid bit of /usr/bin/sudo
 is ignored on the container's root mount ("effective uid is not 0 ... nosuid", #1562), so sudo cannot be the way to
@@ -20,6 +20,7 @@ import json
 import os
 import pwd
 import grp
+import shlex
 import signal
 import socket
 import struct
@@ -103,7 +104,7 @@ def plan(req, target, peer_uid, peer_gid):
         argv = list(words)
     else:
         shell = (environ.get("SHELL") if mode == "shell" and environ.get("SHELL") else None) or target.pw_shell or "/bin/sh"
-        argv = [shell, *(["-l"] if mode == "login" and not words else []), *(["-c", " ".join(words)] if words else [])]
+        argv = [shell, *(["-l"] if mode == "login" and not words else []), *(["-c", " ".join(shlex.quote(w) for w in words)] if words else [])]
     if req.get("preserve_env") and mode != "login":
         env = dict(environ)
     else:

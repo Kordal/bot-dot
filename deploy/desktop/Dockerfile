@@ -76,7 +76,7 @@ RUN if [ "$TARGETARCH" = amd64 ]; then \
    && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035, ADR 259): there is no wall
+# Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035, ADR 260): there is no wall
 # between bots here. Its sudo is /usr/local/bin/sudo, a client of botdot-sudod, the computer's root process, and needs no
 # configuration file for sudo and no setuid bit. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
 # bots cannot open without sudo, and which may write into box's Downloads folder (#311). /workspace is shared by the
@@ -116,7 +116,7 @@ COPY botdot-xstartup /usr/local/bin/botdot-xstartup
 COPY botdot-screen.conf /etc/supervisor/botdot-screen.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
 COPY camoufox-helper.desktop /usr/share/xfce4/helpers/camoufox.desktop
-# sudo for the bots, without setuid, and the root process it asks (ADR 259); botdot starts the latter at each start of the computer.
+# sudo for the bots, without setuid, and the root process it asks (ADR 260); botdot starts the latter at each start of the computer.
 COPY botdot-sudo /usr/local/bin/sudo
 COPY botdot-sudod /usr/local/bin/botdot-sudod
 # The bots' installs into box's home without sudo, and the computer's one device on the owner's tailnet, run by root (#106).

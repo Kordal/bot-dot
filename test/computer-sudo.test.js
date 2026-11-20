@@ -1,4 +1,4 @@
-// sudo on the account's computer without setuid (ADR 259, #1562): /usr/local/bin/sudo (deploy/desktop/botdot-sudo) hands
+// sudo on the account's computer without setuid (ADR 260, #1562): /usr/local/bin/sudo (deploy/desktop/botdot-sudo) hands
 // the command to botdot-sudod, the computer's root process, on a Unix socket, and the helper only asks who is on the
 // other end (SO_PEERCRED). Run here as the user running the tests, with a socket in a scratch folder: the plumbing is
 // the same as in the computer, the user the command ends up as is not (that is root there; the tests as root check it).
@@ -129,6 +129,44 @@ if (!linuxOnlyFile('SO_PEERCRED and descriptor passing are checked against the L
       try { process.kill(second, 0); } catch { gone = true; }
     }
     assert.ok(gone, 'a command whose sudo is gone does not run on');
+  });
+
+  test("-s and -i keep each argument one word, as sudo does: a space or a ; in it is not the shell's", skip, async (t) => {
+    const h = helper(t);
+    await h.up();
+    const victim = path.join(h.dir, 'my dir');
+    const other = path.join(h.dir, 'my');
+    fs.mkdirSync(victim);
+    fs.mkdirSync(other);
+    const env = { SHELL: '/bin/sh' };
+    for (const flag of ['-s', '-i']) {
+      const out = h.sudo(['-n', flag, 'printf', '[%s]', 'a b', 'c;touch ' + path.join(h.dir, 'pwned'), "it's $HOME", ''], { env });
+      assert.equal(out.status, 0, out.stderr);
+      assert.equal(out.stdout, `[a b][c;touch ${path.join(h.dir, 'pwned')}][it's $HOME][]`, flag);
+      assert.equal(fs.existsSync(path.join(h.dir, 'pwned')), false, `${flag}: the ; did not start a command`);
+      const rm = h.sudo(['-n', flag, 'rm', '-rf', victim], { env });
+      assert.equal(rm.status, 0, rm.stderr);
+      assert.equal(fs.existsSync(victim), false, `${flag}: the folder with a space is gone`);
+      assert.equal(fs.existsSync(other), true, `${flag}: its first word is left alone`);
+      fs.mkdirSync(victim);
+    }
+  });
+
+  test('a root program started in the background outlives the command that started it and its botdot-run', skip, async (t) => {
+    const h = helper(t);
+    await h.up();
+    const marker = path.join(h.dir, 'm');
+    const run = path.join(DIR, 'botdot-run');
+    // `sudo nohup ... &` in a bot's command: the command ends at once, botdot-run ends what is left of box's, and the
+    // sudo client is one of them; the root program it started goes on, as it did behind the real sudo.
+    const out = spawnSync('python3', ['-I', run, '--', 'sh', '-c',
+      `python3 -I ${SUDO} ${ROOT ? '-u root ' : ''}-n sh -c 'echo $$ > ${marker}; exec sleep 60' >/dev/null 2>&1 & while [ ! -s ${marker} ]; do sleep 0.1; done`],
+      { env: h.env, encoding: 'utf8', timeout: 20_000 });
+    assert.equal(out.status, 0, out.stderr);
+    const pid = Number(fs.readFileSync(marker, 'utf8'));
+    t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch { /* gone */ } });
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.doesNotThrow(() => process.kill(pid, 0), 'the root program is still running');
   });
 
   test('--ensure starts the helper once, and a changed build replaces it after the commands of the old one', skip, async (t) => {

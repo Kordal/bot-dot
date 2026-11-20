@@ -59,7 +59,7 @@ test("a bot with a computer is told it shares the account's computer, as box wit
   assert.ok(rec.system.includes(`Files handed to you are in uploads/ on both. attach_file and message_bot take a path on your computer too (/workspace/${bot.id}/… or /home/box/…).`));
   assert.match(rec.system, /Every bot works there as the user box, with sudo without a password/);
   assert.match(rec.system, /Your screen is no wall/);
-  // sudo works there with no setuid bit (ADR 259, #1562): apt installs system-wide, and the home is the way for what must survive an update.
+  // sudo works there with no setuid bit (ADR 260, #1562): apt installs system-wide, and the home is the way for what must survive an update.
   assert.match(rec.system, /install it with run_shell `sudo apt-get install -y NAME`, or, for one that should survive an update of the computer, into your home with `botdot-install NAME`/);
   assert.match(rec.system, /a release binary downloaded into ~\/\.local\/bin; sudo has no password and runs the command as root/);
   assert.doesNotMatch(rec.system, /nosuid|effective uid|cannot install it|ignores setuid/, 'no word that sudo cannot work');

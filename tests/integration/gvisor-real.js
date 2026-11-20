@@ -384,10 +384,10 @@ async function main() {
   assert.ok(!processesOf(m, computer).some((p) => p.args.includes(secret)), 'the secret is on no command line');
   assert.notEqual(inComputer(m, computer, 'bot', ['sh', '-c', 'cat /home/browser/bridge.log >/dev/null 2>&1 && echo read || echo refused']), 'read', 'the bot cannot read the bridge\'s log');
 
-  // ADR 259 (#1562): root through sudo with no setuid bit, on this runsc, with the real computer image and its own
+  // ADR 260 (#1562): root through sudo with no setuid bit, on this runsc, with the real computer image and its own
   // botdot-sudo and botdot-sudod, started as botdot starts them (lib/computers.js rootHelper). A container of its own
   // as `box`, like the account's computer: what is asserted is the computer's sudo, not a bot's flow.
-  step("sudo asks the root helper: apt installs a program as box, and no other user gets root (ADR 259)");
+  step("sudo asks the root helper: apt installs a program as box, and no other user gets root (ADR 260)");
   const probe = `${prefix}-sudo`;
   m.inner('run', '-d', '--name', probe, '--user', 'box', '-e', 'HOME=/home/box', '--entrypoint', 'sleep', images.computer, 'infinity');
   try {

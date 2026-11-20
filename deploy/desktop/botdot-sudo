@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""sudo for the account's computer, without setuid (ADR 259): installed as /usr/local/bin/sudo.
+"""sudo for the account's computer, without setuid (ADR 260): installed as /usr/local/bin/sudo.
 
 The computer's gVisor ignores the setuid bit of the real /usr/bin/sudo (#1562), so this one never becomes root itself:
 it hands the command to botdot-sudod, the root process of the computer, on a Unix socket, together with its own stdin,
@@ -13,6 +13,7 @@ import json
 import os
 import signal
 import socket
+import shlex
 import struct
 import sys
 
@@ -53,7 +54,7 @@ def parse(argv):
             elif name == "--list": o["list"] = True
             elif name == "--validate": o["quiet"] = True
             elif name in ("--reset-timestamp", "--remove-timestamp"): o["quiet"] = True
-            elif name == "--version": print("sudo for botdot's computer (ADR 259)"); sys.exit(0)
+            elif name == "--version": print("sudo for botdot's computer (ADR 260)"); sys.exit(0)
             elif name == "--help": print(__doc__); sys.exit(0)
             elif name not in ("--non-interactive", "--stdin", "--askpass", "--background", "--set-home", "--preserve-groups", "--bell", "--prompt", "--close-from"):
                 die(f"unknown option: {name}")
@@ -73,7 +74,7 @@ def parse(argv):
             elif c == "s": o["mode"] = "shell"
             elif c == "l": o["list"] = True
             elif c in "vkK": o["quiet"] = True
-            elif c == "V": print("sudo for botdot's computer (ADR 259)"); sys.exit(0)
+            elif c == "V": print("sudo for botdot's computer (ADR 260)"); sys.exit(0)
             elif c not in IGNORED:
                 die(f"invalid option -- '{c}'")
     while i < len(argv) and "=" in argv[i] and not argv[i].startswith("=") and argv[i].partition("=")[0].replace("_", "a").isalnum():
@@ -89,7 +90,7 @@ def run_here(o):
     os.environ.update(o["set"])
     if o["mode"] != "command":
         shell = os.environ.get("SHELL") or "/bin/sh"
-        argv = [shell, *(["-c", " ".join(o["argv"])] if o["argv"] else [])]
+        argv = [shell, *(["-c", " ".join(shlex.quote(w) for w in o["argv"])] if o["argv"] else [])]
     else:
         argv = o["argv"]
     if o["chdir"]:
