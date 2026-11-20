@@ -680,8 +680,8 @@ test("web: every reply has its bot's name above it in the bot's colour and its h
   const p = page();
   const c = p.chat([message('m1', 'The settings page needs a dark mode switch.'), reply('r1', WRITER, 'Issue #312 is written. @Coder, it is yours.'), reply('r2', CODER, 'Done.', { at: at(3), files: [{ name: 'diff.patch', file: 'f/diff.patch' }] })]);
   const h = p.ctx.groupThreadHTML(p.group(), c);
-  const rows = [...h.matchAll(/<div class="bubble-row from-bot g-row" data-reply="(\w+)">\s*<div class="avatar head g-head" data-bot="(\w+)" data-st="idle" data-c="(#\w+)"><\/div>\s*<div class="stack">\s*<div class="g-name" style="--c:(#\w+)">(.*?)<\/div>/g)].map((m) => m.slice(1));
-  assert.deepEqual(rows, [['r1', 'writer', WRITER.color, WRITER.color, 'Issue Writer'], ['r2', 'coder', CODER.color, CODER.color, 'Coder']]);
+  const rows = [...h.matchAll(/<div class="bubble-row from-bot g-row" data-reply="(\w+)">\s*<div class="avatar head g-head" data-bot="(\w+)" data-st="idle" data-c="(#\w+)"><\/div>\s*<div class="stack">\s*<a class="g-name" href="#bot\/(\w+)" data-bot-link="(\w+)" style="--c:(#\w+)">(.*?)<\/a>/g)].map((m) => m.slice(1));
+  assert.deepEqual(rows, [['r1', 'writer', WRITER.color, 'writer', 'writer', WRITER.color, 'Issue Writer'], ['r2', 'coder', CODER.color, 'coder', 'coder', CODER.color, 'Coder']]);
   assert.equal((h.match(/class="bubble from-bot/g) || []).length, 2);
   assert.match(h, /<div class="bubble-row from-me" data-gmsg="m1"><div class="stack mine">\s*<div class="bubble from-me" data-expand><div class="clamp">The settings page needs a dark mode switch\.<\/div><\/div>/);
   assert.ok(h.indexOf('data-gmsg="m1"') < h.indexOf('data-reply="r1"') && h.indexOf('data-reply="r1"') < h.indexOf('data-reply="r2"'), 'oldest first');
@@ -692,7 +692,7 @@ test("web: every reply has its bot's name above it in the bot's colour and its h
   p.state.bots[0].color = '#639922';
   const gone = reply('r3', { id: 'gone', name: 'Old Bot', color: '#d4537e' }, 'Bye.', { at: at(4) });
   const again = p.ctx.groupThreadHTML(p.group(), p.chat([c.items.get('r2'), gone]));
-  assert.match(again, /data-c="#639922"><\/div>\s*<div class="stack">\s*<div class="g-name" style="--c:#639922">Builder<\/div>/);
+  assert.match(again, /data-c="#639922"><\/div>\s*<div class="stack">\s*<a class="g-name" href="#bot\/coder" data-bot-link="coder" style="--c:#639922">Builder<\/a>/);
   assert.match(again, /<div class="avatar head g-head" data-st="idle" data-c="#d4537e"><\/div>\s*<div class="stack">\s*<div class="g-name" style="--c:#d4537e">Old Bot<\/div>/);
   // A colour is the server's and goes into a style: nothing but a colour gets there, and every word is text.
   const bad = reply('r4', { id: 'x', name: '<b>x</b>', color: 'red;background:url(x)' }, '<script>alert(1)</script>');
@@ -700,14 +700,18 @@ test("web: every reply has its bot's name above it in the bot's colour and its h
   assert.match(drawn, /<div class="g-name" style="--c:#888780">&lt;b&gt;x&lt;\/b&gt;<\/div>/);
   assert.doesNotMatch(drawn, /<script>|<b>x/);
   assert.match(css, /\.g-name \{[^}]*color: var\(--c\);/);
+  // A bot that is still there: its name is a real link to its chat, drawn as before with a hand and an underline on hover and focus.
+  assert.match(css, /a\.g-name \{[^}]*cursor: pointer;[^}]*text-decoration: none;/);
+  assert.match(css, /a\.g-name:hover, a\.g-name:focus-visible \{[^}]*text-decoration: underline;/);
+  assert.match(read('app.js'), /closest\?\.\('a\.bot-link, a\.g-name\[data-bot-link\]'\)/, 'the click goes through the bot-link handler');
 });
 
 test('web: a reply that failed or was stopped says so under its bot\'s name, and the turns go on', () => {
   const p = page();
   const c = p.chat([message('m1', 'Ship it.'), reply('r1', CODER, '', { status: 'stopped', endedBy: 'owner', problem: 'You stopped this run before it finished.' }), reply('r2', REVIEWER, '', { status: 'error', at: at(3) })]);
   const h = p.ctx.groupThreadHTML(p.group(), c);
-  assert.match(h, /<div class="g-name" style="--c:#1d9e75">Coder<\/div>\s*<div class="bubble from-bot problem"><div class="md"><p>You stopped this run before it finished\.<\/p><\/div>/);
-  assert.match(h, /data-st="failed" data-c="#e24b4a"><\/div>\s*<div class="stack">\s*<div class="g-name" style="--c:#e24b4a">Reviewer<\/div>\s*<div class="bubble from-bot problem"><div class="md"><p>Something went wrong\.<\/p>/);
+  assert.match(h, /<a class="g-name" href="#bot\/coder" data-bot-link="coder" style="--c:#1d9e75">Coder<\/a>\s*<div class="bubble from-bot problem"><div class="md"><p>You stopped this run before it finished\.<\/p><\/div>/);
+  assert.match(h, /data-st="failed" data-c="#e24b4a"><\/div>\s*<div class="stack">\s*<a class="g-name" href="#bot\/reviewer" data-bot-link="reviewer" style="--c:#e24b4a">Reviewer<\/a>\s*<div class="bubble from-bot problem"><div class="md"><p>Something went wrong\.<\/p>/);
 });
 
 test("web: an answer to a member's question shows that question above it with the asker's head, unless it stands right under that reply; a tap goes to the question", () => {
@@ -1616,7 +1620,7 @@ test('web: from a server with drafts, an open group follows each turn at work an
   assert.equal(v.box.rows.length, 1);
   const [row] = v.box.rows;
   assert.match(row.html, /^<div class="bubble-row from-bot g-row" data-draft="t1">/);
-  assert.match(row.html, /<div class="g-name" style="--c:[^"]+">Coder<\/div><div class="bubble from-bot draft"><div class="md"><p>The tests\nare green<\/p><\/div><\/div>/);
+  assert.match(row.html, /<a class="g-name" href="#bot\/coder" data-bot-link="coder" style="--c:[^"]+">Coder<\/a><div class="bubble from-bot draft"><div class="md"><p>The tests\nare green<\/p><\/div><\/div>/);
   say(0, { type: 'reply_draft', text: 'The tests\nare green, all 40' });
   v.frame();
   assert.deepEqual([v.box.rows.length, v.box.rows[0]], [1, row], 'the same row: it grows in place, never a second one');

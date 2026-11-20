@@ -500,6 +500,14 @@ const waitsWhole = (m) => m.by !== 'chief' && m.canTakeBack === true && (!!waits
 // "Steer" under a waiting message: a server with `group-steer` hands it to the run of the busy member that is going.
 const canSteerGroup = () => state.features.includes('group-steer');
 
+// The name above a bot's message, in the bot's colour. A bot that is still there, its name opens its chat (the
+// anchor's data-bot-link is handled in app.js); one that is gone is plain text.
+function groupNameHTML(botId, color, name) {
+  const style = `--c:${Unread.tint(color)}`;
+  return botById(botId)
+    ? `<a class="g-name" href="#bot/${encodeURIComponent(botId)}" data-bot-link="${esc(botId)}" style="${style}">${esc(name)}</a>`
+    : `<div class="g-name" style="${style}">${esc(name)}</div>`;
+}
 // One message of the owner's in its place in the chat. A message whose first turns went and that still waits for
 // a busy member says for whom, under it.
 // An answer to a member's question (`question`) shows that question above it, with the head of the member that
@@ -513,7 +521,7 @@ function groupMessageHTML(m, chat, prev = null) {
   if (m.by === 'chief') return `<div class="bubble-row from-bot g-row" data-gmsg="${esc(m.id)}">
     ${as ? botFigure(as.color, 'idle', 'g-head', as.outfit, as.id) : botFigure(CHIEF_COLOR, 'idle', 'g-head', Figure.CHIEF)}
     <div class="stack">
-      <div class="g-name" style="--c:${Unread.tint(as ? as.color : CHIEF_COLOR)}">${esc(as ? as.name : chiefTitle())}</div>
+      ${as ? groupNameHTML(as.id, as.color, as.name) : `<div class="g-name" style="--c:${Unread.tint(CHIEF_COLOR)}">${esc(chiefTitle())}</div>`}
       <div class="bubble from-bot" data-expand><div class="clamp">${escMentions(text, chat)}</div></div>
       <div class="bubble-meta${waits ? '' : ' on-hover'}">${waits ? `<span>${esc(waits)}</span>` : ''}${text ? copyBtn(text) : ''}</div>
     </div></div>`;
@@ -554,7 +562,7 @@ function groupReplyHTML(r, asks = null) {
   return `<div class="bubble-row from-bot g-row" data-reply="${esc(r.id)}">
     ${botFigure(color, r.status === 'error' ? 'failed' : 'idle', 'g-head', bot?.outfit || null, bot?.id || '')}
     <div class="stack">
-      <div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(r.botId, r.botName))}</div>
+      ${groupNameHTML(r.botId, color, memberName(r.botId, r.botName))}
       ${groupAskedHTML(r)}
       <div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md">${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${globalThis.Plan && r.plan ? Plan.replyHTML(r.plan) : ''}</div>
       ${failed ? '' : globalThis.inlineCardsHTML?.(r) || ''}
@@ -868,7 +876,7 @@ function groupDraftHTML(runId, botId) {
   const bot = botById(botId);
   return `<div class="bubble-row from-bot g-row" data-draft="${esc(runId)}">
     ${botFigure(color, 'working', 'g-head', bot?.outfit || null, bot?.id || '')}
-    <div class="stack"><div class="g-name" style="--c:${Unread.tint(color)}">${esc(memberName(botId))}</div>${draftHTML(replyDrafts.of(runId))}</div></div>`;
+    <div class="stack">${groupNameHTML(botId, color, memberName(botId))}${draftHTML(replyDrafts.of(runId))}</div></div>`;
 }
 // The drafts of the open group, under its replies: those of the turns at work, and of a turn that ended until its
 // reply is there. A draft whose reply came, or whose turn passed, is over.
