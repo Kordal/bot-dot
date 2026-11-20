@@ -136,6 +136,9 @@ test('a report goes to the relay with only its kind, text, app, version and scre
   const listed = (await m.ann.get('/admin/feedback')).data.reports;
   assert.deepEqual(listed.map((f) => f.text), ['Before the switch']);
   assert.equal(m.relay.reports().length, 1);
+  // The relay holds the picture now: the machine keeps none, and the admin's room for screenshots is the admin's.
+  const shots = path.join(m.door.data, 'feedback-screenshots');
+  assert.deepEqual(fs.existsSync(shots) ? fs.readdirSync(shots).filter((n) => n.startsWith(sent.data.id)) : [], []);
 });
 
 test('a report the relay did not take waits on the machine and is sent again with backoff, never twice for the same id', async () => {
