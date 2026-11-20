@@ -844,6 +844,7 @@ async function showAdminLink() {
   $('#admin-link').classList.toggle('hidden', session?.admin !== true);
   $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
   feedbackShots = session?.feedbackScreenshots === true;
+  feedbackDevelopers = session?.feedbackTo === 'developers';
   if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 068)
 }
 
@@ -854,12 +855,14 @@ async function showAdminLink() {
 // up to three screenshots, when the front door says it takes them. A failed send keeps the text and the screenshots.
 const FEEDBACK_KINDS = [['bug', tr('Bug')], ['feature', tr('Feature request')]];
 const FEEDBACK_SHOTS = { max: 3, bytes: 5 * 1024 * 1024, types: ['image/png', 'image/jpeg', 'image/webp'] };
+let feedbackDevelopers = false; // whether it goes to botdot's developers (its session's feedbackTo, ADR 259, #1566)
 let feedbackShots = false; // whether the front door takes screenshots (its session's feedbackScreenshots)
 function openFeedback() {
   const m = openModal(`
     <form id="feedback-form" autocomplete="off">
-      <div class="modal-head"><h2 title="${esc(feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.'))}">${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2${feedbackDevelopers ? '' : ` title="${esc(feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.'))}"`}>${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
+        ${feedbackDevelopers ? `<p class="muted" id="feedback-to">${tr("botdot's developers read it. Its text may be published without personal details; screenshots never are. Only what you write and add here is sent.")}</p>` : ''}
         <div class="feedback-kinds">${FEEDBACK_KINDS.map(([v, label], i) => `<label><input type="radio" name="kind" value="${v}"${i ? '' : ' checked'}> ${label}</label>`).join('')}</div>
         <label class="field">${tr('What happened, or what you would like')}<textarea name="text" rows="6" required></textarea></label>
         ${feedbackShots ? `<div class="feedback-shots hidden" id="feedback-shots"></div>

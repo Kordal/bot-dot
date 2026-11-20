@@ -55,11 +55,11 @@ import java.io.InputStream
 /**
  * Feedback (#216, ADR 048), opened beside Settings: Bug or Feature request, and the text, for the admin of this
  * machine, and when the front door takes them ([shotsOn], #223, ADR 048) up to three screenshots, each previewed with a
- * remove button. [send] posts it to the front door and throws its sentence on a refusal. A send that fails keeps the
+ * remove button. [developers] (#1566): the front door sends it to botdot's developers, and the form says so. [send] posts it to the front door and throws its sentence on a refusal. A send that fails keeps the
  * form, its text and its screenshots, and says why; one that went says "Sent" and closes.
  */
 @Composable
-fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, String, List<ByteArray>) -> Unit, onClose: () -> Unit) {
+fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, send: suspend (Feedback.Kind, String, List<ByteArray>) -> Unit, onClose: () -> Unit) {
     val p = LocalPaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -97,7 +97,7 @@ fun FeedbackDialog(shotsOn: Boolean = false, send: suspend (Feedback.Kind, Strin
         title = { Text(Feedback.TITLE) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
-                Text(Feedback.intro(shotsOn))
+                Text(Feedback.intro(shotsOn, developers))
                 Row(horizontalArrangement = Arrangement.spacedBy(Space.s16)) {
                     for (k in Feedback.Kind.entries) Row(
                         Modifier.selectable(selected = kind == k, role = Role.RadioButton) { kind = k },

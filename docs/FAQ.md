@@ -218,11 +218,12 @@ Each account has its own Linux user, its own rootless Docker whose containers al
 
 ### Does botdot send anything off my server?
 
-No telemetry and no analytics: botdot sends nothing to its author. On its own it connects only to:
+No telemetry and no analytics: botdot sends nothing to its author, unless you turn on Feedback to the developers. On its own it connects only to:
 
 - **Anthropic,** for every Claude run, with your sign-in or key. Claude Code's non-essential traffic (feature flags, telemetry, its update check) is turned off.
 - **GitHub's registry** (`ghcr.io`), to check for an update every 6 hours and to download signed images. The desktop app checks GitHub Releases for its own update.
 - **Hugging Face,** once, for the memory search model, when it isn't in the image.
+- **botdot's developers' Feedback relay,** only if the admin turned on **Feedback to the developers** (or said yes at install). Then each report an owner sends goes there with its kind, text, screenshots, app and version, the account's and its bots' names taken out, under a random token that names the machine and nothing else, and the machine asks the relay how its reports stand. Off, nothing is sent.
 
 Everything else is what you turn on or ask for: the web pages and services your bots use, Composio, Bitwarden, OpenRouter, boat.dev, Tailscale, and the off-site backup.
 
