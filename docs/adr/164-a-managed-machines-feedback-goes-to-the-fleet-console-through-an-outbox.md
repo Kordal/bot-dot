@@ -1,6 +1,7 @@
 # ADR-164: A managed machine's Feedback goes to the fleet console through an outbox
 
 - **Status:** Accepted (by the owner, 2026-11-05). Amends [ADR 048](048-the-admin-page-shows-the-feedback-an-owner-sends-the-admin.md) (Feedback goes to the admin page of the owner's machine) and [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (what the console's agent reads).
+- **Amended by:** [ADR 258](258-feedback-goes-to-botdots-developers-through-a-relay-when-the-machine-says-yes.md): each owner says yes or no in onboarding, and statuses come back through the agent
 - **Owning task:** [#1042](https://github.com/Kordal/bot-dot/issues/1042)
 
 ## Context
