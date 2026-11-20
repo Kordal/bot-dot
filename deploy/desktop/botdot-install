@@ -8,7 +8,7 @@
   botdot-install --list            what is installed from conda-forge
 
 Everything goes into ~/.local/env, whose bin folder is on the PATH of every new shell (~/.profile and ~/.bashrc).
-It needs no sudo, and what it installs stays in the home and survives an update of the computer; `sudo apt-get install` installs system-wide (ADR 035) but fails where the sandbox ignores setuid (#1562), so this is the way that always works.
+It needs no sudo, and what it installs stays in the home and survives an update of the computer; `sudo apt-get install` installs system-wide (ADR 035, ADR 259) and is lost with an update.
 """
 import os, subprocess, sys
 

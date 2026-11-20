@@ -1,0 +1,157 @@
+#!/usr/bin/python3 -I
+"""sudo for the account's computer, without setuid (ADR 259): installed as /usr/local/bin/sudo.
+
+The computer's gVisor ignores the setuid bit of the real /usr/bin/sudo (#1562), so this one never becomes root itself:
+it hands the command to botdot-sudod, the root process of the computer, on a Unix socket, together with its own stdin,
+stdout and stderr, and exits with the command's exit code. Signals it gets go on to the command. Everything a bot or
+botdot types after `sudo` works as before: `sudo apt-get install -y NAME`, `sudo -n true`, `sudo -u browser ...`,
+`sudo sh -c '...'`, `sudo -E`, `sudo -s`, `sudo -i`, a VAR=value before the command. There is no password: only `box`
+and root may use the helper.
+
+Run as root already, it runs the command itself."""
+import json
+import os
+import signal
+import socket
+import struct
+import sys
+
+SOCKET = os.environ.get("BOTDOT_SUDO_SOCKET") or "/run/botdot-sudo/sudo.sock"
+PASSED = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT, signal.SIGUSR1, signal.SIGUSR2, signal.SIGCONT, signal.SIGTSTP, signal.SIGWINCH)
+# sudo's options that take a value, and those that take none and change nothing here.
+WITH_VALUE = {"u": "user", "g": "group", "D": "chdir", "p": None, "C": None, "r": None, "t": None, "T": None, "U": None, "R": None}
+LONG = {"--user": "user", "--group": "group", "--chdir": "chdir"}
+IGNORED = set("nSAbHPB")
+
+
+def die(text, code=1):
+    sys.stderr.write(f"sudo: {text}\n")
+    sys.exit(code)
+
+
+def parse(argv):
+    """sudo's command line, as far as this computer uses it: the options, then VAR=value words, then the command."""
+    o = {"mode": "command", "user": None, "group": None, "chdir": None, "preserve_env": False, "list": False, "quiet": False, "set": {}}
+    i = 0
+    while i < len(argv) and argv[i].startswith("-") and argv[i] != "-":
+        a = argv[i]
+        i += 1
+        if a == "--":
+            break
+        if a.startswith("--"):
+            name, eq, value = a.partition("=")
+            if name in LONG:
+                if not eq:
+                    if i >= len(argv):
+                        die(f"option '{name}' requires an argument")
+                    value, i = argv[i], i + 1
+                o[LONG[name]] = value
+            elif name == "--preserve-env":
+                o["preserve_env"] = True
+            elif name == "--login": o["mode"] = "login"
+            elif name == "--shell": o["mode"] = "shell"
+            elif name == "--list": o["list"] = True
+            elif name == "--validate": o["quiet"] = True
+            elif name in ("--reset-timestamp", "--remove-timestamp"): o["quiet"] = True
+            elif name == "--version": print("sudo for botdot's computer (ADR 259)"); sys.exit(0)
+            elif name == "--help": print(__doc__); sys.exit(0)
+            elif name not in ("--non-interactive", "--stdin", "--askpass", "--background", "--set-home", "--preserve-groups", "--bell", "--prompt", "--close-from"):
+                die(f"unknown option: {name}")
+            continue
+        for j, c in enumerate(a[1:], 1):
+            if c in WITH_VALUE:
+                value = a[j + 1:] or (argv[i] if i < len(argv) else None)
+                if value is None:
+                    die(f"option requires an argument -- '{c}'")
+                if not a[j + 1:]:
+                    i += 1
+                if WITH_VALUE[c]:
+                    o[WITH_VALUE[c]] = value
+                break
+            if c == "E": o["preserve_env"] = True
+            elif c == "i": o["mode"] = "login"
+            elif c == "s": o["mode"] = "shell"
+            elif c == "l": o["list"] = True
+            elif c in "vkK": o["quiet"] = True
+            elif c == "V": print("sudo for botdot's computer (ADR 259)"); sys.exit(0)
+            elif c not in IGNORED:
+                die(f"invalid option -- '{c}'")
+    while i < len(argv) and "=" in argv[i] and not argv[i].startswith("=") and argv[i].partition("=")[0].replace("_", "a").isalnum():
+        k, _, v = argv[i].partition("=")
+        o["set"][k] = v
+        i += 1
+    o["argv"] = argv[i:]
+    return o
+
+
+def run_here(o):
+    """Already root: the command, as it is, with the variables asked for."""
+    os.environ.update(o["set"])
+    if o["mode"] != "command":
+        shell = os.environ.get("SHELL") or "/bin/sh"
+        argv = [shell, *(["-c", " ".join(o["argv"])] if o["argv"] else [])]
+    else:
+        argv = o["argv"]
+    if o["chdir"]:
+        os.chdir(o["chdir"])
+    try:
+        os.execvp(argv[0], argv)
+    except FileNotFoundError:
+        die(f"{argv[0]}: command not found")
+    except OSError as e:
+        die(f"{argv[0]}: {e.strerror}", 126)
+
+
+def main(argv):
+    o = parse(argv)
+    if o["list"]:
+        print(f"User {os.environ.get('USER') or 'box'} may run the following commands on this computer:\n    (ALL : ALL) NOPASSWD: ALL")
+        return 0
+    if not o["argv"] and o["mode"] == "command":
+        if o["quiet"]:
+            return 0
+        die("a command is required. usage: sudo [-n] [-E] [-u user] [-g group] [-i | -s] [VAR=value] command [args]")
+    if os.geteuid() == 0 and not o["user"] and not o["group"]:
+        run_here(o)
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        s.connect(SOCKET)
+    except OSError as e:
+        die(f"botdot's root helper on this computer does not answer ({e.strerror or e}). It starts again with the computer; "
+            "tell the owner if it keeps failing. Anything that needs no root can still be installed into your home with botdot-install.")
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = "/"
+    body = json.dumps({"argv": o["argv"], "mode": o["mode"], "user": o["user"], "group": o["group"], "chdir": o["chdir"], "preserve_env": o["preserve_env"],
+                       "set": o["set"], "environ": dict(os.environ), "cwd": cwd}).encode()
+    for fd in (0, 1, 2):
+        try:
+            os.fstat(fd)
+        except OSError:
+            die("standard input, output and error must be open")
+    socket.send_fds(s, [struct.pack(">I", len(body))], [0, 1, 2])
+    s.sendall(body)
+
+    def pass_on(number, _frame):
+        try:
+            s.sendall(b"S" + bytes([number]))
+        except OSError:
+            pass
+
+    for number in PASSED:
+        signal.signal(number, pass_on)
+    line = b""
+    while not line.endswith(b"\n"):
+        chunk = s.recv(4096)
+        if not chunk:
+            die("the command's answer never came: the root helper stopped")
+        line += chunk
+    said = line.decode(errors="replace").strip()
+    if said.startswith("X "):
+        return int(said[2:]) & 0xFF
+    die(said[2:].removeprefix("sudo: ") if said.startswith("E ") else said)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

@@ -98,7 +98,7 @@ test('a bot runs it as box: it starts itself again as root through sudo, before 
   const out = botdotTailscale(s, ['up', 'home-box'], { uid: 1000 });
   assert.equal(out.status, 0, out.stderr);
   const args = JSON.parse(fs.readFileSync(path.join(s.home, 'sudo.args'), 'utf8'));
-  assert.deepEqual([args[0], args[1], ...args.slice(3)], ['/usr/bin/sudo', '-n', '-I', '/usr/local/bin/botdot-tailscale', 'up', 'home-box']);
+  assert.deepEqual([args[0], args[1], ...args.slice(3)], ['/usr/local/bin/sudo', '-n', '-I', '/usr/local/bin/botdot-tailscale', 'up', 'home-box']);
   assert.equal(fs.existsSync(s.ts), false, 'nothing installed or started as box');
   assert.equal(fs.existsSync(path.join(s.home, 'tailscaled.args')), false);
 });

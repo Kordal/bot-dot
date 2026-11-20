@@ -31,12 +31,12 @@ RUN dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n' \
  && rm -rf /var/lib/apt/lists/*
 
 # OpenSSH's client: ssh, and the ssh-agent and ssh-add through which run_with_ssh_key lends a bot a saved SSH key
-# without showing it (lib/computers.js runWithSshKey, #44), and sudo, which every bot has (ADR 035). Installed
-# whether or not the base already has them.
+# without showing it (lib/computers.js runWithSshKey, #44). Installed whether or not the base already has them. No sudo
+# package: gVisor ignores the setuid bit of its program (#1562), and the sudo of this computer is botdot's own (below).
 # This step leaves SSH host keys in /etc/ssh (the image's secret scan found them): removed in this same step, so no
 # layer keeps private keys every computer would share. No computer runs an SSH server.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends openssh-client sudo \
+ && apt-get install -y --no-install-recommends openssh-client \
  && rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub \
  && rm -rf /var/lib/apt/lists/*
 
@@ -76,16 +76,14 @@ RUN if [ "$TARGETARCH" = amd64 ]; then \
    && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035): there is no wall between
-# bots here. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
+# Every bot of the account works on this computer as `box`, with passwordless sudo (ADR 035, ADR 259): there is no wall
+# between bots here. Its sudo is /usr/local/bin/sudo, a client of botdot-sudod, the computer's root process, and needs no
+# sudoers file and no setuid bit. Camoufox and botdot's bridge into it run as `browser`, whose home and bridge socket a program of the
 # bots cannot open without sudo, and which may write into box's Downloads folder (#311). /workspace is shared by the
 # bots. The container runs as `box` (lib/computers.js), so the desktop's services write their logs and pid as it.
 # Each bot's Camoufox keeps its own profile in /home/browser/profiles/<bot> (#105).
 RUN useradd --create-home --shell /bin/bash box \
  && useradd --create-home --shell /usr/sbin/nologin --groups box browser \
- && printf 'box ALL=(ALL:ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/botdot-box \
- && chmod 0440 /etc/sudoers.d/botdot-box \
- && visudo -cf /etc/sudoers.d/botdot-box \
  && chmod 0700 /home/browser \
  && install -d -o browser -g browser -m 0700 /home/browser/profiles \
  && install -d -o box -g box -m 2775 /home/box/Downloads /workspace \
@@ -118,13 +116,16 @@ COPY botdot-xstartup /usr/local/bin/botdot-xstartup
 COPY botdot-screen.conf /etc/supervisor/botdot-screen.conf
 COPY camoufox.desktop /usr/share/applications/camoufox.desktop
 COPY camoufox-helper.desktop /usr/share/xfce4/helpers/camoufox.desktop
+# sudo for the bots, without setuid, and the root process it asks (ADR 259); botdot starts the latter at each start of the computer.
+COPY botdot-sudo /usr/local/bin/sudo
+COPY botdot-sudod /usr/local/bin/botdot-sudod
 # The bots' installs into box's home without sudo, and the computer's one device on the owner's tailnet, run by root (#106).
 COPY --from=micromamba --chmod=0755 /micromamba /usr/local/bin/micromamba
 COPY botdot-install /usr/local/bin/botdot-install
 COPY botdot-tailscale /usr/local/bin/botdot-tailscale
 
 # Make it the default browser everywhere: XFCE's web-browser launcher, xdg-open and x-www-browser.
-RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop /usr/local/bin/botdot-xstartup /usr/local/bin/botdot-install /usr/local/bin/botdot-tailscale \
+RUN chmod 755 /usr/local/bin/camoufox-browser /usr/local/bin/botdot-desktop /usr/local/bin/botdot-xstartup /usr/local/bin/botdot-install /usr/local/bin/botdot-tailscale /usr/local/bin/sudo /usr/local/bin/botdot-sudod \
  && mkdir -p /etc/xdg/xfce4 && printf 'WebBrowser=camoufox\n' > /etc/xdg/xfce4/helpers.rc \
  && mkdir -p /home/box/.config/xfce4 && printf 'WebBrowser=camoufox\n' > /home/box/.config/xfce4/helpers.rc \
  && update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/camoufox-browser 300 \

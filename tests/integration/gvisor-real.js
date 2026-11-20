@@ -384,6 +384,37 @@ async function main() {
   assert.ok(!processesOf(m, computer).some((p) => p.args.includes(secret)), 'the secret is on no command line');
   assert.notEqual(inComputer(m, computer, 'bot', ['sh', '-c', 'cat /home/browser/bridge.log >/dev/null 2>&1 && echo read || echo refused']), 'read', 'the bot cannot read the bridge\'s log');
 
+  // ADR 259 (#1562): root through sudo with no setuid bit, on this runsc, with the real computer image and its own
+  // botdot-sudo and botdot-sudod, started as botdot starts them (lib/computers.js rootHelper). A container of its own
+  // as `box`, like the account's computer: what is asserted is the computer's sudo, not a bot's flow.
+  step("sudo asks the root helper: apt installs a program as box, and no other user gets root (ADR 259)");
+  const probe = `${prefix}-sudo`;
+  m.inner('run', '-d', '--name', probe, '--user', 'box', '-e', 'HOME=/home/box', '--entrypoint', 'sleep', images.computer, 'infinity');
+  try {
+    m.inner('exec', '-u', 'root', probe, '/usr/bin/python3', '-I', '/usr/local/bin/botdot-sudod', '--ensure');
+    const asBox = (...args) => m.inner('exec', '-u', 'box', probe, ...args);
+    // The real mechanism is not what this computer relies on: whether the root mount honours setuid or not, sudo works.
+    assert.equal(asBox('sudo', '-n', 'id', '-u'), '0', 'sudo -n runs the command as root, with no setuid bit to rely on');
+    assert.equal(asBox('sh', '-c', 'id -un; sudo -n sh -c \'id -un; echo "$SUDO_USER"\''), 'box\nroot\nbox', 'it was box, the command was root, and sudo says who asked');
+    assert.equal(asBox('sh', '-c', 'echo through-stdin | sudo -n cat'), 'through-stdin', "the caller's own stdin and stdout are the command's");
+    assert.equal(asBox('sh', '-c', 'sudo -n sh -c "exit 7"; echo $?'), '7', 'and its exit code is sudo\'s');
+    // What botdot's own commands and a bot's install do: apt-get as root, writing the system, then running the program.
+    asBox('sudo', '-n', 'sh', '-c', 'apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends cowsay');
+    assert.match(asBox('/usr/games/cowsay', 'installed by apt as root'), /installed by apt as root/, 'apt installed a program system-wide');
+    assert.match(m.inner('exec', '-u', 'root', probe, 'sh', '-c', 'stat -c %U /usr/games/cowsay'), /^root$/, 'root made it');
+    // The browser user, and any user but box and root, are refused: nothing relies on a mode of a file, the user id decides.
+    const refused = m.inner('exec', '-u', 'browser', probe, 'sh', '-c', 'sudo -n true 2>&1; echo "code=$?"');
+    assert.match(refused, /not allowed to use sudo on this computer/);
+    assert.match(refused, /code=1/);
+    // A signal and a client that goes away reach the root command.
+    asBox('sh', '-c', 'sudo -n sleep 600 & p=$!; sleep 1; kill -TERM $p; wait $p; echo "ended=$?" > /tmp/sudo-signal');
+    assert.equal(asBox('cat', '/tmp/sudo-signal'), 'ended=143', 'a SIGTERM to sudo ends the root command');
+    assert.equal(m.inner('exec', '-u', 'root', probe, 'sh', '-c', 'pgrep -c -f "^sleep 600" || true'), '0', 'and nothing of it is left');
+    report.sudo = { apt: 'installed', id: asBox('sudo', '-n', 'id', '-u') };
+  } finally {
+    try { m.inner('rm', '-f', probe); } catch { /* gone */ }
+  }
+
   step('footprint with one computer running, Camoufox open');
   report.withComputer = { machine: memory(m), inServer: serverProcesses(acc), disk: disk(m, images) };
 

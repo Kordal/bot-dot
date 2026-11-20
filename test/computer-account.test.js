@@ -26,7 +26,7 @@ dns.promises.Resolver = class {
 
 // The stand-in Docker: containers by name, { state, labels, mounts }, and the named volumes. With refuseLimits, it has no
 // CPU cgroup. With missing, `docker cp` finds no such folder there.
-let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false, bridgeSays = null, sudoBroken = false;
+let containers, calls, screensUp, volumes, piped, missing, refuseLimits = false, bridgeSays = null, sudoBroken = false, helperBroken = false;
 function docker(args) {
   calls.push(args);
   const [cmd] = args;
@@ -61,6 +61,7 @@ function docker(args) {
     const said = sudoBroken === true ? "sudo: effective uid is not 0, is /usr/bin/sudo on a file system with the 'nosuid' option set" : sudoBroken;
     throw Object.assign(new Error(`Command failed: docker ${args.join(' ')}\n${said}`), { stderr: said });
   }
+  if (cmd === 'exec' && helperBroken && args.at(-1) === '--ensure') throw Object.assign(new Error(`Command failed: docker ${args.join(' ')}\npython3 is gone`), { stderr: 'python3 is gone' });
   if (cmd === 'exec' && args.includes('/usr/bin/supervisord')) screensUp.add(args.find((a) => a.startsWith('API_PORT=')).slice(9));
   if (cmd === 'exec' && args.includes('python3') && !args.includes('-I') && !screensUp.has(args.at(-1))) throw new Error('Connection refused');
   if (cmd === 'exec' && args.includes('-I') && bridgeSays && !args.includes('botdot-run')) return bridgeSays(args);
@@ -121,8 +122,8 @@ test("every bot's computer is the account's one computer, made once", async () =
   for (const id of ['a1', 'b1']) assert.equal((await computers.inspect(id)).state, 'running');
 });
 
-test('a computer whose sudo is broken by its runtime still starts, and botdot says why in its log', async () => {
-  sudoBroken = true;
+test("a computer whose sudo does not answer still starts, and botdot says so in its log, with the helper's name and no talk of setuid", async () => {
+  sudoBroken = "sudo: botdot's root helper on this computer does not answer (No such file or directory). It starts again with the computer";
   const errors = [];
   const realError = console.error;
   console.error = (...a) => errors.push(a.join(' '));
@@ -132,17 +133,47 @@ test('a computer whose sudo is broken by its runtime still starts, and botdot sa
   } finally { console.error = realError; sudoBroken = false; }
   assert.equal((await computers.inspect('a1')).state, 'running');
   assert.equal(errors.filter((e) => /sudo does not work/.test(e)).length, 1, 'a computer already running is not checked again');
-  assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /effective uid is not 0/.test(e) && !/Command failed/.test(e) && /runsc/.test(e) && /reset would not help/.test(e)), errors.join('\n'));
+  assert.ok(errors.some((e) => /sudo does not work for box/.test(e) && /root helper on this computer does not answer/.test(e) && !/Command failed/.test(e)
+    && /botdot-sudod/.test(e) && /reset would not help/.test(e) && !/runsc|setuid|nosuid/.test(e)), errors.join('\n'));
 });
 
-test('another sudo failure is logged as it is, without blaming runsc', async () => {
+test("a computer whose root helper cannot be started still starts, and the log says that sudo fails", async () => {
+  helperBroken = true;
+  const errors = [];
+  const realError = console.error;
+  console.error = (...a) => errors.push(a.join(' '));
+  try { await computers.ensure(seat('a1')); } finally { console.error = realError; helperBroken = false; }
+  assert.equal((await computers.inspect('a1')).state, 'running');
+  assert.ok(errors.some((e) => /the root helper did not start, so sudo fails: python3 is gone/.test(e)), errors.join('\n'));
+});
+
+test("every start sets sudo up in the computer: the client, the root helper, then the helper started as root, before anything asks for sudo", async () => {
+  await computers.ensure(seat('a1'));
+  const at = (pred) => calls.findIndex(pred);
+  const wrote = (file) => at((a) => a[0] === 'exec' && a.includes('-i') && a.at(-1).includes(`mv -f /usr/local/bin/.${file}.new /usr/local/bin/${file}`));
+  const client = wrote('sudo'), helper = wrote('botdot-sudod');
+  const start = at((a) => a[0] === 'exec' && a.at(-1) === '--ensure' && a.at(-2) === '/usr/local/bin/botdot-sudod');
+  assert.ok(client > -1 && helper > -1 && start > -1, JSON.stringify(calls.map((a) => a.join(' ').slice(0, 80))));
+  assert.ok(Math.max(client, helper) < start, 'the files first, then the helper');
+  assert.deepEqual(calls[start].slice(0, 6), ['exec', '-u', 'root', '-w', '/', ACCOUNT], 'as root, the one user that may');
+  assert.ok(calls[start].includes('/usr/bin/python3') && calls[start].includes('-I'));
+  const check = at((a) => a[0] === 'exec' && a.includes('sudo') && a.includes('true'));
+  assert.ok(start < check, 'and sudo is asked once the helper is there');
+  // The computer already running: the helper is asked for again (it may have died), the check of sudo is not repeated.
+  calls = [];
+  await computers.ensure(seat('a1'));
+  assert.ok(calls.some((a) => a.at(-1) === '--ensure' && a.at(-2) === '/usr/local/bin/botdot-sudod'));
+  assert.ok(!calls.some((a) => a.includes('sudo') && a.includes('true')));
+});
+
+test('another sudo failure is logged as it is, not as a setuid problem', async () => {
   sudoBroken = 'sudo: a password is required';
   const errors = [];
   const realError = console.error;
   console.error = (...a) => errors.push(a.join(' '));
   try { await computers.ensure(seat('a1')); } finally { console.error = realError; sudoBroken = false; }
-  assert.ok(errors.some((e) => /sudo does not work for box: .*password is required/.test(e)), errors.join('\n'));
-  assert.ok(!errors.some((e) => /runsc|reset would not help/.test(e)), 'no advice for a failure that is not setuid');
+  assert.ok(errors.some((e) => /sudo does not work for box, so installs and Tailscale fail: sudo: a password is required/.test(e)), errors.join('\n'));
+  assert.ok(!errors.some((e) => /runsc|setuid|nosuid/.test(e)), 'no advice about setuid: nothing here relies on it');
 });
 
 test('a working sudo adds nothing to the log at a start', async () => {
@@ -158,8 +189,8 @@ test('it runs as box, with sudo: Docker keeps its default capabilities, under it
   const run = runs()[0];
   assert.equal(run[run.indexOf('--user') + 1], 'box');
   assert.ok(run.includes('HOME=/home/box'));
-  assert.ok(!run.includes('--cap-drop'), 'sudo and apt need setuid and the file capabilities');
-  assert.ok(!run.includes('no-new-privileges'), 'sudo cannot raise privileges under no-new-privileges');
+  assert.ok(!run.includes('--cap-drop'), "root in it, which sudo's helper and apt are, needs Docker's default capabilities");
+  assert.ok(!run.includes('no-new-privileges'), 'the helper and apt need the privileges root has');
   assert.ok(!run.includes('--privileged') && !run.some((a) => /NET_ADMIN|SYS_ADMIN/.test(a)), 'root in it cannot change its firewall');
   assert.equal(run[run.indexOf('--network') + 1], `${ACCOUNT}-network`);
   assert.ok(run.includes('botdot.user-version=2'));
