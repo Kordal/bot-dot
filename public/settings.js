@@ -933,7 +933,7 @@ function drawFeedbackShots(m) {
 // as the relay last said it: Sent, Seen, Fixed or Won't fix, a Fixed one with the public issue as a link and the
 // developers' one line. Everything the relay said is drawn as text; the link is made only for the one address shape the
 // front door keeps, and opens in a tab of its own.
-const REPORT_ISSUE = /^https:\/\/github\.com\/Kordal\/bot-dot\/issues\/([1-9]\d{0,8})$/;
+const REPORT_ISSUE = /^https:\/\/github\.com\/(?:Kordal|ladrok)\/bot-dot\/issues\/([1-9]\d{0,8})$/;
 const reportStatus = (status) => ({ sent: tr('Sent'), seen: tr('Seen'), fixed: tr('Fixed'), wontfix: tr("Won't fix") })[status] || tr('Sent');
 function reportRow(r) {
   const issue = typeof r.issue === 'string' ? r.issue.match(REPORT_ISSUE) : null;
