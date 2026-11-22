@@ -604,3 +604,21 @@ test('a relay that takes the token again lifts it: the next statuses round says 
   // The report that waited is sent now, and taken.
   await waitFor(() => keptFile(m.door).some((f) => f.text === 'Learns it' && f.relayId), { what: 'the waiting report to be sent' });
 });
+
+test('with the switch off, a revoked token is not probed: a machine with nothing waiting sends nothing', async () => {
+  const m = await withAdmin();
+  const wes = await m.owner('wes');
+  await flip(m, true);
+  assert.equal((await wes.post('/front-door/feedback', { kind: 'bug', text: 'Learns it' })).status, 201);
+  await waitFor(() => keptFile(m.door).some((f) => f.text === 'Learns it' && f.relayId), { what: 'the report to be taken' });
+  m.relay.statuses[keptFile(m.door).find((f) => f.text === 'Learns it').relayId] = { status: 'wontfix' };
+  await waitFor(async () => (await mine(wes))[0].status === 'wontfix', { what: 'the report to be closed' });
+  m.relay.revoked = true;
+  assert.equal((await wes.post('/front-door/feedback', { kind: 'bug', text: 'Waits' })).status, 201);
+  await waitFor(async () => (await m.ann.get('/admin/feedback-to-developers')).data.revoked === true, { what: 'the revoked token' });
+  await flip(m, false);
+  await new Promise((r) => setTimeout(r, 400));
+  const before = m.relay.got.length;
+  await new Promise((r) => setTimeout(r, 600));
+  assert.equal(m.relay.got.length, before, 'off: not even a probe');
+});
