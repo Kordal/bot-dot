@@ -65,7 +65,7 @@ object Feedback {
     data class Report(val id: String, val created: String, val kind: Kind, val text: String, val status: Status, val issue: Int?, val note: String?,
                       val fixed: Boolean = false, val fixedSeen: Boolean = false) {
         /** The public issue's address, built from its number: only ever botdot's own repository. */
-        val issueLink: String? get() = issue?.let { "https://github.com/Kordal/bot-dot/issues/$it" }
+        val issueLink: String? get() = issue?.let { "https://github.com/ladrok/bot-dot/issues/$it" }
         val issueLabel: String? get() = issue?.let { tr("Public issue #{n}", "n" to it) }
         /** The day it was sent, as a row shows it ("3 Nov"), in the account's language. */
         val day: String get() = runCatching { formatDate(Instant.parse(created), "d MMM", I18n.language) }.getOrDefault("")
@@ -88,7 +88,7 @@ object Feedback {
     /** The reports whose Fixed notice is still to be said (#1569): the account runs the fix and the owner has not closed it. Shown once, in every app. */
     fun fixedNotices(reports: List<Report>): List<Report> = reports.filter { it.fixed && !it.fixedSeen && FIXED_ID.matches(it.id) }
 
-    private val ISSUE = Regex("^https://github\\.com/Kordal/bot-dot/issues/([1-9][0-9]{0,8})$")
+    private val ISSUE = Regex("^https://github\\.com/(?:Kordal|ladrok)/bot-dot/issues/([1-9][0-9]{0,8})$")
 
     /** The reports `GET /front-door/feedback` answered, newest first; one that has no id, text or kind is left out. An unknown status is Sent. */
     fun reports(answer: JsonObject?): List<Report> = (answer?.get("reports") as? JsonArray).orEmpty().mapNotNull { e ->
