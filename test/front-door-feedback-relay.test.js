@@ -484,6 +484,7 @@ test('a report sent to an admin page, or on an account with no My reports, can c
   assert.equal((await nan.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 404, "not nan's report");
   // The owner of the report keeps hearing of it with the switch off.
   assert.equal((await mia.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 200);
+});
 
 // ---------- account deletion and a revoked token (#1570) ----------
 
