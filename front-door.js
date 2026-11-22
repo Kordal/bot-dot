@@ -442,13 +442,15 @@ const feedbackRelay = MANAGED ? null : feedbackRelayLib.open(DATA, {
   initial: { 1: true, 0: false }[process.env.FRONT_DOOR_FEEDBACK_TO_DEVELOPERS ?? ''] ?? null,
   url: feedbackRelayLib.addressOf(process.env.FRONT_DOOR_FEEDBACK_RELAY, (line) => console.error(line)),
 });
-const toDevelopers = () => !!feedbackRelay && feedbackRelay.on() === true;
+// A token the relay revoked (#1570) turns the switch's effect off: nothing is sent, and Feedback is hidden where it would go to
+// the developers (not sent to an admin page instead: an owner is never told it goes somewhere else unsaid).
+const toDevelopers = () => !!feedbackRelay && feedbackRelay.on() === true && !feedbackRelay.revoked();
 // Where an owner's Feedback goes now: 'developers', 'admin' (the admin page, or a managed machine's console), or nowhere.
 // A managed machine's owner answers for themselves (#1571): yes sends their Feedback to the developers through the console's
 // outbox (ADR 164), no or not answered yet shows no Feedback and writes nothing to the outbox. `account` is the session's.
-const feedbackTo = (account) => (MANAGED ? (doors.feedbackAnswerOf(account) === true ? 'developers' : null) : toDevelopers() ? 'developers' : (!ONE_ACCOUNT && !!ADMIN) ? 'admin' : null);
+const feedbackTo = (account) => (MANAGED ? (doors.feedbackAnswerOf(account) === true ? 'developers' : null) : feedbackRelay?.on() === true ? (toDevelopers() ? 'developers' : null) : (!ONE_ACCOUNT && !!ADMIN) ? 'admin' : null);
 const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
-const feedbackSwitch = () => ({ on: feedbackRelay.on(), relay: feedbackRelay.url, registered: !!feedbackRelay.token() });
+const feedbackSwitch = () => ({ on: feedbackRelay.on(), relay: feedbackRelay.url, registered: !!feedbackRelay.token(), revoked: feedbackRelay.revoked() });
 
 // A report for the developers waits on the machine until the relay takes it (#1566): sent when it is written, and then
 // every FEEDBACK_EVERY_MS, a failed one again after 1, 2, 4 … minutes at most 6 hours, never twice for the same id (the
@@ -473,7 +475,8 @@ async function sendFeedback(report) {
       screenshots: report.screenshots.map((s) => ({ type: s.type, data: s.bytes.toString('base64') })),
     });
   }
-  if (out.relayId) return doors.feedbackTried(report.id, { relayId: out.relayId });
+  // Taken by the relay after its account was deleted meanwhile: the relay holds it, so it is deleted there too (#1570).
+  if (out.relayId) { if (!doors.feedbackTried(report.id, { relayId: out.relayId })) { feedbackRelay.queueDelete([out.relayId]); flushDeletions(); } return; }
   if (!out.retry) return doors.feedbackTried(report.id, { refused: true });
   const tries = report.tries + 1;
   doors.feedbackTried(report.id, { tries, retryAt: Date.now() + Math.min(FEEDBACK_BACKOFF_MS * 2 ** (tries - 1), 6 * 3600_000) });
@@ -496,7 +499,24 @@ async function flushFeedback() {
     } while (feedbackAgain);
   } finally { feedbackFlushing = false; }
 }
+// Deleted accounts' reports (#1570): the relay is asked to delete them, with the switch on or off, and a request that
+// fails is kept and asked again after 1 minute, then 2, 4 and so on up to 6 hours, until the relay takes it.
+let deletionsFlushing = false;
+let deletionTries = 0;
+let deletionsDueAt = 0;
+async function flushDeletions({ force = false } = {}) {
+  if (!feedbackRelay || deletionsFlushing || !feedbackRelay.deleting()) return;
+  if (!force && Date.now() < deletionsDueAt) return;
+  deletionsFlushing = true;
+  try {
+    if (await feedbackRelay.flushDeletes()) { deletionTries = 0; deletionsDueAt = 0; } else {
+      deletionsDueAt = Date.now() + Math.min(FEEDBACK_BACKOFF_MS * 2 ** deletionTries++, 6 * 3600_000);
+    }
+  } catch (e) { console.error(`[front door] couldn't ask the Feedback relay to delete reports: ${e.message}`); } finally { deletionsFlushing = false; }
+}
 if (feedbackRelay) {
+  setTimeout(flushDeletions, 3000).unref();
+  setInterval(flushDeletions, Number(process.env.FRONT_DOOR_FEEDBACK_EVERY_MS) || 60_000).unref();
   setTimeout(flushFeedback, 3000).unref();
   setInterval(flushFeedback, Number(process.env.FRONT_DOOR_FEEDBACK_EVERY_MS) || 60_000).unref();
 }
@@ -511,6 +531,9 @@ async function askFeedbackStatuses() {
   statusesAsking = true;
   try {
     const ids = doors.feedbackOpenIds();
+    // A revoked token with no open report, the switch on: asked with no ids, as a probe that notices the relay taking the token
+    // again (#1570). With the switch off nothing is sent.
+    if (!ids.length && feedbackRelay.revoked() && feedbackRelay.on() === true) await feedbackRelay.statuses([]);
     for (let i = 0; i < ids.length; i += STATUS_IDS_AT_ONCE) {
       const answer = await feedbackRelay.statuses(ids.slice(i, i + STATUS_IDS_AT_ONCE));
       if (answer) doors.feedbackStatuses(answer.statuses);
@@ -2135,7 +2158,8 @@ async function eraseBoat(name) {
 async function eraseAccount(name, actor) {
   const userId = doors.userIdOf(name);
   const boatGone = await eraseBoat(name);
-  doors.deleteAccount(name, Date.now(), userId);
+  const theirReports = doors.deleteAccount(name, Date.now(), userId);
+  if (feedbackRelay && theirReports.length) { feedbackRelay.queueDelete(theirReports); flushDeletions({ force: true }); }
   roomsWithout(name);
   usage?.forget(name);
   const who = actor === name ? 'its owner' : 'the admin';
