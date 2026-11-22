@@ -583,16 +583,24 @@ test('a revoked token stops the front door: nothing more is sent, Feedback is hi
   assert.match(require('../lib/front-door/pages').ADMIN_SCRIPT, /getElementById\('feedback-developers-revoked'\)\.hidden = r\.revoked !== true/);
 });
 
-test('a relay that takes the token again lifts it: the next statuses round says so and Feedback comes back', async () => {
+test('a relay that takes the token again lifts it: the next statuses round says so and Feedback comes back, also when no report is open', async () => {
   const m = await withAdmin();
   const val = await m.owner('val');
   await flip(m, true);
   const one = await sendOne(val, m, 'Open');
+  m.relay.statuses[one.relayId] = { status: 'fixed' };
+  await waitFor(async () => (await mine(val))[0].status === 'fixed', { what: 'the report to be closed' });
   m.relay.revoked = true;
+  // The machine learns it from the next call: a report it sends.
+  assert.equal((await val.post('/front-door/feedback', { kind: 'bug', text: 'Learns it' })).status, 201);
   await waitFor(async () => (await m.ann.get('/admin/feedback-to-developers')).data.revoked === true, { what: 'the revoked token' });
   assert.equal((await val.get('/front-door/session')).data.feedbackTo, null);
+  const asked = m.relay.asked().length;
+  await waitFor(() => m.relay.asked().length > asked, { what: 'a probe while revoked, with nothing open' });
+  assert.deepEqual(m.relay.asked().at(-1).body, { ids: [] });
   m.relay.revoked = false;
   await waitFor(async () => (await val.get('/front-door/session')).data.feedbackTo === 'developers', { what: 'the relay to take the token again' });
   assert.equal((await m.ann.get('/admin/feedback-to-developers')).data.revoked, false);
-  assert.ok(one);
+  // The report that waited is sent now, and taken.
+  await waitFor(() => keptFile(m.door).some((f) => f.text === 'Learns it' && f.relayId), { what: 'the waiting report to be sent' });
 });

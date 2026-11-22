@@ -527,6 +527,8 @@ async function askFeedbackStatuses() {
   statusesAsking = true;
   try {
     const ids = doors.feedbackOpenIds();
+    // A revoked token with no open report: asked with no ids, as a probe that notices the relay taking the token again (#1570).
+    if (!ids.length && feedbackRelay.revoked()) await feedbackRelay.statuses([]);
     for (let i = 0; i < ids.length; i += STATUS_IDS_AT_ONCE) {
       const answer = await feedbackRelay.statuses(ids.slice(i, i + STATUS_IDS_AT_ONCE));
       if (answer) doors.feedbackStatuses(answer.statuses);
