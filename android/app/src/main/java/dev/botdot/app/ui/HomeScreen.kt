@@ -179,6 +179,19 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         whatsNew = emptyList()
         scope.launch { api?.let { WhatsNew.seen(it, shown) } }
     })
+    // The Fixed notice (#1569): a report fixed in the version this account runs, said once, in every app. Waits for What's new
+    // and the form to close; not saved, so what was not closed shows again after a rotation.
+    var fixedNotices by remember(api) { mutableStateOf<List<Feedback.Report>>(emptyList()) }
+    LaunchedEffect(api, feedbackReports) {
+        fixedNotices = emptyList()
+        val a = api ?: return@LaunchedEffect
+        if (feedbackReports) fixedNotices = dev.botdot.app.data.FrontDoorDesk(a).fixedNotices()
+    }
+    if (fixedNotices.isNotEmpty() && whatsNew.isEmpty() && !feedbackOpen) FixedNoticeDialog(fixedNotices, onClose = {
+        val shown = fixedNotices
+        fixedNotices = emptyList()
+        scope.launch { api?.let { dev.botdot.app.data.FrontDoorDesk(it).fixedSeen(shown) } }
+    })
     if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, developers = feedbackDevelopers, reports = if (feedbackReports) ({ api?.let { dev.botdot.app.data.FrontDoorDesk(it).myReports() } ?: Feedback.MyReports(emptyList(), tr("Can't reach botdot.")) }) else null, send = { kind, text, shots -> (api ?: throw ApiException(tr("Can't reach botdot."))).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).

@@ -59,17 +59,34 @@ object Feedback {
 
     /**
      * One of the owner's reports sent to the developers: its [status], and when fixed the public [issue] (its number, only
-     * for a botdot issue address) and the developers' [note], which is drawn as text and never as markup.
+     * for a botdot issue address) and the developers' [note], which is drawn as text and never as markup. [fixed] (#1569): the
+     * account runs the update that fixed it; [fixedSeen]: the owner closed that notice, in this app or another.
      */
-    data class Report(val id: String, val created: String, val kind: Kind, val text: String, val status: Status, val issue: Int?, val note: String?) {
+    data class Report(val id: String, val created: String, val kind: Kind, val text: String, val status: Status, val issue: Int?, val note: String?,
+                      val fixed: Boolean = false, val fixedSeen: Boolean = false) {
         /** The public issue's address, built from its number: only ever botdot's own repository. */
         val issueLink: String? get() = issue?.let { "https://github.com/Kordal/bot-dot/issues/$it" }
         val issueLabel: String? get() = issue?.let { tr("Public issue #{n}", "n" to it) }
         /** The day it was sent, as a row shows it ("3 Nov"), in the account's language. */
         val day: String get() = runCatching { formatDate(Instant.parse(created), "d MMM", I18n.language) }.getOrDefault("")
+        /** The Fixed notice's line (#1569), as the web page says it: "Fixed: your report from 3 Nov". */
+        val fixedLine: String get() = tr("Fixed: your report from {date}", "date" to day)
+        /** The first words of what the owner wrote, as the notice shows them: one line, cut at a word, "…" when there is more. */
+        val firstWords: String get() {
+            val one = text.trim().replace(Regex("\\s+"), " ")
+            if (one.length <= FIRST_WORDS) return one
+            val cut = one.take(FIRST_WORDS)
+            return cut.take(maxOf(cut.lastIndexOf(' '), 1)).trimEnd() + "…"
+        }
         /** The kind and the day, as the row's second line. */
         val sub: String get() = listOf(kind.label, day).filter { it.isNotEmpty() }.joinToString(" · ")
     }
+
+    private const val FIRST_WORDS = 80
+    private val FIXED_ID = Regex("^[0-9a-f]{32}$")
+
+    /** The reports whose Fixed notice is still to be said (#1569): the account runs the fix and the owner has not closed it. Shown once, in every app. */
+    fun fixedNotices(reports: List<Report>): List<Report> = reports.filter { it.fixed && !it.fixedSeen && FIXED_ID.matches(it.id) }
 
     private val ISSUE = Regex("^https://github\\.com/Kordal/bot-dot/issues/([1-9][0-9]{0,8})$")
 
@@ -81,7 +98,8 @@ object Feedback {
         val id = str("id")?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
         val text = str("text") ?: return@mapNotNull null
         Report(id, str("created").orEmpty(), kind, text, Status.entries.firstOrNull { it.wire == str("status") } ?: Status.SENT,
-            str("issue")?.let { ISSUE.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }, str("note")?.trim()?.takeIf { it.isNotEmpty() })
+            str("issue")?.let { ISSUE.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }, str("note")?.trim()?.takeIf { it.isNotEmpty() },
+            (o["fixed"] as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true, (o["fixedSeen"] as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true)
     }
 
     /** What My reports shows: the reports, or [said], why they couldn't be loaded. */

@@ -197,6 +197,29 @@ fun MyReportsDialog(load: suspend () -> Feedback.MyReports, onClose: () -> Unit)
     )
 }
 
+/**
+ * The Fixed notice (#1569, ADR 259): once the account runs the update that fixed a report, once per report, as What's new
+ * is: "Fixed: your report from 3 Nov" and the first words of what the owner wrote, drawn as text. One button; closing it
+ * any way calls [onClose], which marks the notices seen in every app of the account.
+ */
+@Composable
+fun FixedNoticeDialog(reports: List<Feedback.Report>, onClose: () -> Unit) {
+    val p = LocalPaper.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(tr("Fixed")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                for (r in reports) Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    Text(r.fixedLine, fontWeight = FontWeight.SemiBold)
+                    Text(r.firstWords, color = p.muted)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text(tr("Got it"), color = p.text) } },
+    )
+}
+
 /** A picked screenshot that can't go (no longer readable, or no picture): its sentence, shown in the form. */
 private class Refused(said: String) : Exception(said)
 
