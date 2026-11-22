@@ -17,25 +17,32 @@ after(async () => { for (const fn of cleanups.reverse()) await fn(); });
 // twice under one id gets the same relay id (the relay treats the front door's id as idempotent).
 async function relayStandIn() {
   // statuses: what it says of each relay id (#1568); raw: an answer to /v1/statuses as it is, for a test of a wrong shape.
-  const relay = { got: [], down: false, refuse: null, ids: new Map(), registered: 0, statuses: {}, raw: null, refuseReports: null };
+  const relay = { got: [], down: false, refuse: null, ids: new Map(), registered: 0, statuses: {}, raw: null, refuseReports: null, revoked: false, deleted: [] };
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
-    req.on('end', () => {
+    req.on('end', async () => {
       const text = Buffer.concat(chunks).toString('utf8');
       let body = null;
       try { body = JSON.parse(text); } catch { /* none */ }
       relay.got.push({ method: req.method, url: req.url, auth: req.headers.authorization || null, body, text });
       const reply = (status, data) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(data)); };
+      if (relay.revoked && req.headers.authorization) return reply(403, { revoked: true });
       if (relay.down) return reply(503, { error: 'down' });
       if (relay.refuse) return reply(relay.refuse, { error: 'no' });
       if (req.method === 'POST' && req.url === '/v1/register') return reply(201, { token: `tok-${++relay.registered}-${'a'.repeat(40)}` });
+      if (req.method === 'POST' && req.url === '/v1/delete') {
+        const ids = Array.isArray(body?.ids) ? body.ids : [];
+        relay.deleted.push(...ids);
+        return reply(200, { deleted: ids.length });
+      }
       if (req.method === 'POST' && req.url === '/v1/statuses') {
         const asked = Array.isArray(body?.ids) ? body.ids : [];
         return reply(200, { statuses: relay.raw ?? Object.fromEntries(asked.filter((id) => relay.statuses[id]).map((id) => [id, relay.statuses[id]])) });
       }
       const m = req.url.match(/^\/v1\/reports\/([0-9a-f]{32})$/);
       if (req.method === 'PUT' && m) {
+        if (relay.gate) await relay.gate; // a test holds the answer to a report, to delete its account meanwhile
         if (relay.refuseReports) return reply(relay.refuseReports, { error: 'no' });
         if (!relay.ids.has(m[1])) relay.ids.set(m[1], `r-${relay.ids.size + 1}`);
         return reply(200, { id: relay.ids.get(m[1]) });
@@ -47,6 +54,7 @@ async function relayStandIn() {
   cleanups.push(() => new Promise((r) => server.close(r)));
   relay.url = `http://127.0.0.1:${server.address().port}`;
   relay.reports = () => relay.got.filter((r) => r.method === 'PUT');
+  relay.deletes = () => relay.got.filter((r) => r.url === '/v1/delete');
   relay.asked = () => relay.got.filter((r) => r.url === '/v1/statuses');
   return relay;
 }
@@ -94,7 +102,7 @@ const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a
 test('never asked: Feedback goes to the admin page, the session says so, and the relay hears nothing', async () => {
   const m = await withAdmin();
   const bea = await m.owner('bea');
-  assert.deepEqual((await m.ann.get('/admin/feedback-to-developers')).data, { on: null, relay: m.relay.url, registered: false });
+  assert.deepEqual((await m.ann.get('/admin/feedback-to-developers')).data, { on: null, relay: m.relay.url, registered: false, revoked: false });
   const session = (await bea.get('/front-door/session')).data;
   assert.equal(session.feedback, true);
   assert.equal(session.feedbackTo, 'admin');
@@ -109,7 +117,7 @@ test('the admin turns it on: one registration, the token kept at mode 600, and t
   const bea = await m.owner('bea');
   const on = await flip(m, true);
   assert.equal(on.status, 200, on.text);
-  assert.deepEqual(on.data, { on: true, relay: m.relay.url, registered: true });
+  assert.deepEqual(on.data, { on: true, relay: m.relay.url, registered: true, revoked: false });
   assert.equal(m.relay.registered, 1);
   const file = path.join(m.door.data, 'feedback-relay.json');
   assert.equal(fs.statSync(file).mode & 0o777, 0o600);
@@ -476,4 +484,115 @@ test('a report sent to an admin page, or on an account with no My reports, can c
   assert.equal((await nan.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 404, "not nan's report");
   // The owner of the report keeps hearing of it with the switch off.
   assert.equal((await mia.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 200);
+
+// ---------- account deletion and a revoked token (#1570) ----------
+
+test("an owner deleting their account has the relay asked to delete that account's reports, and no other account's", async () => {
+  const m = await withAdmin();
+  const quin = await m.owner('quin');
+  const rae = await m.owner('rae');
+  await flip(m, true);
+  const mineOne = await sendOne(quin, m, 'Quin one');
+  const mineTwo = await sendOne(quin, m, 'Quin two');
+  const hers = await sendOne(rae, m, 'Rae one');
+  const gone = await quin.post('/front-door/delete-account', { name: 'quin' });
+  assert.equal(gone.status, 200, gone.text);
+  await waitFor(() => m.relay.deleted.length === 2, { what: 'the relay to be asked to delete' });
+  assert.deepEqual([...m.relay.deleted].sort(), [mineOne.relayId, mineTwo.relayId].sort());
+  const ask = m.relay.deletes()[0];
+  assert.match(ask.auth, /^Bearer tok-1-/);
+  assert.deepEqual(Object.keys(ask.body), ['ids']);
+  assert.ok(!m.relay.deleted.includes(hers.relayId));
+  assert.deepEqual((await mine(rae)).map((r) => r.text), ['Rae one']);
+  // Taken: not asked again.
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(m.relay.deletes().length, 1);
+});
+
+test('the admin deleting an account asks the relay too, with the switch off, and a request that fails is kept and asked again until the relay takes it', async () => {
+  const m = await withAdmin();
+  const sol = await m.owner('sol');
+  await flip(m, true);
+  const sent = await sendOne(sol, m, 'Sol one');
+  await flip(m, false);
+  m.relay.down = true;
+  const gone = await m.ann.post('/admin/accounts/sol/delete', { name: 'sol' });
+  assert.equal(gone.status, 200, gone.text);
+  await waitFor(() => m.relay.deletes().length >= 2, { what: 'a second try' });
+  assert.deepEqual(m.relay.deleted, [], 'not taken while the relay is down');
+  assert.ok(m.relay.deletes().length < 20, 'backed off, not hammering');
+  m.relay.down = false;
+  await waitFor(() => m.relay.deleted.length === 1, { what: 'the relay to take it' });
+  assert.deepEqual(m.relay.deleted, [sent.relayId]);
+  const taken = m.relay.deletes().length;
+  await new Promise((r) => setTimeout(r, 600));
+  assert.equal(m.relay.deletes().length, taken, 'once taken, never asked again');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(m.door.data, 'feedback-relay.json'), 'utf8')).deleting, undefined);
+});
+
+test('a report nobody took is never asked to be deleted, and one the relay takes just after its account was deleted is deleted there too', async () => {
+  const m = await withAdmin();
+  const tia = await m.owner('tia');
+  const ula = await m.owner('ula');
+  await flip(m, true);
+  // Never taken: nothing at the relay to delete.
+  m.relay.down = true;
+  assert.equal((await tia.post('/front-door/feedback', { kind: 'bug', text: 'Never taken' })).status, 201);
+  await waitFor(() => m.relay.reports().length >= 1, { what: 'a try' });
+  assert.equal((await tia.post('/front-door/delete-account', { name: 'tia' })).status, 200);
+  m.relay.down = false;
+  await new Promise((r) => setTimeout(r, 600));
+  assert.deepEqual(m.relay.deleted, []);
+  assert.deepEqual(m.relay.deletes(), [], 'the relay is not asked');
+  // In flight: the relay is holding its answer when the account is deleted, then takes the report.
+  let release;
+  m.relay.gate = new Promise((r) => { release = r; });
+  assert.equal((await ula.post('/front-door/feedback', { kind: 'bug', text: 'In flight' })).status, 201);
+  await waitFor(() => m.relay.reports().length >= 2, { what: 'the report to reach the relay' });
+  assert.equal((await ula.post('/front-door/delete-account', { name: 'ula' })).status, 200);
+  release();
+  await waitFor(() => m.relay.deleted.length === 1, { what: 'the report to be deleted at the relay' });
+  assert.equal(m.relay.deleted[0], [...m.relay.ids.values()].at(-1));
+});
+
+test('a revoked token stops the front door: nothing more is sent, Feedback is hidden, the statuses it has stay and the admin page says so', async () => {
+  const m = await withAdmin();
+  const una = await m.owner('una');
+  await flip(m, true);
+  const taken = await sendOne(una, m, 'Taken before');
+  m.relay.statuses[taken.relayId] = { status: 'seen' };
+  await waitFor(async () => (await mine(una))[0].status === 'seen', { what: 'a status' });
+  // Two reports wait while the relay is down; then it revokes the token.
+  m.relay.down = true;
+  assert.equal((await una.post('/front-door/feedback', { kind: 'bug', text: 'Waits one' })).status, 201);
+  assert.equal((await una.post('/front-door/feedback', { kind: 'bug', text: 'Waits two' })).status, 201);
+  m.relay.down = false;
+  m.relay.revoked = true;
+  await waitFor(async () => (await m.ann.get('/admin/feedback-to-developers')).data.revoked === true, { what: 'the revoked token to be noticed' });
+  const puts = m.relay.reports().length;
+  await new Promise((r) => setTimeout(r, 700));
+  assert.equal(m.relay.reports().length, puts, 'no report is sent while the token is revoked');
+  const session = (await una.get('/front-door/session')).data;
+  assert.equal(session.feedback, false, 'Feedback is hidden where it would go to the developers');
+  assert.equal(session.feedbackTo, null, 'and not sent to an admin page instead');
+  assert.equal((await una.post('/front-door/feedback', { kind: 'bug', text: 'Not now' })).status, 404);
+  assert.deepEqual((await mine(una)).map((r) => [r.text, r.status]).filter(([t]) => t === 'Taken before'), [['Taken before', 'seen']], 'the statuses it has stay in My reports');
+  const sw = (await m.ann.get('/admin/feedback-to-developers')).data;
+  assert.deepEqual([sw.on, sw.revoked], [true, true]);
+  assert.match((await m.ann.get('/admin')).text, /id="feedback-developers-revoked"[^>]*hidden>The relay no longer takes this machine's reports\./);
+  assert.match(require('../lib/front-door/pages').ADMIN_SCRIPT, /getElementById\('feedback-developers-revoked'\)\.hidden = r\.revoked !== true/);
+});
+
+test('a relay that takes the token again lifts it: the next statuses round says so and Feedback comes back', async () => {
+  const m = await withAdmin();
+  const val = await m.owner('val');
+  await flip(m, true);
+  const one = await sendOne(val, m, 'Open');
+  m.relay.revoked = true;
+  await waitFor(async () => (await m.ann.get('/admin/feedback-to-developers')).data.revoked === true, { what: 'the revoked token' });
+  assert.equal((await val.get('/front-door/session')).data.feedbackTo, null);
+  m.relay.revoked = false;
+  await waitFor(async () => (await val.get('/front-door/session')).data.feedbackTo === 'developers', { what: 'the relay to take the token again' });
+  assert.equal((await m.ann.get('/admin/feedback-to-developers')).data.revoked, false);
+  assert.ok(one);
 });
