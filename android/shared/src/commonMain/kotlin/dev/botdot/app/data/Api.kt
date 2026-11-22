@@ -262,6 +262,10 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun feedbackReports(): List<Feedback.Report> =
         Feedback.reports(json.parseToJsonElement(call(Req(baseUrl.trimEnd('/') + "/front-door/feedback").header("Accept", "application/json").get().build())).jsonObject)
 
+    /** The owner closed a report's Fixed notice (#1569): it is gone in every app of the account. */
+    @Throws(Exception::class)
+    suspend fun feedbackFixedSeen(id: String) { door("/front-door/feedback/${enc(id)}/fixed-seen") }
+
     /** When this account switches to a new version (#259, ADR 053): asked only where [OwnUpdate.on] says so. */
     suspend fun ownUpdate(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(
         call(Req(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)
