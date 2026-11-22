@@ -17,7 +17,7 @@ after(async () => { for (const fn of cleanups.reverse()) await fn(); });
 // twice under one id gets the same relay id (the relay treats the front door's id as idempotent).
 async function relayStandIn() {
   // statuses: what it says of each relay id (#1568); raw: an answer to /v1/statuses as it is, for a test of a wrong shape.
-  const relay = { got: [], down: false, refuse: null, ids: new Map(), registered: 0, statuses: {}, raw: null };
+  const relay = { got: [], down: false, refuse: null, ids: new Map(), registered: 0, statuses: {}, raw: null, refuseReports: null };
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
@@ -36,6 +36,7 @@ async function relayStandIn() {
       }
       const m = req.url.match(/^\/v1\/reports\/([0-9a-f]{32})$/);
       if (req.method === 'PUT' && m) {
+        if (relay.refuseReports) return reply(relay.refuseReports, { error: 'no' });
         if (!relay.ids.has(m[1])) relay.ids.set(m[1], `r-${relay.ids.size + 1}`);
         return reply(200, { id: relay.ids.get(m[1]) });
       }
@@ -372,4 +373,18 @@ test('a relay that is down or answers nonsense changes nothing, and the statuses
   m.relay.raw = null;
   m.relay.statuses[sent.relayId] = { status: 'seen' };
   await waitFor(async () => (await mine(lee))[0].status === 'seen', { what: 'the status after the relay recovered' });
+});
+
+test('a report the relay refused for good is not listed in My reports as Sent', async () => {
+  const m = await withAdmin();
+  const max = await m.owner('max');
+  await flip(m, true);
+  m.relay.refuseReports = 400;
+  const sent = await max.post('/front-door/feedback', { kind: 'bug', text: 'Refused' });
+  assert.equal(sent.status, 201, sent.text);
+  await waitFor(() => keptFile(m.door).find((f) => f.id === sent.data.id)?.refused === true, { what: 'the report to be refused' });
+  assert.deepEqual(await mine(max), []);
+  await flip(m, false);
+  assert.equal((await max.get('/front-door/session')).data.feedbackReports, false, 'nothing taken, nothing to hear of');
+  assert.equal((await max.get('/front-door/feedback')).status, 404);
 });
