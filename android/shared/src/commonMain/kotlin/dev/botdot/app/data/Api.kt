@@ -257,6 +257,11 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      */
     suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()) { door("/front-door/feedback", Feedback.body(kind, text, shots)) }
 
+    /** The owner's reports sent to the developers, with their statuses (#1568): asked only where [Feedback.reportsOn] says so. */
+    @Throws(Exception::class)
+    suspend fun feedbackReports(): List<Feedback.Report> =
+        Feedback.reports(json.parseToJsonElement(call(Req(baseUrl.trimEnd('/') + "/front-door/feedback").header("Accept", "application/json").get().build())).jsonObject)
+
     /** When this account switches to a new version (#259, ADR 053): asked only where [OwnUpdate.on] says so. */
     suspend fun ownUpdate(): OwnUpdate = OwnUpdate.of(json.parseToJsonElement(
         call(Req(baseUrl.trimEnd('/') + "/front-door/update").header("Accept", "application/json").get().build())).jsonObject)

@@ -845,6 +845,7 @@ async function showAdminLink() {
   $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
   feedbackShots = session?.feedbackScreenshots === true;
   feedbackDevelopers = session?.feedbackTo === 'developers';
+  feedbackReports = session?.feedbackReports === true;
   if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 068)
 }
 
@@ -857,7 +858,11 @@ const FEEDBACK_KINDS = [['bug', tr('Bug')], ['feature', tr('Feature request')]];
 const FEEDBACK_SHOTS = { max: 3, bytes: 5 * 1024 * 1024, types: ['image/png', 'image/jpeg', 'image/webp'] };
 let feedbackDevelopers = false; // whether it goes to botdot's developers (its session's feedbackTo, ADR 259, #1566)
 let feedbackShots = false; // whether the front door takes screenshots (its session's feedbackScreenshots)
+let feedbackReports = false; // whether it lists the owner's reports, My reports (its session's feedbackReports, #1568)
+let feedbackDraft = null; // what was typed when the owner went to My reports: the form comes back with it
 function openFeedback() {
+  const draft = feedbackDraft;
+  feedbackDraft = null;
   const m = openModal(`
     <form id="feedback-form" autocomplete="off">
       <div class="modal-head"><h2${feedbackDevelopers ? '' : ` title="${esc(feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.'))}"`}>${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
@@ -870,12 +875,17 @@ function openFeedback() {
         <p class="req-note hidden" id="feedback-said" role="alert"></p>
       </div>
       <div class="modal-foot">
+        ${feedbackReports ? `<button type="button" class="btn ghost left" id="feedback-mine">${tr('My reports')}</button>` : ''}
         <button type="button" class="btn" data-dismiss>${tr('Cancel')}</button>
         <button class="btn primary" id="feedback-send">${tr('Send')}</button>
       </div>
     </form>`);
   m._shots = [];
-  $('#feedback-form', m).onsubmit = (e) => { e.preventDefault(); sendFeedback(m); };
+  const f = $('#feedback-form', m);
+  if (draft) { f.text.value = draft.text; for (const r of $$('input[name="kind"]', m)) r.checked = r.value === draft.kind; }
+  const mine = $('#feedback-mine', m);
+  if (mine) mine.onclick = () => { feedbackDraft = { kind: f.kind.value, text: f.text.value }; m.close(); openMyReports(); };
+  f.onsubmit = (e) => { e.preventDefault(); sendFeedback(m); };
   const add = $('#feedback-add', m), input = $('#feedback-file', m);
   if (add && input) {
     add.onclick = () => input.click();
@@ -914,6 +924,44 @@ function drawFeedbackShots(m) {
   }));
   const add = $('#feedback-add', m);
   if (add) add.disabled = m._shots.length >= FEEDBACK_SHOTS.max;
+}
+
+// ---------- My reports ----------
+
+// Settings → Feedback → My reports (#1568, ADR 259): what the owner sent to the developers and where each report stands,
+// as the relay last said it: Sent, Seen, Fixed or Won't fix, a Fixed one with the public issue as a link and the
+// developers' one line. Everything the relay said is drawn as text; the link is made only for the one address shape the
+// front door keeps, and opens in a tab of its own.
+const REPORT_ISSUE = /^https:\/\/github\.com\/Kordal\/bot-dot\/issues\/([1-9]\d{0,8})$/;
+const reportStatus = (status) => ({ sent: tr('Sent'), seen: tr('Seen'), fixed: tr('Fixed'), wontfix: tr("Won't fix") })[status] || tr('Sent');
+function reportRow(r) {
+  const issue = typeof r.issue === 'string' ? r.issue.match(REPORT_ISSUE) : null;
+  const when = new Date(r.created).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' });
+  return `<li class="my-report" data-status="${esc(r.status)}">
+    <div class="my-report-head"><b class="my-report-status">${esc(reportStatus(r.status))}</b><span class="muted">${esc(r.kind === 'feature' ? tr('Feature request') : tr('Bug'))} · ${esc(when)}</span></div>
+    <p class="my-report-text">${esc(r.text)}</p>
+    ${typeof r.note === 'string' && r.note ? `<p class="my-report-note muted">${esc(r.note)}</p>` : ''}
+    ${issue ? `<p><a href="${esc(r.issue)}" target="_blank" rel="noopener noreferrer">${esc(tr('Public issue #{n}', { n: issue[1] }))}</a></p>` : ''}
+  </li>`;
+}
+async function openMyReports() {
+  const m = openModal(`
+    <div class="modal-head"><h2>${tr('My reports')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body"><ul class="my-reports" id="my-reports"><li class="muted">${tr('Loading…')}</li></ul></div>
+    <div class="modal-foot">
+      <button type="button" class="btn left" id="my-reports-new">${tr('Send feedback')}</button>
+      <button type="button" class="btn primary" data-dismiss>${tr('Close')}</button>
+    </div>`);
+  $('#my-reports-new', m).onclick = () => { m.close(); openFeedback(); };
+  const list = $('#my-reports', m);
+  const shown = () => $('#my-reports', m) === list;
+  const say = (text) => { if (shown()) list.innerHTML = `<li class="muted">${esc(text)}</li>`; };
+  let res;
+  try { res = await fetch('/front-door/feedback'); } catch { return say(tr("Couldn't load your reports: can't reach botdot.")); }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return say(typeof data.error === 'string' && data.error.trim() ? data.error : tr("Couldn't load your reports ({status}).", { status: res.status }));
+  const reports = Array.isArray(data.reports) ? data.reports : [];
+  if (shown()) list.innerHTML = reports.length ? reports.map(reportRow).join('') : `<li class="muted">${tr('You have not sent any report yet.')}</li>`;
 }
 
 // A file's bytes as base64, as the front door takes a screenshot.

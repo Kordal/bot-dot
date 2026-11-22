@@ -9,6 +9,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,7 +44,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Feedback
 import dev.botdot.app.data.tr
@@ -56,10 +62,11 @@ import java.io.InputStream
  * Feedback (#216, ADR 048), opened beside Settings: Bug or Feature request, and the text, for the admin of this
  * machine, and when the front door takes them ([shotsOn], #223, ADR 048) up to three screenshots, each previewed with a
  * remove button. [developers] (#1566): the front door sends it to botdot's developers, and the form says so. [send] posts it to the front door and throws its sentence on a refusal. A send that fails keeps the
- * form, its text and its screenshots, and says why; one that went says "Sent" and closes.
+ * form, its text and its screenshots, and says why; one that went says "Sent" and closes. [reports] (#1568): the front door
+ * lists the owner's reports, so "My reports" opens them above the form, which keeps what was typed.
  */
 @Composable
-fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, send: suspend (Feedback.Kind, String, List<ByteArray>) -> Unit, onClose: () -> Unit) {
+fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, reports: (suspend () -> Feedback.MyReports)? = null, send: suspend (Feedback.Kind, String, List<ByteArray>) -> Unit, onClose: () -> Unit) {
     val p = LocalPaper.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -70,6 +77,7 @@ fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, send: 
     var picked by rememberSaveable { mutableStateOf("") }
     val shots = picked.lines().filter { it.isNotBlank() }
     var sending by remember { mutableStateOf(false) } // not saved: a send cut off by a restart is no send
+    var showReports by rememberSaveable { mutableStateOf(false) }
     // While picked files are read (and a large photo scaled down), the screenshots can't change: no add, no remove.
     var reading by remember { mutableStateOf(false) }
     // Each screenshot's bytes as they are sent, read once when picked; after a rotation, read again when sent.
@@ -127,6 +135,7 @@ fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, send: 
                     }
                 }
                 error?.let { Text(it, color = p.err) }
+                if (reports != null) TextButton(onClick = { showReports = true }) { Text(tr("My reports"), color = p.text) }
             }
         },
         confirmButton = {
@@ -145,6 +154,46 @@ fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, send: 
             }) { Text(tr("Send"), color = p.text) }
         },
         dismissButton = { TextButton(onClick = onClose, enabled = !sending) { Text(tr("Cancel"), color = p.text) } },
+    )
+    if (showReports && reports != null) MyReportsDialog(reports) { showReports = false }
+}
+
+/**
+ * My reports (#1568, ADR 259): what the owner sent to the developers and where each report stands (Sent, Seen, Fixed,
+ * Won't fix), a fixed one with its public issue as a link the app opens itself, and the developers' one line, drawn as text.
+ */
+@Composable
+fun MyReportsDialog(load: suspend () -> Feedback.MyReports, onClose: () -> Unit) {
+    val p = LocalPaper.current
+    val uri = LocalUriHandler.current
+    var mine by remember { mutableStateOf<Feedback.MyReports?>(null) }
+    LaunchedEffect(Unit) { mine = load() }
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(tr("My reports")) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                val m = mine
+                val said = m?.said
+                when {
+                    m == null -> Text(tr("Loading…"), color = p.muted)
+                    said != null -> Text(said, color = p.err)
+                    m.reports.isEmpty() -> Text(tr("You have not sent any report yet."), color = p.muted)
+                    else -> for (r in m.reports) Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalAlignment = Alignment.CenterVertically) {
+                            Text(r.status.label, fontWeight = FontWeight.SemiBold)
+                            Text(r.sub, color = p.muted)
+                        }
+                        Text(r.text, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                        r.note?.let { Text(it, color = p.muted) }
+                        val link = r.issueLink
+                        if (link != null) Text(r.issueLabel.orEmpty(), color = p.text, textDecoration = TextDecoration.Underline,
+                            modifier = Modifier.clickable { runCatching { uri.openUri(link) } })
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text(tr("Close"), color = p.text) } },
     )
 }
 

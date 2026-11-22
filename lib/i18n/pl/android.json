@@ -1409,5 +1409,12 @@
   "Use this provider": "Użyj tego dostawcy",
   "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele.",
   "Refresh models": "Odśwież modele",
-  "Claude subscription": "Subskrypcja Claude"
+  "Claude subscription": "Subskrypcja Claude",
+  "My reports": "Moje zgłoszenia",
+  "Seen": "Przeczytane",
+  "Fixed": "Naprawione",
+  "Won't fix": "Nie naprawimy",
+  "Public issue #{n}": "Publiczne zgłoszenie #{n} na GitHubie",
+  "You have not sent any report yet.": "Nie wysłano jeszcze żadnego zgłoszenia.",
+  "Couldn't load your reports: {why}.": "Nie udało się wczytać zgłoszeń: {why}."
 }

@@ -21,12 +21,17 @@ function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin
   shots.querySelectorAll = () => (shots.drawn = [...shots.innerHTML.matchAll(/data-unshot="(\d+)"/g)].map(([, i]) => ({ dataset: { unshot: i } })));
   const add = element();
   const input = element({}, { files: [], clicked: 0, click() { input.clicked++; } });
-  const modal = element({ '#feedback-form': form, '#feedback-send': send, '#feedback-said': said, '#feedback-shots': shots, '#feedback-add': add, '#feedback-file': input }, {
+  // My reports (#1568): the button in the form, and the list, with its "Send feedback" button, in the dialog that follows.
+  const mineButton = element();
+  const list = element({}, { innerHTML: '<li>Loading…</li>' });
+  const newButton = element();
+  const modal = element({ '#feedback-mine': mineButton, '#my-reports': list, '#my-reports-new': newButton, '#feedback-form': form, '#feedback-send': send, '#feedback-said': said, '#feedback-shots': shots, '#feedback-add': add, '#feedback-file': input }, {
     open: false, close() { modal.open = false; for (const fn of modal.listeners.close || []) fn(); modal.listeners.close = []; },
   });
   const ctx = vm.createContext({
     ...words,
     state: { features: ['accounts'] },
+    I18n: { locale: 'en' },
     esc: (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
     btoa: (b) => Buffer.from(b, 'latin1').toString('base64'),
     URL: { createObjectURL: (file) => { const u = `blob:${file.name}`; urls.made.push(u); return u; }, revokeObjectURL: (u) => urls.revoked.push(u) },
@@ -37,8 +42,8 @@ function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin
     fetch: async (url, opts) => { calls.push([url, opts]); return (url === '/front-door/session' ? session : fetch)(url, opts); },
   });
   vm.runInContext(`${cut('// ---------- the way to the admin page ----------', '// ---------- backups ----------')}
-    Object.assign(this, { showAdminLink, openFeedback, sendFeedback, addFeedbackShots });`, ctx);
-  return { ctx, calls, toasts, button, adminLink, modal, form, said, send, shots, add, input, urls };
+    Object.assign(this, { showAdminLink, openFeedback, sendFeedback, addFeedbackShots, openMyReports });`, ctx);
+  return { ctx, calls, toasts, button, adminLink, modal, form, said, send, shots, add, input, urls, mineButton, list, newButton };
 }
 
 test('web: the Feedback icon shows when the front door says Feedback goes to an admin page, and only then', async () => {
@@ -193,4 +198,79 @@ test('web: when the front door sends Feedback to botdot\'s developers the form s
     assert.match(p.modal.html, /The admin of this machine reads it/);
     assert.doesNotMatch(p.modal.html, /developers read it/);
   }
+});
+
+// ---------- My reports (#1568) ----------
+
+const REPORTS = [
+  { id: 'a'.repeat(32), created: '2026-11-03T10:00:00.000Z', kind: 'bug', text: 'Approve does nothing\non my phone', status: 'fixed', fixedIn: '2026-11-25-the-fix', issue: 'https://github.com/Kordal/bot-dot/issues/1600', note: 'Thanks <b>so</b> much' },
+  { id: 'b'.repeat(32), created: '2026-11-01T10:00:00.000Z', kind: 'feature', text: 'A dark theme', status: 'sent' },
+];
+
+test('web: My reports is offered in the form only when the front door lists them, and an older front door shows no button', async () => {
+  const on = page({ session: answer(200, { feedback: true, feedbackTo: 'developers', feedbackReports: true }) });
+  await on.ctx.showAdminLink();
+  on.ctx.openFeedback();
+  assert.match(on.modal.html, /<button type="button" class="btn ghost left" id="feedback-mine">My reports<\/button>/);
+  for (const session of [answer(200, { feedback: true, feedbackTo: 'developers' }), answer(200, { feedback: true, feedbackReports: false }), answer(200, { feedback: true })]) {
+    const off = page({ session });
+    await off.ctx.showAdminLink();
+    off.ctx.openFeedback();
+    assert.doesNotMatch(off.modal.html, /My reports/);
+  }
+});
+
+test('web: My reports lists each report with its status in plain words, the issue as a link opened in a tab of its own and the note as text', async () => {
+  const p = page({ fetch: answer(200, { reports: REPORTS }) });
+  await p.ctx.openMyReports();
+  assert.equal(p.calls.at(-1)[0], '/front-door/feedback');
+  assert.match(p.modal.html, /<h2>My reports<\/h2>/);
+  const html = p.list.innerHTML;
+  assert.match(html, /<b class="my-report-status">Fixed<\/b><span class="muted">Bug · (?:3 Nov|Nov 3)<\/span>/);
+  assert.match(html, /<b class="my-report-status">Sent<\/b><span class="muted">Feature request · (?:1 Nov|Nov 1)<\/span>/);
+  assert.match(html, /<a href="https:\/\/github\.com\/Kordal\/bot-dot\/issues\/1600" target="_blank" rel="noopener noreferrer">Public issue #1600<\/a>/);
+  assert.match(html, /<p class="my-report-note muted">Thanks &lt;b&gt;so&lt;\/b&gt; much<\/p>/, 'the developers\' note is text, never markup');
+  assert.doesNotMatch(html, /<b>so<\/b>/);
+  assert.equal([...html.matchAll(/<a /g)].length, 1, 'a report with no issue has no link');
+  for (const [status, word] of [['seen', 'Seen'], ['wontfix', "Won't fix"]]) {
+    const q = page({ fetch: answer(200, { reports: [{ ...REPORTS[1], status }] }) });
+    await q.ctx.openMyReports();
+    assert.match(q.list.innerHTML, new RegExp(`<b class="my-report-status">${word.replace("'", '&#39;')}</b>`));
+  }
+});
+
+test('web: My reports makes a link only for a public issue of botdot, and draws the report\'s own words as text', async () => {
+  const evil = [{ ...REPORTS[0], text: '<img src=x onerror=alert(1)>', issue: 'javascript:alert(1)', note: '"><script>x</script>' }, { ...REPORTS[1], issue: 'https://github.com/other/repo/issues/1' }, { ...REPORTS[1], issue: 'https://github.com/Kordal/bot-dot/issues/1"onmouseover="x' }];
+  const p = page({ fetch: answer(200, { reports: evil }) });
+  await p.ctx.openMyReports();
+  assert.doesNotMatch(p.list.innerHTML, /<a /);
+  assert.doesNotMatch(p.list.innerHTML, /<img|<script/);
+  assert.match(p.list.innerHTML, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('web: My reports says when there are none, and why a list could not be loaded', async () => {
+  const none = page({ fetch: answer(200, { reports: [] }) });
+  await none.ctx.openMyReports();
+  assert.match(none.list.innerHTML, /You have not sent any report yet\./);
+  const missing = page({ fetch: answer(404, { error: 'Not found' }) });
+  await missing.ctx.openMyReports();
+  assert.match(missing.list.innerHTML, /Not found/);
+  const odd = page({ fetch: answer(502) });
+  await odd.ctx.openMyReports();
+  assert.match(odd.list.innerHTML, /Couldn&#39;t load your reports \(502\)\./);
+  const down = page({ fetch: async () => { throw new TypeError('Failed to fetch'); } });
+  await down.ctx.openMyReports();
+  assert.match(down.list.innerHTML, /Couldn&#39;t load your reports: can&#39;t reach botdot\./);
+});
+
+test('web: going to My reports and back keeps what was typed in the form', async () => {
+  const p = page({ session: answer(200, { feedback: true, feedbackTo: 'developers', feedbackReports: true }), fetch: answer(200, { reports: REPORTS }), kind: 'feature', text: 'Half written' });
+  await p.ctx.showAdminLink();
+  p.ctx.openFeedback();
+  p.mineButton.onclick();
+  assert.doesNotMatch(p.modal.html, /id="feedback-form"/, 'the form gives way to the list');
+  assert.match(p.modal.html, /My reports/);
+  p.newButton.onclick();
+  assert.match(p.modal.html, /id="feedback-form"/, 'Send feedback opens the form again');
+  assert.equal(p.form.text.value, 'Half written');
 });

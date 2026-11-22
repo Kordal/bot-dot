@@ -223,7 +223,7 @@ No telemetry and no analytics: botdot sends nothing to its author, unless you tu
 - **Anthropic,** for every Claude run, with your sign-in or key. Claude Code's non-essential traffic (feature flags, telemetry, its update check) is turned off.
 - **GitHub's registry** (`ghcr.io`), to check for an update every 6 hours and to download signed images. The desktop app checks GitHub Releases for its own update.
 - **Hugging Face,** once, for the memory search model, when it isn't in the image.
-- **botdot's developers' Feedback relay,** only if the admin answered yes to it when installing or turned on **Feedback to the developers** on the admin page. Then each report an owner sends goes there with its kind, text, screenshots, app and version, the account's and its bots' names taken out, under a random token that names the machine and nothing else. Off, nothing is sent.
+- **botdot's developers' Feedback relay,** only if the admin answered yes to it when installing or turned on **Feedback to the developers** on the admin page. Then each report an owner sends goes there with its kind, text, screenshots, app and version, the account's and its bots' names taken out, under a random token that names the machine and nothing else. Every 6 hours, while the machine holds reports that are not yet fixed or closed, it also asks the relay for their statuses, with the relay's ids of those reports and the token, so that My reports can show them, also after the switch was turned off. Off, and with no report waiting for a status, nothing is sent.
 
 Everything else is what you turn on or ask for: the web pages and services your bots use, Composio, Bitwarden, OpenRouter, boat.dev, Tailscale, and the off-site backup.
 

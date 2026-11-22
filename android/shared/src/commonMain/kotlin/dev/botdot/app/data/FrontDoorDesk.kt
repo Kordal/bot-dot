@@ -4,9 +4,9 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * What the front door offers this account, read once (ADR 028): deleting the account ([AccountDeletion.Offer]), and
- * Feedback, with or without screenshots and whether it goes to botdot's developers. Behind no front door (no `accounts` in `features`) it offers nothing.
+ * Feedback, with or without screenshots, whether it goes to botdot's developers and whether it lists My reports. Behind no front door (no `accounts` in `features`) it offers nothing.
  */
-data class FrontDoorOffers(val deletion: AccountDeletion.Offer? = null, val feedback: Boolean = false, val shots: Boolean = false, val developers: Boolean = false)
+data class FrontDoorOffers(val deletion: AccountDeletion.Offer? = null, val feedback: Boolean = false, val shots: Boolean = false, val developers: Boolean = false, val reports: Boolean = false)
 
 /**
  * The front door's parts of an account for a phone (ADR 242): what it offers ([read]), the account's deletion
@@ -21,7 +21,7 @@ class FrontDoorDesk(private val api: Api) {
     suspend fun read(features: List<String>?): FrontDoorOffers? {
         if (features?.contains("accounts") != true) return FrontDoorOffers()
         val session = try { api.frontDoorSession() } catch (e: CancellationException) { throw e } catch (_: Exception) { return null }
-        return FrontDoorOffers(AccountDeletion.offer(features, session), Feedback.on(features, session), Feedback.shotsOn(session), Feedback.toDevelopers(session))
+        return FrontDoorOffers(AccountDeletion.offer(features, session), Feedback.on(features, session), Feedback.shotsOn(session), Feedback.toDevelopers(session), Feedback.reportsOn(session))
     }
 
     /**
@@ -44,6 +44,18 @@ class FrontDoorDesk(private val api: Api) {
             throw e
         } catch (e: Exception) {
             Deleted(e.message ?: tr("Couldn't delete the account"), false)
+        }
+    }
+
+    /** My reports (#1568): the owner's reports with their statuses, or the sentence that says why they couldn't be loaded. */
+    @Throws(Exception::class)
+    suspend fun myReports(): Feedback.MyReports {
+        return try {
+            Feedback.MyReports(api.feedbackReports(), null)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Feedback.MyReports(emptyList(), if (e is ApiException && e.said) e.message.orEmpty() else tr("Couldn't load your reports: {why}.", "why" to (e.message ?: tr("can't reach botdot"))))
         }
     }
 

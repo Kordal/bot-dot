@@ -150,17 +150,20 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     var feedbackOn by remember(api) { mutableStateOf(false) }
     var feedbackShots by remember(api) { mutableStateOf(false) } // and takes screenshots (#223)
     var feedbackDevelopers by remember(api) { mutableStateOf(false) } // and goes to botdot's developers (#1566)
+    var feedbackReports by remember(api) { mutableStateOf(false) } // and lists the owner's reports, My reports (#1568)
     var feedbackOpen by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(api, server?.features) {
         feedbackOn = false
         feedbackShots = false
         feedbackDevelopers = false
+        feedbackReports = false
         val a = api ?: return@LaunchedEffect
         if (server?.features?.contains("accounts") != true) return@LaunchedEffect
         val session = runCatching { a.frontDoorSession() }.getOrNull()
         feedbackOn = Feedback.on(server?.features, session)
         feedbackShots = Feedback.shotsOn(session)
         feedbackDevelopers = Feedback.toDevelopers(session)
+        feedbackReports = Feedback.reportsOn(session)
     }
     // What's new after an update (#219): the notes this person has not seen, asked when the server announces it.
     // Not saved: after a rotation it is asked again, and what was not closed yet shows again.
@@ -176,7 +179,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         whatsNew = emptyList()
         scope.launch { api?.let { WhatsNew.seen(it, shown) } }
     })
-    if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, developers = feedbackDevelopers, send = { kind, text, shots -> (api ?: throw ApiException(tr("Can't reach botdot."))).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
+    if (feedbackOpen) FeedbackDialog(shotsOn = feedbackShots, developers = feedbackDevelopers, reports = if (feedbackReports) ({ api?.let { dev.botdot.app.data.FrontDoorDesk(it).myReports() } ?: Feedback.MyReports(emptyList(), tr("Can't reach botdot.")) }) else null, send = { kind, text, shots -> (api ?: throw ApiException(tr("Can't reach botdot."))).sendFeedback(kind, text, shots) }, onClose = { feedbackOpen = false })
     val context = androidx.compose.ui.platform.LocalContext.current
     // One small head per thing that waits, in the colour of the bot it's about (the Chief's for the rest).
     val waiting by store.waiting.collectAsState(initial = emptyList())

@@ -1,5 +1,6 @@
 package dev.botdot.app.data
 
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
@@ -7,6 +8,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlin.io.encoding.Base64
+import kotlin.time.Instant
 
 /**
  * Feedback (#216, ADR 048): beside Settings, the owner reports a bug or asks for a feature. It goes to the front door,
@@ -42,6 +44,48 @@ object Feedback {
      */
     fun toDevelopers(session: JsonObject?): Boolean =
         (session?.get("feedbackTo") as? JsonPrimitive)?.let { it.isString && it.content == "developers" } == true
+
+    /**
+     * Whether the front door lists this owner's reports, My reports (#1568, ADR 259), its session's `feedbackReports`.
+     * An older front door leaves the field out, and the form has no My reports.
+     */
+    fun reportsOn(session: JsonObject?): Boolean = flag(session, "feedbackReports")
+
+    /** Where a report stands, as the relay last said it (`GET /front-door/feedback`, `status`). */
+    enum class Status(val wire: String) {
+        SENT("sent"), SEEN("seen"), FIXED("fixed"), WONT_FIX("wontfix");
+        val label: String get() = when (this) { SENT -> tr("Sent"); SEEN -> tr("Seen"); FIXED -> tr("Fixed"); WONT_FIX -> tr("Won't fix") }
+    }
+
+    /**
+     * One of the owner's reports sent to the developers: its [status], and when fixed the public [issue] (its number, only
+     * for a botdot issue address) and the developers' [note], which is drawn as text and never as markup.
+     */
+    data class Report(val id: String, val created: String, val kind: Kind, val text: String, val status: Status, val issue: Int?, val note: String?) {
+        /** The public issue's address, built from its number: only ever botdot's own repository. */
+        val issueLink: String? get() = issue?.let { "https://github.com/Kordal/bot-dot/issues/$it" }
+        val issueLabel: String? get() = issue?.let { tr("Public issue #{n}", "n" to it) }
+        /** The day it was sent, as a row shows it ("3 Nov"), in the account's language. */
+        val day: String get() = runCatching { formatDate(Instant.parse(created), "d MMM", I18n.language) }.getOrDefault("")
+        /** The kind and the day, as the row's second line. */
+        val sub: String get() = listOf(kind.label, day).filter { it.isNotEmpty() }.joinToString(" · ")
+    }
+
+    private val ISSUE = Regex("^https://github\\.com/Kordal/bot-dot/issues/([1-9][0-9]{0,8})$")
+
+    /** The reports `GET /front-door/feedback` answered, newest first; one that has no id, text or kind is left out. An unknown status is Sent. */
+    fun reports(answer: JsonObject?): List<Report> = (answer?.get("reports") as? JsonArray).orEmpty().mapNotNull { e ->
+        val o = e as? JsonObject ?: return@mapNotNull null
+        fun str(k: String) = (o[k] as? JsonPrimitive)?.takeIf { it.isString }?.content
+        val kind = Kind.entries.firstOrNull { it.wire == str("kind") } ?: return@mapNotNull null
+        val id = str("id")?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+        val text = str("text") ?: return@mapNotNull null
+        Report(id, str("created").orEmpty(), kind, text, Status.entries.firstOrNull { it.wire == str("status") } ?: Status.SENT,
+            str("issue")?.let { ISSUE.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }, str("note")?.trim()?.takeIf { it.isNotEmpty() })
+    }
+
+    /** What My reports shows: the reports, or [said], why they couldn't be loaded. */
+    data class MyReports(val reports: List<Report>, val said: String?)
 
     /** Whether the form offers "Add screenshot": the front door says it takes them. An older one leaves the field out. */
     fun shotsOn(session: JsonObject?): Boolean = flag(session, "feedbackScreenshots")

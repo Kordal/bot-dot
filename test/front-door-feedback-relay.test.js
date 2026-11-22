@@ -16,7 +16,8 @@ after(async () => { for (const fn of cleanups.reverse()) await fn(); });
 // The stand-in relay: `got` is every request it saw, `down` makes it answer 503, `refuse` another status; a report sent
 // twice under one id gets the same relay id (the relay treats the front door's id as idempotent).
 async function relayStandIn() {
-  const relay = { got: [], down: false, refuse: null, ids: new Map(), registered: 0 };
+  // statuses: what it says of each relay id (#1568); raw: an answer to /v1/statuses as it is, for a test of a wrong shape.
+  const relay = { got: [], down: false, refuse: null, ids: new Map(), registered: 0, statuses: {}, raw: null };
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on('data', (c) => chunks.push(c));
@@ -29,6 +30,10 @@ async function relayStandIn() {
       if (relay.down) return reply(503, { error: 'down' });
       if (relay.refuse) return reply(relay.refuse, { error: 'no' });
       if (req.method === 'POST' && req.url === '/v1/register') return reply(201, { token: `tok-${++relay.registered}-${'a'.repeat(40)}` });
+      if (req.method === 'POST' && req.url === '/v1/statuses') {
+        const asked = Array.isArray(body?.ids) ? body.ids : [];
+        return reply(200, { statuses: relay.raw ?? Object.fromEntries(asked.filter((id) => relay.statuses[id]).map((id) => [id, relay.statuses[id]])) });
+      }
       const m = req.url.match(/^\/v1\/reports\/([0-9a-f]{32})$/);
       if (req.method === 'PUT' && m) {
         if (!relay.ids.has(m[1])) relay.ids.set(m[1], `r-${relay.ids.size + 1}`);
@@ -41,10 +46,11 @@ async function relayStandIn() {
   cleanups.push(() => new Promise((r) => server.close(r)));
   relay.url = `http://127.0.0.1:${server.address().port}`;
   relay.reports = () => relay.got.filter((r) => r.method === 'PUT');
+  relay.asked = () => relay.got.filter((r) => r.url === '/v1/statuses');
   return relay;
 }
 
-const FAST = { FRONT_DOOR_FEEDBACK_EVERY_MS: '150', FRONT_DOOR_FEEDBACK_BACKOFF_MS: '150' };
+const FAST = { FRONT_DOOR_FEEDBACK_EVERY_MS: '150', FRONT_DOOR_FEEDBACK_BACKOFF_MS: '150', FRONT_DOOR_FEEDBACK_STATUS_EVERY_MS: '150' };
 
 // A front door with an admin, `ann`, and the relay's address; env adds to it.
 async function machine({ env = {}, relay = null } = {}) {
@@ -250,4 +256,120 @@ test('the names are replaced whatever their case, also letters whose lowercase h
   const { neutral } = require('../lib/front-door/feedback-relay');
   assert.equal(neutral('İpek and IPEK, ipekler; Ann\'s MAILER', { account: ['ann'], bots: ['İpek', 'Mailer', 'x'] }), '[bot] and IPEK, ipekler; [account]\'s [bot]');
   assert.equal(neutral('nothing here', { account: [], bots: [] }), 'nothing here');
+});
+
+// ---------- My reports: the statuses from the relay (#1568) ----------
+
+const mine = async (b) => (await b.get('/front-door/feedback')).data.reports;
+const sendOne = async (owner, m, text, kind = 'bug') => {
+  const sent = await owner.post('/front-door/feedback', { kind, text });
+  assert.equal(sent.status, 201, sent.text);
+  await waitFor(() => keptFile(m.door).find((f) => f.id === sent.data.id)?.relayId, { what: 'the relay id to be kept' });
+  return { id: sent.data.id, relayId: keptFile(m.door).find((f) => f.id === sent.data.id).relayId };
+};
+
+test('the front door asks the relay for the statuses of the ids it holds with the token, and My reports shows them newest first, the account\'s own alone', async () => {
+  const m = await withAdmin();
+  const gil = await m.owner('gil');
+  const hal = await m.owner('hal');
+  await flip(m, true);
+  const one = await sendOne(gil, m, 'First bug');
+  const two = await sendOne(gil, m, 'Second wish', 'feature');
+  const other = await sendOne(hal, m, "Hal's bug");
+  // Sent until the relay says otherwise; nothing but the id and the kind and text is shown of a report.
+  const before = await mine(gil);
+  assert.deepEqual(before.map((r) => [r.text, r.kind, r.status]), [['Second wish', 'feature', 'sent'], ['First bug', 'bug', 'sent']]);
+  assert.deepEqual(Object.keys(before[0]).sort(), ['created', 'id', 'kind', 'status', 'text']);
+  assert.equal(before[0].id, two.id);
+  assert.match(before[0].created, /^\d{4}-\d\d-\d\dT/);
+  assert.equal((await gil.get('/front-door/session')).data.feedbackReports, true);
+  m.relay.statuses[one.relayId] = { status: 'fixed', fixedIn: '2026-11-25-the-fix', issue: 'https://github.com/Kordal/bot-dot/issues/1600', note: 'Thanks, it was the Approve button.' };
+  m.relay.statuses[two.relayId] = { status: 'seen' };
+  m.relay.statuses[other.relayId] = { status: 'wontfix', note: 'Not for us' };
+  await waitFor(async () => (await mine(gil)).some((r) => r.status === 'fixed'), { what: 'the statuses to be applied' });
+  const after = await mine(gil);
+  assert.deepEqual(after.find((r) => r.id === one.id), { id: one.id, created: before[1].created, kind: 'bug', text: 'First bug', status: 'fixed', fixedIn: '2026-11-25-the-fix', issue: 'https://github.com/Kordal/bot-dot/issues/1600', note: 'Thanks, it was the Approve button.' });
+  assert.equal(after.find((r) => r.id === two.id).status, 'seen');
+  assert.deepEqual((await mine(hal)).map((r) => [r.status, r.note]), [['wontfix', 'Not for us']], "another account's report is never listed");
+  // The relay was asked with the token alone and the relay ids, and nothing else.
+  const ask = m.relay.asked()[0];
+  assert.match(ask.auth, /^Bearer tok-1-/);
+  assert.deepEqual(Object.keys(ask.body), ['ids']);
+  assert.ok(ask.body.ids.every((id) => /^r-\d+$/.test(id)));
+  // A closed report (fixed, won't fix) is no longer asked about; a seen one still is.
+  const last = m.relay.asked().length;
+  await waitFor(() => m.relay.asked().length > last + 1, { what: 'another round' });
+  const latest = m.relay.asked().at(-1).body.ids;
+  assert.deepEqual(latest, [two.relayId]);
+});
+
+test('a status field of the wrong shape is dropped, and so is a whole status without one of the four words', async () => {
+  const m = await withAdmin();
+  const ivy = await m.owner('ivy');
+  await flip(m, true);
+  const a = await sendOne(ivy, m, 'A');
+  const b = await sendOne(ivy, m, 'B');
+  const c = await sendOne(ivy, m, 'C');
+  const d = await sendOne(ivy, m, 'D');
+  m.relay.raw = {
+    [a.relayId]: { status: 'seen', fixedIn: 'not a note id', issue: 'https://evil.example/Kordal/bot-dot/issues/1', note: 'x'.repeat(201) },
+    [b.relayId]: { status: 'fixed', fixedIn: '2026-11-25-ok', issue: 'https://github.com/Kordal/bot-dot/issues/12', note: 'x'.repeat(200) },
+    [c.relayId]: { status: 'done', note: 'not one of the words' },
+    [d.relayId]: { status: 'seen', fixedIn: 5, issue: 'https://github.com/Kordal/bot-dot/issues/12/../../../x', note: ['<b>'] },
+    'r-999': { status: 'fixed' },
+  };
+  await waitFor(async () => (await mine(ivy)).find((r) => r.id === b.id).status === 'fixed', { what: 'the statuses to be applied' });
+  const got = Object.fromEntries((await mine(ivy)).map((r) => [r.text, r]));
+  assert.deepEqual([got.A.status, got.A.fixedIn, got.A.issue, got.A.note], ['seen', undefined, undefined, undefined]);
+  assert.deepEqual([got.B.fixedIn, got.B.issue, got.B.note.length], ['2026-11-25-ok', 'https://github.com/Kordal/bot-dot/issues/12', 200]);
+  assert.equal(got.C.status, 'sent', 'a status that is none of the four is not kept');
+  assert.deepEqual([got.D.status, got.D.fixedIn, got.D.issue, got.D.note], ['seen', undefined, undefined, undefined]);
+  // Only the four words and the three fields are ever kept in the front door's data.
+  assert.deepEqual(Object.keys(keptFile(m.door).find((f) => f.id === a.id)).filter((k) => ['status', 'fixedIn', 'issue', 'note'].includes(k)), ['status']);
+});
+
+test('statuses are still asked with the switch off, as long as open reports remain, and My reports stays; a note is text, never markup', async () => {
+  const m = await withAdmin();
+  const jon = await m.owner('jon');
+  await flip(m, true);
+  const sent = await sendOne(jon, m, 'Still open');
+  await flip(m, false);
+  assert.equal((await jon.get('/front-door/session')).data.feedbackTo, 'admin');
+  assert.equal((await jon.get('/front-door/session')).data.feedbackReports, true, 'reports sent keep their statuses');
+  m.relay.statuses[sent.relayId] = { status: 'wontfix', note: '<img src=x onerror=alert(1)>' };
+  await waitFor(async () => (await mine(jon))[0].status === 'wontfix', { what: 'a status with the switch off' });
+  assert.equal((await mine(jon))[0].note, '<img src=x onerror=alert(1)>', 'kept as the text it is: the apps draw it as text');
+  // Closed now: nothing is asked any more.
+  await new Promise((r) => setTimeout(r, 400));
+  const n = m.relay.asked().length;
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal(m.relay.asked().length, n, 'no open report, no request');
+});
+
+test('My reports is 404 where there is none to list: no reports and the switch off, and a report sent to an admin page is not listed', async () => {
+  const m = await withAdmin();
+  const kay = await m.owner('kay');
+  assert.equal((await kay.get('/front-door/feedback')).status, 404, 'never asked');
+  assert.equal((await kay.get('/front-door/session')).data.feedbackReports, false);
+  assert.equal((await kay.post('/front-door/feedback', { kind: 'bug', text: 'To the admin page' })).status, 201);
+  assert.equal((await kay.get('/front-door/feedback')).status, 404, 'a report on an admin page has no status');
+  assert.equal((await m.door.browser().get('/front-door/feedback')).status, 401);
+  await flip(m, true);
+  assert.deepEqual(await mine(kay), [], 'on, and none sent yet: an empty list, and the admin-page report is not in it');
+  assert.equal((await kay.get('/front-door/session')).data.feedbackReports, true);
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepEqual(m.relay.asked(), [], 'no report held: the relay is not asked');
+});
+
+test('a relay that is down or answers nonsense changes nothing, and the statuses come on the next round', async () => {
+  const m = await withAdmin();
+  const lee = await m.owner('lee');
+  await flip(m, true);
+  const sent = await sendOne(lee, m, 'Waiting');
+  m.relay.raw = 'not an object';
+  await waitFor(() => m.relay.asked().length >= 2, { what: 'two rounds' });
+  assert.equal((await mine(lee))[0].status, 'sent');
+  m.relay.raw = null;
+  m.relay.statuses[sent.relayId] = { status: 'seen' };
+  await waitFor(async () => (await mine(lee))[0].status === 'seen', { what: 'the status after the relay recovered' });
 });

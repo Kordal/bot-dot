@@ -494,6 +494,31 @@ if (feedbackRelay) {
   setTimeout(flushFeedback, 3000).unref();
   setInterval(flushFeedback, Number(process.env.FRONT_DOOR_FEEDBACK_EVERY_MS) || 60_000).unref();
 }
+
+// The statuses of the reports the relay holds (#1568): every 6 hours (FRONT_DOOR_FEEDBACK_STATUS_EVERY_MS in tests), and
+// once soon after start, while the machine holds reports not yet fixed or won't fix. Asked with the switch off too, so an
+// owner keeps hearing of fixes. Each answer is checked field by field (feedback-relay.js cleanStatus) before it is kept.
+const STATUS_IDS_AT_ONCE = 100;
+let statusesAsking = false;
+async function askFeedbackStatuses() {
+  if (!feedbackRelay || statusesAsking) return;
+  statusesAsking = true;
+  try {
+    const ids = doors.feedbackOpenIds();
+    for (let i = 0; i < ids.length; i += STATUS_IDS_AT_ONCE) {
+      const answer = await feedbackRelay.statuses(ids.slice(i, i + STATUS_IDS_AT_ONCE));
+      if (answer) doors.feedbackStatuses(answer.statuses);
+    }
+  } catch (e) { console.error(`[front door] couldn't ask the Feedback relay for statuses: ${e.message}`); } finally { statusesAsking = false; }
+}
+if (feedbackRelay) {
+  const every = Number(process.env.FRONT_DOOR_FEEDBACK_STATUS_EVERY_MS) || 6 * 3600_000;
+  setTimeout(askFeedbackStatuses, Math.min(30_000, every)).unref();
+  setInterval(askFeedbackStatuses, every).unref();
+}
+// Whether this account has My reports (#1568): the machine sends Feedback to the developers, or this account sent some
+// while it did (and so keeps hearing of them with the switch off). Not on a managed machine: its statuses come later.
+const feedbackReports = (account) => !!feedbackRelay && (toDevelopers() || doors.hasOwnFeedback(account));
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
 const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
 const roomsOn = () => !!rooms && !!ADMIN && rooms.isOn();
@@ -1016,7 +1041,7 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1072,6 +1097,14 @@ async function signInRoutes(req, res, p) {
     // To the developers: the report waits on the machine and goes on its own, so a relay that is down never holds Send.
     if (to === 'developers') flushFeedback();
     return send(res, 201, { ok: true, id: report.id });
+  }
+  // My reports (#1568): the session's own account's reports sent to the developers, newest first, with the status the relay
+  // last gave. Never another account's, and not the reports an admin page holds.
+  if (p === '/front-door/feedback' && req.method === 'GET') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    if (!feedbackReports(account)) return send(res, 404, { error: 'Not found' });
+    return send(res, 200, { reports: doors.listOwnFeedback(account) });
   }
   if (p === '/front-door/rooms' || p.startsWith('/front-door/rooms/')) return roomRoutes(req, res, p);
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);

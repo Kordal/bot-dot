@@ -64,7 +64,8 @@ test('managed, one account on a public origin: no admin page, and the setup key 
   assert.equal((await b.get('/admin')).status, 404);
   assert.equal((await b.get('/admin/accounts')).status, 404);
   assert.equal(owner.seen.filter((r) => r.url.startsWith('/admin')).length, 0, 'never passed on to the account');
-  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: true, deletionRequest: true, deleteAccountPage: null, subscriptionPage: null, feedback: true, feedbackTo: 'admin', feedbackScreenshots: true, updates: false, rooms: false, roomLinks: false });
+  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: true, deletionRequest: true, deleteAccountPage: null, subscriptionPage: null, feedback: true, feedbackTo: 'admin', feedbackScreenshots: true, feedbackReports: false, updates: false, rooms: false, roomLinks: false });
+  assert.equal((await b.get('/front-door/feedback')).status, 404, 'no My reports on a managed machine yet: its statuses come back through the console');
   assert.equal((await b.get('/api/bots')).data.account, 'owner');
 });
 
