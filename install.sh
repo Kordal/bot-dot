@@ -2716,8 +2716,8 @@ for setting in FRONT_DOOR_TERMS_URL FRONT_DOOR_PRIVACY_URL FRONT_DOOR_TERMS_VERS
   [ -z "$given" ] || set_env "$ENV" "$setting" "$given"
 done
 # Feedback to the developers (#1567): the answer of the first install, once. The front door takes it only while its data
-# has none, so a rerun, which gives nothing, never changes what the admin page chose.
-[ -z "$FEEDBACK_DEVELOPERS" ] || set_env "$ENV" FRONT_DOOR_FEEDBACK_TO_DEVELOPERS "$FEEDBACK_DEVELOPERS"
+# has none, so a rerun or an update, which gives nothing (and never asks, so never sets it), never changes what the admin page chose.
+[ -z "${FEEDBACK_DEVELOPERS:-}" ] || set_env "$ENV" FRONT_DOOR_FEEDBACK_TO_DEVELOPERS "$FEEDBACK_DEVELOPERS"
 # Bots' interactive pages (#399, ADR 072): the same name on port 8443, an origin of its own, which the front door
 # answers on its second port. An update sets it up on an install made before it.
 if [ "$REACH" = local ]; then set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "http://localhost:$SITES_PORT"
