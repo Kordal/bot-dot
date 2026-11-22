@@ -92,7 +92,8 @@
 # A first install also asks whether to use Jev, the decision model, and boat.dev, the External Virtual PC, and for
 # each one's key, and for the Composio key of the admin's own account's connectors; BOT_DOT_OPENROUTER_KEY,
 # BOT_DOT_BOAT_KEY and BOT_DOT_COMPOSIO_KEY answer beforehand (empty: no). The first two are set later on the admin page
-# too, the Composio key on the Connectors page.
+# too, the Composio key on the Connectors page. It asks last whether to send Feedback to botdot's developers (ADR 259,
+# #1567): when nobody can answer, and on this computer only, the answer is no; a managed machine isn't asked.
 #
 # BOT_DOT_REACH=local is the desktop app's botdot, in a Linux VM of its own on the owner's computer (ADR 136): one
 # account (BOT_DOT_ADMIN, default owner) at http://localhost:<port> (BOT_DOT_PORT, default 4700), and nothing else
@@ -2627,6 +2628,22 @@ if [ "$REACH" != local ]; then
     (umask 077; printf '{"openrouter":%s,"boat":%s,"composio":%s}\n' "$(json_key "$OPENROUTER_KEY")" "$(json_key "$BOAT_KEY")" "$(json_key "$COMPOSIO_KEY")" > "$DOOR/data/install-keys.json")
   fi
 fi
+# Feedback to the developers (ADR 259, #1567): asked once, on the first install of a machine that isn't managed (each
+# owner of a managed machine is asked at sign-in), and only when someone can answer: an update has nobody, and without a
+# terminal (get.sh piped, nothing on standard input) the answer is no, as it is on this computer only, which the desktop
+# app installs. An install never says yes for anyone. The answer goes to the front door through its environment (step
+# 4), which takes it only while its data has none: a later install or update gives nothing, and the admin page decides.
+FEEDBACK_DEVELOPERS=''
+if [ -n "$FIRST" ] && [ -z "$MANAGED" ]; then
+  FEEDBACK_DEVELOPERS=0
+  if [ "$REACH" != local ] && [ -z "$UNATTENDED" ]; then
+    say ""
+    say "Feedback: owners can send a bug or a request from the app. If you answer y, every account's Feedback goes to"
+    say "botdot's developers, with the account's and its bots' names taken out, instead of to your admin page."
+    say "You can change this later on the admin page."
+    if ask "Send Feedback to botdot's developers?" n; then FEEDBACK_DEVELOPERS=1; fi
+  fi
+fi
 fi
 case "$MODE" in install | update) docker_upgrades ;; esac
 
@@ -2698,6 +2715,9 @@ for setting in FRONT_DOOR_TERMS_URL FRONT_DOOR_PRIVACY_URL FRONT_DOOR_TERMS_VERS
   eval "given=\${$setting:-}"
   [ -z "$given" ] || set_env "$ENV" "$setting" "$given"
 done
+# Feedback to the developers (#1567): the answer of the first install, once. The front door takes it only while its data
+# has none, so a rerun or an update, which gives nothing (and never asks, so never sets it), never changes what the admin page chose.
+[ -z "${FEEDBACK_DEVELOPERS:-}" ] || set_env "$ENV" FRONT_DOOR_FEEDBACK_TO_DEVELOPERS "$FEEDBACK_DEVELOPERS"
 # Bots' interactive pages (#399, ADR 072): the same name on port 8443, an origin of its own, which the front door
 # answers on its second port. An update sets it up on an install made before it.
 if [ "$REACH" = local ]; then set_env "$ENV" FRONT_DOOR_SITES_ORIGIN "http://localhost:$SITES_PORT"
