@@ -175,3 +175,31 @@ test('web: a failed send keeps the text and the screenshots, and says so', async
   assert.equal(p.modal._shots.length, 1);
   assert.deepEqual(p.urls.revoked, []);
 });
+
+// Feedback to the developers (ADR 259): the front door's feedbackTo says who reads a report, and the form says so.
+test('web: the form says botdot\'s developers read it, that its text may be published without personal details and that screenshots never are', async () => {
+  const p = page({ session: answer(200, { admin: false, feedback: true, feedbackTo: 'developers', feedbackScreenshots: true }) });
+  await p.ctx.showAdminLink();
+  assert.equal(p.button.classList.contains('hidden'), false);
+  p.ctx.openFeedback();
+  assert.match(p.modal.html, /id="feedback-who">botdot's developers read your report\. They may publish its text without your personal details\. Screenshots are never published\.<\/p>/);
+  assert.doesNotMatch(p.modal.html, /The admin of this machine/, 'nor does it say the admin reads it');
+  await p.ctx.sendFeedback(p.modal);
+  assert.equal(p.calls.at(-1)[0], '/front-door/feedback', 'sent as ever');
+  assert.deepEqual(JSON.parse(p.calls.at(-1)[1].body), { kind: 'bug', text: 'Approve button does nothing on my phone' });
+});
+
+test('web: with no screenshots the line leaves out that they are never published; for an admin, or an older front door, the form says the admin reads it', async () => {
+  const noShots = page({ session: answer(200, { admin: false, feedback: true, feedbackTo: 'developers' }) });
+  await noShots.ctx.showAdminLink();
+  noShots.ctx.openFeedback();
+  assert.match(noShots.modal.html, /without your personal details\.<\/p>/);
+  assert.doesNotMatch(noShots.modal.html, /Screenshots are never published/);
+  for (const session of [answer(200, { admin: false, feedback: true, feedbackTo: 'admin' }), answer(200, { admin: false, feedback: true }), answer(200, { admin: false, feedback: true, feedbackTo: 'nobody' })]) {
+    const p = page({ session });
+    await p.ctx.showAdminLink();
+    p.ctx.openFeedback();
+    assert.match(p.modal.html, /The admin of this machine reads it/);
+    assert.doesNotMatch(p.modal.html, /developers read your report/);
+  }
+});

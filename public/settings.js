@@ -844,6 +844,8 @@ async function showAdminLink() {
   $('#admin-link').classList.toggle('hidden', session?.admin !== true);
   $('#feedback-btn')?.classList.toggle('hidden', session?.feedback !== true);
   feedbackShots = session?.feedbackScreenshots === true;
+  // Who reads a report (ADR 259): its feedbackTo, "developers" or the admin; an older front door leaves it out.
+  feedbackTo = session?.feedbackTo === 'developers' ? 'developers' : 'admin';
   if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 068)
 }
 
@@ -855,11 +857,18 @@ async function showAdminLink() {
 const FEEDBACK_KINDS = [['bug', tr('Bug')], ['feature', tr('Feature request')]];
 const FEEDBACK_SHOTS = { max: 3, bytes: 5 * 1024 * 1024, types: ['image/png', 'image/jpeg', 'image/webp'] };
 let feedbackShots = false; // whether the front door takes screenshots (its session's feedbackScreenshots)
+let feedbackTo = 'admin'; // who reads a report (ADR 259): the session's feedbackTo; "developers" says so in the form
 function openFeedback() {
+  // With Feedback to the developers on (ADR 259) the form says who reads the report and what may be published, in sight.
+  const developers = feedbackTo === 'developers';
+  const who = developers
+    ? `<p class="req-note" id="feedback-who">${tr("botdot's developers read your report. They may publish its text without your personal details.")}${feedbackShots ? ' ' + tr('Screenshots are never published.') : ''}</p>`
+    : '';
   const m = openModal(`
     <form id="feedback-form" autocomplete="off">
-      <div class="modal-head"><h2 title="${esc(feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.'))}">${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2${developers ? '' : ` title="${esc(feedbackShots ? tr('The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.') : tr('The admin of this machine reads it. Only what you write here is sent.'))}"`}>${tr('Feedback')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-body">
+        ${who}
         <div class="feedback-kinds">${FEEDBACK_KINDS.map(([v, label], i) => `<label><input type="radio" name="kind" value="${v}"${i ? '' : ' checked'}> ${label}</label>`).join('')}</div>
         <label class="field">${tr('What happened, or what you would like')}<textarea name="text" rows="6" required></textarea></label>
         ${feedbackShots ? `<div class="feedback-shots hidden" id="feedback-shots"></div>

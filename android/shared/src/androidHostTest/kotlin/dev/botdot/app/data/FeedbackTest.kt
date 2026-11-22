@@ -84,6 +84,18 @@ class FeedbackTest {
         assertFalse("no answer", Feedback.shotsOn(null))
     }
 
+    @Test fun theFormSaysWhoReadsItWhenThePhoneKnowsAndTheAdminWhenItDoesNot() {
+        fun session(json: String) = Api.JSON.parseToJsonElement(json).jsonObject
+        assertTrue(Feedback.toDevelopers(session("""{"feedback":true,"feedbackTo":"developers"}""")))
+        assertFalse("the admin", Feedback.toDevelopers(session("""{"feedback":true,"feedbackTo":"admin"}""")))
+        assertFalse("an older front door leaves it out", Feedback.toDevelopers(session("""{"feedback":true}""")))
+        assertFalse("not a string", Feedback.toDevelopers(session("""{"feedbackTo":true}""")))
+        assertFalse("no answer", Feedback.toDevelopers(null))
+        assertEquals("botdot's developers read your report. They may publish its text without your personal details. Screenshots are never published.", Feedback.introForDevelopers(true))
+        assertEquals("botdot's developers read your report. They may publish its text without your personal details.", Feedback.introForDevelopers(false))
+        assertEquals("The admin of this machine reads it. Only what you write here is sent.", Feedback.intro(false))
+    }
+
     @Test fun aScreenshotIsAPngJpegOrWebpByItsBytesAtMost5Mb() {
         assertEquals("image/png", Feedback.pictureType(png))
         assertEquals("image/jpeg", Feedback.pictureType(jpeg))

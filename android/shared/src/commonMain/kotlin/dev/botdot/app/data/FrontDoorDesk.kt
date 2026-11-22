@@ -4,9 +4,9 @@ import kotlinx.coroutines.CancellationException
 
 /**
  * What the front door offers this account, read once (ADR 028): deleting the account ([AccountDeletion.Offer]), and
- * Feedback, with or without screenshots. Behind no front door (no `accounts` in `features`) it offers nothing.
+ * Feedback, with or without screenshots and read by the developers ([FrontDoorOffers.developers], ADR 259) or an admin. Behind no front door (no `accounts` in `features`) it offers nothing.
  */
-data class FrontDoorOffers(val deletion: AccountDeletion.Offer? = null, val feedback: Boolean = false, val shots: Boolean = false)
+data class FrontDoorOffers(val deletion: AccountDeletion.Offer? = null, val feedback: Boolean = false, val shots: Boolean = false, val developers: Boolean = false)
 
 /**
  * The front door's parts of an account for a phone (ADR 242): what it offers ([read]), the account's deletion
@@ -21,7 +21,7 @@ class FrontDoorDesk(private val api: Api) {
     suspend fun read(features: List<String>?): FrontDoorOffers? {
         if (features?.contains("accounts") != true) return FrontDoorOffers()
         val session = try { api.frontDoorSession() } catch (e: CancellationException) { throw e } catch (_: Exception) { return null }
-        return FrontDoorOffers(AccountDeletion.offer(features, session), Feedback.on(features, session), Feedback.shotsOn(session))
+        return FrontDoorOffers(AccountDeletion.offer(features, session), Feedback.on(features, session), Feedback.shotsOn(session), Feedback.toDevelopers(session))
     }
 
     /**

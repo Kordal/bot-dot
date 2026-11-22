@@ -665,6 +665,8 @@
   "Feedback": "Opinia",
   "The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.": "Czyta to administrator tej maszyny i widzi każdy zrzut ekranu w całości, tak jak jest. Wysyłane jest tylko to, co tu napiszesz i dodasz.",
   "The admin of this machine reads it. Only what you write here is sent.": "Czyta to administrator tej maszyny. Wysyłane jest tylko to, co tu napiszesz.",
+  "botdot's developers read your report. They may publish its text without your personal details.": "Twoje zgłoszenie czytają twórcy botdot. Mogą opublikować jego treść bez Twoich danych osobowych.",
+  "Screenshots are never published.": "Zrzuty ekranu nigdy nie są publikowane.",
   "What happened, or what you would like": "Co się stało albo czego chcesz",
   "Screenshot {n}": "Zrzut ekranu {n}",
   "Remove screenshot {n}": "Usuń zrzut ekranu {n}",

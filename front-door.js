@@ -63,6 +63,12 @@
 // FRONT_DOOR_SUBSCRIPTION_URL  with FRONT_DOOR_MANAGED: the https page where an owner manages their subscription,
 //                     which Settings opens as "Subscription" (ADR 234, lib/front-door/subscription.js); `{account}` in
 //                     it is the account's name. Unset: no Subscription row
+// FRONT_DOOR_FEEDBACK_TO_DEVELOPERS  1 or 0, the answer to "Feedback to the developers" install.sh gives at the first
+//                     install (ADR 259): taken only while the front door's data has no answer yet, after which the admin
+//                     page sets it. Not on a managed machine. FRONT_DOOR_FEEDBACK_RELAY: the Feedback relay's address
+//                     (default https://feedback.botdot.app; http only for a loopback address). FRONT_DOOR_FEEDBACK_EVERY_MS
+//                     and FRONT_DOOR_FEEDBACK_RETRY_MS: how often reports that wait are looked at (30 s) and how long
+//                     the first retry waits (60 s, doubling to 6 hours); shorter in tests
 const fs = require('fs');
 const http = require('http');
 const { watchRequestBody } = require('./lib/routes/http');
@@ -94,6 +100,7 @@ const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
 const subscriptionLib = require('./lib/front-door/subscription');
 const outboxLib = require('./lib/front-door/outbox');
+const feedbackRelay = require('./lib/front-door/feedback-relay');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -146,6 +153,33 @@ if (DEMO_HASH && (!MANAGED || !ONE_ACCOUNT || !/^[0-9a-f]{64}$/.test(DEMO_HASH))
   throw new Error('Demo access requires a managed one-account machine and a SHA256 code hash');
 }
 if (DEMO_HASH) doors.createDemoAccount(ONE_ACCOUNT);
+// Feedback to the developers (ADR 259): on a self-hosted machine the admin's switch (or install.sh's first answer) sends
+// every account's reports to the developers' relay instead of the admin page. A managed machine keeps its outbox (ADR 164).
+if (!MANAGED && /^[01]$/.test(process.env.FRONT_DOOR_FEEDBACK_TO_DEVELOPERS || '') && doors.adoptFeedbackDevelopers(process.env.FRONT_DOOR_FEEDBACK_TO_DEVELOPERS === '1')) {
+  console.log(`[front door] Feedback to the developers is ${process.env.FRONT_DOOR_FEEDBACK_TO_DEVELOPERS === '1' ? 'on' : 'off'}, as the install said`);
+}
+const developersOn = () => !MANAGED && doors.feedbackDevelopers() === true;
+const relayAddress = (() => {
+  const given = process.env.FRONT_DOOR_FEEDBACK_RELAY;
+  if (!given) return feedbackRelay.DEFAULT_ADDRESS;
+  const ok = feedbackRelay.addressOf(given);
+  if (!ok) console.error(`[front door] FRONT_DOOR_FEEDBACK_RELAY must be an https address: reports go to ${feedbackRelay.DEFAULT_ADDRESS}`);
+  return ok || feedbackRelay.DEFAULT_ADDRESS;
+})();
+const relay = feedbackRelay.create({
+  dir: DATA,
+  address: relayAddress,
+  reports: { due: doors.feedbackDue, shots: (id, n) => doors.feedbackScreenshot(id, n), sent: doors.feedbackSent, failed: doors.feedbackFailed, switchOn: developersOn },
+  // The account's bots' names, asked of its botdot server over its socket (a long list is read whole).
+  namesOf: async (account) => {
+    const bots = await getFromAccount(account, '/api/bots', { max: 4 * 1024 * 1024 });
+    return Array.isArray(bots) ? bots.map((b) => b?.name).filter((n) => typeof n === 'string') : null;
+  },
+  retryFirstMs: Number(process.env.FRONT_DOOR_FEEDBACK_RETRY_MS) || undefined,
+});
+const sendToDevelopers = () => { relay.sweep().catch((e) => console.error(`[front door] couldn't send feedback to the developers: ${e.message}`)); };
+setInterval(() => { if (developersOn()) sendToDevelopers(); }, Number(process.env.FRONT_DOOR_FEEDBACK_EVERY_MS) || 30_000).unref();
+
 // What the review demo answers to Delete account and Sign out everywhere, which it keeps from doing anything for real.
 const DEMO_NOT_DELETED = 'This is a demo account: it is not deleted. On your own account, this deletes it and erases its data.';
 const DEMO_KEPT_SIGNED_IN = "This is a demo account: Sign out everywhere is off, so other reviewers stay signed in.";
@@ -427,6 +461,9 @@ const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process
 // goes to the fleet console, through an outbox beside the front door's data that the console's agent empties (ADR 164).
 const outbox = MANAGED ? outboxLib.create(path.join(DATA, 'outbox')) : null;
 const FEEDBACK = !!outbox || (!ONE_ACCOUNT && !!ADMIN);
+// With Feedback to the developers on (ADR 259), every account's Feedback goes to them, on a machine of one account too.
+const feedbackOn = () => developersOn() || FEEDBACK;
+const feedbackTo = () => (developersOn() ? 'developers' : FEEDBACK ? 'admin' : null);
 const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
 const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
@@ -602,12 +639,12 @@ function ownUpdate(name) {
 // What a waiting version brings (#303): the notes this front door's version ships after the newest one the account's
 // botdot server ships, which it says in its /api/version, in the account's language (its /api/settings, #646). A
 // server that doesn't say (older than #303), or doesn't answer: none; one that has no language: English.
-function getFromAccount(account, to) {
+function getFromAccount(account, to, { max = BODY_MAX } = {}) {
   return new Promise((resolve) => {
     const up = http.request({ socketPath: socketOf(account), method: 'GET', path: to, headers: { 'x-botdot-account': account }, timeout: 5000 }, (answer) => {
       let body = '';
       answer.setEncoding('utf8');
-      answer.on('data', (c) => { if (body.length < BODY_MAX) body += c; });
+      answer.on('data', (c) => { if (body.length < max) body += c; });
       answer.on('end', () => { try { resolve(answer.statusCode === 200 ? JSON.parse(body) : null); } catch { resolve(null); } });
       answer.on('error', () => resolve(null));
     });
@@ -942,6 +979,7 @@ async function signInRoutes(req, res, p) {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
+    // feedbackTo (ADR 259): who reads a report, "admin", "developers" or null: the form says so; an older front door leaves it out.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
     // (ADR 068): a room's maker makes an invite link, and opening one joins.
@@ -949,7 +987,7 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: feedbackOn(), feedbackTo: feedbackTo(), feedbackScreenshots: feedbackOn(), updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -983,15 +1021,19 @@ async function signInRoutes(req, res, p) {
     const session = sessionOf(req);
     const account = doors.sessionAccount(session);
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    if (!FEEDBACK) return send(res, 404, { error: 'Not found' });
+    if (!feedbackOn()) return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
+    const toDevelopers = developersOn();
     // A managed machine whose console has been away long enough that 100 reports wait for it (ADR 164).
-    if (outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
+    if (!toDevelopers && outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
     const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
-    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
+    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version), to: toDevelopers ? 'developers' : 'admin' });
+    // With Feedback to the developers on, the report is kept here and sent to the relay in the background: a relay that is
+    // down never holds the owner's Send, the report waits and is sent again (ADR 259).
+    if (toDevelopers) sendToDevelopers();
     // On a managed machine a report is kept only with its file in the outbox, so the console never misses one the
     // owner was told went (ADR 164).
-    if (outbox) {
+    else if (outbox) {
       try {
         outbox.put(report, (report.screenshots || []).map((_, n) => doors.feedbackScreenshot(report.id, n)).filter(Boolean));
       } catch (e) {
@@ -1838,12 +1880,31 @@ async function adminRoutes(req, res, p, account) {
     for (const name of accounts) askMachine(name);
     return send(res, 200, { ok: true, share: doors.defaultShare() });
   }
+  // Feedback to the developers (ADR 259): the machine's switch, `on` true, false or null (never asked), and the relay's
+  // address. Turning it on the first time asks the relay for the machine's install token and keeps it; off and on again
+  // uses it. Reports already on the admin page stay.
+  if (p === '/admin/feedback-to-developers' && req.method === 'GET') return send(res, 200, { on: doors.feedbackDevelopers(), relay: relay.address });
+  if (p === '/admin/feedback-to-developers' && req.method === 'POST') {
+    const on = ((await readJson(req)) || {}).on;
+    if (typeof on !== 'boolean') return send(res, 400, { error: 'Say on or off.' });
+    if (on && !relay.hasToken()) {
+      try { await relay.register(); } catch (e) {
+        console.error(`[front door] couldn't register with the developers' relay: ${e.message}`);
+        return send(res, 502, { error: "botdot's developers' relay didn't take this machine. Try again later." });
+      }
+    }
+    doors.setFeedbackDevelopers(on);
+    console.log(`[front door] the admin turned Feedback to the developers ${on ? 'on' : 'off'}`);
+    audited('feedback-developers', { detail: on ? 'on' : 'off' });
+    if (on) sendToDevelopers();
+    return send(res, 200, { on, relay: relay.address });
+  }
   // The owners' feedback (#216), newest first: the admin marks a report done, which keeps it, or deletes it.
   if (p === '/admin/feedback' && req.method === 'GET') return send(res, 200, { reports: doors.listFeedback() });
   // A report's screenshot, as the type the front door read from its bytes, shown inline and never as a page (#223).
   const shot = p.match(/^\/admin\/feedback\/([0-9a-f]{32})\/screenshot\/([0-9])$/);
   if (shot && req.method === 'GET') {
-    const found = doors.feedbackScreenshot(shot[1], Number(shot[2]));
+    const found = doors.feedbackScreenshot(shot[1], Number(shot[2]), { admin: true });
     if (!found) return send(res, 404, { error: 'Not found' });
     res.writeHead(200, { 'Content-Type': found.type, 'Content-Length': found.bytes.length, 'Content-Disposition': 'inline', 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'; sandbox" });
     return res.end(found.bytes);
@@ -1851,7 +1912,7 @@ async function adminRoutes(req, res, p, account) {
   const f = p.match(/^\/admin\/feedback\/([0-9a-f]{32})\/(done|delete)$/);
   if (f && req.method === 'POST') {
     await readJson(req);
-    if (f[2] === 'delete') { doors.deleteFeedback(f[1]); return send(res, 200, { ok: true }); }
+    if (f[2] === 'delete') { doors.deleteFeedback(f[1], { admin: true }); return send(res, 200, { ok: true }); }
     return send(res, 200, { ok: true, report: doors.feedbackDone(f[1]) });
   }
   // The audit log (#911, ADR 141), newest first: ?account=, ?action= and ?before= (an entry's `at`) to page.

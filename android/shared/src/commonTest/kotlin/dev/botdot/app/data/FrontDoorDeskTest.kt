@@ -28,6 +28,16 @@ class FrontDoorDeskTest {
         assertEquals(AccountDeletion.Offer.Delete("ann", "This deletes at once, for good: the account, its bots, chats, files, notes, Board, containers, passkeys, sessions and feedback."), o.deletion)
         assertTrue(o.feedback)
         assertTrue(o.shots)
+        assertFalse(o.developers, "an older front door leaves feedbackTo out: the admin reads it")
+    }
+
+    @Test fun aMachineThatSendsFeedbackToTheDevelopersSaysSo() = runTest {
+        val f = door("""{"account":"ann","feedback":true,"feedbackTo":"developers","feedbackScreenshots":true}""")
+        val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!
+        assertTrue(o.feedback)
+        assertTrue(o.developers)
+        val admin = door("""{"account":"ann","feedback":true,"feedbackTo":"admin"}""")
+        assertFalse(FrontDoorDesk(admin.api).read(listOf("accounts"))!!.developers)
     }
 
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {

@@ -24,6 +24,14 @@ object Feedback {
     val TITLE: String get() = tr("Feedback")
     fun intro(shotsOn: Boolean): String = if (shotsOn) tr("The admin of this machine reads it and sees each screenshot whole, as it is. Only what you write and add here is sent.")
         else tr("The admin of this machine reads it. Only what you write here is sent.")
+    /**
+     * What the form says when the machine sends Feedback to botdot's developers (ADR 259) instead of an admin: that they
+     * read it, that its text may be published without personal details, and (with [shotsOn]) that screenshots never are.
+     */
+    fun introForDevelopers(shotsOn: Boolean): String {
+        val read = tr("botdot's developers read your report. They may publish its text without your personal details.")
+        return if (shotsOn) read + " " + tr("Screenshots are never published.") else read
+    }
     val PLACEHOLDER: String get() = tr("What happened, or what you would like")
     /** Picked past [SHOTS_MAX]. */
     val TOO_MANY: String get() = tr("At most {max} screenshots go in one report.", "max" to SHOTS_MAX)
@@ -34,6 +42,12 @@ object Feedback {
 
     /** Whether the form offers "Add screenshot": the front door says it takes them. An older one leaves the field out. */
     fun shotsOn(session: JsonObject?): Boolean = flag(session, "feedbackScreenshots")
+
+    /**
+     * Whether a report goes to botdot's developers (ADR 259): the session's `feedbackTo` says "developers". An older
+     * front door leaves it out, and the form says the admin reads it, as before.
+     */
+    fun toDevelopers(session: JsonObject?): Boolean = (session?.get("feedbackTo") as? JsonPrimitive)?.let { it.isString && it.content == "developers" } == true
 
     private fun flag(session: JsonObject?, name: String) =
         (session?.get(name) as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
