@@ -82,6 +82,32 @@ class FrontDoorDeskTest {
         assertTrue(odd.said.orEmpty().startsWith("Couldn't load your reports: "), odd.said)
     }
 
+    private val noticeAnswer = """{"reports":[
+        {"id":"${"a".repeat(32)}","created":"2026-11-03T10:00:00.000Z","kind":"bug","text":"Approve does nothing on my phone when I tap it twice and then the whole screen goes blank and stays so","status":"fixed","fixedIn":"2026-11-25-x","fixed":true},
+        {"id":"${"b".repeat(32)}","created":"2026-11-01T10:00:00.000Z","kind":"bug","text":"Seen already","status":"fixed","fixed":true,"fixedSeen":true},
+        {"id":"${"c".repeat(32)}","created":"2026-10-01T10:00:00.000Z","kind":"bug","text":"Not on this version yet","status":"fixed","fixedIn":"2026-12-01-y"},
+        {"id":"${"d".repeat(32)}","created":"2026-10-01T10:00:00.000Z","kind":"bug","text":"Odd flag","status":"fixed","fixed":"true"}]}"""
+
+    @Test fun aReportFixedForThisAccountAndNotYetClosedIsToldOnceWithItsDateAndFirstWords() = runTest {
+        val f = door("{}") { t -> if (t.path == "/front-door/feedback") 200 to noticeAnswer else 200 to "{}" }
+        val desk = FrontDoorDesk(f.api)
+        assertTrue(desk.fixedNotices(FrontDoorOffers(reports = false)).isEmpty(), "an older front door: not asked")
+        assertTrue(f.sent().isEmpty())
+        val due = desk.fixedNotices(FrontDoorOffers(reports = true))
+        assertEquals(listOf("a".repeat(32)), due.map { it.id }, "fixed for the account, not closed: not a closed one, not one the account does not run yet, not a flag that is no boolean")
+        assertTrue(due[0].notice.startsWith("Fixed: your report from ") && due[0].notice.contains("3"), due[0].notice)
+        assertEquals("Approve does nothing on my phone when I tap it twice and then the whole screen…", due[0].excerpt)
+        desk.fixedSeen(due)
+        val post = f.sent().last()
+        assertEquals("POST /front-door/feedback/${"a".repeat(32)}/fixed-seen", "${post.method} ${post.path}")
+    }
+
+    @Test fun aNoticeThatCouldNotBeAskedOrClosedIsLeftToShowAgain() = runTest {
+        val down = FrontDoorDesk(door("{}") { 502 to "" }.api)
+        assertTrue(down.fixedNotices(FrontDoorOffers(reports = true)).isEmpty())
+        down.fixedSeen(Feedback.due(Feedback.reports(kotlinx.serialization.json.Json.parseToJsonElement(noticeAnswer) as kotlinx.serialization.json.JsonObject))) // no throw
+    }
+
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"deletionRequest":true}""")
         val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!.deletion as AccountDeletion.Offer.Delete

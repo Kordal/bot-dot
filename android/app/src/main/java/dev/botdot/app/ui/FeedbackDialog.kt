@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.botdot.app.data.Feedback
+import dev.botdot.app.data.WhatsNew
 import dev.botdot.app.data.tr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -156,6 +157,28 @@ fun FeedbackDialog(shotsOn: Boolean = false, developers: Boolean = false, report
         dismissButton = { TextButton(onClick = onClose, enabled = !sending) { Text(tr("Cancel"), color = p.text) } },
     )
     if (showReports && reports != null) MyReportsDialog(reports) { showReports = false }
+}
+
+/**
+ * The notice that reports were fixed (#1569): once the account runs the update with the fix, each report with its date and
+ * its first words. One button; closing it any way calls [onClose], which tells the front door so no app shows it again.
+ */
+@Composable
+fun FixedNoticeDialog(reports: List<Feedback.Report>, onClose: () -> Unit) {
+    val p = LocalPaper.current
+    AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text(Feedback.Status.FIXED.label) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(Space.s12)) {
+                for (r in reports) Column(verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+                    Text(r.notice, fontWeight = FontWeight.SemiBold)
+                    Text(r.excerpt, color = p.muted)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onClose) { Text(WhatsNew.GOT_IT, color = p.text) } },
+    )
 }
 
 /**

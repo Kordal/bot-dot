@@ -59,6 +59,22 @@ class FrontDoorDesk(private val api: Api) {
         }
     }
 
+    /**
+     * The reports to tell the owner are fixed (#1569), when the front door lists reports ([offers]); none when it doesn't,
+     * or isn't reached: the notice is asked again at the next start.
+     */
+    @Throws(Exception::class)
+    suspend fun fixedNotices(offers: FrontDoorOffers?): List<Feedback.Report> {
+        if (offers?.reports != true) return emptyList()
+        return try { Feedback.due(api.feedbackReports()) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+    }
+
+    /** The notice was closed, any way: [reports] are seen here and in every other app. A failure is let be: they show again. */
+    @Throws(Exception::class)
+    suspend fun fixedSeen(reports: List<Feedback.Report>) {
+        for (r in reports) try { api.feedbackFixedSeen(r.id) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+    }
+
     /** Sends a report: null once it went, else the form's sentence ([Feedback.failed]); what was typed stays. */
     @Throws(Exception::class)
     suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()): String? {

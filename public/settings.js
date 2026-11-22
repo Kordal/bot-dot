@@ -846,6 +846,7 @@ async function showAdminLink() {
   feedbackShots = session?.feedbackScreenshots === true;
   feedbackDevelopers = session?.feedbackTo === 'developers';
   feedbackReports = session?.feedbackReports === true;
+  showFixedNotices(); // an account that runs the fix of a report: told once (#1569)
   if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 068)
 }
 
@@ -933,10 +934,18 @@ function drawFeedbackShots(m) {
 // developers' one line. Everything the relay said is drawn as text; the link is made only for the one address shape the
 // front door keeps, and opens in a tab of its own.
 const REPORT_ISSUE = /^https:\/\/github\.com\/Kordal\/bot-dot\/issues\/([1-9]\d{0,8})$/;
+const reportDay = (created) => new Date(created).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' });
+// The first words of what the owner wrote: at most 80 characters, cut at a word.
+function reportExcerpt(text) {
+  const t = String(text).replace(/\s+/g, ' ').trim();
+  if (t.length <= 80) return t;
+  const cut = t.slice(0, 80);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 40))}…`;
+}
 const reportStatus = (status) => ({ sent: tr('Sent'), seen: tr('Seen'), fixed: tr('Fixed'), wontfix: tr("Won't fix") })[status] || tr('Sent');
 function reportRow(r) {
   const issue = typeof r.issue === 'string' ? r.issue.match(REPORT_ISSUE) : null;
-  const when = new Date(r.created).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' });
+  const when = reportDay(r.created);
   return `<li class="my-report" data-status="${esc(r.status)}">
     <div class="my-report-head"><b class="my-report-status">${esc(reportStatus(r.status))}</b><span class="muted">${esc(r.kind === 'feature' ? tr('Feature request') : tr('Bug'))} · ${esc(when)}</span></div>
     <p class="my-report-text">${esc(r.text)}</p>
@@ -962,6 +971,29 @@ async function openMyReports() {
   if (!res.ok) return say(typeof data.error === 'string' && data.error.trim() ? data.error : tr("Couldn't load your reports ({status}).", { status: res.status }));
   const reports = Array.isArray(data.reports) ? data.reports : [];
   if (shown()) list.innerHTML = reports.length ? reports.map(reportRow).join('') : `<li class="muted">${tr('You have not sent any report yet.')}</li>`;
+}
+
+// The notice that a report was fixed (#1569, ADR 259), shown once for each report, as What's new is: the front door says
+// `fixed` only once this account runs the update with the fix, and `fixedSeen` once an app of the account closed the
+// notice. Closing it any way tells the front door, so no other app shows it. Never over another dialog: it waits.
+const FIXED_NOTICE_WAIT_MS = 2000;
+async function showFixedNotices() {
+  if (!feedbackReports) return;
+  let data;
+  try { data = await (await fetch('/front-door/feedback')).json(); } catch { return; }
+  const due = (Array.isArray(data?.reports) ? data.reports : []).filter((r) => r && r.fixed === true && r.fixedSeen !== true && typeof r.id === 'string');
+  if (due.length) openFixedNotice(due);
+}
+function openFixedNotice(reports) {
+  if ($('#modal')?.open) { setTimeout(() => openFixedNotice(reports), FIXED_NOTICE_WAIT_MS); return null; }
+  const m = openModal(`
+    <div class="modal-head"><h2>${tr('Fixed')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body">${reports.map((r) => `<div class="fixed-notice"><b>${esc(tr('Fixed: your report from {date}', { date: reportDay(r.created) }))}</b><p class="muted">${esc(reportExcerpt(r.text))}</p></div>`).join('')}</div>
+    <div class="modal-foot"><button type="button" class="btn primary" data-dismiss>${tr('Got it')}</button></div>`);
+  m.addEventListener('close', () => {
+    for (const r of reports) fetch(`/front-door/feedback/${encodeURIComponent(r.id)}/fixed-seen`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: '{}' }).catch(() => {});
+  }, { once: true });
+  return m;
 }
 
 // A file's bytes as base64, as the front door takes a screenshot.

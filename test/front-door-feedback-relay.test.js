@@ -388,3 +388,58 @@ test('a report the relay refused for good is not listed in My reports as Sent', 
   assert.equal((await max.get('/front-door/session')).data.feedbackReports, false, 'nothing taken, nothing to hear of');
   assert.equal((await max.get('/front-door/feedback')).status, 404);
 });
+
+// ---------- the Fixed notice (#1569) ----------
+
+// An owner whose botdot server (the stand-in) ships the What's new note `shipped.note`.
+async function withVersion(m, name) {
+  const shipped = { note: '2026-11-20-old' };
+  m.stands[name] = await standIn(m.door, name, { answer: (req) => (req.url === '/api/bots' ? [200, []] : req.url === '/api/version' ? [200, { whatsNew: shipped.note }] : null) });
+  cleanups.push(() => m.stands[name].close());
+  const link = (await m.ann.post('/admin/links', {})).data.url;
+  const b = await signUp(m.door, name, { path: new URL(link).pathname });
+  return { b, shipped };
+}
+
+test('a fixed report is fixed for the account once its server ships the note of the fix, and not before: a postponed update waits', async () => {
+  const m = await withAdmin();
+  const { b: nia, shipped } = await withVersion(m, 'nia');
+  await flip(m, true);
+  const a = await sendOne(nia, m, 'Fixed in 25th');
+  const c = await sendOne(nia, m, 'Fixed with no note');
+  const d = await sendOne(nia, m, 'Seen only');
+  m.relay.statuses[a.relayId] = { status: 'fixed', fixedIn: '2026-11-25-the-fix' };
+  m.relay.statuses[c.relayId] = { status: 'fixed' };
+  m.relay.statuses[d.relayId] = { status: 'seen', fixedIn: '2026-11-01-x' };
+  await waitFor(async () => (await mine(nia)).find((r) => r.id === a.id).status === 'fixed', { what: 'the statuses' });
+  const flags = async () => Object.fromEntries((await mine(nia)).map((r) => [r.text, r.fixed === true]));
+  assert.deepEqual(await flags(), { 'Fixed in 25th': false, 'Fixed with no note': false, 'Seen only': false }, 'the account still runs the older version');
+  shipped.note = '2026-11-24-before';
+  assert.equal((await flags())['Fixed in 25th'], false, 'a note before the fix is not the fix');
+  shipped.note = '2026-11-25-the-fix';
+  assert.deepEqual(await flags(), { 'Fixed in 25th': true, 'Fixed with no note': false, 'Seen only': false }, 'the note itself: the account runs the fix; no fixedIn, no notice; a report not fixed has none');
+  shipped.note = '2026-12-01-later';
+  assert.equal((await flags())['Fixed in 25th'], true, 'a later note too');
+  m.stands.nia.close();
+  assert.equal((await flags())['Fixed in 25th'], false, 'a server that does not answer says nothing');
+});
+
+test('the owner closes the Fixed notice once and it stays closed for the account, and no other account can close it', async () => {
+  const m = await withAdmin();
+  const { b: oli } = await withVersion(m, 'oli');
+  const { b: pat } = await withVersion(m, 'pat');
+  await flip(m, true);
+  const one = await sendOne(oli, m, 'Mine');
+  m.relay.statuses[one.relayId] = { status: 'fixed', fixedIn: '2026-11-20-old' };
+  await waitFor(async () => (await mine(oli))[0].fixed === true, { what: 'the report to be fixed' });
+  assert.equal((await mine(oli))[0].fixedSeen, undefined);
+  assert.equal((await pat.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 404, "not another account's report");
+  assert.equal((await m.door.browser().post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 401);
+  assert.equal((await oli.post(`/front-door/feedback/${'0'.repeat(32)}/fixed-seen`, {})).status, 404);
+  assert.equal((await oli.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).data.ok, true);
+  assert.equal((await oli.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).data.ok, true, 'twice is as once');
+  // Kept with the report, not the session: any app of the account reads it closed, and the report is still Fixed in My reports.
+  const r = (await mine(oli))[0];
+  assert.deepEqual([r.status, r.fixed, r.fixedSeen], ['fixed', true, true]);
+  assert.equal(keptFile(m.door).find((f) => f.id === one.id).fixedSeen, true);
+});

@@ -1104,7 +1104,26 @@ async function signInRoutes(req, res, p) {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!feedbackReports(account)) return send(res, 404, { error: 'Not found' });
-    return send(res, 200, { reports: doors.listOwnFeedback(account) });
+    const reports = doors.listOwnFeedback(account);
+    // fixed (#1569): the account runs the update that fixed it: the newest What's new note its botdot server ships is the
+    // report's `fixedIn` or a later one (note ids sort by date). One asked of the server only when a report names a note,
+    // and a server that doesn't answer (or is older) says nothing: the account is not told it is fixed.
+    if (reports.some((r) => r.status === 'fixed' && r.fixedIn)) {
+      const shipped = (await getFromAccount(account, '/api/version'))?.whatsNew;
+      if (typeof shipped === 'string') for (const r of reports) if (r.status === 'fixed' && r.fixedIn && r.fixedIn <= shipped) r.fixed = true;
+    }
+    return send(res, 200, { reports });
+  }
+  // The owner closed the notice that a report was fixed (#1569): kept per account, so no app of it shows it again.
+  const fixedSeen = p.match(/^\/front-door\/feedback\/([0-9a-f]{32})\/fixed-seen$/);
+  if (fixedSeen && req.method === 'POST') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    if (req.headers['x-bot-dot'] !== '1') return send(res, 403, { error: 'Missing X-Bot-Dot header' });
+    if (!feedbackReports(account)) return send(res, 404, { error: 'Not found' });
+    req.resume();
+    doors.feedbackFixedSeen(account, fixedSeen[1]);
+    return send(res, 200, { ok: true });
   }
   if (p === '/front-door/rooms' || p.startsWith('/front-door/rooms/')) return roomRoutes(req, res, p);
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);

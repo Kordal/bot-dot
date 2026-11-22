@@ -7,8 +7,9 @@ const assert = require('node:assert/strict');
 const vm = require('vm');
 const { cut, read, element, answer, words } = require('./web-page');
 
-function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin: false, feedback: true }), kind = 'bug', text = 'Approve button does nothing on my phone' } = {}) {
+function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin: false, feedback: true }), kind = 'bug', text = 'Approve button does nothing on my phone', busy = false } = {}) {
   const calls = [];
+  const later = [];
   const toasts = [];
   const urls = { made: [], revoked: [] };
   const adminLink = element({}, { classes: ['hidden'] });
@@ -36,14 +37,15 @@ function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin
     btoa: (b) => Buffer.from(b, 'latin1').toString('base64'),
     URL: { createObjectURL: (file) => { const u = `blob:${file.name}`; urls.made.push(u); return u; }, revokeObjectURL: (u) => urls.revoked.push(u) },
     $$: (sel, root) => root.querySelectorAll(sel),
-    $: (sel, root) => (root ? root.querySelector(sel) : { '#admin-link': adminLink, '#feedback-btn': button }[sel] || null),
+    $: (sel, root) => (root ? root.querySelector(sel) : { '#admin-link': adminLink, '#feedback-btn': button, ...(busy ? { '#modal': { open: true } } : {}) }[sel] || null),
+    setTimeout: (fn, ms) => { later.push(ms); },
     openModal: (html) => { modal.html = html; modal.open = true; return modal; },
     toast: (t, err) => toasts.push([t, !!err]),
     fetch: async (url, opts) => { calls.push([url, opts]); return (url === '/front-door/session' ? session : fetch)(url, opts); },
   });
   vm.runInContext(`${cut('// ---------- the way to the admin page ----------', '// ---------- backups ----------')}
-    Object.assign(this, { showAdminLink, openFeedback, sendFeedback, addFeedbackShots, openMyReports });`, ctx);
-  return { ctx, calls, toasts, button, adminLink, modal, form, said, send, shots, add, input, urls, mineButton, list, newButton };
+    Object.assign(this, { showAdminLink, openFeedback, sendFeedback, addFeedbackShots, openMyReports, showFixedNotices });`, ctx);
+  return { ctx, calls, later, toasts, button, adminLink, modal, form, said, send, shots, add, input, urls, mineButton, list, newButton };
 }
 
 test('web: the Feedback icon shows when the front door says Feedback goes to an admin page, and only then', async () => {
@@ -273,4 +275,40 @@ test('web: going to My reports and back keeps what was typed in the form', async
   p.newButton.onclick();
   assert.match(p.modal.html, /id="feedback-form"/, 'Send feedback opens the form again');
   assert.equal(p.form.text.value, 'Half written');
+});
+
+// ---------- the Fixed notice (#1569) ----------
+
+const sessionWithReports = answer(200, { feedback: true, feedbackTo: 'developers', feedbackReports: true });
+const FIXED = { ...REPORTS[0], fixed: true, text: 'Approve does nothing on my phone when I tap it twice and then the whole screen goes blank and stays so' };
+
+test("web: once the account runs the fix, a notice says so once, with the report's date and its first words, and closing it tells the front door", async () => {
+  const p = page({ session: sessionWithReports, fetch: answer(200, { reports: [FIXED, { ...REPORTS[1], status: 'fixed', fixed: true, fixedSeen: true }, { ...REPORTS[0], id: 'c'.repeat(32) }] }) });
+  await p.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(p.modal.open, true);
+  assert.match(p.modal.html, /<h2>Fixed<\/h2>/);
+  assert.match(p.modal.html, /<b>Fixed: your report from (?:3 Nov|Nov 3)<\/b><p class="muted">Approve does nothing on my phone when I tap it twice and then the whole screen…<\/p>/);
+  assert.equal([...p.modal.html.matchAll(/fixed-notice/g)].length, 1, 'only the report fixed and not yet seen');
+  const before = p.calls.length;
+  p.modal.close();
+  const posts = p.calls.slice(before);
+  assert.deepEqual(posts.map(([u, o]) => [u, o.method, o.headers['X-Bot-Dot']]), [[`/front-door/feedback/${FIXED.id}/fixed-seen`, 'POST', '1']]);
+});
+
+test('web: no notice for a report not fixed for this account yet, none without My reports, and one waits while another dialog is open', async () => {
+  const none = page({ session: sessionWithReports, fetch: answer(200, { reports: REPORTS }) });
+  await none.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(none.modal.open, false);
+  const old = page({ session: answer(200, { feedback: true }), fetch: answer(200, { reports: [FIXED] }) });
+  await old.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(old.modal.open, false);
+  assert.equal(old.calls.filter(([u]) => u === '/front-door/feedback').length, 0, 'an older front door is not asked');
+  const busy = page({ session: sessionWithReports, fetch: answer(200, { reports: [FIXED] }), busy: true });
+  await busy.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(busy.modal.open, false);
+  assert.deepEqual(busy.later, [2000], 'it tries again once the dialog is closed');
 });

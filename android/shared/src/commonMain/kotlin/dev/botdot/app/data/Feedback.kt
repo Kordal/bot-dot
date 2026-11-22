@@ -61,12 +61,21 @@ object Feedback {
      * One of the owner's reports sent to the developers: its [status], and when fixed the public [issue] (its number, only
      * for a botdot issue address) and the developers' [note], which is drawn as text and never as markup.
      */
-    data class Report(val id: String, val created: String, val kind: Kind, val text: String, val status: Status, val issue: Int?, val note: String?) {
+    data class Report(val id: String, val created: String, val kind: Kind, val text: String, val status: Status, val issue: Int?, val note: String?, val fixed: Boolean = false, val fixedSeen: Boolean = false) {
         /** The public issue's address, built from its number: only ever botdot's own repository. */
         val issueLink: String? get() = issue?.let { "https://github.com/Kordal/bot-dot/issues/$it" }
         val issueLabel: String? get() = issue?.let { tr("Public issue #{n}", "n" to it) }
         /** The day it was sent, as a row shows it ("3 Nov"), in the account's language. */
         val day: String get() = runCatching { formatDate(Instant.parse(created), "d MMM", I18n.language) }.getOrDefault("")
+        /** The notice that this report was fixed (#1569): shown once the account runs the fix and until it is closed. */
+        val notice: String get() = tr("Fixed: your report from {date}", "date" to day)
+        /** The first words of what the owner wrote, as the notice shows them: at most 80 characters, cut at a word. */
+        val excerpt: String get() {
+            val t = text.trim().replace(Regex("\\s+"), " ")
+            if (t.length <= 80) return t
+            val cut = t.substring(0, 80)
+            return cut.substring(0, maxOf(cut.lastIndexOf(' '), 40)) + "…"
+        }
         /** The kind and the day, as the row's second line. */
         val sub: String get() = listOf(kind.label, day).filter { it.isNotEmpty() }.joinToString(" · ")
     }
@@ -81,8 +90,12 @@ object Feedback {
         val id = str("id")?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
         val text = str("text") ?: return@mapNotNull null
         Report(id, str("created").orEmpty(), kind, text, Status.entries.firstOrNull { it.wire == str("status") } ?: Status.SENT,
-            str("issue")?.let { ISSUE.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }, str("note")?.trim()?.takeIf { it.isNotEmpty() })
+            str("issue")?.let { ISSUE.matchEntire(it)?.groupValues?.get(1)?.toIntOrNull() }, str("note")?.trim()?.takeIf { it.isNotEmpty() },
+            (o["fixed"] as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true, (o["fixedSeen"] as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true)
     }
+
+    /** The reports to tell the owner are fixed (#1569): the account runs the fix, and no app of it closed the notice yet. */
+    fun due(reports: List<Report>): List<Report> = reports.filter { it.fixed && !it.fixedSeen }
 
     /** What My reports shows: the reports, or [said], why they couldn't be loaded. */
     data class MyReports(val reports: List<Report>, val said: String?)
