@@ -846,7 +846,6 @@ async function showAdminLink() {
   feedbackShots = session?.feedbackScreenshots === true;
   feedbackDevelopers = session?.feedbackTo === 'developers';
   feedbackReports = session?.feedbackReports === true;
-  showFixedNotices(); // an account that runs the fix of a report: told once (#1569)
   if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 068)
 }
 

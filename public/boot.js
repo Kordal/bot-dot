@@ -110,7 +110,8 @@ document.addEventListener('click', (e) => {
     const space = typeof Company !== 'undefined' && (state.features || []).includes('company') && Company.place() === 'company' ? 'company' : 'chief';
     setView(known ? view : space, routeSub({ view, sub }));
     if (!known) showList(); // phones start on the contact list
-    showWhatsNew(); // after an update: what changed, once (whats-new.js)
+    // after an update: what changed, once (whats-new.js), and then the reports that update fixed, once (settings.js, #1569)
+    Promise.resolve(showWhatsNew()).catch(() => {}).then(() => showFixedNotices());
   }
   state.routed = true; // from now on the address opens what it names (the listener above)
   // No time zone of its own yet (#756): the botdot takes this device's, once, so bots say times in the owner's time.

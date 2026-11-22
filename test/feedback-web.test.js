@@ -285,7 +285,8 @@ const FIXED = { ...REPORTS[0], fixed: true, text: 'Approve does nothing on my ph
 test("web: once the account runs the fix, a notice says so once, with the report's date and its first words, and closing it tells the front door", async () => {
   const p = page({ session: sessionWithReports, fetch: answer(200, { reports: [FIXED, { ...REPORTS[1], status: 'fixed', fixed: true, fixedSeen: true }, { ...REPORTS[0], id: 'c'.repeat(32) }] }) });
   await p.ctx.showAdminLink();
-  await new Promise((r) => setImmediate(r));
+  assert.equal(p.modal.open, false, 'not at once: after What\'s new (boot.js)');
+  await p.ctx.showFixedNotices();
   assert.equal(p.modal.open, true);
   assert.match(p.modal.html, /<h2>Fixed<\/h2>/);
   assert.match(p.modal.html, /<b>Fixed: your report from (?:3 Nov|Nov 3)<\/b><p class="muted">Approve does nothing on my phone when I tap it twice and then the whole screen…<\/p>/);
@@ -299,16 +300,21 @@ test("web: once the account runs the fix, a notice says so once, with the report
 test('web: no notice for a report not fixed for this account yet, none without My reports, and one waits while another dialog is open', async () => {
   const none = page({ session: sessionWithReports, fetch: answer(200, { reports: REPORTS }) });
   await none.ctx.showAdminLink();
-  await new Promise((r) => setImmediate(r));
+  await none.ctx.showFixedNotices();
   assert.equal(none.modal.open, false);
   const old = page({ session: answer(200, { feedback: true }), fetch: answer(200, { reports: [FIXED] }) });
   await old.ctx.showAdminLink();
-  await new Promise((r) => setImmediate(r));
+  await old.ctx.showFixedNotices();
   assert.equal(old.modal.open, false);
   assert.equal(old.calls.filter(([u]) => u === '/front-door/feedback').length, 0, 'an older front door is not asked');
   const busy = page({ session: sessionWithReports, fetch: answer(200, { reports: [FIXED] }), busy: true });
   await busy.ctx.showAdminLink();
-  await new Promise((r) => setImmediate(r));
+  await busy.ctx.showFixedNotices();
   assert.equal(busy.modal.open, false);
   assert.deepEqual(busy.later, [2000], 'it tries again once the dialog is closed');
+});
+
+test("web: the Fixed notice is asked for after What's new, in boot", () => {
+  assert.match(read('boot.js'), /Promise\.resolve\(showWhatsNew\(\)\)\.catch\(\(\) => \{\}\)\.then\(\(\) => showFixedNotices\(\)\)/);
+  assert.doesNotMatch(read('settings.js').slice(read('settings.js').indexOf('async function showAdminLink'), read('settings.js').indexOf('// ---------- feedback ----------')), /showFixedNotices/);
 });
