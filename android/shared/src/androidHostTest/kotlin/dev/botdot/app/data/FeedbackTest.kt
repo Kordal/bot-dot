@@ -87,6 +87,22 @@ class FeedbackTest {
         }
     }
 
+    @Test fun myReportsAreOfferedOnlyWhenTheFrontDoorListsThemAndAreAskedAtItsOwnRoute() = runBlocking {
+        fun session(json: String) = Api.JSON.parseToJsonElement(json).jsonObject
+        assertTrue(Feedback.reportsOn(session("""{"feedback":true,"feedbackReports":true}""")))
+        assertFalse("an older front door", Feedback.reportsOn(session("""{"feedback":true}""")))
+        assertFalse("a managed machine, or no reports to list", Feedback.reportsOn(session("""{"feedbackReports":false}""")))
+        assertFalse("no answer", Feedback.reportsOn(null))
+        door.enqueue(json("""{"reports":[{"id":"a","created":"2026-11-03T10:00:00.000Z","kind":"bug","text":"Approve does nothing","status":"seen"}]}"""))
+        val reports = api.feedbackReports()
+        val r = door.takeRequest()
+        assertEquals("GET" to "/front-door/feedback", r.method to r.target)
+        assertEquals(listOf("Seen"), reports.map { it.status.label })
+        assertEquals(listOf("Sent", "Seen", "Fixed", "Won't fix"), Feedback.Status.entries.map { it.label })
+        door.enqueue(json("""{"error":"Not found"}""", 404))
+        try { api.feedbackReports(); fail("404") } catch (e: ApiException) { assertEquals("Not found", e.message) }
+    }
+
     private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2)
     private val jpeg = byteArrayOf(0xff.toByte(), 0xd8.toByte(), 0xff.toByte(), 0xe0.toByte(), 3)
     private val webp = "RIFF\u0000\u0000\u0000\u0000WEBPVP8 ".toByteArray(Charsets.ISO_8859_1)

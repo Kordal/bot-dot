@@ -1863,5 +1863,14 @@
   "Go to {name}": "Przejdź do: {name}",
   "Waiting for you": "Czeka na ciebie",
   "Takes about {n} min.": "Zajmie około {n} min.",
-  "Take over screen": "Przejmij ekran"
+  "Take over screen": "Przejmij ekran",
+  "My reports": "Moje zgłoszenia",
+  "Seen": "Przeczytane",
+  "Fixed": "Naprawione",
+  "Won't fix": "Nie naprawimy",
+  "Public issue #{n}": "Publiczne zgłoszenie #{n} na GitHubie",
+  "You have not sent any report yet.": "Nie wysłano jeszcze żadnego zgłoszenia.",
+  "Send feedback": "Wyślij opinię",
+  "Couldn't load your reports: can't reach botdot.": "Nie udało się wczytać zgłoszeń: nie można połączyć się z botdot.",
+  "Couldn't load your reports ({status}).": "Nie udało się wczytać zgłoszeń ({status})."
 }

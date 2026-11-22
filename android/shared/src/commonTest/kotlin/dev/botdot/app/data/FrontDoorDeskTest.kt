@@ -40,6 +40,48 @@ class FrontDoorDeskTest {
         assertFalse(FrontDoorDesk(door("""{"feedback":true}""").api).read(listOf("accounts"))!!.developers, "an older front door")
     }
 
+    @Test fun aFrontDoorThatListsTheOwnersReportsOffersMyReportsAndAnOlderOneDoesNot() = runTest {
+        assertTrue(FrontDoorDesk(door("""{"feedback":true,"feedbackTo":"developers","feedbackReports":true}""").api).read(listOf("accounts"))!!.reports)
+        assertFalse(FrontDoorDesk(door("""{"feedback":true,"feedbackReports":false}""").api).read(listOf("accounts"))!!.reports)
+        assertFalse(FrontDoorDesk(door("""{"feedback":true,"feedbackTo":"developers"}""").api).read(listOf("accounts"))!!.reports, "an older front door")
+        assertFalse(FrontDoorDesk(door("""{"feedbackReports":"true"}""").api).read(listOf("accounts"))!!.reports, "not a boolean")
+    }
+
+    @Test fun myReportsAreTheFrontDoorsListWithTheStatusInPlainWordsAndTheIssueOnlyForBotdotsOwn() = runTest {
+        val f = door("{}") { t ->
+            if (t.path == "/front-door/feedback") 200 to """{"reports":[
+                {"id":"a","created":"2026-11-03T10:00:00.000Z","kind":"bug","text":"Approve does nothing","status":"fixed","fixedIn":"2026-11-25-the-fix","issue":"https://github.com/Kordal/bot-dot/issues/1600","note":" Thanks <b>so</b> much "},
+                {"id":"b","created":"2026-11-01T10:00:00.000Z","kind":"feature","text":"A dark theme","status":"sent"},
+                {"id":"c","created":"2026-10-30T10:00:00.000Z","kind":"bug","text":"Seen one","status":"seen","issue":"https://evil.example/Kordal/bot-dot/issues/1"},
+                {"id":"d","created":"2026-10-29T10:00:00.000Z","kind":"bug","text":"No","status":"wontfix","note":"Not for us","issue":"https://github.com/Kordal/bot-dot/issues/12/../x"},
+                {"id":"e","created":"2026-10-28T10:00:00.000Z","kind":"bug","text":"Odd word","status":"done"},
+                {"kind":"bug","text":"no id"},
+                {"id":"g","kind":"praise","text":"no such kind"}
+            ]}""" else 404 to "{}"
+        }
+        val mine = FrontDoorDesk(f.api).myReports()
+        assertNull(mine.said)
+        assertEquals("GET /front-door/feedback", f.sent().single().let { "${it.method} ${it.path}" })
+        assertEquals(listOf("a", "b", "c", "d", "e"), mine.reports.map { it.id }, "newest first as the front door sent it; a report without an id or a known kind is left out")
+        assertEquals(listOf("Fixed", "Sent", "Seen", "Won't fix", "Sent"), mine.reports.map { it.status.label }, "an unknown word is Sent")
+        val fixed = mine.reports[0]
+        assertEquals("https://github.com/Kordal/bot-dot/issues/1600", fixed.issueLink)
+        assertEquals("Public issue #1600", fixed.issueLabel)
+        assertEquals("Thanks <b>so</b> much", fixed.note, "the developers' words, as text")
+        assertTrue(fixed.sub.startsWith("Bug · ") && fixed.sub.contains("3"), fixed.sub)
+        assertNull(mine.reports[2].issueLink, "another site's address is no link")
+        assertNull(mine.reports[3].issueLink, "an address with more than a number is no link")
+        assertEquals("Not for us", mine.reports[3].note)
+    }
+
+    @Test fun myReportsSaysWhyTheyCouldNotBeLoaded() = runTest {
+        val refused = FrontDoorDesk(door("{}") { 404 to """{"error":"Not found"}""" }.api).myReports()
+        assertEquals("Not found", refused.said)
+        assertTrue(refused.reports.isEmpty())
+        val odd = FrontDoorDesk(door("{}") { 502 to "" }.api).myReports()
+        assertTrue(odd.said.orEmpty().startsWith("Couldn't load your reports: "), odd.said)
+    }
+
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"deletionRequest":true}""")
         val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!.deletion as AccountDeletion.Offer.Delete
