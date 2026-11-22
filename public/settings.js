@@ -750,6 +750,7 @@ function drawFeedbackAnswerRow(root, session) {
       const { on: now } = await frontDoorPost('/front-door/feedback-to-developers', { on: box.checked });
       $('#feedback-btn')?.classList.toggle('hidden', now !== true);
       feedbackDevelopers = now === true;
+      feedbackShots = now === true; // the front door takes screenshots wherever Feedback goes (`feedbackScreenshots`)
       flashSaved($('#view-settings'));
     } catch (err) { toast(err.message, true); box.checked = !box.checked; }
     box.disabled = false;

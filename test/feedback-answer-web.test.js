@@ -13,13 +13,13 @@ function page({ features = ['accounts'], post = async () => ({ on: true }) } = {
   const box = element({}, { checked: false, disabled: false });
   const slot = element({ '#feedback-answer': box }, { innerHTML: '', hidden: true });
   const ctx = vm.createContext({
-    ...words, esc, state: { features }, feedbackDevelopers: false, flashSaved() {}, CHEV: '',
+    ...words, esc, state: { features }, feedbackDevelopers: false, feedbackShots: false, flashSaved() {}, CHEV: '',
     $: (sel, root) => (root ? root.querySelector(sel) : { '#feedback-btn': icon, '#view-settings': null }[sel] || null),
     toast: (t, err) => toasts.push([t, !!err]),
     frontDoorPost: async (path, body) => { calls.push([path, body]); return post(path, body); },
   });
   vm.runInContext(`${cut('// ---------- Feedback to the developers, on a managed machine ----------', '// ---------- deleting the account ----------')}
-    Object.assign(this, { feedbackAnswerRowHTML, drawFeedbackAnswerRow, devs: () => feedbackDevelopers });`, ctx);
+    Object.assign(this, { feedbackAnswerRowHTML, drawFeedbackAnswerRow, devs: () => feedbackDevelopers, shots: () => feedbackShots });`, ctx);
   const root = element({ '#feedback-answer-row': slot });
   return { ctx, slot, box, icon, calls, toasts, root };
 }
@@ -57,11 +57,13 @@ test("web: turning it on or off tells the front door and the Feedback icon follo
   assert.equal(JSON.stringify(p.calls), JSON.stringify([['/front-door/feedback-to-developers', { on: true }]]));
   assert.equal(p.icon.classList.contains('hidden'), false, 'the icon shows at once');
   assert.equal(p.ctx.devs(), true, 'and the form says the developers read it');
+  assert.equal(p.ctx.shots(), true, 'and offers Add screenshot, as the session would say');
   p.box.checked = false;
   await p.box.onchange();
   assert.equal(JSON.stringify(p.calls.at(-1)), JSON.stringify(['/front-door/feedback-to-developers', { on: false }]));
   assert.equal(p.icon.classList.contains('hidden'), true);
   assert.equal(p.ctx.devs(), false);
+  assert.equal(p.ctx.shots(), false);
   const refused = page({ post: async () => { throw new Error("Can't reach botdot."); } });
   refused.ctx.drawFeedbackAnswerRow(refused.root, { feedbackAsk: false, feedbackTo: null });
   refused.box.checked = true;
