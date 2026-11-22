@@ -1104,7 +1104,27 @@ async function signInRoutes(req, res, p) {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
     if (!feedbackReports(account)) return send(res, 404, { error: 'Not found' });
-    return send(res, 200, { reports: doors.listOwnFeedback(account) });
+    const reports = doors.listOwnFeedback(account);
+    // A fixed report is `fixed: true` once this account runs the fix (#1569): its botdot server ships the What's new note
+    // that names the fix, or a newer one (note ids sort by date), as its /api/version says now, so an account that
+    // postponed its update gets it only after it switches. A fixed report with no such note, or one the server can't say
+    // anything about, is not.
+    const named = reports.filter((r) => r.status === 'fixed' && r.fixedIn);
+    if (named.length) {
+      const newest = (await getFromAccount(account, '/api/version'))?.whatsNew;
+      if (typeof newest === 'string' && newest.length <= 120) for (const r of named) if (r.fixedIn <= newest) r.fixed = true;
+    }
+    return send(res, 200, { reports });
+  }
+  // The owner closed the notice that a report was fixed (#1569): kept for the account, so no app of it shows it again.
+  const closed = p.match(/^\/front-door\/feedback\/([0-9a-f]{32})\/fixed-seen$/);
+  if (closed && req.method === 'POST') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    if (!feedbackReports(account)) { req.resume(); return send(res, 404, { error: 'Not found' }); }
+    req.resume();
+    doors.feedbackFixedSeen(account, closed[1]);
+    return send(res, 200, { ok: true });
   }
   if (p === '/front-door/rooms' || p.startsWith('/front-door/rooms/')) return roomRoutes(req, res, p);
   const m = p.match(/^\/sign-up\/([A-Za-z0-9_-]{1,100})(\/options)?$/);
