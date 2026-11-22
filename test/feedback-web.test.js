@@ -203,7 +203,7 @@ test('web: when the front door sends Feedback to botdot\'s developers the form s
 // ---------- My reports (#1568) ----------
 
 const REPORTS = [
-  { id: 'a'.repeat(32), created: '2026-11-03T10:00:00.000Z', kind: 'bug', text: 'Approve does nothing\non my phone', status: 'fixed', fixedIn: '2026-11-25-the-fix', issue: 'https://github.com/Kordal/bot-dot/issues/1600', note: 'Thanks <b>so</b> much' },
+  { id: 'a'.repeat(32), created: '2026-11-03T10:00:00.000Z', kind: 'bug', text: 'Approve does nothing\non my phone', status: 'fixed', fixedIn: '2026-11-25-the-fix', issue: 'https://github.com/ladrok/bot-dot/issues/1600', note: 'Thanks <b>so</b> much' },
   { id: 'b'.repeat(32), created: '2026-11-01T10:00:00.000Z', kind: 'feature', text: 'A dark theme', status: 'sent' },
 ];
 
@@ -228,7 +228,7 @@ test('web: My reports lists each report with its status in plain words, the issu
   const html = p.list.innerHTML;
   assert.match(html, /<b class="my-report-status">Fixed<\/b><span class="muted">Bug · (?:3 Nov|Nov 3)<\/span>/);
   assert.match(html, /<b class="my-report-status">Sent<\/b><span class="muted">Feature request · (?:1 Nov|Nov 1)<\/span>/);
-  assert.match(html, /<a href="https:\/\/github\.com\/Kordal\/bot-dot\/issues\/1600" target="_blank" rel="noopener noreferrer">Public issue #1600<\/a>/);
+  assert.match(html, /<a href="https:\/\/github\.com\/ladrok\/bot-dot\/issues\/1600" target="_blank" rel="noopener noreferrer">Public issue #1600<\/a>/);
   assert.match(html, /<p class="my-report-note muted">Thanks &lt;b&gt;so&lt;\/b&gt; much<\/p>/, 'the developers\' note is text, never markup');
   assert.doesNotMatch(html, /<b>so<\/b>/);
   assert.equal([...html.matchAll(/<a /g)].length, 1, 'a report with no issue has no link');
@@ -246,6 +246,12 @@ test('web: My reports makes a link only for a public issue of botdot, and draws 
   assert.doesNotMatch(p.list.innerHTML, /<a /);
   assert.doesNotMatch(p.list.innerHTML, /<img|<script/);
   assert.match(p.list.innerHTML, /&lt;img src=x onerror=alert\(1\)&gt;/);
+});
+
+test('web: a report kept with the link of the repository\'s earlier owner is still a link', async () => {
+  const p = page({ fetch: answer(200, { reports: [{ ...REPORTS[0], issue: 'https://github.com/Kordal/bot-dot/issues/12' }] }) });
+  await p.ctx.openMyReports();
+  assert.match(p.list.innerHTML, /<a href="https:\/\/github\.com\/Kordal\/bot-dot\/issues\/12" target="_blank" rel="noopener noreferrer">Public issue #12<\/a>/);
 });
 
 test('web: My reports says when there are none, and why a list could not be loaded', async () => {

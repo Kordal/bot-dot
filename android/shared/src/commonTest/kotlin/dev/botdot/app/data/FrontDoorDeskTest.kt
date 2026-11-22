@@ -50,7 +50,7 @@ class FrontDoorDeskTest {
     @Test fun myReportsAreTheFrontDoorsListWithTheStatusInPlainWordsAndTheIssueOnlyForBotdotsOwn() = runTest {
         val f = door("{}") { t ->
             if (t.path == "/front-door/feedback") 200 to """{"reports":[
-                {"id":"a","created":"2026-11-03T10:00:00.000Z","kind":"bug","text":"Approve does nothing","status":"fixed","fixedIn":"2026-11-25-the-fix","issue":"https://github.com/Kordal/bot-dot/issues/1600","note":" Thanks <b>so</b> much "},
+                {"id":"a","created":"2026-11-03T10:00:00.000Z","kind":"bug","text":"Approve does nothing","status":"fixed","fixedIn":"2026-11-25-the-fix","issue":"https://github.com/ladrok/bot-dot/issues/1600","note":" Thanks <b>so</b> much "},
                 {"id":"b","created":"2026-11-01T10:00:00.000Z","kind":"feature","text":"A dark theme","status":"sent"},
                 {"id":"c","created":"2026-10-30T10:00:00.000Z","kind":"bug","text":"Seen one","status":"seen","issue":"https://evil.example/Kordal/bot-dot/issues/1"},
                 {"id":"d","created":"2026-10-29T10:00:00.000Z","kind":"bug","text":"No","status":"wontfix","note":"Not for us","issue":"https://github.com/Kordal/bot-dot/issues/12/../x"},
@@ -65,7 +65,7 @@ class FrontDoorDeskTest {
         assertEquals(listOf("a", "b", "c", "d", "e"), mine.reports.map { it.id }, "newest first as the front door sent it; a report without an id or a known kind is left out")
         assertEquals(listOf("Fixed", "Sent", "Seen", "Won't fix", "Sent"), mine.reports.map { it.status.label }, "an unknown word is Sent")
         val fixed = mine.reports[0]
-        assertEquals("https://github.com/Kordal/bot-dot/issues/1600", fixed.issueLink)
+        assertEquals("https://github.com/ladrok/bot-dot/issues/1600", fixed.issueLink)
         assertEquals("Public issue #1600", fixed.issueLabel)
         assertEquals("Thanks <b>so</b> much", fixed.note, "the developers' words, as text")
         assertTrue(fixed.sub.startsWith("Bug · ") && fixed.sub.contains("3"), fixed.sub)
