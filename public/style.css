@@ -890,7 +890,7 @@ label.field .hint { font-weight: 400; color: var(--faint); }
 #feedback-said { margin: 0; color: var(--err); background: var(--err-soft); }
 /* My reports (settings.js, openMyReports; #1568): each report with its status; the developers' note is text. */
 .my-reports { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-12); }
-.my-report { border: 1px solid var(--line); border-radius: var(--r-8); padding: var(--sp-12); display: grid; gap: var(--sp-4); }
+.my-report { background: var(--raise); border-radius: var(--r-8); padding: var(--sp-12); display: grid; gap: var(--sp-4); }
 .my-report-head { display: flex; gap: var(--sp-8); align-items: baseline; font-size: var(--fs-12); }
 .my-report-status { font-size: var(--fs-14); }
 .my-report p { margin: 0; overflow-wrap: anywhere; }
