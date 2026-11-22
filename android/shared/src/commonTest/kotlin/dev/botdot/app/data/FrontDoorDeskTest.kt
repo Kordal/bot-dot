@@ -115,6 +115,23 @@ class FrontDoorDeskTest {
         assertEquals(ids.map { "POST /front-door/feedback/$it/fixed-seen" }, f.sent().map { "${it.method} ${it.path}" }, "the first failing does not stop the second")
     }
 
+    @Test fun aManagedMachinesOwnerAnswersAboutFeedbackInSettingsAndNoOtherMachineHasTheSwitch() = runTest {
+        fun session(json: String) = Api.JSON.parseToJsonElement(json) as kotlinx.serialization.json.JsonObject
+        val accounts = listOf("accounts")
+        assertEquals(true, Feedback.answer(accounts, session("""{"feedback":true,"feedbackTo":"developers","feedbackAsk":false}""")), "answered yes")
+        assertEquals(false, Feedback.answer(accounts, session("""{"feedback":false,"feedbackTo":null,"feedbackAsk":false}""")), "answered no")
+        assertEquals(false, Feedback.answer(accounts, session("""{"feedback":false,"feedbackAsk":true}""")), "not answered yet: the switch is there, off")
+        assertNull(Feedback.answer(accounts, session("""{"feedback":true,"feedbackTo":"admin"}""")), "a machine that doesn't ask, or an older front door")
+        assertNull(Feedback.answer(accounts, session("""{"feedbackAsk":"true"}""")), "not a boolean")
+        assertNull(Feedback.answer(emptyList(), session("""{"feedbackAsk":false}""")), "no front door")
+        assertNull(Feedback.answer(accounts, null))
+        val f = door("{}") { 200 to """{"ok":true,"on":true}""" }
+        f.api.setFeedbackToDevelopers(true)
+        val post = f.sent().single()
+        assertEquals("POST /front-door/feedback-to-developers", "${post.method} ${post.path}")
+        assertEquals("""{"on":true}""", post.body)
+    }
+
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"deletionRequest":true}""")
         val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!.deletion as AccountDeletion.Offer.Delete

@@ -410,6 +410,7 @@ function renderSettings() {
       <details class="bs-row bs-more" id="update-card" hidden></details>
       ${state.features.includes('advanced') ? `<label class="bs-row"><b>${tr('Advanced')}</b><span class="switch"><input type="checkbox" id="settings-advanced"${advanced() ? ' checked' : ''} aria-label="${esc(tr('Advanced'))}"><span></span></span></label>` : ''}
       ${subscriptionRowHTML()}
+      ${feedbackAnswerRowHTML()}
       ${signOutCardHTML()}
       ${deleteCardHTML()}
     </div>`;
@@ -725,6 +726,37 @@ function drawSubscriptionRow(root, session) {
   slot.hidden = !slot.innerHTML;
 }
 
+// ---------- Feedback to the developers, on a managed machine ----------
+
+// Settings → "Feedback to the developers" (#1571, ADR 259): on a managed machine each owner answers for their own account,
+// first at sign-in and then here. The front door's session says so by `feedbackAsk` (a boolean there, left out elsewhere:
+// then there is no row); `feedbackTo` says the current answer. The icon beside Settings follows it at once.
+const feedbackAnswerRowHTML = () => (state.features.includes('accounts') ? '<div id="feedback-answer-row" hidden></div>' : '');
+
+function drawFeedbackAnswerRow(root, session) {
+  const slot = $('#feedback-answer-row', root);
+  if (!slot) return;
+  const managed = typeof session?.feedbackAsk === 'boolean';
+  slot.hidden = !managed;
+  if (!managed) { slot.innerHTML = ''; return; }
+  const on = session.feedbackTo === 'developers';
+  slot.innerHTML = `<label class="bs-row"><b>${tr('Feedback to the developers')}</b>
+    <span class="switch"><input type="checkbox" id="feedback-answer" aria-label="${esc(tr('Feedback to the developers'))}"${on ? ' checked' : ''}><span></span></span></label>
+    <p class="muted">${tr("Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.")}</p>`;
+  const box = $('#feedback-answer', slot);
+  box.onchange = async () => {
+    box.disabled = true;
+    try {
+      const { on: now } = await frontDoorPost('/front-door/feedback-to-developers', { on: box.checked });
+      $('#feedback-btn')?.classList.toggle('hidden', now !== true);
+      feedbackDevelopers = now === true;
+      feedbackShots = now === true; // the front door takes screenshots wherever Feedback goes (`feedbackScreenshots`)
+      flashSaved($('#view-settings'));
+    } catch (err) { toast(err.message, true); box.checked = !box.checked; }
+    box.disabled = false;
+  };
+}
+
 // ---------- deleting the account ----------
 
 // Settings → "Delete account" (#1307): the owner deletes their own account, as the admin does on the admin page. Only
@@ -759,6 +791,7 @@ async function loadDeleteCard(root) {
   let session = null;
   try { session = await fetch('/front-door/session').then((r) => (r.ok ? r.json() : null)); } catch { /* nothing to show */ }
   drawSubscriptionRow(root, session); // the same session says where the subscription is managed
+  drawFeedbackAnswerRow(root, session); // and, on a managed machine, whether Feedback goes to the developers
   slot.innerHTML = deleteCardInner(session);
   const btn = $('#delete-account', slot);
   if (btn) btn.onclick = () => openDeleteAccount(session.account, session.deletionRequest === true);

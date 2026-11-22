@@ -1417,5 +1417,7 @@
   "Public issue #{n}": "Publiczne zgłoszenie #{n} na GitHubie",
   "You have not sent any report yet.": "Nie wysłano jeszcze żadnego zgłoszenia.",
   "Couldn't load your reports: {why}.": "Nie udało się wczytać zgłoszeń: {why}.",
-  "Fixed: your report from {date}": "Naprawione: twoje zgłoszenie z {date}"
+  "Fixed: your report from {date}": "Naprawione: twoje zgłoszenie z {date}",
+  "Feedback to the developers": "Opinie do twórców",
+  "Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.": "Twoje zgłoszenia trafiają do twórców botdot. Ich tekst może zostać opublikowany bez danych osobowych, a zrzutów ekranu nigdy się nie publikuje."
 }

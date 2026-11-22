@@ -257,6 +257,9 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
      */
     suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()) { door("/front-door/feedback", Feedback.body(kind, text, shots)) }
 
+    /** A managed machine's owner turns Feedback to the developers on or off for their account (#1571). A refusal throws the front door's sentence. */
+    suspend fun setFeedbackToDevelopers(on: Boolean) { door("/front-door/feedback-to-developers", buildJsonObject { put("on", on) }) }
+
     /** The owner's reports sent to the developers, with their statuses (#1568): asked only where [Feedback.reportsOn] says so. */
     @Throws(Exception::class)
     suspend fun feedbackReports(): List<Feedback.Report> =

@@ -1873,5 +1873,7 @@
   "Send feedback": "Wyślij opinię",
   "Couldn't load your reports: can't reach botdot.": "Nie udało się wczytać zgłoszeń: nie można połączyć się z botdot.",
   "Couldn't load your reports ({status}).": "Nie udało się wczytać zgłoszeń ({status}).",
-  "Fixed: your report from {date}": "Naprawione: twoje zgłoszenie z {date}"
+  "Fixed: your report from {date}": "Naprawione: twoje zgłoszenie z {date}",
+  "Feedback to the developers": "Opinie do twórców",
+  "Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.": "Twoje zgłoszenia trafiają do twórców botdot. Ich tekst może zostać opublikowany bez danych osobowych, a zrzutów ekranu nigdy się nie publikuje."
 }

@@ -64,7 +64,7 @@ test('managed, one account on a public origin: no admin page, and the setup key 
   assert.equal((await b.get('/admin')).status, 404);
   assert.equal((await b.get('/admin/accounts')).status, 404);
   assert.equal(owner.seen.filter((r) => r.url.startsWith('/admin')).length, 0, 'never passed on to the account');
-  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: true, deletionRequest: true, deleteAccountPage: null, subscriptionPage: null, feedback: true, feedbackTo: 'admin', feedbackScreenshots: true, feedbackReports: false, updates: false, rooms: false, roomLinks: false });
+  assert.deepEqual((await b.get('/front-door/session')).data, { account: 'owner', admin: false, deleteAccount: true, deletionRequest: true, deleteAccountPage: null, subscriptionPage: null, feedback: false, feedbackTo: null, feedbackScreenshots: false, feedbackReports: false, feedbackAsk: true, updates: false, rooms: false, roomLinks: false });
   assert.equal((await b.get('/front-door/feedback')).status, 404, 'no My reports on a managed machine yet: its statuses come back through the console');
   assert.equal((await b.get('/api/bots')).data.account, 'owner');
 });
@@ -163,7 +163,7 @@ test('managed: a report goes to the outbox whole, screenshots as base64, under i
   const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
   const owner = await standIn(door, 'owner');
   t.after(async () => { await door.stop(); owner.close(); });
-  const { b, done } = await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner' });
+  const { b, done } = await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner', feedback: true });
   assert.equal(done.status, 201, done.text);
 
   const sent = await b.post('/front-door/feedback', { kind: 'bug', text: '  Approve does nothing  ', screenshots: [{ data: PNG.toString('base64') }] });
@@ -186,7 +186,7 @@ test('managed: a report the outbox can\'t take is not kept, and the owner is tol
   const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
   const owner = await standIn(door, 'owner');
   t.after(async () => { await door.stop(); owner.close(); });
-  const { b } = await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner' });
+  const { b } = await signUp(door, `/sign-up/${SETUP_KEY}`, { name: 'owner', feedback: true });
   // A file where the folder should be: nothing can be written there.
   fs.writeFileSync(path.join(door.data, 'outbox'), 'not a folder');
   const sent = await b.post('/front-door/feedback', { kind: 'bug', text: 'Lost?' });
