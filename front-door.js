@@ -98,6 +98,7 @@ const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
 const subscriptionLib = require('./lib/front-door/subscription');
 const outboxLib = require('./lib/front-door/outbox');
+const inboxLib = require('./lib/front-door/inbox');
 const feedbackRelayLib = require('./lib/front-door/feedback-relay');
 
 const ORIGIN = (() => {
@@ -431,6 +432,9 @@ const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process
 // Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
 // goes to the fleet console, through an outbox beside the front door's data that the console's agent empties (ADR 164).
 const outbox = MANAGED ? outboxLib.create(path.join(DATA, 'outbox')) : null;
+// The way back (ADR 259, #1572): the console's agent writes the statuses of the machine's reports to a file of DATA/inbox,
+// a folder it never makes, so the front door's start does (mode 700). Read on a timer, only on a managed machine.
+const inbox = MANAGED ? inboxLib.create(path.join(DATA, 'inbox')) : null;
 // Feedback to the developers (ADR 259, #1566): on a self-hosted machine the machine's switch, set on the admin page (or by
 // the install, once, FRONT_DOOR_FEEDBACK_TO_DEVELOPERS 1 or 0), sends every account's Feedback to the developers' relay
 // instead; a machine of one account then shows Feedback too.
@@ -516,9 +520,35 @@ if (feedbackRelay) {
   setTimeout(askFeedbackStatuses, Math.min(30_000, every)).unref();
   setInterval(askFeedbackStatuses, every).unref();
 }
+
+// A managed machine's statuses (#1572): the file the console's agent writes to the inbox is read every minute
+// (FRONT_DOOR_FEEDBACK_INBOX_EVERY_MS in tests). Only ids of reports this machine holds are applied, each field as the
+// relay's answer is checked; the file is removed once applied, and left, with the reason logged once, when it can't be
+// read or parsed (inbox.js). Never read on any other machine.
+let inboxProblem = null;
+function readFeedbackInbox() {
+  if (!inbox) return;
+  try {
+    inbox.ensure();
+    const took = inbox.take((statuses) => doors.feedbackStatuses(statuses, 'id'));
+    if (took) console.log(`[front door] applied the statuses file of the fleet console: ${took.kept} of ${took.entries} entries well-formed, ${took.result} reports changed`);
+    inboxProblem = null;
+  } catch (e) {
+    // The same trouble is said once, not at every minute.
+    if (inboxProblem !== e.message) console.error(`[front door] couldn't apply the statuses file of the fleet console, left as it is: ${e.message}`);
+    inboxProblem = e.message;
+  }
+}
+if (inbox) {
+  readFeedbackInbox(); // makes the folder before the first request
+  const every = Number(process.env.FRONT_DOOR_FEEDBACK_INBOX_EVERY_MS) || 60_000;
+  setTimeout(readFeedbackInbox, Math.min(5_000, every)).unref();
+  setInterval(readFeedbackInbox, every).unref();
+}
 // Whether this account has My reports (#1568): the machine sends Feedback to the developers, or this account sent some
-// while it did (and so keeps hearing of them with the switch off). Not on a managed machine: its statuses come later.
-const feedbackReports = (account) => !!feedbackRelay && (toDevelopers() || doors.hasOwnFeedback(account));
+// while it did (and so keeps hearing of them with the switch off). On a managed machine: this account has some, which the
+// console's agent gives the statuses of (#1572).
+const feedbackReports = (account) => (feedbackRelay ? toDevelopers() || doors.hasOwnFeedback(account) : !!inbox && doors.hasOwnFeedback(account));
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
 const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
 const roomsOn = () => !!rooms && !!ADMIN && rooms.isOn();
