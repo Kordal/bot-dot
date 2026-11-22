@@ -426,6 +426,13 @@ fun SettingsScreen(
             dev.botdot.app.data.Subscription.page(server?.features, session)?.let { page ->
                 Link(tr("Subscription")) { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(page))) } }
             }
+            // "Feedback to the developers" (#1571, ADR 259): on a managed machine each owner answers for their own account.
+            dev.botdot.app.data.Feedback.answer(server?.features, session)?.let { on ->
+                SwitchRow(tr("Feedback to the developers"), checked = on) { now ->
+                    scope.launch { runCatching { api!!.setFeedbackToDevelopers(now) }.onSuccess { session = runCatching { api!!.frontDoorSession() }.getOrNull() ?: session; saved() }.onError { tell(it.message ?: tr("Couldn't change it")) } }
+                }
+                Hint(tr("Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are."))
+            }
             // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
             // again with its passkey (the dialog says so).
             if (server?.features?.contains("accounts") == true) {

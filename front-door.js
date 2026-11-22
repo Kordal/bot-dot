@@ -440,7 +440,9 @@ const feedbackRelay = MANAGED ? null : feedbackRelayLib.open(DATA, {
 });
 const toDevelopers = () => !!feedbackRelay && feedbackRelay.on() === true;
 // Where an owner's Feedback goes now: 'developers', 'admin' (the admin page, or a managed machine's console), or nowhere.
-const feedbackTo = () => (toDevelopers() ? 'developers' : !!outbox || (!ONE_ACCOUNT && !!ADMIN) ? 'admin' : null);
+// A managed machine's owner answers for themselves (#1571): yes sends their Feedback to the developers through the console's
+// outbox (ADR 164), no or not answered yet shows no Feedback and writes nothing to the outbox. `account` is the session's.
+const feedbackTo = (account) => (MANAGED ? (doors.feedbackAnswerOf(account) === true ? 'developers' : null) : toDevelopers() ? 'developers' : (!ONE_ACCOUNT && !!ADMIN) ? 'admin' : null);
 const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
 const feedbackSwitch = () => ({ on: feedbackRelay.on(), relay: feedbackRelay.url, registered: !!feedbackRelay.token() });
 
@@ -909,17 +911,27 @@ function agreedNow(account, how) {
   doors.agreeToTerms(account, TERMS.version);
   agreedLog(account, TERMS.version, how);
 }
-// A right passkey for an account that hasn't agreed to these terms: no session yet, a code that waits for its "I agree".
+// A managed account's answer about Feedback to the developers (#1571): kept with the account and in the audit log.
+const FEEDBACK_CHOOSE = "Choose yes or no for Feedback to botdot's developers first.";
+const mustAsk = (account) => MANAGED && doors.feedbackAnswerOf(account) === null;
+function answerFeedback(account, on, how) {
+  doors.setFeedbackAnswer(account, on);
+  console.log(`[front door] the account ${account} turned Feedback to the developers ${on ? 'on' : 'off'} ${how}`);
+  audited('feedback-developers', { actor: account, account, detail: `${on ? 'on' : 'off'} · ${how}` });
+}
+// A right passkey for an account that hasn't agreed to these terms or, on a managed machine, hasn't answered about Feedback:
+// no session yet, a code that waits for its "I agree" and its answer.
 function askAgreement(res, account, app, handoff) {
   if (agreements.size >= HANDOFFS_MAX) agreements.delete(agreements.keys().next().value);
   const code = crypto.randomBytes(32).toString('base64url');
   agreements.set(code, { account, app, handoff, until: Date.now() + AGREEMENT_MS });
-  return send(res, 200, { ok: false, agreement: code, terms: { terms: TERMS.terms, privacy: TERMS.privacy, version: TERMS.version } });
+  // terms: what to agree to, or null when the version is the one agreed to; feedbackAsk: the owner has yet to answer (#1571).
+  return send(res, 200, { ok: false, agreement: code, terms: mustAgree(account) ? { terms: TERMS.terms, privacy: TERMS.privacy, version: TERMS.version } : null, feedbackAsk: mustAsk(account) });
 }
 
 async function signInRoutes(req, res, p) {
   // Until the first account is made, nobody can sign in, and only the install's link makes it.
-  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn({ terms: TERMS, demo: !!DEMO_HASH }) : pages.notYet());
+  if (p === '/sign-in' && req.method === 'GET') return html(res, 200, doors.accountCount() ? pages.signIn({ terms: TERMS, ask: MANAGED, demo: !!DEMO_HASH }) : pages.notYet());
   if (p === '/sign-in/options' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
     return send(res, 200, { publicKey: webauthn.requestOptions({ rpId: RP_ID, challenge: newChallenge(clientOf(req), { kind: 'get' }) }) });
@@ -937,7 +949,7 @@ async function signInRoutes(req, res, p) {
       if (!handoff) return;
       if (shutOut(clientOf(req))) return refusedSignIn(req, res, ONE_ACCOUNT);
       tries.succeeded(clientOf(req));
-      if (mustAgree(ONE_ACCOUNT)) return askAgreement(res, ONE_ACCOUNT, body.app, handoff);
+      if (mustAgree(ONE_ACCOUNT) || mustAsk(ONE_ACCOUNT)) return askAgreement(res, ONE_ACCOUNT, body.app, handoff);
       audited('demo-sign-in', { account: ONE_ACCOUNT });
       return signedIn(req, res, 200, ONE_ACCOUNT, body.app, handoff);
     }
@@ -957,23 +969,25 @@ async function signInRoutes(req, res, p) {
     tries.succeeded(clientOf(req));
     doors.counted(credential.id, count);
     if (key.account !== ADMIN && shutOut(clientOf(req))) return refusedSignIn(req, res, key.account);
-    if (mustAgree(key.account)) return askAgreement(res, key.account, app, handoff);
+    if (mustAgree(key.account) || mustAsk(key.account)) return askAgreement(res, key.account, app, handoff);
     return signedIn(req, res, 200, key.account, app, handoff);
   }
   // The owner agreed to the terms that changed since their last agreement (#987): the sign-in it waited for goes on.
   if (p === '/sign-in/agree' && req.method === 'POST') {
     if (slowedDown(req, res)) return;
-    const { agreement, agree } = (await readJson(req)) || {};
+    const { agreement, agree, feedback } = (await readJson(req)) || {};
     const waiting = typeof agreement === 'string' ? agreements.get(agreement) : null;
     if (!waiting || waiting.until < Date.now()) {
       if (waiting) agreements.delete(agreement);
       failedTry(tries, clientOf(req), 'sign-ins');
       return send(res, 401, { error: 'That sign-in has ended. Sign in again.' });
     }
-    if (agree !== true) return send(res, 400, { error: NOT_AGREED });
+    if (mustAgree(waiting.account) && agree !== true) return send(res, 400, { error: NOT_AGREED });
+    if (mustAsk(waiting.account) && typeof feedback !== 'boolean') return send(res, 400, { error: FEEDBACK_CHOOSE });
     agreements.delete(agreement);
     if (!doors.accountExists(waiting.account)) return send(res, 401, { error: 'That sign-in has ended. Sign in again.' });
-    agreedNow(waiting.account, 'at sign-in');
+    if (mustAgree(waiting.account)) agreedNow(waiting.account, 'at sign-in');
+    if (mustAsk(waiting.account)) answerFeedback(waiting.account, feedback, 'at sign-in');
     return signedIn(req, res, 200, waiting.account, waiting.app, waiting.handoff);
   }
   // A native app, back from the browser with the code and the secret it kept: its own session.
@@ -1032,7 +1046,7 @@ async function signInRoutes(req, res, p) {
   if (p === '/front-door/session' && req.method === 'GET') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    const sendsFeedbackTo = feedbackTo(), sendsFeedback = sendsFeedbackTo !== null;
+    const sendsFeedbackTo = feedbackTo(account), sendsFeedback = sendsFeedbackTo !== null;
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
@@ -1041,7 +1055,7 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, feedbackReports: feedbackReports(account), ...(MANAGED ? { feedbackAsk: doors.feedbackAnswerOf(account) === null } : {}), updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -1068,6 +1082,18 @@ async function signInRoutes(req, res, p) {
     console.log(`[front door] the account ${account} asked to switch to the new version now`);
     return send(res, 202, ownUpdate(account));
   }
+  // A managed machine's owner answers "Send Feedback to botdot's developers?" for their own account (#1571, ADR 259): asked
+  // once at sign-in beside the terms, and changed here from Settings. Only the owner signed in, never a botdot server.
+  if (p === '/front-door/feedback-to-developers' && req.method === 'POST') {
+    const account = doors.sessionAccount(sessionOf(req));
+    if (!account) { req.resume(); return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' }); }
+    if (!MANAGED) { req.resume(); return send(res, 404, { error: 'Not found' }); }
+    if (req.headers['x-bot-dot'] !== '1') { req.resume(); return send(res, 403, { error: 'Missing X-Bot-Dot header' }); }
+    const { on } = (await readJson(req)) || {};
+    if (typeof on !== 'boolean') return send(res, 400, { error: FEEDBACK_CHOOSE });
+    answerFeedback(account, on, 'in Settings');
+    return send(res, 200, { ok: true, on });
+  }
   // Feedback (#216): a bug or a feature request, kept here for the admin page. Only the owner signed in sends it, from
   // the web page or the Android app; it never reaches a botdot server, and nothing of the account goes with it but the
   // screenshots the owner added (#223), checked by the store.
@@ -1075,13 +1101,13 @@ async function signInRoutes(req, res, p) {
     const session = sessionOf(req);
     const account = doors.sessionAccount(session);
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    const to = feedbackTo();
+    const to = feedbackTo(account);
     if (!to) return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
     // A managed machine whose console has been away long enough that 100 reports wait for it (ADR 164).
     if (outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
     const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
-    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version), to });
+    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version), to: MANAGED ? null : to });
     // On a managed machine a report is kept only with its file in the outbox, so the console never misses one the
     // owner was told went (ADR 164).
     if (outbox) {
@@ -1095,7 +1121,7 @@ async function signInRoutes(req, res, p) {
     }
     console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)${to === 'developers' ? ' to the developers' : ''}`);
     // To the developers: the report waits on the machine and goes on its own, so a relay that is down never holds Send.
-    if (to === 'developers') flushFeedback();
+    if (to === 'developers' && !MANAGED) flushFeedback();
     return send(res, 201, { ok: true, id: report.id });
   }
   // My reports (#1568): the session's own account's reports sent to the developers, newest first, with the status the relay
@@ -1152,8 +1178,8 @@ async function signInRoutes(req, res, p) {
     if (c.full) return refusedFull(req, res, token, link, c);
   }
   if (req.method === 'GET' && !options) {
-    if (signIn) return html(res, 200, pages.newPasskey({ name: link.for, login: doors.loginOf(link.for), terms: mustAgree(link.for) ? TERMS : null }));
-    return html(res, 200, pages.signUp({ name: link.for, login: link.for ? suggestedLogin(new URL(req.url, 'http://x').searchParams.get('name'), link.for) : null, terms: TERMS }));
+    if (signIn) return html(res, 200, pages.newPasskey({ name: link.for, login: doors.loginOf(link.for), terms: mustAgree(link.for) ? TERMS : null, ask: mustAsk(link.for) }));
+    return html(res, 200, pages.signUp({ name: link.for, login: link.for ? suggestedLogin(new URL(req.url, 'http://x').searchParams.get('name'), link.for) : null, terms: TERMS, ask: MANAGED }));
   }
   if (req.method !== 'POST') return false;
   const body = await readJson(req);
@@ -1196,12 +1222,14 @@ async function signInRoutes(req, res, p) {
     console.log(`[front door] the account ${name} has a new passkey, from the admin's sign-in link; its other sessions ended`);
     audited('passkey-added', { actor: 'front-door', account: name, detail: "from the admin's sign-in link" });
     if (agreeing) agreedNow(name, "with the admin's sign-in link");
+    if (mustAsk(name) && typeof body.feedback === 'boolean') answerFeedback(name, body.feedback, "with the console's sign-in link");
     return signedIn(req, res, 201, name, body.app, handoff);
   }
   if (!link.setup && !ONE_ACCOUNT && name !== ADMIN && !blockRules.local(clientOf(req))) doors.countSignUp(blockRules.limitKey(clientOf(req)));
   console.log(`[front door] account ${name} was made ${link.setup ? 'with the setup key' : 'from a sign-up link'}`);
   audited('account-made', { actor: 'front-door', account: name, detail: link.setup ? 'with the setup key' : 'from a sign-up link' });
   if (TERMS) agreedLog(name, TERMS.version, 'at sign-up');
+  if (MANAGED && typeof body.feedback === 'boolean') answerFeedback(name, body.feedback, 'at sign-up');
   askForAccount(name);
   return signedIn(req, res, 201, name, body.app, handoff);
 }

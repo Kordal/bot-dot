@@ -105,6 +105,18 @@ object Feedback {
     /** What My reports shows: the reports, or [said], why they couldn't be loaded. */
     data class MyReports(val reports: List<Report>, val said: String?)
 
+    /**
+     * A managed machine's owner answers about Feedback for themselves (#1571, ADR 259): Settings shows the switch only
+     * where the session's `feedbackAsk` is a boolean (a machine that doesn't ask leaves it out, as does an older front
+     * door), and the switch is on when Feedback goes to the developers. Null: no switch.
+     */
+    fun answer(features: List<String>?, session: JsonObject?): Boolean? {
+        if (features?.contains("accounts") != true) return null
+        val ask = session?.get("feedbackAsk") as? JsonPrimitive ?: return null
+        if (ask.isString || (ask.content != "true" && ask.content != "false")) return null
+        return toDevelopers(session)
+    }
+
     /** Whether the form offers "Add screenshot": the front door says it takes them. An older one leaves the field out. */
     fun shotsOn(session: JsonObject?): Boolean = flag(session, "feedbackScreenshots")
 
