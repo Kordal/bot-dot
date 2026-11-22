@@ -20,7 +20,7 @@ const cleanups = [];
 after(async () => { for (const fn of cleanups.reverse()) await fn(); });
 
 // A managed machine of one account, `owner`, signed in; `reports` are sent as it sends them.
-async function managed(env = {}) {
+async function managed(env = {}, { answer = true } = {}) {
   const door = await startFrontDoor({ env: { FRONT_DOOR_ORIGIN: ORIGIN, FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'owner', FRONT_DOOR_SETUP_KEY: SETUP_KEY, ...FAST, ...env } });
   const stand = await standIn(door, 'owner');
   cleanups.push(async () => { await door.stop(); stand.close(); });
@@ -30,6 +30,8 @@ async function managed(env = {}) {
   assert.equal(options.status, 200, options.text);
   const done = await b.post(`/sign-up/${SETUP_KEY}`, { name: 'owner', credential: key.register(options.data.publicKey) });
   assert.equal(done.status, 201, done.text);
+  // The owner's yes (#1571): without an answer a managed account has no Feedback, so no reports to the developers.
+  if (answer) assert.equal((await b.post('/front-door/feedback-to-developers', { on: true })).status, 200);
   return { door, b, inbox: path.join(door.data, 'inbox'), file: path.join(door.data, 'inbox', 'feedback-statuses.json') };
 }
 // `n` reports of the owner, answered by the front door's own ids.
@@ -47,6 +49,14 @@ function forDevelopers(m, ids) {
   const file = path.join(m.door.data, 'front-door.json');
   const data = JSON.parse(fs.readFileSync(file, 'utf8'));
   for (const f of data.feedback) if (ids.includes(f.id)) f.to = 'developers';
+  fs.writeFileSync(`${file}.t`, JSON.stringify(data), { mode: 0o600 });
+  fs.renameSync(`${file}.t`, file);
+}
+// A report that did not go to the developers (kept before the owner's yes, say): it is no one's in My reports.
+function forAdmin(m, ids) {
+  const file = path.join(m.door.data, 'front-door.json');
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  for (const f of data.feedback) if (ids.includes(f.id)) delete f.to;
   fs.writeFileSync(`${file}.t`, JSON.stringify(data), { mode: 0o600 });
   fs.renameSync(`${file}.t`, file);
 }
@@ -121,9 +131,10 @@ test('a status replaces the one kept, and applying the same file twice changes n
 test('a report that went to an admin, not to the developers, is not touched: it is not listed in My reports', async () => {
   const m = await managed();
   const [one] = await send(m, 1);
+  forAdmin(m, [one]);
   agentWrites(m, [{ id: one, status: 'fixed' }]);
   await gone(m);
-  assert.equal((await m.b.get('/front-door/feedback')).status, 404);
+  assert.equal((await m.b.get('/front-door/feedback')).status, 404, 'no report of the developers, no My reports');
   const kept = JSON.parse(fs.readFileSync(path.join(m.door.data, 'front-door.json'), 'utf8')).feedback;
   assert.equal(kept[0].status, undefined);
 });
