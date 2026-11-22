@@ -60,6 +60,10 @@
 //                     an owner agrees to at sign-up, and their version (default 1), for a machine sold as hosting (#987,
 //                     lib/front-door/terms.js): with both addresses set, no passkey is made before "I agree" is ticked,
 //                     and a sign-in after the version changed asks once more. Unset: nothing is asked
+// FRONT_DOOR_FEEDBACK_TO_DEVELOPERS  1 or 0, what install.sh gives once at the first install: whether Feedback goes to
+//                     botdot's developers (ADR 259, #1566). Taken only while the front door's data has no answer; after
+//                     that the admin page's switch decides. FRONT_DOOR_FEEDBACK_RELAY: the relay's https address
+//                     (default https://feedback.botdot.app). Not on a managed machine
 // FRONT_DOOR_SUBSCRIPTION_URL  with FRONT_DOOR_MANAGED: the https page where an owner manages their subscription,
 //                     which Settings opens as "Subscription" (ADR 234, lib/front-door/subscription.js); `{account}` in
 //                     it is the account's name. Unset: no Subscription row
@@ -94,6 +98,7 @@ const auditStore = require('./lib/front-door/audit');
 const termsLib = require('./lib/front-door/terms');
 const subscriptionLib = require('./lib/front-door/subscription');
 const outboxLib = require('./lib/front-door/outbox');
+const feedbackRelayLib = require('./lib/front-door/feedback-relay');
 
 const ORIGIN = (() => {
   try { return new URL(process.env.FRONT_DOOR_ORIGIN || ''); } catch { return null; }
@@ -426,8 +431,69 @@ const load = loadFiles.create(process.env.FRONT_DOOR_LOAD ? path.resolve(process
 // Feedback (#216) goes to the admin page: none on a machine of one account, or without an admin. A managed machine's
 // goes to the fleet console, through an outbox beside the front door's data that the console's agent empties (ADR 164).
 const outbox = MANAGED ? outboxLib.create(path.join(DATA, 'outbox')) : null;
-const FEEDBACK = !!outbox || (!ONE_ACCOUNT && !!ADMIN);
+// Feedback to the developers (ADR 259, #1566): on a self-hosted machine the machine's switch, set on the admin page (or by
+// the install, once, FRONT_DOOR_FEEDBACK_TO_DEVELOPERS 1 or 0), sends every account's Feedback to the developers' relay
+// instead; a machine of one account then shows Feedback too.
+const feedbackRelay = MANAGED ? null : feedbackRelayLib.open(DATA, {
+  initial: { 1: true, 0: false }[process.env.FRONT_DOOR_FEEDBACK_TO_DEVELOPERS ?? ''] ?? null,
+  url: feedbackRelayLib.addressOf(process.env.FRONT_DOOR_FEEDBACK_RELAY, (line) => console.error(line)),
+});
+const toDevelopers = () => !!feedbackRelay && feedbackRelay.on() === true;
+// Where an owner's Feedback goes now: 'developers', 'admin' (the admin page, or a managed machine's console), or nowhere.
+const feedbackTo = () => (toDevelopers() ? 'developers' : !!outbox || (!ONE_ACCOUNT && !!ADMIN) ? 'admin' : null);
 const FEEDBACK_WAITS = 'Feedback can\'t be sent right now. Try again later.';
+const feedbackSwitch = () => ({ on: feedbackRelay.on(), relay: feedbackRelay.url, registered: !!feedbackRelay.token() });
+
+// A report for the developers waits on the machine until the relay takes it (#1566): sent when it is written, and then
+// every FEEDBACK_EVERY_MS, a failed one again after 1, 2, 4 … minutes at most 6 hours, never twice for the same id (the
+// relay treats it as idempotent, and one is sent at a time). The text goes only with its account's name and its bots'
+// names replaced: when the account's botdot server can't say them, the report waits.
+const FEEDBACK_BACKOFF_MS = Number(process.env.FRONT_DOOR_FEEDBACK_BACKOFF_MS) || 60_000;
+const feedbackSending = new Set();
+async function botNames(account) {
+  const r = await askAccount(account, 'GET', '/api/bots', null, 5000, 16 * 1024 * 1024); // the whole list: a part of it would leave a name in the text
+  const list = Array.isArray(r.data) ? r.data : Array.isArray(r.data?.bots) ? r.data.bots : null;
+  return r.status === 200 && list ? list.map((b) => b?.name).filter((n) => typeof n === 'string') : null;
+}
+async function sendFeedback(report) {
+  const bots = await botNames(report.account);
+  let out = { retry: true };
+  if (bots) {
+    out = await feedbackRelay.send(report.id, {
+      kind: report.kind,
+      text: feedbackRelayLib.neutral(report.text, { account: [report.account, doors.loginOf(report.account)], bots }),
+      app: report.app,
+      version: report.version,
+      screenshots: report.screenshots.map((s) => ({ type: s.type, data: s.bytes.toString('base64') })),
+    });
+  }
+  if (out.relayId) return doors.feedbackTried(report.id, { relayId: out.relayId });
+  if (!out.retry) return doors.feedbackTried(report.id, { refused: true });
+  const tries = report.tries + 1;
+  doors.feedbackTried(report.id, { tries, retryAt: Date.now() + Math.min(FEEDBACK_BACKOFF_MS * 2 ** (tries - 1), 6 * 3600_000) });
+}
+let feedbackFlushing = false;
+let feedbackAgain = false; // a report was written while one was sent: go through them again at once
+async function flushFeedback() {
+  if (feedbackFlushing) { feedbackAgain = true; return; }
+  feedbackFlushing = true;
+  try {
+    do {
+      feedbackAgain = false;
+      if (!toDevelopers()) return;
+      for (const report of doors.feedbackToSend()) {
+        if (!toDevelopers()) break; // turned off meanwhile: nothing more goes
+        if (feedbackSending.has(report.id)) continue;
+        feedbackSending.add(report.id);
+        try { await sendFeedback(report); } catch (e) { console.error(`[front door] couldn't send a report to the developers: ${e.message}`); } finally { feedbackSending.delete(report.id); }
+      }
+    } while (feedbackAgain);
+  } finally { feedbackFlushing = false; }
+}
+if (feedbackRelay) {
+  setTimeout(flushFeedback, 3000).unref();
+  setInterval(flushFeedback, Number(process.env.FRONT_DOOR_FEEDBACK_EVERY_MS) || 60_000).unref();
+}
 // Shared rooms (ADR 060): never on a machine of one account; elsewhere when the admin turned them on.
 const rooms = ONE_ACCOUNT ? null : roomStore.open(DATA);
 const roomsOn = () => !!rooms && !!ADMIN && rooms.isOn();
@@ -941,6 +1007,7 @@ async function signInRoutes(req, res, p) {
   if (p === '/front-door/session' && req.method === 'GET') {
     const account = doors.sessionAccount(sessionOf(req));
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
+    const sendsFeedbackTo = feedbackTo(), sendsFeedback = sendsFeedbackTo !== null;
     // feedbackScreenshots (#223): Feedback takes screenshots too; an older front door leaves it out, and the apps add none.
     // updates (ADR 053): this account's owner chooses when it switches to a new version (/front-door/update).
     // account: whose session it is; rooms (ADR 060): the admin turned shared rooms on (/front-door/rooms); roomLinks
@@ -949,7 +1016,7 @@ async function signInRoutes(req, res, p) {
     // (#1312): where an older managed front door's owner started deleting it, a page of botdot.app; null now, since
     // a managed machine's owner asks for it in Settings (#1313), told so by deletionRequest.
     // subscriptionPage (ADR 234): the billing page the fleet console names for this account; null elsewhere.
-    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: FEEDBACK, feedbackScreenshots: FEEDBACK, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
+    return send(res, 200, { account, admin: !ONE_ACCOUNT && !!ADMIN && account === ADMIN, deleteAccount: deletesItself(account) || asksDeletion(account), deletionRequest: asksDeletion(account), deleteAccountPage: null, subscriptionPage: subscriptionLib.page(SUBSCRIPTION, account), feedback: sendsFeedback, feedbackTo: sendsFeedbackTo, feedbackScreenshots: sendsFeedback, updates: choosesUpdates(account), rooms: roomsOn(), roomLinks: roomsOn() });
   }
   // When this account switches to a new version (ADR 053): its owner's "Update automatically", and "Update now" for a
   // version the admin installed. Only the owner signed in reaches it, never a botdot server.
@@ -983,12 +1050,13 @@ async function signInRoutes(req, res, p) {
     const session = sessionOf(req);
     const account = doors.sessionAccount(session);
     if (!account) return send(res, 401, { error: 'Sign in first.', signIn: '/sign-in' });
-    if (!FEEDBACK) return send(res, 404, { error: 'Not found' });
+    const to = feedbackTo();
+    if (!to) return send(res, 404, { error: 'Not found' });
     if (doors.isSuspended(account)) { req.resume(); return send(res, 503, { error: PAUSED, paused: true }); }
     // A managed machine whose console has been away long enough that 100 reports wait for it (ADR 164).
     if (outbox?.full()) { req.resume(); return send(res, 503, { error: FEEDBACK_WAITS }); }
     const { kind, text, screenshots } = (await readJson(req, { max: FEEDBACK_BODY_MAX, tooLarge: FEEDBACK_TOO_LARGE })) || {};
-    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version) });
+    const report = doors.addFeedback({ account, kind, text, screenshots, app: doors.sessionApp(session), version: short(readStatus('version.json')?.version), to });
     // On a managed machine a report is kept only with its file in the outbox, so the console never misses one the
     // owner was told went (ADR 164).
     if (outbox) {
@@ -1000,7 +1068,9 @@ async function signInRoutes(req, res, p) {
         return send(res, 503, { error: FEEDBACK_WAITS });
       }
     }
-    console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)`);
+    console.log(`[front door] the account ${account} sent feedback (${report.kind}, ${report.text.length} characters, ${report.screenshots?.length || 0} screenshots)${to === 'developers' ? ' to the developers' : ''}`);
+    // To the developers: the report waits on the machine and goes on its own, so a relay that is down never holds Send.
+    if (to === 'developers') flushFeedback();
     return send(res, 201, { ok: true, id: report.id });
   }
   if (p === '/front-door/rooms' || p.startsWith('/front-door/rooms/')) return roomRoutes(req, res, p);
@@ -1175,7 +1245,7 @@ const ROOM_HEADERS = (account) => ({ 'x-botdot-account': account, 'x-botdot-room
 const ROOM_ANSWER_MAX = 256 * 1024;
 // One request to an account's botdot server, from the front door itself: { status, data }, status 0 when it could
 // not be reached in time. A suspended or deleted account is not asked.
-function askAccount(account, method, to, body, timeoutMs) {
+function askAccount(account, method, to, body, timeoutMs, answerMax = ROOM_ANSWER_MAX) {
   if (!doors.accountExists(account) || doors.isSuspended(account)) return Promise.resolve({ status: 0, data: null });
   return new Promise((resolve) => {
     const text = body === null || body === undefined ? null : JSON.stringify(body);
@@ -1183,7 +1253,7 @@ function askAccount(account, method, to, body, timeoutMs) {
     const up = http.request({ socketPath: socketOf(account), method, path: to, headers, timeout: timeoutMs }, (answer) => {
       const chunks = [];
       let size = 0;
-      answer.on('data', (c) => { size += c.length; if (size > ROOM_ANSWER_MAX) { up.destroy(); resolve({ status: 0, data: null }); } else chunks.push(c); });
+      answer.on('data', (c) => { size += c.length; if (size > answerMax) { up.destroy(); resolve({ status: 0, data: null }); } else chunks.push(c); });
       answer.on('end', () => {
         let data = null;
         try { data = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* not JSON */ }
@@ -1839,7 +1909,24 @@ async function adminRoutes(req, res, p, account) {
     return send(res, 200, { ok: true, share: doors.defaultShare() });
   }
   // The owners' feedback (#216), newest first: the admin marks a report done, which keeps it, or deletes it.
-  if (p === '/admin/feedback' && req.method === 'GET') return send(res, 200, { reports: doors.listFeedback() });
+  if (p === '/admin/feedback' && req.method === 'GET') return send(res, 200, { reports: doors.listAdminFeedback() });
+  // Feedback to the developers (ADR 259, #1566): the machine's switch, read and set by the admin alone; turning it on
+  // the first time registers with the relay, which gives the install token the front door keeps.
+  if (p === '/admin/feedback-to-developers' && feedbackRelay) {
+    if (req.method === 'GET') return send(res, 200, feedbackSwitch());
+    if (req.method === 'POST') {
+      const { on } = (await readJson(req)) || {};
+      if (typeof on !== 'boolean') return send(res, 400, { error: 'on is true or false.' });
+      if (on) {
+        try { await feedbackRelay.register(); } catch (e) { return send(res, 502, { error: e.message.replace("botdot's Feedback relay", "The Feedback relay") }); }
+      }
+      feedbackRelay.set(on);
+      audited('feedback-developers', { detail: on ? 'on' : 'off' });
+      console.log(`[front door] the admin turned Feedback to the developers ${on ? 'on' : 'off'}`);
+      if (on) flushFeedback();
+      return send(res, 200, feedbackSwitch());
+    }
+  }
   // A report's screenshot, as the type the front door read from its bytes, shown inline and never as a page (#223).
   const shot = p.match(/^\/admin\/feedback\/([0-9a-f]{32})\/screenshot\/([0-9])$/);
   if (shot && req.method === 'GET') {

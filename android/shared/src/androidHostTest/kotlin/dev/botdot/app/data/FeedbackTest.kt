@@ -47,6 +47,19 @@ class FeedbackTest {
         assertFalse("no answer", Feedback.on(listOf("accounts"), null))
     }
 
+    @Test fun theFormSaysTheDevelopersReadItWhenTheFrontDoorSendsFeedbackThere() {
+        fun session(json: String) = Api.JSON.parseToJsonElement(json).jsonObject
+        assertTrue(Feedback.toDevelopers(session("""{"feedback":true,"feedbackTo":"developers"}""")))
+        assertFalse("an admin page", Feedback.toDevelopers(session("""{"feedback":true,"feedbackTo":"admin"}""")))
+        assertFalse("an older front door", Feedback.toDevelopers(session("""{"feedback":true}""")))
+        assertFalse("no answer", Feedback.toDevelopers(null))
+        val said = Feedback.intro(shotsOn = true, developers = true)
+        assertTrue(said, said.startsWith("botdot's developers read it."))
+        assertTrue(said, "published without personal details" in said && "screenshots never are" in said)
+        assertEquals(said, Feedback.intro(shotsOn = false, developers = true))
+        assertEquals("the admin's form is as before", "The admin of this machine reads it. Only what you write here is sent.", Feedback.intro(shotsOn = false))
+    }
+
     @Test fun sendsTheKindAndTheTextToTheFrontDoor() = runBlocking {
         for ((kind, text) in listOf(Feedback.Kind.BUG to "Approve button does nothing on my phone", Feedback.Kind.FEATURE to "Add a dark theme")) {
             door.enqueue(json("""{"ok":true,"id":"${"a".repeat(32)}"}""", 201))
