@@ -1872,5 +1872,6 @@
   "You have not sent any report yet.": "Nie wysłano jeszcze żadnego zgłoszenia.",
   "Send feedback": "Wyślij opinię",
   "Couldn't load your reports: can't reach botdot.": "Nie udało się wczytać zgłoszeń: nie można połączyć się z botdot.",
-  "Couldn't load your reports ({status}).": "Nie udało się wczytać zgłoszeń ({status})."
+  "Couldn't load your reports ({status}).": "Nie udało się wczytać zgłoszeń ({status}).",
+  "Fixed: your report from {date}": "Naprawione: twoje zgłoszenie z {date}"
 }

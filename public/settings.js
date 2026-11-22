@@ -846,6 +846,7 @@ async function showAdminLink() {
   feedbackShots = session?.feedbackScreenshots === true;
   feedbackDevelopers = session?.feedbackTo === 'developers';
   feedbackReports = session?.feedbackReports === true;
+  if (feedbackReports) showFixedNotice(); // a report fixed in the version this account runs: said once (#1569)
   if (typeof setRoomsOn === 'function') setRoomsOn(session?.rooms === true, session?.account, session?.roomLinks === true); // shared rooms (rooms.js, ADR 060; links ADR 068)
 }
 
@@ -962,6 +963,47 @@ async function openMyReports() {
   if (!res.ok) return say(typeof data.error === 'string' && data.error.trim() ? data.error : tr("Couldn't load your reports ({status}).", { status: res.status }));
   const reports = Array.isArray(data.reports) ? data.reports : [];
   if (shown()) list.innerHTML = reports.length ? reports.map(reportRow).join('') : `<li class="muted">${tr('You have not sent any report yet.')}</li>`;
+}
+
+// ---------- the Fixed notice ----------
+
+// Once the account runs the update that fixed a report (#1569, ADR 259), the page says so, once per report, as What's new
+// does: "Fixed: your report from 3 Nov" and the first words of what the owner wrote. The front door decides when (`fixed:
+// true` on the report only once the account's botdot server ships the fix) and keeps which notices were closed
+// (`fixedSeen`), so closing one here closes it in every app of the account. It waits while another dialog is open.
+const FIXED_WAIT_MS = 2000;
+const FIXED_WORDS = 80;
+const fixedAsked = new Set(); // reports whose notice this page took in hand: never twice
+// The report's text as its first words: one line, cut at a word, "…" when there is more.
+function firstWords(text) {
+  const one = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (one.length <= FIXED_WORDS) return one;
+  const cut = one.slice(0, FIXED_WORDS);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), 1)).trimEnd()}…`;
+}
+async function showFixedNotice() {
+  let res;
+  try { res = await fetch('/front-door/feedback'); } catch { return; }
+  if (!res.ok) return;
+  const data = await res.json().catch(() => ({}));
+  const due = (Array.isArray(data.reports) ? data.reports : []).filter((r) => r && r.fixed === true && r.fixedSeen !== true && /^[0-9a-f]{32}$/.test(r.id) && !fixedAsked.has(r.id));
+  due.forEach((r) => fixedAsked.add(r.id));
+  if (due.length) openFixedNotice(due);
+}
+function openFixedNotice(reports) {
+  if ($('#modal').open) { setTimeout(() => openFixedNotice(reports), FIXED_WAIT_MS); return null; }
+  const day = (r) => new Date(r.created).toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' });
+  const m = openModal(`
+    <div class="modal-head"><h2>${tr('Fixed')}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+    <div class="modal-body whats-new">${reports.map((r) => `
+      <section><h3>${esc(tr('Fixed: your report from {date}', { date: day(r) }))}</h3><p>${esc(firstWords(r.text))}</p></section>`).join('')}
+    </div>
+    <div class="modal-foot"><button type="button" class="btn primary" data-dismiss>${tr('Got it')}</button></div>`);
+  // Closed any way (the button, ✕, Escape) counts as seen, here and in the Android app.
+  m.addEventListener('close', () => {
+    for (const r of reports) fetch(`/front-door/feedback/${r.id}/fixed-seen`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Bot-Dot': '1' }, body: '{}' }).catch(() => {});
+  }, { once: true });
+  return m;
 }
 
 // A file's bytes as base64, as the front door takes a screenshot.

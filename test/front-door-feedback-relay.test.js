@@ -75,9 +75,13 @@ async function signUp(door, name, link) {
 async function withAdmin(opts) {
   const m = await machine({ ...opts, env: { FRONT_DOOR_ADMIN: 'ann', ...opts?.env } });
   m.ann = await signUp(m.door, 'ann', m.door.firstLink);
+  // versions: the newest What's new note each account's stand-in server says it ships, in its /api/version (#1569).
+  m.versions = {};
   m.owner = async (name, bots = []) => {
     const link = (await m.ann.post('/admin/links', {})).data.url;
-    m.stands[name] = await standIn(m.door, name, { answer: (req) => (req.url === '/api/bots' ? [200, bots.map((b) => ({ id: b.toLowerCase(), name: b }))] : null) });
+    m.stands[name] = await standIn(m.door, name, {
+      answer: (req) => (req.url === '/api/bots' ? [200, bots.map((b) => ({ id: b.toLowerCase(), name: b }))] : req.url === '/api/version' && name in m.versions ? [200, { whatsNew: m.versions[name] }] : null),
+    });
     cleanups.push(() => m.stands[name].close());
     return signUp(m.door, name, { path: new URL(link).pathname });
   };
@@ -387,4 +391,89 @@ test('a report the relay refused for good is not listed in My reports as Sent', 
   await flip(m, false);
   assert.equal((await max.get('/front-door/session')).data.feedbackReports, false, 'nothing taken, nothing to hear of');
   assert.equal((await max.get('/front-door/feedback')).status, 404);
+});
+
+// ---------- the one-time Fixed notice (#1569) ----------
+
+const fixedBy = async (m, owner, text, status) => {
+  const sent = await sendOne(owner, m, text);
+  m.relay.statuses[sent.relayId] = status;
+  await waitFor(async () => (await mine(owner)).find((r) => r.id === sent.id)?.status === status.status, { what: 'the status to be applied' });
+  return sent;
+};
+const FIX = { status: 'fixed', fixedIn: '2026-11-25-the-fix' };
+
+test('a fixed report is fixed: true only once the account\'s server ships the note of the fix, or a later one', async () => {
+  const m = await withAdmin();
+  const ian = await m.owner('ian');
+  await flip(m, true);
+  m.versions.ian = '2026-11-20-before-the-fix';
+  const one = await fixedBy(m, ian, 'The Approve button', FIX);
+  // An account that postponed its update runs the old version: Fixed in My reports, and no notice yet.
+  let r = (await mine(ian)).find((x) => x.id === one.id);
+  assert.equal(r.status, 'fixed');
+  assert.equal(r.fixed, undefined, 'the server still ships an older note');
+  m.versions.ian = '2026-11-25-the-fix';
+  assert.equal((await mine(ian)).find((x) => x.id === one.id).fixed, true, 'the note of the fix is the newest it ships');
+  m.versions.ian = '2026-12-02-something-later';
+  assert.equal((await mine(ian)).find((x) => x.id === one.id).fixed, true, 'a later note too');
+  // A server that says nothing of its newest note (older, or not answering) is never told the fix is there.
+  delete m.versions.ian;
+  assert.equal((await mine(ian)).find((x) => x.id === one.id).fixed, undefined);
+  m.versions.ian = null;
+  assert.equal((await mine(ian)).find((x) => x.id === one.id).fixed, undefined);
+});
+
+test('a report marked fixed with no note of the fix, and a report that is not fixed, never get fixed: true', async () => {
+  const m = await withAdmin();
+  const jo = await m.owner('jo');
+  await flip(m, true);
+  m.versions.jo = '2030-01-01-far-ahead';
+  const bare = await fixedBy(m, jo, 'No note named', { status: 'fixed' });
+  const seen = await fixedBy(m, jo, 'Only seen', { status: 'seen', fixedIn: '2026-11-25-the-fix' });
+  const list = await mine(jo);
+  assert.equal(list.find((x) => x.id === bare.id).status, 'fixed');
+  assert.equal(list.find((x) => x.id === bare.id).fixed, undefined);
+  assert.equal(list.find((x) => x.id === seen.id).fixed, undefined);
+});
+
+test('closing the notice keeps it closed for the account, once per report, and only the account\'s own fixed report can be closed', async () => {
+  const m = await withAdmin();
+  const kit = await m.owner('kit');
+  const lou = await m.owner('lou');
+  await flip(m, true);
+  m.versions.kit = m.versions.lou = '2026-11-25-the-fix';
+  const one = await fixedBy(m, kit, 'Kit first', FIX);
+  const two = await fixedBy(m, kit, 'Kit second', FIX);
+  const open = await sendOne(kit, m, 'Not fixed yet');
+  const loud = await fixedBy(m, lou, 'Lou one', FIX);
+  const shown = async () => (await mine(kit)).filter((r) => r.fixed && !r.fixedSeen).map((r) => r.id).sort();
+  assert.deepEqual(await shown(), [one.id, two.id].sort());
+  const closed = await kit.post(`/front-door/feedback/${one.id}/fixed-seen`, {});
+  assert.equal(closed.status, 200, closed.text);
+  assert.deepEqual(closed.data, { ok: true });
+  assert.deepEqual(await shown(), [two.id], 'the other report still has its notice');
+  assert.equal((await mine(kit)).find((r) => r.id === one.id).fixed, true, 'it is still a fixed report, listed as Fixed');
+  assert.equal((await kit.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 200, 'closing again changes nothing');
+  assert.equal(keptFile(m.door).find((f) => f.id === one.id).fixedSeen, true);
+  assert.equal((await kit.post(`/front-door/feedback/${open.id}/fixed-seen`, {})).status, 409, 'not fixed: there is no notice');
+  assert.equal((await kit.post(`/front-door/feedback/${loud.id}/fixed-seen`, {})).status, 404, "another account's report");
+  assert.equal((await lou.get('/front-door/feedback')).data.reports[0].fixedSeen, undefined, "another account's notice is not closed");
+  assert.equal((await kit.post(`/front-door/feedback/${'0'.repeat(32)}/fixed-seen`, {})).status, 404);
+  assert.equal((await m.door.browser().post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 401);
+});
+
+test('a report sent to an admin page, or on an account with no My reports, can close no notice', async () => {
+  const m = await withAdmin();
+  const mia = await m.owner('mia');
+  const nan = await m.owner('nan');
+  await flip(m, true);
+  m.versions.mia = '2026-12-31-newest';
+  const one = await fixedBy(m, mia, 'Fixed once', FIX);
+  await flip(m, false);
+  const noone = await m.owner('ova');
+  assert.equal((await noone.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 404, 'no My reports for this account');
+  assert.equal((await nan.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 404, "not nan's report");
+  // The owner of the report keeps hearing of it with the switch off.
+  assert.equal((await mia.post(`/front-door/feedback/${one.id}/fixed-seen`, {})).status, 200);
 });

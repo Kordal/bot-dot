@@ -82,6 +82,39 @@ class FrontDoorDeskTest {
         assertTrue(odd.said.orEmpty().startsWith("Couldn't load your reports: "), odd.said)
     }
 
+    @Test fun aFixedReportNotYetSeenIsOneNoticeAndAClosedOrNotYetRunFixIsNone() = runTest {
+        val a = "a".repeat(32); val b = "b".repeat(32); val c = "c".repeat(32); val d = "d".repeat(32)
+        val f = door("{}") { t ->
+            if (t.path == "/front-door/feedback") 200 to """{"reports":[
+                {"id":"$a","created":"2026-11-03T10:00:00.000Z","kind":"bug","text":"Approve does nothing","status":"fixed","fixedIn":"2026-11-25-the-fix","fixed":true},
+                {"id":"$b","created":"2026-11-02T10:00:00.000Z","kind":"bug","text":"Closed already","status":"fixed","fixedIn":"2026-11-25-the-fix","fixed":true,"fixedSeen":true},
+                {"id":"$c","created":"2026-11-01T10:00:00.000Z","kind":"bug","text":"Not run yet","status":"fixed","fixedIn":"2026-12-25-later"},
+                {"id":"$d","created":"2026-10-31T10:00:00.000Z","kind":"bug","text":"No note named","status":"fixed","fixed":"true"},
+                {"id":"not-an-id","created":"2026-10-30T10:00:00.000Z","kind":"bug","text":"Odd id","status":"fixed","fixed":true}
+            ]}""" else 404 to "{}"
+        }
+        val notices = FrontDoorDesk(f.api).fixedNotices()
+        assertEquals(listOf(a), notices.map { it.id }, "only a fix the account runs, not closed, with a real id; a string \"true\" is no flag")
+        assertTrue(notices.single().fixedLine.startsWith("Fixed: your report from ") && notices.single().fixedLine.contains("3"), notices.single().fixedLine)
+        assertEquals("Approve does nothing", notices.single().firstWords)
+        assertTrue(FrontDoorDesk(door("{}") { 404 to """{"error":"Not found"}""" }.api).fixedNotices().isEmpty(), "an older front door, or one with no My reports")
+    }
+
+    @Test fun theFirstWordsOfAReportAreOneLineCutAtAWord() {
+        fun report(text: String) = Feedback.Report("a".repeat(32), "2026-11-03T10:00:00.000Z", Feedback.Kind.BUG, text, Feedback.Status.FIXED, null, null, fixed = true)
+        assertEquals("Two lines of text", report("  Two\nlines   of text ").firstWords)
+        val long = report("word ".repeat(40) + "end").firstWords
+        assertTrue(long.endsWith("word…") && long.length <= 81 && !long.contains("end"), long)
+    }
+
+    @Test fun closingTheNoticePostsEachReportsFixedSeenAndAFailureIsLetBe() = runTest {
+        val ids = listOf("a".repeat(32), "b".repeat(32))
+        val f = door("{}") { t -> if (t.path.endsWith("/${ids[0]}/fixed-seen")) 503 to "{}" else 200 to """{"ok":true}""" }
+        val reports = ids.map { Feedback.Report(it, "2026-11-03T10:00:00.000Z", Feedback.Kind.BUG, "x", Feedback.Status.FIXED, null, null, fixed = true) }
+        FrontDoorDesk(f.api).fixedSeen(reports)
+        assertEquals(ids.map { "POST /front-door/feedback/$it/fixed-seen" }, f.sent().map { "${it.method} ${it.path}" }, "the first failing does not stop the second")
+    }
+
     @Test fun aManagedMachineAsksForTheDeletionAndSaysSo() = runTest {
         val f = door("""{"account":"ann","deleteAccount":true,"deletionRequest":true}""")
         val o = FrontDoorDesk(f.api).read(listOf("accounts"))!!.deletion as AccountDeletion.Offer.Delete

@@ -10,6 +10,7 @@ const { cut, read, element, answer, words } = require('./web-page');
 function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin: false, feedback: true }), kind = 'bug', text = 'Approve button does nothing on my phone' } = {}) {
   const calls = [];
   const toasts = [];
+  const timers = []; // what the page put off (the Fixed notice waits while another dialog is open)
   const urls = { made: [], revoked: [] };
   const adminLink = element({}, { classes: ['hidden'] });
   const button = element({}, { classes: ['hidden'] });
@@ -36,14 +37,15 @@ function page({ fetch = answer(201, { ok: true }), session = answer(200, { admin
     btoa: (b) => Buffer.from(b, 'latin1').toString('base64'),
     URL: { createObjectURL: (file) => { const u = `blob:${file.name}`; urls.made.push(u); return u; }, revokeObjectURL: (u) => urls.revoked.push(u) },
     $$: (sel, root) => root.querySelectorAll(sel),
-    $: (sel, root) => (root ? root.querySelector(sel) : { '#admin-link': adminLink, '#feedback-btn': button }[sel] || null),
+    $: (sel, root) => (root ? root.querySelector(sel) : { '#admin-link': adminLink, '#feedback-btn': button, '#modal': modal }[sel] || null),
     openModal: (html) => { modal.html = html; modal.open = true; return modal; },
     toast: (t, err) => toasts.push([t, !!err]),
+    setTimeout: (fn) => timers.push(fn),
     fetch: async (url, opts) => { calls.push([url, opts]); return (url === '/front-door/session' ? session : fetch)(url, opts); },
   });
   vm.runInContext(`${cut('// ---------- the way to the admin page ----------', '// ---------- backups ----------')}
-    Object.assign(this, { showAdminLink, openFeedback, sendFeedback, addFeedbackShots, openMyReports });`, ctx);
-  return { ctx, calls, toasts, button, adminLink, modal, form, said, send, shots, add, input, urls, mineButton, list, newButton };
+    Object.assign(this, { showAdminLink, openFeedback, sendFeedback, addFeedbackShots, openMyReports, showFixedNotice });`, ctx);
+  return { ctx, calls, toasts, timers, button, adminLink, modal, form, said, send, shots, add, input, urls, mineButton, list, newButton };
 }
 
 test('web: the Feedback icon shows when the front door says Feedback goes to an admin page, and only then', async () => {
@@ -279,4 +281,66 @@ test('web: going to My reports and back keeps what was typed in the form', async
   p.newButton.onclick();
   assert.match(p.modal.html, /id="feedback-form"/, 'Send feedback opens the form again');
   assert.equal(p.form.text.value, 'Half written');
+});
+
+// ---------- the Fixed notice (#1569) ----------
+
+const FIXED = { id: 'c'.repeat(32), created: '2026-11-03T10:00:00.000Z', kind: 'bug', text: 'Approve does nothing on my phone', status: 'fixed', fixedIn: '2026-11-25-the-fix', fixed: true };
+const NOTICE = { session: answer(200, { feedback: true, feedbackTo: 'developers', feedbackReports: true }) };
+const seenCalls = (p) => p.calls.filter(([url, opts]) => /fixed-seen$/.test(url) && opts?.method === 'POST');
+
+test('web: a fixed report not yet seen is said once as "Fixed: your report from 3 Nov" with the first words of its text', async () => {
+  const p = page({ ...NOTICE, fetch: answer(200, { reports: [FIXED, REPORTS[1]] }) });
+  await p.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.match(p.modal.html, /<h2>Fixed<\/h2>/);
+  assert.match(p.modal.html, /<h3>Fixed: your report from (?:3 Nov|Nov 3)<\/h3><p>Approve does nothing on my phone<\/p>/);
+  assert.doesNotMatch(p.modal.html, /A dark theme/, 'a report that is not fixed has no notice');
+  assert.equal(seenCalls(p).length, 0, 'closed only when the owner closes it');
+  p.modal.close();
+  assert.deepEqual(seenCalls(p).map(([url]) => url), [`/front-door/feedback/${FIXED.id}/fixed-seen`]);
+  assert.equal(seenCalls(p)[0][1].headers['X-Bot-Dot'], '1');
+});
+
+test('web: no notice for a report already seen, one the account does not run the fix of yet, or one fixed with no note of the fix; an older front door asks nothing', async () => {
+  const none = [{ ...FIXED, fixedSeen: true }, { ...FIXED, id: 'd'.repeat(32), fixed: undefined }, { ...FIXED, id: 'e'.repeat(32), fixedIn: undefined, fixed: undefined }, { ...FIXED, id: 'f'.repeat(32), fixed: 'true' }];
+  const p = page({ ...NOTICE, fetch: answer(200, { reports: none }) });
+  await p.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(p.modal.open, false);
+  const older = page({ session: answer(200, { feedback: true, feedbackTo: 'developers' }), fetch: answer(200, { reports: [FIXED] }) });
+  await older.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(older.modal.open, false);
+  assert.equal(older.calls.filter(([url]) => url === '/front-door/feedback').length, 0, 'no My reports, so no route to ask');
+  const down = page({ ...NOTICE, fetch: async () => { throw new TypeError('Failed to fetch'); } });
+  await down.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.equal(down.modal.open, false);
+});
+
+test('web: the notice waits while another dialog is open, and is said once however often the page asks', async () => {
+  const p = page({ ...NOTICE, fetch: answer(200, { reports: [FIXED] }) });
+  p.modal.open = true;
+  await p.ctx.showAdminLink();
+  await p.ctx.showFixedNotice();
+  assert.equal(p.modal.html, undefined, 'the open dialog is left alone');
+  assert.equal(p.timers.length, 1, 'asked once, put off once');
+  p.modal.open = false;
+  p.timers.shift()();
+  assert.match(p.modal.html, /Fixed: your report from/);
+  p.modal.close();
+  await p.ctx.showFixedNotice();
+  assert.equal(p.modal.open, false, 'not again in this page');
+});
+
+test('web: the notice draws a long text as its first words and a report\'s words as text, never as markup', async () => {
+  const long = `${'word '.repeat(40)}end`;
+  const p = page({ ...NOTICE, fetch: answer(200, { reports: [{ ...FIXED, text: `<img src=x onerror=alert(1)> ${long}` }] }) });
+  await p.ctx.showAdminLink();
+  await new Promise((r) => setImmediate(r));
+  assert.match(p.modal.html, /<p>&lt;img src=x onerror=alert\(1\)&gt; word word/);
+  assert.match(p.modal.html, /word…<\/p>/, 'cut at a word, with an ellipsis');
+  assert.doesNotMatch(p.modal.html, /<img/);
+  assert.doesNotMatch(p.modal.html, /end/);
 });

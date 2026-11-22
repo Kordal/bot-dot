@@ -59,6 +59,20 @@ class FrontDoorDesk(private val api: Api) {
         }
     }
 
+    /**
+     * The Fixed notices still to say (#1569): the owner's reports that are fixed in the version this account runs and whose
+     * notice was not closed, asked only where [Feedback.reportsOn] says so. None when they can't be asked.
+     */
+    @Throws(Exception::class)
+    suspend fun fixedNotices(): List<Feedback.Report> =
+        try { Feedback.fixedNotices(api.feedbackReports()) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+
+    /** The notice was closed, any way: [reports] are seen, here and in every other app. A failure is let be: it shows again. */
+    @Throws(Exception::class)
+    suspend fun fixedSeen(reports: List<Feedback.Report>) {
+        for (r in reports) try { api.feedbackFixedSeen(r.id) } catch (e: CancellationException) { throw e } catch (_: Exception) { }
+    }
+
     /** Sends a report: null once it went, else the form's sentence ([Feedback.failed]); what was typed stays. */
     @Throws(Exception::class)
     suspend fun sendFeedback(kind: Feedback.Kind, text: String, shots: List<ByteArray> = emptyList()): String? {
