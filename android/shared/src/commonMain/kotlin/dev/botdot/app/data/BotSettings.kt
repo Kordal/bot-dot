@@ -53,6 +53,8 @@ data class BotDraft(
     val computerOn: String = "linux",
     /** "Copy files" for its new computer (#556). */
     val moveFiles: Boolean = false,
+    /** Its place of its own (ADR 261): "" follows the account's, else "linux" or "boat". */
+    val computerPlace: String = "",
     /** Its proxy (ADR 171): "" the account's, "none", or one by id. */
     val proxy: String = "",
     val useSkills: Boolean = true,
@@ -85,6 +87,8 @@ data class BotDraft(
     fun withSkill(name: String, on: Boolean) = copy(skills = if (on) skills + name else skills - name)
     /** Where its computer is now ("none", "linux", "boat"), its files copied along ([move]) or not. */
     fun withComputerOn(to: String, move: Boolean) = copy(computer = to != "none", computerOn = if (to != "none") to else computerOn, moveFiles = move)
+    /** Its place of its own ([BotSettings.placeChoices]), its files copied along ([move]) or not. */
+    fun withComputerPlace(place: String, move: Boolean) = copy(computerPlace = place, moveFiles = move)
     fun withProxy(proxy: String) = copy(proxy = proxy)
     fun withApp(c: Connection, on: Boolean) = BotSettings.appToggled(c, on, connectors, accounts).let { (k, a) -> copy(connectors = k, accounts = a) }
     fun withOthersMayAsk(on: Boolean) = copy(othersMayAsk = on)
@@ -127,7 +131,7 @@ object BotSettings {
         color = b.color.orEmpty(), icon = iconOf(b.outfit), name = b.name, description = b.description, group = b.group,
         pinned = b.pinned > 0, task = b.prompt, model = b.model.orEmpty(), effort = b.effort.orEmpty(),
         computer = b.computer == "linux" || b.computer == "boat", computerOn = if (b.computer == "boat") "boat" else "linux",
-        proxy = b.proxy, useSkills = b.useSkills, skills = b.skills.toSet(), disabled = b.disabledSkills.toSet(),
+        computerPlace = b.computerPlace, proxy = b.proxy, useSkills = b.useSkills, skills = b.skills.toSet(), disabled = b.disabledSkills.toSet(),
         connectors = b.connectors.toSet(), accounts = b.accounts,
         mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet(),
         othersMayAsk = b.othersMayAsk != false, rooms = b.rooms ?: BotRooms(), hotkey = b.hotkey ?: 0,
@@ -146,7 +150,9 @@ object BotSettings {
         if (d.effort != b.effort.orEmpty()) put("effort", d.effort)
         val nextComputer = if (d.computer) d.computerOn else "none"
         if (nextComputer != b.computer) put("computer", nextComputer)
-        if (nextComputer != b.computer && d.moveFiles) put("moveFiles", true)
+        val placeChanged = d.computerPlace != b.computerPlace
+        if (placeChanged) put("computerPlace", d.computerPlace) // the server decides where it works then, and copies its files if asked
+        if ((nextComputer != b.computer || placeChanged) && d.moveFiles) put("moveFiles", true)
         if (d.proxy != b.proxy) put("proxy", d.proxy)
         if (d.useSkills != b.useSkills) put("useSkills", d.useSkills)
         if (d.skills != b.skills.toSet()) put("skills", JsonArray(d.skills.map { JsonPrimitive(it) }))
@@ -204,6 +210,18 @@ object BotSettings {
         if (!advanced || "account-computer" in f || "boat-computer" !in f || !(boat || b.computer == "boat")) return null
         return (if (limits(features)) listOf(Option("none", tr("None"))) else emptyList()) +
             listOf(Option("linux", tr("This machine")), Option("boat", tr("External Virtual PC")))
+    }
+
+    /**
+     * Its place of its own (ADR 261, `bot-computer-place`), with Advanced on: the account's, this machine or the
+     * External Virtual PC. Offered where boat.dev has a key, and for a bot that is there already, so it can come back;
+     * null otherwise. [account]: where the account has its computer, when known.
+     */
+    fun placeChoices(advanced: Boolean, features: Collection<String>?, boat: Boolean, b: Bot, account: String? = null): List<Option>? {
+        if (!advanced || "bot-computer-place" !in features.orEmpty() || !(boat || b.computerPlace == "boat")) return null
+        val where = ComputerPlace.options.toMap()
+        val own = account?.let { where[it] }?.let { tr("Account's ({name})", "name" to it) } ?: tr("Account's choice")
+        return listOf(Option("", own)) + ComputerPlace.options.map { Option(it.first, it.second) }
     }
 
     /** The computer's pick as it stands: where it is, or "none". */

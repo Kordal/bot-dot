@@ -176,7 +176,8 @@ data class Bot(
     val runningCount: Int = 0, // its runs going now, up to three (ADR 062); 0 from a server without it
     val state: String = "idle", // what its figure shows: idle, working, waiting, needs_you, failed, paused
     val outfit: JsonElement? = null, // what it wears: { hat }, a kit name, "" or a hat drawn inline; null: none
-    val computer: String = "none",
+    val computer: String = "none", // where it works now: its own place, else the account's
+    val computerPlace: String = "", // its place of its own (ADR 261, `bot-computer-place`): "" follows the account's, else "linux" or "boat"
     val nextRunAt: String? = null,
     val jobs: List<Job> = emptyList(),
     val prompt: String = "",
