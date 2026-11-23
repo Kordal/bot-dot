@@ -8,7 +8,8 @@ const { chromium } = require('playwright');
 const { resave } = require('../png.cjs');
 
 const RAW = path.join(__dirname, 'raw');
-const FONT = `file://${path.resolve(__dirname, '..', '..', '..', 'public', 'fonts', 'Geist.ttf')}`;
+// Inline: a page set from a string may not load a file:// font, and would fall back without a word.
+const FONT = `data:font/ttf;base64,${fs.readFileSync(path.resolve(__dirname, '..', '..', '..', 'public', 'fonts', 'Geist.ttf')).toString('base64')}`;
 // One line each: what the picture shows, in the product's words (CONTEXT.md), no claim it doesn't show.
 const CAPTIONS = {
   '1-home.png': { en: 'Your bots and what needs you', pl: 'Twoje boty i to, co czeka na Ciebie' },
@@ -20,6 +21,9 @@ const CAPTIONS = {
   '7-project.png': { en: 'A project with its team and goals', pl: 'Projekt z zespołem i celami' },
   '8-team.png': { en: 'Bots hand the work on to each other', pl: 'Boty przekazują sobie pracę' },
 };
+
+// A one-letter word stays with the next one, as Polish typesetting wants ("z każdym", not "z" at a line's end).
+const keep = (t) => t.replace(/(^|\s)([aiouwzAIOUWZ]) /g, '$1$2\u00a0');
 
 (async () => {
   const b = await chromium.launch();
@@ -35,8 +39,8 @@ const CAPTIONS = {
         body{width:1080px;height:1920px;overflow:hidden;background:#000;color:#fff;font-family:Geist,sans-serif;-webkit-font-smoothing:antialiased}
         h1{height:389px;padding:0 96px;display:flex;align-items:center;justify-content:center;text-align:center;font-size:66px;font-weight:600;line-height:1.15;letter-spacing:-.02em;text-wrap:balance}
         img{display:block;width:864px;margin:0 auto;border-radius:48px 48px 0 0;border:2px solid #2b2b2b;border-bottom:0}
-      </style><h1>${text[lang]}</h1><img src="${shot}">`);
-      await p.evaluate(() => document.fonts.ready);
+      </style><h1>${keep(text[lang])}</h1><img src="${shot}">`);
+      if (!(await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family === 'Geist' && f.status === 'loaded'); }))) throw new Error('Geist did not load');
       const to = path.join(out, file);
       await p.screenshot({ path: to });
       resave(to, to, false);

@@ -47,7 +47,16 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
+/** The status bar as on a phone at rest: 09:30, full battery, full Wi-Fi with no mobile signal, no notifications.
+ * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
+function calm() {
+  for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
+    '-e command network -e wifi show -e level 4 -e fully true', '-e command network -e mobile hide', '-e command notifications -e visible false']) {
+    sh(`am broadcast -a com.android.systemui.demo ${extra}`);
+  }
+}
 async function shot(name) {
+  calm();
   await sleep(2500); // what it shows comes in, and the figures settle
   const file = path.join(OUT, name);
   fs.writeFileSync(file, execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
@@ -72,12 +81,8 @@ async function home() {
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
-  // The status bar as on a phone at rest: 09:30, full battery, full Wi-Fi with no mobile signal, no notifications.
   sh('settings put global sysui_demo_allowed 1');
-  for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
-    '-e command network -e wifi show -e level 4 -e fully true', '-e command network -e mobile hide', '-e command notifications -e visible false']) {
-    sh(`am broadcast -a com.android.systemui.demo ${extra}`);
-  }
+  calm();
   sh(`am start -W -n ${PKG}/.MainActivity`);
 
   // Connect to the scene's botdot.
