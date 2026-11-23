@@ -1,10 +1,14 @@
 // Takes the Play phone screenshots of the Android app on an emulator (docs/google-play/README.md), from the scene
-// scene.cjs serves. Every pixel is the app's own: nothing is drawn on the pictures.
+// scene.cjs serves. Every pixel is the app's own: nothing is drawn on the pictures (caption.cjs adds the captions).
 // node docs/google-play/screenshots/drive.cjs <scene dir> <app.apk> <out dir>
-// Needs adb with one emulator. The screen is set to 1080 x 1920 (Play takes at most 2:1), dark, at 09:30.
+// Needs adb with one emulator. The screen is set to 1080 x 1920 (9:16, as Play wants), dark, at 09:30, and each
+// picture is saved as a 24-bit PNG: Play refuses a screenshot with an alpha channel.
+// Needs you is not pictured: it keeps itself out of screenshots (FLAG_SECURE, passwords are typed there), so its
+// cards are shown where the Chief asked for them, in its chat.
 const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
+const { resave } = require('../png.cjs');
 
 const [dir, apk, outDir] = process.argv.slice(2);
 const OUT = path.resolve(outDir || 'play-screenshots');
@@ -43,12 +47,33 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
+/** The status bar as on a phone at rest: 09:30, full battery and signal, no notifications. (On API 35 a network
+ * command with "-e fully true" or "-e mobile hide" leaves the status bar out of demo mode altogether.)
+ * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
+function calm() {
+  for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
+    '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4', '-e command notifications -e visible false']) {
+    sh(`am broadcast -a com.android.systemui.demo ${extra}`);
+  }
+}
 async function shot(name) {
+  calm();
   await sleep(2500); // what it shows comes in, and the figures settle
-  fs.writeFileSync(path.join(OUT, name), execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
+  const file = path.join(OUT, name);
+  fs.writeFileSync(file, execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
+  resave(file, file, false); // no alpha
   console.log('wrote', name);
 }
 const open = (target) => sh(`am start -n ${PKG}/.MainActivity --es open '${target}'`);
+/** Scrolls a chat: 'up' to older messages, 'down' to the newest, by [times] long swipes. */
+async function scroll(way, times) {
+  for (let i = 0; i < times; i++) { sh(way === 'up' ? 'input swipe 540 600 540 1600 250' : 'input swipe 540 1600 540 600 250'); await sleep(400); }
+  await sleep(800);
+}
+/** Back to Home (the only screen with the logo), the screens on the way closed. */
+async function home() {
+  for (let i = 0; i < 10 && !nodes().some((n) => n.desc === 'botdot'); i++) { sh('input keyevent 4'); await sleep(1200); }
+}
 
 (async () => {
   adb('install', '-r', '-g', apk);
@@ -57,12 +82,12 @@ const open = (target) => sh(`am start -n ${PKG}/.MainActivity --es open '${targe
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
-  // The status bar as on a phone at rest: 09:30, full battery and signal, no notifications.
   sh('settings put global sysui_demo_allowed 1');
-  for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
-    '-e command network -e wifi show -e level 4 -e mobile show -e datatype none -e level 4', '-e command notifications -e visible false']) {
-    sh(`am broadcast -a com.android.systemui.demo ${extra}`);
-  }
+  const ui = sh('pidof com.android.systemui').trim();
+  calm();
+  await sleep(1500);
+  // Said in the log: whether the system UI took the commands, or restarted on one of them.
+  console.log('system UI', ui, '->', sh('pidof com.android.systemui').trim(), sh('logcat -d -b crash').split('\n').slice(-6).join(' / '));
   sh(`am start -W -n ${PKG}/.MainActivity`);
 
   // Connect to the scene's botdot.
@@ -76,21 +101,40 @@ const open = (target) => sh(`am start -n ${PKG}/.MainActivity --es open '${targe
   await sleep(4000);
 
   await shot('1-home.png');
-  open(`bot:${scene.bots.news}`);
-  await find(byText('Its settings'), 'News Monitor\'s chat');
-  await shot('2-chat.png');
-  open('needs');
-  await find((n) => /Needs you/.test(n.text), 'Needs you');
-  await shot('3-needs-you.png');
-  // Back to Home (the chat and Needs you are on the way), then its Board.
-  for (let i = 0; i < 4 && !nodes().some(byText('Unread mail')); i++) { sh('input keyevent 4'); await sleep(1200); }
+  // The Board, from its values on Home.
   tap(await find(byText('Unread mail'), 'the Board on Home'));
   await find(byText('Living room'), 'the Board');
   await shot('4-board.png');
+  // The Chief's chat: from the top, where it made Recipe Finder; then at the end, its two cards that wait for an OK.
   open(`chief:${scene.chief}`);
   await find(byText('New chat'), 'the Chief\'s chat');
-  await shot('5-chief.png');
+  await scroll('up', 8);
+  await shot('2-chief.png');
+  await scroll('down', 8);
+  await shot('3-approve.png');
+  // News Monitor's chat, from this morning's first message.
+  open(`bot:${scene.bots.news}`);
+  await find(byText('Its settings'), 'News Monitor\'s chat');
+  await scroll('up', 6);
+  await shot('5-chat.png');
+  // Server Watch's weekly page, opened from its chip in the chat.
+  open(`bot:${scene.bots.watch}`);
+  await find(byText('Its settings'), 'Server Watch\'s chat');
+  await scroll('down', 6);
+  tap(await find(byText('Home server'), 'the page in Server Watch\'s chat'));
+  await find(byText('Uptime'), 'the page').catch(() => sleep(4000));
+  await shot('6-page.png');
+  sh('input keyevent 4'); // the page closed: it is drawn over the screens
+  await sleep(1200);
+  // The project's team chat, from the owner's question.
   open(`group:${scene.team}`);
-  await sleep(3000);
-  await shot('6-team.png');
+  await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
+  await scroll('up', 6);
+  await shot('8-team.png');
+  // The project, from the spaces under the title on Home.
+  await home();
+  tap(await find((n) => n.desc === 'botdot', 'the title on Home'));
+  tap(await find(byText('Kitchen renovation'), 'the project in the spaces'));
+  await find((n) => /Quotes in/.test(n.text), 'the project');
+  await shot('7-project.png');
 })().catch((e) => { console.error(e.message); process.exit(1); });
