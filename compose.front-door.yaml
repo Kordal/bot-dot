@@ -13,7 +13,7 @@
 # account, or several whose first (FRONT_DOOR_FIRST_ACCOUNT) is made with the setup key.
 services:
   front-door:
-    image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
+    image: ${BOT_DOT_IMAGE:-ghcr.io/ladrok/bot-dot:latest}
     command: ["node", "front-door.js"]
     restart: unless-stopped
     # The front door's own user of the machine (botdot-door), whose group is let through each account's socket

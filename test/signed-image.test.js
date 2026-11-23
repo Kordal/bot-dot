@@ -13,22 +13,22 @@ const fixture = fs.readFileSync(path.join(__dirname, 'fixtures/release-signing/p
 const publicKey = fs.readFileSync(path.join(__dirname, 'fixtures/release-signing/public.der.b64'), 'utf8').trim();
 const DIGEST = 'b'.repeat(64);
 const release = (fields = {}, key = fixture) => {
-  const m = { app: 'server', version: 7, revision: 'a'.repeat(40), file: `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, sha256: DIGEST, ...fields };
+  const m = { app: 'server', version: 7, revision: 'a'.repeat(40), file: `ghcr.io/ladrok/bot-dot@sha256:${DIGEST}`, sha256: DIGEST, ...fields };
   return { ...m, signature: crypto.sign('sha256', canonical(m), key).toString('base64') };
 };
-const check = (manifest, image = 'ghcr.io/kordal/bot-dot:latest', app = 'server') => signedImage(image, app, { publicKey, remoteRelease: async () => manifest });
+const check = (manifest, image = 'ghcr.io/ladrok/bot-dot:latest', app = 'server') => signedImage(image, app, { publicKey, remoteRelease: async () => manifest });
 const reason = async (promise) => { try { await promise; } catch (error) { return refusal(error); } assert.fail('the image was accepted'); };
 
 test('a release signed with the pinned key gives the signed image, pinned by its digest', async () => {
-  assert.equal(await check(release()), `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`);
-  assert.equal(await check(release(), `ghcr.io/kordal/bot-dot@sha256:${'c'.repeat(64)}`), `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, 'whichever tag or digest the name had');
+  assert.equal(await check(release()), `ghcr.io/ladrok/bot-dot@sha256:${DIGEST}`);
+  assert.equal(await check(release(), `ghcr.io/ladrok/bot-dot@sha256:${'c'.repeat(64)}`), `ghcr.io/ladrok/bot-dot@sha256:${DIGEST}`, 'whichever tag or digest the name had');
 });
 
 test('the signed release also says the source revision it was built from, for "Version X is available" (#193)', async () => {
-  const m = await signedRelease('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => release({ revision: 'd'.repeat(40) }) });
-  assert.equal(m.file, `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`);
+  const m = await signedRelease('ghcr.io/ladrok/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => release({ revision: 'd'.repeat(40) }) });
+  assert.equal(m.file, `ghcr.io/ladrok/bot-dot@sha256:${DIGEST}`);
   assert.equal(m.revision, 'd'.repeat(40));
-  await assert.rejects(signedRelease('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => ({ ...release(), revision: 'e'.repeat(40) }) }), /The release signature is invalid/, 'the revision is signed too');
+  await assert.rejects(signedRelease('ghcr.io/ladrok/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => ({ ...release(), revision: 'e'.repeat(40) }) }), /The release signature is invalid/, 'the revision is signed too');
 });
 
 test('the registry is asked for the release of the image named', async () => {
@@ -39,18 +39,18 @@ test('the registry is asked for the release of the image named', async () => {
 
 test('a named release is asked for by its own tag, and must be the version named (#979)', async () => {
   const asked = [];
-  const named = (at, m = release()) => signedRelease(`ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, 'server', { publicKey, at, remoteRelease: async (image, which) => { asked.push(which); return m; } });
-  assert.equal((await named(DIGEST)).file, `ghcr.io/kordal/bot-dot@sha256:${DIGEST}`, 'by its image\'s digest');
+  const named = (at, m = release()) => signedRelease(`ghcr.io/ladrok/bot-dot@sha256:${DIGEST}`, 'server', { publicKey, at, remoteRelease: async (image, which) => { asked.push(which); return m; } });
+  assert.equal((await named(DIGEST)).file, `ghcr.io/ladrok/bot-dot@sha256:${DIGEST}`, 'by its image\'s digest');
   assert.equal((await named('a'.repeat(40))).revision, 'a'.repeat(40), 'or by its source revision');
   assert.deepEqual(asked, [DIGEST, 'a'.repeat(40)]);
   assert.deepEqual(await reason(named('c'.repeat(64))), { access: false, why: 'its signature is for another image' }, 'a tag that points at another release is refused');
-  assert.deepEqual(await reason(signedRelease('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, installed: 8, remoteRelease: async () => release() })),
+  assert.deepEqual(await reason(signedRelease('ghcr.io/ladrok/bot-dot:latest', 'server', { publicKey, installed: 8, remoteRelease: async () => release() })),
     { access: false, why: 'it is older than the version this machine runs' });
 });
 
 test('the registry keeps each release under a tag of its own beside the newest (#979)', async () => {
   const registry = require('../lib/registry');
-  await assert.rejects(registry.remoteRelease('ghcr.io/kordal/bot-dot:latest', 'nothex'), /Not a digest or a revision/);
+  await assert.rejects(registry.remoteRelease('ghcr.io/ladrok/bot-dot:latest', 'nothex'), /Not a digest or a revision/);
   const workflow = fs.readFileSync(path.join(__dirname, '..', '.github', 'workflows', 'images.yml'), 'utf8');
   assert.match(workflow, /-t "\$IMAGE:accounts-release" -t "\$IMAGE:accounts-release-\$\{DIGEST#sha256:\}" -t "\$IMAGE:accounts-release-\$GITHUB_SHA"/);
 });
@@ -62,8 +62,8 @@ test('an image signed with another key is refused, and says so', async () => {
 });
 
 test('an image without a signed release is refused, and says so', async () => {
-  const missing = Object.assign(new Error('The registry answered 404 for ghcr.io/kordal/bot-dot:release'), { status: 404 });
-  assert.deepEqual(await reason(signedImage('ghcr.io/kordal/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => { throw missing; } })), { access: false, why: 'it has no botdot signature' });
+  const missing = Object.assign(new Error('The registry answered 404 for ghcr.io/ladrok/bot-dot:release'), { status: 404 });
+  assert.deepEqual(await reason(signedImage('ghcr.io/ladrok/bot-dot:latest', 'server', { publicKey, remoteRelease: async () => { throw missing; } })), { access: false, why: 'it has no botdot signature' });
   assert.deepEqual(refusal(new Error('The image has no signed release manifest')), { access: false, why: 'it has no botdot signature' });
 });
 
@@ -91,10 +91,10 @@ test('the command says why it refused, and needs an image and which of botdot\'s
   const local = spawnSync(process.execPath, [file, 'bot-dot:dev', 'server'], { input: '', encoding: 'utf8' });
   assert.equal(local.status, 1);
   assert.match(local.stdout, /^it could not be checked \(.+\)\n$/);
-  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest'], { input: '', stdio: 'pipe' }), /Usage/);
-  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--other'], { input: '', stdio: 'pipe' }), /Usage/);
-  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--at', 'x'], { input: '', stdio: 'pipe' }), /Usage/, '--at takes a digest or a revision');
-  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/kordal/bot-dot:latest', 'server', '--installed', '-1'], { input: '', stdio: 'pipe' }), /Usage/);
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/ladrok/bot-dot:latest'], { input: '', stdio: 'pipe' }), /Usage/);
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/ladrok/bot-dot:latest', 'server', '--other'], { input: '', stdio: 'pipe' }), /Usage/);
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/ladrok/bot-dot:latest', 'server', '--at', 'x'], { input: '', stdio: 'pipe' }), /Usage/, '--at takes a digest or a revision');
+  assert.throws(() => execFileSync(process.execPath, [file, 'ghcr.io/ladrok/bot-dot:latest', 'server', '--installed', '-1'], { input: '', stdio: 'pipe' }), /Usage/);
   const asked = spawnSync(process.execPath, [file, 'bot-dot:dev', 'server', '--revision'], { input: '', encoding: 'utf8' });
   assert.equal(asked.status, 1, 'with --revision, a refusal is said as without it');
   assert.match(asked.stdout, /^it could not be checked \(.+\)\n$/);
@@ -111,8 +111,8 @@ test('the release with accounts is read from its own tag, which a botdot from be
     asked.push(String(url));
     return new Response(JSON.stringify({ annotations: { 'dev.botdot.release': JSON.stringify(release()) } }), { status: 200 });
   };
-  try { await registry.remoteRelease('ghcr.io/kordal/bot-dot:latest'); } finally { global.fetch = real; }
-  assert.deepEqual(asked, ['https://ghcr.io/v2/kordal/bot-dot/manifests/accounts-release']);
+  try { await registry.remoteRelease('ghcr.io/ladrok/bot-dot:latest'); } finally { global.fetch = real; }
+  assert.deepEqual(asked, ['https://ghcr.io/v2/ladrok/bot-dot/manifests/accounts-release']);
   const workflow = fs.readFileSync(path.join(__dirname, '..', '.github/workflows/images.yml'), 'utf8');
   assert.match(workflow, /-t "\$IMAGE:accounts-release" .*"\$IMAGE@\$DIGEST"/, 'the image workflow signs under it');
   assert.doesNotMatch(workflow, /\$IMAGE:release\b/, 'and no longer under the old tag');

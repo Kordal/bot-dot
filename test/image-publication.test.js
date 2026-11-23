@@ -6,7 +6,7 @@ const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 
 const command = path.resolve(__dirname, '../deploy/create-image-index.js');
-const image = 'ghcr.io/kordal/bot-dot';
+const image = 'ghcr.io/ladrok/bot-dot';
 const revision = 'a'.repeat(40);
 const digest = (char) => `sha256:${char.repeat(64)}`;
 function fixture(t) {

@@ -30,7 +30,7 @@ Co zrobisz w aplikacji
 • Dostajesz powiadomienie, gdy bot odpowie, skończy albo czegoś potrzebuje, prosto z Twojego serwera, bez pośredniczącej usługi push.
 
 Potrzebujesz serwera botdot
-Aplikacja łączy się z Twoim serwerem botdot i bez niego nic nie pokaże. botdot jest darmowy i otwarty (MIT): instalujesz go jednym poleceniem na serwerze lub maszynie wirtualnej z Linuksem, łączysz się przez własną domenę albo sieć Tailscale i logujesz własną subskrypcją Claude lub kluczem API. Instrukcja: github.com/Kordal/bot-dot
+Aplikacja łączy się z Twoim serwerem botdot i bez niego nic nie pokaże. botdot jest darmowy i otwarty (MIT): instalujesz go jednym poleceniem na serwerze lub maszynie wirtualnej z Linuksem, łączysz się przez własną domenę albo sieć Tailscale i logujesz własną subskrypcją Claude lub kluczem API. Instrukcja: github.com/ladrok/bot-dot
 
 Prywatność od podstaw
 Aplikacja rozmawia tylko z serwerem, do którego się logujesz. Bez analityki, reklam i śledzenia. Logowanie kluczem dostępu (passkey) na stronie Twojego serwera.

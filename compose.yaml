@@ -8,7 +8,7 @@
 # `BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest sudo sh install.sh` installs them.
 services:
   bot-dot:
-    image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
+    image: ${BOT_DOT_IMAGE:-ghcr.io/ladrok/bot-dot:latest}
     restart: unless-stopped
     # gVisor with host Unix sockets (install.sh, runsc-uds): it reaches the helper's socket and makes the
     # front door's socket. The bots' computers run without them.
@@ -56,7 +56,7 @@ services:
       - docker-helper
 
   docker-helper:
-    image: ${BOT_DOT_IMAGE:-ghcr.io/kordal/bot-dot:latest}
+    image: ${BOT_DOT_IMAGE:-ghcr.io/ladrok/bot-dot:latest}
     command: ["node", "lib/docker-helper.js"]
     restart: unless-stopped
     runtime: runsc-uds                              # its own socket and the account's Docker socket, as the server's

@@ -22,7 +22,7 @@ function builds(version, files = Object.values(PLATFORMS), sigs = files) {
 
 test('the manifest names each system’s build in its versioned release, with its signature', () => {
   const date = new Date('2026-11-02T18:00:00Z');
-  const got = manifest({ version: '0.1.7', repository: 'Kordal/bot-dot', dir: builds('0.1.7'), date });
+  const got = manifest({ version: '0.1.7', repository: 'ladrok/bot-dot', dir: builds('0.1.7'), date });
   assert.equal(got.version, '0.1.7');
   assert.equal(got.pub_date, '2026-11-02T18:00:00.000Z');
   assert.deepEqual(Object.keys(got.platforms).sort(), [
@@ -32,12 +32,12 @@ test('the manifest names each system’s build in its versioned release, with it
   ]);
   assert.deepEqual(got.platforms['darwin-aarch64'], {
     signature: 'sig of mac-apple-silicon.app.tar.gz',
-    url: 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-mac-apple-silicon.app.tar.gz',
+    url: 'https://github.com/ladrok/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-mac-apple-silicon.app.tar.gz',
   });
-  assert.equal(got.platforms['windows-aarch64'].url, 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-windows-arm64-setup.exe');
+  assert.equal(got.platforms['windows-aarch64'].url, 'https://github.com/ladrok/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-windows-arm64-setup.exe');
   // Linux: the updater asks for the kind installed, and never another (ADR 170).
-  assert.equal(got.platforms['linux-x86_64-appimage'].url, 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-linux-x64.AppImage');
-  assert.equal(got.platforms['linux-aarch64-deb'].url, 'https://github.com/Kordal/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-linux-arm64.deb');
+  assert.equal(got.platforms['linux-x86_64-appimage'].url, 'https://github.com/ladrok/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-linux-x64.AppImage');
+  assert.equal(got.platforms['linux-aarch64-deb'].url, 'https://github.com/ladrok/bot-dot/releases/download/desktop-v0.1.7/botdot-0.1.7-linux-arm64.deb');
   assert.equal(got.platforms['linux-x86_64-rpm'].signature, 'sig of linux-x64.rpm');
   assert.ok(!('linux-x86_64' in got.platforms), 'no build for a kind it does not know');
 });
@@ -55,7 +55,7 @@ test('no manifest without every build, its signature and a plain version', () =>
 
 test('the app reads the manifest the release workflow publishes, checked by a real update key', () => {
   const updater = config.plugins.updater;
-  assert.deepEqual(updater.endpoints, ['https://github.com/Kordal/bot-dot/releases/download/desktop-latest/latest.json']);
+  assert.deepEqual(updater.endpoints, ['https://github.com/ladrok/bot-dot/releases/download/desktop-latest/latest.json']);
   // A minisign public key, base64 of its two text lines.
   const pub = Buffer.from(updater.pubkey, 'base64').toString('utf8');
   assert.match(pub, /^untrusted comment: minisign public key: [0-9A-F]{16}\n[A-Za-z0-9+/=]{56}\n?$/);

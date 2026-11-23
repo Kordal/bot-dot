@@ -132,7 +132,10 @@
 #   sudo sh install.sh --uninstall
 set -eu
 
-IMAGES="ghcr.io/kordal"
+IMAGES="ghcr.io/ladrok"
+# Where botdot's images were until the repository moved to the ladrok organisation (November 2026): nothing is
+# published there any more. An image name in it is read as the same name under $IMAGES (moved_image).
+MOVED_FROM="ghcr.io/kordal"
 DIR="${BOT_DOT_DIR:-/var/lib/botdot}"
 DOOR="$DIR/front-door"
 ENV="$DOOR/.env"
@@ -296,6 +299,21 @@ GUARD="$MANAGED$LOCAL_HOST"
 # registry_of IMAGE: the registry an image is named on, none for one built on this machine. owner_of IMAGE: its owner there.
 registry_of() { case "$1" in */*) h="${1%%/*}"; case "$h" in *.*) printf '%s' "$h" ;; esac ;; esac; }
 owner_of() { r="${1#*/}"; printf '%s' "${r%%/*}"; }
+# moved_image IMAGE: IMAGE, and for one under $MOVED_FROM the same name under $IMAGES, as a tag (its own, or latest).
+# A digest is never carried over: it names an image of the old repository, whose signed release says so (lib/signed-image.js
+# refuses it under another repository), so that the images' own check, from the source this installer is in, pins the
+# new repository's newest signed release in its place, as it does for a first install. Any other name (a self-built
+# image, a mirror, a staging registry) stays as it is. Run twice, it changes nothing more.
+moved_image() {
+  case "$1" in
+    "$MOVED_FROM"/*)
+      mi_name="${1#"$MOVED_FROM"/}"
+      mi_name="${mi_name%@sha256:*}"
+      case "${mi_name##*/}" in *:*) ;; *) mi_name="$mi_name:latest" ;; esac
+      printf '%s/%s' "$IMAGES" "$mi_name" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
 
 # write_status FILE JSON: what the admin page reads of this install and of its last update (#473), in a folder that
 # only root writes and the front door reads (FRONT_DOOR_STATUS).
@@ -529,7 +547,7 @@ signed() { check_node signed-image.js "$@"; }
 # same check as an update (signed), from root's copy of the installer and the release check beside it. Images built on
 # this machine have none. A check that fails waits its hour too, and the last one found stays.
 look_for_newest() {
-  wl_image="$(get_env "$ENV" BOT_DOT_IMAGE)"
+  wl_image="$(moved_image "$(get_env "$ENV" BOT_DOT_IMAGE)")"
   [ -n "$(registry_of "$wl_image")" ] && [ -f "$SOURCE/lib/signed-image.js" ] || return 0
   mkdir -p "$RUN/load"
   # Named so that no account's CPU reading beside it can be (an account's name is lowercase).
@@ -1907,7 +1925,7 @@ if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && comman
 fi
 [ "$MODE" != install ] || ok "Rootless Docker and gVisor ($("$RUNSC" --version </dev/null 2>/dev/null | head -n 1 | sed 's/^runsc version //'))"
 if [ "$MODE" = install ] && [ "$(getenforce 2>/dev/null || true)" = Enforcing ]; then
-  warn "SELinux is enforcing, which botdot isn't tested with yet. If an account doesn't start, see https://github.com/Kordal/bot-dot/blob/main/docs/install-linux.md#platforms"
+  warn "SELinux is enforcing, which botdot isn't tested with yet. If an account doesn't start, see https://github.com/ladrok/bot-dot/blob/main/docs/install-linux.md#platforms"
 fi
 
 # ---------------------------------------------------------------------------------------------
@@ -1962,6 +1980,11 @@ else
   COMPUTER_IMAGE="${BOT_DOT_COMPUTER_IMAGE:-$(saved_latest BOT_DOT_COMPUTER_IMAGE)}"
   COMPUTER_IMAGE="${COMPUTER_IMAGE:-$IMAGES/bot-dot-desktop:latest}"
 fi
+# An image of the old repository, saved by an earlier install or named now, is the same image's new home: the update moves
+# a machine there by itself (and the check below pins the signed release of the new repository in .env, once it passed).
+# Not in root's step (--requested), which runs what the last install checked and pinned, and nothing else.
+IMAGE="$(moved_image "$IMAGE")"
+COMPUTER_IMAGE="$(moved_image "$COMPUTER_IMAGE")"
 
 # check NAME server|desktop [OPTION…]: $SIGNED is what NAME installs as (with the OPTIONs of signed-image.js, more after
 # it). A refusal ends the installer.

@@ -9,7 +9,7 @@ function machine(t) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   for (const d of ['bin', 'accounts/ann', 'computer-preparation', 'run']) fs.mkdirSync(path.join(root, d), { recursive: true });
   fs.writeFileSync(path.join(root, 'accounts/ann/compose.yaml'), 'services: {}');
-  const image = 'ghcr.io/kordal/bot-dot-desktop@sha256:' + 'a'.repeat(64);
+  const image = 'ghcr.io/ladrok/bot-dot-desktop@sha256:' + 'a'.repeat(64);
   const task = path.join(root, 'computer-preparation/ann');
   fs.writeFileSync(task, image);
   const bin = (n, text) => fs.writeFileSync(path.join(root, 'bin', n), '#!/bin/sh\n' + text, { mode: 0o755 });

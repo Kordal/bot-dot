@@ -45,7 +45,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI3MkNCRjIxNEE2MDgwRjUKUldUMWdHQktJYjhzdDVwN3VYU21QOEM0Wk1FRmtyWjVsaU5oSjdlY2JRb25LbnZhK1BKUWJlWDYK",
       "endpoints": [
-        "https://github.com/Kordal/bot-dot/releases/download/desktop-latest/latest.json"
+        "https://github.com/ladrok/bot-dot/releases/download/desktop-latest/latest.json"
       ],
       "windows": {
         "installMode": "passive"

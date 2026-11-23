@@ -35,21 +35,21 @@ test('an update request that names a digest installs exactly that signed release
   assert.equal(u.named, NAMED, 'update.json says the version it was asked for');
   const asked = done.checks.map(checked);
   const server = asked.find((a) => a[1] === 'server');
-  assert.deepEqual(server, [`ghcr.io/kordal/bot-dot@${NAMED}`, 'server', '--release', '--at', 'e'.repeat(64), '--installed', '1'], 'that release, by its own signed tag, never older than the one installed');
+  assert.deepEqual(server, [`ghcr.io/ladrok/bot-dot@${NAMED}`, 'server', '--release', '--at', 'e'.repeat(64), '--installed', '1'], 'that release, by its own signed tag, never older than the one installed');
   const desktop = asked.find((a) => a[1] === 'desktop');
-  assert.deepEqual(desktop, ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop', '--at', REVISION], 'the computer of the same source revision');
+  assert.deepEqual(desktop, ['ghcr.io/ladrok/bot-dot-desktop:latest', 'desktop', '--at', REVISION], 'the computer of the same source revision');
   const env = fs.readFileSync(path.join(first.dir, 'front-door', '.env'), 'utf8');
-  assert.match(env, new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/kordal/bot-dot@${NAMED}$`, 'm'), 'the front door pins it');
+  assert.match(env, new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/ladrok/bot-dot@${NAMED}$`, 'm'), 'the front door pins it');
   assert.match(env, /^BOT_DOT_RELEASE=7$/m, 'and its release number, against which an older one is refused');
-  assert.ok(calls('bob').some((c) => c === `pull ghcr.io/kordal/bot-dot@${NAMED}`), 'bob got that very image');
-  assert.match(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', '.env'), 'utf8'), new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/kordal/bot-dot@${NAMED}$`, 'm'));
+  assert.ok(calls('bob').some((c) => c === `pull ghcr.io/ladrok/bot-dot@${NAMED}`), 'bob got that very image');
+  assert.match(fs.readFileSync(path.join(first.dir, 'accounts', 'bob', '.env'), 'utf8'), new RegExp(`^BOT_DOT_IMAGE=ghcr\\.io/ladrok/bot-dot@${NAMED}$`, 'm'));
 });
 
 test('an update request without a digest takes the newest, as before', (t) => {
   const { done, update: u, log } = update(t, '');
   assert.equal(u.state, 'updated', log);
   assert.equal(u.named, undefined);
-  assert.deepEqual(done.checks.map(checked).map((a) => a.slice(0, 3)), [['ghcr.io/kordal/bot-dot:latest', 'server', '--release'], ['ghcr.io/kordal/bot-dot-desktop:latest', 'desktop']]);
+  assert.deepEqual(done.checks.map(checked).map((a) => a.slice(0, 3)), [['ghcr.io/ladrok/bot-dot:latest', 'server', '--release'], ['ghcr.io/ladrok/bot-dot-desktop:latest', 'desktop']]);
   assert.ok(!done.checks.some((a) => a.includes('--at')));
 });
 
@@ -64,7 +64,7 @@ function refusedAtCheck(r, why) {
 }
 
 test('a digest that is not a signed release is refused at check, and nothing restarts', (t) => {
-  refusedAtCheck(update(t, NAMED, { signed: { [`ghcr.io/kordal/bot-dot@${NAMED}`]: 'it has no botdot signature' } }), new RegExp(`Refused ghcr\\.io/kordal/bot-dot@${NAMED}: it has no botdot signature\\. Nothing was downloaded or started\\.`));
+  refusedAtCheck(update(t, NAMED, { signed: { [`ghcr.io/ladrok/bot-dot@${NAMED}`]: 'it has no botdot signature' } }), new RegExp(`Refused ghcr\\.io/ladrok/bot-dot@${NAMED}: it has no botdot signature\\. Nothing was downloaded or started\\.`));
 });
 
 test('a request that names no digest is refused at check', (t) => {

@@ -6,10 +6,10 @@ The desktop app for Windows, Mac and Linux shows a botdot in a window of its own
 
 | | |
 | --- | --- |
-| Windows | [Intel/AMD](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) |
-| Mac | [Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) |
-| Linux x64 | [AppImage](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) (Debian, Ubuntu) · [.rpm](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) (Fedora, RHEL) |
-| Linux ARM | [AppImage](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-arm64.AppImage) · [.deb](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-arm64.deb) · [.rpm](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-arm64.rpm) |
+| Windows | [Intel/AMD](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) |
+| Mac | [Apple silicon](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) |
+| Linux x64 | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) (Debian, Ubuntu) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) (Fedora, RHEL) |
+| Linux ARM | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-arm64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-arm64.deb) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-arm64.rpm) |
 
 The app is built from `main` every night and updates itself. It is not signed yet:
 

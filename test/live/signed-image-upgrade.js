@@ -22,7 +22,7 @@ const name = `botdot-signed-upgrade-${process.pid}-${Date.now()}`;
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), `${name}-`));
 const source = path.join(temp, 'source');
 const localImage = `${name}:bootstrap`;
-const oldImage = 'ghcr.io/kordal/bot-dot:acceptance-bootstrap';
+const oldImage = 'ghcr.io/ladrok/bot-dot:acceptance-bootstrap';
 let daemonCreated = false;
 let imageCreated = false;
 const run = (file, args, options = {}) => execFileSync(file, args, { encoding: 'utf8', timeout: 30 * 60_000, maxBuffer: 20 * 1024 * 1024, ...options }).trim();
@@ -76,8 +76,8 @@ async function main() {
   // Confirm the registry's current release manifests with the production trust key.
   process.env.BOT_DOT_REGISTRY_TOKEN = token;
   const registry = require('../../lib/registry');
-  const serverRelease = verify(await registry.remoteRelease('ghcr.io/kordal/bot-dot:latest'), { app: 'server', installed: 0 });
-  const desktopRelease = verify(await registry.remoteRelease('ghcr.io/kordal/bot-dot-desktop:latest'), { app: 'desktop', installed: 0 });
+  const serverRelease = verify(await registry.remoteRelease('ghcr.io/ladrok/bot-dot:latest'), { app: 'server', installed: 0 });
+  const desktopRelease = verify(await registry.remoteRelease('ghcr.io/ladrok/bot-dot-desktop:latest'), { app: 'desktop', installed: 0 });
   assert.equal(serverRelease.revision, expectedRevision);
   assert.equal(desktopRelease.revision, expectedRevision);
   console.log(`Verified production signatures for ${expectedRevision}`);
@@ -107,7 +107,7 @@ async function main() {
   docker('exec', name, 'mkdir', '-p', '/install/data');
   docker('cp', path.join(source, 'compose.yaml'), `${name}:/install/compose.yaml`);
   const envFile = path.join(temp, '.env');
-  fs.writeFileSync(envFile, `BOT_DOT_IMAGE=${oldImage}\nBOT_DOT_COMPUTER_IMAGE=ghcr.io/kordal/bot-dot-desktop:latest\nBOT_DOT_REGISTRY_TOKEN=${token}\nHOST=127.0.0.1\nPORT=4747\n`, { mode: 0o600 });
+  fs.writeFileSync(envFile, `BOT_DOT_IMAGE=${oldImage}\nBOT_DOT_COMPUTER_IMAGE=ghcr.io/ladrok/bot-dot-desktop:latest\nBOT_DOT_REGISTRY_TOKEN=${token}\nHOST=127.0.0.1\nPORT=4747\n`, { mode: 0o600 });
   docker('cp', envFile, `${name}:/install/.env`);
   compose('up', '-d', '--pull', 'never');
   await until('legacy owner HTTP', () => api('/version').status === 200);

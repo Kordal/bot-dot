@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Kordal/bot-dot.git"
+    "url": "git+https://github.com/ladrok/bot-dot.git"
   },
-  "homepage": "https://github.com/Kordal/bot-dot#readme",
+  "homepage": "https://github.com/ladrok/bot-dot#readme",
   "bugs": {
-    "url": "https://github.com/Kordal/bot-dot/issues"
+    "url": "https://github.com/ladrok/bot-dot/issues"
   },
   "main": "server.js",
   "scripts": {

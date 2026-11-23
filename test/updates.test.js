@@ -8,7 +8,7 @@ const crypto = require('crypto');
 const { canonical } = require('../lib/release-manifest');
 const key = fs.readFileSync(path.join(__dirname, 'fixtures/release-signing/public.der.b64'), 'utf8').trim();
 const sign = (m) => ({ ...m, signature: crypto.sign('sha256', canonical(m), fs.readFileSync(path.join(__dirname, 'fixtures/release-signing/private.pem'))).toString('base64') });
-const release = () => sign({ app: 'server', version: 42, revision: 'a'.repeat(40), sha256: 'b'.repeat(64), file: 'ghcr.io/kordal/bot-dot@sha256:' + 'b'.repeat(64) });
+const release = () => sign({ app: 'server', version: 42, revision: 'a'.repeat(40), sha256: 'b'.repeat(64), file: 'ghcr.io/ladrok/bot-dot@sha256:' + 'b'.repeat(64) });
 const { fakeDocker, waitFor } = require('./helpers');
 
 let docker;
@@ -17,7 +17,7 @@ before(() => {
   process.env.PATH = `${docker.bin}${path.delimiter}${process.env.PATH}`;
   docker.answer('inspect.json', JSON.stringify([{
     Image: 'sha256:old',
-    Config: { Image: 'ghcr.io/kordal/bot-dot:latest', Labels: {
+    Config: { Image: 'ghcr.io/ladrok/bot-dot:latest', Labels: {
       'com.docker.compose.project': 'botdot',
       'com.docker.compose.service': 'bot-dot',
       'com.docker.compose.project.working_dir': '/Users/someone/Library/Application Support/botdot',
@@ -62,8 +62,8 @@ test('the updater waits for readiness and records completion under the server id
 });
 
 // The cleanup after an update (lib/image-cleanup.js has the rule and its tests): when the helper runs it.
-const SERVER = 'ghcr.io/kordal/bot-dot';
-const DESKTOP = 'ghcr.io/kordal/bot-dot-desktop';
+const SERVER = 'ghcr.io/ladrok/bot-dot';
+const DESKTOP = 'ghcr.io/ladrok/bot-dot-desktop';
 const sha = (c) => `sha256:${c.repeat(64)}`;
 const released = (c, references, labels = { 'dev.botdot.release.version': '41' }) => ({ Id: sha(c), RepoTags: references.filter((r) => !r.includes('@')), RepoDigests: references.filter((r) => r.includes('@')), Labels: labels });
 // A host after two updates. The server container of inspect.json runs sha256:old.

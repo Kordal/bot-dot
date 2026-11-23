@@ -73,7 +73,7 @@ A simulator gets no push from Apple without the team's key. `xcrun simctl push <
 ## Android's screens on iOS
 
 Every screen of the Android app (`android/app/src/main/java/dev/botdot/app/ui/*Screen.kt`, the routes of `MainActivity`'s
-NavHost, its settings panels and its dialogs), and the iOS view that draws it or the ticket of [#1355](https://github.com/Kordal/bot-dot/issues/1355)
+NavHost, its settings panels and its dialogs), and the iOS view that draws it or the ticket of [#1355](https://github.com/ladrok/bot-dot/issues/1355)
 that builds it. A screen added on Android adds its row here. "Left" is part of #1372 that is not built yet.
 
 | Android | Opened from | iOS |
