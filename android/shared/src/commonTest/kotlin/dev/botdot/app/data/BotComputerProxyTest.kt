@@ -32,6 +32,34 @@ class BotComputerProxyTest {
         assertEquals("none", BotSettings.computerValue(d.withComputerOn("none", false)))
     }
 
+    private val placeF = listOf("account-computer", "computer-place-admin", "computer-move", "bot-computer-place")
+
+    @Test fun aBotsOwnPlaceShowsWithAdvancedOnAndABoatDevKeyAndNotWithoutThem() {
+        assertEquals(listOf("" to "Account's choice", "linux" to "This machine", "boat" to "External Virtual PC"),
+            BotSettings.placeChoices(true, placeF, boat = true, linux)?.map { it.id to it.label })
+        assertEquals("Account's (External Virtual PC)", BotSettings.placeChoices(true, placeF, true, linux, account = "boat")?.first()?.label)
+        assertNull(BotSettings.placeChoices(false, placeF, true, linux), "Advanced off: the row is hidden")
+        assertNull(BotSettings.placeChoices(true, placeF, boat = false, linux), "no boat.dev key: the choice is not offered")
+        assertNull(BotSettings.placeChoices(true, listOf("account-computer"), true, linux), "an older server")
+        assertTrue(BotSettings.placeChoices(true, placeF, boat = false, bot("""{"id":"a","name":"A","computer":"boat","computerPlace":"boat"}""")) != null, "already there: it can come back")
+    }
+
+    @Test fun aChangeOfItsOwnPlaceIsSentAloneWithItsFilesWhenAsked() {
+        val b = bot("""{"id":"a","name":"A","computer":"linux","computerPlace":""}""")
+        assertEquals("", b.computerPlace)
+        val d = BotSettings.draft(b, emptyList())
+        assertEquals("", d.computerPlace)
+        assertFalse("computerPlace" in BotSettings.changes(b, d, placeF, emptyList()), "nothing changed, nothing sent")
+        val boat = BotSettings.changes(b, d.withComputerPlace("boat", move = true), placeF, emptyList())
+        assertEquals("boat", boat["computerPlace"]?.toString()?.trim('"'))
+        assertEquals("true", boat["moveFiles"]?.toString())
+        assertFalse("computer" in boat, "the server decides where it works")
+        val empty = BotSettings.changes(b, d.withComputerPlace("boat", move = false), placeF, emptyList())
+        assertFalse("moveFiles" in empty)
+        assertTrue(BotSettings.asksMove(placeF, b, "boat"), "from this machine to boat.dev its files are asked about")
+        assertFalse(BotSettings.asksMove(placeF, b, "linux"), "the same place: nothing to move")
+    }
+
     @Test fun theProxyIsOnThisMachineOnlyWithTheAccountsChoices() {
         val list = ProxyList(listOf(Proxy(id = "p1", name = "Home")), default = "p1")
         assertEquals(listOf("" to "Account's (Home)", "none" to "No proxy", "p1" to "Home"), BotSettings.proxyChoices(true, listOf(Proxies.FEATURE), linux, list)?.map { it.id to it.label })

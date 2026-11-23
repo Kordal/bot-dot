@@ -115,6 +115,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var computerOn by remember { mutableStateOf("linux") } // where its computer is: this machine, or boat.dev (ADR 088)
     var moveFiles by remember { mutableStateOf(false) } // "Copy files" for its new computer (#556)
     var askMove by remember { mutableStateOf<String?>(null) } // the computer a switch asks about first
+    var computerPlace by remember { mutableStateOf("") } // its place of its own: "" the account's (ADR 261)
+    var askPlace by remember { mutableStateOf<String?>(null) } // the place of its own that the question about its files is for
+    var accountPlace by remember { mutableStateOf<String?>(null) } // where the account has its computer, once known
     val botsNow by app.store.bots.value.collectAsState()
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
@@ -132,7 +135,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     fun fill(b: Bot) {
         val d = BotSettings.draft(b, others)
         bot = b; color = d.color; icon = d.icon; name = d.name; description = d.description; group = d.group; pinned = d.pinned; task = d.task
-        model = d.model; effort = d.effort; computer = d.computer; computerOn = d.computerOn; proxy = d.proxy
+        model = d.model; effort = d.effort; computer = d.computer; computerOn = d.computerOn; computerPlace = d.computerPlace; proxy = d.proxy
         useSkills = d.useSkills; skills = d.skills; disabled = d.disabled; connectors = d.connectors; accounts = d.accounts; mayMessage = d.mayMessage
         othersMayAsk = d.othersMayAsk
         rooms = d.rooms
@@ -150,6 +153,12 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         }
     }
 
+    // Where the account has its computer, for the first choice of a bot's own place (ADR 261).
+    LaunchedEffect(api, server?.features) {
+        val a = api ?: return@LaunchedEffect
+        if ("bot-computer-place" in server?.features.orEmpty() && dev.botdot.app.data.ComputerPlace.shows(server?.features, server?.boat)) runCatching { a.computerPlace() }.onSuccess { accountPlace = it.place }
+    }
+
     val keepsFiles = UploadedFiles.shows(server?.features)
     // Its pages (#346): read again when one of them is saved (the feed's `page`) or the viewer closes (a job changed there).
     val hasPages = dev.botdot.app.data.Pages.shows(server?.features)
@@ -161,7 +170,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     // What differs from the bot as botdot has it: what a save sends.
     fun changes(b: Bot) = BotSettings.changes(b, BotDraft(color = color, icon = icon, name = name, description = description, group = group, pinned = pinned,
-        task = task, model = model, effort = effort, computer = computer, computerOn = computerOn, moveFiles = moveFiles, proxy = proxy, useSkills = useSkills,
+        task = task, model = model, effort = effort, computer = computer, computerOn = computerOn, moveFiles = moveFiles, computerPlace = computerPlace, proxy = proxy, useSkills = useSkills,
         skills = skills, disabled = disabled, connectors = connectors, accounts = accounts, mayMessage = mayMessage, othersMayAsk = othersMayAsk, rooms = rooms,
         hotkey = hotkey), server?.features, others)
     // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top; its next run uses it.
@@ -178,7 +187,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         runCatching { api!!.updateBot(botId, sent) }.onSuccess { if (changes(b) == sent) fill(it) else bot = it; moveFiles = false; savedAt++ }.onError { refused = sent; tell(it.message ?: tr("Couldn't save")) }
         saving = false
     }
-    LaunchedEffect(color, icon, name, description, group, pinned, task, model, effort, computer, computerOn, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
+    LaunchedEffect(color, icon, name, description, group, pinned, task, model, effort, computer, computerOn, computerPlace, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
         val b = bot ?: return@LaunchedEffect
         val now = changes(b)
         if (name.isBlank() || now.isEmpty() || now == refused) return@LaunchedEffect
@@ -257,6 +266,15 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                         moveFiles = false
                     }
                 } else if (dev.botdot.app.data.BotSettings.showsBrowser(server?.features)) SwitchRow(tr("Browser"), checked = computer) { computer = it }
+                // Its place of its own (ADR 261), with Advanced on and a boat.dev key: this machine, the External Virtual
+                // PC, or the account's. Between the two its files go along or not: asked first (#556).
+                val places = dev.botdot.app.data.BotSettings.placeChoices(advOn, server?.features, server?.boat == true, b, accountPlace)
+                if (places != null) Choice(tr("Computer"), computerPlace, places.map { it.id to it.label }) { to ->
+                    val where = to.ifEmpty { accountPlace ?: b.computer }
+                    if (dev.botdot.app.data.BotSettings.asksMove(server?.features, b, where)) { askPlace = to; askMove = where; return@Choice }
+                    computerPlace = to
+                    moveFiles = false
+                }
                 // Its proxy (ADR 171): on the account's computer only; boat.dev's browser uses the account's.
                 val proxyApi = api
                 if (advOn && proxyApi != null && b.computer == "linux" && dev.botdot.app.data.Proxies.shows(server?.features)) BotProxyRow(proxyApi, b, proxy) { proxy = it }
@@ -467,9 +485,13 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     }
 
     askMove?.let { to ->
-        val choose = { copy: Boolean -> computer = true; computerOn = to; moveFiles = copy; askMove = null }
+        val choose = { copy: Boolean ->
+            val own = askPlace
+            if (own != null) computerPlace = own else { computer = true; computerOn = to }
+            moveFiles = copy; askMove = null; askPlace = null
+        }
         AlertDialog(
-            onDismissRequest = { askMove = null },
+            onDismissRequest = { askMove = null; askPlace = null },
             title = { Text(dev.botdot.app.data.BotSettings.moveQuestion(to)) },
             confirmButton = { TextButton(onClick = { choose(true) }) { Text(tr("Copy files"), color = p.text) } },
             dismissButton = { TextButton(onClick = { choose(false) }) { Text(tr("Start empty"), color = p.text) } },

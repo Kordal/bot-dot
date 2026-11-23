@@ -70,6 +70,18 @@ function askMoveFiles(to) {
   });
 }
 const isComputerMove = (from, to) => from !== to && !!COMPUTER_PLACE[from] && !!COMPUTER_PLACE[to];
+// A bot's place of its own (ADR 261), under Settings → Advanced: where it works, this machine or the External Virtual
+// PC, or '' for wherever the account has its computer. Offered where boat.dev has a key (`state.status.boat`), and for
+// a bot that is there already, so it can come back.
+const PLACE_NAME = { linux: tr('This machine'), boat: tr('External Virtual PC') };
+const botPlaceShown = (b) => state.features.includes('bot-computer-place') && !!(state.status?.boat || b.computerPlace === 'boat');
+function botPlaceRow(b, docker) {
+  const own = b.computerPlace || '';
+  const option = (value, label, off = false) => `<option value="${value}" ${own === value ? 'selected' : ''} ${off && own !== value ? 'disabled' : ''}>${esc(label)}</option>`;
+  return `<label class="bs-row" id="bs-place"${advanced() ? '' : ' hidden'}><b>${tr('Computer')}</b>
+          <select name="computerPlace" aria-label="${esc(tr('Computer'))}">${option('', tr("Account's choice"))}${option('linux', PLACE_NAME.linux, !docker)}${option('boat', PLACE_NAME.boat, !state.status?.boat)}</select>${CHEV}
+        </label>`;
+}
 // Its copy's line under Computer: how far it is, or that it failed, with Try again. Why it failed stays in the API
 // (`computerMove.error`), for the Chief and the bots: its words are Docker's and the machines' names.
 function computerMoveLine(b) {
@@ -138,6 +150,7 @@ function readBotForm(form, sel) {
     prompt: form.prompt.value,
     systemPrompt: form.systemPrompt.value,
     ...(form.computer ? { computer: form.computer.value } : {}), // which one, where a server still has a choice (#541); every bot has one (ADR 192)
+    ...(form.computerPlace ? { computerPlace: form.computerPlace.value } : {}), // its place of its own, '' the account's (ADR 261)
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
@@ -338,6 +351,7 @@ function renderBotSettings(force = false) {
         ${boatChoice ? `<label class="bs-row"${advanced() ? '' : ' hidden'}><b>${tr('Computer')}</b>
           <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
         </label>` : ''}
+        ${botPlaceShown(b) ? botPlaceRow(b, docker) : ''}
         ${b.computer === 'linux' && typeof Proxies !== 'undefined' ? `<div class="bs-slot" id="bs-proxy"${advanced() ? '' : ' hidden'}>${Proxies.botRowHTML(b)}</div>` : ''}
         <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
         ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>${tr('Its screen')}</b>${CHEV}</button>` : ''}
@@ -398,7 +412,7 @@ function renderBotSettings(force = false) {
       const now = readBotForm(form, sel);
       const changes = Object.fromEntries(Object.entries(now).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(saved[k])));
       if (!Object.keys(changes).length) return;
-      const copy = 'computer' in changes && moveFiles; // its files go along (#556)
+      const copy = ('computer' in changes || 'computerPlace' in changes) && moveFiles; // its files go along (#556)
       moveFiles = false;
       try {
         const updated = await api(`/bots/${b.id}`, { method: 'PUT', body: { ...changes, ...(copy ? { moveFiles: true } : {}) } });
@@ -406,6 +420,7 @@ function renderBotSettings(force = false) {
         const i = state.bots.findIndex((x) => x.id === b.id);
         if (i >= 0) state.bots[i] = { ...state.bots[i], ...updated };
         flashSaved(root);
+        if ('computerPlace' in changes) renderBotSettings(true); // its proxy row and its screen follow where it works now
         $('[data-llm-val]', root).textContent = llmValue(saved.model, saved.effort);
         renderContacts();
         drawPanelHead(); // its name is the back button's
@@ -443,6 +458,26 @@ function renderBotSettings(force = false) {
     moveFiles = copy;
     saveSoon();
   });
+  // The same for its place of its own (ADR 261): '' is wherever the account has its computer, which is asked for once.
+  if (form.computerPlace) {
+    let account = null;
+    const first = form.computerPlace.options[0];
+    api('/settings/computer').then((r) => { account = r.place; if (PLACE_NAME[account]) first.textContent = tr("Account's ({name})", { name: PLACE_NAME[account] }); }, () => {});
+    form.computerPlace.addEventListener('change', async (e) => {
+      const select = e.target;
+      const to = select.value;
+      const now = (state.bots.find((x) => x.id === b.id) || b).computer;
+      const where = to || account || now;
+      if (!isComputerMove(now, where)) return;
+      e.stopPropagation();
+      select.value = saved.computerPlace;
+      const copy = await askMoveFiles(where);
+      if (copy === null) return;
+      select.value = to;
+      moveFiles = copy;
+      saveSoon();
+    });
+  }
   wireMoveRetry(root, b.id);
   if (typeof Proxies !== 'undefined') Proxies.fillBotRow($('#bs-proxy', root), b);
 

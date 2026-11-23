@@ -1,6 +1,7 @@
 # ADR-146: Only the admin moves an account's computer
 
 - **Status:** Accepted (2026-11-04, the owner's decision: "Only Admin should be able to change from local to boat.dev for each user"). Amended by [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md): on a managed machine the fleet console moves it, not an admin page.
+- **Amended by:** [ADR 261](261-a-bot-may-have-a-place-for-its-computer-of-its-own-under-advanced.md): the admin's move leaves the bots with a place of their own where they are
 - **Amends:** [ADR 098](098-the-accounts-computer-is-in-one-place-for-all-its-bots.md), where the owner chose it in Settings
 
 ## Context
