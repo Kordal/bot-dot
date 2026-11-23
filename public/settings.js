@@ -418,6 +418,8 @@ function renderSettings() {
   drawInstallCard();
   loadUpdateCard();
   wirePushCard(root);
+  const signOutHereButton = $('#sign-out-here', root);
+  if (signOutHereButton) signOutHereButton.onclick = signOutHere;
   const signOut = $('#sign-out-everywhere', root);
   if (signOut) signOut.onclick = signOutEverywhere;
   loadDeleteCard(root);
@@ -683,19 +685,30 @@ async function frontDoorPost(path, body) {
 
 // ---------- signing out everywhere ----------
 
-// Settings → "Sign out everywhere" (ADR 028): the front door ends every session of the account, in every browser
-// and app, this one too, and the page opens its sign-in. Only behind a front door (`accounts` in features).
+// Settings → "Sign-ins" (ADR 028), behind a front door (`accounts` in features): "Sign out of this device" ends only
+// this session (this browser, or the desktop app, which forgets its cookie when the page opens `/sign-in`), and
+// "Sign out everywhere" ends every session of the account, in every browser and app, this one too (#1591).
 const signOutCardHTML = () => (state.features.includes('accounts') ? `
     <details class="bs-row bs-more" id="sign-out-card">
       <summary><b>${tr('Sign-ins')}</b>${CHEV}</summary>
-      <div class="bs-body"><div><button type="button" class="btn" id="sign-out-everywhere">${tr('Sign out everywhere')}</button></div></div>
+      <div class="bs-body"><div><button type="button" class="btn primary" id="sign-out-here">${tr('Sign out of this device')}</button> <button type="button" class="btn" id="sign-out-everywhere">${tr('Sign out everywhere')}</button></div></div>
     </details>` : '');
 
 async function signOutEverywhere() {
   if (!(await askFirst(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'), tr('Sign out everywhere')))) return;
+  await signOutVia('/sign-out-everywhere');
+}
+
+// Only this session ends; the account's other browsers and apps stay signed in. Nothing is lost, the passkey signs in.
+async function signOutHere() {
+  if (!(await askFirst(tr('Sign out of this device? Your other browsers and apps stay signed in.'), tr('Sign out'), { danger: false }))) return;
+  await signOutVia('/sign-out');
+}
+
+async function signOutVia(route) {
   let res;
   // The front door's own route, not botdot's: no botdot server, and so no Chief or bot, reaches a session.
-  try { res = await fetch('/sign-out-everywhere', { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast(tr("Can't reach botdot."), true); return; }
+  try { res = await fetch(route, { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast(tr("Can't reach botdot."), true); return; }
   if (res.ok || res.status === 401) { location.assign('/sign-in'); return; }
   const data = await res.json().catch(() => ({}));
   toast(typeof data.error === 'string' && data.error.trim() ? data.error : tr("Couldn't sign out ({status}).", { status: res.status }), true);

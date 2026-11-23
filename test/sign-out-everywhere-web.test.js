@@ -1,5 +1,6 @@
-// "Sign out everywhere" on the web page (#468, ADR 028): Settings has it behind a front door (`accounts` in
-// features), and it asks the front door to end every session of the account, then opens the sign-in page.
+// "Sign out of this device" and "Sign out everywhere" on the web page (#468, #1591, ADR 028): Settings has both
+// behind a front door (`accounts` in features). The first asks the front door to end only this session, the second
+// every session of the account; either then opens the sign-in page.
 // The page's own code, cut out of public/app.js and run against stand-ins.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -8,20 +9,21 @@ const { cut, answer, words } = require('./web-page');
 
 function page({ features = ['accounts'], fetch = answer(200, { ok: true, ended: 2 }), confirmed = true } = {}) {
   const calls = [];
+  const asked = [];
   const toasts = [];
   const went = [];
   const ctx = vm.createContext({
     ...words,
     state: { features },
     toast: (text, bad = false) => toasts.push([text, bad]),
-    askFirst: async () => confirmed,
+    askFirst: async (...args) => { asked.push(args); return confirmed; },
     fetch: async (url, opts) => { calls.push([url, opts]); return fetch(url, opts); },
     location: { assign: (to) => went.push(to) },
   });
   vm.runInContext(`${cut('const CHEV = ', '// A change on a settings screen saves by itself')}
     ${cut('// ---------- signing out everywhere ----------', '// ---------- backups ----------')}
-    Object.assign(this, { signOutCardHTML, signOutEverywhere });`, ctx);
-  return { ctx, calls, toasts, went };
+    Object.assign(this, { signOutCardHTML, signOutEverywhere, signOutHere });`, ctx);
+  return { ctx, calls, toasts, went, asked };
 }
 
 test('web: Settings has "Sign out everywhere" behind a front door only', () => {
@@ -57,5 +59,50 @@ test('web: a session that had ended already opens the sign-in page too; a refusa
 test('web: nothing is ended without a yes', async () => {
   const { ctx, calls, went } = page({ confirmed: false });
   await ctx.signOutEverywhere();
+  assert.deepEqual([calls, went], [[], []]);
+});
+
+test('web: Settings has "Sign out of this device" first and "Sign out everywhere" after it (#1591)', () => {
+  const html = page().ctx.signOutCardHTML();
+  assert.match(html, /<button[^>]*class="btn primary"[^>]*id="sign-out-here"[^>]*>Sign out of this device<\/button>/);
+  assert.match(html, /<button[^>]*class="btn"[^>]*id="sign-out-everywhere"[^>]*>Sign out everywhere<\/button>/, 'the secondary one');
+  assert.ok(html.indexOf('id="sign-out-here"') < html.indexOf('id="sign-out-everywhere"'));
+  assert.match(cut('function renderSettings()', '// ---------- backups ----------'), /\$\('#sign-out-here', root\)[\s\S]*\.onclick = signOutHere/);
+});
+
+test('web: "Sign out of this device" ends this session only, then opens the sign-in page', async () => {
+  const { ctx, calls, went, toasts, asked } = page({ fetch: answer(200, { ok: true }) });
+  await ctx.signOutHere();
+  assert.equal(asked.length, 1, 'a short question first');
+  assert.equal(asked[0][1], 'Sign out');
+  assert.equal(asked[0][2].danger, false, 'it takes nothing away: the passkey signs in again');
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], '/sign-out', "this session's route, not /sign-out-everywhere");
+  assert.equal(calls[0][1].method, 'POST');
+  assert.equal(calls[0][1].headers['X-Bot-Dot'], '1');
+  assert.deepEqual(went, ['/sign-in']);
+  assert.deepEqual(toasts, []);
+});
+
+test('web: a session that had ended already opens the sign-in page; a refusal and a lost connection are said', async () => {
+  const ended = page({ fetch: answer(401, { error: 'Sign in first.', signIn: '/sign-in' }) });
+  await ended.ctx.signOutHere();
+  assert.deepEqual(ended.went, ['/sign-in']);
+  const refused = page({ fetch: answer(429, { error: 'Too many failed sign-ins. Try again in 2 seconds.' }) });
+  await refused.ctx.signOutHere();
+  assert.deepEqual(refused.went, []);
+  assert.deepEqual(refused.toasts, [['Too many failed sign-ins. Try again in 2 seconds.', true]]);
+  const bare = page({ fetch: answer(500, {}) });
+  await bare.ctx.signOutHere();
+  assert.deepEqual(bare.toasts, [["Couldn't sign out (500).", true]]);
+  const away = page({ fetch: async () => { throw new TypeError('Failed to fetch'); } });
+  await away.ctx.signOutHere();
+  assert.deepEqual(away.toasts, [["Can't reach botdot.", true]]);
+  assert.deepEqual(away.went, []);
+});
+
+test('web: no sign-out without a yes', async () => {
+  const { ctx, calls, went } = page({ confirmed: false });
+  await ctx.signOutHere();
   assert.deepEqual([calls, went], [[], []]);
 });

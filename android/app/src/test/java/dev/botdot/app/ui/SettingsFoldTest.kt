@@ -19,4 +19,20 @@ class SettingsFoldTest {
         assertTrue("Usage folds too", "FoldSection(tr(\"Usage\"))" in source("UsageSection.kt"))
         assertTrue("saved by itself, said in the top bar", "SavedMark(" in settings)
     }
+
+    /** Sign-ins (#1591): "Sign out of this device" ends this session only, first; "Sign out everywhere" stays, after it. */
+    @Test fun signInsEndsThisPhoneOnlyOrEveryDevice() {
+        val settings = source("SettingsScreen.kt")
+        val fold = settings.substringAfter("FoldSection(tr(\"Sign-ins\"))").substringBefore("\"Delete account\"")
+        val here = fold.indexOf("tr(\"Sign out of this device\")")
+        val everywhere = fold.indexOf("tr(\"Sign out everywhere\")")
+        assertTrue("both buttons, this device first", here in 0 until everywhere)
+        assertTrue("the first is the primary one", "confirmSignOutHere = true" in fold && "ButtonDefaults.buttonColors(containerColor = p.ink" in fold.substring(0, everywhere))
+        assertTrue("the second keeps its own question", "confirmSignOut = true" in fold)
+        // Each asks first and ends what its words say, through the front door's own route (Api.signOut and Api.signOutEverywhere).
+        val hereDialog = settings.substringAfter("if (confirmSignOutHere) AlertDialog(").substringBefore("if (confirmSignOut) AlertDialog(")
+        assertTrue("api!!.signOut()" in hereDialog && "signOutEverywhere" !in hereDialog)
+        assertTrue("Cancel keeps the session", "confirmSignOutHere = false" in hereDialog && "Cancel" in hereDialog)
+        assertTrue("signOutEverywhere" in settings.substringAfter("if (confirmSignOut) AlertDialog(").substringBefore("if (confirmDelete)"))
+    }
 }
