@@ -63,6 +63,16 @@ test('the Chief cannot put the owner\'s quick answers away', async () => {
   assert.equal('choicesDismissed' in (await srv.api(`/runs/${asking}?events=0`)).data, false);
 });
 
+test('the Chief cannot put away quick answers under a Chief message either', async () => {
+  srv.reply('Send it?\n[[choices: Yes | No]]');
+  const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
+  await srv.api(`/chief/chats/${chat.id}/messages`, { method: 'POST', body: { text: 'Draft it' } });
+  const c = await waitFor(async () => { const x = (await srv.api(`/chief/chats/${chat.id}`)).data; return !x.busy && !x.messages.at(-1).pending ? x : null; }, { what: 'the Chief to reply' });
+  const index = c.messages.length - 1;
+  assert.equal((await srv.asChief(`/chief/chats/${chat.id}/messages/${index}/choices-dismissed`, { method: 'PUT', body: { dismissed: true } })).status, 403);
+  assert.equal('choicesDismissed' in (await srv.api(`/chief/chats/${chat.id}`)).data.messages[index], false);
+});
+
 test('a Chief message keeps its quick answers put away, and Undo brings them back', async () => {
   srv.reply('Shall I send it now?\n[[choices: Yes | No]]');
   const chat = (await srv.api('/chief/chats', { method: 'POST' })).data;
