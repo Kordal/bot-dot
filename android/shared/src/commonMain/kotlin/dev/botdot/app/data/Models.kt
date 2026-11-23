@@ -178,6 +178,7 @@ data class Bot(
     val outfit: JsonElement? = null, // what it wears: { hat }, a kit name, "" or a hat drawn inline; null: none
     val computer: String = "none", // where it works now: its own place, else the account's
     val computerPlace: String = "", // its place of its own (ADR 261, `bot-computer-place`): "" follows the account's, else "linux" or "boat"
+    val boatOwnMachine: Boolean = false, // a machine of its own on the External Virtual PC (ADR 263, `bot-own-machine`); false: the account's one
     val nextRunAt: String? = null,
     val jobs: List<Job> = emptyList(),
     val prompt: String = "",
@@ -1313,17 +1314,19 @@ data class BoatSize(val id: String, val cpus: Int = 0, val memoryGB: Int = 0, va
 
 /** Where the account's computer is (#579, `account-computer`): "linux" (this machine) or "boat" (its External Virtual PC). */
 @Serializable
-data class ComputerPlace(val place: String = "linux", val boat: Boolean = false) {
+data class ComputerPlace(val place: String = "linux", val boat: Boolean = false, val ownKey: Boolean = false) {
     companion object {
         val options get() = listOf("linux" to tr("This machine"), "boat" to tr("External Virtual PC"))
         fun shows(features: List<String>?, boat: Boolean?) = boat == true && "account-computer" in features.orEmpty()
         /** Only the admin moves it, on the admin page (ADR 146): the owner sees where it is, no switch. */
         fun byAdmin(features: List<String>?) = "computer-place-admin" in features.orEmpty()
+        /** While the account pays with its own boat.dev key ([ownKey], ADR 263) the owner moves it, in Settings → Computer. */
+        fun byOwner(features: List<String>?, place: ComputerPlace?) = "boat-own-key" in features.orEmpty() && place?.ownKey == true
     }
 }
 
 @Serializable
-data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = emptyList()) {
+data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = emptyList(), val ownKey: Boolean = false) {
     /** What the picker offers: the sizes boat.dev makes now, and the chosen one even when not. */
     val offered get() = sizes.filter { it.available || it.id == size }.map { it.id to it.label }
     /** The chosen size's name: "Large". */
@@ -1331,6 +1334,30 @@ data class BoatSizes(val size: String = "default", val sizes: List<BoatSize> = e
     companion object {
         /** Only the admin chooses it, on the admin page (ADR 163): the owner sees it, no picker. */
         fun byAdmin(features: List<String>?) = "boat-size-admin" in features.orEmpty()
+    }
+}
+
+/**
+ * The account's own boat.dev key (ADR 263, `boat-own-key`) as the server says it, never the key: whether one is [set], what
+ * boat.dev said of it ([check]: ok, refused, billing or unreachable), how many [machines] it made, and whether this machine has
+ * the admin's key ([machineKey]), which the account's own wins over.
+ */
+@Serializable
+data class BoatKey(val set: Boolean = false, val check: String? = null, val machines: Int = 0, val machineKey: Boolean = false) {
+    /** What the row says: "Not set", "Set", "Set · Works", "Set · boat.dev refuses it". */
+    val stateLine: String get() = if (!set) tr("Not set") else listOfNotNull(tr("Set"), when (check) {
+        "ok" -> tr("Works")
+        "refused" -> tr("boat.dev refuses it")
+        "billing" -> tr("boat.dev wants a plan or a payment method first")
+        "unreachable" -> tr("boat.dev can't be reached")
+        else -> null
+    }).joinToString(" · ")
+    /** Whether the key is not working: the row is said in the warning's colour. */
+    val failing get() = set && check != null && check != "ok"
+    companion object {
+        const val FEATURE = "boat-own-key"
+        /** With Advanced on, on a server that knows the account's own key. */
+        fun shows(features: List<String>?, advanced: Boolean) = advanced && FEATURE in features.orEmpty()
     }
 }
 

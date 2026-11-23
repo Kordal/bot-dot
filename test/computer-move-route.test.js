@@ -74,7 +74,7 @@ test('a machine of its own from before stays its own, its files untouched, while
 });
 
 test("the account's switch moves every bot with a computer there, its files copied along", async () => {
-  assert.equal((await botOf('alone')).boatOwnMachine, undefined, 'no bot has a machine of its own any more');
+  assert.equal((await botOf('alone')).boatOwnMachine, false, 'a bot has a machine of its own only with the account\'s own key (ADR 263)');
   assert.equal((await srv.api('/settings/computer')).data.place, 'linux', 'boat.dev has no key here');
   // Only the admin switches it, through the front door (ADR 146): not the owner, not the Chief.
   const ADMIN = { 'X-Botdot-Room': '1' };
@@ -86,7 +86,7 @@ test("the account's switch moves every bot with a computer there, its files copi
   assert.equal(boat.status, 400);
   assert.match(boat.data.error, /External Virtual PC is not set up/);
   const r = await srv.api('/settings/computer', { method: 'PUT', body: { place: 'linux', moveFiles: true }, headers: ADMIN });
-  assert.deepEqual(r.data, { place: 'linux', boat: false });
+  assert.deepEqual(r.data, { place: 'linux', boat: false, ownKey: false });
   for (const id of ['alone', 'older']) assert.equal((await botOf(id)).computer, 'linux');
   assert.equal((await botOf('idle')).computer, 'linux', 'one saved without a computer has it where the account has it (ADR 192)');
   const failed = await until(async () => { const b = await botOf('older'); return b.computerMove?.state === 'failed' && b; });

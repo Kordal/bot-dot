@@ -39,7 +39,7 @@ test('web: the row has the account, this machine and the External Virtual PC, an
 
 test('web: a save sends the place of its own, with its files when asked, and the move is asked first', () => {
   assert.match(bots, /\.\.\.\(form\.computerPlace \? \{ computerPlace: form\.computerPlace\.value \} : \{\}\)/);
-  assert.match(bots, /const copy = \('computer' in changes \|\| 'computerPlace' in changes\) && moveFiles;/);
+  assert.match(bots, /const copy = \('computer' in changes \|\| 'computerPlace' in changes \|\| 'boatOwnMachine' in changes\) && moveFiles;/);
   assert.match(bots, /form\.computerPlace\.addEventListener\('change', async/);
   assert.match(bots, /askMoveFiles\(where\)/);
 });

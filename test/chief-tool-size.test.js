@@ -12,9 +12,12 @@ test('a tool that changes another one\'s thing takes its fields without their wo
   for (const [changes, makes] of [['update_tile', 'add_tile'], ['update_bot', 'create_bot']]) {
     const own = tool(changes).inputSchema.properties;
     const made = tool(makes).inputSchema.properties;
-    assert.deepEqual(Object.keys(own), ['id', ...Object.keys(made)], changes);
+    // update_bot alone has the two of a bot's machine on the External Virtual PC (ADR 263), with their words: a new bot shares the account's.
+    const extra = changes === 'update_bot' ? ['boatOwnMachine', 'moveFiles'] : [];
+    assert.deepEqual(Object.keys(own), ['id', ...Object.keys(made), ...extra], changes);
     for (const [f, schema] of Object.entries(made)) assert.deepEqual(own[f], strip(schema), `${changes}.${f}`);
-    assert.doesNotMatch(JSON.stringify(own), /"description":"/, `${changes} says no field's words`);
+    const { boatOwnMachine: _a, moveFiles: _b, ...theRest } = own;
+    assert.doesNotMatch(JSON.stringify(theRest), /"description":"/, `${changes} says no field's words`);
     assert.match(tool(changes).description, new RegExp(`Its fields are ${makes}'s`));
   }
   for (const [f, schema] of Object.entries(tool('test_tile').inputSchema.properties)) assert.deepEqual(schema, strip(tool('add_tile').inputSchema.properties[f]), `test_tile.${f}`);
@@ -30,5 +33,6 @@ test("the Chief's tools are about 25k characters shorter", () => {
   // 113.1k: watch, list_watches and stop_watch, the Chief's waits that botdot reads without AI (ADR 248).
   // 113.2k: change_project_card's textSize, how large a card's text is drawn.
   // 113.4k: create_bot and update_bot take verbatim, a task the owner dictated, which hints leave alone (#1543).
-  assert.ok(size < 113_400, `${size} characters`);
+  // 113.8k: update_bot's boatOwnMachine and moveFiles, a bot's machine of its own on boat.dev (ADR 263).
+  assert.ok(size < 113_800, `${size} characters`);
 });

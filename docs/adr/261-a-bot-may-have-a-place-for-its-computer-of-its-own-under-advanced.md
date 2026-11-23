@@ -4,6 +4,7 @@
 - **Owning task:** [#1613](https://github.com/ladrok/bot-dot/issues/1613)
 - **Amends:** [ADR 098](098-the-accounts-computer-is-in-one-place-for-all-its-bots.md) (the account's computer is in one place for all its bots), [ADR 146](146-only-the-admin-moves-an-accounts-computer.md) (only the admin moves the account's)
 - **Builds on:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md) (the per-bot choice this brings back, without its own machine), [ADR 091](091-a-bots-files-are-copied-when-its-computer-moves.md), [ADR 096](096-the-accounts-boat-bots-share-one-machine-there.md), [ADR 171](171-a-bots-browser-goes-out-through-the-accounts-proxy.md), [ADR 200](200-advanced-shows-the-technical-rows-and-starts-off-for-a-new-account.md)
+- **Amended by:** [ADR 263](263-an-account-may-use-its-own-boat-dev-key-with-one-machine-for-all-or-one-per-bot.md) (a bot's place may also be a machine of its own on the External Virtual PC)
 
 ## Context
 

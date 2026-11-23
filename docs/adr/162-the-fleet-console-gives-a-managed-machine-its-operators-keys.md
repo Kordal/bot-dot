@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Owning task:** the owner's request in the project thread "Share my API keys across all servers": every machine the owner runs from the console uses only the owner's own keys, safely, for Jev and Composio.
 - **Builds on:** [ADR 154](154-one-vps-per-customer-a-managed-machine-run-from-a-fleet-console.md) (the console reaches a machine only through its agent and root's requests), [ADR 082](082-the-admin-chooses-haiku-or-jev-to-pick-who-answers-in-a-group.md) (Jev and its OpenRouter key) and [ADR 160](160-the-installer-gives-the-admins-account-its-composio-key.md) (the installer's Composio key, handed to the admin's account).
+- **Amended by:** [ADR 263](263-an-account-may-use-its-own-boat-dev-key-with-one-machine-for-all-or-one-per-bot.md) (an account may use its own boat.dev key instead of the operator's)
 
 ## Context
 

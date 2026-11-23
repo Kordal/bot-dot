@@ -118,6 +118,9 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     var computerPlace by remember { mutableStateOf("") } // its place of its own: "" the account's (ADR 261)
     var askPlace by remember { mutableStateOf<String?>(null) } // the place of its own that the question about its files is for
     var accountPlace by remember { mutableStateOf<String?>(null) } // where the account has its computer, once known
+    var boatOwn by remember { mutableStateOf(false) } // its machine of its own on the External Virtual PC (ADR 263)
+    var askOwn by remember { mutableStateOf<Boolean?>(null) } // the machine the question about its files is for: its own (true) or the account's
+    var accountOwnKey by remember { mutableStateOf(false) } // the account pays with its own boat.dev key, so the owner chooses
     val botsNow by app.store.bots.value.collectAsState()
     var useSkills by remember { mutableStateOf(true) }
     var skills by remember { mutableStateOf(setOf<String>()) }
@@ -135,7 +138,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     fun fill(b: Bot) {
         val d = BotSettings.draft(b, others)
         bot = b; color = d.color; icon = d.icon; name = d.name; description = d.description; group = d.group; pinned = d.pinned; task = d.task
-        model = d.model; effort = d.effort; computer = d.computer; computerOn = d.computerOn; computerPlace = d.computerPlace; proxy = d.proxy
+        model = d.model; effort = d.effort; computer = d.computer; computerOn = d.computerOn; computerPlace = d.computerPlace; boatOwn = d.boatOwnMachine; proxy = d.proxy
         useSkills = d.useSkills; skills = d.skills; disabled = d.disabled; connectors = d.connectors; accounts = d.accounts; mayMessage = d.mayMessage
         othersMayAsk = d.othersMayAsk
         rooms = d.rooms
@@ -156,7 +159,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
     // Where the account has its computer, for the first choice of a bot's own place (ADR 261).
     LaunchedEffect(api, server?.features) {
         val a = api ?: return@LaunchedEffect
-        if ("bot-computer-place" in server?.features.orEmpty() && dev.botdot.app.data.ComputerPlace.shows(server?.features, server?.boat)) runCatching { a.computerPlace() }.onSuccess { accountPlace = it.place }
+        if (("bot-computer-place" in server?.features.orEmpty() || "bot-own-machine" in server?.features.orEmpty()) && dev.botdot.app.data.ComputerPlace.shows(server?.features, server?.boat)) runCatching { a.computerPlace() }.onSuccess { accountPlace = it.place; accountOwnKey = it.ownKey }
     }
 
     val keepsFiles = UploadedFiles.shows(server?.features)
@@ -170,7 +173,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
 
     // What differs from the bot as botdot has it: what a save sends.
     fun changes(b: Bot) = BotSettings.changes(b, BotDraft(color = color, icon = icon, name = name, description = description, group = group, pinned = pinned,
-        task = task, model = model, effort = effort, computer = computer, computerOn = computerOn, moveFiles = moveFiles, computerPlace = computerPlace, proxy = proxy, useSkills = useSkills,
+        task = task, model = model, effort = effort, computer = computer, computerOn = computerOn, moveFiles = moveFiles, computerPlace = computerPlace, boatOwnMachine = boatOwn, proxy = proxy, useSkills = useSkills,
         skills = skills, disabled = disabled, connectors = connectors, accounts = accounts, mayMessage = mayMessage, othersMayAsk = othersMayAsk, rooms = rooms,
         hotkey = hotkey), server?.features, others)
     // Saved by itself (#636), a moment after the last change, and "Saved" says so at the top; its next run uses it.
@@ -187,7 +190,7 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         runCatching { api!!.updateBot(botId, sent) }.onSuccess { if (changes(b) == sent) fill(it) else bot = it; moveFiles = false; savedAt++ }.onError { refused = sent; tell(it.message ?: tr("Couldn't save")) }
         saving = false
     }
-    LaunchedEffect(color, icon, name, description, group, pinned, task, model, effort, computer, computerOn, computerPlace, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
+    LaunchedEffect(color, icon, name, description, group, pinned, task, model, effort, computer, computerOn, computerPlace, boatOwn, proxy, useSkills, skills, disabled, connectors, mayMessage, othersMayAsk, rooms, hotkey, saving) {
         val b = bot ?: return@LaunchedEffect
         val now = changes(b)
         if (name.isBlank() || now.isEmpty() || now == refused) return@LaunchedEffect
@@ -273,6 +276,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
                     val where = to.ifEmpty { accountPlace ?: b.computer }
                     if (dev.botdot.app.data.BotSettings.asksMove(server?.features, b, where)) { askPlace = to; askMove = where; return@Choice }
                     computerPlace = to
+                    moveFiles = false
+                }
+                // Its machine on the External Virtual PC (ADR 263), with Advanced on and the account's own boat.dev key: shared
+                // with the account's bots, or one of its own. Between them its files go along or not: asked first (ADR 091).
+                val machines = dev.botdot.app.data.BotSettings.ownMachineChoices(advOn, server?.features, accountOwnKey, b)
+                if (machines != null) Choice(tr("Machine on the External Virtual PC"), if (boatOwn) "own" else "", machines.map { it.id to it.label }) { to ->
+                    val own = to == "own"
+                    if (own == boatOwn) return@Choice
+                    if ("computer-move" in server?.features.orEmpty()) { askOwn = own; return@Choice }
+                    boatOwn = own
                     moveFiles = false
                 }
                 // Its proxy (ADR 171): on the account's computer only; boat.dev's browser uses the account's.
@@ -493,6 +506,16 @@ fun BotSettingsScreen(app: BotDotApp, botId: String, focusSkill: String? = null,
         AlertDialog(
             onDismissRequest = { askMove = null; askPlace = null },
             title = { Text(dev.botdot.app.data.BotSettings.moveQuestion(to)) },
+            confirmButton = { TextButton(onClick = { choose(true) }) { Text(tr("Copy files"), color = p.text) } },
+            dismissButton = { TextButton(onClick = { choose(false) }) { Text(tr("Start empty"), color = p.text) } },
+        )
+    }
+
+    askOwn?.let { own ->
+        val choose = { copy: Boolean -> boatOwn = own; moveFiles = copy; askOwn = null }
+        AlertDialog(
+            onDismissRequest = { askOwn = null },
+            title = { Text(dev.botdot.app.data.BotSettings.ownMachineQuestion(own)) },
             confirmButton = { TextButton(onClick = { choose(true) }) { Text(tr("Copy files"), color = p.text) } },
             dismissButton = { TextButton(onClick = { choose(false) }) { Text(tr("Start empty"), color = p.text) } },
         )

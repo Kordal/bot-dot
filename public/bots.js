@@ -54,11 +54,16 @@ const COMPUTER_PLACE = {
   linux: tr('Copy its files to this machine?'),
   boat: tr('Copy its files to the External Virtual PC?'),
 };
+// Its machine on the External Virtual PC (ADR 263): the account's one, or one of its own.
+const OWN_MACHINE_COPY = {
+  own: tr('Copy its files to its own machine?'),
+  shared: tr("Copy its files to the account's machine?"),
+};
 // One bot's files, when its computer moves.
-function askMoveFiles(to) {
+function askMoveFiles(to, heads = COMPUTER_PLACE) {
   return new Promise((resolve) => {
     const m = openModal(`
-      <div class="modal-head"><h2>${COMPUTER_PLACE[to]}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
+      <div class="modal-head"><h2>${heads[to]}</h2><button type="button" class="btn ghost" data-dismiss>✕</button></div>
       <div class="modal-foot">
         <button type="button" class="btn" id="move-empty">${tr('Start empty')}</button>
         <button type="button" class="btn primary" id="move-copy">${tr('Copy files')}</button>
@@ -80,6 +85,17 @@ function botPlaceRow(b, docker) {
   const option = (value, label, off = false) => `<option value="${value}" ${own === value ? 'selected' : ''} ${off && own !== value ? 'disabled' : ''}>${esc(label)}</option>`;
   return `<label class="bs-row" id="bs-place"${advanced() ? '' : ' hidden'}><b>${tr('Computer')}</b>
           <select name="computerPlace" aria-label="${esc(tr('Computer'))}">${option('', tr("Account's choice"))}${option('linux', PLACE_NAME.linux, !docker)}${option('boat', PLACE_NAME.boat, !state.status?.boat)}</select>${CHEV}
+        </label>`;
+}
+// A bot's machine on the External Virtual PC (ADR 263), under Advanced: shared with the account's other bots (the default,
+// ADR 096) or one of its own. Drawn for a bot that works on the External Virtual PC, and shown only while the account pays
+// for it with its own boat.dev key (/api/settings/computer says `ownKey`): with the machine's, the admin pays and every
+// bot shares the account's machine. A bot that has one of its own keeps the row either way, so it can come back.
+const botOwnMachineShown = (b) => state.features.includes('bot-own-machine') && b.computer === 'boat';
+function botOwnMachineRow(b) {
+  const own = b.boatOwnMachine === true;
+  return `<label class="bs-row" id="bs-own-machine" hidden><b>${tr('Machine on the External Virtual PC')}</b>
+          <select name="boatOwnMachine" aria-label="${esc(tr('Machine on the External Virtual PC'))}"><option value="shared" ${own ? '' : 'selected'}>${tr("Shared with the account's bots")}</option><option value="own" ${own ? 'selected' : ''}>${tr('Its own machine')}</option></select>${CHEV}
         </label>`;
 }
 // Its copy's line under Computer: how far it is, or that it failed, with Try again. Why it failed stays in the API
@@ -151,6 +167,7 @@ function readBotForm(form, sel) {
     systemPrompt: form.systemPrompt.value,
     ...(form.computer ? { computer: form.computer.value } : {}), // which one, where a server still has a choice (#541); every bot has one (ADR 192)
     ...(form.computerPlace ? { computerPlace: form.computerPlace.value } : {}), // its place of its own, '' the account's (ADR 261)
+    ...(form.boatOwnMachine ? { boatOwnMachine: form.boatOwnMachine.value === 'own' } : {}), // its machine of its own on the External Virtual PC (ADR 263)
     skills: [...sel.skills],
     disabledSkills: readDisabledSkills(form),
     connectors: [...sel.connectors],
@@ -352,6 +369,7 @@ function renderBotSettings(force = false) {
           <select name="computer" aria-label="${esc(tr('Computer'))}"><option value="linux" ${b.computer === 'linux' ? 'selected' : ''} ${docker || b.computer === 'linux' ? '' : 'disabled'}>${tr('This machine')}</option><option value="boat" ${b.computer === 'boat' ? 'selected' : ''}>${tr('External Virtual PC')}</option></select>${CHEV}
         </label>` : ''}
         ${botPlaceShown(b) ? botPlaceRow(b, docker) : ''}
+        ${botOwnMachineShown(b) ? botOwnMachineRow(b) : ''}
         ${b.computer === 'linux' && typeof Proxies !== 'undefined' ? `<div class="bs-slot" id="bs-proxy"${advanced() ? '' : ' hidden'}>${Proxies.botRowHTML(b)}</div>` : ''}
         <div class="bs-row bs-note" id="bs-move">${computerMoveLine(b)}</div>
         ${hasComputer ? `<button type="button" class="bs-row bs-link" data-bs-screen><b>${tr('Its screen')}</b>${CHEV}</button>` : ''}
@@ -412,7 +430,7 @@ function renderBotSettings(force = false) {
       const now = readBotForm(form, sel);
       const changes = Object.fromEntries(Object.entries(now).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(saved[k])));
       if (!Object.keys(changes).length) return;
-      const copy = ('computer' in changes || 'computerPlace' in changes) && moveFiles; // its files go along (#556)
+      const copy = ('computer' in changes || 'computerPlace' in changes || 'boatOwnMachine' in changes) && moveFiles; // its files go along (#556)
       moveFiles = false;
       try {
         const updated = await api(`/bots/${b.id}`, { method: 'PUT', body: { ...changes, ...(copy ? { moveFiles: true } : {}) } });
@@ -472,6 +490,25 @@ function renderBotSettings(force = false) {
       e.stopPropagation();
       select.value = saved.computerPlace;
       const copy = await askMoveFiles(where);
+      if (copy === null) return;
+      select.value = to;
+      moveFiles = copy;
+      saveSoon();
+    });
+  }
+  // Its machine of its own (ADR 263): shown only while the account pays with its own boat.dev key (or the bot has one
+  // already); a switch asks first whether its files go along, as a move of its computer does.
+  if (form.boatOwnMachine) {
+    const row = $('#bs-own-machine', root);
+    const show = (ownKey) => { row.hidden = !advanced() || !(ownKey || b.boatOwnMachine === true); };
+    show(false);
+    api('/settings/computer').then((r) => show(r.ownKey === true), () => {});
+    form.boatOwnMachine.addEventListener('change', async (e) => {
+      const select = e.target;
+      const to = select.value;
+      e.stopPropagation();
+      select.value = saved.boatOwnMachine ? 'own' : 'shared';
+      const copy = await askMoveFiles(to, OWN_MACHINE_COPY);
       if (copy === null) return;
       select.value = to;
       moveFiles = copy;

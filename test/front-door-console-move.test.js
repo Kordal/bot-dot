@@ -165,7 +165,9 @@ test('delete-account deletes as the admin page does: the account leaves its room
     execFile(process.execPath, ['front-door.js', 'delete-account', '--account', 'carl', '--by', 'console'], { cwd: path.join(__dirname, '..'), env: { PATH: process.env.PATH, FRONT_DOOR_ORIGIN: door.origin, FRONT_DOOR_DATA: door.data, ...env } }, (e, out) => (e ? reject(e) : resolve(JSON.parse(out))));
   });
   assert.deepEqual(said, { state: 'deleted', account: 'carl' });
-  assert.equal(stands.carl.seen.filter((r) => r.url === '/api/boat/erase').length, 1, 'its boat.dev machines asked to go first');
+  const erases = stands.carl.seen.filter((r) => r.url === '/api/boat/erase');
+  assert.equal(erases.length, 1, 'its boat.dev machines asked to go first');
+  assert.deepEqual(JSON.parse(erases[0].body), { keepOwn: true }, "a moved account keeps the machines its own key made: the new machine uses them (ADR 263)");
   assert.deepEqual((await ann.get(`/front-door/rooms/${room.id}`)).data.room.members.map((m) => m.account), ['ann'], 'it left its room');
   const entry = JSON.parse(fs.readFileSync(path.join(door.data, 'audit.jsonl'), 'utf8').trim().split('\n').at(-1));
   assert.deepEqual([entry.action, entry.actor, entry.account, entry.detail], ['delete', 'console', 'carl', 'boat.dev: 2 machines deleted']);

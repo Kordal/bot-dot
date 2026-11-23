@@ -660,5 +660,8 @@
   "Looking at its watches": "Przeglądam swoje obserwacje",
   "Checking the watches": "Sprawdzam obserwacje",
   "Stopping a watch": "Zatrzymuję obserwację",
-  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele."
+  "Model list unavailable. Showing known models.": "Lista modeli jest niedostępna. Pokazujemy znane modele.",
+  "a machine of its own": "osobna maszyna",
+  "Machine on the External Virtual PC": "Maszyna na Zewnętrznym wirtualnym PC",
+  "a machine of its own on boat.dev, which has costs{files}": "osobna maszyna na boat.dev, która kosztuje{files}"
 }

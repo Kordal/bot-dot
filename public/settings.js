@@ -399,7 +399,7 @@ function renderSettings() {
         <summary><b>${tr('Bots with their own model')}</b><span class="bs-val">${custom.length}</span>${CHEV}</summary>
         <div class="bs-body">${custom.map((b) => `<button type="button" class="settings-bot" data-edit-bot="${esc(b.id)}"><span>${botLabel(b)}</span><span class="muted">${esc(llmSummary(b.model, b.effort))}</span></button>`).join('')}</div>
       </details>` : `<div class="bs-row"${tipAttrs(tr('Every bot uses the default. Change a bot in its settings.'))}><b>${tr('Bots with their own model')}</b><span class="bs-val">${tr('None')}</span></div>`}` : ''}
-      ${state.features.includes('boat-size') && state.status?.boat ? `<div class="bs-row" id="boat-size-card" hidden><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span></div>` : ''}
+      ${computerRowHTML()}
       ${state.features.includes('token-usage') ? '<details class="bs-row bs-more" id="usage-card"></details>' : ''}
       <label class="bs-row"><b>${tr('Language')}</b><select id="settings-language" aria-label="${esc(tr('Language'))}">${LANGUAGE_NAMES.map(([id, name]) => `<option value="${id}"${id === (s.language || 'en') ? ' selected' : ''}>${name}</option>`).join('')}</select></label>
       ${pushCardHTML()}
@@ -427,6 +427,7 @@ function renderSettings() {
   drawSettingsLinks(root);
   loadBackupsCard();
   loadComputerPlace(root);
+  loadComputerCard(root);
   if (typeof Proxies !== 'undefined') Proxies.wireSettings(root); // public/proxies.js (ADR 171)
   if ($('#usage-card', root) && typeof Usage !== 'undefined') Usage.open($('#usage-card', root)); // public/usage.js (#301)
   wireLanguage(root);
@@ -523,8 +524,93 @@ function wireLanguage(root) {
 }
 
 // Where the account's computer is (#579) and, on its External Virtual PC on boat.dev, its size: the admin chooses both,
-// on the admin page (ADR 146, ADR 163), so here they are a row's value, shown only while the computer is there.
+// on the admin page (ADR 146, ADR 163), so here they are a row's value, shown only while the computer is there. With
+// Advanced on, a server that knows the account's own boat.dev key (`boat-own-key`, ADR 263) draws a Computer section
+// instead, where the key is added, replaced or removed and, while the account pays with it, the owner chooses both.
+const ownKeyShown = () => state.features.includes('boat-own-key') && advanced();
+const computerRowHTML = () => (ownKeyShown()
+  ? `<details class="bs-row bs-more" id="computer-card"><summary><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span>${CHEV}</summary><div class="bs-body" id="computer-body"><span class="faint">${tr('Loading…')}</span></div></details>`
+  : state.features.includes('boat-size') && state.status?.boat ? `<div class="bs-row" id="boat-size-card" hidden><b>${tr('Computer')}</b><span class="bs-val" id="computer-place-val"></span></div>` : '');
 const boatSizeLabel = (id) => id.charAt(0).toUpperCase() + id.slice(1);
+const COMPUTER_PLACES = { linux: tr('This machine'), boat: tr('External Virtual PC') };
+// What boat.dev said of the account's key, in a few words.
+const KEY_STATE = {
+  ok: tr('Works'),
+  refused: tr('boat.dev refuses it'),
+  billing: tr('boat.dev wants a plan or a payment method first'),
+  unreachable: tr("boat.dev can't be reached"),
+};
+// A size as the owner reads it: its CPUs and memory, never a price (AGENTS.md rule 5).
+const sizeName = (z) => `${boatSizeLabel(z.id)} · ${tr('{cpus} CPUs · {memory} GB', { cpus: z.cpus, memory: z.memoryGB })}`;
+async function loadComputerCard(root) {
+  const card = $('#computer-card', root);
+  if (!card) return;
+  const body = $('#computer-body', root);
+  const val = $('#computer-place-val', root);
+  const paint = async () => {
+    let key;
+    try { key = await api('/settings/boat-key'); } catch (e) { body.textContent = e.message; return; }
+    let where = null;
+    let sizes = null;
+    if (state.status?.boat && state.features.includes('account-computer')) {
+      try { where = await api('/settings/computer'); } catch { /* the key row alone */ }
+      if (where?.ownKey && where.place === 'boat') { try { sizes = await api('/settings/boat-size'); } catch { /* no size */ } }
+    }
+    val.textContent = where?.place ? [COMPUTER_PLACES[where.place], sizes ? boatSizeLabel(sizes.size) : ''].filter(Boolean).join(' · ') : '';
+    body.innerHTML = `
+      <div class="bs-row"><b>${tr('boat.dev key')}</b><span class="bs-val${key.set && key.check && key.check !== 'ok' ? ' bs-warn' : ''}" id="bk-state">${key.set ? esc([tr('Set'), KEY_STATE[key.check]].filter(Boolean).join(' · ')) : tr('Not set')}</span></div>
+      <form id="bk-form" class="bs-row key-row" autocomplete="off"><input type="password" name="key" placeholder="${esc(key.set ? tr('New boat.dev key') : tr('boat.dev key'))}" aria-label="${esc(tr('boat.dev key'))}" spellcheck="false" required><button class="btn primary">${tr('Save')}</button>${key.set ? `<button type="button" class="btn sm danger" id="bk-remove">${tr('Remove')}</button>` : ''}</form>
+      <p class="faint" id="bk-note" role="status">${key.set ? '' : tr('With your own key boat.dev bills you directly for the External Virtual PC, and you choose where the account\'s computer is.')}</p>
+      ${key.set && where ? `<label class="bs-row"><b>${tr('Where')}</b><select id="cp-place" aria-label="${esc(tr('Where'))}">${Object.entries(COMPUTER_PLACES).map(([v, n]) => `<option value="${v}"${v === where.place ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}
+      ${sizes ? `<label class="bs-row"><b>${tr('Size')}</b><select id="cp-size" aria-label="${esc(tr('Size'))}">${sizes.sizes.filter((z) => z.available || z.id === sizes.size).map((z) => `<option value="${z.id}"${z.id === sizes.size ? ' selected' : ''}>${esc(sizeName(z))}</option>`).join('')}</select></label>` : ''}`;
+    const note = (text, bad = false) => { const n = $('#bk-note', root); n.textContent = text; n.classList.toggle('danger-text', bad); };
+    $('#bk-form', root).onsubmit = async (e) => {
+      e.preventDefault();
+      const input = e.target.key;
+      const go = e.target.querySelector('.btn.primary');
+      go.disabled = true;
+      try { await api('/settings/boat-key', { method: 'PUT', body: { key: input.value } }); input.value = ''; toast(tr('Saved')); state.status = { ...state.status, boat: true }; await paint(); refresh(); } catch (err) { note(err.message, true); } finally { go.disabled = false; }
+    };
+    const remove = $('#bk-remove', root);
+    if (remove) remove.onclick = async () => {
+      // What it made at boat.dev goes first, or stays there (ADR 263): the owner says which.
+      let how = null;
+      if (key.machines) {
+        const a = await askWhich(tr('Remove your boat.dev key? Your bots then work on this machine.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.', { n: trn(key.machines, '{n} machine', '{n} machines') }), tr('Delete its machines on boat.dev'), tr('Keep them'));
+        if (!a) return;
+        how = a === 'yes' ? 'delete' : 'keep';
+      } else if (!(await askFirst(tr('Remove your boat.dev key? Your bots then work on this machine.'), tr('Remove')))) return;
+      remove.disabled = true;
+      try { await api(`/settings/boat-key${how ? `?machines=${how}` : ''}`, { method: 'DELETE' }); toast(tr('Removed')); await paint(); refresh(); } catch (err) { note(err.message, true); remove.disabled = false; }
+    };
+    const place = $('#cp-place', root);
+    if (place) place.onchange = async () => {
+      const to = place.value;
+      place.value = where.place;
+      let moveFiles = false;
+      if (state.bots.some((b) => b.computer === 'linux' || b.computer === 'boat')) {
+        const copy = await askMovePlace(to);
+        if (copy === null) return;
+        moveFiles = copy;
+      }
+      place.disabled = true;
+      try { await api('/settings/computer', { method: 'PUT', body: { place: to, moveFiles } }); toast(tr('Saved')); await paint(); refresh(); } catch (err) { toast(err.message, true); place.disabled = false; }
+    };
+    const size = $('#cp-size', root);
+    if (size) size.onchange = async () => {
+      size.disabled = true;
+      try { await api('/settings/boat-size', { method: 'PUT', body: { size: size.value } }); toast(tr('Saved')); } catch (err) { toast(err.message, true); size.value = sizes.size; }
+      size.disabled = false;
+    };
+  };
+  card.addEventListener('toggle', () => { if (card.open && !card.dataset.drawn) { card.dataset.drawn = '1'; paint(); } });
+  // The row's value is known without opening it.
+  api('/settings/computer').then((w) => { if (w?.place && state.status?.boat) val.textContent = COMPUTER_PLACES[w.place] || ''; }, () => {});
+}
+// The account's bots with a computer move along with its place: their files copied or not (#556, ADR 091).
+function askMovePlace(to) {
+  return askWhich(to === 'boat' ? tr("Copy the bots' files to the External Virtual PC?") : tr("Copy the bots' files to this machine?"), tr('Copy files'), tr('Start empty')).then((a) => (a === 'yes' ? true : a === 'other' ? false : null));
+}
 async function loadComputerPlace(root) {
   const row = $('#boat-size-card', root);
   if (!row) return;
