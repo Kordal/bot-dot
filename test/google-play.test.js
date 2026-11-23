@@ -21,6 +21,10 @@ for (const file of ['listing-en.md', 'listing-pl.md']) {
       const text = block(md, heading);
       assert.ok(text.trim().length > 0, `${file} ${heading} is empty`);
       assert.ok([...text].length <= max, `${file} ${heading}: ${[...text].length} > ${max}`);
+      // The heading says the block's length, so whoever pastes it sees the count without counting.
+      const said = md.match(new RegExp(`^## ${heading} \\(${max}\\): (\\d+)$`, 'm'));
+      assert.ok(said, `${file} ${heading}: the heading should read "## ${heading} (${max}): <length>"`);
+      assert.equal(Number(said[1]), [...text].length, `${file} ${heading}: the heading's count is out of date`);
     }
   });
 }
