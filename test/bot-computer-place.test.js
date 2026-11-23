@@ -6,10 +6,11 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const net = require('node:net');
 const { startServer } = require('./helpers');
 
 const ADMIN = { 'X-Botdot-Room': '1' };
-let srv;
+let srv, hang;
 before(async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-bot-place-'));
   const data = path.join(dir, 'data');
@@ -17,10 +18,12 @@ before(async () => {
   const bot = (id, name, extra = {}) => ({ id, name, prompt: 'Build things.', allowedTools: ['Read'], computer: 'linux', jobs: [], ...extra });
   // Saved before a bot had a place of its own: none of them has computerPlace.
   fs.writeFileSync(path.join(data, 'bots.json'), JSON.stringify([bot('old', 'Old'), bot('coder', 'Coder'), bot('writer', 'Writer'), bot('asked', 'Asked'), bot('copied', 'Copied')]));
-  // boat.dev itself is nowhere here: a copy to or from it fails and says why.
-  srv = await startServer({ dir, env: { BOT_DOT_BOAT_URL: 'http://127.0.0.1:9' } });
+  // boat.dev here takes a request and never answers: a copy to it stays running.
+  hang = net.createServer(() => {}).listen(0, '127.0.0.1');
+  await new Promise((r) => hang.once('listening', r));
+  srv = await startServer({ dir, env: { BOT_DOT_BOAT_URL: `http://127.0.0.1:${hang.address().port}` } });
 });
-after(() => srv.stop());
+after(async () => { await srv.stop(); hang.closeAllConnections?.(); hang.close(); });
 
 const botOf = async (id) => (await srv.api(`/bots/${id}`)).data;
 const put = (id, body, as = 'api') => (as === 'chief' ? srv.asChief(`/bots/${id}`, { method: 'PUT', body }) : srv.api(`/bots/${id}`, { method: 'PUT', body }));
@@ -101,11 +104,16 @@ test('"Copy files" with a bot\'s own place copies its files, "Start empty" copie
   const r = await put('copied', { computerPlace: 'boat', moveFiles: true });
   assert.deepEqual([r.status, r.data.computer], [200, 'boat']);
   const move = await until(async () => { const b = await botOf('copied'); return b.computerMove && b; });
-  assert.deepEqual([move.computerMove.from, move.computerMove.to], ['linux', 'boat']);
-  const failed = await until(async () => { const b = await botOf('copied'); return b.computerMove?.state === 'failed' && b; });
-  assert.ok(failed.computerMove.error, 'it says why');
-  // Not while a copy runs: put one back to copying through an account-wide move's guard.
-  assert.equal((await put('copied', { computerPlace: 'linux' })).status, 200, 'a failed copy does not hold the choice');
+  assert.deepEqual([move.computerMove.from, move.computerMove.to, move.computerMove.state], ['linux', 'boat', 'copying'], 'boat.dev never answers here');
+  const wait = await put('copied', { computerPlace: 'linux' });
+  assert.equal(wait.status, 409, 'not while its files are being copied');
+  assert.equal((await botOf('copied')).computerPlace, 'boat');
+});
+
+test("a copy of a bot made by the owner keeps its place of its own", async () => {
+  const copy = await srv.api('/bots/copied/duplicate', { method: 'POST', body: {} });
+  assert.equal(copy.status, 201);
+  assert.deepEqual([copy.data.computerPlace, copy.data.computer], ['boat', 'boat']);
 });
 
 test('a bot with a place of its own keeps it when the file is read again', async () => {
