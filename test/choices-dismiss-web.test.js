@@ -38,6 +38,7 @@ test('web: what the owner chose here wins over a list the server has not changed
   dismissUndo.set('r1', 1); // its few seconds are not over: a redraw keeps the line
   const line = choicesHTML(['Yes', 'No'], -1, '', 'r1', quickOf('r1', URL, false));
   assert.match(line, /<div class="choices-undo" data-quick="r1"[^>]*>Answers hidden · <button type="button" data-putback>Undo<\/button><\/div>/);
+  assert.match(line, /<div class="choices"[^>]* hidden>.*data-choice="Yes"/, 'the row stands hidden beside the line, so Undo after a redraw has it to bring back');
   choicesPut.set('r1', false); // Undo here, the list still says dismissed
   assert.match(choicesHTML(['Yes', 'No'], -1, '', 'r1', quickOf('r1', URL, true)), /class="choices"/);
 });

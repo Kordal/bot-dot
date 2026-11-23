@@ -388,9 +388,11 @@ const choicesHTML = (choices, yes = -1, color = '', of = '', place = null) => {
   if (!choices?.length || (of && answered.get(of) === 'sent')) return '';
   const quick = place && state.features?.includes('choices-dismiss') ? { ...place, key: place.key || of, dismissed: !!place.dismissed } : null;
   const away = quick && (choicesPut.has(quick.key) ? choicesPut.get(quick.key) : quick.dismissed);
-  if (away) return dismissUndo.has(quick.key) ? `<div class="choices-undo" data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}">${tr('Answers hidden')} · <button type="button" data-putback>${tr('Undo')}</button></div>` : '';
+  if (away && !dismissUndo.has(quick.key)) return '';
   const x = quick ? `<button type="button" class="choices-x" data-dismiss title="${esc(tr('Dismiss suggested answers'))}" aria-label="${esc(tr('Dismiss suggested answers'))}">${dismissIcon}</button>` : '';
-  return `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${quick ? ` data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}"` : ''}${of && answered.get(of) === 'sending' ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}${x}</div>`;
+  // While "Answers hidden · Undo" stands, the row is drawn too, hidden: a chat drawn again keeps what Undo brings back.
+  const row = `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${quick ? ` data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}"` : ''}${away || (of && answered.get(of) === 'sending') ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}${x}</div>`;
+  return away ? row + `<div class="choices-undo" data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}">${tr('Answers hidden')} · <button type="button" data-putback>${tr('Undo')}</button></div>` : row;
 };
 // Put the answers under a reply away, or bring them back: the page at once, the server after it (a failed save brings
 // the page back as it was). `row` is the .choices row, or the undo line.
