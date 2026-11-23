@@ -14,7 +14,7 @@ botdot
 Zespół botów AI, którym kierujesz przez czat, na Twoim serwerze lub hostowany
 ```
 
-## Full description (4000): 2278
+## Full description (4000): 2292
 
 ```
 botdot to aplikacja na Androida do botdot, otwartego oprogramowania, które daje Ci zespół botów AI, którym kierujesz przez czat.
@@ -27,7 +27,7 @@ Co zrobisz w aplikacji
 • Tablica: wartości na żywo, które boty aktualizują, np. nieprzeczytane maile, najbliższe spotkanie czy temperatura w pokoju, a obok przełączniki i listy.
 • Grupy: łączysz od dwóch do sześciu botów w jeden czat. Piszesz raz, a one odpowiadają i przekazują sobie pracę.
 • Projekty: jeden cel, zespół botów z liderem, czat zespołu, cele, które da się policzyć, i kalendarz zadań.
-• Strony: raporty, które bot aktualizuje według harmonogramu, z liczbami na żywo i wykresami.
+• Strony: bot pisze dla Ciebie stronę i aktualizuje ją według harmonogramu, z liczbami na żywo i wykresami.
 • Komputer botów: każdy bot, który z niego korzysta, ma tam własny ekran i przeglądarkę, na Twoim serwerze albo na zewnętrznym wirtualnym PC.
 • Powiadomienia, gdy bot odpowie, skończy albo czegoś potrzebuje, wysyłane prosto z Twojego botdot, bez pośredniczącej usługi push.
 

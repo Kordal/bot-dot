@@ -17,7 +17,7 @@ const CAPTIONS = {
   '3-approve.png': { en: 'Scripts wait for your OK', pl: 'Skrypty czekają na Twoją zgodę' },
   '4-board.png': { en: 'Live values on your Board', pl: 'Wartości na żywo na Tablicy' },
   '5-chat.png': { en: 'Chat with each bot', pl: 'Rozmawiasz z każdym botem' },
-  '6-page.png': { en: 'Reports your bots keep up to date', pl: 'Raporty, które boty aktualizują' },
+  '6-page.png': { en: 'Pages your bots keep up to date', pl: 'Strony, które boty aktualizują' },
   '7-project.png': { en: 'A project with its team and goals', pl: 'Projekt z zespołem i celami' },
   '8-team.png': { en: 'Bots hand the work on to each other', pl: 'Boty przekazują sobie pracę' },
 };
