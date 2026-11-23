@@ -1441,7 +1441,12 @@ function setView(v, sub) {
   show(Panel.next(state, { view: v, covered: panelCovers() }), Panel.NAMES.includes(v));
 }
 // The panel's own controls: 'toggle' (the figure and name in a chat), 'close' and 'back'.
-function setPanel(what) { show(Panel.next(state, { panel: what })); }
+// A file open in the chat's row hides the panel (viewer.js): the figure and name then bring the open panel in front
+// instead of closing what cannot be seen.
+function setPanel(what) {
+  if (what === 'toggle' && panelPage() && typeof DocViewer !== 'undefined' && DocViewer.coversPanel()) return DocViewer.inFront(true);
+  show(Panel.next(state, { panel: what }));
+}
 // The bot, or the group, of the open chat is gone: the Chief's chat, without the panel.
 function leaveBot() { show(Panel.next(state, { gone: true })); }
 // over: the view is a chat that came over the project's screen or the list, below a wide window (#1507). It gets an
@@ -1514,6 +1519,8 @@ function show({ view: v, panel, via }, fresh = false) {
   $('#chat-row').classList.toggle('hidden', !CHAT_VIEWS.includes(v));
   $('#chat-row').classList.toggle('with-panel', !!now);
   $('#panel').classList.toggle('hidden', !now);
+  // A panel just asked for is in front of an open file, which waits; a closed one gives the file its place back (viewer.js).
+  if (typeof DocViewer !== 'undefined' && (now ? fresh || now !== was : true)) DocViewer.inFront(!!now);
   $$('.panel-page').forEach((el) => el.classList.toggle('hidden', el.id !== `view-${now}`));
   if (now && (fresh || now !== was)) {
     const page = $(`#view-${now}`);
