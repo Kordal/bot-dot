@@ -372,6 +372,10 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
     val now by produceState(System.currentTimeMillis()) { while (true) { delay(60_000); value = System.currentTimeMillis() } }
     // The bots a card in Needs you waits for: their keys say Needs you (#397).
     val waitingBots = remember(waiting) { waiting.mapNotNull { it.bot?.takeIf(String::isNotEmpty) }.toSet() }
+    // The team chats whose team waits on its project's page (a member's own ask too): their keys say Needs you as the chip does.
+    val teamKeysWaiting = remember(projects, waiting, groupsNow, bots) {
+        dev.botdot.app.data.Spaces.teamKeysWaiting(projects, waiting, groups, bots.orEmpty().filter { dev.botdot.app.data.ProjectRules.question(it) != null }.map { it.id })
+    }
     fun look(k: Keypad.Key): KeyLook = when (k) {
         is Keypad.Key.OfBot -> k.bot.let { b ->
             val r = lastRun[b.id]
@@ -390,7 +394,7 @@ internal fun HomeScreen(app: BotDotApp, modifier: Modifier = Modifier, active: S
         is Keypad.Key.OfGroup -> {
             val line = groupLine(k.group, bots.orEmpty(), turnLines)
             KeyLook(k.group.name, line.text, line.color, if (line.working) "working" else "idle", who = line.who, unread = k.group.unread, asks = line.asks, members = Groups.members(k.group, bots.orEmpty()),
-                status = Keypad.groupStatus(k.group, working = line.working, asks = line.asks), time = listTime(k.group.last?.at))
+                status = Keypad.groupStatus(k.group, working = line.working, asks = line.asks || k.group.id in teamKeysWaiting), time = listTime(k.group.last?.at))
         }
     }
     val openKey = { k: Keypad.Key -> when (k) { is Keypad.Key.OfBot -> onBot(k.bot.id); is Keypad.Key.OfGroup -> onGroup(k.group.id) } }

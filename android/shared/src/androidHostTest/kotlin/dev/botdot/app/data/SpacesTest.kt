@@ -135,4 +135,29 @@ class SpacesTest {
         assertEquals("test", Spaces.homeTeam(project, "qa")) // it leads Testing
         assertEquals(null, Spaces.homeTeam(project, "outsider"))
     }
+
+    @Test fun aTeamChatsKeyWaitsWhenItsTeamsChipWouldACardOrQuestionOfAMemberIncluded() {
+        val dev = CompanyTeam(id = "dev", name = "Dev", bots = listOf("coder", "qa"), lead = "coder")
+        val ops = CompanyTeam(id = "ops", name = "Ops", bots = listOf("ops1"), lead = "ops1")
+        val one = Company(id = "p1", name = "One", teams = listOf(dev, ops))
+        val two = Company(id = "p2", name = "Two", teams = listOf(CompanyTeam(id = "bot", name = "Bot", bots = listOf("b1"), lead = "b1")))
+        val groups = listOf(Group(id = "g-dev", team = "dev"), Group(id = "g-ops", team = "ops"), Group(id = "g-bot", team = "bot"), Group(id = "g-adhoc"), Group(id = "g-gone", team = "gone"))
+        val projects = listOf(one, two)
+        // A member's card waits: its home team's key says Needs you, the others do not.
+        assertEquals(setOf("g-dev"), Spaces.teamKeysWaiting(projects, listOf(Waiting(null, "", bot = "qa")), groups))
+        // A member's question in its own chat counts too.
+        assertEquals(setOf("g-ops"), Spaces.teamKeysWaiting(projects, emptyList(), groups, asking = listOf("ops1")))
+        // A card asked in the team's chat, a question a member put there.
+        assertEquals(setOf("g-ops"), Spaces.teamKeysWaiting(projects, listOf(Waiting(null, "", bot = "x", group = "g-ops")), groups))
+        // Nothing waits, a bot in no team, no projects: no key lights; a group that is no team's chat never does.
+        assertEquals(emptySet<String>(), Spaces.teamKeysWaiting(projects, emptyList(), groups))
+        assertEquals(emptySet<String>(), Spaces.teamKeysWaiting(projects, listOf(Waiting(null, "", bot = "loner")), groups))
+        assertEquals(emptySet<String>(), Spaces.teamKeysWaiting(emptyList(), listOf(Waiting(null, "", bot = "qa")), groups))
+        // The same answer as the chip: a team the chip lights is a key that waits.
+        val waiting = listOf(Waiting(null, "", bot = "coder"))
+        assertEquals(true, Spaces.teamWaits(one, waiting, groups)["dev"]?.bots?.isNotEmpty() == true && "g-dev" in Spaces.teamKeysWaiting(projects, waiting, groups))
+        // Working still comes before Needs you on the key.
+        assertEquals(Keypad.StatusKind.WORKING, Keypad.groupStatus(Group(id = "g-dev", team = "dev"), working = true, asks = true).kind)
+        assertEquals(Keypad.StatusKind.NEEDS, Keypad.groupStatus(Group(id = "g-dev", team = "dev"), asks = "g-dev" in Spaces.teamKeysWaiting(projects, waiting, groups)).kind)
+    }
 }

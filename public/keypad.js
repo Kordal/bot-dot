@@ -183,7 +183,23 @@ function teamWaits(project, items, groups, asking = []) {
   return out;
 }
 
-const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf, homeTeam, teamWaits };
+// The team chats whose key on Home says "Needs you": the groups (the account's chats, a team's with its `team`) of a team
+// that waits on its project's page by the same rule, `teamWaits` (ADR 205), so Home and the project's chip never differ.
+// A group that is no team's chat, or a team in no project, is not in it. Returns a Set of group ids.
+function teamKeysWaiting(projects, items, groups, asking = []) {
+  const out = new Set();
+  const ps = projects || [];
+  for (const p of ps) {
+    const waits = teamWaits(p, items, groups, asking);
+    for (const g of groups || []) {
+      const w = g?.team && waits[g.team];
+      if (w && (w.bots.length || w.chat)) out.add(g.id);
+    }
+  }
+  return out;
+}
+
+const api = { byPlace, byPin, categoryNames, pages, digits, digitOf, press, move, pin, status, seen, projectOf, asksOf, blockersFirst, leadOf, homeTeam, teamWaits, teamKeysWaiting };
 if (typeof module === 'object' && module.exports) module.exports = api;
 else root.Keypad = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
