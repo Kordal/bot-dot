@@ -365,3 +365,54 @@ test('teamWaits: an ask in a team chat is that team\'s chat; a bot\'s own ask is
   // A member's question in the team chat: the chat waits.
   assert.deepEqual(Keypad.teamWaits(project, [], [{ id: 'g-dev', team: 'dev', asks: { botId: 'qa', text: 'Which?' } }]), { dev: { bots: [], chat: 1 } });
 });
+
+// ---------- a team's key on Home says Needs you as its chip in the project does ----------
+
+test('teamKeysWaiting: a team chat\'s key waits when its team\'s chip would, a member\'s own ask included', () => {
+  const projects = [
+    { id: 'p1', teams: [{ id: 'dev', bots: ['coder', 'qa'], lead: 'coder' }, { id: 'ops', bots: ['ops1'], lead: 'ops1' }] },
+    { id: 'p2', teams: [{ id: 'bot', bots: ['b1'], lead: 'b1' }] },
+  ];
+  const groups = [{ id: 'g-dev', team: 'dev' }, { id: 'g-ops', team: 'ops' }, { id: 'g-bot', team: 'bot' }, { id: 'g-adhoc' }, { id: 'g-orphan', team: 'gone' }];
+  // A member's Needs you card: its home team's key waits, the others do not.
+  assert.deepEqual([...Keypad.teamKeysWaiting(projects, [{ kind: 'ask', bot: { id: 'qa' } }], groups)], ['g-dev']);
+  // A member's question in its own chat counts too, and a batch counts each of its asks.
+  assert.deepEqual([...Keypad.teamKeysWaiting(projects, [], groups, ['ops1'])], ['g-ops']);
+  assert.deepEqual([...Keypad.teamKeysWaiting(projects, [{ kind: 'batch', items: [{ bot: { id: 'b1' } }] }], groups)], ['g-bot']);
+  // An ask in the team's chat, or a question a member put there.
+  assert.deepEqual([...Keypad.teamKeysWaiting(projects, [{ kind: 'ask', bot: { id: 'x' }, group: { id: 'g-ops' } }], groups)], ['g-ops']);
+  assert.deepEqual([...Keypad.teamKeysWaiting(projects, [], [{ id: 'g-dev', team: 'dev', asks: { botId: 'qa', text: 'Which?' } }])], ['g-dev']);
+  // Nothing waits, or the bot is in no team: nothing lights; a group that is no team's chat never does.
+  assert.equal(Keypad.teamKeysWaiting(projects, [], groups).size, 0);
+  assert.equal(Keypad.teamKeysWaiting(projects, [{ kind: 'ask', bot: { id: 'loner' } }], groups).size, 0);
+  assert.equal(Keypad.teamKeysWaiting([], [{ kind: 'ask', bot: { id: 'qa' } }], groups).size, 0);
+  assert.equal(Keypad.teamKeysWaiting(null, null, null).size, 0);
+  // The same answer as the project's chip: a team the chip lights is a key that waits.
+  const items = [{ kind: 'ask', bot: { id: 'coder' } }];
+  const chip = Keypad.teamWaits(projects[0], items, groups).dev;
+  assert.ok(chip.bots.length && Keypad.teamKeysWaiting(projects, items, groups).has('g-dev'));
+});
+
+test('a team\'s key on Home: Needs you from the team rule, after Working, redrawn when it changes', () => {
+  const fs = require('node:fs');
+  const list = fs.readFileSync(require('node:path').join(__dirname, '..', 'public/list.js'), 'utf8');
+  const keyStatus = list.slice(list.indexOf('function keyStatus'), list.indexOf('// A key\'s state as one line'));
+  assert.match(keyStatus, /needs: cls === 'asks' \|\| groupKeysWaiting\.has\(x\.id\)/);
+  assert.match(list, /Keypad\.teamKeysWaiting\(spaceProjects\(\)/);
+  const needs = list.slice(list.indexOf('function drawKeypadNeeds'), list.indexOf('// A Needs you row\'s buttons'));
+  assert.match(needs, /sameSet\(teams, groupKeysWaiting\)[\s\S]*renderContacts\(\)/, 'a change of what waits redraws the keys');
+  assert.match(list.slice(list.indexOf('function renderContacts'), list.indexOf('const reducedMotion')), /groupKeysWaiting = teamKeysFrom[\s\S]*drawKeypad\(\)/, 'a bot\'s question redraws through renderContacts');
+  // Working still comes before Needs you.
+  assert.equal(Keypad.status({ running: true, needs: true }).kind, 'working');
+  assert.equal(Keypad.status({ needs: true }).kind, 'needs');
+});
+
+test('Android\'s Home says the same for a team\'s key, from the shared rule', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const home = read('android/app/src/main/java/dev/botdot/app/ui/HomeScreen.kt');
+  assert.match(home, /Spaces\.teamKeysWaiting\(projects, waiting, groups,/);
+  assert.match(home, /asks = line\.asks \|\| k\.group\.id in teamKeysWaiting/);
+  assert.match(read('android/shared/src/commonMain/kotlin/dev/botdot/app/data/Spaces.kt'), /fun teamKeysWaiting\(/);
+});

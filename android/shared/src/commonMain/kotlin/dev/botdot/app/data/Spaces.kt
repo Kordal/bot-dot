@@ -134,5 +134,19 @@ object Spaces {
         return (bots.keys + chat.keys).associateWith { TeamWait(bots[it].orEmpty(), chat[it] ?: 0) }
     }
 
+    /**
+     * The team chats whose key on Home says "Needs you": the ids of the [groups] of a team that waits on its project's page
+     * by the same rule, [teamWaits] (ADR 205), so Home and the project's chip never differ. A group that is no team's chat,
+     * or a team in no project, is not in it. The web page's keypad.js, teamKeysWaiting.
+     */
+    fun teamKeysWaiting(projects: List<Company>, waiting: List<Waiting>, groups: List<Group>, asking: List<String> = emptyList()): Set<String> {
+        val out = mutableSetOf<String>()
+        for (p in projects) {
+            val waits = teamWaits(p, waiting, groups, asking)
+            for (g in groups) { val w = g.team?.let { waits[it] } ?: continue; if (w.bots.isNotEmpty() || w.chat > 0) out += g.id }
+        }
+        return out
+    }
+
     fun askingIn(project: Company, bots: List<Bot>, asks: (Bot) -> Boolean): List<Bot> = teamBots(listOf(project)).let { t -> bots.filter { it.id in t && asks(it) } }
 }

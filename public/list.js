@@ -72,6 +72,7 @@ const initChatGrip = () => { initGrip($('#chat-grip'), $('.main'), CHAT); if ($(
 
 function renderContacts() {
   tellTab();
+  groupKeysWaiting = teamKeysFrom(typeof needsItems === 'function' ? needsItems() : []);
   drawKeypad();
   if ($('#contacts')?.classList.contains('dragging')) return; // redrawing would cancel the drag
   glideContacts(drawContacts);
@@ -231,11 +232,18 @@ const askColor = (x) => (!keyAsks(x) ? '' : x.members ? memberColor(x.asks.botId
 const openKey = (x) => (x.members ? setView('group', x.id) : setView('bot', x.id));
 // The bots a card in Needs you waits for (needs.js): their keys have the amber dot. Kept as drawKeypadNeeds last saw them.
 let keysWaiting = new Set();
+// The team chats whose key says "Needs you" on Home (Keypad.teamKeysWaiting): what its team's chip says in the project,
+// a member's own ask too. Kept as renderContacts and drawKeypadNeeds last worked it out.
+let groupKeysWaiting = new Set();
+function teamKeysFrom(items) {
+  return Keypad.teamKeysWaiting(spaceProjects(), items, state.groups, (state.bots || []).filter((b) => Unread.asks(b, !!b.running)).map((b) => b.id));
+}
+const sameSet = (a, b) => a.size === b.size && [...a].every((x) => b.has(x));
 // A key's status (Keypad.status, #397), which decides its dot.
 function keyStatus(x) {
   if (x.members) {
     const cls = groupLine(x).cls;
-    return Keypad.status({ running: cls === 'working', needs: cls === 'asks', unread: Unread.count(x), last: x.last?.status ?? null, seen: Keypad.seen(x.readAt, x.last?.at) });
+    return Keypad.status({ running: cls === 'working', needs: cls === 'asks' || groupKeysWaiting.has(x.id), unread: Unread.count(x), last: x.last?.status ?? null, seen: Keypad.seen(x.readAt, x.last?.at) });
   }
   const r = state.runs.find((y) => y.botId === x.id);
   const running = !!x.running || r?.status === 'running';
@@ -440,7 +448,8 @@ function drawKeypadNeeds(items, open, waits = items, see = open) {
     wireNeedRows(el, shown, open, see);
   }
   const waiting = needsBots(waits);
-  if ([...waiting].join() !== [...keysWaiting].join()) { keysWaiting = waiting; renderContacts(); }
+  const teams = teamKeysFrom(waits);
+  if ([...waiting].join() !== [...keysWaiting].join() || !sameSet(teams, groupKeysWaiting)) { keysWaiting = waiting; renderContacts(); }
 }
 // A Needs you row's buttons (drawKeypadNeeds, and a project's own Needs you in company-home.js): No and Allow
 // answer it, Review opens it, its words show it (`see`), "+N more" opens the Needs you page.
