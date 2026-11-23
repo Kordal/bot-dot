@@ -476,7 +476,7 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("home") {
                         if (wide) ChiefScreen(app, "latest", emptyList(), "", onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
-                            onBot = { open("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onGroup = { openGroup(it) }) {}
+                            onBot = { open("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onGroup = { openGroup(it) }, onProject = { goSpace(it) }) {}
                         else Home(Modifier.fillMaxSize())
                     }
                     val attachArg = listOf(navArgument("attach") { defaultValue = "0" })
@@ -494,7 +494,7 @@ class MainActivity : ComponentActivity() {
                         // Words the Company's floor started for the owner (Change direction at a check-in), else what was shared.
                         val words = remember { app.chiefWords?.also { app.chiefWords = null } ?: text }
                         ChiefScreen(app, e.arguments?.getString("id") ?: "latest", files, words, onSettings = { panelKept = SettingsPanel.toggle(panelKept, SettingsPanel.CHIEF) }, onNeeds = { nav.navigate("needs") },
-                            onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onGroup = { openGroup(it) }) { nav.popBackStack() }
+                            onBot = { nav.navigate("bot/$it") }, onScreen = { nav.navigate("screen/$it") }, onSkills = { nav.navigate("skills") }, onSignIn = { nav.navigate("settings") { launchSingleTop = true } }, onFiles = { nav.navigate("files/${UploadedFiles.CHIEF}") }, onGroup = { openGroup(it) }, onProject = { goSpace(it) }) { nav.popBackStack() }
                     }
                     composable("group/{id}") { e ->
                         val id = e.arguments?.getString("id") ?: ""

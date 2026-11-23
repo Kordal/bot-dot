@@ -609,9 +609,12 @@ const reportBubble = (m, at = null) => `
 
 // at: the message's place in the whole chat (the chat may have come in part, from `offset` on).
 // What a message is about (ADR 223): its team, in the team's colour, and the project before it where the server
-// names one (a chat that is not the project's own). A tap opens the team's chat.
+// names one (a chat that is not the project's own). A tap opens the team's chat. With a project and no team (ADR 260)
+// the project's own name, in its colour, and a tap opens the project.
 function aboutHTML(m) {
   const t = m?.about?.team;
+  const only = m?.about?.project;
+  if (!t?.name && only?.name) return `<button class="about" data-about-project="${esc(only.id || '')}" style="--c:${esc(aboutColor(only.color))}"><span class="about-sq"></span><span class="about-team">${esc(only.name)}</span></button>`;
   if (!t?.name) return '';
   const p = m.about.project?.name;
   return `<button class="about" data-about-team="${esc(t.id || '')}" style="--c:${esc(aboutColor(t.color))}"><span class="about-sq"></span>${p ? `<span class="about-project">${esc(p)}</span><span class="about-sep">›</span>` : ''}<span class="about-team">${esc(t.name)}</span></button>`;
@@ -738,6 +741,7 @@ function drawChatRows(thread, id, chat) {
   wireChoices(thread, (t, key) => sendFrom(form, () => sendToChief(t, [], key)));
   $$('[data-expand]', thread).forEach((el) => (el.onclick = (e) => { if (!e.target.closest('a') && getSelection().isCollapsed) el.firstElementChild.classList.toggle('clamp'); })); // a click that ends a selection (to quote it) folds nothing
   $$('[data-about-team]', thread).forEach((b) => (b.onclick = () => openTeamChat(b.dataset.aboutTeam)));
+  $$('[data-about-project]', thread).forEach((b) => (b.onclick = () => { if (b.dataset.aboutProject) Company.enter(b.dataset.aboutProject); }));
   const build = $('[data-sug-build]', thread);
   if (build) build.onclick = withKey(async (key) => { if (await sendFrom(form, () => sendToChief(PLAN_APPROVAL, [], key))) build.closest('.suggestion-actions')?.remove(); });
   const dismiss = $('[data-sug-dismiss]', thread);

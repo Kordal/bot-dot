@@ -661,7 +661,7 @@ data class ChiefOverview(
 @Serializable
 data class ChiefActivity(val tool: String = "", val text: String? = null)
 
-/** What a Chief message is about (ADR 223): its team, and its project where the chat is not that project's own. */
+/** What a Chief message is about (ADR 223, ADR 260): its team, and its project where the chat is not that project's own; the project alone for a check-in or a bot's result. */
 @Serializable
 data class MessageAbout(val team: AboutTeam? = null, val project: AboutProject? = null)
 
@@ -669,7 +669,7 @@ data class MessageAbout(val team: AboutTeam? = null, val project: AboutProject? 
 data class AboutTeam(val id: String = "", val name: String = "", val color: String? = null)
 
 @Serializable
-data class AboutProject(val id: String = "", val name: String = "")
+data class AboutProject(val id: String = "", val name: String = "", val color: String? = null)
 
 @Serializable
 data class ChiefMessage(

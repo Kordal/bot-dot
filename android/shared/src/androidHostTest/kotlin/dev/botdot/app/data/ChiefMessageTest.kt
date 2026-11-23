@@ -43,6 +43,17 @@ class ChiefMessageTest {
         assertNull(none.about)
     }
 
+    @Test fun aMessageAboutAProjectOnlyLoadsItsProjectAndColour() {
+        val (only, withTeam) = chat("""{"id":"c1","messages":[
+            {"role":"chief","text":"Qwotz: Google Play closes tomorrow.","about":{"project":{"id":"p1","name":"Qwotz","color":"#16a34a"}}},
+            {"role":"chief","text":"Prices are in.","about":{"team":{"id":"t1","name":"Strona"},"project":{"id":"p1","name":"Qwotz"}}}]}""").messages
+        assertNull(only.about?.team)
+        assertEquals("p1", only.about?.project?.id)
+        assertEquals("Qwotz", only.about?.project?.name)
+        assertEquals("#16a34a", only.about?.project?.color)
+        assertNull(withTeam.about?.project?.color) // an older server sends no colour
+    }
+
     @Test fun errorAsWordsLoadsAsBefore() {
         val m = chat("""{"id":"c1","messages":[{"role":"chief","text":"","error":"This reply was cut off because botdot was restarted."}]}""").messages.single()
         assertEquals("This reply was cut off because botdot was restarted.", m.error)
