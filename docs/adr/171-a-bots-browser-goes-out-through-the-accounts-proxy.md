@@ -2,6 +2,7 @@
 
 - **Status:** Accepted (2026-11-09, the owner approved the flow drawn on the real page)
 - **Owning task:** the owner's request to let bots use a proxy
+- **Amended by:** [ADR 262](262-a-bots-commands-on-the-external-virtual-pc-go-through-the-accounts-proxy-too.md) (on the External Virtual PC the commands go through the account's proxy too)
 - **Builds on:** [ADR 035](035-the-account-has-one-computer-all-its-bots-work-on-with-sudo.md) (one computer, a screen and a browser bridge per bot), [ADR 098](098-the-accounts-computer-is-in-one-place-for-all-its-bots.md) (the account's computer is in one place)
 
 ## Context
@@ -14,7 +15,7 @@ A bot's Camoufox browser goes out from the machine's own address: a data-centre 
 - **The browser goes through a forwarder in the bridge.** The bridge of each screen (`deploy/desktop/camoufox-browser`) gets the proxy over the helper on stdin (`{"op":"proxy"}`), never on a command line, keeps it in `/home/browser/proxy-<n>.json` (mode 600) for its next start, and runs a forwarder on `127.0.0.1:47300+n` that speaks SOCKS5 without a login to Firefox and signs in to the real proxy itself. Firefox's own SOCKS5 login is unreliable and its HTTP proxy login asks in a dialog, so neither is used.
 - **Nothing goes out directly.** Names are resolved by the proxy (SOCKS5 with the name, `socks_remote_dns`), DNS over HTTPS is off (`network.trr.mode` 5), WebRTC uses only the proxy (`media.peerconnection.ice.proxy_only` and its siblings), and the browser's time zone and place come from the proxy's exit address (asked through it), its language staying the owner's. When the proxy doesn't answer, the browser stays closed and `open_browser` says so at once, with where the owner tests it: a bot never browses directly because its proxy failed. A changed proxy closes the open browser, so the next page uses the new one.
 - **Commands follow when they can.** The same forwarder also speaks HTTP (CONNECT and plain `http://`), and a bot's shell commands get `HTTP_PROXY`, `HTTPS_PROXY` and `ALL_PROXY` to it. This is best effort: a tool that ignores them goes out directly. botdot's own traffic (Claude, connectors, the feed) never goes through a proxy.
-- **On the External Virtual PC** (boat.dev), which has one browser for the account, the account's proxy is used, browser only; a bot's own choice applies on the account's computer.
+- **On the External Virtual PC** (boat.dev), which has one browser for the account, the account's proxy is used, for the browser and, since ADR 262, for commands too; a bot's own choice applies on the account's computer.
 - **A test says where it comes out.** Test makes one HTTPS request from botdot's server through the proxy, the same SOCKS5 and HTTP CONNECT handshake as the bridge, to a service that names the exit address, its country and city (`lib/proxy-check.js`), and keeps the answer beside the proxy so every app shows it as a green or red dot with "🇵🇱 Warsaw".
 - **Drawn twice.** Settings → Proxy (the one the bots use, the list with Test, a dialog to add or change one, where a pasted address fills the fields) and a bot's Proxy row, on the web page and in the Android app; `features` has `proxies`.
 
