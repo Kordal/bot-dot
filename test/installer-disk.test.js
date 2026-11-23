@@ -115,7 +115,7 @@ test('the install says nothing of root or SELinux, and a download is one line', 
   assert.match(said, /extra security layer is strict, and botdot isn't tested with it yet/);
   assert.match(said, /^ {2}Downloading bot-dot…$/m, 'one line for an image');
   assert.doesNotMatch(said, /Pulling fs layer|Pull complete|Download complete|Downloaded newer image/, 'the layers are hidden');
-  const log = done.read('install.log');
+  const log = fs.readFileSync(path.join(done.dir, 'install.log'), 'utf8');
   assert.match(log, /== docker pull ghcr\.io\/ladrok\/bot-dot@/);
   assert.match(log, /5f7a1c: Pull complete/, 'and kept whole in the install log');
   assert.equal(fs.statSync(path.join(done.dir, 'install.log')).mode & 0o777, 0o600);
