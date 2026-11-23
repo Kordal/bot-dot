@@ -27,13 +27,13 @@ One machine serves several **accounts**, each walled off from the others ([ADR 0
 On the server:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kordal/bot-dot/main/get.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/ladrok/bot-dot/main/get.sh | sudo sh
 ```
 
 It puts botdot's source in `./bot-dot-source` (installing git first if it's missing) and runs the `install.sh` in it. The same by hand:
 
 ```bash
-git clone https://github.com/Kordal/bot-dot.git bot-dot-source
+git clone https://github.com/ladrok/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh
 ```
 
@@ -127,10 +127,12 @@ botdot's **signed images** are on GitHub's registry, for Intel/AMD and ARM:
 
 | Image | What it is |
 |---|---|
-| `ghcr.io/kordal/bot-dot` | botdot and its front door, with Claude Code, the Bitwarden CLI, and llama.cpp with the model for meaning-based search |
-| `ghcr.io/kordal/bot-dot-desktop` | The bots' computer (an Ubuntu desktop with Camoufox) |
+| `ghcr.io/ladrok/bot-dot` | botdot and its front door, with Claude Code, the Bitwarden CLI, and llama.cpp with the model for meaning-based search |
+| `ghcr.io/ladrok/bot-dot-desktop` | The bots' computer (an Ubuntu desktop with Camoufox) |
 
 Before it downloads either, the installer checks that it is signed with botdot's release key, using the check in the source you cloned (`lib/signed-image.js`), the same one every update from Settings uses. A missing or wrong signature stops the install with what was refused and why, and nothing is downloaded or started. That's why the installer runs from the cloned source and not on its own.
+
+**The images moved** from `ghcr.io/kordal` to `ghcr.io/ladrok` in November 2026, when the repository moved to the ladrok organisation; nothing new is published at the old address. An update, from the admin page or by running the installer, reads an address saved under `ghcr.io/kordal/` (in the front door's `.env` or an account's) as the same name under `ghcr.io/ladrok/`, and checks the signature of the newest release there as for a first install: the digest saved from the old address is not carried over. An address of your own (a self-built image, a mirror) stays as it is. The images at the old address are removed with the next cleanup. An install whose admin page doesn't offer the update, because it still looks at the old address, moves when you run the installer from the current source: `git pull` in `bot-dot-source` (or the one-line command again), then `sudo sh install.sh`.
 
 A **self-built botdot server** instead builds both images from the source on the server itself, and the installer uses them with no download and no signature check (an image named without a registry is one you built), and hands them to each account's Docker:
 
@@ -276,7 +278,7 @@ cd bot-dot-source && sudo make staging REF=<branch>
 It stops when the Docker data folder or `/var/lib/botdot` has less than 15 GB free (`STAGING_MIN_GB`) and warns below 25 GB (`STAGING_WARN_GB`), stops when the checkout has changes of its own, then fetches, checks out and pulls the branch, runs `make images` and the installer with `BOT_DOT_IMAGE=bot-dot/server:latest BOT_DOT_COMPUTER_IMAGE=bot-dot/desktop:latest`. Accounts, data and passkeys stay. After the installer ended well it cleans up after itself, so free disk stays the same from one deploy to the next: in the machine's Docker it keeps the image that runs (`latest`) and the one that ran before (`previous`) of `bot-dot/server` and `bot-dot/desktop`, removes every other image of these two and every nameless one `make images` built (never forced: an image a container still uses, such as a stopped bot's computer, stays), and trims the build cache to 15 GB (`STAGING_CACHE_GB`). It ends with one line on what it removed and how much disk that freed. A failed build or install removes nothing and keeps the image that ran under the tag `before-deploy`, which the next deploy then keeps as `previous`. Each account's Docker keeps only the image it runs. To go back one deploy: `sudo docker tag bot-dot/server:previous bot-dot/server:latest`, the same for `bot-dot/desktop`, then `sudo sh install.sh`. Nothing that is not botdot's own image is removed, except that the build cache is the machine's. `make staging REF=main` goes back to `main`, still self-built. To go back to botdot's signed images, name them once; later reruns keep them:
 
 ```bash
-cd bot-dot-source && git checkout main && git pull && sudo BOT_DOT_IMAGE=ghcr.io/kordal/bot-dot:latest BOT_DOT_COMPUTER_IMAGE=ghcr.io/kordal/bot-dot-desktop:latest sh install.sh
+cd bot-dot-source && git checkout main && git pull && sudo BOT_DOT_IMAGE=ghcr.io/ladrok/bot-dot:latest BOT_DOT_COMPUTER_IMAGE=ghcr.io/ladrok/bot-dot-desktop:latest sh install.sh
 ```
 
 Your bots, data and settings stay. Backups are per account: in Settings → Backups each owner downloads a backup of their own account only, which restores into their account. After an update that ended well, botdot removes the images of its own that it no longer uses, in the machine's Docker and in every account's, and keeps every image a container still has, running or stopped (so a bot's computer keeps the desktop it was made with). On a self-built server this holds in every account's Docker; in the machine's Docker only `make staging` removes the images it built (above), and after a plain `make images` and `install.sh` the older ones stay until you remove them.
@@ -345,7 +347,7 @@ It backs up the front door's data, then for each account its data folder (withou
 
 How the last run went is in `/var/lib/botdot/front-door/status/offsite.json`: `state` (`setting-up` while the admin page's setup runs, `backing-up`, `done`, `failed` or `refused`; `off` when `OFFSITE` was asked on a machine without a repository, or with `setup: true` when the admin page's setup failed), `instance` (the machine's id, which its snapshots carry as their host: line 2 of an `OFFSITE-RESTORE` on another machine), `started`, `finished`, `lastSuccess`, `bytesAdded`, `snapshots` (each part's id), `failed` (the parts that failed), `part` (where it stopped), `error` and `check` (the last weekly check, below). `journalctl -u botdot-offsite` says more. Without `BOT_DOT_OFFSITE_REPO` none of this runs. The admin page shows it under the version, and tells the admin's account once when it is late (the last run failed, or the last good one is older than 26 hours) and once when it works again.
 
-**Drills** ([#1018](https://github.com/Kordal/bot-dot/issues/1018)). Once a week the night's run also reads back and checks one twentieth of what the repository holds (`restic check --read-data-subset=n/20`, the next twentieth each week, so every blob is read within 20 weeks); a check that fails fails the run. To test a restore of one account at real size:
+**Drills** ([#1018](https://github.com/ladrok/bot-dot/issues/1018)). Once a week the night's run also reads back and checks one twentieth of what the repository holds (`restic check --read-data-subset=n/20`, the next twentieth each week, so every blob is read within 20 weeks); a check that fails fails the run. To test a restore of one account at real size:
 
 ```sh
 sudo sh /var/lib/botdot/bin/install.sh --restore-test ann
@@ -365,7 +367,7 @@ printf 'latest\n1a2b3c4d\n' | sudo tee /var/lib/botdot/front-door/requests/OFFSI
 
 Root's step finds the backup among that instance's snapshots, restores its manifest and every part into `/var/lib/botdot/offsite-restore` with `restic restore --verify`, checks each part's size against what restic recorded, and puts it back as a backup set ([The whole machine](#the-whole-machine)): checked whole first, of the same version and admin, then the front door's data and each account; the machine takes the backup's instance id, and each account the born stamp its snapshots carry (`born=`), so that its erase later forgets the snapshots made before the restore too. The folder is removed however it ends; one a restore or a restore test that was cut off left (the machine restarted) is removed by the next off-site backup. It needs twice the backup's size and 512 MB free on `/var/lib/botdot`, and stops before anything is restored when it hasn't, as it does when an off-site backup runs, when the machine has no repository, or when the backup has a part that failed. How it went is in `status/restore.json` as for `RESTORE`, with `from` (`offsite`), `snapshot` (as asked until the backup is found, then its whole id) and `instance` (when asked); what stops it before the set is whole is `failed`, in the `phase` `download`.
 
-**Erased accounts** ([#1019](https://github.com/Kordal/bot-dot/issues/1019)). When the machine erases an account the admin deleted, its part of the backup set in `/var/lib/botdot/backup` goes at once, and its off-site snapshots 14 days later: the erase is written down in `/var/lib/botdot/offsite/erased`, and the first night's run after the 14 days forgets that account's snapshots and prunes what they held. Each account's snapshots are tagged with its born stamp (`born=…`, kept in `/var/lib/botdot/born`), so a new account made under the same name is never touched. Each forget is in `status/offsite-forgotten.json` and in the audit log (`offsite-forgotten`). Within the 14 days an account erased by mistake can still be restored from the repository.
+**Erased accounts** ([#1019](https://github.com/ladrok/bot-dot/issues/1019)). When the machine erases an account the admin deleted, its part of the backup set in `/var/lib/botdot/backup` goes at once, and its off-site snapshots 14 days later: the erase is written down in `/var/lib/botdot/offsite/erased`, and the first night's run after the 14 days forgets that account's snapshots and prunes what they held. Each account's snapshots are tagged with its born stamp (`born=…`, kept in `/var/lib/botdot/born`), so a new account made under the same name is never touched. Each forget is in `status/offsite-forgotten.json` and in the audit log (`offsite-forgotten`). Within the 14 days an account erased by mistake can still be restored from the repository.
 
 If your machine sets `FRONT_DOOR_PRIVACY_URL`, the policy can say this of backups: an account's data is backed up every night to encrypted off-site storage and kept there for at most 3 months (7 daily, 4 weekly and 3 monthly snapshots); when an account is deleted, its data leaves the machine at once and its backups are deleted within 15 days. The Storage Box's own snapshots, if you turn them on, keep the repository as it was for as long as you set there: count them in the 3 months.
 

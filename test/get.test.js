@@ -10,7 +10,7 @@ const { spawnSync } = require('node:child_process');
 
 const ROOT = path.join(__dirname, '..');
 const GET = fs.readFileSync(path.join(ROOT, 'get.sh'), 'utf8');
-const LINE = 'curl -fsSL https://raw.githubusercontent.com/Kordal/bot-dot/main/get.sh | sudo sh';
+const LINE = 'curl -fsSL https://raw.githubusercontent.com/ladrok/bot-dot/main/get.sh | sudo sh';
 
 // A folder to run in, with stand-ins: id says root (or not), git logs what it is asked and makes a source whose
 // install.sh says its arguments and what it reads on its standard input.
@@ -39,7 +39,7 @@ test('a first run clones the source here and runs its installer with the argumen
   const p = place(t);
   const r = piped(p, ['--update']);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(fs.readFileSync(path.join(p.top, 'git.log'), 'utf8'), /^git clone --quiet https:\/\/github\.com\/Kordal\/bot-dot\.git bot-dot-source$/m);
+  assert.match(fs.readFileSync(path.join(p.top, 'git.log'), 'utf8'), /^git clone --quiet https:\/\/github\.com\/ladrok\/bot-dot\.git bot-dot-source$/m);
   assert.match(r.stdout, /^install\.sh --update$/m);
   assert.doesNotMatch(r.stdout, /stdin: .*botdot_get/, 'the installer never reads the rest of get.sh');
 });

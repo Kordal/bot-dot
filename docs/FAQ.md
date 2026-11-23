@@ -1,6 +1,6 @@
 # FAQ
 
-Short answers to the questions people ask about botdot, with links to where each is explained in full. Something missing? [Open an issue](https://github.com/Kordal/bot-dot/issues).
+Short answers to the questions people ask about botdot, with links to where each is explained in full. Something missing? [Open an issue](https://github.com/ladrok/bot-dot/issues).
 
 - [The basics](#the-basics)
 - [What you need](#what-you-need)
@@ -80,7 +80,7 @@ No. On a **tailnet**, Tailscale Serve gives botdot an HTTPS address on your own 
 On the server:
 
 ```bash
-git clone https://github.com/Kordal/bot-dot.git bot-dot-source
+git clone https://github.com/ladrok/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh
 ```
 
@@ -196,7 +196,7 @@ The look is dark, on the web and on Android.
 
 ### How do I get the Android app?
 
-For the first install, download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/Kordal/bot-dot/releases). After that, botdot carries the newest app, and phones update themselves from your server. The app signs in with your passkey on your front door's sign-in page, in the phone's browser ([The Android app's sign-in](install-linux.md#the-android-apps-sign-in)).
+For the first install, download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/ladrok/bot-dot/releases). After that, botdot carries the newest app, and phones update themselves from your server. The app signs in with your passkey on your front door's sign-in page, in the phone's browser ([The Android app's sign-in](install-linux.md#the-android-apps-sign-in)).
 
 ### Can I install the web page as an app?
 
@@ -337,7 +337,7 @@ Docker's own clean-up (`docker system prune`, `docker container prune`, "Clean /
 
 ### How mature is botdot?
 
-Early. It is version 0.x, so expect breaking changes. Only the latest version on `main` gets security fixes ([Releases](https://github.com/Kordal/bot-dot/releases), [Supported versions](../SECURITY.md#supported-versions)).
+Early. It is version 0.x, so expect breaking changes. Only the latest version on `main` gets security fixes ([Releases](https://github.com/ladrok/bot-dot/releases), [Supported versions](../SECURITY.md#supported-versions)).
 
 ### Who builds it?
 
@@ -345,4 +345,4 @@ One person, with Claude: most of the code is written by Claude Code, ticket by t
 
 ### How do I run it from source or contribute?
 
-botdot's server needs nothing but Node 22.13 or newer: `npm start` runs it, and `npm test` runs the tests with a stand-in for Claude, so they cost nothing ([Development](development.md)). Report bugs and ideas in the [issues](https://github.com/Kordal/bot-dot/issues).
+botdot's server needs nothing but Node 22.13 or newer: `npm start` runs it, and `npm test` runs the tests with a stand-in for Claude, so they cost nothing ([Development](development.md)). Report bugs and ideas in the [issues](https://github.com/ladrok/bot-dot/issues).

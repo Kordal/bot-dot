@@ -76,7 +76,7 @@ The kit installs the same pins on an External Virtual PC; `test/boat-screen.test
 | Tailscale | install script, then apt | `install.sh` | 1.104.5 | unpinned on purpose |
 | Rootless Docker extras, uidmap, slirp4netns, acl | apt or dnf | `install.sh` (`MISSING`) | n/a | unpinned |
 | Caddy | `caddy:2.11.9` by digest | `compose.front-door.yaml:62` | 2.11.9 | ok |
-| botdot images | `ghcr.io/kordal/bot-dot:latest`, signed | `compose.yaml:11`, `compose.front-door.yaml:16` | own build | ok (checked by signature) |
+| botdot images | `ghcr.io/ladrok/bot-dot:latest`, signed | `compose.yaml:11`, `compose.front-door.yaml:16` | own build | ok (checked by signature) |
 
 ## Web page (vendored, `vendor/`)
 

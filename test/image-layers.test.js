@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const { layers } = require('../lib/image-layers');
 
 const d = (c) => `sha256:${c.repeat(64)}`;
-const IMAGE = `ghcr.io/kordal/bot-dot@${d('a')}`;
+const IMAGE = `ghcr.io/ladrok/bot-dot@${d('a')}`;
 // A registry of JSON documents by digest.
 const registry = (docs) => {
   const asked = [];
@@ -32,7 +32,7 @@ test('an image of one platform gives its layers as they are', async () => {
 
 test("an answer that doesn't give the sizes is refused, so the update goes on without the check", async () => {
   const no = (docs) => layers(IMAGE, { arch: 'amd64', get: registry(docs).get });
-  await assert.rejects(layers('ghcr.io/kordal/bot-dot:latest', { get: async () => manifest }), /not pinned/);
+  await assert.rejects(layers('ghcr.io/ladrok/bot-dot:latest', { get: async () => manifest }), /not pinned/);
   await assert.rejects(no({ [d('a')]: { schemaVersion: 1, fsLayers: [] } }), /no layers/);
   await assert.rejects(no({ [d('a')]: manifest, [d('c')]: { rootfs: { diff_ids: [d('e')] } } }), /disagree/);
   await assert.rejects(no({ [d('a')]: { ...manifest, layers: [{ digest: d('1') }, { digest: d('2'), size: 1 }] }, [d('c')]: config }), /without its size/);

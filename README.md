@@ -20,14 +20,14 @@ It runs on your own Linux server, each account walled off under rootless Docker 
 On a fresh Linux VM or VPS (not a container), as a user with `sudo`:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kordal/bot-dot/main/get.sh | sudo sh
+curl -fsSL https://raw.githubusercontent.com/ladrok/bot-dot/main/get.sh | sudo sh
 ```
 
 It puts botdot's source in `./bot-dot-source` (installing git first if it's missing) and runs the `install.sh` in it. The same by hand:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y git curl   # Fedora, RHEL, Rocky, Alma: sudo dnf install -y git curl
-git clone https://github.com/Kordal/bot-dot.git bot-dot-source
+git clone https://github.com/ladrok/bot-dot.git bot-dot-source
 sudo sh bot-dot-source/install.sh
 ```
 
@@ -74,13 +74,13 @@ Also: scheduled jobs that run a small script when no AI is needed, groups of two
 
 <img src="docs/screenshots/phones.png" alt="botdot on a phone: Home with what needs you, the Board's values and the bots; News Monitor's chat; the Board; Needs you with two cards waiting for an OK">
 
-The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, without Google's push service. Download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/Kordal/bot-dot/releases) once; after that it updates itself from your server. The web page works on any phone and installs as an app.
+The [Android app](android/README.md) adds notifications with **Reply** and **Approve**, without Google's push service. Download the `.apk` from the newest `android-v…` release on the [Releases page](https://github.com/ladrok/bot-dot/releases) once; after that it updates itself from your server. The web page works on any phone and installs as an app.
 
 ## Desktop app
 
 | Windows | Mac | Linux |
 | --- | --- | --- |
-| [x64](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) | [Apple silicon](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) | [AppImage](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) · [.rpm](https://github.com/Kordal/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) · [ARM](docs/desktop.md#download) |
+| [x64](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-x64-setup.exe) · [ARM](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-windows-arm64-setup.exe) | [Apple silicon](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-apple-silicon.dmg) · [Intel](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-mac-intel.dmg) | [AppImage](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.AppImage) · [.deb](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.deb) · [.rpm](https://github.com/ladrok/bot-dot/releases/download/desktop-latest/botdot-linux-x64.rpm) · [ARM](docs/desktop.md#download) |
 
 <img src="docs/screenshots/desktop-linux.gif" alt="The Linux app: downloading the AppImage, running botdot on the computer itself, making a passkey on the sign-up page and landing in the app">
 

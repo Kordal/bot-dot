@@ -67,7 +67,7 @@ fn install_script(port: u16, answers: &str) -> String {
     format!(
         "set -e\n\
          rm -rf /var/tmp/botdot-source\n\
-         git clone --quiet --depth 1 --branch {SOURCE} https://github.com/Kordal/bot-dot.git /var/tmp/botdot-source\n\
+         git clone --quiet --depth 1 --branch {SOURCE} https://github.com/ladrok/bot-dot.git /var/tmp/botdot-source\n\
          yes y | NEEDRESTART_MODE=a DEBIAN_FRONTEND=noninteractive BOT_DOT_REACH=local {answers}BOT_DOT_PORT={port} sh /var/tmp/botdot-source/install.sh\n\
          rm -rf /var/tmp/botdot-source\n"
     )

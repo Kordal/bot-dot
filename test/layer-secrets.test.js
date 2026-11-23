@@ -21,7 +21,7 @@ function run(t, report) {
 test('each secret is reported with the layer that added it and the file it is in, and the check fails', (t) => {
   // Trivy's JSON for a file added by one layer and deleted by the next (trimmed).
   const result = run(t, {
-    ArtifactName: 'ghcr.io/kordal/bot-dot@sha256:' + '3'.repeat(64),
+    ArtifactName: 'ghcr.io/ladrok/bot-dot@sha256:' + '3'.repeat(64),
     Results: [{
       Target: '/opt/app/creds.txt',
       Class: 'secret',
@@ -41,7 +41,7 @@ test('each secret is reported with the layer that added it and the file it is in
 });
 
 test('an image with no secret in any layer passes', (t) => {
-  const result = run(t, { ArtifactName: 'ghcr.io/kordal/bot-dot@sha256:' + '3'.repeat(64) });
+  const result = run(t, { ArtifactName: 'ghcr.io/ladrok/bot-dot@sha256:' + '3'.repeat(64) });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stdout, 'No secret in any layer.\n');
 });

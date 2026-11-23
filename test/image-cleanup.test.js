@@ -9,10 +9,10 @@ const http = require('node:http');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
 const { fakeDocker } = require('./helpers');
-const { plan, clean, layersSize, repositoryOf } = require('../lib/image-cleanup');
+const { plan, clean, layersSize, repositoryOf, RETIRED } = require('../lib/image-cleanup');
 
-const SERVER = 'ghcr.io/kordal/bot-dot';
-const DESKTOP = 'ghcr.io/kordal/bot-dot-desktop';
+const SERVER = 'ghcr.io/ladrok/bot-dot';
+const DESKTOP = 'ghcr.io/ladrok/bot-dot-desktop';
 const RELEASE = { 'dev.botdot.release.version': '41' };
 const sha = (c) => `sha256:${c.repeat(64)}`;
 const image = (c, { tags = [], digests = [], labels = RELEASE } = {}) => ({ id: sha(c), repoTags: tags, repoDigests: digests, labels });
@@ -62,7 +62,7 @@ test('a stopped computer keeps its old desktop image, and so does a container of
 test('an image of another repository is never listed', () => {
   const planned = plan({ repositories, images: [
     image('a', { tags: ['postgres:17'], digests: [`postgres@${sha('1')}`] }),
-    image('b', { tags: ['ghcr.io/kordal/bot-dot-extra:latest'] }), // a longer name is another repository
+    image('b', { tags: ['ghcr.io/ladrok/bot-dot-extra:latest'] }), // a longer name is another repository
     image('c', { tags: ['ghcr.io/someone/bot-dot:latest'] }),
     image('d', { labels: {} }), // nameless and not botdot's
   ] });
@@ -144,6 +144,24 @@ test('the pass removes the whole backlog at once, and a second pass removes noth
     if (call.args[0] === 'image') assert.ok(['ls', 'inspect', 'rm'].includes(call.args[1]), call.args.join(' '));
   }
   assert.ok(h.calls().length > before);
+});
+
+test('the images of the repositories botdot moved from go too once nothing uses them, and one still configured or in use stays', async (t) => {
+  assert.deepEqual([...RETIRED], ['ghcr.io/kordal/bot-dot', 'ghcr.io/kordal/bot-dot-desktop']);
+  const OLD = RETIRED[0], OLD_DESKTOP = RETIRED[1];
+  const h = host(t, { images: [
+    image('a', { tags: [`${SERVER}:latest`] }), // the server runs the new one
+    image('b', { digests: [`${OLD}@${sha('1')}`] }), // what it ran before the move
+    image('c', { digests: [`${OLD_DESKTOP}@${sha('2')}`] }),
+    image('d', { digests: [`${OLD}@${sha('3')}`] }), // a stopped container has it
+    image('e', { digests: [`${OLD_DESKTOP}@${sha('4')}`] }), // an account is still on it: configured there
+    image('f', { digests: [`${OLD}@${sha('5')}`], labels: {} }), // before the release label: nobody's to judge
+  ], containers: [{ Id: '1'.repeat(64), Image: sha('a') }, { Id: '2'.repeat(64), Image: sha('d') }], sizes: [900, 300] });
+  assert.deepEqual(await h.pass({ references: [`${SERVER}:latest`, `${OLD_DESKTOP}@${sha('4')}`] }), { removed: 2, skipped: 4, failed: 0, bytes: 600 });
+  assert.deepEqual(h.left(), ['a', 'd', 'e', 'f'].map(sha));
+  // Without a repository of the registry's (a self-built install) the old ones are still not looked at.
+  const self = host(t, { images: [image('b', { digests: [`${OLD}@${sha('1')}`] })], containers: [] });
+  assert.deepEqual(await self.pass({ repositories: [null, null], references: [] }), { removed: 0, skipped: 0, failed: 0, bytes: 0 });
 });
 
 test('an image Docker says is in use is skipped, another refusal is failed, and the pass goes on', async (t) => {

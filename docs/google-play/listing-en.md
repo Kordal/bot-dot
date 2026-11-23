@@ -30,7 +30,7 @@ What you can do in the app
 • Get a notification when a bot replies, finishes or needs you, straight from your own server, with no push service in between.
 
 You need a botdot server
-The app connects to your own botdot server and shows nothing without one. botdot is free and open source (MIT): install it on a Linux server or VM with one command, reach it over your own domain or a Tailscale tailnet, and sign in with your own Claude subscription or API key. Instructions: github.com/Kordal/bot-dot
+The app connects to your own botdot server and shows nothing without one. botdot is free and open source (MIT): install it on a Linux server or VM with one command, reach it over your own domain or a Tailscale tailnet, and sign in with your own Claude subscription or API key. Instructions: github.com/ladrok/bot-dot
 
 Private by design
 The app talks only to the server you sign in to. No analytics, no ads, no tracking. Sign-in uses a passkey on your server's own page.
