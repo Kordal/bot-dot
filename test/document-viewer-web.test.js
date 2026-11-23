@@ -46,7 +46,7 @@ test("web: a path in a bot's reply becomes a link to open it, a path in a code b
 });
 
 // The viewer: viewer.js run against stand-ins, with what botdot answers for each path.
-function viewer(answers, { features = ['document-viewer'] } = {}) {
+function viewer(answers, { features = ['document-viewer'], board = false } = {}) {
   const md = chat().md;
   const box = element({}, { classes: ['hidden'] });
   const row = element(); const main = element();
@@ -55,7 +55,8 @@ function viewer(answers, { features = ['document-viewer'] } = {}) {
   const ctx = vm.createContext({
     ...words, state: { features, bots: [{ id: 'news', name: 'News Monitor' }], view: 'bot', botId: 'news' },
     esc, md, msgTime: () => '09:14', fmtSize: (n) => `${n} B`, toast() {}, copyText: async () => true, encodeURIComponent,
-    $: (sel) => ({ '#doc-viewer': box, '#chat-row': row, '.main': main }[sel] || null),
+    $: (sel) => ({ '#doc-viewer': box, '#chat-row': row, '.main': main, '#app.place-company.proj-chat': board ? row : null }[sel] || null),
+    matchMedia: () => ({ matches: board }),
     api: async (p, opts = {}) => { calls.push([p, opts.method || 'GET']); const a = answers[p]; if (a instanceof Error || a?.constructor?.name === 'Error') throw a; if (a === undefined) throw Object.assign(new Error('not found'), { status: 404 }); return a; },
     document: { addEventListener: (type, fn) => (listeners[type] ||= []).push(fn) },
   });
@@ -168,4 +169,64 @@ test('web: the states: gone, too large, no preview, and a computer that is off w
   await h.click({ view: '/bots/news/path?path=%2Fhome%2Fbox%2Fscreen.png', viewName: 'screen.png', viewBot: 'news' });
   assert.match(h.box.innerHTML, /Too large to bring out of the computer/);
   assert.doesNotMatch(h.box.innerHTML, /Download/);
+});
+
+// The settings panel and an open file take one place in the chat's row (viewer.js, `inFront`; app.js show() and
+// setPanel call it): the one asked for last is shown, and the other waits.
+test('web: a panel asked for while a file is open takes its place, and the file waits and comes back with the panel closed', async () => {
+  const v = viewer({ '/files/r1/weekly-report.md?view=1': REPORT });
+  await v.click({ view: '/files/r1/weekly-report.md', viewName: 'weekly-report.md' });
+  const { DocViewer } = v.ctx;
+  assert.ok(v.row.classList.contains('with-viewer') && !v.box.classList.contains('hidden'), 'the file is shown, the panel waits (css)');
+  DocViewer.inFront(true); // the figure and name in the chat head, a settings link
+  assert.ok(v.box.classList.contains('hidden'), 'the viewer gives its place');
+  assert.ok(!v.row.classList.contains('with-viewer'), 'so the panel is no longer hidden by it');
+  assert.equal(DocViewer.now()?.name, 'weekly-report.md', 'the file is not lost');
+  DocViewer.inFront(false); // the panel closed
+  assert.ok(!v.box.classList.contains('hidden') && v.row.classList.contains('with-viewer'), 'the file is back');
+  assert.match(v.box.innerHTML, /Weekly report/, 'as it was');
+});
+
+test('web: a file opened while the panel is open is shown; a file in full window gives the row to the panel that comes after it', async () => {
+  const v = viewer({ '/files/r1/weekly-report.md?view=1': REPORT });
+  const { DocViewer } = v.ctx;
+  DocViewer.inFront(true); // the panel was open first
+  await v.click({ view: '/files/r1/weekly-report.md', viewName: 'weekly-report.md' });
+  assert.ok(v.row.classList.contains('with-viewer') && !v.box.classList.contains('hidden'), 'the file asked for last is in front');
+  assert.equal(DocViewer.coversPanel(), true);
+  DocViewer.now().full = true; // "Open in full window" (act, 'full') draws again
+  DocViewer.inFront(false);
+  DocViewer.inFront(true);
+  assert.ok(!v.row.classList.contains('viewer-full'), 'a file in full window does not hide the chat of the panel that came after it');
+  DocViewer.inFront(false);
+  assert.ok(v.row.classList.contains('viewer-full'), 'and fills the row again when the panel is closed');
+  DocViewer.close();
+  assert.ok(v.box.classList.contains('hidden') && !v.row.classList.contains('with-viewer'));
+});
+
+test("web: the file waits behind the panel's figure and name only in the chat's row, not on the project's board", async () => {
+  const v = viewer({ '/files/r1/weekly-report.md?view=1': REPORT }, { board: true });
+  await v.click({ view: '/files/r1/weekly-report.md', viewName: 'weekly-report.md' });
+  v.ctx.DocViewer.inFront(true);
+  assert.ok(!v.box.classList.contains('hidden'), 'the board keeps the file beside the chat, and the panel too');
+  assert.equal(v.ctx.DocViewer.coversPanel(), false);
+});
+
+test('web: the figure and name bring an open panel that a file hides in front, and close it when it is in front', () => {
+  const calls = [];
+  const ctx = vm.createContext({
+    panelPage: () => 'botsettings', state: {}, Panel: { next: (s, r) => ({ asked: r }) }, show: (to) => calls.push(['show', to.asked]),
+    DocViewer: { coversPanel: () => ctx.covered, inFront: (on) => calls.push(['front', on]) },
+  });
+  vm.runInContext(`${cut('function setPanel(what)', 'function leaveBot()')}
+    this.setPanel = setPanel;`, ctx);
+  ctx.covered = true;
+  ctx.setPanel('toggle');
+  assert.deepEqual(calls.splice(0), [['front', true]], 'a file hides the panel: it comes forward, and stays open');
+  ctx.covered = false;
+  ctx.setPanel('toggle');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.splice(0))), [['show', { panel: 'toggle' }]]);
+  ctx.covered = true;
+  ctx.setPanel('close');
+  assert.deepEqual(JSON.parse(JSON.stringify(calls.splice(0))), [['show', { panel: 'close' }]], 'its own close button always closes');
 });

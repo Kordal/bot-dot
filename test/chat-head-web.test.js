@@ -18,7 +18,7 @@ test('web: a bot\'s figure and name open its settings, as in the apps: in the pa
   assert.match(title[1], /class="bot-name"\$\{id\('bot-name'\)\}/);
   // A chat in the Projects screen's dock (#714) opens the settings its own way: there, of the open chat.
   assert.match(app, /const settings = docked \? docked\.settings : \(\) => setPanel\('toggle'\);\n\s*part\('chat-title'\)\.onclick = settings;/);
-  assert.match(app, /function setPanel\(what\) \{ show\(Panel\.next\(state, \{ panel: what \}\)\); \}/);
+  assert.match(app, /function setPanel\(what\) \{\n[^}]*\n\s*show\(Panel\.next\(state, \{ panel: what \}\)\);\n\}/);
 });
 
 test('web: the Chief\'s figure and name open its settings the same way, and its header has no gear and no chat list', () => {

@@ -137,11 +137,21 @@ const DocViewer = (() => {
   // Where the viewer stands: beside the chat in its row, or, on a wide window's project page, where the board is, so
   // the chat column stays beside it (#825's column is too narrow to hold both). Placed again when the page changes.
   const onBoard = () => !!$('#app.place-company.proj-chat') && !!globalThis.matchMedia?.('(min-width: 1001px)').matches;
+  // The settings panel asked for after the file was opened is in front of it (app.js show()); opening a file puts the
+  // file in front again. In the chat's row they take one place, so the one behind waits; on the board both show.
+  let panelFront = false;
+  // The file waits behind the panel, hidden, in the chat's row.
+  const waiting = () => !!cur && panelFront && !onBoard();
   function place(el = box()) {
     const host = onBoard() ? $('.main') : $('#chat-row');
     if (el?.parentElement && host?.appendChild && el.parentElement !== host) host.appendChild(el);
+    const inRow = !(el?.parentElement && el.parentElement !== $('#chat-row'));
+    const waits = waiting();
     // In the chat's row it takes the settings panel's place; on the board the panel stays beside the chat.
-    $('#chat-row')?.classList.toggle('with-viewer', !!cur && !(el?.parentElement && el.parentElement !== $('#chat-row')));
+    $('#chat-row')?.classList.toggle('with-viewer', !!cur && inRow && !waits);
+    $('#chat-row')?.classList.toggle('viewer-full', !!cur?.full && !waits);
+    el?.classList.toggle('hidden', !cur || waits);
+    $('.main')?.classList.toggle('viewing', !!cur && !waits);
   }
   if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
     const app = $('#app');
@@ -152,10 +162,7 @@ const DocViewer = (() => {
     const el = box();
     if (!el) return;
     place(el);
-    el.classList.toggle('hidden', !cur);
     el.classList.toggle('full', !!cur?.full);
-    $('#chat-row')?.classList.toggle('viewer-full', !!cur?.full);
-    $('.main')?.classList.toggle('viewing', !!cur);
     el.innerHTML = cur ? html(cur) : '';
     if (cur?.view?.parts && typeof wireCharts === 'function') { wireCharts(el); wireTables(el); }
     const site = $('iframe.dv-site', el);
@@ -176,7 +183,7 @@ const DocViewer = (() => {
     const old = [...el.children];
     if (fresh.length !== old.length) return draw();
     el.classList.toggle('full', !!c.full);
-    $('#chat-row')?.classList.toggle('viewer-full', !!c.full);
+    place(el);
     old.forEach((n, j) => { if (!n.classList.contains('dv-site-body') && !n.classList.contains('dv-frame-body')) n.replaceWith(fresh[j]); });
   }
 
@@ -222,10 +229,20 @@ const DocViewer = (() => {
   // page: { botId, slug } for a bot's page (#346); its src is then the page's own address.
   function open({ src, name, from = '', bot = '', page = null }) {
     cur = { src, name, from, bot, page, view: null, error: null, mode: 'source', sort: null, find: '', full: false };
+    panelFront = false; // the file just asked for is the one in front
     draw();
     return load(cur);
   }
-  function close() { cur = null; draw(); }
+  function close() { cur = null; panelFront = false; draw(); }
+  // The settings panel is asked for (true) or closed (false): in the chat's row an open file gives the panel its place
+  // and waits, and comes back when the panel is closed.
+  function inFront(panel) {
+    if (panelFront === panel) return;
+    panelFront = panel;
+    if (cur) place();
+  }
+  // The file is in front of the panel in the chat's row: an open panel is out of sight.
+  const coversPanel = () => !!cur && !panelFront && !onBoard();
 
   // A page's blocks filled in anew (#395): when a tile they read has a new value (the live feed's `dashboard`; no id:
   // the Board changed), and each minute while the page is open, which reads its tiles that are due. Only the blocks
@@ -338,7 +355,7 @@ const DocViewer = (() => {
       drawTable();
     });
     // Esc closes the viewer only: the keypad's own Esc (list.js) skips a key already used.
-    doc.addEventListener('keydown', (e) => { if (e.key === 'Escape' && cur && !$('#modal')?.open) { e.preventDefault(); close(); } });
+    doc.addEventListener('keydown', (e) => { if (e.key === 'Escape' && cur && !waiting() && !$('#modal')?.open) { e.preventDefault(); close(); } });
     // A path's tip says its size once it is known: "Open report.md · 12 KB".
     doc.addEventListener('mouseover', (e) => {
       const a = e.target.closest?.('a.file-path');
@@ -348,7 +365,7 @@ const DocViewer = (() => {
     });
   }
 
-  return { open, close, html, csvRows, tableOf, isPdf, wire, pageChanged, tileChanged, now: () => cur };
+  return { open, close, inFront, coversPanel, html, csvRows, tableOf, isPdf, wire, pageChanged, tileChanged, now: () => cur };
 })();
 
 if (typeof document !== 'undefined' && document.addEventListener) DocViewer.wire(document);
