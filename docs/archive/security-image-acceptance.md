@@ -191,7 +191,8 @@ signing jobs. The scanner fixtures also passed.
 | bot-dot-desktop | amd64 | `sha256:549e8c7d0afb30fc7612f4d3ca71f26ed37ce40b0ea8c15ad6e5780fef6a29f6` | 0 | 1400 |
 | bot-dot-desktop | arm64 | `sha256:61d990abbdd167ae0d60db8d404617af11641a4358e4d46b29c324aaa034c659` | 0 | 1396 |
 
-The [13 release evidence assets](https://github.com/Kordal/bot-dot/releases/tag/image-evidence-36625499597-1)
+The 13 release evidence assets (release `image-evidence-36625499597-1`, since deleted: only the newest ten
+evidence releases are kept, `docs/decisions/2026-11-23-the-releases-page-keeps-ten-evidence-releases-and-marks-the-desktop-latest.md`)
 were independently downloaded and verified against the same-run manifest
 checksum, `05f90012686bfac2cb786e19317a2e1fa3c9889b59f661b6ba4047e479f58fc9`.
 Both signing jobs consumed only those exact platform digests. Release version

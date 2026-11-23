@@ -114,11 +114,13 @@ jobs:
         run: |
           NOTES="Built from ${GITHUB_SHA::7}. The builds are not signed yet. Windows: in the SmartScreen warning, choose More info, then Run anyway. Mac: open the app once, then System Settings → Privacy & Security → Open Anyway. Linux: install the .deb or the .rpm, or make the AppImage executable (chmod +x) and open it."
           TAG="desktop-v$VERSION"
+          # The newest desktop release is the one the Releases page marks Latest; the Android releases, desktop-latest
+          # (the updater's and the README's fixed names) and the image evidence never are.
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" --clobber *.dmg *.app.tar.gz *.sig *-setup.exe *.AppImage *.deb *.rpm latest.json
           else
             gh release create "$TAG" *.dmg *.app.tar.gz *.sig *-setup.exe *.AppImage *.deb *.rpm latest.json \
-              --title "botdot for desktop $VERSION" --notes "$NOTES" --target "$GITHUB_SHA" --latest=false
+              --title "botdot for desktop $VERSION" --notes "$NOTES" --target "$GITHUB_SHA" --latest
           fi
           # The fixed names, and last the manifest, so it never names a build that is not there yet.
           mkdir latest

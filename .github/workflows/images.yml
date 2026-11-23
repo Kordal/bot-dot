@@ -8,7 +8,7 @@
 # Before anything is signed or published, each platform's pushed digest is scanned: an SBOM, a gate on critical
 # vulnerabilities, and a secret scan of every layer, which also finds a file that a later layer deleted (it is gone
 # from the image's filesystem but still in the layer anyone with the image can download, #534).
-# The app image also carries the newest Android app (from the latest android-v* release), which the phone
+# The app image also carries the newest Android app (from the newest android-v* release), which the phone
 # updates from.
 #
 # When (#512): once a night, and when the owner runs it by hand (Actions → Images → Run workflow, on main). A
@@ -394,3 +394,37 @@ jobs:
           # its image's digest and one of its source revision, so that a machine can be updated to this very release
           # later, and its computer image found by the revision (#979).
           docker buildx imagetools create --annotation "index:dev.botdot.release=$(cat image-release.json)" -t "$IMAGE:accounts-release" -t "$IMAGE:accounts-release-${DIGEST#sha256:}" -t "$IMAGE:accounts-release-$GITHUB_SHA" "$IMAGE@$DIGEST"
+
+  # Only the newest ten scan-evidence releases stay public: one is made per image build, and a visitor to the
+  # Releases page would otherwise see a hundred of them. Runs only once this run's images are signed and published
+  # (a failed run prunes nothing, so the evidence of the run being debugged is never the one to go), and a failure
+  # here is logged, never the run's: the images are out. Runs of this workflow on main do not overlap (concurrency
+  # above), so no other run is still reading the evidence of the releases that go; the newest ten are not touched.
+  prune-evidence:
+    needs: [evidence, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # gh release delete --cleanup-tag
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Delete the evidence releases beyond the newest ten
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Never fails the run: a warning says what was not deleted. Only image-evidence-<run>-<attempt> tags that are
+          # pre-releases are ever listed (deploy/prune-releases.js), and this run's own is kept.
+          CURRENT="image-evidence-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          if ! LIST="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName,createdAt,isPrerelease,isDraft)"; then
+            echo "::warning::Could not list the releases; no evidence release was deleted."; exit 0
+          fi
+          if ! OLD="$(node deploy/prune-releases.js image-evidence- 10 "$CURRENT" <<< "$LIST")"; then
+            echo "::warning::Could not pick the evidence releases to delete; none was deleted."; exit 0
+          fi
+          [ -n "$OLD" ] || { echo "Ten or fewer evidence releases: nothing to delete."; exit 0; }
+          while IFS= read -r TAG; do
+            if gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes; then echo "Deleted $TAG"
+            else echo "::warning::Could not delete $TAG; the next run tries again."; fi
+          done <<< "$OLD"
