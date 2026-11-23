@@ -39,7 +39,7 @@ test('the Docker helper accepts fixed computer operations and rejects arbitrary 
     { operation: 'constructor', args: [] },
     { operation: 'update.apply', args: [{ project: 'another-project' }] },
     // The cleanup takes no argument: which images go is the helper's rule, never the caller's.
-    { operation: 'update.clean', args: ['ghcr.io/kordal/bot-dot:latest'] },
+    { operation: 'update.clean', args: ['ghcr.io/ladrok/bot-dot:latest'] },
     { operation: 'update.clean', args: [{ force: true }] },
     { operation: 'update.prune', args: [] },
     // The account's computer (#107): a reset and an update take nothing, a copy only the bot whose old computer it is.

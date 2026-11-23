@@ -91,10 +91,11 @@ jobs:
           echo "installer=$INSTALLER" >> "$GITHUB_OUTPUT"
           echo "Testing: server $SERVER, Android $ANDROID, the phones' strings $PHONES, the installer's tests $INSTALLER"
 
-  # The server tests, split over two machines by file (node --test --test-shard): on one they took 6 to 7.5 minutes,
-  # the longest step of every pull request and of each image build. A pull request that changes nothing the installer
-  # reads leaves out the installer tests (the `installer` output of `changes`, run.js's BOT_DOT_SKIP_INSTALLER_TESTS):
-  # without them a shard takes 4 to 5 minutes, with them 15. The shards still split the files that remain.
+  # The server tests, split over four machines by file (node --test --test-shard). Each runs 8 test files at once on
+  # GitHub's 4-core machine, and the installer tests (test/installer*.test.js, over half of all test seconds) run
+  # 5 to 10 times slower the more files share it: the same test takes 4 to 13 s late in a shard and 24 to 155 s early in it.
+  # A pull request that changes nothing the installer reads leaves out the installer tests (the `installer` output of
+  # `changes`, run.js's BOT_DOT_SKIP_INSTALLER_TESTS); the four shards then split the files that remain.
   server-tests:
     needs: changes
     if: needs.changes.outputs.server == 'true'
@@ -102,13 +103,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - run: npm test -- --test-shard=${{ matrix.shard }}/2
+      - run: npm test -- --test-shard=${{ matrix.shard }}/4
         env:
           BOT_DOT_SKIP_INSTALLER_TESTS: ${{ needs.changes.outputs.installer != 'true' && '1' || '' }}
 
@@ -144,7 +145,7 @@ jobs:
       - run: node scripts/check-css-tokens.js
       - run: bash scripts/typecheck.sh
 
-  # The one check named "server": passed when both shards and the lint passed, skipped when the server isn't tested.
+  # The one check named "server": passed when all four shards and the lint passed, skipped when the server isn't tested.
   server:
     needs: [changes, server-tests, server-lint]
     if: always() && needs.changes.outputs.server == 'true'

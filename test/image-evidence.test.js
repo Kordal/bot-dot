@@ -17,7 +17,7 @@ function fixture(t) {
   for (const [kind, name] of [['app', 'bot-dot'], ['desktop', 'bot-dot-desktop']]) {
     for (const arch of ['amd64', 'arm64']) {
       const dir = path.join(source, `security-${kind}-${arch}-${revision}-2`);
-      const image = `ghcr.io/kordal/${name}`;
+      const image = `ghcr.io/ladrok/${name}`;
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(path.join(dir, 'release-input.json'), JSON.stringify({ image, revision, runId: '123', runAttempt: '2', arch, digest }));
       fs.writeFileSync(path.join(dir, 'sbom.json'), JSON.stringify({ bomFormat: 'CycloneDX', metadata: { component: { name: `${image}@${digest}` } } }));
@@ -25,8 +25,8 @@ function fixture(t) {
       fs.writeFileSync(path.join(dir, 'secrets.json'), JSON.stringify({ ArtifactName: `${image}@${digest}`, ArtifactType: 'container_image', Metadata: { ImageConfig: { architecture: arch } } }));
     }
   }
-  const stage = () => spawnSync(process.execPath, [command, 'stage', source, staged, 'kordal', revision, '123', '2'], { encoding: 'utf8' });
-  const verify = (manifestHash, kind = 'app', directory = staged) => spawnSync(process.execPath, [command, 'verify', directory, 'kordal', revision, '123', '2', kind, manifestHash], { encoding: 'utf8' });
+  const stage = () => spawnSync(process.execPath, [command, 'stage', source, staged, 'ladrok', revision, '123', '2'], { encoding: 'utf8' });
+  const verify = (manifestHash, kind = 'app', directory = staged) => spawnSync(process.execPath, [command, 'verify', directory, 'ladrok', revision, '123', '2', kind, manifestHash], { encoding: 'utf8' });
   return { source, staged, stage, verify };
 }
 
@@ -69,7 +69,7 @@ test('staging rejects an SBOM for another digest before publishing any evidence'
   const f = fixture(t);
   const file = path.join(f.source, `security-app-amd64-${revision}-2`, 'sbom.json');
   const sbom = JSON.parse(fs.readFileSync(file));
-  sbom.metadata.component.name = 'ghcr.io/kordal/bot-dot@sha256:' + 'f'.repeat(64);
+  sbom.metadata.component.name = 'ghcr.io/ladrok/bot-dot@sha256:' + 'f'.repeat(64);
   fs.writeFileSync(file, JSON.stringify(sbom));
   const result = f.stage();
   assert.notEqual(result.status, 0);
@@ -106,7 +106,7 @@ test('staging refuses a platform whose secret scan is missing or for another dig
   const f = fixture(t);
   const file = path.join(f.source, `security-app-arm64-${revision}-2`, 'secrets.json');
   const report = JSON.parse(fs.readFileSync(file));
-  fs.writeFileSync(file, JSON.stringify({ ...report, ArtifactName: 'ghcr.io/kordal/bot-dot@sha256:' + 'f'.repeat(64) }));
+  fs.writeFileSync(file, JSON.stringify({ ...report, ArtifactName: 'ghcr.io/ladrok/bot-dot@sha256:' + 'f'.repeat(64) }));
   const other = f.stage();
   assert.notEqual(other.status, 0);
   assert.match(other.stderr, /Scan report does not match pushed digest/);

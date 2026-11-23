@@ -51,7 +51,7 @@ ai,bots,assistant,agents,automation,self-hosted,chat,team,productivity,tasks,app
 ## Support URL
 
 ```
-https://github.com/Kordal/bot-dot/issues
+https://github.com/ladrok/bot-dot/issues
 ```
 
 ## Marketing URL

@@ -4,7 +4,7 @@ Canonical instructions for every agent working in this repository. Nested `AGENT
 
 ## Purpose
 
-botdot gives each person a team of AI bots they run by chat: a Chief of Staff creates, changes and runs the bots, and the web page and the Android app are windows onto that person's account on a self-hosted botdot machine, which holds one or more accounts walled off from each other ([vision](docs/product/vision.md), [ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). The desktop app, on Windows, Mac and Linux, shows that same web page in a window ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md), [ADR 170](docs/adr/170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md)). The iOS app is native SwiftUI on the Android app's shared Kotlin data layer, being built ([ADR 242](docs/adr/242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md), [#1355](https://github.com/Kordal/bot-dot/issues/1355)). The native Mac app is removed ([ADR 142](docs/adr/142-the-mac-apps-code-is-removed.md)).
+botdot gives each person a team of AI bots they run by chat: a Chief of Staff creates, changes and runs the bots, and the web page and the Android app are windows onto that person's account on a self-hosted botdot machine, which holds one or more accounts walled off from each other ([vision](docs/product/vision.md), [ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)). The desktop app, on Windows, Mac and Linux, shows that same web page in a window ([ADR 137](docs/adr/137-the-desktop-app-is-a-tauri-window-onto-the-front-door.md), [ADR 170](docs/adr/170-the-desktop-app-on-linux-runs-botdot-on-the-computer-itself.md)). The iOS app is native SwiftUI on the Android app's shared Kotlin data layer, being built ([ADR 242](docs/adr/242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md), [#1355](https://github.com/ladrok/bot-dot/issues/1355)). The native Mac app is removed ([ADR 142](docs/adr/142-the-mac-apps-code-is-removed.md)).
 
 ## Product scope
 
@@ -34,7 +34,7 @@ Implement only the scope of the selected ticket; proposals outside that scope re
 
 ## Stack
 
-Node.js 22.13 or newer with no dependencies (the botdot server and the web page, plain HTML, CSS and JavaScript); Kotlin with Jetpack Compose (Android); Rust with Tauri 2 (the desktop app, ADR 137); Swift with SwiftUI on Kotlin Multiplatform (the iOS app, ADR 242); Docker (hosting and the bots' computers); SvelteKit, at build time only, for the homepage in `site/` ([ADR 173](docs/adr/172-botdot-app-is-a-prerendered-sveltekit-site-on-github-pages.md)); micromamba (in the image, to install the bots' tools from conda-forge, [ADR 007](docs/adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)).
+Node.js 22.13 or newer with no dependencies (the botdot server and the web page, plain HTML, CSS and JavaScript); Kotlin with Jetpack Compose (Android); Rust with Tauri 2 (the desktop app, ADR 137); Swift with SwiftUI on Kotlin Multiplatform (the iOS app, ADR 242); Docker (hosting and the bots' computers); micromamba (in the image, to install the bots' tools from conda-forge, [ADR 007](docs/adr/007-installed-tools-are-pinned-lists-placed-by-a-tools-user.md)).
 
 Introduce another technology only when the active task requires it, with an ADR.
 
@@ -55,7 +55,7 @@ One botdot server holds the truth, and each app is a native window onto its API.
 5. **Minimal UI.** No new control for something the Chief of Staff can do by chat; no costs, prices, budgets or usage limits anywhere in an account, the External Virtual PC on boat.dev included ([ADR 098](docs/adr/098-the-accounts-computer-is-in-one-place-for-all-its-bots.md)). Only the admin page shows each account's share of the machine and its load ([ADR 028](docs/adr/028-botdot-serves-several-accounts-on-one-machine-each-walled-off.md)).
 6. **Nothing a bot or the Chief writes is trusted as markup.** Text and drawings from Claude are validated on the server and drawn by the apps' own code ([ADR 004](docs/adr/004-pieces-as-restricted-shape-lists.md)).
 7. **Use the product's words.** `CONTEXT.md` defines them (bot, main assignment, Chief of Staff, Board) and names the words to avoid. They apply to UI text, documents, names in code and what you write to the owner.
-8. **Say what's new.** A change a person would notice adds a note to `whats-new/` in the same pull request: a title and 2 to 4 plain points, written in English and, as its twin in `whats-new/pl/`, in Polish ([whats-new/README.md](whats-new/README.md)). The apps show it once after an update. A change that touches only the iOS app needs no note until the iOS app ships in the App Store ([#1374](https://github.com/Kordal/bot-dot/issues/1374)): notes show only on the web page and in the Android app.
+8. **Say what's new.** A change a person would notice adds a note to `whats-new/` in the same pull request: a title and 2 to 4 plain points, written in English and, as its twin in `whats-new/pl/`, in Polish ([whats-new/README.md](whats-new/README.md)). The apps show it once after an update. A change that touches only the iOS app needs no note until the iOS app ships in the App Store ([#1374](https://github.com/ladrok/bot-dot/issues/1374)): notes show only on the web page and in the Android app.
 
 ## Talking to the owner
 
@@ -93,7 +93,7 @@ Keep the interview, the spec and the tickets in one session; start each `/implem
 
 ### Issue tracker
 
-Issues live in GitHub Issues for Kordal/bot-dot (gh CLI). See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues for ladrok/bot-dot (gh CLI). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -119,7 +119,6 @@ Single-context: one `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agent
 | `public/` | The web page |
 | `android/` | The Android app, and in `android/shared` the data layer it shares with the iOS app (Kotlin Multiplatform, ADR 242) |
 | `ios/` | The iOS app (ADR 242): SwiftUI, its Xcode project made by XcodeGen from `project.yml`, on `BotdotShared.xcframework` from `android/shared` |
-| `site/` | botdot.app, the project's homepage: SvelteKit prerendered to static files, published on GitHub Pages (ADR 173) |
 | `desktop/` | The desktop app for Windows, Mac and Linux (ADR 137, ADR 170): the Tauri project in `src-tauri/`, and its one screen in `ui/` |
 | `test/` | The server's and the web page's tests (`npm test`) |
 | `deploy/`, `install.sh`, `compose*.yaml`, `Dockerfile` | Hosting, images and the installer |

@@ -33,7 +33,7 @@ test("the admin page's update takes the newest signed release of the repositorie
   assert.equal(env.BOT_DOT_IMAGE, `${repo}/bot-dot${SIGNED}`);
   // A person's rerun without names goes to botdot's own images, as before.
   const again = rerun(t, `BOT_DOT_IMAGE=${repo}/bot-dot${PIN}\n`);
-  assert.equal(checked(again.checks[0])[0], 'ghcr.io/kordal/bot-dot:latest');
+  assert.equal(checked(again.checks[0])[0], 'ghcr.io/ladrok/bot-dot:latest');
 });
 
 test('an update asks nothing: what needs an answer stops it, and says to run the installer', (t) => {
@@ -147,12 +147,12 @@ test("an update that fails says so to the admin page, with the installer's reaso
   const requests = path.join(first.dir, 'front-door', 'requests');
   fs.writeFileSync(path.join(requests, 'UPDATE'), '');
   // The installer's copy of root's step stops at once: an unknown option, as a broken copy would.
-  fs.writeFileSync(path.join(first.dir, 'bin', 'install.sh'), fs.readFileSync(path.join(first.dir, 'bin', 'install.sh'), 'utf8').replace('--update) MODE=update UNATTENDED=1 ;;', '--update) die "Couldn\'t download ghcr.io/kordal/bot-dot." ;;'));
+  fs.writeFileSync(path.join(first.dir, 'bin', 'install.sh'), fs.readFileSync(path.join(first.dir, 'bin', 'install.sh'), 'utf8').replace('--update) MODE=update UNATTENDED=1 ;;', '--update) die "Couldn\'t download ghcr.io/ladrok/bot-dot." ;;'));
   const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'] });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const update = JSON.parse(fs.readFileSync(path.join(first.dir, 'front-door', 'status', 'update.json'), 'utf8'));
   assert.equal(update.state, 'failed');
-  assert.match(update.error, /Couldn't download ghcr\.io\/kordal\/bot-dot\./);
+  assert.match(update.error, /Couldn't download ghcr\.io\/ladrok\/bot-dot\./);
 });
 
 // An update through root's step, as the admin page asks for it, whose account Docker of bob answers with `bobFirst`
@@ -334,7 +334,7 @@ test("root's step looks for the newest signed version at most once an hour, and 
     return done;
   };
   const once = look({ answers: { revision: 'e'.repeat(40) } });
-  assert.deepEqual(once.checks.map((args) => args.slice(-3)), [['ghcr.io/kordal/bot-dot:latest', 'server', '--revision']], 'the repository the install pinned, by the release check');
+  assert.deepEqual(once.checks.map((args) => args.slice(-3)), [['ghcr.io/ladrok/bot-dot:latest', 'server', '--revision']], 'the repository the install pinned, by the release check');
   assert.ok(once.checks[0].includes(`${first.dir}/bin/lib:/check/lib:ro`), 'root\'s copy of it');
   const latest = status(once, 'latest.json');
   assert.equal(latest.version, 'eeeeeee');
@@ -346,7 +346,7 @@ test("root's step looks for the newest signed version at most once an hour, and 
 
   // An hour later the check is refused: the last version found stays.
   fs.rmSync(path.join(first.run, 'load', 'LATEST'));
-  const refused = look({ signed: { 'ghcr.io/kordal/bot-dot:latest': 'it has no botdot signature' } });
+  const refused = look({ signed: { 'ghcr.io/ladrok/bot-dot:latest': 'it has no botdot signature' } });
   assert.equal(refused.checks.length, 1);
   assert.equal(status(refused, 'latest.json').version, 'eeeeeee');
 
@@ -365,7 +365,7 @@ test("an update that finds what every account and the front door run already res
   // As root's step said it of signed images, which carry their revision.
   const was = '1234567';
   fs.writeFileSync(path.join(first.dir, 'front-door', 'status', 'version.json'), JSON.stringify({ version: was, selfBuilt: false, at: '2026-10-20T12:00:00Z' }));
-  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`) });
+  const done = installer(t, { again: first, dotenv: '', script: path.join(first.dir, 'bin', 'install.sh'), args: ['--requested'], dockerFirst: running(`ghcr.io/ladrok/bot-dot${SIGNED}`) });
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   const log = fs.readFileSync(path.join(first.dir, 'update.log'), 'utf8');
   assert.match(log, /It was the newest already: the front door and every account run it, so nothing was restarted/);
@@ -380,7 +380,7 @@ test("an update that finds what every account and the front door run already res
 
 test('an update with something new to run still updates: an account on an older image, or a pin that is not the newest', (t) => {
   const { first, upIn } = withBob(t);
-  const bobOld = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`, { account: 'bob', old: `ghcr.io/kordal/bot-dot${PIN}` }) });
+  const bobOld = installer(t, { again: first, dotenv: '', args: ['--update'], dockerFirst: running(`ghcr.io/ladrok/bot-dot${SIGNED}`, { account: 'bob', old: `ghcr.io/ladrok/bot-dot${PIN}` }) });
   assert.equal(bobOld.status, 0, `${bobOld.said}\n${bobOld.stderr}`);
   assert.doesNotMatch(bobOld.said, /It was the newest already/);
   const since = { docker: bobOld.docker.slice(first.docker.length) };
@@ -388,8 +388,8 @@ test('an update with something new to run still updates: an account on an older 
 
   // The front door's .env pins another desktop: the update goes on, though every server runs the newest.
   const env = path.join(first.dir, 'front-door', '.env');
-  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_COMPUTER_IMAGE=.*$/m, `BOT_DOT_COMPUTER_IMAGE=ghcr.io/kordal/bot-dot-desktop${PIN}`));
-  const desktop = installer(t, { again: first, dotenv: null, args: ['--update'], dockerFirst: running(`ghcr.io/kordal/bot-dot${SIGNED}`) });
+  fs.writeFileSync(env, fs.readFileSync(env, 'utf8').replace(/^BOT_DOT_COMPUTER_IMAGE=.*$/m, `BOT_DOT_COMPUTER_IMAGE=ghcr.io/ladrok/bot-dot-desktop${PIN}`));
+  const desktop = installer(t, { again: first, dotenv: null, args: ['--update'], dockerFirst: running(`ghcr.io/ladrok/bot-dot${SIGNED}`) });
   assert.equal(desktop.status, 0, `${desktop.said}\n${desktop.stderr}`);
   assert.doesNotMatch(desktop.said, /It was the newest already/);
 });

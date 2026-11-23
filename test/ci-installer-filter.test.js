@@ -71,7 +71,7 @@ test('the changes job gives the installer output: true on every event but a pull
 test("the server tests leave the installer's out exactly when `changes` says it is not needed", () => {
   const step = tests.jobs['server-tests'].steps.find((st) => /npm test/.test(st.run || ''));
   assert.equal(step.env.BOT_DOT_SKIP_INSTALLER_TESTS, "${{ needs.changes.outputs.installer != 'true' && '1' || '' }}");
-  assert.match(step.run, /--test-shard=\$\{\{ matrix\.shard \}\}\/2/, 'the shards still split what is left');
+  assert.match(step.run, /--test-shard=\$\{\{ matrix\.shard \}\}\/4/, 'the shards still split what is left');
 });
 
 test('every path install.yml watches is in the installer filter', () => {
@@ -174,7 +174,7 @@ test('npm test says which files it left out, runs the rest, and keeps --test-sha
     assert.equal(off.status, 0, off.stdout + off.stderr);
     assert.doesNotMatch(off.stdout, /left out/);
     assert.match(off.stdout, /RAN installer-x/);
-    // A shard of what is left: the two shards together run the same files, once each.
+    // A shard of what is left (two files, so two shards here; CI uses four): the shards together run the same files, once each.
     const ran = [1, 2].map((n) => { const r = run({ BOT_DOT_SKIP_INSTALLER_TESTS: '1' }, `--test-shard=${n}/2`); assert.equal(r.status, 0, r.stdout + r.stderr); return [...r.stdout.matchAll(/RAN (\S+)/g)].map((m) => m[1]); });
     assert.deepEqual(ran.flat().sort(), ['a', 'b']);
     assert.equal(ran[0].length, 1);

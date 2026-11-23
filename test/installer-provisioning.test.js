@@ -82,7 +82,7 @@ test('a first install checks the selected release rather than latest', (t) => {
   const done = installer(t, { dotenv: '', given: { ...managed, BOT_DOT_ADMIN: 'ann', BOT_DOT_INSTALL_TO: PIN.slice(1) } });
   assert.equal(done.status, 0, done.said + done.stderr);
   assert.ok(done.checks.some((c) => c.includes('--at') && c.includes(PIN.slice(8))), JSON.stringify(done.checks));
-  assert.equal(done.env.BOT_DOT_IMAGE, `ghcr.io/kordal/bot-dot${PIN}`);
+  assert.equal(done.env.BOT_DOT_IMAGE, `ghcr.io/ladrok/bot-dot${PIN}`);
 });
 
 test('preparing a base image installs prerequisites without making botdot accounts', (t) => {

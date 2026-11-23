@@ -4,7 +4,7 @@ Last updated: 9 November 2026. This is the privacy policy of the botdot app for 
 
 ## What the app is
 
-botdot is a window onto a botdot server: software you, or someone you trust, run on your own computer or rented server ([github.com/Kordal/bot-dot](https://github.com/Kordal/bot-dot)). The app shows your bots, their chats and your Board, and sends what you type and share to that server. It holds no account of its own with the app's developer.
+botdot is a window onto a botdot server: software you, or someone you trust, run on your own computer or rented server ([github.com/ladrok/bot-dot](https://github.com/ladrok/bot-dot)). The app shows your bots, their chats and your Board, and sends what you type and share to that server. It holds no account of its own with the app's developer.
 
 ## What the app sends, and where
 
@@ -33,4 +33,4 @@ The app is not meant for children under 18.
 
 ## Changes and contact
 
-A change to this policy is published here with a new date. Questions: the developer contact on the app's Google Play page, or an issue at [github.com/Kordal/bot-dot/issues](https://github.com/Kordal/bot-dot/issues).
+A change to this policy is published here with a new date. Questions: the developer contact on the app's Google Play page, or an issue at [github.com/ladrok/bot-dot/issues](https://github.com/ladrok/bot-dot/issues).

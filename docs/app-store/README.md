@@ -1,6 +1,6 @@
 # Publishing the iOS app on the App Store
 
-How the iOS app ([ADR 242](../adr/242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md)) gets from this repository through TestFlight to the App Store and its review ([#1374](https://github.com/Kordal/bot-dot/issues/1374)), in the order the steps are done. The Android app's twin is [docs/google-play](../google-play/README.md). What is here:
+How the iOS app ([ADR 242](../adr/242-the-ios-app-is-native-swiftui-on-the-android-apps-shared-kotlin-data-layer.md)) gets from this repository through TestFlight to the App Store and its review ([#1374](https://github.com/ladrok/bot-dot/issues/1374)), in the order the steps are done. The Android app's twin is [docs/google-play](../google-play/README.md). What is here:
 
 | File | What |
 | --- | --- |
@@ -11,7 +11,7 @@ The privacy policy and the account deletion page are the site's: `https://botdot
 
 ## The build
 
-The upload workflow, its script, the export compliance key and the key's section in [release signatures](../release-signing.md) come with pull request [#1470](https://github.com/Kordal/bot-dot/pull/1470); until it is merged they are not on `main`.
+The upload workflow, its script, the export compliance key and the key's section in [release signatures](../release-signing.md) come with pull request [#1470](https://github.com/ladrok/bot-dot/pull/1470); until it is merged they are not on `main`.
 
 - **Upload:** Actions → iOS release → Run workflow on `main`, with the version (`.github/workflows/ios-release.yml`, #1470; [ios/README.md](../../ios/README.md)). It tests the commit, archives the Release build, signs it with automatic signing and uploads it to App Store Connect; the build number is the run number.
 - **Bundle ids:** `app.botdot` (the app, as on Google Play), `app.botdot.notify` (the notification extension), `app.botdot.share` (the share extension), App Group `group.app.botdot`. Automatic signing registers them the first time.

@@ -129,7 +129,7 @@ test('a helper that refuses, does not answer or answers something else gives fai
     [() => CLEANED, { BOT_DOT_HELPER_SOCKET: path.join(os.tmpdir(), 'no-such-helper.sock') }],
     [() => CLEANED, { BOT_DOT_HELPER_SOCKET: '' }],
     [() => ({ ...CLEANED, removed: 1.5 }), {}],
-    [() => ({ ...CLEANED, images: ['ghcr.io/kordal/bot-dot@sha256:1'] }), {}],
+    [() => ({ ...CLEANED, images: ['ghcr.io/ladrok/bot-dot@sha256:1'] }), {}],
     [() => 'done', {}],
   ]) {
     const { cli, events } = await server(t, answer);

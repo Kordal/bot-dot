@@ -49,7 +49,7 @@ test('Play Console names the site\'s privacy and deletion pages, the ones the Ap
   const answers = read('console-answers.md');
   assert.match(answers, /`https:\/\/botdot\.app\/privacy`/);
   assert.match(answers, /deletion URL: `https:\/\/botdot\.app\/account-deletion`/);
-  assert.doesNotMatch(answers, /github\.com\/Kordal\/bot-dot\/blob/);
+  assert.doesNotMatch(answers, /github\.com\/(?:Kordal|ladrok)\/bot-dot\/blob/);
   const store = fs.readFileSync(path.join(__dirname, '../docs/app-store/connect-answers.md'), 'utf8');
   assert.match(store, /https:\/\/botdot\.app\/privacy\b/);
 });
