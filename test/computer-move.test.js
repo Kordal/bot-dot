@@ -352,3 +352,16 @@ test('web and Android ask "Copy files" or "Start empty" between this machine and
   assert.match(shared, /put\("moveFiles", true\)/);
   assert.match(kt, /retryComputerMove/);
 });
+
+test('the old side is told it is the source of every step it takes, and the new one is not', async () => {
+  const bytes = Buffer.from('files');
+  const old = side(bytes);
+  const fresh = side(Buffer.alloc(0));
+  const told = { old: [], fresh: [] };
+  const watch = (s, name) => ({ moveFiles: (id, step, how) => { told[name].push(how?.source === true); return s.moveFiles(id, step); } });
+  const moves = moveLib.create(dir(), { sides: { linux: watch(old, 'old'), boat: watch(fresh, 'fresh') }, pieces, every: 0 });
+  await moves.start('coder', 'linux', 'boat');
+  assert.equal(fresh.unpacked.toString(), 'files');
+  assert.ok(told.old.length >= 3 && told.old.every(Boolean), 'pack, read and drop are the source');
+  assert.ok(told.fresh.length >= 3 && told.fresh.every((x) => !x), 'write, unpack and drop are not');
+});

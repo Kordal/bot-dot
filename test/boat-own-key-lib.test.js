@@ -213,3 +213,168 @@ test("without any key boat.dev says whose to add, and a key boat.dev refuses is 
   boatLib.setOwnKey(OWN);
   assert.equal(boatLib.isOwnRefused(), false, 'a key set again starts clean');
 });
+
+// ---------- the machine let go of when the other key comes into use (ADR 263) ----------
+// A machine that is up goes on with the key it was made with until it rests; `clock` moves time on and rests it.
+const makeIn = (b, d, opts = {}) => boatLib.create(d, { kitOnStart: false, fetch: b.fetch, sleep: async () => {}, ownOf: () => false, ...opts });
+const clocked = () => {
+  const c = { now: 0 };
+  c.rest = (boat) => { c.now += boatLib.REST_AFTER_MS + 1; return boat.restIdle(); };
+  return c;
+};
+const listed = (d) => JSON.parse(fs.readFileSync(path.join(d, 'boat-machines.json'), 'utf8'));
+
+test("a machine made with the machine's key is kept, not forgotten, when the own key comes into use: erasing deletes it with that key", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const d = dir();
+  const clock = clocked();
+  const boat = makeIn(b, d, { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' });
+  assert.equal(b.machines.get('bx_aaaaaaa1').key, MACHINE);
+
+  boatLib.setOwnKey(OWN); // the account adds its own key
+  await clock.rest(boat);
+  await boat.runShell('coder', { command: 'pwd' }); // the next ensure of the account's machine
+  assert.equal(b.machines.get('bx_aaaaaaa1').state, 'archived', 'stopped with the key it was made with');
+  assert.equal(b.machines.get('bx_aaaaaaa2').key, OWN, 'a new one, made with the own key');
+  const kept = listed(d);
+  assert.equal(kept[boatLib.ACCOUNT].id, 'bx_aaaaaaa2');
+  assert.equal(kept['@retired'].bx_aaaaaaa1.box, boatLib.ACCOUNT, 'the old one is kept, with where it was');
+  assert.ok(!kept['@retired'].bx_aaaaaaa1.own, "made with the machine's key");
+  assert.deepEqual(boat.ownMachines(), [{ id: 'bx_aaaaaaa2', box: boatLib.ACCOUNT }], "the machine key's is not the account's to remove with its key");
+
+  // A botdot that started again still knows it.
+  const again = makeIn(b, d);
+  const r = await again.erase();
+  assert.deepEqual([r.deleted, r.failed.length], [2, 0]);
+  assert.equal(b.machines.size, 0, 'both are gone from boat.dev');
+  const del = b.calls.filter((c) => c.method === 'DELETE').map((c) => [c.path, c.key]).sort();
+  assert.deepEqual(del, [['/sandboxes/bx_aaaaaaa1', MACHINE], ['/sandboxes/bx_aaaaaaa2', OWN]], 'each with the key that made it');
+  assert.deepEqual(listed(d), {}, 'nothing is left on the list');
+});
+
+test("a retired machine that boat.dev won't delete stays on the list for the next try, and the console's keepOwn leaves the own key's", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const d = dir();
+  const clock = clocked();
+  let refuse = true;
+  const fetch = async (url, o = {}) => (refuse && o.method === 'DELETE' && String(url).endsWith('bx_aaaaaaa1') ? { ok: false, status: 500, json: async () => ({ ok: false, code: 'internal' }) } : b.fetch(url, o));
+  const boat = makeIn({ fetch }, d, { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' });
+  boatLib.setOwnKey(OWN);
+  await clock.rest(boat);
+  await boat.runShell('coder', { command: 'ls' });
+  const r = await boat.erase({ keepOwn: true });
+  assert.deepEqual([r.deleted, r.failed.map((f) => f.id)], [0, ['bx_aaaaaaa1']]);
+  assert.ok(b.machines.has('bx_aaaaaaa2'), "the own key's machine stays for the machine the account moved to");
+  assert.ok('bx_aaaaaaa1' in listed(d)['@retired'], 'the one boat.dev refused is still listed');
+  refuse = false;
+  const again = await boat.erase({ keepOwn: true });
+  assert.deepEqual([again.deleted, again.failed.length], [1, 0]);
+  assert.deepEqual([...b.machines.keys()], ['bx_aaaaaaa2']);
+});
+
+test("a machine made with the own key is kept the same way when the own key goes, and removing the key deletes it with that key", async (t) => {
+  keys(t, { machine: MACHINE, own: OWN });
+  const b = fakeBoat();
+  const d = dir();
+  const clock = clocked();
+  const boat = makeIn(b, d, { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' }); // made with the own key
+  boatLib.setOwnKey(null); // the key is out (botdot starts again without it): the machine's is in use
+  const later = makeIn(b, d, { now: () => clock.now });
+  await later.runShell('coder', { command: 'ls' });
+  assert.equal(b.machines.get('bx_aaaaaaa2').key, MACHINE);
+  assert.deepEqual(later.ownMachines(), [{ id: 'bx_aaaaaaa1', box: boatLib.ACCOUNT, retired: true }], "still the account's, and counted");
+
+  boatLib.setOwnKey(OWN); // the owner has it again, and removes it, deleting its machines
+  const boat2 = later;
+  const r = await boat2.dropOwn({ deleteThem: true });
+  assert.deepEqual([r.deleted, r.left, r.failed.length], [1, 0, 0]);
+  assert.ok(!b.machines.has('bx_aaaaaaa1'), 'the retired one is deleted with the own key');
+  assert.deepEqual(boat2.ownMachines(), []);
+  assert.ok(b.machines.has('bx_aaaaaaa2'), "the machine key's machine is not touched");
+  assert.ok(!('@retired' in listed(d)), 'and it is off the list');
+});
+
+test("'Keep them' lets a retired own machine go from the list; it stays at boat.dev", async (t) => {
+  keys(t, { machine: MACHINE, own: OWN });
+  const b = fakeBoat();
+  const clock = clocked();
+  const d = dir();
+  const first = makeIn(b, d, { now: () => clock.now });
+  await first.runShell('coder', { command: 'ls' });
+  boatLib.setOwnKey(null);
+  const boat2 = makeIn(b, d, { now: () => clock.now });
+  await boat2.runShell('coder', { command: 'ls' });
+  boatLib.setOwnKey(OWN);
+  const r = await boat2.dropOwn({ deleteThem: false });
+  assert.deepEqual([r.deleted, r.left, r.failed.length], [0, 1, 0]);
+  assert.ok(b.machines.has('bx_aaaaaaa1'), "stays at boat.dev, on the owner's account");
+  assert.deepEqual(boat2.ownMachines(), []);
+});
+
+test("the owner's copy of the account's files reads the machine that was let go of, once; the new one is what it writes to", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const clock = clocked();
+  const boat = makeIn(b, dir(), { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' }); // the files are on the machine key's machine
+  await clock.rest(boat); // it rests
+  boatLib.setOwnKey(OWN); // the owner adds the key and moves the computer with "Copy files", before any bot runs again
+  const sent = () => b.calls.filter((c) => c.path.endsWith('/commands')).map((c) => [c.path.split('/')[2], c.key]);
+
+  await boat.moveFiles('coder', { op: 'pack' }, { own: false, source: true });
+  assert.deepEqual(sent().at(-1), ['bx_aaaaaaa1', MACHINE], 'the pack ran on the old machine, with the key that made it');
+  assert.equal(b.machines.get('bx_aaaaaaa1').state, 'ready', 'started for the copy, with its own key');
+  assert.ok(b.calls.filter((c) => c.path === '/sandboxes/bx_aaaaaaa1/resume').every((c) => c.key === MACHINE));
+  assert.equal(b.machines.size, 1, 'no new machine was made to read from');
+  await boat.moveFiles('coder', { op: 'read', offset: 0, length: 10 }, { own: false, source: true });
+  assert.deepEqual(sent().at(-1), ['bx_aaaaaaa1', MACHINE]);
+  assert.equal(b.machines.size, 1);
+
+  // The new side of a copy to the account's machine here is the machine in use, made with the own key.
+  await boat.moveFiles('coder', { op: 'write', offset: 0, data: '' }, { own: false });
+  assert.equal(b.machines.size, 2);
+  assert.equal(b.machines.get('bx_aaaaaaa2').key, OWN);
+  assert.equal(sent().at(-1)[0], 'bx_aaaaaaa2');
+
+  // The old one rests once unused, and its tidying step does not start it again.
+  await clock.rest(boat);
+  assert.equal(b.machines.get('bx_aaaaaaa1').state, 'archived');
+  const before = b.calls.length;
+  assert.deepEqual(await boat.moveFiles('coder', { op: 'drop' }, { own: false, source: true }), { code: 0 });
+  assert.equal(b.calls.length, before, 'asked nothing');
+
+  // Once the copy succeeded the next one is from the machine in use: the old one is not read twice.
+  boat.copiedFrom('coder', false);
+  await boat.moveFiles('coder', { op: 'pack' }, { own: false, source: true });
+  assert.equal(sent().at(-1)[0], 'bx_aaaaaaa2');
+});
+
+test("a copy from a machine that was let go of and is gone says so", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const clock = clocked();
+  const boat = makeIn(b, dir(), { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' });
+  await clock.rest(boat);
+  boatLib.setOwnKey(OWN);
+  b.machines.delete('bx_aaaaaaa1'); // boat.dev dropped it
+  await assert.rejects(boat.moveFiles('coder', { op: 'pack' }, { own: false, source: true }), /earlier machine on boat\.dev is gone/);
+});
+
+test("a bot's own machine that was let go of is read for its copy the same way, by that bot's id", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const clock = clocked();
+  const boat = makeIn(b, dir(), { now: () => clock.now, ownOf: (id) => id === 'writer' });
+  await boat.runShell('writer', { command: 'ls' });
+  await clock.rest(boat);
+  boatLib.setOwnKey(OWN);
+  await boat.moveFiles('writer', { op: 'pack' }, { own: true, source: true });
+  assert.equal(b.calls.filter((c) => c.path.endsWith('/commands')).at(-1).path, '/sandboxes/bx_aaaaaaa1/commands');
+  assert.equal(b.machines.size, 1);
+});

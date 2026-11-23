@@ -176,3 +176,70 @@ test("a delete bound to an account's userId never deletes one made again with th
     assert.ok(!doors.accountExists('eve'));
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+// Its boat.dev machines (ADR 263) are deleted once the request is committed and the account is suspended, never before:
+// the console's erase of the machine takes the account's own key with it, so it could not delete what that key made.
+async function managed(t, answers) {
+  const one = await startFrontDoor({ env: { FRONT_DOOR_MANAGED: '1', FRONT_DOOR_ONE_ACCOUNT: 'solo', FRONT_DOOR_SETUP_KEY: SETUP_KEY } });
+  const stateWhenAsked = [];
+  const s = await standIn(one, 'solo', {
+    answer: (req) => {
+      if (req.url !== '/api/boat/erase') return [200, { account: 'solo' }];
+      const account = JSON.parse(fs.readFileSync(path.join(one.data, 'front-door.json'), 'utf8')).accounts.solo;
+      stateWhenAsked.push({ suspended: !!account.suspended, deleting: !!account.deleting, outbox: fs.existsSync(path.join(one.data, 'outbox')) ? fs.readdirSync(path.join(one.data, 'outbox')).length : 0 });
+      return answers.shift() || [200, { deleted: 0, failed: [] }];
+    },
+  });
+  t.after(async () => { await one.stop(); s.close(); });
+  const b = await signUp('solo', { path: `/sign-up/${SETUP_KEY}` }, one);
+  return { one, s, b, stateWhenAsked, erases: () => s.seen.filter((r) => r.url === '/api/boat/erase') };
+}
+
+test('a deletion request that the outbox refuses deletes no machine on boat.dev', async (t) => {
+  const { one, b, erases } = await managed(t, []);
+  fs.writeFileSync(path.join(one.data, 'outbox'), 'a file where the folder goes'); // the outbox can't be written
+  const done = await b.post('/front-door/delete-account', { name: 'solo' });
+  assert.equal(done.status, 503, done.text);
+  assert.equal(erases().length, 0, 'its machines on boat.dev are untouched');
+  assert.equal((await b.get('/front-door/session')).status, 200, 'still signed in: not suspended');
+  const state = JSON.parse(fs.readFileSync(path.join(one.data, 'front-door.json'), 'utf8')).accounts.solo;
+  assert.ok(!state.suspended && !state.deleting);
+  fs.rmSync(path.join(one.data, 'outbox'));
+  assert.equal((await b.post('/front-door/delete-account', { name: 'solo' })).status, 200, 'it works once the outbox does');
+  assert.equal(erases().length, 1);
+});
+
+test('a request is in the outbox and the account suspended before its machines on boat.dev are deleted, and a second request deletes nothing', async (t) => {
+  const { b, erases, stateWhenAsked } = await managed(t, [[200, { deleted: 2, failed: [{ id: 'bx_aaaaaaa1', error: 'boat.dev answered 500 (internal)' }] }]]);
+  const done = await b.post('/front-door/delete-account', { name: 'solo' });
+  assert.equal(done.status, 200, done.text);
+  assert.deepEqual(done.data, { ok: true, requested: true, deleted: '/front-door/deleting', boat: 'boat.dev: 1 machine not deleted (boat.dev answered 500 (internal)), 2 deleted' });
+  assert.equal(erases().length, 1);
+  assert.deepEqual(stateWhenAsked, [{ suspended: true, deleting: true, outbox: 1 }], 'asked once the request was kept and the account suspended');
+  assert.deepEqual(JSON.parse(erases()[0].body || '{}'), {}, 'every machine goes, with the key that made it');
+
+  assert.equal((await b.post('/front-door/delete-account', { name: 'solo' })).status, 401, 'signed out: the owner asks no more');
+  assert.equal(erases().length, 1);
+});
+
+test("the console's resume drops the request; the account asks again and its machines are asked about again", async (t) => {
+  const { one, b, erases, stateWhenAsked } = await managed(t, [[200, { deleted: 1, failed: [] }], [200, { deleted: 0, failed: [] }]]);
+  assert.equal((await b.post('/front-door/delete-account', { name: 'solo' })).status, 200);
+  assert.equal(erases().length, 1);
+
+  // The console resumes it instead of erasing the machine: the request is dropped, and the machines that were deleted
+  // stay deleted (the owner asked for it). Nothing asks the account's machines a second time by itself.
+  const store = require('../lib/front-door/store').open(one.data);
+  store.setSuspended('solo', false);
+  assert.equal(store.deletingSince('solo'), null);
+  assert.equal(erases().length, 1);
+
+  const again = one.browser();
+  const options = await again.post('/sign-in/options', {});
+  const si = await again.post('/sign-in', { credential: keys.solo.signIn(options.data.publicKey) });
+  assert.equal((await again.post('/sign-in/agree', { agreement: si.data.agreement, feedback: false })).status, 200, 'signed in again');
+  assert.equal((await again.post('/front-door/delete-account', { name: 'solo' })).status, 200, 'a new request is taken');
+  assert.equal(erases().length, 2, 'and its machines are asked about again');
+  assert.equal(stateWhenAsked.length, 2);
+  assert.ok(stateWhenAsked.every((s) => s.suspended && s.deleting && s.outbox >= 1));
+});
