@@ -1,18 +1,72 @@
-// Draws the Play icon (512, full square: Play rounds it) and the feature graphic (1024x500) from public/icon.svg's mark.
-// node docs/google-play/graphics/make.cjs docs/google-play/graphics
+// Draws the Play icon and the feature graphics (docs/google-play/README.md).
+// node docs/google-play/graphics/make.cjs   (with Playwright: npm i playwright, or NODE_PATH to one)
+// - icon-512.png: the Android launcher icon as a launcher shows it: its background colour and its foreground's own
+//   placement, read from android/app/src/main/res, over the part of the adaptive icon a launcher shows (the middle
+//   72 of 108). Full square, as Play rounds it. 32-bit PNG, as Play asks.
+// - feature-1024x500.png (English) and feature-1024x500-pl.png (Polish): the logo as the apps draw it ("bot" and the
+//   coral dot, in Geist), one line, and the app's Home from the Play screenshots. 24-bit PNG: Play refuses alpha.
+const fs = require('node:fs');
+const path = require('node:path');
 const { chromium } = require('playwright');
-const out = process.argv[2];
-const mark = '<g transform="translate(111 147) scale(.78)"><rect width="46" height="280" rx="23" fill="#fff"/><circle cx="112" cy="186" r="71" fill="none" stroke="#fff" stroke-width="46"/><circle cx="297" cy="186" r="75" fill="#d85a30"/></g>';
+const { resave } = require('../png.cjs');
+
+const ROOT = path.resolve(__dirname, '..', '..', '..');
+const OUT = __dirname;
+const RES = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
+const FONT = `file://${path.join(ROOT, 'public', 'fonts', 'Geist.ttf')}`;
+const HOME = path.join(__dirname, '..', 'screenshots', 'raw', '1-home.png');
+const BG = '#000000'; // public/style.css --bg
+const DOT = '#d85a30'; // --dot
+
+// The mark, in public/icon.svg's units: the stem and bowl of the "b" and the dot.
+const MARK = `<rect width="46" height="280" rx="23" fill="#fff"/><circle cx="112" cy="186" r="71" fill="none" stroke="#fff" stroke-width="46"/><circle cx="297" cy="186" r="75" fill="${DOT}"/>`;
+
+/** The launcher icon's background and its foreground group's placement, in the adaptive icon's 108 units. */
+function launcher() {
+  const fg = fs.readFileSync(path.join(RES, 'drawable', 'ic_launcher_foreground.xml'), 'utf8');
+  const num = (k) => Number(fg.match(new RegExp(`android:${k}="([\\d.]+)"`))[1]);
+  const colour = fs.readFileSync(path.join(RES, 'values', 'themes.xml'), 'utf8').match(/<color name="icon_bg">(#[0-9a-fA-F]{6})</)[1];
+  return { bg: colour, x: num('translateX'), y: num('translateY'), scale: num('scaleX') };
+}
+
+const LINES = {
+  en: 'A team of AI bots you run by chat',
+  pl: 'Zespół botów AI, którym kierujesz przez czat',
+};
+
 (async () => {
   const b = await chromium.launch();
   const p = await b.newPage({ deviceScaleFactor: 1 });
+
+  // The icon: what a launcher shows of the adaptive icon is its middle 72 of 108, here 512 pixels wide.
+  const l = launcher();
+  const k = 512 / 72;
   await p.setViewportSize({ width: 512, height: 512 });
-  await p.setContent(`<style>body{margin:0}</style><svg width="512" height="512" viewBox="0 0 512 512"><rect width="512" height="512" fill="#111110"/>${mark}</svg>`);
-  await p.screenshot({ path: out + '/icon-512.png', omitBackground: false });
+  await p.setContent(`<style>body{margin:0}</style><svg width="512" height="512" viewBox="0 0 512 512">
+    <rect width="512" height="512" fill="${l.bg}"/>
+    <g transform="translate(${((l.x - 18) * k).toFixed(3)} ${((l.y - 18) * k).toFixed(3)}) scale(${(l.scale * k).toFixed(5)})">${MARK}</g></svg>`);
+  const icon = path.join(OUT, 'icon-512.png');
+  await p.screenshot({ path: icon });
+  resave(icon, icon, true);
+
+  // The feature graphics: the logo and its line on the left, Home on the right, nothing that matters near an edge.
+  const home = `data:image/png;base64,${fs.readFileSync(HOME).toString('base64')}`;
   await p.setViewportSize({ width: 1024, height: 500 });
-  await p.setContent(`<style>body{margin:0;width:1024px;height:500px;background:#111110;display:flex;align-items:center;justify-content:center;gap:40px;font-family:Inter,system-ui,sans-serif}
-  h1{color:#fff;font-size:128px;font-weight:700;letter-spacing:-4px;margin:0}</style>
-  <svg width="220" height="220" viewBox="96 96 320 320">${mark}</svg><h1>botdot</h1>`);
-  await p.screenshot({ path: out + '/feature-1024x500.png' });
+  for (const [lang, line] of Object.entries(LINES)) {
+    await p.setContent(`<style>
+      @font-face{font-family:Geist;src:url(${FONT})}
+      *{box-sizing:border-box;margin:0}
+      body{width:1024px;height:500px;overflow:hidden;position:relative;background:${BG};color:#fff;font-family:Geist,sans-serif;-webkit-font-smoothing:antialiased}
+      .text{position:absolute;left:96px;top:0;bottom:0;width:440px;display:flex;flex-direction:column;justify-content:center;gap:24px}
+      .logo{display:flex;align-items:center;font-size:128px;font-weight:600;letter-spacing:-.04em;line-height:1}
+      .logo i{display:inline-block;width:.44em;height:.44em;margin-left:.07em;position:relative;top:.06em;border-radius:50%;background:${DOT}}
+      p{font-size:33px;line-height:1.2;letter-spacing:-.01em;font-weight:400}
+      img{position:absolute;left:624px;top:48px;width:304px;border-radius:32px 32px 0 0;border:2px solid #2b2b2b;border-bottom:0}
+    </style><div class="text"><div class="logo">bot<i></i></div><p>${line}</p></div><img src="${home}">`);
+    await p.evaluate(() => document.fonts.ready);
+    const file = path.join(OUT, lang === 'en' ? 'feature-1024x500.png' : `feature-1024x500-${lang}.png`);
+    await p.screenshot({ path: file });
+    resave(file, file, false);
+  }
   await b.close();
-})();
+})().catch((e) => { console.error(e); process.exit(1); });

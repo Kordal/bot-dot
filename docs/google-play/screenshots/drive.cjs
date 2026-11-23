@@ -102,10 +102,10 @@ async function home() {
   await shot('2-chief.png');
   await scroll('down', 8);
   await shot('3-approve.png');
-  // News Monitor's chat, at its newest message.
+  // News Monitor's chat, from this morning's first message.
   open(`bot:${scene.bots.news}`);
   await find(byText('Its settings'), 'News Monitor\'s chat');
-  await scroll('down', 6);
+  await scroll('up', 6);
   await shot('5-chat.png');
   // Server Watch's weekly page, opened from its chip in the chat.
   open(`bot:${scene.bots.watch}`);
@@ -114,11 +114,12 @@ async function home() {
   tap(await find(byText('Home server'), 'the page in Server Watch\'s chat'));
   await find(byText('Uptime'), 'the page').catch(() => sleep(4000));
   await shot('6-page.png');
-  // The project's team chat, a little up from its end so the question it answers shows too.
+  sh('input keyevent 4'); // the page closed: it is drawn over the screens
+  await sleep(1200);
+  // The project's team chat, from the owner's question.
   open(`group:${scene.team}`);
   await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
-  await sleep(3000);
-  sh('input swipe 540 800 540 1100 400');
+  await scroll('up', 6);
   await shot('8-team.png');
   // The project, from the spaces under the title on Home.
   await home();
