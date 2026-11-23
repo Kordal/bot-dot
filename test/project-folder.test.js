@@ -147,6 +147,40 @@ test("a path in a team bot's reply opens the file in its project's folder, relat
   docker.answer('exec.txt', null);
 });
 
+test("a relative path of a bot outside the project is looked for in the other projects' folders while the computer runs", async () => {
+  docker.answer('inspect.json', RUNNING);
+  const outsider = await makeBot(srv, { name: 'Folder Outsider', emoji: '👀' });
+  const open = () => srv.api(`/bots/${outsider.id}/path?path=${encodeURIComponent('mail-proposal.md')}&view=1`);
+  const last = () => execs().at(-1).args.at(-1);
+  // A teammate wrote it in the project's folder and the bot names it as it reads it: nothing in its own folder, so the
+  // owner opens it from the project's.
+  docker.answer('exec-when.json', JSON.stringify([
+    { has: `p='/workspace/${outsider.id}/`, text: 'gone\n' },
+    { has: "p='/workspace/projects/Fernhill Shop/mail-proposal.md'", text: `ok 16 1760000000\n${Buffer.from('# Mail proposal\n').toString('base64')}` },
+  ]));
+  let r = await open();
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal(r.data.text, '# Mail proposal\n');
+  assert.match(last(), /p='\/workspace\/projects\/Fernhill Shop\/mail-proposal\.md'/, "from the project's folder");
+  // Nowhere: gone. A folder of that name or a link out is skipped, not refused: it holds nothing of the bot's.
+  for (const answer of ['gone\n', 'outside\n', 'not-file\n']) {
+    docker.answer('exec-when.json', JSON.stringify([
+      { has: `p='/workspace/${outsider.id}/`, text: 'gone\n' },
+      { has: "p='/workspace/projects/", text: answer },
+    ]));
+    r = await open();
+    assert.deepEqual([r.status, r.data.state], [404, 'gone'], answer);
+  }
+  docker.answer('exec-when.json', null);
+  // The computer is off: nothing is started for a path that may not even be there.
+  docker.answer('inspect.json', null);
+  const before = docker.calls().length;
+  r = await open();
+  assert.deepEqual([r.status, r.data.state], [404, 'gone']);
+  assert.ok(docker.calls().slice(before).every((c) => c.args[0] === 'inspect'), 'only looked at, never started');
+  docker.answer('exec.txt', null);
+});
+
 test("a card's build reads its own project's folder, read-only, and no other project's", async (t) => {
   docker.answer('inspect.json', RUNNING);
   const other = (await srv.api('/company', { method: 'POST', body: { start: 'Elm Street' } })).data.id;

@@ -112,6 +112,11 @@ if (fs.existsSync(hostFile) && (['ps'].includes(args[0]) || args[0] === 'image' 
 
 // The labels of the account's computer (lib/computers.js labels()) are in labels.txt, where a test gives them.
 if (args[0] === 'inspect' && args.some((a) => a.includes('botdot.network-version')) && has('labels.txt')) { process.stdout.write(fs.readFileSync(path.join(OUT, 'labels.txt'), 'utf8')); process.exit(0); }
+// A `docker exec` whose command holds a text of exec-when.json ([{ has, text }]) is answered with that text, before exec.txt.
+if (args[0] === 'exec' && has('exec-when.json')) {
+  const hit = JSON.parse(fs.readFileSync(path.join(OUT, 'exec-when.json'), 'utf8')).find((w) => String(args.at(-1)).includes(w.has));
+  if (hit) { process.stdout.write(hit.text); process.exit(0); }
+}
 const answer = args[0] === 'inspect' ? 'inspect.json' : args[0] === 'image' && args[1] === 'inspect' ? 'image.json' : args[0] === 'exec' ? 'exec.txt' : null;
 if (answer) {
   try { process.stdout.write(fs.readFileSync(path.join(OUT, answer), 'utf8')); } catch { /* nothing to say */ }
