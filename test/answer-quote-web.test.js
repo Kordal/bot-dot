@@ -107,3 +107,40 @@ test('web: a long reply that asks now is never folded; one that never asked fold
   assert.ok(plain.md.classList.contains('long'));
   assert.deepEqual(plain.children.map((c) => c.classList.contains('keep')), [false, false, false]);
 });
+
+// A tap on the quote (showAnswered): the chat finds the reply's row by the run id its marker carries (data-details),
+// opens what is folded of it and goes there.
+function tapped(runId, { rows = ['q'], jump = () => true } = {}) {
+  const fold = element({}, { open: false }), button = element(), md = element({}, { classes: ['md', 'long'] });
+  md.nextElementSibling = button; md.matches = () => false; button.matches = (s) => s === '.reply-more';
+  const row = element({ 'details.notes-fold': [fold], '.md.long:not(.more)': [md] });
+  const marker = element({}, { closest: (s) => (s === '.bubble-row' ? row : null) });
+  const thread = element({}); // the rows drawn: the marker of each run id it holds
+  thread.querySelector = (sel) => (rows.some((id) => sel === `[data-details="${id}"]`) ? marker : null);
+  const jumped = [];
+  const ctx = vm.createContext({ ...finders(thread), CSS: { escape: (s) => s }, jumpTo: (el) => { jumped.push(el); return jump(el); } });
+  vm.runInContext(`${read('bot-chat.js').match(/function showAnswered[\s\S]*?\n}\n/)[0]}\nthis.showAnswered = showAnswered;`, ctx);
+  return { ok: ctx.showAnswered(thread, runId), row, fold, md, button, jumped };
+}
+
+test('web: a tap on the quote opens the reply\'s fold and its "More", then goes to its row', () => {
+  const t = tapped('q');
+  assert.equal(t.fold.open, true, 'the fold between bots is open');
+  assert.ok(t.md.classList.contains('more'), 'the long reply is unfolded');
+  assert.equal(t.button.removed, true, 'its "More" button is gone');
+  assert.deepEqual(t.jumped, [t.row], 'the chat goes to the row and marks it');
+  assert.equal(t.ok, true);
+});
+
+test('web: a tap on a quote whose reply the chat does not draw goes nowhere', () => {
+  const t = tapped('gone');
+  assert.equal(t.ok, false);
+  assert.deepEqual(t.jumped, []);
+  assert.equal(t.fold.open, false);
+  assert.equal(t.md.classList.contains('more'), false);
+  assert.equal(t.button.removed, false);
+});
+
+test('web: the tap on a quote is wired to showAnswered with the run id it carries', () => {
+  assert.match(read('bot-chat.js'), /\$\$\('\[data-answer-of\]', thread\)\.forEach\(\(el\) => \(el\.onclick = \(\) => showAnswered\(thread, el\.dataset\.answerOf\)\)\);/);
+});
