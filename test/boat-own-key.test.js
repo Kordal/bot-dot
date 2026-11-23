@@ -183,3 +183,24 @@ test("the front door's erase, as an account is deleted, deletes its machines wit
   assert.ok(!boat.machines.has('bx_0000000d') && !boat.machines.has('bx_0000000e'));
   assert.ok(boat.seen.filter((s) => s.method === 'DELETE').length === 2 && boat.seen.filter((s) => s.method === 'DELETE').every((s) => s.key === OWN), 'with the key that made them');
 });
+
+test('another key over one that made machines is refused until the old one is removed; the same key again is only checked', async () => {
+  assert.equal((await putKey(OWN)).status, 200);
+  boat.machines.set('bx_0000000f', { key: OWN, name: 'made' });
+  await srv.stop();
+  fs.writeFileSync(file('boat-machines.json'), JSON.stringify({ '@account': { id: 'bx_0000000f', own: true } }));
+  srv = await startServer({ dir: path.dirname(data), env: { BOT_DOT_BOAT_URL: boat.url } });
+
+  const other = await putKey('boat_otherkey1234567890');
+  assert.deepEqual([other.status, other.data.machines], [409, 1], other.text);
+  assert.match(other.data.error, /Remove it first/);
+  assert.equal((await srv.api('/settings/boat-key')).data.set, true, 'the old key stays');
+  boat.seen.length = 0;
+  assert.equal((await putKey(OWN)).status, 200, 'the same key again');
+  assert.ok(boat.machines.has('bx_0000000f'), 'nothing was lost');
+
+  // Removed with its machines let go of, the other key goes in.
+  assert.equal((await srv.api('/settings/boat-key?machines=keep', { method: 'DELETE' })).status, 200);
+  assert.equal((await putKey('boat_otherkey1234567890')).status, 200);
+  assert.equal((await srv.api('/settings/boat-key', { method: 'DELETE' })).data.removed, true);
+});

@@ -378,3 +378,34 @@ test("a bot's own machine that was let go of is read for its copy the same way, 
   assert.equal(b.calls.filter((c) => c.path.endsWith('/commands')).at(-1).path, '/sandboxes/bx_aaaaaaa1/commands');
   assert.equal(b.machines.size, 1);
 });
+
+test("a replay's copy made with the own key goes off the list when the key is removed, deleted or only let go of", async (t) => {
+  keys(t, { own: OWN });
+  const b = fakeBoat();
+  const fakeFork = b.fetch;
+  const d = dir();
+  const boat = makeIn({ fetch: b.fetch }, d);
+  await boat.runShell('coder', { command: 'ls' });
+  // A copy on the list, as fork() leaves it while a replay runs.
+  fs.writeFileSync(path.join(d, 'boat-replays.json'), JSON.stringify({ bx_f0000001: { dir: '/home/user', at: new Date().toISOString(), own: true } }));
+  b.machines.set('bx_f0000001', { id: 'bx_f0000001', state: 'ready', key: OWN });
+
+  const kept = makeIn({ fetch: fakeFork }, d);
+  assert.deepEqual(kept.forksLeft(), ['bx_f0000001']);
+  await kept.dropOwn({ deleteThem: false });
+  assert.deepEqual(kept.forksLeft(), [], "off the list: with no key a sweep could never delete it, and boat.dev's own net stops it");
+  assert.ok(b.machines.has('bx_f0000001'));
+
+  fs.writeFileSync(path.join(d, 'boat-replays.json'), JSON.stringify({ bx_f0000001: { dir: '/home/user', at: new Date().toISOString(), own: true } }));
+  const gone = makeIn({ fetch: fakeFork }, d);
+  const r = await gone.dropOwn({ deleteThem: true });
+  assert.deepEqual([r.failed.length, gone.forksLeft()], [0, []]);
+  assert.ok(!b.machines.has('bx_f0000001'), 'deleted with the own key');
+
+  // One boat.dev fails to delete counts as a machine that failed: the key stays, to try again.
+  b.machines.set('bx_f0000001', { id: 'bx_f0000001', state: 'ready', key: OWN });
+  fs.writeFileSync(path.join(d, 'boat-replays.json'), JSON.stringify({ bx_f0000001: { dir: '/home/user', at: new Date().toISOString(), own: true } }));
+  const failing = makeIn({ fetch: async (url, o = {}) => (o.method === 'DELETE' ? { ok: false, status: 500, json: async () => ({ ok: false, code: 'internal' }) } : b.fetch(url, o)) }, d);
+  const f = await failing.dropOwn({ deleteThem: true });
+  assert.deepEqual([f.failed.map((x) => x.id), failing.forksLeft()], [['bx_f0000001'], ['bx_f0000001']]);
+});
