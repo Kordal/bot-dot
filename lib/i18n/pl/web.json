@@ -1905,5 +1905,7 @@
   },
   "Delete its machines on boat.dev": "Usuń jego maszyny na boat.dev",
   "Keep them": "Zostaw je",
-  "Remove your boat.dev key? Your bots then work on this machine.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować na tej maszynie."
+  "Remove your boat.dev key? Your bots then work on this machine.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować na tej maszynie.",
+  "Remove your boat.dev key? Your bots then go on with the admin's key on the External Virtual PC.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora.\n\nUtworzył na boat.dev: {n}. Można je usunąć razem z plikami albo zostawić.",
+  "Remove your boat.dev key? Your bots then go on with the admin's key on the External Virtual PC.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora."
 }

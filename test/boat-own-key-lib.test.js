@@ -104,7 +104,9 @@ test("a machine made with the machine's key goes on with it while it is up; once
   await boat.dropOwn({ deleteThem: true });
   boatLib.setOwnKey(null);
   await boat.runShell('coder', { command: 'pwd' });
-  assert.equal(b.machines.get('bx_aaaaaaa3').key, MACHINE, 'made with the machine\'s key again');
+  assert.ok(!b.machines.has('bx_aaaaaaa3'), "no new machine: the one the machine's key made before comes back, with its files");
+  assert.equal(boat.ownMachines().length, 0);
+  assert.equal(b.machines.get('bx_aaaaaaa1').key, MACHINE);
 });
 
 test("removing the key: its machines are deleted with it or only let go, and the machine's key's are not touched", async (t) => {
@@ -433,4 +435,29 @@ test("a copy reads the layers of the account's files oldest first: the machine l
 
   boat.copiedFrom('coder', false);
   assert.equal(boat.sourceLayers('coder', false), undefined, 'copied once: from the one in use from now on');
+});
+
+test("when the key that made a retired machine is in use again, it is the box's machine again: its files are not left behind", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const d = dir();
+  const clock = clocked();
+  const boat = makeIn(b, d, { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' }); // the admin's key made the account's machine, with its files
+  boatLib.setOwnKey(OWN);
+  await clock.rest(boat);
+  await boat.runShell('coder', { command: 'ls' }); // retired: a new one is made with the own key
+  assert.equal(b.machines.size, 2);
+  assert.ok('bx_aaaaaaa1' in listed(d)['@retired']);
+
+  // The owner removes the key, deleting what it made: the account's earlier machine comes back, not a third.
+  const gone = await boat.dropOwn({ deleteThem: true });
+  assert.equal(gone.deleted, 1);
+  boatLib.setOwnKey(null);
+  await boat.runShell('coder', { command: 'pwd' });
+  assert.deepEqual([...b.machines.keys()], ['bx_aaaaaaa1'], 'no new machine');
+  assert.equal(listed(d)[boatLib.ACCOUNT].id, 'bx_aaaaaaa1');
+  assert.ok(!('@retired' in listed(d)));
+  assert.equal(b.machines.get('bx_aaaaaaa1').state, 'ready', 'started again with its own key');
+  assert.deepEqual(b.keysFor('bx_aaaaaaa1'), [MACHINE]);
 });

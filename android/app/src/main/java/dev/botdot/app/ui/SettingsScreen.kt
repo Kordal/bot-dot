@@ -587,7 +587,7 @@ fun SettingsScreen(
         AlertDialog(
             onDismissRequest = { confirmRemoveBoatKey = false },
             title = { Text(tr("Remove your boat.dev key?")) },
-            text = { Text(if (made > 0) trn(made, "Your bots then work on this machine. It made {n} machine on boat.dev: delete it with its files, or keep it there.", "Your bots then work on this machine. It made {n} machines on boat.dev: delete them with their files, or keep them there.") else tr("Your bots then work on this machine.")) },
+            text = { Text(if (boatKey?.machineKey == true) { if (made > 0) trn(made, "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machine on boat.dev: delete it with its files, or keep it there.", "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machines on boat.dev: delete them with their files, or keep them there.") else tr("Your bots then go on with the admin's key on the External Virtual PC.") } else if (made > 0) trn(made, "Your bots then work on this machine. It made {n} machine on boat.dev: delete it with its files, or keep it there.", "Your bots then work on this machine. It made {n} machines on boat.dev: delete them with their files, or keep them there.") else tr("Your bots then work on this machine.")) },
             confirmButton = {
                 if (made > 0) Row {
                     TextButton(onClick = { remove("keep") }) { Text(tr("Keep them"), color = p.text) }

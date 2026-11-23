@@ -1437,6 +1437,12 @@
     "many": "Twoje boty będą wtedy pracować na tej maszynie. Klucz utworzył {n} maszyn na boat.dev: usuń je razem z plikami albo zostaw."
   },
   "Your bots then work on this machine.": "Twoje boty będą wtedy pracować na tej maszynie.",
+  "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machines on boat.dev: delete them with their files, or keep them there.": {
+    "one": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora. Klucz utworzył {n} maszynę na boat.dev: usuń ją razem z plikami albo zostaw.",
+    "few": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora. Klucz utworzył {n} maszyny na boat.dev: usuń je razem z plikami albo zostaw.",
+    "many": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora. Klucz utworzył {n} maszyn na boat.dev: usuń je razem z plikami albo zostaw."
+  },
+  "Your bots then go on with the admin's key on the External Virtual PC.": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora.",
   "Keep them": "Zostaw je",
   "Delete its machines on boat.dev": "Usuń jego maszyny na boat.dev",
   "Shared with the account's bots": "Wspólna z botami konta",

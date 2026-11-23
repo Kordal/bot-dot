@@ -576,10 +576,13 @@ async function loadComputerCard(root) {
       // What it made at boat.dev goes first, or stays there (ADR 263): the owner says which.
       let how = null;
       if (key.machines) {
-        const a = await askWhich(tr('Remove your boat.dev key? Your bots then work on this machine.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.', { n: trn(key.machines, '{n} machine', '{n} machines') }), tr('Delete its machines on boat.dev'), tr('Keep them'));
+        const text = key.machineKey
+          ? tr("Remove your boat.dev key? Your bots then go on with the admin's key on the External Virtual PC.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.", { n: trn(key.machines, '{n} machine', '{n} machines') })
+          : tr('Remove your boat.dev key? Your bots then work on this machine.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.', { n: trn(key.machines, '{n} machine', '{n} machines') });
+        const a = await askWhich(text, tr('Delete its machines on boat.dev'), tr('Keep them'));
         if (!a) return;
         how = a === 'yes' ? 'delete' : 'keep';
-      } else if (!(await askFirst(tr('Remove your boat.dev key? Your bots then work on this machine.'), tr('Remove')))) return;
+      } else if (!(await askFirst(key.machineKey ? tr("Remove your boat.dev key? Your bots then go on with the admin's key on the External Virtual PC.") : tr('Remove your boat.dev key? Your bots then work on this machine.'), tr('Remove')))) return;
       remove.disabled = true;
       try { await api(`/settings/boat-key${how ? `?machines=${how}` : ''}`, { method: 'DELETE' }); toast(tr('Removed')); await paint(); refresh(); } catch (err) { note(err.message, true); remove.disabled = false; }
     };
