@@ -91,3 +91,15 @@ test('png.cjs saves a picture with or without alpha and keeps its pixels', () =>
   const icon = fs.readFileSync(path.join(DIR, 'graphics', 'icon-512.png'));
   assert.deepEqual(png.decode(png.encode(png.decode(icon), false)).rgba, png.decode(icon).rgba);
 });
+
+test('png.cjs check names what Play would refuse, by the kind of picture', () => {
+  const at = (width, height, colorType, alpha = colorType === 6) => ({ width, height, bitDepth: 8, colorType, alpha });
+  assert.deepEqual(png.problems('graphics/icon-512.png', at(512, 512, 6)), []);
+  assert.match(png.problems('graphics/icon-512.png', at(512, 512, 2)).join(), /32-bit/);
+  assert.deepEqual(png.problems('graphics/feature-1024x500.png', at(1024, 500, 2)), []);
+  assert.match(png.problems('graphics/feature-1024x500-pl.png', at(1024, 500, 6)).join(), /no alpha/);
+  assert.deepEqual(png.problems('screenshots/en/1-home.png', at(1080, 1920, 2)), []);
+  assert.match(png.problems('screenshots/en/1-home.png', at(1080, 2400, 2)).join(), /9:16/);
+  assert.match(png.problems('screenshots/en/1-home.png', at(2250, 4000, 2)).join(), /320 to 3840/);
+  assert.match(png.problems('screenshots/raw/1-home.png', at(1080, 1920, 6)).join(), /no alpha/);
+});

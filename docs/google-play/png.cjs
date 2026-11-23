@@ -1,6 +1,7 @@
 // The PNG facts Play checks (size, and whether it has an alpha channel), and a re-save with or without alpha, with no
 // dependency: the feature graphic and the screenshots must have no alpha, and the icon must be 32-bit.
-// node docs/google-play/png.cjs check <file.png>...           prints each file's size and kind, fails on a bad PNG
+// node docs/google-play/png.cjs check <file.png>...           prints each file's size and kind, and fails on one Play
+//                                                              would refuse (by its name: icon-512, feature-*, else a screenshot)
 // node docs/google-play/png.cjs rgb|rgba <in.png> [<out.png>]  re-saves 8-bit RGB (24-bit) or RGBA (32-bit)
 const fs = require('node:fs');
 const zlib = require('node:zlib');
@@ -83,18 +84,41 @@ function encode({ width, height, rgba }, withAlpha) {
   return Buffer.concat([SIG, chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]);
 }
 
+/** What Play would refuse in a picture, by its kind (README.md's checklist): [] when nothing. */
+function problems(file, i) {
+  const name = file.split(/[\\/]/).pop();
+  const out = [];
+  if (name.startsWith('icon-')) {
+    if (i.width !== 512 || i.height !== 512) out.push('the icon must be 512 x 512');
+    if (i.bitDepth !== 8 || i.colorType !== 6) out.push('the icon must be a 32-bit PNG');
+  } else if (name.startsWith('feature-')) {
+    if (i.width !== 1024 || i.height !== 500) out.push('a feature graphic must be 1024 x 500');
+    if (i.alpha) out.push('a feature graphic must have no alpha');
+  } else {
+    const [s, l] = [Math.min(i.width, i.height), Math.max(i.width, i.height)];
+    if (s * 16 !== l * 9) out.push('a screenshot must be 9:16 or 16:9');
+    if (s < 320 || l > 3840) out.push('a screenshot\'s sides must be 320 to 3840 pixels');
+    if (i.alpha) out.push('a screenshot must have no alpha');
+  }
+  return out;
+}
+
 /** Re-saves a PNG file as RGB or RGBA. */
 const resave = (from, to, withAlpha) => fs.writeFileSync(to || from, encode(decode(fs.readFileSync(from)), withAlpha));
 
-module.exports = { info, decode, encode, resave };
+module.exports = { info, decode, encode, resave, problems };
 
 if (require.main === module) {
   const [cmd, ...files] = process.argv.slice(2);
   if (cmd === 'check') {
+    let bad = 0;
     for (const f of files) {
       const i = info(fs.readFileSync(f));
-      console.log(`${f}: ${i.width} x ${i.height}, ${i.bitDepth * CHANNELS[i.colorType]}-bit ${i.alpha ? 'with' : 'no'} alpha`);
+      const wrong = problems(f, i);
+      bad += wrong.length;
+      console.log(`${f}: ${i.width} x ${i.height}, ${i.bitDepth * CHANNELS[i.colorType]}-bit ${i.alpha ? 'with' : 'no'} alpha${wrong.length ? `  REFUSED: ${wrong.join('; ')}` : ''}`);
     }
+    if (bad) process.exit(1);
   } else if (cmd === 'rgb' || cmd === 'rgba') resave(files[0], files[1], cmd === 'rgba');
   else { console.error('usage: png.cjs check <file>... | rgb|rgba <in> [<out>]'); process.exit(2); }
 }

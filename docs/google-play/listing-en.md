@@ -16,7 +16,7 @@ botdot
 A team of AI bots you run by chat, on your own server or hosted for you
 ```
 
-## Full description (4000): 2100
+## Full description (4000): 2080
 
 ```
 botdot is the Android app for botdot, open source software that gives you a team of AI bots you run by chat.
@@ -30,7 +30,7 @@ What you can do in the app
 • Groups: put two to six bots in one chat. Write once, and they answer and hand the work on to each other.
 • Projects: one goal, a team of bots with a lead, a team chat, goals you can count and a calendar of to-dos.
 • Pages: reports a bot keeps up to date on a schedule, with live numbers and charts.
-• A computer for your bots: a desktop with a screen and a browser, on your server or on an external virtual PC, and a bot may have one of its own.
+• The bots' computer: each bot that uses it has its own screen and browser there, on your server or on an external virtual PC.
 • Notifications when a bot replies, finishes or needs you, sent straight from your botdot, with no push service in between.
 
 You need a botdot account

@@ -37,7 +37,7 @@ How the app gets from this repository to Google Play ([ADR 173](../adr/173-the-a
 
 ## Store listing checklist
 
-In the order Play Console shows the fields. Every picture is checked by `node docs/google-play/png.cjs check docs/google-play/graphics/*.png docs/google-play/screenshots/*/*.png` (each side within Play's limits, no alpha where Play refuses it) and by `node test/google-play.test.js`.
+In the order Play Console shows the fields. `node docs/google-play/png.cjs check docs/google-play/graphics/*.png docs/google-play/screenshots/*/*.png` prints each picture's size and kind and exits 1, saying why, on one Play would refuse (the icon not 512 × 512 32-bit; a feature graphic not 1024 × 500 or with alpha; a screenshot not 9:16 or 16:9, a side outside 320 to 3840, or with alpha). `node test/google-play.test.js` checks the same, and the listing's lengths.
 
 **Grow users → Store presence → Main store listing** (English, en-US, the default language)
 
@@ -68,7 +68,7 @@ In the order Play Console shows the fields. Every picture is checked by `node do
 1. **Screenshots:** GitHub → Actions → **Play screenshots** → Run workflow, on the branch with the change. The run stages a botdot with demo data (`scene.cjs`: made-up bots, mail and contractors, no real person), starts the app on an emulator and pictures eight screens (`drive.cjs`). Download its **play-screenshots** artifact into `screenshots/raw/`.
 2. **Captions:** `node docs/google-play/screenshots/caption.cjs` writes `en/` and `pl/` from `raw/`; the captions are in that file.
 3. **Icon and feature graphics:** `node docs/google-play/graphics/make.cjs` (the feature graphics use `raw/1-home.png`).
-4. Check them with `png.cjs check`, and look at each one.
+4. Check them with `png.cjs check` (it fails on a picture Play would refuse), and look at each one.
 
 ## Reviewers
 
