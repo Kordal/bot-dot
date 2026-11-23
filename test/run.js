@@ -2,6 +2,8 @@
 // npm test: the tests, then a check that they left no stand-in Claude (fixtures/fake-claude.js) of this
 // checkout running. One that outlives its test server goes on for hours, and they add up run after run.
 // Those already there before the tests began (an earlier run's) are not counted. Arguments go to node --test: options before the files, files after them.
+// BOT_DOT_SKIP_INSTALLER_TESTS=1 leaves out the installer's test files (test/installer*.test.js, two thirds of the
+// time of all the tests): tests.yml sets it on a pull request that changes nothing the installer reads. Unset, everything runs.
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -40,6 +42,26 @@ function sweepScratch(root = os.tmpdir(), now = Date.now()) {
   return removed;
 }
 
+// The installer's test files (install.sh on a stand-in machine): what BOT_DOT_SKIP_INSTALLER_TESTS leaves out.
+const INSTALLER_TEST = /^installer[^/]*\.test\.js$/;
+const skipsInstaller = (env = process.env) => !!env.BOT_DOT_SKIP_INSTALLER_TESTS && env.BOT_DOT_SKIP_INSTALLER_TESTS !== '0';
+
+// The files node --test is given for the two folders of tests: the globs themselves, or, when the installer's are
+// left out, the files they match without those. → { files, left } (left: how many were left out).
+function testFiles(env = process.env, root = ROOT) {
+  if (!skipsInstaller(env)) return { files: ['test/*.test.js', 'tests/*.test.js'], left: 0 };
+  const files = [];
+  let left = 0;
+  for (const dir of ['test', 'tests']) {
+    for (const name of fs.readdirSync(path.join(root, dir)).sort()) {
+      if (!name.endsWith('.test.js')) continue;
+      if (dir === 'test' && INSTALLER_TEST.test(name)) left++;
+      else files.push(`${dir}/${name}`);
+    }
+  }
+  return { files, left };
+}
+
 async function main() {
   sweepScratch();
   let before;
@@ -50,7 +72,9 @@ async function main() {
   const args = process.argv.slice(2);
   const options = args.filter((a) => a.startsWith('-'));
   const files = args.filter((a) => !a.startsWith('-'));
-  const tests = spawn(process.execPath, ['--test', `--test-concurrency=${concurrency}`, ...options, 'test/*.test.js', 'tests/*.test.js', ...files], { cwd: ROOT, stdio: 'inherit' });
+  const own = testFiles();
+  if (own.left) console.log(`The installer tests (${own.left} files, test/installer*.test.js) are left out: BOT_DOT_SKIP_INSTALLER_TESTS is set, as tests.yml sets it for a pull request that changes nothing the installer reads.`);
+  const tests = spawn(process.execPath, ['--test', `--test-concurrency=${concurrency}`, ...options, ...own.files, ...files], { cwd: ROOT, stdio: 'inherit' });
   const code = await new Promise((resolve) => { tests.on('error', () => resolve(1)); tests.on('exit', (c) => resolve(c ?? 1)); });
   if (!before) process.exit(code);
   // One whose server has just gone ends within a moment by itself; what is still there after that was left.
@@ -69,5 +93,5 @@ async function main() {
   process.exit(code);
 }
 
-module.exports = { fakes, sweepScratch, STALE_MS, SCRATCH_PREFIX };
+module.exports = { fakes, sweepScratch, testFiles, skipsInstaller, STALE_MS, SCRATCH_PREFIX };
 if (require.main === module) main();
