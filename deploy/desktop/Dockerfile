@@ -103,9 +103,16 @@ RUN useradd --create-home --shell /bin/bash box \
 # fpgen/data, read-only to the browser user like the rest). So bumping the launcher bumps the browser.
 # indexed-zstd, which fpgen needs, has arm64 wheels since 1.7.2. certifi 2026.10.19 fixes GHSA-6q48-6c7w-9gw2
 # in what requests brings.
-RUN python3 -m venv /opt/camoufox \
+# `fetch` asks api.github.com for the release, and GitHub's machines share their addresses, so without a login that
+# call was refused at random ("rate limit exceeded"). images.yml gives the build its own token as the secret
+# github_token, which camoufox reads from GITHUB_TOKEN: only for this one command, in a subshell, and as a secret
+# mount, so it is in no layer, build argument or image variable. The secret is optional: a build without it
+# (botdot's own, on the owner's machine) fetches as before, and an empty token is never sent.
+RUN --mount=type=secret,id=github_token,required=false \
+ python3 -m venv /opt/camoufox \
  && /opt/camoufox/bin/pip install --no-cache-dir 'camoufox[geoip]==0.5.9' 'certifi==2026.10.23' \
- && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch \
+ && ( if [ -s /run/secrets/github_token ]; then GITHUB_TOKEN="$(cat /run/secrets/github_token)"; export GITHUB_TOKEN; fi; \
+      XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -m camoufox fetch ) \
  # Fail here, not at the first launch, if the browser or the fingerprint model is missing.
  && XDG_CACHE_HOME=/opt/camoufox-cache /opt/camoufox/bin/python -c "from camoufox.multiversion import get_active_path; from camoufox.fpgen_model import is_pinned; import sys; sys.exit(0 if get_active_path() and is_pinned() else \"Camoufox was not installed\")" \
  && chmod -R a+rX,go-w /opt/camoufox-cache \
