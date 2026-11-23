@@ -394,16 +394,18 @@ const choicesHTML = (choices, yes = -1, color = '', of = '', place = null) => {
   const row = `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${quick ? ` data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}"` : ''}${away || (of && answered.get(of) === 'sending') ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}${x}</div>`;
   return away ? row + `<div class="choices-undo" data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}">${tr('Answers hidden')} · <button type="button" data-putback>${tr('Undo')}</button></div>` : row;
 };
-// Put the answers under a reply away, or bring them back: the page at once, the server after it (a failed save brings
-// the page back as it was). `row` is the .choices row, or the undo line.
+// Put the answers under a reply away, or bring them back: the page at once, the server after it. A save that fails
+// puts the page back as it was before the tap: a failed ×, the row; a failed Undo, the row away with its line again.
 async function putChoices(root, key, url, dismissed) {
   const rows = () => $$(`.choices[data-quick="${CSS.escape(key)}"]`, root);
   const line = () => $$(`.choices-undo[data-quick="${CSS.escape(key)}"]`, root);
-  clearTimeout(dismissUndo.get(key));
-  dismissUndo.delete(key);
-  choicesPut.set(key, dismissed);
-  if (choicesPut.size > 500) { choicesPut.clear(); choicesPut.set(key, dismissed); }
-  if (dismissed) {
+  const show = (away) => {
+    clearTimeout(dismissUndo.get(key));
+    dismissUndo.delete(key);
+    choicesPut.set(key, away);
+    if (choicesPut.size > 500) { choicesPut.clear(); choicesPut.set(key, away); }
+    line().forEach((l) => l.remove());
+    if (!away) { rows().forEach((r) => { r.hidden = false; }); return; }
     rows().forEach((r) => {
       const undo = document.createElement('div');
       undo.className = 'choices-undo';
@@ -415,19 +417,12 @@ async function putChoices(root, key, url, dismissed) {
       r.hidden = true;
     });
     dismissUndo.set(key, setTimeout(() => { dismissUndo.delete(key); line().forEach((l) => l.remove()); }, DISMISS_UNDO_MS));
-  } else {
-    line().forEach((l) => l.remove());
-    rows().forEach((r) => { r.hidden = false; });
-  }
+  };
+  show(dismissed);
   try {
     await api(url, { method: 'PUT', body: { dismissed } });
   } catch {
-    // Not saved: as it was. The row stands again (or goes again), and the line with it.
-    clearTimeout(dismissUndo.get(key));
-    dismissUndo.delete(key);
-    choicesPut.delete(key);
-    line().forEach((l) => l.remove());
-    rows().forEach((r) => { r.hidden = false; });
+    show(!dismissed);
   }
 }
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question, and under a box

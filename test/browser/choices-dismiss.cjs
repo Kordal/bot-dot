@@ -77,6 +77,19 @@ const { startServer, makeBot, seedRuns } = require('../helpers');
       assert.equal(await undo.count(), 0, 'the line goes with Undo');
       assert.equal(await flag(false), false, `${where.name}: Undo clears the flag`);
 
+      // An Undo that is not saved leaves the answers away, with the line again; tried once more it goes through.
+      await x.click();
+      await undo.waitFor();
+      assert.equal(await flag(true), true);
+      await page.route('**/choices-dismissed', (r) => r.abort('connectionrefused'));
+      await undo.locator('[data-putback]').click();
+      await undo.waitFor();
+      assert.equal(await row.first().isVisible(), false, `${where.name}: a failed Undo keeps the answers away`);
+      await page.unroute('**/choices-dismissed');
+      await undo.locator('[data-putback]').click();
+      await row.first().waitFor({ state: 'visible' });
+      assert.equal(await flag(false), false, `${where.name}: Undo tried again clears the flag`);
+
       // The line goes by itself after a few seconds, and the answers stay away.
       await x.click();
       await undo.waitFor();
