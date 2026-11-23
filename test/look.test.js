@@ -15,13 +15,13 @@ const at = (iso) => new Date(iso);
 // The looks of a botdot server started at `started`, with a clock the test sets.
 function make({ started = '2026-10-05T06:00:00Z', dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-look-')), answer = 'Your backup check never finished. Want me to run it again?' } = {}) {
   const w = {
-    dir, clock: at(started), busy: false, answer, item: null, woken: [], wrote: 0, reasons: [], posted: [], ids: [], offered: [], inputs: [], kinds: [], apps: [], runs: 0, log: [],
+    dir, clock: at(started), busy: false, answer, item: null, woken: [], wrote: 0, reasons: [], posted: [], projects: [{ id: 'p1', name: 'Qwotz', color: '#16a34a' }], ids: [], offered: [], inputs: [], kinds: [], apps: [], runs: 0, log: [],
     settings: { unaskedPerDay: 3, quietHours: { start: 22, end: 7, timeZone: 'UTC' } },
   };
   w.looks = look.create({
     dataDir: dir, settings: { get: () => w.settings }, busy: () => w.busy, now: () => w.clock, log: (l) => w.log.push(l),
     input: ({ raised, kind, reason }) => { w.inputs.push(raised); w.kinds.push(kind); w.reasons.push(reason?.key || null); return { system: 's', prompt: 'p' }; },
-    reads: () => w.apps,
+    reads: () => w.apps, projectNamed: (n) => w.projects.find((p) => p.id === n || p.name.toLowerCase() === String(n).toLowerCase()) || null,
     noticed: async () => (w.item && !w.woken.includes(w.item.key) ? w.item : null), woke: (k) => w.woken.push(k), ownerWroteAt: () => w.wrote,
     run: async () => { w.runs++; if (w.answer instanceof Error) throw w.answer; return typeof w.answer === 'function' ? w.answer() : w.answer; },
     post: (text, id, asked) => { w.posted.push(text); w.ids.push(id); w.offered.push(asked); return 'chat-1'; },
@@ -519,4 +519,43 @@ test("the brief names the cards that wait in Needs you, since they rang nothing 
   assert.match(brief, /Cards that wait for the owner's OK in Needs you[^\n]*\n- Scout: Asks to install a skill \(since 2026-10-21 19:04\)\n- The Chief: Asks to install gh \(since 2026-10-21 20:00\)/);
   assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC', kind: 'look', cards }), /Cards that wait/);
   assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC', kind: 'brief' }), /Cards that wait/);
+});
+
+test('a last line [[project: …]] is taken out of the text and gives a label when it names one of the owner\'s projects (ADR 260)', async () => {
+  const w = make({ answer: 'Qwotz: Google Play closes tomorrow. Send the build?\n[[choices: Yes | Not now]]\n[[project: qwotz]]' });
+  assert.deepEqual(await w.tickAt('2026-10-05T09:30:00Z'), { looked: true, posted: true, chatId: 'chat-1' });
+  assert.deepEqual(w.posted, ['Qwotz: Google Play closes tomorrow. Send the build?']);
+  assert.deepEqual(w.offered[0], { choices: ['Yes', 'Not now'], questions: null, about: { project: { id: 'p1', name: 'Qwotz', color: '#16a34a' } } });
+  assert.equal(w.looks.raised()[0].text, 'Qwotz: Google Play closes tomorrow. Send the build?', 'the record has no line either');
+  // By id too; the line comes out wherever it stands.
+  w.answer = 'Qwotz: the build passed.\n[[project: p1]]\n\nNothing else.';
+  await w.tickAt('2026-10-05T11:10:00Z');
+  assert.equal(w.posted[1], 'Qwotz: the build passed.\n\nNothing else.');
+  assert.deepEqual(w.offered[1].about, { project: { id: 'p1', name: 'Qwotz', color: '#16a34a' } });
+});
+
+test('a project the owner has not is no label, and no line shows in the text; a look over several projects has none (ADR 260)', async () => {
+  const w = make({ answer: 'Nowhere: something is late.\n[[project: Nowhere]]' });
+  await w.tickAt('2026-10-05T09:30:00Z');
+  assert.deepEqual(w.posted, ['Nowhere: something is late.']);
+  assert.equal('about' in w.offered[0], false);
+  w.answer = 'Qwotz: a. Other: b.';
+  await w.tickAt('2026-10-05T11:10:00Z');
+  assert.equal('about' in w.offered[1], false);
+  w.answer = '[[project: Qwotz]]';
+  assert.deepEqual(await w.tickAt('2026-10-05T12:50:00Z'), { looked: true, posted: false }, 'a line alone is no message');
+  assert.deepEqual(look.splitProject('One.\n[[ Project : A ]]\n[[project: B]]'), { text: 'One.', project: 'B' });
+  assert.deepEqual(look.splitProject('Plain.'), { text: 'Plain.', project: null });
+});
+
+test('every kind of look is told to start a line about one project with its name, and the line that labels the message (ADR 260)', () => {
+  for (const kind of look.KINDS) {
+    const system = look.systemPrompt({ kind });
+    assert.match(system, /A line about one project starts with that project's name \("Qwotz: Google Play closes tomorrow"\)/, kind);
+    assert.match(system, /end it with one more last line \[\[project: its name\]\], a name from "The owner's projects"/, kind);
+  }
+  for (const kind of ['brief', 'wrap']) assert.match(look.systemPrompt({ kind }), /Each line names its project first/, kind);
+  const now = at('2026-10-22T08:00:00Z');
+  assert.match(look.prompt({ now, timeZone: 'UTC', projectNames: ['Qwotz', 'Fernhill'] }), /The owner's projects \(names, for the \[\[project: …\]\] line\):\n- Qwotz\n- Fernhill/);
+  assert.doesNotMatch(look.prompt({ now, timeZone: 'UTC' }), /for the \[\[project/);
 });

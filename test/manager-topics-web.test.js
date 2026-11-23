@@ -35,3 +35,14 @@ test('web: the owner\'s message, the Chief\'s reply and a bot\'s report draw it'
   assert.match(src, /\$\{m\.pending \? '' : globalThis\.aboutHTML\?\.\(m\) \|\| ''\}/);
   assert.match(src, new RegExp(String.raw`<div class="stack from-bot-msg">\n    ` + about));
 });
+
+test('web: a message about a project only (ADR 260) shows its name in its colour, and opens the project', () => {
+  const html = aboutHTML({ about: { project: { id: 'p1', name: 'Qwotz <app>', color: '#16a34a' } } });
+  assert.match(html, /data-about-project="p1"/);
+  assert.match(html, /--c:#16a34a/);
+  assert.match(html, /<span class="about-team">Qwotz &lt;app&gt;<\/span>/);
+  assert.doesNotMatch(html, /data-about-team|about-sep/);
+  assert.match(aboutHTML({ about: { project: { id: 'p1', name: 'X', color: 'red;background:url(x)' } } }), /--c:var\(--muted\)/);
+  assert.equal(aboutHTML({ about: { project: { id: 'p1' } } }), '', 'no name, no line');
+  assert.match(read('chief.js'), /data-about-project\]', thread\)\.forEach\(\(b\) => \(b\.onclick = \(\) => \{ if \(b\.dataset\.aboutProject\) Company\.enter\(/);
+});

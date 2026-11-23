@@ -79,7 +79,7 @@ import kotlinx.coroutines.launch
 
 /** The Chief of Staff: a chat that manages your bots. chatId "latest" opens the newest chat. */
 @Composable
-fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedText: String, onSettings: () -> Unit, onNeeds: () -> Unit, onBot: (String) -> Unit, onScreen: (String) -> Unit, onSkills: () -> Unit, onSignIn: () -> Unit = {}, onFiles: () -> Unit = {}, onGroup: (String) -> Unit = {}, onBack: () -> Unit) {
+fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedText: String, onSettings: () -> Unit, onNeeds: () -> Unit, onBot: (String) -> Unit, onScreen: (String) -> Unit, onSkills: () -> Unit, onSignIn: () -> Unit = {}, onFiles: () -> Unit = {}, onGroup: (String) -> Unit = {}, onProject: (String) -> Unit = {}, onBack: () -> Unit) {
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }
@@ -278,7 +278,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                             val approval = remember { messageKey() } // one key for the plan's Approve while it is shown
                             // What the owner steered into this reply while the Chief worked (ADR 040), before it, in the order read.
                             if (m.role == "chief") m.steered.forEach { SteeredMessage(it) }
-                            if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam) }
+                            if (!m.pending) m.about?.let { AboutLine(it, mine = m.role != "chief", onTeam = openTeam, onProject = onProject) }
                             val cardOpen = i == cardAt
                             Message(shownNewestFirst[i], if (i == 0 && busy) activity else emptyList(), chips, lineSaysIt = stays, draft = if (i == 0) vm.draft else "",
                                 plan = m.plan?.takeIf { chat?.let { c -> PlanView.chiefId(c.id, m) } != planView?.id },
@@ -391,21 +391,26 @@ private fun Thumbs(rating: String?, onTap: (String) -> Unit) {
 }
 
 /** "Message from Fleet Doctor": the words, then the bot with its small mark. */
-/** What a message is about (ADR 223): the team in its colour, the project before it where the server names one. */
+/**
+ * What a message is about (ADR 223): the team in its colour, the project before it where the server names one. With a
+ * project and no team (ADR 260) its name in its colour: a tap opens the project.
+ */
 @Composable
-internal fun AboutLine(about: dev.botdot.app.data.MessageAbout, mine: Boolean, onTeam: (String) -> Unit) {
+internal fun AboutLine(about: dev.botdot.app.data.MessageAbout, mine: Boolean, onTeam: (String) -> Unit, onProject: (String) -> Unit = {}) {
     val p = LocalPaper.current
-    val team = about.team?.takeIf { it.name.isNotBlank() } ?: return
-    val c = parseColor(team.color, p.muted)
+    val team = about.team?.takeIf { it.name.isNotBlank() }
+    val only = if (team == null) about.project?.takeIf { it.name.isNotBlank() } else null
+    if (team == null && only == null) return
+    val c = parseColor(team?.color ?: only?.color, p.muted)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        Row(Modifier.clip(Radius.card).clickable { onTeam(team.id) }.padding(horizontal = Space.s4, vertical = 2.dp),
+        Row(Modifier.clip(Radius.card).clickable { if (team != null) onTeam(team.id) else if (only != null) onProject(only.id) }.padding(horizontal = Space.s4, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             androidx.compose.foundation.layout.Box(Modifier.size(14.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(4.dp)).background(c))
-            about.project?.name?.takeIf { it.isNotBlank() }?.let {
+            about.project?.takeIf { team != null }?.name?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = p.muted, fontSize = Type.s12, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                 Text("›", color = p.faint, fontSize = Type.s12)
             }
-            Text(team.name, color = c, fontSize = Type.s12, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(team?.name ?: only?.name.orEmpty(), color = c, fontSize = Type.s12, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         }
     }
 }
