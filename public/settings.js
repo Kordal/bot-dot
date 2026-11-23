@@ -696,16 +696,16 @@ const signOutCardHTML = () => (state.features.includes('accounts') ? `
 
 async function signOutEverywhere() {
   if (!(await askFirst(tr('Sign out everywhere? Every browser and app signed in to your account, this one too, signs in again with your passkey.'), tr('Sign out everywhere')))) return;
-  await endSessions('/sign-out-everywhere');
+  await signOutVia('/sign-out-everywhere');
 }
 
 // Only this session ends; the account's other browsers and apps stay signed in. Nothing is lost, the passkey signs in.
 async function signOutHere() {
   if (!(await askFirst(tr('Sign out of this device? Your other browsers and apps stay signed in.'), tr('Sign out'), { danger: false }))) return;
-  await endSessions('/sign-out');
+  await signOutVia('/sign-out');
 }
 
-async function endSessions(route) {
+async function signOutVia(route) {
   let res;
   // The front door's own route, not botdot's: no botdot server, and so no Chief or bot, reaches a session.
   try { res = await fetch(route, { method: 'POST', headers: { 'X-Bot-Dot': '1' } }); } catch { toast(tr("Can't reach botdot."), true); return; }

@@ -30,9 +30,9 @@ class SettingsFoldTest {
         assertTrue("the first is the primary one", "confirmSignOutHere = true" in fold && "ButtonDefaults.buttonColors(containerColor = p.ink" in fold.substring(0, everywhere))
         assertTrue("the second keeps its own question", "confirmSignOut = true" in fold)
         // Each asks first and ends what its words say, through the front door's own route (Api.signOut and Api.signOutEverywhere).
-        val here_dialog = settings.substringAfter("if (confirmSignOutHere) AlertDialog(").substringBefore("if (confirmSignOut) AlertDialog(")
-        assertTrue("api!!.signOut()" in here_dialog && "signOutEverywhere" !in here_dialog)
-        assertTrue("Cancel keeps the session", "confirmSignOutHere = false" in here_dialog && "Cancel" in here_dialog)
+        val hereDialog = settings.substringAfter("if (confirmSignOutHere) AlertDialog(").substringBefore("if (confirmSignOut) AlertDialog(")
+        assertTrue("api!!.signOut()" in hereDialog && "signOutEverywhere" !in hereDialog)
+        assertTrue("Cancel keeps the session", "confirmSignOutHere = false" in hereDialog && "Cancel" in hereDialog)
         assertTrue("signOutEverywhere" in settings.substringAfter("if (confirmSignOut) AlertDialog(").substringBefore("if (confirmDelete)"))
     }
 }
