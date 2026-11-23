@@ -1,0 +1,28 @@
+# JDK 21 for the iOS jobs on GitHub's Mac. The macOS image already carries Temurin 21 (JAVA_HOME_21_arm64, and
+# JAVA_HOME), but in a folder actions/setup-java does not match (arm64, where it looks for aarch64), so setup-java
+# downloaded Temurin again on every run (68 s of download, 100 s in all). This uses the image's JDK and falls back
+# to setup-java only if a newer image drops it.
+name: JDK 21
+description: Temurin 21 as JAVA_HOME, from the runner image when it has one
+runs:
+  using: composite
+  steps:
+    - name: JDK 21 from the runner image
+      id: image
+      shell: bash
+      run: |
+        home="${JAVA_HOME_21_arm64:-${JAVA_HOME_21_X64:-}}"
+        if [ -n "$home" ] && "$home/bin/java" -version 2>&1 | grep -q '"21\.'; then
+          echo "JAVA_HOME=$home" >> "$GITHUB_ENV"
+          echo "$home/bin" >> "$GITHUB_PATH"
+          echo "found=true" >> "$GITHUB_OUTPUT"
+          "$home/bin/java" -version
+        else
+          echo "The runner image has no JDK 21 (JAVA_HOME_21_arm64 is '${JAVA_HOME_21_arm64:-}'): downloading Temurin 21."
+          echo "found=false" >> "$GITHUB_OUTPUT"
+        fi
+    - if: steps.image.outputs.found != 'true'
+      uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+      with:
+        distribution: temurin
+        java-version: 21
