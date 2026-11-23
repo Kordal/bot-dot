@@ -10,3 +10,5 @@ One decision per file, written in the change that made the choice:
 A file of its own means two changes never edit the same lines, so decisions never cause a merge conflict. To change a decision, add a new file that says what it replaces; leave the old one as it was.
 
 Find one with `ls docs/decisions` (the names are in date order) or `grep -ril <word> docs/decisions`.
+
+
