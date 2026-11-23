@@ -75,16 +75,27 @@ test('a changed proxy applies from the next command, and a removed one is taken 
 test("a proxy that can't be handed over stops the command, and the bot is told where the owner tests it", async () => {
   useAccountProxy(add('PL', 'pl.example'));
   const bot = boatBot('Stopped Boat');
-  answer = { ok: false, error: 'nothing answers at 127.0.0.1:47300 on your machine' };
+  answer = { ok: false, proxy: true, error: 'nothing answers at 127.0.0.1:47300 on your machine' };
   await assert.rejects(B.commandProxy(bot.id), (e) => {
     assert.match(e.message, /its proxy PL couldn't be set \(nothing answers at 127\.0\.0\.1:47300 on your machine\), so nothing went out directly/);
     assert.match(e.message, /Tell the owner: they can test it in Settings → Proxy\./);
     assert.ok(!e.message.includes('pw-PL') && !e.message.includes('kordal'), 'no login in it');
     return true;
   });
-  // A machine that did not answer at all is no different.
+});
+
+test("a machine that can't take the proxy is said as the machine's fault, and sends the owner to no proxy test", async () => {
+  useAccountProxy(add('PL', 'pl.example'));
+  const bot = boatBot('Down Boat');
+  // boat.dev can't start the machine: the proxy is fine, and a test of it would pass.
+  answer = { ok: false, error: 'boat.dev is down' };
+  await assert.rejects(B.commandProxy(bot.id), (e) => {
+    assert.match(e.message, /the External Virtual PC wasn't ready to take its proxy PL \(boat\.dev is down\), so this did not run and nothing went out directly\./);
+    assert.doesNotMatch(e.message, /Settings → Proxy/);
+    return true;
+  });
   answer = () => { throw new Error('boat.dev is down'); };
-  await assert.rejects(B.commandProxy(bot.id), /boat\.dev is down.*Settings → Proxy/);
+  await assert.rejects(B.commandProxy(bot.id), (e) => /boat\.dev is down/.test(e.message) && !/Settings → Proxy/.test(e.message));
 });
 
 test("a boat bot's commands get their proxy as each starts, not with its computer: starting it hands over nothing", async () => {

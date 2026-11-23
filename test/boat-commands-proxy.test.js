@@ -138,9 +138,12 @@ test("a forwarder that doesn't answer, or a bridge that refuses the proxy, is sa
   const dead = machine(t, { forwarderDead: true });
   const r = await dead.boat.setProxy('coder', PROXY);
   assert.equal(r.ok, false);
+  assert.equal(r.proxy, true, "the proxy's own failure: the owner may test it");
   assert.match(r.error, /nothing answers at 127\.0\.0\.1:47300/);
   const refused = machine(t, { bridgeRefuses: true });
-  assert.match((await refused.boat.setProxy('coder', PROXY)).error, /a proxy has a type/);
+  const noProxy = await refused.boat.setProxy('coder', PROXY);
+  assert.match(noProxy.error, /a proxy has a type/);
+  assert.equal(noProxy.proxy, true);
   // Not remembered: once it answers, the next command hands it over again.
   dead.b.box.forwarder = false;
   assert.equal((await dead.boat.setProxy('coder', PROXY)).ok, false);
@@ -151,6 +154,7 @@ test("a machine that boat.dev can't start can't take the proxy, and says why", a
   const r = await boat.setProxy('coder', PROXY);
   assert.equal(r.ok, false);
   assert.ok(r.error);
+  assert.notEqual(r.proxy, true, "the machine's fault, not the proxy's: a test of the proxy would not help");
 });
 
 test('the kit is waited for: a machine without it gets it first, then the bridge alone', async (t) => {
