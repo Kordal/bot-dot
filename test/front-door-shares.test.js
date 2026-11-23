@@ -197,11 +197,17 @@ test('the admin page script draws a share and a use as text, and an account neve
   }
 });
 
-test("the default RAM is half the machine's, at least 5 GB, once root's step measured it (#126)", () => {
+test("the default RAM is half the machine's, at least 5 GB, and never more than the machine less its 2 GB reserve, once root's step measured it (#126, #1557)", () => {
   const GiB = 2 ** 30;
   assert.equal(store.defaultRam(null), store.DEFAULT_SHARE.ram, 'unknown: the fixed default');
   assert.equal(store.defaultRam(15.6 * GiB), 8, 'a 16 GB machine (as /proc/meminfo has it)');
-  assert.equal(store.defaultRam(4 * GiB), 5, 'never below the fixed default');
+  assert.equal(store.defaultRam(8 * GiB), 5, 'an 8 GB machine keeps the fixed default');
+  assert.equal(store.defaultRam(7.6 * GiB), 5, 'an 8 GB machine, as /proc/meminfo has it');
+  assert.equal(store.defaultRam(7 * GiB), 5, '7 GB leaves 5 GB beside the reserve');
+  assert.equal(store.defaultRam(6 * GiB), 4, 'the machine less the 2 GB reserve, not the fixed default (#1557)');
+  assert.equal(store.defaultRam(4 * GiB), 2, '4 GB less the reserve is the least a share can be');
+  assert.equal(store.defaultRam(1.95 * GiB), 2, 'the QA machine of #1557: 2 GB, 1.95 GB of it usable');
+  assert.equal(store.defaultRam(1 * GiB), 2, 'never below the 2 GB a share can be');
   assert.equal(store.defaultRam(64 * GiB), 32);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fd-ram-'));
   try {
@@ -209,6 +215,9 @@ test("the default RAM is half the machine's, at least 5 GB, once root's step mea
     let ram = null;
     const s = store.open(dir, { machineRam: () => ram });
     assert.deepEqual(s.defaultShare(), store.DEFAULT_SHARE);
+    ram = 1.95 * GiB;
+    assert.deepEqual(s.defaultShare(), { ...store.DEFAULT_SHARE, ram: 2 }, 'a 2 GB machine gives no more than 2 GB');
+    assert.deepEqual(s.listAccounts()[0].share, { ...store.DEFAULT_SHARE, ram: 2 });
     ram = 15.6 * GiB;
     assert.deepEqual(s.defaultShare(), { ...store.DEFAULT_SHARE, ram: 8 });
     assert.deepEqual(s.listAccounts()[0].share, { ...store.DEFAULT_SHARE, ram: 8 });

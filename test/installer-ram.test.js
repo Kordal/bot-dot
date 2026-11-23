@@ -57,3 +57,17 @@ test('no warning on the desktop app\'s botdot, whose VM the app sizes', onLinux(
   assert.equal(local.status, 0, `${local.said}\n${local.stderr}`);
   assert.doesNotMatch(local.said, WARNING, 'the desktop app sizes its own VM');
 });
+
+// The account's RAM, in GB, the installer gives it by default: half the machine's, at least 5 GB, and never more than the
+// machine less the 2 GB the system keeps (#1557, the same rule as defaultRam in lib/front-door/store.js).
+test("the default share's RAM never exceeds the machine: 2 GB measured gives at most 2 GB, 8 GB and 16 GB keep 5 and 8 (#1557)", onLinux('install.sh uses GNU sed and stat'), (t) => {
+  const { installer } = require('./installer-helpers');
+  const ramOf = (kb) => {
+    const done = installer(t, { given: { BOT_DOT_PROC: proc(t, kb) } });
+    assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
+    return Number(/^systemctl set-property botdot-account@ann\.service CPUQuota=200% MemoryHigh=infinity MemoryMax=(\d+)G$/m.exec(done.system)[1]);
+  };
+  assert.ok(ramOf(2044723) <= 2, 'the QA machine of #1557: 2 GB, 1.95 GB of it usable');
+  assert.equal(ramOf(8008720), 5, '8 GB stays 5 GB');
+  assert.equal(ramOf(16303564), 8, '16 GB stays 8 GB');
+});
