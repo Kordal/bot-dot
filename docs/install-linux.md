@@ -109,7 +109,7 @@ The admin page lists every account: its name, when it was made, when it was last
 
 ## Shares of the machine
 
-Every account gets a share of the machine: CPUs, GB of RAM and GB of disk. Set the **default share** at the top of the admin page (at first 2 CPUs, half the machine's RAM but at least 5 GB, and 30 GB of disk), and **Change share** on one account to give it its own; **Back to the default share** undoes that. A change applies at once, through root's step:
+Every account gets a share of the machine: CPUs, GB of RAM and GB of disk. Set the **default share** at the top of the admin page (at first 2 CPUs, half the machine's RAM but at least 5 GB, and never more than the machine's RAM less 2 GB for the system or below 2 GB, so a 2 GB machine gives 2 GB; and 30 GB of disk), and **Change share** on one account to give it its own; **Back to the default share** undoes that. The admin page marks an account whose RAM share is larger than the machine. A change applies at once, through root's step:
 
 - CPU and RAM are hard limits on the account's rootless Docker: its work slows down, and nothing in the account says why.
 - They are also the limits of the account's one computer, which all its bots work on: a changed share sizes it from its next start.

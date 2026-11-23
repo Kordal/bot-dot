@@ -72,20 +72,24 @@ const ACCOUNTS = [
 ];
 
 // The script's account half (helpers, shares and the table), with fetch answering from `ACCOUNTS`.
-async function page({ askFirst = async () => true, location = { assign() {} } } = {}) {
+async function page({ askFirst = async () => true, location = { assign() {} }, ramTotal = null } = {}) {
   const d = dom();
   const calls = [];
   const fetch = async (path, opts) => {
     calls.push([opts.method, path]);
-    const body = path === '/admin/accounts' ? { accounts: ACCOUNTS } : path.endsWith('/sign-in-link') ? { url: 'https://x/l' } : path === '/admin/links' ? { links: [] }
+    const body = path === '/admin/share' ? { share: { cpu: 2, ram: 5, disk: 30 }, machine: ramTotal ? { cpus: 2, load: 0, ramTotal, ramUsed: 1e9, diskTotal: 1e11, diskUsed: 1e10 } : null } : path === '/admin/accounts' ? { accounts: ACCOUNTS } : path.endsWith('/sign-in-link') ? { url: 'https://x/l' } : path === '/admin/links' ? { links: [] }
       : path === '/admin/accounts/ann/sign-out' ? { ok: true, ended: 2, signIn: '/sign-in' } : path.endsWith('/sign-out') ? { ok: true, ended: 3 } : {};
     return { ok: true, json: async () => body };
   };
   const src = pages.ADMIN_SCRIPT;
   const part = src.slice(src.indexOf('  const said'), src.indexOf('  const what = (l)'));
   const ctx = vm.createContext({ document: d.document, fetch, Date, Math, Number, Object, JSON, String, Error, setInterval() {}, askFirst, location });
-  vm.runInContext(`${part}\n async function showLinks() {}\n Object.assign(this, { showAccounts, ago });`, ctx);
+  vm.runInContext(`${part}\n async function showLinks() {}\n Object.assign(this, { showAccounts, showMachine, ago });`, ctx);
   await ctx.showAccounts();
+  if (ramTotal) {
+    for (const k of ['cpu', 'ram', 'disk']) { const input = d.make('input'); input.name = k; d.document.getElementById('default-share').append(input); }
+    await ctx.showMachine();
+  }
   const byId = (id) => d.document.getElementById(id);
   const rows = () => byId('account-rows').children.filter((r) => r.className.split(' ').includes('row'));
   const names = () => rows().map((r) => r.getAttribute('aria-label'));
@@ -234,6 +238,23 @@ test('admin page: a row keeps the marks, the dates relative with the full date i
   assert.equal(ctx.ago('2026-10-29T11:15:00Z', t), '45 min ago');
   assert.equal(ctx.ago('2026-10-28T09:00:00Z', t), '1 d ago');
   assert.doesNotMatch(ctx.ago('2026-10-01T09:00:00Z', t), /ago/, 'older than a week: the day');
+});
+
+test("admin page: an account whose RAM share is above the machine's RAM is marked, and none is while the machine's RAM is not measured (#1557)", async () => {
+  const GiB = 2 ** 30;
+  const text = (n) => n.querySelectorAll('.mark').map((m) => m.textContent);
+  const unknown = await page();
+  assert.ok(!text(unknown.row('ann')).includes('Share is larger than this machine'), 'nothing measured, nothing marked');
+  // A 2 GB machine (1.95 GB usable): the 5 GB and the 3 GB shares are above it.
+  const small = await page({ ramTotal: 1.95 * GiB });
+  for (const name of ['ann', 'bob', 'cat', 'bea']) assert.ok(text(small.row(name)).includes('Share is larger than this machine'), name);
+  assert.match(small.open('ann').textContent, /Share is larger than this machine: it can never use all of it\. Give it less RAM\./);
+  // A 16 GB machine: every share fits.
+  const big = await page({ ramTotal: 15.6 * GiB });
+  for (const name of ['ann', 'bob', 'cat', 'bea']) assert.ok(!text(big.row(name)).includes('Share is larger than this machine'), name);
+  // The share is as large as the machine: not above it.
+  const same = await page({ ramTotal: 5 * GiB });
+  assert.ok(!text(same.row('ann')).includes('Share is larger than this machine'));
 });
 
 test('admin page: the state is no uppercase pill, and the meters are in tabular figures', () => {

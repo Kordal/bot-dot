@@ -53,7 +53,7 @@ SELinux in enforcing mode (Fedora, RHEL) is not tested yet ([Platforms](install-
 
 ### How much RAM, CPU and disk?
 
-Each account gets a **share** of the machine, set on the admin page. The default is **2 CPUs, half the machine's RAM (at least 5 GB) and 30 GB of disk**. The CPU and RAM are hard limits, and they are also the size of the account's computer, the one all its bots work on.
+Each account gets a **share** of the machine, set on the admin page. The default is **2 CPUs, half the machine's RAM (at least 5 GB, but never more than the machine's RAM less 2 GB for the system, and never below 2 GB) and 30 GB of disk**. The admin page marks an account whose RAM share is larger than the machine. The CPU and RAM are hard limits, and they are also the size of the account's computer, the one all its bots work on.
 
 On disk, plan about **15 GB per account**: botdot's image is about 4 GB and the bots' computer image about 7 GB. An update needs room for one more of each while it runs. Measured on an 8-CPU, 16 GB server, the front door and Caddy take 65 MB, an account's botdot server holds about 2 GB (mostly the model for meaning-based search), and its computer 0.5–1 GB when idle, plus what each bot's screen and programs use ([What botdot needs](install-linux.md#what-botdot-needs-and-whom-it-trusts)).
 

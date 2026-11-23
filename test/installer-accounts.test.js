@@ -259,7 +259,7 @@ test("the share in the installer is the front door's default", () => {
   // Its RAM from the machine's (#126), by the front door's rule.
   const awk = script.match(/^DEFAULT_RAM="\$\(awk '([^']+)'/m)[1];
   const { defaultRam } = require('../lib/front-door/store');
-  for (const kb of [4_000_000, 8_000_000, 16_300_000, 65_800_000, 131_000_000]) {
+  for (const kb of [1_000_000, 2_044_723, 4_000_000, 6_000_000, 7_000_000, 8_000_000, 16_300_000, 65_800_000, 131_000_000]) {
     const out = require('child_process').execFileSync('awk', [awk], { input: `MemTotal:       ${kb} kB\n` }).toString().trim();
     assert.equal(Number(out), defaultRam(kb * 1024), `${kb} kB`);
   }
