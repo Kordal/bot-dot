@@ -193,6 +193,11 @@ jobs:
           context: ${{ matrix.context }}
           platforms: ${{ matrix.platform }}
           build-args: ${{ matrix.image == 'desktop' && format('BASE={0}', env.BASE) || '' }}
+          # The desktop's Camoufox fetch asks api.github.com, which limits a machine without a login and GitHub's machines
+          # share their addresses. A build secret, not a build argument: it is in no layer or image. The app's build
+          # does not mount it. contents: read is enough, the releases are public.
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
           labels: |
             ${{ steps.meta.outputs.labels }}
             dev.botdot.release.version=${{ github.run_number }}

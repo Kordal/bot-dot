@@ -7,6 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { parseYaml } = require('./workflow-runners');
 
 const SCRIPT = path.join(__dirname, '..', 'deploy', 'desktop', 'botdot-tailscale');
 const python = spawnSync('python3', ['--version']).status === 0;
@@ -241,4 +242,25 @@ test('the desktop image carries a pinned headless Chrome on amd64 and points Hyp
   assert.match(dockerfile, /^FROM \$\{BASE\} AS desktop-amd64\nENV HYPERFRAMES_BROWSER_PATH=\/opt\/chrome-headless-shell\/chrome-headless-shell\nFROM desktop-\$\{TARGETARCH\}$/m);
   assert.match(dockerfile, /^FROM \$\{BASE\} AS desktop-arm64$/m);
   assert.equal((dockerfile.match(/HYPERFRAMES_BROWSER_PATH/g) || []).length, 1, 'set for amd64 alone');
+});
+
+// `camoufox fetch` asks api.github.com for the release, which limits a machine without a login, and GitHub's runners
+// share their addresses: the arm64 image build failed with "rate limit exceeded" (run 45115012786). The workflow's
+// own token goes in as an optional build secret for that one command, never as a build argument, variable or file in
+// a layer (the layer secret scan would refuse it, #534), and a build without it still works.
+test("the desktop image's Camoufox fetch reads the workflow's token from an optional build secret, for that command only", () => {
+  const root = path.join(__dirname, '..');
+  const dockerfile = fs.readFileSync(path.join(root, 'deploy', 'desktop', 'Dockerfile'), 'utf8');
+  const step = dockerfile.split(/\n(?=RUN |COPY |ADD |FROM |USER |ENV |ARG )/).find((s) => s.includes('-m camoufox fetch'));
+  assert.match(step, /^RUN --mount=type=secret,id=github_token,required=false \\$/m);
+  const subshell = step.match(/\( (if \[ -s \/run\/secrets\/github_token \].*?camoufox fetch) \)/s);
+  assert.ok(subshell, 'the token is read in a subshell around the fetch alone');
+  assert.match(subshell[1], /GITHUB_TOKEN="\$\(cat \/run\/secrets\/github_token\)"; export GITHUB_TOKEN; fi;/, 'exported only when the secret is there and not empty');
+  assert.equal(dockerfile.split('\n').filter((l) => !/^\s*#/.test(l)).join('\n').match(/GITHUB_TOKEN/g).length, 2, 'named nowhere else (the assignment and its export)');
+  assert.doesNotMatch(dockerfile, /^\s*(ARG|ENV) \S*(TOKEN|github_token)/im, 'no build argument or variable carries it');
+  const images = parseYaml(fs.readFileSync(path.join(root, '.github', 'workflows', 'images.yml'), 'utf8'));
+  const build = images.jobs.build.steps.find((st) => /^docker\/build-push-action@/.test(st.uses || ''));
+  assert.match(build.with.secrets, /^github_token=\$\{\{ secrets\.GITHUB_TOKEN \}\}$/m);
+  assert.doesNotMatch(String(build.with['build-args']), /TOKEN/i);
+  assert.equal(images.permissions.contents, 'read', 'which is all that reading the public releases takes');
 });
