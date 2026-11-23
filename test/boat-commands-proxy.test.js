@@ -193,8 +193,25 @@ test("a proxied command is never run on the account's computer when the machine 
   const { f, got } = facadeWith({ runShell: async () => { throw new Error('boat.dev is down'); }, boxOf: () => 'x' });
   const proxied = await f.runShell('coder', { command: 'curl x', proxied: true });
   assert.equal(proxied.code, null);
-  assert.match(proxied.error, /did not run, so nothing went out directly/);
+  assert.match(proxied.error, /^Your External Virtual PC couldn't be reached.*this command did not run, so nothing went out directly$/);
+  assert.ok(!/ran on this machine/.test(proxied.error), 'it does not say it ran');
   assert.ok(!got.some(([n]) => n === 'runShell'), 'it did not run on the account\'s computer');
   const plain = await f.runShell('coder', { command: 'ls' });
   assert.equal(plain.stdout, 'on the account', 'a command without a proxy still stands in, as before');
+});
+
+test("a machine that took the proxy after a failure is the one the command runs on, not the account's computer standing in", async (t) => {
+  const { b, boat } = machine(t);
+  // The machine failed once in this run: its commands stood in on the account's computer.
+  const flaky = { ...boat, boxOf: boat.boxOf };
+  let down = true;
+  flaky.runShell = async (...a) => { if (down) throw new Error('boat.dev is down'); return boat.runShell(...a); };
+  const g = facadeWith(flaky);
+  assert.match((await g.f.runShell('coder', { command: 'curl x', proxied: true })).error, /couldn't be reached/);
+  down = false;
+  assert.deepEqual(await g.f.setProxy('coder', PROXY), { ok: true }, 'the machine is up and has the proxy');
+  const r = await g.f.runShell('coder', { command: 'curl x', proxied: true });
+  assert.equal(r.code, 0, 'it ran on the machine');
+  assert.ok(b.box.ran.at(-1).includes('HTTP_PROXY=http://127.0.0.1:47300'));
+  assert.ok(!g.got.some(([n]) => n === 'runShell'), "never on the account's computer");
 });
