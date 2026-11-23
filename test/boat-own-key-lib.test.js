@@ -409,3 +409,28 @@ test("a replay's copy made with the own key goes off the list when the key is re
   const f = await failing.dropOwn({ deleteThem: true });
   assert.deepEqual([f.failed.map((x) => x.id), failing.forksLeft()], [['bx_f0000001'], ['bx_f0000001']]);
 });
+
+test("a copy reads the layers of the account's files oldest first: the machine let go of, then the one bots wrote on since", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const clock = clocked();
+  const boat = makeIn(b, dir(), { now: () => clock.now });
+  assert.equal(boat.sourceLayers('coder', false), undefined, 'no machine yet: the one in use');
+  await boat.runShell('coder', { command: 'ls' });
+  assert.equal(boat.sourceLayers('coder', false), undefined, 'nothing let go of');
+  await clock.rest(boat);
+  boatLib.setOwnKey(OWN);
+  assert.deepEqual(boat.sourceLayers('coder', false), ['retired'], 'let go of, and no machine in use yet: nothing was made to read from');
+  assert.equal(b.machines.size, 1);
+
+  await boat.runShell('coder', { command: 'pwd' }); // bots work on the new machine
+  assert.deepEqual(boat.sourceLayers('coder', false), ['retired', 'live']);
+  const sent = () => b.calls.filter((c) => c.path.endsWith('/commands')).at(-1).path.split('/')[2];
+  await boat.moveFiles('coder', { op: 'pack' }, { own: false, source: true, layer: 'retired' });
+  assert.equal(sent(), 'bx_aaaaaaa1');
+  await boat.moveFiles('coder', { op: 'pack' }, { own: false, source: true, layer: 'live' });
+  assert.equal(sent(), 'bx_aaaaaaa2', 'the files bots wrote since are copied too');
+
+  boat.copiedFrom('coder', false);
+  assert.equal(boat.sourceLayers('coder', false), undefined, 'copied once: from the one in use from now on');
+});
