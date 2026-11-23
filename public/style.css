@@ -1768,6 +1768,7 @@ details.bs-row { display: block; }
 .job-script:not(.hidden) { display: grid; gap: var(--sp-12); }
 .backup-pass { display: flex; gap: var(--sp-8); flex-wrap: wrap; }
 .backup-pass input { flex: 1 1 140px; min-width: 0; }
+.bs-val.bs-copy { user-select: text; -webkit-user-select: text; }
 .bs-val.bs-late { color: var(--err); }
 .bs-val.bs-warn { color: var(--warn-text); }
 .set-empty { padding: var(--sp-32) var(--sp-16); color: var(--muted); font-size: var(--fs-14); text-align: center; }
