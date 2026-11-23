@@ -461,3 +461,27 @@ test("when the key that made a retired machine is in use again, it is the box's 
   assert.equal(b.machines.get('bx_aaaaaaa1').state, 'ready', 'started again with its own key');
   assert.deepEqual(b.keysFor('bx_aaaaaaa1'), [MACHINE]);
 });
+
+test("after a copy from a retired machine the tidying step goes to that machine, and makes no new one", async (t) => {
+  keys(t, { machine: MACHINE });
+  const b = fakeBoat();
+  const clock = clocked();
+  const boat = makeIn(b, dir(), { now: () => clock.now });
+  await boat.runShell('coder', { command: 'ls' });
+  await clock.rest(boat);
+  boatLib.setOwnKey(OWN);
+  assert.deepEqual(boat.sourceLayers('coder', false), ['retired']);
+  await boat.moveFiles('coder', { op: 'pack' }, { own: false, source: true, layer: 'retired' });
+  boat.copiedFrom('coder', false); // the copy succeeded
+  const before = b.calls.length;
+  await boat.moveFiles('coder', { op: 'drop' }, { own: false, source: true, layer: 'retired' });
+  const after = b.calls.slice(before);
+  assert.ok(after.some((c) => c.path === '/sandboxes/bx_aaaaaaa1/commands'), 'its tar is removed there');
+  assert.ok(!after.some((c) => c.method === 'POST' && c.path === '/sandboxes'), 'no machine is made for it');
+  assert.equal(b.machines.size, 1);
+
+  // And a box with no machine in use has nothing to tidy: no machine is made to do it.
+  boat.copiedFrom('coder', false);
+  await boat.moveFiles('coder', { op: 'drop' }, { own: false, source: true });
+  assert.equal(b.machines.size, 1);
+});
