@@ -352,6 +352,51 @@ class BotChatTalkTest {
         assertTrue("When?\\n→ Mon\\n\\nWhere?\\n→ –" in posts[1].body, posts[1].body)
     }
 
+    @Test fun theSmallCrossPutsTheNewestRepliesAnswersAwayAndUndoBringsThemBack() = runTest {
+        var saved = true
+        val bodies = mutableListOf<String>()
+        val asking = """{"id":"r2","botId":"b1","status":"success","prompt":"hi","result":"Ship now?","choices":["Now","Wait"],"yes":0,"startedAt":"2026-11-14T09:01:00Z"}"""
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PUT" && a.path == "/runs/r2/choices-dismissed" -> if (saved) { bodies += a.body; 200 to """{"ok":true}""" } else 500 to """{"error":"no"}"""
+                a.path == "/runs" -> 200 to "[$asking,${run("r1", result = "Old")}]"
+                else -> 404 to "{}"
+            }
+        }
+        val (store, chat) = chat(fake)
+        runCurrent()
+        store.version.set(VersionInfo(features = listOf("choices-dismiss")))
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == 2 }
+        val (newest, older) = chat.state.value.runs
+        assertTrue(newest.canDismiss && !newest.dismissed)
+        assertFalse(older.canDismiss, "only a reply with answers to put away")
+        chat.dismissChoices("r2", true)
+        assertTrue(chat.state.value.runs.first().dismissed, "away at once, before botdot's list says so")
+        assertEquals(listOf("Now", "Wait"), chat.state.value.runs.first().choices, "the answers stay: Undo needs them")
+        chat.dismissChoices("r2", false)
+        assertFalse(chat.state.value.runs.first().dismissed)
+        assertEquals(listOf("""{"dismissed":true}""", """{"dismissed":false}"""), bodies)
+        assertTrue(fake.asked().none { it.method == "POST" }, "nothing was sent to the bot")
+        // Not kept on botdot: as it was before the tap, and the caller hears of it.
+        saved = false
+        try { chat.dismissChoices("r2", true); fail("the error was thrown") } catch (e: ApiException) { /* as expected */ }
+        assertFalse(chat.state.value.runs.first().dismissed)
+        chat.stop()
+    }
+
+    @Test fun aReplyBotdotKeptDismissedIsReadDismissedAndAnOlderBotdotOffersNoCross() = runTest {
+        val asking = """{"id":"r2","botId":"b1","status":"success","prompt":"hi","result":"Ship now?","choices":["Now","Wait"],"choicesDismissed":true,"startedAt":"2026-11-14T09:01:00Z"}"""
+        val fake = FakeBotdot { a -> if (a.path == "/runs") 200 to "[$asking]" else 404 to "{}" }
+        val (_, chat) = chat(fake) // features: none
+        chat.start()
+        until("its runs") { chat.state.value.runs.size == 1 }
+        val newest = chat.state.value.runs.first()
+        assertTrue(newest.dismissed)
+        assertFalse(newest.canDismiss, "no choices-dismiss in features: no ×")
+        chat.stop()
+    }
+
     /** A reply with choices and a question box, [asks] when it says it asks. */
     private fun choosing(id: String, at: String, status: String = "success", asks: Boolean = false) =
         """{"id":"$id","botId":"b1","status":"$status","prompt":"hi","result":"Ship?","choices":["Yes","No"],"yes":0,""" +
