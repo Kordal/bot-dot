@@ -23,6 +23,7 @@ const state = {
   chatStream: null,
   chiefUnread: 0, // new replies in all the Chief's chats, for its one row (unread.js)
   features: [], // what this botdot server can do (GET /api/version)
+  version: null, // its version and short revision, from the same answer (Settings → Version, #1610)
   checkup: null, // the checkup's setting, as the server last said it (GET /api/settings/checkup, the feed's `checkup`)
   approvals: null, // what waits for the owner, as the live feed lists it (hello, approvals): a waiting job's `then` is there
   bots: [],

@@ -409,6 +409,7 @@ function renderSettings() {
       </details>
       <details class="bs-row bs-more" id="update-card" hidden></details>
       ${state.features.includes('advanced') ? `<label class="bs-row"><b>${tr('Advanced')}</b><span class="switch"><input type="checkbox" id="settings-advanced"${advanced() ? ' checked' : ''} aria-label="${esc(tr('Advanced'))}"><span></span></span></label>` : ''}
+      ${versionRowHTML()}
       ${subscriptionRowHTML()}
       ${feedbackAnswerRowHTML()}
       ${signOutCardHTML()}
@@ -682,6 +683,11 @@ async function frontDoorPost(path, body) {
   if (!res.ok) throw new Error(typeof data.error === 'string' && data.error.trim() ? data.error : statusWords(res.status));
   return data;
 }
+
+// Settings → "Version" (#1610), while Advanced is on: the botdot server's version and short revision, read-only and
+// selectable. A server without `short` gives the version alone; without both there is no row.
+const versionLine = (v) => (v?.version ? (v.short ? `${v.version} (${v.short})` : String(v.version)) : '');
+const versionRowHTML = () => (advanced() && versionLine(state.version) ? `<div class="bs-row" id="settings-version"><b>${tr('Version')}</b><span class="bs-val bs-copy">${esc(versionLine(state.version))}</span></div>` : '');
 
 // ---------- signing out everywhere ----------
 

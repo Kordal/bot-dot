@@ -80,7 +80,7 @@ function unreadNow(chat) {
 const fresh = Fresh.keeper(window, () => api('/version'));
 // The front door's own answer (the request went before the session did, or the account's server wasn't reached) names
 // none of the account's features: they stay unknown, and the next refresh asks again.
-const loadFeatures = () => api('/version').then((v) => { if (v.frontDoor) return; state.features = v.features || []; fresh.seen(v); }).catch(() => {});
+const loadFeatures = () => api('/version').then((v) => { if (v.frontDoor) return; state.features = v.features || []; state.version = { version: v.version, short: v.short }; fresh.seen(v); }).catch(() => {});
 const loadChief = () => api('/chief').then((c) => { Object.assign(state, { chats: c.chats, chiefBusy: c.busy, chiefUnread: Unread.count(c) }); if (takeChiefName(c.chief?.name)) drawChiefName(); renderContacts(); }).catch(() => {});
 
 let readChat = null; // the chat last seen on screen and in front

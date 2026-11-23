@@ -467,6 +467,8 @@ fun SettingsScreen(
                     scope.launch { runCatching { api!!.saveSettings(AppSettings(advanced = on)) }.onSuccess { info = it; edit = it.settings; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
                 }
             }
+            // Version (#1610): which botdot runs, read-only, only while Advanced is on.
+            versionRowLine(adv, server)?.let { VersionRow(it) }
             Link(tr("botdot's address"), value = api?.baseUrl?.let(dev.botdot.app.data.AppSettingsRules::address), onClick = onChangeServer)
         }
     }
@@ -630,6 +632,25 @@ private fun Link(text: String, value: String? = null, onClick: () -> Unit) {
             Text(text, color = p.text, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
             if (!value.isNullOrBlank()) Text(value, color = p.muted, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = Space.s12).widthIn(max = 220.dp))
             Text("›", color = p.faint, fontSize = Type.s16, modifier = Modifier.padding(start = Space.s12))
+        }
+        Rule()
+    }
+}
+
+/** The Version row's line (#1610): the app's own versionName and the server's version and short revision; null without Advanced, or when the server names no version. */
+internal fun versionRowLine(advanced: Boolean, server: dev.botdot.app.data.VersionInfo?): String? =
+    if (advanced) dev.botdot.app.data.AppVersionLine.of(BuildConfig.VERSION_NAME, server) else null
+
+/** Settings → Version: read-only text the owner can select and copy, a thin line under it. */
+@Composable
+private fun VersionRow(line: String) {
+    val p = LocalPaper.current
+    Column {
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).padding(vertical = Space.s12), verticalAlignment = Alignment.CenterVertically) {
+            Text(tr("Version"), color = p.text, style = MaterialTheme.typography.bodyLarge)
+            androidx.compose.foundation.text.selection.SelectionContainer(Modifier.weight(1f)) {
+                Text(line, color = p.muted, style = MaterialTheme.typography.bodyMedium, textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.fillMaxWidth().padding(start = Space.s12))
+            }
         }
         Rule()
     }
