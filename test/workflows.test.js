@@ -241,6 +241,53 @@ test('the image carries the Android app and no Mac app', () => {
   assert.doesNotMatch(runs, /mac-v|mac-app/);
 });
 
+// The Releases page of a public repository: its Latest is the newest desktop release, and the evidence of an image
+// build is kept for the newest ten only.
+test('the newest desktop release is the one marked Latest; no Android, updater or evidence release is', () => {
+  const run = (name, job) => workflow(name).jobs[job].steps.map((st) => st.run || '').join('\n');
+  const android = run('android.yml', 'publish');
+  assert.match(android, /gh release create "android-v\$VERSION"/);
+  assert.match(android, /--target "\$GITHUB_SHA" --latest=false$/m);
+  assert.doesNotMatch(android, /--latest(?!=false)/);
+  const desktop = run('desktop-release.yml', 'publish');
+  assert.match(desktop, /gh release create "\$TAG"[^\n]*\\\n[^\n]*--target "\$GITHUB_SHA" --latest$/m, 'the versioned desktop release is Latest');
+  assert.match(desktop, /gh release create desktop-latest [^\n]*--prerelease --latest=false/, 'desktop-latest, which the updater reads, is not');
+  assert.doesNotMatch(desktop, /gh release (delete|edit desktop-latest [^\n]*--latest)/);
+  const evidence = run('images.yml', 'evidence');
+  assert.match(evidence, /gh release create "image-evidence-[^\n]*\\\n[^\n]*--prerelease --latest=false/);
+});
+
+test("nothing asks for GitHub's latest release: the image finds the newest android-v* release by its tag", () => {
+  for (const name of fs.readdirSync(WORKFLOWS)) {
+    const text = fs.readFileSync(path.join(WORKFLOWS, name), 'utf8');
+    assert.doesNotMatch(text, /releases\/latest|gh release (view|download)\s+--/, `${name} must name its release`);
+    assert.doesNotMatch(text, /gh release download\s+--/, `${name}: gh release download with no tag takes the Latest`);
+  }
+  const fetchStep = workflow('images.yml').jobs.build.steps.find((st) => /^fetch\(\)/m.test(st.run || '') || /fetch\(\) \{/.test(st.run || ''));
+  assert.match(fetchStep.run, /startswith\(\\"\$1\\"\)\)\] \| sort_by\(\.createdAt\) \| last \| \.tagName/);
+  assert.match(fetchStep.run, /gh release download "\$TAG"/);
+});
+
+test('only the newest ten image-evidence releases stay, pruned after the images are published and never failing the run', () => {
+  const jobs = workflow('images.yml').jobs;
+  const prune = jobs['prune-evidence'];
+  assert.deepEqual([].concat(prune.needs).sort(), ['evidence', 'publish'], 'after the evidence is verified and the images are signed');
+  assert.equal(prune.if, undefined, 'the default if: only a run that succeeded so far');
+  assert.equal(prune.environment, undefined, 'no secret and no release environment');
+  assert.deepEqual(prune.permissions, { contents: 'write' });
+  const step = prune.steps.find((st) => /gh release delete/.test(st.run || ''));
+  assert.equal(step['continue-on-error'], undefined);
+  assert.match(step.run, /node deploy\/prune-releases\.js image-evidence- 10 "\$CURRENT"/);
+  assert.match(step.run, /CURRENT="image-evidence-\$GITHUB_RUN_ID-\$GITHUB_RUN_ATTEMPT"/);
+  assert.match(step.run, /gh release delete "\$TAG" [^\n]*--cleanup-tag --yes/);
+  assert.equal((step.run.match(/gh release delete/g) || []).length, 1, 'one delete, of a tag the script picked');
+  assert.match(step.run, /else echo "::warning::Could not delete/, 'a failed delete is logged, not fatal');
+  assert.equal(workflow('images.yml').permissions.contents, 'read', 'the write permission is on this job alone');
+  for (const [id, job] of Object.entries(jobs)) {
+    if (id !== 'evidence' && id !== 'prune-evidence') assert.notEqual((job.permissions || {}).contents, 'write', id);
+  }
+});
+
 // On GitHub's machines (#528) no disk outlives a job: what one job hands the next goes as a workflow artifact.
 test('each image platform builds on its own kind of machine, and its scan evidence goes to the evidence job as an artifact', () => {
   const jobs = workflow('images.yml').jobs;

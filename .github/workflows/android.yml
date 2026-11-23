@@ -170,10 +170,11 @@ jobs:
             --arg sha "$(sha256sum "bot-dot-$VERSION.apk" | cut -d' ' -f1)" \
             '{versionName: $name, versionCode: $code, file: $file, sha256: $sha}' > app.json
           node "../deploy/sign-release.js" app.json android "$GITHUB_SHA"
+          # Not marked Latest: the Releases page's Latest is the newest desktop release (desktop-release.yml).
           gh release create "android-v$VERSION" "bot-dot-$VERSION.apk" app.json \
             --title "botdot for Android $VERSION" \
             --notes "Built from ${GITHUB_SHA::7}. Open this page on your phone, tap the .apk to download it, and install it; it updates the app you have." \
-            --target "$GITHUB_SHA" --latest
+            --target "$GITHUB_SHA" --latest=false
 
       # By night the image build two hours later carries it (images.yml sees the newer release); a run by hand
       # starts that build now. Either way the new app costs one image build.
