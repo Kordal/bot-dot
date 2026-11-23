@@ -28,6 +28,11 @@ jobs:
   # ios/ changed (or any Markdown file, or Android's ui/Theme.kt, which tests/ compares), Android when a file in android/ or this workflow changed.
   # The phones' strings (the i18n test, which reads android/ and ios/) whenever either phone changed, also when the
   # server is skipped. ios/ itself is built and tested by ios.yml.
+  # The installer tests (test/installer*.test.js, 5,300 of the server tests' 7,800 seconds: the biggest
+  # file alone ran 12 minutes) run on a pull request only when it changes what they read: INSTALLER_PATHS below, the
+  # files install.sh, its stand-in machine and the checks it runs load, which test/workflows.test.js derives from the
+  # tests and from install.yml's paths. Every other run (called from a workflow, by hand) runs them all, so the
+  # image build tests everything before it publishes (docs/decisions/2026-11-23-pr-skips-installer-tests.md).
   # A call from another workflow says which by its inputs; missing inputs enable both (toJSON keeps a missing input
   # from comparing loosely as false). A run by hand tests both. A job left out is skipped, which a required check counts as passed.
   changes:
@@ -36,6 +41,7 @@ jobs:
       server: ${{ steps.which.outputs.server }}
       android: ${{ steps.which.outputs.android }}
       phones: ${{ steps.which.outputs.phones }}
+      installer: ${{ steps.which.outputs.installer }}
     steps:
       # A pull request's checkout is its merge commit: the first parent is the base, so the diff is the change.
       - if: github.event_name == 'pull_request'
@@ -48,23 +54,47 @@ jobs:
           SERVER: ${{ toJSON(inputs.server) != 'false' }}
           ANDROID: ${{ toJSON(inputs.android) != 'false' }}
         run: |
+          # One extended regular expression per line (test/workflows.test.js reads this list: keep it one per line).
+          INSTALLER_PATHS='
+          ^install\.sh$
+          ^Dockerfile$
+          ^\.dockerignore$
+          ^compose[^/]*\.yaml$
+          ^package\.json$
+          ^front-door\.js$
+          ^deploy/(prepare-computers\.sh|seed-demo\.js)$
+          ^lib/front-door/
+          ^lib/(docker-helper|updates|signed-image|registry|release-manifest|release-trust|image-cleanup|image-layers|update-install)\.js$
+          ^lib/(audit|helper-client|tools-link|tools-worker|browser-locale|group-router|prompt-text)\.js$
+          ^lib/(boat|jsonfile|vault-files|computer-move|connectors|principal-fs|principal-fs-worker|workspace-git)\.js$
+          ^lib/(vault|vault-item-types|network-address|github-app|app-errors|connected-apps)\.js$
+          ^test/installer.*\.js$
+          ^test/(helpers|linux|run)\.js$
+          ^test/fixtures/fake-docker\.js$
+          ^(README|docs/install-linux)\.md$
+          ^tests/integration/(install-real\..*|test-install\.js|install-prereqs\..*)$
+          ^\.github/workflows/(tests|install|images)\.yml$'
           if [ "$EVENT" = pull_request ]; then
             FILES="$(git diff --name-only HEAD^1 HEAD)"
             printf '%s\n' "$FILES"
-            SERVER=false ANDROID=false PHONES=false
+            SERVER=false ANDROID=false PHONES=false INSTALLER=false
             if printf '%s\n' "$FILES" | grep -qvE '^(android|ios)/' || printf '%s\n' "$FILES" | grep -qE '(\.md|/ui/Theme\.kt)$'; then SERVER=true; fi
             if printf '%s\n' "$FILES" | grep -qE '^(android/|\.github/workflows/tests\.yml$)'; then ANDROID=true; fi
             if printf '%s\n' "$FILES" | grep -qE '^(android|ios)/'; then PHONES=true; fi
+            if printf '%s\n' "$FILES" | grep -qEf <(sed -e 's/^ *//' -e '/^$/d' <<< "$INSTALLER_PATHS"); then INSTALLER=true; fi
           else
-            PHONES=true
+            PHONES=true INSTALLER=true
           fi
           echo "server=$SERVER" >> "$GITHUB_OUTPUT"
           echo "android=$ANDROID" >> "$GITHUB_OUTPUT"
           echo "phones=$PHONES" >> "$GITHUB_OUTPUT"
-          echo "Testing: server $SERVER, Android $ANDROID, the phones' strings $PHONES"
+          echo "installer=$INSTALLER" >> "$GITHUB_OUTPUT"
+          echo "Testing: server $SERVER, Android $ANDROID, the phones' strings $PHONES, the installer's tests $INSTALLER"
 
   # The server tests, split over two machines by file (node --test --test-shard): on one they took 6 to 7.5 minutes,
-  # the longest step of every pull request and of each image build.
+  # the longest step of every pull request and of each image build. A pull request that changes nothing the installer
+  # reads leaves out the installer tests (the `installer` output of `changes`, run.js's BOT_DOT_SKIP_INSTALLER_TESTS):
+  # without them a shard takes 4 to 5 minutes, with them 15. The shards still split the files that remain.
   server-tests:
     needs: changes
     if: needs.changes.outputs.server == 'true'
@@ -79,6 +109,8 @@ jobs:
         with:
           node-version: 24
       - run: npm test -- --test-shard=${{ matrix.shard }}/2
+        env:
+          BOT_DOT_SKIP_INSTALLER_TESTS: ${{ needs.changes.outputs.installer != 'true' && '1' || '' }}
 
   # Every string the phones pass to tr() has its Polish (test/i18n.test.js reads android/ and ios/). The server
   # tests run it too; this job is for a pull request that changes only the phones, where those are skipped.
