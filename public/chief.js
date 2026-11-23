@@ -908,6 +908,8 @@ function followChief(id) {
       // A bot's reply that came in meanwhile, or the next turn that began (see followFeed): show the whole chat again.
       // A reply about a mail draft changes the cards before it too (one folds, one is kept): the chat as botdot has it.
       if ($('.mail-card', thread) || ev.message?.draft) state.chatReload = true;
+      // A reply with quick answers is drawn from the chat as botdot has it: its place in the chat is what the small × saves by.
+      if (ev.message?.choices?.length && state.features?.includes('choices-dismiss')) state.chatReload = true;
       if (state.chatReload) { state.chatReload = false; return showChat(id); }
       thread._last = ev.message || null;
       globalThis.drawChiefPlan?.(id, thread._last); // its plan goes under the reply, or stands as stopped
