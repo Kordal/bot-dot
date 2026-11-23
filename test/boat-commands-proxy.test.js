@@ -215,3 +215,23 @@ test("a machine that took the proxy after a failure is the one the command runs 
   assert.ok(b.box.ran.at(-1).includes('HTTP_PROXY=http://127.0.0.1:47300'));
   assert.ok(!g.got.some(([n]) => n === 'runShell'), "never on the account's computer");
 });
+
+test("a proxied command and a screen tool at the same time on a fresh machine put the kit there once and start one bridge", async (t) => {
+  boatLib.setKey(KEY);
+  t.after(() => boatLib.setKey(null));
+  const b = fakeBoat({ kit: null });
+  const fetch = async (url, init) => {
+    const r = await b.fetch(url, init);
+    const sent = init?.body ? JSON.parse(init.body) : {};
+    if (sent.detached && sent.command.includes('botdot-boat-kit')) Object.assign(b.box, { kit: boatLib.KIT_VERSION, bridgeSha: boatLib.BRIDGE_SHA });
+    return r;
+  };
+  const boat = boatLib.create(dir(), { kitOnStart: false, fetch, sleep: async () => {} });
+  const [proxy, screen] = await Promise.all([boat.setProxy('coder', PROXY), boat.ensureScreen('coder')]);
+  assert.deepEqual(proxy, { ok: true });
+  assert.equal(screen, undefined);
+  const detached = b.commands().filter((c) => c.detached).map((c) => c.command);
+  assert.equal(detached.filter((c) => c.includes('botdot-boat-kit')).length, 1, 'the kit is put there once');
+  assert.equal(detached.filter((c) => c.includes('camoufox-browser --serve')).length, 1, 'one bridge');
+  assert.equal(b.box.forwarder, true);
+});
