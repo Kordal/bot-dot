@@ -26,11 +26,19 @@ final class GroupChatTests: XCTestCase {
         XCTAssertEqual(message.message.question?.text, "Ship it now or wait?")
 
         let view = GroupReplyView(id: reply.id, run: reply.run, bot: nil, name: "Coder", color: "#7f77dd", figureState: "idle", reply: reply.run.result, ended: nil, problem: false,
-                                  files: [], choices: reply.run.choices ?? [], yes: 0,
+                                  files: [], choices: reply.run.choices ?? [], yes: 0, canDismiss: true, dismissed: false,
                                   questions: ["When?", "Where?"], questionChoices: [["Mon", "Tue"], []])
         let figure = HomeModel.bundledFigure
         let drawn = ImageRenderer(content: GroupReplyRow(view: view, figure: figure, onAnswer: { _ in }).frame(width: 320))
         XCTAssertNotNil(drawn.cgImage, "a reply under its name, with its answer buttons and its questions, draws")
+        // The small × after the answers, put away, and Undo: both draw, and the shared layer reads the flag.
+        let away = GroupReplyView(id: reply.id, run: reply.run, bot: nil, name: "Coder", color: "#7f77dd", figureState: "idle", reply: reply.run.result, ended: nil, problem: false,
+                                  files: [], choices: reply.run.choices ?? [], yes: 0, canDismiss: true, dismissed: true,
+                                  questions: [], questionChoices: [])
+        XCTAssertNotNil(ImageRenderer(content: GroupReplyRow(view: away, figure: HomeModel.bundledFigure, onAnswer: { _ in }).frame(width: 320)).cgImage, "a reply whose answers were put away draws")
+        XCTAssertNotNil(ImageRenderer(content: AnswersHidden {}.frame(width: 320)).cgImage, "Answers hidden · Undo draws")
+        XCTAssertNotNil(ImageRenderer(content: Choices(choices: ["Yes", "No"], yes: 0, color: "#7f77dd", canDismiss: true, onAnswer: { _ in true }).frame(width: 320)).cgImage, "answers with the × after them draw")
+        XCTAssertTrue(QuickAnswers.shared.away(put: [:], key: "r1", flag: true))
 
         let asked = GroupMessageView(message: message.message, question: message.message.question, questionColor: "#7f77dd", questionBot: nil,
                                      byName: nil, byColor: nil, byBot: nil, byOutfit: nil, waits: "")

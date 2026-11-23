@@ -43,6 +43,9 @@ class RunView(
      */
     val choices: List<String> = emptyList(),
     val yes: Int = -1,
+    /** The small × after [choices] is offered ([QuickAnswers]), and the owner put them away: drawn without them, with Undo for [QuickAnswers.UNDO_MS]. */
+    val canDismiss: Boolean = false,
+    val dismissed: Boolean = false,
     /** Several questions at once there: a box and its choices under each ([BotChat.answerQuestions]). */
     val questions: List<String> = emptyList(),
     val questionChoices: List<List<String>> = emptyList(),
@@ -241,6 +244,25 @@ class BotChat(
         refresh()
         if (waits) store.bots.refresh()
         return went
+    }
+
+    // What the owner chose with the small × here, by run: it wins over a list the server has not changed yet.
+    private val choicesPut = HashMap<String, Boolean>()
+
+    /**
+     * The small × under [runId]'s quick answers ([dismissed] true), or Undo (false): the row goes or comes back at once,
+     * then it is kept on the server with the reply; when that fails it goes back and the error is thrown. The bot is told nothing.
+     */
+    @Throws(Exception::class)
+    suspend fun dismissChoices(runId: String, dismissed: Boolean) {
+        val before = choicesPut[runId]
+        choicesPut[runId] = dismissed
+        publish()
+        try { api.dismissChoices(runId, dismissed) } catch (e: Exception) {
+            if (before == null) choicesPut.remove(runId) else choicesPut[runId] = before
+            publish()
+            throw e
+        }
     }
 
     /** A quick answer tapped under [runId]: its words go to the bot as the answer to that run. Whether it went. */
@@ -478,6 +500,8 @@ class BotChat(
             files = r.files.orEmpty(),
             choices = if (answerable) r.choices.orEmpty() else emptyList(),
             yes = if (answerable) r.yes ?: -1 else -1,
+            canDismiss = answerable && !r.choices.isNullOrEmpty() && hasChoicesDismiss(features),
+            dismissed = QuickAnswers.away(choicesPut, r.id, r.choicesDismissed),
             questions = if (answerable) r.questions.orEmpty() else emptyList(),
             questionChoices = if (answerable) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
             steps = if (!RunSteps.shows(r)) null else {

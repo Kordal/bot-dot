@@ -566,7 +566,7 @@ function chiefBubble(m, last = false, index = null) {
         ${m.pending || m.error ? '' : globalThis.inlineCardsHTML?.(m) || ''}
         <div class="actions">${(m.actions || []).filter((a) => !mailChip(m, a)).map(actionChip).join('')}</div>
         ${!m.pending && (m.text || m.error) ? `<div class="bubble-meta${Ratings.shows(m, state.features, index) ? '' : ' on-hover'}">${esc(msgTime(m.endedAt || m.at))}${copyBtn(m.text || m.error)}${Ratings.shows(m, state.features, index) ? Ratings.html(m.rating, index, CHIEF_COLOR) : ''}</div>` : ''}
-        ${open ? choicesHTML(m.choices, m.yes, CHIEF_COLOR) + questionsHTML(m.questions, m.questionChoices, `chief:${state.chatId}:${m.at ?? index}`) : ''}
+        ${open ? choicesHTML(m.choices, m.yes, CHIEF_COLOR, '', Number.isInteger(index) ? { key: `chief:${state.chatId}:${index}`, url: `/chief/chats/${encodeURIComponent(state.chatId)}/messages/${index}/choices-dismissed`, dismissed: m.choicesDismissed } : null) + questionsHTML(m.questions, m.questionChoices, `chief:${state.chatId}:${m.at ?? index}`) : ''}
       </div>
     </div>`;
 }
@@ -840,7 +840,7 @@ async function sendToChief(text, attachments = [], key = messageKey()) {
     }
     // An open card's questions become part of its reply's text: the chat as botdot has it, drawn when the reply comes.
     if ($('.ask-card', thread)) state.chatReload = true;
-    $$('.choices, .ask-card', thread).forEach((c) => c.remove()); // answered
+    $$('.choices, .choices-undo, .ask-card', thread).forEach((c) => c.remove()); // answered
     sentOver(at, key); // the message as botdot took it stands where the page's own stood
     thread.insertAdjacentHTML('beforeend', userBubble({ text: text || 'Have a look at the attached files.', attachments }) + chiefBubble({ pending: true }));
     thread._last = { pending: true }; // a new reply: a stopped plan above the box goes
@@ -908,6 +908,8 @@ function followChief(id) {
       // A bot's reply that came in meanwhile, or the next turn that began (see followFeed): show the whole chat again.
       // A reply about a mail draft changes the cards before it too (one folds, one is kept): the chat as botdot has it.
       if ($('.mail-card', thread) || ev.message?.draft) state.chatReload = true;
+      // A reply with quick answers is drawn from the chat as botdot has it: its place in the chat is what the small × saves by.
+      if (ev.message?.choices?.length && state.features?.includes('choices-dismiss')) state.chatReload = true;
       if (state.chatReload) { state.chatReload = false; return showChat(id); }
       thread._last = ev.message || null;
       globalThis.drawChiefPlan?.(id, thread._last); // its plan goes under the reply, or stands as stopped

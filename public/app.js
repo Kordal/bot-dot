@@ -372,11 +372,59 @@ const answerKey = (of, c) => {
   if (!answerKeys.has(k)) answerKeys.set(k, messageKey());
   return answerKeys.get(k);
 };
+// Quick answers put away with the small ×, by reply (`quick.key`): true once dismissed, false once brought back, kept here
+// so that a chat drawn again from lists the server has not changed yet does not bring them back (or take them away).
+// `dismissUndo` holds the timers of the "Answers hidden · Undo" lines that stand for a few seconds in their place.
+const choicesPut = new Map(); // key → boolean
+const dismissUndo = new Map(); // key → timer
+const DISMISS_UNDO_MS = 5000;
+const dismissIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 // Quick answers under the newest reply ([[choices: …]], see lib/choices.js): tap one to send it. The one at
 // `yes` is filled with the colour of the bot that asks. of: the reply's id, so that a tap answers it once (answered).
-const choicesHTML = (choices, yes = -1, color = '', of = '') => (choices?.length && !(of && answered.get(of) === 'sent')
-  ? `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${of && answered.get(of) === 'sending' ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}</div>`
-  : '');
+// quick: { url, dismissed, key? } for the reply's own record on the server (`choicesDismissed`; key: `of` unless given):
+// the small × after the last answer puts them all away without answering, and the row comes back only by Undo. A
+// botdot without `choices-dismiss` in its features gets no ×.
+const choicesHTML = (choices, yes = -1, color = '', of = '', place = null) => {
+  if (!choices?.length || (of && answered.get(of) === 'sent')) return '';
+  const quick = place && state.features?.includes('choices-dismiss') ? { ...place, key: place.key || of, dismissed: !!place.dismissed } : null;
+  const away = quick && (choicesPut.has(quick.key) ? choicesPut.get(quick.key) : quick.dismissed);
+  if (away && !dismissUndo.has(quick.key)) return '';
+  const x = quick ? `<button type="button" class="choices-x" data-dismiss title="${esc(tr('Dismiss suggested answers'))}" aria-label="${esc(tr('Dismiss suggested answers'))}">${dismissIcon}</button>` : '';
+  // While "Answers hidden · Undo" stands, the row is drawn too, hidden: a chat drawn again keeps what Undo brings back.
+  const row = `<div class="choices"${of ? ` data-of="${esc(of)}"` : ''}${quick ? ` data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}"` : ''}${away || (of && answered.get(of) === 'sending') ? ' hidden' : ''}>${choices.map((c, i) => `<button class="btn${i === yes && color ? ' yes' : ''}" data-choice="${esc(c)}"${i === yes && color ? ` style="--yes:${esc(color)};--yes-ink:${inkOn(color)}"` : ''}>${esc(c)}</button>`).join('')}${x}</div>`;
+  return away ? row + `<div class="choices-undo" data-quick="${esc(quick.key)}" data-url="${esc(quick.url)}">${tr('Answers hidden')} · <button type="button" data-putback>${tr('Undo')}</button></div>` : row;
+};
+// Put the answers under a reply away, or bring them back: the page at once, the server after it. A save that fails
+// puts the page back as it was before the tap: a failed ×, the row; a failed Undo, the row away with its line again.
+async function putChoices(root, key, url, dismissed) {
+  const rows = () => $$(`.choices[data-quick="${CSS.escape(key)}"]`, root);
+  const line = () => $$(`.choices-undo[data-quick="${CSS.escape(key)}"]`, root);
+  const show = (away) => {
+    clearTimeout(dismissUndo.get(key));
+    dismissUndo.delete(key);
+    choicesPut.set(key, away);
+    if (choicesPut.size > 500) { choicesPut.clear(); choicesPut.set(key, away); }
+    line().forEach((l) => l.remove());
+    if (!away) { rows().forEach((r) => { r.hidden = false; }); return; }
+    rows().forEach((r) => {
+      const undo = document.createElement('div');
+      undo.className = 'choices-undo';
+      undo.dataset.quick = key;
+      undo.dataset.url = url;
+      undo.innerHTML = `${esc(tr('Answers hidden'))} · <button type="button" data-putback>${esc(tr('Undo'))}</button>`;
+      $('[data-putback]', undo).onclick = () => putChoices(root, key, url, false);
+      r.after(undo);
+      r.hidden = true;
+    });
+    dismissUndo.set(key, setTimeout(() => { dismissUndo.delete(key); line().forEach((l) => l.remove()); }, DISMISS_UNDO_MS));
+  };
+  show(dismissed);
+  try {
+    await api(url, { method: 'PUT', body: { dismissed } });
+  } catch {
+    show(!dismissed);
+  }
+}
 // Several questions at once ([[ask: …]]): a card under the newest reply, a box under each question, and under a box
 // the question's choices (`picks`, the reply's questionChoices), each a button that fills it. of: the reply's id, so
 // that what the card sends answers that reply (#1380).
@@ -432,6 +480,14 @@ const answerQuoteHTML = (text, of) => (text && of
 // are empty. Its answers are put back there, until the card goes or is no longer drawn.
 const cardDrafts = new Map(); // `${of}\n${questions}` → the text of each box
 function wireChoices(root, send) {
+  $$('[data-dismiss]', root).forEach((b) => {
+    const row = b.closest('.choices');
+    b.onclick = () => putChoices(root, row.dataset.quick, row.dataset.url, true);
+  });
+  $$('.choices-undo [data-putback]', root).forEach((b) => {
+    const line = b.closest('.choices-undo');
+    b.onclick = () => putChoices(root, line.dataset.quick, line.dataset.url, false);
+  });
   $$('[data-choice]', root).forEach((b) => {
     const of = b.closest('.choices')?.dataset.of || '';
     const key = of ? answerKey(of, b.dataset.choice) : messageKey();

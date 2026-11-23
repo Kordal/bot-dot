@@ -55,6 +55,10 @@ final class GroupChatModel: MessageBox {
     func loadOlder() { chat.loadOlder() }
     /// An answer button under the group's open question.
     func answer(_ choice: String) { Task { _ = try? await chat.answer(choice: choice) } }
+    /// The small × under a member's quick answers, or Undo: whether it was kept (the shared layer brings the row back when not).
+    func dismissChoices(_ runId: String, _ dismissed: Bool) async -> Bool {
+        (try? await chat.dismissChoices(runId: runId, dismissed: dismissed)) != nil
+    }
     func makeLead(_ botId: String) { chat.makeLead(botId: botId) }
     func answerQuestions(_ runId: String, _ answers: [String]) async -> Bool {
         (try? await chat.answerQuestions(runId: runId, answers: answers))?.boolValue ?? false

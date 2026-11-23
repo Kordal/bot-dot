@@ -265,7 +265,7 @@ function runParts(bot, r, last, newest, canReply = false, quote = '') {
       <div class="bubble-row from-bot"><div class="stack">
         ${shown}
         ${failed ? '' : globalThis.goToCardHTML?.(r) || ''}
-        ${open ? choicesHTML(r.choices, r.yes, bot.color, r.id) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
+        ${open ? choicesHTML(r.choices, r.yes, bot.color, r.id, { url: `/runs/${encodeURIComponent(r.id)}/choices-dismissed`, dismissed: r.choicesDismissed }) + questionsHTML(r.questions, r.questionChoices, r.id) : ''}
         <div class="bubble-meta block-foot on-hover">${meta.map(esc).join(' · ')}${r.kind === 'reminder' ? '' : ` <button data-details="${esc(r.id)}">${tr('Details')}</button>`}${copyBtn(body)}${canReply ? replyBtnHTML(r) : ''}</div>
       </div></div>`;
   }

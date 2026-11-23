@@ -1,5 +1,8 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.ApiException
+import dev.botdot.app.data.NOT_CONNECTED
+import dev.botdot.app.data.hasChoicesDismiss
 import dev.botdot.app.data.endedWords
 import dev.botdot.app.data.replyText
 import dev.botdot.app.data.Ended
@@ -315,7 +318,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                     // runs another bot or the Chief started came after it: what asks the owner can be answered where it stands.
                                     // A reply that asked keeps them only while it is the open question: answered in a group, they go (ADR 211).
                                     if (asksHere) {
-                                        Choices(r.choices, r.yes, bot?.color ?: r.botColor) { text, key -> sendFrom(text, key, r.id) }
+                                        Choices(r.choices, r.yes, bot?.color ?: r.botColor, putaway = if (hasChoicesDismiss(features)) Putaway(r.id, r.choicesDismissed) { app.api.value?.dismissChoices(r.id, it) ?: throw ApiException(NOT_CONNECTED) } else null) { text, key -> sendFrom(text, key, r.id) }
                                         Questions(r.questions, r.questionChoices, of = r.id) { text, key -> sendFrom(text, key, r.id) }
                                     }
                                 }

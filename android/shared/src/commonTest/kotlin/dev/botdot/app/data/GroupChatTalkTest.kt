@@ -163,6 +163,47 @@ class GroupChatTalkTest {
         assertTrue(chat.state.value.rows.first().reply!!.choices.isEmpty(), "answered: the buttons go")
     }
 
+    @Test fun theSmallCrossPutsAMembersAnswersAwayAndUndoBringsThemBack() = runTest {
+        var saved = true
+        var kept: String? = null
+        val asking = reply("r1", "b1", "Ship it now or wait?", "2026-11-14T09:01:00Z", ""","choices":["Now","Wait"],"yes":0""")
+        val fake = FakeBotdot { a ->
+            when {
+                a.method == "PUT" && a.path == "/runs/r1/choices-dismissed" -> if (saved) { kept = a.body; 200 to """{"ok":true}""" } else 500 to """{"error":"no"}"""
+                a.path == "/group-chats/g1/chat" -> 200 to page(listOf(asking), asks = """{"botId":"b1","botName":"Coder","text":"Ship it now or wait?","runId":"r1"}""")
+                else -> 404 to "{}"
+            }
+        }
+        val (_, chat) = chat(fake, features = listOf("choices-dismiss"))
+        chat.start()
+        until("the question is open") { chat.state.value.rows.firstOrNull()?.reply?.choices == listOf("Now", "Wait") }
+        val shown = chat.state.value.rows.first().reply!!
+        assertTrue(shown.canDismiss && !shown.dismissed)
+        chat.dismissChoices("r1", true)
+        assertTrue(chat.state.value.rows.first().reply!!.dismissed, "away at once, though the list botdot sent says nothing of it")
+        assertEquals("""{"dismissed":true}""", kept)
+        chat.dismissChoices("r1", false)
+        assertFalse(chat.state.value.rows.first().reply!!.dismissed)
+        assertEquals("""{"dismissed":false}""", kept)
+        // Not kept on botdot: the row is as it was before the tap, and the error reaches the caller.
+        saved = false
+        try { chat.dismissChoices("r1", true); fail("the error was thrown") } catch (e: ApiException) { /* as expected */ }
+        assertFalse(chat.state.value.rows.first().reply!!.dismissed)
+        chat.stop()
+    }
+
+    @Test fun aBotdotWithoutTheFeatureOffersNoCross() = runTest {
+        val asking = reply("r1", "b1", "Ship it now or wait?", "2026-11-14T09:01:00Z", ""","choices":["Now","Wait"],"yes":0,"choicesDismissed":true""")
+        val fake = FakeBotdot { a -> if (a.path == "/group-chats/g1/chat") 200 to page(listOf(asking), asks = """{"botId":"b1","botName":"Coder","text":"?","runId":"r1"}""") else 404 to "{}" }
+        val (_, chat) = chat(fake)
+        chat.start()
+        until("the question is open") { chat.state.value.rows.firstOrNull()?.reply?.choices == listOf("Now", "Wait") }
+        val shown = chat.state.value.rows.first().reply!!
+        assertFalse(shown.canDismiss)
+        assertTrue(shown.dismissed, "what botdot kept is read all the same")
+        chat.stop()
+    }
+
     @Test fun theNotesAreReadAndANewOneIsAdded() = runTest {
         var notes = """{"items":[{"id":"n1","kind":"fact","text":"Deploys on Fridays","by":"owner","at":"2026-11-01T09:00:00Z"}]}"""
         val fake = FakeBotdot { a ->
