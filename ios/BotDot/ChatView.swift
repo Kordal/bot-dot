@@ -40,6 +40,7 @@ struct ChatView: View {
                             RunRow(view: r, paths: s.opensFiles, stops: model.state?.boxStops == false, onStop: { model.stopRun(r.run.id) },
                                    color: s.bot?.color, onAnswer: { await model.answer(r.run.id, $0) },
                                    onAnswers: { await model.answerQuestions(r.run.id, $0) },
+                                   onDismiss: { await model.dismissChoices(r.run.id, $0) },
                                    onLearned: { chip in
                                        guard let to = LearnedChips.shared.open(c: chip) else { return }
                                        switch onEnum(of: to) {
@@ -204,6 +205,8 @@ struct RunRow: View {
     var color: String? = nil
     var onAnswer: (String) async -> Bool = { _ in false }
     var onAnswers: ([String]) async -> Bool = { _ in false }
+    /// The small × after its quick answers, and Undo: whether it was kept on the server.
+    var onDismiss: (Bool) async -> Bool = { _ in false }
     /// A "Learned" chip's tap, for one that opens something.
     var onLearned: (LearnedChip) -> Void = { _ in }
     /// A page chip under its reply opens that page in the viewer.
@@ -241,7 +244,7 @@ struct RunRow: View {
                     LearnedChipLabel(text: chip.text)
                 }
             }
-            if !view.choices.isEmpty { Choices(choices: view.choices, yes: Int(view.yes), color: color, onAnswer: onAnswer) }
+            if !view.choices.isEmpty { Choices(choices: view.choices, yes: Int(view.yes), color: color, canDismiss: view.canDismiss, dismissed: view.dismissed, onAnswer: onAnswer, onDismiss: onDismiss) }
             if !view.questions.isEmpty {
                 QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
             }
@@ -255,25 +258,39 @@ struct Choices: View {
     let choices: [String]
     let yes: Int
     let color: String?
+    /// The small × after the last answer is offered, and the owner put them away (the shared layer says both).
+    var canDismiss = false
+    var dismissed = false
     let onAnswer: (String) async -> Bool
+    /// Put away (true) or brought back (false): whether it was kept on the server; the shared layer undoes it when not.
+    var onDismiss: (Bool) async -> Bool = { _ in false }
     @State private var sent = false
     @State private var busy = false
+    @State private var undo = false // "Answers hidden · Undo" stands where the row was
 
     var body: some View {
-        if !sent {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack {
-                    ForEach(Array(choices.enumerated()), id: \.offset) { (i, c: String) in
-                        if i == yes {
-                            Button(c) { tap(c) }.buttonStyle(.borderedProminent).tint(ContactRow.tint(color))
-                        } else {
-                            Button(c) { tap(c) }.buttonStyle(.bordered)
+        Group {
+            if !sent {
+                if dismissed {
+                    if undo { AnswersHidden { undo = false; Task { _ = await onDismiss(false) } } }
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(Array(choices.enumerated()), id: \.offset) { (i, c: String) in
+                                if i == yes {
+                                    Button(c) { tap(c) }.buttonStyle(.borderedProminent).tint(ContactRow.tint(color))
+                                } else {
+                                    Button(c) { tap(c) }.buttonStyle(.bordered)
+                                }
+                            }
+                            if canDismiss { DismissX { undo = true; Task { if !(await onDismiss(true)) { undo = false } } } }
                         }
                     }
+                    .disabled(busy)
                 }
             }
-            .disabled(busy)
         }
+        .undoEnds($undo)
     }
 
     private func tap(_ c: String) {

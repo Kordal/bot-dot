@@ -1104,6 +1104,14 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
         val answer = send("POST", "/chief/chats/${enc(chatId)}/queued/${enc(queuedId)}/steer")
         return Queued.list(runCatching { JSON.parseToJsonElement(answer) as? JsonObject }.getOrNull()?.get("queued"))
     }
+    /** Put away a reply's quick answers (`choices-dismiss`), or bring them back: kept on the run, nothing is sent to the bot. */
+    suspend fun dismissChoices(runId: String, dismissed: Boolean) {
+        send("PUT", "/runs/${enc(runId)}/choices-dismissed", buildJsonObject { put("dismissed", dismissed) })
+    }
+    /** As [dismissChoices], for the Chief's message at [index] of the whole chat. */
+    suspend fun dismissChiefChoices(chatId: String, index: Int, dismissed: Boolean) {
+        send("PUT", "/chief/chats/${enc(chatId)}/messages/$index/choices-dismissed", buildJsonObject { put("dismissed", dismissed) })
+    }
     suspend fun dismissSuggestion(chatId: String) { send("POST", "/chief/chats/${enc(chatId)}/dismiss") }
     /** Rate the unasked message at [index] of the whole chat: "up", "down", or null to clear it (Ratings). */
     suspend fun rate(chatId: String, index: Int, rating: String?) {

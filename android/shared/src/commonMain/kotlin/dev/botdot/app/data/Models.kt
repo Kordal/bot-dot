@@ -433,6 +433,7 @@ data class Run(
     val cards: List<String>? = null, // the cards in Needs you it names, drawn under it while they wait (ADR 252)
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
+    val choicesDismissed: Boolean = false, // the owner put its quick answers away with the small × (`choices-dismiss`): drawn without them
     val questions: List<String>? = null, // several questions at once: a card with a box under each
     val questionChoices: List<List<String>?>? = null, // each question's choices (null for one without), drawn under its box
     val quiet: Boolean = false, // a scheduled run with nothing for the owner: no bubble, no notification
@@ -690,6 +691,7 @@ data class ChiefMessage(
     val cards: List<String>? = null, // the cards in Needs you it names, drawn under it while they wait (ADR 252)
     val choices: List<String>? = null, // quick answers to its closing question
     val yes: Int? = null, // the index of the choice that says yes: filled with the bot's colour
+    val choicesDismissed: Boolean = false, // the owner put its quick answers away with the small × (`choices-dismiss`): drawn without them
     val questions: List<String>? = null, // several questions at once: a card with a box under each
     val questionChoices: List<List<String>?>? = null, // each question's choices (null for one without), drawn under its box
     val actions: List<ChiefAction>? = null, // what it did while replying

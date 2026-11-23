@@ -1,5 +1,7 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.NOT_CONNECTED
+import dev.botdot.app.data.hasChoicesDismiss
 import dev.botdot.app.data.Ended
 import dev.botdot.app.data.endedWords
 import dev.botdot.app.data.replyText
@@ -556,7 +558,7 @@ fun GroupChatScreen(app: BotDotApp, groupId: String, onSettings: () -> Unit, onN
                                 if (x.id == vm.newFirst) NewLine(memberColor(bots, x.run.botId, x.run.botColor))
                                 // The answer buttons of the group's open question stand under the reply that asked: an
                                 // answer is a message to the group, and the member that asked has the first turn.
-                                GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id) { text, key -> sendFrom(text, key) }
+                                GroupReply(x.run, bot, features, asks = vm.asks?.runId == x.run.id, putaway = if (hasChoicesDismiss(features)) Putaway(x.run.id, x.run.choicesDismissed) { app.api.value?.dismissChoices(x.run.id, it) ?: throw ApiException(NOT_CONNECTED) } else null) { text, key -> sendFrom(text, key) }
                                 if (x.run.status == "success") NamedCards(app, chatKey, namedHere[x.run.id])
                             }
                         }
@@ -658,7 +660,7 @@ private fun NextHeads(heads: List<Bot>) {
  * the name and the colour are then the run's. [asks]: it is the group's open question, and has its answer buttons.
  */
 @Composable
-private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: Boolean, onAnswer: suspend (String, String) -> Boolean) {
+private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: Boolean, putaway: Putaway?, onAnswer: suspend (String, String) -> Boolean) {
     val p = LocalPaper.current
     val color = bot?.color ?: r.botColor ?: GONE_COLOR
     val footer = shortTime(r.endedAt ?: r.startedAt)
@@ -687,7 +689,7 @@ private fun GroupReply(r: Run, bot: Bot?, features: Collection<String>?, asks: B
             }
             RunScreenshots(r)
             if (asks && r.status == "success") {
-                Choices(r.choices, r.yes, color, onAnswer)
+                Choices(r.choices, r.yes, color, putaway, onAnswer)
                 Questions(r.questions, r.questionChoices, of = r.id, onSend = onAnswer)
             }
         }

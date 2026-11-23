@@ -972,14 +972,31 @@ inline fun <T> Result<T>.onError(block: (Throwable) -> Unit): Result<T> =
     onFailure { if (it !is kotlinx.coroutines.CancellationException) block(it) }
 
 /**
+ * Quick answers put away with the small ×, by reply: what the owner chose here, which wins over the list the server
+ * last sent ([dev.botdot.app.data.QuickAnswers.away]). Kept for as long as the app runs.
+ */
+object QuickAnswersState {
+    val put = androidx.compose.runtime.mutableStateMapOf<String, Boolean>()
+}
+
+/**
+ * Where a reply's quick answers can be put away: [key] is the reply (its run id, or the Chief message's
+ * [dev.botdot.app.data.QuickAnswers.chiefKey]), [dismissed] what the server says now, and [save] sends the owner's choice
+ * (`PUT …/choices-dismissed`). Null for a botdot without `choices-dismiss`: no ×.
+ */
+class Putaway(val key: String, val dismissed: Boolean, val save: suspend (Boolean) -> Unit)
+
+/**
  * Quick answers under the newest reply ("Yes" / "No"…): tap one to send it. [onPick] sends the answer with its key
  * and says whether it went: the answers go at the tap, and come back to be tapped again when it did not. An answer keeps
  * its key for as long as it is shown, so tapped again after a failed send it is the same message. The one at [yes]
- * is filled with [color], the colour of the bot that asks.
+ * is filled with [color], the colour of the bot that asks. [putaway]: a small × after the last answer puts them all away
+ * without answering; "Answers hidden · Undo" stands in their place for a few seconds, and the choice is kept with the
+ * reply on the server. The bot is not told.
  */
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, onPick: suspend (String, String) -> Boolean) {
+fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, putaway: Putaway? = null, onPick: suspend (String, String) -> Boolean) {
     if (choices.isNullOrEmpty()) return
     val p = LocalPaper.current
     val scope = rememberCoroutineScope()
@@ -987,13 +1004,49 @@ fun Choices(choices: List<String>?, yes: Int? = null, color: String? = null, onP
     // Gone at the tap, as the owner's message shows; back only when the send did not go (#495).
     var sending by remember(choices) { mutableStateOf(false) }
     val keys = remember(choices) { choices.map { messageKey() } } // before the return: they outlast a send that failed
+    var undoing by remember(putaway?.key) { mutableStateOf(false) } // "Answers hidden · Undo" stands where the row was
+    LaunchedEffect(undoing) { if (undoing) { kotlinx.coroutines.delay(dev.botdot.app.data.QuickAnswers.UNDO_MS); undoing = false } }
     if (used || sending) return
+    val away = putaway != null && dev.botdot.app.data.QuickAnswers.away(QuickAnswersState.put, putaway.key, putaway.dismissed)
+    if (away) {
+        if (undoing && putaway != null) {
+            Row(Modifier.fillMaxWidth().padding(start = Space.s4), verticalAlignment = Alignment.CenterVertically) {
+                Text("${tr("Answers hidden")} · ", color = p.muted, style = MaterialTheme.typography.bodySmall)
+                Box(
+                    Modifier.heightIn(min = 48.dp).clickable(role = Role.Button) {
+                        undoing = false
+                        QuickAnswersState.put[putaway.key] = false
+                        scope.launch { try { putaway.save(false) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { QuickAnswersState.put[putaway.key] = true; undoing = true } }
+                    },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(tr("Undo"), color = p.text, style = MaterialTheme.typography.bodySmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline))
+                }
+            }
+        }
+        return
+    }
     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(start = Space.s4), horizontalArrangement = Arrangement.spacedBy(Space.s8), verticalArrangement = Arrangement.spacedBy(Space.s8)) {
         choices.forEachIndexed { i, c ->
             val pick: () -> Unit = { sending = true; scope.launch { try { if (onPick(c, keys[i])) used = true } finally { sending = false } } }
             val fill = if (i == yes) color?.let { parseColor(it, Color.Unspecified) }?.takeIf { it != Color.Unspecified } else null
             if (fill != null) androidx.compose.material3.Button(onClick = pick, colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = fill, contentColor = inkOn(fill))) { Text(c) }
             else SecondaryButton(onClick = pick) { Text(c, color = p.text) }
+        }
+        if (putaway != null) {
+            val label = tr("Dismiss suggested answers")
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).clickable(onClickLabel = label, role = Role.Button) {
+                    QuickAnswersState.put[putaway.key] = true
+                    undoing = true
+                    scope.launch { try { putaway.save(true) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (e: Exception) { QuickAnswersState.put[putaway.key] = false; undoing = false } }
+                }.semantics { contentDescription = label },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.size(28.dp).clip(CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Close, contentDescription = null, tint = p.muted, modifier = Modifier.size(14.dp))
+                }
+            }
         }
     }
 }

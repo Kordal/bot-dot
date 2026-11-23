@@ -41,6 +41,9 @@ class GroupReplyView(
     val choices: List<String>,
     /** The index of the choice that says yes, filled with the member's colour; -1 for none. */
     val yes: Int,
+    /** The small × after [choices] is offered ([QuickAnswers]), and the owner put them away: drawn without them, with Undo for [QuickAnswers.UNDO_MS]. */
+    val canDismiss: Boolean = false,
+    val dismissed: Boolean = false,
     /** Several questions at once, while it is the group's open question: a box under each ([GroupChat.answerQuestions]). */
     val questions: List<String> = emptyList(),
     /** Each question's choices, drawn under its box (empty for one without). */
@@ -313,6 +316,22 @@ class GroupChat(
         val text = questionsAnswer(r.questions, answers)
         val key = (cardKeys[runId]?.takeIf { it.first == text } ?: (text to newMessageKey()).also { cardKeys[runId] = it }).second
         return sendWith(text, emptyList(), box = false, key = key)
+    }
+
+    // What the owner chose with the small × here, by run: it wins over a list the server has not changed yet.
+    private val choicesPut = HashMap<String, Boolean>()
+
+    /** As [BotChat.dismissChoices], for a member's reply in the group. */
+    @Throws(Exception::class)
+    suspend fun dismissChoices(runId: String, dismissed: Boolean) {
+        val before = choicesPut[runId]
+        choicesPut[runId] = dismissed
+        publish()
+        try { api.dismissChoices(runId, dismissed) } catch (e: Exception) {
+            if (before == null) choicesPut.remove(runId) else choicesPut[runId] = before
+            publish()
+            throw e
+        }
     }
 
     // One key per question card while its answers stay the same.
@@ -680,6 +699,8 @@ class GroupChat(
             files = r.files.orEmpty(),
             choices = if (asking) r.choices.orEmpty() else emptyList(),
             yes = if (asking) r.yes ?: -1 else -1,
+            canDismiss = asking && !r.choices.isNullOrEmpty() && hasChoicesDismiss(features),
+            dismissed = QuickAnswers.away(choicesPut, r.id, r.choicesDismissed),
             questions = if (asking) r.questions.orEmpty() else emptyList(),
             questionChoices = if (asking) r.questions.orEmpty().indices.map { r.questionChoices?.getOrNull(it).orEmpty() } else emptyList(),
         )

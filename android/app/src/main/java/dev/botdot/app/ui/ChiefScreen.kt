@@ -1,5 +1,9 @@
 package dev.botdot.app.ui
 
+import dev.botdot.app.data.ApiException
+import dev.botdot.app.data.NOT_CONNECTED
+import dev.botdot.app.data.hasChoicesDismiss
+import dev.botdot.app.data.QuickAnswers
 import dev.botdot.app.data.chiefCardAt
 import dev.botdot.app.data.withClosedCards
 import dev.botdot.app.data.MailCard
@@ -295,7 +299,7 @@ fun ChiefScreen(app: BotDotApp, startChatId: String, shared: List<Uri>, sharedTe
                                     onBot = { bot?.let { onBot(it.id) } }, onScreen = { bot?.let { onScreen(it.id) } }) { text, key -> sendFrom(text, key) }
                             }
                             if (cardOpen && !busy && mail == null) {
-                                Choices(m.choices, m.yes, CHIEF_COLOR) { text, key -> sendFrom(text, key) }
+                                Choices(m.choices, m.yes, CHIEF_COLOR, putaway = if (hasChoicesDismiss(features) && chatId != null) Putaway(QuickAnswers.chiefKey(chatId.orEmpty(), index), m.choicesDismissed) { app.api.value?.dismissChiefChoices(chatId.orEmpty(), index, it) ?: throw ApiException(NOT_CONNECTED) } else null) { text, key -> sendFrom(text, key) }
                                 Questions(m.questions, m.questionChoices, of = "chief:${chatId.orEmpty()}:${m.at.orEmpty()}") { text, key -> sendFrom(text, key) }
                             }
                         }

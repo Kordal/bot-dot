@@ -40,7 +40,7 @@ struct GroupChatView: View {
                             if let m = row.message {
                                 GroupMessageRow(view: m, figure: figure) { id in withAnimation { scroll.scrollTo(id, anchor: .center) } }.id(row.id)
                             } else if let r = row.reply {
-                                GroupReplyRow(view: r, figure: figure, onAnswer: { model.answer($0) }, onAnswers: { await model.answerQuestions(r.run.id, $0) }).id(row.id)
+                                GroupReplyRow(view: r, figure: figure, onAnswer: { model.answer($0) }, onAnswers: { await model.answerQuestions(r.run.id, $0) }, onDismiss: { await model.dismissChoices(r.run.id, $0) }).id(row.id)
                             } else if let f = row.fold {
                                 FoldRow(fold: f, figure: figure) { withAnimation { model.toggleFold(f.messageId) } }.id(row.id)
                             }
@@ -179,6 +179,9 @@ struct GroupReplyRow: View {
     let onAnswer: (String) -> Void
     /// Its several questions answered at once; whether they went.
     var onAnswers: ([String]) async -> Bool = { _ in false }
+    /// The small × after its answers, and Undo: whether it was kept on the server.
+    var onDismiss: (Bool) async -> Bool = { _ in false }
+    @State private var undo = false // "Answers hidden · Undo" stands where the row was
 
     var body: some View {
         MemberSide(name: view.name, color: view.color, state: view.figureState, outfit: view.bot?.outfit, figure: figure) {
@@ -189,14 +192,19 @@ struct GroupReplyRow: View {
             }
             ReplyFilesView(files: view.files)
             if !view.choices.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack {
-                        ForEach(Array(view.choices.enumerated()), id: \.offset) { i, c in
-                            if i == Int(view.yes) {
-                                Button(c) { onAnswer(c) }.buttonStyle(.borderedProminent).tint(ContactRow.tint(view.color))
-                            } else {
-                                Button(c) { onAnswer(c) }.buttonStyle(.bordered)
+                if view.dismissed {
+                    if undo { AnswersHidden { undo = false; Task { _ = await onDismiss(false) } } }
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(Array(view.choices.enumerated()), id: \.offset) { i, c in
+                                if i == Int(view.yes) {
+                                    Button(c) { onAnswer(c) }.buttonStyle(.borderedProminent).tint(ContactRow.tint(view.color))
+                                } else {
+                                    Button(c) { onAnswer(c) }.buttonStyle(.bordered)
+                                }
                             }
+                            if view.canDismiss { DismissX { undo = true; Task { if !(await onDismiss(true)) { undo = false } } } }
                         }
                     }
                 }
@@ -205,6 +213,7 @@ struct GroupReplyRow: View {
                 QuestionsBox(questions: view.questions, choices: view.questionChoices, onSend: onAnswers)
             }
         }
+        .undoEnds($undo)
     }
 }
 
