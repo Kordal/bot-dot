@@ -2064,6 +2064,8 @@ pull() {
     else
       say "  Downloading $(pull_name "$1")…"
       ( set +e; timeout 900 $into pull "$1" </dev/null; echo "$?" > "$pull_rc_file" ) > "$pull_err" 2>&1
+    fi
+    if [ "$MODE" = install ]; then
       { printf '== docker pull %s\n' "$1"; cat "$pull_err"; } >> "$DIR/install.log" 2>/dev/null || true
       chmod 600 "$DIR/install.log" 2>/dev/null || true
     fi

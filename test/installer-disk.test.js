@@ -131,4 +131,5 @@ test('BOT_DOT_VERBOSE=1 shows the layers and the technical words', onLinux('inst
   assert.equal(done.status, 0, `${done.said}\n${done.stderr}`);
   assert.match(done.said, /5f7a1c: Pull complete/);
   assert.match(done.said, /SELinux is enforcing/);
+  assert.match(fs.readFileSync(path.join(done.dir, 'install.log'), 'utf8'), /5f7a1c: Pull complete/, 'and the log has it all the same');
 });
