@@ -126,7 +126,7 @@ test("on dnf, the prerequisites come by their dnf names, and gVisor from its rel
   assert.equal(fs.statSync(path.join(local, 'runsc')).mode & 0o777, 0o755);
   assert.ok(fs.existsSync(path.join(local, 'gvisor-bin', 'gvisor_sentry')), "runsc's helpers beside it");
   assert.equal(fs.readFileSync(path.join(done.etc, 'botdot-gvisor'), 'utf8'), `# botdot (install.sh): gVisor 20261102.0, installed from its release files.\n${local}/runsc\n${local}/gvisor-bin\n`);
-  assert.match(done.said, /Rootless Docker and gVisor \(release-20261102\.0\)/);
+  assert.match(done.said, /Each account's sandbox is ready \(gVisor release-20261102\.0\)/);
   assert.match(fs.readFileSync(path.join(done.dir, 'accounts', 'ann', 'share', 'runsc'), 'utf8'), new RegExp(`^RUNSC='${local}/runsc'$`, 'm'), "each account's runsc is the one in /usr/local/bin, also where sudo's PATH leaves it out");
   assert.doesNotMatch(done.said + done.stderr, /botdot is tested with/);
 });

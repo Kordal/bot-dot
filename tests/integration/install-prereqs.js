@@ -71,14 +71,14 @@ function check(distro) {
     // than 4 (Ubuntu 22.04, Debian 12) is told to lift that, which its own kernel doesn't need.
     const hostRestricts = (() => { try { return fs.readFileSync('/proc/sys/kernel/apparmor_restrict_unprivileged_userns', 'utf8').trim() === '1'; } catch { return false; } })();
     const lift = /AppArmor is too old to name rootless Docker/.test(first.said);
-    assert.ok(lift ? hostRestricts : new RegExp(`Rootless Docker and gVisor \\(release-${GVISOR_RELEASE.replace('.', '\\.')}\\)`).test(first.said), `the first step is done:\n${first.said}`);
+    assert.ok(lift ? hostRestricts : new RegExp(`Each account's sandbox is ready \\(gVisor release-${GVISOR_RELEASE.replace('.', '\\.')}\\)`).test(first.said), `the first step is done:\n${first.said}`);
     const have = docker('exec', name, 'sh', '-c', 'for t in docker dockerd-rootless.sh newuidmap setfacl; do command -v "$t" >/dev/null || echo "$t is missing"; done; command -v slirp4netns >/dev/null || command -v pasta >/dev/null || echo "slirp4netns is missing"; docker compose version >/dev/null || echo "docker compose is missing"; "$(command -v runsc || echo /usr/local/bin/runsc)" --version | head -n 1');
     assert.equal(have, `runsc version release-${GVISOR_RELEASE}`, have);
 
     step('running it again');
     const again = install();
     assert.doesNotMatch(again.said, /Install (them|Docker) now|needs:/, `a second run installs nothing:\n${again.said}`);
-    if (!lift) assert.match(again.said, /Rootless Docker and gVisor/, again.said);
+    if (!lift) assert.match(again.said, /Each account's sandbox is ready/, again.said);
     step('passed');
   } finally {
     try { docker('rm', '-fv', name); } catch { /* not started */ }

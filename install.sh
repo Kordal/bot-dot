@@ -193,9 +193,14 @@ LOAD="$DOOR/load"
 # file cache in its own memory, so an account held to 4 GB on a 16 GB machine filled it and thrashed its disk (#126).
 DEFAULT_RAM="$(awk '/^MemTotal:/ { g = int(int($2 / 1048576 + 0.5) / 2); print (g < 5 ? 5 : g) }' "$PROC/meminfo" 2>/dev/null || true)"
 DEFAULT_SHARE="2 ${DEFAULT_RAM:-5} 30"
-# The RAM, in GB, botdot needs for one account: the README's and docs/install-linux.md's "8 GB RAM" (#1555,
-# test/installer-ram.test.js keeps them the same). A machine with less is warned at install, and the install goes on.
-MIN_RAM_GB=8
+# The RAM, in GB, that is recommended for one account: the README's and docs/install-linux.md's "8 GB RAM" (#1555,
+# #1561; test/installer-ram.test.js keeps them the same). 8 GB is tested to work and 4 GB is not tested, so it is never
+# called the least that works. A machine with less is warned at install, and asked whether to go on.
+RECOMMENDED_RAM_GB=8
+# The disk, in GB, one account needs: an install on a 20 GB disk ran out of space and one on 40 GB passed (#1561). A disk
+# sold as 40 GB shows a little less to df, so one within a tenth of it is not warned (DISK_ALLOWANCE, per cent).
+MIN_DISK_GB=40
+DISK_ALLOWANCE=90
 # An account's disk is full below this many bytes free: the admin page marks it.
 FULL_BELOW=209715200
 
@@ -237,6 +242,21 @@ ask() {
     [Nn]*) return 1 ;;
     *) [ "$2" = y ] ;;
   esac
+}
+
+# ask_continue: after a warning, whether to go on. BOT_DOT_YES=1 goes on without asking; so does a run nobody can
+# answer (no terminal and nothing on standard input), as the RAM warning always did. A person's reply that isn't a
+# yes stops the install before it changes anything.
+ask_continue() {
+  [ "${BOT_DOT_YES:-}" != 1 ] || return 0
+  printf 'Continue anyway? [y/N] '
+  if [ "$TTY" = /dev/tty ]; then
+    IFS= read -r REPLY < /dev/tty || REPLY=''
+  else
+    IFS= read -r REPLY || { printf '\n'; return 0; }
+    printf '%s\n' "$REPLY"
+  fi
+  case "$REPLY" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
 # ask_secret "Prompt" -> $REPLY, not shown on screen
@@ -1427,7 +1447,7 @@ erase_account() {
 # The units the installer writes, the files and folders it keeps in BOT_DOT_DIR, and the packages it may have installed
 # for the accounts (step 1), beside gVisor's apt source.
 UNITS="botdot-computers.service botdot-computers.timer botdot-account@.service botdot-accounts.path botdot-accounts.service botdot-load.timer botdot-load.service botdot-local-firewall.service botdot-egress.service botdot-offsite.timer botdot-offsite.service"
-OWN="front-door accounts sockets disks bin backup offsite update.log requests.log computer-preparation computer-preparation.log demo-seeded"
+OWN="front-door accounts sockets disks bin backup offsite update.log install.log requests.log computer-preparation computer-preparation.log demo-seeded"
 PACKAGES="runsc docker-ce-rootless-extras"
 
 # installed_accounts: each account this machine has: its folder, its socket folder, its disk or its Linux user.
@@ -1633,22 +1653,40 @@ if [ "$MODE" = install ] && [ -n "$KERNEL" ]; then
   [ "${KERNEL% *}" -gt 5 ] || { [ "${KERNEL% *}" -eq 5 ] && [ "${KERNEL#* }" -ge 11 ]; } \
     || die "botdot needs Linux 5.11 or newer for each account's rootless Docker, and this machine runs $(uname -r). Install a newer release (Ubuntu 22.04, Debian 12, Fedora, RHEL 9 or newer) and run this again."
 fi
-# A machine with less RAM than MIN_RAM_GB is warned, and installed all the same (#1555): a 2 GB machine installed
-# without a word, and its account's default share still said 5 GB. MemTotal is a little under the RAM a machine is
-# sold with, so it is rounded to whole GB, as DEFAULT_RAM rounds it. Not on the desktop app's botdot (local), whose VM
-# the app sizes, nor when /proc/meminfo can't be read.
-if [ "$MODE" = install ] && [ "${BOT_DOT_REACH:-$(get_env "$ENV" BOT_DOT_REACH)}" != local ]; then
-  RAM_KB="$(awk '/^MemTotal:/ { print $2 }' "$PROC/meminfo" 2>/dev/null || true)"
-  case "$RAM_KB" in
-    '' | *[!0-9]*) ;;
-    *) [ $(((RAM_KB + 524288) / 1048576)) -ge "$MIN_RAM_GB" ] \
-      || warn "This machine has $(awk -v k="$RAM_KB" 'BEGIN { printf "%.1f", k / 1048576 }') GB of RAM, and botdot needs at least $MIN_RAM_GB GB for one account. The install goes on, but its bots may run out of memory once they work (a bot's computer, its browser)." ;;
-  esac
-fi
 # Everything below needs it, also to see that botdot has started.
 command -v curl >/dev/null 2>&1 || die "The installer needs curl. Install it ($(install_hint curl curl)) and run this again."
 # Each account gets a Linux user of its own, so the installer makes users and their folders.
-[ "$(id -u)" = 0 ] || die "The installer makes a Linux user for each account, so it runs as root. Run it with: sudo sh install.sh"
+[ "$(id -u)" = 0 ] || die "The installer makes a Linux user for each account, so it needs full control of this machine. Run it with: sudo sh install.sh"
+# A machine with less RAM or disk than botdot is meant for is warned, and asked whether to go on, before anything is
+# installed (#1555, #1561): a 2 GB machine installed without a word and then could not start a bot's computer, and an
+# install on a 20 GB disk ran out of space halfway. MemTotal is a little under the RAM a machine is sold with, so it is
+# rounded to whole GB, as DEFAULT_RAM rounds it. The disk is the smaller of the one botdot's folder is on and the one
+# Docker's is on, the whole size in GB (not what is free now), as df shows it. Not on the desktop app's botdot (local),
+# whose VM the app sizes, nor when /proc/meminfo or df can't be read.
+if [ "$MODE" = install ] && [ "${BOT_DOT_REACH:-$(get_env "$ENV" BOT_DOT_REACH)}" != local ]; then
+  CAPACITY_WARNED=''
+  RAM_KB="$(awk '/^MemTotal:/ { print $2 }' "$PROC/meminfo" 2>/dev/null || true)"
+  case "$RAM_KB" in
+    '' | *[!0-9]*) ;;
+    *) if [ $(((RAM_KB + 524288) / 1048576)) -lt "$RECOMMENDED_RAM_GB" ]; then
+      warn "This machine has $(awk -v k="$RAM_KB" 'BEGIN { printf "%.1f", k / 1048576 }') GB of RAM, and $RECOMMENDED_RAM_GB GB is recommended. With less, a bot's computer and its browser may not start."
+      CAPACITY_WARNED=1
+    fi ;;
+  esac
+  DISK_TOTAL='' DISK_FREE=''
+  for disk_dir in "$DIR" /var/lib/docker; do
+    # The folder may not be there yet: its disk is the one of the nearest folder above it that is.
+    while [ ! -d "$disk_dir" ] && [ "$disk_dir" != / ] && [ "$disk_dir" != . ]; do disk_dir="$(dirname "$disk_dir")"; done
+    disk_sizes="$(df -Pk "$disk_dir" 2>/dev/null </dev/null | awk 'NR == 2 && $2 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/ { printf "%d %d", $2 * 1024 / 1e9, $4 * 1024 / 1e9 }' || true)"
+    [ -n "$disk_sizes" ] || continue
+    if [ -z "$DISK_TOTAL" ] || [ "${disk_sizes% *}" -lt "$DISK_TOTAL" ]; then DISK_TOTAL="${disk_sizes% *}" DISK_FREE="${disk_sizes#* }"; fi
+  done
+  if [ -n "$DISK_TOTAL" ] && [ $((DISK_TOTAL * 100)) -lt $((MIN_DISK_GB * DISK_ALLOWANCE)) ]; then
+    warn "This machine's disk is $DISK_TOTAL GB ($DISK_FREE GB free), and botdot needs $MIN_DISK_GB GB. With less, the install can run out of space."
+    CAPACITY_WARNED=1
+  fi
+  [ -z "$CAPACITY_WARNED" ] || ask_continue || die "Nothing was changed."
+fi
 # One installer at a time: a person's run, root's step and the admin page's update all change the same accounts, and
 # two at once left an account half on each version. A run waits for the one before it to finish. The update root's step
 # runs for the admin page, and the installer an update hands over to, go on under its hold (BOT_DOT_LOCKED, given to
@@ -1923,9 +1961,13 @@ if { [ "$MODE" = install ] || [ "$MODE" = update ]; } && [ -n "$KIT" ] && comman
   printf '# botdot (install.sh): rootless Docker for each account needs user namespaces.\nabi <abi/4.0>,\ninclude <tunables/global>\n\nprofile botdot-rootlesskit %s flags=(unconfined) {\n  userns,\n}\n' "$KIT" > "$ETC/apparmor.d/botdot-rootlesskit"
   apparmor_parser -r "$ETC/apparmor.d/botdot-rootlesskit" </dev/null || die "AppArmor didn't take the profile that lets rootless Docker run ($KIT)."
 fi
-[ "$MODE" != install ] || ok "Rootless Docker and gVisor ($("$RUNSC" --version </dev/null 2>/dev/null | head -n 1 | sed 's/^runsc version //'))"
+[ "$MODE" != install ] || ok "Each account's sandbox is ready (gVisor $("$RUNSC" --version </dev/null 2>/dev/null | head -n 1 | sed 's/^runsc version //'))"
 if [ "$MODE" = install ] && [ "$(getenforce 2>/dev/null || true)" = Enforcing ]; then
-  warn "SELinux is enforcing, which botdot isn't tested with yet. If an account doesn't start, see https://github.com/ladrok/bot-dot/blob/main/docs/install-linux.md#platforms"
+  if [ "${BOT_DOT_VERBOSE:-}" = 1 ]; then
+    warn "SELinux is enforcing, which botdot isn't tested with yet. If an account doesn't start, see https://github.com/ladrok/bot-dot/blob/main/docs/install-linux.md#platforms"
+  else
+    warn "This machine's extra security layer is strict, and botdot isn't tested with it yet. If an account doesn't start, see https://github.com/ladrok/bot-dot/blob/main/docs/install-linux.md#platforms"
+  fi
 fi
 
 # ---------------------------------------------------------------------------------------------
@@ -2003,6 +2045,8 @@ check() {
   [ "$status" != 2 ] || die "That token didn't work for $REGISTRY. Check that it has the read:packages scope."
   die "Refused $1: ${SIGNED:-it could not be checked}. Nothing was downloaded or started."
 }
+# pull_name IMAGE: what a person is told it is downloading: the image's name without its registry, tag or digest.
+pull_name() { pull_n="${1##*/}"; pull_n="${pull_n%%@*}"; printf '%s' "${pull_n%%:*}"; }
 # pull NAME [DOCKER]: downloads it into the machine's Docker, or DOCKER (an account's), signing in with the token when
 # the registry wants one. A download that fails leaves Docker's last line of error in PULLED, so that what stops the
 # update says why ("no space left on device"), not only that it couldn't.
@@ -2010,10 +2054,19 @@ pull() {
   into="${2:-$D}"
   pull_try=1 pull_login=''
   while :; do
-    # Each attempt is bounded. Keep progress in the install log instead of swallowing it with -q.
+    # Each attempt is bounded. In a first install a person sees one line for it, and Docker's whole output, some 50
+    # lines of layers per image, goes to the install log; an update's output is in update.log whole, and
+    # BOT_DOT_VERBOSE=1 shows it in an install too.
     pull_err="$RUN/pull-$$.log"
     pull_rc_file="$RUN/pull-$$.rc"
-    ( set +e; timeout 900 $into pull "$1" </dev/null; echo "$?" > "$pull_rc_file" ) 2>&1 | tee "$pull_err"
+    if [ "$MODE" != install ] || [ "${BOT_DOT_VERBOSE:-}" = 1 ]; then
+      ( set +e; timeout 900 $into pull "$1" </dev/null; echo "$?" > "$pull_rc_file" ) 2>&1 | tee "$pull_err"
+    else
+      say "  Downloading $(pull_name "$1")…"
+      ( set +e; timeout 900 $into pull "$1" </dev/null; echo "$?" > "$pull_rc_file" ) > "$pull_err" 2>&1
+      { printf '== docker pull %s\n' "$1"; cat "$pull_err"; } >> "$DIR/install.log" 2>/dev/null || true
+      chmod 600 "$DIR/install.log" 2>/dev/null || true
+    fi
     pull_rc="$(cat "$pull_rc_file")"; rm -f "$pull_rc_file"
     if [ "$pull_rc" = 0 ]; then rm -f "$pull_err"; return 0; fi
     PULLED="$(sed '/^[[:space:]]*$/d' "$pull_err" | tail -n 1)"
@@ -5089,7 +5142,7 @@ fi
 # BOTDOT_READY line alone, for the fleet console.
 if [ -n "$MANAGED" ]; then
   say ""
-  warn "Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself."
+  warn "Whoever has full control of this machine can reach every account on it: its data, its bots and the logins they hold. Keep that control to yourself."
   say ""
   bold "Done. botdot is at $ORIGIN"
   LINK=''
@@ -5099,7 +5152,7 @@ if [ -n "$MANAGED" ]; then
 fi
 
 say ""
-warn "Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself."
+warn "Whoever has full control of this machine can reach every account on it: its data, its bots and the logins they hold. Keep that control to yourself."
 LINK="$($DOOR_COMPOSE exec -T front-door node front-door.js sign-up-link --account "$ADMIN" </dev/null 2>/dev/null | head -n 1 || true)"
 say ""
 bold "Done. botdot is at https://$NAME"
