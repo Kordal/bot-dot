@@ -30,7 +30,7 @@ jobs:
   # server is skipped. ios/ itself is built and tested by ios.yml.
   # The installer tests (test/installer*.test.js, 5,300 of the server tests' 7,800 seconds: the biggest
   # file alone ran 12 minutes) run on a pull request only when it changes what they read: INSTALLER_PATHS below, the
-  # files install.sh, its stand-in machine and the checks it runs load, which test/workflows.test.js derives from the
+  # files install.sh, its stand-in machine and the checks it runs load, which test/ci-installer-filter.test.js derives from the
   # tests and from install.yml's paths. Every other run (called from a workflow, by hand) runs them all, so the
   # image build tests everything before it publishes (docs/decisions/2026-11-23-pr-skips-installer-tests.md).
   # A call from another workflow says which by its inputs; missing inputs enable both (toJSON keeps a missing input
@@ -54,7 +54,7 @@ jobs:
           SERVER: ${{ toJSON(inputs.server) != 'false' }}
           ANDROID: ${{ toJSON(inputs.android) != 'false' }}
         run: |
-          # One extended regular expression per line (test/workflows.test.js reads this list: keep it one per line).
+          # One extended regular expression per line (test/ci-installer-filter.test.js reads this list: keep it one per line).
           INSTALLER_PATHS='
           ^install\.sh$
           ^Dockerfile$
