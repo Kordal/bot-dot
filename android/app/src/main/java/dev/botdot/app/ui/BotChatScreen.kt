@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DesktopWindows
 import androidx.compose.material.icons.filled.Close
@@ -75,9 +76,11 @@ import dev.botdot.app.data.PlanView
 import dev.botdot.app.data.Run
 import dev.botdot.app.data.RunSteps
 import dev.botdot.app.data.SentTo
+import dev.botdot.app.data.AnswerQuote
 import dev.botdot.app.data.Unread
 import dev.botdot.app.data.str
 import dev.botdot.app.data.tr
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -109,16 +112,22 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
 
     LaunchedEffect(vm) { vm.notes.collect { scope.launch { snack.showSnackbar(it) } } }
     // From a search match: go to that run (older pages until it's there), and open it if it's folded.
+    var marked by remember { mutableStateOf<String?>(null) } // the reply the owner's answer was tapped to: marked for a moment
+    // Go to a reply of the chat, open what is folded of it and mark it: a search match, or the question an answer quotes.
+    suspend fun showReply(runId: String): Boolean {
+        val i = ChatOrder.rounds(vm.runs).asReversed().indexOfFirst { b -> b.any { it.id == runId } } // the chat's blocks, newest first
+        if (i < 0) return false
+        opened = opened + runId
+        listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + (if (vm.watches.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting, watches
+        return true
+    }
     LaunchedEffect(loaded) {
         val j = app.jump ?: return@LaunchedEffect
         if (!loaded || j.bot?.id != botId) return@LaunchedEffect
         app.jump = null
         val runId = j.runId ?: return@LaunchedEffect
         if (!vm.reach(runId)) return@LaunchedEffect
-        val i = ChatOrder.rounds(vm.runs).asReversed().indexOfFirst { b -> b.any { it.id == runId } } // the chat's blocks, newest first
-        if (i < 0) return@LaunchedEffect
-        opened = opened + runId
-        listState.scrollToItem(1 + (if (vm.waiting.isNotEmpty()) 1 else 0) + (if (vm.watches.isNotEmpty()) 1 else 0) + i) // below it: what waits for your OK, notes waiting, watches
+        showReply(runId)
     }
     // The runs its open questions are from (docs/api.md, "A bot that asks"), however far back: older pages until the
     // oldest is in the chat, so "Needs you" on its key points at something to answer. Two runs that went at once and
@@ -271,13 +280,17 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                     // its block (#627), which stands where its newest round's reply does.
                     val blocks = ChatOrder.rounds(runs)
                     val lastReply = blocks.lastOrNull()?.lastOrNull()?.id
-                    items(blocks.asReversed(), key = { it.first().id }) { rounds ->
+                    val held = runs.associateBy { it.id } // the question an answer quotes is its reply's (AnswerQuote)
+                    val newestFirst = blocks.asReversed()
+                    itemsIndexed(newestFirst, key = { _, b -> b.first().id }) { at, rounds ->
                         val last = rounds.last()
+                        val older = newestFirst.getOrNull(at + 1).orEmpty().map { it.id } // the block above this one
                         // Details on the long press opens the newest round's steps; Copy takes its reply.
                         val detailed = rounds.lastOrNull { RunSteps.shows(it) }
                         RunBlock(onReply = if (replies && last.kind != "script" && !last.btw && !last.isQueued) ({
                             vm.replying = BotChatModel.Replying(last.id, RunSteps.firstLine(rounds.first().prompt).ifEmpty { tr("this task") })
-                        }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result) {
+                        }) else null, onDetails = detailed?.let { d -> { stepsOpen[d.id] = d.isRunning } }, copy = rounds.lastOrNull { it.status == "success" }?.result,
+                            marked = marked != null && rounds.any { it.id == marked }) {
                             rounds.forEachIndexed { n, r ->
                                 if (n > 0) RoundRule()
                                 // The "New" line: above what started the run, or, below your own message, above the rest of the block.
@@ -285,7 +298,9 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
                                 val mine = Unread.mine(r)
                                 val asked = drawsAsked(r)
                                 if (new && !mine && asked) NewLine(bot?.color)
-                                if (asked) YourSide(r, open = r.id in opened)
+                                if (asked) YourSide(r, open = r.id in opened, quote = AnswerQuote.of(r, held, older.toSet() + rounds.take(n).map { it.id })) {
+                                    scope.launch { if (showReply(it)) { marked = it; delay(1400); marked = null } }
+                                }
                                 r.steered.forEach { s -> s.fromBot?.let { SteeredFromBot(s, it) } ?: SteeredMessage(s) }
                                 if (new && (mine || !asked)) NewLine(bot?.color)
                                 val steps = RunSteps.shows(r)
@@ -331,7 +346,7 @@ fun BotChatScreen(app: BotDotApp, botId: String, shared: List<Uri>, sharedText: 
 }
 
 @Composable
-private fun YourSide(r: Run, open: Boolean = false) {
+private fun YourSide(r: Run, open: Boolean = false, quote: AnswerQuote.Quote? = null, onQuote: (String) -> Unit = {}) {
     val notes = r.inbox.orEmpty()
     if (notes.isNotEmpty()) NotesFold(notes, if (notes.size == 1) tr("Read a note from") else tr("Read notes from"))
     when (Unread.asked(r)) {
@@ -344,7 +359,7 @@ private fun YourSide(r: Run, open: Boolean = false) {
         Unread.Asked.WATCH -> Chip("${r.watchName.orEmpty()} · ${shortTime(r.startedAt)}")
         Unread.Asked.CARRIED_ON -> {} // it goes on after your OK: your request stands once, above the first reply
         Unread.Asked.USUAL -> Chip("▶ " + tr("Ran its main assignment"))
-        Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments)
+        Unread.Asked.MINE -> MyBubble(r.prompt, r.attachments, quote = quote?.text, onQuote = quote?.let { q -> { onQuote(q.runId) } })
     }
 }
 
@@ -367,8 +382,10 @@ private fun TheirSide(r: Run, open: Boolean = false, asksOpen: Boolean, features
     val text = replyText(r, asksOpen)
     // A reply that asks never folds: its quick answers or card stand under it, or a closed card's questions at its end.
     val asks = !r.questions.isNullOrEmpty() || (asksOpen && !r.choices.isNullOrEmpty())
-    val folded = remember(text, asks) { RunSteps.folded(text, asks) }
-    var more by remember(r.id) { mutableStateOf(false) }
+    // One that asked and was answered folds, but its question stays: the owner's answer quotes it (AnswerQuote).
+    val asked = !asks && !r.choices.isNullOrEmpty()
+    val folded = remember(text, asks, asked) { RunSteps.folded(text, asks, asked) }
+    var more by remember(r.id, open) { mutableStateOf(open) } // opened from a search match or from the question an answer quotes
     val reply: @Composable () -> Unit = {
         TheirBubble(footer, copyText = text, chips = learned, wholeChips = whole, plain = true) {
             Column {

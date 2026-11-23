@@ -70,13 +70,15 @@ import dev.botdot.app.data.tr
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RunBlock(onReply: (() -> Unit)? = null, onDetails: (() -> Unit)? = null, copy: String? = null, content: @Composable ColumnScope.() -> Unit) {
+fun RunBlock(onReply: (() -> Unit)? = null, onDetails: (() -> Unit)? = null, copy: String? = null, marked: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     val p = LocalPaper.current
     val context = LocalContext.current
     var sheet by remember { mutableStateOf(false) }
     val offers = onReply != null || onDetails != null || !copy.isNullOrBlank()
+    // [marked]: the reply an owner's answer was tapped to (AnswerQuote) shows for a moment on a fill that fades.
+    val mark by androidx.compose.animation.animateColorAsState(if (marked) p.sunk else Color.Transparent, label = "marked")
     Column(
-        Modifier.fillMaxWidth()
+        Modifier.fillMaxWidth().background(mark, Radius.small)
             .then(if (offers) Modifier.pointerInput(onReply, onDetails, copy) { detectTapGestures(onLongPress = { sheet = true }) } else Modifier)
             .padding(vertical = Space.s4),
         verticalArrangement = Arrangement.spacedBy(Space.s12), content = content,

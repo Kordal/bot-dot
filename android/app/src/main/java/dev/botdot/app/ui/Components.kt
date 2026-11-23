@@ -41,6 +41,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Reply
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -626,9 +627,12 @@ suspend fun LazyListState.showFromTop(index: () -> Int?) {
 // ---------- bubbles ----------
 
 @Composable
-fun MyBubble(text: String, files: List<Attachment>? = null) {
+fun MyBubble(text: String, files: List<Attachment>? = null, quote: String? = null, onQuote: (() -> Unit)? = null) {
     val p = LocalPaper.current
-    Row(Modifier.fillMaxWidth().padding(start = Space.s48), horizontalArrangement = Arrangement.End) {
+    Column(Modifier.fillMaxWidth().padding(start = Space.s48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Space.s4)) {
+    // The question this answers (AnswerQuote): one quiet line over the bubble, a tap goes to the reply that asked.
+    if (quote != null) AnswerQuoteLine(quote, onQuote)
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
         Column(
             Modifier.clip(Radius.mine).holdToCopy(text).background(p.ink).padding(horizontal = Space.s16, vertical = Space.s12),
         ) {
@@ -640,6 +644,20 @@ fun MyBubble(text: String, files: List<Attachment>? = null) {
             }
             if (!files.isNullOrEmpty()) FilesRow(files, onDark = true)
         }
+    }
+    }
+}
+
+/** A reply arrow and the question an owner's answer answers, two lines at most, muted; [onClick] goes to its reply. */
+@Composable
+private fun AnswerQuoteLine(text: String, onClick: (() -> Unit)?) {
+    val p = LocalPaper.current
+    Row(
+        Modifier.clip(Radius.small).then(if (onClick != null) Modifier.clickable(onClickLabel = tr("Show the question"), onClick = onClick) else Modifier),
+        horizontalArrangement = Arrangement.spacedBy(Space.s4), verticalAlignment = Alignment.Top,
+    ) {
+        Icon(Icons.AutoMirrored.Outlined.Reply, contentDescription = null, tint = p.muted, modifier = Modifier.padding(top = 2.dp).size(14.dp))
+        Text(text, color = p.muted, fontSize = Type.s12, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 

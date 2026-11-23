@@ -390,6 +390,39 @@ function replyText(r, open) {
   const asked = open ? [] : (r.questions || []).filter((q) => String(q).trim());
   return asked.length ? `${String(r.result || '').trimEnd()}\n\n${asked.map((q) => `- ${q}`).join('\n')}`.trim() : String(r.result || '');
 }
+// The question a quick answer answers, as the owner's bubble quotes it (answerQuoteHTML): the last sentence of the reply that
+// ends in a question mark, else the last of its card's questions, else its first twelve words. Markdown marks, the
+// address of a link and code blocks are left out of it. Android's AnswerQuote.questionOf has the same rule
+// (test/fixtures/answer-question-cases.json).
+const QUESTION_WORDS = 12;
+const QUESTION_END = /\?["')\]”»]*$/;
+function plainLines(text) {
+  return String(text ?? '')
+    .replace(/```[\s\S]*?(```|$)/g, ' ')
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}(?:#{1,6}|>|[-*+]|\d+[.)])\s+/gm, '')
+    .replace(/\*\*|__|~~|[*`]/g, '')
+    .split('\n').map((l) => l.trim()).filter(Boolean);
+}
+const sentencesOf = (text) => plainLines(text).flatMap((l) => l.match(/.+?(?:[.!?…]+["')\]”»]*(?=\s|$)|$)/g) || []).map((x) => x.trim()).filter(Boolean);
+function questionOf(text, questions) {
+  const said = sentencesOf(text);
+  const asked = said.filter((x) => QUESTION_END.test(x)).pop() || (questions || []).map((q) => String(q).trim()).filter(Boolean).pop();
+  const words = said.join(' ').split(/\s+/).filter(Boolean);
+  const out = asked || `${words.slice(0, QUESTION_WORDS).join(' ')}${words.length > QUESTION_WORDS ? '…' : ''}`;
+  return out.length > 200 ? `${out.slice(0, 199).trimEnd()}…` : out;
+}
+// Which of a reply's paragraphs holds its question, by their texts: the last that asks, else the last. A reply that
+// asked and is folded keeps this one beside its first (foldLongReplies).
+const questionParagraph = (paragraphs) => {
+  const at = paragraphs.map((p) => sentencesOf(p).some((x) => QUESTION_END.test(x))).lastIndexOf(true);
+  return at >= 0 ? at : paragraphs.length - 1;
+};
+// Over an owner's bubble that answers a question of a reply: a quiet line, a reply arrow and the question, two lines at
+// most. A tap goes to that reply (wireAnswerQuotes). `of`: the reply's id.
+const answerQuoteHTML = (text, of) => (text && of
+  ? `<button type="button" class="answer-quote" data-answer-of="${esc(of)}" title="${tr('Show the question')}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/></svg><span>${esc(text)}</span></button>`
+  : '');
 // send(text, key) resolves to whether it went (sendFrom). The buttons go at the tap, as the owner's bubble shows
 // (sentAtOnce), and come back only when the send failed, to send the same message again: an answer keeps its key for
 // as long as the page is open (answerKey), or without `of` for as long as it is drawn; a card for as long as its

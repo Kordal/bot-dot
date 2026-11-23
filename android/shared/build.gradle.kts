@@ -78,6 +78,7 @@ val fixtures = mapOf(
     "vaultTypes" to "test/fixtures/vault-types.json",
     "vaultSearch" to "test/fixtures/vault-search.json",
     "chatOrder" to "test/fixtures/chat-order.json",
+    "answerQuestions" to "test/fixtures/answer-question-cases.json",
     "markdownCases" to "test/fixtures/markdown-cases.json",
     "chatLinks" to "test/fixtures/chat-links.json",
     "botNames" to "test/fixtures/bot-names.json",
