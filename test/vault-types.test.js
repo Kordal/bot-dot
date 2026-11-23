@@ -227,7 +227,7 @@ test('Bitwarden: every login reads as usable in its computer and accepting a sel
   assert.deepEqual(access()['i-portal'], { bots: ['bot1'], insecureTls: false, inComputer: false }, 'what was kept stays as it was');
   assert.deepEqual(writes(), [], 'Bitwarden was not asked to edit anything');
   assert.deepEqual(kept(), [PORTAL]);
-  const added = await bw.add({ name: 'Bridge', site: '127.0.0.1', username: 'bart@proton.me', password: 'bridge-secret', allowedBots: ['bot1'], inComputer: false });
+  const added = await bw.add({ name: 'Bridge', site: '127.0.0.1', username: 'owner@example.com', password: 'bridge-secret', allowedBots: ['bot1'], inComputer: false });
   assert.equal(added.inComputer, true);
   assert.deepEqual(Object.keys(access()[added.id]).filter((k) => ['inComputer', 'insecureTls'].includes(k)), [], 'neither kept for a new item');
 });

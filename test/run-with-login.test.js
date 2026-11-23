@@ -16,7 +16,7 @@ const { startServer, makeBot, heldRun, REAPED, IN_OWN_FOLDER } = require('./help
 const { rpcClient } = require('./memory-helpers');
 
 const SECRET = 'br1dge-S3cret/+=';
-const USER = 'bart@proton.me';
+const USER = 'owner@example.com';
 // The bot's seat on the account's computer: screen 1, display :11 (#105).
 const MAIL = { bot: 'mail', screen: 1 };
 
