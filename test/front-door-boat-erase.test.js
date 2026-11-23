@@ -40,9 +40,10 @@ test("deleting an account deletes its boat.dev machines first; a failure is said
   for (const name of Object.keys(erases)) await signUp(name, { path: new URL((await a.post('/admin/links', {})).data.url).pathname });
   const del = (name) => a.post(`/admin/accounts/${name}/delete`, { name });
 
-  // No boat.dev key on this machine: nothing to ask.
+  // No boat.dev key on this machine: the account is still asked (it may have a key of its own, ADR 263), and says nothing to do.
   assert.deepEqual((await del('eve')).data, { ok: true });
-  assert.equal(erasesSeen('eve').length, 0);
+  assert.equal(erasesSeen('eve').length, 1);
+  assert.deepEqual(JSON.parse(erasesSeen('eve')[0].body || '{}'), {}, 'the admin\'s delete keeps nothing: every machine goes, with the key that made it');
 
   assert.equal((await a.post('/admin/boat', { key: 'boat_goodkey12345' })).status, 200);
   const bob = await del('bob');

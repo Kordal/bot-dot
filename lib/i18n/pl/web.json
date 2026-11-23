@@ -1882,5 +1882,30 @@
   "Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.": "Twoje zgłoszenia trafiają do twórców botdot. Ich tekst może zostać opublikowany bez danych osobowych, a zrzutów ekranu nigdy się nie publikuje.",
   "Answers hidden": "Odpowiedzi ukryte",
   "Dismiss suggested answers": "Ukryj podpowiedziane odpowiedzi",
-  "Version": "Wersja"
+  "Version": "Wersja",
+  "Copy its files to its own machine?": "Skopiować jego pliki na jego własną maszynę?",
+  "Copy its files to the account's machine?": "Skopiować jego pliki na maszynę konta?",
+  "Shared with the account's bots": "Wspólna z botami konta",
+  "Its own machine": "Własna maszyna",
+  "Works": "Działa",
+  "boat.dev refuses it": "boat.dev go odrzuca",
+  "boat.dev wants a plan or a payment method first": "boat.dev najpierw wymaga planu lub formy płatności",
+  "boat.dev can't be reached": "Nie można połączyć się z boat.dev",
+  "{cpus} CPUs · {memory} GB": "{cpus} procesorów · {memory} GB",
+  "boat.dev key": "Klucz boat.dev",
+  "Set": "Ustawiony",
+  "Not set": "Nie ustawiono",
+  "New boat.dev key": "Nowy klucz boat.dev",
+  "With your own key boat.dev bills you directly for the External Virtual PC, and you choose where the account's computer is.": "Z własnym kluczem boat.dev rozlicza Zewnętrzny wirtualny PC bezpośrednio z Tobą, a Ty wybierasz, gdzie jest komputer konta.",
+  "Remove your boat.dev key? Your bots then work on this machine.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować na tej maszynie.\n\nUtworzył na boat.dev: {n}. Można je usunąć razem z plikami albo zostawić.",
+  "{n} machines": {
+    "one": "{n} maszynę",
+    "few": "{n} maszyny",
+    "many": "{n} maszyn"
+  },
+  "Delete its machines on boat.dev": "Usuń jego maszyny na boat.dev",
+  "Keep them": "Zostaw je",
+  "Remove your boat.dev key? Your bots then work on this machine.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować na tej maszynie.",
+  "Remove your boat.dev key? Your bots then go on with the admin's key on the External Virtual PC.\n\nIt made {n} on boat.dev: they can be deleted with their files, or kept there.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora.\n\nUtworzył na boat.dev: {n}. Można je usunąć razem z plikami albo zostawić.",
+  "Remove your boat.dev key? Your bots then go on with the admin's key on the External Virtual PC.": "Usunąć Twój klucz boat.dev? Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora."
 }

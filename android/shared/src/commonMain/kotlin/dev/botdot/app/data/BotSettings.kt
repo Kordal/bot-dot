@@ -55,6 +55,8 @@ data class BotDraft(
     val moveFiles: Boolean = false,
     /** Its place of its own (ADR 261): "" follows the account's, else "linux" or "boat". */
     val computerPlace: String = "",
+    /** Its machine of its own on the External Virtual PC (ADR 263); false: the account's one. */
+    val boatOwnMachine: Boolean = false,
     /** Its proxy (ADR 171): "" the account's, "none", or one by id. */
     val proxy: String = "",
     val useSkills: Boolean = true,
@@ -89,6 +91,8 @@ data class BotDraft(
     fun withComputerOn(to: String, move: Boolean) = copy(computer = to != "none", computerOn = if (to != "none") to else computerOn, moveFiles = move)
     /** Its place of its own ([BotSettings.placeChoices]), its files copied along ([move]) or not. */
     fun withComputerPlace(place: String, move: Boolean) = copy(computerPlace = place, moveFiles = move)
+    /** Its machine of its own ([BotSettings.ownMachineChoices]), its files copied along ([move]) or not. */
+    fun withOwnMachine(own: Boolean, move: Boolean) = copy(boatOwnMachine = own, moveFiles = move)
     fun withProxy(proxy: String) = copy(proxy = proxy)
     fun withApp(c: Connection, on: Boolean) = BotSettings.appToggled(c, on, connectors, accounts).let { (k, a) -> copy(connectors = k, accounts = a) }
     fun withOthersMayAsk(on: Boolean) = copy(othersMayAsk = on)
@@ -131,7 +135,7 @@ object BotSettings {
         color = b.color.orEmpty(), icon = iconOf(b.outfit), name = b.name, description = b.description, group = b.group,
         pinned = b.pinned > 0, task = b.prompt, model = b.model.orEmpty(), effort = b.effort.orEmpty(),
         computer = b.computer == "linux" || b.computer == "boat", computerOn = if (b.computer == "boat") "boat" else "linux",
-        computerPlace = b.computerPlace, proxy = b.proxy, useSkills = b.useSkills, skills = b.skills.toSet(), disabled = b.disabledSkills.toSet(),
+        computerPlace = b.computerPlace, boatOwnMachine = b.boatOwnMachine, proxy = b.proxy, useSkills = b.useSkills, skills = b.skills.toSet(), disabled = b.disabledSkills.toSet(),
         connectors = b.connectors.toSet(), accounts = b.accounts,
         mayMessage = if (b.mayMessageAll) others.map { it.id }.toSet() else b.mayMessage.toSet(),
         othersMayAsk = b.othersMayAsk != false, rooms = b.rooms ?: BotRooms(), hotkey = b.hotkey ?: 0,
@@ -152,7 +156,9 @@ object BotSettings {
         if (nextComputer != b.computer) put("computer", nextComputer)
         val placeChanged = d.computerPlace != b.computerPlace
         if (placeChanged) put("computerPlace", d.computerPlace) // the server decides where it works then, and copies its files if asked
-        if ((nextComputer != b.computer || placeChanged) && d.moveFiles) put("moveFiles", true)
+        val ownChanged = d.boatOwnMachine != b.boatOwnMachine
+        if (ownChanged) put("boatOwnMachine", d.boatOwnMachine) // the owner's own change is saved at once; the Chief's waits for a card
+        if ((nextComputer != b.computer || placeChanged || ownChanged) && d.moveFiles) put("moveFiles", true)
         if (d.proxy != b.proxy) put("proxy", d.proxy)
         if (d.useSkills != b.useSkills) put("useSkills", d.useSkills)
         if (d.skills != b.skills.toSet()) put("skills", JsonArray(d.skills.map { JsonPrimitive(it) }))
@@ -223,6 +229,19 @@ object BotSettings {
         val own = account?.let { where[it] }?.let { tr("Account's ({name})", "name" to it) } ?: tr("Account's choice")
         return listOf(Option("", own)) + ComputerPlace.options.map { Option(it.first, it.second) }
     }
+
+    /**
+     * Its machine on the External Virtual PC (ADR 263, `bot-own-machine`), with Advanced on: shared with the account's bots (the
+     * default) or one of its own. Only for a bot that works there and while the account pays with its own boat.dev key
+     * ([ownKey], from [ComputerPlace.ownKey]), or for a bot that has one already, so it can come back; null otherwise.
+     */
+    fun ownMachineChoices(advanced: Boolean, features: Collection<String>?, ownKey: Boolean, b: Bot): List<Option>? {
+        if (!advanced || "bot-own-machine" !in features.orEmpty() || b.computer != "boat" || !(ownKey || b.boatOwnMachine)) return null
+        return listOf(Option("", tr("Shared with the account's bots")), Option("own", tr("Its own machine")))
+    }
+
+    /** The question before its machine changes, and its two answers: its files are asked about as a move of its computer's. */
+    fun ownMachineQuestion(own: Boolean): String = if (own) tr("Copy its files to its own machine?") else tr("Copy its files to the account's machine?")
 
     /** The computer's pick as it stands: where it is, or "none". */
     fun computerValue(d: BotDraft): String = if (d.computer) d.computerOn else "none"
@@ -320,12 +339,16 @@ class BotSettingsState(
     /** The botdot has boat.dev (the admin set its key), and the account's proxies when read. */
     val boat: Boolean = false,
     val proxyList: ProxyList? = null,
+    /** The account pays for boat.dev with its own key (ADR 263, [ComputerPlace.ownKey]). */
+    val ownKey: Boolean = false,
 ) {
     /** Computer and proxy pickers ([BotSettings.computerChoices], [BotSettings.proxyChoices]); null: no row. */
     val computers: List<Option>? get() = bot?.let { BotSettings.computerChoices(advanced, features, boat, it) }
     val computerValue: String get() = BotSettings.computerValue(draft)
     fun asksMove(to: String): Boolean = bot?.let { BotSettings.asksMove(features, it, to) } == true
     fun moveQuestion(to: String): String = BotSettings.moveQuestion(to)
+    /** Its machine on the External Virtual PC ([BotSettings.ownMachineChoices]); null: no row. */
+    val ownMachines: List<Option>? get() = bot?.let { BotSettings.ownMachineChoices(advanced, features, ownKey, it) }
     val proxies: List<Option>? get() = bot?.let { BotSettings.proxyChoices(advanced, features, it, proxyList) }
     /** Whether it has app [c] as the draft stands. */
     fun hasApp(c: Connection): Boolean = BotSettings.appPicked(c, draft.connectors, draft.accounts, bot?.id)

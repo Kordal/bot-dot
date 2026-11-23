@@ -91,6 +91,10 @@ fun SettingsScreen(
     var boatSizes by remember { mutableStateOf<dev.botdot.app.data.BoatSizes?>(null) } // only while boat.dev is set up (#539)
     var computerPlace by remember { mutableStateOf<dev.botdot.app.data.ComputerPlace?>(null) } // where the account's computer is (#579)
     var askPlace by remember { mutableStateOf<String?>(null) } // the place a switch asks about first
+    var boatKey by remember { mutableStateOf<dev.botdot.app.data.BoatKey?>(null) } // the account's own boat.dev key, never the key (ADR 263)
+    var boatKeyText by remember { mutableStateOf("") }
+    var boatKeyBusy by remember { mutableStateOf(false) }
+    var confirmRemoveBoatKey by remember { mutableStateOf(false) }
     val botsNow by app.store.bots.value.collectAsState()
     var preparing by remember { mutableStateOf(false) }
     var pass1 by remember { mutableStateOf("") }
@@ -132,6 +136,8 @@ fun SettingsScreen(
                 runCatching { a.version() }.onSuccess { server = it; app.store.version.set(it) }
                 if (server?.boat == true && server?.features?.contains("boat-size") == true) boatSizes = runCatching { a.boatSizes() }.getOrNull()
                 if (dev.botdot.app.data.ComputerPlace.shows(server?.features, server?.boat)) computerPlace = runCatching { a.computerPlace() }.getOrNull()
+                // The account's own boat.dev key and what boat.dev says of it (ADR 263); shown with Advanced on.
+                boatKey = if (dev.botdot.app.data.BoatKey.FEATURE in server?.features.orEmpty()) runCatching { a.boatKey() }.getOrNull() else null
                 // Updates: only where the front door says this account chooses when it switches (ADR 053).
                 session = runCatching { a.frontDoorSession() }.getOrNull()
                 update = if (dev.botdot.app.data.OwnUpdate.on(server?.features, session)) runCatching { a.ownUpdate() }.getOrNull() else null
@@ -156,6 +162,29 @@ fun SettingsScreen(
     fun saveModel(next: AppSettings) {
         edit = next
         scope.launch { runCatching { api!!.saveSettings(next) }.onSuccess { info = it; edit = it.settings; saved() }.onError { edit = info.settings; tell(it.message ?: tr("Couldn't save")) } }
+    }
+
+    @Composable
+    fun BoatKeyControls() {
+        val k = boatKey ?: return
+        Fact(tr("boat.dev key"), k.stateLine)
+        Field(boatKeyText, { boatKeyText = it.trim() }, label = { Text(if (k.set) tr("New boat.dev key") else tr("boat.dev key")) }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false), modifier = Modifier.fillMaxWidth())
+        Row(horizontalArrangement = Arrangement.spacedBy(Space.s12)) {
+            Button(onClick = {
+                val key = boatKeyText
+                boatKeyBusy = true
+                scope.launch {
+                    // boat.dev checks it first; why it was refused comes back in the error.
+                    runCatching { api!!.setBoatKey(key) }.onSuccess { boatKeyText = ""; tell(tr("Saved")) }.onError { tell(it.message ?: tr("Couldn't save")) }
+                    boatKeyBusy = false
+                    load()
+                    app.store.bots.refresh()
+                }
+            }, enabled = boatKeyText.isNotBlank() && !boatKeyBusy, colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Save")) }
+            if (k.set) TextButton(onClick = { confirmRemoveBoatKey = true }) { Text(tr("Remove"), color = p.text) }
+        }
+        if (!k.set) Hint(tr("With your own key boat.dev bills you directly for the External Virtual PC, and you choose where the account's computer is."))
     }
 
     @Composable
@@ -343,8 +372,26 @@ fun SettingsScreen(
             }
 
             val sizeShown = boatSizes != null && (computerPlace == null || computerPlace?.place == "boat")
-            // The admin chooses the External Virtual PC's size too, on the admin page (ADR 163): a row with where it is and its size.
-            if (dev.botdot.app.data.BoatSizes.byAdmin(server?.features)) {
+            // The account's own boat.dev key (ADR 263), with Advanced on: added, replaced or removed here, and while the account
+            // pays with it the owner moves the account's computer and chooses its size, not the admin.
+            if (dev.botdot.app.data.BoatKey.shows(server?.features, adv) && boatKey != null) {
+                val chooses = dev.botdot.app.data.ComputerPlace.byOwner(server?.features, computerPlace)
+                FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
+                    BoatKeyControls()
+                    computerPlace?.takeIf { chooses }?.let { c ->
+                        Choice(tr("Where"), c.place, dev.botdot.app.data.ComputerPlace.options) { to ->
+                            if (to == c.place) return@Choice
+                            if (botsNow.orEmpty().any { it.computer == "linux" || it.computer == "boat" }) askPlace = to
+                            else scope.launch { runCatching { api!!.setComputerPlace(to, false) }.onSuccess { computerPlace = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                        }
+                    }
+                    boatSizes?.takeIf { chooses && computerPlace?.place == "boat" }?.let { b ->
+                        Choice(tr("Size"), b.size, b.offered) { size ->
+                            scope.launch { runCatching { api!!.setBoatSize(size) }.onSuccess { boatSizes = it; saved() }.onError { tell(it.message ?: tr("Couldn't save")) } }
+                        }
+                    }
+                }
+            } else if (dev.botdot.app.data.BoatSizes.byAdmin(server?.features)) {
                 if (sizeShown) Fact(tr("Computer"), listOfNotNull(tr("External Virtual PC"), boatSizes?.sizeName).joinToString(" · "))
             } else if (sizeShown || (computerPlace != null && !dev.botdot.app.data.ComputerPlace.byAdmin(server?.features))) FoldSection(tr("Computer"), computerPlace?.let { c -> dev.botdot.app.data.ComputerPlace.options.firstOrNull { it.first == c.place }?.second }) {
                 // Only the admin moves it, on the admin page, on a server that says so (ADR 146): then it is the section's value alone.
@@ -525,6 +572,31 @@ fun SettingsScreen(
         },
         dismissButton = { TextButton(onClick = { confirmRemoveProvider = false }) { Text(tr("Cancel"), color = p.text) } },
     )
+    // Removing the account's own boat.dev key (ADR 263): what it made at boat.dev is deleted with its files, or kept there; asked first.
+    if (confirmRemoveBoatKey) {
+        val made = boatKey?.machines ?: 0
+        val remove = { machines: String? ->
+            confirmRemoveBoatKey = false
+            scope.launch {
+                runCatching { api!!.removeBoatKey(machines) }.onSuccess { tell(tr("Removed")) }.onError { tell(it.message ?: tr("Couldn't remove it")) }
+                load()
+                app.store.bots.refresh()
+            }
+            Unit
+        }
+        AlertDialog(
+            onDismissRequest = { confirmRemoveBoatKey = false },
+            title = { Text(tr("Remove your boat.dev key?")) },
+            text = { Text(if (boatKey?.machineKey == true) { if (made > 0) trn(made, "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machine on boat.dev: delete it with its files, or keep it there.", "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machines on boat.dev: delete them with their files, or keep them there.") else tr("Your bots then go on with the admin's key on the External Virtual PC.") } else if (made > 0) trn(made, "Your bots then work on this machine. It made {n} machine on boat.dev: delete it with its files, or keep it there.", "Your bots then work on this machine. It made {n} machines on boat.dev: delete them with their files, or keep them there.") else tr("Your bots then work on this machine.")) },
+            confirmButton = {
+                if (made > 0) Row {
+                    TextButton(onClick = { remove("keep") }) { Text(tr("Keep them"), color = p.text) }
+                    TextButton(onClick = { remove("delete") }) { Text(tr("Delete its machines on boat.dev"), color = p.text) }
+                } else TextButton(onClick = { remove(null) }) { Text(tr("Remove"), color = p.text) }
+            },
+            dismissButton = { TextButton(onClick = { confirmRemoveBoatKey = false }) { Text(tr("Cancel"), color = p.text) } },
+        )
+    }
     askPlace?.let { to ->
         val move = { copy: Boolean ->
             askPlace = null

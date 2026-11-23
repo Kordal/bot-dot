@@ -784,6 +784,12 @@ class Api(val baseUrl: String, val session: Session? = null, quietMs: Long = QUI
     suspend fun computerPlace(): ComputerPlace = json.decodeFromString(get("/settings/computer"))
     suspend fun setComputerPlace(place: String, moveFiles: Boolean): ComputerPlace = json.decodeFromString(send("PUT", "/settings/computer", buildJsonObject { put("place", place); put("moveFiles", moveFiles) }))
     suspend fun boatSizes(): BoatSizes = json.decodeFromString(get("/settings/boat-size"))
+    /** The account's own boat.dev key (ADR 263): whether one is set and its check, never the key. */
+    suspend fun boatKey(): BoatKey = json.decodeFromString(get("/settings/boat-key"))
+    /** Keeps or replaces the key after boat.dev checked it; a refusal comes back as an error with boat.dev's reason. */
+    suspend fun setBoatKey(key: String): BoatKey = json.decodeFromString(send("PUT", "/settings/boat-key", buildJsonObject { put("key", key) }))
+    /** Removes it. [machines]: "delete" or "keep" what it made at boat.dev, asked first when [BoatKey.machines] is above 0. */
+    suspend fun removeBoatKey(machines: String? = null): BoatKey = json.decodeFromString(send("DELETE", "/settings/boat-key" + (machines?.let { "?machines=$it" } ?: "")))
 
     // ---------- the account's proxies (ADR 171) ----------
 

@@ -12,11 +12,13 @@ let door, stub;
 const stands = {};
 const places = { ann: 'linux', bob: 'linux' };
 const sizes = { ann: 'default', bob: 'default' };
+let adminBrowser; // the admin's browser, signed in by the first test
+const ownKeys = {}; // the accounts that pay with their own boat.dev key (ADR 263)
 const SIZES = [{ id: 'default', cpus: 4, memoryGB: 8, diskGB: 50, perHour: 0.1, available: true }, { id: 'large', cpus: 8, memoryGB: 16, diskGB: 100, perHour: 0.2, available: false, reason: 'limit' }];
 // An account's botdot server: answers where its computer is, and moves it when the front door itself asks.
 const answer = (name) => (req) => {
   if (req.url !== '/api/settings/computer') return null;
-  if (req.method === 'GET') return [200, { place: places[name], boat: true }];
+  if (req.method === 'GET') return [200, { place: places[name], boat: true, ownKey: ownKeys[name] === true }];
   if (req.headers['x-botdot-room'] !== '1') return [403, { error: 'not the front door' }];
   return null;
 };
@@ -53,6 +55,7 @@ const listed = async (b) => Object.fromEntries((await b.get('/admin/accounts')).
 
 test("the admin moves an account's computer on the admin page; its owner can't; the list shows it while boat.dev has a key", async () => {
   const a = await signUp('ann', door.firstLink);
+  adminBrowser = a;
   const bob = await signUp('bob', { path: new URL((await a.post('/admin/links', {})).data.url).pathname });
   assert.deepEqual(await listed(a), { ann: undefined, bob: undefined }, 'no boat.dev key: nothing to choose');
   assert.equal((await a.post('/admin/boat', { key: 'boat_goodkey12345' })).status, 200);
@@ -95,3 +98,17 @@ test("the admin moves an account's computer on the admin page; its owner can't; 
   assert.equal((await bob.post('/api/settings/boat-size', { size: 'default' }, { 'X-Botdot-Room': '1' })).status, 403, "the owner's own request never carries the header");
 });
 
+
+test("an account with its own boat.dev key chooses its computer and size itself: the admin's list offers neither for it (ADR 263)", async () => {
+  const admin = adminBrowser;
+  ownKeys.bob = true;
+  places.bob = 'boat';
+  const rows = Object.fromEntries((await admin.get('/admin/accounts')).data.accounts.map((x) => [x.name, x]));
+  assert.equal(rows.bob.computer, undefined, 'no Move');
+  assert.equal(rows.bob.boatSize, undefined, 'no Size');
+  assert.equal(rows.ann.computer, 'linux', 'an account on the machine\'s key keeps both');
+  ownKeys.bob = false;
+  const back = Object.fromEntries((await admin.get('/admin/accounts')).data.accounts.map((x) => [x.name, x]));
+  assert.equal(back.bob.computer, 'boat');
+  assert.ok(back.bob.boatSize);
+});

@@ -1379,8 +1379,10 @@ const ROOM_HEADERS = (account) => ({ 'x-botdot-account': account, 'x-botdot-room
 const ROOM_ANSWER_MAX = 256 * 1024;
 // One request to an account's botdot server, from the front door itself: { status, data }, status 0 when it could
 // not be reached in time. A suspended or deleted account is not asked.
-function askAccount(account, method, to, body, timeoutMs, answerMax = ROOM_ANSWER_MAX) {
-  if (!doors.accountExists(account) || doors.isSuspended(account)) return Promise.resolve({ status: 0, data: null });
+// whileSuspended: the account's server is asked though the account is suspended (its deletion was just asked for, and
+// root's step hasn't stopped its server yet: eraseBoat).
+function askAccount(account, method, to, body, timeoutMs, answerMax = ROOM_ANSWER_MAX, { whileSuspended = false } = {}) {
+  if (!doors.accountExists(account) || (doors.isSuspended(account) && !whileSuspended)) return Promise.resolve({ status: 0, data: null });
   return new Promise((resolve) => {
     const text = body === null || body === undefined ? null : JSON.stringify(body);
     const headers = { ...ROOM_HEADERS(account), ...(text ? { 'content-type': 'application/json', 'content-length': Buffer.byteLength(text) } : {}) };
@@ -2117,7 +2119,9 @@ async function listAccounts() {
   return Promise.all(doors.listAccounts().map(async (a) => {
     const state = a.suspended ? 'suspended' : (await answers(a.name)) ? 'running' : making(a.name) ? 'making' : starting(a.name) ? 'starting' : 'stopped';
     // Where its computer is (ADR 146), while boat.dev has a key: asked of the account, which keeps it.
-    const computer = state === 'running' && boat?.shown().keySet ? (await askAccount(a.name, 'GET', '/api/settings/computer', null, 2000)).data?.place : undefined;
+    // An account that pays with its own boat.dev key chooses both itself (ADR 263): its row offers the admin neither.
+    const where = state === 'running' && boat?.shown().keySet ? (await askAccount(a.name, 'GET', '/api/settings/computer', null, 2000)).data : undefined;
+    const computer = where?.ownKey === true ? undefined : where?.place;
     // And, while it is the External Virtual PC, its size and the sizes boat.dev makes (ADR 163): the admin's too.
     const size = computer === 'boat' ? (await askAccount(a.name, 'GET', '/api/settings/boat-size', null, 2000)).data : null;
     const boatSize = typeof size?.size === 'string' && Array.isArray(size.sizes)
@@ -2138,14 +2142,19 @@ const shareText = (s) => `${s.cpu} CPU${s.cpu === 1 ? '' : 's'} · ${s.ram} GB R
 // deleted, or why not all of it was. A failure never stops the erase: it is said in the log, the audit entry and the
 // answer to the admin.
 const BOAT_ERASE_MS = Number(process.env.BOT_DOT_BOAT_ERASE_MS) || 90_000;
-async function eraseBoat(name) {
-  if (!boat?.shown().keySet || !fs.existsSync(path.join(SOCKETS, name))) return null;
-  const { status, data } = await askAccount(name, 'POST', '/api/boat/erase', {}, BOAT_ERASE_MS);
+// The account's machines go with the key they were made with (ADR 263): its own, when it has one, else the machine's. So
+// the account is asked on every kind of machine, also one with no key of its own or no admin page. An account that
+// can't be asked is named only where the machine's own key is set: nothing is known of what its own key made.
+// keepOwn: an account the console moved (ADR 254) keeps the machines its own key made, which the new machine uses.
+async function eraseBoat(name, { keepOwn = false, whileSuspended = false } = {}) {
+  if (!fs.existsSync(path.join(SOCKETS, name))) return null;
+  const { status, data } = await askAccount(name, 'POST', '/api/boat/erase', keepOwn ? { keepOwn: true } : {}, BOAT_ERASE_MS, undefined, { whileSuspended });
   const machines = (n) => `${n} machine${n === 1 ? '' : 's'}`;
   if (status === 200 && Number.isInteger(data?.deleted) && Array.isArray(data?.failed)) {
     if (!data.failed.length) return data.deleted ? { text: `boat.dev: ${machines(data.deleted)} deleted`, failed: false } : null;
     return { text: `boat.dev: ${machines(data.failed.length)} not deleted (${line(data.failed[0]?.error, 200) || 'no answer'})${data.deleted ? `, ${data.deleted} deleted` : ''}`, failed: true };
   }
+  if (!boat?.shown().keySet) return null;
   return { text: `boat.dev: its machines not deleted (${doors.isSuspended(name) ? 'the account is suspended, so its server is stopped' : 'its server gave no answer'})`, failed: true };
 }
 
@@ -2155,9 +2164,11 @@ async function eraseBoat(name) {
 // eraseBoat said.
 // The account is bound by its userId before eraseBoat waits: one made again with the same name meanwhile is never
 // deleted by a request for the one before (409).
+// An account the console moved (actor 'console', ADR 254) keeps the machines its own key made on boat.dev: the new machine
+// has the account's own key and its list of them, and uses them. The machine's key's machines go as before.
 async function eraseAccount(name, actor) {
   const userId = doors.userIdOf(name);
-  const boatGone = await eraseBoat(name);
+  const boatGone = await eraseBoat(name, { keepOwn: actor === 'console' });
   const theirReports = doors.deleteAccount(name, Date.now(), userId);
   if (feedbackRelay && theirReports.length) { feedbackRelay.queueDelete(theirReports); flushDeletions({ force: true }); }
   roomsWithout(name);
@@ -2195,7 +2206,12 @@ const deletesItself = (account) => !ONE_ACCOUNT && !MANAGED && !!ADMIN && !!acco
 // behind its operator's passkey. A resume by the console drops the request.
 const asksDeletion = (account) => MANAGED && !!outbox && !!account && account !== ADMIN;
 
-function askDeletion(res, account, body) {
+// Its boat.dev machines go only once the request is in the outbox and the account is suspended (so nothing makes a new
+// one meanwhile and a second request is a 409): a request that fails (503) or is refused (409) deletes nothing. They are
+// deleted here, not left to the console's erase of the machine, which takes the account's own boat.dev key with it
+// (it is kept in the account's data) and could not delete what that key made. A console that resumes the account
+// instead of erasing the machine drops the request, but not what was deleted: the owner asked for it.
+async function askDeletion(res, account, body) {
   if (doors.isSuspended(account)) return send(res, 409, { error: doors.deletingSince(account) ? 'Your account is being deleted already.' : PAUSED });
   try {
     outbox.deletion({ id: crypto.randomBytes(16).toString('hex'), account, created: new Date().toISOString(), app: body.app === 'android' ? 'android' : 'web', version: typeof body.version === 'string' ? body.version.slice(0, 40) : null });
@@ -2205,10 +2221,11 @@ function askDeletion(res, account, body) {
   }
   doors.setSuspended(account, true, Date.now(), { deleting: true });
   doors.endAccountSessions(account);
-  audited('deletion-requested', { actor: account, account });
-  console.log(`[front door] the owner of ${account} asked for it to be deleted; it is suspended until the console erases the machine`);
+  const boatGone = await eraseBoat(account, { whileSuspended: true });
+  audited('deletion-requested', { actor: account, account, detail: boatGone?.text });
+  console.log(`[front door] the owner of ${account} asked for it to be deleted; it is suspended until the console erases the machine${boatGone ? ` (${boatGone.text})` : ''}`);
   askMachine(account);
-  return send(res, 200, { ok: true, requested: true, deleted: '/front-door/deleting' }, { 'Set-Cookie': sessionCookie(null) });
+  return send(res, 200, { ok: true, requested: true, deleted: '/front-door/deleting', ...(boatGone?.failed ? { boat: boatGone.text } : {}) }, { 'Set-Cookie': sessionCookie(null) });
 }
 
 // The admin suspends, resumes or deletes an account, makes a sign-in link for it or signs it out everywhere. The admin's own account is

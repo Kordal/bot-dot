@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (2026-10-26, the owner's decision)
 - **Owning task:** [#579](https://github.com/Kordal/bot-dot/issues/579)
-- **Amended by:** [ADR 261](261-a-bot-may-have-a-place-for-its-computer-of-its-own-under-advanced.md) (a bot may have a place of its own under Advanced; the account's stays the default)
+- **Amended by:** [ADR 261](261-a-bot-may-have-a-place-for-its-computer-of-its-own-under-advanced.md) (a bot may have a place of its own under Advanced; the account's stays the default), [ADR 263](263-an-account-may-use-its-own-boat-dev-key-with-one-machine-for-all-or-one-per-bot.md) (with its own boat.dev key the owner moves the account's computer)
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md), [ADR 096](096-the-accounts-boat-bots-share-one-machine-there.md), [ADR 091](091-a-bots-files-are-copied-when-its-computer-moves.md)
 
 ## Context

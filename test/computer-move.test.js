@@ -352,3 +352,47 @@ test('web and Android ask "Copy files" or "Start empty" between this machine and
   assert.match(shared, /put\("moveFiles", true\)/);
   assert.match(kt, /retryComputerMove/);
 });
+
+test('the old side is told it is the source of every step it takes, and the new one is not', async () => {
+  const bytes = Buffer.from('files');
+  const old = side(bytes);
+  const fresh = side(Buffer.alloc(0));
+  const told = { old: [], fresh: [] };
+  const watch = (s, name) => ({ moveFiles: (id, step, how) => { told[name].push(how?.source === true); return s.moveFiles(id, step); } });
+  const moves = moveLib.create(dir(), { sides: { linux: watch(old, 'old'), boat: watch(fresh, 'fresh') }, pieces, every: 0 });
+  await moves.start('coder', 'linux', 'boat');
+  assert.equal(fresh.unpacked.toString(), 'files');
+  assert.ok(told.old.length >= 3 && told.old.every(Boolean), 'pack, read and drop are the source');
+  assert.ok(told.fresh.length >= 3 && told.fresh.every((x) => !x), 'write, unpack and drop are not');
+});
+
+test("an old side with layers is copied oldest first, the newer replacing files of the same name; an empty older layer is skipped", async () => {
+  const oldest = side(Buffer.from('older files'));
+  const newest = side(Buffer.from('newer files'));
+  const unpackedAt = [];
+  const fresh = side(Buffer.alloc(0));
+  const real = fresh.moveFiles;
+  fresh.moveFiles = async (id, step) => { const r = await real(id, step); if (step.op === 'unpack') unpackedAt.push(Buffer.from(fresh.unpacked).toString()); return r; };
+  const layered = { moveFiles: (id, step, how) => (how.layer === 'retired' ? oldest : newest).moveFiles(id, step), layers: async () => ['retired', 'live'] };
+  const moves = moveLib.create(dir(), { sides: { boat: layered, linux: fresh }, pieces, every: 0 });
+  await moves.start('coder', 'boat', 'linux');
+  assert.deepEqual(unpackedAt, ['older files', 'newer files'], 'the retired layer first, the one in use on top');
+  assert.equal(moves.of('coder'), null);
+
+  const none = side(Buffer.alloc(0));
+  const fresh2 = side(Buffer.alloc(0));
+  const emptyFirst = { moveFiles: (id, step, how) => (how.layer === 'retired' ? none : newest).moveFiles(id, step), layers: () => ['retired', 'live'] };
+  const again = moveLib.create(dir(), { sides: { boat: emptyFirst, linux: fresh2 }, pieces, every: 0 });
+  await again.start('coder', 'boat', 'linux');
+  assert.equal(Buffer.from(fresh2.unpacked).toString(), 'newer files', 'nothing in the older one: the newer is the copy');
+  assert.equal(again.of('coder'), null);
+
+  const only = moveLib.create(dir(), { sides: { boat: { moveFiles: (id, step) => none.moveFiles(id, step) }, linux: side(Buffer.alloc(0)) }, pieces, every: 0 });
+  await only.start('coder', 'boat', 'linux');
+  assert.match(only.of('coder').error, /packed nothing/, 'a single layer with nothing is still a failure');
+
+  const broken = side(Buffer.from('newer'), { fail: 'pack' });
+  const fails = moveLib.create(dir(), { sides: { boat: { moveFiles: (id, step, how) => (how.layer === 'retired' ? oldest : broken).moveFiles(id, step), layers: () => ['retired', 'live'] }, linux: side(Buffer.alloc(0)) }, pieces, every: 0 });
+  await fails.start('coder', 'boat', 'linux');
+  assert.equal(fails.of('coder').state, 'failed', 'the copy is not done until both layers are');
+});

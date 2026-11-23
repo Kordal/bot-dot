@@ -3,6 +3,7 @@
 - **Status:** Accepted (2026-11-05, the owner's decision: "for boat.dev only admin should have the ability to assign the size of the VM. remove this from user setting and put it to /admin")
 - **Amends:** [ADR 088](088-a-bots-computer-may-be-a-machine-of-its-own-on-boat-dev.md) and the decision of 2026-10-24 ([the size is the account's](../decisions/2026-10-24-the-size-of-boat-dev-machines-is-the.md)), where the owner chose it in Settings
 - **Builds on:** [ADR 146](146-only-the-admin-moves-an-accounts-computer.md) (only the admin moves an account's computer)
+- **Amended by:** [ADR 263](263-an-account-may-use-its-own-boat-dev-key-with-one-machine-for-all-or-one-per-bot.md) (with its own boat.dev key the owner chooses the size, not the admin)
 
 ## Context
 

@@ -1426,5 +1426,33 @@
   "Feedback to the developers": "Opinie do twórców",
   "Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are.": "Twoje zgłoszenia trafiają do twórców botdot. Ich tekst może zostać opublikowany bez danych osobowych, a zrzutów ekranu nigdy się nie publikuje.",
   "Version": "Wersja",
-  "App {app} · Server {server}": "Aplikacja {app} · Serwer {server}"
+  "App {app} · Server {server}": "Aplikacja {app} · Serwer {server}",
+  "boat.dev key": "Klucz boat.dev",
+  "New boat.dev key": "Nowy klucz boat.dev",
+  "With your own key boat.dev bills you directly for the External Virtual PC, and you choose where the account's computer is.": "Z własnym kluczem boat.dev rozlicza Zewnętrzny wirtualny PC bezpośrednio z Tobą, a Ty wybierasz, gdzie jest komputer konta.",
+  "Remove your boat.dev key?": "Usunąć Twój klucz boat.dev?",
+  "Your bots then work on this machine. It made {n} machines on boat.dev: delete them with their files, or keep them there.": {
+    "one": "Twoje boty będą wtedy pracować na tej maszynie. Klucz utworzył {n} maszynę na boat.dev: usuń ją razem z plikami albo zostaw.",
+    "few": "Twoje boty będą wtedy pracować na tej maszynie. Klucz utworzył {n} maszyny na boat.dev: usuń je razem z plikami albo zostaw.",
+    "many": "Twoje boty będą wtedy pracować na tej maszynie. Klucz utworzył {n} maszyn na boat.dev: usuń je razem z plikami albo zostaw."
+  },
+  "Your bots then work on this machine.": "Twoje boty będą wtedy pracować na tej maszynie.",
+  "Your bots then go on with the admin's key on the External Virtual PC. It made {n} machines on boat.dev: delete them with their files, or keep them there.": {
+    "one": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora. Klucz utworzył {n} maszynę na boat.dev: usuń ją razem z plikami albo zostaw.",
+    "few": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora. Klucz utworzył {n} maszyny na boat.dev: usuń je razem z plikami albo zostaw.",
+    "many": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora. Klucz utworzył {n} maszyn na boat.dev: usuń je razem z plikami albo zostaw."
+  },
+  "Your bots then go on with the admin's key on the External Virtual PC.": "Twoje boty będą wtedy pracować dalej na Zewnętrznym wirtualnym PC, z kluczem administratora.",
+  "Keep them": "Zostaw je",
+  "Delete its machines on boat.dev": "Usuń jego maszyny na boat.dev",
+  "Shared with the account's bots": "Wspólna z botami konta",
+  "Its own machine": "Własna maszyna",
+  "Copy its files to its own machine?": "Skopiować jego pliki na jego własną maszynę?",
+  "Copy its files to the account's machine?": "Skopiować jego pliki na maszynę konta?",
+  "Not set": "Nie ustawiono",
+  "Set": "Ustawiony",
+  "Works": "Działa",
+  "boat.dev refuses it": "boat.dev go odrzuca",
+  "boat.dev wants a plan or a payment method first": "boat.dev najpierw wymaga planu lub formy płatności",
+  "boat.dev can't be reached": "Nie można połączyć się z boat.dev"
 }
