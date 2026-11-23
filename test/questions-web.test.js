@@ -41,6 +41,7 @@ test('web: still asked, unchanged, on the page and never with the browser\'s con
     ['signing out of Claude', /askFirst\(`\$\{tr\("Sign out of Claude\? Bots can't run until you sign in again\."\)\}/],
     ['deleting a saved login', /askFirst\(state\.bw\?\.configured \? tr\("Delete \\"\{name\}\\"\? It moves to Bitwarden's trash/],
     ['the password hint', /askFirst\(tr\('This looks like it contains a password\./],
+    ['signing out of this device (#1591)', /askFirst\(tr\('Sign out of this device\? Your other browsers and apps stay signed in\.'\), tr\('Sign out'\), \{ danger: false \}\)/],
     ['signing out everywhere (#468)', /askFirst\(tr\('Sign out everywhere\? Every browser and app signed in to your account/],
     ['removing a secret kept in a file (#253)', /if \(!\(await askFirst\(tr\("Remove \{path\}\? The bot can't write it again without asking you on a card\.", \{ path: b\.dataset\.where \}\), tr\('Remove'\)\)\)\) return;/],
     ['switching the account to a new version now (#259)', /if \(!\(await askFirst\(tr\('Update now\? Your account moves to the new version: your bots restart, and work still running stops\.'\), tr\('Update now'\), \{ danger: false \}\)\)\) return;/],

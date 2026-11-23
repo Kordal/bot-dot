@@ -110,7 +110,8 @@ fun SettingsScreen(
     var loginUrl by remember { mutableStateOf<String?>(null) }
     var code by remember { mutableStateOf("") }
     var confirmLogout by remember { mutableStateOf<Int?>(null) } // how many bots are working, while asking
-    var confirmSignOut by remember { mutableStateOf(false) }
+    var confirmSignOut by remember { mutableStateOf(false) } // "Sign out everywhere"
+    var confirmSignOutHere by remember { mutableStateOf(false) } // "Sign out of this device" (#1591)
     var session by remember { mutableStateOf<kotlinx.serialization.json.JsonObject?>(null) } // what the front door says of it
     var confirmDelete by remember { mutableStateOf(false) } // "Delete account" (#1307)
     var deleteTyped by remember { mutableStateOf("") }
@@ -433,10 +434,13 @@ fun SettingsScreen(
                 }
                 Hint(tr("Your reports go to botdot's developers. Their text may be published without personal details; screenshots never are."))
             }
-            // Behind a front door (ADR 028): every session of the account ends, this phone's too, which then signs in
-            // again with its passkey (the dialog says so).
+            // Behind a front door (ADR 028): "Sign out of this device" ends only this phone's session (#1591), and
+            // "Sign out everywhere" every session of the account, this phone's too; either way the phone signs in
+            // again with its passkey (the dialogs say so).
             if (server?.features?.contains("accounts") == true) {
                 FoldSection(tr("Sign-ins")) {
+                    Button(onClick = { confirmSignOutHere = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = p.ink, contentColor = p.inkText)) { Text(tr("Sign out of this device")) }
                     SecondaryButton(onClick = { confirmSignOut = true }) { Text(tr("Sign out everywhere"), color = p.text) }
                 }
             }
@@ -543,6 +547,19 @@ fun SettingsScreen(
             }) { Text(tr("Update now"), color = p.text) }
         },
         dismissButton = { TextButton(onClick = { confirmUpdateNow = false }) { Text(tr("Cancel"), color = p.text) } },
+    )
+    if (confirmSignOutHere) AlertDialog(
+        onDismissRequest = { confirmSignOutHere = false },
+        title = { Text(tr("Sign out of this device?")) },
+        text = { Text(tr("Your other browsers and apps stay signed in. This phone signs in again with your passkey.")) },
+        confirmButton = {
+            TextButton(onClick = {
+                confirmSignOutHere = false
+                // Done, the front door ends this session, and the phone's sign-in opens by itself, as after "Sign out everywhere".
+                scope.launch { runCatching { api!!.signOut() }.onError { tell(it.message ?: tr("Couldn't sign out")) } }
+            }) { Text(tr("Sign out"), color = p.text) }
+        },
+        dismissButton = { TextButton(onClick = { confirmSignOutHere = false }) { Text(tr("Cancel"), color = p.text) } },
     )
     if (confirmSignOut) AlertDialog(
         onDismissRequest = { confirmSignOut = false },
