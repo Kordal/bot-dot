@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>botdot quick answer context mockup</title>
+<style>
+@font-face { font-family: Geist; src: url("../public/fonts/Geist.ttf") format("truetype"); font-weight: 100 900; font-display: swap; }
+:root {
+  color-scheme: light dark;
+  --bg: #000; --surface: #0a0a0a; --text: #fff;
+  --fill: color-mix(in srgb, var(--text) 12%, var(--surface));
+  --line-2: color-mix(in srgb, var(--text) 20%, var(--surface));
+  --quiet: color-mix(in srgb, var(--text) 60%, var(--surface));
+  --me: #fff; --me-ink: #000;
+  --bot: #c2416c;
+  --font: Geist, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: light) { :root { --bg: #efefef; --surface: #f8f8f8; --text: #151515; --me: #151515; --me-ink: #fff; } }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 var(--font); padding: 32px 16px 64px; }
+button { font: inherit; color: inherit; cursor: pointer; }
+h1 { font-size: 22px; font-weight: 600; letter-spacing: -.03em; margin: 0; }
+h2 { font-size: 15px; font-weight: 600; margin: 0; }
+p { margin: 0; }
+.page { width: min(100%, 1180px); margin-inline: auto; display: grid; gap: 32px; }
+.lede { color: var(--quiet); margin-top: 4px; max-width: 70ch; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 24px; }
+.variant { display: grid; gap: 10px; align-content: start; }
+.why { color: var(--quiet); font-size: 13px; }
+.tag { font-size: 11px; padding: 2px 8px; border-radius: 99px; background: var(--fill); margin-left: 6px; font-weight: 500; }
+.tag.rec { background: #1f5e45; color: #d7f5e8; }
+.tag.bad { background: #5e1f2a; color: #f5d7dc; }
+.chat { background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px; padding: 16px; display: grid; gap: 12px; }
+.md { font-size: 14px; }
+.meta { color: var(--quiet); font-size: 12px; display: flex; gap: 12px; }
+.meta .grow { flex: 1; }
+.steps { color: var(--quiet); font: 12px/1.4 ui-monospace, monospace; }
+.steps b { color: var(--bot); font-weight: 400; }
+.day { text-align: center; color: var(--quiet); font-size: 12px; }
+.more { color: var(--quiet); font-size: 13px; }
+.mine { justify-self: end; display: grid; gap: 4px; justify-items: end; max-width: 85%; }
+.me { background: var(--me); color: var(--me-ink); padding: 8px 14px; border-radius: 16px; }
+.working { color: var(--quiet); font-size: 13px; display: flex; gap: 8px; }
+.working .grow { flex: 1; }
+.working .stop { color: #e5484d; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: var(--fill); padding: 6px 14px; border-radius: 99px; white-space: nowrap; font-size: 13px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; }
+.ask { border-left: 2px solid var(--bot); padding-left: 10px; }
+svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.flash { animation: flash 1.2s; border-radius: 8px; }
+@keyframes flash { 0%, 40% { background: color-mix(in srgb, var(--bot) 30%, transparent); } 100% { background: transparent; } }
+
+/* A: the answer quotes the question */
+.quote { display: flex; gap: 6px; align-items: flex-start; max-width: 100%; border: 0; background: none; padding: 0; text-align: right;
+  color: var(--quiet); font-size: 12px; }
+.quote span { overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; text-align: left; }
+.quote:hover { color: var(--text); }
+.me.with-q { display: grid; gap: 4px; padding: 8px 14px 10px; }
+.me .q { font-size: 12px; opacity: .6; border-left: 2px solid currentColor; padding-left: 8px; text-align: left; }
+
+/* B: the picked chip stays under the question */
+.picked { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.picked .btn { background: transparent; border: 1px solid var(--line-2); color: var(--quiet); opacity: .55; }
+.picked .btn.on { opacity: 1; background: var(--fill); border-color: transparent; color: var(--text); }
+.reset { justify-self: start; font-size: 12px; color: var(--quiet); background: none; border: 0; padding: 0; text-decoration: underline; }
+</style>
+<body>
+<main class="page">
+  <header>
+    <h1>Which question did “Wait” answer?</h1>
+    <p class="lede">A quick answer is sent as a plain owner bubble, and the choices vanish. When the question sat in a folded reply (“More”) or a day earlier, the answer floats alone. The send already carries <code>replyTo</code> (the reply it answers), so the server knows; the chat just doesn’t draw it.</p>
+  </header>
+
+  <section class="variant">
+    <h2>Now <span class="tag bad">the problem</span></h2>
+    <div class="chat">
+      <div class="steps">› ✓ 2 steps · <b>post-github-issue</b> · 48 s</div>
+      <div class="md">I made two small changes this time. Everything else is in good shape.</div>
+      <div class="more">More</div>
+      <div class="day">Monday, Nov 23</div>
+      <div class="mine"><div class="me">Wait</div></div>
+      <div class="working">◌ Working <span class="grow"></span><span class="stop">Stop</span></div>
+    </div>
+  </section>
+
+  <div class="grid">
+    <section class="variant">
+      <h2>A. The answer quotes its question <span class="tag rec">recommended</span></h2>
+      <p class="why">Over a quick answer, one quiet line: the question it answered (the reply’s last question, else its first words). Tap it and the chat scrolls to that reply and opens it. Works after a day divider, in groups and on the phone, and needs nothing new from the server.</p>
+      <div class="chat" id="a">
+        <div class="steps">› ✓ 2 steps · <b>post-github-issue</b> · 48 s</div>
+        <div class="md" data-target>I made two small changes this time. Everything else is in good shape.</div>
+        <div class="more">More</div>
+        <div class="day">Monday, Nov 23</div>
+        <div class="mine">
+          <button class="quote" data-jump><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 6 6v5"/></svg><span>Should I post both issues now, or wait until you’ve looked?</span></button>
+          <div class="me">Wait</div>
+        </div>
+        <div class="working">◌ Working <span class="grow"></span><span class="stop">Stop</span></div>
+      </div>
+    </section>
+
+    <section class="variant">
+      <h2>A2. The quote inside the bubble</h2>
+      <p class="why">Same data, drawn as a reply quote inside the owner’s bubble. Reads as one message, but heavier, and the white bubble grows for a one-word answer.</p>
+      <div class="chat">
+        <div class="steps">› ✓ 2 steps · <b>post-github-issue</b> · 48 s</div>
+        <div class="md">I made two small changes this time. Everything else is in good shape.</div>
+        <div class="more">More</div>
+        <div class="day">Monday, Nov 23</div>
+        <div class="mine"><div class="me with-q"><div class="q">Should I post both issues now, or wait until you’ve looked?</div>Wait</div></div>
+        <div class="working">◌ Working <span class="grow"></span><span class="stop">Stop</span></div>
+      </div>
+    </section>
+
+    <section class="variant">
+      <h2>B. The question and the pick stay put</h2>
+      <p class="why">The question line is never folded under “More”, and after a tap the chips stay under it, the picked one marked, the others faded. The answer is clear where the question is, but not where the owner’s bubble is, a day later.</p>
+      <div class="chat" id="b">
+        <div class="steps">› ✓ 2 steps · <b>post-github-issue</b> · 48 s</div>
+        <div class="md">I made two small changes this time. Everything else is in good shape.</div>
+        <div class="md ask">Should I post both issues now, or wait until you’ve looked?</div>
+        <div class="picked">
+          <button class="btn">Post both</button>
+          <button class="btn on"><svg viewBox="0 0 24 24"><path d="m5 12 5 5 9-10"/></svg>Wait</button>
+        </div>
+        <div class="day">Monday, Nov 23</div>
+        <div class="mine"><div class="me">Wait</div></div>
+        <div class="working">◌ Working <span class="grow"></span><span class="stop">Stop</span></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="variant">
+    <h2>Also, whichever we pick</h2>
+    <p class="why">A reply that ends in a question with quick answers keeps that question outside the “More” fold (it already gets <code>data-asks</code>; the fold should honour it). Today the question itself can be hidden while its choices show, which is how this happened.</p>
+  </section>
+</main>
+<script>
+document.querySelectorAll('[data-jump]').forEach((b) => b.onclick = () => {
+  const t = b.closest('.chat').querySelector('[data-target]');
+  t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
+});
+</script>
+</body>
+</html>

@@ -426,6 +426,7 @@ data class Run(
     val notificationAudience: String? = null, // "owner" when its reply addresses the owner, a teammate's request too
     val inbox: List<InboxNote>? = null, // notes other bots left, read at its start
     val replyTo: String? = null, // the run the owner replied to (#627): this run is a further round of its block
+    val answers: String? = null, // the run whose question this message of the owner answers (a tapped answer, or words that are one of its choices)
     val groupMessageId: String? = null, // a turn in a group: the owner's message there it belongs to (ADR 018)
     val sentTo: SentTo? = null, // the latest teammate this run messaged
     val sentToAll: List<SentTo>? = null, // every teammate it messaged, once each

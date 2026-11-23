@@ -102,13 +102,16 @@ data class RunSteps(val count: Int, val rows: List<Row>) {
          * A long reply folded: its first paragraph and every paragraph that holds a link (a link is never folded), or null
          * when it is not long, has one paragraph, holds code (a code block is never cut), or [asks]: its quick answers or
          * card stand under it, or a closed card's questions at its end, and no button answers a question the fold hides.
+         * [asked]: it asked and was answered: it folds, but the paragraph with its question stays, which the owner's
+         * answer quotes ([AnswerQuote]).
          */
-        fun folded(text: String?, asks: Boolean = false): String? {
+        fun folded(text: String?, asks: Boolean = false, asked: Boolean = false): String? {
             val t = text.orEmpty().trim()
             if (asks || t.length < LONG_REPLY || "```" in t) return null
             val parts = t.split(Regex("\n\\s*\n")).filter { it.isNotBlank() }
             if (parts.size < 2) return null
-            val kept = parts.filterIndexed { i, x -> i == 0 || LINK.containsMatchIn(x) }
+            val question = if (asked) AnswerQuote.questionParagraph(parts) else -1
+            val kept = parts.filterIndexed { i, x -> i == 0 || i == question || LINK.containsMatchIn(x) }
             return if (kept.size == parts.size) null else kept.joinToString("\n\n")
         }
         private val LINK = Regex("https?://|\\]\\(")

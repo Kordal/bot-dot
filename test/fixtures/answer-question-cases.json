@@ -1,0 +1,25 @@
+{
+  "about": "The question a quick answer is shown to answer (docs/api.md, A run that answers): the last sentence of the reply that ends in a question mark, else the last of its card's questions, else the reply's first twelve words. Markdown marks, links' addresses and code blocks are not part of it. The web page (public/app.js questionOf) and the apps (AnswerQuote.questionOf) are checked against these.",
+  "questions": [
+    { "name": "the last sentence that ends in a question mark", "text": "I made two small changes this time. Everything else is in good shape. Should I post both issues now, or wait until you've looked?", "question": "Should I post both issues now, or wait until you've looked?" },
+    { "name": "the last of two questions", "text": "Which repo? And should I open it as a draft?", "question": "And should I open it as a draft?" },
+    { "name": "a question before a closing sentence is still the last question", "text": "Do you want the long version?\nI can also send a short one.", "question": "Do you want the long version?" },
+    { "name": "emphasis and a heading are not part of it", "text": "## Result\nThe build passed.\n\n**Should I deploy it?**", "question": "Should I deploy it?" },
+    { "name": "a list marker is not part of it", "text": "Two options:\n- Ship now\n- Which day suits you?", "question": "Which day suits you?" },
+    { "name": "a link keeps its words and loses its address", "text": "See [the report](https://example.com/r?id=1). Is it right?", "question": "Is it right?" },
+    { "name": "a question mark inside an address ends no question", "text": "Details at https://example.com/a?b=1 for you.", "question": "Details at https://example.com/a?b=1 for you." },
+    { "name": "a question in a code block is no question", "text": "Run this:\n```\nwhy?\n```\nThat is all.", "question": "Run this: That is all." },
+    { "name": "a closing bracket or quote after the mark stays a question", "text": "Shall I go on (or stop here?)", "question": "Shall I go on (or stop here?)" },
+    { "name": "a card's last question when the text asks none", "text": "Two things first.", "questions": ["Which account?", "Which day?"], "question": "Which day?" },
+    { "name": "a question in the text wins over the card's", "text": "Ready to start?", "questions": ["Which account?"], "question": "Ready to start?" },
+    { "name": "no question: its first twelve words", "text": "I made two small changes this time. Everything else is in good shape.", "question": "I made two small changes this time. Everything else is in good…" },
+    { "name": "no question and short: all of it", "text": "Done.", "question": "Done." },
+    { "name": "nothing said", "text": "", "question": "" },
+    { "name": "no text at all", "text": null, "question": "" }
+  ],
+  "folds": [
+    { "name": "the paragraph that asks stays when a reply folds", "paragraphs": ["First paragraph.", "Middle paragraph.", "Another one.", "Should I post both?", "Last words."], "kept": [0, 3] },
+    { "name": "no question: the last paragraph stays", "paragraphs": ["First paragraph.", "Middle paragraph.", "Closing paragraph."], "kept": [0, 2] },
+    { "name": "the question is the first paragraph", "paragraphs": ["Should I post both?", "Middle paragraph.", "Closing paragraph."], "kept": [0] }
+  ]
+}

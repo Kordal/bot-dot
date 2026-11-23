@@ -22,13 +22,20 @@ function botThreadHTML(bot, runs, newFirst = null) {
   const lastReply = replies[replies.length - 1]?.id;
   const newest = runs[runs.length - 1]?.id;
   let lastDay = '';
-  return blocks.map((rounds) => {
+  const byId = new Map(runs.map((x) => [x.id, x]));
+  return blocks.map((rounds, i) => {
     const r = rounds[rounds.length - 1];
     const line = newFirst !== null && rounds.some((x) => x.id === newFirst) ? Unread.line(bot.color) : '';
-    const html = r.kind === 'script' ? line + scriptRunHTML(r) : runBlockHTML(bot, rounds, newFirst, line, lastReply, newest);
     const when = r.status === 'running' ? r.startedAt : r.endedAt || r.startedAt;
+    const day = when ? new Date(when).toDateString() : '';
+    // An answer to a question of a reply quotes the question above it, unless that reply stands right above it, on the same day.
+    const quote = (x) => {
+      const q = x.answers && !/\n→ /.test(x.prompt || '') ? byId.get(x.answers) : null; // a card of questions answers with the questions in it
+      if (!q || (day === lastDay && [...(blocks[i - 1] || []), ...rounds].some((y) => y.id === q.id))) return '';
+      return answerQuoteHTML(questionOf(q.result, q.questions), q.id);
+    };
+    const html = r.kind === 'script' ? line + scriptRunHTML(r) : runBlockHTML(bot, rounds, newFirst, line, lastReply, newest, quote);
     if (!html || !when) return html;
-    const day = new Date(when).toDateString();
     const sep = day !== lastDay ? `<div class="day">${esc(new Date(when).toLocaleDateString(I18n.locale, { weekday: 'long', month: 'short', day: 'numeric' }))}</div>` : '';
     lastDay = day;
     return sep + html;
@@ -52,11 +59,11 @@ function roundsOf(runs, replies) {
 // One run's block: for each of its rounds, what started it, what the owner steered into it, its step line and its
 // reply with its footer. line: the "New" line, in the round newFirst names: above what started the run, or, below the
 // owner's own message (Unread.exchange), above the rest. With nothing drawn for what started it, above the rest.
-function runBlockHTML(bot, rounds, newFirst, line, lastReply, newest) {
+function runBlockHTML(bot, rounds, newFirst, line, lastReply, newest, quote = () => '') {
   const last = rounds[rounds.length - 1];
   const live = rounds.some((r) => r.status === 'running');
   const html = rounds.map((r) => {
-    const { asked, steered, reply, mine, stop } = runParts(bot, r, r.id === lastReply, r.id === newest, r === last && replyable(r));
+    const { asked, steered, reply, mine, stop } = runParts(bot, r, r.id === lastReply, r.id === newest, r === last && replyable(r), quote(r));
     const here = r.id === newFirst ? line : '';
     const top = asked ? Unread.exchange({ asked, mine }, mine ? '' : here) : '';
     // A run at work has its Stop at the right end of its step line (#635).
@@ -175,21 +182,33 @@ function drawBlockLines(thread) {
 
 // On a phone a long reply folds to its first paragraph and "More" (the style draws the fold in a narrow chat only). What
 // links somewhere stays: a paragraph with a link is never folded. A reply that asks (its quick answers or its card
-// under it, or a closed card's questions at its end) is never folded: no button answers a question the fold hides.
+// under it, or a closed card's questions at its end) is never folded: no button answers a question the fold hides. One
+// that asked and was answered folds, but the paragraph that holds its question stays (data-asked): the owner's answer
+// quotes that question and must not leave it hidden.
 const LONG_REPLY = 600;
 function foldLongReplies(thread) {
   $$('.run-block .bubble.from-bot:not(.problem) > .md', thread).forEach((el) => {
     if (el.children.length < 2 || el.textContent.length < LONG_REPLY || el.classList.contains('long') || $('pre', el) || el.hasAttribute('data-asks')) return; // a code block is never cut
     el.classList.add('long');
     [...el.children].forEach((c) => { if ($('a[href]', c) || /https?:\/\//.test(c.textContent)) c.classList.add('keep'); }); // a link is never folded
+    if (el.hasAttribute('data-asked')) el.children[questionParagraph([...el.children].map((c) => c.textContent))]?.classList.add('keep');
     el.insertAdjacentHTML('afterend', `<button type="button" class="reply-more">${tr('More')}</button>`);
     el.nextElementSibling.onclick = (e) => { e.stopPropagation(); el.classList.add('more'); e.currentTarget.remove(); };
   });
 }
+// A tap on the question an answer quotes (answerQuoteHTML): the chat goes to the reply that asked, opens what is folded
+// of it (its "More", a fold between bots) and marks it for a moment.
+function showAnswered(thread, runId) {
+  const row = $(`[data-details="${CSS.escape(runId)}"]`, thread)?.closest('.bubble-row');
+  if (!row) return false;
+  $$('details.notes-fold', row).forEach((d) => { d.open = true; });
+  $$('.md.long:not(.more)', row).forEach((md) => { md.classList.add('more'); md.nextElementSibling?.matches('.reply-more') && md.nextElementSibling.remove(); });
+  return jumpTo(row);
+}
 
 // What a bot's chat draws of one run: what started it, each message steered into it, its reply. last: its reply is
 // the last in the chat (its quick answers stand under it). newest: it is the run that started last.
-function runParts(bot, r, last, newest, canReply = false) {
+function runParts(bot, r, last, newest, canReply = false, quote = '') {
   // Messages other bots left for it, read at the start of this run.
   const notes = notesFoldHTML(r.inbox, r.inbox?.length === 1 ? tr('Read a note from') : tr('Read notes from'));
   let mine = false; // your own message started it: that isn't new, so the "New" line goes below it
@@ -207,7 +226,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     : r.continues ? '' // it carries on after your OK: the request stands once, above the reply of the run that stopped (docs/api.md, "What follows a yes")
     : r.customPrompt === false
       ? `<div class="bubble-row from-me"><span class="chip">${ICON.play} ${tr('Ran its main assignment')}</span></div>`
-      : (mine = true, `<div class="bubble-row from-me"><div class="stack mine"><div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta on-hover">${copyBtn(r.prompt)}</div></div></div>`));
+      : (mine = true, `<div class="bubble-row from-me"><div class="stack mine">${quote}<div class="bubble from-me" data-expand><div class="clamp">${escMentions(r.prompt, r.botId)}</div>${filesHTML(r.attachments, `bot:${r.botId}`)}</div><div class="bubble-meta on-hover">${copyBtn(r.prompt)}</div></div></div>`));
   // What the owner steered into it while it worked (ADR 040): their messages, after its request, without buttons. A
   // teammate's (#1278, `fromBot`) folds as a message from that bot does.
   const steered = (Array.isArray(r.steered) ? r.steered : []).map((x) => x.fromBot
@@ -232,7 +251,7 @@ function runParts(bot, r, last, newest, canReply = false) {
     // and so does a reply that addresses the owner: a teammate's request whose reply only the owner reads (#465).
     const outgoing = sentTo(r).filter((t) => t.text);
     // What it learned stands under it, but the skills it changed: those are in its step line (stepLineHTML).
-    const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md"${!failed && (r.questions?.length || (open && r.choices?.length)) ? ' data-asks' : ''}>${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
+    const bubble = `<div class="bubble from-bot ${failed ? 'problem' : ''}"><div class="md"${!failed && (r.questions?.length || (open && r.choices?.length)) ? ' data-asks' : !failed && r.choices?.length ? ' data-asked' : ''}>${md(body, failed ? null : r.botId)}</div>${failed ? '' : globalThis.docButton?.({ run: r.id }, body) || ''}${botFilesHTML(r.files)}${typeof Pages !== 'undefined' ? Pages.chipsHTML(r) : ''}${globalThis.reconnectCardsHTML?.(r) || ''}${globalThis.planInReply?.(r, newest) || ''}</div>
         ${failed ? '' : globalThis.inlineCardsHTML?.(r) || ''}
         ${learnedChips({ ...r, learned: (r.learned || []).filter((x) => !SKILL_KINDS.includes(x.kind)) })}`;
     const shown = sender(r) && !failed && r.notificationAudience !== 'owner'
@@ -489,6 +508,7 @@ function renderBotChat(root = $('#view-bot'), botId = state.botId, docked = null
     $$('details.run-steps', thread).forEach(keepStepsOpen);
     $$('details.run-steps.now', thread).forEach((el) => { const r = runs.find((x) => x.id === el.dataset.steps); if (r) el.dataset.sig = stepsSig(r); });
     $$('[data-reply-run]', thread).forEach((el) => (el.onclick = () => pickReply(bot.id, el.dataset.replyRun, root)));
+    $$('[data-answer-of]', thread).forEach((el) => (el.onclick = () => showAnswered(thread, el.dataset.answerOf)));
     $$('[data-stop-run]', thread).forEach((el) => (el.onclick = () => { el.disabled = true; stopRun(el.dataset.stopRun); }));
     foldLongReplies(thread);
     $$('[data-run-notes]', thread).forEach((el) => (el.onclick = () => runNotes(el.dataset.runNotes, el)));
