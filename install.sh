@@ -87,6 +87,8 @@
 #
 # Settings you can pass in: BOT_DOT_DIR (default /var/lib/botdot), BOT_DOT_IMAGE, BOT_DOT_COMPUTER_IMAGE, and the
 # answers: BOT_DOT_REACH (public or tailnet), BOT_DOT_DOMAIN and BOT_DOT_ADMIN (the admin's account's name).
+# BOT_DOT_YES=1 also goes on after the warning of a machine with less RAM or disk than botdot is meant for (#1561), which
+# is otherwise asked as a question; BOT_DOT_VERBOSE=1 shows Docker's whole download output and the technical wording.
 # FRONT_DOOR_TERMS_URL, FRONT_DOOR_PRIVACY_URL and FRONT_DOOR_TERMS_VERSION (default 1), kept once given: with both
 # addresses, sign-up asks the owner to agree to the terms and the privacy policy (docs/install-linux.md).
 # A first install also asks whether to use Jev, the decision model, and boat.dev, the External Virtual PC, and for
