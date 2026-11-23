@@ -47,11 +47,12 @@ async function find(test, what, timeout = 30000) {
 }
 const byText = (t) => (n) => n.text === t || n.desc === t;
 const tap = (n) => sh(`input tap ${n.x} ${n.y}`);
-/** The status bar as on a phone at rest: 09:30, full battery, full Wi-Fi with no mobile signal, no notifications.
+/** The status bar as on a phone at rest: 09:30, full battery, full Wi-Fi, no notifications. ("-e mobile hide" ends
+ * demo mode on API 35, so the mobile signal is left out of the commands.)
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
 function calm() {
   for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
-    '-e command network -e wifi show -e level 4 -e fully true', '-e command network -e mobile hide', '-e command notifications -e visible false']) {
+    '-e command network -e wifi show -e level 4 -e fully true', '-e command notifications -e visible false']) {
     sh(`am broadcast -a com.android.systemui.demo ${extra}`);
   }
 }
@@ -82,7 +83,11 @@ async function home() {
   sh('wm density 420');
   sh('cmd uimode night yes');
   sh('settings put global sysui_demo_allowed 1');
+  const ui = sh('pidof com.android.systemui').trim();
   calm();
+  await sleep(1500);
+  // Said in the log: whether the system UI took the commands, or restarted on one of them.
+  console.log('system UI', ui, '->', sh('pidof com.android.systemui').trim(), sh('logcat -d -b crash').split('\n').slice(-6).join(' / '));
   sh(`am start -W -n ${PKG}/.MainActivity`);
 
   // Connect to the scene's botdot.

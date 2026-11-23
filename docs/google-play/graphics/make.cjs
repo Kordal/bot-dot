@@ -13,7 +13,8 @@ const { resave } = require('../png.cjs');
 const ROOT = path.resolve(__dirname, '..', '..', '..');
 const OUT = __dirname;
 const RES = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
-const FONT = `file://${path.join(ROOT, 'public', 'fonts', 'Geist.ttf')}`;
+// Inline: a page set from a string may not load a file:// font, and would fall back without a word.
+const FONT = `data:font/ttf;base64,${fs.readFileSync(path.join(ROOT, 'public', 'fonts', 'Geist.ttf')).toString('base64')}`;
 const HOME = path.join(__dirname, '..', 'screenshots', 'raw', '1-home.png');
 const BG = '#000000'; // public/style.css --bg
 const DOT = '#d85a30'; // --dot
@@ -60,10 +61,10 @@ const LINES = {
       .text{position:absolute;left:96px;top:0;bottom:0;width:440px;display:flex;flex-direction:column;justify-content:center;gap:24px}
       .logo{display:flex;align-items:center;font-size:128px;font-weight:600;letter-spacing:-.04em;line-height:1}
       .logo i{display:inline-block;width:.44em;height:.44em;margin-left:.07em;position:relative;top:.06em;border-radius:50%;background:${DOT}}
-      p{font-size:33px;line-height:1.2;letter-spacing:-.01em;font-weight:400}
+      p{font-size:33px;line-height:1.2;letter-spacing:-.01em;font-weight:400;text-wrap:balance}
       img{position:absolute;left:624px;top:48px;width:304px;border-radius:32px 32px 0 0;border:2px solid #2b2b2b;border-bottom:0}
     </style><div class="text"><div class="logo">bot<i></i></div><p>${line}</p></div><img src="${home}">`);
-    await p.evaluate(() => document.fonts.ready);
+    if (!(await p.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => f.family === 'Geist' && f.status === 'loaded'); }))) throw new Error('Geist did not load');
     const file = path.join(OUT, lang === 'en' ? 'feature-1024x500.png' : `feature-1024x500-${lang}.png`);
     await p.screenshot({ path: file });
     resave(file, file, false);
