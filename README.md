@@ -36,7 +36,7 @@ The installer asks before it installs Docker, rootless Docker and gVisor, checks
 | | |
 | --- | --- |
 | **Server** | Ubuntu 22.04+, Debian 12 or 13, Fedora, RHEL 9 or 10 and its rebuilds; Intel/AMD or ARM; a full VM, not LXC or OpenVZ |
-| **Size** | 4 CPUs, 8 GB RAM, 40 GB free disk for one account |
+| **Size** | 4 CPUs, 8 GB RAM recommended, 40 GB disk for one account |
 | **Claude** | Pro, Max, Ultra or an Anthropic API key, per account |
 | **Access** | A domain pointed at the server (ports 80, 443, 8443), or Tailscale |
 

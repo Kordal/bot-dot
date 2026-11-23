@@ -1,5 +1,6 @@
-// install.sh on a stand-in machine (test/installer-helpers.js): a machine with less RAM than botdot needs is warned,
-// and installed all the same (#1555). The README and docs/install-linux.md say the same minimum the installer checks.
+// install.sh on a stand-in machine (test/installer-helpers.js): a machine with less RAM than botdot recommends is warned
+// and asked whether to go on (#1555, #1561). The README and docs/install-linux.md say the same RAM the installer checks;
+// the disk is in installer-disk.test.js.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -9,12 +10,14 @@ const { onLinux } = require('./linux');
 
 const ROOT = path.join(__dirname, '..');
 const read = (f) => fs.readFileSync(path.join(ROOT, f), 'utf8');
-const MIN = Number(/^MIN_RAM_GB=(\d+)$/m.exec(read('install.sh'))[1]);
+const MIN = Number(/^RECOMMENDED_RAM_GB=(\d+)$/m.exec(read('install.sh'))[1]);
 
 test('the README and the Linux install guide say the RAM the installer checks', () => {
   assert.ok(MIN > 0);
-  assert.match(read('README.md'), new RegExp(`\\| \\*\\*Size\\*\\* \\| \\d+ CPUs, ${MIN} GB RAM,`));
-  assert.match(read('docs/install-linux.md'), new RegExp(`at least 4 CPUs, ${MIN} GB of RAM and .* less than ${MIN} GB of RAM`));
+  assert.match(read('README.md'), new RegExp(`\\| \\*\\*Size\\*\\* \\| \\d+ CPUs, ${MIN} GB RAM recommended,`));
+  assert.match(read('docs/install-linux.md'), new RegExp(`${MIN} GB of RAM \\(recommended\\).* less than ${MIN} GB of RAM`));
+  // 8 GB is tested to work and 4 GB is not: neither text calls it the least that works.
+  assert.doesNotMatch(read('README.md') + read('docs/install-linux.md'), /(at least|minimum of|minimum:?) 8 GB/i);
 });
 
 // A /proc of its own, with this much RAM in kB.
@@ -24,19 +27,21 @@ function proc(t, kb) {
   fs.writeFileSync(path.join(dir, 'meminfo'), `MemTotal:       ${kb} kB\nMemFree:         500000 kB\nMemAvailable:    ${Math.max(kb - 1000000, 0)} kB\n`);
   return dir;
 }
-const WARNING = /This machine has [\d.]+ GB of RAM, and botdot needs at least \d+ GB for one account\. The install goes on/;
+const WARNING = /This machine has [\d.]+ GB of RAM, and \d+ GB is recommended\. With less, a bot's computer and its browser may not start\./;
 
-test('a machine below the minimum is warned, with its RAM and the minimum, and installed all the same', onLinux('install.sh uses GNU sed and stat'), (t) => {
+test('a machine below the recommended RAM is warned, with its RAM and the recommendation, and installed once nobody answers', onLinux('install.sh uses GNU sed and stat'), (t) => {
   const { installer } = require('./installer-helpers');
   // The QA machine of #1555: 2 GB, 1.95 GB of it usable.
   const small = installer(t, { given: { BOT_DOT_PROC: proc(t, 2044723) } });
   assert.equal(small.status, 0, `${small.said}\n${small.stderr}`);
-  assert.match(small.said, new RegExp(`This machine has 1\\.9 GB of RAM, and botdot needs at least ${MIN} GB for one account\\. The install goes on`));
+  assert.match(small.said, new RegExp(`This machine has 1\\.9 GB of RAM, and ${MIN} GB is recommended\\.`));
+  assert.doesNotMatch(small.said.match(/.*GB of RAM.*/)[0], /at least|minimum|needs/, 'it never calls 8 GB the least that works');
+  assert.match(small.said, /Continue anyway\? \[y\/N\] /, 'and asks');
   assert.equal(small.said.match(WARNING).length, 1, 'said once');
   assert.match(small.said, /BOTDOT_READY /, 'the install completes');
 });
 
-test('a machine at the minimum, as its /proc/meminfo has it, is not warned', onLinux('install.sh uses GNU sed and stat'), (t) => {
+test('a machine at the recommended RAM, as its /proc/meminfo has it, is not warned', onLinux('install.sh uses GNU sed and stat'), (t) => {
   const { installer } = require('./installer-helpers');
   // A VPS sold with 8 GB shows a little less in MemTotal.
   const eight = installer(t, { given: { BOT_DOT_PROC: proc(t, 8008720) } });

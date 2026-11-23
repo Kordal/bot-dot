@@ -146,7 +146,7 @@ test('a local install is one account on localhost, made with a setup key, for th
   assert.equal(done.read('front-door/Caddyfile'), '');
   assert.doesNotMatch(done.system, /^tailscale/m, 'no Tailscale');
   assert.ok(!done.calls.some((c) => /sign-up-link/.test(c)), 'no sign-up link is made');
-  assert.doesNotMatch(done.said, /admin page|Whoever is root/);
+  assert.doesNotMatch(done.said, /admin page|Whoever has full control/);
   assert.ok(fs.existsSync(path.join(done.dir, 'accounts', 'owner', 'compose.yaml')), "the account's botdot server is made");
   assert.match(done.system, /^curl -fsS -o \/dev\/null -H Host: localhost:4700 http:\/\/127\.0\.0\.1:4700\/api\/version$/m);
   const lines = done.said.trim().split('\n');
@@ -436,9 +436,9 @@ test('without systemd the account\'s Docker is started now, as its own user, and
   assert.match(done.said, /This machine has no systemd, so the account ann's Docker was started now and doesn't start again after a restart\./);
 });
 
-test('the install prints the admin\'s sign-up link, after it says that root reaches every account', (t) => {
+test('the install prints the admin\'s sign-up link, after it says that full control of the machine reaches every account', (t) => {
   const done = rerun(t);
-  const root = done.said.indexOf('Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself.');
+  const root = done.said.indexOf('Whoever has full control of this machine can reach every account on it: its data, its bots and the logins they hold. Keep that control to yourself.');
   const link = done.said.indexOf('\n  https://botdot.example.com/sign-up/T0KEN\n');
   assert.ok(root > 0 && link > root, done.said);
   assert.ok(done.calls.includes(`compose --project-directory ${done.dir}/front-door exec -T front-door node front-door.js sign-up-link --account ann`));
@@ -447,7 +447,7 @@ test('the install prints the admin\'s sign-up link, after it says that root reac
 
   const made = rerun(t, '', {}, { exists: true });
   assert.doesNotMatch(made.said, /\/sign-up\/|Open this link/, 'once the account exists there is no link');
-  assert.match(made.said, /Whoever is root on this machine can reach every account/, 'and the warning stays');
+  assert.match(made.said, /Whoever has full control of this machine can reach every account/, 'and the warning stays');
 });
 
 test('a machine without rootless Docker, gVisor or setfacl is offered them, and told what they are', (t) => {
@@ -506,7 +506,7 @@ test('a botdot from before accounts is never updated: it is stopped only if aske
 test('the installer runs as root, and says so first', (t) => {
   const { status, stderr, docker } = installer(t, { bins: { id: '#!/bin/sh\necho 1000\n' } });
   assert.equal(status, 1);
-  assert.match(stderr, /The installer makes a Linux user for each account, so it runs as root\. Run it with: sudo sh install\.sh/);
+  assert.match(stderr, /The installer makes a Linux user for each account, so it needs full control of this machine\. Run it with: sudo sh install\.sh/);
   assert.deepEqual(docker, []);
 });
 

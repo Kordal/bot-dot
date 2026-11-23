@@ -30,7 +30,7 @@ function readyOf(said) {
   return JSON.parse(lines.at(-1).slice('BOTDOT_READY '.length));
 }
 const NOT_YET = "Open the link from your server's install";
-const ROOT_REACHES = 'Whoever is root on this machine can reach every account on it: its data, its bots and the logins they hold. Keep root to yourself.';
+const ROOT_REACHES = 'Whoever has full control of this machine can reach every account on it: its data, its bots and the logins they hold. Keep that control to yourself.';
 
 const stage = createStage('install-real', { keep: !!process.env.INSTALL_REAL_KEEP });
 
@@ -369,7 +369,7 @@ const cases = [
       assert.match(said, /The front door is running/);
       assert.match(said, new RegExp(`The account ${ADMIN} is running`));
       assert.match(said, /Reachable on this computer only, at http:\/\/localhost:4700/);
-      assert.doesNotMatch(said, /Caddy|Tailscale|admin page|Whoever is root/, `nothing of a server's install:\n${said}`);
+      assert.doesNotMatch(said, /Caddy|Tailscale|admin page|Whoever has full control/, `nothing of a server's install:\n${said}`);
       const line = lineOf(said);
       assert.equal(line.origin, ORIGIN);
       const key = new URL(line.signUp).pathname.slice('/sign-up/'.length);
