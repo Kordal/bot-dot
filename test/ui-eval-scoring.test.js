@@ -2,7 +2,7 @@
 // checked without a Claude: make ui-eval is the slow suite that uses them (#1625).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { skillPicked, fencesOf, score, summary, report } = require('./live/ui-scoring');
+const { skillPicked, fencesOf, hasMarkdownTable, score, summary, report } = require('./live/ui-scoring');
 const { CASES } = require('./live/ui-eval-cases');
 
 const fence = (obj) => `\`\`\`ui\n${typeof obj === 'string' ? obj : JSON.stringify(obj)}\n\`\`\``;
@@ -141,11 +141,31 @@ test('the report names each case, how the skill was picked and every fence check
   assert.match(md, /fact · picked/);
 });
 
-test('its cases: three where a view is right (the form among them), three where prose is right', () => {
-  assert.deepEqual(CASES.map((c) => c.id), ['compare-three', 'time-series', 'four-field-form', 'one-line-fact', 'apology', 'yes-no']);
+test('a case that asks for no Markdown table fails on one beside the view, and on one written instead of it', () => {
+  const c = { id: 'db', view: true, fits: ['comparison', 'table'], noMarkdownTable: true };
+  const MD = '| | Postgres | MySQL |\n| --- | --- | --- |\n| License | PostgreSQL | GPL |';
+  assert.equal(hasMarkdownTable(MD), true);
+  assert.equal(hasMarkdownTable('| a | b |\n|:--:|---:|\n| 1 | 2 |'), true);
+  assert.equal(hasMarkdownTable('a | b\n--- | ---\n1 | 2'), true);
+  assert.equal(hasMarkdownTable('One line.\n\n---\n\nAnother, after a rule.'), false);
+  assert.equal(hasMarkdownTable('- Postgres: strict\n- MySQL: common'), false);
+  const good = score(c, { picked: true, reply: `Postgres for features.\n${fence(TABLE)}` });
+  assert.equal(good.pass, true);
+  assert.deepEqual(good.checks.at(-1), { id: 'noTable', ok: true, detail: 'no Markdown table' });
+  const table = score(c, { picked: false, reply: MD });
+  assert.deepEqual(table.checks.filter((x) => x.ok === false).map((x) => x.id), ['picked', 'drew', 'fit', 'noTable']);
+  // The skill picked and a view drawn, with the table written out as well.
+  const both = score(c, { picked: true, reply: `${MD}\n${fence(TABLE)}` });
+  assert.deepEqual(both.checks.filter((x) => x.ok === false).map((x) => x.id), ['noTable']);
+  // A table in a view is not Markdown; a case that doesn't ask has no such check.
+  assert.equal(score({ id: 'x', view: true }, { picked: true, reply: `${MD}\n${fence(TABLE)}` }).checks.some((x) => x.id === 'noTable'), false);
+});
+
+test('its cases: five where a view is right (the databases and the form among them), three where prose is right', () => {
+  assert.deepEqual(CASES.map((c) => c.id), ['compare-three', 'compare-databases-table', 'compare-databases', 'time-series', 'four-field-form', 'one-line-fact', 'apology', 'yes-no']);
   const ids = new Set(CASES.map((c) => c.id));
   assert.equal(ids.size, CASES.length);
-  assert.deepEqual(CASES.filter((c) => c.view === true).map((c) => c.id), ['compare-three', 'time-series', 'four-field-form']);
+  assert.deepEqual(CASES.filter((c) => c.view === true).map((c) => c.id), ['compare-three', 'compare-databases-table', 'compare-databases', 'time-series', 'four-field-form']);
   assert.deepEqual(CASES.filter((c) => c.view === 'either').map((c) => c.id), []);
   assert.deepEqual(CASES.filter((c) => c.view === false).map((c) => c.id), ['one-line-fact', 'apology', 'yes-no']);
   const catalog = require('../lib/ui-catalog.json');
@@ -155,7 +175,13 @@ test('its cases: three where a view is right (the form among them), three where 
     for (const k of c.fits || []) assert.ok(catalog.components[k], `${c.id}: ${k} is in the catalog`);
   }
   // What each is about is in what the owner says: three options, a time series, four values.
-  assert.match(CASES[0].says, /three/i);
-  assert.match(CASES[1].says, /month|week|day/i);
-  assert.match(CASES[2].says, /four|4/i);
+  const says = (id) => CASES.find((c) => c.id === id).says;
+  assert.match(says('compare-three'), /three/i);
+  assert.match(says('time-series'), /month|week|day/i);
+  assert.match(says('four-field-form'), /four|4/i);
+  // The two on databases are what the owner typed, the first with "in a table", and both want no Markdown table.
+  assert.equal(says('compare-databases-table'), 'compare Postgres, MySQL and SQLite in a table');
+  assert.equal(says('compare-databases'), 'compare Postgres, MySQL and SQLite');
+  assert.deepEqual(CASES.filter((c) => c.noMarkdownTable).map((c) => c.id), ['compare-databases-table', 'compare-databases']);
+  assert.deepEqual(CASES.find((c) => c.id === 'compare-databases').fits, ['comparison']);
 });

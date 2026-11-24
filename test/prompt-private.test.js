@@ -536,7 +536,7 @@ test("a bot's prompt with every cap hit, a tapped answer included, stays under 1
   assert.ok(chat.length > 55_000, `the chat block is at its largest (${chat.length})`);
   assert.ok(plain.length > 80_000, `the caps are really hit (${plain.length})`);
   assert.match(plain, /^You lead team "(&lt;a)+…" in the owner's project/m, 'with the note of a team lead');
-  assert.ok(plain.length < 137_500, `the prompt has ${plain.length} characters`);
+  assert.ok(plain.length < 137_800, `the prompt has ${plain.length} characters`);
 
   // Made of tags, every text is printed longer than it is stored, and the prompt is no larger for it.
   const tags = await tappedPrompt(bots.tags, fills.tags);

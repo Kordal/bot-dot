@@ -75,9 +75,17 @@ function fencesOf(reply) {
   return { fences, text };
 }
 
+// ---------- a Markdown table ----------
+
+// Whether the words beside the views hold a Markdown table: a header row and a delimiter row (| --- | :---: |).
+const TABLE_DELIMITER = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$|^\s*\|\s*:?-+:?\s*\|?\s*$/;
+function hasMarkdownTable(text) {
+  return String(text || '').split('\n').some((line, i, lines) => i > 0 && TABLE_DELIMITER.test(line) && lines[i - 1].includes('|'));
+}
+
 // ---------- a case ----------
 
-// c: { id, view: true | false | 'either', fits?: [component names a view that answers it uses one of] }
+// c: { id, view: true | false | 'either', fits?: [component names a view that answers it uses one of], noMarkdownTable?: true }
 // seen: { picked, reply } → { pass, checks: [{ id, ok: true | false | null (not asked), detail }] }
 function score(c, seen) {
   const { fences, text } = fencesOf(seen.reply);
@@ -112,12 +120,15 @@ function score(c, seen) {
   if (fences.length && c.view !== false) add('prose', text.length > 0, text.length ? 'the answer is in words too' : 'a fence with no answer in words beside it');
   else add('prose', null, 'not asked');
 
+  // Asked of the prompts that ask for a table or a comparison: the table is a view, not Markdown beside it.
+  if (c.noMarkdownTable) add('noTable', !hasMarkdownTable(text), hasMarkdownTable(text) ? 'wrote a Markdown table' : 'no Markdown table');
+
   return { pass: checks.every((x) => x.ok !== false), checks };
 }
 
 // ---------- the report ----------
 
-const COLUMNS = [['picked', 'Picked kit:ui'], ['drew', 'Drew as it should'], ['valid', 'Valid'], ['source', 'Source'], ['fit', 'Fits'], ['prose', 'Words too']];
+const COLUMNS = [['picked', 'Picked kit:ui'], ['drew', 'Drew as it should'], ['valid', 'Valid'], ['source', 'Source'], ['fit', 'Fits'], ['prose', 'Words too'], ['noTable', 'No Markdown table']];
 const mark = (ok) => (ok === null || ok === undefined ? '–' : ok ? '✓' : '✗');
 const label = (r) => `${r.id}${r.wave ? ` (wave ${r.wave})` : ''}`;
 
@@ -170,4 +181,4 @@ function report(results, meta = {}) {
   return lines.join('\n');
 }
 
-module.exports = { skillPicked, fencesOf, score, summary, report, COLUMNS };
+module.exports = { skillPicked, fencesOf, hasMarkdownTable, score, summary, report, COLUMNS };

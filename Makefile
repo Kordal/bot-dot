@@ -90,7 +90,7 @@ chief-eval: ## 13 typical requests to the real Chief on scratch servers, each sc
 	@BOT_DOT_TEST_CHIEF_EVAL=1 node --test --test-reporter=spec test/live/chief-bot-eval.test.js
 
 .PHONY: ui-eval
-ui-eval: ## 6 prompts to a real bot on scratch servers: kit:ui should be picked where a view is right and not where prose is, and every ui fence it writes is read by the apps' validator; spends model usage, skips when no Claude is signed in (BOT_DOT_TEST_LIVE_ONLY=<case ids> runs some, BOT_DOT_TEST_LIVE_REPEAT=<n> runs each n times)
+ui-eval: ## 8 prompts to a real bot on scratch servers: kit:ui should be picked where a view is right (a table or a comparison included, with no Markdown table) and not where prose is, and every ui fence it writes is read by the apps' validator; spends model usage, skips when no Claude is signed in (BOT_DOT_TEST_LIVE_ONLY=<case ids> runs some, BOT_DOT_TEST_LIVE_REPEAT=<n> runs each n times)
 	@BOT_DOT_TEST_UI_EVAL=1 node --test --test-reporter=spec test/live/ui-eval.test.js
 
 .PHONY: tools-real
