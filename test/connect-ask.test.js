@@ -492,3 +492,92 @@ test('a refusal put in words while a newer Connect found the key refused leaves 
     assert.equal(r.status, 200, JSON.stringify(r.data));
   }
 });
+
+// #1322: listed() settles a card from the list of connections. A plain Connect card without a connection of its own
+// takes the newest ACTIVE one made after it, and so does the Reconnect of an app that worked before; another account
+// settles only by the id of the connection its Connect made, and a card with `replaces` by that id or by a working
+// connection made after it with the same label as the one it replaces (ADR 174, ADR 221).
+function listedWith(app, offerArgs, { was = [], connectionId = null, labels = {} } = {}) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'botdot-connect-'));
+  const asks = asksLib.create(dir);
+  const bot = { id: 'b1', name: 'Writer', connectors: [], accounts: {} };
+  const bots = { get: (id) => (id === 'b1' ? bot : null), list: () => [bot], update: (id, patch) => Object.assign(bot, patch) };
+  const connectors = { status: () => ({ configured: true, keyRejected: false }), reconnect: () => [], labelFor: (id) => labels[id] || null, labelPending: () => false };
+  const C = connectAsksLib.create({ asks, bots, connectors, appName: asksLib.appWord, carryOnAfter: () => ({}) });
+  const card = C.offer({ botId: 'b1', app, ...offerArgs }).ask;
+  if (connectionId) asks.mark((x) => x.id === card.id, { connectionId });
+  const later = new Date(Date.now() + 60_000).toISOString();
+  const run = (list) => { C.listed(list, was); return !asks.list().some((x) => x.id === card.id); };
+  return { run, later, bot, done: () => fs.rmSync(dir, { recursive: true, force: true }) };
+}
+
+test('another account settles only by the connection its Connect made, not by a newer one with another id', () => {
+  const t = listedWith('gmail', { mode: 'another' }, { connectionId: 'ca_mine' });
+  const other = { id: 'ca_other', toolkit: 'gmail', status: 'ACTIVE', createdAt: t.later };
+  assert.equal(t.run([other]), false, 'a newer ACTIVE connection with another id leaves the card');
+  assert.equal(t.run([other, { id: 'ca_mine', toolkit: 'gmail', status: 'ACTIVE', createdAt: t.later }]), true, 'its own connection settles it');
+  assert.equal(t.bot.accounts.gmail, 'ca_mine');
+  t.done();
+});
+
+test('a card with replaces settles by the connection its Connect made', () => {
+  const t = listedWith('gmail', { mode: 'reconnect', replaces: 'ca_old' }, { connectionId: 'ca_again', labels: { ca_old: 'me@x.com' } });
+  t.bot.accounts = { gmail: 'ca_old' };
+  const other = { id: 'ca_other', toolkit: 'gmail', status: 'ACTIVE', label: 'you@y.com', createdAt: t.later };
+  assert.equal(t.run([other]), false, 'a newer ACTIVE connection of another account leaves the card');
+  assert.equal(t.bot.accounts.gmail, 'ca_old', 'and moves no bot');
+  assert.equal(t.run([other, { id: 'ca_again', toolkit: 'gmail', status: 'ACTIVE', label: 'me@x.com', createdAt: t.later }]), true, 'its own connection settles it');
+  assert.equal(t.bot.accounts.gmail, 'ca_again', 'the bots set to the old account move to it');
+  t.done();
+});
+
+test('a card with replaces and no connection of its own settles by a newer one with the label of the account it replaces', () => {
+  const t = listedWith('gmail', { mode: 'reconnect', replaces: 'ca_old' }, { labels: { ca_old: 'Me@X.com' } });
+  t.bot.accounts = { gmail: 'ca_old' };
+  const dead = { id: 'ca_old', toolkit: 'gmail', status: 'EXPIRED', label: 'me@x.com', createdAt: '2000-01-01T00:00:00Z' };
+  const elsewhere = { id: 'ca_other', toolkit: 'gmail', status: 'ACTIVE', label: 'you@y.com', createdAt: t.later };
+  assert.equal(t.run([dead, elsewhere]), false, 'a newer ACTIVE connection with another label leaves the card');
+  assert.equal(t.bot.accounts.gmail, 'ca_old', 'and moves no bot');
+  const again = { id: 'ca_new', toolkit: 'gmail', status: 'ACTIVE', label: 'me@x.com', createdAt: t.later };
+  assert.equal(t.run([dead, elsewhere, again]), true, 'one with the same label (signed in again on the Connectors page) settles it');
+  assert.equal(t.bot.accounts.gmail, 'ca_new', 'and the bot moves to it');
+  t.done();
+});
+
+test('a card with replaces whose account has no known label settles by a connection made after it, as before', () => {
+  const t = listedWith('gmail', { mode: 'reconnect', replaces: 'ca_old' }, { was: ['gmail'] });
+  const old = { id: 'ca_old', toolkit: 'gmail', status: 'ACTIVE', createdAt: '2000-01-01T00:00:00Z' };
+  assert.equal(t.run([old]), false, 'the old connection still ACTIVE does not settle it');
+  assert.equal(t.run([old, { id: 'ca_new', toolkit: 'gmail', status: 'ACTIVE', createdAt: t.later }]), true);
+  t.done();
+});
+
+test('a card with replaces is not settled by a connection of the same label made before it', () => {
+  const t = listedWith('gmail', { mode: 'reconnect', replaces: 'ca_old' }, { labels: { ca_old: 'me@x.com' } });
+  const before = { id: 'ca_before', toolkit: 'gmail', status: 'ACTIVE', label: 'me@x.com', createdAt: '2000-01-01T00:00:00Z' };
+  assert.equal(t.run([before]), false);
+  t.done();
+});
+
+test('the Reconnect of an app that worked before settles by its own connection or one made after it', () => {
+  const t = listedWith('jira', { mode: 'reconnect' }, { was: ['jira'], connectionId: 'ca_again' });
+  const old = { id: 'ca_old', toolkit: 'jira', status: 'ACTIVE', createdAt: '2000-01-01T00:00:00Z' };
+  assert.equal(t.run([old]), false, 'the old connection that is still ACTIVE does not settle it');
+  const other = { id: 'ca_other', toolkit: 'jira', status: 'ACTIVE', createdAt: t.later };
+  assert.equal(t.run([old, other]), true, 'one made after it does (the permission fixed on the Connectors page)');
+  t.done();
+  const u = listedWith('jira', { mode: 'reconnect' }, { was: ['jira'], connectionId: 'ca_again' });
+  assert.equal(u.run([old, { id: 'ca_again', toolkit: 'jira', status: 'ACTIVE', createdAt: u.later }]), true, 'its own connection settles it');
+  u.done();
+});
+
+test('a plain Connect card still settles by a connection made after it, whatever its id', () => {
+  const old = { id: 'ca_before', toolkit: 'jira', status: 'ACTIVE', createdAt: '2000-01-01T00:00:00Z' };
+  const a = listedWith('jira', {}, { was: ['jira'], connectionId: 'ca_mine' });
+  assert.equal(a.run([old]), false, 'the app worked before: an old connection does not settle it');
+  assert.equal(a.run([old, { id: 'ca_new', toolkit: 'jira', status: 'ACTIVE', createdAt: a.later }]), true, 'one made after it does, though not its own');
+  a.done();
+  const b = listedWith('jira', {}, {});
+  assert.equal(b.run([{ id: 'ca_new', toolkit: 'jira', status: 'ACTIVE', createdAt: b.later }]), true, 'an app that was not connected before settles it');
+  b.done();
+});
