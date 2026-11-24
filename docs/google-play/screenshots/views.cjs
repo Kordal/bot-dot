@@ -52,12 +52,11 @@ const QUIZ = {
 
 // Quote Chaser, in the team's chat: three contractors side by side, the pick marked.
 const QUOTES = {
-  alt: 'Three kitchen quotes compared on price, start, length and warranty; Brightwood is recommended.',
+  alt: 'Three kitchen quotes compared on price, start and length; Brightwood is recommended.',
   root: { type: 'comparison', title: 'Kitchen quotes', options: ['Oakline', 'Brightwood', 'Northside'], pick: 1, rows: [
     { label: 'Price', values: ['€14,800', '€13,900', 'waiting'] },
     { label: 'Starts', values: ['6 Jan', '13 Jan', '—'] },
     { label: 'Takes', values: ['3 weeks', '2 weeks', '—'] },
-    { label: 'Warranty', values: ['5 years', '2 years', '—'] },
   ] },
 };
 

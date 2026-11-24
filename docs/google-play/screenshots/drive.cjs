@@ -53,7 +53,7 @@ const NETWORK = '-e command network -e wifi show -e level 4 -e mobile show -e da
  * Said again before each picture: the emulator's system UI may leave demo mode on its own. */
 function calm(network = NETWORK) {
   for (const extra of ['-e command enter', '-e command clock -e hhmm 0930', '-e command battery -e level 100 -e plugged false',
-    network, '-e command notifications -e visible false']) {
+    network, '-e command status -e airplane hide', '-e command notifications -e visible false']) {
     sh(`am broadcast -a com.android.systemui.demo ${extra}`);
   }
 }
@@ -104,9 +104,9 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   adb('install', '-r', '-g', apk);
   // The phone's localhost is the computer's: the app takes plain HTTP only to a botdot on the phone itself.
   adb('reverse', `tcp:${scene.port}`, `tcp:${scene.port}`);
-  // The status bar shows the demo's icons only: the emulator's own wifi and mobile data would add theirs beside them.
-  sh('svc wifi disable');
-  sh('svc data disable');
+  // The status bar shows the demo's icons only: the emulator's own wifi and mobile data ("3G") would add theirs beside them,
+  // so its radios are off. The app reaches botdot over adb's reverse tunnel, which no radio carries.
+  sh('cmd connectivity airplane-mode enable');
   sh('wm size 1080x1920');
   sh('wm density 420');
   sh('cmd uimode night yes');
@@ -114,19 +114,6 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   const ui = sh('pidof com.android.systemui').trim();
   calm();
   await sleep(1500);
-  // TRYING: which network command leaves the status bar with a wifi and a signal and no "3G".
-  for (const [name, net] of Object.entries({
-    base: NETWORK,
-    nodatatype: '-e command network -e wifi show -e level 4 -e mobile show -e level 4',
-    dis: '-e command network -e wifi show -e level 4 -e mobile show -e datatype dis -e level 4',
-    not: '-e command network -e wifi show -e level 4 -e mobile show -e datatype not -e level 4',
-    nulltype: '-e command network -e wifi show -e level 4 -e mobile show -e datatype null -e level 4',
-    nosim: '-e command network -e wifi show -e level 4 -e sims 1 -e nosim hide -e mobile show -e datatype none -e level 4',
-  })) {
-    calm(net);
-    await sleep(1500);
-    fs.writeFileSync(path.join(OUT, `debug-bar-${name}.png`), execFileSync('adb', ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
-  }
   calm();
   // Said in the log: whether the system UI took the commands, or restarted on one of them.
   console.log('system UI', ui, '->', sh('pidof com.android.systemui').trim(), sh('logcat -d -b crash').split('\n').slice(-6).join(' / '));
@@ -173,6 +160,6 @@ const has = (re) => (n) => re.test(n.text) || re.test(n.desc);
   // The project's team chat: Quote Chaser's comparison of the quotes.
   open(`group:${scene.team}`);
   await find((n) => /Quote Chaser/.test(n.text), 'the team chat');
-  await bring(has(/^Where do the quotes stand/), 'the owner\'s question in the team chat', 330);
+  await bring(has(/^Quotes so far/), 'the owner\'s question in the team chat', 330);
   await shot('7-quotes.png');
 })().catch((e) => { console.error(e.message); process.exit(1); });

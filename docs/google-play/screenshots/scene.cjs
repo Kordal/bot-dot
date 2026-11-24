@@ -81,6 +81,11 @@ Want me to remind you when the installer sends the quote?`;
 
     // ---- this morning's chats, written while botdot is stopped ----
     await srv.stop();
+    // The Board's recent values were all read this minute: they are spread over the last hour, as a day's readings are.
+    const dash = path.join(srv.data, 'dashboard.json');
+    const board = JSON.parse(fs.readFileSync(dash, 'utf8'));
+    for (const v of Object.values(board.values || {})) for (const [p, ts] of Object.entries(v.times || {})) v.times[p] = ts.map((_, i) => Date.now() - (ts.length - i) * 6 * 60_000);
+    fs.writeFileSync(dash, JSON.stringify(board), { mode: 0o600 });
     const runs = path.join(srv.data, 'runs');
     fs.mkdirSync(runs, { recursive: true });
     let n = 0;
@@ -160,8 +165,8 @@ Want me to remind you when the installer sends the quote?`;
     if (group) ok(await srv.api(`/group-chats/${group.id}`, { method: 'PUT', body: { category: 'Kitchen' } }), 'team category');
     if (!group) throw new Error(`no team chat: ${JSON.stringify((await srv.api('/group-chats')).data).slice(0, 300)}`);
     fs.writeFileSync(path.join(srv.out, `result-${shortName('Reno Planner')}.txt`), 'PASS');
-    fs.writeFileSync(path.join(srv.out, `result-${shortName('Quote Chaser')}.txt`), `Two quotes are in, and Brightwood is the faster and the cheaper one so far.\n\n${ui(VIEWS.QUOTES)}\n\nNorthside promised an answer by Monday.`);
-    ok(await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Where do the quotes stand, @QuoteChaser?' } }), 'team message');
+    fs.writeFileSync(path.join(srv.out, `result-${shortName('Quote Chaser')}.txt`), `Brightwood looks best so far.\n\n${ui(VIEWS.QUOTES)}\n\nNorthside promised an answer by Monday.`);
+    ok(await srv.api(`/group-chats/${group.id}/messages`, { method: 'POST', body: { text: 'Quotes so far, @QuoteChaser?' } }), 'team message');
     await waitFor(async () => { const r = (await srv.api(`/group-chats/${group.id}/chat`)).data; return JSON.stringify(r).includes('Northside promised') && !(r.working || []).length; }, { timeout: 30000, what: 'the team\'s replies' }).catch(async (e) => { console.log(JSON.stringify((await srv.api(`/group-chats/${group.id}/chat`)).data).slice(0, 3000)); throw e; });
     await sleep(500);
     for (const f of fs.readdirSync(srv.out).filter((f) => /^result-/.test(f))) fs.rmSync(path.join(srv.out, f));
