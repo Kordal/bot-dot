@@ -189,10 +189,17 @@ test('removing a provider sends its bots to the account default, and the account
   await srv.api('/settings', { method: 'PUT', body: { defaultModel: '', chiefModel: '' } });
 });
 
-test('removing a provider that is not saved changes nothing', async () => {
-  const gone = await srv.api('/setup/claude/provider/glm', { method: 'DELETE' });
-  assert.equal(gone.status, 200);
-  assert.deepEqual(gone.data.claude.providers, []);
+test('removing a provider that is not saved, or naming none, is 404 and changes nothing', async () => {
+  assert.equal((await connect('ollama', second, KEY_B)).status, 200);
+  for (const segment of ['glm', 'models', 'nope']) {
+    const gone = await srv.api(`/setup/claude/provider/${segment}`, { method: 'DELETE' });
+    assert.equal(gone.status, 404, segment);
+    assert.equal(gone.data.error, "That provider isn't connected.");
+  }
+  assert.deepEqual((await srv.api('/setup')).data.claude.providers.map((p) => p.preset), ['ollama'], 'the saved one is still there');
+  const removed = await srv.api('/setup/claude/provider/ollama', { method: 'DELETE' });
+  assert.equal(removed.status, 200, 'a saved one still goes');
+  assert.deepEqual(removed.data.claude.providers, []);
 });
 
 test('an account saved with one provider before ADR 267 keeps running on it', async () => {
