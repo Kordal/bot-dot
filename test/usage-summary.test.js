@@ -32,6 +32,19 @@ test('the front door gets a finished day as counts, with no name in it', async (
   await srv.api(`/bots/${bot.id}`, { method: 'DELETE' });
 });
 
+test('features.rooms is true only while a bot of the account is in a room, not because rooms are open to every bot (ADR 269)', async () => {
+  const bot = await makeBot(srv, { name: 'Roomer' });
+  const fd = { 'x-botdot-room': '1' };
+  const sync = (rooms) => srv.api('/room-sync', { method: 'POST', headers: fd, body: { rooms, taken: [] } });
+  assert.equal((await summary(yesterday())).data.features.rooms, false, 'a bot that is in no room');
+  const r = await sync([{ id: 'r1', name: 'Garden club', bots: [bot.id] }]);
+  assert.equal(r.status, 200, JSON.stringify(r.data));
+  assert.equal((await summary(yesterday())).data.features.rooms, true, 'a bot that is in a room');
+  await sync([{ id: 'r1', name: 'Garden club', bots: [] }]);
+  assert.equal((await summary(yesterday())).data.features.rooms, false, 'the room no longer lists it');
+  await srv.api(`/bots/${bot.id}`, { method: 'DELETE' });
+});
+
 test('only a finished day, only a date, and only the front door', async () => {
   assert.equal((await summary(new Date().toISOString().slice(0, 10))).status, 400, 'today has not ended');
   assert.equal((await summary('2026-02-30')).status, 400);
