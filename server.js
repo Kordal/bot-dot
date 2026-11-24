@@ -60,6 +60,7 @@ async function readyForSecrets(botId) {
 const loginRequests = require('./lib/login-requests');
 const connectedAppsLib = require('./lib/connected-apps');
 const asksLib = require('./lib/asks');
+const { isCustomApp } = require('./lib/custom-app');
 const { tr } = require('./lib/i18n');
 const { waitingWords } = require('./lib/bot-changes');
 const learningWords = require('./lib/learning'); // what a chip, a memory card and a memory tool's answer say
@@ -159,6 +160,7 @@ B.onWaitingOnCards((bot) => [
 const irreversibleStepsLib = require('./lib/irreversible-steps');
 const connectorApprovals = require('./lib/connector-approvals').create(B.DATA_DIR, {
   asks, active: B.isActive, bot: B.bots.get, whatCarriesOn: (ask) => B.whatCarriesOn(ask), carryOn: (found, answers) => B.carryOn(found, answers), appName: B.appName, groupOfRun: B.groupOfRun,
+  customMay: (botId, slug) => (botId ? B.customServers.mayUse(botId, slug) : !!B.customServers.find(slug)),
   chiefApps: () => B.connectors.knownApps(), chiefFits: (ask) => chief.lateYesFits(ask.chatId, ask.at), chiefCarryOn: (ask, grant) => chief.doAgain(ask, grant), chiefName: () => chief.named().name,
 });
 // A shared room beyond a talk-only turn (ADR 067): the run its owner's mention starts, each of its tools on a card,
@@ -182,10 +184,13 @@ chief.connectorsWith({
   // asks Composio all the same.
   // A look's session (ADR 070) is for the apps it names that are connected, and only reads.
   // A turn after an app was connected from the Chief's card has that app, also before a list of Composio's shows it.
+  // The owner's own remote MCP servers (ADR 265) are every Chief turn's the owner started; a look has none.
   open: ({ chatId, grants, connectedFor = [], apps: only = null, readOnly = false }) => {
-    const known = [...new Set([...(B.connectors.knownApps() ?? grants.map((g) => g.app)), ...connectedFor])];
+    const composio = grants.filter((g) => !isCustomApp(g.app));
+    const known = [...new Set([...(B.connectors.knownApps() ?? composio.map((g) => g.app)), ...connectedFor])];
     const apps = only ? only.filter((a) => known.includes(a)) : known;
-    return apps.length ? { ...connectorApprovals.openChief({ chatId, grants, ...(readOnly ? { apps, readOnly } : {}) }), apps } : null;
+    const servers = readOnly ? [] : B.customServers.list().map(({ id, name }) => ({ id, name }));
+    return apps.length || servers.length ? { ...connectorApprovals.openChief({ chatId, grants, ...(readOnly ? { apps, readOnly } : {}) }), apps, servers } : null;
   },
   connected: () => B.connectors.knownApps() || [],
   close: (session, ended) => connectorApprovals.closeChief(session.turnId, ended),
@@ -369,7 +374,7 @@ const callAddresses = calls.addresses(B.DATA_DIR, ACCOUNT);
 // ---------- the live feed ----------
 
 const API_VERSION = 1;
-const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'llm-provider', 'provider-model-catalog', 'provider-model-settings', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'bot-computer-place', 'boat-own-key', 'bot-own-machine', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'about-project', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'team-chat-members', 'team-chat-lead', 'team-chat-delete', 'project-lead', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed', 'project-chief', 'vault-categories', 'board-tidy', 'project-manager', 'project-manager-bot', 'teammate-steer', 'screen-done', 'project-bots', 'project-overview', 'overview-board', 'project-conversation', 'project-updates', 'asks-several', 'setup-existing-bots', 'watches', 'card-text-size', 'group-steer', 'computer-card', 'choices-dismiss', 'ui-catalog'];
+const FEATURES = ['events', 'uploads', 'setup', 'updates', 'jobs-pause', 'chief', 'vault-requests', 'bitwarden', 'memory', 'bot-messages', 'chief-suggestions', 'backups', 'android-app', 'inbox', 'figure', 'outfits', 'unread', 'opening-line', 'working-line', 'ratings', 'tools', 'vault-types', 'needs-text', 'message-key', 'ask-continues', 'connector-waits', 'custom-mcp-servers', 'message-waits', 'ended-by', 'job-line', 'asks-you', 'decline-words', 'staged-changes', 'proposal-carries-on', 'memory-chips', 'memory-cards', 'memory-forget', 'change-summary', 'groups', 'checkup', 'job-calls', 'self-built', 'accounts', 'passkeys', 'vault-in-computer', 'chief-skills', 'vault-ssh-keys', 'chief-name', 'claude-api-key', 'llm-provider', 'provider-model-catalog', 'provider-model-settings', 'vault-switch', 'chief-action', 'web-push', 'notification-events', 'job-notify', 'job-call-signed', 'computer-reset', 'old-computer-copy', 'computer-usage', 'group-all', 'vault-remove', 'vault-ssh-key-add', 'vault-github-app', 'vault-files', 'steer', 'chief-steer', 'reply-draft', 'chief-ssh-key-add', 'chief-ssh-key-change', 'chief-vault-remove', 'chief-connectors', 'whats-new', 'duplicate-bot', 'skill-commands', 'notes-wake', 'bot-files', 'vault-file', 'override', 'document-viewer', 'chat-attachments', 'more-always', 'ask-batches', 'plan', 'pins-shared', 'workspace-files', 'token-usage', 'bot-reminders', 'document-export', 'document-google-docs', 'bot-hotkeys', 'pages', 'pages-all', 'chief-pages', 'room-settings', 'room-runs', 'board-blocks', 'page-blocks', 'interactive-pages', 'chief-files', 'chief-jobs', 'mail-draft', 'tile-change', 'home-tiles', 'board-refresh', 'pages-board', 'page-mentions', 'bot-always-allowed', 'job-logins', 'site-icons', 'boat-computer', 'boat-size', 'computer-move', 'boat-desktop', 'boat-desktop-vnc', 'workspace-folders', 'projects', 'account-computer', 'computer-place-admin', 'bot-computer-place', 'boat-own-key', 'bot-own-machine', 'boat-size-admin', 'workspace-search', 'file-mentions', 'files-explorer', 'reply-to', 'language', 'company', 'company-team', 'company-about', 'about-project', 'company-checkins', 'company-leads', 'product-cards', 'project-todos', 'company-decisions', 'company-standup', 'project-calendar', 'team-chats', 'projects-many', 'company-display', 'objective-sources', 'project-settings', 'project-mentions', 'project-folder', 'project-cards', 'project-board', 'project-layout', 'project-empty', 'project-delivery', 'project-logins', 'project-screens', 'team-reaches', 'project-starter', 'objective-change', 'group-notes', 'project-ongoing', 'objective-remove', 'vault-save', 'team-chat-rename', 'team-chat-members', 'team-chat-lead', 'team-chat-delete', 'project-lead', 'storage', 'backup-alerts', 'backup-download', 'project-files', 'phone-upload', 'tile-confirm', 'connect-cards', 'proxies', 'connector-accounts', 'every-bot-always', 'advanced', 'everything-allowed', 'project-chief', 'vault-categories', 'board-tidy', 'project-manager', 'project-manager-bot', 'teammate-steer', 'screen-done', 'project-bots', 'project-overview', 'overview-board', 'project-conversation', 'project-updates', 'asks-several', 'setup-existing-bots', 'watches', 'card-text-size', 'group-steer', 'computer-card', 'choices-dismiss', 'ui-catalog'];
 const PKG_VERSION = (() => { try { return require('./package.json').version; } catch { return '0'; } })();
 const GIT_REV = (() => { try { return require('child_process').execFileSync('git', ['rev-parse', 'HEAD'], { cwd: __dirname, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return null; } })();
 
@@ -615,7 +620,7 @@ function chiefChatOf(req, by) {
 // it, in a turn the owner started (#694), and reads its calendar and adds, moves and deletes its events (#695);
 // and sets and starts the morning standup (#698); making, deleting, deleting a to-do item or a decision, the check-ins, Approve and Add stay the owner's.
 const CHIEF_ROUTES = [
-  ['GET', /^(company|company\/list|company\/card-files|company\/calendar|bots|skills|connectors|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
+  ['GET', /^(company|company\/list|company\/card-files|company\/calendar|bots|skills|connectors|connectors\/servers|runs|memory|chief\/jobs|chief\/reminders|chief\/memory|chief\/connector-actions|chief\/after-web|chief\/files|vault|dashboard|tools|tools\/find|group-chats)$/],
   ['GET', /^(bots|skills|runs|memory\/runs|group-chats)\/[^/]+$/],
   ['GET', /^runs\/[^/]+\/wait$/],
   ['GET', /^bots\/[^/]+\/jobs\/[^/]+\/((call|notify)\/setup|shadow)$/],
@@ -626,7 +631,7 @@ const CHIEF_ROUTES = [
   ['POST', /^proxies\/[a-f0-9]{8}\/test$/],
   ['PUT', /^proxies\/default$/],
   ['GET', /^(connectors\/catalog|memory\/search|memory\/semantic|vault\/requests\/[^/]+\/wait|settings\/quiet-hours|settings\/writing-first|settings\/checkup|chief\/checkup)$/],
-  ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|storage\/check|connectors\/session\/(actions|run|wait))$/],
+  ['POST', /^(bots|skills|asks|chief\/pages|chief\/memory|chief\/steer|memory\/semantic\/pull|chief\/reminders|chief\/jobs|chief\/jobs\/[^/]+\/run|vault\/requests|vault\/ssh-keys|vault\/remove|dashboard\/tiles|dashboard\/test|group-chats|computer\/(reset|restart)|storage\/check|connectors\/session\/(actions|run|wait|custom-tools|custom-run))$/],
   ['POST', /^(bots\/[^/]+\/(run|jobs|duplicate|computer\/restart)|bots\/[^/]+\/jobs\/[^/]+\/(run|run-again|call\/setup|notify\/setup|shadow|back-to-ai)|memory\/review\/[^/]+|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/],
   ['POST', /^company\/(teams|todos|decisions|events|cards|card-request)$/],
   // The Project Manager (ADR 217): it writes in a team's chat and reads it.
@@ -654,7 +659,7 @@ const chiefMay = (method, parts) => CHIEF_ROUTES.some(([m, re]) => m === method 
 // lets it through also after the web. Removing a lasting grant of the Chief's only takes trust away. A card's GET
 // with its project's logins (company/card-request, #804) only reads, by the key of that card's run alone.
 // The Chief's reminders, setting and cancelling one (ADR 249): a ⏰ message in the owner's own chat, seen where it is.
-const FREE_AFTER_WEB = /^(chief\/reminders(\/[^/]+)?|company\/card-request|asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
+const FREE_AFTER_WEB = /^(chief\/reminders(\/[^/]+)?|company\/card-request|asks|chief\/pages|bots\/[^/]+\/run|computer\/reset|vault\/[^/]+|chief\/memory|chief\/steer|chief\/connector-actions|chief\/after-web|connectors\/session\/(actions|run|wait|custom-tools|custom-run)|runs\/[^/]+\/stop|chief\/checkup\/(proposals|outcome))$/;
 // A project's own changes and a group's (ADR 247): its teams, their bots and lead, its own bots, a message to a team,
 // its to-dos, plan, goal, dates and calendar, and making or changing a group, are done at once after the web too.
 // They stay in the account, change no bot's own powers and are seen and undone where they are; a team's turns from
@@ -872,6 +877,7 @@ const ROUTES = [
   require('./lib/routes/setup').create(ctx),
   require('./lib/routes/memory').create(ctx),
   require('./lib/routes/group-chats').create(ctx),
+  require('./lib/routes/custom-servers').create(ctx), // the owner's own remote MCP servers, before the connected apps' (ADR 265)
   require('./lib/routes/connectors').create(ctx),
   require('./lib/routes/settings').create(ctx),
   ctx.jobRoutes.preview,

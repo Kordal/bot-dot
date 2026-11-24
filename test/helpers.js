@@ -538,4 +538,5 @@ async function unfoldTeams(page, until = null) {
   if (until) throw new Error(`Timed out unfolding the teams for ${until}`);
 }
 
-module.exports = { streamOf, followStream, unfoldTeams, withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };
+const { fakeMcpRemote } = require('./fixtures/fake-mcp-remote');
+module.exports = { fakeMcpRemote, streamOf, followStream, unfoldTeams, withAlways, ALWAYS_TOOLS, boatShown, REAPED, IN_OWN_FOLDER, vaultSecret, hookCall, startServer, freePort, restartServer, readData, writeData, setJobs, setQueue, onceItem, runNowItem, feed, zip, makeBot, seedRuns, QUIET_RUN, BOT_TO_BOT_RUN, heldRun, self, sharedByBot, waitFor, sleep, serverDay, fakeDocker, fakeConnectedApp, connectorEnv, ROOT };

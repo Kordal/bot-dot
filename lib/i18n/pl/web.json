@@ -1927,5 +1927,14 @@
   "Current": "Teraz",
   "Can't play this here": "Tego tu nie da się odtworzyć",
   "Drawing a view…": "Rysuję widok…",
-  "{from} to {to}": "{from} – {to}"
+  "{from} to {to}": "{from} – {to}",
+  "No bot has it": "Żaden bot go nie ma",
+  "Your MCP servers": "Twoje serwery MCP",
+  "No key": "Bez klucza",
+  "No MCP servers yet. Add one below: a remote server whose address starts with https://.": "Nie ma jeszcze serwerów MCP. Dodaj jeden poniżej: zdalny serwer, którego adres zaczyna się od https://.",
+  "Your Chief of Staff suggested this one. Check the address, add its key if it needs one, then press Add.": "Twój Szef sztabu zaproponował ten serwer. Sprawdź adres, wpisz jego klucz, jeśli go potrzebuje, i naciśnij Dodaj.",
+  "Name, e.g. Linear": "Nazwa, np. Linear",
+  "Key, if it needs one": "Klucz, jeśli jest potrzebny",
+  "Remove {name}? Bots and your Chief of Staff lose its tools.": "Usunąć {name}? Boty i Szef sztabu stracą jego narzędzia.",
+  "Bots that have {name}": "Boty, które mają {name}"
 }
