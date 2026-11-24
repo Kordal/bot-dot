@@ -545,7 +545,8 @@ function wireChoices(root, send) {
 }
 // What the document page draws with.
 const docPageTools = () => ({ api, md, esc, toast, msgTime, mdBlocks, chiefName: chiefTitle, features: state.features, botName: (id) => botById(id)?.name });
-const copyBtn = (text) => `<button class="copy-btn" data-copy="${esc(text)}" title="${tr('Copy')}" aria-label="${tr('Copy')}">${ICON.copy}</button>`;
+// A reply with answer views is copied as text: each fence as its alt and the view written out, a table as a Markdown table.
+const copyBtn = (text) => `<button class="copy-btn" data-copy="${esc(typeof AnswerViews === 'object' ? AnswerViews.text(text) : text)}" title="${tr('Copy')}" aria-label="${tr('Copy')}">${ICON.copy}</button>`;
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; } catch { /* not a secure page: the old way */ }
   const t = Object.assign(document.createElement('textarea'), { value: text });
@@ -772,6 +773,8 @@ const MODE_INFO = {
 // by the rules both apps share (test/fixtures/markdown-cases.json), and mdHTML writes them with its own tags.
 // [botId]: a bot's reply, whose file paths open in the viewer (linkPaths, #251).
 function md(src, botId) {
+  // A reply with answer views (answer-view-draw.js): its ```ui fences drawn, the rest as ever.
+  if (typeof AnswerViews === 'object' && AnswerViews.has(src)) return AnswerViews.parts(src, { botId }).join('\n'); // the paths of its text are links, the views' own words are not
   const html = mdHTML(mdBlocks(src), botId);
   return botId ? linkPaths(html, botId) : html;
 }
@@ -954,6 +957,7 @@ function mdInline(t) {
 // line, and one of only a table or a rule its words (the `preview` cases of test/fixtures/markdown-cases.json;
 // previewLines in Android's Markdown.kt, the same rules). Its lines are escaped.
 function previewLines(src) {
+  if (typeof AnswerViews === 'object') src = AnswerViews.alt(src); // an answer view is its one-line alt (ADR 264)
   const blocks = mdBlocks(src);
   const flat = (t) => t.replace(/\s*\n\s*/g, ' ').trim();
   const lines = blocks.flatMap((b) => b.type === 'item' ? [`${b.number == null ? '•' : `${b.number}.`} ${flat(b.text)}`]
@@ -1212,6 +1216,7 @@ new MutationObserver((changes) => {
     if (!el) continue;
     linkifyChat(el);
     siteIcons(el);
+    if (typeof AnswerViews === 'object') AnswerViews.wire(el);
   }
 }).observe(document.getElementById('app'), { childList: true, subtree: true });
 // A reply's diagrams, wherever a reply, a tile or a skill is drawn: on the page and in its dialog (diagrams.js).
@@ -1227,7 +1232,9 @@ Diagrams.watch(document.getElementById('modal'));
 // its last block (drawDraftMd).
 const showsDrafts = () => state.features.includes('reply-draft');
 // The draft's bubble, or '' for none. alone: in a stack of its own, as a reply's bubble stands, for a row that has none.
-const draftMd = (text) => `<div class="md">${md(draftSource(text))}</div>`;
+// The top-level elements of a draft: an answer view's fence that is not closed yet waits whole, as "Drawing a view…".
+const draftViews = (text) => typeof AnswerViews === 'object' && AnswerViews.has(text);
+const draftMd = (text) => `<div class="md">${draftViews(text) ? AnswerViews.parts(text, { done: false }).join('\n') : md(draftSource(text))}</div>`;
 const draftHTML = (text, alone = false) => {
   const bubble = text ? `<div class="bubble from-bot draft">${draftMd(text)}</div>` : '';
   return bubble && alone ? `<div class="stack draft-stack">${bubble}</div>` : bubble;
@@ -1236,7 +1243,7 @@ const draftHTML = (text, alone = false) => {
 // selection in them is kept); those from the first one that changed on are drawn again. A box drawn from HTML
 // (draftHTML, a chat drawn again) is drawn whole once.
 function drawDraftMd(box, text) {
-  const parts = mdParts(mdBlocks(draftSource(text)));
+  const parts = draftViews(text) ? AnswerViews.parts(text, { done: false }) : mdParts(mdBlocks(draftSource(text)));
   if (!box._parts) { box.innerHTML = ''; box._parts = []; box._sizes = []; }
   let same = 0;
   while (same < box._parts.length && same < parts.length && box._parts[same] === parts[same]) same++;
@@ -1643,4 +1650,4 @@ function msgTime(iso) {
   return d.toDateString() === new Date().toDateString() ? time : `${d.toLocaleDateString(I18n.locale, { day: 'numeric', month: 'short' })}, ${time}`;
 }
 
-const plain = (t) => String(t || '').replace(/[#*_`>|\[\]()-]+/g, ' ').replace(/\s+/g, ' ').trim();
+const plain = (t) => String(typeof AnswerViews === 'object' ? AnswerViews.alt(String(t || '')) : t || '').replace(/[#*_`>|\[\]()-]+/g, ' ').replace(/\s+/g, ' ').trim();

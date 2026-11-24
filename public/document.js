@@ -160,7 +160,8 @@ async function show(hash, g) {
     e.preventDefault();
     document.getElementById(a.dataset.sec)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  wire(page, { title, text: doc.text }, g);
+  if (typeof AnswerViews === 'object') AnswerViews.wire(page); // the tooltips of its charts (the document is drawn outside the app)
+  wire(page, { title, text: typeof AnswerViews === 'object' ? AnswerViews.text(doc.text) : doc.text }, g); // copied and exported as text: its answer views as their alt and tables
 }
 
 function wire(page, doc, g) {
